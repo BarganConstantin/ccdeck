@@ -142,7 +142,11 @@ describe("the wiring", () => {
   const detail = sourceOf("components/DetailAside.tsx");
 
   it("arms each panel's hand-off on the close that panel draws", () => {
-    expect(app).toMatch(/onClose=\{\(\) => \{ panelReturn\.accounts\(\); closeAccountsPanel\(\); \}\}/);
+    // Both sides of the one Accounts panel close through closeAccounts, which
+    // arms the hand-off of the side the deck has (Claude's, else Codex's).
+    expect(app).toContain("const closeAccounts = () => { (providers.claude ? panelReturn.accounts : panelReturn.codex)(); closeAccountsPanel(); };");
+    expect(app).toMatch(/<AccountsPanel[^>]*onClose=\{closeAccounts\}/);
+    expect(app).toMatch(/<CodexAccountsPanel[^>]*onClose=\{closeAccounts\}/);
     expect(app).toMatch(/onClose=\{\(\) => \{ panelReturn\.sessionList\(\); closeSessionList\(\); \}\}/);
     expect(app).toMatch(/onClose=\{\(\) => \{ panelReturn\.usage\(\); setUsagePanelOpen\(false\); \}\}/);
     expect(app).toMatch(/onClose=\{\(\) => \{ panelReturn\.machine\(\); setMachinePanelOpen\(false\); \}\}/);
@@ -154,9 +158,10 @@ describe("the wiring", () => {
     // The two left panels animate out of the left column since 2026-10-08 and
     // are drawn by `sessionListDrawn` and `accountsDrawn` (panel-exit.ts,
     // isDrawn), which is what their hand-offs read too.
-    expect(app).toMatch(/const panelReturn = usePanelReturn\(\{\s*sessionListShown: sessionListDrawn, usageShown: isMounted\(usagePhase\), machineShown: isMounted\(machinePhase\),\s*accountsShown: accountsDrawn, detailShown, primarySelectedId, canvasRef,\s*\}\);/);
+    expect(app).toMatch(/const panelReturn = usePanelReturn\(\{\s*sessionListShown: sessionListDrawn, usageShown: isMounted\(usagePhase\), machineShown: isMounted\(machinePhase\),\s*accountsShown: accountsDrawn && providers.claude, codexShown: accountsDrawn && !providers.claude, detailShown, primarySelectedId, canvasRef,\s*\}\);/);
     expect(app).toMatch(/\{sessionListDrawn && \(\s*<SessionList/);
-    expect(app).toMatch(/\{accountsDrawn && \(\s*<AccountsPanel/);
+    expect(app).toMatch(/\{accountsDrawn && \(shownAccountProvider === "claude" \|\| accountSide\.bothMounted\) && \(\s*<AccountsPanel/);
+    expect(app).toMatch(/\{accountsDrawn && \(shownAccountProvider === "codex" \|\| accountSide\.bothMounted\) && \(\s*<CodexAccountsPanel/);
   });
 
   it("hands the chrome its four toggles' refs, and every placement puts them on the button", () => {

@@ -98,6 +98,8 @@ const catalog: Catalog = {
   "usage.credits.codexTitle": "請在 Codex CLI 或 ChatGPT 中兌換——{product} 只負責顯示",
   "usage.sessionNote": "{noun}有活動的工作階段，以及 ccusage 為每個工作階段記下的內容。",
   "usage.sessionNote.over": "它們合計 {sum}，高於上方的 {total}：一個工作階段的花費與一天的花費是兩種不同的度量，不一定相符。",
+  "usage.quota.standardLimits": "僅包含 Codex 的標準額度，不含額外額度與點數。",
+  "usage.quota.hint.codexProfileChanged": "Codex 登入剛剛變更，一分鐘內會重新讀取。",
 };
 
 export default catalog;

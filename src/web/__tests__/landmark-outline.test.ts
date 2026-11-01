@@ -201,9 +201,11 @@ describe("the deck's five regions are five landmarks (#381)", () => {
       // What follows the label is not the rotor's: the accounts panel listens
       // for focus on the whole column (#1497), and handlers render nothing;
       // Usage spreads the place its header moves it to (panel-place.ts), a
-      // ref, a data attribute and a style.
+      // ref, a data attribute and a style. The accounts panel also says which
+      // side of the Claude/Codex switch it is (hidden, data-side): the hidden
+      // side stays mounted but leaves the tree.
       expect(code(source(file)), file)
-        .toMatch(new RegExp(`<aside className=${className} id="${cls}" aria-label=${label}(?:\\s+on[A-Z]\\w*=\\{[\\w.]+\\}|\\s+\\{\\.\\.\\.place\\.panel\\})*>`));
+        .toMatch(new RegExp(`<aside className=${className} id="${cls}" aria-label=${label}(?:\\s+on[A-Z]\\w*=\\{[\\w.]+\\}|\\s+\\{\\.\\.\\.place\\.panel\\}|\\s+hidden=\\{side === "hidden"\\}|\\s+data-side=\\{side\\})*>`));
     }
     // The detail panel was already an <aside> and was the unnamed one. Its
     // frame is components/DetailAside.tsx, which App.tsx mounts.
@@ -327,8 +329,10 @@ describe("the heading outline starts at level 1 and skips nothing (#381)", () =>
   it("heads every persistent region with an <h2>", () => {
     expect(code(usage)).toMatch(/<h2>\{t\("usage\.title"\)\}<\/h2>/);
     // `Claude accounts`, and the same string as the landmark name below: this
-    // panel holds Claude logins only, on a deck that also draws Codex.
-    expect(code(accountsHeader)).toMatch(/<h2>\{t\("accounts\.header\.title"\)\}<\/h2>/);
+    // side holds Claude logins only, on a deck that also draws Codex. With the
+    // Claude/Codex switch in the header the <h2> stays for the outline and is
+    // visually hidden (the switch is the title).
+    expect(code(accountsHeader)).toMatch(/<h2 className=\{switcher \? "vis-hidden" : undefined\}>\{t\("accounts\.header\.title"\)\}<\/h2>/);
     expect(code(sessions)).toMatch(/<h2>\{t\("board\.list\.title"\)\} <span className="sl-count">/);
     // The detail panel has one state left. It used to draw a second one — a
     // "Detail" h2 over "Click an agent to see its tools" and a shortcut list —
@@ -385,6 +389,7 @@ describe("the heading outline starts at level 1 and skips nothing (#381)", () =>
       // Weekly resets is an h3 within Account capacity; its day groups are h4.
       "components/AccountResetCalendar.tsx",
       "components/AddAccountDialog.tsx",
+      "components/AddCodexAccountDialog.tsx",
       // Browser Watch's sections, lifted out of BrowserWatchModal.tsx and still
       // rendered inside its dialog: their <h4>s are the dialog's, and the
       // dialog's own file has none left.

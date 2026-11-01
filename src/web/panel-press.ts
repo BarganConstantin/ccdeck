@@ -189,7 +189,7 @@ export function armedPress<T>(
  */
 export function rescueSelectors(row: number | null): string[] {
   const chain = row == null ? [] : [`#ap-more-${row}`];
-  return [...chain, ".accounts-panel .ap-refresh"];
+  return [...chain, "#accounts-panel .ap-refresh"];
 }
 
 /**

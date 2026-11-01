@@ -17,7 +17,7 @@
 import { WarnGlyph } from "./AccountIssuePopover";
 import AccountTelemetry from "./AccountTelemetry";
 import AccountHint from "./AccountHint";
-import { accountIssue } from "../account-issue";
+import { accountIssue, type AccountIssue } from "../account-issue";
 import { agoLabel as ago, dueLabel as due } from "../accounts-time";
 import { laneLabel } from "../lane-label";
 import { useT } from "../i18n";
@@ -41,7 +41,7 @@ function fullness(pct: number): "mid" | "hi" | undefined {
   return pct >= 90 ? "hi" : pct >= 70 ? "mid" : undefined;
 }
 
-function LaneBar({ lane, nowSec, readAt, frozen, sortedBy }: {
+export function LaneBar({ lane, nowSec, readAt, frozen, sortedBy }: {
   lane: Lane; nowSec: number; readAt: number | null; frozen?: boolean; sortedBy?: boolean;
 }) {
   const t = useT();
@@ -91,9 +91,44 @@ function LaneBar({ lane, nowSec, readAt, frozen, sortedBy }: {
   );
 }
 
+/**
+ * WHAT A ROW SAYS THAT BELONGS TO ITS PROVIDER. Codex's accounts are drawn by
+ * this same row, so the two columns cannot drift apart, and these are the only
+ * things that differ: who reads the numbers, and what a switch does to the
+ * sessions already running. The prefix goes before every id the row gives out,
+ * because both columns can be open at once and an anchor found by id would
+ * otherwise be the other column's.
+ */
+export interface RowVoice {
+  idPrefix: string;
+  /** The live dot's title, and what a screen reader is told in its place. */
+  liveTitle?: (num: number) => string;
+  liveSpoken?: (num: number) => string;
+  /** A shut row's age, on hover. */
+  readBy?: string;
+  /** The open row's age, on hover: who reads it and how often. */
+  readPlan?: string;
+  /** Over "never collected" on an open row. */
+  neverRead?: string;
+  /** Said on the row a switch landed on. */
+  switched?: string;
+  /** Said instead of "no usage recorded yet" while a first read is out. Claude's
+   *  roster arrives with its numbers, so it never has this moment. */
+  waiting?: string;
+}
+
+/** Claude's row says everything in the catalog (`accounts.row.*`); only what a
+ *  provider sets here replaces it. */
+export const CLAUDE_VOICE: RowVoice = { idPrefix: "" };
+
 interface Props {
   a: Account;
   nowSec: number;
+  /** Absent for Claude, whose words are the default. */
+  voice?: RowVoice;
+  /** What is wrong with this account, for a provider whose trouble is not
+   *  claude-swap's. Null is nothing wrong; absent, the row works it out. */
+  issueOverride?: AccountIssue | null;
   /** Whether a paired deck can restore this account and which decks share it. */
   lan?: {
     noCopyWorksNearby?: boolean; sharedTo?: readonly string[] | null; sharedInUse?: boolean;
@@ -138,11 +173,12 @@ interface Props {
 }
 
 export default function AccountRow({
-  a, nowSec, lan, opened, onToggleLanes, busy, pressProps, onSwitch, menuOpen, onOpenMenu, onCloseMenu,
+  a, nowSec, voice = CLAUDE_VOICE, issueOverride, lan, opened, onToggleLanes, busy, pressProps, onSwitch, menuOpen, onOpenMenu, onCloseMenu,
   refusal, onDismissRefusal, onSignIn, switchedHere, swapped, displaced, issueExpanded, onOpenIssue, sortKey = null, home = null,
   rotating = false, telemetryBoundaryId,
 }: Props) {
   const t = useT();
+  const ids = voice.idPrefix;
   // The windows that have not reset since they were read: the only ones whose
   // numbers say anything about this window (lane-view.ts's lapsed).
   const live = a.lanes.filter(l => !lapsed(l, nowSec));
@@ -157,7 +193,7 @@ export default function AccountRow({
   const keyLane = sortKey === "room"
     ? live.reduce<Lane | null>((x, l) => (x && x.pct >= l.pct ? x : l), null)
     : sortKey ? a.lanes.find(l => laneName(l) === sortKey) ?? null : null;
-  const issue = accountIssue(a, nowSec, lan, t);
+  const issue = issueOverride !== undefined ? issueOverride : accountIssue(a, nowSec, lan, t);
   // THE ACTIVE ROW IS OPEN, AND EVERY OTHER ROW IS SHUT UNTIL ASKED.
   // The live account is the one whose windows are being spent, so
   // its bars, resets and freshness are the reading this column is
@@ -182,7 +218,7 @@ export default function AccountRow({
   // Every row says only the age; whose read it was waits in its tooltip.
   const ageTitle = a.sharedFrom
     ? t("accounts.row.readOn", { from: a.sharedFrom })
-    : t("accounts.row.lastRead");
+    : voice.readBy ?? t("accounts.row.lastRead");
   // What the account's organization sends, when the deck has seen it — said
   // before a switch, because Claude Code applies it without asking in its
   // non-interactive surfaces. See org-telemetry.ts.
@@ -205,16 +241,16 @@ export default function AccountRow({
           email in its description when the name it is called by is the
           alias. */}
       {!a.active && (
-        <button type="button" className="ap-row-open" id={`ap-row-${a.num}`}
+        <button type="button" className="ap-row-open" id={`ap-${ids}row-${a.num}`}
           title={identity}
           aria-expanded={open}
-          aria-controls={open ? `ap-detail-${a.num}` : undefined}
+          aria-controls={open ? `ap-${ids}detail-${a.num}` : undefined}
           aria-describedby={[
-            a.alias && a.email ? `ap-email-${a.num}` : null,
-            home ? `ap-home-${a.num}` : null,
-            lan?.sharedTo ? `ap-shared-${a.num}` : null,
-            !open && !issue?.blocksSwitch ? `ap-quota-${a.num}` : null,
-            telemetry ? `ap-telemetry-${a.num}` : null,
+            a.alias && a.email ? `ap-${ids}email-${a.num}` : null,
+            home ? `ap-${ids}home-${a.num}` : null,
+            lan?.sharedTo ? `ap-${ids}shared-${a.num}` : null,
+            !open && !issue?.blocksSwitch ? `ap-${ids}quota-${a.num}` : null,
+            telemetry ? `ap-${ids}telemetry-${a.num}` : null,
           ].filter(Boolean).join(" ") || undefined}
           onClick={() => onToggleLanes()}>
           <span className="vis-hidden">{t(open ? "accounts.row.hideDetails" : "accounts.row.showDetails", { name })}</span>
@@ -226,8 +262,8 @@ export default function AccountRow({
             live. The slot is still its name for the CLI, so it rides
             in the title and in what a screen reader is told. */}
         {a.active
-          ? <span className="ap-live" title={t("accounts.row.activeTitle", { n: a.num })}>
-              <span className="vis-hidden">{t("accounts.row.activeSr", { n: a.num })}</span>
+          ? <span className="ap-live" title={voice.liveTitle?.(a.num) ?? t("accounts.row.activeTitle", { n: a.num })}>
+              <span className="vis-hidden">{voice.liveSpoken?.(a.num) ?? t("accounts.row.activeSr", { n: a.num })}</span>
             </span>
           : <span className="ap-num">{a.num}</span>}
         {/* Both of these are clipped with an ellipsis so a long one
@@ -237,7 +273,7 @@ export default function AccountRow({
             over them and says the same in its own title; the email's
             id is what the door's description points at. */}
         {a.alias && <span className="ap-alias" title={a.alias}>{a.alias}</span>}
-        <span className="ap-email" id={`ap-email-${a.num}`} title={a.email ?? undefined}>{a.email}</span>
+        <span className="ap-email" id={`ap-${ids}email-${a.num}`} title={a.email ?? undefined}>{a.email}</span>
         {telemetry && <AccountTelemetry num={a.num} name={name} telemetry={telemetry} boundaryId={telemetryBoundaryId} />}
         {/* HOME: the account Auto-switch comes back to. A mark, like the
             shared one beside it, and set from the ⋯ rather than by another
@@ -245,7 +281,7 @@ export default function AccountRow({
             right now, and why, is its title. */}
         {home && (
           <AccountHint detail={home}>
-            <span className="ap-home" id={`ap-home-${a.num}`} title={home} role="img" aria-label={t("accounts.row.homeLabel")}>
+            <span className="ap-home" id={`ap-${ids}home-${a.num}`} title={home} role="img" aria-label={t("accounts.row.homeLabel")}>
               <svg width="12" height="12" viewBox="0 0 14 14" fill="none" stroke="currentColor"
                 strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
                 <path d="M2.2 6.6 7 2.6l4.8 4" />
@@ -267,7 +303,7 @@ export default function AccountRow({
             hears, on the row and in the door's description. */}
         {lan?.sharedTo && (
           <AccountHint detail={sharedLine(lan.sharedTo, lan.sharedInUse, t)}>
-            <span className="ap-shared" id={`ap-shared-${a.num}`} title={sharedLine(lan.sharedTo, lan.sharedInUse, t)} role="img" aria-label={t("accounts.row.sharingLabel")}>
+            <span className="ap-shared" id={`ap-${ids}shared-${a.num}`} title={sharedLine(lan.sharedTo, lan.sharedInUse, t)} role="img" aria-label={t("accounts.row.sharingLabel")}>
               <svg width="12" height="12" viewBox="0 0 14 14" fill="none" stroke="currentColor"
                 strokeWidth="1.3" strokeLinecap="round" aria-hidden>
                 <circle cx="10.5" cy="3.2" r="1.7" />
@@ -305,10 +341,10 @@ export default function AccountRow({
             pointer. The name carries the account, because a column of
             identical "More actions" is a column of buttons a screen
             reader cannot tell apart. */}
-        <button type="button" id={`ap-more-${a.num}`} className="ap-more"
+        <button type="button" id={`ap-${ids}more-${a.num}`} className="ap-more"
           aria-label={t("accounts.row.moreFor", { who: a.email ?? a.alias ?? t("accounts.accountNLower", { n: a.num }) })}
           aria-haspopup="menu" aria-expanded={menuOpen}
-          aria-controls={menuOpen ? `ap-menu-${a.num}` : undefined}
+          aria-controls={menuOpen ? `ap-${ids}menu-${a.num}` : undefined}
           title={t("accounts.row.more")}
           onClick={() => (menuOpen ? onCloseMenu() : onOpenMenu(a.num))}
           onKeyDown={e => {
@@ -350,9 +386,7 @@ export default function AccountRow({
         </div>
       )}
       {a.active && switchedHere && (
-        <p className="ap-switched">
-          {t("accounts.row.nowActive")}
-        </p>
+        <p className="ap-switched">{voice.switched ?? t("accounts.row.nowActive")}</p>
       )}
       {/* What the switch just turned on, said where the switch is answered: a
           switch somebody pressed raises no notification. */}
@@ -380,11 +414,11 @@ export default function AccountRow({
           column, so opening it moves no row. */}
       {issue && (
         <div className="ap-issue-line">
-          <button type="button" id={`ap-issue-${a.num}`} className="ap-issue" data-tone={issue.tone}
+          <button type="button" id={`ap-${ids}issue-${a.num}`} className="ap-issue" data-tone={issue.tone}
             aria-haspopup="dialog"
             aria-expanded={issueExpanded}
             aria-controls={issueExpanded ? "ap-issue-pop" : undefined}
-            onClick={() => onOpenIssue(a.num, `ap-issue-${a.num}`)}>
+            onClick={() => onOpenIssue(a.num, `ap-${ids}issue-${a.num}`)}>
             {issue.tone === "warn" && <WarnGlyph />}
             <span className="ap-issue-text">{issue.text}</span>
           </button>
@@ -395,7 +429,7 @@ export default function AccountRow({
           )}
           {/* How old the last reading is. On an open row the freshness
               line under the bars says it, so it is said once. */}
-          {!open && (
+          {!open && (age || !voice.waiting) && (
             <span className="ap-issue-age" title={ageTitle}>
               {age ?? t("accounts.row.ageNever")}
             </span>
@@ -410,7 +444,7 @@ export default function AccountRow({
           above is the answer, and last week's quota under it would
           read as this week's. */}
       {!open && !issue?.blocksSwitch && (
-        <p className="ap-quota" id={`ap-quota-${a.num}`}>
+        <p className="ap-quota" id={`ap-${ids}quota-${a.num}`}>
           {quick.length
             ? quick.map(l => (
                 <span key={l.id} className="ap-q" data-sort-key={l.id === keyLane?.id ? "" : undefined}>
@@ -424,7 +458,7 @@ export default function AccountRow({
                     : <span className="ap-q-pct" data-level={frozen ? undefined : fullness(l.pct)}>{Math.round(l.pct)}%</span>}
                 </span>
               ))
-            : <span className="ap-q-label">{t("accounts.row.noUsageLower")}</span>}
+            : <span className="ap-q-label">{voice.waiting ?? t("accounts.row.noUsageLower")}</span>}
           {a.stale && !issue && (
             <span className="ap-q-age" data-never={age ? undefined : ""} title={ageTitle}>
               {age ?? t("accounts.row.ageNever")}
@@ -438,11 +472,11 @@ export default function AccountRow({
           freshness that says whether these numbers are a decision's
           worth of evidence. */}
       {open && (
-        <div className="ap-detail" id={`ap-detail-${a.num}`}>
+        <div className="ap-detail" id={`ap-${ids}detail-${a.num}`}>
           <div className="ap-lanes">
             {a.lanes.length
               ? a.lanes.map(l => <LaneBar key={l.id} lane={l} nowSec={nowSec} readAt={a.fetchedAt} frozen={frozen} sortedBy={l.id === keyLane?.id} />)
-              : <div className="ap-hint">{t("accounts.row.noUsage")}</div>}
+              : <div className="ap-hint">{voice.waiting ?? t("accounts.row.noUsage")}</div>}
           </div>
           <div className="ap-meta">
             {a.fetchedAt
@@ -453,9 +487,9 @@ export default function AccountRow({
                   className={`ap-age${a.stale && !issue ? " ap-stale" : ""}`}
                   title={a.sharedFrom
                     ? t("accounts.row.readOnLong", { from: a.sharedFrom })
-                    : t("accounts.row.lastReadLong")}
+                    : voice.readPlan ?? t("accounts.row.lastReadLong")}
                 >{t("accounts.row.collected", { ago: ago(a.fetchedAt, nowSec, t) })}{issue?.blocksSwitch ? "" : due(a.nextAt, nowSec, t)}</span>
-              : <span className="ap-age ap-stale" title={t("accounts.row.notReadYet")}>{t("accounts.row.ageNever")}</span>}
+              : !voice.waiting && <span className="ap-age ap-stale" title={voice.neverRead ?? t("accounts.row.notReadYet")}>{t("accounts.row.ageNever")}</span>}
           </div>
         </div>
       )}

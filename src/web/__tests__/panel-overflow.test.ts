@@ -413,8 +413,8 @@ describe("the account alias in the accounts panel row", () => {
     // A title reaches neither a keyboard nor a screen reader (WCAG 1.4.13), and
     // the door is NAMED by the alias when there is one — so the email rides in
     // its description, pointed at by the id the email span carries.
-    expect(door).toMatch(/aria-describedby=\{\[\s*a\.alias && a\.email \? `ap-email-\$\{a\.num\}` : null,/);
-    expect(clientText()).toMatch(/<span className="ap-email" id=\{`ap-email-\$\{a\.num\}`\}/);
+    expect(door).toMatch(/aria-describedby=\{\[\s*a\.alias && a\.email \? `ap-\$\{ids\}email-\$\{a\.num\}` : null,/);
+    expect(clientText()).toMatch(/<span className="ap-email" id=\{`ap-\$\{ids\}email-\$\{a\.num\}`\}/);
   });
 
   it("carries the whole name in a title, because the row may be showing part of it", () => {
@@ -430,7 +430,7 @@ describe("the account alias in the accounts panel row", () => {
     // is 31.98px — about four characters and an ellipsis of a 55-character
     // address. Both spans carry their own whole value now.
     expect(clientText()).toMatch(/<span className="ap-alias" title=\{a\.alias\}>\{a\.alias\}<\/span>/);
-    expect(clientText()).toMatch(/<span className="ap-email" id=\{`ap-email-\$\{a\.num\}`\} title=\{a\.email \?\? undefined\}>\{a\.email\}<\/span>/);
+    expect(clientText()).toMatch(/<span className="ap-email" id=\{`ap-\$\{ids\}email-\$\{a\.num\}`\} title=\{a\.email \?\? undefined\}>\{a\.email\}<\/span>/);
     // And the org is not quietly promoted into the same attribute: two values
     // in one tooltip is how the identifier lost it in the first place.
     expect(accountsFeature).not.toMatch(/className="ap-email"[^>]*a\.org/);

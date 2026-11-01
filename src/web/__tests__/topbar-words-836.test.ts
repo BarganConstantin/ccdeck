@@ -56,7 +56,7 @@ const rails = railItems({
   setUsageHistoryOpen: noop, watchOn: false, watchUnseen: 0, setBrowserWatchOpen: noop,
   openSettings: noop, onFeedback: noop, toggles: { sessionList: ref(), usage: ref(), accounts: ref(), machine: ref() },
 });
-const left = renderToStaticMarkup(createElement(EdgeRail, { side: "left", label: "Left column", groups: [rails.left] }));
+const left = renderToStaticMarkup(createElement(EdgeRail, { side: "left", label: "Left column", groups: rails.leftStripe }));
 const right = renderToStaticMarkup(createElement(EdgeRail, { side: "right", label: "Right panels", groups: rails.right }));
 const corner = renderToStaticMarkup(createElement(UtilityRun, { items: rails.utilities }));
 const dock = renderToStaticMarkup(createElement(EdgeDock, {
@@ -115,6 +115,8 @@ describe("every control in the chrome says its name (#836)", () => {
 
   it("says a short word under each glyph in the phone's dock, and the rest by name behind More", () => {
     const words = buttons(dock).map(b => b.word);
+    // The dock keeps its five slots; one Accounts button covers both CLIs, so
+    // Codex has no door of its own behind More.
     expect(words).toEqual(["Accounts", "Sessions", "Usage", "Machine", "Settings", "More"]);
     expect(dock).toMatch(/aria-label="More: Usage history, Browser watch, not watching, Send feedback"/);
   });

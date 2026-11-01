@@ -15,8 +15,10 @@ import ToolAuditModal, { type ToolActivityView } from "./components/ToolAuditMod
 import UsagePanel from "./components/UsagePanel";
 import MachinePanel from "./components/MachinePanel";
 import AccountsPanel from "./components/AccountsPanel";
+import AccountsSwitch, { type AccountSide } from "./components/AccountsSwitch";
 import AccountCapacityDialog from "./components/AccountCapacityDialog";
 import type { CapacityView } from "./components/AccountsUsageReport";
+import CodexAccountsPanel from "./components/CodexAccountsPanel";
 import LeftColumn from "./components/LeftColumn";
 import { useDragTrash } from "./use-drag-trash";
 import { useBubbleAnimation } from "./use-bubble-animation";
@@ -65,6 +67,7 @@ import DeckBanner from "./components/DeckBanner";
 import DeckDialogs from "./components/DeckDialogs";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { usePauseGate } from "./use-pause-gate";
+import { panelId, useAccountSide } from "./use-account-side";
 import { useDeckScope } from "./use-deck-scope";
 import { useProviderStatus } from "./use-provider-status";
 import { incidentsOf } from "./provider-status";
@@ -239,12 +242,20 @@ function Inner() {
   // What this deck may see — its workspace scope and which CLIs it watches —
   // comes from /api/health, re-asked on every reconnect, in use-deck-scope.ts.
   const { workspace, providers, providersRef } = useDeckScope(live);
+  // One Accounts panel with a Claude/Codex switch, or the one CLI this deck has.
+  const accountSide = useAccountSide(providers, accountsPanelOpen);
+  const shownAccountProvider = accountSide.shown;
+  /** The doors that name a side: opened on it, moved to it if already open. */
+  const openAccountSide = (side: AccountSide) => {
+    accountSide.remember(side);
+    if (!accountsPanelOpen || shownAccountProvider === side) toggleAccountsPanel();
+  };
   /** How wide the left column is drawn: the open panel's own width, or 0 —
    *  never anything the two panels make between them (LeftColumn.tsx). The
-   *  accounts panel is Claude's alone, so without Claude Code it is no width. */
-  const leftColumnTarget = leftColumnWidth(leftPanel === "accounts" && !providers.claude ? null : leftPanel);
+   *  accounts panel has no width when neither provider is installed. */
+  const leftColumnTarget = leftColumnWidth(leftPanel === "accounts" && !(providers.claude || providers.codex) ? null : leftPanel);
   const columnSettleRef = useColumnSettle(leftColumnTarget);
-  const accountsDrawn = isDrawn(accountsPanelOpen, accountsPhase) && providers.claude;
+  const accountsDrawn = isDrawn(accountsPanelOpen, accountsPhase) && (providers.claude || providers.codex);
   // Settings › General's door to Local network (#2176), which is the accounts
   // panel's own view: the panel opened (use-left-column.ts), and the view
   // asked for. The panel shows it once its roster has arrived — the moment
@@ -252,10 +263,15 @@ function Inner() {
   // and is dropped if the panel is shut first, rather than springing the view
   // open on some later visit nobody asked it of.
   const [lanWanted, setLanWanted] = useState(false);
+  const rememberAccountSide = accountSide.remember;
+  // Settings' door names Claude's accounts where Claude Code is, so it opens that side.
+  const openAccounts = useCallback(() => { rememberAccountSide(providers.claude ? "claude" : "codex"); openAccountsPanel(); }, [openAccountsPanel, providers.claude, rememberAccountSide]);
+  // Local network is Claude's view, so it opens on Claude's side.
   const openLocalNetwork = useCallback(() => {
+    rememberAccountSide("claude");
     openAccountsPanel();
     setLanWanted(true);
-  }, [openAccountsPanel]);
+  }, [openAccountsPanel, rememberAccountSide]);
   useEffect(() => { if (!accountsPanelOpen) setLanWanted(false); }, [accountsPanelOpen]);
   const lanShown = useCallback(() => setLanWanted(false), []);
 
@@ -487,7 +503,8 @@ function Inner() {
   // about — use-panel-return.ts.
   const panelReturn = usePanelReturn({
     sessionListShown: sessionListDrawn, usageShown: isMounted(usagePhase), machineShown: isMounted(machinePhase),
-    accountsShown: accountsDrawn, detailShown, primarySelectedId, canvasRef,
+    // One rail button for both sides where Claude Code is; Codex's own only where it is all there is.
+    accountsShown: accountsDrawn && providers.claude, codexShown: accountsDrawn && !providers.claude, detailShown, primarySelectedId, canvasRef,
   });
 
   // What the floating panels cover of the canvas, and the frame the layout and
@@ -593,7 +610,8 @@ function Inner() {
     keyHelpOpenRef, modalOpenRef, waitingCursorRef, removeSelectedRef, activateSoundRef,
     // What the keys do.
     clearSelection, selectAgent, focusAgent, stepAgent, focusSession, requestClear,
-    handleRelayout, undoRearrange: rearrangeUndo.undo, handleFit, togglePause, toggleSessionList, toggleAccountsPanel,
+    handleRelayout, undoRearrange: rearrangeUndo.undo, handleFit, togglePause, toggleSessionList,
+    toggleAccountsPanel,
     setDetailOpen, setUsageHistoryOpen, setUsagePanelOpen, setMachinePanelOpen,
     setBrowserWatchOpen, setKeyHelpOpen, setTheme, openSettings, openIntegrationRef, openQuickOpen,
   });
@@ -661,7 +679,10 @@ function Inner() {
   const [capacityView, setCapacityView] = useState<CapacityView | null>(null);
   const closeCapacity = useCallback(() => setCapacityView(null), []);
   const rails = railItems({
-    providers, sessionListOpen, toggleSessionList, accountsPanelOpen, toggleAccountsPanel,
+    providers, sessionListOpen, toggleSessionList,
+    accountsPanelOpen, toggleAccountsPanel, accountsPanelId: panelId(shownAccountProvider),
+    codexPanelOpen: accountsPanelOpen && shownAccountProvider === "codex",
+    toggleCodexPanel: () => openAccountSide("codex"),
     usagePanelOpen, setUsagePanelOpen, machinePanelOpen, setMachinePanelOpen, setUsageHistoryOpen,
     watchOn, watchUnseen, setBrowserWatchOpen, setTrafficRadarOpen: dialogs.setTrafficRadarOpen, openSettings, onFeedback: dialogs.openFeedback,
     setRadioOpen,
@@ -688,6 +709,11 @@ function Inner() {
     if (!sessionListOpen) toggleSessionList();
     requestAnimationFrame(() => document.querySelector<HTMLElement>("#session-list .sl-row")?.focus());
   }, [sessionListOpen, toggleSessionList]);
+  const closeAccounts = () => { (providers.claude ? panelReturn.accounts : panelReturn.codex)(); closeAccountsPanel(); };
+  const accountsSwitch = accountSide.both
+    ? <AccountsSwitch shown={shownAccountProvider} notices={accountSide.notices} onPick={accountSide.pick} />
+    : undefined;
+  const sideState = (side: AccountSide) => accountSide.bothMounted ? (side === shownAccountProvider ? "shown" : "hidden") : undefined;
 
   return (
     <div className="app">
@@ -778,16 +804,18 @@ function Inner() {
           the two inside it — components/LeftColumn.tsx. */}
       {(sessionListDrawn || accountsDrawn) && (
         <LeftColumn width={leftColumnTarget}>
-          {/* Claude-only, and now conditional on Claude Code actually being here.
-              Every account in it is a Claude account, the store behind it is
-              claude-swap's, and both of its empty states end at `claude auth login`
-              — which on a Codex-only machine dead-ends at "the claude CLI could not
-              be run: not on PATH". The panel is also open by default, so that was
-              the first thing such a user saw. */}
-          {accountsDrawn && (
+          {/* One Accounts panel: with both CLIs a switch in its header shows
+              one side and keeps the other mounted (use-account-side.ts). */}
+          {accountsDrawn && (shownAccountProvider === "claude" || accountSide.bothMounted) && (
             <AccountsPanel leaving={isLeaving(accountsPanelOpen, accountsPhase)} onReport={dialogs.openFeedback}
-              onRoster={attention.observe} onClose={() => { panelReturn.accounts(); closeAccountsPanel(); }}
-              lanWanted={lanWanted} onLanShown={lanShown} />
+              onRoster={attention.observe} onClose={closeAccounts}
+              lanWanted={lanWanted} onLanShown={lanShown} switcher={accountsSwitch}
+              side={sideState("claude")} onNotice={accountSide.noteClaude} />
+          )}
+          {accountsDrawn && (shownAccountProvider === "codex" || accountSide.bothMounted) && (
+            <CodexAccountsPanel leaving={isLeaving(accountsPanelOpen, accountsPhase)}
+              onClose={closeAccounts} switcher={accountsSwitch}
+              side={sideState("codex")} onNotice={accountSide.noteCodex} />
           )}
           {sessionListDrawn && (
             <SessionList
@@ -912,7 +940,7 @@ function Inner() {
         upgrade={upgrade} lanPairs={lanPairs} attention={attention} clearFlow={clearFlow} watchBadge={watchBadge} announcements={announcements}
         appearance={appearance} providers={providers} stateRef={stateRef} agentCount={agentCount}
         menus={menus} sound={sound} tones={tones} customTones={customTones} notify={notify}
-        panelDoors={{ accounts: openAccountsPanel, localNetwork: openLocalNetwork }}
+        panelDoors={{ accounts: openAccounts, localNetwork: openLocalNetwork }}
       />
     </div>
   );

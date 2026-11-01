@@ -88,6 +88,9 @@ function codexHint(t: TFunction, reason?: string): string {
     // section says them: the API did answer, and ↻ is what the wait refuses.
     case "rate_limited":     return t("usage.quota.hint.rateLimitedOpenai");
     case "waiting":          return t("usage.quota.hint.waiting");
+    // Nothing is down: the login moved while it was being read, and the next
+    // read is of the new one.
+    case "profile_changed":  return t("usage.quota.hint.codexProfileChanged");
     default:                 return t("usage.quota.hint.codexUnreachable");
   }
 }
@@ -298,7 +301,7 @@ export function CodexQuotaSection({ codexQuota, codexLoading, nowSec, incident, 
           )}
           {codexQuota.partial && (
             <div className="up-quota-sub up-quota-hint">
-              {t("usage.quota.partial")}
+              {codexQuota.coverage === 'standard_limits' ? t("usage.quota.standardLimits") : t("usage.quota.partial")}
             </div>
           )}
         </div>

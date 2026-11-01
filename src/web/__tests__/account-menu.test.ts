@@ -64,12 +64,14 @@ describe("the row keeps its shape when its ⋯ is pressed", () => {
   });
 
   it("opens from a trigger that says what it opens, and for which account", () => {
-    const trigger = /<button type="button" id=\{`ap-more-\$\{a\.num\}`\}[\s\S]*?<\/button>/.exec(row)![0];
+    const trigger = /<button type="button" id=\{`ap-\$\{ids\}more-\$\{a\.num\}`\}[\s\S]*?<\/button>/.exec(row)![0];
     expect(trigger).toMatch(/aria-haspopup="menu"/);
+    // Claude's ids carry no prefix: the default voice's is empty.
+    expect(read("../components/AccountRow.tsx")).toMatch(/export const CLAUDE_VOICE: RowVoice = \{ idPrefix: "" \};/);
     // Whether this row's ⋯ is the open one, read once off the panel's menu.
     expect(clientText()).toMatch(/const menuOpen = menuFor === a\.num;/);
     expect(trigger).toMatch(/aria-expanded=\{menuOpen\}/);
-    expect(trigger).toMatch(/aria-controls=\{menuOpen \? `ap-menu-\$\{a\.num\}` : undefined\}/);
+    expect(trigger).toMatch(/aria-controls=\{menuOpen \? `ap-\$\{ids\}menu-\$\{a\.num\}` : undefined\}/);
     expect(trigger).toMatch(/title=\{t\("accounts\.row\.more"\)\}/);
     // The account in the name, from the account's own data.
     expect(trigger).toMatch(/aria-label=\{t\("accounts\.row\.moreFor", \{ who: a\.email \?\? a\.alias \?\? t\("accounts\.accountNLower", \{ n: a\.num \}\) \}\)\}/);

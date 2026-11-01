@@ -76,6 +76,13 @@ describe.skipIf(process.platform === "win32")("what the app reads from the login
     });
   });
 
+  it("preserves multiline profile JSON and marker text in paths", () => {
+    const homes = JSON.stringify(["/Users/u/work__CCDECK_ENV__profile", "/Users/u/personal"], null, 2);
+    const shell = shellEnv({ env: { SHELL: loginShell({ CCDECK_CODEX_HOMES: homes, PATH: "/usr/bin" }) }, platform: "darwin" });
+    expect(shell.CCDECK_CODEX_HOMES).toBe(homes);
+    expect(JSON.parse(shell.CCDECK_CODEX_HOMES)).toHaveLength(2);
+  });
+
   it("reaches the deck the app starts, beside what the app always gives it", async () => {
     const shell = shellEnv({ env: { SHELL: loginShell(profile), PATH: "/usr/bin:/bin" }, platform: "darwin" });
     // launchd's environment for a GUI app: no shell exports at all.

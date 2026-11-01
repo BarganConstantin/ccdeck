@@ -603,6 +603,9 @@ const catalog: Catalog = {
   "accounts.fail.login.claudeMissing": "claude CLI를 실행할 수 없습니다. PATH에 없습니다. AGENTS_DECK_CLAUDE를 전체 경로로 설정하세요.",
   "accounts.fail.login.cswapMissing": "cswap을 실행할 수 없습니다. PATH에 없고 uv와 pipx가 설치하는 위치에도 없습니다. AGENTS_DECK_CSWAP을 전체 경로로 설정하세요.",
   "accounts.fail.login.tookLong": "{what}이(가) 너무 오래 걸려 중지되었습니다",
+  "accounts.switch.label": "계정 표시 대상",
+  "accounts.switch.attention": "{name}, 확인 필요",
+  "accounts.switch.attentionTip": "현재 {name} 계정을 확인해야 합니다",
 };
 
 export default catalog;

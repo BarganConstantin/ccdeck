@@ -98,6 +98,8 @@ const catalog: Catalog = {
   "usage.credits.codexTitle": "Codex CLI または ChatGPT で使ってください。{product} は表示するだけです",
   "usage.sessionNote": "{noun}に動きのあったセッションと、ccusage が各セッションに計上した内容。",
   "usage.sessionNote.over": "合計は {sum} で、上の {total} より多くなっています。セッションの費用と一日の費用は別の計測のため、一致するとは限りません。",
+  "usage.quota.standardLimits": "Codex の標準の上限のみ。追加の上限とクレジットは含まれません。",
+  "usage.quota.hint.codexProfileChanged": "Codex のログインが変わりました。1分以内に再読み込みします。",
 };
 
 export default catalog;

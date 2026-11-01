@@ -80,10 +80,15 @@ describe("what a switch that took says (#827)", () => {
   });
 
   it("says what happens to sessions already running, as claude-swap does", () => {
+    // The row renders the voice's sentence...
     const said = /<p className="ap-switched">([\s\S]*?)<\/p>/.exec(row)?.[1].replace(/\s+/g, " ").trim() ?? "";
-    expect(said).toBe('{t("accounts.row.nowActive")}');
+    // A provider may say its own; Claude's voice, the default, sets none, so
+    // the catalog's words stand.
+    expect(said).toBe('{voice.switched ?? t("accounts.row.nowActive")}');
     expect(readFileSync(fileURLToPath(new URL("../i18n/areas/accounts/en.ts", import.meta.url)), "utf8"))
       .toContain("Now active. New sessions start on it; ones already running pick it up on their next message, up to about 30 seconds later on macOS.");
+    expect(row).toMatch(/voice = CLAUDE_VOICE/);
+    expect(row).toMatch(/export const CLAUDE_VOICE: RowVoice = \{ idPrefix: "" \};/);
   });
 
   it("announces it through a region that is there before it is needed", () => {

@@ -240,6 +240,7 @@ export function UsageReportBody({ accounts, nowSec, held, sort = null, onSort = 
             </Fragment>)}
             <SortHead col="status" label={t("accounts.rep.colStatus")} sort={sort} next={nextReportSort} onSort={onSort} />
             <SortHead col="updated" label={t("accounts.rep.colUpdated")} className="ap-report-upd-h" sort={sort} next={nextReportSort} onSort={onSort} />
+
           </tr>
         </thead>
         <tbody>

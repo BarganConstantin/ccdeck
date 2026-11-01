@@ -178,6 +178,7 @@ describe("the modals themselves", () => {
       // The Usage report, opened from the accounts panel's header (#1707).
       "AccountsUsageReport.tsx",
       "AddAccountDialog.tsx",
+      "AddCodexAccountDialog.tsx",
       // Browser Watch, named here for the same reason as the two below.
       "BrowserWatchModal.tsx",
       "ClearConfirm.tsx", "ContextModal.tsx",
