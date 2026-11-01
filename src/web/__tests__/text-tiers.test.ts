@@ -213,6 +213,10 @@ describe("what was migrated to the secondary tier", () => {
       // under the foreground so the canvas stays the loudest thing, and the
       // pointer lifts a chip to --text. Its floors are held in quiet-signals.
       ".cat-filter",
+      // CHANGED ON PURPOSE (V4 Inspector, Figma 22:15126): the Context body's section
+      // captions, "Cumulative usage · whole session" and the two after it: titles a
+      // reader reads to know which numbers follow, no longer 11px uppercase --muted.
+      ".ctx-section-title",
       ".detail-recap",
       // The trash zone's hint while a card is over it, "The session list (L)
       // brings it back": the one sentence that says the removal can be
@@ -244,6 +248,10 @@ describe("what was migrated to the secondary tier", () => {
       // provider's own words below it, which then step down to --muted. And
       // (V4's field: the shared search field's placeholder left for --muted.)
       ".ig-failure-body, .ig-failure-said",
+      // CHANGED ON PURPOSE (V4 Inspector, Figma 22:15126 and 22:15467): the Time tab's
+      // line over the turn's bar, "93% of this turn was waiting on you": the one sentence
+      // that says what the bar is, read to understand it.
+      ".insp-time-share",
       // The Jira panel's sentences: a note over the board (no active sprint,
       // the first 600 shown), a sprint's goal, the empty board's explanation,
       // and a quote inside an issue. Why a read failed is the integrations'

@@ -103,7 +103,7 @@ export const KEY_HELP: readonly KeyHelpGroup[] = [
       // R or the stack's button alike. A chord, so it stays on the sheet with
       // the single-key shortcuts off, where the button still re-arranges.
       { cap: "Ctrl + Z", macCap: "⌘ Z", action: "undo a re-arrange, while the canvas offers it", binds: ["z", "Z"], chord: true },
-      { cap: "C", action: "clear the canvas and the event log — asks first", binds: ["c", "C"] },
+      { cap: "C", action: "clear the deck and the event log — asks first", binds: ["c", "C"] },
     ],
   },
   {

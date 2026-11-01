@@ -37,13 +37,17 @@
   transition: color 120ms, transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
 }
 .ctx-modal-close:hover { color: var(--text); }
-.ctx-window-row { margin-bottom: 16px; }
+/* THE BODY (V4; the Inspector's Context tab and the modal both): a column with 12
+   between its blocks. The window block keeps 6 between its meter and the line
+   under it; each section is a 20px caption over 20px rows, label left, value
+   right, and nothing between the rows. */
+.ctx-view { display: flex; flex-direction: column; gap: 12px; }
+.ctx-window-row { display: flex; flex-direction: column; gap: 6px; }
 .ctx-window-bar {
   position: relative;
-  height: 10px;
-  border-radius: 999px;
-  background: var(--bg-soft);
-  border: 1px solid var(--line);
+  height: 6px;
+  border-radius: 3px;
+  background: var(--ctl-fill);
   overflow: hidden;
 }
 /* Full width and scaled from the left, like the quota fills (#863). Flat
@@ -53,47 +57,58 @@
 .ctx-window-fill {
   position: absolute;
   inset: 0;
+  border-radius: 3px;
   background: var(--accent);
   transform-origin: left center;
   transition: transform 400ms ease;
 }
+/* The line under the meter in the panel. The modal says it in its header and
+   keeps the percent and the count below instead. */
+.ctx-window-note {
+  margin: 0;
+  font-size: calc(12px + var(--ui-text-increase, 0px));
+  line-height: 16px;
+  color: var(--muted);
+}
 .ctx-window-meta {
   display: flex; justify-content: space-between;
-  font-size: calc(11px + var(--ui-text-increase, 0px)); margin-top: 6px;
+  font-size: calc(11px + var(--ui-text-increase, 0px));
   font-family: var(--font-mono);
   color: var(--muted);
 }
 .ctx-window-pct { color: var(--text); font-weight: 600; }
 .ctx-section-title {
-  font-size: calc(11px + var(--ui-text-increase, 0px));
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: var(--muted);
-  margin: 18px 0 8px;
+  display: flex;
+  align-items: center;
+  height: 20px;
+  margin: 0;
+  font-size: calc(12px + var(--ui-text-increase, 0px));
+  line-height: 16px;
+  color: var(--text-secondary);
   font-weight: 600;
 }
-.ctx-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 4px 16px;
-}
+.ctx-grid { display: flex; flex-direction: column; }
 .ctx-row {
   display: flex;
+  align-items: center;
   justify-content: space-between;
-  padding: 4px 0;
+  gap: 12px;
+  height: 20px;
   font-size: calc(12px + var(--ui-text-increase, 0px));
-  border-bottom: 1px dashed var(--line);
+  line-height: 16px;
 }
-.ctx-row.accent .ctx-row-val { color: var(--accent); font-weight: 600; }
-.ctx-row-label { color: var(--muted); }
+.ctx-row-label { color: var(--muted); font-weight: 400; }
 .ctx-row-val {
   font-family: var(--font-mono);
+  font-weight: 400;
+  color: var(--text);
   font-variant-numeric: tabular-nums;
 }
 .ctx-empty {
   font-size: calc(12px + var(--ui-text-increase, 0px));
+  line-height: 16px;
   color: var(--muted);
-  padding: 8px 0;
+  padding: 2px 0;
 }
 .ctx-md-list {
   list-style: none;
@@ -105,9 +120,9 @@
   justify-content: space-between;
   align-items: center;
   gap: 12px;
-  padding: 6px 0;
-  border-bottom: 1px dashed var(--line);
+  height: 20px;
   font-size: calc(12px + var(--ui-text-increase, 0px));
+  line-height: 16px;
 }
 /* Deliberately no `direction: rtl`. It used to buy a left-side ellipsis so the
    end of the path survived, but an RTL paragraph leaves the leading '/' of a
@@ -118,13 +133,16 @@
    truncatePathStart() instead; the ellipsis here is only the backstop for a
    modal narrower than the character budget. */
 .ctx-md-path {
+  min-width: 0;
+  color: var(--muted);
   font-family: var(--font-mono);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 .ctx-md-size {
-  color: var(--muted);
+  font-family: var(--font-mono);
+  color: var(--text);
   font-variant-numeric: tabular-nums;
   flex-shrink: 0;
 }
@@ -229,13 +247,14 @@
    It does not replace the state word above it and must not read as if it did —
    a permission prompt lands on a session that is still live, an idle prompt on
    one that has finished, and both facts stay on the card.
-   The SENTENCE is what separates the two chores, and it is CC's own; the hue
-   reinforces it, the 1.4.1 argument the three state pills already make. Both
-   hues are the sheet's: --warn is how this app says "this one is on you",
-   --accent how it says "for information". No wash under either — 8% of --warn
-   over the node's lower stop puts its own text at 4.47:1, a third of a point
-   under AA, so the words sit straight on the gradient where control-edges
-   already holds both tokens to 4.5:1 at both stops in both themes. */
+   The SENTENCE is what separates the two chores, and it is CC's own; the
+   pulse against the still dot is the second mark (isAlarming decides it, and
+   sound and notifications with it). The hue is one: --warn, how this app
+   says "this one is on you", on every waiting card whichever kind (V4
+   decision 22, one Waiting colour). No wash under it — 8% of --warn over the
+   node's lower stop puts its own text at 4.47:1, a third of a point under
+   AA, so the words sit straight on the gradient where control-edges already
+   holds the token to 4.5:1 at both stops in both themes. */
 .agent-node .waiting-row {
   display: flex;
   align-items: center;
@@ -249,11 +268,8 @@
   white-space: nowrap;
   overflow: hidden;
   min-width: 0;
+  color: var(--warn);
 }
-.agent-node .waiting-row.permission { color: var(--warn); }
-/* An idle prompt keeps the accent, as before: a finished turn is information,
-   not the alarm Figma's --warn ask line is. */
-.agent-node .waiting-row.idle { color: var(--accent); }
 /* The sentence yields first — the duration beside it is the number that decides
    whether the user gets up, and the whole sentence is on the tooltip anyway. */
 .agent-node .waiting-said {

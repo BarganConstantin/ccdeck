@@ -681,9 +681,9 @@ describe("the version chip's drift branch says what drifted (#381)", () => {
 
   it("says which way the drift goes, in both kinds", () => {
     expect(versionNoticeLabel({ kind: "upgrade", from: "1.35.2", to: "1.36.0", open: false }))
-      .toBe("Version v1.35.2, v1.36.0 is available on npm — show what's new and the notice");
+      .toBe("1.36.0 is ready. Running v1.35.2; v1.36.0 is available on npm — show what's new and the notice");
     expect(versionNoticeLabel({ kind: "restart", from: "1.35.2", to: "1.36.0", open: false }))
-      .toBe("Version v1.35.2, v1.36.0 is installed and waiting for a restart — show what's new and the notice");
+      .toBe("1.36.0 is ready. Running v1.35.2; v1.36.0 is installed and waiting for a restart — show what's new and the notice");
   });
 
   it("describes the next click rather than the current state", () => {
@@ -712,11 +712,13 @@ describe("the version chip's drift branch says what drifted (#381)", () => {
   });
 
   it("carries the visible text inside the accessible name (2.5.3)", () => {
-    // The chip reads `v1.35.2` on screen; a name that did not contain that
-    // string would leave a voice-control user with nothing to say.
+    // The chip reads `1.36.0 is ready` on screen (V4); a name that did not
+    // contain that string would leave a voice-control user with nothing to say.
+    // The running version stays in the name, after it.
     for (const open of [true, false]) {
-      expect(versionNoticeLabel({ kind: "upgrade", from: "1.35.2", to: "1.36.0", open }))
-        .toContain("v1.35.2");
+      const name = versionNoticeLabel({ kind: "upgrade", from: "1.35.2", to: "1.36.0", open });
+      expect(name).toContain("1.36.0 is ready");
+      expect(name).toContain("v1.35.2");
     }
   });
 });
