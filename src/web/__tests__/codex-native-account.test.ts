@@ -128,7 +128,7 @@ describe('native Codex account adapter (synthetic children only)', () => {
       const options = { ...f.options, stat, includeQuota: true, force: true };
       expect(await readNativeCodexAccount(home, options)).toMatchObject({ ok: true });
       await swap();
-      await settleMovedLogin(home, { stat });
+      await settleMovedLogin(home, { stat, realpath: f.options.realpath });
       expect(await readNativeCodexAccount(home, options)).toMatchObject({ ok: true, stale: true, windows: [{ usedPercent: 130 }, { usedPercent: 22 }] });
       expect(usageReads(f)).toBe(1);
     }));
@@ -143,7 +143,7 @@ describe('native Codex account adapter (synthetic children only)', () => {
       expect(await readNativeCodexAccount(home, options)).toMatchObject({ ok: true, label: 'person@example.com' });
       await swap();
       email = 'other@example.com';
-      await forgetCodexReadings(home);
+      await forgetCodexReadings(home, { realpath: f.options.realpath });
       expect(await readNativeCodexAccount(home, options)).toMatchObject({ ok: true, label: 'other@example.com', windows: [{ usedPercent: 130 }, { usedPercent: 22 }] });
       expect(usageReads(f)).toBe(2);
     }));
@@ -167,7 +167,7 @@ describe('native Codex account adapter (synthetic children only)', () => {
       expect(await readNativeCodexAccount(home, options)).toMatchObject({ ok: false });
       await swap();
       expired = false;
-      await settleMovedLogin(home, { stat });
+      await settleMovedLogin(home, { stat, realpath: f.options.realpath });
       expect(await readNativeCodexAccount(home, options)).toMatchObject({ ok: true, windows: [{ usedPercent: 130 }, { usedPercent: 22 }] });
       expect(usageReads(f)).toBe(2);
     }));
