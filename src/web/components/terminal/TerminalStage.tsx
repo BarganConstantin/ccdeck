@@ -25,7 +25,7 @@
 // [data-terminal-panel], which only the terminal's own host carries
 // (StageBody) — the header and the keys bar are where focus lands when the
 // keys go back to the board, and from there j, k and n are the board's.
-import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type RefObject } from "react";
 import type { LaunchOptions, SessionRef, TerminalProvider } from "../../terminal-api";
 import { terminalTheme } from "../../terminal-palette";
 import { releaseChordLabel } from "../../terminal-keys";
@@ -182,6 +182,9 @@ export interface TerminalStageProps {
   /** The keys bar's height as drawn, in whole pixels rounded up, once and on
    *  every change: the geometry fits the rows above it (stage-geometry.ts). */
   onBarH?(height: number): void;
+  /** The pane header's height as drawn, said the same way: V4's header is
+   *  `--pane-head-h` (36 at Compact, 44 above), and the rows are fitted below it. */
+  onHeadH?(height: number): void;
   onLaunched?(launched: LaunchedSession): void;
   /** Start the launch on the stage again, in the same folder with the same
    *  options: its agent exited before the board had its session (endView). */
@@ -241,6 +244,30 @@ export function endView(
     return { sentence: "Another view took this pane over — the session keeps running.", action: "Attach again", onAction: act.attachAgain };
   }
   return null;
+}
+
+/**
+ * Says how tall the stage drew one of its parts, once it is drawn and again
+ * whenever its size changes. Rounded up, so no fraction of a row stays
+ * covered; to the hundredth first, so layout's own noise on an exact height
+ * is not a pixel more. A part not laid out (0px) says nothing: the rows keep
+ * the last height that was drawn rather than run under the part.
+ */
+function useDrawnHeight(rootRef: RefObject<HTMLElement>, selector: string, onHeight: ((height: number) => void) | undefined): void {
+  const say = useRef(onHeight);
+  say.current = onHeight;
+  useEffect(() => {
+    const part = rootRef.current?.querySelector<HTMLElement>(selector);
+    if (!part || typeof ResizeObserver === "undefined") return;
+    const measure = () => {
+      const h = Math.ceil(Math.round(part.getBoundingClientRect().height * 100) / 100);
+      if (h > 0) say.current?.(h);
+    };
+    measure();
+    const watch = new ResizeObserver(measure);
+    watch.observe(part);
+    return () => watch.disconnect();
+  }, [rootRef, selector]);
 }
 
 export default function TerminalStage(p: TerminalStageProps) {
@@ -339,20 +366,11 @@ export default function TerminalStage(p: TerminalStageProps) {
   const rootRef = useRef<HTMLElement>(null);
   // The keys bar's height goes up as it is drawn: the first-run line wraps to
   // a third line on the narrowest screens and grows the bar, and rows fitted
-  // to its 36px left the last one under it. Rounded up, so no fraction of a
-  // row stays covered; to the hundredth first, so layout's own noise on an
-  // exact 36px is not a pixel more.
-  const onBarH = useRef(p.onBarH);
-  onBarH.current = p.onBarH;
-  useEffect(() => {
-    const bar = rootRef.current?.querySelector<HTMLElement>(".ts-bar");
-    if (!bar || typeof ResizeObserver === "undefined") return;
-    const say = () => onBarH.current?.(Math.ceil(Math.round(bar.getBoundingClientRect().height * 100) / 100));
-    say();
-    const watch = new ResizeObserver(say);
-    watch.observe(bar);
-    return () => watch.disconnect();
-  }, []);
+  // to its nominal height left the last one under it. The header's goes up
+  // the same way: V4's header is one row at `--pane-head-h`, which the density
+  // changes, so the rows are fitted to the height it was drawn at.
+  useDrawnHeight(rootRef, ".ts-bar", p.onBarH);
+  useDrawnHeight(rootRef, ".ts-head", p.onHeadH);
   // The session hook's snapshot is the shown subject's only once it has said
   // so: in the render that moves the stage, it is still the last one's, and
   // a request met on that pane, or answered by its card, would be spent on a
@@ -394,7 +412,6 @@ export default function TerminalStage(p: TerminalStageProps) {
   const style = {
     "--session-hue": p.show.kind === "session" ? p.show.session.hue : p.show.kind === "launch" ? p.show.hue : 200,
     "--ts-term-top": `${p.geometry.termTop}px`,
-    "--ts-head-h": `${p.geometry.headH}px`,
   } as CSSProperties;
 
   return (
@@ -430,8 +447,6 @@ export default function TerminalStage(p: TerminalStageProps) {
         identity={key}
         name={name}
         provider={p.show.kind === "session" ? p.show.session.ref.provider : p.show.kind === "launch" ? p.show.agent : null}
-        model={p.show.kind === "session" ? p.show.session.model : null}
-        effort={p.show.kind === "session" ? p.show.session.effort : null}
         status={status}
         keysOwner={session.keysOwner}
         chordLabel={chordLabel}

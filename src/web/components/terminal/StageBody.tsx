@@ -7,12 +7,16 @@
 // would take the one terminal with it, and the next session would boot a new
 // one into an empty box.
 //
-// EVERY CARD STARTS WHERE THE TERMINAL'S FIRST LINE WOULD (v3): 24px in, at the
-// grid's own top, so the eye does not move between "the session" and "why the
-// session is not here". A card is a few mono context lines, at most one
-// sentence of 60 characters a line, and its actions. Never an empty black box,
-// and never a spinner: attaching shows the last line the board knew, with a
-// hairline under the header once the wait passes 300ms.
+// EVERY CARD IS CENTRED IN THE PANE (V4). In v3 a card started where the
+// terminal's first line would, 24px in at the grid's own top, so the eye did
+// not move between "the session" and "why the session is not here". Figma V4's
+// "Term pane · stage states" sets each card in the middle of the pane instead,
+// a column centred both ways: a mono context line, a title where the card has
+// one, at most one sentence of 60 characters a line, and its actions, 10px
+// apart, with the primary action in the kit's Primary and "Not now" in its
+// Quiet. Never an empty black box, and never a spinner: attaching is the
+// working glyph and the word beside it, over the last line the board knew,
+// with a hairline under the header once the wait passes 300ms.
 //
 // The words are the deck's. Case C and "gone" print describeTarget's one
 // sentence from the server — but for a session this deck launched on Windows,
@@ -28,14 +32,14 @@ import { copyText } from "../../copy-text";
 import { CAUGHT_KEYS_ATTR } from "../../shortcuts";
 import type { TmuxProgress } from "../../terminal-api";
 import { LAUNCHED_UNREACHABLE, PROVENANCE_UNKNOWN, agentName, frameRun, launchedUnreachable, provenanceUnknown, type FrameRun, type StagePhase } from "./stage-model";
-import { CopyGlyph, PlusGlyph, TerminalGlyph } from "./stage-icons";
+import { CopyGlyph, PlusGlyph, StageGlyph, TerminalGlyph } from "./stage-icons";
 
 /** The id the empty card's New session button carries, so the popover can
  *  hang off it. */
 export const EMPTY_NEW_SESSION_ID = "ts-empty-new-session";
 
 export const STILL_RUNNING_NOTE =
-  "It is still running in that terminal. Reopening needs it stopped first — finish or quit it there, then check again.";
+  "It is still running in that terminal. Reopening needs it stopped first: finish or quit it there, then check again.";
 
 /** What the board knows that helps a card say where the session is. */
 export interface StageContext {
@@ -128,7 +132,7 @@ export function StateCard(p: Omit<StageBodyProps, "hostRef"> & { held?: boolean 
       return (
         <div className="ts-card">
           <span className="ts-empty-glyph"><TerminalGlyph /></span>
-          <p className="ts-text ts-text-first">Click a session on the board to watch it here, or start a new one.</p>
+          <p className="ts-text">Click a session on the board to watch it here, or start a new one.</p>
           <div className="ts-acts">
             <button type="button" id={EMPTY_NEW_SESSION_ID} className="btn primary" aria-haspopup="dialog" data-stage-land onClick={() => p.onNewSession(EMPTY_NEW_SESSION_ID)}>
               <PlusGlyph />New session
@@ -137,17 +141,18 @@ export function StateCard(p: Omit<StageBodyProps, "hostRef"> & { held?: boolean 
         </div>
       );
     case "attaching":
-      // The last frame stays up while the next one attaches: no line over it.
+      // The last frame stays up while the next one attaches: no card over it.
       if (phase.reconnect || p.held) return null;
       return (
         <div className="ts-card">
-          <div className="ts-ghost">{p.ghostLine || " "}</div>
+          {p.ghostLine && <div className="ts-ctx">{p.ghostLine}</div>}
+          <div className="ts-text ts-wait"><StageGlyph kind="working" /><span>attaching…</span></div>
         </div>
       );
     case "starting":
       return (
         <div className="ts-card">
-          <div className="ts-ghost">Starting {agentName(phase.agent)} in {phase.cwd}</div>
+          <div className="ts-text ts-wait"><StageGlyph kind="working" /><span>Starting {agentName(phase.agent)} in {phase.cwd}</span></div>
         </div>
       );
     case "not-attachable": {
@@ -167,7 +172,7 @@ export function StateCard(p: Omit<StageBodyProps, "hostRef"> & { held?: boolean 
           {phase.stillRunning && <p className="ts-note" role="status">{STILL_RUNNING_NOTE}</p>}
           <div className="ts-acts">
             {adoptable && (
-              <button type="button" className={phase.stillRunning ? "btn" : "btn primary"} aria-busy={phase.busy || undefined} data-stage-land onClick={p.onAdopt}>
+              <button type="button" className="btn primary" aria-busy={phase.busy || undefined} data-stage-land onClick={p.onAdopt}>
                 {phase.stillRunning ? "Check again" : "Reopen here"}
               </button>
             )}
@@ -181,7 +186,7 @@ export function StateCard(p: Omit<StageBodyProps, "hostRef"> & { held?: boolean 
       const line = setupLine(phase.progress);
       return (
         <div className="ts-card">
-          <div className="ts-ctx ts-fact"><i className="ts-fact-mark" data-kind="tmux" aria-hidden="true" />tmux · setting up</div>
+          <div className="ts-title">tmux · setting up</div>
           <p className="ts-text">
             This machine has no tmux the Command Panel can use, so the deck is fetching its own: about a megabyte, once. It
             stays in the deck's folder; nothing is installed on the system.
@@ -205,7 +210,7 @@ export function StateCard(p: Omit<StageBodyProps, "hostRef"> & { held?: boolean 
     case "tmux-missing":
       return (
         <div className="ts-card">
-          <div className="ts-ctx ts-fact"><i className="ts-fact-mark" data-kind="tmux" aria-hidden="true" /><span className="ts-fact-text">{tmuxFact(phase.reason)}</span></div>
+          <div className="ts-title">{tmuxFact(phase.reason)}</div>
           {phase.download && <p className="ts-note">{downloadNote(phase.download)}</p>}
           <p className="ts-text">
             The Command Panel runs each session inside the deck's own tmux, which is what lets it keep running when you
@@ -213,7 +218,7 @@ export function StateCard(p: Omit<StageBodyProps, "hostRef"> & { held?: boolean 
           </p>
           {phase.install && <InstallPlate line={phase.install} />}
           <div className="ts-acts">
-            <button type="button" className="btn" aria-busy={phase.busy || undefined} data-stage-land onClick={p.onRetry}>
+            <button type="button" className="btn primary" aria-busy={phase.busy || undefined} data-stage-land onClick={p.onRetry}>
               {phase.busy ? "Checking…" : "Check again"}
             </button>
           </div>
@@ -227,10 +232,10 @@ export function StateCard(p: Omit<StageBodyProps, "hostRef"> & { held?: boolean 
       const check = !!phase.code;
       return (
         <div className="ts-card">
-          <p className="ts-text ts-text-first">{phase.message}</p>
+          <p className="ts-text">{phase.message}</p>
           <div className="ts-acts">
             {again && (
-              <button type="button" className="btn" aria-busy={phase.busy || undefined} data-stage-land onClick={p.onRetry}>
+              <button type="button" className="btn primary" aria-busy={phase.busy || undefined} data-stage-land onClick={p.onRetry}>
                 {check ? (phase.busy ? "Checking…" : "Check again") : "Try again"}
               </button>
             )}

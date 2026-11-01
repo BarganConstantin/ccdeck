@@ -93,4 +93,19 @@ describe("the keys bar's height, as the stage draws it", () => {
     expect(onBarH).toHaveBeenLastCalledWith(36);
     s.view.unmount();
   });
+
+  it("says nothing for a bar not laid out, so the rows keep the last height drawn", () => {
+    const onBarH = vi.fn();
+    const s = stageWithBar(onBarH);
+    expect(onBarH).toHaveBeenLastCalledWith(36);
+    onBarH.mockClear();
+    // A stage inside an ancestor that is not drawn reads 0px.
+    s.bar.height = 0;
+    s.watch.callback!();
+    expect(onBarH).not.toHaveBeenCalled();
+    s.bar.height = 51;
+    s.watch.callback!();
+    expect(onBarH).toHaveBeenLastCalledWith(51);
+    s.view.unmount();
+  });
 });

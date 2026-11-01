@@ -791,25 +791,60 @@ describe("the room the stage is given", () => {
   });
 
   it("fits the rows to the keys bar as the stage draws it, and gives them back when it shrinks", () => {
-    // A first-run line on three lines grows the bar from 36px to 51px on a
+    // A first-run line on three lines grows the bar from 32px to 51px on a
     // narrow screen; the stage says so (TerminalStage's onBarH), and the
     // rows that bar would cover are not given to the pane.
     const { now, turnOn } = setup();
     turnOn();
     now().stage.switchTo("s1", { focusPane: false });
     const plain = now().stage.geometry!;
-    expect(plain.rows, "848px of body: 40 rows under a 36px bar").toBe(40);
+    expect(plain.rows, "848px of body: 42 rows under a 44px header and a 32px bar").toBe(42);
     now().stage.onBarH(51);
     const tall = now().stage.geometry!;
-    // 15px more bar against 28px of slack round 40 rows: the grid moves up
-    // into the slack (it sat 14px down, and covered 1px of the last row)
-    // rather than losing a row.
-    expect(tall.termTop + tall.rows * 18, "the last row ends above the grown bar").toBeLessThanOrEqual(848 - 64 - 51);
-    expect(tall.rows).toBe(40);
-    expect(tall.termTop).toBe(6);
+    // 19px more bar against 16px of slack round 42 rows: one row is given up.
+    expect(tall.termTop + tall.rows * 18, "the last row ends above the grown bar").toBeLessThanOrEqual(848 - 44 - 51);
+    expect(tall.rows).toBe(41);
+    expect(tall.termTop).toBe(7);
     expect(tall.cols, "the width is not the bar's business").toBe(plain.cols);
-    now().stage.onBarH(36);
-    expect(now().stage.geometry, "Got it: the bar is 36px again, and so are the rows").toEqual(plain);
+    now().stage.onBarH(32);
+    expect(now().stage.geometry, "Got it: the bar is 32px again, and so are the rows").toEqual(plain);
+  });
+
+  it("fits the rows to the header as the stage draws it (onHeadH), and back", () => {
+    const { now, turnOn } = setup();
+    turnOn();
+    now().stage.switchTo("s1", { focusPane: false });
+    const plain = now().stage.geometry!;
+    now().stage.onHeadH(36);
+    const compact = now().stage.geometry!;
+    expect(compact.headH).toBe(36);
+    expect(compact.termTop + compact.rows * 18).toBeLessThanOrEqual(848 - 36 - 32);
+    now().stage.onHeadH(44);
+    expect(now().stage.geometry).toEqual(plain);
+  });
+
+  it("fits the first rows to the density's header and the pointer's bar, before the stage has measured either", () => {
+    // Compact, V4's default, draws a 36px header and a fingertip a 36px bar:
+    // the first attach is fitted to those, not to a guess the stage's own
+    // measure corrects a frame later with a resize.
+    const g = globalThis as Record<string, unknown>;
+    (g.document as Record<string, unknown>).documentElement = { tagName: "HTML", dataset: { density: "compact" } };
+    g.matchMedia = (q: string) => ({ matches: q === "(pointer: coarse)" });
+    try {
+      const { now, turnOn } = setup();
+      turnOn();
+      now().stage.switchTo("s1", { focusPane: false });
+      const first = now().stage.geometry!;
+      expect(first.headH).toBe(36);
+      expect(first.rows).toBe(Math.floor((848 - 36 - 36 - 12) / 18));
+      expect(first.termTop + first.rows * 18, "above a fingertip's 36px bar").toBeLessThanOrEqual(848 - 36 - 36);
+      // The stage then measures what was assumed, and nothing moves.
+      now().stage.onHeadH(36);
+      now().stage.onBarH(36);
+      expect(now().stage.geometry).toEqual(first);
+    } finally {
+      delete g.matchMedia;
+    }
   });
 
   it("stops watching once the stage has gone", () => {
