@@ -640,7 +640,20 @@ function Inner() {
   const foldInspector = useCallback(() => {
     setInspectorFolded(true);
     setDetailOpen(false);
-    requestAnimationFrame(() => document.querySelector<HTMLElement>(".stage-dock .xterm-helper-textarea")?.focus());
+    // The keyboard goes to the pane: its terminal, or else its first control, or else
+    // the session's row in the rail; never the page. A terminal under a state card
+    // is in the tree but takes no focus, so each one is tried in turn.
+    requestAnimationFrame(() => {
+      const dock = document.querySelector<HTMLElement>(".stage-dock");
+      for (const el of [
+        dock?.querySelector<HTMLElement>(".xterm-helper-textarea"),
+        dock?.querySelector<HTMLElement>("button:not(:disabled)"),
+        document.querySelector<HTMLElement>(".sl-row[aria-current=\"true\"]"),
+      ]) {
+        el?.focus();
+        if (el && document.activeElement === el) break;
+      }
+    });
   }, [setDetailOpen]);
   // A click on the switch crossfades the middle of the deck; a key does not.
   const [viewFade, setViewFade] = useState(false);
