@@ -62,8 +62,11 @@ describe("the outcome rows", () => {
     expect(12.5 + 19.5).toBe(32);
   });
 
-  it("keeps the box 8 round", () => {
-    expect(rule(dc, ".dc-out")).toContain("border-radius: var(--r-panel);");
+  // CHANGED ON PURPOSE (V4's Figma): the frame draws the outcome box 9 round,
+  // and no token is 9, so the corner is V4's literal rather than --r-panel (8).
+  it("draws the box 9 round", () => {
+    expect(rule(dc, ".dc-out")).toContain("border-radius: 9px;");
+    expect(rule(dc, ".dc-out")).not.toContain("var(--r-panel)");
   });
 });
 

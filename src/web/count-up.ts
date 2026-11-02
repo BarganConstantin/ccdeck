@@ -38,7 +38,7 @@ const easeOutQuint = (t: number): number => 1 - Math.pow(1 - t, 5);
 
 /** How long a count takes. Long enough to be seen as counting — at 200ms the
  *  eye reads a jump — and short enough that nobody waits for the figure. */
-export const COUNT_MS = 420;
+export const COUNT_MS = 400;
 
 /** Whether a change is worth counting at all. */
 export function worthCounting(from: number, to: number): boolean {
