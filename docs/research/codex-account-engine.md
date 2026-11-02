@@ -201,7 +201,8 @@ visible demo remains separate from the independently launched Codex application.
 ## Existing native app conversations — 2026-11-02
 
 `codex-live-engine.mjs` connects to an already-running Unix app-server rather
-than replacing that process or resuming/moving its threads. Discovery uses
+than replacing that process or moving its threads. Controlled handoffs may
+briefly attach to its live state through native resume; see the update below. Discovery uses
 `codex app-server daemon version`; the control socket, parent ownership and
 socket generation are checked before authentication. A per-home lease prevents
 two ccdeck processes from driving the same daemon.
@@ -244,9 +245,57 @@ ccdeck's control connection left that daemon/thread alive.
 The existing application daemon was then switched through the running dashboard
 API. `account/read` confirmed the selected second account and `thread/read`
 confirmed the original application conversation ID, without a daemon restart.
-The app stopped its active task with `application network permission was revoked`;
+Before controlled handoffs were added, the app stopped its active task with
+`application network permission was revoked`;
 the owner's subsequent Continue resumed that same conversation on the new account.
-This adapter therefore covers account switching in the current app, but does
-not promise uninterrupted work across account-bound host permission changes.
+This established the need for the controlled handoff described below.
 Windows/Linux native acceptance remains outstanding. The adapter requires
 Codex 0.166.0 or newer and file-backed ChatGPT authentication.
+
+## Controlled native handoff — 2026-11-02
+
+The exact revocation was reproduced with the real CLI in an isolated Unix
+app-server: changing accounts during a streamed response failed that turn with
+`application network permission was revoked`. The upstream
+[`http-client/src/network_policy.rs`](https://github.com/openai/codex/blob/rust-v0.166.0/codex-rs/http-client/src/network_policy.rs)
+explicitly invalidates old account-bound permits. Disabling those checks is not
+part of this fix.
+
+`codex-live-handoff.mjs` instead inspects all loaded threads before login. It
+waits for observed tools, user-input/approval flags and active child agents.
+Legacy turn pages merge the live listener snapshot. Paginated stored pages omit
+transient tool starts, so those active threads require a native live attachment:
+`thread/resume` with no configuration overrides, `excludeTurns: true` and a
+single full `initialTurnsPage`, immediately followed by unsubscribe. Pending
+requests replayed to that connection are ignored; the original frontend keeps
+handling its own tools and approvals.
+
+The adapter interrupts only the exact observed turn, verifies that its terminal
+state is interrupted, rechecks daemon quiescence and account/control identity,
+then changes authentication. An interrupt can acknowledge natural completion;
+that case must remain idle. One Continue is submitted only for an interrupted
+thread whose ID and terminal turn still match. It carries no sandbox, approval,
+model or tool override. New input, uncertain identity, lost control and a changed
+turn stop automatic continuation. Unknown item lifecycle blocks interruption.
+
+All interrupted entries and each continuation send phase are journaled privately
+before sending. Token values, prompt text, paths and tool content are absent.
+An uncertain Continue is not retried; startup reports the unfinished journal
+independently of whether authentication ownership can be restored. Deferred
+automatic moves recheck Auto-switch before acting.
+
+Real acceptance covered both a pure response and a native shell command. The
+command slept while a manual switch was requested: the engine returned waiting,
+then switched and automatically continued the same conversation. The test
+artifact contained one START and one DONE, the remaining task finished on the
+second account, no revocation occurred, and both source auth files stayed
+byte-identical. The native server was not replaced. The owner's current task
+was not used for a second disruptive switch during this acceptance.
+
+Protocol boundaries remain: there is no atomic model-only interrupt or
+expected-idle precondition on `turn/start`, and concurrent independent clients
+can race between checks. Native completion does not identify who requested Stop.
+Strict preservation of simultaneous frontend cancellation needs frontend
+cooperation. The adapter checks observed changes and never claims exactly-once
+execution for unacknowledged requests. Initial snapshots may not establish every
+older background process; no process is killed or restarted by this adapter.

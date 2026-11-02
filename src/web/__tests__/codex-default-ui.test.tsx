@@ -7,14 +7,14 @@ let cleanup: (() => void) | undefined;
 afterEach(() => { cleanup?.(); vi.unstubAllGlobals(); });
 
 describe('Codex default selection controls', () => {
-  it.each([undefined, 'applied', 'failed'])('guards duplicate activation and reports native switch state %s', async liveState => {
+  it.each([undefined, 'applied', 'failed', 'waiting', 'manual_required'])('guards duplicate activation and reports native switch state %s', async liveState => {
     let switched = false, writes = 0;
     let answer!: () => void;
     const pending = new Promise<void>(resolve => { answer = resolve; });
     vi.stubGlobal('fetch', vi.fn(async (url: string) => {
       if (url === '/api/codex-profile-select') {
         writes++; await pending; switched = true;
-        return { ok: true, json: async () => ({ ok: true, id: 'b', revision: 1, ...(liveState ? { live: { state: liveState } } : {}) }) };
+        return { ok: true, json: async () => ({ ok: true, id: 'b', revision: 1, ...(liveState ? { live: { state: liveState === 'manual_required' ? 'applied' : liveState, continuation: liveState, profileId: 'b', requestedProfileId: 'b' } } : {}) }) };
       }
       if (url.startsWith('/api/codex-profile-quota')) return { ok: false, json: async () => ({}) };
       return { ok: true, json: async () => ({ revision: switched ? 1 : 0, profiles: [
@@ -41,9 +41,17 @@ describe('Codex default selection controls', () => {
       expect(rowText(selected)).toContain('Default saved');
       expect(rowText(selected)).toContain('open Codex app could not switch');
       expect(rowText(selected)).not.toContain('Connected Codex conversations');
+      (selected.props.onDismissRefusal as () => void)(); await flush();
+      expect(rowText(rowOf(view, 'Work')!)).not.toContain('Default saved');
+    } else if (liveState === 'waiting') {
+      expect(rowText(selected)).toContain('Waiting for running tools or pending input');
+      expect(rowText(selected)).not.toContain('now use this account');
+    } else if (liveState === 'manual_required') {
+      expect(rowText(selected)).toContain('Automatic continuation could not be confirmed');
+      expect(rowText(selected)).not.toContain('Interrupted tasks resume automatically');
     } else if (liveState === 'applied') {
       expect(rowText(selected)).toContain('Connected Codex conversations now use this account');
-      expect(rowText(selected)).toContain('If the app stops a task, press Continue');
+      expect(rowText(selected)).toContain('Interrupted tasks resume automatically');
     } else {
       expect(rowText(selected)).toContain('Default changed');
       expect(rowText(selected)).toContain('Sessions using terminal selection will follow this account');

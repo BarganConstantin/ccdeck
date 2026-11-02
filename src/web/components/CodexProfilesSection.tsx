@@ -41,12 +41,13 @@ const SCOPE = ".codex";
  *  floor at the latest, so a few tries are enough and nothing runs for ever. */
 const RETRY_MS = 15_000;
 const RETRIES = 6;
+type LiveSelection = { state: string; profileId?: string; requestedProfileId?: string; continuation?: string };
 
-async function postJson(path: string, body: unknown): Promise<{ ok: boolean; status: number; reason?: string; id?: string; live?: { state: string } }> {
+async function postJson(path: string, body: unknown): Promise<{ ok: boolean; status: number; reason?: string; id?: string; live?: LiveSelection }> {
   const response = await fetch(path, {
     method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
   });
-  const result = await response.json().catch(() => null) as { ok?: boolean; reason?: string; id?: string; live?: { state: string } } | null;
+  const result = await response.json().catch(() => null) as { ok?: boolean; reason?: string; id?: string; live?: LiveSelection } | null;
   return { ok: response.ok && result?.ok === true, status: response.status, reason: result?.reason, id: result?.id, live: result?.live };
 }
 
@@ -81,6 +82,8 @@ export default function CodexProfilesSection({ onClose, switcher, onNotice }: {
   const [failure, setFailure] = useState<Failure | null>(null);
   /** The account a switch from this panel just landed on, said on its row. */
   const [switched, setSwitched] = useState<{ id: string; name: string; live: boolean } | null>(null);
+  const [liveSelection, setLiveSelection] = useState<LiveSelection | null>(null);
+  const [dismissedLiveFailure, setDismissedLiveFailure] = useState(false);
   /** What a copied command said, at the foot. */
   const [message, setMessage] = useState("");
   /** Which profile's ⋯ is open, how the keyboard came in, and which form it is. */
@@ -152,15 +155,24 @@ export default function CodexProfilesSection({ onClose, switcher, onNotice }: {
     try {
       const response = await fetch("/api/codex-profiles", { signal });
       if (!response.ok) throw new Error("Unable to load Codex profiles");
-      const result = await response.json() as { profiles: CodexProfile[]; revision?: number };
+      const result = await response.json() as { profiles: CodexProfile[]; revision?: number; live?: LiveSelection };
       if (!Array.isArray(result.profiles)) throw new Error("Invalid Codex profiles response");
       if (signal?.aborted || request !== profileRequest.current) return undefined;
       setProfiles(result.profiles);
+      if (result.live) setLiveSelection(result.live);
       revision.current = result.revision ?? 0;
       setError(false);
       return result.profiles;
     } finally { profileRefreshes.current--; }
   }
+
+  useEffect(() => {
+    if (liveSelection?.state !== 'waiting') return;
+    const timer = setInterval(() => {
+      if (profileRefreshes.current === 0) void refreshProfiles().catch(() => {});
+    }, 2000);
+    return () => clearInterval(timer);
+  }, [liveSelection?.state]);
 
   /** Read one profile's numbers. `auto` is the first read of a login and shows
    *  that it is reading; `poll` keeps what is on screen until the new one lands.
@@ -282,11 +294,13 @@ export default function CodexProfilesSection({ onClose, switcher, onNotice }: {
     const profile = rows.find(row => row.account.num === num)?.profile;
     if (!profile || !claim(`switch-${num}`)) return;
     setFailure(null);
+    setDismissedLiveFailure(false);
     setSwitched(null);
     setMessage("");
     try {
       const out = await postJson("/api/codex-profile-select", { id: profile.id, expectedRevision: revision.current, operationId: crypto.randomUUID() });
       if (out.ok) {
+        if (out.live) setLiveSelection(out.live);
         if (out.live?.state === 'failed') setFailure({ text: t("codex.panel.liveSwitchFailed"), row: num });
         else setSwitched({ id: profile.id, name, live: out.live?.state === 'applied' });
       }
@@ -385,6 +399,9 @@ export default function CodexProfilesSection({ onClose, switcher, onNotice }: {
 
   /** One account's row, drawn the same above the fold and behind it. */
   const voice = codexVoice(t);
+  const liveNote = liveSelection?.continuation === 'manual_required' ? t("codex.row.continueUnconfirmed")
+    : liveSelection?.state === 'waiting' ? t("codex.row.switchWaiting")
+    : liveSelection?.state === 'applied' ? t("codex.row.liveSwitched") : null;
   const accountRow = ({ profile, reading, account: a, issue }: Row) => {
     const plan = shownReading(reading)?.plan;
     const reads = quotas[profile.id] === null || reading?.reason === "profile_changed";
@@ -392,16 +409,18 @@ export default function CodexProfilesSection({ onClose, switcher, onNotice }: {
       <AccountRow key={profile.id} a={a} nowSec={nowSec} issueOverride={issue}
         voice={{
           ...voice,
-          switched: switched?.live ? t("codex.row.liveSwitched") : voice.switched,
+          switched: liveNote ?? (switched?.live && !liveSelection ? t("codex.row.liveSwitched") : voice.switched),
           readPlan: plan ? t("codex.row.readPlanNamed", { plan: sentence(plan), rest: voice.readPlan ?? "" }) : voice.readPlan,
           waiting: reads ? t("codex.row.reading") : undefined,
         }}
         opened={isOpen(openness, a)} onToggleLanes={() => setOpenness(o => toggleOne(o, a))}
         busy={busy} pressProps={pressProps} onSwitch={doSwitch}
         menuOpen={menu?.id === profile.id} onOpenMenu={(_, start) => openMenu(profile.id, start)} onCloseMenu={() => setMenu(null)}
-        refusal={failure?.row === a.num ? failure : null} onDismissRefusal={() => setFailure(null)}
+        refusal={failure?.row === a.num ? failure : !dismissedLiveFailure && liveSelection?.state === 'failed' && liveSelection.requestedProfileId === profile.id
+          ? { text: t("codex.panel.liveSwitchFailed"), row: a.num } : null} onDismissRefusal={() => { setFailure(null); setDismissedLiveFailure(true); }}
         onSignIn={() => signIn(profile)}
-        switchedHere={switched?.id === profile.id} swapped={null} displaced={undefined}
+        switchedHere={liveSelection?.state !== 'failed' && (switched?.id === profile.id || (liveSelection?.state === 'waiting' && liveSelection.requestedProfileId === profile.id)
+          || (liveSelection?.continuation === 'manual_required' && profile.active === true))} swapped={null} displaced={undefined}
         issueExpanded={issueOpen?.anchor === `ap-codex-issue-${a.num}`} onOpenIssue={(_, anchor) => openIssue(profile.id, anchor)}
         sortKey={a.active ? null : orderKey(shownOrder)} />
     );
