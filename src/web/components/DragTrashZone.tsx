@@ -26,9 +26,6 @@ export default function DragTrashZone({ trashZoneRef, trashState, trashPhase, tr
       className={`drag-trash-zone ${trashState}${trashPhase === "leaving" ? " leaving" : ""}`}
       role="status"
     >
-      <svg className="drag-trash-icon" viewBox="0 0 24 24" aria-hidden="true">
-        <path d="M8 7V5.8C8 4.8 8.8 4 9.8 4h4.4c1 0 1.8.8 1.8 1.8V7m-10 0h12M8 10v8m4-8v8m4-8v8M7 7l.7 13h8.6L17 7" />
-      </svg>
       <span className="drag-trash-copy">
         <span className="drag-trash-text">
           {trashState === "over"
