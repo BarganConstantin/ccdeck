@@ -240,8 +240,8 @@ describe("a paired deck's details", () => {
     const check = html.indexOf(">Check now<");
     expect(unpair).toBeGreaterThan(-1);
     expect(check).toBeGreaterThan(unpair);
-    expect(html).toMatch(/<button type="button" class="btn danger lan-peer-verb"[^>]*>Unpair</);
-    expect(html).toMatch(/<button type="button" class="btn primary lan-peer-check"[^>]*>Check now</);
+    expect(html).toMatch(/<button type="button" class="btn danger"[^>]*>Unpair</);
+    expect(html).toMatch(/<button type="button" class="btn primary"[^>]*>Check now</);
     expect(decl(".lan-peer-foot", "justify-content")).toBe("space-between");
     expect(body(".lan-peer-foot .btn.danger:not(.armed)")).toMatch(/background:\s*transparent/);
     expect(body(".lan-peer-foot .btn.danger:not(.armed)")).toMatch(/border-color:\s*var\(--ctl-edge\)/);
