@@ -131,6 +131,10 @@
      shadows: draw it back as a line inside the box. */
   .hint { outline: 1px solid CanvasText; outline-offset: -1px; }
 
+  /* The command menu's chosen row is a fill (quick-open.css), and a Contrast
+     theme drops fills: draw it as a ring inside the row. */
+  .qo-row[aria-selected="true"] { outline: 2px solid Highlight; outline-offset: -2px; }
+
   .modal.settings-modal,
   .settings-nav { background: Canvas; color: CanvasText; }
   .ap-side[aria-checked="true"] { outline: 2px solid Highlight; outline-offset: -2px; }
