@@ -502,6 +502,9 @@
   .session-list .sl-more, .session-list .sl-fold-btn { min-height: 44px; }
   /* Rows at 8 in from each edge: the 374 the phone frame draws in a 390 panel. */
   .session-list .sl-rows { padding-inline: 8px; }
+  /* The phone frame names a row at 14/20, one step up from the desktop's 13/20;
+     the line stays 20, so the row stays 62. */
+  .session-list .sl-label { font-size: calc(14px + var(--ui-text-increase, 0px)); }
   /* Above the list, so the header buttons' 44 targets reach down over its top. */
   .session-list .sl-header { position: relative; z-index: 1; }
   .session-list .sl-close { display: inline-flex; }
