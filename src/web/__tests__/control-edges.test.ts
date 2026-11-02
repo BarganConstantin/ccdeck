@@ -540,8 +540,13 @@ const CONTROLS: Control[] = [
   { at: ".fg-tabs .uh-range-btn", states: ['.fg-tabs .uh-range-btn[aria-selected="true"]'], beds: ["--panel"] },
   { at: ".fd-sections .uh-range-btn", states: ['.fd-sections .uh-range-btn[aria-selected="true"]'], beds: ["--panel"] },
   { at: '.ns-form .uh-range-btn[aria-pressed="false"]', fillFrom: '.ns-form .uh-range-btn[aria-pressed="false"]', states: ['.ns-form .uh-range-btn[aria-pressed="false"]:hover'], beds: ["--panel"] },
-  { at: ".qh-provider", states: [".qh-provider:hover"], beds: ["--panel"] },
-  { at: '.qh-provider[aria-pressed="true"]', beds: ["--panel"] },
+  // CHANGED ON PURPOSE (V4's Figma): Quota history's provider switch is a
+  // segmented track in the header. A segment at rest draws no boundary — it is
+  // named by its word, inside the track, as the feedback dialog's kinds are —
+  // and the chosen one is raised onto the panel with the control edge round it,
+  // which is the entry below.
+  // CHANGED ON PURPOSE (V4's Figma): the chosen segment sits on the --bg-soft track, not on the panel.
+  { at: '.qh-provider[aria-pressed="true"]', beds: ["--bg-soft"] },
   { at: ".qh-window select", beds: ["--panel"] },
   { at: ".radio-controls > .radio-player-button", states: ['.radio-controls > .radio-player-button:not(.radio-mute[aria-pressed="true"]):not(:disabled):hover'], beds: ["--bg-soft"] },
   { at: '.radio-controls .radio-mute[aria-pressed="true"]', beds: ["--bg-soft"] },

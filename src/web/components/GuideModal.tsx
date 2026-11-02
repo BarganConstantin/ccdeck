@@ -85,9 +85,11 @@ export default function GuideModal({ title, steps, finish, aside, onClose }: {
         <header className="modal-head">
           <div className="modal-title">
             <span id="guide-title" className="modal-tool-name">{title}</span>
-            <span className="modal-tool-id">{at + 1} / {steps.length}</span>
           </div>
           <div className="modal-actions">
+            {/* V4's step counter: mono 12 in --muted, at the header's right,
+                left of the ×. */}
+            <span className="guide-count">{at + 1} / {steps.length}</span>
             <DialogClose onClick={onClose} label={t("shell.closeEsc")} />
           </div>
         </header>
@@ -102,28 +104,35 @@ export default function GuideModal({ title, steps, finish, aside, onClose }: {
               every step, so a reader stepping through it never has the
               buttons move under their pointer. */}
           <p className="guide-tip">{step.tip ?? ""}</p>
-          <div className="guide-foot">
-            <div className="guide-dots">
-              {steps.map((_, i) => (
-                <button key={i} type="button" className="glyph-btn guide-dot"
-                  aria-label={t("shell.guide.step", { n: i + 1, total: steps.length })}
-                  aria-current={i === at ? "step" : undefined}
-                  onClick={() => go(i)} />
-              ))}
-            </div>
-            {last && aside && (
-              <button type="button" className="ap-lan-word guide-aside" onClick={aside.act}>
-                {aside.label}
-              </button>
-            )}
-            {at > 0 && (
-              <button type="button" className="btn" onClick={() => go(at - 1)}>{t("shell.back")}</button>
-            )}
-            <button ref={nextRef} type="button" className="btn primary" onClick={next}>
-              {last ? (finish?.label ?? t("shell.done")) : t("shell.next")}
-            </button>
-          </div>
         </section>
+
+        <footer className="modal-foot guide-foot">
+          <div className="guide-dots">
+            {steps.map((_, i) => (
+              <button key={i} type="button" className="glyph-btn guide-dot"
+                aria-label={t("shell.guide.step", { n: i + 1, total: steps.length })}
+                aria-current={i === at ? "step" : undefined}
+                onClick={() => go(i)} />
+            ))}
+          </div>
+          {last && aside && (
+            <button type="button" className="ap-lan-word guide-aside" onClick={aside.act}>
+              {aside.label}
+            </button>
+          )}
+          {/* Skip ends the tour exactly as finishing it or Esc does: through
+              onClose, which is what stores that it was seen. Not on the last
+              step, where the primary button is the way out. */}
+          {!last && (
+            <button type="button" className="btn guide-skip" onClick={onClose}>{t("shell.skip")}</button>
+          )}
+          {at > 0 && (
+            <button type="button" className="btn" onClick={() => go(at - 1)}>{t("shell.back")}</button>
+          )}
+          <button ref={nextRef} type="button" className="btn primary" onClick={next}>
+            {last ? (finish?.label ?? t("shell.done")) : t("shell.next")}
+          </button>
+        </footer>
     </Dialog>,
     document.body,
   );

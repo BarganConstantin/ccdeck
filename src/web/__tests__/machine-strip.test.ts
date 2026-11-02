@@ -459,9 +459,12 @@ describe("the dialog's own rhythm", () => {
     // paddings.
     const body = pad(".pl-body"), strip = pad(".pl-strip");
     const head = 12; // .modal-head, shared by every dialog
-    expect(body.bottom + strip.top).toBe(20);
+    // CHANGED ON PURPOSE (V4's Figma): the body is padded 16 on every side, so
+    // the air between the list and the band is 26 and under the title 28; the
+    // relationship (a title keeps more than a peer band) holds.
+    expect(body.bottom + strip.top).toBe(26);
     // A title is not a peer, so it keeps slightly more.
-    expect(head + body.top).toBe(22);
+    expect(head + body.top).toBe(28);
     // The strip is the last band, so its bottom IS the outer frame, and the
     // frame matches itself top and bottom.
     expect(strip.bottom).toBe(12);
@@ -556,6 +559,8 @@ describe("the dialog's type", () => {
     expect(modalSrc).toContain('note={t("insights.proc.memoryNote")}');
     expect(modalSrc).toContain('note={t("insights.proc.processNote")}');
     // On the headers, not in a band of their own.
+    // The footer is the shared Done band (V4's Figma), carrying the count: no
+    // footnote band and no rule of its own.
     expect(modalSrc).not.toContain("pl-foot");
     expect(css).not.toContain(".pl-foot");
     // And the header is what carries them. SortHead moved into this file with

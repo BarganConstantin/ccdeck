@@ -164,12 +164,15 @@ describe("what names the chord", () => {
     expect(off.hints.map(h => h.word)).toEqual(["open and type", "board"]);
   });
 
-  it("adds the sheet's row only where the Command Panel is on, after Quick open's, and writes the key down", () => {
+  it("adds the sheet's row only where the Command Panel is on, in V4's Terminal group, and writes the key down", () => {
     const rows = keyHelpFor(true, () => true, true).flatMap(g => g.rows);
     expect(rows).toContain(WORKSPACE_KEY_ROW);
-    const panels = keyHelpFor(true, () => true, true).find(g => g.title === "Panels and dialogs")!;
-    expect(panels.rows[0].cap).toBe("Ctrl + K");
-    expect(panels.rows[1]).toBe(WORKSPACE_KEY_ROW);
+    // CHANGED ON PURPOSE (V4's Figma): the row is the one row of the Terminal
+    // group, between The question and Canvas.
+    const groups = keyHelpFor(true, () => true, true);
+    const terminal = groups.find(g => g.title === "Terminal")!;
+    expect(terminal.rows).toEqual([WORKSPACE_KEY_ROW]);
+    expect(groups.map(g => g.id).slice(0, 4)).toEqual(["deck", "question", "terminal", "canvas"]);
     expect(keyHelpFor(true).flatMap(g => g.rows)).not.toContain(WORKSPACE_KEY_ROW);
     expect(WORKSPACE_KEY_ROW.chord, "a chord stays with the single keys off").toBe(true);
     expect(keyHelpFor(false, () => true, true).flatMap(g => g.rows).map(r => r.cap)).toContain(WORKSPACE_KEY_ROW.cap);
@@ -180,12 +183,18 @@ describe("what names the chord", () => {
   describe("in another language", () => {
     afterEach(() => { setLanguage("en"); resetLanguageForTest(); });
     for (const code of ["de", "ja"]) {
-      it(`still sits right after Quick open's row (${code})`, () => {
+      it(`still sits in its own Terminal group (${code})`, () => {
         setLanguage(code);
-        const panels = keyHelpFor(true, () => true, true).find(g => g.id === "panels-and-dialogs")!;
-        expect(panels.title, "the title is the translated one").not.toBe("Panels and dialogs");
-        expect(panels.rows[0].cap).toBe("Ctrl + K");
-        expect(panels.rows[1]).toBe(WORKSPACE_KEY_ROW);
+        const terminal = keyHelpFor(true, () => true, true).find(g => g.id === "terminal")!;
+        expect(terminal.rows).toEqual([WORKSPACE_KEY_ROW]);
+        // CHANGED ON PURPOSE (V4's Figma): the group is found by its id, and the
+        // titles around it are the language's own where it has one. German keeps
+        // "Canvas" as its own word; Japanese translates it. (The V4 names Deck,
+        // The question, Terminal and Panels fall back to English until
+        // translated.)
+        const canvas = keyHelpFor(true, () => true, true).find(g => g.id === "canvas")!;
+        expect(canvas.title).toBe(code === "ja" ? "キャンバス" : "Canvas");
+        if (code === "ja") expect(canvas.title, "the title is the translated one").not.toBe("Canvas");
       });
     }
   });

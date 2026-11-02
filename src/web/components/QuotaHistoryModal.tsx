@@ -108,16 +108,16 @@ export default function QuotaHistoryModal({ providers, accounts, onClose, instan
       <header className="modal-head">
         <h2 id="quota-history-title">{t("insights.quota.title")}</h2>
         <div className="qh-header-actions">
+          <div className="qh-providers" role="group" aria-label={t("insights.quota.provider")}>
+            {(["claude", "codex"] as const).filter(p => providers[p]).map(p => <button type="button" className="qh-provider" key={p}
+              aria-pressed={provider === p} onClick={() => { setProvider(p); setSelection(""); }}>{p === "claude" ? "Claude" : "Codex"}</button>)}
+          </div>
           <button type="button" className="glyph-btn" aria-label={t("insights.quota.refresh")} title={t("insights.quota.read")} {...selfPressProps(loading)} onClick={refreshHistory}><RefreshGlyph /></button>
           <button type="button" ref={closeRef} className="glyph-btn" onClick={onClose} aria-label={t("insights.quota.close")}>×</button>
         </div>
       </header>
       <div className="modal-body qh-body" aria-busy={loading}>
         <div className="qh-controls">
-          <div className="qh-providers" role="group" aria-label={t("insights.quota.provider")}>
-            {(["claude", "codex"] as const).filter(p => providers[p]).map(p => <button type="button" className="qh-provider" key={p}
-              aria-pressed={provider === p} onClick={() => { setProvider(p); setSelection(""); }}>{p === "claude" ? "Claude" : "Codex"}</button>)}
-          </div>
           {series.length > 0 && <label className="qh-window">{t("insights.quota.window")}
             <select aria-label={t("insights.quota.windowAria")} value={picked ? quotaSeriesKey(picked) : ""} onChange={e => setSelection(e.target.value)}>
               {series.map(s => <option key={quotaSeriesKey(s)} value={quotaSeriesKey(s)}>{windowLabel(s)} · {timestamp(s.resetAt * 1000)}</option>)}
@@ -145,5 +145,8 @@ export default function QuotaHistoryModal({ providers, accounts, onClose, instan
         {data?.storageOk === false && <p className="qh-note" role="status">{t("insights.quota.notSaved")}</p>}
         <footer className="qh-note qh-footer">{t("insights.quota.footer")}</footer>
       </div>
+      <footer className="modal-foot">
+        <button type="button" className="btn primary" onClick={onClose}>{t("shell.done")}</button>
+      </footer>
     </Dialog>, document.body);
 }

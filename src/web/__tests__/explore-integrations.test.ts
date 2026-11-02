@@ -35,8 +35,10 @@ describe("Explore's native catalog", () => {
     expect(html.match(/Not connected/g)).toHaveLength(3);
     // Jira also moves issues (3.48.0); GitHub and GitLab only read.
     expect(html.match(/Read only/g)).toHaveLength(2);
-    expect(html.match(/Can move issues/g)).toHaveLength(1);
-    expect(html).toContain("Browsing only reads · Tokens stay on this machine");
+    // CHANGED ON PURPOSE (V4's Figma): Jira's tag reads "Read and write" and the
+    // footnote is the frame's sentence.
+    expect(html.match(/Read and write/g)).toHaveLength(1);
+    expect(html).toContain("You choose what each token may do. Tokens stay on this machine.");
     expect(html).toContain('aria-modal="true"');
     expect(html).toContain('aria-labelledby="explore-integrations-title"');
     expect(html).not.toMatch(/input|Show in sidebar|Hide|localStorage/);

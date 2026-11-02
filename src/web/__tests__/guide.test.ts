@@ -149,16 +149,18 @@ describe("where the guides open from", () => {
     // closes itself as it opens the tour, so no two dialogs stand at once.
     const notes = bare(read("components/ReleaseNotesModal.tsx"));
     const keys = bare(read("components/KeyboardHelp.tsx"));
-    // The `?` sheet's door is a sentence and a button, inside the body, after
-    // the header — the × stays the first stop.
-    expect(keys).toMatch(/\{onTour && \(\s*<div className="guide-door">[\s\S]*?<button type="button" className="btn" onClick=\{onTour\}>\{t\("settings\.key\.tour"\)\}<\/button>/);
-    expect(keys.indexOf("guide-door")).toBeGreaterThan(keys.indexOf('aria-label={t("settings.key.close")}'));
+    // CHANGED ON PURPOSE (V4's Figma): the `?` sheet's door is its intro line
+    // in the body and the link in its footer, after the header: the × stays the
+    // first stop.
+    expect(keys).toMatch(/\{onTour && <p className="kh-intro">\{t\("settings\.key\.tourText"\)\}<\/p>\}/);
+    expect(keys).toMatch(/\{onTour && <button type="button" className="kh-tour" onClick=\{onTour\}>\{t\("settings\.key\.tour"\)\}<\/button>\}/);
+    expect(keys.indexOf("kh-tour")).toBeGreaterThan(keys.indexOf('aria-label={t("settings.key.close")}'));
     // What's new's is a word in its footer, beside Release history (the
     // editorial digest). Held back while the app's update is ready: the chip
     // opens that dialog for the update then, and a second door competes with
     // the one it came for (#1187). Every other time it is there, and after the
     // header too.
-    expect(notes).toMatch(/\{onTour && !updateVersion && <button className="rn-text-button" type="button" onClick=\{onTour\}>\{t\("shell\.notes\.tour"\)\}<\/button>\}/);
+    expect(notes).toMatch(/\{onTour && !updateVersion && <button className="btn rn-tour" type="button" onClick=\{onTour\}>\{t\("shell\.notes\.tour"\)\}<\/button>\}/);
     expect(notes.indexOf('t("shell.notes.tour")')).toBeGreaterThan(notes.indexOf('aria-label={t("shell.closeEsc")}'));
     // The notes close and the tour opens through named operations now. Both
     // doors are in components/DeckDialogs.tsx, which App.tsx hands the welcome

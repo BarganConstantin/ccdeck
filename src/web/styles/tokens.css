@@ -524,7 +524,6 @@ optgroup {
 .fd-sections .uh-range-btn[aria-selected="true"]:focus-visible,
 .aa-tab.on:focus-visible,
 .character-choice[aria-checked="true"]:focus-visible,
-.qh-provider[aria-pressed="true"]:focus-visible,
 button.btn.jr-chip[aria-pressed="true"]:focus-visible,
 .radio-controls .radio-mute[aria-pressed="true"]:focus-visible,
 .radio-filter-trigger[data-filtered="true"]:focus-visible,
