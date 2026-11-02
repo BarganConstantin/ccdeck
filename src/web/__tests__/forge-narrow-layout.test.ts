@@ -54,7 +54,10 @@ const lists = sheet("forge-lists.css");
 const SR_HIDDEN = /position: absolute;.*clip: rect\(0 0 0 0\)/;
 
 describe("a narrow list's rows", () => {
-  const narrow = blocks(lists, "@container fgl (max-width: 520px)").join("\n");
+  // CHANGED ON PURPOSE (V4's Figma): the list beside an open item is 480 wide, and Figma's rows
+  // (a PR's two lines, a branch's one line or two) fit there, so the rows fold to their
+  // phone shape at 440 rather than 520. The filters and the tabs keep their own breakpoints.
+  const narrow = blocks(lists, "@container fgl (max-width: 440px)").join("\n");
 
   it("wraps a row's facts inside their column rather than under the time beside them", () => {
     // The facts (pipeline, Approved, reviewers, comments) share a line with
@@ -86,7 +89,7 @@ describe("a phone's first screen goes to the list", () => {
   });
 
   it("keeps the four tabs on one row that scrolls, never a grid of two rows", () => {
-    const narrow = blocks(panel, "@container fg-list (max-width: 520px)").join("\n");
+    const narrow = blocks(panel, "@container fg-list (max-width: 440px)").join("\n");
     expect(decls(narrow, ".fg-tabs")).not.toMatch(/display: grid/);
     expect(decls(narrow, ".fg-tabs .uh-range-btn")).toMatch(/flex: 1 0 auto/);
     expect(decls(narrow, ".fg-tabs .uh-range-btn")).not.toMatch(/white-space: normal/);
@@ -97,8 +100,10 @@ describe("a phone's first screen goes to the list", () => {
     // GitLab's four names need 288px at 4px a side, which a 360px phone's
     // list has; at 6px a side Issues ran past the edge there, and at 320px
     // it was out of sight altogether, not even a sliver to say it was there.
-    const narrow = blocks(panel, "@container fg-list (max-width: 520px)").join("\n");
-    expect(decls(narrow, ".fg-tabs .uh-range-btn")).toMatch(/(?:^|; )padding: 4px;/);
+    const narrow = blocks(panel, "@container fg-list (max-width: 440px)").join("\n");
+    // CHANGED ON PURPOSE (V4's Figma): the tabs are 24px pills with no vertical padding, so the
+    // same 4px a side is written as "0 4px".
+    expect(decls(narrow, ".fg-tabs .uh-range-btn")).toMatch(/(?:^|; )padding: 0 4px;/);
   });
 
   it("keeps a change's sections on one row on a phone's pane, each label whole over its count", () => {

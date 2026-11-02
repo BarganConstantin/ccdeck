@@ -5,8 +5,8 @@
 //
 // One honest line for every panel: "Reading…" before the first answer,
 // "Updating…" while a newer one is out, "Updated 5m ago" after it lands, and
-// after a read that failed "Not updated · last answer 5m ago", the warning
-// mark and its word in --warn and the rest quiet, so the rows still on screen
+// after a read that failed "Not updated · last answer 5m ago", with the mark
+// beside it, in the same pill and never amber, so the rows still on screen
 // are never claimed as fresh. The age keeps time on its own and carries the
 // exact moment in its title. The line is not a live region, since its age
 // changes every minute; a hidden status says only the transitions (updating,
@@ -16,11 +16,16 @@
 // nothing rather than starting a second read.
 // Lay it at the end of a toolbar row: it takes the free space and lets the
 // sentence shorten with an ellipsis before Refresh would move.
-import { useEffect, useRef, useState } from "react";
+import { createContext, useContext, useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { RefreshGlyph } from "./action-glyphs";
 import { WarnMark } from "./integration-glyphs";
 import { currentLanguage, t as translateNow, useT, type TFunction } from "../i18n";
 import { selfPressAccepted, selfPressProps } from "../panel-press";
+
+/** Where the host wants the line and Refresh drawn (the modal header's end,
+ *  V4's Figma); without one they stay in the row that renders them. */
+export const FreshnessSlot = createContext<HTMLElement | null>(null);
 
 export interface FreshnessState {
   /** When the answer on screen was read (ms), or null before the first one. */
@@ -93,7 +98,8 @@ export default function IntegrationFreshness({ loadedAt, loading, stale = false,
 
   const words = freshnessWords({ loadedAt, loading, stale }, now ?? Date.now(), t);
   const at = loadedAt != null ? new Date(loadedAt) : null;
-  return (
+  const slot = useContext(FreshnessSlot);
+  const line = (
     <div className="ig-freshness" data-tone={words.tone}>
       {words.tone !== "none" && (
         <span className="ig-fresh">
@@ -111,4 +117,5 @@ export default function IntegrationFreshness({ loadedAt, loading, stale = false,
       </button>
     </div>
   );
+  return slot ? createPortal(line, slot) : line;
 }

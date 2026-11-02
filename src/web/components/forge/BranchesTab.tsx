@@ -27,7 +27,6 @@ import { useForgePages } from "../../use-forge-read";
 import type { ForgeTabProps } from "./ForgePanel";
 import { sameSelection, useForge, useReportRows, type ForgeSelection } from "./ForgeContext";
 import { Ago, Copyable, FoldGroup, ListEnd, LoadingRows, ReadFailure, StateMark } from "./ForgeParts";
-import { StateGlyph } from "./ForgeGlyphs";
 import { ExternalLinkGlyph } from "../action-glyphs";
 
 /** What a branch row opens: its merge request when it has one, else itself. */
@@ -58,9 +57,9 @@ export default function BranchesTab({ view, query }: ForgeTabProps) {
   }, [phase, groups, isOpen, repo]);
   useReportRows(drawn, phase !== "loading");
 
-  const rows = (list: ForgeBranch[]) => (
-    <ul className="fg-rows">
-      {list.map(b => <BranchRow key={b.name} kind={kind} repo={repo} branch={b} defaultBranch={defaultBranch} />)}
+  const rows = (list: ForgeBranch[], stale = false) => (
+    <ul className="fg-rows fgl-table">
+      {list.map(b => <BranchRow key={b.name} kind={kind} repo={repo} branch={b} defaultBranch={defaultBranch} stale={stale} />)}
     </ul>
   );
 
@@ -81,7 +80,7 @@ export default function BranchesTab({ view, query }: ForgeTabProps) {
           {groups.stale.length > 0 && (
             <FoldGroup id="branches-stale" title={t("forge.branches.stale")} count={groups.stale.length} defaultOpen={false}
               aside={<span className="fgl-group-note">{t("forge.branches.staleNote")}</span>}>
-              {rows(groups.stale)}
+              {rows(groups.stale, true)}
             </FoldGroup>
           )}
         </>
@@ -93,8 +92,8 @@ export default function BranchesTab({ view, query }: ForgeTabProps) {
   );
 }
 
-function BranchRow({ kind, repo, branch: b, defaultBranch }: {
-  kind: ForgeKind; repo: string; branch: ForgeBranch; defaultBranch: string | null;
+function BranchRow({ kind, repo, branch: b, defaultBranch, stale }: {
+  kind: ForgeKind; repo: string; branch: ForgeBranch; defaultBranch: string | null; stale: boolean;
 }) {
   const { selected, select } = useForge();
   const t = useT();
@@ -120,6 +119,7 @@ function BranchRow({ kind, repo, branch: b, defaultBranch }: {
         <Copyable value={b.name} label={t("forge.copy.branchName")}><code className="fgl-branch-code">{b.name}</code></Copyable>
         {b.isDefault && <span className="fg-badge">{t("forge.badge.default")}</span>}
         {b.protected && <span className="fg-badge">{t("forge.badge.protected")}</span>}
+        {stale && <span className="fg-badge">{t("forge.badge.stale")}</span>}
       </span>
       <span className="fg-meta fgl-commit">
         <code>{b.commit.shortSha}</code>
@@ -133,9 +133,10 @@ function BranchRow({ kind, repo, branch: b, defaultBranch }: {
         <span className="fgl-diverge" data-empty={!diverge || undefined} title={diverge ?? undefined}>
           {diverge && (
             <>
-              <span className="fgl-behind" aria-hidden="true">{divergeCount(b.behind)}</span>
-              <span className="fgl-diverge-rule" aria-hidden="true" />
-              <span aria-hidden="true">{divergeCount(b.ahead)}</span>
+              <span aria-hidden="true">{b.ahead && b.behind
+                ? t("forge.branches.both", { ahead: divergeCount(b.ahead), behind: divergeCount(b.behind) })
+                : b.ahead ? t("forge.branches.ahead", { n: divergeCount(b.ahead) })
+                : b.behind ? t("forge.branches.behind", { n: divergeCount(b.behind) }) : ""}</span>
               <span className="fg-sr">{diverge}</span>
             </>
           )}
@@ -145,8 +146,8 @@ function BranchRow({ kind, repo, branch: b, defaultBranch }: {
       <span className="fgl-branch-change">
         {badge && changeName
           ? (
-            <span className="fg-badge" data-tone={badge.tone} title={t("forge.branches.badgeTitle", { change: words.change, ref: changeName, word: markWord(badge, t) })}>
-              <StateGlyph name={badge.mark} /> <code>{changeName}</code> {markWord(badge, t)}
+            <span className="fgl-change-text" title={t("forge.branches.badgeTitle", { change: words.change, ref: changeName, word: markWord(badge, t) })}>
+              <code>{changeName}</code> {markWord(badge, t)}
             </span>
           )
           : !b.isDefault && (

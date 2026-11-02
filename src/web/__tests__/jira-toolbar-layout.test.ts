@@ -77,7 +77,9 @@ describe("familiar Jira filter states", () => {
     const inactive = [...chips, el("button", ["btn", "jr-chip"], { attrs: { "aria-pressed": "false" } })];
     expect(value(chip, "font-weight", 1440)).toBe(value(inactive, "font-weight", 1440));
     expect(value(chip, "border-color", 1440)).toBe("var(--accent)");
-    expect(value(chip, "background", 1440)).toContain("--ig-sel-fill");
+    // CHANGED ON PURPOSE (V4's Figma): a chosen chip is the accent wash on the accent edge (the
+    // selected row is neutral now), so its fill is a mix of --accent, no longer --ig-sel-fill.
+    expect(value(chip, "background", 1440)).toContain("var(--accent)");
   });
 });
 

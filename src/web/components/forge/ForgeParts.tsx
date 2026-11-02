@@ -103,8 +103,8 @@ export function ListEnd({ pages, label }: {
 
 /** Rows that are on their way: the integrations' shared skeleton, which
  *  stays out of sight for a read that answers at once. */
-export function LoadingRows({ rows = 6, label }: { rows?: number; label: string }) {
-  return <IntegrationSkeleton label={label} rows={rows} />;
+export function LoadingRows({ rows = 6, label, variant = "rows" }: { rows?: number; label: string; variant?: "rows" | "lines" }) {
+  return <IntegrationSkeleton label={label} rows={rows} variant={variant} />;
 }
 
 /** What the integrations' shared face needs from a forge user: the picture
