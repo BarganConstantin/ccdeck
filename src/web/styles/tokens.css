@@ -354,6 +354,7 @@
   --press: 0.97;
   --press-small: 0.94;
   --enter-scale: 0.96;
+  --exit-scale: 0.98;
 }
 
 /* THE MONO STACK, written once. Every value on this deck — a number, an id, a

@@ -15,6 +15,7 @@ import { typedPrompts } from "../injected-prompt";
 // which differed from the other two by its name and the one class that makes it
 // taller (#374). That class is the `size` prop now.
 import CostBar from "./CostBar";
+import { Dialog } from "./Dialog";
 import { useModalDismiss, useScrimDismiss } from "./use-modal-dismiss";
 
 interface Props {
@@ -41,8 +42,7 @@ export default function SessionSummary({ state, sessionId, onClose }: Props) {
   if (!summary) return null;
 
   return (
-    <div className="modal-backdrop" {...scrimPress} role="presentation">
-      <div ref={dialogRef} className="modal session-summary" onClick={e => e.stopPropagation()} role="dialog" aria-modal="true" aria-labelledby="ss-title">
+    <Dialog scrim={scrimPress} dialogRef={dialogRef} className="session-summary" labelledBy="ss-title">
         <div className="modal-head">
           <div className="modal-title">
             <span className="state-pill state-done" aria-hidden>{t("insights.summary.done")}</span>
@@ -119,8 +119,7 @@ export default function SessionSummary({ state, sessionId, onClose }: Props) {
             </section>
           )}
         </div>
-      </div>
-    </div>
+    </Dialog>
   );
 }
 

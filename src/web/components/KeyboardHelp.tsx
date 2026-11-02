@@ -33,6 +33,7 @@ import { kindOffered, useIntegrations } from "../integrations/client";
 import { KEY_HELP_NOTE, KEY_HELP_OFF_TITLE, KEY_HELP_SWITCH_NOTE, keyHelpFor, SINGLE_KEYS_PLACE, type KeyHelpGroup } from "../key-help";
 import { isApplePlatform, platformName } from "../platform";
 import { useSingleKeyShortcuts } from "../use-single-key-shortcuts";
+import { Dialog, DialogClose } from "./Dialog";
 import { useModalDismiss, useScrimDismiss } from "./use-modal-dismiss";
 import { useT } from "../i18n";
 import { richText } from "./settings-rich";
@@ -63,16 +64,13 @@ export default function KeyboardHelp({ onClose, onTour, onSettings, workspace = 
   const groups = extraGroups?.length ? [...base, ...extraGroups] : base;
 
   return (
-    <div className="modal-backdrop" {...scrimPress} role="presentation">
-      <div
-        ref={dialogRef}
-        className="modal key-help"
-        onClick={e => e.stopPropagation()}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="key-help-title"
-        aria-describedby={singleKeys ? undefined : "key-help-off"}
-      >
+    <Dialog
+      scrim={scrimPress}
+      dialogRef={dialogRef}
+      className="key-help"
+      labelledBy="key-help-title"
+      aria-describedby={singleKeys ? undefined : "key-help-off"}
+    >
         <header className="modal-head">
           <div className="modal-title">
             {/* Named by its own visible title, the way the tool modal and the
@@ -85,13 +83,7 @@ export default function KeyboardHelp({ onClose, onTour, onSettings, workspace = 
             <span id="key-help-title" className="modal-tool-name">{t("settings.key.title")}</span>
           </div>
           <div className="modal-actions">
-            <button
-              type="button"
-              className="glyph-btn"
-              onClick={onClose}
-              aria-label={t("settings.key.close")}
-              title={t("settings.key.close")}
-            >×</button>
+            <DialogClose onClick={onClose} label={t("settings.key.close")} />
           </div>
         </header>
 
@@ -150,7 +142,6 @@ export default function KeyboardHelp({ onClose, onTour, onSettings, workspace = 
               above has said why. */}
           {singleKeys && <p className="kh-foot">{t("settings.key.note")} {t("settings.key.switchNote", { place: t("settings.key.place") })}</p>}
         </section>
-      </div>
-    </div>
+    </Dialog>
   );
 }

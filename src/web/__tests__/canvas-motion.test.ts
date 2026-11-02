@@ -911,7 +911,10 @@ describe("one entrance for one interaction: the modal", () => {
   it("dims behind all three of them the same way", () => {
     for (const [backdrop] of DIALOGS) {
       const rule = all.find(r => !r.reduced && r.selector === backdrop)!;
-      expect(decl(rule.body, "animation"), backdrop).toBe("fadeIn var(--dur-base) var(--ease)"); // V4's dialog motion: Base, the one ease
+      // R3-3: a transition with @starting-style, not a keyframe, so a dialog
+      // reopened inside its own exit turns around from where it is.
+      expect(decl(rule.body, "animation"), backdrop).toBeNull();
+      expect(decl(rule.body, "transition"), backdrop).toBe("opacity var(--dur-base) var(--ease)"); // V4's dialog motion: Base, the one ease
     }
   });
 
@@ -922,9 +925,12 @@ describe("one entrance for one interaction: the modal", () => {
       const rule = all.find(r => !r.reduced && r.selector === panel)!;
       // On V4's one curve, --ease, which the literal here was within a few
       // hundredths of.
-      expect(decl(rule.body, "animation"), panel).toBe("popIn var(--dur-base) var(--ease)"); // V4's dialog motion: Base, not 180ms
+      expect(decl(rule.body, "animation"), panel).toBeNull();
+      expect(decl(rule.body, "transition"), panel).toBe("opacity var(--dur-base) var(--ease), transform var(--dur-base) var(--ease)"); // V4's dialog motion: Base, not 180ms
+      // ... from the enter scale, which is where the transform comes from.
+      const start = all.find(r => !r.reduced && r.selector === panel && decl(r.body, "transform")?.includes("--enter-scale"));
+      expect(start, panel).toBeDefined();
     }
-    expect(/@keyframes popIn\b[^}]*\}/.exec(css)![0]).toMatch(/transform\s*:/);
   });
 
   it("collapses all three to the backdrop's own fade under reduced motion", () => {
@@ -932,9 +938,10 @@ describe("one entrance for one interaction: the modal", () => {
     // each panel is answered — by its own selector, since a media query adds no
     // specificity and one dialog's rule does not reach another's.
     for (const [, panel] of DIALOGS) {
-      const answer = (answers.get(panel) ?? []).at(-1);
+      const answer = (answers.get(panel) ?? []).find(r => decl(r.body, "transition-property") != null);
       expect(answer, panel).toBeDefined();
-      expect(decl(answer!.body, "animation"), panel).toBe("fadeIn 140ms ease-out");
+      // Opacity only, on the same durations (the transition itself is kept).
+      expect(decl(answer!.body, "transition-property"), panel).toBe("opacity");
       expect(answer!.at, panel).toBeGreaterThan(all.find(r => !r.reduced && r.selector === panel)!.at);
     }
   });

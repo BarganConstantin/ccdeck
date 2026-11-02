@@ -12,7 +12,18 @@
   align-items: center;
   justify-content: center;
   z-index: 100;
-  animation: fadeIn var(--dur-base) var(--ease);
+  /* V4's dialog motion (Open: scrim opacity, Base 200, --ease; Close: Exit 150).
+     Transitions and @starting-style, not keyframes: a person can open a dialog
+     twice inside its own exit, and a transition turns around from the frame it
+     is on where a keyframe restarts from 0. data-state is Dialog.tsx's. */
+  opacity: 1;
+  transition: opacity var(--dur-base) var(--ease);
+}
+@starting-style { .modal-backdrop { opacity: 0; } }
+.modal-backdrop[data-state="closing"] {
+  opacity: 0;
+  pointer-events: none;
+  transition-duration: var(--dur-exit);
 }
 
 /* Native caption controls cannot be dimmed by an HTML backdrop. Keep the
@@ -38,11 +49,31 @@
   border-radius: var(--r-overlay);
   box-shadow: var(--shadow-overlay);
   overflow: hidden;
-  animation: popIn var(--dur-base) var(--ease);
+  opacity: 1;
+  transform: none;
+  transition: opacity var(--dur-base) var(--ease), transform var(--dur-base) var(--ease);
+}
+/* Open: opacity and scale --enter-scale to 1, centred. Close: opacity and scale
+   --exit-scale, Exit 150. The closing surface takes no pointer input at all
+   (the scrim above it is pointer-events: none and inert). */
+@starting-style { .modal { opacity: 0; transform: scale(var(--enter-scale)); } }
+.modal-backdrop[data-state="closing"] > .modal {
+  opacity: 0;
+  transform: scale(var(--exit-scale));
+  transition-duration: var(--dur-exit);
+}
+/* Quick open is not a shared-shell dialog: it keeps its own keyframes
+   (quick-open.css), so the scrim's transition stays off for it. */
+.modal-backdrop.qo-backdrop { transition: none; }
+/* Reduced motion: opacity only, the same durations. */
+@media (prefers-reduced-motion: reduce) {
+  .modal { transition-property: opacity; }
+  @starting-style { .modal { transform: none; } }
+  .modal-backdrop[data-state="closing"] > .modal { transform: none; }
 }
 /* V4 motion: a dialog opened by a key, or closed with Esc, has none
    (input-modality.ts sets the flag on any key and clears it on any pointer). */
-:root[data-motion="instant"] :is(.modal-backdrop, .modal) { animation: none; }
+:root[data-motion="instant"] :is(.modal-backdrop, .modal) { transition: none; }
 
 /* THE ONE DIALOG HEADER (tokens.css, "One dialog frame"). Every dialog's top
    row is this: its title on the left at one size and weight, a muted note
@@ -55,8 +86,11 @@
   align-items: center;
   justify-content: space-between;
   gap: 12px;
+  /* V4's Figma: the band is --dialog-head-h (44 at the default density) and the
+     1px rule sits BELOW it, so content-box: the title lands at y 12 and the
+     body starts at y 45. */
   min-height: var(--dialog-head-h);
-  box-sizing: border-box;
+  box-sizing: content-box;
   flex-shrink: 0;
   padding: 0 8px 0 16px;
   border-bottom: 1px solid var(--line-soft);
@@ -100,6 +134,23 @@
   align-items: center;
   gap: 8px;
 }
+/* The dialog's close and the other header icon buttons (the Usage header's, the
+   recap pin) are the kit's 28 icon button: 28x28, radius --r-ctl, glyph 14.
+   Not the 24px circle .glyph-btn is everywhere else. Written at :where()
+   specificity so the 36 and 44px touch rules a phone already carries (and the
+   per-control rules) keep winning over the size. */
+:where(.modal-head, .modal-actions) .glyph-btn {
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  margin-block: 0;
+  border-radius: var(--r-ctl);
+  font-size: calc(14px + var(--ui-text-increase, 0px));
+}
+/* The Usage header's buttons are 28 already (quota-history.css) and the recap
+   pin keeps its box; both lose the circle. */
+.up-header-right > .glyph-btn,
+.agent-node .recap-pin { border-radius: var(--r-ctl); }
 .modal-dur {
   color: var(--muted);
   font-size: calc(12px + var(--ui-text-increase, 0px));
@@ -124,7 +175,8 @@
   padding: 0 16px;
   border-top: 1px solid var(--line-soft);
   flex-shrink: 0;
-  box-sizing: border-box;
+  /* Figma: 48 tall with the 1px rule above it as its own line. */
+  box-sizing: content-box;
 }
 .modal-section h4 {
   margin: 0 0 6px;
@@ -224,7 +276,6 @@
    search that never dims anything. Fading to the cascade's own opacity is what
    every caller wanted anyway. */
 @keyframes fadeIn { from { opacity: 0; } }
-@keyframes popIn  { from { opacity: 0; transform: scale(var(--enter-scale)); } to { opacity: 1; transform: none; } }
 
 /* ---------------- clear confirmation ---------------- */
 
@@ -819,7 +870,9 @@
    the short-read width and under the one dialog header. It fades rather than
    pops: popIn's transform would make the dialog the containing block of the
    options menu's fixed popover and move it during the entrance. */
-.modal.release-notes { width: var(--dialog-s); max-height: min(780px, 90dvh); animation: fadeIn 180ms var(--ease); }
+.modal.release-notes { width: var(--dialog-s); max-height: min(780px, 90dvh); transition-property: opacity; }
+@starting-style { .modal.release-notes { transform: none; } }
+.modal-backdrop[data-state="closing"] > .modal.release-notes { transform: none; }
 .release-notes > .modal-head, .release-notes > .rn-footer { flex: none; }
 .release-notes .modal-title { flex-wrap: wrap; gap: 8px; }
 .release-notes > .modal-body { min-height: 0; padding: 20px 24px; gap: 18px; scroll-padding-block: 16px; scrollbar-gutter: stable; scrollbar-color: var(--ctl-edge) transparent; }

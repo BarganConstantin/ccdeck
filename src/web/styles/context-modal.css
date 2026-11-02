@@ -306,7 +306,7 @@
   color: var(--accent);
 }
 .agent-node .recap-pin[aria-expanded="true"] {
-  border-radius: 50%;
+  border-radius: var(--r-ctl);
   background: color-mix(in srgb, var(--accent) 18%, transparent);
 }
 

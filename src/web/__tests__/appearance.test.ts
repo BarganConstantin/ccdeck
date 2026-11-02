@@ -52,11 +52,14 @@ describe("character appearance preference", () => {
   it("uses a dismissible, accessible modal of one height for the appearance settings", () => {
     const styles = sheetText();
     expect(modal()).toContain("useModalDismiss");
-    expect(modal()).toContain('role="dialog"');
-    expect(modal()).toContain('aria-modal="true"');
-    expect(modal()).toContain('className="modal-backdrop"');
-    expect(modal()).toContain('className="modal settings-modal"');
-    expect(modal()).toContain('aria-labelledby="settings-title"');
+    // The shell (Dialog.tsx) draws role, aria-modal, the scrim and `modal`;
+    // Settings names its own class and its title.
+    expect(read("components/Dialog.tsx")).toContain('role="dialog"');
+    expect(read("components/Dialog.tsx")).toContain('aria-modal="true"');
+    expect(read("components/Dialog.tsx")).toContain('"modal-backdrop"');
+    expect(modal()).toContain('<Dialog');
+    expect(modal()).toContain('className="settings-modal"');
+    expect(modal()).toContain('labelledBy="settings-title"');
     expect(themes()).toContain('role="radiogroup"');
     expect(themes()).toContain('role="radio"');
     expect(modal()).toContain("onClick={() => requestLeave(onClose)}");

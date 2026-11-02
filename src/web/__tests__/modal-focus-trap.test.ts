@@ -59,22 +59,43 @@ function code(src: string): string {
     .split("\n").filter(line => !/^\s*\/\//.test(line)).join("\n");
 }
 
-/** The opening tag of the scrim — the element with the dismiss onClick. */
+/** The shell every dialog but the drawer is drawn by: its scrim and its surface. */
+const SHELL = read("Dialog.tsx");
+
+/** The opening tag of the scrim — the element with the dismiss onClick. A
+ *  dialog on the shell has the shell's; the tool-audit drawer draws its own. */
 function backdropTag(src: string): string | null {
-  const m = /<div className="[a-z-]*backdrop"[^>]*>/.exec(src);
-  return m ? m[0] : null;
+  const own = /<div className="[a-z-]*backdrop"[^>]*>/.exec(src);
+  if (own) return own[0];
+  if (!/<Dialog\s/.test(src)) return null;
+  const shell = /<div\s(?:=>|[^>])*modal-backdrop(?:=>|[^>])*>/.exec(SHELL);
+  return shell ? shell[0] : null;
 }
 
-/** The dialog surface itself. The `=>` alternative is not decoration: the tag
- *  carries `onClick={e => e.stopPropagation()}` and a plain [^>] run stops dead
- *  on the arrow. Same shape as modal-dialog-role.test.ts, which pins the role. */
+/** The dialog surface itself: the drawer's own tag, or the `<Dialog ...>` tag a
+ *  dialog hands the shell (the shell adds the role, aria-modal and its ref to
+ *  the surface it draws from those props). The `=>` alternative is not
+ *  decoration: a plain [^>] run stops dead on an arrow. */
 function dialogTag(src: string): string {
-  return (src.match(/<div\s(?:=>|[^>])*role="dialog"(?:=>|[^>])*>/) ?? [""])[0];
+  const own = src.match(/<div\s(?:=>|[^>])*role="dialog"(?:=>|[^>])*>/);
+  if (own) return own[0];
+  return (src.match(/<Dialog\s(?:=>|[^>])*>/) ?? [""])[0];
 }
 
+/** The shell's own surface tag, which carries the role, aria-modal and the ref. */
+const SHELL_SURFACE = (/<div\s(?:=>|[^>])*role="dialog"(?:=>|[^>])*>/.exec(SHELL) ?? [""])[0];
+
+// Every dialog on the shell (`<Dialog`), plus the tool-audit drawer, which
+// draws a scrim and surface of its own. The radio's panel and QuickOpen are
+// not in this sweep (a popover-like panel, and the documented literal
+// exception), as before.
 const MODALS = readdirSync(dir)
-  .filter(f => f.endsWith(".tsx"))
-  .filter(f => backdropTag(read(f)) !== null);
+  .filter(f => f.endsWith(".tsx") && f !== "Dialog.tsx")
+  .filter(f => {
+    const src = read(f);
+    return /<Dialog\s/.test(src) || /<div className="[a-z-]*backdrop"[^>]*>/.test(src);
+  })
+  .filter(f => f !== "RadioExperience.tsx");
 
 // ── the wrap, as a rule about a list and an index ───────────────────────────
 
@@ -301,8 +322,13 @@ describe("the deck's ten overlays", () => {
     for (const f of MODALS) {
       const src = read(f);
       expect(`${f}: ${/const dialogRef = useModalDismiss[<(]/.test(src)}`).toBe(`${f}: true`);
-      expect(`${f}: ${dialogTag(src).includes("ref={dialogRef}")}`).toBe(`${f}: true`);
+      // A dialog on the shell hands it `dialogRef={dialogRef}`; the shell puts
+      // it on the surface (below), never on the scrim.
+      const tag = dialogTag(src);
+      const handed = tag.startsWith("<Dialog") ? tag.includes("dialogRef={dialogRef}") : tag.includes("ref={dialogRef}");
+      expect(`${f}: ${handed}`).toBe(`${f}: true`);
     }
+    expect(SHELL_SURFACE).toContain("ref={dialogRef}");
   });
 
   it("puts the boundary on the dialog and not on the scrim", () => {
@@ -318,7 +344,10 @@ describe("the deck's ten overlays", () => {
     // so it was wrong on all four and missing on the two that behaved no
     // differently.
     for (const f of MODALS) {
-      expect(`${f}: ${dialogTag(read(f)).includes('aria-modal="true"')}`).toBe(`${f}: true`);
+      const tag = dialogTag(read(f));
+      // On the shell the claim is made once, by the surface it draws.
+      const says = tag.startsWith("<Dialog") ? SHELL_SURFACE.includes('aria-modal="true"') : tag.includes('aria-modal="true"');
+      expect(`${f}: ${says}`).toBe(`${f}: true`);
     }
   });
 
@@ -393,8 +422,14 @@ describe("the deck's ten overlays", () => {
     // setup dialog are the others, for the same reason — because the hook's own
     // default is already the right answer there, and this is what makes that
     // true.
-    const firstButton = (/<button(?:=>|[^>])*>/.exec(code(read("ToolModal.tsx"))) ?? [""])[0];
-    expect(firstButton).toContain('aria-label={t("insights.audit.closeEsc")}');
+    // The × is the shell's DialogClose (a glyph button with the label as its
+    // aria-label), and it is the first control in the source: nothing draws a
+    // button or a second DialogClose before it.
+    const toolSrc = code(read("ToolModal.tsx"));
+    const firstControl = (/<button(?:=>|[^>])*>|<DialogClose(?:=>|[^>])*>/.exec(toolSrc) ?? [""])[0];
+    expect(firstControl).toMatch(/^<DialogClose /);
+    expect(firstControl).toContain('label={t("insights.audit.closeEsc")}');
+    expect(code(read("Dialog.tsx"))).toMatch(/<button type="button" className="glyph-btn" onClick=\{onClick\} aria-label=\{label\}/);
   });
 
   it("greets the usage modal's keyboard with Close and not with a range tab", () => {

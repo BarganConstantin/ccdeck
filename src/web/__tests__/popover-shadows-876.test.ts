@@ -42,7 +42,9 @@ describe("the usage-history dialog's shadow (#876)", () => {
   it("is .modal's --shadow-2, which each theme block tunes for its own canvas", () => {
     // By composition since #874: the dialog wears the shared shell, and its own
     // rule declares no second shadow.
-    expect(history).toMatch(/className="modal uh-modal"/);
+    // The `modal` class is the shell's (Dialog.tsx), the dialog adds its own name.
+    expect(readFileSync(fileURLToPath(new URL("../components/Dialog.tsx", import.meta.url)), "utf8")).toMatch(/`modal \$\{className\}`/);
+    expect(history).toMatch(/<Dialog\b[^>]*className="uh-modal"/);
     // V4's dialog frame: --shadow-overlay (a token each theme tunes), was --shadow-2.
     expect(decl(".modal", "box-shadow")).toBe("var(--shadow-overlay)");
     expect(decl(".modal.uh-modal", "box-shadow")).toBeNull();

@@ -16,6 +16,7 @@ import { shortModel } from "../model-label";
 import { agentLabel, usageSubtitle } from "../provider-copy";
 import { agentColor, agentTotals, sharePct } from "../usage-agents";
 import type { Providers } from "../providers";
+import { Dialog } from "./Dialog";
 import { useModalDismiss, useScrimDismiss } from "./use-modal-dismiss";
 import { useFocusRescue } from "./use-focus-rescue";
 import { selfPressProps } from "../panel-press";
@@ -106,8 +107,7 @@ export default function UsageHistoryModal({ onClose, providers }: Props) {
   const labelStep = dayLabelStep(days.length);
 
   return (
-    <div className="modal-backdrop" {...scrimPress} role="presentation">
-      <div ref={dialogRef} className="modal uh-modal" onClick={e => e.stopPropagation()} role="dialog" aria-modal="true" aria-label={t("insights.usage.title")}>
+    <Dialog scrim={scrimPress} dialogRef={dialogRef} className="uh-modal" aria-label={t("insights.usage.title")}>
         <header className="modal-head uh-head">
           <div className="uh-titlewrap">
             <div className="modal-tool-name">{t("insights.usage.title")}</div>
@@ -382,8 +382,7 @@ export default function UsageHistoryModal({ onClose, providers }: Props) {
             {selectedDay && <UsageDayDetail selectedDay={selectedDay} />}
           </div>
         )}
-      </div>
-    </div>
+    </Dialog>
   );
 }
 

@@ -36,6 +36,7 @@ import type { useVersionCheck } from "../use-version-check";
 import type { useWelcomeAndNotes } from "../use-welcome-and-notes";
 import ClearConfirm from "./ClearConfirm";
 import ContextModal from "./ContextModal";
+import { DialogPresence } from "./Dialog";
 import FeedbackDialog from "./FeedbackDialog";
 import GuideModal from "./GuideModal";
 import { WELCOME_STEPS } from "./guide-art";
@@ -111,18 +112,18 @@ export default function DeckDialogs({
   const { settingsOpen, settingsSection, settingsLandOn, showSection, closeSettings, openSettings } = menus;
   return (
     <>
-      {openedTool && <ToolModal tool={openedTool} onClose={() => setOpenedToolKey(null)} />}
+      <DialogPresence when={openedTool}>{tool => <ToolModal tool={tool} onClose={() => setOpenedToolKey(null)} />}</DialogPresence>
       {/* `providers` is what the modal's subtitle falls back to until a ccusage
           run has said whose logs are actually in the figures (#431). It is not
           a gate: ccusage reads the logs on this machine rather than this deck's
           flags, so a deck started with --no-codex can still be shown Codex
           spend, and the subtitle follows the data when there is any. */}
-      {usageHistoryOpen && (
+      <DialogPresence when={usageHistoryOpen}>{() => (
         <Suspense fallback={null}>
           <UsageHistoryModal providers={providers} onClose={() => setUsageHistoryOpen(false)} />
         </Suspense>
-      )}
-      {browserWatchOpen && (
+      )}</DialogPresence>
+      <DialogPresence when={browserWatchOpen}>{() => (
         <Suspense fallback={null}>
         <BrowserWatchModal
           onClose={() => setBrowserWatchOpen(false)}
@@ -144,33 +145,33 @@ export default function DeckDialogs({
           palette={palette}
         />
         </Suspense>
-      )}
-      {contextAgent && <ContextModal agent={contextAgent} onClose={() => setContextFor(null)} />}
-      {trafficRadarOpen && <Suspense fallback={null}>
+      )}</DialogPresence>
+      <DialogPresence when={contextAgent}>{agent => <ContextModal agent={agent} onClose={() => setContextFor(null)} />}</DialogPresence>
+      <DialogPresence when={trafficRadarOpen}>{() => <Suspense fallback={null}>
         <TrafficRadar sessions={[...stateRef.current.agents.values()].filter(agent => agent.kind === "root" && agent.provider !== "codex").map(agent => ({ id: agent.sessionId, label: sessionDisplay(agent.sessionName, agent.sessionTitle).face ?? agent.cwdBasename ?? agent.label, project: agent.cwdBasename ?? agent.label, workspace: agent.cwd }))} onClose={() => setTrafficRadarOpen(false)} />
-      </Suspense>}
-      {feedbackOpen && (
+      </Suspense>}</DialogPresence>
+      <DialogPresence when={feedbackOpen}>{() => (
         <FeedbackDialog
           initialKind={feedbackPrefill?.initialKind}
           initialBody={feedbackPrefill?.initialBody}
           initialTab={feedbackPrefill?.initialTab}
           onClose={() => { setFeedbackOpen(false); setFeedbackPrefill(null); }}
         />
-      )}
-      {summaryFor && (
+      )}</DialogPresence>
+      <DialogPresence when={summaryFor}>{sessionId => (
         <SessionSummary
           state={stateRef.current}
-          sessionId={summaryFor}
+          sessionId={sessionId}
           onClose={() => setSummaryFor(null)}
         />
-      )}
+      )}</DialogPresence>
       {/* Settings, the last of the dialogs the reader opens: opened by the
           topbar's gear, by Cmd/Ctrl+, and by V at Sounds —
           use-settings-menus.ts. Here rather than beside the gear,
           so it is mounted from the top of the tree like every dialog App
           opens, and ahead of everything that arrives on its own, which may
           paint over it. */}
-      {settingsOpen && (
+      <DialogPresence when={settingsOpen}>{() => (
         <SettingsModal
           section={settingsSection}
           landOn={settingsLandOn}
@@ -204,19 +205,19 @@ export default function DeckDialogs({
             radar: doorOut(closeSettings, () => setTrafficRadarOpen(true)),
           }}
         />
-      )}
+      )}</DialogPresence>
       {/* Ahead of the shortcuts sheet and the clear prompt, which is where a
           dialog that arrives on its own belongs: it must not paint over the one
           waiting for an answer, and the stack in modal-dismiss.ts settles Esc
           the same way round. */}
-      {releaseNotes && (
+      <DialogPresence when={releaseNotes}>{notes => (
         <ReleaseNotesModal
-          entries={releaseNotes.entries}
-          since={releaseNotes.since}
+          entries={notes.entries}
+          since={notes.since}
           /* Both are null-on-a-browse, and they are not the same thing: a first
              run is the deck announcing one release to somebody who has never
              seen any of them, and its first line has to say so (#717). */
-          firstRun={releaseNotes.firstRun}
+          firstRun={notes.firstRun}
           /* The same number the chip wears, and defaulted the same way, so the
              dialog's first line and the chip that opened it cannot disagree
              about which release the reader is on. */
@@ -239,7 +240,7 @@ export default function DeckDialogs({
           onRestart={!readyAppUpdate && version?.canRestart ? () => { closeReleaseNotes(); void askRestart(); } : undefined}
           updateCheck={{ versionCheck, upgrade, restart, desktopUpdate, running: chipVersion, onHandOff: closeReleaseNotes }}
         />
-      )}
+      )}</DialogPresence>
       {/* After the release notes and before the clear prompt. Both of those
           also arrive without being asked for, and the order between them is
           the order of what they want: a question that is holding another
@@ -261,27 +262,27 @@ export default function DeckDialogs({
           waiting for an answer. Escape agrees with the paint order — the prompt
           carries CONFIRM_LAYER and the stack in modal-dismiss.ts resolves layer
           before arrival. */}
-      {keyHelpOpen && (
+      <DialogPresence when={keyHelpOpen}>{() => (
         <KeyboardHelp
           onClose={() => setKeyHelpOpen(false)}
           onTour={() => { setKeyHelpOpen(false); openTour(); }}
           onSettings={() => { setKeyHelpOpen(false); openSettings("keyboard"); }}
           workspace={offersWorkspace(terminal)}
         />
-      )}
-      {tourOpen && (
+      )}</DialogPresence>
+      <DialogPresence when={tourOpen}>{() => (
         <GuideModal title={t("shell.guide.welcome.title")} steps={WELCOME_STEPS} onClose={closeTour} />
-      )}
+      )}</DialogPresence>
       {/* Last, so it sits above a session summary that pops in from a Stop
           hook while the user is still deciding. The gate keeps it from opening
           over a modal, but a modal can still arrive over it. */}
-      {clearConfirmOpen && (
+      <DialogPresence when={clearConfirmOpen}>{() => (
         <ClearConfirm
           agentCount={agentCount}
           onConfirm={() => requestClear("confirmation")}
           onCancel={() => setClearConfirmOpen(false)}
         />
-      )}
+      )}</DialogPresence>
     </>
   );
 }

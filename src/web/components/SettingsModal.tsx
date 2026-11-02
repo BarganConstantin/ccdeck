@@ -51,6 +51,7 @@ import AboutSection from "./AboutSection";
 import UpdatesSection from "./UpdatesSection";
 import CharacterSection from "./CharacterSection";
 import TerminalSection, { offersWorkspace, type TerminalSwitch } from "./TerminalSection";
+import { Dialog } from "./Dialog";
 import { useModalDismiss, useScrimDismiss } from "./use-modal-dismiss";
 import { SettingsSearchField, SettingsSearchResults, SettingsSearchStatus } from "./SettingsSearch";
 import { useSettingsJump } from "./use-settings-jump";
@@ -334,17 +335,14 @@ export default function SettingsModal({
       : null;
 
   return (
-    <div className="modal-backdrop" {...scrimPress} role="presentation">
-      <div
-        ref={dialogRef}
-        id="settings"
-        className="modal settings-modal"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="settings-title"
-        onClick={event => event.stopPropagation()}
-        onKeyDown={onDialogKey}
-      >
+    <Dialog
+      scrim={scrimPress}
+      dialogRef={dialogRef}
+      id="settings"
+      className="settings-modal"
+      labelledBy="settings-title"
+      onKeyDown={onDialogKey}
+    >
         <header className="modal-head">
           <div className="modal-title">
             <span id="settings-title" className="modal-tool-name">{t("settings.title")}</span>
@@ -438,7 +436,6 @@ export default function SettingsModal({
           </div>
           {searching && <SettingsSearchResults query={query} results={results} active={active} onOpen={openResult} />}
         </div>
-      </div>
-    </div>
+    </Dialog>
   );
 }

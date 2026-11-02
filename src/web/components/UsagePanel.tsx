@@ -26,6 +26,7 @@ import UsagePeriodStrip from "./UsagePeriodStrip";
 import UsageSessionBreakdown from "./UsageSessionBreakdown";
 import SessionUsageModal from "./SessionUsageModal";
 import QuotaHistoryModal from "./QuotaHistoryModal";
+import { DialogPresence } from "./Dialog";
 import type { SessionSelection } from "../session-usage";
 import { selfPressProps } from "../panel-press";
 import { useCodexQuota, useQuota } from "../use-quota";
@@ -534,10 +535,14 @@ export default function UsagePanel({ state, now, providers, incidents = [], leav
       {/* The panel's last line, whatever is above it: the header's row is
           already the title, the burn rate and two acts. */}
       <div className="film-foot"><FilmLink film="usage" /></div>
-      {inspectedSession && <SessionUsageModal key={`${inspectedSession.agent}:${inspectedSession.sessionId}`}
-        session={inspectedSession} onClose={() => setInspectedSession(null)} />}
-      {quotaHistoryOpen && <QuotaHistoryModal providers={providers} instant={quotaHistoryOpen === "keyboard"}
-        accounts={{ claude: quota?.historyAccount, codex: codexQuota?.historyAccount }} onClose={() => setQuotaHistoryOpen(null)} />}
+      <DialogPresence when={inspectedSession}>{session => (
+        <SessionUsageModal key={`${session.agent}:${session.sessionId}`}
+          session={session} onClose={() => setInspectedSession(null)} />
+      )}</DialogPresence>
+      <DialogPresence when={quotaHistoryOpen}>{mode => (
+        <QuotaHistoryModal providers={providers} instant={mode === "keyboard"}
+          accounts={{ claude: quota?.historyAccount, codex: codexQuota?.historyAccount }} onClose={() => setQuotaHistoryOpen(null)} />
+      )}</DialogPresence>
     </aside>
   );
 }

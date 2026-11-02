@@ -175,7 +175,7 @@ describe("the way in", () => {
     expect(app).toMatch(/if \(e\.key === "\?"\) setKeyHelpOpen\(o => !o\);/);
     // Over several lines since it gained a third door, Settings at General
     // for the single-key switch; the flag and the close are the same.
-    expect(app).toMatch(/\{keyHelpOpen && \(\s*<KeyboardHelp\s+onClose=\{\(\) => setKeyHelpOpen\(false\)\}/);
+    expect(app).toMatch(/<DialogPresence when=\{keyHelpOpen\}>\{\(\) => \(\s*<KeyboardHelp\s+onClose=\{\(\) => setKeyHelpOpen\(false\)\}/);
     // The sheet is mounted in components/DeckDialogs.tsx, which App.tsx hands the dialogs' state.
     expect(read("App.tsx")).toMatch(/<DeckDialogs\b[^>]*\bdialogs=\{dialogs\}/);
   });
@@ -201,9 +201,13 @@ describe("the way in", () => {
     // Escape, the focus trap and the hand-back.
     expect(sheet).toMatch(/const dialogRef = useModalDismiss\(onClose\);/);
     expect(sheet).toMatch(/const scrimPress = useScrimDismiss\(onClose\);/);
-    expect(sheet).toMatch(/<div className="modal-backdrop" \{\.\.\.scrimPress\} role="presentation">/);
-    expect(sheet).toMatch(/className="modal key-help"/);
-    expect(sheet).toMatch(/aria-modal="true"/);
+    // The generic markup is Dialog.tsx's; the sheet's own file uses it.
+    const shell = read("components/Dialog.tsx");
+    expect(shell).toMatch(/className=\{className \? `modal-backdrop \$\{className\}` : "modal-backdrop"\}/);
+    expect(shell).toMatch(/role="presentation"/);
+    expect(shell).toMatch(/aria-modal="true"/);
+    expect(shell).toMatch(/role="dialog"/);
+    expect(sheet).toMatch(/<Dialog\s+scrim=\{scrimPress\}\s+dialogRef=\{dialogRef\}\s+className="key-help"\s+labelledBy="key-help-title"/);
   });
 
   it("says what to do when a key does nothing, under the keys (#852)", () => {

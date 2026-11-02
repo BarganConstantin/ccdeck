@@ -24,6 +24,7 @@ import { useFeatureUse } from "../feature-use";
 import { isTabbable, TABBABLE_SELECTOR } from "../modal-dismiss";
 import { prefersReducedMotion } from "../viewport-motion";
 import { useDrillIn } from "./IntegrationSplit";
+import { Dialog } from "./Dialog";
 import { useModalDismiss, useScrimDismiss } from "./use-modal-dismiss";
 
 export interface IntegrationModalProps {
@@ -117,9 +118,8 @@ export default function IntegrationModal({ kind, connections, onClose, onReconne
   const { Glyph } = def;
 
   return createPortal(
-    <div className="modal-backdrop" role="presentation" {...scrimPress}>
-      <div ref={dialogRef} id={`integration-${kind}-modal`} className="modal ig-modal" role="dialog" aria-modal="true" aria-labelledby="integration-modal-title"
-        data-kind={kind} data-closing={closing || undefined} onClick={event => event.stopPropagation()}
+    <Dialog scrim={scrimPress} dialogRef={dialogRef} id={`integration-${kind}-modal`} className="ig-modal" labelledBy="integration-modal-title"
+        data-kind={kind} data-closing={closing || undefined}
         onAnimationEnd={event => { if (closing && event.target === event.currentTarget) finish(); }}>
         {/* A div, not a <header>: the dialog's label already names it, and a
             second banner landmark is one too many (axe). */}
@@ -149,8 +149,7 @@ export default function IntegrationModal({ kind, connections, onClose, onReconne
             onReconnect={() => { close(); onReconnect(connection.id); }}
           />
         </div>
-      </div>
-    </div>,
+    </Dialog>,
     document.body,
   );
 }

@@ -16,6 +16,7 @@
 // and Escape still close it from any step, and the arrow keys move either way.
 import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import { createPortal } from "react-dom";
+import { Dialog, DialogClose } from "./Dialog";
 import { useModalDismiss, useScrimDismiss } from "./use-modal-dismiss";
 import { focusDropped } from "../panel-press";
 import { useT } from "../i18n";
@@ -80,17 +81,14 @@ export default function GuideModal({ title, steps, finish, aside, onClose }: {
   // Portalled because LanSyncSection opens this guide from inside the accounts
   // panel, and a modal is not the panel's to lay out — see AddAccountDialog.
   return createPortal(
-    <div className="modal-backdrop" {...scrimPress} role="presentation">
-      <div ref={dialogRef} className="modal guide" onClick={e => e.stopPropagation()}
-        onKeyDown={onKey} role="dialog" aria-modal="true" aria-labelledby="guide-title">
+    <Dialog scrim={scrimPress} dialogRef={dialogRef} className="guide" onKeyDown={onKey} labelledBy="guide-title">
         <header className="modal-head">
           <div className="modal-title">
             <span id="guide-title" className="modal-tool-name">{title}</span>
             <span className="modal-tool-id">{at + 1} / {steps.length}</span>
           </div>
           <div className="modal-actions">
-            <button type="button" className="glyph-btn" onClick={onClose}
-              aria-label={t("shell.closeEsc")} title={t("shell.closeEsc")}>×</button>
+            <DialogClose onClick={onClose} label={t("shell.closeEsc")} />
           </div>
         </header>
 
@@ -126,8 +124,7 @@ export default function GuideModal({ title, steps, finish, aside, onClose }: {
             </button>
           </div>
         </section>
-      </div>
-    </div>,
+    </Dialog>,
     document.body,
   );
 }

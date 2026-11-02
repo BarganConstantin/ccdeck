@@ -900,7 +900,9 @@ describe("how App.tsx wires it up", () => {
     // still told which one it is rather than left to guess from `since`.
     expect(app).toMatch(/firstRun: false/);
     expect(app).not.toMatch(/firstRun: decision\.reason/);
-    expect(app).toMatch(/firstRun=\{releaseNotes\.firstRun\}/);
+    // DeckDialogs mounts it in a DialogPresence, which hands the callback the notes.
+    expect(app).toMatch(/<DialogPresence when=\{releaseNotes\}>\{notes => \(\s*<ReleaseNotesModal/);
+    expect(app).toMatch(/firstRun=\{notes\.firstRun\}/);
   });
 
   it("sends a first run to the tour and not to the changelog", () => {
@@ -1002,8 +1004,13 @@ describe("how App.tsx wires it up", () => {
 
   it("draws the dialog out of the shared modal parts and nothing else", () => {
     expect(modal).toMatch(/const dialogRef = useModalDismiss\(onClose\);/);
-    expect(modal).toMatch(/className="modal-backdrop"/);
-    expect(modal).toMatch(/role="dialog" aria-modal="true"/);
+    // The scrim, the surface and its role come from the shared shell, which the
+    // dialog uses for its own name and label.
+    expect(modal).toMatch(/<Dialog scrim=\{scrimPress\} dialogRef=\{dialogRef\} className="release-notes"/);
+    expect(modal).toMatch(/labelledBy="release-notes-title"/);
+    const shell = src("../components/Dialog.tsx");
+    expect(shell).toMatch(/"modal-backdrop"/);
+    expect(shell).toMatch(/role="dialog"\s+aria-modal="true"/);
     // No decision logic in the component: it draws what it is handed. The title
     // split is release-notes.ts's for the same reason — the component calls it,
     // it does not carry a regex of its own.

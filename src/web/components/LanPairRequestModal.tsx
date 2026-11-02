@@ -26,6 +26,7 @@ import { useRef } from "react";
 import { modalStack } from "../modal-dismiss";
 import { pressState } from "../panel-press";
 import { promptShows } from "../reauth-attention";
+import { Dialog, DialogClose, DialogPresence } from "./Dialog";
 import { useModalDismiss, useScrimDismiss } from "./use-modal-dismiss";
 import { askedLabel } from "../lan-roster";
 import { useT } from "../i18n";
@@ -79,24 +80,14 @@ export default function LanPairRequestModal({ request, waiting, busy, now, onAcc
   const decline = pressState(busy, "dismiss");
 
   return (
-    <div className="modal-backdrop" {...scrimPress} role="presentation">
-      <div
-        ref={dialogRef}
-        className="modal lan-ask"
-        onClick={e => e.stopPropagation()}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="lan-ask-title"
-        aria-describedby="lan-ask-who"
-      >
+    <Dialog scrim={scrimPress} dialogRef={dialogRef} className="lan-ask" labelledBy="lan-ask-title" aria-describedby="lan-ask-who">
         <header className="modal-head">
           <div className="modal-title">
             <i className="ap-pulse" aria-hidden />
             <span id="lan-ask-title" className="modal-tool-name">{t("lan.ask.title")}</span>
           </div>
           <div className="modal-actions">
-            <button type="button" className="glyph-btn" onClick={onLater}
-              aria-label={t("lan.ask.later")} title={t("lan.ask.later")}>×</button>
+            <DialogClose onClick={onLater} label={t("lan.ask.later")} />
           </div>
         </header>
 
@@ -142,8 +133,7 @@ export default function LanPairRequestModal({ request, waiting, busy, now, onAcc
             </button>
           </div>
         </section>
-      </div>
-    </div>
+    </Dialog>
   );
 }
 
@@ -171,7 +161,9 @@ export function usePairRequestDialog(pairs: ReturnType<typeof useLanPairRequests
   const dialog = pairRequestFor(pairs);
   const shows = promptShows({ rows: dialog ? 1 : 0, ours: oursRef.current, dialogs: modalStack.dialogDepth() });
   oursRef.current = shows;
-  return shows ? dialog : null;
+  // Null stays null: DeckDialogs reads `pairRequest != null` as "a request is
+  // up", so the presence wraps only a dialog that exists.
+  return shows && dialog ? <DialogPresence when={dialog}>{d => d}</DialogPresence> : null;
 }
 
 /** The request to ask about now, if any — the oldest not put off this session,

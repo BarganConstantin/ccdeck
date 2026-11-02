@@ -1,6 +1,7 @@
 // Release selection and seen-state stay upstream; this sheet only presents them.
 import { useEffect, useId, useRef, useState } from "react";
 import { groupReleaseNotes, presentReleaseNotes, splitNoteTitle, versionRangeLabel, isVersion, type ReleaseNote, type VersionNotes } from "../release-notes";
+import { Dialog } from "./Dialog";
 import { useModalDismiss, useScrimDismiss } from "./use-modal-dismiss";
 import { parseInline, type Inline } from "../inline-markdown";
 import { restartToUpdate } from "../desktop-update";
@@ -53,9 +54,8 @@ export default function ReleaseNotesModal({ entries, since, running, firstRun, o
     : since ? t("shell.notes.contextSince", { since }) : null;
   const hasLegacyUpgrade = visiblePrevious.some(entry => entry.notes.some(note => !note.priority && !note.notice));
 
-  return <div className="modal-backdrop" {...scrimPress} role="presentation">
-    <div ref={dialogRef} className="modal release-notes" id={`${id}-dialog`} onClick={e => e.stopPropagation()}
-      role="dialog" aria-modal="true" aria-labelledby="release-notes-title">
+  return <Dialog scrim={scrimPress} dialogRef={dialogRef} className="release-notes" id={`${id}-dialog`}
+      labelledBy="release-notes-title">
       <header className="modal-head">
         <div className="modal-title">
           <span id="release-notes-title" className="modal-tool-name">{t("shell.notes.title")}</span>
@@ -113,8 +113,7 @@ export default function ReleaseNotesModal({ entries, since, running, firstRun, o
           onClick={() => { setMenu(null); onRestart?.(); }}><RestartGlyph />{t("shell.notes.restart")}</button>}
         <span hidden id={`${id}-restart-why`}>{RESTART_WHY}</span>
       </AnchoredPopover>}
-    </div>
-  </div>;
+  </Dialog>;
 }
 
 function ReleaseSection({ entry, showVersion }: { entry: VersionNotes; showVersion: boolean }) {

@@ -3,6 +3,7 @@ import { createPortal } from "react-dom";
 import type { Providers } from "../providers";
 import { currentLanguage, t as translate, useT } from "../i18n";
 import { quotaPlot, quotaSeriesKey, type QuotaHistory, type QuotaSeries } from "../quota-history";
+import { Dialog } from "./Dialog";
 import { useModalDismiss, useScrimDismiss } from "./use-modal-dismiss";
 import { selfPressAccepted, selfPressProps } from "../panel-press";
 import ReadActivity from "./ReadActivity";
@@ -102,8 +103,8 @@ export default function QuotaHistoryModal({ providers, accounts, onClose, instan
     setRefresh(n => n + 1);
   };
 
-  return createPortal(<div className="modal-backdrop" role="presentation" {...scrim}>
-    <div className="modal qh-modal" data-keyboard-interaction={instant || undefined} ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby="quota-history-title">
+  return createPortal(
+    <Dialog scrim={scrim} dialogRef={dialogRef} className="qh-modal" labelledBy="quota-history-title" data-keyboard-interaction={instant || undefined}>
       <header className="modal-head">
         <h2 id="quota-history-title">{t("insights.quota.title")}</h2>
         <div className="qh-header-actions">
@@ -144,6 +145,5 @@ export default function QuotaHistoryModal({ providers, accounts, onClose, instan
         {data?.storageOk === false && <p className="qh-note" role="status">{t("insights.quota.notSaved")}</p>}
         <footer className="qh-note qh-footer">{t("insights.quota.footer")}</footer>
       </div>
-    </div>
-  </div>, document.body);
+    </Dialog>, document.body);
 }

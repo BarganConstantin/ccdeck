@@ -109,6 +109,12 @@ export const react = {
     setState(_next: Partial<S>) {}
   },
   Suspense({ children }: { children?: unknown }) { return children ?? null; },
+  // Dialog.tsx's presence context: no provider runs here, so a read gives the
+  // default (a dialog that is not leaving).
+  createContext<T>(value: T) {
+    return { _default: value, Provider({ children }: { children?: unknown }) { return children ?? null; } };
+  },
+  useContext<T>(context: { _default: T }) { return context._default; },
   // A component that takes a ref: called plainly, with no ref to hand over.
   forwardRef<P>(render: (props: P, ref: null) => unknown) { return (props: P) => render(props, null); },
 };
@@ -118,6 +124,30 @@ export interface Drawn {
   type: unknown;
   props: Record<string, unknown> & { children?: unknown };
   ref?: unknown;
+}
+
+/** The dialog shell's two components draw nothing but the scrim and the
+ *  surface, with no state of their own: this React draws no child component, so
+ *  they are drawn in place, and a test sees the markup the browser would (the
+ *  `modal-backdrop` with its handlers, the `modal` with its ref and role). */
+const SHELL = new Set(["Dialog", "DialogScrim"]);
+/** DialogPresence is transparent while its dialog is open: what it draws is
+ *  what its callback returns (it stays mounted when closed only to let the
+ *  dialog leave, which this React has no time for). */
+const PRESENCE = "DialogPresence";
+function expandShell(n: unknown): unknown {
+  if (Array.isArray(n)) return n.map(expandShell);
+  if (!n || typeof n !== "object" || !("props" in n)) return n;
+  const el = n as Drawn;
+  if (typeof el.type === "function" && SHELL.has((el.type as { name: string }).name)) {
+    return expandShell((el.type as (p: unknown) => unknown)(el.props));
+  }
+  if (typeof el.type === "function" && (el.type as { name: string }).name === PRESENCE) {
+    const { when, children } = el.props as unknown as { when: unknown; children: (v: unknown) => unknown };
+    return when ? expandShell(children(when)) : null;
+  }
+  if (el.props.children === undefined) return n;
+  return { ...el, props: { ...el.props, children: expandShell(el.props.children) } };
 }
 
 /**
@@ -157,7 +187,7 @@ export function mount<P>(
     inst.effectCursor = 0;
     inst.queued = [];
     current = inst;
-    try { tree = component(shown); } finally { current = null; }
+    try { tree = expandShell(component(shown)); } finally { current = null; }
     opts.commit?.(tree);
     const order = [...inst.queued.filter(q => q.layout), ...inst.queued.filter(q => !q.layout)];
     for (const q of order) {
