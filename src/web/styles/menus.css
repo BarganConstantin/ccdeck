@@ -305,9 +305,6 @@
 .wstate[data-state="failed"] { color: var(--err); }
 .wstate[data-state="uncertain"] { color: var(--warn); }
 .wstate[data-quiet], .wstate[data-gone] { opacity: 0; }
-@media (prefers-reduced-motion: reduce) {
-  .wstate-word { animation-duration: var(--dur-fast); }
-}
 /* A reason the row says under itself rather than a result of a press: why
    its control is off (Settings › Claude Code), in the note's quieter ink. */
 .settings-row-said-quiet { color: var(--text-secondary); }
@@ -797,12 +794,13 @@
 }
 @media (prefers-reduced-motion: reduce) {
   .cbx > input:checked + .cbx-tick { transition: opacity var(--dur-fast) var(--ease); }
-  .cbx-tick { transition: opacity var(--dur-fast) var(--ease); }
+  .cbx-tick { transition: opacity var(--dur-fast) var(--ease), stroke-dashoffset 0s var(--ease) var(--dur-fast); }
 }
 
-/* V4's radio dot: on, it comes in from half size with its opacity over Fast; off,
-   it only fades, with no shrink back. Under reduced motion it only fades. */
-@keyframes radio-dot-in { from { opacity: 0; transform: scale(0.5); } }
+/* V4's radio dot (.character-check here, .reading-selected-mark in reading.css):
+   on, it grows from half size with its opacity over Fast; off, it only fades and
+   the scale resets after the fade. A transition, so a first paint is still.
+   Under reduced motion it only fades. */
 
 /* Sized like `.sm-hear` and named for itself. They are the same small button in
    the same slot, but "hear" is what one of them does and a permission prompt is
@@ -1117,10 +1115,10 @@ button.btn.sm-custom-icon.armed { color: var(--bg); background: var(--err); }
 .character-choice[aria-checked="true"] { border-color: var(--accent); }
 .character-preview { display: block; flex: 0 0 36px; width: 36px; height: 32px; }
 .character-preview svg { width: 36px; height: 28px; overflow: visible; }
-.character-check { flex: 0 0 16px; width: 16px; height: 16px; margin-left: auto; opacity: 0; transition: opacity var(--dur-fast) var(--ease); }
-.character-choice[aria-checked="true"] .character-check { opacity: 1; animation: radio-dot-in var(--dur-fast) var(--ease) both; }
+.character-check { flex: 0 0 16px; width: 16px; height: 16px; margin-left: auto; opacity: 0; transform: scale(0.5); transition: opacity var(--dur-fast) var(--ease), transform 0s var(--ease) var(--dur-fast); }
+.character-choice[aria-checked="true"] .character-check { opacity: 1; transform: none; transition: opacity var(--dur-fast) var(--ease), transform var(--dur-fast) var(--ease); }
 @media (prefers-reduced-motion: reduce) {
-  .character-choice[aria-checked="true"] .character-check { animation: none; }
+  .character-check, .character-choice[aria-checked="true"] .character-check { transform: none; transition: opacity var(--dur-fast) var(--ease); }
 }
 .character-preview :is(.fm-body, .fm-leg) { fill: var(--pixel-character-body, var(--accent)); }
 .character-preview .fm-eye { fill: var(--text); }

@@ -309,7 +309,7 @@ describe("--text-dim, the token the annotation rules now read from (#262)", () =
     // WCAG 1.4.3 exempts inactive controls from the contrast minimum, so only a
     // rule whose every selector is a :disabled one is let through.
     const withoutDisabled = css.replace(/\/\*[\s\S]*?\*\//g, "").replace(/([^{}]+)\{([^{}]*)\}/g, (all, sel: string) =>
-      sel.split(",").every(part => /:disabled/.test(part)) ? "" : all);
+      sel.split(",").every(part => /:disabled/.test(part.replace(/:not\([^)]*\)/g, ""))) ? "" : all);
     const offenders = [...withoutDisabled.matchAll(/(^|[^-\w])color:\s*var\(--muted-dim\)/g)];
     expect(offenders.map(m => m[0].trim())).toEqual([]);
     // Fifteen, down from the seventeen #262 converted: .chips-empty went with

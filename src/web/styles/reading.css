@@ -153,8 +153,12 @@
 .reading-choice[data-size="largest"] { --reading-sample-size: 23px; }
 .reading-segmented strong { font-size: max(12px, calc(12px + var(--ui-text-increase, 0px))); overflow-wrap: normal; }
 .reading-segmented small { font-size: max(11px, calc(11px + var(--ui-text-increase, 0px))); font-variant-numeric: tabular-nums; }
-.reading-selected-mark { position: absolute; top: 5px; right: 5px; color: var(--accent); opacity: 0; transition: opacity var(--dur-fast) var(--ease); pointer-events: none; }
-.reading-choice:has(input:checked) .reading-selected-mark { opacity: 1; animation: radio-dot-in var(--dur-fast) var(--ease) both; }
+.reading-selected-mark { position: absolute; top: 5px; right: 5px; color: var(--accent); opacity: 0; transform: scale(0.5); transition: opacity var(--dur-fast) var(--ease), transform 0s var(--ease) var(--dur-fast); pointer-events: none; }
+.reading-choice:has(input:checked) .reading-selected-mark { opacity: 1; transform: none; transition: opacity var(--dur-fast) var(--ease), transform var(--dur-fast) var(--ease); }
+@media (prefers-reduced-motion: reduce) {
+  .reading-selected-mark { transform: none; transition: opacity var(--dur-fast) var(--ease); }
+  .reading-choice:has(input:checked) .reading-selected-mark { transform: none; transition: opacity var(--dur-fast) var(--ease); }
+}
 .reading-choice:has(input:checked) .reading-type-sample { color: var(--text); }
 /* The density sample is three rules at the option's spacing, in the same
    28px band as the Aa above the sizes, so both rows of choices line up. */

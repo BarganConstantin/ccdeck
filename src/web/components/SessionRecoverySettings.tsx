@@ -10,7 +10,6 @@ import { WriteState } from "./WriteState";
  *  holds no real boolean for it. */
 function usePrefSwitch(key: string, fallback: boolean, t: TFunction) {
   const [enabled, setEnabled] = useState<boolean | null>(null);
-  const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const savingRef = useRef(false);
   const read = (v: unknown) => (typeof v === "boolean" ? v : fallback);
@@ -24,7 +23,7 @@ function usePrefSwitch(key: string, fallback: boolean, t: TFunction) {
   }, [key]);
   /** The write behind the flip: true when the server took it. */
   const write = async (next: boolean) => {
-    savingRef.current = true; setBusy(true);
+    savingRef.current = true;
     try {
       const r = await fetch("/api/prefs", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ [key]: next }) });
       if (!r.ok) return false;
@@ -33,14 +32,14 @@ function usePrefSwitch(key: string, fallback: boolean, t: TFunction) {
       setEnabled(read(d.prefs[key]));
       return true;
     } catch { return false; }
-    finally { savingRef.current = false; setBusy(false); }
+    finally { savingRef.current = false; }
   };
   const flip = useOptimisticSwitch(enabled, write);
   const change = () => {
     if (enabled === null || !selfPressAccepted(savingRef.current)) return;
     void flip.flip();
   };
-  return { enabled: flip.checked, ready: enabled !== null, busy, error, failed: flip.failed, change };
+  return { enabled: flip.checked, ready: enabled !== null, error, failed: flip.failed, change };
 }
 
 /** This preference applies to the next server start; it never replays tools. */

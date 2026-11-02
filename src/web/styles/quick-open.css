@@ -66,8 +66,18 @@
 .qo-input:focus-visible { outline: none; }
 .qo-input::placeholder { color: var(--muted); opacity: 1; }
 /* A key's chip that is also the pointer's way out: the kit's key cap (below),
-   with the pointer's cursor. */
-.qo-esc { cursor: pointer; }
+   with the pointer's cursor. The chip stays 16 high; an invisible `::after`
+   makes the target 24 high, the way `.switch` and `.glyph-btn` do. */
+.qo-esc { position: relative; cursor: pointer; }
+.qo-esc::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 0;
+  right: 0;
+  height: 24px;
+  transform: translateY(-50%);
+}
 /* Quick open has no motion (V4's motion rules): no transition, no press. */
 @media (hover: hover) and (pointer: fine) {
 .qo-esc:hover { color: var(--text); }

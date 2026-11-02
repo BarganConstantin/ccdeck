@@ -49,14 +49,13 @@
   margin-bottom: -4px;
   background: none;
   border: 0;
-  /* Round, and it is the focus ring that wants it rather than anything drawn at
-     rest — nothing here paints a box. These glyphs were 13x16 before they were
+  /* Rounded by the control radius. These glyphs were 13x16 before they were
      given a 24x24 hit area, and at that size the shared `:focus-visible` ring
      read as a soft blob hugging the glyph. On a 24px square the same ring reads
      as a hard-edged box, which is a bigger visual change than the target growth
-     that caused it. A circle keeps the ring honest about where you can press
-     while restoring what it looked like. Squared corners belong to the bordered
-     `.btn`s, which are boxes on purpose. */
+     that caused it. Rounded corners keep the ring honest about where you can
+     press, and give the hover and open fills below their shape. Squared corners
+     belong to the bordered `.btn`s, which are boxes on purpose. */
   border-radius: var(--r-ctl);
   color: var(--muted);
   font: inherit;
@@ -93,9 +92,10 @@
 .glyph-btn:hover:not(:disabled) { background: var(--line-soft); color: var(--text); }
 }
 /* V4's icon button: --selected while it is pressed and while what it opened is
-   open (aria-expanded, aria-pressed). Declared after the hover rule so a pointer
-   resting on an open one keeps the open fill. */
-.glyph-btn:active:not(:disabled), .glyph-btn[aria-expanded="true"], .glyph-btn[aria-pressed="true"] { background: var(--selected); }
+   open (aria-expanded, aria-pressed). The open selectors carry `:not(:disabled)`
+   so they match the hover rule's specificity, and they come after it, so a
+   pointer resting on an open one keeps the open fill. */
+.glyph-btn:active:not(:disabled), .glyph-btn[aria-expanded="true"]:not(:disabled), .glyph-btn[aria-pressed="true"]:not(:disabled) { background: var(--selected); }
 /* 0.94, not the 0.97 a labelled button gets. The sheet's own rule is written at
    `.insp-fold`, the detail panel's close now — on a box this size three percent is under a pixel of travel
    and reads as nothing having happened — and three of the four bare closes that

@@ -685,12 +685,10 @@
   transform-origin: left center;
   animation: ap-disarm 4000ms linear forwards;
 }
-/* Settings › Sounds' cap (.sm-key-note kbd), on the canvas tier so it stands off
-   the panel the foot now sits on. Its ink is the buttons' resting --muted: in
-   --text the two caps were the brightest words in the foot, louder than the
-   Cancel and Send they annotate. */
-/* The cap's look is the kit's (quick-open.css, the one key-cap rule); this keeps
-   only its ink, the buttons' resting --muted. */
+/* The foot's cap (.fb-shortcut kbd) is the kit's key cap (quick-open.css, the one
+   key-cap rule), in the buttons' resting --muted: in --text the two caps were
+   the brightest words in the foot, louder than the Cancel and Send they
+   annotate. Nothing about it is restated here. */
 /* ⌘ in the mono stack is drawn at a fraction of a capital's height, so beside
    `Enter` it read as a speck. The system face draws it to the height of the
    word beside it; the cap keeps the same box. */
