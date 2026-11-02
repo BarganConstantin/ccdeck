@@ -364,7 +364,10 @@ describe("the heading outline starts at level 1 and skips nothing (#381)", () =>
       do { prev = out; out = out.replace(/\{[^{}]*\}/g, " "); } while (out !== prev);
       return out;
     };
-    const heads = [...code(usageAll).replace(/\{t\("([\w.]+)"\)\}/g, (_m, key: string) => (en as Record<string, string>)[key] ?? "").matchAll(/<h3 className="up-section-title">([\s\S]*?)<\/h3>/g)]
+    // CHANGED ON PURPOSE (V4's Figma): the two quota titles carry a `data-down`
+    // hook for the quota-down state, so the opening tag may hold that one
+    // attribute (brace-free inside, so no arrow can end the match early).
+    const heads = [...code(usageAll).replace(/\{t\("([\w.]+)"\)\}/g, (_m, key: string) => (en as Record<string, string>)[key] ?? "").matchAll(/<h3 className="up-section-title"(?: data-down=\{[^{}]*\})?>([\s\S]*?)<\/h3>/g)]
       .map(m => stripBraces(m[1]).replace(/<[^>]*>/g, " ").match(/[A-Za-z][A-Za-z ]*/)?.[0].trim() ?? "");
     expect(heads).toHaveLength(5);
     expect(new Set(heads).size, `two sections share a heading: ${heads.join(", ")}`).toBe(4);
