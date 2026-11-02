@@ -550,8 +550,9 @@ const CONTROLS: Control[] = [
   { at: ".radio-filter-trigger", states: ['.radio-filter-trigger[data-filtered="true"]', ".radio-filter-trigger:hover"], beds: ["--panel", "--bg-soft"] },
   { at: ".radio-map-tools .radio-map-button", beds: ["--bg"] },
   { at: ".radio-play", states: [".radio-play:not(:disabled):hover"], beds: ["--bg-soft"] },
-  { at: '.character-choice', beds: ["--panel"] },
-  { at: '.character-choice[aria-checked="true"]', fillFrom: '.character-choice', beds: ["--panel"] },
+  // CHANGED ON PURPOSE (V4's Figma): the companion tile's frame is its preview's;
+  // the tile itself draws no edge. Held to the same 3:1, at rest and chosen.
+  { at: '.character-preview', states: ['.character-choice[aria-checked="true"] .character-preview'], beds: ["--panel"] },
   { at: '.ap-reset-day-button[aria-pressed="true"]', fillFrom: '.ap-reset-day-button[aria-pressed="true"]', beds: ["--panel"] },
   { at: '.ap-reset-coverage-link[aria-pressed="true"]', beds: ["--panel"] },
   { at: ".ta-search input", states: [".ta-search input:hover"], beds: ["--bg"] },
@@ -922,7 +923,6 @@ describe("what counts as an edge, which BORDER_PROPS decides (#655)", () => {
       // distances, where the card's own is a hairline of layout units.
       ".react-flow__node:focus-visible .lod-face",
       ".react-flow__node:focus-visible:not(.rf-selected) .agent-node",
-      ".reading-choice:has(input:focus-visible)",
       // Settings' search results: the highlight the arrows move while focus
       // stays in the field — VIRTUAL_FOCUS again (SettingsSearch.tsx).
       '.settings-result[data-highlighted="true"]',
@@ -1355,7 +1355,10 @@ describe("the rings, which a border sweep cannot see (1.4.11, 2.4.11)", () => {
     // a sheet that has stopped drawing focus rings must.
     const focus = RING_RULES.filter(r => /:focus-visible/.test(r.selector));
     expect(focus.length, "the sheet draws no focus indicator this sweep can find")
-      .toBeGreaterThanOrEqual(8);
+      // CHANGED ON PURPOSE (V4 Figma): 8 became 7 because the five-preview picker of Text &
+      // density, and with it its one ring rule, was deleted; the Select that replaced it takes
+      // the shared `.sm-select:focus-visible` ring already counted. A floor, as above.
+      .toBeGreaterThanOrEqual(7);
     expect(RING_RULES.some(r => selectors(r.selector).includes(":focus-visible")),
       "the global :focus-visible bed is gone, so most of the app has no ring").toBe(true);
   });

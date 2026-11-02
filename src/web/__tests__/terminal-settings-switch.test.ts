@@ -37,6 +37,14 @@ describe("the Command Panel's switch in Settings", () => {
     const html = draw({ supported: false });
     expect(switchOf(html)).toContain("disabled");
     expect(html).toContain(TERMINAL_UNSUPPORTED_NOTE);
+    // CHANGED ON PURPOSE (V4 Figma): the row keeps its own note and the platform's answer
+    // stands under it in a Note. The drawn row, not only the helper, must tie it to the
+    // switch, or a screen reader never hears the panel is unavailable.
+    expect(html).toContain(TERMINAL_NOTE);
+    expect(html).toMatch(/<p class="settings-note" id="settings-terminal-unavailable">Not yet available on this platform\.<\/p>/);
+    expect(switchOf(html)).toContain('aria-describedby="settings-terminal-note settings-terminal-unavailable"');
+    expect(html).not.toContain('role="status"');
+    expect(switchOf(draw())).toContain('aria-describedby="settings-terminal-note"');
     expect(TERMINAL_UNSUPPORTED_NOTE).toBe("Not yet available on this platform.");
     expect(switchOf(draw({ on: true, supported: false })), "a settings file from another machine can still be undone").not.toContain("disabled");
     expect(terminalNote(false)).toBe(TERMINAL_UNSUPPORTED_NOTE);
