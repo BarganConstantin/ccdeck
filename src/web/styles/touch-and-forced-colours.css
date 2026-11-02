@@ -163,6 +163,8 @@
   .plan-mark { forced-color-adjust: none; border-color: CanvasText; }
   .plan-item[data-status="in_progress"] .plan-mark { background: Highlight; border-color: Highlight; }
   .plan-item[data-status="completed"] .plan-mark::after { forced-color-adjust: none; border-color: CanvasText; }
+  /* The Inspector's plan marks are kit glyphs in currentColor: no ring to repaint. */
+  .detail .plan-mark, .detail .plan-item[data-status="in_progress"] .plan-mark { forced-color-adjust: auto; border-color: transparent; background: none; }
   .topbar .status .pill.paused::before,
   .topbar .status .pill.dead::before,
   .conn-banner .conn-dot,
@@ -253,14 +255,12 @@
      own because its selector carries `:has()`, and one selector a browser
      cannot parse voids the whole list it sits in. */
   .fb-kind:has(input:checked) { forced-color-adjust: none; border-color: Highlight; background: Highlight; color: HighlightText; }
-  /* The usage panel's period strip is the same chip with no fill of its own:
-     it hands the adjustment back, so its word is the theme's text like its
-     neighbours', and the mark under the word takes the highlight. */
-  .up-period .uh-range-btn[aria-pressed="true"] { forced-color-adjust: auto; background: transparent; }
+  /* The usage panel's chosen period is a pill whose wash the theme drops: it
+     takes the highlight as a fill, word included, like the feedback kind above. */
+  .up-period .uh-range-btn[aria-pressed="true"] { forced-color-adjust: none; border-color: Highlight; background: Highlight; color: HighlightText; }
   @media (hover: hover) and (pointer: fine) {
-  .up-period .uh-range-btn[aria-pressed="true"]:hover { forced-color-adjust: auto; background: transparent; }
+  .up-period .uh-range-btn[aria-pressed="true"]:hover { forced-color-adjust: none; border-color: Highlight; background: Highlight; color: HighlightText; }
   }
-  .up-period .uh-range-btn[aria-pressed="true"]::after { forced-color-adjust: none; background: Highlight; }
   /* The rail's selected row is a fill (--selected), which the theme drops: it
      takes a highlight ring drawn inside the row instead, so the words stay put
      and the row keeps its height. The status glyphs draw in currentColor and

@@ -7,7 +7,7 @@
 import { useEffect, useMemo, useState, type CSSProperties } from "react";
 
 import {
-  TURN_POLL_MS, TURN_RETRY_MS, axisTicks, barBox, readSessionTurn, spanTable, turnPieces, turnSpan, turnStartOf, waitingShare, withPromptWait,
+  TURN_POLL_MS, TURN_RETRY_MS, axisTicks, barBox, readSessionTurn, spanTable, toolIconName, turnPieces, turnSpan, turnStartOf, waitingShare, withPromptWait,
   type SessionTurn, type SpanRow, type SpanTable,
 } from "../inspector-time";
 import { sessionRoot } from "../inspector-tree";
@@ -158,23 +158,36 @@ function SpanLine({ row, table, now, folded, onToggle }: {
 }) {
   const box = barBox(row, table, now);
   const took = row.to === null ? null : turnSpan(row.to - row.from);
+  // The lane is 172 wide: a bar under 6px of it is a sliver, drawn with a 1px radius.
+  const thin = box.width * 1.72 < 6;
+  // The duration sits right of the bar; a bar that ends in the lane's last
+  // quarter has the duration on its left instead, so it is never cut.
+  const end = box.left + box.width;
+  const tookStyle: CSSProperties = end > 72 ? { right: `${100 - box.left}%`, marginRight: 4 } : { left: `${end}%`, marginLeft: 4 };
   return (
     <div className="insp-time-row" role="row" data-group={row.group || undefined} style={{ "--depth": row.depth } as CSSProperties}>
       <span className="insp-time-name" role="cell">
-        {row.group ? (
-          <button type="button" className="insp-time-fold" aria-expanded={!folded} aria-label={`${folded ? "Show" : "Hide"} the calls of ${row.name}`} onClick={() => onToggle(row.key)}>
-            <KitIcon name="chevron-down" />
-          </button>
-        ) : null}
+        {/* The chevron's slot is there on every row so the icons line up; only
+            a row that folds (a subagent) has the chevron in it. */}
+        <span className="insp-time-slot">
+          {row.group ? (
+            <button type="button" className="insp-time-fold" aria-expanded={!folded} aria-label={`${folded ? "Show" : "Hide"} the calls of ${row.name}`} onClick={() => onToggle(row.key)}>
+              <KitIcon name="chevron-down" />
+            </button>
+          ) : null}
+        </span>
+        <span className="insp-time-icon" data-icon={toolIconName(row.name, row.group)}><KitIcon name={toolIconName(row.name, row.group)} /></span>
         <span className="insp-time-op">{row.name}</span>
         {row.arg && <span className="insp-time-arg" title={row.arg}>{row.arg}</span>}
-        {took && <span className="insp-time-took">{took}</span>}
       </span>
       <span className="insp-time-lane" role="cell">
         {row.waitingSince !== null ? (
           <span className="insp-time-wait" style={box.left > 40 ? { right: 0 } : { left: `${box.left}%` }}>waiting on you · {turnSpan(now - row.waitingSince)}</span>
         ) : (
-          <i className="insp-time-span" data-group={row.group || undefined} style={{ left: `${box.left}%`, width: `${box.width}%` }} />
+          <>
+            <i className="insp-time-span" data-group={row.group || undefined} data-thin={thin || undefined} style={{ left: `${box.left}%`, width: `${box.width}%` }} />
+            {took && <span className="insp-time-took" style={tookStyle}>{took}</span>}
+          </>
         )}
       </span>
     </div>

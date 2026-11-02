@@ -11,6 +11,7 @@ import type { GraphState } from "../reducer";
 import { exportFileName, sessionExport } from "../session-export";
 import type { AgentNodeData } from "../types";
 import { useSingleKeyShortcuts } from "../use-single-key-shortcuts";
+import { useInspectorStatus } from "../inspector-state";
 import Detail from "./Detail";
 import Inspector from "./Inspector";
 import { useT } from "../i18n";
@@ -36,7 +37,9 @@ function exportSessionJson(state: GraphState, sessionId: string): void {
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
-export default function DetailAside({ selected, now, openTool, setSummaryFor, onClose, onSelectAgent, stateRef, removeSelectedNode }: {
+export default function DetailAside({ selected, now, openTool, setSummaryFor, onClose, onSelectAgent, stateRef, removeSelectedNode, workspace = false }: {
+  /** The Workspace is drawn: the title takes the pane's sentence for the state. */
+  workspace?: boolean;
   /** The primary selection, which is what the panel is about. */
   selected: AgentNodeData;
   now: number;
@@ -56,6 +59,7 @@ export default function DetailAside({ selected, now, openTool, setSummaryFor, on
   const t = useT();
   useFeatureUse("detail-panel");
   const singleKeys = useSingleKeyShortcuts();
+  const status = useInspectorStatus(selected, stateRef.current.agents, now, workspace);
   return (
     // Already the right element and still an unnamed one: the rotor listed
     // it as a bare "complementary" beside the session list's "Sessions",
@@ -80,6 +84,7 @@ export default function DetailAside({ selected, now, openTool, setSummaryFor, on
             onExportSession={(sid) => exportSessionJson(stateRef.current, sid)}
             onRemove={removeSelectedNode}
             singleKeys={singleKeys}
+            status={status}
           />
         }
       />

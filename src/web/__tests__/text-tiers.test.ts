@@ -152,6 +152,7 @@ describe("what was migrated to the secondary tier", () => {
     // browsers are unwatched, why the first read is slow, and the reader's own
     // error text.
     expect(users.sort()).toEqual([
+      // CHANGED ON PURPOSE (V4's Figma): the Inspector and the Usage panel set their section labels, rows, prompts, pills and names in --text-secondary.
       // The Local network card while the section is off: the one sentence
       // that says what the section is for, read once before deciding to turn
       // it on. Prose, in a card whose other line is a verb in the accent.
@@ -171,6 +172,17 @@ describe("what was migrated to the secondary tier", () => {
       ".agent-node .foot .spawn-badge",
       ".agent-node .task-line",
       ".agent-node .time",
+      ".cat-chip",
+      ".cat-chip .cat-server",
+      ".detail .plan-item",
+      ".detail .plan-item[data-status=\"completed\"]",
+      ".detail .plan-item[data-status=\"in_progress\"]",
+      ".detail .plan-mark",
+      ".detail h3:not(.ctx-section-title)",
+      ".detail-hero .hero-state",
+      ".insp-none-title",
+      ".prompt-text",
+      ".qb-label",
       // Explains missing prices and recorded cost provenance.
       ".uh-cost-note",
       ".ap-issue-hint",
@@ -338,6 +350,10 @@ describe("what was migrated to the secondary tier", () => {
       // V4's status bar: who has the keys, in the one weight-500 label of a
       // bar whose hints are --muted (V4's Figma prints it --text-secondary).
       ".statusbar-who",
+      ".up-model-name",
+      ".up-period .uh-range-btn",
+      ".up-section-title",
+      ".up-session-label",
       // Gruvbox's spend figures (#2125 follow-up): a quantity, so neither the
       // success green the other themes give them nor the totals' --text. Read
       // down a column to compare sessions, which --muted is too quiet for.

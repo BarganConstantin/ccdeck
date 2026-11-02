@@ -545,66 +545,38 @@ describe("the period strip's indicator", () => {
     return css.slice(at, css.indexOf("}", at));
   };
 
-  it("takes its width from the label, never from the segment", () => {
+  // CHANGED ON PURPOSE (V4's Figma): the strip is three pills, not a row of words over a 2px
+  // indicator. The grid that sized the indicator from the label, the resting row that kept the
+  // labels from stepping, the halfway hover and the inset ring were all that indicator's;
+  // what is pinned instead is the pill, its hover and its chosen state.
+  it("is a pill per period: a box of its own with a stroke, never an indicator under a word", () => {
     const seg = block(".up-period .uh-range-btn");
-    expect(seg).toMatch(/display:\s*grid/);
-    expect(seg).toMatch(/grid-template-columns:\s*max-content/);
-    // A percentage here would be a percentage of the segment again, under any
-    // spelling — that is the defect, not the number 60.
-    const mark = block('.up-period .uh-range-btn[aria-pressed="true"]::after');
-    expect(mark).not.toMatch(/width\s*:/);
-    expect(block(".up-period .uh-range-btn::after")).not.toMatch(/width\s*:\s*\d+%/);
+    expect(seg).toMatch(/height:\s*24px/);
+    expect(seg).toMatch(/border:\s*1px solid var\(--line\)/);
+    expect(seg).toMatch(/border-radius:\s*var\(--r-pill\)/);
+    expect(css).not.toContain(".up-period .uh-range-btn::after");
   });
 
-  it("occupies its row at rest, so no label steps when the period changes", () => {
-    // The row is `auto` and sized by the ::after. If the ::after existed only
-    // while pressed the row would collapse to 0 on the other two segments and
-    // every label would sit 1px lower than the selected one — a shift the
-    // reader sees as the strip twitching under their own click.
-    const seg = block(".up-period .uh-range-btn");
-    expect(seg).toMatch(/grid-template-rows:\s*1fr auto/);
-    const rest = block(".up-period .uh-range-btn::after");
-    expect(rest).toMatch(/content:\s*""/);
-    expect(rest).toMatch(/height:\s*2px/);
-    expect(rest).toMatch(/background:\s*transparent/);
-    // And because the row is always there, the state can fade rather than
-    // teleport — over the same 120ms the label's colour takes.
-    expect(rest).toMatch(/transition:\s*background-color var\(--dur-fast\)/);
-  });
-
-  it("does not let hover wear the selected colour", () => {
-    // The shared chip rule repaints any hovered label in --text, which is
-    // exactly what the selected label steps to. With the pointer still resting
-    // on the strip after a click — the commonest frame there is — two of three
-    // segments read identically and a 2px rule was the only difference left.
-    expect(block(".up-period .uh-range-btn:hover"))
-      .toMatch(/color:\s*color-mix\(in srgb, var\(--text\) 45%, var\(--muted\)\)/);
+  it("does not let hover wear the selected state", () => {
+    // Hover lifts the word to --text; the chosen pill alone has the wash and the accent stroke.
+    expect(block(".up-period .uh-range-btn:hover")).toMatch(/color:\s*var\(--text\)/);
+    const chosen = block('.up-period .uh-range-btn[aria-pressed="true"]');
+    expect(chosen).toMatch(/background:\s*var\(--accent-16\)/);
+    expect(chosen).toMatch(/border-color:\s*var\(--accent\)/);
   });
 
   it("keeps the selected word legible under the pointer that chose it", () => {
-    // `.uh-range-btn[aria-pressed="true"]:hover` paints the label in --bg,
-    // which is right for the modal's chips — there it sits on an --accent
-    // FILL. This strip has no fill, both selectors are (0,3,0), and the shared
-    // one is declared later, so the selected word was --bg on --panel: 1.080:1
-    // in dark, 1.132:1 in light. Gone, at the exact moment the pointer is
-    // guaranteed to be on it.
+    // The shared hover paints the label in --bg, which is right for the modal's chips on an
+    // --accent FILL; this pill has a wash, so the hover keeps --text.
     const held = block('.up-period .uh-range-btn[aria-pressed="true"]:hover');
     expect(held).toMatch(/color:\s*var\(--text\)/);
-    // And it has to out-specify the shared rule, not merely restate it.
-    expect(css.indexOf('.up-period .uh-range-btn[aria-pressed="true"]:hover'))
-      .toBeGreaterThan(-1);
+    expect(css.indexOf('.up-period .uh-range-btn[aria-pressed="true"]:hover')).toBeGreaterThan(-1);
   });
 
-  it("keeps its focus ring inside the segment and off the indicator", () => {
-    // The shared `button:focus-visible` draws 2px of --accent at offset 1px.
-    // On this control its bottom stroke landed on the indicator's own pixels in
-    // the indicator's own colour, so the selected tab, focused, showed no
-    // indicator at all; and `border-radius: 0` on the segment had shadowed the
-    // global ring's 4px, leaving the one hard-cornered ring in the deck.
-    // V4's Figma: the global ring is 1.5px accent INSIDE the box, offset 0. The
-    // inside ring would land on the indicator's pixels again, so the segment
-    // keeps its own offset (-4px) and radius (4px) with the global stroke.
-    expect(css).toMatch(/\.up-period \.uh-range-btn:focus-visible \{\s*outline: var\(--focus-w\) solid var\(--accent\);\s*outline-offset: -4px;\s*border-radius: 4px;\s*\}/);
+  it("takes the global focus ring, with no ring of its own", () => {
+    // The global ring is 1.5px accent inside the box (V4's Figma); the old ring was inset to clear
+    // the indicator, which is gone.
+    expect(css).not.toContain(".up-period .uh-range-btn:focus-visible");
     expect(css).toMatch(/:focus-visible \{\s*outline: var\(--focus-w\) solid var\(--accent\);\s*outline-offset: calc\(-1 \* var\(--focus-w\)\);\s*\}/);
   });
 });
@@ -707,7 +679,7 @@ describe("the period strip's keyboard and memory", () => {
     // The mark that already says WHICH period is the one that says it is being
     // fetched — nothing new appears. Keyed on the attribute alone so it stays
     // out of the set of scoped state rules usage-series-contrast holds to three.
-    const at = css.indexOf("\n.up-period .uh-range-btn[data-pending]::after {");
+    const at = css.indexOf("\n.up-period .uh-range-btn[data-pending] {");
     expect(at, "no pending rule for the indicator").toBeGreaterThan(-1);
     const rule = css.slice(at, css.indexOf("}", at));
     expect(rule).toMatch(/animation: up-period-reading 1100ms/);
@@ -723,7 +695,7 @@ describe("the period strip's keyboard and memory", () => {
     // figures are still dimmed and the live region still speaks, so nothing
     // about the wait lives only in the animation.
     const rm = css.slice(css.indexOf("@media (prefers-reduced-motion: reduce)"));
-    expect(rm).toContain(".up-period .uh-range-btn[data-pending]::after { animation: none; }");
+    expect(rm).toContain(".up-period .uh-range-btn[data-pending] { animation: none; }");
   });
 
   it("says the wait out loud, from a region that was already there", () => {

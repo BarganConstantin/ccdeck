@@ -19,36 +19,39 @@
   width: calc(320px + var(--ui-panel-increase, 0px));
   max-height: calc(100vh - var(--topbar-h) - 24px - var(--status-room, 0px));
   overflow-y: auto;
+  /* The box (V4's Figma): --panel, a 1px --line-soft edge, --r-node, and the
+     overlay's shadow. */
   background: var(--panel);
-  border: 1px solid var(--line);
-  border-radius: var(--r-panel);
-  /* No drop shadow, for the reason .sysdetail gives: the two are one rail. */
-  box-shadow: none;
+  border: 1px solid var(--line-soft);
+  border-radius: var(--r-node);
+  box-shadow: var(--shadow-overlay);
   z-index: 20;
-  padding: 0 0 12px;
+  padding: 0;
 }
 
+/* The header: 36 tall, a 1px --line under it, padding 0 4 0 12, gap 6; the
+   title, then the one close. */
 .up-header {
+  box-sizing: border-box;
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: calc(10px * var(--ui-space, 1)) var(--panel-inset) calc(8px * var(--ui-space, 1));
-  border-bottom: 1px solid var(--line-soft);
+  gap: 6px;
+  height: var(--pane-head-h);
+  padding: 0 4px 0 12px;
+  border-bottom: 1px solid var(--line);
   position: sticky;
   top: 0;
   background: var(--panel);
   z-index: 1;
 }
+.usage-panel .up-header h2 { font-size: calc(13px + var(--ui-text-increase, 0px)); line-height: 20px; font-weight: 600; letter-spacing: 0; text-transform: none; color: var(--text); }
+/* The body: padding 12 and a gap of 12 between its blocks. */
+.up-body { display: flex; flex-direction: column; gap: 12px; padding: 12px; }
 /* Size and weight come from the shared panel-caption rule in the session
    list block; this one only has to take the row it sits in. */
 .up-header h2 {
   margin: 0;
   flex: 1;
-}
-.up-header-right {
-  display: flex;
-  align-items: center;
-  gap: 4px;
 }
 /* #380 deleted a 16px font-size here for the same reason it deleted `.sl-close`'s
    15px: `class="btn icon-btn up-close"` put `button.btn.icon-btn` (0,2,1) over
@@ -63,162 +66,52 @@
    24px box every other header close stands in. */
 .up-close { color: var(--muted); }
 
-/* THE PERIOD STRIP, LAID OUT AS PART OF THE COLUMN RATHER THAN ON TOP OF IT.
-   Centred and intrinsic, it read as a control that had floated in and settled
-   there; at the panel's own inset and full width it reads as the head of the
-   figures under it, which is what it is.
-
-   `.uh-range.up-period`, not `.up-period`: the shared rule is declared further
-   down this sheet and both are one class, so a bare `.up-period` lost the
-   source-order tie and kept `inline-flex` — on which `margin: auto` computes to
-   zero and the strip stayed against the left edge.
-
-   AND THE STATE CHANGES SHAPE, because full width changes what the old one
-   costs. A solid --accent fill on a 52px chip was a small bright mark; on an
-   83.3px third of the column it is a slab, and the panel has one loud thing in
-   it already — the money. So the accent moves from the segment's face to a 2px
-   rule under it: the same colour at the same strength (10.85:1 off this panel,
-   where #583's rejected --accent-dim wash stood at 1.895), over a fraction of
-   the area. The label carries the other half of the state, stepping from
-   --muted to --text — neutral, not accent. Cyan appears once in this control
-   and it is the indicator, and usage-series-contrast.test.ts measures that
-   rather than trusting the sentence.
-
-   The baseline runs the whole width at 5% of --text and is the only container
-   there is — no box, no fill, no capsule.
-
-   IT SITS NEARER THE MONEY THAN THE LINE IT FOLLOWS, because it heads the one
-   and merely follows the other. Measured on the ink rather than on the boxes,
-   which lie: at 8/16 the gap above the words was 36.75px and the gap under the
-   rule 28.00px — 1.31:1, too shallow to group anything, and the void beneath
-   the hairline was the largest in the panel. At 14/10 it reads 42.75 / 24.00.
-   `.up-total` adds 14px of its own padding under this, which is why 10 here
-   arrives as 24 and why the two numbers cannot be read apart. */
+/* THE PERIOD CHIPS (V4's Figma): three pills in a row, 24 high, padding 0 8, a
+   1px stroke, 400 12/16. The chosen one is --accent-16 with an --accent stroke
+   and --text; the others a --line stroke and --text-secondary. `.uh-range` is
+   the history modal's segmented strip; here its track is taken off. */
 .uh-range.up-period {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 0;
-  margin: calc(14px * var(--ui-space, 1)) var(--panel-inset) calc(10px * var(--ui-space, 1));
+  display: flex;
+  gap: 4px;
   padding: 0;
-  border: none;
-  border-bottom: 1px solid color-mix(in srgb, var(--text) 5%, transparent);
+  border: 0;
   border-radius: 0;
   background: transparent;
 }
-
-/* THE SEGMENT IS THE HIT AREA; THE COLUMN INSIDE IT IS THE WORD.
-   Grid rather than flex, and the rule below is the whole reason. One
-   `max-content` column is exactly as wide as the label it holds — 30.1px for
-   `today` and `month`, 18.1px for `all` — so the ::after sharing that column
-   inherits the WORD's width instead of a percentage of the segment's. At
-   `width: 60%` all three drew the same 50px mark: 1.66x the word under `today`,
-   2.77x under `all`, where it stood 16px clear on either side and read as
-   underlining the column rather than the label. Nothing here measures the text;
-   the grid does, which is also why it survives a font fallback on Windows and
-   Linux that no hard-coded width would.
-   Two rows: `1fr` takes the height and centres the label in it, `auto` is the
-   2px the mark occupies. The segment stays 83.3 x 30 either way — the column
-   shrinks to the word, the button does not. */
 .up-period .uh-range-btn {
-  display: grid;
-  grid-template-columns: max-content;
-  grid-template-rows: 1fr auto;
-  align-items: center;
-  justify-content: center;
-  min-height: 30px;
-  padding: 0;
-  border-radius: 0;
-}
-
-/* Drawn at rest as well, in nothing. The row has to exist in both states or the
-   label would step 1px as the period changed, and a mark that only exists when
-   pressed cannot fade — it would arrive at full strength while the label it
-   belongs to was still easing. Transparent to accent over the same 120ms the
-   label takes, so the two halves of one state move as one. Colour only: there
-   is no transform here for `prefers-reduced-motion` to switch off that the
-   shared `:active` does not already own.
-   `margin-inline: -3px` bleeds the mark 3px past the word on each side, and
-   `margin-bottom: -1px` drops it onto the hairline instead of stacking 2px of
-   accent on top of 1px of baseline. */
-.up-period .uh-range-btn::after {
-  content: "";
-  margin-inline: -3px;
-  margin-bottom: -1px;
-  height: 2px;
-  border-radius: 1px;
+  box-sizing: border-box;
+  height: 24px;
+  padding: 0 8px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-pill);
   background: transparent;
-  transition: background-color var(--dur-fast) var(--ease);
+  color: var(--text-secondary);
+  font-family: inherit;
+  font-size: calc(12px + var(--ui-text-increase, 0px));
+  line-height: 16px;
+  font-weight: 400;
 }
-
-/* Hover is a lift, not an impersonation. The shared `.uh-range-btn:hover`
-   repaints the label in --text, which is the SELECTED colour exactly — so with
-   the pointer still resting on the strip after a click, two of three segments
-   read full --text and a 2px rule was the only surviving difference. Mixed
-   halfway instead, and halfway in both themes on purpose: 1.66:1 up from rest
-   and 1.66:1 down from selected in dark, 1.57 / 1.53 in light. It cannot be
-   mistaken for either end. Type only — a box or a tint arriving under the
-   pointer would be the container this design refuses. */
 @media (hover: hover) and (pointer: fine) {
-.up-period .uh-range-btn:hover {
-  color: color-mix(in srgb, var(--text) 45%, var(--muted));
+.up-period .uh-range-btn:hover { color: var(--text); }
 }
-}
-
 .up-period .uh-range-btn[aria-pressed="true"] {
-  background: transparent;
+  background: var(--accent-16);
+  border-color: var(--accent);
   color: var(--text);
 }
-/* AND IT HAS TO SURVIVE ITS OWN HOVER. `.uh-range-btn[aria-pressed="true"]:hover`
-   exists further down the sheet to keep a label legible on the accent FILL the
-   modal's chips take, and it paints that label in --bg. Both selectors are
-   (0,3,0), the shared one is declared later, and this strip has no fill — so
-   the selected word was drawn in --bg on --panel at 1.080:1 in dark and 1.132:1
-   in light. It vanished under the pointer that had just chosen it, which is the
-   one moment the pointer is guaranteed to be there. One more class here settles
-   the tie the right way. */
 @media (hover: hover) and (pointer: fine) {
-.up-period .uh-range-btn[aria-pressed="true"]:hover {
-  color: var(--text);
+.up-period .uh-range-btn[aria-pressed="true"]:hover { color: var(--text); }
 }
-}
-.up-period .uh-range-btn[aria-pressed="true"]::after {
-  /* The foreground, not the accent: which range is showing is a selection,
-     not data, and the figures under it are where the colour belongs. */
-  background: var(--text);
-}
-
-/* THE MARK THAT SAYS WHICH PERIOD ALSO SAYS IT IS BEING FETCHED, and nothing
-   new appears to say it. The first read of any period is 2.4-2.8s — measured,
-   uniform across the three, because the cost is walking the transcript
-   directory rather than the range — and every read after that is 10ms from the
-   server's cache. For those two and a half seconds the panel only dimmed its
-   figures, which reads as broken rather than as busy.
-   So the indicator breathes: it is already the thing the eye is on, because it
-   is directly under the word the finger just pressed. `scaleX` from the centre
-   and a step of opacity, both of which are compositor-only and neither of which
-   moves a pixel of layout — the 2px rule is a grid item and a transform on it
-   cannot reflow the label above it.
-   Keyed on `[data-pending]` alone rather than on `[aria-pressed="true"]
-   [data-pending]`: only the pressed segment is ever given the attribute, and
-   naming aria-pressed here would enter this rule into the set of scoped state
-   rules usage-series-contrast.test.ts holds to exactly three. This is activity,
-   not a fourth way of being selected. The colour is untouched — the accent
-   arrives solid or not at all, which is that issue's whole finding.
-   1100ms, which is slow enough to read as breathing rather than as blinking and
-   fast enough that two cycles fit inside the wait. */
+/* A read for the pressed period is out: the chip breathes while it lasts. */
 @keyframes up-period-reading {
-  0%, 100% { transform: scaleX(1);    opacity: 1; }
-  50%      { transform: scaleX(0.28); opacity: 0.55; }
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0.55; }
 }
-.up-period .uh-range-btn[data-pending]::after {
+.up-period .uh-range-btn[data-pending] {
   animation: up-period-reading 1100ms ease-in-out infinite;
 }
-/* The ring is inset 4px (and rounded) so it clears the hairline and the
-   indicator's 2px mark instead of landing on their pixels. */
-.up-period .uh-range-btn:focus-visible {
-  outline: var(--focus-w) solid var(--accent);
-  outline-offset: -4px;
-  border-radius: 4px;
+@media (prefers-reduced-motion: reduce) {
+  .up-period .uh-range-btn[data-pending] { animation: none; }
 }
 
 /* A session ccusage remembers and the canvas is not drawing. The dot keeps its
@@ -236,24 +129,28 @@
   color: var(--text-dim);
 }
 
+/* THE HERO (V4's Figma): the figure in mono 600 22/28 --text, the period word
+   beside it and "Local estimate · ccusage" under it, both 400 12/16 --muted. */
 .up-total {
   display: flex;
   align-items: baseline;
-  gap: 8px;
-  padding: calc(14px * var(--ui-space, 1)) var(--panel-inset) calc(6px * var(--ui-space, 1));
+  gap: 6px;
 }
 .up-total-value {
-  font-size: calc(26px + var(--ui-text-increase, 0px));
-  font-weight: 700;
+  font-size: calc(22px + var(--ui-text-increase, 0px));
+  font-weight: 600;
   font-variant-numeric: tabular-nums;
   font-family: var(--font-mono);
-  color: var(--ok);
-  line-height: 1;
+  color: var(--text);
+  line-height: 28px;
 }
 .up-total-label {
-  font-size: calc(11px + var(--ui-text-increase, 0px));
+  font-size: calc(12px + var(--ui-text-increase, 0px));
+  line-height: 16px;
   color: var(--muted);
 }
+/* Four pixels under the figure, not the body's twelve: the two are one hero. */
+.up-total + .up-source { margin: -8px 0 0; font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: 16px; color: var(--muted); }
 
 /* The margin has to come out of the width, not sit beside it. `.cost-bar`
    declares `width: 100%`, which resolves against THIS panel's content box —
@@ -275,31 +172,39 @@
    pure margin, so a classic 15px scrollbar on Windows or Linux narrows the
    content box and leaves exactly the same 28px hanging off it. */
 .usage-panel .cost-bar {
-  margin: 4px 14px 10px;
+  /* The body's padding is the bar's inset now, so it carries no margin. */
+  margin: 0;
   width: auto;
   border-radius: 3px;
 }
 
+/* The tokens row (V4's Figma), a gap of 16: the value in mono 400 12/16
+   --text, its caption in 400 11/14 --muted after it. */
 .up-tokens-row {
   display: flex;
   flex-wrap: wrap;
-  gap: 10px 16px;
-  padding: calc(6px * var(--ui-space, 1)) var(--panel-inset) calc(10px * var(--ui-space, 1));
+  gap: 4px 16px;
 }
 .up-tok {
   display: flex;
   align-items: baseline;
-  gap: 5px;
+  gap: 4px;
+  color: var(--text);
   font-size: calc(12px + var(--ui-text-increase, 0px));
+  line-height: 16px;
   font-variant-numeric: tabular-nums;
   font-family: var(--font-mono);
 }
 /* 11px, the usage panel's floor for content (#858): this is a monitor read all
-   day, and --muted, not a smaller size, is what makes a key secondary. */
+   day, and --muted, not a smaller size, is what makes a key secondary. The
+   caption follows its value on screen; it stays first in the document. */
 .up-k {
+  order: 2;
   font-size: calc(11px + var(--ui-text-increase, 0px));
+  line-height: 14px;
   color: var(--muted);
-  font-family: inherit;
+  /* The caption is the interface's own face, not the figure's mono. */
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
 }
 
 /* What the strip above is a strip OF, on the one deck that has no headline to
@@ -319,23 +224,26 @@
    arithmetic, and a var() reads as NaN there. panel-rhythm.test.ts asserts both
    equal --panel-inset, so the literal cannot drift away from the token. */
 .up-section {
-  padding: 0 14px;
-  margin-top: calc(4px * var(--ui-space, 1));
-  border-top: 1px solid var(--line-soft);
+  padding: 0;
+  margin-top: 0;
+  border-top: 0;
 }
+/* A section title (V4's Figma): a 16-high row (20 for By model and By session),
+   600 12/16 in --text-secondary, in the case it is written in. */
 .up-section-title {
   display: flex;
   align-items: baseline;
-  gap: 8px;
-  margin: calc(8px * var(--ui-space, 1)) 0 calc(6px * var(--ui-space, 1));
-  font-size: calc(11px + var(--ui-text-increase, 0px));
+  gap: 6px;
+  min-height: 16px;
+  margin: 0 0 6px;
+  font-size: calc(12px + var(--ui-text-increase, 0px));
+  line-height: 16px;
   font-weight: 600;
-  color: var(--muted);
-  text-transform: uppercase;
-  /* The machine panel's `.sd-h` spacing, so the two inspectors' section
-     labels are set the same way. */
-  letter-spacing: 0.06em;
+  color: var(--text-secondary);
+  text-transform: none;
+  letter-spacing: 0;
 }
+.up-section:not(.up-quota-section) .up-section-title { min-height: 20px; }
 /* Each quota carries its own age, because they are fetched separately and one
    is usually much older than the other. Set back to normal case and weight —
    it is a read-out sitting in a heading, not part of the heading. */
@@ -400,34 +308,56 @@
 }
 .up-disclose[aria-expanded="true"] .up-chev { transform: rotate(180deg); }
 
+/* The age (and the plan beside it) sits in the title row, mono 400 11/14
+   --muted, after a "·": "Claude quota · Max 20× · 2m ago". */
 .up-section-age {
   margin-left: auto;
+  font-family: var(--font-mono);
   font-size: calc(11px + var(--ui-text-increase, 0px));
+  line-height: 14px;
   font-weight: 400;
-  color: var(--text-dim);
+  color: var(--muted);
   text-transform: none;
   letter-spacing: 0;
   white-space: nowrap;
 }
+.up-quota-section .up-section-age,
+.up-disclose .up-section-age { margin-left: 0; }
+.up-quota-section .up-section-age::before,
+.up-quota-section .up-plan-badge::before,
+.up-disclose .up-section-age::before { content: "· "; }
+.up-disclose .up-section-age + .up-chev { margin-left: auto; }
 
+/* By model and By session (V4's Figma): rows 24 high, two apart; the name in
+   400 12/16 --text-secondary, the tokens in mono 12/16 --muted, the cost in
+   mono 12/16 --text. The column heads are not drawn, so they are not seen;
+   they stay in the table for a screen reader. */
 .up-table {
   width: 100%;
-  border-collapse: collapse;
+  border-collapse: separate;
+  border-spacing: 0 2px;
   font-size: calc(12px + var(--ui-text-increase, 0px));
+  line-height: 16px;
+}
+.up-table thead {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
 }
 .up-table th {
   text-align: left;
   color: var(--muted);
   font-weight: 500;
   font-size: calc(11px + var(--ui-text-increase, 0px));
-  padding: 0 0 4px;
-  border-bottom: 1px solid var(--line-soft);
 }
 .up-table th:not(:first-child) { text-align: right; }
-.up-table td { padding: 4px 0; vertical-align: middle; }
+.up-table td { height: 24px; padding: 0; vertical-align: middle; }
 .up-model-name {
-  color: var(--text);
-  font-weight: 500;
+  color: var(--text-secondary);
+  font-weight: 400;
   max-width: 120px;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -438,9 +368,10 @@
   font-variant-numeric: tabular-nums;
   font-family: var(--font-mono);
   color: var(--muted);
-  font-size: calc(11px + var(--ui-text-increase, 0px));
+  font-size: calc(12px + var(--ui-text-increase, 0px));
 }
-.up-cost-val { color: var(--ok); }
+.up-cost-val { color: var(--text); }
+.up-num.up-cost-val { padding-left: 12px; }
 
 .up-sessions {
   display: flex;
@@ -459,8 +390,10 @@
   display: flex;
   align-items: center;
   gap: 8px;
+  height: 24px;
   font-size: calc(12px + var(--ui-text-increase, 0px));
-  padding: calc(3px * var(--ui-space, 1)) 0;
+  line-height: 16px;
+  padding: 0;
 }
 .up-session-label {
   flex: 1;
@@ -468,19 +401,19 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  color: var(--text);
+  color: var(--text-secondary);
 }
 .up-session-tokens {
   font-variant-numeric: tabular-nums;
   font-family: var(--font-mono);
-  font-size: calc(11px + var(--ui-text-increase, 0px));
+  font-size: calc(12px + var(--ui-text-increase, 0px));
   color: var(--muted);
 }
 .up-session-cost {
   font-variant-numeric: tabular-nums;
   font-family: var(--font-mono);
-  font-size: calc(11px + var(--ui-text-increase, 0px));
-  color: var(--ok);
+  font-size: calc(12px + var(--ui-text-increase, 0px));
+  color: var(--text);
   min-width: 36px;
   text-align: right;
 }
@@ -497,57 +430,52 @@
 }
 
 .up-hint {
-  padding: 8px 14px 4px;
-  font-size: calc(11px + var(--ui-text-increase, 0px));
+  padding: 0;
+  font-size: calc(12px + var(--ui-text-increase, 0px));
   color: var(--muted);
-  line-height: 1.5;
+  line-height: 16px;
 }
 .up-empty {
-  padding: 20px 14px;
+  padding: 8px 0;
   font-size: calc(12px + var(--ui-text-increase, 0px));
   color: var(--muted);
   text-align: center;
   line-height: 1.6;
 }
 
-/* ── quota bars ── */
-.up-quota-section { padding-top: calc(10px * var(--ui-space, 1)); border-top: none; }
-/* The ↻ beside the × above, and it moves with it — a header with one bare glyph
-   and one 30px bordered box beside it is the split this change exists to end.
-   #380 deleted a 14px font-size here that `button.btn`'s 12px had always beaten;
-   the class set is `glyph-btn up-refresh-btn` now, so nothing outranks anything
-   and the padding below renders for the first time. It is kept because it is
-   still true — 1px 7px round a 16px glyph, inside the 24px floor `.glyph-btn`
-   holds, so the box does not move — while the `line-height: 1.4` that used to
-   sit beside it is gone. That one WAS live, and left alone it would have made
-   this button 24.4px tall against its neighbour's 24: a 0.4px step between two
-   controls in one header, which is the smaller cousin of the 1.4px step #380
-   removed from the topbar. `.glyph-btn`'s `line-height: 1` is the answer, once,
-   for both of them. The `color: var(--muted)` is gone for the same reason it
-   stays on `.up-close`: there it is what the sheet asks of the × by name, here
-   it was only a second spelling of the shared rule. */
-.up-refresh-btn { padding: 1px 8px; }
-.up-quota-bars { display: flex; flex-direction: column; gap: calc(10px * var(--ui-space, 1)); }
-.qb-row { display: flex; flex-direction: column; gap: calc(3px * var(--ui-space, 1)); }
+/* ── quota bars (V4's Figma) ──
+   A window is a top line (the name in 400 12/16 --text-secondary, the percent
+   in mono 12/16 --text), a meter 2 high on a --ctl-fill track, and the line
+   under it (400 12/16 --muted with its note in mono 11/14 --muted). The rows
+   are 3 apart. The meter's fill follows the panel's rule: under 70 --muted, 70
+   to 89 --text, 90 and up --err, never amber (QuotaBar.tsx). */
+.up-quota-section { padding-top: 0; border-top: none; }
+.up-quota-bars { display: flex; flex-direction: column; gap: 6px; }
+.qb-row { display: flex; flex-direction: column; gap: 3px; }
 .qb-meta {
   display: flex;
   justify-content: space-between;
   align-items: baseline;
-  font-size: calc(11px + var(--ui-text-increase, 0px));
+  font-size: calc(12px + var(--ui-text-increase, 0px));
+  line-height: 16px;
 }
-.qb-label { color: var(--muted); }
+.qb-label { color: var(--text-secondary); font-weight: 400; }
 .qb-pct {
   font-variant-numeric: tabular-nums;
   font-family: var(--font-mono);
-  font-size: calc(11px + var(--ui-text-increase, 0px));
-  font-weight: 600;
+  font-size: calc(12px + var(--ui-text-increase, 0px));
+  line-height: 16px;
+  font-weight: 400;
+  color: var(--muted);
 }
+.qb-pct[data-known] { color: var(--text); }
+/* The track is 2 high; the pace tick rides across it and stands 2 clear above
+   and below, so it overflows rather than clips. */
 .qb-track {
   position: relative;
-  height: 6px;
-  border-radius: 3px;
-  background: var(--line);
-  overflow: hidden;
+  height: 2px;
+  border-radius: var(--r-tag);
+  background: var(--ctl-fill);
 }
 /* Full width and scaled from the left (#863), the way the machine panel's
    `.sd-fill` already draws its bars: a changing reading is a transform on the
@@ -555,7 +483,7 @@
 .qb-fill {
   position: absolute;
   inset: 0;
-  border-radius: 3px;
+  border-radius: var(--r-tag);
   transform-origin: left center;
   transition: transform var(--dur-slow) var(--ease);
 }
@@ -581,7 +509,7 @@
    own title. */
 .qb-pace-rail {
   position: absolute;
-  inset: 0;
+  inset: -2px 0;
   z-index: 2;
   pointer-events: none;
   transition: transform var(--dur-slow) var(--ease);
@@ -605,12 +533,18 @@
   min-height: 14px;
 }
 .qb-reset {
-  font-size: calc(11px + var(--ui-text-increase, 0px));
-  color: var(--text-dim);
+  font-size: calc(12px + var(--ui-text-increase, 0px));
+  line-height: 16px;
+  color: var(--muted);
 }
+/* The right-hand note: mono 400 11/14 --muted ("on pace"); an over-pace or
+   used-up window keeps the colour that says so (QuotaBar.tsx). */
 .qb-pace {
+  font-family: var(--font-mono);
   font-size: calc(11px + var(--ui-text-increase, 0px));
-  font-weight: 500;
+  line-height: 14px;
+  font-weight: 400;
+  color: var(--muted);
   text-align: right;
   flex-shrink: 0;
 }
@@ -662,9 +596,11 @@ button.qb-pace::after {
    this undoes that to keep "Pro 20x" readable as a product name, and
    --text-dim at normal weight keeps it a step under the words it annotates. */
 .up-plan-badge {
+  font-family: var(--font-mono);
   font-size: calc(11px + var(--ui-text-increase, 0px));
+  line-height: 14px;
   font-weight: 400;
-  color: var(--text-dim);
+  color: var(--muted);
   text-transform: none;
   letter-spacing: 0;
 }
@@ -739,8 +675,35 @@ button.qb-pace::after {
 }
 /* A row, unlike the column .up-quota-na is: the grid, then the words. */
 .up-quota-loading { flex-direction: row; align-items: center; gap: 8px; font-size: calc(11px + var(--ui-text-increase, 0px)); color: var(--text-dim); }
-.up-quota-sub { font-size: calc(11px + var(--ui-text-increase, 0px)); color: var(--text-dim); margin-top: 4px; }
+/* A footnote under the windows: 400 12/16 --muted. */
+.up-quota-sub { font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: 16px; color: var(--muted); margin-top: 2px; }
 /* Both of these are .up-quota-sub lines, so they have to come after it to win
    on source order — they read as dim grey otherwise. */
 .up-credits { color: var(--accent); }
 .up-reset-credits { color: var(--ok); font-variant-numeric: tabular-nums; }
+
+/* The two acts the header gave up (V4's Figma draws one close): quiet text
+   buttons at the foot of the body, 24 high, 400 12/16 --muted. */
+.usage-panel .film-foot { padding: 0; }
+.up-acts { display: flex; flex-wrap: wrap; gap: 4px; }
+.up-quiet {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 24px;
+  padding: 0 6px;
+  border: 0;
+  border-radius: var(--r-ctl);
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: calc(12px + var(--ui-text-increase, 0px));
+  line-height: 16px;
+}
+@media (hover: hover) and (pointer: fine) {
+.up-quiet:hover { background: var(--ctl-fill); color: var(--text); }
+}
+.up-quiet[aria-busy="true"] > .refresh-glyph { animation: spin 900ms linear infinite; }
+@media (prefers-reduced-motion: reduce) {
+  .up-quiet[aria-busy="true"] > .refresh-glyph { animation: none; }
+}

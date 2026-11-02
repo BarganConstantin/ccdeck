@@ -723,17 +723,20 @@ describe("the selected range is a state you can see (#583)", () => {
     // fill this strip does not have; and the ::after that carries the accent.
     // Split like that on purpose — cyan appears once in this control and it is
     // the indicator, never the type.
+    // CHANGED ON PURPOSE (V4's Figma): two, not three. The strip is pills now; the chosen one
+    // carries its state on its own box (an --accent stroke at full strength and the --accent-16
+    // wash V4 draws), so there is no ::after indicator rule.
     expect(scoped.map(r => r.sel)).toEqual([
       '.up-period .uh-range-btn[aria-pressed="true"]',
       '.up-period .uh-range-btn[aria-pressed="true"]:hover',
-      '.up-period .uh-range-btn[aria-pressed="true"]::after',
     ]);
     // The indicator arrives solid, in exactly one of them. It is the
     // foreground now rather than the accent: which range is showing is a
     // selection, not data, and the sheet keeps cyan for data, live state and
     // focus. The doctrine is unchanged, a small mark at full strength.
-    const carries = scoped.filter(r => /background:\s*var\(--text\)\s*;/.test(r.body));
-    expect(carries.map(r => r.sel)).toEqual(['.up-period .uh-range-btn[aria-pressed="true"]::after']);
+    // The stroke, in --accent, solid: the state arrives at full strength in exactly one rule.
+    const carries = scoped.filter(r => /border-color:\s*var\(--accent\)\s*;/.test(r.body));
+    expect(carries.map(r => r.sel)).toEqual(['.up-period .uh-range-btn[aria-pressed="true"]']);
     for (const r of all) {
       // And nowhere is it diluted, in any spelling.
       expect(r.body, `${r.sel} paints the state as a wash`)
@@ -742,8 +745,8 @@ describe("the selected range is a state you can see (#583)", () => {
     // And the colour it arrives in is worth the state, on the surface it lands
     // on. 3:1 is 1.4.11's bar for a non-text indicator; #583's wash was 1.895.
     for (const theme of themes) {
-      const ratio = contrastRatio(parseColor(TOK[theme]["--text"]), parseColor(TOK[theme]["--panel"]));
-      expect(ratio, `--text on --panel in ${theme}`).toBeGreaterThanOrEqual(3);
+      const ratio = contrastRatio(parseColor(TOK[theme]["--accent"]), parseColor(TOK[theme]["--panel"]));
+      expect(ratio, `--accent on --panel in ${theme}`).toBeGreaterThanOrEqual(3);
     }
   });
 

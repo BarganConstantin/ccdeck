@@ -135,7 +135,10 @@ describe("one fill, in the Usage panel bar's data colours", () => {
     expect(colour(90)).toBe("var(--err)");
     expect(colour(100)).toBe("var(--err)");
     // One source for both: the bar calls the same function, no colour of its own here.
-    expect(code("../components/QuotaBar.tsx")).toContain("quotaLevelColor(capped, isErr)");
+    // CHANGED ON PURPOSE (V4's Figma): the Usage panel's own bar follows the panel's meter rule
+    // (quotaMeterColor: --muted, --text from 70, --err from 90, never amber); this level function is
+    // the rail's, and the bar no longer calls it.
+    expect(code("../components/QuotaBar.tsx")).toContain("quotaMeterColor(capped, isErr)");
     expect(code("../components/QuotaBar.tsx")).toMatch(/capped >= 70 \? "var\(--warn\)" : "var\(--accent\)"/);
     expect(code("../rail-usage.ts")).toContain("quotaLevelColor(capped)");
     // No hex, no new token in the rule the meter adds.

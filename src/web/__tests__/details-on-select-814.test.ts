@@ -82,7 +82,8 @@ describe("selecting an agent opens its details (#814)", () => {
     // The × is DetailAside's onClose, which also arms the keyboard's hand-off
     // to the card (panel-close-focus.test.ts).
     expect(appCode).toMatch(/onClose=\{\(\) => \{ panelReturn\.detail\(\); setDetailOpen\(false\); \}\}/);
-    expect(appCode).toMatch(/aria-label=\{t\("board\.detailPanel\.closeLabel"\)\}\s+onClick=\{onClose\}/);
+    // CHANGED ON PURPOSE (V4's Figma): the Inspector's fold is named "Fold the Inspector".
+    expect(appCode).toMatch(/aria-label="Fold the Inspector"\s+onClick=\{onClose\}/);
     expect(en["board.detailPanel.closeLabel"]).toBe("Close detail panel");
     // D toggles whenever something is selected; with nothing selected it now
     // selects first (#845, d-without-selection-845.test.ts).

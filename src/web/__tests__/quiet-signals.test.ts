@@ -297,14 +297,18 @@ describe("2. the quota pace marker (#368.2)", () => {
       }
       // Surplus puts the marker outside the fill, on the bare track, where it
       // has to carry itself — the ring is near-invisible on --line by design.
-      const track = resolve(declOf(".qb-track", "background")!, theme);
+      // CHANGED ON PURPOSE (V4's Figma): the track is --ctl-fill, a wash of the ink, over the panel.
+      const track = over(resolve(TOK[theme][/^var\((--[\w-]+)\)$/.exec(declOf(".qb-track", "background")!)![1]], theme), tok("--panel", theme));
       expect(contrastRatio(tok("--ok", theme), track), `${theme} --ok marker on the track`)
         .toBeGreaterThanOrEqual(NON_TEXT);
     }
   });
 
-  it("keeps the track clipping the ring, which is what leaves only the two side edges", () => {
-    expect(declOf(".qb-track", "overflow")).toBe("hidden");
+  // CHANGED ON PURPOSE (V4's Figma): the track is 2 high, so it no longer clips; the tick stands
+  // 2px clear above and below it (the rail is inset -2px), and the ring is a spread on all sides.
+  it("lets the tick stand clear of the 2px track instead of clipping it", () => {
+    expect(declOf(".qb-track", "overflow")).toBeNull();
+    expect(declOf(".qb-pace-rail", "inset")).toBe("-2px 0");
   });
 });
 
