@@ -32,7 +32,7 @@ import { fileURLToPath } from "node:url";
 import { join } from "node:path";
 import { TAG_BUDGET, classesIn, openTags, withoutComments } from "./tsx-scan";
 import { gradientStops } from "./gradient-stops";
-import { sheetText } from "./sheet-source";
+import { mouseFlat, sheetText } from "./sheet-source";
 
 const web = fileURLToPath(new URL("..", import.meta.url));
 const css = sheetText();
@@ -104,7 +104,8 @@ function topLevel(src: string): Array<{ selector: string; body: string }> {
 }
 
 const bare = css.replace(/\/\*[\s\S]*?\*\//g, "");
-const RULES = topLevel(bare);
+// The mouse query's rules are read where they stand, in order: a desktop pointer meets them at the top level.
+const RULES = topLevel(mouseFlat(bare));
 // Hover-gated controls still owe the same contrast in their pointer state.
 const POINTER_RULES = [...bare.matchAll(/@media \(hover: hover\) and \(pointer: fine\)\s*\{/g)]
   .flatMap(m => topLevel(block(bare, m.index! + m[0].length - 1)[0]));

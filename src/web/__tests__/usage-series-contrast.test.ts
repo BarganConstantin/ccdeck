@@ -60,7 +60,7 @@ import { join } from "node:path";
 import { USAGE_HISTORY_FILES } from "./usage-history-surface";
 import { modelFamily } from "../model-label";
 import { modelColor } from "../usage-history";
-import { sheetText } from "./sheet-source";
+import { mouseFlat, sheetText } from "./sheet-source";
 
 const web = fileURLToPath(new URL("..", import.meta.url));
 
@@ -201,7 +201,8 @@ function topLevel(s: string): Array<{ selector: string; body: string }> {
   return out;
 }
 
-const RULES = topLevel(css);
+// The mouse query's rules are read where they stand: a desktop pointer meets them at the top level.
+const RULES = topLevel(mouseFlat(css));
 const selectors = (list: string) => list.split(",").map(s => s.replace(/\s+/g, " ").trim());
 
 function bodyOf(selector: string): string {

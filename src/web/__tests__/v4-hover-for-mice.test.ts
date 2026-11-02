@@ -71,6 +71,21 @@ describe("hover is for mice", () => {
     expect(files.flatMap(bareHovers)).toEqual([]);
   });
 
+  it("never writes a hover where no mouse can reach it", () => {
+    // (hover: none) and the mouse query never hold together, so a hover in
+    // there is dead; a touch needs no reset now that the hover is for mice.
+    const dead: string[] = [];
+    for (const f of files) {
+      const css = readFileSync(f, "utf8").replace(/\/\*[\s\S]*?\*\//g, "");
+      for (const m of css.matchAll(/@media[^{]*\(hover:\s*none\)[^{]*\{/g)) {
+        let depth = 0, i = m.index! + m[0].length - 1;
+        for (; i < css.length; i++) { if (css[i] === "{") depth++; else if (css[i] === "}" && --depth === 0) break; }
+        if (/:hover\b/.test(css.slice(m.index!, i))) dead.push(`${relative(WEB, f)} ${m[0]}`);
+      }
+    }
+    expect(dead).toEqual([]);
+  });
+
   it("says (pointer: fine) wherever it says (hover: hover)", () => {
     const half: string[] = [];
     for (const f of files) {

@@ -16,6 +16,7 @@ import { usageMeter } from "../rail-usage";
 import { resetCountdown } from "../relative-time";
 import type { MeterQuota, QuotaData } from "../use-quota";
 import { sheetRules } from "./sheet-cascade";
+import { MOUSE_MEDIA } from "./sheet-source";
 
 const here = (p: string) => fileURLToPath(new URL(p, import.meta.url));
 const source = (p: string) => readFileSync(here(p), "utf8");
@@ -103,7 +104,7 @@ describe("Rail / Usage box", () => {
   });
 
   it("answers the rows' hover wash, press and ring, and keeps a phone target of 44", () => {
-    expect(decl(".session-list .sl-usage-btn:hover", "background")).toBe("var(--ctl-fill)");
+    expect(decl(".session-list .sl-usage-btn:hover", "background", MOUSE_MEDIA)).toBe("var(--ctl-fill)");
     expect(decl(".session-list .sl-usage-btn:active", "transform")).toBe(decl(".session-list .sl-row:active", "transform"));
     expect(decl(".session-list .sl-usage-btn:focus-visible", "outline-offset")).toBe("-2px");
     expect(decl(".session-list .sl-usage-btn:focus-visible", "outline")).toBeUndefined();

@@ -57,3 +57,34 @@ export function defaultReadingSheetText(): string {
   ).replace(/calc\((-?\d+(?:\.\d+)?px) \* var\(--ui-space, 1\)\)/g, "$1").replace(/ \+ var\(--ui-panel-increase, 0px\)/g, "")
     .replace(/max\((\d+(?:\.\d+)?px), \1\)/g, "$1");
 }
+
+/** The mouse query every `:hover` rule stands under (V4: hover is for mice). */
+export const MOUSE_MEDIA = "(hover: hover) and (pointer: fine)";
+
+/** `css` as a desktop pointer reads it at the top level: each top-level
+ *  `@media (hover: hover) and (pointer: fine) { ... }` is replaced by its rules,
+ *  in place, so the hover rules keep their order among the rest. A hover rule
+ *  nested in another media (forced colours, reduced motion) stays inside it. */
+export function mouseFlat(css: string): string {
+  const open = `@media ${MOUSE_MEDIA}`;
+  let out = "";
+  let i = 0;
+  let depth = 0;
+  while (i < css.length) {
+    if (depth === 0 && css.startsWith(open, i)) {
+      const brace = css.indexOf("{", i);
+      let d = 1;
+      let j = brace + 1;
+      for (; j < css.length && d > 0; j++) d += css[j] === "{" ? 1 : css[j] === "}" ? -1 : 0;
+      out += css.slice(brace + 1, j - 1);
+      i = j;
+      continue;
+    }
+    const c = css[i];
+    if (c === "{") depth++;
+    else if (c === "}") depth--;
+    out += c;
+    i++;
+  }
+  return out;
+}

@@ -210,9 +210,6 @@
   .ta-filters .uh-range-btn, .ta-sorts .uh-range-btn, .ta-search input { min-height: 40px; }
   .ta-row, .ta-highlight { min-height: 56px; }
 }
-@media (hover: none) { @media (hover: hover) and (pointer: fine) {
-.ta-row:hover:not([data-selected]), .ta-highlight:hover:not([aria-expanded=true]) { background: transparent; }
-} }
 @media (prefers-reduced-motion: reduce) {
   .ta-report, .ta-loading i, .ta-skel, .ta-actions [data-loading] svg { animation: none; }
   .ta-drawer:not([data-keyboard]) { transition: none; }
@@ -445,9 +442,6 @@ button.tt-part:active { transform: scale(var(--press)); }
   .tt-lane { min-height: 48px; }
   .tt-part { min-height: 52px; }
 }
-@media (hover: none) { @media (hover: hover) and (pointer: fine) {
-.tt-lane:hover:not([aria-expanded=true]), .tt-parts li:hover .tt-part:not([data-selected]) { background: transparent; }
-} }
 @media (prefers-reduced-motion: reduce) {
   .tt-fold, .tt-arc, .tt-lane, .tt-caret, button.tt-part, .tt-days-bars i, .tt-level-body, .tt-part-bar { transition: none; }
   .tt-arc { animation: none; }

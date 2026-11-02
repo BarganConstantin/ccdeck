@@ -98,6 +98,8 @@ describe("the selected row in an integration panel", () => {
     // The deck answers forced colours in one block (forced-colors-871.test.ts).
     const forced = css.slice(css.indexOf("@media (forced-colors: active) {"));
     expect(forced).toMatch(/\n\s*\.ig-row\[data-selected\]\s*\{\s*outline:\s*2px solid Highlight/);
-    expect(host).toMatch(/@media \(hover: none\)\s*\{[^}]*\.ig-row:hover:not\(\[data-selected\]\)/);
+    // A touch never lifts a row: the lift is for mice only, so no touch reset is needed.
+    expect(host).toMatch(/@media \(hover: hover\) and \(pointer: fine\)\s*\{\s*\.ig-row:hover \{/);
+    expect(host).not.toMatch(/@media \(hover: none\)/);
   });
 });

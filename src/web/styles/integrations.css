@@ -489,12 +489,6 @@ button.btn.ig-manage.primary:hover { border-color: var(--text); }
   .ig-close, .ig-back, .ig-refresh, .ig-detail-close { min-width: 44px; min-height: 44px; }
   .ig-search-input { min-height: 40px; }
 }
-/* A touch leaves :hover on the row it pressed; only the selection may stay. */
-@media (hover: none) {
-  @media (hover: hover) and (pointer: fine) {
-  .ig-row:hover:not([data-selected]) { background: transparent; }
-  }
-}
 @media (prefers-reduced-motion: reduce) {
   .modal.ig-modal[data-closing] { animation: ig-fade-out var(--dur-fast) var(--ease) both; }
   .ig-splitter::before { transition: none; }

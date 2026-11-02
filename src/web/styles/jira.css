@@ -614,11 +614,6 @@ button.btn.jr-chip[aria-pressed="true"] { background: var(--ig-sel-fill, var(--a
   .jr-toggle, .jr-toggle-space { width: 40px; }
   .jr-group-toggle, .jr-board-item, .jr-detail-sub { min-height: 44px; }
 }
-@media (hover: none) {
-  @media (hover: hover) and (pointer: fine) {
-  .jr-board-item:hover:not([aria-current="true"]), .jr-detail-sub:hover, .jr-group-toggle:hover { background: transparent; }
-  }
-}
 @media (prefers-reduced-motion: reduce) {
   .jr-chevron { transition: none; }
   .jr-group-body[data-fade], .jr-subrows[data-fade] { animation: none; }
