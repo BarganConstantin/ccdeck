@@ -84,6 +84,34 @@ describe("the camera's numbers are the sheet's", () => {
   });
 });
 
+describe("the first paint is still", () => {
+  it("jumps every fit while the board is opening and glides Slow after", async () => {
+    const { fitDuration, OPENING_STILL_MS } = await import("../use-auto-fit");
+    const opened = 10_000;
+    expect(fitDuration(opened, opened)).toBe(0);
+    expect(fitDuration(opened, opened + OPENING_STILL_MS - 1)).toBe(0);
+    expect(fitDuration(opened, opened + OPENING_STILL_MS)).toBe(CAMERA_SLOW_MS);
+    // A board that has not opened yet has nothing to keep still.
+    expect(fitDuration(0, opened)).toBe(CAMERA_SLOW_MS);
+  });
+
+  it("opens when the first session is on the board, not when the deck mounts", async () => {
+    const { layoutSignature, signatureHasAgents } = await import("../layout-signature");
+    expect(signatureHasAgents(layoutSignature([], 0, new Set(), 0, 0))).toBe(false);
+    expect(signatureHasAgents("")).toBe(false);
+    expect(signatureHasAgents("a|b>a#sv2.1")).toBe(true);
+    const code = stripped("use-auto-fit.ts");
+    expect(code).toMatch(/if \(!openedAtRef\.current && signatureHasAgents\(layoutSig\)\) openedAtRef\.current = Date\.now\(\);/);
+  });
+
+  it("sends both triggers' fits through the opening's duration", () => {
+    const code = stripped("use-auto-fit.ts").split("\n").filter(l => !/^\s*\/\//.test(l)).join("\n");
+    expect(code).toMatch(/const fit = \(\) => fitLeft\(fitDuration\(openedAtRef\.current, Date\.now\(\)\)\);/);
+    expect(code.match(/\bfit\(\);/g)).toHaveLength(3);
+    expect(code).not.toMatch(/fitLeft\(\);/);
+  });
+});
+
 describe("the camera tween", () => {
   const move = () => {
     vi.stubGlobal("document", { hidden: false });

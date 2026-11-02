@@ -8,12 +8,26 @@
 import { useEffect, useRef, type MutableRefObject } from "react";
 import type { ReactFlowInstance } from "reactflow";
 import { shouldRefit, type NodeBox, type PaneSize } from "./drift";
+import { signatureHasAgents } from "./layout-signature";
 import type { GraphState } from "./reducer";
 import type { useBoardLayout } from "./use-board-layout";
 import type { useCamera } from "./use-camera";
+import { CAMERA_SLOW_MS } from "./viewport-motion";
 import { isAgentVisible } from "./visibility";
 
 type Layout = ReturnType<typeof useBoardLayout>;
+
+/** How long after the board first has a session in it its fits jump rather
+ *  than glide. V4's motion spec draws the first paint still, and the cards and
+ *  their measurements land over more than one render while the deck opens:
+ *  each of those fits was a Slow glide from the frame before, so the board
+ *  drifted into place for the first second. */
+export const OPENING_STILL_MS = 1500;
+
+/** The time a fit takes: none while the board is opening, Slow after. */
+export function fitDuration(openedAt: number, now: number): number {
+  return openedAt > 0 && now - openedAt < OPENING_STILL_MS ? 0 : CAMERA_SLOW_MS;
+}
 
 export function useAutoFit({
   layoutSig, rf, stateRef, measuredRef, pinnedRef, positionsRef, paneSizeRef, lastInteractRef,
@@ -38,6 +52,11 @@ export function useAutoFit({
   const fitTimerRef = useRef<number | null>(null);
 
   const lastLayoutSigForFitRef = useRef("");
+
+  // When the board first had a session in it, which starts the opening
+  // (fitDuration above). Both triggers fit through `fit`.
+  const openedAtRef = useRef(0);
+  const fit = () => fitLeft(fitDuration(openedAtRef.current, Date.now()));
 
   // Auto-recover from "drifted off-screen": every 1.5s check whether ANY
   // agent's bounding box intersects the visible viewport. If none have at
@@ -79,7 +98,7 @@ export function useAutoFit({
       // always open: right in one of the six layouts `.app` grids itself into,
       // wrong in the five others including the one the deck starts in (#615).
       if (shouldRefit({ pane: paneSizeRef.current, viewport: rf.getViewport(), boxes })) {
-        fitLeft();
+        fit();
       }
     }, 1500);
     return () => clearInterval(id);
@@ -95,16 +114,17 @@ export function useAutoFit({
     if (lastLayoutSigForFitRef.current === layoutSig) return;
     const prev = lastLayoutSigForFitRef.current;
     lastLayoutSigForFitRef.current = layoutSig;
+    if (!openedAtRef.current && signatureHasAgents(layoutSig)) openedAtRef.current = Date.now();
     if (!prev) return; // first render — let initial fitView prop handle it
     if (autoFitDisabledRef.current) return;
     const tnow = Date.now();
     if (tnow - lastFitTimeRef.current > 1200) {
-      fitLeft();
+      fit();
     }
     if (fitTimerRef.current) window.clearTimeout(fitTimerRef.current);
     fitTimerRef.current = window.setTimeout(() => {
       if (autoFitDisabledRef.current) return;
-      fitLeft();
+      fit();
     }, 280);
   }, [layoutSig, rf, fitLeft]);
 }
