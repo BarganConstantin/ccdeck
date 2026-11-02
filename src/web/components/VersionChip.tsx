@@ -14,7 +14,7 @@
 // app has one (see readyButtonCopy).
 //
 // Each chip leads with a 14px icon slot holding the version dot, which stays
-// still (V4 decision 19: Paused, Lost and Version hold a still dot).
+// still (V4's motion spec: Paused, Lost and Version hold a still dot).
 import type { readyDesktopUpdate } from "../desktop-update";
 import { desktopAppVersion, readyButtonCopy, readyChipCopy } from "../desktop-update";
 import { useLanguage, t } from "../i18n";
