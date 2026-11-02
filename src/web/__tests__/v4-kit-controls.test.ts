@@ -359,6 +359,12 @@ describe("icon button", () => {
     expect(decl(zoom, "transform")).toBe("scale(var(--press-small))");
     expect(decl(".react-flow__controls-button", "transition")).toContain("transform var(--dur-fast) var(--ease)");
   });
+  it("gives the card's recap pin the same open state: no circle and no wash of its own", () => {
+    const pinOpen = rules.filter(r => r.selectors.some(s => /\.recap-pin\[aria-expanded/.test(s)));
+    expect(pinOpen).toEqual([]);
+    expect(decl(".agent-node .recap-pin", "border-radius")).toBeUndefined();
+    expect(decl(".agent-node .recap-pin", "background")).toBeUndefined();
+  });
 });
 
 describe("key cap", () => {

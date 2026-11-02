@@ -300,14 +300,11 @@
 /* The ※ pin: the one mark a resting card carries when Claude Code has left it
    a recap. The glyph button's own hit area and focus ring, in the session's
    colour — a graphic, held to 3:1, which the card's --accent clears as text.
-   Held down while its note is open, so the card says which note is its own. */
+   While its note is open it wears the kit icon button's open state (--selected
+   on --r-ctl, panel-glyph.css), so the card says which note is its own. */
 .agent-node .recap-pin {
   flex: none;
   color: var(--accent);
-}
-.agent-node .recap-pin[aria-expanded="true"] {
-  border-radius: 50%;
-  background: color-mix(in srgb, var(--accent) 18%, transparent);
 }
 
 /* The recap itself: a node of its own beside the session root, open by itself
