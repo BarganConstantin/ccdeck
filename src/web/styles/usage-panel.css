@@ -467,6 +467,7 @@
   line-height: 16px;
   font-weight: 400;
   color: var(--muted);
+  transition: color var(--dur-fast) var(--ease);
 }
 .qb-pct[data-known] { color: var(--text); }
 /* The track is 2 high; the pace tick rides across it and stands 2 clear above
@@ -485,8 +486,9 @@
   inset: 0;
   border-radius: var(--r-tag);
   transform-origin: left center;
-  transition: transform var(--dur-slow) var(--ease);
+  transition: transform var(--dur-slow) var(--ease), background-color var(--dur-fast) var(--ease);
 }
+.qb-fill[data-jump] { transition: none; }
 /* Pace "green line" — vertical marker at the expected-usage position.
    Separated from the fill with the surface, not with black. Deficit means
    actual > expected, so the marker always lands INSIDE the fill, and its --err

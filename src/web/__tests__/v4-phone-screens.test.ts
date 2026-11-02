@@ -77,7 +77,9 @@ describe("every rule this phase added sits inside the phone query", () => {
         ".session-list .sl-usage-btn { min-height: 44px; }",
         ".session-list .sl-row { min-height: 62px; }",
         ".session-list .sl-more, .session-list .sl-fold-btn { min-height: 44px; }",
-        ".session-list .sl-close { min-width: 44px; min-height: 44px; }",
+        // Changed for V4's header: the × shows only here, 24 to see and a 44 target via ::after.
+        ".session-list .sl-close { display: inline-flex; }",
+        ".session-list .sl-icon-btn::after { content: \"\"; position: absolute; inset: -10px; }",
       ],
       "styles/left-column.css": [
         ".left-column:not(.closing) { width: 100vw; }",
@@ -116,7 +118,9 @@ describe("the rail on a phone", () => {
     const css = read("styles/session-list.css");
     const phone = css.slice(...blocksOf(css, PHONE)[0]);
     expect(phone).toContain(".session-list .sl-more, .session-list .sl-fold-btn { min-height: 44px; }");
-    expect(phone).toContain(".session-list .sl-close { min-width: 44px; min-height: 44px; }");
+    // Changed for V4's header: the × is a 24 button with a 44 target that does not grow the 36 header.
+    expect(phone).toContain(".session-list .sl-close { display: inline-flex; }");
+    expect(phone).toContain(".session-list .sl-icon-btn::after { content: \"\"; position: absolute; inset: -10px; }");
   });
 });
 
