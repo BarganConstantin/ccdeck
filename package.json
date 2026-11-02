@@ -98,9 +98,11 @@
     "vitest": "^2.1.9"
   },
   "dependencies": {
-    "fs-native-extensions": "1.5.2"
+    "fs-native-extensions": "1.5.2",
+    "ws": "8.22.1"
   },
   "bundledDependencies": [
-    "fs-native-extensions"
+    "fs-native-extensions",
+    "ws"
   ]
 }
