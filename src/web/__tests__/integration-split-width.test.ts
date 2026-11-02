@@ -53,7 +53,8 @@ describe("automatic integration detail shares", () => {
     expect(autoDetailCss()).toBe("clamp(320px, 50%, 1600px)");
     expect(autoDetailCss(0.4)).toBe("clamp(320px, 40%, 1600px)");
     expect(autoDetail(700, 0.4)).toBe(320);
-    expect(autoDetail(900, 0.9)).toBe(472); // Leaves the same 420px list + 8px splitter.
+    // CHANGED ON PURPOSE (V4's Figma): the divider is 1px, not 8, so the same 420px list leaves 479.
+    expect(autoDetail(900, 0.9)).toBe(479); // Leaves the same 420px list + the 1px divider.
     expect(autoDetail(5000, 0.4)).toBe(1600);
   });
 
@@ -106,7 +107,8 @@ describe("automatic integration detail shares", () => {
     view.event("onKeyDown", { key: "Home" });
     expect(view.shown).toBe(320);
     view.event("onKeyDown", { key: "End" });
-    expect(view.shown).toBe(772);
+    // CHANGED ON PURPOSE (V4's Figma): 1200 - 420 - the 1px divider (it was 8px: 772).
+    expect(view.shown).toBe(779);
     view.event("onKeyDown", { key: "Enter" });
     expect(view.shown).toBe(600);
     expect(view.widthCss).toBe(autoDetailCss());

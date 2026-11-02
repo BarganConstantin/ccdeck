@@ -57,6 +57,8 @@ export interface ForgeSplitProps {
   storageKey: string;
   /** Which item the detail shows, so the host can mark a new one arriving. */
   detailKey?: string;
+  /** The detail's share of the workspace until the reader drags it. */
+  automaticDetailShare?: number;
 }
 
 export interface ForgePanelProps {
@@ -241,40 +243,41 @@ export default function ForgePanel({ kind, connection, api, assetUrl, prefs, nar
   const list = (
     <div ref={listRef} className="fg-list">
       <div className="fg-toolbar">
+        <span className="fg-toolbar-label">{words.repo}</span>
         <RepoPicker value={view.repo} allowAll={allowsAll} onChange={repo => setView({ repo })} />
+        {/* One tab stop for the strip, the arrows between its tabs (#581). */}
+        <div
+          ref={tabsRef}
+          className="uh-range fg-tabs"
+          role="tablist"
+          aria-label={t("forge.views", { name })}
+          onKeyDown={event => {
+            const move = tabStripMove(event, TAB_ORDER.indexOf(view.tab), TAB_ORDER.length);
+            if (move.kind === "pass") return;
+            event.preventDefault();
+            event.stopPropagation();
+            chooseTab(TAB_ORDER[move.index]);
+            event.currentTarget.querySelectorAll<HTMLButtonElement>('[role=tab]')[move.index]?.focus();
+          }}
+        >
+          {TAB_ORDER.map(tab => (
+            <button
+              key={tab}
+              id={tabDomId(tab)}
+              type="button"
+              role="tab"
+              className="uh-range-btn"
+              aria-selected={view.tab === tab}
+              aria-controls={panelDomId(tab)}
+              tabIndex={view.tab === tab ? 0 : -1}
+              onClick={() => chooseTab(tab)}
+            >
+              {tabLabel(kind, tab, t)}
+            </button>
+          ))}
+        </div>
         <IntegrationFreshness loadedAt={fresh.loadedAt} loading={fresh.loading} stale={fresh.stale}
           onRefresh={() => setRefresh(n => n + 1)} label={t("forge.refresh", { name })} />
-      </div>
-      {/* One tab stop for the strip, the arrows between its tabs (#581). */}
-      <div
-        ref={tabsRef}
-        className="uh-range fg-tabs"
-        role="tablist"
-        aria-label={t("forge.views", { name })}
-        onKeyDown={event => {
-          const move = tabStripMove(event, TAB_ORDER.indexOf(view.tab), TAB_ORDER.length);
-          if (move.kind === "pass") return;
-          event.preventDefault();
-          event.stopPropagation();
-          chooseTab(TAB_ORDER[move.index]);
-          event.currentTarget.querySelectorAll<HTMLButtonElement>('[role=tab]')[move.index]?.focus();
-        }}
-      >
-        {TAB_ORDER.map(tab => (
-          <button
-            key={tab}
-            id={tabDomId(tab)}
-            type="button"
-            role="tab"
-            className="uh-range-btn"
-            aria-selected={view.tab === tab}
-            aria-controls={panelDomId(tab)}
-            tabIndex={view.tab === tab ? 0 : -1}
-            onClick={() => chooseTab(tab)}
-          >
-            {tabLabel(kind, tab, t)}
-          </button>
-        ))}
       </div>
       <div className="fg-searchbar">
         {/* The integrations' shared field: Escape empties it before it closes
@@ -322,7 +325,7 @@ export default function ForgePanel({ kind, connection, api, assetUrl, prefs, nar
   return (
     <ForgeProvider value={ctx}>
       <div ref={panelRef} className="fg-panel" data-kind={kind}>
-        <Split list={list} detail={detail} onBack={() => select(null)} backLabel={backLabel(kind, view.tab, t)} storageKey={kind} detailKey={selected ? selectionKey(selected) : undefined} />
+        <Split list={list} detail={detail} onBack={() => select(null)} backLabel={backLabel(kind, view.tab, t)} storageKey={kind} automaticDetailShare={0.5705} detailKey={selected ? selectionKey(selected) : undefined} />
       </div>
     </ForgeProvider>
   );

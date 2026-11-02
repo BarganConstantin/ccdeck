@@ -23,6 +23,7 @@ import type { IntegrationConnection, IntegrationKind } from "../integrations/typ
 import { useFeatureUse } from "../feature-use";
 import { isTabbable, TABBABLE_SELECTOR } from "../modal-dismiss";
 import { useDrillIn } from "./IntegrationSplit";
+import { FreshnessSlot } from "./IntegrationFreshness";
 import { Dialog } from "./Dialog";
 import { useModalDismiss, useScrimDismiss } from "./use-modal-dismiss";
 
@@ -40,6 +41,8 @@ export default function IntegrationModal({ kind, connections, onClose, onReconne
   const def = integrationDef(kind);
   const Panel = INTEGRATION_PANELS[kind];
   const selectId = useId();
+  // Where the panel's freshness line and Refresh are drawn: the header's end.
+  const [freshSlot, setFreshSlot] = useState<HTMLElement | null>(null);
   const narrow = useDrillIn();
   // Read once, while focus is still on the rail button that opened this.
   const [opener] = useState(() => (document.activeElement instanceof HTMLElement ? document.activeElement : null));
@@ -115,9 +118,11 @@ export default function IntegrationModal({ kind, connections, onClose, onReconne
           ) : (
             <span className="ig-conn-name" title={connection.baseUrl}>{connection.name}</span>
           )}
+          <div className="ig-head-end" ref={setFreshSlot} />
           <button type="button" className="glyph-btn ig-close" onClick={close} aria-label={t("integrations.closeProvider", { label: def.label })} title={t("integrations.closeEsc")}>×</button>
         </div>
         <div ref={bodyRef} className="ig-body">
+          <FreshnessSlot.Provider value={freshSlot}>
           <Panel
             key={connection.id}
             connection={connection}
@@ -128,6 +133,7 @@ export default function IntegrationModal({ kind, connections, onClose, onReconne
             narrow={narrow}
             onReconnect={() => { close(); onReconnect(connection.id); }}
           />
+          </FreshnessSlot.Provider>
         </div>
     </Dialog>,
     document.body,

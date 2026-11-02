@@ -5,7 +5,7 @@
 //     {extra actions}
 //   </IntegrationFailureNote>
 //
-// One design for Jira and the forges: the error mark and a heading, the
+// One design for Jira and the forges: a heading (no mark, as V4's Figma draws it), the
 // sentence under it, and the provider's own words quietly below when they add
 // something. The action comes from the kind (integrations/failure.ts):
 // Reconnect for a token, Open connection settings for scopes or an address,
@@ -14,12 +14,11 @@
 // a button whose handler is not passed is not drawn. A rate limit holds Try
 // again, counting the wait down on the button itself, and a press before then
 // does nothing. `stale` is the compact note over rows that are the last answer:
-// the warning mark and edge instead of the error's, since what is on screen is
+// the same note, shorter, since what is on screen is
 // still useful. The words are an alert (a status when stale); the buttons sit
 // outside it, so the countdown is not read out every second. `title` and
 // `body` replace the shared words when a panel has better ones.
 import { useEffect, useState, type ReactNode } from "react";
-import { ErrorMark, WarnMark } from "./integration-glyphs";
 import { useT } from "../i18n";
 import { actionLabel, failureAction, failureSaid, failureWords, retryWait, retryWhen, waitLabel, type FailureInfo } from "../integrations/failure";
 
@@ -64,7 +63,7 @@ export default function IntegrationFailureNote({ error, provider, host, stale = 
   return (
     <div className="ig-failure" data-kind={error.kind} data-stale={stale || undefined}>
       <div className="ig-failure-text" role={stale ? "status" : "alert"}>
-        <p className="ig-failure-title">{stale ? <WarnMark /> : <ErrorMark />}<strong>{heading}</strong></p>
+        <p className="ig-failure-title"><strong>{heading}</strong></p>
         {sentence && <p className="ig-failure-body">{sentence}</p>}
         {said && !stale && <p className="ig-failure-said">{t("integrations.failure.said", { provider, said })}</p>}
       </div>

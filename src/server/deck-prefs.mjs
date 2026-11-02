@@ -105,7 +105,7 @@ export const DEFAULTS = Object.freeze({
   autoUpdate: true,
   // THE COMMAND PANEL, OFF until somebody turns it on: a terminal you can
   // type into is the first thing in the deck that reaches into an agent rather
-  // than watching one. The switch in Settings › Experimental (a Beta switch in
+  // than watching one. The switch in Settings › General › Experimental (a Beta switch in
   // Settings › General from 2026-10-18), so in PAGE_FIELDS, behind the gates
   // every other switch is behind. Those
   // turn away every other site, a rebound name and the network; they cannot

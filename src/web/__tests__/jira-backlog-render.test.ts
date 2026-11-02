@@ -411,3 +411,11 @@ describe("group read failures and closed-sprint discovery", () => {
     expect(hidden).toContain("Show closed sprints");
   });
 });
+
+describe("the checkbox flag", () => {
+  it("a row that is only open draws no multi-selection flag and no pick", () => {
+    const html = drawBoard([issue("MOCK-1"), issue("MOCK-2")], { selected: "MOCK-1" });
+    expect(html).not.toContain("data-multi");
+    expect(html).not.toContain("data-picked");
+  });
+});

@@ -570,14 +570,14 @@ export default function JiraBacklog(props: JiraBacklogProps) {
   const statusCh = useMemo(() => statusWidth(snap), [snap]);
 
   return (
-    <div className="jr-board" id={boardId} ref={listRef} onKeyDown={onKeyDown} style={{ "--jr-status-ch": statusCh } as CSSProperties}>
+    <div className="jr-board" id={boardId} ref={listRef} data-multi={(selectionMode && picked.size > 1) || undefined} onKeyDown={onKeyDown} style={{ "--jr-status-ch": statusCh } as CSSProperties}>
       <p className="vis-hidden" id={`${boardId}-instructions`}>{t("integrations.list.instructions")}{canMove ? t("integrations.list.instructionsMove") : ""}</p>
       {selectionMode && selectedItems.length > 0 && <div className="jr-selection" role="group" aria-label={t("integrations.list.selectedGroup")}>
         <span role="status">{t("integrations.list.selectedCount", { n: selectedItems.length })}</span>
         {canMove && <button type="button" className="btn" id={`${boardId}-move-selected`} {...selfPressProps(moveBusy, Boolean(selectionProblem))}
           aria-haspopup="dialog" aria-expanded={moveMenu?.anchorId === `${boardId}-move-selected`}
           onClick={() => { if (!selectionProblem) openMoveMenu(selectedItems[0].issue, selectedItems[0].group, `${boardId}-move-selected`); }}>{t("integrations.list.moveSelected")}</button>}
-        <button type="button" className="btn" aria-label={t("integrations.list.clearSelectionAria")} onClick={() => {
+        <button type="button" className="jr-link-btn jr-selection-clear" aria-label={t("integrations.list.clearSelectionAria")} onClick={() => {
           selectionVersion.current++; setPicked(new Set()); setSelectionMode(true); selectionAnchor.current = null;
         }}>{t("integrations.list.clear")}</button>
         {selectionProblem && canMove && <span className="jr-selection-note" id={`${boardId}-blocked`}>{selectionProblem}</span>}
@@ -703,6 +703,7 @@ export default function JiraBacklog(props: JiraBacklogProps) {
           </>}
         </div>
       )}
+      {canMove && selectionMode && selectedItems.length > 0 && <p className="jr-selection-hint">{t("integrations.list.instructionsMove").trim()}</p>}
     </div>
   );
 }

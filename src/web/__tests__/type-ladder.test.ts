@@ -111,9 +111,6 @@ type FontSize = { selector: string; value: string; px: number };
 const FONT_SIZES: FontSize[] = RULES.flatMap(r => {
   const v = declIn(r.body, "font-size");
   if (!v) return [];
-  // The Aa illustrations demonstrate the selectable offsets; they are not
-  // reading-text tiers. Keep this exception confined to that exact selector.
-  if (r.selector.trim() === ".reading-type-sample" && v === "var(--reading-sample-size)") return [];
   return r.selector.split(",").map(s => s.replace(/\s+/g, " ").trim()).filter(Boolean)
     .map(selector => ({ selector, value: v, px: parseFloat(v) }));
 });
@@ -133,11 +130,14 @@ const LADDER = [9, 10, 11, 12, 13, 14, 16, 18, 22, 26, 34];
 const RESOLVABLE = 1.07;
 
 describe("the type ladder is a closed set (#379 §3)", () => {
-  it("keeps the size illustrations proportional to the actual selectable offsets", () => {
-    expect(decl(".reading-type-sample", "font-size")).toBe("var(--reading-sample-size)");
-    const samples = ["smallest", "smaller", "default", "larger", "largest"].map(value =>
-      parseFloat(decl(`.reading-choice[data-size="${value}"]`, "--reading-sample-size")!));
-    expect(samples.map(size => size - samples[2])).toEqual([-2, -1, 0, 2, 4]);
+  // CHANGED ON PURPOSE (V4 Figma): the Aa illustrations are gone (the sizes are a
+  // Select), and the same promise now sits on the option names: each says the body
+  // size its step gives, 13 px plus the step's real offset.
+  it("names each text size with the body size its offset gives", () => {
+    const source = readFileSync(new URL("../components/ReadingSection.tsx", import.meta.url), "utf8");
+    const named = [...source.matchAll(/\["(smallest|smaller|default|larger|largest)", "[^"]+", "(\d+) px"\]/g)];
+    expect(named.map(m => m[1])).toEqual(["smallest", "smaller", "default", "larger", "largest"]);
+    expect(named.map(m => Number(m[2]) - 13)).toEqual([-2, -1, 0, 2, 4]);
   });
   it("sets every font-size in the sheet to a step on the ladder", () => {
     const off = FONT_SIZES.filter(f => !LADDER.includes(f.px));

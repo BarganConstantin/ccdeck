@@ -42,9 +42,10 @@ describe("the freshness line's words", () => {
 
 describe("the freshness line on screen", () => {
   it("puts the warning mark beside its word, and the exact moment behind the age", () => {
+    // CHANGED ON PURPOSE (V4's Figma pass): the word is plain text inside the pill, no span of its own (it had no rule).
     const html = render({ loadedAt: NOW - 12 * MIN, stale: true });
     expect(html).toMatch(/data-tone="stale"/);
-    expect(html).toMatch(/<svg class="ig-mark"[^>]*aria-hidden="true"[\s\S]*?<\/svg><span class="ig-fresh-word">Not updated<\/span> · last answer <time dateTime="2026-10-22T11:48:00.000Z" title="[^"]+">12m ago<\/time>/);
+    expect(html).toMatch(/<svg class="ig-mark"[^>]*aria-hidden="true"[\s\S]*?<\/svg>Not updated · last answer <time dateTime="2026-10-22T11:48:00.000Z" title="[^"]+">12m ago<\/time>/);
   });
 
   it("names Refresh for what it reads, and keeps it out of a second read while one is out", () => {
@@ -71,10 +72,20 @@ describe("the freshness line on screen", () => {
     expect(reduced).toMatch(/\.ig-refresh\[data-loading\] svg\s*\{\s*animation:\s*none/);
   });
 
-  it("says Not updated in --warn, mark and word, and keeps the rest of the line quiet", () => {
-    expect(css).toMatch(/\.ig-freshness\[data-tone="stale"\] \.ig-fresh-word,\s*\.ig-freshness\[data-tone="stale"\] \.ig-mark\s*\{\s*color:\s*var\(--warn\)/);
+  // CHANGED ON PURPOSE (V4's Figma): the line is a 24px pill (panel fill, --line edge, 12/400 in --text),
+  // and a stale answer is the same pill: amber means an agent waits, so --warn is never used here.
+  it("is a 24px pill in the panel's fill and --text, and says Not updated in the same pill, never in --warn", () => {
+    expect(css).not.toMatch(/\.ig-freshness\[data-tone="stale"\][^{]*\{[^}]*--warn/);
+    const pill = /\.ig-fresh\s*\{([^}]*)\}/.exec(css)?.[1] ?? "";
+    expect(pill).toMatch(/height:\s*24px/);
+    expect(pill).toMatch(/border:\s*1px solid var\(--line\)/);
+    expect(pill).toMatch(/border-radius:\s*var\(--r-ctl\)/);
+    expect(pill).toMatch(/background:\s*var\(--panel\)/);
+    expect(pill).toMatch(/color:\s*var\(--text\)/);
+    expect(pill).toMatch(/font-weight:\s*400/);
+    expect(pill).not.toContain("--warn");
     // At larger text on a phone the words shorten; the line never runs past its row.
     expect(css).toMatch(/\.ig-freshness\s*\{[^}]*min-width:\s*0;\s*max-width:\s*100%/);
-    expect(css).toMatch(/\.ig-fresh\s*\{[^}]*color:\s*var\(--muted\)[^}]*text-overflow:\s*ellipsis|\.ig-fresh\s*\{[^}]*text-overflow:\s*ellipsis[^}]*color:\s*var\(--muted\)/);
+    expect(pill).toMatch(/text-overflow:\s*ellipsis/);
   });
 });

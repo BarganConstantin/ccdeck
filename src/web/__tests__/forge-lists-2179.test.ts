@@ -269,8 +269,10 @@ describe("the Branches tab", () => {
 
   it("lists the default branch first, marked default and protected", () => {
     expect(html.indexOf("main</code>")).toBeLessThan(html.indexOf("feature/login</code>"));
-    expect(html).toContain(">default</span>");
-    expect(html).toContain(">protected</span>");
+    // CHANGED ON PURPOSE (V4's Figma): the chips read Default and Protected, written so in the
+    // string itself (the sheet no longer capitalises a translated word).
+    expect(html).toContain(">Default</span>");
+    expect(html).toContain(">Protected</span>");
   });
 
   it("folds the stale branches by default, with their count", () => {
@@ -287,7 +289,9 @@ describe("the Branches tab", () => {
   });
 
   it("writes behind | ahead with GitLab's cap, and the pipeline as a mark and a word", () => {
-    expect(html).toContain(">999+</span>");
+    // CHANGED ON PURPOSE (V4's Figma): the numbers are written as "N ahead · N behind" in the
+    // mono table, no longer as a behind | ahead pair; the cap and the hover words are the same.
+    expect(html).toContain(">999+ ahead · 1 behind</span>");
     expect(html).toContain("1 commit behind, 999+ ahead of “main”");
     // The same words on hover, for the two numbers that have no label of their own.
     expect(html).toContain('<span class="fgl-diverge" title="1 commit behind, 999+ ahead of “main”">');
@@ -534,7 +538,9 @@ describe("the project picker", () => {
 
   it("names the current project with its group quiet and its own name last", () => {
     const html = pick("gitlab", "acme/tools/web", true);
+    // The group stays as a prefix that is cut first (acme/api and acme-forks/api must read apart).
     expect(html).toContain('<span class="fgl-repo-group">acme/tools/</span><span class="fgl-repo-name">web</span>');
+    expect(html).toContain('title="acme/tools/web"');
     expect(html).toContain('aria-label="Project: acme/tools/web"');
     expect(html).toContain('aria-haspopup="dialog" aria-expanded="false"');
   });

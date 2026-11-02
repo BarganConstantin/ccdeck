@@ -25,8 +25,8 @@ export function autoDetailCss(share = DETAIL_SHARE): string {
 }
 /** The list always keeps this much beside the detail. */
 export const LIST_MIN = 420;
-/** The draggable line between them. */
-export const SPLITTER = 8;
+/** The line between them: 1px (V4's Figma), with a wider hand target (integrations.css). */
+export const SPLITTER = 1;
 /** Below this the detail is a screen of its own with a Back, not a column. */
 export const DRILL_IN_QUERY = "(max-width: 899px)";
 

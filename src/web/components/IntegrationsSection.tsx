@@ -387,27 +387,32 @@ export default function IntegrationsSection({ onBeforeLeaveChange }: {
         {overviewNotice && <p className="ig-note" role="status">{overviewNotice}</p>}
         <div className="ig-connection-list" data-setting="integrations-connections">
         {connections !== null && <div className="ig-providers" data-setting="integrations-add" id={reach === "all" ? "integrations-add-title" : undefined}>
-          {known.map(provider => {
+          {[
+            { id: "connected", title: t("integrations.settings.connectedGroup"), providers: known.filter(provider => list.some(conn => conn.kind === provider.kind)) },
+            { id: "not-connected", title: t("integrations.settings.notConnectedGroup"), providers: known.filter(provider => !list.some(conn => conn.kind === provider.kind)) },
+          ].filter(group => group.providers.length > 0).map(group => <SettingsGroup key={group.id} id={`ig-group-${group.id}`} title={group.title}>
+          {group.providers.map(provider => {
             const saved = list.filter(conn => conn.kind === provider.kind);
             const single = saved.length === 1 ? saved[0] : null;
             const hosts = [...new Set(saved.map(connectionHost))];
             const verified = single && verificationTime(single);
             const server = single?.kind === "jira" ? connectionServer(single) : null;
+            // V4's row: the provider's name over what it is connected to, the
+            // state on the right of that in --muted, then the control. No icon.
+            const state = saved.length === 0 ? t("integrations.settings.notConnected")
+              : single ? (server || (verified ? t("integrations.conn.lastVerifiedAt", { when: verified }) : t("integrations.conn.notVerified")))
+              : t("integrations.settings.count", { count: saved.length });
+            const detail = saved.length === 0 ? ""
+              : single ? [connectionHost(single), single.account.login || single.account.name].filter(Boolean).join(" · ")
+              : `${hosts.slice(0, 2).join(" · ")}${hosts.length > 2 ? ` · ${t("integrations.settings.moreInstances", { n: hosts.length - 2 })}` : ""}`;
             return <section key={provider.kind} className="ig-provider" id={`ig-provider-${provider.kind}`} aria-labelledby={`ig-provider-name-${provider.kind}`} data-setting={`integration-${provider.kind}`}>
-              <span className="ig-provider-glyph" aria-hidden><provider.Glyph /></span>
               <div className="ig-summary-text ig-provider-content">
                 <h3 id={`ig-provider-name-${provider.kind}`}>{provider.label}</h3>
-                {saved.length === 0 ? <span className="ig-conn-line">{t("integrations.settings.notConnected")}</span>
-                  : single ? <>
-                    <span className="ig-conn-name">{connectionHost(single)}</span>
-                    <span className="ig-conn-line">{[single.account.login || single.account.name, server || (verified ? t("integrations.conn.lastVerifiedAt", { when: verified }) : t("integrations.conn.notVerified"))].filter(Boolean).join(" · ")}</span>
-                    {!single.tokenSaved && <span className="ig-bad">{t("integrations.conn.noToken")}</span>}
-                  </> : <>
-                    <span className="ig-conn-name">{t("integrations.settings.count", { count: saved.length })}</span>
-                    <span className="ig-conn-line">{hosts.slice(0, 2).join(" · ")}{hosts.length > 2 ? ` · ${t("integrations.settings.moreInstances", { n: hosts.length - 2 })}` : ""}</span>
-                  </>}
+                {detail && <span className="ig-conn-line">{detail}</span>}
+                {single && !single.tokenSaved && <span className="ig-bad">{t("integrations.conn.noToken")}</span>}
                 {!offered.has(provider.kind) && <span className="ig-stranded">{t("integrations.conn.unavailable", { label: provider.label })}</span>}
               </div>
+              <span className="ig-provider-state">{state}</span>
               <button type="button" className={`btn ig-manage${saved.length ? "" : " primary"}`} aria-disabled={busy !== null || undefined}
                 ref={el => { const refs = saved.length ? providerRefs.current : addRefs.current; if (el) refs.set(provider.kind, el); else refs.delete(provider.kind); }}
                 aria-label={saved.length ? t("integrations.manageProvider", { label: provider.label }) : t("integrations.form.connect", { provider: provider.label })}
@@ -416,6 +421,7 @@ export default function IntegrationsSection({ onBeforeLeaveChange }: {
               </button>
             </section>;
           })}
+          </SettingsGroup>)}
         </div>}
         {(stranded.length > 0 || (known.length === 0 && reach !== "all" && connections !== null)) && <SettingsGroup
           id="integrations-list-title" title={t("integrations.settings.connections")}

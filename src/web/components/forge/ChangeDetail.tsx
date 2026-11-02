@@ -280,7 +280,7 @@ function Commits({ selection }: { selection: Selection }) {
   if (!pages.data) {
     return pages.error
       ? <ReadFailure error={pages.error} onRetry={pages.reload} />
-      : <LoadingRows rows={4} label={t("forge.loadingNoun", { noun: t("forge.noun.commits") })} />;
+      : <LoadingRows variant="lines" rows={4} label={t("forge.loadingNoun", { noun: t("forge.noun.commits") })} />;
   }
   return (
     <>
@@ -301,7 +301,7 @@ function Pipelines({ repo, read }: { repo: string; read: ForgeReadState<ForgePip
   const none = t("forge.change.noRuns", { runs, change: words.changeLc });
   if (!read.data) {
     if (read.error) return <ReadFailure error={read.error} onRetry={read.reload} />;
-    return read.loading ? <LoadingRows rows={3} label={t("forge.loadingNoun", { noun: runs })} /> : <p className="fg-empty">{none}</p>;
+    return read.loading ? <LoadingRows variant="lines" rows={3} label={t("forge.loadingNoun", { noun: runs })} /> : <p className="fg-empty">{none}</p>;
   }
   if (!read.data.length) return <p className="fg-empty">{none}</p>;
   return (
@@ -347,7 +347,7 @@ function Files({ selection }: { selection: Selection }) {
   if (!pages.data) {
     return pages.error
       ? <ReadFailure error={pages.error} onRetry={pages.reload} />
-      : <LoadingRows rows={5} label={t("forge.loadingNoun", { noun: t("forge.noun.changedFiles") })} />;
+      : <LoadingRows variant="lines" rows={5} label={t("forge.loadingNoun", { noun: t("forge.noun.changedFiles") })} />;
   }
   return (
     <>

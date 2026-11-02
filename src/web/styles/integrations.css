@@ -5,38 +5,29 @@
    panel's list and its detail is the same splitter Tool activity has; under
    900px the detail is a screen of its own with a Back (integrations/layout.ts). */
 
-/* A selected row in a panel's list, one rule for Jira and the forges: a quiet
-   accent fill, distinct from the neutral --ctl-fill a hover lifts a row with,
-   and never an edge stripe. The fill is the theme's --accent-dim, which in
-   Rider Black and VS Code Black is the IDE's own list selection, except where
-   that wash would sink the words on it: the two dark Gruvbox palettes take a
-   lighter accent mix of their own below. Every word inside a selected row is
+/* A selected row in a panel's list, one rule for Jira and the forges: V4's
+   Figma draws it neutral, the kit's --selected (a text-tinted step over the
+   panel), distinct from the --ctl-fill a hover lifts a row with, and never an
+   edge stripe. Every word inside a selected row is
    --text (--ig-sel-ink); a status keeps its colour in its mark, and its word
    goes to --text too. integrations-selection.test.ts measures all of it in
    every theme. A panel puts `ig-row` and `data-selected` on its row, or reads
    the properties in its own rules; a pill in a row takes `ig-chip` and gives
    up its fill when the row is chosen. */
 .ig-modal {
-  --ig-hover-fill: var(--ctl-fill);
-  --ig-sel-fill: var(--accent-dim);
+  --ig-hover-fill: color-mix(in srgb, var(--text) 2%, transparent);
+  --ig-sel-fill: var(--selected);
   --ig-sel-ink: var(--text);
   --ig-sel-muted: var(--text);
   /* The detail's side padding, which the item's top line spans edge to edge;
      a panel whose detail is padded otherwise sets its own. */
-  --ig-detail-pad: 20px;
-}
-/* Their --accent-dim puts --text at 3.76:1 (Gruvbox Material) and the error
-   mark at 2.88:1 (Gruvbox Dark) on the selection; 14 % accent over the panel
-   keeps --text at 4.6 and 7.0, every status mark over 3:1, and still twice as
-   far from the resting row as the hover is. */
-:root[data-theme="gruvbox-dark"] .ig-modal,
-:root[data-theme="gruvbox-material"] .ig-modal {
-  --ig-sel-fill: color-mix(in srgb, var(--accent) 14%, var(--panel));
+  --ig-detail-pad: 16px;
 }
 
 .modal.ig-modal {
-  width: 90vw;
-  height: 90dvh;
+  /* V4's Figma: 1120 x 760, never past the window (90 % of it, as before). */
+  width: min(1120px, 90vw);
+  height: min(760px, 90dvh);
   max-height: 90dvh;
   min-width: 0;
   box-sizing: border-box;
@@ -50,15 +41,15 @@
 .ig-modal ::selection { background: var(--accent-dim); color: var(--text); }
 @keyframes ig-fade-out { to { opacity: 0; } }
 .ig-head {
-  min-height: 48px;
-  padding: 6px 12px 6px 20px;
+  min-height: 44px;
+  padding: 0 8px 0 16px;
   box-sizing: border-box;
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 8px;
   flex: none;
   min-width: 0;
-  border-bottom: 1px solid var(--line);
+  border-bottom: 1px solid var(--line-soft);
   background: var(--panel);
 }
 .ig-title {
@@ -67,8 +58,9 @@
   align-items: center;
   gap: 8px;
   flex: none;
-  font-size: calc(16px + var(--ui-text-increase, 0px));
+  font-size: calc(14px + var(--ui-text-increase, 0px));
   font-weight: 600;
+  line-height: 20px;
 }
 .ig-title-glyph { display: inline-flex; color: var(--muted); }
 .ig-head .ig-conn-name {
@@ -77,8 +69,15 @@
   text-overflow: ellipsis;
   white-space: nowrap;
   color: var(--muted);
-  font-size: calc(12px + var(--ui-text-increase, 0px));
+  font-family: var(--font-mono);
+  font-size: calc(11px + var(--ui-text-increase, 0px));
+  line-height: 14px;
 }
+/* Freshness and Refresh live here, at the header's end (IntegrationFreshness
+   draws them into this slot when the host has made it). */
+.ig-head-end { margin-left: auto; display: flex; align-items: center; gap: 4px; min-width: 0; flex: 0 1 auto; }
+.ig-head-end > .ig-freshness { margin-left: 0; }
+.ig-head-end + .ig-close { margin-left: 0; }
 /* The connection selector is the deck's shared select, whose edge is 2.44 to
    2.79:1 on this header's ground in six dark themes. Here, where it is the
    header's only control with a boundary, it takes the control edge instead
@@ -87,8 +86,8 @@
 .ig-conn-select .sm-select { max-width: 280px; min-width: 0; }
 .ig-close {
   margin-left: auto;
-  width: 36px;
-  height: 36px;
+  width: 28px;
+  height: 28px;
   flex: none;
   font-size: calc(18px + var(--ui-text-increase, 0px));
   line-height: 1;
@@ -99,19 +98,22 @@
    beside the list, at half the room until the reader drags it, and never takes
    so much that the list goes under 420px. */
 .ig-split { position: relative; flex: 1; min-height: 0; min-width: 0; display: grid; grid-template-columns: minmax(0, 1fr); }
-.ig-split[data-detail]:not([data-drill-in]) { grid-template-columns: minmax(0, 1fr) 8px min(var(--ig-detail-w), calc(100% - 428px)); }
+.ig-split[data-detail]:not([data-drill-in]) { grid-template-columns: minmax(0, 1fr) 1px min(var(--ig-detail-w), calc(100% - 421px)); }
 .ig-split[data-resizing] { cursor: col-resize; user-select: none; }
 /* Each pane is the containing block of what it scrolls, so a screen reader's
    absolutely placed words stay inside it instead of stretching the modal. */
 .ig-list, .ig-detail { position: relative; min-height: 0; min-width: 0; display: flex; flex-direction: column; }
 .ig-list[hidden] { display: none; }
 .ig-detail { overflow-y: auto; scrollbar-gutter: stable; scrollbar-color: var(--ctl-edge) transparent; background: var(--panel); }
-.ig-splitter { position: relative; cursor: col-resize; touch-action: none; }
-.ig-splitter::before { content: ""; position: absolute; inset-block: 0; left: 3px; width: 1px; background: var(--line); transition: background var(--dur-fast) var(--ease); }
+/* The divider is 1px (V4's Figma); the hand's target is wider than it looks. */
+.ig-splitter { position: relative; z-index: 1; cursor: col-resize; touch-action: none; background: var(--line-soft); }
+/* The 9px target runs into the detail, never over the list's own scrollbar; the splitter sits above the detail, which paints later. */
+.ig-splitter::after { content: ""; position: absolute; inset-block: 0; left: 0; width: 9px; }
+.ig-splitter::before { content: ""; position: absolute; inset-block: 0; left: 0; width: 3px; background: transparent; transition: background var(--dur-fast) var(--ease); }
 .ig-splitter:focus-visible::before,
-.ig-split[data-resizing] .ig-splitter::before { left: 2px; width: 3px; background: var(--accent); }
+.ig-split[data-resizing] .ig-splitter::before { background: var(--accent); }
 @media (hover: hover) and (pointer: fine) {
-.ig-splitter:hover::before { left: 2px; width: 3px; background: var(--accent); }
+.ig-splitter:hover::before { background: var(--accent); }
 }
 .ig-back {
   align-self: flex-start;
@@ -172,63 +174,65 @@
    word's baseline in the word's own ink. */
 .ig-mark { flex: none; vertical-align: -2px; }
 
-/* Freshness (IntegrationFreshness): the age of the answer, quiet, and Refresh
-   at the end of a toolbar row. The sentence gives way with an ellipsis before
-   Refresh moves; "Not updated" and its mark are in --warn. */
+/* Freshness (IntegrationFreshness): the age of the answer in V4's 24px pill
+   (the panel's fill, a --line edge, 12px words in --text), and Refresh beside
+   it, at the header's end. The sentence gives way with an ellipsis before
+   Refresh moves. A stale answer is the same pill with its own words and a
+   mark: amber means an agent waits, so it is never amber here. */
 /* Never wider than its row, whatever lays the row out: the words give way
    (ellipsis), Refresh does not. */
 .ig-freshness { margin-left: auto; min-width: 0; max-width: 100%; flex: 0 1 auto; display: flex; align-items: center; gap: 4px; }
 .ig-fresh {
   min-width: 0;
+  height: 24px;
+  box-sizing: border-box;
+  display: inline-block;
+  padding: 4px 8px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  color: var(--muted);
+  border: 1px solid var(--line);
+  border-radius: var(--r-ctl);
+  background: var(--panel);
+  color: var(--text);
   font-size: calc(12px + var(--ui-text-increase, 0px));
+  font-weight: 400;
+  line-height: 14px;
   font-variant-numeric: tabular-nums;
 }
 .ig-fresh .ig-mark { margin-right: 4px; }
-.ig-freshness[data-tone="stale"] .ig-fresh-word,
-.ig-freshness[data-tone="stale"] .ig-mark { color: var(--warn); }
-.ig-refresh { width: 36px; height: 36px; padding: 0; margin-block: 0; flex: none; }
+.ig-refresh { width: 24px; height: 24px; padding: 0; margin-block: 0; flex: none; }
 .ig-refresh:disabled { opacity: var(--dim-off); cursor: default; }
 .ig-refresh[aria-busy="true"] { cursor: progress; }
 .ig-refresh[aria-busy="true"]:active { transform: none; }
 .ig-refresh[data-loading] svg { animation: ta-spin 900ms linear infinite; }
 
-/* A failed read (IntegrationFailureNote): the error mark and a heading, the
-   sentence under it, the way out on the right, wrapping under on a phone. No
-   wash behind the words, which would only lower their contrast; the edge
-   carries the tone, error's, or warning's over rows that are the last answer. */
+/* A failed read (IntegrationFailureNote), as V4's Figma draws it: a note filled
+   as the panel on a --line-soft edge at --r-node, 12px inside and 12px between
+   its lines, and no mark. The heading is 13/600 in --text, the sentence 12px in
+   --text-secondary, the provider's own words 11px mono in --muted, and the way
+   out under them. A note over rows that are the last answer is the same note,
+   shorter. */
 .ig-failure {
   display: flex;
-  flex-wrap: wrap;
+  flex-direction: column;
   align-items: flex-start;
-  gap: 10px 16px;
+  gap: 12px;
   min-width: 0;
-  padding: 12px 14px;
+  padding: 12px;
   box-sizing: border-box;
-  border: 1px solid color-mix(in srgb, var(--err) 35%, var(--line));
-  border-radius: var(--r-panel);
+  border: 1px solid var(--line-soft);
+  border-radius: var(--r-node);
   background: var(--panel);
   text-align: left;
 }
-.ig-failure[data-stale] { padding: 8px 12px; border-color: color-mix(in srgb, var(--warn) 35%, var(--line)); }
-.ig-failure-text { flex: 1 1 240px; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.ig-failure[data-stale] { gap: 8px; padding: 8px 12px; }
+.ig-failure-text { align-self: stretch; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
 .ig-failure-text p { margin: 0; }
-.ig-failure-title { display: flex; align-items: flex-start; gap: 8px; color: var(--text); line-height: 1.45; overflow-wrap: anywhere; }
+.ig-failure-title { color: var(--text); font-size: calc(13px + var(--ui-text-increase, 0px)); line-height: 20px; overflow-wrap: anywhere; }
 .ig-failure-title strong { font-weight: 600; }
-.ig-failure-title .ig-mark { width: 12px; height: 12px; margin-top: 3px; color: var(--err); }
-.ig-failure[data-stale] .ig-failure-title .ig-mark { color: var(--warn); }
-.ig-failure-body, .ig-failure-said {
-  padding-left: 20px;
-  color: var(--text-secondary);
-  font-size: calc(12px + var(--ui-text-increase, 0px));
-  line-height: 1.45;
-  overflow-wrap: anywhere;
-  text-wrap: pretty;
-}
-.ig-failure-said { color: var(--muted); }
+.ig-failure-body { color: var(--text-secondary); font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: 16px; overflow-wrap: anywhere; text-wrap: pretty; }
+.ig-failure-said { color: var(--muted); font-family: var(--font-mono); font-size: calc(11px + var(--ui-text-increase, 0px)); line-height: 14px; overflow-wrap: anywhere; }
 .ig-failure-actions { display: flex; flex: none; flex-wrap: wrap; gap: 8px; }
 .ig-failure-actions .btn[aria-disabled="true"] { opacity: var(--dim-off); cursor: default; }
 .ig-failure-actions .btn[aria-disabled="true"]:active { transform: none; }
@@ -265,20 +269,28 @@
 
 /* Rows on their way (IntegrationSkeleton): hidden for 300 ms so a quick read
    never flashes them, then a 120 ms fade and the deck's one ambient pulse.
-   A transparent outline is what a Contrast theme draws, since it drops the
-   fill. */
-.ig-skeleton { display: flex; flex-direction: column; gap: 8px; padding: 12px; animation: fadeIn var(--dur-fast) var(--ease) 300ms both; }
+   V4's Figma: a note filled as the panel on a --line-soft edge, 12px inside,
+   five rows 28 high and 12 apart (a 40px pitch), each a 14px dot, a 120 x 8
+   bone, the room, and a 48 x 8 bone, all in --ctl-fill. A transparent outline
+   is what a Contrast theme draws, since it drops the fill. */
+.ig-skeleton { display: flex; flex-direction: column; gap: 12px; margin: 12px; padding: 12px; border: 1px solid var(--line-soft); border-radius: var(--r-node); background: var(--panel); animation: fadeIn var(--dur-fast) var(--ease) 300ms both; }
 .ig-skeleton i {
-  display: block;
-  height: 36px;
-  border-radius: var(--r-ctl);
-  background: var(--ctl-fill);
-  outline: 1px solid transparent;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 28px;
+  padding-inline: 8px;
+  box-sizing: border-box;
   animation: ta-pulse var(--pulse-live) infinite alternate;
+  outline: 1px solid transparent;
 }
-.ig-skeleton i:nth-of-type(3n) { width: 86%; }
-.ig-skeleton[data-variant="lines"] { gap: 10px; }
-.ig-skeleton[data-variant="lines"] i { height: 14px; border-radius: var(--r-tag); }
+.ig-skeleton i::before, .ig-skeleton i::after, .ig-skeleton i b { content: ""; flex: none; display: block; background: var(--ctl-fill); outline: 1px solid transparent; }
+.ig-skeleton i::before { width: 14px; height: 14px; border-radius: 50%; }
+.ig-skeleton i b { width: 120px; max-width: 40%; height: 8px; border-radius: var(--r-tag); }
+.ig-skeleton i::after { width: 48px; height: 8px; margin-left: auto; border-radius: var(--r-tag); }
+.ig-skeleton[data-variant="lines"] { gap: 10px; margin: 0; border: 0; border-radius: 0; background: none; }
+.ig-skeleton[data-variant="lines"] i { display: block; height: 14px; padding: 0; border-radius: var(--r-tag); background: var(--ctl-fill); }
+.ig-skeleton[data-variant="lines"] i::before, .ig-skeleton[data-variant="lines"] i::after, .ig-skeleton[data-variant="lines"] i b { content: none; display: none; }
 .ig-skeleton[data-variant="lines"] i:nth-of-type(3n) { width: 72%; }
 
 /* An item's top line in the detail (IntegrationDetailBar): the reference and
@@ -292,12 +304,12 @@
   display: flex;
   align-items: center;
   gap: 12px;
-  min-height: 36px;
+  min-height: 24px;
   /* Shrinks with its pane whatever lays the pane out: a grid parent would
      otherwise size it to the whole reference. */
   min-width: 0;
-  margin-inline: calc(-1 * var(--ig-detail-pad, 20px));
-  padding: 4px var(--ig-detail-pad, 20px);
+  margin-inline: calc(-1 * var(--ig-detail-pad, 16px));
+  padding: 12px var(--ig-detail-pad, 16px) 0;
   box-sizing: border-box;
   background: var(--panel);
 }
@@ -323,7 +335,7 @@
 @media (hover: hover) and (pointer: fine) {
 .ig-open:hover { text-decoration: underline; }
 }
-.ig-detail-close { width: 32px; height: 32px; padding: 0; margin: 0 -6px 0 0; }
+.ig-detail-close { width: 24px; height: 24px; padding: 0; margin: 0 -4px 0 0; }
 
 /* A person's or a project's picture, and the initials that stand in for it
    (IntegrationAvatar). A transparent outline is what a Contrast theme draws
@@ -376,19 +388,20 @@ img.ig-avatar + img.ig-avatar {
 .ig-access summary { cursor: pointer; width: fit-content; }
 .ig-access p { margin: 8px 0 0; max-width: 65ch; }
 .ig-total { flex: none; align-self: center; color: var(--text-secondary); font-size: calc(12px + var(--ui-text-increase, 0px)); font-variant-numeric: tabular-nums; }
-.ig-providers { display: grid; grid-template-columns: 16px minmax(0, 1fr) max-content; column-gap: 12px; min-width: 0; }
-.ig-provider { display: grid; grid-column: 1 / -1; grid-template-columns: subgrid; align-items: center; column-gap: 12px; padding-block: 16px; }
-.ig-provider:first-child { padding-top: 0; }
-.ig-provider + .ig-provider { border-top: 1px solid var(--line); }
-.ig-provider > .ig-provider-glyph { align-self: start; padding-top: 2px; }
+/* THE PROVIDERS (V4's Integrations): two groups, Connected and Not connected,
+   of rows 48 high with no icon. A row is the name over what it is connected
+   to, the state in --muted at 12/16, and the control. */
+.ig-providers { display: flex; flex-direction: column; min-width: 0; }
+.ig-provider { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; column-gap: 10px; min-height: 48px; }
 .ig-provider-content { min-width: 0; }
-.ig-provider-content h3 { margin: 0; color: var(--text); font-size: calc(14px + var(--ui-text-increase, 0px)); line-height: 1.4; font-weight: 600; }
+.ig-provider-content h3 { margin: 0; color: var(--text); font-size: calc(13px + var(--ui-text-increase, 0px)); line-height: calc(20px + var(--ui-text-increase, 0px)); font-weight: 400; }
+.ig-provider-state { color: var(--muted); font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: calc(16px + var(--ui-text-increase, 0px)); text-align: right; }
 .ig-connection-list { display: flex; flex-direction: column; gap: 20px; min-width: 0; }
 .ig-connections { display: flex; flex-direction: column; gap: 12px; }
 .ig-summary-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 12px; min-width: 0; }
 .ig-summary-text { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
 .ig-summary-text .ig-conn-name { color: var(--text); font-size: calc(13px + var(--ui-text-increase, 0px)); font-weight: 500; overflow-wrap: anywhere; }
-.ig-provider .ig-conn-line { color: var(--text-secondary); line-height: 1.5; }
+.ig-provider .ig-conn-line { color: var(--muted); font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: calc(16px + var(--ui-text-increase, 0px)); }
 .ig-manage { min-width: 80px; display: inline-flex; align-items: center; justify-content: center; gap: 6px; }
 button.btn.ig-manage { font-weight: 500; }
 button.btn.ig-manage:not(.primary) { background: var(--ctl-fill); }
@@ -473,7 +486,10 @@ button.btn.ig-manage.primary:hover { border-color: var(--text); }
 .ig-stranded { color: var(--text-secondary); font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: 1.45; overflow-wrap: anywhere; }
 
 @media (max-width: 560px) {
-  .ig-head { padding-left: 12px; gap: 8px; }
+  .ig-head { padding-left: 12px; gap: 8px; flex-wrap: wrap; padding-block: 6px; }
+  .ig-head-end { flex: 1 1 100%; order: 3; }
+  .ig-head-end + .ig-close { margin-left: auto; order: 2; }
+  .ig-head-end .ig-fresh { height: auto; min-height: 24px; white-space: normal; overflow: visible; }
   .ig-conn-select .sm-select { max-width: 160px; }
   .ig-conn-head { flex-wrap: wrap; }
   .ig-conn-actions { flex-basis: 100%; justify-content: flex-start; }
