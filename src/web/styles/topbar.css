@@ -1,41 +1,32 @@
 /* ---------------- topbar ---------------- */
 
-/* Three distances in this bar and one meaning each, so a gap is readable as a
+/* Three distances in this bar (V4's Figma, Top bar), so a gap is readable as a
    claim about what is on either side of it:
 
-     4px   control to control      .utility-run, .wait-list (the controls are
-                                   borderless, so their own padding does the
-                                   separating)
-     12px  one readout to the next .topbar .readout (V4's start group: the
-           and the count to the    brand, the counts, the stream chip and the
-           first name it continues incident chip, 12 apart), and the queue's
-           with                    lead (.wait-list)
-     24px  role to role            .topbar itself: the readouts to the controls
+     8px   one item to the next    .counts (the three pills), .tb-end (version
+           in a run of like ones   chip, Layout switch, Search, Feedback), the
+                                   ready chip and its press (.v-group)
+     12px  one group's parts, and  .topbar .readout (the start group: the brand,
+           the bar's two groups    the counts, the stream chip, the incident
+                                   chip, 12 apart) and .topbar itself, the
+                                   floor between the start group and the end
+                                   group
 
-   The bar used to run 14px between the last readout and the first button and
-   8px between two buttons — a 1.75x step, under 16px, doing the work of a
-   group boundary, while a literal 1px rule marked the far smaller break
-   between two readouts. The 24px is what was missing then and what still
-   separates watching from acting. The panel toggles that filled the right of
-   the bar are on the window's edges now (edge-rails.css), and with them went
-   the 12px between runs. V4 draws the readouts 12 apart (its Top bar's start
-   group), so the readout group no longer shares the 24 with the roles.
    `justify-content: space-between` stays: the gaps are the floor between
-   neighbours, and the free space still goes to the middle — to the waiting
-   queue, which takes all of it, and nothing else. */
+   neighbours, and the free space goes to the middle, which is empty. The
+   waiting queue that used to take it is the waiting pill's popover now. */
 .topbar {
   grid-column: 1 / -1;
-  /* A grid item's least is its content's by default, and the bar's content
-     includes the waiting queue's names, so the window could narrow under a bar
-     that would not: the names that were drawn held the column open, and the
-     queue never saw the room it had to fold into. */
+  /* A grid item's least is its content's by default; the start group below is
+     allowed to give, so the window can narrow under a bar whose content would
+     not. */
   min-width: 0;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 24px;
+  gap: 12px;
   /* The pixel on top is the bar's border's twin: the bar is an even height
-     (--topbar-h: 44, V4's 40 at Compact, 38 in the desktop chrome) and the 1px
+     (--topbar-h: 44, V4's 40 at Compact and in the desktop chrome) and the 1px
      rule under it leaves an odd one for the content — 39 at 40 — so a 28px
      control centred in it sat on a half pixel, its edges smeared across two
      rows at 1x. The pixel on top leaves 38, which centres every height on the
@@ -115,12 +106,6 @@
 .topbar .brand .logo-on-light { display: none; }
 :root[data-color-scheme="light"] .topbar .brand .logo-on-dark { display: none; }
 :root[data-color-scheme="light"] .topbar .brand .logo-on-light { display: block; }
-.topbar .brand .v {
-  color: var(--muted);
-  font-weight: 400;
-  font-size: calc(11px + var(--ui-text-increase, 0px));
-  margin-left: 2px;
-}
 /* Version drift lives here permanently. The banner can be dismissed; the fact
    that this process is running superseded code cannot, so the chip keeps
    carrying it — and clicking brings the banner back. */
@@ -135,7 +120,7 @@
    permanent surface that tells you the running process is superseded. The
    drift banner can be dismissed and this cannot, which makes it the last thing
    in the deck that should be hard to hit. */
-.topbar .brand button.v {
+.topbar button.v {
   display: inline-flex;
   align-items: center;
   flex: none;
@@ -143,7 +128,9 @@
   box-sizing: border-box;
   height: 24px;
   padding: 0 6px;
-  border: 1px solid transparent;
+  /* No stroke (V4's Figma): the wash is the whole chip, so there is no edge
+     to keep inside the box either. */
+  border: 0;
   border-radius: var(--r-ctl);
   background: none;
   font: inherit;
@@ -154,33 +141,7 @@
   transition: background var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease),
               transform var(--dur-fast) var(--ease);
 }
-.topbar .brand button.v:active { transform: scale(var(--press)); }
-/* Inside its own edge, for the reason the waiting chip's is (#1706): the
-   readout clips it and is exactly this chip's 24px tall, so the ring drawn
-   outside lost its top and bottom in all three forms (#1792). */
-/* The same chip when nothing is stale: still a button (clicking it asks npm
-   now), but it must not draw attention to itself for saying "up to date". It
-   is metadata beside the wordmark, so it wears the toolbar's resting look at
-   the other end of the bar: no outline, --muted where the name is --text, so
-   it does not read as part of the name. The hairline it had made it a pill;
-   the pointer still finds the control, because the fill and the foreground
-   come up under it exactly as they do on the toolbar. */
-.topbar .brand button.v:not(.stale):not(.ready) {
-  color: var(--muted);
-  font-weight: 400;
-}
-@media (hover: hover) and (pointer: fine) {
-.topbar .brand button.v:not(.stale):not(.ready):hover {
-  color: var(--text);
-  background: var(--ctl-fill);
-}
-}
-/* A forced check is a request to npm, which on a slow line is seconds. Without
-   this the click looks like it did nothing at all. */
-.topbar .brand button.v.checking {
-  cursor: progress;
-  opacity: var(--dim-off);
-}
+.topbar button.v:active { transform: scale(var(--press)); }
 /* A NEWER VERSION, THE APP'S UPDATE READY (#1187) AND THE PRESS THAT INSTALLS
    IT are one chip in V4: the --accent-16 wash with no edge, --text on it,
    weight 400, the control corner. Amber leaves this chip. It is the bar's
@@ -192,14 +153,13 @@
    Under the pointer the wash steps up to 24%: --text on it stays well past AA in
    every theme, and the step is the pointer's feedback, as on every control
    here. */
-.topbar .brand button.v:is(.stale, .ready, .v-update) {
+.topbar button.v:is(.stale, .ready, .v-update) {
   color: var(--text);
-  border-color: transparent;
   background: var(--accent-16);
   font-weight: 400;
 }
 @media (hover: hover) and (pointer: fine) {
-.topbar .brand button.v:is(.stale, .ready, .v-update):hover {
+.topbar button.v:is(.stale, .ready, .v-update):hover {
   background: color-mix(in srgb, var(--accent) 24%, transparent);
 }
 }
@@ -207,7 +167,7 @@
    2026-10-18): the chip says what is on offer and opens the notes; this one
    does it. Same wash, so the two read as one family. Only while ready: it is
    not the pill #712 tried, which stood here permanently for a dialog. */
-.topbar .brand button.v.v-update[aria-busy="true"] { cursor: progress; }
+.topbar button.v.v-update[aria-busy="true"] { cursor: progress; }
 /* #712 put a second pill here — "What's new", the way back into the release
    notes — and #715 took it away again. The chip beside it now opens them, so
    the words were two of topbar spent permanently on a dialog most people open
@@ -215,24 +175,30 @@
    the chip's own appearance changed with them; this comment is the only trace,
    and it is here so the next person to want a control in this corner knows it
    has been tried. */
-/* The chip's one dot, in the accent (amber left the chip) and with no glow. It
-   holds still (V4 decision 19: Paused, Lost and Version hold a still dot): a
-   newer version waiting is a fact at rest, and a pulse on this bar would be
-   the only thing moving while nothing happens. `--pulse-live` stays for the
-   Working glyph and the loader. */
-.topbar .brand button.v .v-dot {
-  width: 5px; height: 5px;
+/* The chip leads with a 14px icon slot (V4's Figma) holding its one dot, in the
+   accent (amber left the chip) and with no glow. It holds still (V4 decision
+   19: Paused, Lost and Version hold a still dot): a newer version waiting is a
+   fact at rest, and a pulse on this bar would be the only thing moving while
+   nothing happens. `--pulse-live` stays for the Working glyph and the loader. */
+.topbar button.v .v-icon {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+}
+.topbar button.v .v-dot {
+  width: 6px; height: 6px;
   border-radius: 50%;
   background: var(--accent);
 }
-/* V4's chip entrance (V4's motion rules, top bar chip): opacity and 4px of x, over
-   --dur-base. A newer version arrives; the chip is not there at rest, so this
-   is the only time it is seen. `chip-in` is topbar-controls.css's. */
-.topbar .brand button.v:is(.stale, .ready) { animation: chip-in var(--dur-base) var(--ease) both; }
-@media (prefers-reduced-motion: reduce) {
-  .topbar .brand button.v:is(.stale, .ready) { animation: none; }
-}
-/* Settings and Feedback, the two controls the bar still holds.
+/* The ready chip and its Restart to update press, 8 apart (the end group's
+   gap). The chip's arrival and exit are its slot's (ChipPresence,
+   topbar-status.css). */
+.topbar .v-group { display: flex; align-items: center; gap: 8px; }
+/* Search and Feedback, the controls the bar still holds (Settings is at the
+   Panel bar's foot).
    `flex: none` is the deliberate half. Every flex item shrinks by default, so
    under compression the bar used to take width from whatever gave first, which
    included the controls. It never should: a readout that has been squeezed off
@@ -244,6 +210,15 @@
   align-items: center;
   flex: none;
 }
+/* The END group (V4's Figma): the version chip when there is one, the Layout
+   switch, Search and Feedback, 8 apart, right-aligned by the bar's own
+   space-between and never shrunk, for the reason above. */
+.topbar .tb-end {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: none;
+}
 /* Two providers in an incident at once (#1311). The readout gives from the
    left, so two chips in full — Claude's and Codex's, about 280px — cost the
    wordmark on a 1440px screen with a session waiting, and the stream pill
@@ -252,8 +227,8 @@
    words at every width above the narrow breakpoint. Past 1680px there is room
    for both in full. */
 @media (max-width: 1679px) {
-  .topbar .readout:has(.provider-incident + .provider-incident) :is(.pi-words, .pi-asof) { display: none; }
-  .topbar .readout:has(.provider-incident + .provider-incident) .pi-short { display: inline; }
+  .topbar .readout:has(.chip-slot:has(> .provider-incident) + .chip-slot:has(> .provider-incident)) :is(.pi-words, .pi-asof) { display: none; }
+  .topbar .readout:has(.chip-slot:has(> .provider-incident) + .chip-slot:has(> .provider-incident)) .pi-short { display: inline; }
 }
 /* At a phone's width the incident chips leave the bar altogether (#1311):
    the blocked count and the stream pill are what 320px can hold, and the
@@ -261,14 +236,14 @@
    aloud. `.readout` in the selector outweighs the chip's own `display`, which
    comes later in the cascade. */
 @media (max-width: 480px) {
-  .topbar .readout .provider-incident { display: none; }
+  .topbar .readout .chip-slot:has(> .provider-incident) { display: none; }
 }
 /* And the ready chip leaves when its Restart to update is beside it. Both,
    228px, and a session waiting pushed the chip's left edge out of a 320px
    bar; the button is the way into the update the chip was there to be, and
    it names the version to a screen reader. */
 @media (max-width: 480px) {
-  .topbar .brand button.v.ready:has(+ .v-update) { display: none; }
+  .topbar button.v.ready:has(+ .v-update) { display: none; }
 }
 /* A phone or a narrow window (#849), at the sheet's one narrow breakpoint.
    Every control is in the dock along the bottom there (edge-rails.css), and
@@ -282,7 +257,8 @@
      screen but not the outline (it is the page's <h1>, so it is hidden the way
      .vis-hidden hides, never with display), an up-to-date version chip leaves
      (a stale one stays, it is a warning, and so does the app's ready update,
-     the one way into it from the window). The count keeps its word: with the
+     the one way into it from the window; the plain version has no chip at
+     all any more, V4's Figma). The count keeps its word: with the
      controls in the dock, the bar has the room for "2 waiting" whole. */
   .topbar .readout { gap: 12px; }
   .topbar .brand h1 {
@@ -293,7 +269,10 @@
     clip-path: inset(50%);
     white-space: nowrap;
   }
-  .topbar .brand button.v:not(.stale):not(.ready) { display: none; }
+  /* The counts are the waiting one alone, and only while something waits:
+     the working and done pills, and the waiting pill at 0, are readouts a
+     phone's bar has no room for (the cards and the list say the same). */
+  .topbar .counts span.count-pill { display: none; }
   /* A provider's incident chip (#1311) keeps its dot, its name and its state
      in one word — a mark with no word beside it read as the provider being
      offline. The title keeps the whole of it. `.readout` in the selectors

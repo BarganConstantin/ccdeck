@@ -75,11 +75,11 @@ describe("the sheet", () => {
     expect(you).toContain("padding: 8px 12px;");
   });
 
-  it("sets the assistant's text with no bubble, 640 across, and the column at 760 centred", () => {
+  it("sets the assistant's text with no bubble, 640 across, and the column at 776 centred", () => {
     expect(rule(".chat-said")).toContain("max-width: 640px;");
     expect(rule(".chat-said")).not.toContain("background");
     const col = rule(".chat-col");
-    expect(col).toContain("max-width: 760px;");
+    expect(col).toContain("max-width: 776px;");
     expect(col).toContain("margin: 0 auto;");
   });
 

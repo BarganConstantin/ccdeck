@@ -182,11 +182,14 @@ describe("the running card lifts like every other card (#1025)", () => {
     expect(shadow(`${LIGHT}.agent-node.state-active`)).toBeNull();
   });
 
-  it("leaves the base and the hover as the only two elevations a card has", () => {
-    expect(shadow(".agent-node")).toBe("var(--shadow-1)");
-    expect(shadow(".agent-node:hover")).toBe("var(--shadow-2)");
-    // And the state rules still say what they are there to say.
-    expect(RULES.some(r => r.sel === ".agent-node.state-active" && /border-color/.test(r.body))).toBe(true);
+  // CHANGED ON PURPOSE (V4's Figma, Agent / Card): the card is flat at rest and
+  // under the pointer in both themes, and no state rule edges it any more (the
+  // edge is --line; only Waiting is --warn), so the elevation it had and the
+  // border rule this test used to find are both gone.
+  it("leaves the card flat: no elevation at rest, none under the pointer, no state edge", () => {
+    expect(shadow(".agent-node")).toBe("none");
+    expect(shadow(".agent-node:hover")).toBeNull();
+    expect(RULES.some(r => /\.agent-node\.state-(?:active|done|err)\b/.test(r.sel) && /border-color/.test(r.body))).toBe(false);
   });
 });
 

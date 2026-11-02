@@ -305,7 +305,12 @@ describe("--text-dim, the token the annotation rules now read from (#262)", () =
 
   it("is the only dim tier that text is allowed to use — no rule sets --muted-dim as a colour", () => {
     // `border-color:` keeps it; a bare `color:` is the regression.
-    const offenders = [...css.matchAll(/(^|[^-\w])color:\s*var\(--muted-dim\)/g)];
+    // One scoped exception: a DISABLED field or select takes V4's --muted-dim ink.
+    // WCAG 1.4.3 exempts inactive controls from the contrast minimum, so only a
+    // rule whose every selector is a :disabled one is let through.
+    const withoutDisabled = css.replace(/\/\*[\s\S]*?\*\//g, "").replace(/([^{}]+)\{([^{}]*)\}/g, (all, sel: string) =>
+      sel.split(",").every(part => /:disabled/.test(part.replace(/:not\([^)]*\)/g, ""))) ? "" : all);
+    const offenders = [...withoutDisabled.matchAll(/(^|[^-\w])color:\s*var\(--muted-dim\)/g)];
     expect(offenders.map(m => m[0].trim())).toEqual([]);
     // Fifteen, down from the seventeen #262 converted: .chips-empty went with
     // #243 as unreachable, and .ap-manage-label went when the manage block's
@@ -317,40 +322,22 @@ describe("--text-dim, the token the annotation rules now read from (#262)", () =
 });
 
 describe("agent-node state rings (#268)", () => {
-  // CHANGED ON PURPOSE: each state's edge reads --card-alarm first, so a card
-  // blocked on you is edged in --warn (V4 decision 22). Unset, the ring is the
-  // fallback, so that is what each state is measured by, and "alarm" measures
-  // the --warn edge itself on the same beds.
-  const unalarmed = (v: string) => {
-    const m = /^var\(--card-alarm,\s*([\s\S]+)\)$/.exec(v.trim());
-    if (!m) throw new Error(`a state edge that does not read --card-alarm first: ${v}`);
-    return m[1];
-  };
-  const ringOf = (state: string, theme: Theme) => {
-    if (state === "alarm") return resolve(decl(rule(".agent-node[data-alarm]"), "--card-alarm")!, theme);
-    const base = unalarmed(decl(rule(`.agent-node.state-${state}`), "border-color")!);
-    const light = decl(rule(`:root[data-color-scheme="light"] .agent-node.state-${state}`), "border-color");
-    return resolve(theme === "light" && light ? unalarmed(light) : base, theme);
-  };
+  // CHANGED ON PURPOSE (V4's Figma, Agent / Card): a card's edge is --line in
+  // every state but Waiting, so there is no per-state ring to measure any more;
+  // the state is carried by its word and glyph (the next tests). What stays a
+  // ring is the Waiting edge, --warn, measured here on the same beds.
+  const alarmRing = (theme: Theme) => resolve(decl(rule(".agent-node[data-alarm]"), "border-color")!, theme);
 
-  it("draws every state's ring at 3:1 or better against the node it outlines", () => {
+  it("draws the Waiting ring at 3:1 or better against the node it outlines", () => {
     for (const theme of themes) {
       const node = nodeBeds(theme);
-      // The floor, and it sits OUTSIDE the quantification it is the floor for
-      // (#627's lesson, applied here by #649). gradientStops already refuses an
-      // unreadable --node-grad, so this is the second line rather than the
-      // first: it is what still fails if that reader is ever softened back to a
-      // `?? []`, or if the label these beds are filtered by is renamed on one
-      // side only. Both ends of the gradient, because a node's top and bottom
-      // differ and a ring is drawn across the whole of it.
-      expect(node.map(([n]) => n), `${theme}: no node beds — every ring below would be measured against nothing`)
+      // The floor sits OUTSIDE the quantification it is the floor for (#627's
+      // lesson, applied here by #649): both ends of the gradient.
+      expect(node.map(([n]) => n), `${theme}: no node beds — the ring below would be measured against nothing`)
         .toEqual([`${NODE_BED} 0`, `${NODE_BED} 1`]);
-      for (const state of ["active", "done", "err", "alarm"]) {
-        const ring = ringOf(state, theme);
-        for (const [name, bg] of node) {
-          expect(contrastRatio(over(ring, bg), bg), `${theme} ${state} ring on ${name}`)
-            .toBeGreaterThanOrEqual(NON_TEXT);
-        }
+      const ring = alarmRing(theme);
+      for (const [name, bg] of node) {
+        expect(contrastRatio(over(ring, bg), bg), `${theme} alarm ring on ${name}`).toBeGreaterThanOrEqual(NON_TEXT);
       }
     }
   });
@@ -358,17 +345,13 @@ describe("agent-node state rings (#268)", () => {
   it("holds that 3:1 against the canvas too, since the ring is the node's edge", () => {
     for (const theme of themes) {
       const canvas = parseColor(TOK[theme]["--bg"]);
-      for (const state of ["active", "done", "err", "alarm"]) {
-        expect(contrastRatio(over(ringOf(state, theme), canvas), canvas), `${theme} ${state} ring on --bg`)
-          .toBeGreaterThanOrEqual(NON_TEXT);
-      }
+      expect(contrastRatio(over(alarmRing(theme), canvas), canvas), `${theme} alarm ring on --bg`).toBeGreaterThanOrEqual(NON_TEXT);
     }
   });
 
-  it("keeps the light rings opaque — an alpha tuned for #14161b vanishes on white", () => {
-    for (const state of ["done", "err"]) {
-      const light = decl(rule(`:root[data-color-scheme="light"] .agent-node.state-${state}`), "border-color");
-      expect(light, state).not.toMatch(/rgba\(/);
+  it("gives no other state an edge of its own, in either theme", () => {
+    for (const state of ["active", "done", "err"]) {
+      expect(css, state).not.toMatch(new RegExp(`\\.agent-node\\.state-${state}\\s*\\{[^}]*border-color`));
     }
   });
 
@@ -402,7 +385,7 @@ describe("agent-node state rings (#268)", () => {
     expect(agentNode).toMatch(/const shown = drawnState\(data\);/);
     // V4's card says it as a mark and a sentence-case word (StateLine), from the
     // same cardState the faces at a distance take their mark from.
-    expect(agentNode).toMatch(/<StateLine state=\{state\} \/>/);
+    expect(agentNode).toMatch(/<StateLine state=\{state\} under=\{stateMarkKind\(shown\)\} \/>/);
     // And that state is drawnState's: the word cannot drift from the stopped-on-
     // an-error state the old pill was handed directly.
     expect(agentNode).toMatch(/const state = cardState\(data\);/);

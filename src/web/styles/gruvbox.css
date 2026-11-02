@@ -38,7 +38,6 @@
 :root[data-theme^="gruvbox-"] .detail-hero .hero-cost-value {
   color: var(--text);
 }
-:root[data-theme^="gruvbox-"] .topbar .selected-cost,
 :root[data-theme^="gruvbox-"] .up-cost-val:not(.up-unpriced),
 :root[data-theme^="gruvbox-"] .up-session-cost:not(.up-unpriced),
 :root[data-theme^="gruvbox-"] .uh-stat-val.accent,
@@ -52,8 +51,6 @@
    red cross and purple pill. Mixed from the tokens at the shared sheets'
    alphas instead. Light's and Material's own state rules below still win
    where they set one. */
-:root[data-theme^="gruvbox-"] .agent-node.state-done { border-color: var(--card-alarm, color-mix(in srgb, var(--ok) 50%, transparent)); }
-:root[data-theme^="gruvbox-"] .agent-node.state-err { border-color: var(--card-alarm, color-mix(in srgb, var(--err) 60%, transparent)); }
 :root[data-theme^="gruvbox-"] .agent-node.state-done > .lod-face { --lod-edge: color-mix(in srgb, var(--ok) 50%, transparent); }
 :root[data-theme^="gruvbox-"] .agent-node.state-err > .lod-face { --lod-edge: color-mix(in srgb, var(--err) 60%, transparent); }
 :root[data-theme^="gruvbox-"] .state-pill.state-active {
@@ -95,14 +92,8 @@
   background: hsl(var(--session-hue, 200) 28% var(--session-rim-l) / 0.05);
 }
 /* Full cards and their compact faces use the same Material state colours. */
-:root[data-theme="gruvbox-material"] .agent-node.state-done {
-  border-color: var(--card-alarm, color-mix(in srgb, var(--ok) 70%, var(--panel)));
-}
 :root[data-theme="gruvbox-material"] .agent-node.state-done > .lod-face {
   --lod-edge: color-mix(in srgb, var(--ok) 70%, var(--panel));
-}
-:root[data-theme="gruvbox-material"] .agent-node.state-err {
-  border-color: var(--card-alarm, color-mix(in srgb, var(--err) 80%, var(--panel)));
 }
 :root[data-theme="gruvbox-material"] .agent-node.state-err > .lod-face {
   --lod-edge: color-mix(in srgb, var(--err) 80%, var(--panel));
@@ -127,9 +118,6 @@
 
 /* Light's shared component rules use opaque white-era status beds and a
    violet running border. Retint those states for the warm paper palette. */
-:root[data-theme="gruvbox-light"] .agent-node.state-active {
-  border-color: var(--card-alarm, var(--inflight));
-}
 :root[data-theme="gruvbox-light"] .agent-node.state-active > .lod-face {
   --lod-edge: var(--inflight);
 }

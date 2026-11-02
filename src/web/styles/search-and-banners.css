@@ -1,6 +1,6 @@
 /* ---------------- search ---------------- */
 
-/* Keeps --bg-soft for the reason .selected-ribbon does: the placeholder is
+/* Keeps --bg-soft for the reason the topbar ribbon did: the placeholder is
    --muted, and the control fill would take it to 4.05:1 in dark. */
 /* The ring every other input on this deck draws, which this field was the only
    one missing. `outline: none` above sits at (0,1,1) on a rule that also

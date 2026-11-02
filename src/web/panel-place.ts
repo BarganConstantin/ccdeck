@@ -32,9 +32,11 @@ export type PanelPlace = {
   y: number;
 };
 
-/** The room a panel may be moved in: the window, less the stripes and an
- *  8px inset at each side, and below the bar. */
-export type PanelRoom = { w: number; h: number; side: number; top: number };
+/** The room a panel may be moved in: the window, less the Panel bar and an
+ *  8px inset at each side, and below the bar. `side` is the left inset (the
+ *  Panel bar's width and 8); `sideRight` the right one (8, with no right bar),
+ *  `side` again when unset. */
+export type PanelRoom = { w: number; h: number; side: number; sideRight?: number; top: number };
 
 /** How much of a panel stays above the window's foot, so its header and a
  *  first reading can always be reached and moved back. */
@@ -64,7 +66,7 @@ export function placeOf(left: number, top: number, width: number, windowW: numbe
 export function boxOf(place: PanelPlace, width: number, room: PanelRoom): { left: number; top: number } {
   const wanted = place.edge === "left" ? place.x : room.w - place.x - width;
   return {
-    left: clamp(wanted, room.side, room.w - room.side - width),
+    left: clamp(wanted, room.side, room.w - (room.sideRight ?? room.side) - width),
     top: clamp(place.y, room.top, room.h - LEAST_SHOWN),
   };
 }
@@ -140,9 +142,9 @@ function scheduleFit(): void {
  *  height ends where the status bar begins (none on a phone, or before it is
  *  drawn: 0). */
 function roomOf(home: DOMRect): PanelRoom {
-  const stripe = document.querySelector(".edge-rail-right")?.getBoundingClientRect().width ?? 0;
+  const bar = document.querySelector(".edge-rail-left")?.getBoundingClientRect().width ?? 0;
   const status = document.querySelector(".statusbar")?.getBoundingClientRect().height ?? 0;
-  return { w: window.innerWidth, h: window.innerHeight - status, side: stripe + 8, top: home.top };
+  return { w: window.innerWidth, h: window.innerHeight - status, side: bar + 8, sideRight: 8, top: home.top };
 }
 
 type Drag = {
@@ -239,7 +241,7 @@ export function usePanelPlace(key: string) {
     const width = d.start.width;
     const room = d.room!;
     d.at = {
-      left: clamp(d.start.left + dx, room.side, room.w - room.side - width),
+      left: clamp(d.start.left + dx, room.side, room.w - (room.sideRight ?? room.side) - width),
       top: clamp(d.start.top + dy, room.top, room.h - LEAST_SHOWN),
     };
     draw(d.at);

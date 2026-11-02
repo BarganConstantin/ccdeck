@@ -5,7 +5,7 @@
 // use-category-filter-bar's; App.tsx decides when the bar shows (#783) and this
 // file is only the chips.
 import type { MutableRefObject } from "react";
-import { CatGlyph, type DetailCategory } from "../detail-category";
+import type { DetailCategory } from "../detail-category";
 import { categoryLabel } from "../agent-copy";
 import { useT } from "../i18n";
 
@@ -46,12 +46,12 @@ export default function CategoryFilterBar({ catBarRef, catBarOccluded, presentCa
           <button
             key={c}
             type="button"
-            className={`cat-filter${off ? " off" : ""}`}
+            className={`cat-filter cat-${c}${off ? " off" : ""}`}
             onClick={() => toggleCat(c)}
             aria-pressed={!off}
             title={t(off ? "board.cat.show" : "board.cat.hide", { cat: categoryLabel(c, t) })}
           >
-            <CatGlyph cat={c} />
+            <span className="cat-dot" aria-hidden="true" />
             <span className="cat-name">{categoryLabel(c, t)}</span>
           </button>
         );

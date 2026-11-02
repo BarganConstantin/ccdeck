@@ -30,6 +30,7 @@ import { promptTime } from "../relative-time";
 import { useNow } from "../use-now";
 import { useT } from "../i18n";
 import { NoteMark } from "./RecapMark";
+import { KitIcon } from "./kit-icons";
 
 /** What App hands the node. `parentId` is the session root — the tie's target,
  *  and the member joinSessions anchors a new node to, so a note arriving in a
@@ -87,7 +88,7 @@ export default function RecapNoteNode({ data }: NodeProps<RecapNoteData>) {
           aria-label={isRecap ? t("board.node.hideRecap") : note ? t("board.node.hideNote") : t("board.node.hidePlan")}
           title={t("board.note.hideTitle")}
           onClick={e => { e.stopPropagation(); dismissRecap(data.noteKey); }}
-        >×</button>
+        ><KitIcon name="close" /></button>
       </div>
       {/* Its whole text on hover: a status note holds three lines here, a
           running turn often says more, and the hover card that holds the rest

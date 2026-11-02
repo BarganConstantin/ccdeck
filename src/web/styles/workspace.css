@@ -20,13 +20,18 @@
 
 /* ── the switch, in the topbar ───────────────────────────────────────────── */
 /* The Inspector's tabs pill (detail-panel.css), 24px buttons: a --bg-soft
-   track, the chosen view a --panel chip on it. */
+   track, the chosen view a --panel chip on it. 28 tall in all: V4's Figma
+   draws the 1px stroke INSIDE its 2px padding, so the box is
+   border-box with 1px of padding inside the 1px edge, not 2px of padding
+   outside it — which measured 30. The gap to Search is the end group's 8
+   (topbar.css), not a margin of its own. */
 .view-switch {
+  box-sizing: border-box;
   display: flex;
   align-items: center;
   gap: 2px;
-  padding: 2px;
-  margin-right: 8px;
+  height: 28px;
+  padding: 1px;
   background: var(--bg-soft);
   border: 1px solid var(--line-soft);
   border-radius: var(--r-panel);
@@ -52,7 +57,6 @@
   background: var(--panel);
   box-shadow: var(--shadow-contact);
   color: var(--text);
-  font-weight: 600;
 }
 @media (hover: hover) and (pointer: fine) {
 .view-opt:hover:not([aria-pressed="true"]) { color: var(--text); }
@@ -82,14 +86,15 @@
    clears the detail column (machine-panel.css): there the column is under the
    canvas's cell, and in Workspace that cell is the pane, which they covered
    (x 792-1072 at 1440, the pane ending at 1080). Here --rail-r is the value
-   it has with no detail panel, the Board's own right edge (8px inside the
-   stripe), and the panel's left edge is then 280 (+ the density's increase)
-   in from there, inside the Inspector's 320 (Compact) or 360 (Default): never
+   it has at the window's right edge (V4's Figma: no right bar, the panels
+   320 wide with their right edge at the window), so the panel's left edge is
+   320 (+ the density's increase) in from there, inside the Inspector's 320
+   (Compact) or 360 (Default): never
    left of the pane's right edge. Under 1320 the Inspector is a sheet and the
    Board's place stands. \`body\` in front outranks the Board's two --rail-r rules
    whichever of them is in force. */
 @media (min-width: 1320px) {
-  body .app[data-view="workspace"] { --rail-r: calc(8px + var(--edge-w)); }
+  body .app[data-view="workspace"] { --rail-r: 0px; }
 }
 
 /* The pane's header, empty: its title is a description, not a session. */
@@ -105,14 +110,14 @@
 .ts-ws-wait { font: 500 13px/20px var(--font-mono); font-variant-numeric: tabular-nums; color: var(--warn); }
 .ts-ws-ask { margin: 0; font-size: 12px; line-height: 16px; color: var(--muted); }
 .ts-ws-ask code { font: 400 13px/16px var(--font-mono); color: var(--text); }
-/* One button, the kit's .btn (its edge and states are the swept ones): a key
-   chip, then "Open <name>". */
+/* One button, the kit's .btn (its edge and states are the swept ones):
+   "Open <name>", then its key chip, as V4 draws it. */
 .btn.ts-ws-open {
   display: inline-flex;
   align-items: center;
   gap: 8px;
   margin-top: 4px;
-  padding: 0 8px 0 4px;
+  padding: 0 4px 0 8px;
   font-size: 13px;
   font-weight: 500;
   line-height: 20px;
@@ -160,7 +165,7 @@
   .app[data-view="workspace"] .detail {
     position: fixed;
     top: var(--topbar-h);
-    right: var(--edge-w);
+    right: 0;
     bottom: var(--status-room);
     width: min(var(--inspector-w), 100vw);
     z-index: 20;

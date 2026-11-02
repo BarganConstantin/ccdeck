@@ -124,7 +124,7 @@ describe("in the panels and the sheet", () => {
 
   it("clamps a placed panel in the sheet, from the edge it is kept from", () => {
     expect(sheet).toMatch(/\[data-place\]\s*\{[^}]*--place-at:\s*clamp\(var\(--place-top\), var\(--place-y\), calc\(100vh - 120px - var\(--status-room, 0px\)\)\);/);
-    expect(sheet).toMatch(/\[data-place="right"\]\s*\{[^}]*left:\s*auto;[^}]*right:\s*clamp\(var\(--place-side\), var\(--place-x\)/);
+    expect(sheet).toMatch(/\[data-place="right"\]\s*\{[^}]*left:\s*auto;[^}]*right:\s*clamp\(var\(--place-side-r\), var\(--place-x\)/);
     expect(sheet).toMatch(/\[data-place="left"\]\s*\{[^}]*right:\s*auto;[^}]*left:\s*clamp\(var\(--place-side\), var\(--place-x\)/);
     // The sheet's 120 is the drag's LEAST_SHOWN.
     expect(LEAST_SHOWN).toBe(120);

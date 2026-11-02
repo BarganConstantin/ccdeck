@@ -519,6 +519,7 @@ optgroup {
    it: the ring steps outside, same stroke, 2px clear. */
 .uh-range-btn[aria-pressed="true"]:focus-visible,
 .switch[aria-checked="true"]:focus-visible,
+.cbx > input:checked:focus-visible,
 .fg-tabs .uh-range-btn[aria-selected="true"]:focus-visible,
 .fd-sections .uh-range-btn[aria-selected="true"]:focus-visible,
 .aa-tab.on:focus-visible,

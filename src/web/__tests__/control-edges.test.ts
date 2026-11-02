@@ -584,7 +584,7 @@ const CONTROLS: Control[] = [
   // NO edge, so there is no boundary left for this sweep to measure, the way
   // `.detail-close` left it below. What identifies them is their words, held
   // to 4.5:1 by the "chip words" case at the foot of this file.
-  { at: ".selected-ribbon", states: [".selected-ribbon:hover"], beds: TOPBAR },
+  // (The selected ribbon, swept here, is gone: V4's Figma.)
   { at: "button.btn", states: ["button.btn:hover"], beds: [...TOPBAR, "--panel"] },
   { at: "button.btn", fillFrom: "button.btn.ig-manage:not(.primary)", states: ["button.btn:hover"], beds: ["--panel"] },
   { at: "button.btn.primary", fillFrom: "button.btn.primary", beds: [...TOPBAR, "--panel"] },
@@ -602,7 +602,7 @@ const CONTROLS: Control[] = [
   // exhaustiveness check at the bottom of this describe is what would say so if
   // it came back.
   { at: "button.btn.danger", fillFrom: "button.btn", states: ["button.btn.danger:hover"], beds: ["--panel"] },
-  { at: ".topbar .waiting-stat", states: [".topbar .waiting-stat:hover"], beds: TOPBAR },
+  { at: ".topbar .count-pill.waiting-stat", states: [".topbar .waiting-stat:hover"], beds: TOPBAR },
   // The permission ask that sits beside the count. Dashed rather than solid, so
   // it reads as an offer next to an alarm — but a dashed boundary is still the
   // whole of what identifies the control, so it is measured on the same floor
@@ -1283,6 +1283,21 @@ describe("every control that draws a boundary draws one that can be seen (1.4.11
       // turns --accent, --err when invalid). A state recolour of an edge the
       // sweep above measures at rest; its colours are held to 3:1 on every bed
       // by "the text-field focus border" test below.
+      // A DISABLED field or select: V4's kit draws it in --line, because an
+      // inactive component owes no boundary (1.4.11 exempts it, as 1.4.3 does its text).
+      ".ap-manage-input:disabled", ".ap-manage-input:disabled:hover:not(:focus-visible)",
+      ".sm-select:disabled", ".sm-select:disabled:hover:not(:focus-visible)",
+      // The checkbox's box: the same --ctl-edge the fields are swept for above,
+      // recoloured to --accent when ticked (a state, as the period strip's).
+      ".cbx > input", ".cbx > input:checked",
+      // A key cap: named by the key written in it (and `.qo-esc` by its word);
+      // V4's kit gives it the --line hairline, a label's rim and not a boundary.
+      "kbd.qo-key", ".qo-esc", ".qo-foot kbd", ".fb-shortcut kbd",
+      // The category filter's pills (V4's Figma): a --line rim at rest and the
+      // accent's while showing. Each is named by its dot and its word, the
+      // identification 1.4.11 accepts in place of a boundary, and the showing
+      // state is also filled with --accent-16.
+      ".cat-filter", ".cat-filter.off",
       ".settings-filter-field:focus-visible", ".sm-select:focus-visible", ".ap-manage-input:focus-visible",
       ".aa-field input:focus-visible", ".tr-input:focus-visible", ".tr-select:focus-visible",
       ".qh-window select:focus-visible", ".jr-move-pop select:focus-visible", ".jr-transition select:focus-visible",
@@ -1475,7 +1490,7 @@ describe("the control surface, promoted (#332)", () => {
     }
     const darkFill = over(resolve("var(--ctl-fill)", "dark"), parseColor(TOK.dark["--panel"]));
     expect(contrastRatio(parseColor(TOK.dark["--muted"]), darkFill)).toBeLessThan(BODY);
-    for (const sel of [".selected-ribbon", ".aa-field input"]) {
+    for (const sel of [".aa-field input"]) {
       expect(decl(sel, "background"), sel).toBe("var(--bg-soft)");
     }
     // The rail's row hover is the control fill itself, the one this case measures.

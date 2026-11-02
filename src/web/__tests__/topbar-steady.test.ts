@@ -37,7 +37,7 @@ const items = (watchUnseen: number) => railItems({
 
 describe("the bar holds nothing a panel changes", () => {
   it("draws no panel toggle: only Search, Settings and Feedback, which open dialogs", () => {
-    expect(header).toContain("<UtilityRun items={[rails.search, ...rails.utilities]} />");
+    expect(header).toContain("<UtilityRun items={[rails.search, ...rails.topUtilities]} />");
     expect(header).not.toMatch(/rails\.left|rails\.right|<EdgeRail|<EdgeDock/);
     const utilities = items(0).utilities;
     expect(utilities.map(i => i.id)).toEqual(["settings", "feedback"]);
@@ -47,12 +47,16 @@ describe("the bar holds nothing a panel changes", () => {
     }
   });
 
-  it("keeps the waiting queue's box mounted while nothing waits, so the ribbon after it stays put", () => {
-    // Mounted whenever the stripes are, not when somebody waits: the box takes
-    // the bar's free room either way, and the ribbon after it stands in one
-    // place whether or not a session is waiting.
-    expect(header).toMatch(/\{!phone && \(\s*<WaitingNames /);
-    expect(header).not.toMatch(/waitingSessions\.length > 0 && \(\s*<WaitingNames/);
+  it("keeps the waiting pill mounted while nothing waits, so nothing after it moves when somebody does", () => {
+    // V4's Figma draws the three count pills always: WaitingStat renders the
+    // quiet 0 pill when the queue is empty, so the bar is the same width
+    // either way. The queue names that took the free room (WaitingNames) are
+    // the pill's popover now and take none.
+    expect(header).toContain("<ReadoutGroup");
+    expect(header).not.toContain("WaitingNames");
+    expect(header).not.toMatch(/waitingSessions\.length > 0 && \(\s*<WaitingStat/);
+    const readouts = sourceOf("components/TopbarReadouts.tsx");
+    expect(readouts).toMatch(/if \(count === 0\) \{\s*return <CountPill kind="waiting" count=\{0\}/);
   });
 });
 
@@ -62,8 +66,8 @@ describe("an unread finding moves nothing but its own button's foot", () => {
     const last = right[right.length - 1];
     expect(last[last.length - 1].id).toBe("browser-watch");
     const html = renderToStaticMarkup(createElement(EdgeRail, { side: "right", label: "Right panels", groups: right }));
-    // The badge closes the button, and the button closes the stripe.
-    expect(html).toMatch(/<span class="rail-badge" aria-hidden="true">1<\/span><\/button><\/div><\/div>$/);
+    // The badge closes the button, which closes its run, the doors and the bar.
+    expect(html).toMatch(/<span class="rail-badge" aria-hidden="true">1<\/span><\/button><\/div><\/div><\/div>$/);
     expect(renderToStaticMarkup(createElement(EdgeRail, { side: "right", label: "Right panels", groups: items(0).right })))
       .not.toContain("rail-badge");
   });

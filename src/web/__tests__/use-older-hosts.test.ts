@@ -85,9 +85,10 @@ describe("the older hosts on the stage", () => {
     const s = run({ windows: true, subject: "session:a", api, announce });
     await flush();
     s.h.review();
-    const shown = s.h.view!.hosts[0];
-    s.h.end(shown);
-    s.h.end(shown);
+    // CHANGED ON PURPOSE (here and twice below): the dialog's one End ends
+    // every listed session (endAll), through the same per-host call.
+    s.h.endAll();
+    s.h.endAll();
     expect(s.h.busy).toBe(3);
     await flush();
     expect([s.h.open, s.h.busy, s.h.line]).toEqual([false, null, null]);
@@ -101,9 +102,47 @@ describe("the older hosts on the stage", () => {
     const s = run({ windows: true, subject: "session:a", api, announce: vi.fn() });
     await flush();
     s.h.review();
-    s.h.end(s.h.view!.hosts[0]);
+    s.h.endAll();
     await flush();
     expect([s.h.open, s.h.said, s.h.view!.hosts[0].sessions.length]).toEqual([true, OUTDATED.error, 3]);
+  });
+
+  it("ends every listed host in turn through the per-host call, skips one that closed on its own, and stops at a refusal", async () => {
+    const all = fakeApi(
+      [answer([host(3, session(1)), host(4, session(2))]), answer([host(4, session(2))]), answer([])],
+      [{ ok: true, ended: 1 }, { ok: true, ended: 1 }],
+    );
+    const announce = vi.fn();
+    const a = run({ windows: true, subject: "session:a", api: all.api, announce });
+    await flush();
+    a.h.review();
+    a.h.endAll();
+    await flush();
+    expect(all.calls).toEqual(["read", "end 3 1", "read", "end 4 1", "read"]);
+    expect([a.h.open, a.h.busy, a.h.line]).toEqual([false, null, null]);
+    expect(announce).toHaveBeenCalledWith("Ended 2 sessions on an older session host.");
+
+    // The second host closed once the first one's sessions ended: not asked.
+    const closed = fakeApi([answer([host(3, session(1)), host(4, session(2))]), answer([])], [{ ok: true, ended: 1 }]);
+    const b = run({ windows: true, subject: "session:a", api: closed.api, announce: vi.fn() });
+    await flush();
+    b.h.review();
+    b.h.endAll();
+    await flush();
+    expect(closed.calls).toEqual(["read", "end 3 1", "read"]);
+
+    // A refusal stops the run: nothing after it is sent, and it is said.
+    const stop = fakeApi(
+      [answer([host(3, session(1)), host(4, session(2))]), answer([host(3, session(1), session(5)), host(4, session(2))])],
+      [OUTDATED],
+    );
+    const c = run({ windows: true, subject: "session:a", api: stop.api, announce: vi.fn() });
+    await flush();
+    c.h.review();
+    c.h.endAll();
+    await flush();
+    expect(stop.calls).toEqual(["read", "end 3 1", "read"]);
+    expect([c.h.open, c.h.said, c.h.busy]).toEqual([true, OUTDATED.error, null]);
   });
 
   it("closes when the host went and none is left, and keeps the list on any other refusal, asked once", async () => {
@@ -111,7 +150,7 @@ describe("the older hosts on the stage", () => {
     const a = run({ windows: true, subject: "session:a", api: gone.api, announce: vi.fn() });
     await flush();
     a.h.review();
-    a.h.end(a.h.view!.hosts[0]);
+    a.h.endAll();
     await flush();
     expect([a.h.open, a.h.line]).toEqual([false, null]);
 
@@ -120,7 +159,7 @@ describe("the older hosts on the stage", () => {
     const b = run({ windows: true, subject: "session:a", api: other.api, announce: vi.fn() });
     await flush();
     b.h.review();
-    b.h.end(b.h.view!.hosts[0]);
+    b.h.endAll();
     await flush();
     expect([b.h.open, b.h.said, b.h.view!.hosts.length]).toEqual([true, failed.error, 1]);
     expect(other.calls).toEqual(["read", "end 3 1"]);

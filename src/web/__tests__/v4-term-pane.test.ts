@@ -278,10 +278,14 @@ describe("the reconnect sentence", () => {
 });
 
 describe("the state cards: centred in the pane", () => {
-  it("is a column centred both ways, 10px between lines, a line of about 60 characters", () => {
+  it("is a column centred both ways, 10px between lines, 464 wide, 48 in from the sides and 24 from the top", () => {
     const card = rule(stage, ".ts-card");
     expect(decl(card, "position")).toBe("absolute");
-    expect(decl(card, "inset")).toBe("0");
+    // CHANGED ON PURPOSE: V4's state frames pad 48 at the sides and 24 above
+    // and below; the spacing ladder has no 48, so it is the 24 this box is
+    // inset by plus the 24 of its padding.
+    expect(decl(card, "inset")).toBe("0 24px");
+    expect(decl(card, "padding")).toBe("24px");
     expect(decl(card, "display")).toBe("flex");
     expect(decl(card, "flex-direction")).toBe("column");
     expect(decl(card, "align-items")).toBe("center");
@@ -293,7 +297,10 @@ describe("the state cards: centred in the pane", () => {
     expect(decl(card, "overflow-y")).toBe("auto");
     // Not top-left 24px in, as v3's card was.
     expect(card).not.toMatch(/top:\s*var\(--ts-term-top/);
-    expect(decl(rule(stage, ".ts-text"), "max-width")).toBe("60ch");
+    expect(decl(rule(stage, ".ts-text"), "max-width")).toBe("464px");
+    expect(decl(rule(stage, ".ts-card > *"), "max-width")).toBe("464px");
+    // No box of its own: the state sits straight in the body.
+    expect(card).not.toMatch(/(?:^|\s)(?:background|border|box-shadow)\s*:/);
   });
 
   it("sets the sentence 13/20 --text-secondary, the context line mono 12/16 --muted, the title 13/20 SemiBold --text", () => {
@@ -325,24 +332,28 @@ describe("the state cards: centred in the pane", () => {
       button(StateCard(bodyProps(phase, over)), name)?.props.className;
     const c = { kind: "C" as const, label: "x", adoptable: true };
     expect(cls({ kind: "not-attachable", target: c, stillRunning: false, busy: false }, "Reopen here")).toBe("btn primary");
-    expect(cls({ kind: "not-attachable", target: c, stillRunning: true, busy: false }, "Check again")).toBe("btn primary");
+    // CHANGED ON PURPOSE (this and the next four): V4 makes only New session and
+    // Reopen here Primary; Check again and Try again are Quiet.
+    expect(cls({ kind: "not-attachable", target: c, stillRunning: true, busy: false }, "Check again")).toBe("btn");
     expect(cls({ kind: "not-attachable", target: c, stillRunning: false, busy: false }, "Not now")).toBe("btn");
-    expect(cls({ kind: "tmux-missing", reason: "missing", busy: false }, "Check again")).toBe("btn primary");
-    expect(cls({ kind: "error", message: "x" }, "Try again")).toBe("btn primary");
+    expect(cls({ kind: "tmux-missing", reason: "missing", busy: false }, "Check again")).toBe("btn");
+    expect(cls({ kind: "error", message: "x" }, "Try again")).toBe("btn");
     expect(cls({ kind: "error", message: "x" }, "Not now")).toBe("btn");
-    expect(cls({ kind: "error", message: "x", code: "not-installed", busy: false }, "Check again")).toBe("btn primary");
+    expect(cls({ kind: "error", message: "x", code: "not-installed", busy: false }, "Check again")).toBe("btn");
     expect(cls({ kind: "empty" }, "New session")).toBe("btn primary");
     expect(cls({ kind: "tmux-installing" }, "Not now")).toBe("btn");
     // The cards set no size of their own for the kit's buttons.
     expect(rule(stage, ".ts-acts .btn")).not.toMatch(/(?:min-)?(?:height|width)/);
   });
 
-  it("draws attaching as the working glyph and the word in one row, never a spinner, over the last line the board knew", () => {
+  it("draws attaching as the working glyph and the word in one row, never a spinner, and nothing else", () => {
     const out = html(createElement(StateCard, bodyProps({ kind: "attaching", reconnect: false })));
     expect(out).toContain('data-glyph="working"');
     expect(out).toContain("<span>attaching…</span>");
-    expect(out).toContain("❯ Add rate limiting to the API");
-    expect(out.indexOf("Add rate limiting")).toBeLessThan(out.indexOf("attaching…"));
+    // CHANGED ON PURPOSE: V4's Attaching state is the status line alone; the
+    // ghost prompt line the board last knew is not drawn.
+    expect(out).not.toContain("❯");
+    expect(out).not.toContain("ts-ctx");
     expect(decl(rule(stage, ".ts-wait"), "gap")).toBe("6px");
     expect(out).not.toMatch(/spin|loader/i);
     // A reconnect keeps the frozen frame; the keys bar says nothing typed is sent.
@@ -358,7 +369,19 @@ describe("the state cards: centred in the pane", () => {
     expect(decl(cmd, "font")).toBe("400 12px/16px var(--font-mono)");
     expect(decl(rule(stage, ".ts-setup"), "width")).toBe("320px");
     expect(decl(rule(stage, ".ts-setup-bar"), "height")).toBe("2px");
-    expect(decl(rule(stage, ".ts-setup-line"), "font")).toBe("400 12px/16px var(--font-mono)");
+    // CHANGED ON PURPOSE: V4's figure is mono 11/14, on a --ctl-fill track
+    // with a --muted fill and a 4 radius, 4 under the bar.
+    expect(decl(rule(stage, ".ts-setup-line"), "font")).toBe("400 11px/14px var(--font-mono)");
+    expect(decl(rule(stage, ".ts-setup"), "gap")).toBe("4px");
+    expect(decl(rule(stage, ".ts-setup-bar"), "background")).toBe("var(--ctl-fill)");
+    expect(decl(rule(stage, ".ts-setup-bar"), "border-radius")).toBe("var(--r-tag)");
+    expect(decl(rule(stage, ".ts-setup-fill"), "background")).toBe("var(--muted)");
+    // And the install line: sunken, no edge, 4 8 4 8 with the right at 4, a 24 Copy.
+    expect(decl(cmd, "background")).toBe("var(--sunken)");
+    expect(decl(cmd, "padding")).toBe("4px 4px 4px 8px");
+    expect(cmd).not.toMatch(/border:/);
+    expect(decl(rule(stage, ".ts-cmd .glyph-btn"), "width")).toBe("24px");
+    expect(decl(rule(stage, ".ts-cmd .glyph-btn"), "height")).toBe("24px");
     const out = html(createElement(StateCard, bodyProps({ kind: "tmux-installing", progress: { stage: "downloading", received: 400_000, total: 1_000_000 } })));
     expect(out).toContain("0.4 of 1.0 MB");
     expect(out).toContain('role="progressbar"');
@@ -423,7 +446,7 @@ describe("the keys bar", () => {
     // (Figma Keys bar), where it was 0 4px.
     expect(stage).not.toContain("ts-kbd");
     expect(stage).not.toContain(".ts-bar .kbd");
-    expect(read("styles/status-bar.css")).toMatch(/\.kbd \{[^}]*padding: 1px 5px/);
+    expect(read("styles/status-bar.css")).toMatch(/\.kbd \{[^}]*padding: 0 4px/);
   });
 
   it("leads no bar with a glyph: the label says who has the keys", () => {
@@ -443,18 +466,24 @@ describe("the keys bar", () => {
 
   it("draws \"type here\" as plain --muted text that lifts to --text, still a button", () => {
     const out = html(createElement(KeysBar, barProps()));
-    expect(out).toContain('<button type="button" class="btn ts-type ts-plain">type here</button>');
+    expect(out).toContain('<button type="button" class="btn ts-plain">type here</button>');
     const plain = rule(stage, ".btn.ts-plain");
     expect(decl(plain, "color")).toBe("var(--muted)");
     expect(decl(plain, "font-weight")).toBe("400");
     expect(decl(plain, "background")).toBe("none");
     expect(decl(rule(stage, ".btn.ts-plain:hover"), "color")).toBe("var(--text)");
-    expect(stage).not.toMatch(/\.ts-type\s*\{[^}]*(accent|600)/);
+    // CHANGED ON PURPOSE: beside a mouse these read as the bar's own text, 12/16
+    // and 16 high with no padding or fill; a fingertip keeps its 32px floor.
+    const bar = rule(stage, ".ts-bar button.btn.ts-plain");
+    expect(decl(bar, "min-height")).toBe("16px");
+    expect(decl(bar, "padding")).toBe("0");
+    expect(decl(bar, "font-size")).toBe("12px");
+    expect(decl(bar, "line-height")).toBe("16px");
+    expect(stage).toMatch(/@media not \(pointer: coarse\) \{\s*\.ts-bar button\.btn\.ts-plain/);
   });
 
   it("puts the buttons in the kit's Quiet at 28, and the owner sentence in no live region", () => {
     expect(decl(rule(stage, ".ts-keys .btn"), "min-height")).toBe("28px");
-    expect(decl(rule(stage, ".ts-asks .ts-next"), "min-height")).toBe("28px");
     const run = html(createElement(KeysBar, barProps({
       end: { sentence: "The session ended 14m ago. This is its last frame.", action: "Reopen here", onAction: vi.fn() },
     })));
@@ -573,7 +602,9 @@ describe("the keys bar", () => {
   it("gives a fingertip a 36px bar for its 32px buttons, and drops the key names there as it did", () => {
     expect(touch).toMatch(/@media \(pointer: coarse\)[\s\S]*\.ts-bar \{ height: 36px; \}/);
     expect(touch).toContain(".ts-keys .kbd { display: none; }");
-    expect(touch).toContain(".ts-keys .kbd[data-control] { display: inline-flex; }");
+    // CHANGED ON PURPOSE: ✕ is plain text in the first-run sentence, so the rule that
+    // kept its chip is gone.
+    expect(touch).not.toContain("data-control");
   });
 });
 

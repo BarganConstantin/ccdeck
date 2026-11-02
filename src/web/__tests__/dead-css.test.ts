@@ -76,17 +76,21 @@ const V4_AHEAD_OF_READERS = [
   "--muted-30", "--secondary-30", "--warn-35", "--inflight-30",
   // V4's menu: --selected and --row-table are read by .ap-menu-item now.
   // V4's Settings: --dock (the nav column) and --row-settings (a row's height) are read now.
-  "--sunken", "--your-message",
+  // V4's Term pane states: --sunken is read now (the pane body in Workspace, the install line).
+  "--your-message",
   // V4's rail: --rail-w, --pane-head-h, --row-rail and --row-group are read now.
   // V4's Inspector: --inspector-w is the detail column's width now.
   "--row-tool", "--row-option",
   // V4's banner: --ctl-h-lg is read now (the banner strip's min-height).
   // V4's bars: --r-pill is read now (the top bar's chips).
-  "--ctl-h-sm",
+  // V4's category filter: --ctl-h-sm is read now (the pills' height).
   "--fs-hero", "--lh-hero", "--fs-title", "--lh-title", "--fs-card-title",
   "--fs-body", "--fs-small", "--lh-small", "--fs-code", "--lh-code", "--fs-meta", "--lh-meta",
   // V4's motion rules: --dur-stage-in, --dur-slow, --delay-step and --press-small are read now.
   "--dur-stage-out",
+  // --dur-stage-in is read in JS now (navigator-flip.ts mirrors it as FLIP_OPEN_MS); the
+  // row fold that read it in CSS moved to --dur-base / --dur-exit.
+  "--dur-stage-in",
   // V4's Loader: --delay-loader, --loop-loader and --loop-loader-person are read by loader.css now.
   "--delay-tooltip",
 ];

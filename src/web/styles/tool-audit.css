@@ -370,8 +370,8 @@
 .tt-lane:disabled:hover { background: transparent; }
 }
 .tt-lane:disabled:active { transform: none; }
-.tt-caret { flex: none; transition: transform var(--dur-base) var(--ease); }
-.tt-lane[aria-expanded=true] .tt-caret { transform: rotate(180deg); }
+.tt-caret { flex: none; transition: transform var(--dur-exit) var(--ease); }
+.tt-lane[aria-expanded=true] .tt-caret { transform: rotate(180deg); transition-duration: var(--dur-base); }
 /* A narrow card puts the ring above its legend, so the facts keep their words. */
 @container tt (max-width: 340px) {
   .tt-card { flex-direction: column; align-items: stretch; }
@@ -380,10 +380,12 @@
 
 /* A lane's level folds open beneath the row, named by the lane it came from. */
 /* grid-template-rows on a row: a named exception of V4's motion rules (rule 4). */
-.tt-fold { display: grid; grid-template-rows: 0fr; transition: grid-template-rows var(--dur-stage-in) var(--ease); }
-.tt-fold[data-open] { grid-template-rows: 1fr; }
+/* Open: the rows, the opacity and the caret over Base; fold: the same path over
+   the shorter Exit. */
+.tt-fold { display: grid; grid-template-rows: 0fr; opacity: 0; transition: grid-template-rows var(--dur-exit) var(--ease), opacity var(--dur-exit) var(--ease); }
+.tt-fold[data-open] { grid-template-rows: 1fr; opacity: 1; transition: grid-template-rows var(--dur-base) var(--ease), opacity var(--dur-base) var(--ease); }
 .tt-level { min-height: 0; overflow: hidden; }
-.tt-level-body { padding: 24px 0 2px; transition: opacity var(--dur-stage-in) var(--ease), transform var(--dur-stage-in) var(--ease); }
+.tt-level-body { padding: 24px 0 2px; transition: opacity var(--dur-base) var(--ease), transform var(--dur-base) var(--ease); }
 @starting-style { .tt-level-body { opacity: 0; transform: translateY(-4px); } }
 .tt-level-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; }
 .tt-level-head i { width: 10px; height: 10px; border-radius: 3px; background: var(--tt-c); align-self: center; }
@@ -443,7 +445,10 @@ button.tt-part:active { transform: scale(var(--press)); }
   .tt-part { min-height: 52px; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .tt-fold, .tt-arc, .tt-lane, .tt-caret, button.tt-part, .tt-days-bars i, .tt-level-body, .tt-part-bar { transition: none; }
+  .tt-fold, .tt-arc, .tt-lane, .tt-caret, button.tt-part, .tt-days-bars i, .tt-part-bar { transition: none; }
+  /* The fold opens at once; what is inside it fades in. */
+  .tt-level-body { transition: opacity var(--dur-fast) var(--ease); }
+  @starting-style { .tt-level-body { transform: none; } }
   .tt-arc { animation: none; }
   .tt-lane:active, button.tt-part:active { transform: none; }
 }

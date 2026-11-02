@@ -6,7 +6,6 @@
 // reader most needs the line, is always a move (a launch is a subject), and a
 // host only changes when someone ends or starts sessions.
 import { useEffect, useRef, useState } from "react";
-import type { OlderHost } from "../../terminal-api";
 import {
   HOSTS_API,
   endHost,
@@ -32,7 +31,8 @@ export interface OlderHosts {
   review(): void;
   keep(): void;
   cancel(): void;
-  end(host: OlderHost): void;
+  /** End every session the dialog lists, one host after another. */
+  endAll(): void;
 }
 
 export function useOlderHosts(
@@ -70,18 +70,34 @@ export function useOlderHosts(
     review: () => { setSaid(null); setOpen(true); },
     keep: () => { setKeptFor(hostsFingerprint(view)); close(); },
     cancel: close,
-    end: host => {
-      if (busy !== null) return;
-      setBusy(host.generation);
+    endAll: () => {
+      if (busy !== null || !view || !reviewable(view)) return;
       setSaid(null);
-      void endHost(api, host).then(outcome => {
+      void (async () => {
+        // Each host through the existing per-host call, in the order listed:
+        // the engine refuses new sessions until all of them are gone, so one
+        // alone would not help. A refusal stops the run and is said; the list
+        // is then the one read after the last call.
+        let latest: HostsView | null = view;
+        let ended = 0;
+        let said: string | null = null;
+        for (const host of view.hosts) {
+          if (gone.current) return;
+          // A host that closed once its first sessions ended is not asked again.
+          if (!latest || !latest.hosts.some(h => h.generation === host.generation)) continue;
+          setBusy(host.generation);
+          const outcome = await endHost(api, host);
+          ended += outcome.ended;
+          if (outcome.view !== undefined) latest = outcome.view;
+          if (outcome.said) { said = outcome.said; break; }
+        }
         if (gone.current) return;
         setBusy(null);
-        if (outcome.view !== undefined) setView(outcome.view);
-        if (outcome.ended) announce.current?.(`Ended ${outcome.ended === 1 ? "1 session" : `${outcome.ended} sessions`} on an older session host.`);
-        if (outcome.view !== undefined && !reviewable(outcome.view)) close();
-        else setSaid(outcome.said);
-      });
+        setView(latest);
+        if (ended) announce.current?.(`Ended ${ended === 1 ? "1 session" : `${ended} sessions`} on an older session host.`);
+        if (!reviewable(latest)) close();
+        else setSaid(said);
+      })();
     },
   };
 }

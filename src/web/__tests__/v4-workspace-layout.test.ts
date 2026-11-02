@@ -110,12 +110,13 @@ describe("Zoom", () => {
 });
 
 describe("narrower windows", () => {
-  it("make the Inspector today's detail sheet under 1320, fixed over the pane, clear of the stripe and the status bar", () => {
+  it("make the Inspector today's detail sheet under 1320, fixed over the pane, clear of the status bar", () => {
     const sheet = block(css, "@media (max-width: 1319px)");
     const detail = ruleFor(sheet, '.app[data-view="workspace"] .detail').body;
     expect(decl(detail, "position")).toBe("fixed");
     expect(decl(detail, "top")).toBe("var(--topbar-h)");
-    expect(decl(detail, "right")).toBe("var(--edge-w)");
+    // V4's Figma: one bar on the left, none on the right.
+    expect(decl(detail, "right")).toBe("0");
     expect(decl(detail, "bottom")).toBe("var(--status-room)");
     expect(decl(ruleFor(sheet, 'body .app[data-view="workspace"]').body, "grid-template-columns")).toBe("minmax(0, 1fr)");
     // Its Fold comes back there, to close the sheet.

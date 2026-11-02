@@ -74,7 +74,11 @@ describe("the bar's items, left to right", () => {
     expect(component.match(/useStore\(zoomLevel\)/g)).toHaveLength(1);
   });
   it("keeps the keyboard glyph Settings › Keyboard wears", () => {
-    expect(component).toContain('<SettingsSectionGlyph section="keyboard" />');
+    expect(component).toContain('<KitIcon name="keyboard" />');
+  });
+  it("draws the keyboard glyph with the kit's stroke, like its neighbours: no rule thins it", () => {
+    expect(decls('.react-flow__controls-button[aria-label="Open the keyboard shortcuts"] svg')).toEqual({});
+    expect(stripped).not.toMatch(/\.react-flow__controls-button[^{}]*svg[^{}]*\{[^}]*stroke-width/);
   });
 });
 
@@ -96,7 +100,8 @@ describe("the bar's box", () => {
     expect(d["flex-direction"]).toBe("row");
     expect(d["align-items"]).toBe("center");
     expect(d["gap"]).toBe("2px");
-    expect(d["padding"]).toBe("2px");
+    // 1px inside the 1px edge = the frame's 2px padding with the stroke inside it.
+    expect(d["padding"]).toBe("1px");
     expect(d["background"]).toBe("var(--panel)");
     expect(d["border"]).toBe("1px solid var(--line)");
     expect(d["border-radius"]).toBe("var(--r-ctl)");

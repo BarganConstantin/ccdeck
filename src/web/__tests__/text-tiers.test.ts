@@ -213,7 +213,18 @@ describe("what was migrated to the secondary tier", () => {
       // not a sentence: a bar of categories that are all showing sits a tier
       // under the foreground so the canvas stays the loudest thing, and the
       // pointer lifts a chip to --text. Its floors are held in quiet-signals.
-      ".cat-filter",
+      ".cat-filter.off",
+      // CHANGED ON PURPOSE (V4's Figma): the off pill sits in --text-secondary,
+      // and the pills that show take --text (so `.cat-filter` left this list).
+      // The rest are V4's secondary-ink lines: the auto-fit chip and the
+      // re-arrange strip's status words, the drag trash's first line, the recap
+      // note's body and the cost tooltip's model line.
+      ".autofit-chip",
+      ".rearrange-undo",
+      ".drag-trash-zone",
+      ".drag-trash-text",
+      ".recap-note-text",
+      ".cost-tip-title",
       // CHANGED ON PURPOSE (V4 Inspector, V4's Figma): the Context body's section
       // captions, "Cumulative usage · whole session" and the two after it: titles a
       // reader reads to know which numbers follow, no longer 11px uppercase --muted.
@@ -407,6 +418,9 @@ describe("what was migrated to the secondary tier", () => {
       // highlight and evidence terms, the project context's heading, the prompt
       // filter, the JSON search and its placeholder on --ctl-fill, the JSON
       // tree's controls, and the history toolbar's line and buttons.
+      // The top bar's working and done counts (V4's Figma): the word after the
+      // figure is "text-secondary", 12/16 on --panel, the prose beside a number.
+      ".topbar .count-pill",
       ".tr-content-evidence dt",
       ".tr-highlights dt",
       ".tr-history-toolbar .btn",
@@ -486,6 +500,14 @@ describe("what was migrated to the secondary tier", () => {
       ".ts-note",
       ".ts-resumed",
       ".ts-text",
+      // The keys bar's sentences that ask nothing of the eye but are read whole:
+      // the end bar and the first-run line (V4 draws both in this tier, with
+      // one Quiet button at the right), and the older hosts dialog's intro and
+      // its "Ends" fact.
+      ".ts-end",
+      ".ts-first",
+      ".oh-intro",
+      ".oh-ends",
       // What's new: the sentence under each change, the always-visible notice
       // beside it, the one line that says which releases are shown (or that
       // this build has none), and the options menu's line about the last

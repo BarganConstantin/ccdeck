@@ -1,16 +1,12 @@
-// One rule for both stripes (2026-10-23).
+// One rule for the doors (2026-10-23), now on V4's one Panel bar.
 //
 // A user wrote that the deck has a lot in it but is "not organized". Thirteen
-// doors had grown on the two stripes in runs grouped by two different rules —
-// the left by topic, the right by whether a press opened a panel or a dialog —
-// so where a button sat said nothing about it, and the right stripe's toolbar
-// was called "Right panels" while six of its eight doors opened dialogs.
-//
-// Now each stripe is runs of doors that answer one question each, three at
-// most, between the same rules, every run of two or more a group with a name
-// a screen reader says on the way in. Every door stayed, in the owner's order.
-// Radio said it opened a panel (aria-expanded) and opened a modal; it says
-// "dialog" now, like every other door that opens one.
+// doors had grown on two stripes in runs grouped by two different rules, so
+// where a button sat said nothing about it. Now the one bar is runs of doors
+// that answer one question each, three at most, between the same rules, every
+// run of two or more a group with a name a screen reader says on the way in.
+// Every door stayed. Radio said it opened a panel (aria-expanded) and opened a
+// modal; it says "dialog" now, like every other door that opens one.
 import { describe, it, expect } from "vitest";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
@@ -28,56 +24,52 @@ const rails = railItems({
   openSettings: noop, onFeedback: noop, toggles: { sessionList: ref(), usage: ref(), accounts: ref(), machine: ref() },
   openExploreIntegrations: noop,
 });
-const leftGroups = [...rails.leftStripe, rails.integrations, rails.explore].filter(g => g.length > 0);
+const groups = rails.panelBar;
 const ids = (group: { id: string }[]) => group.map(i => i.id);
+const bar = renderToStaticMarkup(createElement(EdgeRail, { label: "Panels and tools", groups: rails.panelBar, foot: rails.panelFoot }));
 
-describe("both stripes follow one rule", () => {
+describe("the one bar follows one rule", () => {
   it("keeps every door, in runs that answer one question each", () => {
-    expect(leftGroups.map(ids)).toEqual([
-      ["accounts", "account-capacity", "reset-calendar"],
-      ["session-list"],
-      ["explore-integrations"],
-    ]);
-    expect(rails.right.map(ids)).toEqual([
+    expect(groups.map(ids)).toEqual([
+      ["session-list", "accounts"],
+      ["account-capacity", "reset-calendar"],
       ["usage", "machine"],
       ["history", "tool-activity", "skill-activity"],
       ["browser-watch", "traffic-radar"],
-      ["radio"],
+      ["explore-integrations"],
     ]);
+    expect(ids(rails.panelFoot)).toEqual(["radio", "settings"]);
   });
 
   it("holds no run of more than three doors", () => {
-    for (const group of [...leftGroups, ...rails.right]) expect(group.length, ids(group).join()).toBeLessThanOrEqual(3);
+    for (const group of groups) expect(group.length, ids(group).join()).toBeLessThanOrEqual(3);
   });
 
   it("names every run of two or more, the same name on each of its doors", () => {
-    const names = [...leftGroups, ...rails.right].filter(g => g.length > 1).map(g => [...new Set(g.map(i => i.group))]);
-    expect(names).toEqual([["Accounts"], ["Usage and machine"], ["Activity history"], ["Watchers"]]);
+    const names = groups.filter(g => g.length > 1).map(g => [...new Set(g.map(i => i.group))]);
+    expect(names).toEqual([["Accounts and sessions"], ["Claude accounts"], ["Usage and machine"], ["Activity history"], ["Watchers"]]);
   });
 
   it("draws each named run as a group a screen reader announces, and a lone door as itself", () => {
-    const right = renderToStaticMarkup(createElement(EdgeRail, { side: "right", label: "Usage and activity", groups: rails.right }));
-    expect(right).toContain('role="toolbar" aria-label="Usage and activity"');
-    expect(right.match(/role="group"/g)).toHaveLength(3);
-    for (const name of ["Usage and machine", "Activity history", "Watchers"]) {
-      expect(right).toContain(`<div class="rail-group" role="group" aria-label="${name}">`);
+    expect(bar).toContain('role="toolbar" aria-label="Panels and tools"');
+    for (const name of ["Accounts and sessions", "Claude accounts", "Usage and machine", "Activity history", "Watchers"]) {
+      expect(bar).toContain(`<div class="rail-group" role="group" aria-label="${name}">`);
     }
-    // Radio stands alone: no group around one door.
-    expect(right).toMatch(/<div class="rail-group"><button[^>]*data-rail-item="radio"/);
+    // Explore stands alone: no group around one door.
+    expect(bar).toMatch(/<div class="rail-group" data-rail-group="explore"><button/);
   });
 
   it("says Radio opens a dialog, the modal it does open, and never claims a panel", () => {
-    const radio = rails.right.flat().find(i => i.id === "radio")!;
+    const radio = rails.panelFoot.find(i => i.id === "radio")!;
     expect(radio.kind).toBe("dialog");
     expect(radio.open).toBeUndefined();
     expect(radio.controls).toBeUndefined();
-    const right = renderToStaticMarkup(createElement(EdgeRail, { side: "right", label: "Usage and activity", groups: rails.right }));
-    const button = /<button[^>]*data-rail-item="radio"[^>]*>/.exec(right)?.[0] ?? "";
+    const button = /<button[^>]*data-rail-item="radio"[^>]*>/.exec(bar)?.[0] ?? "";
     expect(button).toContain('aria-haspopup="dialog"');
     expect(button).not.toContain("aria-expanded");
   });
 
-  it("gives a Codex-only stripe its own button, without the Claude capacity doors", () => {
+  it("gives a Codex-only bar its own button, without the Claude capacity doors", () => {
     const codexOnly = railItems({
       providers: { kind: "reported", claude: false, codex: true },
       sessionListOpen: false, toggleSessionList: noop, accountsPanelOpen: false, toggleAccountsPanel: noop,
@@ -86,6 +78,7 @@ describe("both stripes follow one rule", () => {
       openCapacity: noop, openSettings: noop, onFeedback: noop,
       toggles: { sessionList: ref(), usage: ref(), accounts: ref(), machine: ref() },
     });
-    expect(codexOnly.leftStripe.map(ids)).toEqual([["codex-accounts"], ["session-list"]]);
+    expect(codexOnly.panelBar[0].map(i => i.id)).toEqual(["session-list", "codex-accounts"]);
+    expect(codexOnly.panelBar.flat().map(i => i.id)).not.toContain("account-capacity");
   });
 });

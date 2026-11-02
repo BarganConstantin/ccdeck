@@ -62,9 +62,11 @@ describe("the canvas says when auto-fit is off (#820)", () => {
     expect(chip).toMatch(/width:\s*max-content/);
     expect(chip).toMatch(/margin:\s*0 auto/);
     expect(chip).toMatch(/bottom:\s*14px/);
-    // The surface, edge and radius the control stack and the minimap wear;
-    // no pill, no shadow, and no pointer on the container.
-    expect(chip).toMatch(/background:\s*var\(--chrome-bg\)/);
+    // CHANGED ON PURPOSE (V4's Figma, Auto-fit chip): --panel with a --line-soft
+    // edge in place of the chrome's translucent slab; the control radius stays;
+    // still no pill, no shadow, and no pointer on the container.
+    expect(chip).toMatch(/background:\s*var\(--panel\)/);
+    expect(chip).toMatch(/border:\s*1px solid var\(--line-soft\)/);
     expect(chip).toMatch(/border-radius:\s*var\(--r-ctl\)/);
     expect(chip).not.toMatch(/box-shadow|999px|cursor/);
   });

@@ -332,23 +332,21 @@ describe("Pause is a canvas verb and lives on the canvas (#527's rule, applied l
     // Feedback, with Search (⌘K) ahead of both since quick open (2026-10-24).
     // Pause is in none of them, and no run is left holding nothing.
     expect(app).not.toMatch(/className="action-run/);
-    expect(app).toMatch(/<div className="actions"><UtilityRun items=\{\[rails\.search, \.\.\.rails\.utilities\]\} \/><\/div>/);
+    expect(app).toMatch(/<div className="actions"><UtilityRun items=\{\[rails\.search, \.\.\.rails\.topUtilities\]\} \/><\/div>/);
     expect(app).toMatch(/utilities: \[settings, feedback\]/);
     expect(app).toMatch(/ariaLabel: t\("board\.rail\.settings"\)/);
-    expect(app).toMatch(/<EdgeRail side="right" label=\{t\("shell\.rail\.right"\)\} groups=\{rails\.right\} \/>/);
+    // V4's Figma: the one bar holds every door, Radio and Settings at its foot.
+    expect(app).toMatch(/<EdgeRail label=\{t\("board\.rail\.tools"\)\} groups=\{rails\.panelBar\} foot=\{rails\.panelFoot\} \/>/);
     expect(app).toMatch(/ariaLabel: t\("board\.rail\.usage"\)/);
     expect(app).not.toMatch(/Sound settings/);
     expect(app, "Pause came back as a chrome control").not.toMatch(/id: "pause"|ariaLabel: "Pause/);
   });
 
   it("is drawn the way the four glyphs beside it are drawn", () => {
-    // The stack is a grammar: a 24-unit grid, strokes in currentColor at weight
-    // 2, rendered at 14px. A glyph a weight or a box away from its neighbours
-    // reads as a control from somewhere else.
-    expect(CONTROL).toMatch(/<svg width="14" height="14" viewBox="0 0 24 24" aria-hidden>/);
-    expect(CONTROL).toMatch(/stroke="currentColor"/);
-    expect(CONTROL).toMatch(/strokeWidth="2"/);
-    expect(CONTROL).toMatch(/fill="none"/);
+    // The bar draws from V4's kit (kit-icons.tsx), one weight and one box, so a
+    // glyph is never a weight or a box away from its neighbours.
+    expect(CONTROL).toMatch(/<KitIcon name="pause" \/>/);
+    expect(CONTROL).not.toMatch(/strokeWidth/);
     // And a name, because a glyph has none. The four around it each gained one
     // for the same reason when they moved.
     expect(CONTROL).toMatch(/aria-label=\{pauseLabel\(t\)\}/);

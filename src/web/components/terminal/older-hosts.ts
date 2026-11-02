@@ -110,8 +110,8 @@ export function hostsConsequences(view: HostsView): { ends: string; stays: strin
   };
 }
 
-/** The End button's words for `host`. */
-export const endLabel = (host: OlderHost) => `End ${count(host.sessions.length)}`;
+/** The dialog's End button: it ends every listed session, so it counts them. */
+export const endAllLabel = (sessions: number) => `End ${count(sessions)}`;
 
 /** What an End press came to: the list read again (`view`, when it was),
  *  how many ended, and the sentence for the dialog. */

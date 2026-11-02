@@ -83,7 +83,7 @@ describe("every switch is the one switch (#886)", () => {
 describe("the one switch owns its states (#886)", () => {
   it("reads on from aria-checked", () => {
     expect(body('.switch[aria-checked="true"]')).toMatch(/background:\s*var\(--accent\)/);
-    expect(body('.switch[aria-checked="true"] .switch-knob')).toMatch(/translateX\(12px\)/);
+    expect(body('.switch[aria-checked="true"] .switch-knob')).toMatch(/translateX\(14px\)/);
   });
 
   it("answers hover, press, focus and disabled in one place", () => {

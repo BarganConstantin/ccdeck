@@ -27,6 +27,12 @@
 // WHEN THE SESSION HAS ENDED the bar becomes the end bar: the sentence that
 // says the frame is frozen, and "Reopen here". A pane someone
 // else took away gets the same bar with "Attach again".
+//
+// NO PANE, NO BAR. The empty pane and the cards that say why there is nothing
+// to type into (an error, a session that cannot be attached, tmux missing)
+// have no keys to name; the bar is hidden, not removed, because the stage
+// measures it by element (TerminalStage's useDrawnHeight) and a new element
+// would never be measured.
 import { RELEASE_CHORD_SPOKEN } from "../../terminal-keys";
 import { RECONNECT_NOTE, type KeysOwner } from "./stage-model";
 import { Kbd } from "../Kbd";
@@ -84,6 +90,13 @@ export interface KeysBarProps {
    *  seconds in place of the hints. */
   notice?: string | null;
   firstRun: boolean;
+  /** The pane is one of Workspace's: its ✕ empties the pane (and on the empty
+   *  pane leaves for the Board), where the Board's closes the Command Panel. */
+  workspace?: boolean;
+  /** No pane to type into (nothing open, an error, a session that cannot be
+   *  attached, tmux missing): the bar says nothing and is not drawn, unless it
+   *  carries the older hosts' line. */
+  paneless?: boolean;
   onFirstRunDone(): void;
   onTypeHere(): void;
   end?: EndView | null;
@@ -96,9 +109,17 @@ export interface KeysBarProps {
   hosts?: HostsLineView | null;
 }
 
-/** The chip that names one of the stage's own controls (✕), not a key, so a
- *  fingertip has it too (touch-and-forced-colours.css): the kit's cap, marked. */
-const ControlKey = ({ children }: { children: string }) => <kbd className="kbd" data-control>{children}</kbd>;
+/** What ✕ does where the first-run line is said, and so what the line says it
+ *  does: the Board's closes the Command Panel, a Workspace pane's empties the
+ *  pane. Neither ends the session. */
+export function firstRunClause(workspace: boolean): string {
+  return workspace ? "✕ empties the pane; the session keeps running." : "✕ closes the Command Panel; the session keeps running.";
+}
+
+/** Whether the asks' slot has anything to draw. */
+export function asksSpeak(asks: AsksView | null | undefined): boolean {
+  return !!asks && (!!asks.position || !!asks.next || !!asks.clear);
+}
 
 /** The run, in words: "Asks 2 of 3" while the stage is on one of them, the
  *  answered session and the next ask after it. (V4 draws no segment track: the
@@ -128,7 +149,7 @@ export function AsksTrack({ asks, onNextAsk }: { asks: AsksView; onNextAsk?(): v
       </div>
     );
   }
-  if (asks.clear) return <div className="ts-asks"><span className="ts-resumed"><StageGlyph kind="done" />No more asks</span></div>;
+  if (asks.clear) return <div className="ts-asks" data-clear><span className="ts-resumed"><StageGlyph kind="done" />No more asks</span></div>;
   return null;
 }
 
@@ -158,10 +179,19 @@ export function ArrivalNote({ arrival, onAnswer }: { arrival: ArrivalView; onAns
 }
 
 export default function KeysBar(p: KeysBarProps) {
+  let right = null;
+  // With something on the right, the left keeps only who has the keys: the
+  // other hints go (V4's Ask, Asks, Resumed, No more asks and hosts bars).
+  let lean = false;
+  if (!p.end && p.asks) { right = <AsksTrack asks={p.asks} onNextAsk={p.onNextAsk} />; lean = asksSpeak(p.asks); }
+  else if (!p.end && p.arrival) { right = <ArrivalNote arrival={p.arrival} onAnswer={p.onAnswerArrival} />; lean = true; }
+  // An ask outranks it; an end bar does not — it is the same note on any
+  // pane, and a refused launch is where it is needed most.
+  else if (p.hosts) { right = <HostsNote hosts={p.hosts} />; lean = true; }
   let left;
   if (p.end) {
     left = (
-      <div className="ts-keys" data-owner="none">
+      <div className="ts-keys" data-owner="none" data-split>
         <span className="ts-end">{p.end.sentence}</span>
         <button type="button" className="btn" aria-busy={p.end.busy || undefined} data-stage-land onClick={p.end.onAction}>{p.end.action}</button>
       </div>
@@ -181,8 +211,8 @@ export default function KeysBar(p: KeysBarProps) {
     // so the clause that names it goes whole under a coarse pointer; ✕, the
     // header's control, stays.
     left = (
-      <div className="ts-keys" data-owner={p.owner}>
-        <span className="ts-first">Typing goes to the session<span className="ts-first-keys">, <Kbd>Esc</Kbd> included</span>. <ControlKey>✕</ControlKey> closes the Command Panel; the session keeps running.</span>
+      <div className="ts-keys" data-owner={p.owner} data-split>
+        <span className="ts-first">Typing goes to the session<span className="ts-first-keys">, Esc included</span>. {firstRunClause(p.workspace === true)}</span>
         <button type="button" className="btn" onClick={p.onFirstRunDone}>Got it</button>
       </div>
     );
@@ -199,33 +229,27 @@ export default function KeysBar(p: KeysBarProps) {
     left = (
       <div className="ts-keys" data-owner="pane">
         <span className="ts-label" data-strong>{`Typing into ${p.name}`}</span>
-        <span className="ts-hint" data-optional><Kbd>Esc</Kbd> goes to the session</span>
-        <span className="ts-hint"><Kbd label={RELEASE_CHORD_SPOKEN}>{p.chordLabel}</Kbd> back to the board</span>
+        {!lean && <span className="ts-hint" data-optional><Kbd>Esc</Kbd> goes to the session</span>}
+        {!lean && <span className="ts-hint"><Kbd label={RELEASE_CHORD_SPOKEN}>{p.chordLabel}</Kbd> back to the board</span>}
       </div>
     );
   } else {
     left = (
       <div className="ts-keys" data-owner="board">
         <span className="ts-label">Keys on the board</span>
-        {!p.takeover && <span className="ts-hint"><Kbd>j k</Kbd> sessions</span>}
-        {p.canType && (
+        {!lean && !p.takeover && <span className="ts-hint"><Kbd>j k</Kbd> sessions</span>}
+        {!lean && p.canType && (
           <span className="ts-hint">
             <Kbd label="Enter">↵</Kbd>
-            <button type="button" className="btn ts-type ts-plain" onClick={p.onTypeHere}>type here</button>
+            <button type="button" className="btn ts-plain" onClick={p.onTypeHere}>type here</button>
           </span>
         )}
-        {p.asksWaiting && <span className="ts-hint"><Kbd>n</Kbd> next ask</span>}
+        {!lean && p.asksWaiting && <span className="ts-hint"><Kbd>n</Kbd> next ask</span>}
       </div>
     );
   }
-  let right = null;
-  if (!p.end && p.asks) right = <AsksTrack asks={p.asks} onNextAsk={p.onNextAsk} />;
-  else if (!p.end && p.arrival) right = <ArrivalNote arrival={p.arrival} onAnswer={p.onAnswerArrival} />;
-  // An ask outranks it; an end bar does not — it is the same note on any
-  // pane, and a refused launch is where it is needed most.
-  else if (p.hosts) right = <HostsNote hosts={p.hosts} />;
   return (
-    <footer className="ts-bar" aria-label="Keyboard">
+    <footer className="ts-bar" aria-label="Keyboard" hidden={(p.paneless && !p.hosts) || undefined}>
       {left}
       {right}
     </footer>

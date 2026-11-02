@@ -298,17 +298,22 @@
 }
 
 /* The ※ pin: the one mark a resting card carries when Claude Code has left it
-   a recap. The glyph button's own hit area and focus ring, in the session's
-   colour — a graphic, held to 3:1, which the card's --accent clears as text.
-   Held down while its note is open, so the card says which note is its own. */
+   a recap, at the foot's right end after the sub-agent count. A 14px glyph in
+   --muted with no box of its own at rest; the icon button's 24x24 hit area is
+   kept without growing the 14px row (-5px above and below). While its note is
+   open it wears the kit icon button's open state (--selected on --r-ctl,
+   panel-glyph.css) and the glyph goes to --text, so the card says which note
+   is its own. */
 .agent-node .recap-pin {
   flex: none;
-  color: var(--accent);
+  min-width: 24px;
+  min-height: 24px;
+  padding: 5px;
+  margin: -5px 0;
+  color: var(--muted);
 }
-.agent-node .recap-pin[aria-expanded="true"] {
-  border-radius: var(--r-ctl);
-  background: color-mix(in srgb, var(--accent) 18%, transparent);
-}
+.agent-node .recap-pin .recap-glyph { width: 14px; height: 14px; }
+.agent-node .recap-pin[data-open] { color: var(--text); }
 
 /* The recap itself: a node of its own beside the session root, open by itself
    once the session comes to rest (RecapNoteNode). A node like the cards — laid
@@ -324,12 +329,21 @@
 .recap-note {
   --accent: hsl(var(--session-hue, 200) 70% var(--session-accent-l));
   position: relative;
-  width: calc(300px + var(--ui-card-increase, 0px));
-  padding: 10px 12px 12px;
+  /* V4's recap note: 240 wide, 8px by 10px inside, 4px between its rows, the
+     node's radius on --panel with a --line-soft edge. Figma draws the edge
+     inside those 8 and 10, so the padding is each less 1px, as on the card.
+     No shadow and no hue in the edge: the tie to its card says whose it is. */
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  box-sizing: border-box;
+  width: calc(240px + var(--ui-card-increase, 0px));
+  padding: calc(8px - 1px) calc(10px - 1px);
   background: var(--panel);
-  border: 1px solid color-mix(in srgb, var(--accent) 45%, var(--line));
+  border: 1px solid;
+  border-color: var(--line-soft);
   border-radius: var(--r-node);
-  box-shadow: var(--shadow-1);
+  box-shadow: none;
   color: var(--text);
   font-size: calc(12px + var(--ui-text-increase, 0px));
 }
@@ -402,8 +416,7 @@
   .lod-face.recap-face { transition: background-color var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease); }
   .canvas-wrap[data-lod="detail"] .recap-note:hover {
     background: color-mix(in srgb, var(--text) 6%, var(--panel));
-    border-color: color-mix(in srgb, var(--accent) 70%, var(--line));
-    box-shadow: var(--shadow-2);
+    border-color: var(--line);
   }
   .canvas-wrap[data-lod] .recap-note:hover > .lod-face.recap-face {
     background: color-mix(in srgb, var(--text) 6%, var(--panel));
@@ -458,30 +471,40 @@
 @container lod (height < 58px) { .recap-face-text { -webkit-line-clamp: 2; line-clamp: 2; } }
 @container lod (height < 44px) { .recap-face-text { -webkit-line-clamp: 1; line-clamp: 1; } }
 @container lod (height < 30px) { .recap-face-text { display: none; } }
+/* The head row (V4): 24 tall, 6px apart — "recap" in 500 11/14 --muted, its
+   age in mono 11/14 --muted-dim, a spacer, then the close button (a 24x24 icon
+   button with the kit's close glyph). */
 .recap-note-head {
   display: flex;
   align-items: center;
-  gap: 8px;
-  margin-bottom: 6px;
+  gap: 6px;
+  height: 24px;
 }
 .recap-note-mark {
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  font-weight: 600;
-  color: var(--accent);
+  font-size: calc(11px + var(--ui-text-increase, 0px));
+  line-height: calc(14px + var(--ui-text-increase, 0px));
+  font-weight: 500;
+  color: var(--muted);
 }
 .recap-note-age {
+  font-family: var(--font-mono);
   font-size: calc(11px + var(--ui-text-increase, 0px));
+  line-height: calc(14px + var(--ui-text-increase, 0px));
+  /* V4 draws the age in --muted-dim; the deck never sets text in that tier
+     (2.45:1 on the panel, under the floor), so it is --muted. */
   color: var(--muted);
 }
 .recap-note-close {
   margin-left: auto;
-  margin-right: -6px;
+  margin-right: -4px;
 }
 .recap-note-text {
   margin: 0;
-  line-height: 1.5;
+  color: var(--text-secondary);
+  line-height: calc(16px + var(--ui-text-increase, 0px));
   overflow-wrap: anywhere;
   /* Eight lines hold every recap measured here — 305 characters at most, about
      seven lines at this width. The clamp is for the one that does not fit,
@@ -502,7 +525,7 @@
 .recap-note.is-status .recap-note-text {
   -webkit-line-clamp: 3;
   line-clamp: 3;
-  min-height: calc(3 * 1.5em);
+  min-height: calc(3 * (16px + var(--ui-text-increase, 0px)));
 }
 /* A question, a failure and a finished job wear the hue the session list's line
    gives them, toned toward the panel in dark the same way — and a turn that
@@ -643,19 +666,20 @@
 
 /* The turn ended on an error — an expired login, a usage limit, an API error
    (StopFailure) — and needs a "continue" typed in the session to run again.
-   The waiting row's geometry, in the failure's hue: --err is the card's own
-   word for something gone wrong (.failed-meta), and like --warn above it sits
-   straight on the node with no wash under it. No pulse: nothing here is
-   still happening, and the session is not blocked on a prompt. */
+   The ask row's geometry in the failure's hue (V4's Agent / Card): mono 12/16
+   in --err, one line cut with an ellipsis, no border and no padding, so a
+   Failed card with a reason is 88 tall like a Waiting one. No pulse: nothing
+   here is still happening. */
 .agent-node .stop-row {
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 3px 8px;
-  border: 1px solid color-mix(in srgb, var(--err) 85%, transparent);
-  border-radius: 6px;
-  font-size: calc(10px + max(-1px, var(--ui-text-increase, 0px)));
-  font-weight: 600;
+  font-family: var(--font-mono);
+  font-size: calc(12px + var(--ui-text-increase, 0px));
+  line-height: calc(16px + var(--ui-text-increase, 0px));
+  font-weight: 400;
+  white-space: nowrap;
+  overflow: hidden;
   min-width: 0;
   color: var(--err);
 }
@@ -782,78 +806,6 @@
 .agent-node .plan-next { color: var(--muted); }
 .agent-node .plan-done .plan-step { color: var(--muted); }
 
-/* Tool-rate sparkline — tools-per-second over the last 60s. Most recent
-   bucket is on the right; brighter for the live one. */
-.tool-spark-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  height: 14px;
-}
-.tool-spark {
-  flex: 0 0 auto;
-  overflow: visible;
-}
-/* The idle tier is --muted here and --muted-dim in light, which is the whole of
-   the fix and needs the reason spelled out. --muted-dim is 2.45:1 against the
-   node's lower gradient stop in dark, under the 3:1 that 1.4.11 asks of a meter
-   with no printed equivalent: the per-second counts live in a title and the
-   visible label says `60s` and nothing more, so unlike .qb-pct, .ss-tt-count,
-   .uh-model-cost or .up-tokens-row this bar cannot fall back on its own number,
-   and 1.4.11's redundancy exception does not reach it. --muted is 4.91:1 and
-   leaves the ramp pointing the right way (idle 4.91 < active 6.30 < latest
-   10.73). Light is NOT lifted with it: --muted-dim already measures 3.44:1 on
-   that stop, and --muted's 7.21:1 there would make the bar that means "nothing
-   ran" the loudest one in the chart, above both active (4.10:1) and latest
-   (6.39:1) — a meter reading backwards to buy a floor it already cleared. */
-.tool-spark-bar {
-  fill: var(--muted);
-  transition: fill var(--dur-base) var(--ease);
-}
-.tool-spark-bar.active { fill: var(--accent); opacity: 0.72; }
-/* THE ONE MOMENT IN THIS CHART WORTH AUTHORING: a mark landing.
-   Everything else the chart does is the window sliding left, which is time
-   passing rather than anything happening — and animating that would be a fifth
-   resting animation on a canvas that just had three glows taken off it. This
-   fires on the event and on nothing else, so an idle card is still.
-
-   It rises FROM the baseline it already occupied rather than from nothing: the
-   1.5px rule is drawn for every empty bucket, so scaling from 0 would invent a
-   bar appearing where a line already was. 180ms is feedback, not choreography,
-   and the curve is the sheet's own confident-arrival ease-out.
-
-   The remount that plays it is keyed in AgentNode — see the note there for why
-   only the leading bar gets that treatment. */
-.tool-spark-bar.latest {
-  fill: var(--inflight);
-  /* A glow on a 5.5px rectangle. The fill is already the loudest of the three
-     tiers; the tiers are what the reader is reading. */
-  opacity: 1;
-  transform-box: fill-box;
-  transform-origin: bottom;
-  animation: spark-land var(--dur-base) var(--ease) both;
-}
-@keyframes spark-land {
-  from { transform: scaleY(0.14); }
-  to { transform: scaleY(1); }
-}
-.tool-spark-label {
-  color: var(--muted);
-  font-size: calc(9px + max(0px, var(--ui-text-increase, 0px)));
-  font-family: var(--font-mono);
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-}
-/* Keeps the idle tier where it measured fine — see the note on .tool-spark-bar.
-   The two rules below carry an extra class each, so they out-specify this one
-   whatever the order: the active and latest bars stay theirs in light. */
-:root[data-color-scheme="light"] .tool-spark-bar { fill: var(--muted-dim); }
-:root[data-color-scheme="light"] .tool-spark-bar.active { fill: var(--accent); opacity: 0.85; }
-:root[data-color-scheme="light"] .tool-spark-bar.latest {
-  fill: var(--inflight);
-  filter: drop-shadow(0 0 3px rgba(126, 34, 206, 0.45));
-}
-
 /* IT DROPS BEFORE IT OVERLAPS. A flex item shrinks below its content by
    default, so at the top of the ranges this row carries — four figures and a
    cost on one 232px line — every span was squeezed to about two thirds of its
@@ -875,7 +827,7 @@
   /* ONE LINE, as Figma draws it: the squeeze (card-row-squeeze.ts) drops meta
      items while the row overflows, so it never wraps. */
   flex-wrap: nowrap;
-  align-items: baseline;
+  align-items: center;
   gap: 0 6px;
 }
 .agent-node .foot > :not(.time) { flex: 0 0 auto; }
@@ -953,12 +905,20 @@
    measures. */
 .agent-node .synth-tag { color: var(--muted); }
 
-/* The sub-agent count closes the foot (V4): plain mono text in the figures'
-   ink after a spacer, no pill. The deck has no agents glyph, so "→ N" stays. */
+/* The foot's tool icons (V4): up to three kit icons, 14px, 2px apart, in the
+   muted glyph ink. */
+.agent-node .foot .foot-tools { display: inline-flex; align-items: center; gap: 2px; color: var(--muted); }
+.agent-node .foot .foot-tools svg { flex: none; }
+/* The foot's end (V4): the sub-agent count with its Agents icon, 4px apart,
+   after a spacer, then the recap pin when the card has a note. */
+.agent-node .foot .foot-end { margin-left: auto; display: inline-flex; align-items: center; gap: 6px; }
 .agent-node .foot .spawn-badge {
-  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
   color: var(--text-secondary);
 }
+.agent-node .foot .spawn-badge svg { flex: none; color: var(--muted); }
 
 /* Model chip — tiny pill next to "session"/"subagent" with a family tint,
    keyed on `data-family` (below). */

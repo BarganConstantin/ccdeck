@@ -98,34 +98,38 @@
 .accounts-panel[hidden] { display: none; }
 /* Stands where the title stands, at the title's size, so the header keeps its
    height and its four icons keep their place on either side. Both sides are one
-   width: the words do not shift when the choice does. No box and no line around
-   it, on the owner's word: a soft pill on the side showing is all it draws. */
+   width: the words do not shift when the choice does. V4's segmented control
+   (the same box as .uh-range): a --panel thumb slides to the side showing
+   (styles/segmented.css), and nothing fills on hover. */
 .ap-sides {
+  position: relative;
   display: inline-grid;
   grid-auto-flow: column;
   grid-auto-columns: minmax(0, 1fr);
-  gap: 2px;
-  margin-block: -2px;
+  box-sizing: border-box;
+  padding: 1px;
+  border: 1px solid var(--line-soft);
+  border-radius: var(--r-panel);
+  background: var(--bg-soft);
 }
 .ap-side {
   position: relative;
+  z-index: 1;
   min-width: 0;
-  padding: 3px 10px;
+  padding: 2px 8px;
   border: 0;
   border-radius: var(--r-ctl);
   background: transparent;
-  color: var(--text-dim);
+  color: var(--muted);
   font: inherit;
   font-size: calc(12px + var(--ui-text-increase, 0px));
   font-weight: 500;
+  line-height: calc(16px + var(--ui-text-increase, 0px));
   white-space: nowrap;
   cursor: pointer;
-  transition: color var(--dur-fast) var(--ease), background-color var(--dur-fast) var(--ease), transform var(--dur-fast) var(--ease);
+  transition: color var(--dur-fast) var(--ease), transform var(--dur-fast) var(--ease);
 }
-@media (hover: hover) and (pointer: fine) {
-.ap-side:hover { background: color-mix(in srgb, var(--text) 5%, transparent); color: var(--text); }
-}
-.ap-side[aria-checked="true"] { background: color-mix(in srgb, var(--text) 11%, transparent); color: var(--text); }
+.ap-side[aria-checked="true"] { color: var(--text); }
 .ap-side:active { transform: scale(var(--press)); }
 /* The side out of sight has an account that needs attention. Colour alone would
    not say it to a reader: the button's name does (AccountsSwitch.tsx). */
@@ -675,7 +679,7 @@
   transition: opacity var(--dur-fast) var(--ease), transform var(--dur-fast) var(--ease);
 }
 /* The target, drawn AROUND the glyph rather than under it — the same technique
-   `.selected-ribbon .selected-close::after` uses, for the same reason it gives:
+   the topbar ribbon's × used (gone with the ribbon, V4's top bar), for the same reason it gave:
    a transparent pseudo-element is a box that exists only to be hit, a pointer
    event landing on it is delivered to the element that owns it, and the glyph
    keeps every pixel of its own geometry, so nothing about this control's paint
