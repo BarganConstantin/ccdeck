@@ -381,7 +381,9 @@ describe("what was migrated to the secondary tier", () => {
       // Gruvbox's spend figures (#2125 follow-up): a quantity, so neither the
       // success green the other themes give them nor the totals' --text. Read
       // down a column to compare sessions, which --muted is too quiet for.
-      ":root[data-theme^=\"gruvbox-\"] .uh-detail-cost",
+      // CHANGED ON PURPOSE (V4's Figma): the history day's cost left this rule (it is the muted
+      // caption of its table), so the rule now ends on the session cost.
+      ":root[data-theme^=\"gruvbox-\"] .up-session-cost:not(.up-unpriced)",
       // The machine panel's process door: the one line that says what the door
       // opens, "every process, with its command line". --muted on the door's
       // plate measured 4.34:1 in dark (#859).

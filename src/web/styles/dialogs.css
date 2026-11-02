@@ -121,8 +121,6 @@
   width: 8px; height: 8px;
   border-radius: 50%;
 }
-.modal-title .status-dot.inflight { background: var(--inflight); animation: pulse var(--pulse-live) infinite; }
-.modal-title .status-dot.done { background: var(--ok); }
 .modal-title .status-dot.err  { background: var(--err); }
 .modal-tool-id {
   color: var(--muted);
@@ -367,17 +365,14 @@
    them instead of overflowing the 82vh the modal allows. */
 .fb-stage { position: relative; display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; }
 .fb-form { display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; }
-/* 8px under the body rather than the shared 16: the facts line, the last thing
-   in it, says what is "sent with it", and sits nearer the Send it is about than
-   the buttons it follows (14px). */
+/* The shell's body: 16 of padding and 12 between blocks. The facts line is the
+   last block, above the foot's own rule. */
 .modal-body.fb-body { gap: 12px; }
 
-/* THE KINDS. Three words in a track: the control fill as the track, the chosen
-   one raised onto the panel with the control edge round it, which is the mark
-   that carries the state at 3:1 without the colour (#583's lesson — a wash and
-   a step of grey alone do not). The rest sit on the track in --text-secondary,
-   since --muted on a fill mixed from the foreground is 4.05:1 in dark. Native
-   radios under the paint, pressed as the labelled controls are. */
+/* THE KINDS. Three pills: a hairline at rest in --text-secondary, and the
+   chosen one on the accent wash with the accent edge and the text colour, so
+   the state is carried by the edge as well as the wash. Native radios under
+   the paint, pressed as the labelled controls are. */
 .fb-kinds {
   display: inline-flex;
   align-self: flex-start;
@@ -568,9 +563,9 @@
 .fb-facts-text { min-width: 0; }
 .fb-facts-value { font-variant-numeric: tabular-nums; }
 /* A send that failed says so right under the facts line, 6px off it rather
-   than the body's 14: the dialog is centred, so every pixel it grows moves
+   than the body's 12: the dialog is centred, so every pixel it grows moves
    Send half as far, and the pointer that pressed Send is about to press it
-   again. One line of failure moves Send 11px, inside its own height. */
+   again. One line of failure moves Send about 11px, inside its own height. */
 .fb-facts + .fb-error { margin-top: -6px; }
 
 /* IMAGES. The strip between the message and its buttons, once there is one:
@@ -732,8 +727,8 @@
   padding: 0 16px;
   border-top: 1px solid var(--line-soft);
 }
-/* 8px more than the foot's gap before Cancel, so Cancel and Send read as the
-   pair and the hint as a note on both, not as Cancel's. */
+/* The send key, at the right of the facts line: plain mono text, as quiet as a
+   line can be and still be read. */
 .fb-shortcut {
   display: inline-flex;
   flex: none;
@@ -748,8 +743,9 @@
    the cap's box, edge and fill are taken off here, the keys stay <kbd>. */
 .fb-shortcut kbd { min-width: 0; height: auto; padding: 0; border: 0; border-radius: 0; background: none; box-shadow: none; color: inherit; font: inherit; }
 /* Edgeless and in the quiet ink until it is pointed at, the way the LAN
-   dialog's Unpair is (.lan-peer-foot .btn.danger), and in the error colour
-   only once armed, the moment the colour is about something. */
+   dialog's Unpair is (.lan-peer-foot .btn.danger). Armed, it is the kit's quiet
+   button with a stroke, still not red: the draining bar and its name say what
+   it will do. */
 .fb-discard { margin-right: auto; }
 .fb-foot .btn.danger:not(.armed) {
   border-color: transparent;
@@ -781,10 +777,8 @@
   transform-origin: left center;
   animation: ap-disarm 4000ms linear forwards;
 }
-/* The foot's cap (.fb-shortcut kbd) is the kit's key cap (quick-open.css, the one
-   key-cap rule), in the buttons' resting --muted: in --text the two caps were
-   the brightest words in the foot, louder than the Cancel and Send they
-   annotate. Nothing about it is restated here. */
+/* The send key (.fb-shortcut kbd) keeps the kit's key-cap rule in quick-open.css
+   for its element and type; the box, edge and fill are taken off above. */
 /* ⌘ in the mono stack is drawn at a fraction of a capital's height, so beside
    `Enter` it read as a speck. The system face draws it to the height of the
    word beside it; the cap keeps the same box. */
@@ -1066,9 +1060,8 @@
 }
 /* The key to the bar above, and it moves with it — the four hsl() literals here
    were the same four the bar declared, so a swatch that stayed behind would key
-   the wrong colour. These sit on the hero's 5% green wash rather than on bare
-   --panel; they measured 2.69, 2.81, 1.79 and 1.83 against it on white and now
-   measure 5.83, 6.86, 5.37 and 4.90 (#619, and #1284 for the cache pair). */
+   the wrong colour. They sit on the bare panel, where the four hues clear the
+   3:1 a mark needs (contrast-floors.test.ts holds it). */
 .session-summary .ssl-in::before  { background: var(--usage-blue); }
 .session-summary .ssl-out::before { background: var(--usage-purple); }
 .session-summary .ssl-cr::before  { background: var(--usage-teal); }

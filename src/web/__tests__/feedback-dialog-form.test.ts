@@ -47,6 +47,14 @@ const flatDialog = flat(dialog);
 const flatDetails = flat(details);
 const sheet = sheetText().replace(/\/\*[\s\S]*?\*\//g, "");
 
+/** A size token at the default (compact) density, read from the sheet's density block. */
+function compactToken(name: string): number {
+  const blocks = [...sheet.matchAll(/data-density="compact"\]\s*\{([^}]*)\}/g)].map(b => b[1]);
+  const m = blocks.map(b => new RegExp(`${name}:\\s*(\\d+)px`).exec(b)).find(Boolean);
+  expect(m, `${name} in the compact density block`).toBeTruthy();
+  return Number(m![1]);
+}
+
 /** The sheet's top-level rules as [selectors, body]. A @media body is another
  *  cascade — the reduced-motion and forced-colours answers are not how
  *  anything rests — so it is skipped whole. The mouse query is the exception:
@@ -146,7 +154,7 @@ describe("the default state asks for one thing", () => {
     // CHANGED ON PURPOSE (V4's Figma): the kinds are 24-high pills on the kit's small
     // control height, with no track round them.
     expect(value(".fb-kind", "min-height")).toBe("var(--ctl-h-sm)");
-    const kindsRow = 24 + 2 * px(value(".fb-kinds", "padding"));
+    const kindsRow = compactToken("--ctl-h-sm") + 2 * px(value(".fb-kinds", "padding"));
     const inner = px(value(".fb-compose", "gap"));
     const compose = px(value(".fb-label", "line-height")) + inner + px(value(".ap-manage-input.fb-message", "min-height"))
       + inner + px(value(".fb-tool", "min-height")) + px(value(".fb-tools", "margin").split(" ")[0]);
@@ -154,7 +162,7 @@ describe("the default state asks for one thing", () => {
     // CHANGED ON PURPOSE (V4's Figma): the foot is the shell's, 48 high under a 1px rule.
     expect(value(".fb-foot", "min-height")).toBe("var(--dialog-foot-h)");
     expect(value(".fb-foot", "border-top")).toBe("1px solid var(--line-soft)");
-    const foot = 48 + 1;
+    const foot = compactToken("--dialog-foot-h") + 1;
     const total = head + bodyPad + kindsRow + gap + compose + gap + factsLine + foot;
     expect(total).toBeLessThanOrEqual(400);
     // The modal may be 82vh tall before its body scrolls; at a 1280×720 window

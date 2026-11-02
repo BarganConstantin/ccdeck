@@ -43,7 +43,7 @@ export default function SessionSummary({ state, sessionId, onClose }: Props) {
   if (!summary) return null;
 
   return (
-    <Dialog scrim={scrimPress} dialogRef={dialogRef} className="session-summary" labelledBy="ss-title">
+    <Dialog scrim={scrimPress} dialogRef={dialogRef} className="session-summary" labelledBy="ss-title ss-who-name">
         <div className="modal-head">
           <div className="modal-title">
             <span id="ss-title" className="modal-tool-name">{t("insights.summary.title")}</span>
@@ -58,7 +58,7 @@ export default function SessionSummary({ state, sessionId, onClose }: Props) {
           {/* V4's who line: the done mark, the session's name and its short id. */}
           <div className="ss-who" title={summary.cwd ?? summary.sessionId}>
             <StateMark kind="done" />
-            <span className="ss-who-name">{summary.label}</span>
+            <span id="ss-who-name" className="ss-who-name">{summary.label}</span>
             <span className="ss-who-id">· {summary.sessionId.slice(0, 8)}</span>
           </div>
 

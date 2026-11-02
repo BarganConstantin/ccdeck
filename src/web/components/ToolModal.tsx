@@ -3,9 +3,9 @@ import { useT } from "../i18n";
 import type { ToolCall } from "../types";
 import { Dialog, DialogClose } from "./Dialog";
 import { useModalDismiss, useScrimDismiss } from "./use-modal-dismiss";
-// The row that opens this dialog printed the same milliseconds one decimal
-// place coarser, so a 1.24s tool read "1.2s" there and "1.24s" here (#374).
-// One function now; the sentinel below is the only thing that still differs.
+// The row that opens this dialog and the dialog print the same rounding (#374):
+// the dialog's header is that value with a space before the unit, and the
+// sentinel is the only other thing that differs.
 import { dialogDuration } from "../duration";
 import { copyText } from "../copy-text";
 import { KitIcon, KitStateGlyph } from "./kit-icons";

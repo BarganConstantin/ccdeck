@@ -1,8 +1,7 @@
 // #862: the session summary's "Opening prompt" box wore a 3px accent stripe
 // down its left edge, on top of its own 1px border. A thick coloured side tab
 // on a callout is a stock pattern, and here it spent the accent colour on a
-// static quote. The box is a plain inset block now: the soft ground and the
-// hairline every other well in the dialog uses.
+// static quote. It is plain text now (V4's Figma): no ground, no hairline.
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
@@ -14,7 +13,7 @@ const summary = readFileSync(fileURLToPath(new URL("../components/SessionSummary
 
 const prompt = /\.session-summary \.ss-prompt\s*\{([^}]*)\}/.exec(css)?.[1] ?? "";
 
-describe("the opening prompt is a plain inset block (#862)", () => {
+describe("the opening prompt is plain text (#862)", () => {
   it("still renders the prompt in its box", () => {
     expect(summary).toMatch(/<h4>\{t\("insights\.summary\.opening"\)\}<\/h4>\s*<div className="ss-prompt">\{summary\.firstPrompt\}<\/div>/);
   });

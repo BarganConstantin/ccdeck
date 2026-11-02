@@ -4,7 +4,7 @@ import { currentLanguage, useT } from "../i18n";
 import { shortModel } from "../model-label";
 import { agentLabel } from "../provider-copy";
 import { fmtCost } from "../pricing";
-import { compactTokens } from "../context-figure";
+import { compactTokens } from "../token-format";
 import { sessionFailure, type SessionReply, type SessionSelection, type SessionSpeed } from "../session-usage";
 import { Dialog } from "./Dialog";
 import { useModalDismiss, useScrimDismiss } from "./use-modal-dismiss";

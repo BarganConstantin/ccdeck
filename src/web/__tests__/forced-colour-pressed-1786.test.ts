@@ -58,6 +58,20 @@ describe("a pressed or chosen control under a Contrast theme (#1786)", () => {
     }
   });
 
+  // CHANGED ON PURPOSE (V4's Figma): the history dialog's range chips are pills with the accent wash, so
+  // under a Contrast theme the chosen one is a Highlight fill (pressed and under the pointer), and Tool
+  // activity's chosen period, on a thumb the theme drops, gets an inside ring in the highlight.
+  it("fills the history dialog's chosen range, and rings Tool activity's chosen period", () => {
+    const seg = '.uh-toolbar .uh-range-btn[aria-pressed="true"]';
+    expect(drawn(seg), seg).toBe(true);
+    expect(decl(forcedBody(seg), "forced-color-adjust"), seg).toBe("none");
+    expect(decl(forcedBody(seg), "background"), seg).toBe("Highlight");
+    expect(decl(forcedBody(seg), "color"), seg).toBe("HighlightText");
+    expect(decl(forcedBody(seg + ":hover"), "background")).toBe("Highlight");
+    expect(drawn(".ta-period-btn[aria-pressed=true]")).toBe(true);
+    expect(decl(forcedBody(".ta-period-btn[aria-pressed=true]"), "outline")).toBe("2px solid Highlight");
+  });
+
   it("keeps that fill under the pointer, where the control's own hover outranks the state", () => {
     for (const sel of FILLED) {
       const hover = `${sel}:hover`;

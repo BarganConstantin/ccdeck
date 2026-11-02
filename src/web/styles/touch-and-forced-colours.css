@@ -210,7 +210,6 @@
   .bw-mode-dot,
   .bw-prof-dot { forced-color-adjust: none; background: GrayText; }
   .sl-dot.state-active::before,
-  .state-pill.state-active::before,
   .bw-mode-dot.on,
   .topbar button.v .v-dot { forced-color-adjust: none; background: Highlight; }
   /* The live account's mark is the kit's done glyph, a stroke in the text colour,
@@ -272,6 +271,13 @@
   @media (hover: hover) and (pointer: fine) {
   .up-period .uh-range-btn[aria-pressed="true"]:hover { forced-color-adjust: none; border-color: Highlight; background: Highlight; color: HighlightText; }
   }
+  /* The history dialog's chosen range is the same pill: the highlight as a fill, word included. */
+  .uh-toolbar .uh-range-btn[aria-pressed="true"] { forced-color-adjust: none; border-color: Highlight; background: Highlight; color: HighlightText; }
+  @media (hover: hover) and (pointer: fine) {
+  .uh-toolbar .uh-range-btn[aria-pressed="true"]:hover { forced-color-adjust: none; border-color: Highlight; background: Highlight; color: HighlightText; }
+  }
+  /* Tool activity's chosen period sits on a thumb the theme drops: an inside ring in the highlight. */
+  .ta-period-btn[aria-pressed=true] { outline: 2px solid Highlight; outline-offset: -2px; }
   /* The rail's selected row is a fill (--selected), which the theme drops: it
      takes a highlight ring drawn inside the row instead, so the words stay put
      and the row keeps its height. The status glyphs draw in currentColor and
@@ -309,7 +315,10 @@
 
   .sysdetail .sd-fill,
   .sysdetail .sd-core-fill,
-  .ctx-window-fill { forced-color-adjust: none; background: Highlight; }
+  .ctx-window-fill,
+  .ctx-modal .ctx-window-fill,
+  .ctx-modal .ctx-window-fill[data-level="high"],
+  .ctx-modal .ctx-window-fill[data-level="full"] { forced-color-adjust: none; background: Highlight; }
   /* The Inspector's Time tab: its bars are fills, so they keep a colour of their own. */
   .insp-time-bar i[data-lane="you"],
   .insp-time-span[data-group] { forced-color-adjust: none; background: Highlight; }
@@ -451,6 +460,10 @@
      a failures sort take Highlight, and an open row or finding is outlined. */
   .ta-bar, .ta-history-bars i { forced-color-adjust: none; background: CanvasText; }
   .ta-history-bars > span[data-shown] i, .ta-list[data-sort=failed] .ta-bar { background: Highlight; }
+  /* A tool's bar in the list sits on its own track, which gets a rim so the empty part is still a length. */
+  .ta-track > .ta-bar { forced-color-adjust: none; background: CanvasText; }
+  .ta-list[data-sort=failed] .ta-track > .ta-bar { forced-color-adjust: none; background: Highlight; }
+  .ta-track { outline: 1px solid CanvasText; outline-offset: -1px; }
   .ta-row[data-selected], .ta-highlight[aria-expanded=true] { outline: 1px solid Highlight; }
   .ta-splitter::before { forced-color-adjust: none; background: CanvasText; }
   .ta-splitter:focus-visible::before { background: Highlight; }

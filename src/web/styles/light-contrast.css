@@ -10,25 +10,6 @@
 /* A card's edge is --line in every state but Waiting (agent-node.css), in
    light as in dark: no state border is re-tinted here. */
 
-:root[data-color-scheme="light"] .state-pill.state-active {
-  border-color: rgba(126,34,206,0.45);
-  background: rgba(126,34,206,0.10);
-}
-:root[data-color-scheme="light"] .state-pill.state-active::before { box-shadow: 0 0 5px rgba(126,34,206,0.55); }
-/* --ok on its own 10% wash is 4.39:1 — the one pill that misses AA, because
-   green is the lightest of the three state hues. Deepened on the pill itself
-   rather than by moving --ok, which would drag every cost figure and status
-   dot in the light theme with it. */
-:root[data-color-scheme="light"] .state-pill.state-done {
-  border-color: rgba(21,128,61,0.45);
-  background: rgba(21,128,61,0.10);
-  color: #166534;
-}
-:root[data-color-scheme="light"] .state-pill.state-err {
-  border-color: rgba(185,28,28,0.50);
-  background: rgba(185,28,28,0.10);
-}
-
 
 
 /* react-flow edge dashflow uses --inflight which is now deep purple → fine */

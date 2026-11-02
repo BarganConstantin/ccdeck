@@ -355,24 +355,10 @@ describe("agent-node state rings (#268)", () => {
     }
   });
 
-  it("reads every state pill's own label at 4.5:1 over its own wash", () => {
-    for (const theme of themes) {
-      const node = nodeBeds(theme);
-      // The same floor, for the same reason, on the file's other node sweep.
-      expect(node.map(([n]) => n), `${theme}: no node beds — every pill label below would be measured against nothing`)
-        .toEqual([`${NODE_BED} 0`, `${NODE_BED} 1`]);
-      for (const state of ["active", "done", "err"]) {
-        const base = rule(`.state-pill.state-${state}`);
-        const light = rule(`:root[data-color-scheme="light"] .state-pill.state-${state}`);
-        const pick = (p: string) => (theme === "light" ? decl(light, p) ?? decl(base, p) : decl(base, p))!;
-        const fg = resolve(pick("color"), theme);
-        const wash = resolve(pick("background"), theme);
-        for (const [name, bg] of node) {
-          expect(contrastRatio(fg, over(wash, bg)), `${theme} ${state} pill text on ${name}`)
-            .toBeGreaterThanOrEqual(BODY);
-        }
-      }
-    }
+  // CHANGED ON PURPOSE (V4's Figma): the state pill was the recap's last use of that class; the recap
+  // names its session with the done mark now, so no pill rule is left to measure.
+  it("has no state pill left in the sheet to read at 4.5:1", () => {
+    expect(css).not.toMatch(/\.state-pill/);
   });
 
   it("never leans on the ring alone — every node spells its state out in words", () => {

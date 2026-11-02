@@ -9,7 +9,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { sheetText } from "./sheet-source";
-import { compactTokens } from "../context-figure";
+import { compactTokens } from "../token-format";
 import { dayValue, weekdayShort } from "../usage-history";
 import { dialogDuration } from "../duration";
 import type { ToolCall } from "../types";
@@ -95,6 +95,56 @@ describe("Tool activity", () => {
   });
 });
 
+describe("review follow-ups", () => {
+  it("wraps Tool activity's period control onto its own row below the title on a narrow window", () => {
+    const narrow = /@media \(max-width: 700px\) \{([\s\S]*?)\n\}/.exec(css.slice(css.indexOf(".ta-filters")))![1];
+    expect(narrow).toMatch(/\.ta-report-header \{[^}]*flex-wrap: wrap/);
+    expect(narrow).toMatch(/\.ta-actions \{ display: contents; \}/);
+    expect(narrow).toMatch(/\.ta-period \{ order: 1; flex: 1 0 100%;/);
+  });
+
+  it("keeps the failed column's share on the tool's one line", () => {
+    expect(decl(".ta-list:not(.sa-list) .ta-cell small", "display")).toBe("inline");
+  });
+
+  it("steps the chosen feedback kind's focus ring outside, like every other accent-filled control", () => {
+    expect(css).toContain(".fb-kind:has(input:checked:focus-visible),");
+  });
+
+  it("narrows a day's table and drops the value over each bar on a phone", () => {
+    const phone = /@media \(max-width: 520px\) \{\s*\.uh-day-table th:nth-child\(2\)[\s\S]*?\n\}/.exec(css)![0];
+    expect(phone).toContain("width: 64px");
+    expect(phone).toContain(".uh-bar-value { display: none; }");
+  });
+
+  it("answers forced colours in the one block for the history chips, the period ring, the bars and the context meter", () => {
+    const all = sheetText();
+    const open = all.indexOf("@media (forced-colors: active) {");
+    expect(all.split("@media (forced-colors: active) {").length - 1).toBe(1);
+    const forced = all.slice(open);
+    for (const sel of [
+      '.uh-toolbar .uh-range-btn[aria-pressed="true"]',
+      ".ta-period-btn[aria-pressed=true]",
+      ".ta-track > .ta-bar",
+      ".ta-list[data-sort=failed] .ta-track > .ta-bar",
+      ".ctx-modal .ctx-window-fill",
+      '.ctx-modal .ctx-window-fill[data-level="high"]',
+      '.ctx-modal .ctx-window-fill[data-level="full"]',
+    ]) expect(forced, sel).toContain(sel);
+  });
+
+  it("leaves no pill, no title dot and no accent modifier behind", () => {
+    expect(css).not.toMatch(/\.state-pill/);
+    expect(css).not.toMatch(/\.modal-title \.status-dot\.(inflight|done)/);
+    expect(history).not.toMatch(/pageHidden|data-paused|uh-head|accent/);
+  });
+
+  it("splits the compact figure's units at the carry", () => {
+    expect(compactTokens(99_950)).toBe("100K");
+    expect(compactTokens(999_500_000)).toBe("1B");
+  });
+});
+
 describe("Feedback", () => {
   it("draws the three kinds as 24-high pills: a hairline at rest, the accent edge on the accent wash when chosen", () => {
     expect(decl(".fb-kinds", "gap")).toBe("4px");
@@ -174,10 +224,15 @@ describe("Feedback", () => {
 });
 
 describe("Usage history", () => {
-  it("opens as the medium dialog, and as the small one while it reads or has failed", () => {
+  it("holds the medium width in every phase, so the dialog does not move when the answer lands", () => {
     expect(decl(".modal.uh-modal", "width")).toBe("var(--dialog-m)");
-    expect(decl('.modal.uh-modal[data-phase="busy"], .modal.uh-modal[data-phase="error"]', "width")).toBe("var(--dialog-s)");
-    expect(history).toContain("data-phase={view.phase}");
+    expect(css).not.toMatch(/\.modal\.uh-modal\[data-phase/);
+    expect(history).not.toContain("data-phase");
+    expect(decl(".uh-status-wait", "min-height")).toBe("var(--uh-chart-h)");
+    expect(decl(".uh-chart", "height")).toBe("var(--uh-chart-h)");
+    expect(decl(".modal.uh-modal", "--uh-chart-h")).toBe("180px");
+    expect(decl(".uh-body", "display")).toBe("flex");
+    expect(decl(".uh-body", "flex-direction")).toBe("column");
     expect(decl(".uh-body", "gap")).toBe("12px");
   });
 
@@ -216,8 +271,7 @@ describe("Usage history", () => {
   });
 
   it("draws each day as a 24-wide bar with its value over it (mono 11) and its name under it (11), 3 apart", () => {
-    expect(decl(".uh-chart", "height")).toBe("180px");
-    expect(decl(".uh-bar", "width")).toBe("min(24px, 78%)");
+        expect(decl(".uh-bar", "width")).toBe("min(24px, 78%)");
     expect(decl(".uh-bar-col", "gap")).toBe("3px");
     expect(decl(".uh-bar-plot", "gap")).toBe("3px");
     expect(decl(".uh-bar-value", "font-family")).toBe("var(--font-mono)");
@@ -244,11 +298,11 @@ describe("Usage history", () => {
     expect(decl(".uh-cost-note", "color")).toBe("var(--text-secondary)");
   });
 
-  it("closes on the shell's footer with Done, or Try again when the run failed, and none while it reads", () => {
+  it("closes on the shell's footer with Done (also while it reads), or Try again when the run failed", () => {
     expect(history).toContain('<footer className="modal-foot">');
     expect(history).toContain('onClick={onClose}>{t("shell.done")}</button>');
     expect(history).toMatch(/className="btn primary uh-retry"/);
-    expect(history).toMatch(/view\.phase !== "busy" && \(/);
+    expect(history).not.toMatch(/view\.phase !== "busy" && \(/);
   });
 
   it("says a failure as V4 does (the heading, the hint) and keeps the reason reachable", () => {
@@ -276,11 +330,17 @@ describe("Usage history", () => {
 
   it("shows a day as a Model, Input, Output and Cost table, with the CLIs, the notes and the cache counts kept", () => {
     expect(dayDetail).toMatch(/<table className="uh-day-table">/);
-    for (const key of ["insights.usage.model", "insights.cost.input", "insights.cost.output", "insights.usage.cost"]) expect(dayDetail).toContain(`t("${key}")`);
+    for (const key of ["insights.usage.model", "insights.cost.inputTitle", "insights.cost.outputTitle", "insights.usage.cost"]) expect(dayDetail).toContain(`t("${key}")`);
     expect(dayDetail).toContain("fmtTokens(mb.inputTokens)");
     expect(dayDetail).toContain("fmtTokens(mb.outputTokens)");
     expect(dayDetail).toContain("reportedCost(mb.cost, mb.missingPricing)");
     expect(dayDetail).toContain("agentsLine");
+    // The head names use the dialog's Input and Output keys, the share is visible, and two or more models get a total row.
+    expect(dayDetail).toContain('t("insights.cost.inputTitle")');
+    expect(dayDetail).toContain('t("insights.cost.outputTitle")');
+    expect(dayDetail).toContain('className="uh-model-share"');
+    expect(dayDetail).toContain("selectedDay.modelBreakdowns.length > 1 && (");
+    expect(dayDetail).toContain('t("insights.usage.dayTotal")');
     expect(dayDetail).toContain("missingPriceNote()");
     expect(dayDetail).toContain("insights.usage.cacheWrite");
     expect(dayDetail).toContain("insights.usage.cacheRead");
@@ -349,9 +409,9 @@ describe("Session usage", () => {
 describe("Tool call", () => {
   const call = (ms: number | null) => ({ id: "t", name: "Bash", startedAt: 0, endedAt: ms == null ? undefined : ms }) as unknown as ToolCall;
 
-  it("has no status dot, and writes the duration as '1.2 s'", () => {
+  it("has no status dot, and writes the duration as '1.24 s'", () => {
     expect(toolModal).not.toContain("status-dot");
-    expect(dialogDuration(call(1240), "in-flight…")).toBe("1.2 s");
+    expect(dialogDuration(call(1240), "in-flight…")).toBe("1.24 s");
     expect(dialogDuration(call(842), "in-flight…")).toBe("842 ms");
     expect(dialogDuration(call(null), "in-flight…")).toBe("in-flight…");
     expect(toolModal).toContain('dialogDuration(tool, t("insights.tool.inflight"))');
@@ -443,7 +503,8 @@ describe("Context breakdown", () => {
 describe("Session recap", () => {
   it("heads the dialog 'Session recap' with the duration on the right, and names the session on a line of its own", () => {
     expect(recap).toContain('t("insights.summary.title")');
-    expect(recap).toMatch(/<StateMark kind="done" \/>\s*<span className="ss-who-name">\{summary\.label\}<\/span>/);
+    expect(recap).toMatch(/<StateMark kind="done" \/>\s*<span id="ss-who-name" className="ss-who-name">\{summary\.label\}<\/span>/);
+    expect(recap).toContain('labelledBy="ss-title ss-who-name"');
     expect(px(decl(".session-summary .ss-who-name", "font-size"))).toBe(13);
     expect(decl(".session-summary .ss-who-name", "font-weight")).toBe("600");
     expect(decl(".session-summary", "width")).toBe("var(--dialog-s)");

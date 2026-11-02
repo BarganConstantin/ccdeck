@@ -12,10 +12,9 @@
 // the range buttons. That is not a missing flourish, it is a layout jump with a
 // four-second fuse.
 //
-// The wait reserves the chart room and keeps its baseline. Its decorative
-// file-to-report illustration shows activity, never sample values or measured
-// progress. When data arrives, the actual columns rise from that baseline in
-// chronological order.
+// The wait reserves the chart's room. It shows the words and two rows of quiet
+// bones, never sample values or measured progress. When data arrives, the
+// actual columns rise from the chart's floor in chronological order.
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
@@ -45,15 +44,17 @@ const frames = (name: string) => {
 };
 
 describe("the wait is V4's reading state, and the chart keeps its own height", () => {
-  // CHANGED ON PURPOSE (V4's Figma): the wait is drawn as its own 560 dialog, with
-  // the words and two rows of quiet bones where the figures will be, instead of a
-  // file-to-report illustration in a box that reserved the chart's room. The chart
-  // itself is 180 tall with the value over each bar and the day's name under it.
-  it("is a small dialog until the answer lands, and the chart's own width after", () => {
-    expect(block('.modal.uh-modal[data-phase="busy"], .modal.uh-modal[data-phase="error"]')).toMatch(/width: var\(--dialog-s\)/);
+  // CHANGED ON PURPOSE (V4's Figma): the wait shows the words and two rows of quiet bones where
+  // the figures will be, instead of a file-to-report illustration. The room it stands in is
+  // still the chart's, read off the chart's own rule, so the dialog does not lurch when the
+  // answer lands: same width in every phase, same chart height under the toolbar.
+  it("reserves the chart's own height, read off the chart's own rule", () => {
+    expect(block(".uh-chart")).toMatch(/height: var\(--uh-chart-h\)/);
+    expect(block(".uh-status-wait")).toMatch(/min-height: var\(--uh-chart-h\)/);
+    expect(block(".modal.uh-modal")).toMatch(/--uh-chart-h: 180px/);
     expect(block(".modal.uh-modal")).toMatch(/width: var\(--dialog-m\)/);
-    expect(block(".uh-chart")).toMatch(/height: 180px/);
-    expect(block(".uh-chart")).not.toMatch(/padding-bottom/);
+    expect(css).not.toMatch(/\.modal\.uh-modal\[data-phase/);
+    expect(modal).not.toContain("data-phase");
   });
 
   it("draws two rows of bones, 28 high, on the control fill, and no illustration", () => {

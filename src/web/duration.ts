@@ -106,13 +106,12 @@ export function toolDuration(t: ToolCall, pending: string): string {
 }
 
 /**
- * The same span the way V4's tool-call dialog writes it, in its header: a space
- * before the unit and one decimal for seconds ("842 ms", "1.2 s"). The detail
- * panel's row keeps `toolDuration` above; the dialog is the one place the
- * header's caption voice is drawn.
+ * The same span the way V4's tool-call dialog writes it, in its header: the
+ * very value `toolDuration` rounds to (two decimals above a second), with a
+ * space before the unit ("842 ms", "1.24 s"). Built from `toolDuration` so the
+ * row and the dialog it opens can never round the same call two ways.
  */
 export function dialogDuration(t: ToolCall, pending: string): string {
   if (t.endedAt == null) return pending;
-  const ms = t.endedAt - t.startedAt;
-  return ms < 1000 ? `${ms} ms` : `${(ms / 1000).toFixed(1)} s`;
+  return toolDuration(t, pending).replace(/(\d)(ms|s)$/, "$1 $2");
 }

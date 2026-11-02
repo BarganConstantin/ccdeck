@@ -336,10 +336,17 @@ describe("a tool call's duration", () => {
     expect("999ms".length).toBeGreaterThanOrEqual(toolDuration(call(9990), "…").length);
   });
 
-  it("writes the dialog's header the way V4's Figma does: a space, and one decimal above a second", () => {
+  // CHANGED ON PURPOSE (V4's Figma): the dialog's header writes the span with a space before
+  // the unit. The rounding is still the one the row and the dialog always shared.
+  it("writes the dialog's header as the same rounding with a space before the unit", () => {
     expect(dialogDuration(call(842), "…")).toBe("842 ms");
-    expect(dialogDuration(call(1240), "…")).toBe("1.2 s");
+    expect(dialogDuration(call(1240), "…")).toBe("1.24 s");
     expect(dialogDuration(call(null), "in-flight…")).toBe("in-flight…");
+    const moved: number[] = [];
+    for (let ms = 0; ms <= 600_000; ms += 3) {
+      if (dialogDuration(call(ms), "…") !== modalCopy(ms).replace(/(\d)(ms|s)$/, "$1 $2")) moved.push(ms);
+    }
+    expect(moved).toEqual([]);
   });
 
   it("keeps each surface's own word for a call that has not finished", () => {
@@ -348,9 +355,10 @@ describe("a tool call's duration", () => {
   });
 
   it("is one module, written once for the row and once for the dialog it opens", () => {
-    // CHANGED ON PURPOSE (V4's Figma): the dialog's header writes the span as
-    // "1.2 s" (a space, one decimal), so it calls `dialogDuration`, which lives
-    // beside `toolDuration` in the one duration module. The row keeps its own.
+    // CHANGED ON PURPOSE (V4's Figma): the dialog's header writes the span with a
+    // space before the unit, so it calls `dialogDuration`, built from `toolDuration`
+    // in the one duration module.
+    expect(src("../duration.ts")).toContain("return toolDuration(t, pending).replace(");
     expect(toolModal).toMatch(/import \{ dialogDuration \} from "\.\.\/duration";/);
     expect(code(detail)).toMatch(/const durLabel = toolDuration\(call, "…"\);/);
     expect(code(toolModal)).toMatch(/dialogDuration\(tool, t\("insights\.tool\.inflight"\)\)/);

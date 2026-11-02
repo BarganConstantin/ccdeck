@@ -21,7 +21,6 @@
 .su-totals > div { display: flex; flex-direction: column-reverse; min-width: 0; }
 .su-totals dt, .su-tokens dt, .su-dates dt { color: var(--muted); }
 .su-totals dd { margin: 0; font-family: var(--font-mono); font-size: calc(18px + var(--ui-text-increase, 0px)); font-weight: 600; line-height: calc(24px + var(--ui-text-increase, 0px)); color: var(--text); font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
-.su-result { gap: 12px; }
 .su-section-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin-bottom: 6px; }
 .su-section-head h3 { margin: 0; font-size: calc(12px + var(--ui-text-increase, 0px)); font-weight: 600; line-height: calc(16px + var(--ui-text-increase, 0px)); color: var(--text-secondary); }
 .su-section-head > span { color: var(--muted); font-family: var(--font-mono); font-size: calc(11px + var(--ui-text-increase, 0px)); line-height: calc(14px + var(--ui-text-increase, 0px)); }
@@ -85,7 +84,7 @@
 .su-loading > span { color: var(--text-secondary); font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: 1.5; max-width: 36ch; }
 .su-loading-read { stroke: var(--accent); animation: su-session-read 1400ms ease-in-out infinite; }
 .su-loading[data-paused] .su-loading-read { animation-play-state: paused; }
-.su-result { display: grid; gap: 16px; transition: opacity var(--dur-fast) var(--ease); }
+.su-result { display: grid; gap: 12px; transition: opacity var(--dur-fast) var(--ease); }
 @starting-style { .su-result { opacity: 0.7; } }
 @keyframes su-session-read {
   0% { opacity: 0.3; transform: translateY(0); }

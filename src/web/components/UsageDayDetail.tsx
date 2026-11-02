@@ -1,5 +1,6 @@
 // The breakdown of the day selected in the usage-history chart: its date and
-// cost, the CLIs that ran it, its four token counts and each model's share.
+// cost, the CLIs that ran it, a table of its models (input, output, cost and
+// share, with a total row for two or more) and its cache counts.
 //
 // Lifted out of UsageHistoryModal.tsx with the small stat it alone draws. It
 // is handed the one day and reads nothing else.
@@ -32,15 +33,15 @@ export default function UsageDayDetail({ selectedDay }: { selectedDay: DayEntry 
       </div>
       {missing && <p className="uh-cost-note">{missingPriceNote()}</p>}
       {costNote && <p className="uh-cost-note">{costNote}</p>}
-      {/* V4's table: Model, Input, Output, Cost. Each model's share of the day
-          stays on its row's title, and the cache counts, which the table has no
-          column for, sit on one quiet line under it. */}
+      {/* V4's table: Model, Input, Output, Cost, with each model's share of the day
+          after its name, and a total row when two or more models ran. The cache
+          counts, which the table has no column for, sit on one quiet line under it. */}
       <table className="uh-day-table">
         <thead>
           <tr>
             <th scope="col">{t("insights.usage.model")}</th>
-            <th scope="col">{t("insights.cost.input")}</th>
-            <th scope="col">{t("insights.cost.output")}</th>
+            <th scope="col">{t("insights.cost.inputTitle")}</th>
+            <th scope="col">{t("insights.cost.outputTitle")}</th>
             <th scope="col">{t("insights.usage.cost")}</th>
           </tr>
         </thead>
@@ -48,7 +49,7 @@ export default function UsageDayDetail({ selectedDay }: { selectedDay: DayEntry 
           {byCost(selectedDay.modelBreakdowns).map(mb => {
             const pct = percentOf(mb.cost, selectedDay.totalCost);
             return (
-              <tr key={mb.modelName} title={`${mb.modelName} · ${Math.round(pct)}%`}>
+              <tr key={mb.modelName} title={mb.modelName}>
                 <th scope="row">
                   <span className="uh-model-name">
                     <span className="uh-legend-dot" style={{ background: modelColor(mb.modelName) }} />
@@ -56,6 +57,7 @@ export default function UsageDayDetail({ selectedDay }: { selectedDay: DayEntry 
                         wider than the column degrades to an ellipsis over a title
                         rather than to a broken row (#462). */}
                     <span className="uh-model-label">{shortModel(mb.modelName)}</span>
+                    <span className="uh-model-share">{Math.round(pct)}%</span>
                   </span>
                 </th>
                 <td>{fmtTokens(mb.inputTokens)}</td>
@@ -65,6 +67,16 @@ export default function UsageDayDetail({ selectedDay }: { selectedDay: DayEntry 
             );
           })}
         </tbody>
+        {selectedDay.modelBreakdowns.length > 1 && (
+          <tfoot>
+            <tr>
+              <th scope="row">{t("insights.usage.dayTotal")}</th>
+              <td>{fmtTokens(selectedDay.inputTokens)}</td>
+              <td>{fmtTokens(selectedDay.outputTokens)}</td>
+              <td>{reportedCost(selectedDay.totalCost, missing)}</td>
+            </tr>
+          </tfoot>
+        )}
       </table>
       <div className="uh-detail-mini">
         <MiniStat label={t("insights.usage.cacheWrite")} val={fmtTokens(selectedDay.cacheCreationTokens)} />

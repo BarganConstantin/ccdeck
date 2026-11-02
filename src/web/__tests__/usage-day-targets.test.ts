@@ -33,7 +33,7 @@
 // the sideways scroller itself.
 //
 // The medium dialog since 2026-10-23 (tokens.css, "One dialog frame"): 820px,
-// a 784px content box, where the default 30 days are 26.13px a column on their
+// a 788px content box, where the default 30 days are 26.27px a column on their
 // own share and only 90 days still lean on the floor. The gap stays out: it
 // would cost the default view nothing now, and the floor's arithmetic is the
 // one that has to hold the day the modal narrows again.

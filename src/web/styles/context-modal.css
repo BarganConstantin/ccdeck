@@ -43,7 +43,7 @@
 /* The context modal's × — a header close like the other five, and the last one
    still drawing its own 28px bordered box. `.glyph-btn` now, which takes the
    edge, the fill, the 28px square and the 18px glyph with it; the header this
-   sits in already has a title, a subtitle and a panel edge saying where it is.
+   sits in already has a title and a panel edge saying where it is.
    The easing stays on this selector for the reason spelled out at `.uh-close`. */
 .ctx-modal-close {
   transition: color var(--dur-fast) var(--ease), transform var(--dur-fast) var(--ease);
@@ -76,8 +76,8 @@
   transform-origin: left center;
   transition: transform var(--dur-slow) var(--ease);
 }
-/* The line under the meter in the panel. The modal says it in its header and
-   keeps the percent and the count below instead. */
+/* The line under the meter in the panel. The modal says it as its first body
+   line and keeps the count under its meter instead. */
 .ctx-window-note {
   margin: 0;
   font-size: calc(12px + var(--ui-text-increase, 0px));
@@ -220,42 +220,6 @@
   font-variant-numeric: tabular-nums;
   color: var(--text-secondary);
   font-family: var(--font-mono);
-}
-
-.state-pill {
-  display: inline-flex;
-  align-items: center;
-  padding: 1px 8px;
-  font-size: calc(10px + max(-1px, var(--ui-text-increase, 0px)));
-  font-weight: 600;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  border-radius: 999px;
-  border: 1px solid transparent;
-}
-.state-pill.state-active {
-  color: var(--inflight);
-  border-color: rgba(240,171,252,0.4);
-  background: rgba(240,171,252,0.08);
-}
-.state-pill.state-active::before {
-  content: "";
-  width: 5px; height: 5px;
-  border-radius: 50%;
-  background: var(--inflight);
-  /* No halo. A 5px dot at 10.29:1 that is already pulsing is found. */
-  margin-right: 5px;
-  animation: pulse var(--pulse-live) infinite;
-}
-.state-pill.state-done {
-  color: var(--ok);
-  border-color: rgba(134,239,172,0.35);
-  background: rgba(134,239,172,0.08);
-}
-.state-pill.state-err {
-  color: var(--err);
-  border-color: rgba(252,165,165,0.4);
-  background: rgba(252,165,165,0.08);
 }
 
 /* Blocked on a human (#337). A row of its own, under the task line and

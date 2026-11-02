@@ -58,3 +58,23 @@ export function fmtTokens(raw: number): string {
   }
   return `${(n / 1_000_000_000).toFixed(2)}B`;
 }
+
+/**
+ * A token count in V4's compact voice, for the dialogs that draw figures big
+ * and quiet: "96K", "12.4K", "124K", "3.2M". Capital K, M and B; one decimal
+ * under a hundred of a unit and none above; no trailing ".0". Under a thousand
+ * the number as it is. Written with `toFixed`, like `fmtTokens`, and judged on
+ * the figure it would print, so 999,600 hands on to "1M" rather than "1000K".
+ * The exact count belongs on a `title` beside the figure.
+ */
+export function compactTokens(raw: number): string {
+  const n = Math.max(0, Math.round(raw));
+  if (n < 1000) return `${n}`;
+  const units: Array<[number, string]> = [[1e3, "K"], [1e6, "M"], [1e9, "B"]];
+  for (const [size, suffix] of units) {
+    const value = n / size;
+    const text = value < 100 ? value.toFixed(1).replace(/\.0$/, "") : value.toFixed(0);
+    if (Number(text) < 1000 || suffix === "B") return `${text}${suffix}`;
+  }
+  return `${n}`;
+}

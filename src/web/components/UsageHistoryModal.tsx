@@ -56,14 +56,6 @@ export default function UsageHistoryModal({ onClose, providers }: Props) {
     want: rangeDays,
     answer: landed && { range: landed.range, ok: landed.resp.ok === true, days: landed.resp.days?.length ?? 0 },
   });
-  const [pageHidden, setPageHidden] = useState(() => typeof document !== "undefined" && document.hidden);
-  useEffect(() => {
-    if (view.phase !== "busy") return;
-    const changed = () => setPageHidden(document.hidden);
-    changed();
-    document.addEventListener("visibilitychange", changed);
-    return () => document.removeEventListener("visibilitychange", changed);
-  }, [view.phase]);
   // Only a "chart" verdict means a non-empty response for the range on screen,
   // so nothing below can render another range's bars, totals or legend.
   const days = view.phase === "chart" ? landed!.resp.days ?? [] : [];
@@ -110,8 +102,8 @@ export default function UsageHistoryModal({ onClose, providers }: Props) {
   const failureReason = view.phase === "error" ? explainCcusageFailure(landed!.resp, t("insights.usage.noReport")) : "";
 
   return (
-    <Dialog scrim={scrimPress} dialogRef={dialogRef} className="uh-modal" data-phase={view.phase} aria-label={t("insights.usage.title")}>
-        <header className="modal-head uh-head">
+    <Dialog scrim={scrimPress} dialogRef={dialogRef} className="uh-modal" aria-label={t("insights.usage.title")}>
+        <header className="modal-head">
           <div className="modal-tool-name">{t("insights.usage.title")}</div>
           <div className="modal-actions">
             <button ref={closeRef} className="glyph-btn uh-close" onClick={onClose} aria-label={t("insights.usage.close")}>×</button>
@@ -120,8 +112,7 @@ export default function UsageHistoryModal({ onClose, providers }: Props) {
 
         <div className="modal-body uh-body">
         {/* V4's toolbar: the range chips on the left; on the right, where the
-            figures come from and the re-run. The line was the header's
-            subtitle. */}
+            figures come from and the re-run. */}
         <div className="uh-toolbar">
           {/* Not a tablist (#381). role="tab" is a promise about keyboard
               behaviour — one tab stop for the whole strip, arrow keys between
@@ -187,7 +178,7 @@ export default function UsageHistoryModal({ onClose, providers }: Props) {
           /* V4's reading state: the words, and two quiet rows standing where the
              figures will be. Decoration only, not sample data or measured
              progress. */
-          <div className="uh-status uh-status-wait" role="status" aria-label={t("insights.usage.reading")} aria-busy="true" data-paused={pageHidden || undefined}>
+          <div className="uh-status uh-status-wait" role="status" aria-label={t("insights.usage.reading")} aria-busy="true">
             <strong className="uh-reading-title">{t("insights.usage.reading")}</strong>
             <span className="uh-reading-note">{t("insights.usage.gathering")}{!landed && ` ${t("insights.usage.firstRun")}`}</span>
             <span className="uh-skeleton" aria-hidden="true">
@@ -213,10 +204,10 @@ export default function UsageHistoryModal({ onClose, providers }: Props) {
           // this same range is in flight: these are the right range's numbers,
           // but they are not the final word yet. What dims is the marks inside
           // it — bars, segments, swatches — and never the words (#1289); the
-          // subtitle above says what is running.
+          // source line in the toolbar says what is running.
           <div className={view.stale ? "uh-stale" : undefined} aria-busy={view.stale || undefined}>
             <div className="uh-totals">
-              <Stat label={t("insights.usage.totalCost")}   val={reportedCost(totalCost, missingModels.size > 0)} accent />
+              <Stat label={t("insights.usage.totalCost")}   val={reportedCost(totalCost, missingModels.size > 0)} />
               <Stat label={t("insights.usage.tokens")}       val={fmtTokens(totalTok)} />
               <Stat label={t("insights.usage.inOut")} val={fmtTokens(inOut)} />
               <Stat label={t("insights.usage.cacheReads")}  val={fmtTokens(cacheRead)} />
@@ -391,7 +382,7 @@ export default function UsageHistoryModal({ onClose, providers }: Props) {
         )}
         </div>
 
-        {/* V4's footer: Done, or Try again when the run failed; none while it reads. */}
+        {/* V4's footer: Done, or Try again when the run failed. Done stays while it reads. */}
         {view.phase === "error" ? (
           <footer className="modal-foot">
             {/* #620, and this one is the whole of the error branch: a failed run
@@ -402,7 +393,7 @@ export default function UsageHistoryModal({ onClose, providers }: Props) {
               {loading ? t("insights.usage.trying") : t("insights.audit.tryAgain")}
             </button>
           </footer>
-        ) : view.phase !== "busy" && (
+        ) : (
           <footer className="modal-foot">
             <button type="button" className="btn primary" onClick={onClose}>{t("shell.done")}</button>
           </footer>
@@ -411,10 +402,10 @@ export default function UsageHistoryModal({ onClose, providers }: Props) {
   );
 }
 
-function Stat({ label, val, accent }: { label: string; val: string; accent?: boolean }) {
+function Stat({ label, val }: { label: string; val: string }) {
   return (
     <div className="uh-stat">
-      <span className={`uh-stat-val${accent ? " accent" : ""}`}>{val}</span>
+      <span className="uh-stat-val">{val}</span>
       <span className="uh-stat-label">{label}</span>
     </div>
   );
