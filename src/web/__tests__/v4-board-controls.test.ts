@@ -74,7 +74,11 @@ describe("the bar's items, left to right", () => {
     expect(component.match(/useStore\(zoomLevel\)/g)).toHaveLength(1);
   });
   it("keeps the keyboard glyph Settings › Keyboard wears", () => {
-    expect(component).toContain('<SettingsSectionGlyph section="keyboard" />');
+    expect(component).toContain('<KitIcon name="keyboard" />');
+  });
+  it("draws the keyboard glyph with the kit's stroke, like its neighbours: no rule thins it", () => {
+    expect(decls('.react-flow__controls-button[aria-label="Open the keyboard shortcuts"] svg')).toEqual({});
+    expect(stripped).not.toMatch(/\.react-flow__controls-button[^{}]*svg[^{}]*\{[^}]*stroke-width/);
   });
 });
 

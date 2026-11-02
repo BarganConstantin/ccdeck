@@ -50,6 +50,7 @@ describe("the tour names the sound control by what it looks like (#818)", () => 
     expect(bar).toMatch(/<UtilityRun items=\{\[rails\.search, \.\.\.rails\.topUtilities\]\}/);
     expect(run).toMatch(/utilities: \[settings, feedback\]/);
     expect(run).toMatch(/ariaLabel: t\("board\.rail\.settings"\), glyph: <SettingsGlyph \/>/);
-    expect(run).toContain(GEAR_PATH);
+    expect(run).toContain('<KitIcon name="settings"');
+    expect(run).not.toContain(GEAR_PATH);
   });
 });

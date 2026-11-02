@@ -1283,6 +1283,16 @@ describe("every control that draws a boundary draws one that can be seen (1.4.11
       // turns --accent, --err when invalid). A state recolour of an edge the
       // sweep above measures at rest; its colours are held to 3:1 on every bed
       // by "the text-field focus border" test below.
+      // A DISABLED field or select: V4's kit draws it in --line, because an
+      // inactive component owes no boundary (1.4.11 exempts it, as 1.4.3 does its text).
+      ".ap-manage-input:disabled", ".ap-manage-input:disabled:hover:not(:focus-visible)",
+      ".sm-select:disabled", ".sm-select:disabled:hover:not(:focus-visible)",
+      // The checkbox's box: the same --ctl-edge the fields are swept for above,
+      // recoloured to --accent when ticked (a state, as the period strip's).
+      ".cbx > input", ".cbx > input:checked",
+      // A key cap: named by the key written in it (and `.qo-esc` by its word);
+      // V4's kit gives it the --line hairline, a label's rim and not a boundary.
+      "kbd.qo-key", ".qo-esc", ".qo-foot kbd", ".fb-shortcut kbd",
       ".settings-filter-field:focus-visible", ".sm-select:focus-visible", ".ap-manage-input:focus-visible",
       ".aa-field input:focus-visible", ".tr-input:focus-visible", ".tr-select:focus-visible",
       ".qh-window select:focus-visible", ".jr-move-pop select:focus-visible", ".jr-transition select:focus-visible",

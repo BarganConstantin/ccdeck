@@ -334,6 +334,14 @@
    the old fill mixed from the foreground, which is why dark used the tier
    above); the browser's own fixed grey was under the floor. */
 .ap-manage-input::placeholder { color: var(--muted); opacity: 1; }
+/* V4's field, disabled: the --line edge and --muted-dim ink, no pointer, and no
+   hover answer (the second selector out-ranks the hover rule above). A key
+   focus turns the edge at once; a pointer focus eases it over Fast. */
+.ap-manage-input:disabled, .sm-select:disabled { border-color: var(--line); color: var(--muted-dim); cursor: default; }
+@media (hover: hover) and (pointer: fine) {
+.ap-manage-input:disabled:hover:not(:focus-visible), .sm-select:disabled:hover:not(:focus-visible) { border-color: var(--line); color: var(--muted-dim); cursor: default; }
+}
+:root[data-motion="instant"] :is(.ap-manage-input, .sm-select, .settings-filter-field, .tr-input, .tr-select) { transition: none; }
 /* --muted here was the labels' own colour — identical to --text-dim in dark, to
    a rounding error — so nothing in the block told a clickable pill from a
    decorative word. The buttons rise to --text rather than the labels sinking

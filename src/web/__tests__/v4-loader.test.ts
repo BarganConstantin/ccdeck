@@ -138,7 +138,7 @@ describe("V4's Loader markup", () => {
 describe("V4's Loader placements", () => {
   it("shows beside 'Checking…' in both quota sections, the words carrying role=status", () => {
     const src = source("QuotaSections.tsx");
-    const lines = src.match(/<div className="up-quota-na up-quota-loading loader-line"><Loader \/><span role="status">\{t\("usage\.quota\.checking"\)\}<\/span><\/div>/g);
+    const lines = src.match(/<div className="up-quota-na up-quota-loading loader-line"><WaitingLoader busy \/><span role="status">\{t\("usage\.quota\.checking"\)\}<\/span><\/div>/g);
     expect(en["usage.quota.checking"]).toBe("Checking…");
     expect(lines).toHaveLength(2);
     expect(src).not.toMatch(/<div className="up-quota-na up-quota-loading">\{t\("usage\.quota\.checking"\)\}<\/div>/);
@@ -151,16 +151,16 @@ describe("V4's Loader placements", () => {
     expect(decl(".up-quota-loading", "font-size")).toBe("calc(11px + var(--ui-text-increase, 0px))");
   });
   it("shows beside 'Reading connections…' in Settings", () => {
-    expect(source("IntegrationsSection.tsx")).toContain('<p className="loader-line" role="status"><Loader />{t("integrations.settings.reading")}</p>');
+    expect(source("IntegrationsSection.tsx")).toContain('<p className="loader-line" role="status"><WaitingLoader busy />{t("integrations.settings.reading")}</p>');
     expect(en["integrations.settings.reading"]).toBe("Reading connections…");
   });
   it("shows beside 'Reading integrations…' only, not beside the error sentence", () => {
     const src = source("ExploreIntegrationsModal.tsx");
-    expect(src).toContain('<p className="explore-status" role="status">{integrations.error ? t("integrations.explore.statusUnavailable") : <span className="loader-line"><Loader />{t("integrations.explore.reading")}</span>}</p>');
+    expect(src).toContain('<p className="explore-status" role="status">{integrations.error ? t("integrations.explore.statusUnavailable") : <span className="loader-line"><WaitingLoader busy />{t("integrations.explore.reading")}</span>}</p>');
     expect([en["integrations.explore.statusUnavailable"], en["integrations.explore.reading"]]).toEqual(["Connection status is unavailable.", "Reading integrations…"]);
   });
   it("shows beside 'Reading boards…' in the Jira board picker", () => {
-    expect(source("JiraPanel.tsx")).toContain('<p className="jr-board-pop-note loader-line" role="status"><Loader />{t("integrations.panel.readingBoards")}</p>');
+    expect(source("JiraPanel.tsx")).toContain('<p className="jr-board-pop-note loader-line" role="status"><WaitingLoader busy />{t("integrations.panel.readingBoards")}</p>');
     expect(en["integrations.panel.readingBoards"]).toBe("Reading boards…");
   });
 });
@@ -182,7 +182,7 @@ describe("Refresh keeps its arrow and turns it at one tempo of 900ms", () => {
     // class would turn it whenever its button is busy.
     const glyphs = source("action-glyphs.tsx");
     expect(glyphs.match(/className="refresh-glyph"/g)).toHaveLength(1);
-    expect(glyphs).toMatch(/export function RefreshGlyph\(\) \{\s*return <svg className="refresh-glyph" width="13"/);
+    expect(glyphs).toMatch(/export function RefreshGlyph\(\) \{\s*return <KitIcon name="update" className="refresh-glyph" \/>/);
     expect(source("UsagePanel.tsx")).toMatch(/<svg className="refresh-glyph" width="16"/);
   });
   for (const file of ["UsagePanel.tsx", "UsageHistoryModal.tsx", "QuotaHistoryModal.tsx", "BrowserWatchModal.tsx"]) {

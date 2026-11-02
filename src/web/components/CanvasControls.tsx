@@ -15,7 +15,7 @@ import { useT } from "../i18n";
 import type { PauseControls } from "../use-pause-gate";
 import { useSingleKeyShortcuts } from "../use-single-key-shortcuts";
 import { zoomPercent } from "../zoom-percent";
-import SettingsSectionGlyph from "./SettingsSectionGlyph";
+import { KitIcon } from "./kit-icons";
 
 /** The zoom range's two ends, as React Flow's own zoom buttons read them.
  *  Module-level so `useStore` gets the same selector every render. */
@@ -67,9 +67,7 @@ export default function CanvasControls({
         aria-label={t("board.controls.zoomOut")}
         aria-disabled={zoomMinned || undefined}
       >
-        <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden>
-          <path d="M5 12h14" stroke="currentColor" strokeWidth="2" strokeLinecap="round" fill="none" />
-        </svg>
+        <KitIcon name="minus" />
       </ControlButton>
       <ZoomLevel />
       <ControlButton
@@ -78,9 +76,7 @@ export default function CanvasControls({
         aria-label={t("board.controls.zoomIn")}
         aria-disabled={zoomMaxed || undefined}
       >
-        <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden>
-          <path d="M12 5v14M5 12h14" stroke="currentColor" strokeWidth="2" strokeLinecap="round" fill="none" />
-        </svg>
+        <KitIcon name="plus" />
       </ControlButton>
       {/* The groups, by what each control acts on: the view (zoom), the
           canvas (recenter, re-arrange, pause, clear), and what opens
@@ -99,11 +95,7 @@ export default function CanvasControls({
         aria-label={t("board.controls.recenter")}
         data-nudge={autoFitDisabled ? "" : undefined}
       >
-        {/* crosshair / target — recenter affordance */}
-        <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden>
-          <circle cx="12" cy="12" r="3.5" fill="none" stroke="currentColor" strokeWidth="2" />
-          <path d="M12 2v4M12 18v4M2 12h4M18 12h4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" fill="none" />
-        </svg>
+        <KitIcon name="recenter" />
       </ControlButton>
       {/* Both of these are canvas verbs — they rearrange or empty the thing
           this bar is attached to — and the crosshair beside them was already
@@ -120,13 +112,7 @@ export default function CanvasControls({
         title={withKey(t("board.controls.arrange"), "R", singleKeys)}
         aria-label={t("board.controls.arrangeLabel")}
       >
-        {/* three-node hierarchy — one parent over two children */}
-        <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden>
-          <rect x="8.5" y="2" width="7" height="5" rx="1.5" fill="none" stroke="currentColor" strokeWidth="2" />
-          <rect x="1.5" y="17" width="7" height="5" rx="1.5" fill="none" stroke="currentColor" strokeWidth="2" />
-          <rect x="15.5" y="17" width="7" height="5" rx="1.5" fill="none" stroke="currentColor" strokeWidth="2" />
-          <path d="M12 7v6.5M5 17v-3.5h14V17" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" fill="none" />
-        </svg>
+        <KitIcon name="arrange" />
       </ControlButton>
       {/* The last control out of the topbar, and the only toggle in this
           bar. It sits between re-arrange and clear, V4's order, which puts
@@ -163,11 +149,7 @@ export default function CanvasControls({
         aria-label={pauseLabel(t)}
         aria-pressed={paused}
       >
-        {/* two upright bars — the pause mark, drawn as strokes so it sits
-            at the weight of the glyphs around it */}
-        <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden>
-          <path d="M9 5.5v13M15 5.5v13" stroke="currentColor" strokeWidth="2" strokeLinecap="round" fill="none" />
-        </svg>
+        <KitIcon name="pause" />
       </ControlButton>
       {/* No danger colour at rest, and no word either. `button.btn.danger`
           is the confirm half of the Clear dialog and stays there: this
@@ -187,13 +169,7 @@ export default function CanvasControls({
         title={withKey(t("board.controls.clear"), "C", singleKeys)}
         aria-label={t("board.controls.clearLabel")}
       >
-        {/* trash can — lid, handle, tapered body, two inner strokes */}
-        <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden>
-          <path d="M4 6.2h16" stroke="currentColor" strokeWidth="2" strokeLinecap="round" fill="none" />
-          <path d="M9 6.2V4.4a1.6 1.6 0 0 1 1.6-1.6h2.8a1.6 1.6 0 0 1 1.6 1.6v1.8" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" fill="none" />
-          <path d="M17.4 6.4 16.7 20a2 2 0 0 1-2 1.9H9.3a2 2 0 0 1-2-1.9L6.6 6.4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" fill="none" />
-          <path d="M10.3 10.6v6.8M13.7 10.6v6.8" stroke="currentColor" strokeWidth="2" strokeLinecap="round" fill="none" />
-        </svg>
+        <KitIcon name="clear" />
       </ControlButton>
       <span className="react-flow__controls-divider" aria-hidden />
       {/* The one thing on screen that says the keyboard exists.
@@ -215,7 +191,7 @@ export default function CanvasControls({
         aria-label={t("board.controls.keysLabel")}
         aria-haspopup="dialog"
       >
-        <SettingsSectionGlyph section="keyboard" />
+        <KitIcon name="keyboard" />
       </ControlButton>
       {/* The terminal, behind its hidden flag: the selected session on the
           stage, else the one the stage showed last, else the empty stage,
@@ -230,11 +206,7 @@ export default function CanvasControls({
           title="Open the Command Panel — the selected session, or the last one"
           aria-label="Open the Command Panel"
         >
-          {/* a prompt: a chevron and the cursor's underline */}
-          <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden>
-            <path d="M5 7l5 5-5 5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" fill="none" />
-            <path d="M12.5 18h6.5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" fill="none" />
-          </svg>
+          <KitIcon name="terminal" />
         </ControlButton>
       )}
     </Controls>

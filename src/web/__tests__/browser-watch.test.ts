@@ -262,7 +262,7 @@ describe("how App.tsx wires it up", () => {
     // slash, which differ as silhouettes at any size, and the colour only
     // agrees with them.
     expect(app).toMatch(/watching=\{watchOn === true \|\| watchUnseen > 0\}/);
-    expect(app, "the armed icon needs its filled pupil").toMatch(/<circle cx="7" cy="7" r="1\.8" fill="currentColor"/);
+    expect(app, "the armed icon is the kit eye with its ringed pupil").toMatch(/watching \? <KitIcon name="browser-watch"/);
     expect(app, "the resting icon needs its slash").toMatch(/<line x1="2\.4" y1="11\.6" x2="11\.6" y2="2\.4"/);
     // And in words, for anyone who reads the button rather than sees it.
     expect(app).toMatch(/watchOn \? t\("board\.rail\.watching"\) : t\("board\.rail\.notWatching"\)/);
