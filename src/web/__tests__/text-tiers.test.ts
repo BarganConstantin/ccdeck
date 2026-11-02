@@ -261,6 +261,9 @@ describe("what was migrated to the secondary tier", () => {
       // re-arrange strip's status words, the drag trash's first line, the recap
       // note's body and the cost tooltip's model line.
       ".autofit-chip",
+      // CHANGED ON PURPOSE (V4's Figma): the rating ask's score labels and its "Not now" are set in --text-secondary.
+      ".rating-banner .rating-pick",
+      ".rating-banner .rating-later",
       ".rearrange-undo",
       ".drag-trash-zone",
       ".drag-trash-text",

@@ -150,7 +150,7 @@
   .app:has(.accounts-panel) .ver-banner { grid-column: 1; }
   .left-column {
     position: fixed;
-    top: var(--topbar-h);
+    top: calc(var(--topbar-h) + var(--rating-h, 0px)); /* under the banner strip, so its dismiss stays reachable */
     bottom: calc(var(--dock-h) + env(safe-area-inset-bottom));
     left: 0;
     z-index: 21;

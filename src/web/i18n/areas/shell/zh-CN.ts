@@ -209,7 +209,6 @@ const catalog: Catalog = {
   "shell.banner.cannotInstall": "无法从这里安装",
   "shell.banner.copyTitle": "复制到剪贴板",
   "shell.banner.copiedHint": "已复制",
-  "shell.banner.copyHint": "复制",
   "shell.banner.restartedTo": "已重新启动，现在运行 v{version}。",
   "shell.banner.replayed": "画布已从事件日志重放。",
   "shell.banner.autoOff": "自动重新启动：关",
