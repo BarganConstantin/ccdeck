@@ -182,3 +182,18 @@ exceed 16 MiB. Frames now have a 64 MiB bound and are accumulated without repeat
 scanning of earlier chunks. A large-frame regression and native TUI startup
 verify this path. Internal resumes request metadata only with excludeTurns,
 avoiding deprecated full-history hydration.
+
+### Follow-up host recheck
+
+The owner's launcher failed after the package audit because its npm pack report
+was saved as an ancestor `package.json`. Renaming the report restored startup.
+The installed helper now also owns a private ESM package scope; its module import
+regression runs beneath an invalid ancestor manifest and fails on the prior
+implementation. The focused terminal/interactive/config suite passed 26 tests,
+plus TypeScript and the production build.
+
+A fresh native child and a visible Terminal demo confirmed both account
+identities through `/status`, retained the same thread and permissions, and
+recalled a marker after switching. A status request during the handoff can render
+the previous account; an automated check five seconds after Switch passed. The
+visible demo remains separate from the independently launched Codex application.
