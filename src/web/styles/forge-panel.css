@@ -9,41 +9,42 @@
 /* The list side: toolbar, tabs and search stay; the tab's rows scroll. The
    toolbar ends on the host's freshness line and Refresh (IntegrationFreshness). */
 .fg-list { flex: 1; height: 100%; min-height: 0; display: flex; flex-direction: column; container: fg-list / inline-size; }
-.fg-toolbar { display: flex; align-items: center; gap: 12px; padding: 12px 20px 0; flex: none; }
+/* V4's toolbar: 40 high, the "Repository" label, the repository's trigger, and the
+   tabs as outlined pills at its right. */
+.fg-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; min-height: 40px; box-sizing: border-box; padding: 6px 12px; flex: none; border-bottom: 1px solid var(--line-soft); }
+.fg-toolbar-label { color: var(--muted); font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: 16px; white-space: nowrap; }
 /* The picker's box is as wide as its popover, so in a shared shrink the
-   freshness line lost to it and read "Upd…" on a phone. The line keeps its
+   freshness line lost to it and read "Upd..." on a phone. The line keeps its
    words, up to 60% of the row, and the picker cuts its own name instead. */
 .fg-toolbar > .ig-freshness { flex-shrink: 0; max-width: 60%; }
-.fg-tabs { margin: 12px 20px 0; flex: none; align-self: flex-start; max-width: calc(100% - 40px); overflow-x: auto; }
-.fg-tabs .uh-range-btn { font-size: calc(12px + var(--ui-text-increase, 0px)); padding: 4px 12px; min-height: 28px; white-space: nowrap; }
-/* The panel's tabs and a change's sections are the deck's segmented strip,
-   but they are tabs, so the chosen one says aria-selected where the strip's
-   other users say aria-pressed: the same chip, the accent fill with the word
-   inverted on it (.uh-range-btn[aria-pressed="true"], #583). It out-specifies
-   the strip's hover, which would repaint the word in --text. */
-.fg-tabs .uh-range-btn[aria-selected="true"], .fd-sections .uh-range-btn[aria-selected="true"] { background: var(--accent); color: var(--bg); }
+/* The tabs: 24 high, fully round, outlined, 12/400 in --text-secondary; the
+   chosen one on the accent wash and edge with its words in --text. */
+.fg-tabs { margin: 0 0 0 auto; flex: 0 1 auto; display: flex; gap: 4px; max-width: 100%; overflow-x: auto; padding: 0; border: 0; background: none; }
+.fg-tabs .uh-range-btn { font-family: inherit; min-height: 24px; height: 24px; box-sizing: border-box; padding: 0 8px; border: 1px solid var(--ctl-edge); border-radius: var(--r-pill); background: none; color: var(--text-secondary); font-size: calc(12px + var(--ui-text-increase, 0px)); font-weight: 400; line-height: 22px; white-space: nowrap; }
+.fg-tabs .uh-range-btn[aria-selected="true"], .fd-sections .uh-range-btn[aria-selected="true"] { background: color-mix(in srgb, var(--accent) 14%, var(--panel)); border-color: var(--accent); color: var(--text); }
 /* .fg-tabs scrolls sideways, so its box clips an outside ring at the 2px of
    padding: the chosen tab's ring keeps the old 1px step (tokens.css steps 2px). */
 .fg-tabs .uh-range-btn[aria-selected="true"]:focus-visible { outline-offset: 1px; }
-/* A narrow list — the column beside an open item, or a phone — keeps the
-   four tabs on one row across the list, each name whole: smaller words and
-   tighter cells (all four fit a 360px phone), and when even that does not
-   fit, the row scrolls sideways, the last tab showing at the edge, and the
-   chosen tab is scrolled into view (ForgePanel.tsx). One row, rather
-   than the two rows of two it was, leaves the phone's first screen to the
-   list. */
+/* A narrow list (the column beside an open item, or a phone) puts the tabs on
+   a row of their own across it, each name whole; when even that does not fit,
+   the row scrolls sideways, the last tab showing at the edge, and the chosen
+   tab is scrolled into view (ForgePanel.tsx). */
+/* The list beside an open item (480) keeps the tabs on the toolbar's row by dropping the plain label; the trigger still names the repository. */
 @container fg-list (max-width: 520px) {
-  .fg-tabs { align-self: stretch; scrollbar-width: none; overscroll-behavior-x: contain; }
-  .fg-tabs .uh-range-btn { flex: 1 0 auto; padding: 4px; font-size: calc(11px + var(--ui-text-increase, 0px)); }
+  .fg-toolbar-label { display: none; }
 }
-.fg-searchbar { display: flex; gap: 8px; align-items: center; padding: 12px 20px 0; flex: none; }
+@container fg-list (max-width: 440px) {
+  .fg-tabs { flex: 1 1 100%; margin: 0; scrollbar-width: none; overscroll-behavior-x: contain; }
+  .fg-tabs .uh-range-btn { flex: 1 0 auto; padding: 0 4px; font-size: calc(11px + var(--ui-text-increase, 0px)); }
+}
+.fg-searchbar { display: flex; gap: 8px; align-items: center; padding: 8px 12px; flex: none; border-bottom: 1px solid var(--line-soft); }
 /* Open, beside the field once it holds a link: as wide as its word. */
 .fg-resolve { flex: none; }
 /* The list's scroller is the box its screen-reader words are placed in
    (position: relative), so those absolutely placed spans scroll and clip
    with their rows. Placed in a box outside it, they ran on below the modal,
    and a click or a focus scrolled the whole modal up to reach them. */
-.fg-tab-body { position: relative; flex: 1; min-height: 0; overflow-y: auto; scrollbar-gutter: stable; scrollbar-color: var(--ctl-edge) transparent; padding: 8px 20px 32px; }
+.fg-tab-body { position: relative; flex: 1; min-height: 0; overflow-y: auto; scrollbar-gutter: stable; scrollbar-color: var(--ctl-edge) transparent; padding: 4px 8px 32px; }
 .fg-note { margin: 8px 20px 0; color: var(--text-secondary); font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: 1.6; }
 /* A tab's content never animates (V4's motion rules): choosing a tab swaps
    what it shows at once. */
@@ -66,10 +67,10 @@
    the integrations' shared row (`ig-row`, integrations.css): the selected
    one takes the host's selection fill, distinct from this hover, and every
    word on it reads in the main text colour. */
-.fg-rows { list-style: none; margin: 6px 0 0; padding: 0; border: 1px solid var(--line); border-radius: var(--r-panel); background: var(--panel); overflow: hidden; }
+/* V4: rows stand alone (44 high, rounded), not in a box. */
+.fg-rows { list-style: none; margin: 4px 0 0; padding: 0; }
 .fg-rows > li { display: grid; }
-.fg-rows > li + li { border-top: 1px solid var(--line-soft); }
-.fg-row { display: grid; gap: 4px 16px; align-items: center; min-height: 48px; padding: 8px 14px; box-sizing: border-box; border: 0; background: transparent; color: var(--text); font: inherit; text-align: left; cursor: pointer; transition: background var(--dur-fast) var(--ease); }
+.fg-row { display: grid; gap: 0 16px; align-items: center; min-height: 44px; padding: 4px 8px; border-radius: var(--r-panel); box-sizing: border-box; border: 0; background: transparent; color: var(--text); font: inherit; text-align: left; cursor: pointer; transition: background var(--dur-fast) var(--ease); }
 @media (hover: hover) and (pointer: fine) {
 .fg-row:hover { background: var(--ctl-fill); }
 }
@@ -77,9 +78,9 @@
    tone a step and nothing moves, so the words stay under the pointer while
    the item opens. (Inside a list, so it outranks the shared row's hover.) */
 .fg-rows .fg-row:active { background: color-mix(in srgb, var(--text) 10%, transparent); }
-.fg-row-title { min-width: 0; font-weight: 500; overflow-wrap: anywhere; }
+.fg-row-title { min-width: 0; font-weight: 400; line-height: 20px; overflow-wrap: anywhere; }
 .fg-row[data-selected] .fg-row-title { font-weight: 600; }
-.fg-meta { min-width: 0; color: var(--text-secondary); font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: 1.5; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fg-meta { min-width: 0; color: var(--muted); font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: 16px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .fg-meta code { font-size: calc(11px + var(--ui-text-increase, 0px)); }
 
 /* A state: a mark and a word. Tones, never colour alone. */
@@ -161,11 +162,13 @@
 .fg-token-link svg { vertical-align: -1px; }
 
 @media (max-width: 640px) {
-  .fg-toolbar, .fg-searchbar { padding-inline: 16px; }
-  .fg-tabs { margin-inline: 16px; max-width: calc(100% - 32px); }
-  .fg-tab-body { padding-inline: 16px; }
+  .fg-toolbar, .fg-searchbar { padding-inline: 12px; }
+  .fg-tab-body { padding-inline: 8px; }
 }
 @media (prefers-reduced-motion: reduce) {
   .fg-row, .fg-fold-chevron { transition: none; }
   .fg-fold:active { transform: none; }
+}
+@media (pointer: coarse) {
+  .fg-tabs .uh-range-btn { min-height: 32px; height: 32px; }
 }

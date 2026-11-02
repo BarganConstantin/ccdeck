@@ -564,20 +564,32 @@
    (popover-place.ts): at 320px its 368px ran past the screen's edge and took
    Start with it. */
 .anchored-popover.ns-pop {
-  width: min(368px, calc(100vw - 16px));
-  padding: 14px;
+  width: min(480px, calc(100vw - 16px));
+  padding: 12px 16px 16px;
+  border-radius: var(--r-overlay);
+  border: 1px solid var(--line);
+  background: var(--panel);
   transform-origin: 18px 0;
   animation: ns-pop-in var(--dur-base) var(--ease);
 }
 @keyframes ns-pop-in { from { transform: translateY(-4px) scale(0.97); } }
+/* V4's head: "New session" 12/600 in --text-secondary, the fields' names 12px in --muted. */
 .ns-title {
   margin: 0 0 12px;
-  font: 600 9px/1 var(--font-mono);
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--muted);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 16px;
+  color: var(--text-secondary);
 }
-.ns-label { display: block; margin: 0 0 6px; font-size: 11px; color: var(--muted); }
+.ns-label { display: block; margin: 0 0 6px; font-size: 12px; line-height: 16px; color: var(--muted); }
+/* The strips are V4's chips here: 26 high, r8, --bg-soft on a --line-soft edge,
+   12/500 in --text-secondary; the chosen one keeps the deck's solid accent state. */
+.ns-form .uh-range { gap: 6px; padding: 0; border: 0; background: none; }
+.ns-form .uh-range-btn { font-family: inherit; height: 26px; min-height: 26px; box-sizing: border-box; padding: 0 10px; border-radius: var(--r-panel); font-size: 12px; font-weight: 500; line-height: 24px; }
+.ns-form .uh-range-btn[aria-pressed="false"] { border: 1px solid var(--ctl-edge); background: var(--bg-soft); color: var(--text-secondary); }
+@media (hover: hover) and (pointer: fine) {
+.ns-form .uh-range-btn[aria-pressed="false"]:hover { background: var(--ctl-fill); color: var(--text); }
+}
 /* A column, so the shared text field takes the popover's width without a
    percentage of its own. */
 .ns-form { display: flex; flex-direction: column; }
@@ -612,8 +624,8 @@
   cursor: default;
 }
 .ns-worktree-label { font-weight: 500; }
-.ns-note { margin: 12px 0 0; font-size: 11px; line-height: 1.5; color: var(--muted); }
-.ns-acts { display: flex; justify-content: flex-end; gap: 8px; margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--line); }
+.ns-note { margin: 12px 0 0; font-size: 12px; line-height: 16px; color: var(--muted); }
+.ns-acts { display: flex; justify-content: flex-end; gap: 8px; margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--line-soft); }
 
 /* ── less motion ─────────────────────────────────────────────────────────── */
 

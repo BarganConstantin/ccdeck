@@ -70,14 +70,14 @@
 .fd-main { min-width: 0; }
 .fd-side { min-width: 0; }
 
-/* Facts: compact rows in a box — a label, then its value. */
-.fd-facts { display: grid; margin: 0; border: 1px solid var(--line); border-radius: var(--r-panel); background: var(--panel); }
-.fd-fact { display: grid; grid-template-columns: 104px minmax(0, 1fr); gap: 4px 12px; align-items: start; padding: 8px 12px; }
-.fd-fact + .fd-fact { border-top: 1px solid var(--line-soft); }
+/* Facts: plain rows (V4's Figma), not a table in a box — 28 high at least, an
+   84px label in --muted, then its value, 12px both. */
+.fd-facts { display: grid; margin: 0; }
+.fd-fact { display: grid; grid-template-columns: 84px minmax(0, 1fr); gap: 4px 8px; align-items: start; min-height: 28px; box-sizing: border-box; padding: 2px 6px; border-radius: var(--r-ctl); }
 /* Both halves are centred on the same 22px first line — a row of avatars or
    chips is that tall — and grow downwards from it, so a label stays beside the
    first line of a list rather than drifting to its middle. */
-.fd-fact dt { display: flex; align-items: center; min-height: 22px; color: var(--muted); font-size: calc(11px + var(--ui-text-increase, 0px)); font-weight: 600; line-height: 1.4; overflow-wrap: anywhere; }
+.fd-fact dt { display: flex; align-items: center; min-height: 22px; color: var(--muted); font-size: calc(12px + var(--ui-text-increase, 0px)); font-weight: 400; line-height: 16px; overflow-wrap: anywhere; }
 .fd-fact dd { display: grid; align-content: center; min-width: 0; min-height: 22px; margin: 0; font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: 1.5; }
 .fd-fact dd > * { min-width: 0; }
 .fd-facts-page { margin-top: 16px; }
@@ -102,11 +102,13 @@
 .fd-label-scope { padding-right: 6px; border-right: 1px solid var(--line); color: var(--muted); white-space: nowrap; }
 .fd-label-value { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
-/* The section switch: the merge request page's tabs, with their counts. A
-   pane too narrow for all four wraps the last onto a second row, whole,
-   rather than cutting its label at the edge. */
-.fd-sections { display: flex; flex-wrap: wrap; width: max-content; max-width: 100%; box-sizing: border-box; }
-.fd-sections .uh-range-btn { display: inline-flex; align-items: baseline; gap: 6px; min-height: 28px; padding: 4px 12px; font-size: calc(12px + var(--ui-text-increase, 0px)); white-space: nowrap; }
+/* The section switch: the merge request page's tabs as V4's outlined pills (24
+   high, fully round, 12/400), with their counts kept, since a count is
+   information nothing else on the page shows. A pane too narrow for all four
+   wraps the last onto a second row, whole, rather than cutting its label. */
+.fd-sections { display: flex; flex-wrap: wrap; gap: 4px; width: max-content; max-width: 100%; box-sizing: border-box; padding: 0; border: 0; background: none; }
+.fd-sections .uh-range-btn { font-family: inherit; display: inline-flex; align-items: baseline; gap: 6px; min-height: 24px; height: 24px; box-sizing: border-box; padding: 0 8px; border: 1px solid var(--ctl-edge); border-radius: var(--r-pill); background: none; color: var(--text-secondary); font-size: calc(12px + var(--ui-text-increase, 0px)); font-weight: 400; line-height: 22px; white-space: nowrap; }
+.fd-sections .uh-range-btn[aria-selected="true"] { background: color-mix(in srgb, var(--accent) 14%, var(--panel)); border-color: var(--accent); color: var(--text); }
 .fd-section-count { font-size: calc(11px + var(--ui-text-increase, 0px)); font-variant-numeric: tabular-nums; }
 .fd-section-label { min-width: 0; }
 .fd-section { margin-top: 14px; min-width: 0; }
@@ -242,10 +244,7 @@ button.btn.fd-show-comments { margin-top: 8px; }
   .fd-layout { grid-template-columns: minmax(0, 1fr) 216px; gap: 32px; }
   .fd-layout > .fd-side { grid-column: 2; grid-row: 1; }
   .fd-layout > .fd-main { grid-column: 1; grid-row: 1; }
-  .fd-side .fd-facts { border: 0; border-radius: 0; background: none; }
-  .fd-side .fd-fact { grid-template-columns: minmax(0, 1fr); gap: 6px; padding: 12px 0; }
-  .fd-side .fd-fact:first-child { padding-top: 2px; }
-  .fd-side .fd-fact dt { text-transform: uppercase; letter-spacing: 0.05em; }
+  .fd-side .fd-fact { grid-template-columns: minmax(0, 1fr); gap: 2px; padding: 6px; }
 }
 
 /* NARROW: the sections stay one row across the pane, each a label over its
@@ -278,4 +277,7 @@ button.btn.fd-show-comments { margin-top: 8px; }
 @media (prefers-reduced-motion: reduce) {
   .fd-jump { transition: none; }
   .fd-jump:active { transform: none; }
+}
+@media (pointer: coarse) {
+  .fd-sections .uh-range-btn { min-height: 32px; height: 32px; }
 }

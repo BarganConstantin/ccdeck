@@ -52,7 +52,12 @@ describe("this deck's own fingerprint is on screen again (#815)", () => {
 
 describe("the request says where the other machine shows it (#815)", () => {
   it("no longer points at a screen nobody could find", () => {
-    expect(code(ask)).not.toMatch(/the one on their screen/);
+    // CHANGED ON PURPOSE (V4's Figma): the request now uses the kit's words,
+    // `the one on their screen`, and ends the sentence with where that screen
+    // is. What this guards is the sentence that pointed at a screen with no
+    // address, so the phrase is refused only when it is not followed by the
+    // dialog that prints it.
+    expect(code(ask)).not.toMatch(/the one on their screen(?!, under This deck on the network)/);
   });
 
   it("names the dialog that prints it", () => {

@@ -18,7 +18,7 @@ export default function IntegrationSkeleton({ label, rows = 6, variant = "rows" 
   return (
     <div className="ig-skeleton" data-variant={variant} role="status">
       <span className="vis-hidden">{label}</span>
-      {Array.from({ length: rows }, (_, i) => <i key={i} aria-hidden />)}
+      {Array.from({ length: rows }, (_, i) => (variant === "rows" ? <i key={i} aria-hidden><b /></i> : <i key={i} aria-hidden />))}
     </div>
   );
 }
