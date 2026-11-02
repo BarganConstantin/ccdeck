@@ -104,12 +104,15 @@
   margin: var(--board-controls-edge);
   z-index: 6;
 }
+/* 28 tall with the 24px buttons (V4's Figma): the 1px stroke sits INSIDE
+   the frame's 2px padding, so 1px of padding inside the 1px edge, not 2px
+   outside it, which measured 30. */
 .react-flow__controls {
   display: flex;
   flex-direction: row;
   align-items: center;
   gap: 2px;
-  padding: 2px;
+  padding: 1px;
   background: var(--panel);
   border: 1px solid var(--line);
   border-radius: var(--r-ctl);

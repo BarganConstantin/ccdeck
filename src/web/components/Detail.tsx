@@ -4,7 +4,8 @@
 // with the row it draws for each tool call. App.tsx mounts it beside the canvas
 // while an agent is selected and the panel is open.
 import React from "react";
-import { agentKindLabel, categoryLabel, stateLabel } from "../agent-copy";
+import { agentKindLabel, categoryLabel } from "../agent-copy";
+import { cardState } from "../node-face";
 import { useLanguage, useT } from "../i18n";
 
 import CostBar from "./CostBar";
@@ -86,7 +87,9 @@ export default function Detail({
       <header className="detail-hero">
         <div className="hero-line">
           <span className={`state-pill state-${agent.state}`}>
-            {stateLabel(agent.state, t)}
+            {/* The word the card wears (Working, Waiting, Done, Failed) — never
+                "Live" (V4's Figma): a session is either doing something or it is not. */}
+            {cardState(agent).word}
           </span>
           <h2 className="hero-title" title={agent.cwd ?? agent.label}>{agent.label}</h2>
         </div>

@@ -152,7 +152,7 @@ describe("the topbar readouts", () => {
   // as wrong there as it was in the counters.
   // The strip is components/TopbarReadouts.tsx's; it ends where the next
   // component there starts.
-  const stripAt = readoutsCode.indexOf(`<span className="status">`);
+  const stripAt = readoutsCode.indexOf(`className="status"`);
   const stripEnd = readoutsCode.indexOf("export function", stripAt);
   const strip = stripAt === -1 ? "" : readoutsCode.slice(stripAt, stripEnd === -1 ? undefined : stripEnd);
   const readouts = strip

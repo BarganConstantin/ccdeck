@@ -48,8 +48,9 @@ const RULES = [...css.matchAll(/([^{}]+)\{([^{}]*)\}/g)].map(m => ({
 /** The strip's markup, from components/TopbarReadouts.tsx — whose readout group
  *  App.tsx mounts — up to the next component there, or the end of the file. */
 const readouts = readFileSync(join(web, "components/TopbarReadouts.tsx"), "utf8");
-const stripAt = readouts.indexOf(`<span className="status">`);
-const stripEnd = readouts.indexOf("export function", stripAt);
+const stripAt = readouts.indexOf(`className="status"`);
+// (Not-exported helpers follow it now: the queue popover's pieces.)
+const stripEnd = readouts.slice(stripAt).search(/\n(?:export )?function /) + stripAt;
 const strip = stripAt === -1 ? "" : readouts.slice(stripAt, stripEnd === -1 ? undefined : stripEnd);
 
 describe("the topbar's readout strip", () => {

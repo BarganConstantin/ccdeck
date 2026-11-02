@@ -47,12 +47,16 @@ describe("the bar holds nothing a panel changes", () => {
     }
   });
 
-  it("keeps the waiting queue's box mounted while nothing waits, so the ribbon after it stays put", () => {
-    // Mounted whenever the stripes are, not when somebody waits: the box takes
-    // the bar's free room either way, and the ribbon after it stands in one
-    // place whether or not a session is waiting.
-    expect(header).toMatch(/\{!phone && \(\s*<WaitingNames /);
-    expect(header).not.toMatch(/waitingSessions\.length > 0 && \(\s*<WaitingNames/);
+  it("keeps the waiting pill mounted while nothing waits, so nothing after it moves when somebody does", () => {
+    // V4's Figma draws the three count pills always: WaitingStat renders the
+    // quiet 0 pill when the queue is empty, so the bar is the same width
+    // either way. The queue names that took the free room (WaitingNames) are
+    // the pill's popover now and take none.
+    expect(header).toContain("<ReadoutGroup");
+    expect(header).not.toContain("WaitingNames");
+    expect(header).not.toMatch(/waitingSessions\.length > 0 && \(\s*<WaitingStat/);
+    const readouts = sourceOf("components/TopbarReadouts.tsx");
+    expect(readouts).toMatch(/if \(count === 0\) \{\s*return <CountPill kind="waiting" count=\{0\}/);
   });
 });
 

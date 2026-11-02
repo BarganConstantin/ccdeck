@@ -120,9 +120,9 @@ describe("the wiring", () => {
     // Chip and button together are about 228px, and with a session waiting
     // they pushed the chip's left edge out of a 320px bar.
     const css = read("../styles/topbar.css");
-    expect(css).toMatch(/@media \(max-width: 480px\) \{\s*\.topbar \.brand button\.v\.ready:has\(\+ \.v-update\) \{ display: none; \}\s*\}/);
+    expect(css).toMatch(/@media \(max-width: 480px\) \{\s*\.topbar button\.v\.ready:has\(\+ \.v-update\) \{ display: none; \}\s*\}/);
     // The press shares V4's one chip look (the accent wash, no edge) with a
     // newer version and a ready update, so it is named in their rule.
-    expect(css).toMatch(/\.topbar \.brand button\.v:is\(\.stale, \.ready, \.v-update\) \{/);
+    expect(css).toMatch(/\.topbar button\.v:is\(\.stale, \.ready, \.v-update\) \{/);
   });
 });

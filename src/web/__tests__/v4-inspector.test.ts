@@ -136,7 +136,8 @@ describe("the header", () => {
   it("holds the tabs in a --bg-soft pill: 1px --line-soft, padding 2, gap 2, --r-panel", () => {
     expect(decl(".insp-tabs", "background")).toBe("var(--bg-soft)");
     expect(decl(".insp-tabs", "border")).toBe("1px solid var(--line-soft)");
-    expect(decl(".insp-tabs", "padding")).toBe("2px");
+    // 1px inside the 1px edge = the frame's 2px padding with the stroke inside it.
+    expect(decl(".insp-tabs", "padding")).toBe("1px");
     expect(decl(".insp-tabs", "gap")).toBe("2px");
     expect(decl(".insp-tabs", "border-radius")).toBe("var(--r-panel)");
   });

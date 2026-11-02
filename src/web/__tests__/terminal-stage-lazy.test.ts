@@ -166,7 +166,7 @@ describe("the flag off in the rest of the deck", () => {
     // Each of these is undefined, or not rendered, unless the flag is on.
     expect(app).toMatch(/stagePhase=\{stage\.enabled && stage\.shell\.phase !== "closed" \? stage\.shell\.phase : undefined\}/);
     expect(app).toMatch(/onTerminal=\{stage\.enabled \? stage\.openFromButton : undefined\}/);
-    expect(app).toMatch(/startAsks=\{stage\.enabled \? asks\.startAsks : undefined\} asksSaid=\{stage\.enabled \? asks\.said : undefined\}/);
+    expect(app).toMatch(/asksSaid=\{stage\.enabled \? asks\.said : undefined\}/);
     expect(app).toMatch(/\{stage\.enabled && <div className="vis-hidden" role="status" aria-atomic="true">\{stage\.said\}<\/div>\}/);
     expect(code("components/CanvasControls.tsx")).toMatch(/\{onTerminal && \(\s*<ControlButton/);
     expect(code("components/TopbarReadouts.tsx")).toMatch(/\{asksSaid != null && <div className="vis-hidden"/);

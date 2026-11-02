@@ -1,58 +1,55 @@
-/* 14px between readouts — it was never the wrong number. What was wrong is
-   that it also had to serve as the seam between the readouts and the controls,
-   via a `margin-right: 6px` that made that boundary 14px too. The margin is
-   gone; .readout's 24px and .topbar's 24px carry the two boundaries this strip
-   actually has.
-   The stream's pill is the strip's one member now, so the 14px separates
-   nothing today; it is the distance a second readout would take, and that
-   readout has the reasons below to answer first. The month-to-date phrase
-   that followed it (#737) left the bar on 2026-10-08: a month's total is not
-   a fact about right now, and it cost a ccusage run every five minutes to keep
-   current. The Usage panel says it, beside today and all time. */
+/* The stream's strip. It is the pill's SLOT now (ChipPresence): the element
+   that arrives and leaves with the pill, so it is no box at all once the pill
+   has gone — what `:empty` used to do. The stream's pill is the strip's one
+   member; the machine meter, the month-to-date phrase (#737) and the
+   readouts that followed the pill are gone for the reasons topbar.css and
+   TopbarReadouts.tsx give, and a month's total is the Usage panel's. */
 .topbar .status {
   color: var(--muted);
   font-size: calc(12px + var(--ui-text-increase, 0px));
-  display: inline-flex;
-  align-items: center;
+  /* 14px between readouts: the distance a second member of the strip would
+     take (it holds one today). */
   gap: 14px;
 }
-/* Nothing to say is no box at all. The strip renders nothing while the stream
-   is live, and an empty flex item still takes a gap on either side, so the bar
-   drew 48px between the version chip and the blocked-session chip where every
-   other role boundary in it is 24. */
-.topbar .status:empty { display: none; }
-/* THE RIBBON'S CAPS (#737). The selected-node ribbon is the one member of the
-   bar that can say less and still be itself — a state, a name cut with an
-   ellipsis, a ×; the cost is on the card and in the detail panel, and in the
-   ribbon's own title — so where the room is short it is the ribbon's cap that
-   comes down. Nothing a click on the canvas puts on the bar may change what
-   the readout holds: the readout is packed ahead of the blocked-session chip,
-   and a selection that hid any of it would slide the alarm sideways.
-   THE BAR THE CAPS ARE CUT TO NOW. The panel toggles left for the window's
-   edges (2026-10-08), and the month phrase before them, so the busiest bar
-   besides the ribbon is the brand, a waiting count of two digits and the two
-   utilities: measured in headless Brave at 1440, dark and light alike, 541px
-   with the padding and the gaps (the readout 272.7 with "12 waiting", Settings
-   and Feedback 184) — W - 541 of room for the ribbon, and less 40px of
-   headroom for faces wider than the one measured, W - 581. That is under the
-   ribbon's usual min(380px, 24vw) only below 765px, so from there down the
-   ribbon gives way towards its floor and above it is its usual self.
-   The waiting queue's names come after the readout and take only what is
-   left (topbar-controls.css), so a selection folds names before it can touch
-   the count, and never the readout.
-   Under 1140 the ribbon drops its cost and rate, so what it has goes to the
-   name: at 24vw a cost does not shrink, and from 641, where the ribbon
-   returns (selection-ribbon.css), the name ellipsed to nothing beside a cost
-   that kept its width. Above it the 24vw holds a name of a dozen characters
-   beside the cost (topbar-ribbon-cost.test.ts adds the bar up).
-   A paused pill, an incident chip or the app's ready-update chip on top of
-   the budget is outside it, and there the readout gives up the logo and the
-   wordmark from the left, never the alarm.
-   All of this after the base rules, and not in the 640 block at the top of
-   the topbar section, where the ribbon's own cap would win on source order. */
-@media (min-width: 641px) {
-  .selected-ribbon { max-width: min(380px, 24vw, calc(100vw - 581px)); }
+
+/* A CHIP'S ARRIVAL AND DEPARTURE (V4's motion rules, top bar chip), on the slot
+   ChipPresence draws around the stream chip, an incident chip and the version
+   chip. TRANSITIONS, not keyframes: the slot is mounted off, a frame later
+   [data-on] takes it to rest, and taking [data-on] away runs it out again, so a
+   chip told to leave while it is still arriving turns round where it is.
+   Enter: opacity and 4px of x over --dur-base. Leave: the same back over
+   --dur-exit, and the width closes with it — a grid track from 1fr to 0fr, with
+   a margin that takes back the gap the group puts between two neighbours
+   (--chip-gap: 12 in the start group, 8 in the end group) — so the chips beside
+   it move over by the chip and its gap together, and nothing jumps when the slot
+   unmounts. The child is the grid's one item, allowed to shrink to nothing. */
+.topbar .chip-slot {
+  display: inline-grid;
+  grid-template-columns: 0fr;
+  margin-left: calc(-1 * var(--chip-gap, 12px));
+  opacity: 0;
+  transform: translateX(-4px);
+  transition: grid-template-columns var(--dur-exit) var(--ease), margin-left var(--dur-exit) var(--ease),
+              opacity var(--dur-exit) var(--ease), transform var(--dur-exit) var(--ease);
 }
-@media (max-width: 1139px) {
-  .selected-ribbon .selected-cost { display: none; }
+.topbar .chip-slot[data-on] {
+  grid-template-columns: 1fr;
+  margin-left: 0;
+  opacity: 1;
+  transform: none;
+  transition-duration: var(--dur-base);
+}
+.topbar .chip-slot > * { min-width: 0; overflow: hidden; }
+.topbar .readout { --chip-gap: 12px; }
+.topbar .tb-end { --chip-gap: 8px; }
+/* Reduced motion: opacity only. The chip neither travels nor sweeps the gap
+   closed; it fades, and its neighbours take their places when it is gone. */
+@media (prefers-reduced-motion: reduce) {
+  .topbar .chip-slot {
+    grid-template-columns: 1fr;
+    margin-left: 0;
+    transform: none;
+    transition: opacity var(--dur-exit) var(--ease);
+  }
+  .topbar .chip-slot[data-on] { transition-duration: var(--dur-base); }
 }

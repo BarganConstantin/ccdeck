@@ -1,4 +1,5 @@
-// The topbar names who is waiting (2026-10-08). The count was the whole of what
+// The topbar names who is waiting (2026-10-08; since V4's top bar it does so
+// in the waiting pill's queue popover, not in a row of names on the bar). The count was the whole of what
 // the bar said about the sessions stopped on you, and which ones lived in its
 // tooltip; with the panel toggles gone to the window's edges, the room they
 // held goes to the sessions themselves — "web-api  Bash · 6m" — longest wait
@@ -22,7 +23,7 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { blockedSessions, nextWaiting, type BlockedSession } from "../ambient-counts";
 import { namesThatFit, queueEntryDetail, queueEntryName, queueName, QUEUE_NAME_CHARS, spokenWait, waitWhat } from "../waiting-queue";
-import { QUEUE_GAP_PX, QUEUE_LEAD_PX, WaitingNames, WaitingStat } from "../components/TopbarReadouts";
+import { WaitingStat } from "../components/TopbarReadouts";
 import { sourceOf } from "./client-source";
 import { sheetText } from "./sheet-source";
 import type { AgentNodeData, WaitingBlock } from "../types";
@@ -85,32 +86,29 @@ describe("the order is the count's and W's (#825)", () => {
   ] as unknown as AgentNodeData[];
   const queue = blockedSessions(agents);
 
-  it("draws the names oldest first, the order the count and W walk", () => {
+  it("lists the rows oldest first, the order the count and W walk", () => {
     expect(queue.map(w => w.label)).toEqual(["oldest", "middle", "newest"]);
-    const html = renderToStaticMarkup(createElement(WaitingNames, {
-      waitingSessions: queue, waitingCursorRef: { current: null }, focusSession: () => {}, now: 10_000,
-      onFit: () => {}, onMore: () => {},
-    }));
-    // The ruler measures every one in the queue's order, which is the order
-    // the list draws them in once they are measured.
-    const ruled = [...html.matchAll(/<span class="we-name">([^<]*)<\/span>/g)].map(m => m[1]);
-    expect(ruled).toEqual(["oldest", "middle", "newest"]);
+    // The popover is portalled (no static render); its rows are the pill's own
+    // queue, mapped in order, one per waiting session, none cut to "fit".
+    const src = sourceOf("components/TopbarReadouts.tsx");
+    expect(src).toMatch(/sessions=\{waitingSessions\}/);
+    expect(src).toMatch(/\{sessions\.map\(w => \(\s*<button\s+key=\{w\.id\}\s+type="button"\s+role="menuitem"/);
   });
 
   it("puts W's cursor on the name pressed, so the next W goes to the one after it", () => {
     // What a press on a name does: the cursor, then the camera — the count's
     // own two steps, for a session that is not necessarily the first.
     const src = sourceOf("components/TopbarReadouts.tsx");
-    expect(src).toMatch(/const go = \(id: string\) => \{\s*waitingCursorRef\.current = id;\s*focusSession\(id\);\s*\};/);
-    expect(src).toMatch(/className="wait-entry"\s*onClick=\{\(\) => go\(w\.id\)\}/);
+    expect(src).toMatch(/onPick=\{id => \{\s*waitingCursorRef\.current = id;\s*close\(\);\s*focusSession\(id\);/);
+    expect(src).toMatch(/className="queue-row"\s*onClick=\{\(\) => onPick\(w\.id\)\}/);
     for (const [pressed, next] of [["b", "c"], ["c", "a"], ["a", "b"]]) {
       expect(nextWaiting(queue, pressed)!.id, `after ${pressed}`).toBe(next);
     }
   });
 
-  it("goes to the same session from the count and from the first name", () => {
-    const src = sourceOf("components/TopbarReadouts.tsx");
-    expect(src).toMatch(/waitingCursorRef\.current = waitingSessions\[0\]\.id;\s*focusSession\(waitingSessions\[0\]\.id\);/);
+  it("goes to the same session from the first row and from W", () => {
+    // The pill no longer jumps straight to the longest wait: its first row is
+    // that wait, and W (use-deck-shortcuts.ts) still starts there.
     expect(nextWaiting(queue, null)!.id).toBe(queue[0].id);
   });
 });
@@ -160,95 +158,48 @@ describe("what each name says", () => {
     expect(queueEntryDetail(block())).toBe("Claude needs your permission to use Bash");
   });
 
-  it("draws a name, then what and how long, as buttons with those names", () => {
-    const html = renderToStaticMarkup(createElement(WaitingNames, {
-      waitingSessions: [session("s1", "web-api", 0, { tool: { name: "Bash" } as WaitingBlock["tool"] })],
-      waitingCursorRef: { current: null }, focusSession: () => {}, now: 6 * 60_000, onFit: () => {}, onMore: () => {},
-    }));
-    // Nothing is named before it is measured: the static render has the ruler
-    // and an empty list.
-    expect(html).toContain('<ul class="wait-list"></ul>');
-    // The session list row's order, "waiting 6m · Bash": name, wait, what on.
-    expect(html).toMatch(/<span class="wait-ruler" aria-hidden="true"><span class="wait-entry"><span class="we-name">web-api<\/span><span class="we-wait">6m<\/span><span class="we-what">· Bash<\/span><\/span><span class="wait-more">\+1 more<\/span><\/span>/);
+  it("draws each row as the old name's words, as a menu item with the whole name", () => {
     const src = sourceOf("components/TopbarReadouts.tsx");
     expect(src).toContain("aria-label={queueEntryName(w.label, w.waiting, now - w.waiting.since, t)}");
-    expect(src).toMatch(/aria-label=\{t\("board\.queue\.moreLabel", \{ n: rest\.length \}\)\}/);
+    // The session list row's order, "waiting 6m · Bash": name, wait, what on.
+    expect(src).toMatch(/<span className="we-name">\{queueName\(w\.label\)\}<\/span>\s*<span className="we-wait">[^]*?<span className="we-what">· \{waitWhat\(w\.waiting, t\)\}<\/span>/);
   });
 });
 
-describe("the names fold before the count", () => {
-  it("takes only the room the bar has left, and nothing it does not", () => {
-    const box = ruleBody(".topbar .wait-names");
-    expect(box).toMatch(/flex:\s*1 1 0;/);
-    expect(box).toMatch(/min-width:\s*0;/);
-    expect(box).toMatch(/overflow:\s*hidden;/);
-    // And its width is never its names' to ask for: without containment the
-    // names it had drawn held the bar open, and a window narrowed from 1440
-    // kept a 1403px bar with Feedback off its edge.
-    expect(box).toMatch(/contain:\s*inline-size;/);
-    expect(ruleBody(".topbar")).toMatch(/min-width:\s*0;/);
-    // It gives the bar's 24px gap back, so an empty box costs the bar nothing.
-    expect(box).toMatch(/margin-left:\s*-24px;/);
-    expect(ruleBody(".topbar")).toMatch(/gap:\s*24px;/);
+describe("the queue popover keeps the bar's colours and its silence", () => {
+  it("draws no amber in its rows: --warn is the count's alone", () => {
+    for (const sel of [".queue-row", ".queue-row .we-name", ".queue-row .we-wait", ".queue-row .we-what"]) {
+      const at = css.indexOf(`\n${sel} {`);
+      if (at > -1) expect(css.slice(css.indexOf("{", at) + 1, css.indexOf("}", at)), sel).not.toContain("--warn");
+    }
+    expect(ruleBody(".topbar .count-pill.waiting-stat")).toContain("var(--warn)");
   });
 
-  it("measures with the numbers the sheet draws, the lead and the gap", () => {
-    expect(ruleBody(".topbar .wait-list")).toContain(`gap: ${QUEUE_GAP_PX}px;`);
-    expect(css).toContain(`.topbar .wait-list:not(:empty) { padding-left: ${QUEUE_LEAD_PX}px; }`);
-  });
-
-  it("stands outside the readout, after it, so the readout's clip reaches the count last", () => {
-    const app = sourceOf("App.tsx");
-    const readout = app.indexOf("<ReadoutGroup");
-    const names = app.indexOf("<WaitingNames");
-    expect(readout).toBeGreaterThan(-1);
-    expect(names).toBeGreaterThan(readout);
-    // The count is the readout's alarm, after the incident chips (#1311), so
-    // it is the last of it to be clipped.
-    const group = sourceOf("components/TopbarReadouts.tsx");
-    const body = group.slice(group.indexOf("export function ReadoutGroup"));
-    expect(body.indexOf("<IncidentChips")).toBeGreaterThan(-1);
-    expect(body.indexOf("<WaitingStat")).toBeGreaterThan(body.indexOf("<IncidentChips"));
-    expect(ruleBody(".topbar .readout")).toMatch(/justify-content:\s*flex-end;/);
-  });
-
-  it("is not drawn on a phone, where the bar holds the count alone", () => {
-    expect(sourceOf("App.tsx")).toMatch(/\{!phone && \(\s*<WaitingNames /);
-  });
-});
-
-describe("the queue keeps the bar's colours and its silence", () => {
-  const queueRules = [".topbar .wait-names", ".topbar .wait-list", ".topbar .wait-entry", ".topbar .we-name",
-    ".topbar .we-wait", ".topbar .we-what", ".topbar .wait-more", ".topbar .wait-ruler"];
-
-  it("draws no amber: --warn is the count's alone", () => {
-    for (const sel of queueRules) expect(ruleBody(sel), sel).not.toContain("--warn");
-    expect(ruleBody(".topbar .waiting-stat")).toContain("var(--warn)");
-  });
-
-  it("says nothing when nothing waits — no placeholder, no ring", () => {
+  it("says nothing when nothing waits: a quiet 0 pill, no placeholder, no popover", () => {
     const src = sourceOf("components/TopbarReadouts.tsx");
     expect(src).not.toMatch(/Nothing waiting/i);
-    const html = renderToStaticMarkup(createElement(WaitingNames, {
-      waitingSessions: [], waitingCursorRef: { current: null }, focusSession: () => {}, now: 0, onFit: () => {}, onMore: () => {},
+    const html = renderToStaticMarkup(createElement(WaitingStat, {
+      waitingSessions: [], waitingCursorRef: { current: null }, focusSession: () => {}, now: 0,
     }));
-    expect(html.replace(/<[^>]+>/g, "")).toBe("");
-    expect(html).not.toContain("wait-ruler");
+    expect(html).toContain("<b>0</b>");
+    expect(html).not.toContain("<button");
+    expect(html).not.toContain("aria-haspopup");
   });
 
   it("speaks through the count's region only", () => {
     const src = sourceOf("components/TopbarReadouts.tsx");
-    const names = src.slice(src.indexOf("export function WaitingNames"), src.indexOf("export function", src.indexOf("export function WaitingNames") + 10));
-    expect(names).not.toMatch(/role="status"|aria-live/);
+    const at = src.indexOf("function QueuePopover");
+    const popover = src.slice(at, src.indexOf("export function CountPill", at));
+    expect(popover).not.toMatch(/role="status"|aria-live/);
   });
 
   it("keeps the count's name and its key, while the keys are on", () => {
     const html = renderToStaticMarkup(createElement(WaitingStat, {
       waitingSessions: [session("s1", "api", 0)], waitingCursorRef: { current: null }, focusSession: () => {},
-      now: 1_000, named: 1,
+      now: 1_000,
     }));
     expect(html).toContain('aria-label="1 session waiting for you"');
     expect(html).toContain('aria-keyshortcuts="W"');
-    expect(html).toContain("<b>1</b> waiting");
+    expect(html).toContain('<b>1</b><span class="count-word">waiting</span>');
   });
 });

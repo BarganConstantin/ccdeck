@@ -76,10 +76,13 @@
   gap: 4px;
 }
 
-/* V4's Kbd: 18 tall, the deck's mono at 11 on 14. */
+/* V4's Kbd (V4's Figma, Top bar), the deck's mono at 11 on 14. 16 tall and 17
+   wide for one letter: the 1px stroke sits INSIDE the frame's 5px by 1px
+   padding, so 4px by 0 of padding inside the edge, not 5 by 1 outside it, which
+   measured 18.6 by 18. */
 .kbd {
   display: inline-block;
-  padding: 1px 5px;
+  padding: 0 4px;
   background: var(--bg-soft);
   border: 1px solid var(--line);
   border-radius: 4px;

@@ -252,6 +252,7 @@ export function railItems({
   const feedback: RailItem = {
     id: "feedback", label: t("board.rail.feedback"), short: t("board.rail.feedback"), menu: t("board.rail.feedback.menu"),
     ariaLabel: t("board.rail.feedback.menu"), glyph: <FeedbackGlyph />, kind: "dialog", onPress: onFeedback,
+    barLook: "icon",
     ...feedbackUnreadDoor(feedbackUnread, openFeedbackConversations),
   };
   // TOOLS AND SKILLS, ONE DOOR EACH. Skills were a tab inside Tool activity,
