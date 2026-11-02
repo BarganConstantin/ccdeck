@@ -18,6 +18,7 @@ import { fmtBytes } from "../byte-format";
 import { fmtCost } from "../pricing";
 import { effectiveContextWindow } from "../context-window";
 import { contextFill } from "../context-figure";
+import { fmtTokens } from "../token-format";
 import { agentCost } from "../usage-models";
 import { Dialog } from "./Dialog";
 import { useModalDismiss, useScrimDismiss } from "./use-modal-dismiss";
@@ -116,14 +117,16 @@ export default function ContextModal({ agent, onClose }: Props) {
 
   return (
     <Dialog scrim={scrimPress} dialogRef={dialogRef} className="ctx-modal" aria-label={t("insights.context.aria")}>
-        <header className="modal-head ctx-modal-head">
-          <div>
-            <div className="modal-tool-name">{t("insights.context.title", { label: agent.label })}</div>
-            <div className="ctx-modal-sub">{copy.subtitle}</div>
-          </div>
+        <header className="modal-head">
+          <div className="modal-tool-name">{t("insights.context.title", { label: agent.label })}</div>
           <button type="button" ref={closeRef} className="glyph-btn ctx-modal-close" onClick={onClose} aria-label={t("insights.audit.closeEsc")} title={t("insights.audit.closeEsc")}>×</button>
         </header>
-        <ContextView agent={agent} meta />
+        <div className="modal-body ctx-modal-body">
+          <ContextView agent={agent} meta />
+        </div>
+        <footer className="modal-foot">
+          <button type="button" className="btn primary" onClick={onClose}>{t("shell.done")}</button>
+        </footer>
     </Dialog>
   );
 }
@@ -183,20 +186,28 @@ export function ContextView({ agent, meta = false }: {
 
   return (
     <div className="ctx-view">
+        {/* V4's first line: what kind of number the window figure is. The panel
+            leaves it for its head. */}
+        {meta && <p className="ctx-approx">{capitalFirst(copy.subtitle)}</p>}
         <section className="ctx-window-row">
+          {meta && (
+            <div className="ctx-window-top">
+              <span className="ctx-window-label">{capitalFirst(copy.windowScope)}</span>
+              <span className="ctx-window-pct">{Math.round(pct)}%</span>
+            </div>
+          )}
           {/* A progressbar needs a name of its own (4.1.2): the percentage
               beside it is a sibling, not a label, so without one a reader
               heard "progress bar, 42" with nothing to say what was 42. */}
           <div className="ctx-window-bar" role="progressbar" aria-label={t("insights.context.used")} aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(pct)}>
-            <div className="ctx-window-fill" style={{ transform: `scaleX(${Math.min(100, Math.max(0, pct)) / 100})` }} />
+            <div className="ctx-window-fill" style={{ transform: `scaleX(${Math.min(100, Math.max(0, pct)) / 100})` }} data-level={pct >= 90 ? "full" : pct >= 70 ? "high" : undefined} />
           </div>
           {/* The panel's head already prints the figure, so under the meter it
-              says only what kind of number it is. The modal has the note in its
-              header and keeps the percent and the count here. */}
+              says only what kind of number it is. The modal keeps the count
+              here, in the deck's compact figures, with the exact ones on a title. */}
           {meta ? (
-            <div className="ctx-window-meta">
-              <span className="ctx-window-pct">{fmt1(pct)}%</span>
-              <span>{t("insights.context.tok", { current: fmtN(current), window: fmtN(window), scope: copy.windowScope })}</span>
+            <div className="ctx-window-meta" title={t("insights.context.tok", { current: fmtN(current), window: fmtN(window), scope: copy.windowScope })}>
+              <span>{t("insights.context.tokShort", { current: fmtTokens(current), window: fmtTokens(window) })}</span>
             </div>
           ) : (
             <p className="ctx-window-note">{copy.subtitle}</p>
@@ -206,12 +217,12 @@ export function ContextView({ agent, meta = false }: {
         <section>
         <h3 className="ctx-section-title">{t("insights.context.cumulative")}</h3>
         <div className="ctx-grid">
-          <Row label={t("insights.context.inputTokens")}        val={fmtN(usage.inputTokens)} />
-          <Row label={t("insights.context.outputTokens")}       val={fmtN(usage.outputTokens)} />
-          <Row label="Cache reads"         val={fmtN(usage.cacheReadTokens)} />
-          <Row label={t("insights.context.cacheWrites")}        val={fmtN(usage.cacheCreateTokens)} />
-          <Row label={t("insights.context.total")}    val={fmtN(cumulative)} />
-          <Row label={t("insights.context.cost")}      val={fmtCost(cost.total)} />
+          <Row meta={meta} label={t("insights.context.inputTokens")}        n={usage.inputTokens} />
+          <Row meta={meta} label={t("insights.context.outputTokens")}       n={usage.outputTokens} />
+          <Row meta={meta} label="Cache reads"         n={usage.cacheReadTokens} />
+          <Row meta={meta} label={t("insights.context.cacheWrites")}        n={usage.cacheCreateTokens} />
+          <Row meta={meta} label={t("insights.context.total")}    n={cumulative} />
+          <Row meta={meta} label={t("insights.context.cost")}      val={fmtCost(cost.total)} />
         </div>
         </section>
 
@@ -235,11 +246,11 @@ export function ContextView({ agent, meta = false }: {
             occupied. */}
         {copy.compositionCounted ? (
           <div className="ctx-grid">
-            <Row label={t("insights.context.userMsgs")}       val={fmtN(ctx?.msgsUser ?? 0)} />
-            <Row label={t("insights.context.assistantMsgs")}  val={fmtN(ctx?.msgsAssistant ?? 0)} />
-            <Row label={t("insights.context.toolUses")}           val={fmtN(ctx?.toolUses ?? 0)} />
-            <Row label={t("insights.context.toolResults")}        val={fmtN(ctx?.toolResults ?? 0)} />
-            <Row label={t("insights.context.reminders")}    val={fmtN(ctx?.systemReminders ?? 0)} />
+            <Row meta={meta} label={t("insights.context.userMsgs")}       val={fmtN(ctx?.msgsUser ?? 0)} />
+            <Row meta={meta} label={t("insights.context.assistantMsgs")}  val={fmtN(ctx?.msgsAssistant ?? 0)} />
+            <Row meta={meta} label={t("insights.context.toolUses")}           val={fmtN(ctx?.toolUses ?? 0)} />
+            <Row meta={meta} label={t("insights.context.toolResults")}        val={fmtN(ctx?.toolResults ?? 0)} />
+            <Row meta={meta} label={t("insights.context.reminders")}    val={fmtN(ctx?.systemReminders ?? 0)} />
           </div>
         ) : (
           <div className="ctx-empty">{copy.compositionUncounted}</div>
@@ -265,13 +276,26 @@ export function ContextView({ agent, meta = false }: {
   );
 }
 
-function Row({ label, val }: { label: string; val: string }) {
+/** A row of the breakdown. In the modal (V4) the label is lower-case in English
+ *  and a token count is compact ("12.4k") with the exact count on its title; the
+ *  Inspector's tab keeps its full numbers. */
+function Row({ label, val, n, meta = false }: { label: string; val?: string; n?: number; meta?: boolean }) {
+  const shown = n !== undefined ? (meta ? fmtTokens(n) : fmtN(n)) : val;
   return (
     <div className="ctx-row">
-      <span className="ctx-row-label">{label}</span>
-      <span className="ctx-row-val">{val}</span>
+      <span className="ctx-row-label">{meta ? lowerEnglish(label) : label}</span>
+      <span className="ctx-row-val" title={meta && n !== undefined ? fmtN(n) : undefined}>{shown}</span>
     </div>
   );
+}
+
+/** V4 writes the rows' labels in lower case; only English, where that is how a
+ *  label is written (German nouns keep their capital). */
+function lowerEnglish(label: string): string {
+  return currentLanguage().startsWith("en") ? label.charAt(0).toLowerCase() + label.slice(1) : label;
+}
+function capitalFirst(text: string): string {
+  return text.charAt(0).toLocaleUpperCase(currentLanguage()) + text.slice(1);
 }
 
 /** Compact donut indicator — used on the root agent's node header. */

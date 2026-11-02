@@ -299,7 +299,8 @@ const SITES: Array<[name: string, rel: string, anchor: RegExp, spread: RegExp]> 
     /className="glyph-btn uh-reload"/,
     /\{\.\.\.selfPressProps\(loading\)\}/],
   ["the usage-history Try again", "components/UsageHistoryModal.tsx",
-    /className="btn uh-retry"/,
+    // CHANGED ON PURPOSE (V4's Figma): the footer's primary button.
+    /className="btn primary uh-retry"/,
     /\{\.\.\.selfPressProps\(loading\)\}/],
   ["the add-account Continue", "components/AddAccountDialog.tsx",
     /onClick=\{submitCode\}/,

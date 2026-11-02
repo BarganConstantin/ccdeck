@@ -153,7 +153,6 @@
   /* The left column's two panels: answered with the column itself, at the
      end of styles/left-column.css. */
   .tool-burst .tb-spin,
-  .state-pill.state-active::before,
   .agent-node .state-line[data-tone="active"] .state-mark { animation: none; }
   .tool-burst.clickable { transition: background-color var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease), opacity var(--dur-base) var(--ease); }
   @media (hover: hover) and (pointer: fine) {

@@ -49,9 +49,14 @@ describe("the tool dialog shows a call as what it is (#816)", () => {
     expect(code).toMatch(/copyResponse: copyOf\(tool\.name, "response", response\),/);
     expect(code).toMatch(/<CopyButton text=\{drawn\.copyInput\} what="input" \/>/);
     expect(code).toMatch(/\{tool\.endedAt != null && <CopyButton text=\{drawn\.copyResponse\} what="response" \/>\}/);
-    // Its visible word is inside its accessible name, before and after.
-    expect(code).toMatch(/aria-label=\{t\(copied \? `insights\.tool\.copied\.\$\{what\}` : `insights\.tool\.copy\.\$\{what\}`\)\}/);
-    expect(code).toMatch(/\{copied \? t\("insights\.tool\.copiedWord"\) : t\("insights\.tool\.copyWord"\)\}/);
+    // CHANGED ON PURPOSE (V4's Figma): the copy is a 24 icon button, so the word
+    // it showed is gone and its accessible name carries what it copies, before
+    // and after the copy (the label and the title are the one string), while the
+    // glyph turns to a tick for the moment it is copied.
+    expect(code).toMatch(/const label = t\(copied \? `insights\.tool\.copied\.\$\{what\}` : `insights\.tool\.copy\.\$\{what\}`\);/);
+    expect(code).toMatch(/aria-label=\{label\} title=\{label\}/);
+    expect(code).toMatch(/\{copied \? <KitStateGlyph name="done" \/> : <KitIcon name="copy" \/>\}/);
+    expect(code).not.toMatch(/insights\.tool\.copyWord/);
   });
 
   it("keeps the × the first control in the dialog, so focus lands where it did", () => {

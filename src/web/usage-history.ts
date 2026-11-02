@@ -6,6 +6,7 @@
 // a function the suite can call instead of a copy of one.
 
 import { dayAgentSummary } from "./usage-agents";
+import { currentLanguage } from "./i18n";
 
 // ── ccusage data shapes (subset we use) ────────────────────────────────────
 export interface ModelBreakdown {
@@ -244,4 +245,20 @@ export function dayAgentsLine(day: DayEntry): string | null {
  *  newest day, so today always has its date. */
 export function dayLabelStep(dayCount: number): number {
   return dayCount <= 14 ? 1 : dayCount <= 31 ? 2 : 7;
+}
+
+/** The value over a day's bar (V4's Figma): whole dollars, and "<$1" for a day
+ *  that cost something but under a dollar, so a small day is never drawn as free. */
+export function dayValue(cost: number): string {
+  if (!(cost > 0)) return "";
+  return cost < 1 ? "<$1" : `$${Math.round(cost).toLocaleString("en-US")}`;
+}
+
+/** A YYYY-MM-DD day's short weekday in the language on show ("Tue"). A string
+ *  that is not a day comes back as it is. */
+export function weekdayShort(period: string): string {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(period);
+  if (!m) return period;
+  const day = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+  return day.toLocaleDateString(currentLanguage(), { weekday: "short" });
 }

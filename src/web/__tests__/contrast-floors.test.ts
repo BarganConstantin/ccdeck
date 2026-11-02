@@ -355,24 +355,10 @@ describe("agent-node state rings (#268)", () => {
     }
   });
 
-  it("reads every state pill's own label at 4.5:1 over its own wash", () => {
-    for (const theme of themes) {
-      const node = nodeBeds(theme);
-      // The same floor, for the same reason, on the file's other node sweep.
-      expect(node.map(([n]) => n), `${theme}: no node beds — every pill label below would be measured against nothing`)
-        .toEqual([`${NODE_BED} 0`, `${NODE_BED} 1`]);
-      for (const state of ["active", "done", "err"]) {
-        const base = rule(`.state-pill.state-${state}`);
-        const light = rule(`:root[data-color-scheme="light"] .state-pill.state-${state}`);
-        const pick = (p: string) => (theme === "light" ? decl(light, p) ?? decl(base, p) : decl(base, p))!;
-        const fg = resolve(pick("color"), theme);
-        const wash = resolve(pick("background"), theme);
-        for (const [name, bg] of node) {
-          expect(contrastRatio(fg, over(wash, bg)), `${theme} ${state} pill text on ${name}`)
-            .toBeGreaterThanOrEqual(BODY);
-        }
-      }
-    }
+  // CHANGED ON PURPOSE (V4's Figma): the state pill was the recap's last use of that class; the recap
+  // names its session with the done mark now, so no pill rule is left to measure.
+  it("has no state pill left in the sheet to read at 4.5:1", () => {
+    expect(css).not.toMatch(/\.state-pill/);
   });
 
   it("never leans on the ring alone — every node spells its state out in words", () => {
@@ -534,12 +520,14 @@ describe("the stacked cost bar and the key that reads it (#619)", () => {
    *  legend. */
   function beds(theme: Theme): Array<[string, Rgba]> {
     const panel = parseColor(TOK[theme]["--panel"]);
-    const heroWash = /rgba\([^)]*\)/.exec(decl(rule(".session-summary .ss-hero"), "background")!)![0];
+    // CHANGED ON PURPOSE (V4's Figma): the recap's cost split lies on the bare panel
+    // now, with no green wash under it, so that fourth bed is no longer drawn and
+    // the sweep keeps the three that are.
+    expect(decl(rule(".session-summary .ss-hero"), "background")).toBeNull();
     return [
       ["--panel", panel],
       ["--bg-soft", parseColor(TOK[theme]["--bg-soft"])],
       ["the bar's own track", resolve(decl(rule(".cost-bar"), "background")!, theme)],
-      ["the summary hero's wash", over(parseColor(heroWash), panel)],
     ];
   }
 
@@ -1248,8 +1236,10 @@ describe("an opacity over text is a contrast ratio too (#1289)", () => {
   });
 
   it("tells a mark from a box that can hold a word, so the sweep below means something", () => {
-    // Childless: the day bar's segments, the legend swatch, the meter fill.
-    for (const mark of [".uh-bar-seg", ".uh-legend-dot", ".uh-model-bar-fill", ".uh-agent-seg"]) {
+    // Childless: the day bar's segments, the legend swatch, the split bar's segment.
+    // CHANGED ON PURPOSE (V4's Figma): a day is a table now, so its model meter fill
+    // (.uh-model-bar-fill) is gone from the sheet and from this list.
+    for (const mark of [".uh-bar-seg", ".uh-legend-dot", ".uh-agent-seg"]) {
       expect(dimsOnlyMarks(mark), mark).toBe(true);
     }
     // Word-bearing: the status line, a share's text, the modal's own wrapper.
@@ -1281,8 +1271,9 @@ describe("an opacity over text is a contrast ratio too (#1289)", () => {
     const src = (file: string) => MARKUP.find(m => m.file === file)!.src;
     // The history modal: the subtitle says what is running while a re-run is out.
     expect(src("components/UsageHistoryModal.tsx"))
-      .toContain('<div className="uh-sub">{view.stale ? t("insights.usage.running") : usageSubtitle(');
-    expect(declFor(".uh-sub", "color")).toBe("var(--text-dim)");
+      .toContain('<span className="uh-sub">{view.stale ? t("insights.usage.running") : usageSubtitle(');
+    // CHANGED ON PURPOSE (V4's Figma): the line is a span in the toolbar, in the muted step.
+    expect(declFor(".uh-sub", "color")).toBe("var(--muted)");
     // The usage panel: the headline names the period its figures are from.
     expect(src("components/UsagePanel.tsx"))
       .toContain('<span className="up-total-label">{fromRange ? periodWord : boardSpendLabel()}</span>');
@@ -1423,11 +1414,13 @@ describe("nothing at rest paints --inflight itself (#1649)", () => {
     }
   };
 
-  it("fills the context meter and the summary's tool bars off it", () => {
+  it("fills the context meter, in the panel and in the modal, off it", () => {
     // A fill level is a quantity, and it is the same quantity whether or not
     // the session is still running.
+    // CHANGED ON PURPOSE (V4's Figma): the recap draws its most-used tools as chips,
+    // not bars, so its bar fill is gone; the modal's own meter fill takes its place.
     for (const theme of themes) {
-      for (const sel of [".ctx-window-fill", ".session-summary .ss-tt-bar-fill"]) far(sel, paintsOf(sel, theme), theme);
+      for (const sel of [".ctx-window-fill", ".ctx-modal .ctx-window-fill"]) far(sel, paintsOf(sel, theme), theme);
     }
   });
 

@@ -218,6 +218,11 @@
 .tr-json-string { color: var(--ok); }
 .tr-json-number { color: var(--accent); }
 .tr-json-boolean, .tr-json-null { color: var(--text-secondary); }
+/* V4's JSON box: the sunken fill, the control radius, 8 and 10 of padding, mono
+   in the second text step, no edge. */
+.tr-json-box { padding: 8px 10px; border: 0; border-radius: var(--r-ctl); background: var(--sunken); color: var(--text-secondary); }
+pre.tr-json-box { line-height: calc(16px + var(--ui-text-increase, 0px)); }
+.tr-json-tree.tr-json-box { padding-block: 0; }
 .tr-json-tree { font-family: var(--font-mono); font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: 1.7; overflow-wrap: anywhere; }
 .tr-json-tree summary { cursor: pointer; padding-block: 3px; }
 @media (hover: hover) and (pointer: fine) {
