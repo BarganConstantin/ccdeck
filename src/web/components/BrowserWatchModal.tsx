@@ -14,6 +14,7 @@
 // did and shows the evidence; the person reading it decides what it was.
 import { useEffect, useRef, useState } from "react";
 import { useModalDismiss, useScrimDismiss } from "./use-modal-dismiss";
+import { Dialog, DialogClose } from "./Dialog";
 import BrowserWatchFeed from "./BrowserWatchFeed";
 import BrowserWatchFindings from "./BrowserWatchFindings";
 import BrowserWatchOverview from "./BrowserWatchOverview";
@@ -88,15 +89,7 @@ export default function BrowserWatchModal({
   const profileCount = watching.reduce((n, b) => n + b.profiles, 0);
 
   return (
-    <div className="modal-backdrop" {...scrimPress} role="presentation">
-      <div
-        ref={dialogRef}
-        className="modal bw-modal"
-        onClick={e => e.stopPropagation()}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="bw-title"
-      >
+    <Dialog scrim={scrimPress} dialogRef={dialogRef} className="bw-modal" labelledBy="bw-title">
         {/* `modal-tool-id` is an IDENTIFIER slot everywhere else in the deck —
             a truncated tool id, a session id, a version range — and it was
             carrying a twelve-word sentence here. What belongs in it is the
@@ -126,7 +119,7 @@ export default function BrowserWatchModal({
               aria-label={t("settings.bw.reread")}
               title={t("settings.bw.reread")}
             ><RefreshGlyph /></button>
-            <button className="glyph-btn" onClick={onClose} aria-label={t("settings.bw.close")} title={t("settings.bw.close")}>×</button>
+            <DialogClose onClick={onClose} label={t("settings.bw.close")} />
           </div>
         </header>
 
@@ -219,7 +212,6 @@ export default function BrowserWatchModal({
             <BrowserWatchStatus snap={snap} saving={saving} save={save} why={why} setWhy={setWhy} />
           )}
         </div>
-      </div>
-    </div>
+    </Dialog>
   );
 }

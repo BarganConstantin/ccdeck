@@ -22,6 +22,7 @@ import { useT } from "../i18n";
 import { tNodes } from "../accounts-rich";
 import type { AccountAttention as Attention } from "../use-account-attention";
 import AddAccountDialog from "./AddAccountDialog";
+import { Dialog, DialogClose, DialogPresence } from "./Dialog";
 
 interface BodyProps {
   rows: AttentionRow[];
@@ -98,28 +99,23 @@ export default function AccountAttentionModal({ rows, onSignIn, onLater }: Props
   const dialogRef = useModalDismiss(onLater, { focusRef: firstRef });
   const scrimPress = useScrimDismiss(onLater);
   return (
-    <div className="modal-backdrop" {...scrimPress} role="presentation">
-      <div
-        ref={dialogRef}
-        className="modal reauth-ask"
-        onClick={e => e.stopPropagation()}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="reauth-title"
-        aria-describedby="reauth-lead"
-      >
-        <header className="modal-head">
-          <div className="modal-title">
-            <span id="reauth-title" className="modal-tool-name">{attentionTitle(rows.length, t)}</span>
-          </div>
-          <div className="modal-actions">
-            <button type="button" className="glyph-btn" onClick={onLater}
-              aria-label={t("accounts.reauth.laterEsc")} title={t("accounts.reauth.laterEsc")}>×</button>
-          </div>
-        </header>
-        <AttentionBody rows={rows} onSignIn={onSignIn} onLater={onLater} firstRef={firstRef} />
-      </div>
-    </div>
+    <Dialog
+      scrim={scrimPress}
+      dialogRef={dialogRef}
+      className="reauth-ask"
+      labelledBy="reauth-title"
+      aria-describedby="reauth-lead"
+    >
+      <header className="modal-head">
+        <div className="modal-title">
+          <span id="reauth-title" className="modal-tool-name">{attentionTitle(rows.length, t)}</span>
+        </div>
+        <div className="modal-actions">
+          <DialogClose onClick={onLater} label={t("accounts.reauth.laterEsc")} />
+        </div>
+      </header>
+      <AttentionBody rows={rows} onSignIn={onSignIn} onLater={onLater} firstRef={firstRef} />
+    </Dialog>
   );
 }
 
@@ -149,19 +145,24 @@ export function AccountAttention({ rows, signingIn, signIn, signedIn, refresh, c
   const shows = signingIn != null
     || promptShows({ rows: rows.length, ours: oursRef.current, dialogs });
   oursRef.current = shows;
-  if (signingIn) {
-    return (
-      <AddAccountDialog
-        email={signingIn.email || null}
-        onClose={closeSignIn}
-        onChanged={refresh}
-        onSignedIn={signedIn}
-      />
-    );
-  }
-  if (!shows) return null;
   // Keyed by its shape: a list that falls to one account becomes the sentence
   // that names it, and a fresh mount puts focus on that one's button rather
   // than leaving it on a row that is gone.
-  return <AccountAttentionModal key={rows.length === 1 ? "one" : "many"} rows={rows} onSignIn={signIn} onLater={later} />;
+  return (
+    <>
+      <DialogPresence when={signingIn}>
+        {s => (
+          <AddAccountDialog
+            email={s.email || null}
+            onClose={closeSignIn}
+            onChanged={refresh}
+            onSignedIn={signedIn}
+          />
+        )}
+      </DialogPresence>
+      <DialogPresence when={!signingIn && shows}>
+        {() => <AccountAttentionModal key={rows.length === 1 ? "one" : "many"} rows={rows} onSignIn={signIn} onLater={later} />}
+      </DialogPresence>
+    </>
+  );
 }

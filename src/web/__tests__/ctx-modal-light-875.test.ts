@@ -29,7 +29,8 @@ describe("the context-breakdown dialog on the light theme (#875)", () => {
     // light answer is the light theme's value and there is no light rule here.
     expect(decl(".modal-backdrop", "--modal-scrim")).toBe("var(--scrim)");
     expect(decl(`${LIGHT}.modal-backdrop`, "--modal-scrim")).toBeNull();
-    expect(ctx).toMatch(/className="modal-backdrop"/);
+    // The scrim is the shared shell's (Dialog.tsx): ContextModal composes it.
+    expect(ctx).toMatch(/<Dialog\b/);
     // No copy of the scrim left to drift from it.
     expect(decl(`${LIGHT}.ctx-modal-backdrop`, "background")).toBeNull();
   });
@@ -37,7 +38,7 @@ describe("the context-breakdown dialog on the light theme (#875)", () => {
   it("casts the shadow each theme tunes for its own canvas, as .modal does", () => {
     // V4's dialog frame: --shadow-overlay, a token each theme tunes (was --shadow-2).
     expect(decl(".modal", "box-shadow")).toBe("var(--shadow-overlay)");
-    expect(ctx).toMatch(/className="modal ctx-modal"/);
+    expect(ctx).toMatch(/className="ctx-modal"/);
     expect(decl(".modal.ctx-modal", "box-shadow")).toBeNull();
   });
 });

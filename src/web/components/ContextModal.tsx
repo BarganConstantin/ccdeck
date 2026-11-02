@@ -19,6 +19,7 @@ import { fmtCost } from "../pricing";
 import { effectiveContextWindow } from "../context-window";
 import { contextFill } from "../context-figure";
 import { agentCost } from "../usage-models";
+import { Dialog } from "./Dialog";
 import { useModalDismiss, useScrimDismiss } from "./use-modal-dismiss";
 
 /** Every line in this modal whose truth depends on which CLI the session is.
@@ -114,8 +115,7 @@ export default function ContextModal({ agent, onClose }: Props) {
   const copy = contextCopy(agent.provider);
 
   return (
-    <div className="modal-backdrop" {...scrimPress} role="presentation">
-      <div ref={dialogRef} className="modal ctx-modal" onClick={e => e.stopPropagation()} role="dialog" aria-modal="true" aria-label={t("insights.context.aria")}>
+    <Dialog scrim={scrimPress} dialogRef={dialogRef} className="ctx-modal" aria-label={t("insights.context.aria")}>
         <header className="modal-head ctx-modal-head">
           <div>
             <div className="modal-tool-name">{t("insights.context.title", { label: agent.label })}</div>
@@ -124,8 +124,7 @@ export default function ContextModal({ agent, onClose }: Props) {
           <button type="button" ref={closeRef} className="glyph-btn ctx-modal-close" onClick={onClose} aria-label={t("insights.audit.closeEsc")} title={t("insights.audit.closeEsc")}>×</button>
         </header>
         <ContextView agent={agent} meta />
-      </div>
-    </div>
+    </Dialog>
   );
 }
 

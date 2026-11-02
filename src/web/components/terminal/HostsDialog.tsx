@@ -16,6 +16,7 @@ import { CONFIRM_LAYER } from "../../modal-dismiss";
 import { pressState } from "../../panel-press";
 import { shortAgo } from "../../relative-time";
 import type { OlderHost } from "../../terminal-api";
+import { Dialog, DialogClose } from "../Dialog";
 import { useModalDismiss, useScrimDismiss } from "../use-modal-dismiss";
 import { endLabel, hostReason, hostsConsequences, type HostsView } from "./older-hosts";
 import { agentName, folderName } from "./stage-model";
@@ -89,15 +90,7 @@ export default function HostsDialog(p: HostsDialogProps) {
   const scrimPress = useScrimDismiss(p.onCancel);
   const many = p.view.hosts.length > 1;
   return createPortal(
-    <div className="modal-backdrop" {...scrimPress} role="presentation">
-      <div
-        ref={dialogRef}
-        className="modal clear-confirm older-hosts"
-        onClick={e => e.stopPropagation()}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="older-hosts-title"
-      >
+    <Dialog scrim={scrimPress} dialogRef={dialogRef} className="clear-confirm older-hosts" labelledBy="older-hosts-title">
         <header className="modal-head">
           <div className="modal-title">
             <span className="status-dot warn" aria-hidden />
@@ -106,12 +99,11 @@ export default function HostsDialog(p: HostsDialogProps) {
             </span>
           </div>
           <div className="modal-actions">
-            <button type="button" className="glyph-btn" onClick={p.onCancel} aria-label="Cancel (Esc)" title="Cancel (Esc)">×</button>
+            <DialogClose onClick={p.onCancel} label="Cancel (Esc)" />
           </div>
         </header>
         <HostsReview {...p} keepRef={keepRef} />
-      </div>
-    </div>,
+    </Dialog>,
     document.body,
   );
 }

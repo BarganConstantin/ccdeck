@@ -32,6 +32,7 @@ const { default: DeckDialogs, UnaskedPrompts } = await import("../components/Dec
 const { AccountAttention, default: AccountAttentionModal } = await import("../components/AccountAttentionModal");
 const { default: LanPairRequestModal } = await import("../components/LanPairRequestModal");
 const { modalStack } = await import("../modal-dismiss");
+const { DialogPresence } = await import("../components/Dialog");
 
 const noop = () => {};
 const asking: LanStranger = { fp: "aa11", name: "laptop", addr: "192.168.1.9", port: 4317, at: 1_000 };
@@ -68,6 +69,12 @@ function expand(tree: unknown): unknown {
   if (Array.isArray(tree)) return tree.map(expand);
   if (!tree || typeof tree !== "object" || !("props" in tree)) return tree;
   const el = tree as Drawn;
+  // A presence is transparent while its dialog is open: what it draws is what
+  // its callback returns (Dialog.tsx keeps it mounted only to let it leave).
+  if (el.type === DialogPresence) {
+    const { when, children } = el.props as unknown as { when: unknown; children: (v: unknown) => unknown };
+    return when ? expand(children(when)) : null;
+  }
   if (prompts.has(el.type)) {
     const run = el.type as (p: Record<string, unknown>) => unknown;
     const view = kept.get(run);

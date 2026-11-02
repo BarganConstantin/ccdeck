@@ -17,6 +17,7 @@ import { integrationDef } from "../integrations/registry";
 import { t } from "../i18n";
 import { modalStack } from "../modal-dismiss";
 import type { IntegrationModalProps } from "./IntegrationModal";
+import { useDialogClosing } from "./Dialog";
 import { lazyDialog } from "./LazyDialog";
 
 const loadIntegrationModal = () => import("./IntegrationModal");
@@ -32,7 +33,9 @@ export const LazyIntegrationModal = lazyDialog(loadIntegrationModal, (props: Int
 /** What stands in while the chunk arrives: nothing drawn, and the dialog's
  *  place on modalStack, held until the modal takes it or the dialog closes. */
 function Opening({ onClose }: { onClose: () => void }) {
-  useEffect(() => modalStack.push(onClose, 0, "dialog"), [onClose]);
+  // A dialog on its way out holds no place on the stack (Dialog.tsx).
+  const closing = useDialogClosing();
+  useEffect(() => (closing ? undefined : modalStack.push(onClose, 0, "dialog")), [onClose, closing]);
   return null;
 }
 

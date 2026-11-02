@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useT } from "../i18n";
 import type { ToolCall } from "../types";
+import { Dialog, DialogClose } from "./Dialog";
 import { useModalDismiss, useScrimDismiss } from "./use-modal-dismiss";
 // The row that opens this dialog printed the same milliseconds one decimal
 // place coarser, so a 1.24s tool read "1.2s" there and "1.24s" here (#374).
@@ -70,8 +71,7 @@ export default function ToolModal({
     // and announced an unnamed "dialog", because neither element carried a
     // name. The name is the tool, which is the only thing that tells one of
     // these apart from the next.
-    <div className="modal-backdrop" {...scrimPress} role="presentation">
-      <div ref={dialogRef} className="modal tool-modal" onClick={e => e.stopPropagation()} role="dialog" aria-modal="true" aria-labelledby="tool-modal-title">
+    <Dialog scrim={scrimPress} dialogRef={dialogRef} className="tool-modal" labelledBy="tool-modal-title">
         <header className="modal-head">
           <div className="modal-title">
             {/* Decoration, and marked as such (#373). This dot keeps its hue
@@ -86,7 +86,7 @@ export default function ToolModal({
           </div>
           <div className="modal-actions">
             <span className="modal-dur">{toolDuration(tool, t("insights.tool.inflight"))}</span>
-            <button className="glyph-btn" onClick={onClose} aria-label={t("insights.audit.closeEsc")} title={t("insights.audit.closeEsc")}>×</button>
+            <DialogClose onClick={onClose} label={t("insights.audit.closeEsc")} />
           </div>
         </header>
 
@@ -115,8 +115,7 @@ export default function ToolModal({
               : drawn.response}
           </div>
         </section>
-      </div>
-    </div>
+    </Dialog>
   );
 }
 

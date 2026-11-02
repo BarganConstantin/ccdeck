@@ -29,6 +29,7 @@ import {
   freshness, heldNote, nextReportSort, REPORT_WINDOWS, shownUsed, sortReportRows, usageReport, usedAndAvailable,
   type Cell, type ReportRow, type ReportSort, type Status, type WindowTotal,
 } from "../accounts-usage-report";
+import { Dialog } from "./Dialog";
 import { useModalDismiss, useScrimDismiss } from "./use-modal-dismiss";
 import { SortHead } from "./SortHead";
 import { useCountUp } from "../use-count-up";
@@ -321,9 +322,7 @@ export default function AccountsUsageReport({ accounts, order, failed, nowSec, o
 
   // Portalled to <body>, like the panel's other reports (panel-modal-portal).
   return createPortal(
-    <div className="modal-backdrop" {...scrimPress} role="presentation">
-      <div ref={dialogRef} className="modal ap-report-modal" data-view={view} onClick={e => e.stopPropagation()}
-        role="dialog" aria-modal="true" aria-labelledby="ap-report-title">
+    <Dialog scrim={scrimPress} dialogRef={dialogRef} className="ap-report-modal" data-view={view} labelledBy="ap-report-title">
         <header className="modal-head ap-proj-head">
           {/* No subtitle: the count it carried is the lead's, one line down, and
               "Claude" moved into the lead with it (#1713). */}
@@ -339,8 +338,7 @@ export default function AccountsUsageReport({ accounts, order, failed, nowSec, o
         {view === "accounts"
           ? <UsageReportBody accounts={rows} nowSec={nowSec} held={held} sort={sorted?.sort ?? null} onSort={sortBy} />
           : <AccountResetCalendar accounts={rows} nowSec={nowSec} held={held} selectedDate={selectedDate} onSelect={setSelectedDate} scope={resetScope} onScope={setResetScope} />}
-      </div>
-    </div>,
+    </Dialog>,
     document.body,
   );
 }

@@ -14,6 +14,7 @@ import SkillActivity, { type ReportStatus } from './SkillActivity';
 import type { SessionLinks } from './SkillInspector';
 import { readDetailsWidth, writeDetailsWidth } from '../tool-audit-layout';
 import { useMediaQuery } from '../use-media-query';
+import { Dialog } from './Dialog';
 import { useModalDismiss, useScrimDismiss } from './use-modal-dismiss';
 
 const FIRST_ROWS = 12;
@@ -170,8 +171,8 @@ export default function ToolAuditModal({ view: door = 'tools', onClose, sessionL
     <div className="uh-range" role="group" aria-label={t('insights.audit.agent')}>{providers.map(item => <button key={item.id} type="button" className="uh-range-btn" aria-pressed={provider === item.id} onClick={() => setProvider(item.id)}>{agentLabel(item.id)}</button>)}</div>
   </div>;
 
-  return createPortal(<div className="modal-backdrop" role="presentation" {...scrimPress}>
-    <div className="modal ta-report" ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby="tool-audit-title" data-view={view}>
+  return createPortal(
+    <Dialog scrim={scrimPress} dialogRef={dialogRef} className="ta-report" labelledBy="tool-audit-title" data-view={view}>
       <header className="modal-head ta-report-header">
         <h2 id="tool-audit-title">{viewTitle(view)}</h2>
         <div className="ta-actions">
@@ -255,6 +256,5 @@ export default function ToolAuditModal({ view: door = 'tools', onClose, sessionL
         </ToolAuditDrawer>}
       </div>}
       </div>
-    </div>
-  </div>, document.body);
+    </Dialog>, document.body);
 }

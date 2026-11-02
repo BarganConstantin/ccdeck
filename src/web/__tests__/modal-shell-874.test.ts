@@ -14,6 +14,7 @@ const read = (rel: string) => readFileSync(fileURLToPath(new URL(rel, import.met
 const css = sheetText().replace(/\/\*[\s\S]*?\*\//g, "");
 const ctx = read("../components/ContextModal.tsx");
 const history = read("../components/UsageHistoryModal.tsx");
+const shell = read("../components/Dialog.tsx");
 
 /** [selector list, body] for every rule in the sheet. */
 const RULES = [...css.matchAll(/([^{}]+)\{([^{}]*)\}/g)].map(m => [m[1].trim(), m[2]] as const);
@@ -21,8 +22,13 @@ const RULES = [...css.matchAll(/([^{}]+)\{([^{}]*)\}/g)].map(m => [m[1].trim(), 
 describe("every dialog composes the one .modal shell (#874)", () => {
   it("puts the context and usage-history dialogs on .modal-backdrop and .modal", () => {
     for (const [name, src, modifier] of [["ContextModal", ctx, "ctx-modal"], ["UsageHistoryModal", history, "uh-modal"]] as const) {
-      expect(src, name).toMatch(/<div className="modal-backdrop" \{\.\.\.scrimPress\} role="presentation">/);
-      expect(src, name).toContain(`className="modal ${modifier}"`);
+      // The scrim and the `modal` class are Dialog.tsx's; the dialog hands it
+      // its scrim press and its own modifier.
+      expect(src, name).toMatch(/<Dialog\s[^>]*scrim=\{scrimPress\}/);
+      expect(src, name).toMatch(new RegExp(`<Dialog\\s[^>]*className="${modifier}"`));
+      expect(src, name).not.toContain('className="modal-backdrop"');
+      expect(shell).toContain('"modal-backdrop"');
+      expect(shell).toContain("`modal ${className}`");
     }
   });
 
@@ -52,7 +58,8 @@ describe("every dialog composes the one .modal shell (#874)", () => {
     // The block ended on the sound popover's own line once the Appearance menu
     // that shared it was gone, and on .modal's alone since the popover left
     // with the topbar speaker (2026-10-07).
-    const reduced = /@media \(prefers-reduced-motion: reduce\)\s*\{[^@]*?\.modal \{ animation: fadeIn 140ms ease-out; \}/.exec(css)?.[0] ?? "";
+    // (.modal now answers with a transition, not a fadeIn keyframe.)
+    const reduced = /@media \(prefers-reduced-motion: reduce\)\s*\{[^@]*?\.modal \{ transition-property: opacity; \}/.exec(css)?.[0] ?? "";
     expect(reduced, "the dialog block of the reduced-motion answer is missing").not.toBe("");
     expect(reduced).not.toMatch(/\.ctx-modal\b|\.uh-modal\b/);
   });

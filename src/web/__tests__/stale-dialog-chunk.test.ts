@@ -100,9 +100,17 @@ function lazyDialogs(flags: { usageHistoryOpen?: boolean; browserWatchOpen?: boo
   const walk = (node: ReactNode) => {
     if (Array.isArray(node)) return node.forEach(walk);
     if (!node || typeof node !== "object" || !("type" in node)) return;
-    const el = node as ReactElement<{ children?: ReactNode }>;
+    const el = node as ReactElement<{ children?: ReactNode | ((value: unknown) => ReactNode); when?: unknown }>;
     if ((el.type as unknown as Lazy)?.$$typeof === LAZY) found.push(el.type as unknown as Lazy);
-    walk(el.props?.children);
+    const children = el.props?.children;
+    // A DialogPresence mounts its dialog by calling its children with the value
+    // it was opened on, and only while that value is truthy: a closed flag draws
+    // nothing, an open one draws what the callback returns.
+    if (typeof children === "function") {
+      if (el.props.when) walk(children(el.props.when));
+      return;
+    }
+    walk(children);
   };
   walk((DeckDialogs as unknown as (p: typeof props) => ReactNode)(props));
   return found;

@@ -6,6 +6,7 @@ import { agentLabel } from "../provider-copy";
 import { fmtCost } from "../pricing";
 import { fmtTokens } from "../token-format";
 import { sessionFailure, type SessionReply, type SessionSelection, type SessionSpeed } from "../session-usage";
+import { Dialog } from "./Dialog";
 import { useModalDismiss, useScrimDismiss } from "./use-modal-dismiss";
 import { RefreshGlyph } from "./action-glyphs";
 import SessionUsageLoading from "./SessionUsageLoading";
@@ -55,8 +56,7 @@ export default function SessionUsageModal({ session, onClose }: { session: Sessi
   // Reasoning is already in output and must not become a fifth segment.
   const tokenSum = tokens.reduce((sum, token) => sum + token.n, 0);
   return createPortal(
-    <div className="modal-backdrop" {...scrim} role="presentation">
-      <div className="modal su-modal" ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby="session-usage-title">
+    <Dialog scrim={scrim} dialogRef={dialogRef} className="su-modal" labelledBy="session-usage-title">
         <header className="modal-head">
           <div className="su-title">
             <h2 id="session-usage-title">{t("insights.session.title")}</h2>
@@ -141,7 +141,6 @@ export default function SessionUsageModal({ session, onClose }: { session: Sessi
           <details className="su-id"><summary>{t("insights.session.id")}</summary><code>{session.sessionId}</code></details>
           </footer>
         </div>
-      </div>
-    </div>, document.body,
+    </Dialog>, document.body,
   );
 }
