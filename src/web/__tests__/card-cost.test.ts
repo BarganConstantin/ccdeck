@@ -43,13 +43,20 @@ describe("the card's cost slot", () => {
     const chip = costChip(card({ model: UNLISTED, usage: usage({ inputTokens: 900, outputTokens: 1_500 }) }));
     expect(chip?.kind).toBe("unpriced");
     expect(chip?.tt).toContain(`model: ${UNLISTED}`);
-    expect(chip?.tt).toMatch(/no published rate/);
+    // CHANGED ON PURPOSE: V4's sentence is capitalised ("No published rate in
+    // this build. The tokens are counted, the dollars are not."), so the match
+    // ignores case. The meaning and the other languages are unchanged.
+    expect(chip?.tt).toMatch(/no published rate/i);
+    expect(chip && chip.tip.sections[0]).toMatchObject({ noRate: true, rows: [] });
   });
 
   it("prints the agent's priced spend with the tooltip that multiplies it out", () => {
     const data = card();
     const chip = costChip(data);
-    expect(chip).toEqual({ kind: "spent", total: agentCost(data).total, floor: false, tt: agentCostTooltip(data) });
+    // CHANGED ON PURPOSE: the chip also carries the tooltip as data (`tip`,
+    // V4's cost tooltip); every field it had is unchanged.
+    expect(chip).toMatchObject({ kind: "spent", total: agentCost(data).total, floor: false, tt: agentCostTooltip(data) });
+    expect(chip?.tip.total).toBe(fmtCost(agentCost(data).total));
     expect(chip && chip.kind === "spent" && chip.total).toBeGreaterThan(0);
   });
 

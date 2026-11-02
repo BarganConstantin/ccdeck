@@ -398,9 +398,12 @@ describe("nothing else in the deck invents a focus stop", () => {
     // prose between its few controls, a named region the keyboard can scroll.
     // Chat's conversation scrolls inside its own frame, the same way: a named
     // region the keyboard can reach and scroll (WCAG 2.1.1).
+    // The card's cost chip is the one stop of V4's cost tooltip: the tooltip
+    // opens on keyboard focus, so the chip it explains has to be reachable (the
+    // native title it replaces was not).
     // Sorted, so the order is the paths' and not the file system's.
     expect([...offenders].sort()).toEqual([
-      "components/ForgeHtml.tsx", "components/IntegrationSplit.tsx", "components/RadarSplitter.tsx", "components/RadioMap.tsx",
+      "components/CostTip.tsx", "components/ForgeHtml.tsx", "components/IntegrationSplit.tsx", "components/RadarSplitter.tsx", "components/RadioMap.tsx",
       "components/RadioPanel.tsx", "components/ReleaseNotesModal.tsx", "components/ToolAuditSplitter.tsx",
       "components/chat/ChatView.tsx", "components/forge/DetailJobs.tsx", "jira-html.tsx",
     ]);

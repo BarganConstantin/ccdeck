@@ -24,64 +24,63 @@
   right: 0;
   bottom: 56px;
   z-index: 12;
-  width: max-content;
+  /* V4's drag trash: 360 x 58, the node's radius on --panel, a 1px dashed --line
+     edge, two lines centred 2px apart. The padding is V4's 10 and 16 less the
+     1px edge, which Figma draws inside the box and CSS draws outside it. */
+  box-sizing: border-box;
+  width: 360px;
   max-width: calc(100% - 32px);
-  min-width: 240px;
-  min-height: 52px;
+  height: 58px;
   margin: 0 auto;
-  padding: 8px 16px 8px 12px;
+  padding: calc(10px - 1px) calc(16px - 1px);
   display: flex;
+  flex-direction: column;
   align-items: center;
-  gap: 10px;
-  border: 1px dashed var(--chrome-edge);
-  border-radius: var(--r-panel);
-  background: var(--chrome-bg);
-  color: var(--muted);
-  box-shadow: var(--shadow-1);
-  font-size: calc(12px + var(--ui-text-increase, 0px));
+  justify-content: center;
+  gap: 2px;
+  border: 1px dashed var(--line);
+  border-radius: var(--r-node);
+  background: var(--panel);
+  color: var(--text-secondary);
   pointer-events: none;
   animation: dragTrashIn var(--dur-base) var(--ease) both;
   transition: border-color var(--dur-fast) var(--ease), background var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease),
-    transform var(--dur-base) var(--ease), box-shadow var(--dur-base) var(--ease);
+    transform var(--dur-base) var(--ease);
 }
 .drag-trash-zone.near {
-  border-style: solid;
-  border-color: color-mix(in srgb, var(--err) 45%, var(--chrome-edge));
+  border-color: color-mix(in srgb, var(--err) 45%, var(--line));
   color: var(--text);
   transform: translateY(-4px) scale(1.03);
 }
+/* Armed: a release would remove the card. The stroke goes --err and stays
+   dashed; the fill is the panel with a tenth of the same token. */
 .drag-trash-zone.over {
-  border-style: solid;
   border-color: var(--err);
-  background: color-mix(in srgb, var(--chrome-bg) 82%, var(--err) 18%);
-  color: var(--err);
+  background: color-mix(in srgb, var(--panel) 90%, var(--err) 10%);
   transform: translateY(-6px) scale(1.06);
-  box-shadow: 0 0 0 4px color-mix(in srgb, var(--err) 18%, transparent), var(--shadow-1);
 }
 .drag-trash-zone.leaving { animation: dragTrashOut 140ms ease both; }
-.drag-trash-icon {
-  flex: none;
-  width: 30px;
-  height: 30px;
-  padding: 6px;
-  border-radius: 50%;
-  background: var(--ctl-fill);
-  fill: none;
-  stroke: currentColor;
-  stroke-width: 1.7;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-  transition: transform var(--dur-base) var(--ease), background var(--dur-fast) var(--ease);
+.drag-trash-copy { display: flex; flex-direction: column; align-items: center; gap: 2px; min-width: 0; max-width: 100%; }
+.drag-trash-text {
+  font-size: calc(13px + var(--ui-text-increase, 0px));
+  line-height: calc(20px + var(--ui-text-increase, 0px));
+  font-weight: 500;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
 }
-.drag-trash-zone.over .drag-trash-icon {
-  background: color-mix(in srgb, var(--err) 20%, transparent);
-  transform: scale(1.12) rotate(-8deg);
-}
-.drag-trash-copy { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
-.drag-trash-text { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.drag-trash-zone.over .drag-trash-text { color: var(--err); }
 .drag-trash-name { display: inline-block; max-width: 22ch; overflow: hidden; text-overflow: ellipsis; vertical-align: bottom; }
-.drag-trash-hint { color: var(--muted); font-size: calc(11px + var(--ui-text-increase, 0px)); font-weight: 400; white-space: nowrap; }
-/* The zone's own words turn --err over a card, and its bed turns 18% toward
+.drag-trash-hint {
+  color: var(--muted);
+  font-size: calc(12px + var(--ui-text-increase, 0px));
+  line-height: calc(16px + var(--ui-text-increase, 0px));
+  font-weight: 400;
+  white-space: nowrap;
+}
+/* The zone's own words turn --err over a card, and its bed turns a tenth toward
    --err with them, where --muted is 3.42:1 in dark (#1788). */
 .drag-trash-zone.over .drag-trash-hint { color: var(--text-secondary); }
 .canvas-wrap.dragging-any .autofit-chip { visibility: hidden; }
@@ -115,10 +114,8 @@
   .drag-trash-zone.leaving { animation: none; }
   .drag-trash-zone,
   .drag-trash-zone.near,
-  .drag-trash-zone.over,
-  .drag-trash-zone.over .drag-trash-icon { transform: none; }
+  .drag-trash-zone.over { transform: none; }
   .drag-trash-zone,
-  .drag-trash-icon,
   .react-flow__node.dragging .agent-node { transition: none; }
 }
 
@@ -136,32 +133,44 @@
   right: 0;
   bottom: 14px;
   z-index: 6;
+  /* V4's auto-fit chip: 24 tall, the control radius on --panel, a --line-soft
+     edge, 8px between the status and the action. Its padding is V4's 4 and 10
+     less the 1px edge, which Figma draws inside the box. */
+  box-sizing: border-box;
+  height: 24px;
   width: max-content;
   margin: 0 auto;
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  padding: 2px 2px 2px 10px;
-  border: 1px solid var(--chrome-edge);
+  gap: 8px;
+  padding: 3px 3px 3px calc(10px - 1px);
+  border: 1px solid var(--line-soft);
   border-radius: var(--r-ctl);
-  background: var(--chrome-bg);
-  color: var(--muted);
-  font-size: calc(11px + var(--ui-text-increase, 0px));
+  background: var(--panel);
+  color: var(--text-secondary);
+  font-size: calc(12px + var(--ui-text-increase, 0px));
+  line-height: calc(16px + var(--ui-text-increase, 0px));
 }
-/* The action: the foreground at the weight the status is not, and the control
-   fill under the pointer. No accent and no box of its own; it is a word in the
-   strip, the way the toolbar's controls are words in the bar. */
+/* The action: a quiet text button in the accent, 16 tall with 4px at the sides,
+   its 24px target carried by ::after so the strip does not grow. */
 .autofit-resume {
-  min-height: 24px;
-  padding: 0 8px;
+  position: relative;
+  height: 16px;
+  padding: 0 4px;
   border: none;
   border-radius: var(--r-tag);
   background: transparent;
-  color: var(--text);
+  color: var(--accent);
   font: inherit;
-  font-weight: 600;
+  font-weight: 500;
+  line-height: calc(16px + var(--ui-text-increase, 0px));
   cursor: pointer;
   transition: background var(--dur-fast) var(--ease), transform var(--dur-fast) var(--ease);
+}
+.autofit-resume::after {
+  content: "";
+  position: absolute;
+  inset: -4px -2px;
 }
 @media (hover: hover) and (pointer: fine) {
 .autofit-resume:hover { background: var(--ctl-fill); }
@@ -184,16 +193,22 @@
   z-index: 6;
   width: max-content;
   max-width: calc(100% - 28px);
+  /* V4's re-arrange undo: 24 tall, the control radius on --panel, a --line-soft
+     edge, 8px between its three parts. Padding is V4's 4 8 4 10 less the 1px
+     edge, which Figma draws inside the box. */
+  box-sizing: border-box;
+  height: 24px;
   margin: 0 auto;
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 2px 2px 2px 10px;
-  border: 1px solid var(--chrome-edge);
+  gap: 8px;
+  padding: 3px calc(8px - 1px) 3px calc(10px - 1px);
+  border: 1px solid var(--line-soft);
   border-radius: var(--r-ctl);
-  background: var(--chrome-bg);
-  color: var(--muted);
-  font-size: calc(11px + var(--ui-text-increase, 0px));
+  background: var(--panel);
+  color: var(--text-secondary);
+  font-size: calc(12px + var(--ui-text-increase, 0px));
+  line-height: calc(16px + var(--ui-text-increase, 0px));
   animation: rearrangeUndoIn 200ms var(--ease) both;
   transition: transform var(--dur-base) var(--ease);
 }
@@ -249,37 +264,36 @@
   pointer-events: none;
 }
 .rearrange-undo-state { white-space: nowrap; }
-/* Undo: Resume's word — the foreground at the weight the status is not, the
-   control fill under the pointer, no accent and no box of its own. */
+/* Undo: Resume's word — a quiet text button in the accent, 16 tall with 4px at
+   the sides and its 24px target on ::after. The key follows it as the deck's
+   key cap (.kbd), outside the button. */
 .rearrange-undo-act {
+  position: relative;
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  min-width: 24px;
-  min-height: 24px;
-  padding: 0 8px;
+  height: 16px;
+  padding: 0 4px;
   border: none;
   border-radius: var(--r-tag);
   background: transparent;
-  color: var(--text);
+  color: var(--accent);
   font: inherit;
-  font-weight: 600;
+  font-weight: 500;
+  line-height: calc(16px + var(--ui-text-increase, 0px));
   white-space: nowrap;
   cursor: pointer;
   transition: background var(--dur-fast) var(--ease), transform var(--dur-fast) var(--ease);
+}
+.rearrange-undo-act::after {
+  content: "";
+  position: absolute;
+  inset: -4px -2px;
 }
 @media (hover: hover) and (pointer: fine) {
 .rearrange-undo-act:hover { background: var(--ctl-fill); }
 }
 .rearrange-undo-act:active { transform: scale(var(--press)); }
-/* The chord, beside the word it presses, a step quieter than the word. The
-   pointer lifts it to the foreground with the word, as it lifts a category
-   chip: on the hover fill --muted comes to 4.23:1 in dark, and the weight
-   still tells the key from the action. */
-.rearrange-undo-key { color: var(--muted); font-weight: 400; }
-@media (hover: hover) and (pointer: fine) {
-.rearrange-undo-act:hover .rearrange-undo-key { color: var(--text); }
-}
+.rearrange-undo-key { display: inline-flex; flex: none; }
 @keyframes rearrangeUndoIn {
   from { opacity: 0; translate: 0 6px; }
   to { opacity: 1; translate: 0 0; }
@@ -325,8 +339,12 @@
      controls is a small panel, and it still reads as one bar on two rows. */
   flex-wrap: wrap;
   max-width: calc(100% - 28px);
-  gap: 2px;
-  padding: 2px;
+  /* V4's category bar: 32 tall, the control radius, 4px between pills. Padding
+     is V4's 4 less the 1px edge, which Figma draws inside the box. */
+  box-sizing: border-box;
+  min-height: 32px;
+  gap: 4px;
+  padding: 3px;
   /* A solid slab (#882). It was a 78% fill with an 8px backdrop blur, and
      under it the canvas runs marching dashes, spinners and bubbles without
      pause, so the blur re-rasterised on every one of their frames. Solid reads
@@ -339,42 +357,53 @@
      cards drift under this one and the chips' label contrast (#368, #622) is
      measured on exactly this fill. */
   background: var(--panel);
-  border: 1px solid var(--chrome-edge);
+  border: 1px solid var(--line-soft);
   border-radius: var(--r-ctl);
   box-shadow: none;
 }
+/* V4's pill: 24 tall, round, 8px at the sides (7 and the 1px stroke), a 6px dot
+   in the category's own colour before the 12/16 label. At rest no fill, a --line
+   stroke and the secondary ink; showing (not .off) it takes the accent's wash,
+   the accent stroke and the primary ink. */
 .cat-filter {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  min-height: 26px;
-  padding: 0 8px;
-  /* Concentric with the bar: its 6px less the 2px it is inset by. */
-  border-radius: var(--r-tag);
-  border: 1px solid transparent;
-  background: transparent;
-  /* The secondary tier at rest, so a bar of categories that are all showing
-     is quiet; the pointer lifts a chip to the foreground. */
-  color: var(--text-secondary);
+  gap: 4px;
+  box-sizing: border-box;
+  height: var(--ctl-h-sm);
+  padding: 0 calc(8px - 1px);
+  border-radius: var(--r-pill);
+  border: 1px solid var(--accent);
+  background: var(--accent-16);
+  color: var(--text);
   font: inherit;
-  font-size: calc(11px + var(--ui-text-increase, 0px));
-  font-family: var(--font-mono);
-  letter-spacing: 0.02em;
+  font-size: calc(12px + var(--ui-text-increase, 0px));
+  line-height: calc(16px + var(--ui-text-increase, 0px));
   cursor: pointer;
   transition: background var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease),
-              transform var(--dur-fast) var(--ease);
+              border-color var(--dur-fast) var(--ease), transform var(--dur-fast) var(--ease);
 }
-/* A drawn glyph in the label's own colour (App.tsx's CatGlyph), so it follows
-   every state the word does: quieter at rest, lit on hover, muted when off. */
-.cat-filter .cat-glyph { flex: none; }
+.cat-filter .cat-dot {
+  flex: none;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--cat-other);
+}
+.cat-filter.cat-file .cat-dot { background: var(--cat-file); }
+.cat-filter.cat-shell .cat-dot { background: var(--cat-shell); }
+.cat-filter.cat-web .cat-dot { background: var(--cat-web); }
+.cat-filter.cat-agent .cat-dot { background: var(--cat-agent); }
+.cat-filter.cat-task .cat-dot { background: var(--cat-task); }
+.cat-filter.cat-plan .cat-dot { background: var(--cat-plan); }
+.cat-filter.cat-mcp .cat-dot { background: var(--cat-mcp); }
 .cat-filter .cat-name { text-transform: lowercase; }
 /* --bg-soft was this hover's whole feedback and it was --panel's own value on
    white, so on the light canvas hovering a category chip did nothing at all.
-   --ctl-fill is 7–8% of the foreground, which exists in both themes. The resting
-   border stays transparent: the chip is named by its glyph and its word, which
-   is the identification 1.4.11 accepts in place of a boundary. */
+   --ctl-fill is 7–8% of the foreground, which exists in both themes. A showing
+   pill deepens its accent wash instead. */
 @media (hover: hover) and (pointer: fine) {
-.cat-filter:hover { background: var(--ctl-fill); color: var(--text); }
+.cat-filter:not(.off):hover { background: color-mix(in srgb, var(--accent) 24%, transparent); }
 }
 .cat-filter:active { transform: scale(var(--press)); }
 /* "Off" is carried by the colour tier and the greyed emoji, never by opacity.
@@ -391,10 +420,12 @@
    Whether "off" also wants a channel that survives colour blindness is #370's
    question about toggle state, not this one's about contrast. */
 .cat-filter.off {
-  color: var(--muted);
+  background: none;
+  border-color: var(--line);
+  color: var(--text-secondary);
 }
 @media (hover: hover) and (pointer: fine) {
-.cat-filter.off:hover { color: var(--text); }
+.cat-filter.off:hover { background: var(--ctl-fill); color: var(--text); }
 }
 /* The redundant channel #368 deferred to #370. What was left after it dropped
    the opacity fade was a colour tier and a desaturated emoji, and both of those

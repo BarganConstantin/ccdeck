@@ -439,7 +439,8 @@ describe("one token per dimming decision, and two decisions (#379 §2)", () => {
     // there to fix: #368 dropped the fade entirely and carries "off" on the
     // colour tier, a greyed emoji and #370's strike-through instead.
     expect(decl(".cat-filter.off", "opacity")).toBeNull();
-    expect(decl(".cat-filter.off", "color")).toBe("var(--muted)");
+    // CHANGED ON PURPOSE (V4's Figma): the off pill's label is --text-secondary.
+    expect(decl(".cat-filter.off", "color")).toBe("var(--text-secondary)");
     expect(css).not.toMatch(/opacity:\s*0\.38/);
   });
 
@@ -454,7 +455,8 @@ describe("one token per dimming decision, and two decisions (#379 §2)", () => {
     expect(decl(".ap-dot", "opacity")).toBe("0.55");
     expect(decl(".ap-field::after", "opacity")).toBe("0.5");
     expect(decl(".aa-mark-ring", "opacity")).toBe("0.45");
-    expect(decl(".agent-node .accent-stripe", "opacity")).toBe("0.7");
+    // (`.agent-node .accent-stripe` was listed here at 0.7; V4's card has no
+    // stripe, so there is nothing left to hold.)
   });
 
   it("made every control it touched lighter-dimmed than it was, never darker", () => {

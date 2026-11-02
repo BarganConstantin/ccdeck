@@ -1,8 +1,8 @@
 /* ---------------- agent node ---------------- */
 
 /* The node's --accent is the session's hue, so everything inside it that reads
-   var(--accent) — the stripe, the selected ring, the active spark bar, the
-   token and spawn counts — recolours per session. AgentNode used to hand the
+   var(--accent) — the selected ring and the focus ring —
+   recolours per session. AgentNode used to hand the
    whole colour down; it hands down --session-hue now and the tier is the
    cascade's. The rest of the app keeps the palette's own --accent: this
    declaration is scoped to the node and inherits no further than its subtree. */
@@ -13,67 +13,45 @@
      at Compact (--ui-space 0.7, Figma's frame), growing with the density:
      8 + (space - 0.7) * 20/3 gives 5.33 Tightest, 6.67 Tighter, 8 Compact,
      10 Default (what the card has always had), 12.67 Comfortable. 10px at the
-     sides, the left one 4px wider for the session stripe. Solid --panel:
-     the gradient fill is gone from the detail face (the LOD faces keep it). */
+     sides. Solid --panel, no shadow at rest and no session stripe: hue stays on
+     the wires. The edge is --line, and --warn only while the card waits on you.
+     The gradient fill is gone from the detail face (the LOD faces keep it). */
   display: flex;
   flex-direction: column;
   gap: 2px;
   width: calc(256px + var(--ui-card-increase, 0px));
   min-width: calc(220px + var(--ui-card-increase, 0px));
   max-width: calc(256px + var(--ui-card-increase, 0px));
-  padding: calc(8px + (var(--ui-space, 1) - 0.7) * 20px / 3) 10px calc(8px + (var(--ui-space, 1) - 0.7) * 20px / 3) 14px;
+  padding: calc(8px + (var(--ui-space, 1) - 0.7) * 20px / 3) 10px;
   background: var(--panel);
   border: 1px solid var(--line);
   border-radius: var(--r-node);
   color: var(--text);
   font-size: calc(12px + var(--ui-text-increase, 0px));
-  box-shadow: var(--shadow-1);
-  transition: border-color var(--dur-base) var(--ease), box-shadow var(--dur-base) var(--ease);
+  box-shadow: none;
+  transition: border-color var(--dur-base) var(--ease), box-shadow var(--dur-base) var(--ease), background-color var(--dur-fast) var(--ease);
   overflow: hidden;
 }
 @media (hover: hover) and (pointer: fine) {
-.agent-node:hover { box-shadow: var(--shadow-2); }
+/* Flat under the pointer too (V4's card has no shadow, lifted or not): the
+   plate takes the tint the faces at a distance and the recap note take. */
+.agent-node:hover { background: color-mix(in srgb, var(--text) 6%, var(--panel)); }
 }
 
-/* The rows Figma does not draw (waiting, stop, continued, approval, plan, spark)
-   share ONE top spacing, on top of the column's 2px gap, so the card's rhythm is
-   even: 4px, scaled by the density like the vertical padding. The rows carry no
-   margin of their own. */
-.agent-node :is(.waiting-row, .stop-row, .continued-row, .approval-blind-row, .plan-row, .tool-spark-row) {
+/* The rows Figma does not draw (continued, approval, plan) share ONE top
+   spacing, on top of the column's 2px gap, so the card's rhythm is even: 4px,
+   scaled by the density like the vertical padding. The rows carry no margin of
+   their own. The ask row (waiting, and a stop with its reason) is drawn: it sits
+   on the column's 2px gap alone, which is what makes the card 88 tall. */
+.agent-node :is(.continued-row, .approval-blind-row, .plan-row) {
   margin-top: calc(4px * var(--ui-space, 1));
 }
 
-.agent-node.state-active {
-  border-color: var(--card-alarm, var(--inflight));
-  /* THE BORDER ALREADY SAYS IT. This carried a 1px ring and a 22px coloured
-     glow on top of a full hue inversion of the card's outline — three of the
-     twelve channels that were all saying the one word `running`, and the two
-     that made the card a lamp. A hue swap from --line to --inflight on the
-     outline is not subtle; it does not need lighting.
-
-     AND IT SAYS IT WITHOUT A box-shadow OF ITS OWN. Taking the glow away was
-     written as a reset to `var(--shadow-1)` — byte-identical to the base rule
-     above, so it changed nothing about the resting card and its only remaining
-     effect was to outrank `.agent-node:hover`, which is (0,2,0) and earlier.
-     Measured in Firefox on the real sheet, dark theme, hovered:
-
-       .agent-node.state-active -> rgba(0,0,0,0.25) 0 6px 18px   (--shadow-1, the RESTING value)
-       .agent-node.state-done   -> rgba(0,0,0,0.32) 0 10px 24px  (--shadow-2, the lift)
-
-     so on a board with one running session and three finished ones, the three
-     finished cards lifted under the pointer and the running one — the card you
-     are most likely to point at — did not. The base supplies --shadow-1 and
-     the hover supplies --shadow-2; this rule needs to say neither. */
-}
-.agent-node.state-done { border-color: var(--card-alarm, rgba(134,239,172,0.5)); }
-.agent-node.state-err { border-color: var(--card-alarm, rgba(252,165,165,0.6)); }
-/* Blocked on a human, the one state that must win: the edge says Waiting in
-   the --warn its word and its ask line are in (Figma's Agent / Card, State
-   Waiting; V4 decision 22, one Waiting colour), where it used to say Working.
-   On a variable that every state's edge reads first, in every theme, as the
-   faces at a distance do with --lod-alarm, so no theme's twin of a state rule
-   outranks it on specificity. */
-.agent-node[data-alarm] { --card-alarm: var(--warn); }
+/* No border colour per state: Working, Done, Failed and Idle all keep --line
+   (V4's Agent / Card). The state is the word and its glyph. */
+/* Blocked on a human, the one state with an edge of its own: --warn, the
+   colour of its word and its ask line (V4's Agent / Card, State Waiting). */
+.agent-node[data-alarm] { border-color: var(--warn); }
 
 
 /* SELECTION HAS TO OUTRANK THE STATE, and it used to sit ABOVE these three
@@ -342,13 +320,6 @@
   visibility: hidden;
 }
 
-.agent-node .accent-stripe {
-  position: absolute;
-  left: 0; top: 0; bottom: 0;
-  width: 4px;
-  background: var(--accent);
-  opacity: 0.7;
-}
 /* THE HEAD (V4): who on the left — the name, then the model as plain mono text
    — and the state on the right, with the context donut after it on a root. */
 .agent-node .head {
@@ -383,6 +354,9 @@
 .agent-node .state-line[data-tone="done"] .state-word { color: var(--ok); }
 .agent-node .state-line[data-tone="err"] .state-word { color: var(--err); }
 .agent-node .state-line[data-tone="waiting"] .state-word { color: var(--warn); }
+.agent-node .state-line[data-tone="done"] .state-mark { color: var(--ok); }
+.agent-node .state-line[data-tone="err"] .state-mark { color: var(--err); }
+.agent-node .state-line[data-tone="waiting"] .state-mark { color: var(--warn); }
 /* Working breathes on the deck's one live tempo; Waiting does not pulse — its
    row below carries the ping. The mark is a shape as well as a colour, so the
    state never depends on this motion (state-channels). */
@@ -408,3 +382,48 @@
    0.97 of 26px is under a pixel. */
 .ctx-donut:active { transform: scale(var(--press-small)); }
 
+
+/* THE COST TOOLTIP (V4): 320 wide on --panel with a --line edge and the
+   overlay's radius and shadow; 12px inside, 8px between its blocks. Mono 11/14
+   throughout; each row is 18 tall, the label on the left in --muted and the
+   value on the right in --text, 16px apart. Portalled to the body
+   (CostChipTip), so it sits outside the card and its clip. */
+.cost-tip {
+  position: fixed;
+  z-index: 40;
+  box-sizing: border-box;
+  width: 320px;
+  max-width: calc(100vw - 16px);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--r-overlay);
+  box-shadow: var(--shadow-overlay);
+  color: var(--text);
+  font-size: calc(11px + var(--ui-text-increase, 0px));
+  line-height: calc(14px + var(--ui-text-increase, 0px));
+  pointer-events: none;
+}
+.cost-tip-title, .cost-tip-row { font-family: var(--font-mono); }
+.cost-tip-section { display: flex; flex-direction: column; gap: 8px; }
+.cost-tip-title { color: var(--text-secondary); overflow-wrap: anywhere; }
+.cost-tip-rows { display: flex; flex-direction: column; }
+.cost-tip-row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  min-height: 18px;
+}
+.cost-tip-label { color: var(--muted); white-space: nowrap; }
+.cost-tip-value { margin-left: auto; color: var(--text); text-align: right; font-variant-numeric: tabular-nums; }
+.cost-tip-rule { margin: 0; border: 0; border-top: 1px solid var(--line-soft); height: 0; }
+/* The no-rate variant: the model line, then the sentence in the sans stack. */
+.cost-tip-norate {
+  margin: 0;
+  color: var(--muted);
+  font-size: calc(12px + var(--ui-text-increase, 0px));
+  line-height: calc(16px + var(--ui-text-increase, 0px));
+}

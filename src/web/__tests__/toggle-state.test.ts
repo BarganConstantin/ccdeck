@@ -666,10 +666,11 @@ describe("the category filter chips, handed over from #368", () => {
 
   it("carries `off` in a channel that is not colour", () => {
     expect(decl(".cat-filter.off .cat-name", "text-decoration")).toBe("line-through");
-    // The chip's glyph is drawn, monochrome, in currentColor, so it follows
-    // the label into the off tier rather than needing a desaturation of its own.
-    // CatGlyph moved to detail-category.tsx with the paths it draws.
-    expect(markup("detail-category.tsx")).toMatch(/<svg className="cat-glyph"[^>]*stroke="currentColor"/);
+    // CHANGED ON PURPOSE (V4's Figma): the chip carries a 6px dot in the
+    // category's own colour in place of the drawn glyph, and an off pill loses
+    // its fill and its accent stroke as well as its ink.
+    expect(markup("components/CategoryFilterBar.tsx")).toMatch(/<span className="cat-dot" aria-hidden="true" \/>/);
+    expect(decl(".cat-filter.off", "background")).toBe("none");
   });
 
   it("needed one — the two colour tiers alone are under 3:1 apart in both themes", () => {
@@ -684,7 +685,10 @@ describe("the category filter chips, handed over from #368", () => {
 
   it("did not spend the contrast #368 just bought to get it", () => {
     // The strike is geometry; both tiers stay exactly where that issue put them.
-    expect(decl(".cat-filter.off", "color")).toBe("var(--muted)");
+    // CHANGED ON PURPOSE (V4's Figma, Category filter): a pill that is not
+    // showing reads in --text-secondary, a step above the --muted it had, with a
+    // --line stroke and no fill; the strike-through is kept.
+    expect(decl(".cat-filter.off", "color")).toBe("var(--text-secondary)");
     expect(decl(".cat-filter.off:hover", "color")).toBe("var(--text)");
     expect(declIn(bodyOf(".cat-filter.off"), "opacity")).toBeNull();
   });

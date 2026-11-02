@@ -348,13 +348,15 @@ describe("where it is drawn", () => {
   }
 
   it("draws the note like a card and its tie as a thread with beads", () => {
-    // The pin is the card's only mark: a glyph button in the session's colour.
-    expect(body("\n.agent-node .recap-pin {")).toMatch(/color: var\(--accent\);/);
+    // The pin is the card's only mark: a glyph button. CHANGED ON PURPOSE (V4's
+    // Figma, Agent / Card): at the foot's end, in --muted and not the session's
+    // colour, and --text while its note is open.
+    expect(body("\n.agent-node .recap-pin {")).toMatch(/color: var\(--muted\);/);
     const note = body("\n.recap-note {");
     // Outside the card, so it rebuilds the card's --accent itself.
     expect(note).toMatch(/--accent: hsl\(var\(--session-hue, 200\) 70% var\(--session-accent-l\)\);/);
-    // A card's depth, since it is a node like the cards.
-    expect(note).toMatch(/box-shadow: var\(--shadow-1\);/);
+    // CHANGED ON PURPOSE (V4's Figma): the card and the note carry no shadow.
+    expect(note).toMatch(/box-shadow: none;/);
     // Beads, not dashes: the canvas's dashed edges mean a call.
     const beads = body("\n.recap-tie-beads {");
     expect(beads).toMatch(/stroke-dasharray: 0 10;/);
