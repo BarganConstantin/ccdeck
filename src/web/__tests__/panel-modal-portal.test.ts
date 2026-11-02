@@ -91,6 +91,8 @@ describe("a dialog opened from inside a panel is not laid out by it", () => {
     // not a panel's to lay out — but this comment trail would be pointing at a
     // rule that no longer exists, and that is worth knowing.
     const css = sheetText();
-    expect(css).toMatch(/\.accounts-panel > \* \{ width: 288px; \}/);
+    // CHANGED ON PURPOSE (V4's Figma): the measure is the rail's width, 264 at
+    // Compact, so the rule names the token.
+    expect(css).toMatch(/\.accounts-panel > \* \{ width: calc\(var\(--rail-w\)/);
   });
 });

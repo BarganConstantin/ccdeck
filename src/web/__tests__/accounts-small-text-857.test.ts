@@ -39,19 +39,26 @@ const px = (selector: string) => {
 
 describe("the accounts panel's reading sizes (#857)", () => {
   it("sets what an account is chosen by at the panel's 11px floor", () => {
-    for (const sel of [".ap-email", ".ap-lane-label", ".ap-lane-pct"]) {
+    // CHANGED ON PURPOSE (V4's Figma): the row's name is the one name (`ap-alias`,
+    // 13), the address it stands for having left the row for its title.
+    for (const sel of [".ap-alias", ".ap-lane-label", ".ap-lane-pct"]) {
       expect(px(sel), sel).toBeGreaterThanOrEqual(11);
     }
   });
 
-  it("keeps the reset line one ladder step under its key, and off the 9px floor", () => {
-    expect(px(".ap-lane-reset")).toBe(10);
-    expect(px(".ap-lane-label")).toBeGreaterThan(px(".ap-lane-reset"));
+  it("keeps the reset line off the floor, at the key's own size", () => {
+    // CHANGED ON PURPOSE (V4's motion-free text rule: nothing on screen under
+    // 11px): the open bar's reset was 10 and is 11, the size of its key.
+    expect(px(".ap-lane-reset")).toBe(11);
+    expect(px(".ap-lane-label")).toBe(11);
   });
 
   it("sets every line under the name, and every control on those lines, at one size, 11px", () => {
-    const lines = [".ap-meta", ".ap-quota", ".ap-issue-line", ".ap-switch", ".ap-fix"];
+    // CHANGED ON PURPOSE (V4's Figma): line 2 of the row (`ap-quota`) is the
+    // kit's Small, 12 on a 16 line, so it leaves this list for its own test.
+    const lines = [".ap-meta", ".ap-issue-line", ".ap-switch", ".ap-fix"];
     expect(lines.map(px), lines.join(" ")).toEqual(lines.map(() => 11));
+    expect(px(".ap-quota")).toBe(12);
   });
 
   it("has no footnote under the roster any more — every row says when it was collected", () => {

@@ -10,6 +10,7 @@
 import { useId, useState } from "react";
 import { useT } from "../i18n";
 import { durationLabel, formatNumber } from "../i18n/format";
+import { FadeFigure, useFillJump } from "./FadeFigure";
 
 // ── Pace helpers ───────────────────────────────────────────────────────────
 
@@ -92,16 +93,10 @@ export function quotaPctText(capped: number): string {
   return capped < 1 ? "< 1%" : `${Math.round(capped)}%`;
 }
 
-/** The colour a window's fill wears at a known, already-capped reading: --err
- *  at 90 and over (or at a reached limit), --warn from 70, else --accent. The
- *  bar and the rail's usage meter take it from here, so they cannot disagree. */
-export function quotaLevelColor(capped: number, isErr = capped >= 90): string {
-  return isErr || capped >= 90 ? "var(--err)" : capped >= 70 ? "var(--warn)" : "var(--accent)";
-}
-
 /** The Usage panel's meter rule (V4's Figma): under 70 the fill is --muted, from
  *  70 to 89 it is --text, from 90 (or at a reached limit) --err, never amber.
- *  The rail's own meter keeps quotaLevelColor above. */
+ *  The rail's meter keeps its bar one colour and tones its figure instead
+ *  (figureLevel in rail-usage.ts). */
 export function quotaMeterColor(capped: number, isErr = capped >= 90): string {
   return isErr || capped >= 90 ? "var(--err)" : capped >= 70 ? "var(--text)" : "var(--muted)";
 }
@@ -133,6 +128,7 @@ export default function QuotaBar({ pct, label, reset, resetAt, windowSec, limitR
   // is a statement about a number, and there is none (#1627).
   const known    = pct != null && !rolled;
   const capped   = known ? Math.min(100, Math.max(0, pct)) : 0;
+  const jump     = useFillJump(capped);
   const isErr    = limitReached || capped >= 90;
   const color    = quotaMeterColor(capped, isErr);
   // A whole percentage, the way Claude's readings already arrive (clampPct).
@@ -158,10 +154,10 @@ export default function QuotaBar({ pct, label, reset, resetAt, windowSec, limitR
           {label}
           {limitReached && !rolled && <span className="qb-limit-badge" title={t("usage.quota.rateLimitReached")}>⛔</span>}
         </span>
-        <span className="qb-pct" data-known={known || undefined}>{pctLabel}</span>
+        <span className="qb-pct" data-known={known || undefined}><FadeFigure text={pctLabel} value={capped} /></span>
       </div>
       <div className="qb-track">
-        {known && <div className="qb-fill" style={{ transform: `scaleX(${fillW / 100})`, background: color, opacity: underOne ? 0.4 : 1 }} />}
+        {known && <div className="qb-fill" data-jump={jump || undefined} style={{ transform: `scaleX(${fillW / 100})`, background: color, opacity: underOne ? 0.4 : 1 }} />}
         {/* Pace marker ("green line"): where usage should be now to last until
             reset. Green when under or on pace, red when over it. Its legend is
             the note under the bar (#850), so the tick itself is not announced. */}
