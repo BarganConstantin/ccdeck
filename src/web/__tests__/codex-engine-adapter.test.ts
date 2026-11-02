@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import { mkdtemp, mkdir, readFile, rm, stat, symlink, writeFile } from 'node:fs/promises';
+import { mkdtemp, mkdir, readFile, readdir, rm, stat, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 // @ts-expect-error server ES module
 import { runAccountEngine } from '../../server/account-engine.mjs';
 // @ts-expect-error server ES module
@@ -54,6 +54,15 @@ describe('Codex continuation adapter', () => {
   it('rejects an incorrect transcript identity', async () => {
     const f = await fixture(); await writeFile(f.rollout, JSON.stringify({ type: 'session_meta', payload: { id: 'other' } }) + '\n');
     await expect(transferCodexThread(f.source, f.target, id)).rejects.toThrow('identity');
+  });
+  it('keeps a private source backup when moving an owned conversation', async () => {
+    const f = await fixture();
+    await transferCodexThread(f.source, f.target, id, { moveSource: true });
+    await expect(readFile(f.rollout)).rejects.toThrow();
+    const backup = (await readdir(dirname(f.rollout))).find(name => name.includes('.ccdeck-moved-'))!;
+    const file = join(dirname(f.rollout), backup);
+    expect(await readFile(file, 'utf8')).toBe(f.text);
+    if (process.platform !== 'win32') expect((await stat(file)).mode & 0o777).toBe(0o600);
   });
   it.skipIf(process.platform === 'win32')('refuses a symlinked destination', async () => {
     const f = await fixture(); await symlink(join(f.source, 'sessions'), join(f.target, 'sessions'));

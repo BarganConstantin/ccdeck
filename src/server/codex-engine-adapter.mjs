@@ -3,7 +3,7 @@
 import { randomUUID } from 'node:crypto';
 import { spawn } from 'node:child_process';
 import { StringDecoder } from 'node:string_decoder';
-import { link, lstat, mkdir, open, readdir, realpath, readFile, rename, unlink } from 'node:fs/promises';
+import { chmod, link, lstat, mkdir, open, readdir, realpath, readFile, rename, unlink } from 'node:fs/promises';
 import { constants } from 'node:fs';
 import { dirname, join, relative } from 'node:path';
 import { spawnSpec } from './exec-spec.mjs';
@@ -179,6 +179,7 @@ export async function transferCodexThread(sourceHome, targetHome, threadId, { mo
     const backup = `${found}.ccdeck-moved-${randomUUID()}`;
     try {
       await rename(found, backup);
+      await chmod(backup, 0o600);
       // A returning rollout publishes a fresh prefix receipt. Keep the old
       // one beside its backup rather than blocking a later round trip.
       await rename(codexHandoffPath(found), codexHandoffPath(backup)).catch(e => { if (e.code !== 'ENOENT') throw e; });
