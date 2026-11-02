@@ -47,7 +47,10 @@ describe("the card's box", () => {
     expect(decl(".agent-node", "width")).toBe("calc(256px + var(--ui-card-increase, 0px))");
     expect(decl(".agent-node", "flex-direction")).toBe("column");
     expect(decl(".agent-node", "gap")).toBe("2px");
-    expect(decl(".agent-node", "padding")).toBe("calc(8px + (var(--ui-space, 1) - 0.7) * 20px / 3) 10px");
+    // V4 draws the card's 1px edge inside its 8 and 10, so each side of the
+    // padding is 1px less than the frame's: the measured card is V4's 70 (88
+    // with an ask or a failure) with its edge, not 72 and 90.
+    expect(decl(".agent-node", "padding")).toBe("calc(8px + (var(--ui-space, 1) - 0.7) * 20px / 3 - 1px) calc(10px - 1px)");
   });
   it("is --panel on a 1px --line edge at the node radius, with no shadow in either theme", () => {
     expect(decl(".agent-node", "background")).toBe("var(--panel)");
@@ -179,8 +182,11 @@ describe("the chips over the board", () => {
     expect(decl(".autofit-resume", "color")).toBe("var(--accent)");
     expect(decl(".autofit-resume", "font-weight")).toBe("500");
     expect(decl(".autofit-resume", "height")).toBe("16px");
-    expect(decl(".autofit-resume", "padding")).toBe("0 4px");
-    expect(decl(".autofit-resume::after", "inset")).toBe("-4px -2px");
+    // The label sits on the strip's own padding, so the button adds none; its
+    // hit area (and hover wash) is the ::after, 4px past the text on each side.
+    expect(decl(".autofit-resume", "padding")).toBe("0");
+    expect(decl(".autofit-resume::after", "inset")).toBe("-4px -4px");
+    expect(decl(".autofit-resume::after", "z-index")).toBe("-1");
     // 58 + 8 + 44 inside 10 + 4 and the two edges.
     expect(58 + 8 + 44 + 10 + 4).toBe(124);
   });
@@ -194,7 +200,11 @@ describe("the chips over the board", () => {
     expect(decl(strip, "padding")).toBe("3px calc(8px - 1px) 3px calc(10px - 1px)");
     expect(decl(".rearrange-undo-act", "color")).toBe("var(--accent)");
     expect(decl(".rearrange-undo-act", "font-weight")).toBe("500");
-    expect(decl(".rearrange-undo-act::after", "inset")).toBe("-4px -2px");
+    // As the chip's Resume: no padding of its own, the hit area 4px past the
+    // word on each side, under the text.
+    expect(decl(".rearrange-undo-act", "padding")).toBe("0");
+    expect(decl(".rearrange-undo-act::after", "inset")).toBe("-4px -4px");
+    expect(decl(".rearrange-undo-act::after", "z-index")).toBe("-1");
     const src = read("../components/RearrangeUndo.tsx");
     expect(src).toContain("<Kbd>{undoChordLabel(platformName())}</Kbd>");
     expect(src.indexOf("</button>")).toBeLessThan(src.indexOf("<Kbd>"));
@@ -337,7 +347,8 @@ describe("the recap note", () => {
   it("is 240 wide, 8 and 10 inside, 4 apart, on --panel with a --line-soft edge, flat, no hue", () => {
     const n = ".recap-note";
     expect(decl(n, "width")).toBe("calc(240px + var(--ui-card-increase, 0px))");
-    expect(decl(n, "padding")).toBe("8px 10px");
+    // V4's 8 and 10 include the 1px edge Figma draws inside, so CSS pads 1px less.
+    expect(decl(n, "padding")).toBe("calc(8px - 1px) calc(10px - 1px)");
     expect(decl(n, "gap")).toBe("4px");
     expect(decl(n, "border-radius")).toBe("var(--r-node)");
     expect(decl(n, "background")).toBe("var(--panel)");

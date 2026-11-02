@@ -330,14 +330,15 @@
   --accent: hsl(var(--session-hue, 200) 70% var(--session-accent-l));
   position: relative;
   /* V4's recap note: 240 wide, 8px by 10px inside, 4px between its rows, the
-     node's radius on --panel with a --line-soft edge. No shadow and no hue in
-     the edge: the tie to its card says whose it is. */
+     node's radius on --panel with a --line-soft edge. Figma draws the edge
+     inside those 8 and 10, so the padding is each less 1px, as on the card.
+     No shadow and no hue in the edge: the tie to its card says whose it is. */
   display: flex;
   flex-direction: column;
   gap: 4px;
   box-sizing: border-box;
   width: calc(240px + var(--ui-card-increase, 0px));
-  padding: 8px 10px;
+  padding: calc(8px - 1px) calc(10px - 1px);
   background: var(--panel);
   border: 1px solid;
   border-color: var(--line-soft);

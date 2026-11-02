@@ -55,8 +55,10 @@ describe("V4's card frame", () => {
     // (Browser round 2: 8px * --ui-space gave 5.6px at Compact, not Figma's 8.
     // The vertical padding is 8 at Compact (space 0.7) and 10 at Default (space
     // 1, what the card has had), and keeps growing with density.)
-    const v = "calc(8px + (var(--ui-space, 1) - 0.7) * 20px / 3)";
-    expect(decl(".agent-node", "padding")).toBe(`${v} 10px`);
+    // V4 draws the 1px edge inside the 8 and 10, so CSS pads 1px less on each
+    // side to land on the same outer box.
+    const v = "calc(8px + (var(--ui-space, 1) - 0.7) * 20px / 3 - 1px)";
+    expect(decl(".agent-node", "padding")).toBe(`${v} calc(10px - 1px)`);
     const at = (space: number) => 8 + (space - 0.7) * 20 / 3;
     expect([0.3, 0.5, 0.7, 1, 1.4].map(x => +at(x).toFixed(2))).toEqual([5.33, 6.67, 8, 10, 12.67]);
   });
