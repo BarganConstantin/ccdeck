@@ -205,7 +205,8 @@ describe("the chrome is quiet: no edge at rest, a neutral look under the pointer
   });
 
   it("keeps the focus ring the sheet's own, in the accent, moving only its offset", () => {
-    expect(css).toMatch(/:focus-visible \{\s*outline: 2px solid var\(--accent\);/);
+    // V4's Figma: 1.5px (--focus-w), accent, inside the box.
+    expect(css).toMatch(/:focus-visible \{\s*outline: var\(--focus-w\) solid var\(--accent\);/);
     const rings = [...css.matchAll(/([^{}]*rail-btn[^{}]*:focus-visible[^{}]*)\{([^{}]*)\}/g)];
     for (const [, sel, decls] of rings) {
       expect(decls, sel.trim()).not.toMatch(/outline(?:-color)?:\s*[^;]*(?:var\(--(?!accent)|#|rgb)/);

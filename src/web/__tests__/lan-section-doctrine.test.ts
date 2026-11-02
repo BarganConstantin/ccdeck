@@ -655,7 +655,10 @@ describe("the list is quiet until it is not", () => {
     // one too and it comes first in the sheet.
     const danger = [...CSS.matchAll(/\.ap-lan-who \.ap-lan-do\.danger \{([^}]*)\}/g)].map(m => m[1]);
     expect(danger.some(b => /opacity:\s*0\b/.test(b))).toBe(true);
-    const shown = CSS.slice(CSS.indexOf(".ap-lan-who:hover .ap-lan-do.danger"));
+    // The pointer shows it under the mouse query (hover is for mice); the
+    // keyboard and the armed state show it in one rule of their own.
+    expect(CSS).toMatch(/@media \(hover: hover\) and \(pointer: fine\) \{\s*\.ap-lan-who:hover \.ap-lan-do\.danger \{\s*opacity:\s*1;/);
+    const shown = CSS.slice(CSS.indexOf(".ap-lan-who:has(:focus-visible) .ap-lan-do.danger"));
     // KEYBOARD focus, and only that. `:focus-within` held it up after a mouse
     // closed the deck's dialog and focus came back to the row — a destructive
     // verb left showing on a row nobody was pointing at, with no ring to say

@@ -35,7 +35,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { accountsSurface } from "./accounts-surface";
 import { clientText } from "./client-source";
-import { sheetText } from "./sheet-source";
+import { mouseFlat, sheetText } from "./sheet-source";
 
 const css = sheetText();
 const panel = readFileSync(fileURLToPath(new URL("../components/AccountsPanel.tsx", import.meta.url)), "utf8");
@@ -125,7 +125,8 @@ function topLevel(src: string): Array<{ selector: string; body: string }> {
 }
 
 const bare = css.replace(/\/\*[\s\S]*?\*\//g, "");
-const RULES = topLevel(bare);
+// The mouse query's rules are read where they stand: a desktop pointer meets them at the top level.
+const RULES = topLevel(mouseFlat(bare));
 
 const selectors = (list: string) => list.split(",").map(s => s.replace(/\s+/g, " ").trim());
 
@@ -367,7 +368,7 @@ describe("every control in the manage block has a perceivable boundary (1.4.11)"
         ] as const) {
           const rest = contrastRatio(over(resolve(borderColour(base), theme), bed), bed);
           const hovered = contrastRatio(
-            over(resolve(borderColour(`${base}:hover${base === ".ap-manage-btn" ? ":not(:disabled)" : ""}`), theme), bed),
+            over(resolve(borderColour(`${base}:hover${base === ".ap-manage-btn" ? ":not(:disabled)" : ":not(:focus-visible)"}`), theme), bed),
             bed,
           );
           expect(hovered, `${theme} ${name} hover on ${bedName}`).toBeGreaterThanOrEqual(rest);
@@ -549,14 +550,14 @@ describe("the input behaves like its four siblings (#325's ninth finding)", () =
   it("transitions its border, which every other control in the block already did", () => {
     // V4's field: the 120ms literal became --dur-fast on --ease.
     expect(decl(".ap-manage-input", "transition")).toMatch(/border-color var\(--dur-fast\) var\(--ease\)/);
-    expect(decl(".ap-manage-input:hover", "border-color")).toBeTruthy();
+    expect(decl(".ap-manage-input:hover:not(:focus-visible)", "border-color")).toBeTruthy();
   });
 
   it("arrives rather than appears, and briefly — a popover now, not a drawer", () => {
     // The block eased down 4px over 180ms from under its row. The popover
     // takes 120ms and 3px out of its anchor: shorter, because a menu is the
     // thing standing between a press and what the press was for.
-    expect(bare).toMatch(/animation: pop-from-anchor 120ms cubic-bezier\(0\.23, 1, 0\.32, 1\)/);
+    expect(bare).toMatch(/animation: pop-from-anchor var\(--dur-fast\) var\(--ease\)/); // Fast = 120);
     expect(bare).not.toMatch(/ap-manage-in(?![\w-])/);
   });
 });
