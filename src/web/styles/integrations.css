@@ -376,19 +376,20 @@ img.ig-avatar + img.ig-avatar {
 .ig-access summary { cursor: pointer; width: fit-content; }
 .ig-access p { margin: 8px 0 0; max-width: 65ch; }
 .ig-total { flex: none; align-self: center; color: var(--text-secondary); font-size: calc(12px + var(--ui-text-increase, 0px)); font-variant-numeric: tabular-nums; }
-.ig-providers { display: grid; grid-template-columns: 16px minmax(0, 1fr) max-content; column-gap: 12px; min-width: 0; }
-.ig-provider { display: grid; grid-column: 1 / -1; grid-template-columns: subgrid; align-items: center; column-gap: 12px; padding-block: 16px; }
-.ig-provider:first-child { padding-top: 0; }
-.ig-provider + .ig-provider { border-top: 1px solid var(--line); }
-.ig-provider > .ig-provider-glyph { align-self: start; padding-top: 2px; }
+/* THE PROVIDERS (V4's Integrations): two groups, Connected and Not connected,
+   of rows 48 high with no icon. A row is the name over what it is connected
+   to, the state in --muted at 12/16, and the control. */
+.ig-providers { display: flex; flex-direction: column; min-width: 0; }
+.ig-provider { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; column-gap: 10px; min-height: 48px; }
 .ig-provider-content { min-width: 0; }
-.ig-provider-content h3 { margin: 0; color: var(--text); font-size: calc(14px + var(--ui-text-increase, 0px)); line-height: 1.4; font-weight: 600; }
+.ig-provider-content h3 { margin: 0; color: var(--text); font-size: calc(13px + var(--ui-text-increase, 0px)); line-height: calc(20px + var(--ui-text-increase, 0px)); font-weight: 400; }
+.ig-provider-state { color: var(--muted); font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: calc(16px + var(--ui-text-increase, 0px)); text-align: right; }
 .ig-connection-list { display: flex; flex-direction: column; gap: 20px; min-width: 0; }
 .ig-connections { display: flex; flex-direction: column; gap: 12px; }
 .ig-summary-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 12px; min-width: 0; }
 .ig-summary-text { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
 .ig-summary-text .ig-conn-name { color: var(--text); font-size: calc(13px + var(--ui-text-increase, 0px)); font-weight: 500; overflow-wrap: anywhere; }
-.ig-provider .ig-conn-line { color: var(--text-secondary); line-height: 1.5; }
+.ig-provider .ig-conn-line { color: var(--muted); font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: calc(16px + var(--ui-text-increase, 0px)); }
 .ig-manage { min-width: 80px; display: inline-flex; align-items: center; justify-content: center; gap: 6px; }
 button.btn.ig-manage { font-weight: 500; }
 button.btn.ig-manage:not(.primary) { background: var(--ctl-fill); }

@@ -91,13 +91,14 @@ describe("a door into Settings opens it at the section it names", () => {
       ["appearance", />Theme<\/h3>/],
       ["reading", />Reset to defaults</],
       ["keyboard", />Single-key shortcuts</],
-      ["notifications", />Notifications while closed</],
-      ["sounds", />Custom sounds</],
+      // CHANGED ON PURPOSE (V4's Figma): the closed-deck row and the own-sounds
+      // group are named as V4 names them.
+      ["notifications", />While the deck is closed</],
+      ["sounds", />Your own</],
       ["integrations", />GitHub</],
       ["data", />Tool history<\/h3>/],
       ["claude", />Messages from other sessions</],
       ["radar", /data-setting="radar-open"/],
-      ["experimental", />Features still being tested, each off until you turn it on\.</],
       ["about", />Version</],
     ];
     expect(cases.map(([id]) => id)).toEqual(SETTINGS_SECTIONS.map(s => s.id));
@@ -120,17 +121,24 @@ describe("a door into Settings opens it at the section it names", () => {
     }
   });
 
-  it("draws the Command Panel's switch alone in Experimental, only when App hands it over, and nowhere in General", () => {
+  // CHANGED ON PURPOSE (V4's Figma): Experimental is not a tab; the Command
+  // Panel's switch stands in a group of that name at the foot of General, and
+  // nowhere else. The test was "alone in Experimental, nowhere in General".
+  it("draws the Command Panel's switch in General's Experimental group, only when App hands it over, and in no other section", () => {
     const terminal = { on: false, supported: true, toggle: noop };
-    expect(drawSettings({ section: "experimental" })).not.toContain("settings-terminal-label");
-    const html = drawSettings({ section: "experimental", terminal });
+    expect(drawSettings({ section: "general" })).not.toContain("settings-terminal-label");
+    const html = drawSettings({ section: "general", terminal });
     expect(html).toMatch(/role="switch" aria-checked="false" aria-labelledby="settings-terminal-label"/);
     expect(html).toContain(">Command Panel<");
-    expect(html.match(/role="switch"/g), "one switch, in an untitled group").toHaveLength(1);
-    expect(html).not.toContain("</h3>");
-    const general = drawSettings({ section: "general", terminal });
-    expect(general).not.toContain("settings-terminal-label");
-    expect(general).not.toContain(">Terminal</h3>");
+    expect(html).toContain('<h3 id="settings-experimental-caption">Experimental</h3>');
+    expect(html.lastIndexOf('id="settings-experimental-caption"'), "the group is the last in General").toBeGreaterThan(html.lastIndexOf('id="settings-elsewhere-caption"'));
+    expect(html).not.toContain("Not yet available on this platform.");
+    for (const section of ["appearance", "keyboard", "about"] as const) {
+      expect(drawSettings({ section, terminal }), section).not.toContain("settings-terminal-label");
+    }
+    // Where the platform has no panel, the row keeps its words and a note says so.
+    const unsupported = drawSettings({ section: "general", terminal: { on: false, supported: false, toggle: noop } });
+    expect(unsupported).toContain('<p class="settings-note" id="settings-terminal-unavailable">Not yet available on this platform.</p>');
   });
 
   it("gives each subject its own section: the board in General, the look in Appearance, the keys in Keyboard, history in Data", () => {
@@ -160,9 +168,10 @@ describe("a door into Settings opens it at the section it names", () => {
 
   it("names the eleven sections in the nav, in order, About last", () => {
     // Integrations since #2178: the trackers this deck reads, between Sounds and Data.
-    // Claude Code beside Radar, the other section that writes Claude Code's settings;
-    // Experimental since the Command Panel: what is still being tested, before About.
-    const names = ["General", "Appearance", "Text & density", "Keyboard", "Notifications", "Sounds", "Integrations", "Data", "Claude Code", "Radar", "Experimental", "About"];
+    // Claude Code beside Radar, the other section that writes Claude Code's settings.
+    // CHANGED ON PURPOSE (V4's Figma): no Experimental tab; its switch is a
+    // group in General.
+    const names = ["General", "Appearance", "Text & density", "Keyboard", "Notifications", "Sounds", "Integrations", "Data", "Claude Code", "Radar", "About"];
     expect(SETTINGS_SECTIONS.map(s => s.label)).toEqual(names);
     // Each tab's text, its glyph's markup stripped: a tab carries a drawn
     // glyph before its word now (the next block), and the word is still all
