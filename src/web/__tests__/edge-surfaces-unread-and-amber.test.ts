@@ -96,14 +96,14 @@ describe("amber is the waiting count's and nothing else's", () => {
     expect(edges).not.toMatch(/--warn/);
   });
 
-  it("is nowhere in the queue of names beside the count", () => {
-    const queue = rules(controls).filter(r => /\.(?:wait-names|wait-list|wait-entry|we-name|we-meta|wait-more|wait-ruler)\b/.test(r.sel));
+  it("is nowhere in the queue popover under the count", () => {
+    const queue = rules(controls).filter(r => /\.(?:queue-pop|queue-row|we-name|we-wait|we-what)\b/.test(r.sel));
     expect(queue.length, "the queue's rules are gone from topbar-controls.css").toBeGreaterThan(5);
     for (const { sel, decls } of queue) expect(decls, sel).not.toMatch(/--warn/);
   });
 
   it("is on the count itself, which keeps it", () => {
-    const count = rules(controls).find(r => r.sel === ".topbar .waiting-stat");
+    const count = rules(controls).find(r => r.sel === ".topbar .count-pill.waiting-stat");
     expect(count!.decls).toMatch(/color: var\(--warn\);/);
   });
 });

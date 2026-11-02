@@ -76,10 +76,10 @@ export interface RailItem {
    *  the way into it (rail-items.tsx). */
   group?: string;
   /** How the top bar draws this door where it is not a word button: a field
-   *  holding `fieldText` and the chord (Search). Looks only, on the same
-   *  button; the stripes and the dock ignore it. Feedback keeps its word
-   *  (#1853), though Figma draws it as a bare icon. */
-  barLook?: "field";
+   *  holding `fieldText` and the chord (Search), or a bare 28x28 icon button
+   *  (Feedback, V4's Figma). Looks only, on the same button with the same name
+   *  and the same hint; the stripes and the dock ignore it. */
+  barLook?: "field" | "icon";
   /** The sentence a field shows, and so its name (WCAG 2.5.3, label in name)
    *  and its hint's. */
   fieldText?: string;
@@ -103,7 +103,7 @@ export function railHint(item: RailItem, singleKeys: boolean, wordShown: boolean
 /** Each placement's classes, written out whole so every class the markup can
  *  carry is a literal the sheet sweeps can hold to a rule. */
 const BUTTON_CLASS = { stripe: "rail-btn rail-btn-stripe", dock: "rail-btn rail-btn-dock", bar: "rail-btn rail-btn-bar" } as const;
-const BAR_LOOK_CLASS = { field: "rail-btn rail-btn-bar rail-btn-field" } as const;
+const BAR_LOOK_CLASS = { field: "rail-btn rail-btn-bar rail-btn-field", icon: "rail-btn rail-btn-bar rail-btn-icon" } as const;
 const RAIL_CLASS = { left: "edge-rail edge-rail-left" } as const;
 
 const NEXT_KEYS = { vertical: "ArrowDown", horizontal: "ArrowRight" } as const;
@@ -173,7 +173,10 @@ function RailButton({ item, index, tabbable, onFocusIndex, hint, variant }: {
   const look = variant === "bar" ? item.barLook : undefined;
   const fieldText = look === "field" ? item.fieldText ?? item.label : null;
   const hinted = fieldText != null ? { ...item, label: fieldText, hint: undefined } : item;
-  const spec = railHint(hinted, singleKeys, variant !== "stripe");
+  // An icon-only bar button (Feedback) shows no word, so its hint is what says
+  // the word: the tooltip keeps "Feedback".
+  const iconOnly = look === "icon";
+  const spec = railHint(hinted, singleKeys, variant !== "stripe" && !iconOnly);
   // V4's door tooltip is one line, the name and its key: the longer help line
   // stays for assistive tech as the door's description.
   const oneLine = variant === "stripe" && spec != null && spec.detail != null;
@@ -200,7 +203,7 @@ function RailButton({ item, index, tabbable, onFocusIndex, hint, variant }: {
       {fieldText != null ? <>
         <span className="rail-field-text">{fieldText}</span>
         {item.key && <Kbd>{item.key.cap}</Kbd>}
-      </> : variant !== "stripe" && <span className="rail-word">{variant === "dock" ? item.short : item.label}</span>}
+      </> : variant !== "stripe" && !iconOnly && <span className="rail-word">{variant === "dock" ? item.short : item.label}</span>}
       {item.badge != null && item.badge > 0 && <span className="rail-badge" aria-hidden>{item.badge}</span>}
       {item.dot && !(item.badge != null && item.badge > 0) && <span className="rail-dot" aria-hidden />}
     </button>

@@ -96,7 +96,8 @@ describe("the bar's box", () => {
     expect(d["flex-direction"]).toBe("row");
     expect(d["align-items"]).toBe("center");
     expect(d["gap"]).toBe("2px");
-    expect(d["padding"]).toBe("2px");
+    // 1px inside the 1px edge = the frame's 2px padding with the stroke inside it.
+    expect(d["padding"]).toBe("1px");
     expect(d["background"]).toBe("var(--panel)");
     expect(d["border"]).toBe("1px solid var(--line)");
     expect(d["border-radius"]).toBe("var(--r-ctl)");

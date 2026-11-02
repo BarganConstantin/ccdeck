@@ -217,7 +217,7 @@ describe("the topbar's Feedback button", () => {
     expect(app).toMatch(/\{!phone && <div className="actions"><UtilityRun items=\{\[rails\.search, \.\.\.rails\.topUtilities\]\} \/><\/div>\}/);
   });
 
-  it("draws its glyph on the chrome's one icon spec (#837), and says its word beside it at every desktop width", () => {
+  it("draws its glyph on the chrome's one icon spec (#837), and is named and hinted by its word at every desktop width (V4's Figma draws the bar button icon-only)", () => {
     expect(item).toMatch(/glyph: <FeedbackGlyph \/>/);
     expect(read("../components/rail-glyphs.tsx")).toMatch(/export const FeedbackGlyph = \(\) => \(\s*<Glyph>/);
     // It was a bare glyph beside the theme button, on the reasoning that the
@@ -226,13 +226,17 @@ describe("the topbar's Feedback button", () => {
     // word only from 1707px, where the busiest bar of eight controls still
     // held it. The controls are on the edges now, so the bar has the room at
     // every width the bar draws them: the word is the label, always, and no
-    // rule in the sheet hides it.
+    // rule in the sheet hides it. V4's Figma then draws the bar's Feedback as a
+    // bare 28x28 icon: the word stays the label and the hint, and the
+    // accessible name ("Send feedback") contains it; the visible word on the bar
+    // is the one #1853 asked for that the frame does not draw.
     expect(item).toMatch(/label: t\("board\.rail\.feedback"\)/);
     expect(boardEn["board.rail.feedback"]).toBe("Feedback");
     // Search alone is named by the sentence its field shows (fieldText); every
     // other door, Feedback with it, keeps its own aria-label.
     expect(rails).toMatch(/aria-label=\{(?:fieldText \?\? )?item\.ariaLabel\}/);
-    expect(rails).toMatch(/variant !== "stripe" && <span className="rail-word">/);
+    expect(rails).toMatch(/variant !== "stripe" && !iconOnly && <span className="rail-word">/);
+    expect(item).toMatch(/barLook: "icon"/);
     expect(edgeSheet).not.toMatch(/rail-btn-bar[^{]*\.rail-word[^{]*\{[^}]*display:\s*none/);
     expect(edgeSheet).not.toMatch(/\.utility-run[^{]*\{[^}]*display:\s*none/);
   });

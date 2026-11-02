@@ -316,11 +316,9 @@ const PRESSES: Press[] = [
   // and it drew eight rows with a small `more` beside the heading, each of
   // which had its own entry here. The rows are gone and the section is the
   // button above, so the two entries went with them.
-  [".topbar .waiting-stat:active", "0.97", "transform"],
-  // The names the queue beside it gives each waiting session, and its "+N
-  // more" — labelled controls, so 0.97 like the count they continue.
-  [".topbar .wait-entry:active", "0.97", "transform"],
-  [".topbar .wait-more:active", "0.97", "transform"],
+  [".topbar .count-pill.waiting-stat:active", "0.97", "transform"],
+  // (The queue's names and its "+N more" are the count's popover now, V4's
+  // V4's top bar; its rows answer a press with a fill, like the menus' — EXEMPT.)
   // The chrome's eight panel and dialog controls, wherever they stand: the
   // edge stripes, the phone's dock, the topbar's corner (EdgeRails.tsx). One
   // rule for all three placements, because they are one control; 0.97 because
@@ -329,7 +327,7 @@ const PRESSES: Press[] = [
   [".rail-btn:active", "0.97", "transform"],
   // The permission ask beside it, at the same scale for the same reason: it is
   // a labelled control, and 0.94 of a two-word pill reads as a jump.
-  [".topbar .brand button.v:active", "0.97", "transform"],
+  [".topbar button.v:active", "0.97", "transform"],
   [".ap-manage-btn:active:not(:disabled)", "0.97", "transform"],
   [".ap-more:active", "0.94", "transform"],
   // The account rows in the LAN section, which are labels wrapping their own
@@ -407,11 +405,7 @@ const PRESSES: Press[] = [
   ["button.tt-part:active", "0.97", "transform"],
   [".sa-session:active", "0.97", "transform"],
   ["button.tool.clickable:active", "0.97", "transform"],
-  [".selected-ribbon .selected-close:active", "0.94", "transform"],
-  // The × is a span inside the ribbon's own button, and `:active` is set on
-  // every ancestor of what was pressed — without the guard, clearing the
-  // selection would shrink the whole ribbon as if the view were being fitted.
-  [".selected-ribbon:active:not(:has(.selected-close:active))", "0.97", "transform"],
+  // (The selected ribbon and its × are gone, V4's top bar.)
   [".ver-banner .ver-cmd:active", "0.97", "transform"],
   [".ver-banner .ver-act:active:not(:disabled)", "0.97", "transform"],
   [".ver-banner .ver-close:active", "0.94", "transform"],
@@ -520,6 +514,9 @@ const owner = (sel: string) => sel.replace(/:active.*$/, "");
  *  What this control gives back on press instead is the hover brightness it
  *  keeps through the whole gesture, and a fit-view that moves the canvas. */
 const EXEMPT: string[] = [
+  // The queue popover's rows (V4's top bar) are menu rows: they answer the
+  // pointer and a press with the --selected fill, not a scale, like .ap-menu-item.
+  ".queue-row",
   // V4's switch answers a pointer press with its KNOB (it stretches to 18px,
   // menus.css) and not with a scale of the whole track.
   ".switch",
@@ -795,7 +792,7 @@ const LIVE_PULSE = [
  *  are running, the health of the event stream and a tool in flight are one
  *  fact. A new pulse fails this suite until it is either in the family above or
  *  written down here with a reason. */
-const NEWER_VERSION_DOT = ".topbar .brand button.v .v-dot";
+const NEWER_VERSION_DOT = ".topbar button.v .v-dot";
 const OTHER_PULSES: [selector: string, meaning: string][] = [
   // `.armed`, not the dot itself: it is still at rest for as long as the
   // notice is only a notice, and pulses only once a restart is actually

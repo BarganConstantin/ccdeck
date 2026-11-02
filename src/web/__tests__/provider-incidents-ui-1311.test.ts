@@ -242,9 +242,20 @@ describe("the topbar chip", () => {
     expect(out).toContain('class="provider-incident"');
     expect(out).toContain(">Claude<");
     expect(out).toContain(">· partial outage<");
-    // Where it goes, said to a screen reader and drawn as ↗ for everyone else.
+    // Where it goes, said to a screen reader. V4's Figma draws no ↗ on the chip
+    // (one 14px icon and one line), so the arrow is gone.
     expect(out).toContain('<span class="vis-hidden">, on status.claude.com, opens in a new tab</span>');
-    expect(out).toContain('<span class="pi-go" aria-hidden="true"><svg');
+    expect(out).not.toContain("pi-go");
+    expect(out).toContain('<span class="pi-icon" aria-hidden="true"><span class="pi-dot"></span></span>');
+  });
+
+  it("says when the status page last answered, fresh or stale (Claude · partial outage · as of HH:MM)", () => {
+    // The payload carries `checkedAt`, the time the page last answered, and that
+    // is the "as of"; it carries no started/updated time of the incident itself.
+    const inc = incidentOf(line(), NOW)!;
+    expect(inc.asOf, "a fresh answer is not stale").toBeNull();
+    expect(inc.readAt).toMatch(/\d{2}:\d{2}/);
+    expect(html([line()])).toContain(`<span class="pi-asof">· as of ${inc.readAt}</span>`);
   });
 
   it("is named by the words it shows, whichever of them the sheet shows (2.5.3)", () => {
@@ -269,13 +280,14 @@ describe("the topbar chip", () => {
   });
 
   it("comes before the blocked-session chip, so the alarm is the last thing the readout clips", () => {
-    // The readout packs to its end when it runs out of room: its last child
-    // survives longest, and that has to be the count.
+    // V4's Figma order: the wordmark, the three count pills, then the
+    // chips; so the pill now comes first and the chips after it.
     const src = sourceOf("components/TopbarReadouts.tsx");
     const waiting = src.indexOf("<WaitingStat waitingSessions");
     const chips = src.indexOf("<IncidentChips incidents={incidents} />");
     expect(chips).toBeGreaterThan(0);
-    expect(waiting).toBeGreaterThan(chips);
+    expect(waiting).toBeGreaterThan(0);
+    expect(chips).toBeGreaterThan(waiting);
   });
 });
 
@@ -384,9 +396,11 @@ describe("the sheet", () => {
   it("shows one length of the words at a time", () => {
     expect(css).toContain(".topbar .provider-incident .pi-short { display: none; }");
     // Two chips below 1680px, and any chip at the narrow breakpoint, swap to the one word.
-    expect(css).toMatch(/@media \(max-width: 1679px\) \{\s*\.topbar \.readout:has\(\.provider-incident \+ \.provider-incident\) :is\(\.pi-words, \.pi-asof\) \{ display: none; \}\s*\.topbar \.readout:has\(\.provider-incident \+ \.provider-incident\) \.pi-short \{ display: inline; \}/);
+    // (Each chip is in its ChipPresence slot now, so "two chips" is two adjacent slots.)
+    const two = String.raw`\.chip-slot:has\(> \.provider-incident\) \+ \.chip-slot:has\(> \.provider-incident\)`;
+    expect(css).toMatch(new RegExp(String.raw`@media \(max-width: 1679px\) \{\s*\.topbar \.readout:has\(${two}\) :is\(\.pi-words, \.pi-asof\) \{ display: none; \}\s*\.topbar \.readout:has\(${two}\) \.pi-short \{ display: inline; \}`));
     expect(css).toMatch(/\.topbar \.readout \.provider-incident :is\(\.pi-words, \.pi-asof\) \{ display: none; \}\s*\.topbar \.readout \.provider-incident \.pi-short \{ display: inline; \}\s*\}/);
-    expect(css).toMatch(/@media \(max-width: 480px\) \{\s*\.topbar \.readout \.provider-incident \{ display: none; \}\s*\}/);
+    expect(css).toMatch(/@media \(max-width: 480px\) \{\s*\.topbar \.readout \.chip-slot:has\(> \.provider-incident\) \{ display: none; \}\s*\}/);
   });
 
   it("outweighs the chip's own rules, which come later in the cascade", () => {
@@ -399,9 +413,9 @@ describe("the sheet", () => {
   });
 
   it("gives each state its own shape, in a contrast theme too", () => {
-    expect(css).toContain('[data-state="degraded"] > .pi-dot { background: transparent; box-shadow: inset 0 0 0 1.5px var(--err); }');
-    expect(css).toContain('[data-state="maintenance"] > .pi-dot { background: var(--muted); border-radius: 1px; }');
-    expect(css).toContain('[data-state="degraded"] > .pi-dot { background: Canvas; box-shadow: inset 0 0 0 1.5px CanvasText; }');
-    expect(css).toContain('[data-state="maintenance"] > .pi-dot { background: GrayText; }');
+    expect(css).toContain('[data-state="degraded"] .pi-dot { background: transparent; box-shadow: inset 0 0 0 1.5px var(--err); }');
+    expect(css).toContain('[data-state="maintenance"] .pi-dot { background: var(--muted); border-radius: 1px; }');
+    expect(css).toContain('[data-state="degraded"] .pi-dot { background: Canvas; box-shadow: inset 0 0 0 1.5px CanvasText; }');
+    expect(css).toContain('[data-state="maintenance"] .pi-dot { background: GrayText; }');
   });
 });

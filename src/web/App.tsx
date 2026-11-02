@@ -60,8 +60,7 @@ import {
 import { integrationDefs } from "./integrations/registry";
 import type { IntegrationKind } from "./integrations/types";
 import { useMediaQuery } from "./use-media-query";
-import { ReadoutGroup, WaitingNames } from "./components/TopbarReadouts";
-import SelectedRibbon from "./components/SelectedRibbon";
+import { ReadoutGroup } from "./components/TopbarReadouts";
 import CategoryFilterBar from "./components/CategoryFilterBar";
 import CanvasMain from "./components/CanvasMain";
 import DeckBanner from "./components/DeckBanner";
@@ -103,6 +102,7 @@ import { useVersionCheck } from "./use-version-check";
 import { useWelcomeAndNotes } from "./use-welcome-and-notes";
 import { useReports } from "./use-reports";
 import { blockedSessions } from "./ambient-counts";
+import { sessionCounts } from "./topbar-counts";
 import { boardHeadBase, boardHeadLongest, boardHeadShown } from "./board-header";
 import { initialState } from "./reducer";
 import { useSoundSwitch } from "./use-sound-switch";
@@ -781,6 +781,12 @@ function Inner() {
     () => blockedSessions(stateRef.current.agents.values()),
     [stateRef.current, stateRef.current.revision],
   );
+  // The top bar's working and done pills (topbar-counts.ts), by the same words
+  // the cards wear; waiting is the queue above.
+  const counts = useMemo(
+    () => sessionCounts(stateRef.current.agents.values()),
+    [stateRef.current, stateRef.current.revision],
+  );
   // A removed session that starts waiting or working again comes back —
   // use-removals.ts.
   useRemovalCallBacks({ stateRef, waitingSessions, removedAgentIds, removedNodes, bringBack });
@@ -884,22 +890,12 @@ function Inner() {
     openQuickOpen,
     feedbackUnread, openFeedbackConversations,
   });
-  // How many of the waiting sessions the topbar names, for the count's hint,
-  // which lists the rest.
-  const [queueNamed, setQueueNamed] = useState(0);
-  /** The waiting queue's "+N more": the session list, whose top rows are the
-   *  same sessions in the same order, opened if it is shut, and focus on its
-   *  first row once it is drawn. */
   /** On a phone the list is a drawer over the canvas it would otherwise hide,
    *  so picking a session there also closes it, and the session is on screen. */
   const pickSession = useCallback((sessionId: string) => {
     openSession(sessionId);
     if (phone) closeSessionListToCanvas();
   }, [openSession, phone, closeSessionListToCanvas]);
-  const showWaitingList = useCallback(() => {
-    if (!sessionListOpen) toggleSessionList();
-    requestAnimationFrame(() => document.querySelector<HTMLElement>("#session-list .sl-row")?.focus());
-  }, [sessionListOpen, toggleSessionList]);
   const closeAccounts = () => { (providers.claude ? panelReturn.accounts : panelReturn.codex)(); closeAccountsPanel(); };
   const accountsSwitch = accountSide.both
     ? <AccountsSwitch shown={shownAccountProvider} notices={accountSide.notices} onPick={accountSide.pick} />
@@ -958,27 +954,19 @@ function Inner() {
           versionCheck={versionCheck} welcome={welcome} desktopUpdate={desktopUpdate} pause={pause}
           announcements={announcements} notify={notify} waitingSessions={waitingSessions}
           waitingCursorRef={waitingCursorRef} focusSession={focusSessionOnView} live={live} now={now}
-          incidents={incidents} queueNamed={phone ? 0 : queueNamed}
-          startAsks={stage.enabled ? asks.startAsks : undefined} asksSaid={stage.enabled ? asks.said : undefined}
-        />
-        {/* Who is waiting, by name, in the room the bar has left — and none of
-            it on a phone, where the bar holds the count alone. Mounted while
-            nothing waits too, so the ribbon after it stands in one place
-            whether or not somebody is waiting. */}
-        {!phone && (
-          <WaitingNames waitingSessions={waitingSessions} waitingCursorRef={waitingCursorRef}
-            focusSession={focusSessionOnView} now={now} onFit={setQueueNamed} onMore={showWaitingList} />
-        )}
-        {selected && (
-          <SelectedRibbon selected={selected} now={now} selectedIds={selectedIds} focusAgent={focusAgent} clearSelection={clearSelection} />
-        )}
-        {/* Search, Settings and Feedback, in the corner every product keeps
-            them in. The panel toggles are on the edges their panels open from. */}
-        {/* Board | Workspace, in the right-hand group, left of the search field:
-            only where the Command Panel is on (use-view.ts), and never on a
-            phone, where the Board is the whole of the deck. */}
-        {!phone && stage.workspaceOffered && <ViewSwitch view={inWorkspace ? "workspace" : "board"} onChange={switchView} />}
-        {!phone && <div className="actions"><UtilityRun items={[rails.search, ...rails.topUtilities]} /></div>}
+          incidents={incidents} counts={counts} asksSaid={stage.enabled ? asks.said : undefined}
+        >
+          {/* Board | Workspace, left of the search field in the right-hand
+              group: only where the Command Panel is on (use-view.ts), and never
+              on a phone, where the Board is the whole of the deck. */}
+          {!phone && stage.workspaceOffered && <ViewSwitch view={inWorkspace ? "workspace" : "board"} onChange={switchView} />}
+          {/* Search and Feedback, in the corner every product keeps them in
+              (Settings is at the Panel bar's foot). Who is waiting, by name, is
+              the waiting pill's popover, and the selected session is named by
+              the Inspector: the ribbon that used to sit between them is gone
+              (V4's Figma) — Esc clears the selection, Z frames it. */}
+          {!phone && <div className="actions"><UtilityRun items={[rails.search, ...rails.topUtilities]} /></div>}
+        </ReadoutGroup>
       </header>
 
       {/* The left stripe, ahead of the column it opens so Tab reaches the

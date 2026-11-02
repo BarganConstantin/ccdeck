@@ -73,9 +73,13 @@ describe("V4's top bar", () => {
   it("is as tall as the grid's first row, which is the height token", () => {
     expect(css).toMatch(/grid-template-rows:\s*var\(--topbar-h\)\s+auto\s+1fr/);
   });
-  it("keeps 24 between roles, 12 between the readouts of the start group", () => {
-    expect(decl(".topbar", "gap")).toBe("24px");
+  it("keeps 12 between the bar's two groups and inside the start group, 8 inside the end group and the counts", () => {
+    // V4's Figma, Top bar: the start group's gap is 12, the end group's and the
+    // counts' 8; the bar itself only floors the distance between its groups.
+    expect(decl(".topbar", "gap")).toBe("12px");
     expect(decl(".topbar .readout", "gap")).toBe("12px");
+    expect(decl(".topbar .counts", "gap")).toBe("8px");
+    expect(decl(".topbar .tb-end", "gap")).toBe("8px");
   });
   it("sets the brand at 14 on 20, Semibold, 6 from the mark; the mark stays 16 tall", () => {
     expect(decl(".topbar .brand", "font-size")).toBe(INC(14));
@@ -100,24 +104,37 @@ describe("V4's top bar", () => {
 });
 
 describe("V4's chips: 24 tall, 12 on 16", () => {
-  const stat = ".topbar .waiting-stat";
+  const count = ".topbar .count-pill";
+  const stat = ".topbar .count-pill.waiting-stat";
+  it("the three counts are 24 tall, 4 apart inside, no stroke, radius a pill, 12 on 16", () => {
+    for (const prop of [["height", "24px"], ["box-sizing", "border-box"], ["gap", "4px"], ["padding", "0 4px"], ["border", "0"],
+      ["border-radius", "var(--r-pill)"], ["line-height", "16px"], ["font-weight", "400"]] as const) {
+      expect(decl(count, prop[0]), prop[0]).toBe(prop[1]);
+    }
+    expect(decl(count, "font-size")).toBe(INC(12));
+    expect(decl(count, "color")).toBe("var(--text-secondary)");
+    expect(decl(`${count} b`, "color")).toBe("var(--text)");
+    expect(decl(`${count} b`, "font-family")).toBe("var(--font-mono)");
+    expect(decl(`${count} b`, "font-weight")).toBe("600");
+  });
   it("the waiting count is a --warn pill, padded 0 8 0 6, 4 apart, the figure in mono 600", () => {
-    expect(decl(stat, "height")).toBe("24px");
-    expect(decl(stat, "box-sizing")).toBe("border-box");
+    expect(decl(count, "height")).toBe("24px");
+    expect(decl(count, "box-sizing")).toBe("border-box");
+    expect(decl(count, "gap")).toBe("4px");
     expect(decl(stat, "border-radius")).toBe("var(--r-pill)");
     expect(decl(stat, "border")).toBe("1px solid var(--warn)");
     expect(decl(stat, "color")).toBe("var(--warn)");
     expect(decl(stat, "padding")).toBe("0 8px 0 6px");
-    expect(decl(stat, "gap")).toBe("4px");
-    expect(decl(stat, "font-size")).toBe(INC(12));
-    expect(decl(stat, "line-height")).toBe("16px");
-    expect(decl(stat, "font-weight")).toBe("400");
-    const b = `${stat} b`;
+    expect(decl(count, "font-size")).toBe(INC(12));
+    expect(decl(count, "line-height")).toBe("16px");
+    expect(decl(count, "font-weight")).toBe("400");
+    const b = `${count} b`;
     expect(decl(b, "font-family")).toBe("var(--font-mono)");
     expect(decl(b, "font-size")).toBe(INC(12));
     expect(decl(b, "line-height")).toBe("16px");
     expect(decl(b, "font-weight")).toBe("600");
     expect(decl(b, "font-variant-numeric")).toBe("tabular-nums");
+    expect(decl(`${stat} b`, "color")).toBe("var(--warn)");
   });
 
   const pill = ".topbar .status .pill";
@@ -173,20 +190,22 @@ describe("V4's chips: 24 tall, 12 on 16", () => {
     expect(decl(`${inc}-stale`, "border-style")).toBe("dashed");
   });
 
-  const ver = ".topbar .brand button.v";
-  it("the version chip is 24 tall at 12 on 16, padded 0 6, 4 apart", () => {
+  const ver = ".topbar button.v";
+  it("the version chip is 24 tall at 12 on 16, padded 0 6, 4 apart, with no stroke", () => {
     expect(decl(ver, "height")).toBe("24px");
     expect(decl(ver, "box-sizing")).toBe("border-box");
     expect(decl(ver, "padding")).toBe("0 6px");
     expect(decl(ver, "gap")).toBe("4px");
+    expect(decl(ver, "border")).toBe("0");
     expect(decl(ver, "font-size")).toBe(INC(12));
     expect(decl(ver, "line-height")).toBe("16px");
     expect(decl(ver, "border-radius")).toBe("var(--r-ctl)");
+    expect(decl(`${ver} .v-icon`, "width")).toBe("14px");
+    expect(decl(`${ver} .v-icon`, "height")).toBe("14px");
   });
   it("a newer version, a ready update and the press are the --accent-16 wash with no edge", () => {
     const sel = `${ver}:is(.stale, .ready, .v-update)`;
     expect(decl(sel, "background")).toBe("var(--accent-16)");
-    expect(decl(sel, "border-color")).toBe("transparent");
     expect(decl(sel, "color")).toBe("var(--text)");
     expect(decl(sel, "font-weight")).toBe("400");
     expect(decl(`${sel}:hover`, "background")).toBe("color-mix(in srgb, var(--accent) 24%, transparent)");
@@ -202,32 +221,36 @@ describe("V4's chips: 24 tall, 12 on 16", () => {
     expect(decl(`${ver} .v-dot`, "animation")).toBeUndefined();
     expect(decl(`${ver} .v-dot`, "animation", REDUCED)).toBeUndefined();
   });
-  it("the current version stays visible and quiet", () => {
-    expect(decl(`${ver}:not(.stale):not(.ready)`, "color")).toBe("var(--muted)");
-    expect(decl(`${ver}:not(.stale):not(.ready)`, "display")).toBeUndefined();
+  it("draws no chip for a current version: only a newer one or a ready update has a rule", () => {
+    expect(has(`${ver}:not(.stale):not(.ready)`)).toBe(false);
+    expect(has(".topbar .brand .v")).toBe(false);
   });
 });
 
-describe("V4's chip entrance: opacity and 4px of x over --dur-base", () => {
-  it("is one keyframe, from transparent and 4px back", () => {
-    expect(frames["chip-in"]).toBeDefined();
-    expect(frames["chip-in"]).toMatch(/from\s*\{\s*opacity:\s*0;\s*transform:\s*translateX\(-4px\);\s*\}/);
-    expect(frames["pulse"]).toMatch(/opacity/);
-    expect(frames["pulse"]).not.toMatch(/transform/);
-  });
-  it("is worn by the stream chip, the count, an incident and a newer or ready version", () => {
-    const chip = "chip-in var(--dur-base) var(--ease) both";
-    for (const s of [".topbar .status .pill", ".topbar .waiting-stat", ".topbar .provider-incident", ".topbar .brand button.v:is(.stale, .ready)"]) {
-      expect(decl(s, "animation"), s).toBe(chip);
+describe("V4's chip entrance and exit: opacity and 4px of x, over --dur-base in and --dur-exit out", () => {
+  const slot = ".topbar .chip-slot";
+  it("is a transition on the chip's slot, never a keyframe", () => {
+    expect(frames["chip-in"], "the keyframe the chips used to wear").toBeUndefined();
+    expect(decl(slot, "opacity")).toBe("0");
+    expect(decl(slot, "transform")).toBe("translateX(-4px)");
+    expect(decl(`${slot}[data-on]`, "opacity")).toBe("1");
+    expect(decl(`${slot}[data-on]`, "transform")).toBe("none");
+    expect(decl(slot, "transition")).toContain("var(--dur-exit)");
+    expect(decl(`${slot}[data-on]`, "transition-duration")).toBe("var(--dur-base)");
+    for (const s of [".topbar .status .pill", ".topbar .count-pill.waiting-stat", ".topbar .provider-incident", ".topbar button.v:is(.stale, .ready)"]) {
+      expect(decl(s, "animation"), s).toBeUndefined();
     }
   });
-  it("answers reduced motion with none, on each of them", () => {
-    for (const s of [".topbar .status .pill", ".topbar .waiting-stat", ".topbar .provider-incident", ".topbar .brand button.v:is(.stale, .ready)"]) {
-      expect(decl(s, "animation", REDUCED), s).toBe("none");
-    }
-    // The queue's own entrance is a separate, older rule and keeps its answer.
-    expect(frames["wait-in"]).toBeDefined();
-    expect(decl(".topbar .wait-list li[data-fresh]", "animation", REDUCED)).toBe("none");
+  it("closes the gap with the chip, so the neighbours move over", () => {
+    expect(decl(slot, "grid-template-columns")).toBe("0fr");
+    expect(decl(`${slot}[data-on]`, "grid-template-columns")).toBe("1fr");
+    expect(decl(slot, "margin-left")).toBe("calc(-1 * var(--chip-gap, 12px))");
+    expect(decl(".topbar .readout", "--chip-gap")).toBe("12px");
+    expect(decl(".topbar .tb-end", "--chip-gap")).toBe("8px");
+  });
+  it("answers reduced motion with opacity alone", () => {
+    expect(decl(slot, "transform", REDUCED)).toBe("none");
+    expect(decl(slot, "transition", REDUCED)).toBe("opacity var(--dur-exit) var(--ease)");
   });
 });
 

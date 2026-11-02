@@ -114,7 +114,7 @@ describe("the slot it is worth (#719)", () => {
     // the negative reads both.
     const strip = src("components/TopbarReadouts.tsx");
     const app = src("App.tsx") + "\n" + strip;
-    expect(strip, "the strip no longer skips the pill at rest").toMatch(/if\s*\(\s*pill\.resting\s*\)\s*return null;/);
+    expect(strip, "the strip no longer skips the pill at rest").toMatch(/show=\{!pill\.resting\}/);
     expect(app, "the topbar decides the pill's fate from the tone instead of the field")
       .not.toMatch(/pill\.tone\s*===\s*"live"/);
   });

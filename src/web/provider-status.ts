@@ -106,6 +106,11 @@ export interface Incident {
   shortWords: string;
   /** "14:05" when the answer is stale — the time it was last true — else null. */
   asOf: string | null;
+  /** "14:05", always: when the status page last answered, which is the time
+   *  the payload carries (`checkedAt`; the route sends no started/updated
+   *  time of the incident itself). The top bar's chip says it as "as of
+   *  HH:MM" (V4's Figma), fresh or stale. */
+  readAt: string;
   /** The incident's title, or failing that the affected components; null when the page gave neither. */
   what: string | null;
   /** The status page, https and one of the two hosts. */
@@ -182,6 +187,7 @@ export function incidentOf(s: ProviderStatus, now: number): Incident | null {
     chipWords: chipKey ? t(chipKey) : words,
     shortWords: shortKey ? t(shortKey) : words,
     asOf,
+    readAt: clock(s.checkedAt),
     what: s.summary || (components.length > 0 ? components.join(", ") : null),
     href: page.href,
     host: page.hostname,

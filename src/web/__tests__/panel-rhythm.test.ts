@@ -469,7 +469,7 @@ describe("the 24px target floor", () => {
     expect(css).not.toContain(".detail-reopen {");
   });
 
-  it("covers the three topbar targets that were still under it (#509)", () => {
+  it("covers the topbar targets that were still under it (#509)", () => {
     // Measured in Chrome at 1470px, 1x DPR, both themes:
     //   .selected-ribbon .selected-close   18 × 18       a genuine failure
     //   .topbar .brand button.v            53.55 × 21.94 short by 2.06px
@@ -484,53 +484,15 @@ describe("the 24px target floor", () => {
     // chip on the bar exactly 24 tall, so each one declares `height: 24px`
     // (border-box) and the floor is met by the box itself: a declared 24 is
     // the floor, and nothing may cap it lower with a max-height.
-    expect(px(decl(".topbar .brand button.v", "height"))).toBeGreaterThanOrEqual(24);
-    expect(px(decl(".topbar .waiting-stat", "height"))).toBeGreaterThanOrEqual(24);
-    for (const sel of [".topbar .brand button.v", ".topbar .waiting-stat"]) {
+    expect(px(decl(".topbar button.v", "height"))).toBeGreaterThanOrEqual(24);
+    expect(px(decl(".topbar .count-pill", "height"))).toBeGreaterThanOrEqual(24);
+    for (const sel of [".topbar button.v", ".topbar .count-pill"]) {
       expect(declIn(bodyOf(sel), "box-sizing"), `${sel} would add its border to the 24`).toBe("border-box");
       expect(declIn(bodyOf(sel), "max-height"), sel).toBeNull();
     }
 
-    // The ribbon's × cannot grow, because its 18px disc is a drawn thing and
-    // the ribbon's height is built out of it. So the box stays 18px and the
-    // TARGET is drawn around it as a pseudo-element reaching 3px on every side.
-    // `.sysmeter`'s padding/negative-margin pair — the technique #509 proposed —
-    // does not survive here: `background` is a shorthand, so the
-    // `background: var(--line)` in the hover rule resets `background-clip` and
-    // the disc paints at 24px instead of 18. Measured, not guessed: 407 painted
-    // pixels against 203. A pseudo-element has no such coupling.
-    expect(px(decl(".selected-ribbon .selected-close", "width"))).toBe(18);
-    expect(px(decl(".selected-ribbon .selected-close", "height"))).toBe(18);
-    expect(decl(".selected-ribbon .selected-close", "position")).toBe("relative");
-    // …and the 18px has to be a floor rather than a preference, or the target
-    // drawn around it is only 24px on a wide screen. A flex item defaults to
-    // `flex-shrink: 1` with `min-width: auto`, and the min-content of a single ×
-    // is 8.67px: swept across viewports with a worst-case ribbon, the close
-    // measured 17.72px at 1400, 14.28px at 1300 and 8.67px at 1200. #509 took
-    // its reading at 1470, where the control is intact, so this is a second
-    // defect underneath the one the issue reports.
-    expect(decl(".selected-ribbon .selected-close", "flex")).toBe("none");
-    const reach = bodyOf(".selected-ribbon .selected-close::after");
-    expect(declIn(reach, "content")).toBe('""');
-    expect(declIn(reach, "position")).toBe("absolute");
-    // 18 + 3 + 3 = 24 on both axes, and the same number on all four sides so
-    // the target stays centred on the glyph.
-    const inset = px(declIn(reach, "inset"));
-    expect(inset).toBeLessThanOrEqual(-3);
-    expect(18 + 2 * -inset).toBeGreaterThanOrEqual(24);
-    // …and it must not reach past the ribbon it sits in. The ribbon's own right
-    // padding plus its border is 7px, so 3px of reach leaves 4px inside the
-    // edge; anything from 7px up would put a hit area for "deselect" over the
-    // canvas behind, where a click means something else entirely.
-    const ribbonPad = px(decl(".selected-ribbon", "padding")?.split(/\s+/)[1]);
-    const ribbonBorder = px(decl(".selected-ribbon", "border")?.split(/\s+/)[0]);
-    expect(-inset, "the close's target reaches past the ribbon's own edge")
-      .toBeLessThan(ribbonPad + ribbonBorder);
-    // SC 2.5.8's spacing exception is unavailable to this one and it is worth
-    // saying why in the place that would otherwise be tempted by it: the × is
-    // inside the ribbon, and the ribbon is itself a button, so a 24px circle
-    // centred on the × intersects a target by construction.
-    expect(read("../components/SelectedRibbon.tsx")).toMatch(/className="selected-ribbon"/);
+    // The ribbon's × (18px, with a 24px target drawn around it) is gone with
+    // the ribbon (V4's Figma); its pins went with it.
   });
 
   it("already covered the context donut, which the report measured zoomed", () => {

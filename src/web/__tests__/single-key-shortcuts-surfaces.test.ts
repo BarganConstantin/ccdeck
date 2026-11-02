@@ -261,7 +261,6 @@ describe("titles drop the letter when the switch is off", () => {
       ["components/SessionList.tsx", 'withKey(t("board.list.hideSidebar"), "L", singleKeys)'],
       ["components/UsagePanel.tsx", 'withKey(t("usage.close"), "U", singleKeys)'],
       ["components/AccountsPanel.tsx", 'withKey(t("accounts.close"), "A", singleKeys)'],
-      ["components/SelectedRibbon.tsx", '"Z", singleKeys)'],
       ["components/Detail.tsx", 'withKey(t("board.detail.listUpper"), "L", singleKeys)'],
     ] as const) {
       expect(sourceOf(rel), rel).toContain(call);

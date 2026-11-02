@@ -90,7 +90,9 @@ describe("every control in the chrome says its name (#836)", () => {
   it("names every control and keeps visible words on the topbar", () => {
     expect(drawn.map(b => b.name)).toEqual(WORDS.map(([, name]) => name));
     expect(buttons(left).every(b => b.word === "")).toBe(true);
-    expect(buttons(corner).map(b => b.word)).toEqual(["Feedback"]);
+    // V4's Figma draws Feedback as a bare 28x28 icon: its word is the hint's and
+    // the name's ("Send feedback"), not a visible one.
+    expect(buttons(corner).map(b => b.word)).toEqual([""]);
     for (const { word, name } of drawn) {
       // The word is part of the name, so voice control can say what the eye reads.
       expect(name.toLowerCase(), word).toContain(word.toLowerCase());
@@ -224,9 +226,10 @@ describe("the bar keeps amber for the alarm", () => {
   it("keeps the alarm when the readout gives, and draws no gap for an empty strip", () => {
     // The readout clips from the left, so the wordmark goes before the chip.
     expect(body(".topbar .readout")).toMatch(/justify-content: flex-end;/);
-    expect(css).toMatch(/\.topbar \.status:empty \{ display: none; \}/);
-    // The ribbon's usual share of the bar.
-    expect(body(".selected-ribbon")).toMatch(/max-width: min\(380px, 24vw\);/);
+    // The strip is the chip's slot (ChipPresence): no element once the pill is
+    // gone, so there is no empty box to hide; and the ribbon is gone.
+    expect(css).toMatch(/\.topbar \.chip-slot > \* \{ min-width: 0; overflow: hidden; \}/);
+    expect(css).not.toContain(".selected-ribbon");
   });
 
   it("draws a newer version and the app's ready update in the accent wash, and no amber at all", () => {
@@ -235,18 +238,19 @@ describe("the bar keeps amber for the alarm", () => {
     // count, a paused stream and an incident are the bar's only amber. A newer
     // version, a ready update and the press share the --accent-16 wash with no
     // edge and --text; the dot is the accent in every state, on the live pulse.
-    const chip = body(".topbar .brand button.v:is(.stale, .ready, .v-update)");
+    const chip = body(".topbar button.v:is(.stale, .ready, .v-update)");
     expect(chip).toMatch(/background: var\(--accent-16\);/);
-    expect(chip).toMatch(/border-color: transparent;/);
+    // No stroke at all now (V4's Figma): the base rule has border: 0.
+    expect(body(".topbar button.v")).toMatch(/border: 0;/);
     expect(chip).toMatch(/color: var\(--text\);/);
     expect(chip).not.toMatch(/--warn/);
-    expect(body(".topbar .brand button.v:is(.stale, .ready, .v-update):hover")).not.toMatch(/--warn/);
-    const dot = body(".topbar .brand button.v .v-dot");
+    expect(body(".topbar button.v:is(.stale, .ready, .v-update):hover")).not.toMatch(/--warn/);
+    const dot = body(".topbar button.v .v-dot");
     expect(dot).toMatch(/background: var\(--accent\);/);
     expect(dot).not.toMatch(/--warn/);
-    // And the up-to-date chip's quiet look does not reach it.
-    expect(css).toContain(".topbar .brand button.v:not(.stale):not(.ready) {");
-    expect(css).not.toMatch(/button\.v:not\(\.stale\)(?!:not\(\.ready\))/);
+    // And there is no up-to-date chip any more (V4's Figma: the version chip
+    // only when needed), so no rule dresses one.
+    expect(css).not.toMatch(/button\.v:not\(\.stale\)/);
   });
 
   it("gives the waiting chip the readout on a narrow screen, word and all", () => {
@@ -256,12 +260,13 @@ describe("the bar keeps amber for the alarm", () => {
     expect(narrow).not.toMatch(/\.topbar \.brand h1[^{]*\{[^}]*display: none/);
     // An up-to-date version chip goes; a stale one is a warning and stays, and
     // so does the app's ready update, the one way into it from the window.
-    expect(narrow).toMatch(/\.topbar \.brand button\.v:not\(\.stale\):not\(\.ready\) \{ display: none; \}/);
+    expect(narrow).not.toMatch(/button\.v:not\(\.stale\)/);
     // The chip says its number and its word on a phone too: with every control
     // in the dock, the bar has the room for "2 waiting" whole, and nothing
     // hides the word. Its name keeps the whole sentence.
     expect(css).not.toMatch(/ws-word/);
-    expect(readouts).toMatch(/<b>\{count\}<\/b> \{t\("board\.queue\.waiting"\)\}\s*<\/button>/);
-    expect(readouts).toMatch(/aria-label=\{t\("board\.queue\.waitingForYou", \{ count \}\)\}/);
+    expect(readouts).toMatch(/<b>\{count\}<\/b>\s*<span className="count-word">\{t\("board\.queue\.waiting"\)\}<\/span>\s*<\/button>/);
+    expect(readouts).toMatch(/const waitingLabel = t\("board\.queue\.waitingForYou", \{ count \}\);/);
+    expect(readouts).toMatch(/aria-label=\{waitingLabel\}/);
   });
 });

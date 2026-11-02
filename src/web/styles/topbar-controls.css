@@ -35,7 +35,6 @@
   line-height: 16px;
   font-weight: 400;
   transition: color 200ms ease, background-color 200ms ease, border-color 200ms ease;
-  animation: chip-in var(--dur-base) var(--ease) both;
 }
 .topbar .status .pill::before {
   transition: background-color 200ms ease;
@@ -142,15 +141,6 @@
    control sitting a rounding error under the line the sheet draws for itself.
    `min-height`, not a fourth pixel of padding: 0.06px of growth against 2px, and
    the same lever the version chip above takes for the same miss. */
-/* The permission ask, beside the count that explains why you would want it.
-   Deliberately quieter than the chip it follows: the chip is the alarm and this
-   is an offer, and an offer drawn at alarm weight competes with the thing it is
-   offering to help with. It is also temporary — `canAsk` removes it the moment
-   the question is answered either way — so it must not claim permanent space in
-   the bar's visual hierarchy. */
-@media (prefers-reduced-motion: reduce) {
-}
-
 /* The answer, in the slot the button just left. Not a control — there is
    nothing to press and no boundary drawn, so it stays out of the sweep that
    holds every bordered control to 3:1. It reads as text because that is what it
@@ -170,200 +160,171 @@
    it is good news, and good news that shouts is noise. */
 .topbar .notify-said-blocked { color: var(--warn); }
 
-/* THE COUNT. A transparent pill with a full --warn edge and --warn words,
-   one of the three things on this bar that may be amber (a paused stream and
-   an incident are the others; the version chip is not). V4 draws it 24 tall
-   like every chip on the bar, 6px in on the glyph's side and 8 on the other,
-   4 between the glyph, the number and the word. The number is the one mono
-   figure on the bar — 12 on 16 at 600 — so it reads as a count among words
-   without leaving the chip's type size. The edge is the token itself: V4
-   draws it so, and the 85% the old edge argued for is moot at full strength. */
-.topbar .waiting-stat {
+/* THE THREE COUNTS (V4's Figma, Top bar): waiting, working, done, 8 apart in
+   .counts, right after the wordmark. Each is 24 tall with the 12 on 16 type,
+   a 14px glyph, the figure in the deck's mono at 600 and the word at 400, 4
+   between the parts. Waiting is the one that may be amber and the only one with
+   a stroke: a 1px --warn edge on a full pill (--r-pill), the glyph, figure and
+   word all --warn, 6px in on the glyph's side and 8 on the other. Working and
+   Done are plain readouts: no stroke, radius 14, 4px either side, the figure in
+   --text and the word in --text-secondary.
+   Waiting is a BUTTON while somebody waits (the door to the queue popover
+   below), and a readout like its neighbours at 0 — the frame always draws
+   three pills, and a quiet 0 says there is no alarm. A paused stream and an
+   incident are the other amber this bar has; the version chip is not. The
+   edge is the token itself: V4 draws it so. */
+.topbar .counts {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: none;
+}
+.topbar .count-pill {
   display: inline-flex;
   align-items: center;
   gap: 4px;
   box-sizing: border-box;
   height: 24px;
-  padding: 0 8px 0 6px;
+  padding: 0 4px;
+  border: 0;
   border-radius: var(--r-pill);
   background: transparent;
-  border: 1px solid var(--warn);
-  color: var(--warn);
+  color: var(--text-secondary);
   font: inherit;
   font-size: calc(12px + var(--ui-text-increase, 0px));
   line-height: 16px;
   font-weight: 400;
-  cursor: pointer;
   white-space: nowrap;
-  transition: border-color 120ms, background 120ms,
-              transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
-  animation: chip-in var(--dur-base) var(--ease) both;
 }
-.topbar .waiting-stat b {
+.topbar .count-pill b {
   font-family: var(--font-mono);
   font-size: calc(12px + var(--ui-text-increase, 0px));
   line-height: 16px;
   font-weight: 600;
   font-variant-numeric: tabular-nums;
+  color: var(--text);
 }
+/* The word after the figure inherits the pill's tier: --text-secondary on the
+   readouts, --warn on the lit one. */
+.topbar .count-pill .count-word { color: inherit; }
+/* The glyphs: Working and Done wear the card's own state marks (agent-node.css);
+   Waiting at 0 is the quiet triangle, in the secondary tier. */
+.topbar .count-working .state-mark,
+.topbar .count-done .state-mark { flex: none; }
+.topbar .count-waiting:not(.waiting-stat) .alert-mark { color: var(--muted); }
+/* Waiting, the pill that is lit: with somebody waiting it is the button. */
+.topbar .count-pill.waiting-stat {
+  padding: 0 8px 0 6px;
+  border: 1px solid var(--warn);
+  border-radius: var(--r-pill);
+  color: var(--warn);
+  cursor: pointer;
+  transition: border-color 120ms, background 120ms,
+              transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+.topbar .count-pill.waiting-stat b { color: var(--warn); }
 /* V4's Waiting glyph (V4's Figma): the deck's alert triangle at 14px, in
    --warn, standing still. Its global rule pushes it to a row's end; here it
-   leads the chip. */
-.topbar .waiting-stat .alert-mark { margin-left: 0; }
+   leads the pill. At 0 it is the quiet pill's glyph, in the secondary tier. */
+.topbar .count-pill .alert-mark { margin-left: 0; }
+.topbar .count-pill.waiting-stat .alert-mark { color: var(--warn); }
 @media (hover: hover) and (pointer: fine) {
 .topbar .waiting-stat:hover {
   border-color: var(--warn);
   background: color-mix(in srgb, var(--warn) 12%, transparent);
 }
 }
-.topbar .waiting-stat:active { transform: scale(0.97); }
+.topbar .count-pill.waiting-stat:active { transform: scale(0.97); }
+.topbar .waiting-stat[aria-expanded="true"] { background: color-mix(in srgb, var(--warn) 12%, transparent); }
 @media (prefers-reduced-motion: reduce) {
-  .topbar .waiting-stat:active { transform: none; }
-  .topbar .waiting-stat,
-  .topbar .status .pill { animation: none; }
+  .topbar .count-pill.waiting-stat:active { transform: none; }
 }
-/* V4's chip entrance (V4's motion rules, top bar chip): opacity and 4px of x, over
-   --dur-base. The same keyframe `wait-in` below draws for a queue name, but
-   that one is 160ms from its own curve and is the queue's alone, so the two
-   share a shape and not a duration. A chip is not on the bar at rest — the
-   stream pill when it is not live, the count, an incident, a newer version —
-   so the arrival is the only time this is seen; the rest of the time it is
-   just there. */
-@keyframes chip-in { from { opacity: 0; transform: translateX(-4px); } }
 /* INSIDE ITS OWN EDGE (#1706). `.readout` clips what overflows it and is
-   exactly as tall as this chip, so the global ring, drawn 2px outside, lost
-   its top and bottom and showed as two brackets. An inset ring is the one the
+   exactly as tall as this pill, so the global ring, drawn 2px outside, lost its
+   top and bottom and showed as two brackets. An inset ring is the one the
    focus rule allows a component to move. */
 .topbar .waiting-stat:focus-visible { outline-offset: -3px; }
 
-/* THE QUEUE: who is waiting, by name (WaitingNames in TopbarReadouts.tsx).
-   The box takes every pixel the bar has left and nothing it does not — a basis
-   of 0 and all the growth — so it is the first thing a narrowing bar takes
-   back, and the names fold away while the count is whole. It gives the bar's
-   24px gap back with a margin, so an empty box costs the bar nothing, and its
-   list stands 12px off the count instead: the queue reads as the count's own
-   continuation, not as a fourth group. */
-.topbar .wait-names {
-  position: relative;
-  flex: 1 1 0;
-  min-width: 0;
-  /* Its width is the bar's to give, never its names' to ask for: without this
-     the names it had drawn counted towards the bar's own least width, and a
-     window narrowed from 1440 kept a 1403px bar with Feedback off the edge. */
-  contain: inline-size;
-  margin-left: -24px;
-  overflow: hidden;
-}
-.topbar .wait-list {
+/* THE QUEUE POPOVER (QueuePopover in TopbarReadouts.tsx; V4's top bar: it
+   is what the `.wait-names` row became). AnchoredPopover draws it portalled
+   under the waiting pill, on the kit's menu look: --panel, a 1px --line edge,
+   the overlay corner, the overlay shadow, rows at the table height with the
+   --selected fill under the pointer and the arrows. A row is the old name's
+   words: the name at 600, how long it has waited (tabular, the number that
+   decides whether somebody gets up, DESIGN.md), and what it is on in --muted.
+   MOTION is transitions on a class, never keyframes (the base popover's
+   `pop-from-anchor` is switched off here): mounted closed — opacity 0, scale
+   --enter-scale from the pill's corner — a frame later `queue-pop-open` takes
+   it to rest over --dur-base; closing drops the class and it runs to .98 and
+   0 over --dur-exit before it is unmounted (QUEUE_EXIT_MS). Opened or closed by
+   a key there is none at all (data-motion="instant", input-modality.ts); under
+   reduced motion only the opacity moves. */
+.anchored-popover.queue-pop {
   display: flex;
-  align-items: center;
-  gap: 4px;
-  margin: 0;
-  padding: 0;
-  list-style: none;
+  flex-direction: column;
+  width: max-content;
+  min-width: 200px;
+  max-width: min(360px, calc(100vw - 16px));
+  padding: 4px;
+  border-radius: var(--r-panel);
+  box-shadow: var(--shadow-overlay);
+  animation: none;
+  opacity: 0;
+  transform: scale(var(--enter-scale));
+  transform-origin: top left;
+  transition: opacity var(--dur-base) var(--ease), transform var(--dur-base) var(--ease);
 }
-.topbar .wait-list:not(:empty) { padding-left: 12px; }
-.topbar .wait-list li {
+.anchored-popover.queue-pop[data-side="above"] { transform-origin: bottom left; }
+.anchored-popover.queue-pop.queue-pop-open { opacity: 1; transform: none; }
+/* Leaving: still mounted, to .98 and 0 over the shorter duration. */
+.anchored-popover.queue-pop.queue-pop-leaving {
+  opacity: 0;
+  transform: scale(0.98);
+  transition-duration: var(--dur-exit);
+}
+:root[data-motion="instant"] .anchored-popover.queue-pop { transition: none; }
+@media (prefers-reduced-motion: reduce) {
+  .anchored-popover.queue-pop,
+  .anchored-popover.queue-pop.queue-pop-leaving { transform: none; transition-property: opacity; }
+}
+.queue-row {
   display: flex;
-  flex: none;
-}
-/* A session that has just started waiting arrives, 160ms from 4px back; one
-   the queue merely has room for again, as the window widens, is simply there —
-   an entrance on every refit would be the bar fidgeting. */
-.topbar .wait-list li[data-fresh] { animation: wait-in 160ms cubic-bezier(0.23, 1, 0.32, 1) both; }
-@keyframes wait-in { from { opacity: 0; transform: translateX(-4px); } }
-
-/* One name: edgeless at rest, like every control a word identifies on this
-   bar, and neutral — the amber is the count's, and a row of amber names would
-   be a row of alarms. The name in --text at 600; how long it has waited in
-   --text too, tabular, because the wait is the number that decides whether
-   somebody gets up (DESIGN.md, duration beats description); what it is on in
-   --muted, the annotation. On the bar's own bed, with no fill under it,
-   --muted is 4.70:1 or better in dark and 6.95:1 or better in light, the tier
-   every resting label on this bar sits at. Under the pointer the control fill
-   comes up and the whole line goes to --text. A long name is cut in its
-   middle (queueName) and the hint says it whole. */
-.topbar .wait-entry {
-  display: inline-flex;
   align-items: center;
   gap: 6px;
-  min-height: 28px;
+  min-height: var(--row-table);
   box-sizing: border-box;
   padding: 0 8px;
   border: 0;
-  border-radius: var(--r-ctl);
-  background: transparent;
+  border-radius: var(--r-tag);
+  background: none;
   color: var(--text);
   font: inherit;
-  font-size: calc(12px + var(--ui-text-increase, 0px));
+  font-size: calc(13px + var(--ui-text-increase, 0px));
+  line-height: var(--lh-body);
+  text-align: left;
   white-space: nowrap;
   cursor: pointer;
-  transition: transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
 }
-.topbar .we-name {
+.queue-row .we-name {
+  min-width: 0;
   max-width: 160px;
   overflow: hidden;
   text-overflow: ellipsis;
   font-weight: 600;
 }
-.topbar .we-wait { font-variant-numeric: tabular-nums; }
-.topbar .we-what { margin-left: -2px; color: var(--muted); }
-.topbar .wait-more {
-  display: inline-flex;
-  align-items: center;
-  min-height: 28px;
-  box-sizing: border-box;
-  padding: 0 8px;
-  border: 0;
-  border-radius: var(--r-ctl);
-  background: transparent;
-  color: var(--muted);
-  font: inherit;
-  font-size: calc(12px + var(--ui-text-increase, 0px));
-  white-space: nowrap;
-  font-variant-numeric: tabular-nums;
-  cursor: pointer;
-  transition: transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
-}
+.queue-row .we-wait { font-variant-numeric: tabular-nums; }
+.queue-row .we-what { margin-left: -2px; color: var(--muted); }
+.queue-row:focus-visible { background: var(--selected); outline-offset: -2px; }
 @media (hover: hover) and (pointer: fine) {
-  .topbar .wait-entry:hover,
-  .topbar .wait-more:hover {
-    background: var(--ctl-fill);
-    color: var(--text);
-    transition: background-color 120ms ease, color 120ms ease, transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
-  }
-  .topbar .wait-entry:hover .we-what { color: var(--text); }
+  .queue-row:hover { background: var(--selected); }
+  .queue-row:hover .we-what { color: var(--text); }
 }
-.topbar .wait-entry:active,
-.topbar .wait-more:active { transform: scale(0.97); }
-/* Inside the edge, for the reason the count's ring is: the box clips. */
-.topbar .wait-entry:focus-visible,
-.topbar .wait-more:focus-visible { outline-offset: -2px; }
-/* Every name at the width it would draw, where nothing sees it or reaches it:
-   the queue measures this to know what fits before it draws a name it would
-   have to cut. */
-.topbar .wait-ruler {
-  position: absolute;
-  top: 0;
-  left: 0;
-  display: flex;
-  visibility: hidden;
-  pointer-events: none;
-}
-@media (prefers-reduced-motion: reduce) {
-  .topbar .wait-list li[data-fresh] { animation: none; }
-  .topbar .wait-entry,
-  .topbar .wait-more { transition: none; }
-  .topbar .wait-entry:active,
-  .topbar .wait-more:active { transform: none; }
-}
-@media (prefers-reduced-motion: reduce) and (hover: hover) and (pointer: fine) {
-  .topbar .wait-entry:hover,
-  .topbar .wait-more:hover { transition: none; }
-}
+.queue-row:active { background: color-mix(in srgb, var(--text) 12%, transparent); }
 
 /* A provider's own incident (#1311), while its status page reports one. A link
-   to the provider's page, with a ↗ because the press leaves the deck. V4 draws
+   to the provider's page (its title and a hidden tail say it opens in a new tab;
+   V4's Figma draws no ↗). It reads "Claude · partial outage · as of HH:MM", one
+   line in one style, the time the status page last answered. V4 draws
    it as the stream chip's twin: a pill 24 tall with a 1px edge and no fill,
    6px in on the dot's side and 8 on the other, 4 between its parts, the words
    in --text at 12 on 16. The state is carried by a mark and a word: the dot
@@ -390,7 +351,6 @@
   white-space: nowrap;
   transition: border-color 120ms, background 120ms,
               transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
-  animation: chip-in var(--dur-base) var(--ease) both;
 }
 .topbar .provider-incident[data-state="major_outage"] { border-color: var(--err); }
 .topbar .provider-incident[data-state="maintenance"] { border-color: var(--line); }
@@ -400,12 +360,22 @@
 .topbar .provider-incident:active { transform: scale(0.97); }
 @media (prefers-reduced-motion: reduce) {
   .topbar .provider-incident:active { transform: none; }
-  .topbar .provider-incident { animation: none; }
 }
 /* Inside its own edge, for the reason the waiting chip's is (#1706). */
 .topbar .provider-incident:focus-visible { outline-offset: -3px; }
-.topbar .provider-incident .pi-name { font-weight: 600; }
-.topbar .provider-incident .pi-go { display: inline-flex; color: var(--text-dim); }
+/* One line in one style (V4's Figma): the name is not set apart from the rest. */
+.topbar .provider-incident .pi-name { font-weight: 400; }
+/* The whole line is one text run, ellipsed rather than wrapped. */
+.topbar .provider-incident .pi-text { white-space: nowrap; }
+/* The 14px icon slot (V4's Figma) the state's shape sits in the middle of. */
+.topbar .provider-incident .pi-icon {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+}
 /* One word, for a bar with no room for the state in full — see topbar.css,
    which says when. Hidden with display, so it leaves the link's name with it. */
 .topbar .provider-incident .pi-short { display: none; }
@@ -428,8 +398,8 @@
   border-radius: 50%;
   background: var(--err);
 }
-[data-state="degraded"] > .pi-dot { background: transparent; box-shadow: inset 0 0 0 1.5px var(--err); }
-[data-state="maintenance"] > .pi-dot { background: var(--muted); border-radius: 1px; }
+[data-state="degraded"] .pi-dot { background: transparent; box-shadow: inset 0 0 0 1.5px var(--err); }
+[data-state="maintenance"] .pi-dot { background: var(--muted); border-radius: 1px; }
 
 @keyframes pulse {
   0%, 100% { opacity: 1; } 50% { opacity: 0.35; }

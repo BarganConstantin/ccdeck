@@ -37,24 +37,26 @@ const buttonOf = (html: string, id: string) => {
 describe("the waiting chip", () => {
   const html = renderToStaticMarkup(createElement(WaitingStat, {
     waitingSessions: [{ id: "a", label: "web", waiting: { since: 0 } } as never],
-    waitingCursorRef: { current: null }, focusSession: noop, now: 1000, named: 0,
+    waitingCursorRef: { current: null }, focusSession: noop, now: 1000,
   }));
 
   it("draws the deck's Waiting glyph, 14px, and does not pulse", () => {
     expect(html).toMatch(/<svg class="alert-mark"[^>]*width="14" height="14"/);
     expect(html).not.toContain("ap-pulse");
-    expect(html).toContain("<b>1</b> waiting");
+    expect(html).toContain('<b>1</b><span class="count-word">waiting</span>');
   });
 
   it("keeps its name and its button", () => {
     expect(html).toContain('aria-label="1 session waiting for you"');
-    expect(html).toContain('class="waiting-stat"');
+    expect(html).toContain('class="count-pill count-waiting waiting-stat"');
+    // V4's top bar: it opens the queue popover, a menu.
+    expect(html).toContain('aria-haspopup="menu"');
   });
 
   it("leaves no rule behind for the dot it stopped drawing", () => {
     expect(read("../styles/topbar-controls.css")).not.toMatch(/waiting-stat \.ap-pulse/);
     // The glyph leads the chip: its global rule's margin-left: auto is undone here.
-    expect(strip(read("../styles/topbar-controls.css"))).toMatch(/\.topbar \.waiting-stat \.alert-mark \{ margin-left: 0; \}/);
+    expect(strip(read("../styles/topbar-controls.css"))).toMatch(/\.topbar \.count-pill \.alert-mark \{ margin-left: 0; \}/);
   });
 });
 
@@ -92,18 +94,23 @@ describe("the right group", () => {
     expect(search).toContain('aria-haspopup="dialog"');
   });
 
-  it("keeps Feedback's word beside its glyph (#1853), not Figma's bare icon", () => {
+  it("draws Feedback as V4's bare 28x28 icon, still named and hinted by its word", () => {
+    // Figma draws Feedback icon-only; #1853's visible word is now the hint's
+    // (the tooltip says "Feedback") and the button's accessible name still
+    // contains it ("Send feedback").
     const feedback = buttonOf(group, "feedback");
-    expect(feedback).toContain('<span class="rail-word">Feedback</span>');
+    expect(feedback).not.toContain("rail-word");
+    expect(feedback).toContain("rail-btn-icon");
     expect(feedback).not.toContain("rail-btn-field");
     expect(feedback).toMatch(/aria-label="Send feedback"/);
-    expect(rails.utilities[1].barLook).toBeUndefined();
+    expect(rails.utilities[1].barLook).toBe("icon");
+    expect(railHint({ ...rails.utilities[1] }, true, false)?.label).toBe("Feedback");
   });
 
   it("gives the field a hint in its own words, and names it by them", () => {
     // The button hands the field's sentence over as the hint's name.
     const src = read("../components/EdgeRails.tsx");
-    expect(src).toMatch(/railHint\(hinted, singleKeys, variant !== "stripe"\)/);
+    expect(src).toMatch(/railHint\(hinted, singleKeys, variant !== "stripe" && !iconOnly\)/);
     expect(src).toMatch(/aria-label=\{fieldText \?\? item\.ariaLabel\}/);
     const field = railHint({ ...rails.search, label: QUICK_OPEN_PLACEHOLDER, hint: undefined }, false, true);
     expect(field?.label).toBe(QUICK_OPEN_PLACEHOLDER);
@@ -125,7 +132,7 @@ describe("the right group", () => {
     expect(field).toMatch(/var\(--line-soft\)/);
     expect(field).toMatch(/var\(--r-panel\)/);
     expect(field).not.toMatch(/#[0-9a-f]{3,8}\b/i);
-    expect(css).not.toContain("rail-btn-icon");
+    expect(strip(read("../styles/edge-rails.css")).match(/\.rail-btn-bar\.rail-btn-icon \{([^}]*)\}/)![1]).toMatch(/width: 28px;[\s\S]*height: 28px/);
     expect(css).toMatch(/@media \(max-width: 1279px\) \{\s*\.rail-btn-bar\.rail-btn-field \{ width: 200px/);
     expect(css).toMatch(/@media \(max-width: 899px\)/);
   });

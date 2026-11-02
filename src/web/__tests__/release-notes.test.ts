@@ -952,27 +952,27 @@ describe("how App.tsx wires it up", () => {
   });
 
   it("opens the notes before it asks npm, because only one of the two is local", () => {
-    // The ordering, in the one place it can be read off. The dialog is drawn
-    // from a JSON file inlined into this bundle and the check is a round trip
-    // to a registry that may not be reachable at all; awaiting the check first
-    // would leave the button visibly dead for the length of it, and dead
-    // forever on a deck with no route out.
-    const chip = /onClick=\{\(\) => \{ openReleaseNotes\(\); loadVersion\(true\); \}\}/;
-    expect(app).toMatch(chip);
-    // Not the other way round, and not `await`ed: both are the same defect
-    // written differently.
+    // The plain "v3.x.y" chip, whose click did both, left the bar (V4's Figma:
+    // the version chip only when needed). The ordering still holds wherever the
+    // notes and the check meet: the dialog is drawn from a JSON file inlined
+    // into this bundle and the check is a round trip to a registry that may not
+    // be reachable at all, so nothing awaits the check ahead of the dialog.
     expect(app).not.toMatch(/loadVersion\(true\)[^}]*openReleaseNotes/);
     expect(app).not.toMatch(/await loadVersion\(true\)/);
+    // The ready and drift chips open the notes first and do nothing slower.
+    expect(app).toMatch(/onClick=\{openReleaseNotes\}/);
   });
 
-  it("keeps the check the chip has always done, exactly as it was", () => {
-    // #715 adds a job to this click. It must not quietly drop the one that was
-    // already there: forcing the check is the only way to tell "no update
-    // exists" from "no check has run", which on a machine that only ever runs
-    // `npx ccdeck` is the whole point of the chip.
-    expect(app).toMatch(/loadVersion\(true\)/);
-    // The forced round trip moved with `loadVersion` into use-version-check.ts;
-    // `loadVersion(true)` above is still the chip's own click, in App.tsx.
+  it("keeps the forced check the plain chip used to do, in Settings > Updates", () => {
+    // #715 gave the chip's click a job without dropping the one that was there:
+    // forcing the check is the only way to tell "no update exists" from "no
+    // check has run". With the plain chip gone from the bar its two jobs stand
+    // where the version always was, About and Settings > Updates: What's new
+    // (the notes) and the check (runUpdateCheck -> loadVersion(true)).
+    expect(src("../update-check.ts")).toMatch(/loadVersion\(true\)/);
+    expect(src("../components/ReleaseActions.tsx")).toMatch(/runUpdateCheck\(versionCheck\.loadVersion\)/);
+    expect(src("../components/AboutSection.tsx")).toContain('settingId="whats-new"');
+    // The forced round trip moved with `loadVersion` into use-version-check.ts.
     expect(clientText()).toMatch(/fetch\(force \? "\/api\/version\?refresh=1" : "\/api\/version"\)/);
   });
 

@@ -107,7 +107,8 @@ describe("the bar's geometry, from Figma", () => {
     const kbd = rule(".kbd");
     expect(kbd["background"]).toBe("var(--bg-soft)");
     expect(kbd["border"]).toBe("1px solid var(--line)");
-    expect(kbd["padding"]).toBe("1px 5px");
+    // Figma pads 1 by 5 with the stroke INSIDE it: 0 by 4 plus the 1px edge, 16 tall.
+    expect(kbd["padding"]).toBe("0 4px");
     expect(kbd["border-radius"]).toBe("4px");
     expect(kbd["font-family"]).toBe("var(--font-mono)");
     expect(kbd["font-size"]).toBe("calc(11px + var(--ui-text-increase, 0px))");
