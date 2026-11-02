@@ -3,7 +3,7 @@
    machine panel. Every series is stacked on one time axis and each keeps its
    own unit: degrees and a percentage share nothing but a range, and one axis
    for both would invite a comparison of shapes that means nothing. */
-.hist-modal { width: var(--dialog-m); }
+.hist-modal { width: var(--dialog-s); }
 .hist-since {
   margin-left: auto;
   margin-right: 10px;
@@ -11,7 +11,7 @@
   color: var(--muted);
   font-variant-numeric: tabular-nums;
 }
-.hist-body { padding: 14px 16px 16px; overflow-y: auto; }
+.hist-body { padding: 16px; overflow-y: auto; }
 .hist-empty { margin: 0; padding: 20px 0; text-align: center; color: var(--muted); font-size: calc(12px + var(--ui-text-increase, 0px)); }
 
 /* Space, not a line. The gap already groups them, and a rule on top of it is
@@ -121,6 +121,7 @@
    32px)` is never narrower than `min(880px, 94vw)` was at any window from
    534px up. */
 .pl-modal { width: var(--dialog-l); }
+
 /* The box that holds the table and the band. In the default layout it is what
    the modal already was — a column whose table scrolls and whose band does not
    — and it exists so one media query can turn that column on its side. */
@@ -181,9 +182,22 @@
   .pl-split .pl-cell-head { width: auto; }
   .pl-split .pl-spark { width: 100%; height: 48px; }
 }
-.pl-count {
+/* V4 puts what the list is beside the title (mono 12, --muted); the count of
+   running processes sits in the footer's free left side. */
+.pl-hint {
   margin-left: auto;
-  margin-right: 10px;
+  margin-right: 12px;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--muted);
+  font-family: var(--font-mono);
+  font-size: calc(12px + var(--ui-text-increase, 0px));
+  line-height: 16px;
+}
+.pl-count {
+  margin-right: auto;
   font-size: calc(11px + var(--ui-text-increase, 0px));
   color: var(--muted);
   font-variant-numeric: tabular-nums;
@@ -194,9 +208,27 @@
    further down you read, the more cramped it got, and the last rule sat closest
    to the densest text in the dialog.
 
-   20px between peer bands, 22px under the title because a title is not a peer,
+   V4 pads the body 16 on every side, so it is 26px between the list and the
+   band, 28px under the title (a title is not a peer, so it keeps more), and
    12px at the outer edge top and bottom. */
-.pl-body { padding: 10px 16px; overflow-y: auto; font-size: calc(11px + var(--ui-text-increase, 0px)); }
+.pl-body { padding: 16px; overflow-y: auto; font-size: calc(11px + var(--ui-text-increase, 0px)); }
+/* V4's table: a 24px header row in 11px medium --muted, then 28px rows, the
+   process in 12px --text and the figures in 12px mono --text-secondary. */
+.pl-body .pl-table thead th { height: 24px; }
+.pl-body .pl-table .sd-sort {
+  font-size: calc(11px + var(--ui-text-increase, 0px));
+  line-height: 14px;
+  font-weight: 500;
+}
+.pl-body .pl-table tbody td { height: 28px; padding-top: 0; padding-bottom: 0; }
+.pl-body .pl-table td.sd-num {
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+  font-size: calc(12px + var(--ui-text-increase, 0px));
+  line-height: 16px;
+  font-weight: 400;
+}
+.pl-body .pl-table td.pl-name { font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: 16px; }
 .pl-empty { margin: 0; padding: 20px 0; text-align: center; color: var(--muted); font-size: calc(12px + var(--ui-text-increase, 0px)); }
 /* The header row sticks, because a fifty-row table you scroll is a table whose
    column you forget. */
@@ -337,6 +369,9 @@
 }
 @media (hover: hover) and (pointer: fine) {
 .pl-body tbody tr:hover td { color: var(--text); }
+/* The figures are set one class deeper (V4's --text-secondary), so the hover
+   names them too. */
+.pl-body tbody tr:hover td.sd-num { color: var(--text); }
 }
 /* THE MACHINE, UNDER THE LIST IT EXPLAINS. See MachineStrip: this dialog covers
    the panel that carries these readings, so the footer carries them back.
