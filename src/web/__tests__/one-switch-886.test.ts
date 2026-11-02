@@ -93,7 +93,9 @@ describe("the one switch owns its states (#886)", () => {
     // V4: the press is the knob stretching to 18px, not the track scaling.
     expect(body(".switch:active:not(:disabled):not(:focus-visible) .switch-knob")).toMatch(/width:\s*18px/);
     expect(body(".switch:active:not(:disabled)")).toBe("");
-    expect(body(".switch:focus-visible")).toMatch(/outline:\s*2px solid var\(--accent\)/);
+    // V4's Figma: the switch is a box and takes the one global ring (1.5px
+    // accent inside); it no longer restates it, so no rule of its own remains.
+    expect(body(".switch:focus-visible")).not.toMatch(/outline/);
     expect(body(".switch:disabled")).toMatch(/opacity:\s*var\(--dim-off\)/);
   });
 

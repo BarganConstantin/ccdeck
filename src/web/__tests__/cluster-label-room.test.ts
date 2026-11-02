@@ -184,7 +184,7 @@ describe("the layer draws what the room says", () => {
     expect(off[0].body).not.toMatch(/transition|animation/);
     // And the pill's own rule still eases nothing but its hover.
     const own = rules(".cluster-label").filter(r => r.media == null).map(r => r.body).join("\n");
-    expect(own).toMatch(/transition:\s*box-shadow 120ms ease, filter 120ms ease;/);
+    expect(own).toMatch(/transition:\s*box-shadow var\(--dur-fast\) var\(--ease\), filter var\(--dur-fast\) var\(--ease\);/);
   });
 });
 

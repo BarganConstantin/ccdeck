@@ -34,10 +34,10 @@
   font-size: calc(12px + var(--ui-text-increase, 0px));
   line-height: 16px;
   font-weight: 400;
-  transition: color 200ms ease, background-color 200ms ease, border-color 200ms ease;
+  transition: color var(--dur-base) var(--ease), background-color var(--dur-base) var(--ease), border-color var(--dur-base) var(--ease);
 }
 .topbar .status .pill::before {
-  transition: background-color 200ms ease;
+  transition: background-color var(--dur-base) var(--ease);
 }
 /* One box, every count (#504, relocated).
    The pill leads the readout group after the brand, so its width is upstream
@@ -195,6 +195,8 @@
   line-height: 16px;
   font-weight: 400;
   white-space: nowrap;
+  transition: border-color var(--dur-fast) var(--ease), background var(--dur-fast) var(--ease),
+              transform var(--dur-fast) var(--ease);
 }
 .topbar .count-pill b {
   font-family: var(--font-mono);
@@ -219,8 +221,8 @@
   border-radius: var(--r-pill);
   color: var(--warn);
   cursor: pointer;
-  transition: border-color 120ms, background 120ms,
-              transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
+  transition: border-color var(--dur-fast) var(--ease), background var(--dur-fast) var(--ease),
+              transform var(--dur-fast) var(--ease);
 }
 .topbar .count-pill.waiting-stat b { color: var(--warn); }
 /* V4's Waiting glyph (V4's Figma): the deck's alert triangle at 14px, in
@@ -234,17 +236,11 @@
   background: color-mix(in srgb, var(--warn) 12%, transparent);
 }
 }
-.topbar .count-pill.waiting-stat:active { transform: scale(0.97); }
+.topbar .count-pill.waiting-stat:active { transform: scale(var(--press)); }
 .topbar .waiting-stat[aria-expanded="true"] { background: color-mix(in srgb, var(--warn) 12%, transparent); }
 @media (prefers-reduced-motion: reduce) {
   .topbar .count-pill.waiting-stat:active { transform: none; }
 }
-/* INSIDE ITS OWN EDGE (#1706). `.readout` clips what overflows it and is
-   exactly as tall as this pill, so the global ring, drawn 2px outside, lost its
-   top and bottom and showed as two brackets. An inset ring is the one the
-   focus rule allows a component to move. */
-.topbar .waiting-stat:focus-visible { outline-offset: -3px; }
-
 /* THE QUEUE POPOVER (QueuePopover in TopbarReadouts.tsx; V4's top bar: it
    is what the `.wait-names` row became). AnchoredPopover draws it portalled
    under the waiting pill, on the kit's menu look: --panel, a 1px --line edge,
@@ -314,7 +310,7 @@
 }
 .queue-row .we-wait { font-variant-numeric: tabular-nums; }
 .queue-row .we-what { margin-left: -2px; color: var(--muted); }
-.queue-row:focus-visible { background: var(--selected); outline-offset: -2px; }
+.queue-row:focus-visible { background: var(--selected); }
 @media (hover: hover) and (pointer: fine) {
   .queue-row:hover { background: var(--selected); }
   .queue-row:hover .we-what { color: var(--text); }
@@ -349,20 +345,18 @@
   line-height: 16px;
   text-decoration: none;
   white-space: nowrap;
-  transition: border-color 120ms, background 120ms,
-              transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
+  transition: border-color var(--dur-fast) var(--ease), background var(--dur-fast) var(--ease),
+              transform var(--dur-fast) var(--ease);
 }
 .topbar .provider-incident[data-state="major_outage"] { border-color: var(--err); }
 .topbar .provider-incident[data-state="maintenance"] { border-color: var(--line); }
 @media (hover: hover) and (pointer: fine) {
 .topbar .provider-incident:hover { border-color: var(--text); background: var(--ctl-fill); }
 }
-.topbar .provider-incident:active { transform: scale(0.97); }
+.topbar .provider-incident:active { transform: scale(var(--press)); }
 @media (prefers-reduced-motion: reduce) {
   .topbar .provider-incident:active { transform: none; }
 }
-/* Inside its own edge, for the reason the waiting chip's is (#1706). */
-.topbar .provider-incident:focus-visible { outline-offset: -3px; }
 /* One line in one style (V4's Figma): the name is not set apart from the rest. */
 .topbar .provider-incident .pi-name { font-weight: 400; }
 /* The whole line is one text run, ellipsed rather than wrapped. */
@@ -447,7 +441,6 @@ button.btn {
 }
 /* V4 focus: the global 2px accent ring, 2px outside the button (the global
    button rule pulls it to 1px). */
-button.btn:focus-visible { outline-offset: 2px; }
 /* Neutral, not the accent. Hover is the pointer's feedback, not a state, and
    painting it in the colour the sheet keeps for data, live state and focus
    made every button the pointer crossed look selected. The edge goes to the

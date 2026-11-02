@@ -36,11 +36,11 @@ describe("the session box moves by translate (#864)", () => {
     // The size still eases with it, and the fade is not travel.
     expect(transition).toMatch(/width 320ms/);
     expect(transition).toMatch(/height 320ms/);
-    expect(transition).toMatch(/opacity 200ms/);
+    expect(transition).toMatch(/opacity var\(--dur-base\)/); // --dur-base is 200
   });
 
   it("still keeps only the fade during a drag and under reduced motion", () => {
-    expect(css).toMatch(/\.canvas-wrap\.dragging-any \.cluster-card\s*\{\s*transition: opacity 200ms ease;\s*\}/);
-    expect(raw).toContain("  .cluster-card { transition: opacity 200ms ease; }");
+    expect(css).toMatch(/\.canvas-wrap\.dragging-any \.cluster-card\s*\{\s*transition: opacity var\(--dur-base\) var\(--ease\);\s*\}/);
+    expect(raw).toContain("  .cluster-card { transition: opacity var(--dur-base) var(--ease); }");
   });
 });

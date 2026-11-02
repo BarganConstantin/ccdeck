@@ -339,4 +339,4 @@ export function outcomeAnnouncement(outcome: Outcome["state"], asAccount = false
  *  fade out takes. Long enough to read four words and see the mark drawn
  *  (340ms); the exit is faster than anything that arrived. */
 export const SENT_HOLD_MS = 1400;
-export const SENT_EXIT_MS = 160;
+export const SENT_EXIT_MS = 150; // = --dur-exit (V4's motion rules: a toast or dialog leaves on Exit)

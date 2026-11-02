@@ -28,6 +28,7 @@ import { railGlyph, railLine, railTime, rowSpoken, rowTooltip, runningTool } fro
 import { cancelFlights, durationMs } from "../rail-motion";
 import { baselineSeen, mergeSeen, syncSeenFromStorage } from "../session-seen";
 import { sheetRules } from "./sheet-cascade";
+import { MOUSE_MEDIA } from "./sheet-source";
 
 const here = (p: string) => fileURLToPath(new URL(p, import.meta.url));
 const source = (p: string) => readFileSync(here(p), "utf8");
@@ -157,7 +158,7 @@ describe("Rail / Row", () => {
   });
 
   it("hovers on the kit's row wash and selects on --selected", () => {
-    expect(decl(".session-list .sl-row:hover", "background")).toBe("var(--ctl-fill)");
+    expect(decl(".session-list .sl-row:hover", "background", MOUSE_MEDIA)).toBe("var(--ctl-fill)");
     expect(decl(".session-list .sl-row.selected", "background")).toBe("var(--selected)");
   });
 
@@ -209,7 +210,7 @@ describe("Rail / Row", () => {
   });
 
   it("steps the muted words up a tier on the fill, where --muted is under 4.5:1", () => {
-    expect(decl(".session-list .sl-row:hover .sl-line2", "color")).toBe("var(--text-secondary)");
+    expect(decl(".session-list .sl-row:hover .sl-line2", "color", MOUSE_MEDIA)).toBe("var(--text-secondary)");
     expect(decl(".session-list .sl-row.selected .sl-model", "color")).toBe("var(--text-secondary)");
   });
 
@@ -228,9 +229,13 @@ describe("Rail / Row", () => {
   // :focus-visible outline, pulled inside the row so the next row cannot
   // cover it, and rounded with the row's fill.
   it("draws the deck's focus ring inside the row", () => {
-    expect(decl(".session-list .sl-row:focus-visible", "outline-offset")).toBe("-2px");
-    expect(decl(".session-list .sl-row:focus-visible", "border-radius")).toBe("var(--r-panel)");
+    // V4's Figma: the global ring is already inside every box and never sets a
+    // radius, so the row restates neither its offset nor its radius on focus;
+    // the ring follows the row's own --r-panel.
+    expect(decl(".session-list .sl-row:focus-visible", "outline-offset")).toBeUndefined();
+    expect(decl(".session-list .sl-row:focus-visible", "border-radius")).toBeUndefined();
     expect(decl(".session-list .sl-row:focus-visible", "outline")).toBeUndefined();
+    expect(decl(".session-list .sl-row", "border-radius")).toBe("var(--r-panel)");
   });
 });
 

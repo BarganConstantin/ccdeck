@@ -903,7 +903,8 @@ describe("the character", () => {
   it("raises only the arms on hover or keyboard focus", () => {
     expect(component).toContain('className="fm-arms"');
     expect(decl('.fm-arms', 'transition')).toBe('transform 160ms steps(2, end)');
-    expect(decl('.fm-sprite:is(:hover, :focus-visible) .fm-arms', 'transform')).toBe('translateY(-2px)');
+    expect(decl('.fm-sprite:hover .fm-arms', 'transform')).toBe('translateY(-2px)');
+    expect(decl('.fm-sprite:focus-visible .fm-arms', 'transform')).toBe('translateY(-2px)');
   });
 
   it("bends to pick up objects without splaying or moving the feet", () => {
