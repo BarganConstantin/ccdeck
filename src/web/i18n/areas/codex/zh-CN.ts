@@ -8,7 +8,7 @@ const catalog: Catalog = {
   "codex.row.readPlan": "ccdeck 上次读取此账号用量的时间，以及计划再次读取的时间：此面板打开期间，默认账号每分钟一次，其他账号每五分钟一次。这些是 Codex 为该账号报告的限额，因此只有一个窗口的套餐只显示一条用量条。",
   "codex.row.readPlanNamed": "{plan} 套餐。{rest}",
   "codex.row.neverRead": "ccdeck 尚未读取此账号",
-  "codex.row.switched": "已启用。ccdeck 新建的会话将使用它；开启终端选择后（在 ⋯ 中），终端里的 codex 也会使用它。已在运行的会话保持原账号。",
+  "codex.row.switched": "默认账号已更改。通过终端选择打开的兼容会话将在就绪后切换到此账号，并保留对话。",
   "codex.row.reading": "正在读取用量…",
   "codex.lane.limit": "限额",
   "codex.peer.account": "账号 {n}",

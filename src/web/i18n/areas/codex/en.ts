@@ -9,7 +9,7 @@ const catalog: Catalog = {
   "codex.row.readPlan": "When the deck last read this account's usage, and when it plans to read it again: each minute for the default account and every five for the others, while this panel is open. These are the limits Codex reports for the account, so a plan with one window shows one bar.",
   "codex.row.readPlanNamed": "{plan} plan. {rest}",
   "codex.row.neverRead": "The deck has not read this account yet",
-  "codex.row.switched": "Now active. New sessions from the deck start on it, and the terminal's codex too once terminal selection is on (in ⋯). Running ones keep their account.",
+  "codex.row.switched": "Default changed. Supported sessions opened with terminal selection will move to this account when ready and keep their conversation.",
   "codex.row.reading": "Reading usage…",
   "codex.lane.limit": "limit",
   "codex.peer.account": "account {n}",

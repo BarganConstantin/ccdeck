@@ -9,7 +9,7 @@ const catalog: Catalog = {
   "codex.row.readPlan": "Când a citit ccdeck ultima oară utilizarea acestui cont și când plănuiește s-o citească din nou: în fiecare minut pentru contul implicit și la cinci minute pentru celelalte, cât timp acest panou este deschis. Sunt limitele raportate de Codex pentru cont, deci un plan cu o singură fereastră arată o singură bară.",
   "codex.row.readPlanNamed": "Plan {plan}. {rest}",
   "codex.row.neverRead": "ccdeck nu a citit încă acest cont",
-  "codex.row.switched": "Acum activ. Sesiunile noi pornite din ccdeck pornesc pe el, iar codex din terminal la fel, dacă selecția în terminal este activă (în ⋯). Cele în curs își păstrează contul.",
+  "codex.row.switched": "Contul implicit a fost schimbat. Sesiunile compatibile deschise cu selecția în terminal vor trece pe acest cont când sunt pregătite, păstrând conversația.",
   "codex.row.reading": "Se citește utilizarea…",
   "codex.lane.limit": "limită",
   "codex.peer.account": "contul {n}",

@@ -9,7 +9,7 @@ const catalog: Catalog = {
   "codex.row.readPlan": "ccdeck 上次讀取此帳號用量的時間，以及預計下次讀取的時間：此面板開啟時，預設帳號每分鐘一次，其他帳號每五分鐘一次。這些是 Codex 回報的帳號額度，因此只有一個區間的方案只會顯示一條進度條。",
   "codex.row.readPlanNamed": "{plan} 方案。{rest}",
   "codex.row.neverRead": "ccdeck 尚未讀取此帳號",
-  "codex.row.switched": "已設為使用中。從 ccdeck 開啟的新工作階段會使用此帳號；啟用終端機選擇後（在 ⋯ 中），終端機的 codex 也會使用。執行中的工作階段維持原帳號。",
+  "codex.row.switched": "預設帳號已變更。透過終端機選擇開啟的相容工作階段，會在準備就緒後切換至此帳號，並保留對話。",
   "codex.row.reading": "正在讀取用量…",
   "codex.lane.limit": "額度",
   "codex.peer.account": "帳號 {n}",

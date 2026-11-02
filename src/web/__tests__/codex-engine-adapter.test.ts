@@ -13,6 +13,8 @@ import { Writable } from 'node:stream';
 import { codexHandoffOffset } from '../../server/codex-handoff.mjs';
 // @ts-expect-error server ES module
 import { codexEngineInvocation, runCodexEngineAttempt, transferCodexThread, createCodexEngineAdapter } from '../../server/codex-engine-adapter.mjs';
+// @ts-expect-error server ES module
+import { configHash } from '../../server/codex-engine-config.mjs';
 const id = '12345678-1234-1234-1234-123456789abc';
 const roots: string[] = [];
 afterEach(async () => { for (const root of roots.splice(0)) await rm(root, { recursive: true, force: true }); });
@@ -75,6 +77,25 @@ describe('Codex continuation adapter', () => {
 });
 
 describe('Codex account engine integration', () => {
+  it('carries captured settings into a trust-only home and refuses unrelated destination settings', async () => {
+    const f = await fixture();
+    const text = 'model="session-model"\n';
+    await writeFile(join(f.source, 'config.toml'), text);
+    const options = { store: join(f.root, 'store'), env: { CODEX_HOME: f.source, CCDECK_CODEX_HOMES: JSON.stringify([f.target]) } };
+    const state = await readCodexSelection(options);
+    const target = state.profiles.find((p: { home: string }) => p.home === f.target);
+    await selectCodexProfile({ id: state.profileId, operationId: 'init', expectedRevision: 0 }, options);
+    const adapter = createCodexEngineAdapter(join(options.store, 'codex-accounts.json'), process.execPath, ['exec', '--json'], f.source, options);
+    const params = { from: { id: state.profileId, home: f.source }, id: target.id, threadId: id, sessionConfig: { sourceHash: configHash(text), originHash: configHash(text) } };
+    try {
+      await writeFile(join(f.target, 'config.toml'), 'model="unrelated-model"\n');
+      await expect(adapter.prepare(params)).rejects.toThrow('configurations differ');
+      const trust = '[projects."/workspace"]\ntrust_level="trusted"\n';
+      await writeFile(join(f.target, 'config.toml'), trust);
+      expect(await adapter.prepare(params)).toMatchObject({ id: target.id, home: f.target });
+      expect(await readFile(join(f.target, 'config.toml'), 'utf8')).toBe(trust);
+    } finally { await adapter.close(); }
+  });
   it('continues across real child processes using the exact rollout without changing the default or tokens', async () => {
     const f = await fixture();
     const store = join(f.root, 'store');

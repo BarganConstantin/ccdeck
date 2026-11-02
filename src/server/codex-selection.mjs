@@ -62,11 +62,14 @@ async function validate(state, options) {
     if (await directoryExists(p.home) && await codexProfileId(p.home) !== p.id) fail('profile_unavailable');
   }
   if (!state.profiles.some(p => p.home === state.originalHome) || !ids.has(state.selectedProfileId)) fail('registry_corrupt');
+  if (state.runningSelection != null && (!ids.has(state.runningSelection.id) || !Number.isSafeInteger(state.runningSelection.revision)
+    || state.runningSelection.revision < 1 || state.runningSelection.revision > state.revision)) fail('registry_corrupt');
   const operations = new Set();
   for (const op of state.operations) {
     if (!op || typeof op.operationId !== 'string' || !operationPattern.test(op.operationId) || operations.has(op.operationId)
       || !['add', 'select'].includes(op.kind) || !ids.has(op.id) || !Number.isSafeInteger(op.revision)
       || op.revision < 1 || op.revision > state.revision
+      || (op.switchRunning !== undefined && typeof op.switchRunning !== 'boolean')
       || (op.kind === 'select' && (!Number.isSafeInteger(op.expectedRevision) || op.expectedRevision < 0))
       || (op.kind === 'add' && !(op.label === null || validLabel(op.label)))) fail('registry_corrupt');
     operations.add(op.operationId);
@@ -104,9 +107,9 @@ async function snapshot(state, options) {
   })));
   // Absence is a recoverable state, not permission to choose another account.
   return {
-    home, profileId: state?.selectedProfileId ?? await codexProfileId(home),
+    home, originalHome: state?.originalHome ?? homes[0], profileId: state?.selectedProfileId ?? await codexProfileId(home),
     revision: state?.revision ?? 0, selectionEnabled: state !== null,
-    available: await directoryExists(home), homes, profiles,
+    available: await directoryExists(home), homes, profiles, runningSelection: state?.runningSelection ?? null,
     managedProfiles: (state?.profiles ?? []).filter(p => p.managed).map(({ id, label }) => ({ id, label })),
     /** The name somebody gave each account, the deck's own or not. */
     profileLabels: (state?.profiles ?? []).filter(p => p.label).map(({ id, label }) => ({ id, label })),
@@ -218,14 +221,15 @@ function replay(state, operationId, kind, matches) {
   if (op && (op.kind !== kind || !matches(op))) fail('operation_conflict');
   return op;
 }
-export async function selectCodexProfile({ id, expectedRevision, operationId: operation } = {}, options = {}) {
+export async function selectCodexProfile({ id, expectedRevision, operationId: operation, switchRunning = false } = {}, options = {}) {
   operationId(operation);
+  if (typeof switchRunning !== 'boolean') fail('invalid_operation');
   if (typeof id !== 'string' || !idPattern.test(id)) fail('unknown_profile');
   if (!Number.isSafeInteger(expectedRevision) || expectedRevision < 0) fail('invalid_revision');
   return locked(options, async () => {
     const state = await initial(options);
-    if (replay(state, operation, 'select', o => o.id === id && o.expectedRevision === expectedRevision)) {
-      return { ...await snapshot(state, options), status: 'applied_for_new_sessions' };
+    if (replay(state, operation, 'select', o => o.id === id && o.expectedRevision === expectedRevision && !!o.switchRunning === switchRunning)) {
+      return { ...await snapshot(state, options), status: switchRunning ? 'requested_for_managed_sessions' : 'applied_for_new_sessions' };
     }
     if (state.revision !== expectedRevision) fail('selection_conflict');
     const homes = await homesFor(state, options);
@@ -236,10 +240,11 @@ export async function selectCodexProfile({ id, expectedRevision, operationId: op
     if (!state.profiles.some(p => p.id === id)) state.profiles.push({ id, home, label: null, managed: false });
     state.selectedProfileId = id;
     state.revision++;
-    state.operations.push({ operationId: operation, kind: 'select', id, expectedRevision, revision: state.revision });
+    state.operations.push({ operationId: operation, kind: 'select', id, expectedRevision, revision: state.revision, ...(switchRunning ? { switchRunning } : {}) });
+    if (switchRunning) state.runningSelection = { id, revision: state.revision };
     const result = await snapshot(state, options);
     await persist(state, options);
-    return { ...result, status: 'applied_for_new_sessions' };
+    return { ...result, status: switchRunning ? 'requested_for_managed_sessions' : 'applied_for_new_sessions' };
   });
 }
 /** Add an account this deck keeps the home of. The name is optional: without
@@ -318,6 +323,7 @@ export async function removeCodexProfile({ id, expectedRevision } = {}, options 
 async function dropProfile(state, profile, options) {
   const { id } = profile;
   state.profiles = state.profiles.filter(p => p.id !== id);
+  if (state.runningSelection?.id === id) delete state.runningSelection;
   // What this profile's add and select left behind would name a profile that
   // is gone, which the registry's own check refuses.
   state.operations = state.operations.filter(op => op.id !== id);

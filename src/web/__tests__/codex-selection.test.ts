@@ -18,6 +18,16 @@ async function fixture() {
 }
 
 describe('machine-local Codex selection', () => {
+  it('publishes manual running-session intent atomically and keeps automatic selection separate', async () => {
+    const { options, original, alternate } = await fixture();
+    const id = await codexProfileId(alternate);
+    const input = { id, expectedRevision: 0, operationId: 'manual', switchRunning: true };
+    expect(await selectCodexProfile(input, options)).toMatchObject({ revision: 1, status: 'requested_for_managed_sessions', runningSelection: { id, revision: 1 } });
+    expect((await selectCodexProfile(input, options)).revision).toBe(1);
+    await expect(selectCodexProfile({ ...input, switchRunning: false }, options)).rejects.toMatchObject({ code: 'operation_conflict' });
+    await selectCodexProfile({ id: await codexProfileId(original), expectedRevision: 1, operationId: 'automatic' }, options);
+    expect(await readCodexSelection(options)).toMatchObject({ revision: 2, runningSelection: { id, revision: 1 } });
+  });
   it('preserves synchronous startup homes and reads an uninitialized selection without writing', async () => {
     const { options, original, alternate, root } = await fixture();
     expect(configuredCodexHomes(options.env)).toEqual([original, alternate]);

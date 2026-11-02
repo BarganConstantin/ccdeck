@@ -3,10 +3,11 @@
 import { randomUUID } from 'node:crypto';
 import { spawn } from 'node:child_process';
 import { StringDecoder } from 'node:string_decoder';
-import { link, lstat, mkdir, open, readdir, realpath, readFile, unlink } from 'node:fs/promises';
+import { link, lstat, mkdir, open, readdir, realpath, readFile, rename, unlink } from 'node:fs/promises';
 import { constants } from 'node:fs';
 import { dirname, join, relative } from 'node:path';
 import { spawnSpec } from './exec-spec.mjs';
+import { configHash, isTrustOnlyConfig, isCustomCodexConfig } from './codex-engine-config.mjs';
 import { codexHandoffPath } from './codex-handoff.mjs';
 import { killTree } from './exec-children.mjs';
 import { readCodexSelection } from './codex-selection.mjs';
@@ -102,7 +103,7 @@ export function runCodexEngineAttempt(executable, args, home, { signal, stdout =
   });
 }
 
-export async function transferCodexThread(sourceHome, targetHome, threadId) {
+export async function transferCodexThread(sourceHome, targetHome, threadId, { moveSource = false } = {}) {
   if (!UUID.test(threadId)) throw new Error('Invalid Codex conversation id.');
   const root = join(sourceHome, 'sessions');
   let found = null, visited = 0;
@@ -174,6 +175,19 @@ export async function transferCodexThread(sourceHome, targetHome, threadId) {
     await unlink(staged).catch(() => {});
     if (!published) await unlink(marker).catch(() => {});
   }
+  if (moveSource) {
+    const backup = `${found}.ccdeck-moved-${randomUUID()}`;
+    try {
+      await rename(found, backup);
+      // A returning rollout publishes a fresh prefix receipt. Keep the old
+      // one beside its backup rather than blocking a later round trip.
+      await rename(codexHandoffPath(found), codexHandoffPath(backup)).catch(e => { if (e.code !== 'ENOENT') throw e; });
+    }
+    catch (error) {
+      await rename(backup, found).catch(() => {});
+      await unlink(destination).catch(() => {}); await unlink(marker).catch(() => {}); throw error;
+    }
+  }
   return destination;
 }
 
@@ -181,16 +195,17 @@ export function createCodexEngineAdapter(file, executable, args, home, options =
   const invocation = codexEngineInvocation(args);
   if (!invocation) return null;
   const settingsOptions = { store: dirname(file), ...options };
-  let selection, lease = null;
+  let selection;
+  const leases = new Map();
   return {
     async close() {
-      if (lease) {
+      for (const lease of leases.values()) {
         try {
           const owner = JSON.parse(await readFile(lease.path, 'utf8'));
           if (owner.pid === process.pid && owner.nonce === lease.nonce) await unlink(lease.path);
         } catch { /* never remove a replacement lease */ }
-        lease = null;
       }
+      leases.clear();
     },
     invocation,
     async settings() {
@@ -198,9 +213,8 @@ export function createCodexEngineAdapter(file, executable, args, home, options =
       const config = await readFile(join(home, 'config.toml'), 'utf8').catch(e => { if (e.code === 'ENOENT') return ''; throw e; });
       // A custom provider/profile can use a different authentication lifecycle.
       // Its process remains untouched instead of rotating ChatGPT accounts.
-      const custom = /^\s*(?:model_provider|["']model_provider["'])\s*=\s*["'](?!openai["'])/m.test(config)
-        || /^\s*(?:profile|["']profile["'])\s*=/m.test(config);
-      return { enabled: s.enabled && !custom, threshold: Number(s.settings['autoswitch.threshold'].value), next: s.choice.next, heldOut: s.heldOut };
+      const custom = isCustomCodexConfig(config);
+      return { enabled: s.enabled && !custom, custom, threshold: Number(s.settings['autoswitch.threshold'].value), next: s.choice.next, heldOut: s.heldOut };
     },
     async accounts() {
       selection = await readCodexSelection(settingsOptions);
@@ -208,7 +222,7 @@ export function createCodexEngineAdapter(file, executable, args, home, options =
     },
     quota(id) { return readCodexProfileQuota(id, { ...settingsOptions, selection, enableNative: true }); },
     run(current, context) { return runCodexEngineAttempt(executable, current.args, current.home, { ...options, ...context, resumed: current.resumed }); },
-    async prepare({ from, id, threadId }) {
+    async prepare({ from, id, threadId, sessionConfig }) {
       // Per-account configuration can select a different provider, MCP servers,
       // or permissions. Never transfer work into a different configuration.
       const config = async home => readFile(join(home, 'config.toml'), 'utf8').catch(e => { if (e.code === 'ENOENT') return ''; throw e; });
@@ -218,7 +232,7 @@ export function createCodexEngineAdapter(file, executable, args, home, options =
       if (!target || !source || await realpath(source.home) !== await realpath(from.home)) throw new Error('Codex accounts changed before continuation.');
       // One owner for this conversation across every target account. A stale
       // lease after a crash is refused rather than guessing about a live run.
-      if (!lease) {
+      if (!leases.has(threadId)) {
         const locks = join(dirname(file), 'codex-engine-locks');
         await mkdir(locks, { recursive: true, mode: 0o700 });
         if (!(await lstat(locks)).isDirectory()) throw new Error('Codex continuation lock folder is unavailable.');
@@ -228,10 +242,12 @@ export function createCodexEngineAdapter(file, executable, args, home, options =
         try { await handle.writeFile(JSON.stringify({ pid: process.pid, nonce })); }
         catch (e) { await unlink(lock).catch(() => {}); throw e; }
         finally { await handle.close(); }
-        lease = { path: lock, nonce };
+        leases.set(threadId, { path: lock, nonce });
       }
-      if (await config(from.home) !== await config(target.home)) throw new Error('Codex account configurations differ; resume manually.');
-      await transferCodexThread(from.home, target.home, threadId);
+      const sourceConfig = await config(from.home), targetConfig = await config(target.home);
+      if (sourceConfig !== targetConfig && (!sessionConfig || sessionConfig.sourceHash !== configHash(sourceConfig)
+        || !isTrustOnlyConfig(targetConfig) && configHash(targetConfig) !== sessionConfig.originHash)) throw new Error('Codex account configurations differ; resume manually.');
+      await transferCodexThread(from.home, target.home, threadId, { moveSource: options.moveConversation === true });
       return { id, home: target.home, args: invocation.resumeArgs(threadId), resumed: true, threadId };
     },
   };

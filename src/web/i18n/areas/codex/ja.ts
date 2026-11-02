@@ -9,7 +9,7 @@ const catalog: Catalog = {
   "codex.row.readPlan": "ccdeck がこのアカウントの使用量を最後に読み取った時刻と、次に読み取る予定の時刻です。このパネルを開いている間、既定のアカウントは1分ごと、それ以外は5分ごとに読み取ります。Codex が報告するアカウントの上限を表示するため、枠が1つだけのプランではバーも1本です。",
   "codex.row.readPlanNamed": "{plan} プラン。{rest}",
   "codex.row.neverRead": "ccdeck はこのアカウントをまだ読み取っていません",
-  "codex.row.switched": "使用中になりました。ccdeck から始める新しいセッションはこのアカウントで開始され、ターミナル選択をオン（⋯ 内）にすればターミナルの codex も同様です。実行中のセッションは元のアカウントのままです。",
+  "codex.row.switched": "既定のアカウントを変更しました。ターミナル選択で開いた対応セッションは、準備ができ次第、会話を保持したままこのアカウントに切り替わります。",
   "codex.row.reading": "使用量を読み取り中…",
   "codex.lane.limit": "上限",
   "codex.peer.account": "アカウント {n}",

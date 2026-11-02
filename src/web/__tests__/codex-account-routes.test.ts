@@ -42,7 +42,7 @@ describe('Codex account route boundary', () => {
     expect(JSON.stringify(created)).not.toContain(root);
     const request = { id: created.id, expectedRevision: created.revision, operationId: 'route-select' };
     const switched = await (await fetch(`${base}/api/codex-profile-select`, { method: 'POST', headers: headers(), body: JSON.stringify(request) })).json();
-    expect(switched).toMatchObject({ ok: true, status: 'applied_for_new_sessions' });
+    expect(switched).toMatchObject({ ok: true, status: 'requested_for_managed_sessions' });
     const replay = await (await fetch(`${base}/api/codex-profile-select`, { method: 'POST', headers: headers(), body: JSON.stringify(request) })).json();
     expect(replay.revision).toBe(switched.revision);
     const stale = await fetch(`${base}/api/codex-profile-select`, { method: 'POST', headers: headers(), body: JSON.stringify({ id: roster.profiles[0].id, expectedRevision: 0, operationId: 'route-stale' }) });

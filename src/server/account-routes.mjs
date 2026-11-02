@@ -57,7 +57,7 @@ export async function handleCodexProfileMutation(req, res, action) {
   // that is about to be moved away: stop it first, so nothing lands there.
   if (action === 'remove' && typeof body.id === 'string') (await import('./codex-login.mjs')).cancelCodexLogin(body.id);
   try {
-    const result = action === 'select' ? await selectCodexProfile(body)
+    const result = action === 'select' ? await selectCodexProfile({ ...body, switchRunning: true })
       : action === 'remove' ? await removeCodexProfile(body)
       : action === 'replace' ? await replaceCodexLogin(body)
       : action === 'rename' ? await renameCodexProfile(body) : await addCodexProfile(body);

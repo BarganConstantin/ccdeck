@@ -8,7 +8,7 @@ const catalog: Catalog = {
   "codex.row.readPlan": "Wann ccdeck die Nutzung dieses Kontos zuletzt gelesen hat und wann es sie wieder liest: jede Minute beim Standardkonto, bei den anderen alle fünf, solange dieses Panel offen ist. Das sind die Limits, die Codex für das Konto meldet – hat ein Tarif nur ein Fenster, siehst du nur einen Balken.",
   "codex.row.readPlanNamed": "Tarif {plan}. {rest}",
   "codex.row.neverRead": "ccdeck hat dieses Konto noch nicht gelesen",
-  "codex.row.switched": "Jetzt aktiv. Neue Sitzungen aus ccdeck starten damit, ebenso der Befehl codex im Terminal, sobald die Terminal-Auswahl an ist (in ⋯). Laufende Sitzungen behalten ihr Konto.",
+  "codex.row.switched": "Standardkonto geändert. Unterstützte Sitzungen, die mit der Terminal-Auswahl geöffnet wurden, wechseln zu diesem Konto, sobald sie bereit sind. Der Gesprächsverlauf bleibt erhalten.",
   "codex.row.reading": "Nutzung wird gelesen …",
   "codex.lane.limit": "Limit",
   "codex.peer.account": "Konto {n}",

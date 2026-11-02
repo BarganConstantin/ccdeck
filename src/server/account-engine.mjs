@@ -31,38 +31,44 @@ export async function runAccountEngine(adapter, initial, { signal, onSwitch = ()
     tried.add(current.id);
     const result = await adapter.run(current, { signal });
     if (signal?.aborted) return { ...result, reason: 'cancelled' };
-    if (result.reason !== 'usage_limit' || !result.threadId || result.code === 0) return result;
-    if (threadId && threadId !== result.threadId) return { ...result, reason: 'thread_changed' };
+    const manual = result.reason === 'manual_switch';
+    if ((!manual && result.reason !== 'usage_limit') || !result.threadId || result.code === 0) return result;
+    if (!manual && threadId && threadId !== result.threadId) return { ...result, reason: 'thread_changed' };
     threadId = result.threadId;
     const settings = await adapter.settings();
-    if (!settings.enabled) return { ...result, reason: 'disabled' };
+    if (!manual && !settings.enabled) return { ...result, reason: 'disabled' };
     const rows = await adapter.accounts();
     const source = rows.find(row => row.id === current.id);
     if (!source) return { ...result, reason: 'source_unavailable' };
-    const exclude = [...tried];
-    // All duplicate rows share the exhausted account's quota.
-    for (const row of rows) if (row.sameAccountAs === current.id || source.sameAccountAs === row.id
-      || source.sameAccountAs && row.sameAccountAs === source.sameAccountAs) exclude.push(row.id);
-    const quotas = new Map();
-    for (const row of rows) {
-      if (signal?.aborted) return { ...result, reason: 'cancelled' };
-      if (!exclude.includes(row.id) && !settings.heldOut?.includes(row.id)) {
-        try { quotas.set(row.id, await adapter.quota(row.id)); } catch { /* unavailable is not room */ }
+    let pick;
+    if (manual) {
+      const target = rows.find(row => row.id === result.targetId && row.id !== current.id && row.available !== false && (row.signedIn ?? row.signedInFilePresent));
+      if (!target) return { ...result, reason: 'target_unavailable' };
+      pick = { id: target.id };
+    } else {
+      const exclude = [...tried];
+      for (const row of rows) if (row.sameAccountAs === current.id || source.sameAccountAs === row.id
+        || source.sameAccountAs && row.sameAccountAs === source.sameAccountAs) exclude.push(row.id);
+      const quotas = new Map();
+      for (const row of rows) {
+        if (signal?.aborted) return { ...result, reason: 'cancelled' };
+        if (!exclude.includes(row.id) && !settings.heldOut?.includes(row.id)) {
+          try { quotas.set(row.id, await adapter.quota(row.id)); } catch { /* unavailable is not room */ }
+        }
       }
+      pick = chooseEngineAccount(rows, quotas, { ...settings, exclude });
+      if (!pick) return { ...result, reason: 'no_account_with_room' };
+      const latest = await adapter.settings();
+      if (!latest.enabled || signal?.aborted) return { ...result, reason: 'cancelled' };
+      if (!chooseEngineAccount(rows.filter(row => row.id === pick.id), quotas, { ...latest, exclude })) return { ...result, reason: 'settings_changed' };
     }
-    const pick = chooseEngineAccount(rows, quotas, { ...settings, exclude });
-    if (!pick) return { ...result, reason: 'no_account_with_room' };
-    // Recheck the switch immediately before it starts; a person may turn it off
-    // or hold the target out while the quota probes are running.
-    const latest = await adapter.settings();
-    if (!latest.enabled || signal?.aborted) return { ...result, reason: 'cancelled' };
-    if (!chooseEngineAccount(rows.filter(row => row.id === pick.id), quotas, { ...latest, exclude })) return { ...result, reason: 'settings_changed' };
     let next;
     try { next = await adapter.prepare({ from: current, id: pick.id, threadId }); }
     catch { return { ...result, reason: 'handoff_failed' }; }
     if (signal?.aborted) return { ...result, reason: 'cancelled' };
     const beforeLaunch = await adapter.settings();
-    if (!beforeLaunch.enabled || beforeLaunch.heldOut?.includes(next.id)) return { ...result, reason: 'disabled' };
+    if (!manual && (!beforeLaunch.enabled || beforeLaunch.heldOut?.includes(next.id))) return { ...result, reason: 'disabled' };
+    if (manual) { tried.clear(); attempt = -1; }
     onSwitch({ from: current.id, to: next.id, threadId });
     current = next;
   }

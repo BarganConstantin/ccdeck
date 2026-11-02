@@ -46,7 +46,7 @@ export async function runSelectedCodex(file, executable, args, { env = process.e
     if (process.stdin.isTTY && process.stdout.isTTY) {
       const { codexInteractiveInvocation, supportsCodexInteractiveEngine, runInteractiveCodex } = await import('./codex-interactive-engine.mjs');
       const policy = createCodexEngineAdapter(file, executable, ['exec', '--json'], home, { env });
-      if (codexInteractiveInvocation(args) && (await policy.settings()).enabled && await supportsCodexInteractiveEngine(executable, env)) {
+      if (codexInteractiveInvocation(args) && !(await policy.settings()).custom && await supportsCodexInteractiveEngine(executable, env)) {
         return runInteractiveCodex(file, executable, args, home, { env });
       }
     }

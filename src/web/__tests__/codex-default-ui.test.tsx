@@ -37,7 +37,8 @@ describe('Codex default selection controls', () => {
     expect((selected.props.a as { active: boolean }).active).toBe(true);
     expect(rowText(selected)).not.toContain('Switch');
     // And it says what a switch does to the sessions already running, on the row.
-    expect(rowText(selected)).toContain('Now active');
-    expect(rowText(selected)).toContain('Running ones keep their account');
+    expect(rowText(selected)).toContain('Default changed');
+    expect(rowText(selected)).toContain('sessions opened with terminal selection');
+    expect(rowText(selected)).toContain('keep their conversation');
   });
 });

@@ -9,7 +9,7 @@ const catalog: Catalog = {
   "codex.row.readPlan": "Dernière lecture de l'utilisation de ce compte par ccdeck, et prochaine lecture prévue : chaque minute pour le compte par défaut et toutes les cinq minutes pour les autres, tant que ce panneau est ouvert. Ce sont les limites que Codex indique pour le compte ; un forfait à une seule fenêtre affiche donc une seule barre.",
   "codex.row.readPlanNamed": "Forfait {plan}. {rest}",
   "codex.row.neverRead": "ccdeck n'a pas encore lu ce compte",
-  "codex.row.switched": "Désormais actif. Les nouvelles sessions lancées depuis ccdeck démarrent dessus, ainsi que la commande codex du terminal si la sélection du terminal est activée (dans ⋯). Les sessions en cours gardent leur compte.",
+  "codex.row.switched": "Compte par défaut modifié. Les sessions compatibles ouvertes avec la sélection du terminal passeront à ce compte dès que possible, en conservant leur conversation.",
   "codex.row.reading": "Lecture de l'utilisation…",
   "codex.lane.limit": "limite",
   "codex.peer.account": "compte {n}",

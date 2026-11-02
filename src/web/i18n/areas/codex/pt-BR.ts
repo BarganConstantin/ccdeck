@@ -9,7 +9,7 @@ const catalog: Catalog = {
   "codex.row.readPlan": "Quando o ccdeck leu o uso desta conta pela última vez e quando pretende ler de novo: a cada minuto para a conta padrão e a cada cinco minutos para as outras, enquanto este painel estiver aberto. São os limites que o Codex informa para a conta, então um plano com uma só janela mostra uma só barra.",
   "codex.row.readPlanNamed": "Plano {plan}. {rest}",
   "codex.row.neverRead": "O ccdeck ainda não leu esta conta",
-  "codex.row.switched": "Agora ativa. As novas sessões do ccdeck começam nela, e o codex do terminal também, quando a seleção no terminal estiver ativada (em ⋯). As que já estão rodando mantêm a conta.",
+  "codex.row.switched": "Conta padrão alterada. Sessões compatíveis abertas com a seleção no terminal passarão para esta conta quando estiverem prontas, mantendo a conversa.",
   "codex.row.reading": "Lendo o uso…",
   "codex.lane.limit": "limite",
   "codex.peer.account": "conta {n}",

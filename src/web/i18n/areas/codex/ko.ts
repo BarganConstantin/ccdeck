@@ -8,7 +8,7 @@ const catalog: Catalog = {
   "codex.row.readPlan": "ccdeck이 이 계정의 사용량을 마지막으로 읽은 시각과 다음에 읽을 예정 시각입니다. 이 패널이 열려 있는 동안 기본 계정은 1분마다, 나머지는 5분마다 읽습니다. Codex가 계정에 대해 알려 주는 한도이므로, 구간이 하나인 플랜은 막대도 하나입니다.",
   "codex.row.readPlanNamed": "{plan} 플랜. {rest}",
   "codex.row.neverRead": "ccdeck이 아직 이 계정을 읽지 않았습니다",
-  "codex.row.switched": "지금 활성 상태입니다. ccdeck에서 시작하는 새 세션이 이 계정을 사용하며, 터미널 선택을 켜면(⋯) 터미널의 codex도 이 계정을 사용합니다. 실행 중인 세션은 기존 계정을 유지합니다.",
+  "codex.row.switched": "기본 계정이 변경되었습니다. 터미널 선택으로 연 지원 세션은 준비가 되면 대화를 유지하면서 이 계정으로 전환됩니다.",
   "codex.row.reading": "사용량 읽는 중…",
   "codex.lane.limit": "한도",
   "codex.peer.account": "계정 {n}",
