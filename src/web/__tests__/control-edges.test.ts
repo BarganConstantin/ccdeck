@@ -584,7 +584,7 @@ const CONTROLS: Control[] = [
   // NO edge, so there is no boundary left for this sweep to measure, the way
   // `.detail-close` left it below. What identifies them is their words, held
   // to 4.5:1 by the "chip words" case at the foot of this file.
-  { at: ".selected-ribbon", states: [".selected-ribbon:hover"], beds: TOPBAR },
+  // (The selected ribbon, swept here, is gone: V4's Figma.)
   { at: "button.btn", states: ["button.btn:hover"], beds: [...TOPBAR, "--panel"] },
   { at: "button.btn", fillFrom: "button.btn.ig-manage:not(.primary)", states: ["button.btn:hover"], beds: ["--panel"] },
   { at: "button.btn.primary", fillFrom: "button.btn.primary", beds: [...TOPBAR, "--panel"] },
@@ -602,7 +602,7 @@ const CONTROLS: Control[] = [
   // exhaustiveness check at the bottom of this describe is what would say so if
   // it came back.
   { at: "button.btn.danger", fillFrom: "button.btn", states: ["button.btn.danger:hover"], beds: ["--panel"] },
-  { at: ".topbar .waiting-stat", states: [".topbar .waiting-stat:hover"], beds: TOPBAR },
+  { at: ".topbar .count-pill.waiting-stat", states: [".topbar .waiting-stat:hover"], beds: TOPBAR },
   // The permission ask that sits beside the count. Dashed rather than solid, so
   // it reads as an offer next to an alarm — but a dashed boundary is still the
   // whole of what identifies the control, so it is measured on the same floor
@@ -1475,7 +1475,7 @@ describe("the control surface, promoted (#332)", () => {
     }
     const darkFill = over(resolve("var(--ctl-fill)", "dark"), parseColor(TOK.dark["--panel"]));
     expect(contrastRatio(parseColor(TOK.dark["--muted"]), darkFill)).toBeLessThan(BODY);
-    for (const sel of [".selected-ribbon", ".aa-field input"]) {
+    for (const sel of [".aa-field input"]) {
       expect(decl(sel, "background"), sel).toBe("var(--bg-soft)");
     }
     // The rail's row hover is the control fill itself, the one this case measures.

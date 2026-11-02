@@ -159,20 +159,6 @@ describe("a selected session on a narrow window (#1790)", () => {
     });
   }
 
-  it("takes the selected ribbon off a phone's bar, where the sheet says the same thing", () => {
-    // The last piece a selection added to a bar that holds its controls down
-    // to 320px only without it: at 320 it shrank to its × and pushed the last
-    // control 12px past the right edge. It went only while the sheet was up at
-    // first; with the sheet closed it drew its state over the Session list
-    // button and took the waiting pill's room, so it goes at a phone's width
-    // whether or not the sheet is up — which includes while it is.
-    const hides = (width: number) => sheetRules().some(r => mediaApplies(r.media, width)
-      && r.selectors.includes(".selected-ribbon") && /display:\s*none/.test(r.body));
-    expect(hides(320)).toBe(true);
-    expect(hides(480)).toBe(true);
-    expect(hides(641)).toBe(false);
-  });
-
   it("keeps the wide layout exactly as it was: a 360px column beside the canvas", () => {
     // The track reads --inspector-w since V4's Inspector, and the Default
     // density's value of it is the 360px this test is named for.

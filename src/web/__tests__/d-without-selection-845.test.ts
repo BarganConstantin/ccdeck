@@ -47,7 +47,9 @@ describe("D with nothing selected picks something first (#845)", () => {
     expect(block).toMatch(/focusSession\(waiting\[0\]\.id\)/);
     // The button's click is a block since #825, which has it tell W where it
     // went; where it goes is unchanged.
-    expect(appCode).toMatch(/waitingCursorRef\.current = waitingSessions\[0\]\.id;\s*focusSession\(waitingSessions\[0\]\.id\);/);
+    // V4's top bar: the pill opens the queue popover, whose first row is
+    // that longest wait; a row tells W where it went and focuses the session.
+    expect(appCode).toMatch(/waitingCursorRef\.current = id;\s*close\(\);\s*focusSession\(id\);/);
   });
 
   it("otherwise lands where j would", () => {

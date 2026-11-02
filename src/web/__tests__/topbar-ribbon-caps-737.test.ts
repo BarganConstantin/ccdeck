@@ -7,12 +7,11 @@
 // current cost a ccusage run every five minutes — and the Usage panel says the
 // month beside today and all time (usage-panel-source-737.test.ts).
 //
-// The caps held where the phrase put them until the topbar's redesign settled
-// every width tier at once (2026-10-08): the panel toggles left the bar for the
-// window's edges, and the caps were recut to the bar that is left. What is
-// pinned here is the caps as recut, that a selection still never decides what
-// the readout holds, and that nothing in the page reads ccusage in the
-// background any more.
+// The ribbon whose caps this file also pinned is gone (V4's Figma:
+// the Inspector names the selected session, Esc clears it and Z frames it), so
+// its caps went with it. What is pinned here is what outlives it: nothing in the
+// page reads ccusage in the background any more, and the month phrase left no
+// hook, helper or rule.
 import { describe, expect, it } from "vitest";
 import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
@@ -52,63 +51,5 @@ describe("the topbar's month phrase is gone (#737)", () => {
       .map(([path]) => path)
       .sort();
     expect(readers).toEqual(["account-projects-load.ts", "use-ccusage.ts", "use-usage-range.ts"]);
-  });
-});
-
-describe("the ribbon's caps, as #737 cut them and the bar's redesign recut them", () => {
-  /** The busiest bar besides the ribbon, measured in headless Brave at 1440
-   *  (topbar-status.css): padding, the readout with "12 waiting", the gaps,
-   *  and Settings and Feedback with their words. */
-  const BUSIEST_BAR_PX = 541;
-  const HEADROOM_PX = 40;
-  const cap = /@media \(min-width: (\d+)px\) \{\s*\.selected-ribbon \{ max-width: min\(380px, 24vw, calc\(100vw - (\d+)px\)\); \}/.exec(css);
-
-  it("makes the ribbon give up the room instead, and never past what fits", () => {
-    // #737 cut two bands, W - 867 on glyphs and W - 1253 once the words
-    // arrived, around eight panel toggles and the month's phrase. Both left
-    // the bar on 2026-10-08, the toggles for the window's edges, and with them
-    // went the bands: one cap from where the ribbon returns, the room the bar
-    // leaves it less the headroom, and never more than its usual cap.
-    expect(cap, "the ribbon's cap").toBeTruthy();
-    const [, from, reserve] = cap!.map(Number);
-    expect(from).toBe(641);
-    expect(reserve).toBe(BUSIEST_BAR_PX + HEADROOM_PX);
-    // The glyph and word bands are gone, and so are the words' tiers.
-    expect(css).not.toMatch(/max-width: min\(24vw, calc\(100vw - \d+px\)\)/);
-    expect(css).not.toMatch(/max-width: min\(380px, calc\(100vw - \d+px\)\)/);
-    expect(css).not.toMatch(/\.tb-word/);
-    // It is under its usual 24vw only below the width where W - reserve meets
-    // 24vw; above it the ribbon is its usual self.
-    const meets = reserve / 0.76;
-    expect(Math.ceil(meets)).toBe(765);
-    // And it is after the ribbon's own rule, which would otherwise win on order.
-    expect(css.indexOf(cap![0])).toBeGreaterThan(css.indexOf(".selected-ribbon {"));
-  });
-
-  it("drops the ribbon's cost below 1140, and only there", () => {
-    // Under 1140 the ribbon's 24vw holds a state, a cost that does not shrink
-    // and a name ellipsed to nothing; the cost stays on the card, in the
-    // detail panel and in the ribbon's own title (topbar-ribbon-cost.test.ts
-    // adds the bar up). The 1440–1632 band went with the words that made it.
-    const cost = /@media \(max-width: (\d+)px\) \{\s*\.selected-ribbon \.selected-cost \{ display: none; \}\s*\}/.exec(css);
-    expect(cost, "the cost's band").toBeTruthy();
-    expect(Number(cost![1])).toBe(1139);
-    expect(css).not.toMatch(/\(min-width: 1440px\) and \(max-width: \d+px\) \{\s*\.selected-ribbon \.selected-cost/);
-    // The ribbon is components/SelectedRibbon.tsx's. Z through withKey, named
-    // while Settings › General's single-key switch is on.
-    expect(readFileSync(join(web, "components/SelectedRibbon.tsx"), "utf8")).toMatch(/className="selected-ribbon"[\s\S]{0,400}?title=\{`\$\{withKey\(t\("board\.ribbon\.zoom", \{ label: selected\.label \}\), "Z", singleKeys\)\}\$\{\s*c\.total > 0 \? `\\n\$\{t\("board\.ribbon\.spent"/);
-  });
-
-  it("never lets a selection decide what the readout holds", () => {
-    // It did, under 1760px: the phrase sat ahead of the blocked-session chip,
-    // and selecting a card hid it and slid the alarm 204px left. The phrase is
-    // gone and the rule is not. No rule that hides anything in the readout may
-    // name the ribbon, or anything else a click on the canvas can put on the bar.
-    const hiders = [...css.matchAll(/([^{}]+)\{[^{}]*display:\s*none;[^{}]*\}/g)]
-      .flatMap(m => m[1].split(","))
-      .map(sel => sel.trim())
-      .filter(sel => /\.topbar\b.*(?:\.readout|\.status|\.brand|\.waiting-stat|\.provider-incident|\.notify-said)/.test(sel));
-    expect(hiders.length).toBeGreaterThan(0);
-    for (const sel of hiders) expect(sel).not.toMatch(/selected|:has\(\.selected|\.btn\.danger/);
   });
 });

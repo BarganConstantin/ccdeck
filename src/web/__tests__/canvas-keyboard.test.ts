@@ -47,13 +47,12 @@ import { sheetText } from "./sheet-source";
 
 const web = fileURLToPath(new URL("..", import.meta.url));
 // The keydown handler moved to use-deck-shortcuts.ts; the keys and the rest of the deck are read as one.
-// The detail panel moved to components/Detail.tsx, the selected ribbon to
-// components/SelectedRibbon.tsx, and focusing and stepping between cards to
+// The detail panel moved to components/Detail.tsx (the selected ribbon that was
+// in components/SelectedRibbon.tsx is gone, V4's top bar), and focusing and stepping between cards to
 // use-agent-focus.ts, and the <ReactFlow> element to components/BoardFlow.tsx;
 // App.tsx and they are read as one.
 const app = readFileSync(join(web, "App.tsx"), "utf8") + "\n" + readFileSync(join(web, "use-deck-shortcuts.ts"), "utf8")
   + "\n" + readFileSync(join(web, "components/Detail.tsx"), "utf8")
-  + "\n" + readFileSync(join(web, "components/SelectedRibbon.tsx"), "utf8")
   + "\n" + readFileSync(join(web, "use-agent-focus.ts"), "utf8")
   + "\n" + readFileSync(join(web, "use-canvas-clicks.ts"), "utf8")
   + "\n" + readFileSync(join(web, "components/BoardFlow.tsx"), "utf8");
@@ -464,13 +463,11 @@ describe("nothing else in the deck invents a focus stop", () => {
   });
 
   it("has no role=\"button\" left that a keyboard cannot operate", () => {
-    // The ribbon's × was one: a role="button" labelled "Deselect", nested
-    // inside the ribbon's own <button> — where a button may not go — and with
-    // no tabIndex, so no keyboard could ever reach it. Escape carries the same
-    // verb from anywhere, so the × is decoration with a click on it.
+    // The ribbon's × was one (a role="button" nested in a button, with no
+    // tabIndex). The ribbon is gone with its × (V4's Figma);
+    // Escape carries the same verb from anywhere.
     // The topbar's readout group moved out of App.tsx, so the sweep reads it too.
     expect(code(app) + "\n" + code(readFileSync(join(web, "components/TopbarReadouts.tsx"), "utf8"))).not.toMatch(/role="button"/);
-    expect(app).toMatch(/aria-hidden\s*\n\s*className="selected-close"/);
   });
 });
 

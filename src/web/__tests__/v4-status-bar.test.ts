@@ -107,7 +107,8 @@ describe("the bar's geometry, from Figma", () => {
     const kbd = rule(".kbd");
     expect(kbd["background"]).toBe("var(--bg-soft)");
     expect(kbd["border"]).toBe("1px solid var(--line)");
-    expect(kbd["padding"]).toBe("1px 5px");
+    // Figma pads 1 by 5 with the stroke INSIDE it: 0 by 4 plus the 1px edge, 16 tall.
+    expect(kbd["padding"]).toBe("0 4px");
     expect(kbd["border-radius"]).toBe("4px");
     expect(kbd["font-family"]).toBe("var(--font-mono)");
     expect(kbd["font-size"]).toBe("calc(11px + var(--ui-text-increase, 0px))");
@@ -202,7 +203,8 @@ describe("the three layers, word for word", () => {
 
   it("names ↵ select only while the keyboard is on a card: no handler answers the board's Enter anywhere else", () => {
     const off = statusViewFor({ stageOpen: false, pane: null, onCard: false, zoomedOut: true, singleKeys: true, platform: "Linux" });
-    expect(off.hints.map(h => h.word)).toEqual(["cards", "peek", "next waiting"]);
+    // Off a card Space is the deck's pause, so "pause" closes the row there.
+    expect(off.hints.map(h => h.word)).toEqual(["cards", "peek", "next waiting", "pause"]);
     expect(BOARD_HINTS.filter(h => h.onCard).map(h => h.word)).toEqual(["select"]);
     // The deck's Enter is the stage's own (focus-pane), wherever focus is.
     expect(DECK_HINTS.some(h => h.onCard)).toBe(false);
@@ -243,6 +245,53 @@ describe("the three layers, word for word", () => {
     expect(DECK_HINTS.some(h => h.binds.includes("p"))).toBe(false);
     // And the key agrees: P does nothing while the stage is open.
     expect(read("use-deck-shortcuts.ts")).toMatch(/if \(!stageRef\?\.current\?\.open\) peekSelected\(\);/);
+  });
+});
+
+describe("the keys that work right now: Ctrl+` from a pane, n only with a queue, Space off a card", () => {
+  const words = (v: ReturnType<typeof statusViewFor>) => v.hints.map(h => h.word);
+  const base = { pane: null, zoomedOut: true, singleKeys: true, platform: "Linux" } as const;
+
+  it("names Ctrl+` in the terminal layer after the release chord, where the deck claims the chord", () => {
+    const v = statusViewFor({ ...base, stageOpen: true, pane: "api", onCard: false, viewChord: "board" });
+    expect(v.hints.map(h => `${h.caps.map(c => c.text).join(" ")} ${h.word}`)).toEqual(["Ctrl+Shift+X keys back to the deck", "Ctrl+` board"]);
+    expect(v.hints[1].caps[0].spoken).toBe("Control backtick");
+    // Where the Command Panel is off, the pane has the release chord alone.
+    expect(words(statusViewFor({ ...base, stageOpen: true, pane: "api", onCard: false }))).toEqual(["keys back to the deck"]);
+    // And the pane really catches the chord before the session sees it.
+    expect(read("terminal-keys.ts")).toMatch(/if \(isViewChord\(e\)\) return "view";/);
+  });
+
+  it("drops n when nothing waits, on the board and on the deck: the key would go nowhere", () => {
+    expect(words(statusViewFor({ ...base, stageOpen: false, onCard: true, waiting: false }))).not.toContain("next waiting");
+    expect(words(statusViewFor({ ...base, stageOpen: true, onCard: false, waiting: false }))).not.toContain("next waiting");
+    expect(words(statusViewFor({ ...base, stageOpen: false, onCard: true, waiting: true }))).toContain("next waiting");
+    expect(BOARD_HINTS.filter(h => h.waiting).map(h => h.word)).toEqual(["next waiting"]);
+    expect(DECK_HINTS.filter(h => h.waiting).map(h => h.word)).toEqual(["next waiting"]);
+    // nextWaiting has nowhere to go on an empty queue.
+    expect(nextWaiting([], null)).toBeNull();
+  });
+
+  it("is told whether a session waits from the same queue n walks", () => {
+    expect(read("App.tsx")).toMatch(/<StatusBar [^\n]*waiting=\{waitingSessions\.length > 0\}/);
+    expect(read("App.tsx")).toMatch(/const waitingSessions = useMemo\(\s*\(\) => blockedSessions\(/);
+    expect(read("components/StatusBar.tsx")).toMatch(/statusViewFor\(\{[^}]*waiting \}\)/);
+  });
+
+  it("names Space pause on the board off a card, before Ctrl+`; on a card Space is the card's", () => {
+    const off = statusViewFor({ ...base, stageOpen: false, onCard: false, viewChord: "workspace" });
+    expect(words(off).slice(-2)).toEqual(["pause", "workspace"]);
+    expect(off.hints.find(h => h.word === "pause")!.caps).toEqual([{ text: "Space", spoken: undefined }]);
+    expect(words(statusViewFor({ ...base, stageOpen: false, onCard: true }))).not.toContain("pause");
+    // The handler pauses on Space; a focused card takes Space as its own activate.
+    expect(read("use-deck-shortcuts.ts")).toMatch(/if \(e\.key === " "\) \{ e\.preventDefault\(\); if \(!e\.repeat\) togglePause\(\); \}/);
+    expect(read("canvas-keys.ts")).toMatch(/if \(e\.key === "Enter" \|\| e\.key === " "\) return \{ kind: "activate"/);
+    // A single key: the switch silences it, and the bar with it.
+    expect(words(statusViewFor({ ...base, stageOpen: false, onCard: false, singleKeys: false }))).not.toContain("pause");
+  });
+
+  it("leaves p out of the deck and Space out of the deck: neither is drawn where the stage has the keys", () => {
+    expect(DECK_HINTS.map(h => h.word)).toEqual(["sessions", "open and type", "next waiting"]);
   });
 });
 

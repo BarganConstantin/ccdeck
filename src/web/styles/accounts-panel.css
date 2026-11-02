@@ -675,7 +675,7 @@
   transition: opacity var(--dur-fast) var(--ease), transform var(--dur-fast) var(--ease);
 }
 /* The target, drawn AROUND the glyph rather than under it — the same technique
-   `.selected-ribbon .selected-close::after` uses, for the same reason it gives:
+   the topbar ribbon's × used (gone with the ribbon, V4's top bar), for the same reason it gave:
    a transparent pseudo-element is a box that exists only to be hit, a pointer
    event landing on it is delivered to the element that owns it, and the glyph
    keeps every pixel of its own geometry, so nothing about this control's paint

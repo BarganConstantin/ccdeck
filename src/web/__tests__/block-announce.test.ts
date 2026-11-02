@@ -225,8 +225,9 @@ describe("the quietness", () => {
 // ── 3. what App.tsx actually renders ────────────────────────────────────────
 
 describe("the stat strip is not a live region any more", () => {
-  /** The opening tag of the element carrying `className="status"`. */
-  const stripTag = /<span className="status"[^>]*>/.exec(readoutsCode)?.[0];
+  /** The opening tag of the element carrying `className="status"`: the chip's
+   *  slot (ChipPresence), since the arrival and exit are transitions on it. */
+  const stripTag = /<ChipPresence [^>]*className="status"[^>]*>/.exec(readoutsCode)?.[0];
 
   it("still renders the strip, so this file is not asserting over a deletion", () => {
     expect(stripTag, "the .status strip is gone from components/TopbarReadouts.tsx entirely").toBeTruthy();
@@ -269,7 +270,7 @@ describe("the stat strip is not a live region any more", () => {
     // goes. A live region around the strip would read that flap out loud, every
     // time, over whatever the user was actually doing — the same defect the
     // counters caused, from content nobody would call a stream of digits.
-    const opens = readoutsCode.indexOf(`<span className="status">`);
+    const opens = readoutsCode.indexOf(`className="status"`);
     expect(opens, "the strip is gone from components/TopbarReadouts.tsx").toBeGreaterThan(-1);
     const next = readoutsCode.indexOf("export function", opens);
     const stripSrc = readoutsCode.slice(opens, next === -1 ? undefined : next);
@@ -301,17 +302,22 @@ describe("the block is announced, and the region is always there to announce it"
     // Both are in the readout group now (components/TopbarReadouts.tsx).
     expect(groupCode, "the readout group is gone from components/TopbarReadouts.tsx").not.toBe("");
     const region = groupCode.indexOf(`<div className="vis-hidden" role="status"`);
-    const guard = groupCode.indexOf("{waitingSessions.length > 0 && (");
+    // V4's Figma draws the waiting pill always (a quiet 0 when nothing waits),
+    // so it has no conditional of its own; the popover it opens is the one
+    // thing that comes and goes, and the region is mounted ahead of the pill.
+    const pill = groupCode.indexOf("<WaitingStat");
     expect(region).toBeGreaterThan(-1);
-    expect(guard).toBeGreaterThan(-1);
-    expect(region, "the live region is inside the chip's conditional").toBeLessThan(guard);
+    expect(pill).toBeGreaterThan(-1);
+    expect(groupCode, "the pill is drawn only while something waits").not.toContain("{waitingSessions.length > 0 && (");
+    expect(readoutsCode.indexOf(`<div className="vis-hidden" role="status" aria-atomic="true">{blockedSaid}</div>`))
+      .toBeGreaterThan(-1);
   });
 
   it("leaves the chip itself a plain button, with no region of its own", () => {
     // The whole element, not just its opening tag: an arrow function in an
     // `onClick` carries a `>` of its own, so a regex ending at the first one
     // reads about a quarter of the attributes and passes for the rest.
-    const opens = readoutsCode.indexOf(`className="waiting-stat"`);
+    const opens = readoutsCode.indexOf(`className="count-pill count-waiting waiting-stat"`);
     expect(opens, "the waiting chip is gone from components/TopbarReadouts.tsx").toBeGreaterThan(-1);
     const chip = readoutsCode.slice(opens, readoutsCode.indexOf("</button>", opens));
     expect(chip).not.toMatch(/\brole=/);

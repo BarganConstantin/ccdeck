@@ -446,7 +446,7 @@ describe("every surface that prints one of these figures prints the shared label
     // The strip is components/TopbarReadouts.tsx's; it ends where the next
     // component there starts.
     const readouts = code(read("components/TopbarReadouts.tsx"));
-    const opens = readouts.indexOf(`<span className="status">`);
+    const opens = readouts.indexOf(`className="status"`);
     expect(opens, "the .status strip is gone from components/TopbarReadouts.tsx").toBeGreaterThan(-1);
     const next = readouts.indexOf("export function", opens);
     const strip = readouts.slice(opens, next === -1 ? undefined : next);

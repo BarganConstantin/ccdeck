@@ -220,9 +220,11 @@ describe("the press is the chip's own check, under the same rules", () => {
     expect(await runUpdateCheck(async () => null, async () => {})).toBe("unreachable");
   });
 
-  it("is the same loadVersion the chip calls, from the same version check", () => {
-    // The chip's healthy branch forces the check as it opens the dialog.
-    expect(read("../components/VersionChip.tsx")).toContain("onClick={() => { openReleaseNotes(); loadVersion(true); }}");
+  it("is the same loadVersion the bar's version check hands out, from the same version check", () => {
+    // The plain chip, whose click forced the check as it opened the dialog, left
+    // the bar (V4's Figma: the version chip only when needed); this press is
+    // where the forced check lives now, and the bar's chip no longer calls it.
+    expect(read("../components/VersionChip.tsx")).not.toContain("loadVersion(true)");
     // The button runs the press over the dialog's versionCheck…
     expect(read("../components/ReleaseActions.tsx")).toContain("await runUpdateCheck(versionCheck.loadVersion);");
     // …which is the one App.tsx hands the topbar, where the chip is.

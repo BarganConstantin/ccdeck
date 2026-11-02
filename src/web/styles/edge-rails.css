@@ -215,11 +215,12 @@
   pointer-events: none;
 }
 
-/* ── the two utilities on the bar ────────────────────────────────────────── */
+/* ── Search and Feedback on the bar ──────────────────────────────────────── */
+/* 8 apart, the end group's gap (V4's Figma). */
 .utility-run {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 8px;
 }
 .rail-btn-bar {
   height: var(--ctl-h);
@@ -260,6 +261,19 @@
   line-height: calc(16px + var(--ui-text-increase, 0px));
 }
 .rail-btn-field .kbd { flex: none; }
+/* Feedback (V4's Figma): a 28x28 icon button, radius 6, the glyph centred at
+   14px; its name and its hint keep the word "Feedback". */
+.rail-btn-bar.rail-btn-icon {
+  box-sizing: border-box;
+  width: 28px;
+  height: 28px;
+  gap: 0;
+  padding: 0;
+  justify-content: center;
+  border-radius: var(--r-ctl);
+}
+/* The unread dot on the 28px door's glyph corner, as the stripe's is. */
+.rail-btn-bar.rail-btn-icon .rail-dot { top: 4px; left: auto; right: 4px; }
 @media (hover: hover) and (pointer: fine) {
   .rail-btn-bar.rail-btn-field:hover { border-color: var(--line); background: var(--bg-soft); }
 }

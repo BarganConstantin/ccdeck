@@ -171,8 +171,8 @@
   .pi-dot { forced-color-adjust: none; background: CanvasText; }
   /* The incident mark keeps its shape: a ring for degraded, a grey square for
      maintenance (#1311). */
-  [data-state="degraded"] > .pi-dot { background: Canvas; box-shadow: inset 0 0 0 1.5px CanvasText; }
-  [data-state="maintenance"] > .pi-dot { background: GrayText; }
+  [data-state="degraded"] .pi-dot { background: Canvas; box-shadow: inset 0 0 0 1.5px CanvasText; }
+  [data-state="maintenance"] .pi-dot { background: GrayText; }
 
   /* The network map's marks keep their shapes — filled for on, hollow for
      away, dashed for not paired — in the theme's own inks, and its wires keep
@@ -208,7 +208,7 @@
   .state-pill.state-active::before,
   .bw-mode-dot.on,
   .ap-live::before,
-  .topbar .brand button.v .v-dot { forced-color-adjust: none; background: Highlight; }
+  .topbar button.v .v-dot { forced-color-adjust: none; background: Highlight; }
   /* An open panel's line on its stripe, or on the dock's top edge, is a
      fill, which the theme paints Canvas like the stripe under it: it opts out
      and draws in the highlight, so open and closed still differ once the
