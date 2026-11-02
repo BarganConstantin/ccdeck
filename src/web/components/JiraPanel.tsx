@@ -318,7 +318,7 @@ export default function JiraPanel({ connection: conn, api, assetUrl, prefs, narr
       );
     }
     if (!overview) {
-      return <IntegrationSkeleton label={t("integrations.panel.readingBoard")} rows={6} />;
+      return <IntegrationSkeleton label={t("integrations.panel.readingBoard")} rows={5} />;
     }
     return (
       <>
@@ -388,7 +388,7 @@ export default function JiraPanel({ connection: conn, api, assetUrl, prefs, narr
         <span id="jira-board-layer" className="jr-board-layer">
           <button type="button" id="jira-board-button" className="btn jr-board-btn" aria-label={t("integrations.panel.boardAria", { name: boardLabel })} title={[...new Set([overview?.board.name || boardName, overview?.board.projectName].filter(Boolean))].join(" · ")} aria-haspopup="dialog" aria-expanded={picker}
             aria-controls={picker ? "jira-board-picker" : undefined} onClick={() => setPicker(p => !p)}>
-            <span className="jr-board-btn-label">{t("integrations.panel.board")}</span>
+            <span className="jr-board-btn-label">{t("integrations.panel.boardPrefix")}</span>
             <span className="jr-board-btn-name">{boardLabel}</span>
             <Chevron open={picker} />
           </button>
@@ -421,7 +421,7 @@ export default function JiraPanel({ connection: conn, api, assetUrl, prefs, narr
 
       <IntegrationSplit
         storageKey="jira"
-        automaticDetailShare={0.4}
+        automaticDetailShare={0.4277}
         list={<div className="jr-list-scroll" id={scrollerId}>{list}</div>}
         detail={detail}
         onBack={back}

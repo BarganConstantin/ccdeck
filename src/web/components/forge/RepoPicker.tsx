@@ -1,8 +1,10 @@
 // The project (GitLab) or repository (GitHub) the panel's tabs read, as the
 // toolbar's first control (#2179).
 //
-// A button that names the current one — the group quiet, the project's own
-// name last and never cut — or "All projects" where the tab reads across them.
+// A button that names the current one — the group as a quiet prefix that is
+// cut first, with an ellipsis, when the room runs short, and the project's own
+// name last and never cut, so acme/api and acme-forks/api still read apart by
+// touch and keyboard — or "All projects" where the tab reads across them.
 // It opens a popover the way the radio's filters do (AnchoredPopover, with
 // RadioFilter's combobox-and-listbox keys): a search the forge answers, so a
 // project on the fourth page is one word away; the unfiltered list by recent
@@ -13,9 +15,8 @@
 // integrations host's modal, so the popover is drawn inside that dialog —
 // under its aria-modal boundary and above its scrim — rather than on <body>,
 // where the modal would cover it and a screen reader would treat it as outside
-// the dialog. The span is also what it is anchored to: the deck's popovers
-// end-align with their anchor, and the span is the popover's width with the
-// button at its start, so the list opens under the button, the way a select
+// the dialog. The span is also what it is anchored to, and the popover is
+// start-aligned with it, so the list opens under the button, the way a select
 // does, instead of running out of the panel's left edge.
 //
 // ESCAPE IS ANSWERED HERE as well as by the deck's dismiss stack, and stopped,
@@ -83,6 +84,7 @@ export default function RepoPicker({ value, allowAll, onChange }: Props) {
           portalRootId={`${id}-layer`}
           id={`${id}-popup`}
           className="fgl-repo-pop"
+          align="start"
           role="dialog"
           labelledBy={`${id}-trigger`}
           onClose={close}
@@ -189,7 +191,7 @@ function RepoOptions({ value, allowAll, onPick, onEscape }: {
       </label>
       <div ref={list} className="fgl-repo-scroll">
         {repos.error && items && <ReadFailure error={repos.error} onRetry={repos.reload} compact />}
-        {phase === "loading" && <LoadingRows rows={4} label={t("forge.loadingNoun", { noun: plural })} />}
+        {phase === "loading" && <LoadingRows variant="lines" rows={4} label={t("forge.loadingNoun", { noun: plural })} />}
         {phase === "failed" && repos.error && <ReadFailure error={repos.error} onRetry={repos.reload} />}
         {phase === "empty" && (
           <p className="fgl-repo-none" role="status">{search ? t("forge.noMatch", { noun: plural, query: search }) : t("forge.repos.none", { repos: plural })}</p>

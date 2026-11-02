@@ -35,15 +35,19 @@ describe("the selected row in an integration panel", () => {
 
   it("declares one fill, one hover fill and one ink for every word, on the host's modal", () => {
     const props = declarations(host, ".ig-modal");
-    expect(props["ig-sel-fill"]).toBe("var(--accent-dim)");
-    expect(props["ig-hover-fill"]).toBe("var(--ctl-fill)");
+    // CHANGED ON PURPOSE (V4's Figma): a selected row is the kit's neutral --selected, not the
+    // accent wash, and the hover is a lighter text tint so the two stay apart (checked below).
+    expect(props["ig-sel-fill"]).toBe("var(--selected)");
+    expect(props["ig-hover-fill"]).toBe("color-mix(in srgb, var(--text) 2%, transparent)");
     expect(props["ig-sel-ink"]).toBe("var(--text)");
     expect(props["ig-sel-muted"]).toBe("var(--text)");
   });
 
-  it("leaves the app-wide --accent-dim alone and overrides only the palettes it fails in", () => {
+  it("leaves the app-wide --accent-dim alone and overrides no palette", () => {
+    // CHANGED ON PURPOSE (V4's Figma): the neutral --selected clears the floors in every palette
+    // (measured below), so the two Gruvbox accent mixes the old wash needed are gone.
     const overridden = THEMES.filter(t => "ig-sel-fill" in declarations(host, `:root[data-theme="${t}"] .ig-modal`));
-    expect(overridden.sort()).toEqual(["gruvbox-dark", "gruvbox-material"]);
+    expect(overridden).toEqual([]);
     expect(host).not.toMatch(/--accent-dim\s*:/);
   });
 
