@@ -25,7 +25,9 @@ const radiusOf = (selector: string) => {
   return /(?:^|[;\s])border-radius\s*:\s*([^;]+)/.exec(body)?.[1].trim() ?? null;
 };
 
-const CANVAS = { ".agent-node": "--r-node", ".recap-note": "--r-node", ".cluster-card": "--r-cluster" };
+// CHANGED ON PURPOSE (V4's Figma, Drag trash): the drop target is a canvas
+// object at the node's radius, so it joins the canvas tier.
+const CANVAS = { ".agent-node": "--r-node", ".recap-note": "--r-node", ".drag-trash-zone": "--r-node", ".cluster-card": "--r-cluster" };
 
 describe("the canvas's radius tier is named beside the chrome's (#1288)", () => {
   it("declares both tiers in the one geometry block, at the values the sheet drew", () => {

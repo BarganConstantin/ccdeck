@@ -50,12 +50,15 @@ describe("V4's card frame", () => {
   it("is a column with a 2px gap, 8px above and below scaled by the density, 10px at the sides", () => {
     expect(decl(".agent-node", "flex-direction")).toBe("column");
     expect(decl(".agent-node", "gap")).toBe("2px");
-    // The left side is 4px wider than V4's 10: the session stripe sits there.
-    // CHANGED ON PURPOSE (browser round 2): 8px * --ui-space gave 5.6px at Compact,
-    // not Figma's 8. The vertical padding is 8 at Compact (space 0.7) and 10 at
-    // Default (space 1, what the card has had), and keeps growing with density.
-    const v = "calc(8px + (var(--ui-space, 1) - 0.7) * 20px / 3)";
-    expect(decl(".agent-node", "padding")).toBe(`${v} 10px ${v} 14px`);
+    // CHANGED ON PURPOSE (V4's Figma, Agent / Card): the left side was 4px wider
+    // than V4's 10 for the session stripe; the stripe is gone, so it is 10 too.
+    // (Browser round 2: 8px * --ui-space gave 5.6px at Compact, not Figma's 8.
+    // The vertical padding is 8 at Compact (space 0.7) and 10 at Default (space
+    // 1, what the card has had), and keeps growing with density.)
+    // V4 draws the 1px edge inside the 8 and 10, so CSS pads 1px less on each
+    // side to land on the same outer box.
+    const v = "calc(8px + (var(--ui-space, 1) - 0.7) * 20px / 3 - 1px)";
+    expect(decl(".agent-node", "padding")).toBe(`${v} calc(10px - 1px)`);
     const at = (space: number) => 8 + (space - 0.7) * 20 / 3;
     expect([0.3, 0.5, 0.7, 1, 1.4].map(x => +at(x).toFixed(2))).toEqual([5.33, 6.67, 8, 10, 12.67]);
   });
@@ -67,37 +70,29 @@ describe("V4's card frame", () => {
 });
 
 describe("what the restyle does not touch", () => {
-  it("keeps the shadow and its hover lift (an open owner decision)", () => {
-    expect(decl(".agent-node", "box-shadow")).toBe("var(--shadow-1)");
-    expect(decl(".agent-node:hover", "box-shadow")).toBe("var(--shadow-2)");
+  // CHANGED ON PURPOSE (owner decision, V4's Agent / Card): no shadow at rest or
+  // under the pointer in either theme, and no session stripe: hue stays on the
+  // wires. These replace the tests that held the shadow, its lift, the stripe
+  // and the three state borders.
+  it("has no shadow, at rest or lifted, and the hover is a tint", () => {
+    expect(decl(".agent-node", "box-shadow")).toBe("none");
+    expect(sheet).not.toMatch(/(?:^|\})\s*[^{}]*\.agent-node:hover\s*\{[^}]*box-shadow/);
+    expect(decl(".agent-node:hover", "background")).toBe("color-mix(in srgb, var(--text) 6%, var(--panel))");
   });
-  it("keeps the session stripe: the session's identity on the board", () => {
-    expect(decl(".agent-node .accent-stripe", "width")).toBe("4px");
-    expect(decl(".agent-node .accent-stripe", "background")).toBe("var(--accent)");
-    expect(decl(".agent-node .accent-stripe", "opacity")).toBe("0.7");
-    expect(node).toContain('<span className="accent-stripe" />');
+  it("has no session stripe", () => {
+    expect(sheet).not.toMatch(/\.agent-node \.accent-stripe/);
+    expect(node).not.toContain("accent-stripe");
+    expect(html({})).not.toContain("accent-stripe");
   });
-  // CHANGED ON PURPOSE: each state's edge reads --card-alarm first, so a card
-  // blocked on you is edged in --warn (V4 decision 22); the state values
-  // behind it are the same three.
-  it("keeps the state borders exactly, behind the alarm's", () => {
-    expect(decl(".agent-node.state-active", "border-color")).toBe("var(--card-alarm, var(--inflight))");
-    expect(decl(".agent-node.state-done", "border-color")).toBe("var(--card-alarm, rgba(134,239,172,0.5))");
-    expect(decl(".agent-node.state-err", "border-color")).toBe("var(--card-alarm, rgba(252,165,165,0.6))");
-  });
-  it("edges a card blocked on you in --warn, in every theme", () => {
-    // Figma's Agent / Card in State Waiting has a --warn edge, the colour of
-    // its word and its ask line. Every theme's twin of a state edge reads the
-    // variable first, so none outranks it on specificity.
-    expect(decl(".agent-node[data-alarm]", "--card-alarm")).toBe("var(--warn)");
-    // Any rule whose selector names a card's state edge, whatever else the
-    // selector says (a :where(), a list, a theme prefix), and sets border-color.
+  it("edges every state in --line and only Waiting in --warn, in every theme", () => {
+    expect(decl(".agent-node", "border")).toBe("1px solid var(--line)");
+    expect(decl(".agent-node[data-alarm]", "border-color")).toBe("var(--warn)");
+    // No rule names a card's state edge (a :where(), a list, a theme prefix)
+    // and sets border-color.
     const edges = [...sheet.matchAll(/([^{}]*)\{([^{}]*)\}/g)]
-      .filter(m => /\.agent-node\.state-(?:active|done|err)\b/.test(m[1]))
-      .map(m => [m[1].trim(), /border-color:\s*([^;]+);?/.exec(m[2])?.[1]] as const)
-      .filter(([, e]) => e !== undefined);
-    expect(edges.length).toBeGreaterThanOrEqual(11);
-    for (const [sel, e] of edges) expect(e, sel).toMatch(/^var\(--card-alarm, /);
+      .filter(m => /\.agent-node\.state-(?:active|done|err)\b(?!\s*>)/.test(m[1]) && /border-color/.test(m[2]))
+      .map(m => m[1].trim());
+    expect(edges).toEqual([]);
     expect(html({ state: "active", waiting: { kind: "permission", since: 1 } as never })).toMatch(/class="agent-node state-active" data-alarm=""/);
     expect(html({ state: "done", waiting: { kind: "idle", since: 1 } as never })).not.toMatch(/agent-node[^>]*data-alarm/);
   });
@@ -219,9 +214,13 @@ describe("the foot", () => {
     expect(decl(".agent-node .foot", "gap")).toBe("0 6px");
     expect(decl(".agent-node .foot .foot-sep", "color")).toBe("var(--muted)");
   });
-  it("closes with the sub-agent count after a spacer, in the same grammar (no agents glyph in the icon set)", () => {
-    expect(decl(".agent-node .foot .spawn-badge", "margin-left")).toBe("auto");
+  // CHANGED ON PURPOSE (V4's Figma, Agent / Card): the sub-agent count is the
+  // number and the kit's Agents icon, 4px apart, at the foot's end (the spacer
+  // is the end group's auto margin), no longer "→ N".
+  it("closes with the sub-agent count and the Agents icon after a spacer", () => {
+    expect(decl(".agent-node .foot .foot-end", "margin-left")).toBe("auto");
     expect(decl(".agent-node .foot .spawn-badge", "color")).toBe("var(--text-secondary)");
+    expect(decl(".agent-node .foot .spawn-badge", "gap")).toBe("4px");
     expect(sheet).not.toMatch(/(?:^|\})\s*\.spawn-badge\s*\{/);
   });
   it("reads cost · time · tools · tokens, then the sub-agent count", () => {
@@ -234,7 +233,7 @@ describe("the foot", () => {
     expect(at("<b>5</b> tools")).toBeLessThan(at("tokens-meta"));
     expect(at("tokens-meta")).toBeLessThan(at("spawn-badge"));
     expect(foot).toContain('<span class="foot-sep" aria-hidden="true">·</span>');
-    expect(foot.endsWith("→ 2</span>")).toBe(true);
+    expect(foot).toMatch(/<span class="foot-end"><span class="spawn-badge"[^>]*>2<svg[^>]*>[\s\S]*<\/svg><\/span><\/span>$/);
   });
   it("starts at the clock when there is no cost, and has no dot before the first item", () => {
     const foot = /<div class="foot">([\s\S]*?)<\/div>/.exec(html({}))![1];
@@ -279,13 +278,14 @@ describe("review fixes", () => {
     }
   });
 
-  it("gives the rows Figma does not draw one shared top spacing, and no margin of their own", () => {
-    const rows = [".waiting-row", ".stop-row", ".continued-row", ".approval-blind-row", ".plan-row", ".tool-spark-row"];
+  // CHANGED ON PURPOSE (V4's Figma, Agent / Card): the ask row (waiting, and a
+  // stop with its reason) is drawn, so it sits on the column's 2px gap alone
+  // (that is what makes a Waiting card 88); the activity row is gone. The rows
+  // Figma still does not draw share the 4px top spacing.
+  it("gives the rows Figma does not draw one shared top spacing, and the ask row none", () => {
+    const rows = [".continued-row", ".approval-blind-row", ".plan-row"];
     expect(decl(`.agent-node :is(${rows.join(", ")})`, "margin-top")).toBe("calc(4px * var(--ui-space, 1))");
-    for (const r of rows) {
-      const sel = r === ".tool-spark-row" ? r : `.agent-node ${r}`;
-      expect(body(sel), sel).not.toMatch(/margin(-top)?\s*:/);
-    }
+    for (const r of [...rows, ".waiting-row", ".stop-row"]) expect(body(`.agent-node ${r}`), r).not.toMatch(/margin(-top)?\s*:/);
     expect(body(".agent-node .foot")).not.toMatch(/margin/);
     expect(decl(".agent-node", "gap")).toBe("2px");
   });

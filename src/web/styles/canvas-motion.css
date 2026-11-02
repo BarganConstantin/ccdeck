@@ -138,9 +138,6 @@
   .usage-panel { animation: fadeIn 140ms ease both; }
   /* The left column's two panels: answered with the column itself, at the
      end of styles/left-column.css. */
-  /* The bar is the feedback and it stays; only the rise goes. Reduced motion
-     means gentler, not blind. */
-  .tool-spark-bar.latest { animation: none; }
   .tool-burst .tb-spin,
   .tool-burst .tb-mark,
   .tool-burst.status-inflight .tb-emoji,

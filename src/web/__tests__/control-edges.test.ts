@@ -1293,6 +1293,11 @@ describe("every control that draws a boundary draws one that can be seen (1.4.11
       // A key cap: named by the key written in it (and `.qo-esc` by its word);
       // V4's kit gives it the --line hairline, a label's rim and not a boundary.
       "kbd.qo-key", ".qo-esc", ".qo-foot kbd", ".fb-shortcut kbd",
+      // The category filter's pills (V4's Figma): a --line rim at rest and the
+      // accent's while showing. Each is named by its dot and its word, the
+      // identification 1.4.11 accepts in place of a boundary, and the showing
+      // state is also filled with --accent-16.
+      ".cat-filter", ".cat-filter.off",
       ".settings-filter-field:focus-visible", ".sm-select:focus-visible", ".ap-manage-input:focus-visible",
       ".aa-field input:focus-visible", ".tr-input:focus-visible", ".tr-select:focus-visible",
       ".qh-window select:focus-visible", ".jr-move-pop select:focus-visible", ".jr-transition select:focus-visible",

@@ -18,7 +18,7 @@ import {
 } from "../card-row-squeeze";
 // The card's words — its state, a block's sentence and label — which the
 // session list, the peek and the topbar say too. See agent-copy.ts.
-import { agentKindLabel, spawnBadgeTitle, subRowTitle, waitingLabel, waitingSentence } from "../agent-copy";
+import { agentKindLabel, categoryLabel, spawnBadgeTitle, subRowTitle, waitingLabel, waitingSentence } from "../agent-copy";
 import { isAlarming } from "../ambient-counts";
 // The card's token count, which used to be a private three-tier `fmtTok` here —
 // byte-identical to the two copies #323 deleted, and the fourth one it missed
@@ -32,18 +32,20 @@ import { elapsed } from "../duration";
 // the column cap in #521 is only sound while both surfaces show the same field.
 import { sessionDisplay } from "../session-display";
 import { ContextDonut } from "./ContextModal";
-import type { AgentNodeData, PlanItem, ToolCall, WaitingBlock } from "../types";
+import type { AgentNodeData, PlanItem, WaitingBlock } from "../types";
 import { useNow } from "../use-now";
 import { useLanguage, useT } from "../i18n";
 import { boardNote, noteTag } from "../session-note";
 import { toggleRecapDismissed, useRecapDismissed } from "../recap-note";
-import { cardState, drawnState, faceSignal, stateMarkKind, type BranchSummary, type CardState } from "../node-face";
+import { cardState, drawnState, faceSignal, stateMarkKind, type BranchSummary, type CardState, type StateMarkKind } from "../node-face";
 // The agent's own checklist, as one line (#2157). See agent-plan.ts.
 import { planSummary, planTitle, type PlanSummary } from "../agent-plan";
 import { primaryDisplayFor, toolSubject } from "../tool-skin";
-// The activity chart's counting and its scale. See tool-spark.ts.
-import { barHeight, BUCKETS, SPARK_H, SPARK_W, sparkWindow } from "../tool-spark";
+// The tool kinds the foot draws as icons, from the calls the card holds.
+import { recentToolKinds, TOOL_KIT_ICON } from "../card-tool-icons";
 import { AlertMark, StateMark } from "./StateMark";
+import { KitIcon, KitStateGlyph, type KitStateName } from "./kit-icons";
+import { CostChipTip } from "./CostTip";
 import { NoteMark } from "./RecapMark";
 // The words for a turn that stopped on an error. See stop-failure-copy.ts.
 import { stopRowLabel, stopTooltip } from "../stop-failure-copy";
@@ -208,6 +210,8 @@ export function AgentCard({ data, handles = false }: { data: CardData; handles?:
   const isRecap = note?.kind === "recap";
   // The cost slot at the end of the meta row, decided once (card-cost.ts).
   const cost = costChip(data);
+  // The kinds of tool the session used, for the foot's icons.
+  const toolKinds = recentToolKinds(data.tools);
 
   // THE FOOT STAYS ONE LINE (V4): while it overflows, meta items drop in a
   // fixed order (card-row-squeeze.ts). Measured after layout like the head's
@@ -262,7 +266,6 @@ export function AgentCard({ data, handles = false }: { data: CardData; handles?:
     // reads well on a #14161b node is not the one that reads on a white one,
     // and .tokens-meta / .spawn-badge are text.
     <div className={cls} data-alarm={state.tone === "waiting" ? "" : undefined} style={{ "--session-hue": hue } as React.CSSProperties}>
-      <span className="accent-stripe" />
       {handles && <Handle type="target" position={Position.Left} style={{ background: "transparent", border: "none" }} />}
 
       <div className="head">
@@ -283,28 +286,9 @@ export function AgentCard({ data, handles = false }: { data: CardData; handles?:
               : null}
           {data.restoredFromLog &&<span className="synth-tag" title={data.provider === "claude" ? t("board.node.restoredRegistry") : t("board.node.restoredLog")}>{t("board.node.restored")}</span>}
           {data.synthetic && <span className="synth-tag" title={t("board.node.synthesised")}>?</span>}
-          {/* Claude Code's ※, in the session's colour, beside the name: the
-              card's own mark that a recap is there, and the switch for its
-              note. The note opens by itself, so this is how it is put away
-              and brought back. The click stops here, so it does not also
-              select the card. */}
-          {board && noteKey && (
-            <button
-              type="button"
-              className="glyph-btn recap-pin"
-              aria-label={isRecap ? t("board.node.recapLabel") : note ? t("board.node.noteLabel", { tag: noteTag(note.kind) }) : t("board.node.notePlan")}
-              aria-expanded={noteOpen}
-              title={isRecap
-                ? (noteOpen ? t("board.node.hideRecap") : t("board.node.showRecap"))
-                : note
-                  ? (noteOpen ? t("board.node.hideNote") : t("board.node.showNote"))
-                  : (noteOpen ? t("board.node.hidePlan") : t("board.node.showPlan"))}
-              onClick={e => { e.stopPropagation(); toggleRecapDismissed(noteKey); }}
-            ><NoteMark recap={isRecap} /></button>
-          )}
         </div>
         <div className="head-right">
-          <StateLine state={state} />
+          <StateLine state={state} under={stateMarkKind(shown)} />
           {hasContextSignal && data.onOpenContext && (
             <ContextDonut
               currentContextTokens={currentContextTokens}
@@ -403,24 +387,26 @@ export function AgentCard({ data, handles = false }: { data: CardData; handles?:
         return plan && data.plan ? <PlanRow plan={plan} items={data.plan.items} /> : null;
       })()}
 
-      {(data.tools.length > 0 || (data.outputs?.length ?? 0) > 0) && (
-        <ToolRateSpark tools={data.tools} outputs={data.outputs} />
-      )}
-
-      {/* THE FOOT (V4): cost · time, then the figures that stay (tools, errors,
-          in-flight, tokens), a spacer, and the sub-agent count at the end. The
-          deck has no per-tool icon set, so Figma's tool icons are not drawn;
-          nor an agents glyph, so the count stays "→ N". Items are separated by
-          a dot, and the row stays one line by dropping meta items (see .foot). */}
+      {/* THE FOOT (V4): up to three icons for the tool kinds the session used,
+          latest first, then cost · time, then the figures that stay (tools,
+          errors, in-flight, tokens), a spacer, and at the end the sub-agent
+          count with its icon and the recap pin. Items are separated by a dot,
+          and the row stays one line by dropping meta items (see .foot). The
+          icons replace the activity sparkline: same calls, said as kinds. */}
       <div className="foot" ref={footRef}>
+        {toolKinds.length > 0 && (
+          <span className="foot-tools" title={toolKinds.map(k => categoryLabel(k, t)).join(" · ")}>
+            {toolKinds.map(k => <KitIcon key={k} name={TOOL_KIT_ICON[k]} />)}
+          </span>
+        )}
         {interleave([
           cost?.kind === "unpriced" && (
-            <span key="cost" className="cost-unpriced" title={cost.tt}>{t("insights.cost.notPriced")}</span>
+            <CostChipTip key="cost" className="cost-unpriced" tip={cost.tip}>{t("insights.cost.notPriced")}</CostChipTip>
           ),
           cost?.kind === "spent" && (
-            <span key="cost" className="cost-meta" title={cost.tt}>
+            <CostChipTip key="cost" className="cost-meta" tip={cost.tip}>
               <b>{fmtCost(cost.total)}{cost.floor ? "+" : ""}</b>
-            </span>
+            </CostChipTip>
           ),
           // A floor, and marked as one, when the deck did not see this session
           // start (#822). `startedAt` is the first event THIS page applied, and
@@ -448,8 +434,33 @@ export function AgentCard({ data, handles = false }: { data: CardData; handles?:
             </span>
           ),
         ])}
-        {data.childCount > 0 && (
-          <span className="spawn-badge" title={spawnBadgeTitle(data.childCount, t)}>→ {data.childCount}</span>
+        {(data.childCount > 0 || (board && noteKey)) && (
+          <span className="foot-end">
+            {data.childCount > 0 && (
+              <span className="spawn-badge" title={spawnBadgeTitle(data.childCount, t)}>{data.childCount}<KitIcon name="agents" /></span>
+            )}
+            {/* Claude Code's ※, in the session's colour, beside the name: the
+                card's own mark that a recap is there, and the switch for its
+                note. The note opens by itself, so this is how it is put away
+                and brought back. The click stops here, so it does not also
+                select the card. */}
+            {board && noteKey && (
+              <button
+                type="button"
+                className="glyph-btn recap-pin"
+                aria-label={isRecap ? t("board.node.recapLabel") : note ? t("board.node.noteLabel", { tag: noteTag(note.kind) }) : t("board.node.notePlan")}
+                aria-expanded={noteOpen}
+                data-open={noteOpen ? "" : undefined}
+                title={isRecap
+                  ? (noteOpen ? t("board.node.hideRecap") : t("board.node.showRecap"))
+                  : note
+                    ? (noteOpen ? t("board.node.hideNote") : t("board.node.showNote"))
+                    : (noteOpen ? t("board.node.hidePlan") : t("board.node.showPlan"))}
+                onClick={e => { e.stopPropagation(); toggleRecapDismissed(noteKey); }}
+              ><NoteMark recap={isRecap} /></button>
+            )}
+
+          </span>
         )}
       </div>
 
@@ -563,10 +574,12 @@ function Elapsed({ start, end }: { start: number; end?: number }) {
  *  the state's token (V4). The mark is decoration beside the word, so the word
  *  is the channel that carries the state to a reader (1.4.1) and to the card's
  *  accessible name (agentAriaLabel). */
-function StateLine({ state }: { state: CardState }) {
+const STATE_GLYPH: Record<CardState["tone"], KitStateName> = { active: "working", waiting: "waiting", done: "done", err: "error" };
+
+function StateLine({ state, under }: { state: CardState; under: StateMarkKind }) {
   return (
     <span className="state-line" data-tone={state.tone}>
-      {state.mark === "alert" ? <AlertMark /> : <StateMark kind={state.mark} />}
+      <KitStateGlyph name={STATE_GLYPH[state.tone]} className="state-mark" kind={state.mark === "alert" ? under : state.mark} />
       <span className="state-word">{state.word}</span>
     </span>
   );
@@ -623,46 +636,6 @@ function WaitingRow({ waiting }: { waiting: WaitingBlock }) {
         : <span className="waiting-dot" aria-hidden />}
       <span className="waiting-said">{waitingLabel(waiting, t)}</span>
       <b>{elapsed(waiting.since, undefined, now)}</b>
-    </div>
-  );
-}
-
-/** Sparkline of tool starts per bucket over the last 60s. Most-recent
- *  bucket lives on the right and is highlighted while it's the active one. */
-function ToolRateSpark({ tools, outputs }: { tools: ToolCall[]; outputs?: number[] }) {
-  // Its own beat (#873): the window slides under a card that has not changed.
-  const t = useT();
-  const now = useNow(1000);
-  const { counts, title } = sparkWindow(tools, outputs, now, t);
-  const barW = SPARK_W / BUCKETS;
-  return (
-    <div className="tool-spark-row" title={title}>
-      <svg className="tool-spark" width={SPARK_W} height={SPARK_H} viewBox={`0 0 ${SPARK_W} ${SPARK_H}`} aria-hidden>
-        {counts.map((c, i) => {
-          const h = barHeight(c);
-          const isLatest = i === BUCKETS - 1 && c > 0;
-          const isActive = c > 0;
-          const cls = `tool-spark-bar${isActive ? " active" : ""}${isLatest ? " latest" : ""}`;
-          return (
-            <rect
-              // THE LEADING BAR IS KEYED BY WHAT IT COUNTS, so React remounts
-              // it the moment that count changes and the rise below plays on
-              // exactly the event it is reporting. Everything behind it keeps
-              // its index: those buckets are time slices sliding leftwards, and
-              // remounting them would restart an animation for the passage of
-              // time rather than for anything that happened.
-              key={isLatest ? `landed:${c}` : i}
-              x={i * barW + 0.4}
-              y={SPARK_H - h}
-              width={Math.max(0.5, barW - 1)}
-              height={h}
-              rx={0.8}
-              className={cls}
-            />
-          );
-        })}
-      </svg>
-      <span className="tool-spark-label">60s</span>
     </div>
   );
 }
