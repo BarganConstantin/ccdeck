@@ -211,7 +211,6 @@ const catalog: Catalog = {
   "shell.banner.cannotInstall": "no se puede instalar desde aquí",
   "shell.banner.copyTitle": "Copiar al portapapeles",
   "shell.banner.copiedHint": "copiado",
-  "shell.banner.copyHint": "copiar",
   "shell.banner.restartedTo": "Reiniciado; ahora se ejecuta v{version}.",
   "shell.banner.replayed": "El lienzo se reconstruyó desde el registro de eventos.",
   "shell.banner.autoOff": "reinicio automático desactivado",

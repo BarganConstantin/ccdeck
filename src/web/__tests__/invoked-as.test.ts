@@ -247,7 +247,8 @@ describe("what gets said, and to whom", () => {
       expect(`${notice.said} ${notice.fix}`).not.toMatch(/[!]/);
     }
     expect(banner).toContain('t("shell.banner.oldName", { old: oldName, product: PRODUCT })');
-    expect(shellEn["shell.banner.oldName"]).toBe("{old} still works — the deck is called {product} now.");
+    expect(shellEn["shell.banner.oldName"]).toBe("{old} still works. The deck is called {product} now.");
+    // CHANGED ON PURPOSE (V4's Figma): two sentences with full stops, no em dash, as V4 writes the old-name banner.
     // Only the first line is written in the browser. The second one is renameNotice's
     // `fix`, handed over by /api/version — see "one fact, one place" below for
     // why it stopped being written twice.

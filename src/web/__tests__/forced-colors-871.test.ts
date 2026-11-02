@@ -38,7 +38,7 @@ const opts = (sel: string) => /forced-color-adjust:\s*none/.test(bodyOf(sel));
 const RESTING_WORDED = [
   ".topbar .status .pill.paused::before",
   ".topbar .status .pill.dead::before",
-  ".conn-banner .conn-dot",
+  // CHANGED ON PURPOSE (V4's Figma): the lost-connection mark is a stroked kit icon in currentColor, which a Contrast theme repaints in the text colour by itself, so there is no dot rule left to redraw.
   ".waiting-dot",
   ".ap-dot",
 ];
@@ -46,13 +46,17 @@ const RESTING = [".sl-dot::before", ".bw-dot", ".bw-mode-dot", ".bw-prof-dot"];
 // The version chip's dot is the accent in every state now (V4's chip), so the
 // one rule names it; the ready chip's own recolouring rule, which had to be
 // named here as well, is gone.
-const LIVE = [".sl-dot.state-active::before", ".state-pill.state-active::before", ".bw-mode-dot.on", ".topbar button.v .v-dot"];
-const METERS = [".sysdetail .sd-fill", ".sysdetail .sd-core-fill", ".ctx-window-fill", ".session-summary .ss-tt-bar-fill"];
+const LIVE = [".sl-dot.state-active::before", ".bw-mode-dot.on", ".topbar button.v .v-dot"];
+// CHANGED ON PURPOSE (V4's Figma): the recap draws its tools as chips and a day as a table, so the
+// recap's tool bar and the history dialog's per-model meter are gone from these three lists.
+// The context dialog's meter and its two levels, and a tool's failed bar in Tool activity with its
+// track, are listed here too (CHANGED ON PURPOSE, V4's Figma).
+const METERS = [".sysdetail .sd-fill", ".sysdetail .sd-core-fill", ".ctx-window-fill", ".ctx-modal .ctx-window-fill", '.ctx-modal .ctx-window-fill[data-level="high"]', '.ctx-modal .ctx-window-fill[data-level="full"]', ".ta-list[data-sort=failed] .ta-track > .ta-bar"];
 // Account capacity's state marks (#1713) are not here on purpose: they are
 // drawn as borders, which a Contrast theme repaints in CanvasText with no rule
 // of this block's, a filled mark staying filled and a hollow one hollow.
-const OWN_COLOUR = [".qb-fill", ".ap-lane-fill", ".ap-report-meter i", ".uh-bar-seg", ".uh-agent-seg", ".uh-model-bar-fill", ".uh-legend-dot", ".cost-bar .cb-seg"];
-const TRACKS = [".qb-track", ".ap-lane-track", ".sd-track", ".sd-core", ".session-summary .ss-tt-bar", ".uh-model-bar", ".uh-agent-bar", ".cost-bar", ".ap-report-meter"];
+const OWN_COLOUR = [".qb-fill", ".ap-lane-fill", ".ap-report-meter i", ".uh-bar-seg", ".uh-agent-seg", ".uh-legend-dot", ".cost-bar .cb-seg"];
+const TRACKS = [".qb-track", ".ap-lane-track", ".sd-track", ".sd-core", ".uh-agent-bar", ".cost-bar", ".ap-report-meter", ".ta-track"];
 
 describe("the deck under a Windows Contrast theme (#871)", () => {
   it("answers forced colours in exactly one block", () => {

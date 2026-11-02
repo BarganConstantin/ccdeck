@@ -228,7 +228,7 @@
   body .app[data-view="workspace"]:has(.left-column) { grid-template-columns: auto minmax(0, 1fr); }
   .app[data-view="workspace"] .detail {
     position: fixed;
-    top: var(--topbar-h);
+    top: calc(var(--topbar-h) + var(--rating-h, 0px)); /* under the banner strip, so its dismiss stays reachable */
     right: 0;
     bottom: var(--status-room);
     width: min(var(--inspector-w), 100vw);
@@ -243,7 +243,7 @@
   .app[data-view="workspace"] :is(.canvas-wrap, .ws-cell, .stage-dock, .conn-banner, .ver-banner) { grid-column: 1; }
   .app[data-view="workspace"] .left-column {
     position: fixed;
-    top: var(--topbar-h);
+    top: calc(var(--topbar-h) + var(--rating-h, 0px)); /* under the banner strip, so its dismiss stays reachable */
     bottom: var(--status-room);
     left: var(--edge-w);
     z-index: 21;

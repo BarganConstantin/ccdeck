@@ -214,7 +214,6 @@ const catalog: Catalog = {
   "shell.banner.cannotInstall": "nu se poate instala de aici",
   "shell.banner.copyTitle": "Copiază în clipboard",
   "shell.banner.copiedHint": "copiat",
-  "shell.banner.copyHint": "copiază",
   "shell.banner.restartedTo": "Repornit — acum rulează v{version}.",
   "shell.banner.replayed": "Canvasul s-a refăcut din jurnalul de evenimente.",
   "shell.banner.autoOff": "repornire automată oprită",

@@ -33,7 +33,7 @@
 // the sideways scroller itself.
 //
 // The medium dialog since 2026-10-23 (tokens.css, "One dialog frame"): 820px,
-// a 784px content box, where the default 30 days are 26.13px a column on their
+// a 788px content box, where the default 30 days are 26.27px a column on their
 // own share and only 90 days still lean on the floor. The gap stays out: it
 // would cost the default view nothing now, and the floor's arithmetic is the
 // one that has to hold the day the modal narrows again.
@@ -138,11 +138,12 @@ const capPx = (value: string | null): number => {
 const FLOOR = 24;
 
 /** The modal's content box, derived the way the browser derives it. */
-// `.modal.uh-modal` since #874: the dialog composes the shared shell and this
-// rule keeps only what it differs in, its size and its own padding.
+// CHANGED ON PURPOSE (V4's Figma): the dialog is the shared shell's header, body
+// and footer, so the chart's box is the shell body's, 16px a side, not the old
+// 18px padding the dialog itself carried. `.modal.uh-modal` keeps only its width.
 const modalWidth = capPx(decl(".modal.uh-modal", "width"));
-const modalPadding = decl(".modal.uh-modal", "padding")!.split(/\s+/);
-/** `16px 18px 20px` — three values, so left and right are both the second. */
+const modalPadding = decl(".modal-body", "padding")!.split(/\s+/);
+/** `16px` — one value for every side, or the second of three. */
 const padSide = px(modalPadding[modalPadding.length === 1 ? 0 : 1]);
 const contentWidth = modalWidth - 2 * padSide;
 
@@ -176,13 +177,14 @@ const round = (v: number) => Math.round(v * 100) / 100;
 // ── 1. the premise ──────────────────────────────────────────────────────────
 
 describe("the box the chart has to fit its days into", () => {
-  it("is a border box, which is what makes an 820px modal a 784px chart", () => {
+  it("is a border box, which is what makes an 820px modal a 788px chart", () => {
     // Every number in this file assumes the declared width IS the border box.
     // The sheet says so once, globally, and the arithmetic is wrong without it.
     expect(bodyOf("*")).toMatch(/box-sizing\s*:\s*border-box/);
     expect(Number.isNaN(modalWidth)).toBe(false);
     expect(Number.isNaN(padSide)).toBe(false);
-    expect(contentWidth).toBe(784);
+    // CHANGED ON PURPOSE (V4's Figma): the body is 788 wide (820 less 16 a side).
+    expect(contentWidth).toBe(788);
   });
 
   it("holds four presets, and the widest of them is the one that cannot fit", () => {
@@ -257,7 +259,7 @@ describe("every day in the chart is a target somebody can hit", () => {
 
 describe("the chart is the box that scrolls, and only when it has to", () => {
   it("leaves the preset the modal opens on exactly where it was", () => {
-    // 30 columns of 26.13px in 784px, edge to edge, no scrollbar. In the 760px
+    // 30 columns of 26.27px in 788px, edge to edge, no scrollbar. In the 760px
     // modal this was the half of the fix that was easy to lose: a 1px gap gave
     // the default view a horizontal scrollbar for the sake of 25px, and the
     // gap stays out for the window that brings that width back.
@@ -277,7 +279,9 @@ describe("the chart is the box that scrolls, and only when it has to", () => {
     // have been the dialog's: header, totals strip and legend sliding out from
     // under the pointer on the way to the far end of a chart. Same lesson as
     // #369, one modal over.
-    expect(decl(".modal.uh-modal", "overflow")).toBe("auto");
+    // CHANGED ON PURPOSE (V4's Figma): the dialog's scroller is the shell's body,
+    // not the dialog itself; the chart is still the box that slides sideways.
+    expect(decl(".modal-body", "overflow")).toBe("auto");
     expect(declIn(bodyOf(".uh-chart"), "overflow-x")).toBe("auto");
     // Only the presets that cannot fit actually draw a scrollbar; `auto` is
     // what makes that true, and the arithmetic says which ones they are.

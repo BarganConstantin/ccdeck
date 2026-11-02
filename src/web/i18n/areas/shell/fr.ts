@@ -211,7 +211,6 @@ const catalog: Catalog = {
   "shell.banner.cannotInstall": "installation impossible d’ici",
   "shell.banner.copyTitle": "Copier dans le presse-papiers",
   "shell.banner.copiedHint": "copié",
-  "shell.banner.copyHint": "copier",
   "shell.banner.restartedTo": "Redémarré — la v{version} tourne maintenant.",
   "shell.banner.replayed": "Le canevas a été rejoué depuis le journal des événements.",
   "shell.banner.autoOff": "redémarrage auto désactivé",

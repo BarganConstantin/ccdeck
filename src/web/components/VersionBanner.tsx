@@ -15,6 +15,8 @@ import type { useDeckUpgrade } from "../use-deck-upgrade";
 import type { VersionInfo, VersionNotice } from "../use-version-check";
 import { ownRow } from "../own-row";
 import { t, useT } from "../i18n";
+import BannerMark from "./BannerMark";
+import { KitIcon, KitStateGlyph } from "./kit-icons";
 
 // Said in the UI's voice, not npm's. Each of these is a decision we made on
 // purpose, so each gets a reason rather than a disabled button.
@@ -60,17 +62,31 @@ export default function VersionBanner({
   restarting: Restart["restarting"];
 }) {
   const t = useT();
-  return (
-    // Both banners want grid row 2, and a dead connection is the more
-    // urgent of the two — the version notice waits its turn.
-    <div className={`ver-banner ${notice.kind}`} role="status">
+  const update = notice.kind !== "restart";
+  const failed = update && upgradeState === "failed";
+  // The command to run is always shown under an update, in a box of its own
+  // with Copy beside it: the button can fail and the command never does.
+  const command = update ? version?.command : undefined;
+  // The release line, and what a failed install says. The whole failure line is
+  // the title too: a long npm error shrinks to an ellipsis on the row.
+  const isOutText = t("shell.banner.isOut", { product: PRODUCT, to: notice.to, from: notice.from });
+  const failedText = t("shell.banner.failedLine", {
+    what: version?.upgradeMode === "npx" ? t("shell.banner.updateFailed") : t("shell.banner.installFailed"),
+    error: version?.upgrade?.error ?? t("shell.banner.unknownError"),
+  });
+  // The whole command box copies, as the pill it replaced did; a drag that
+  // selects the command by hand is not a press on it.
+  const copyBox = () => { if (!window.getSelection()?.toString()) copyCommand(); };
+  const row = (
+    <>
       {/* Still, until something is actually about to happen. It pulsed for
           days over a fact that does not change, in the one visual grammar
           this deck reserves for "running right now" — and it pulsed
           identically whether or not a restart was counting down, so the one
           moment motion would have carried information was the moment it
           carried none. */}
-      <span className={`ver-dot${restartFuseMs == null ? "" : " armed"}`} />
+      <BannerMark glyph={failed ? "error" : update ? "update" : "restart"} tone={failed ? "err" : "warn"}
+        armed={restartFuseMs != null} />
       {notice.kind === "restart" ? (
         <>
           <strong>{t("shell.banner.installedStale", { to: notice.to, from: notice.from })}</strong>
@@ -137,7 +153,17 @@ export default function VersionBanner({
               one, and contradicts the wordmark directly above it. The
               package belongs where it is actionable — the button's title
               below, which is the command that actually installs. */}
-          <strong>{t("shell.banner.isOut", { product: PRODUCT, to: notice.to, from: notice.from })}</strong>
+          {failed ? (
+            /* The failure leads the row, as V4 draws it: the error mark, what
+               failed and why, and the command to run yourself in the box
+               under it. The version it was trying to reach is in that
+               command, and here on hover. npx installs nothing — its failure
+               is a fetch that came back on the old version, not a broken
+               install. */
+            <strong title={failedText}>{failedText}</strong>
+          ) : (
+            <strong>{t("shell.banner.isOut", { product: PRODUCT, to: notice.to, from: notice.from })}</strong>
+          )}
           {/* One button when we can actually install; the command, always,
               because the button can fail and the command never does.
 
@@ -190,15 +216,11 @@ export default function VersionBanner({
                 : t("shell.update.andRestart")}
             </button>
           )}
-          {upgradeState === "failed" ? (
-            <span className="ver-sub fail" title={version?.upgrade?.error ?? ""}>
-              {/* npx installs nothing — its failure is a fetch that came
-                  back on the old version, not a broken install. */}
-              {t("shell.banner.failedLine", {
-                what: version?.upgradeMode === "npx" ? t("shell.banner.updateFailed") : t("shell.banner.installFailed"),
-                error: version?.upgrade?.error ?? t("shell.banner.unknownError"),
-              })}
-            </span>
+          {failed ? (
+            /* The version line stays on the row, in the secondary tier: the
+               command a failed install leaves is the server's `@latest`, which
+               names no version. */
+            <span className="ver-sub">{isOutText}</span>
           ) : version?.upgradeMode === "npx" ? (
             <span className="ver-sub">
               {version?.canRestart
@@ -213,10 +235,6 @@ export default function VersionBanner({
               {ownRow(UPGRADE_BLOCK_TEXT, version.upgradeBlocked) ?? t("shell.banner.cannotInstall")}
             </span>
           ) : null}
-          <button type="button" className="ver-cmd" onClick={copyCommand} title={t("shell.banner.copyTitle")}>
-            <code>{version?.command}</code>
-            <span className="ver-cmd-hint">{cmdCopied ? t("shell.banner.copiedHint") : t("shell.banner.copyHint")}</span>
-          </button>
         </>
       )}
       {/* A real button, like the five controls beside it. As a
@@ -224,7 +242,29 @@ export default function VersionBanner({
           and its Space branch existed only to undo the global preventDefault
           this handler now never reaches, since ownsKeystroke() leaves a
           focused <button> alone. */}
-      <button type="button" aria-label={t("shell.dismiss")} className="ver-close" onClick={dismissNotice}>×</button>
+      <button type="button" aria-label={t("shell.dismiss")} className="ver-close" onClick={dismissNotice}><KitIcon name="close" /></button>
+    </>
+  );
+  if (!command) {
+    return <div className={`ver-banner ${notice.kind}`} role="status">{row}</div>;
+  }
+  return (
+    // Two rows, as V4 draws an update: the banner row, then the command in a
+    // full-width box of its own with Copy at its end.
+    <div className={`ver-banner ver-stack ${notice.kind}`} role="status">
+      <div className="ver-row">{row}</div>
+      <div className="ver-cmdrow">
+        <div className="ver-cmd" onClick={copyBox} title={t("shell.banner.copyTitle")}>
+          <code>{command}</code>
+          {/* The press is the box's: the button's own click (mouse, Enter or
+              Space) bubbles up to it, so it runs once. The word is said by the
+              banner's status region, which the icon alone could not do. */}
+          <button type="button" className="ver-copy" aria-label={t("shell.banner.copyTitle")}>
+            {cmdCopied ? <KitStateGlyph name="done" /> : <KitIcon name="copy" />}
+          </button>
+          <span className="vis-hidden">{cmdCopied ? t("shell.banner.copiedHint") : ""}</span>
+        </div>
+      </div>
     </div>
   );
 }

@@ -21,7 +21,7 @@ import { sheetText } from "./sheet-source";
 
 vi.mock("react", async () => (await import("./fake-react")).react);
 
-const { default: RatingBanner } = await import("../components/RatingBanner");
+const { useStripHeight, createStripBinder } = await import("../use-strip-height");
 
 interface Rule { selector: string; within: string[]; body: string }
 
@@ -59,21 +59,41 @@ describe("the rating question's row", () => {
     }
   });
 
+  // CHANGED ON PURPOSE (V4's Figma): every banner, not only the question, spans the window so its
+  // dismiss sits at the right edge; the rule is the strip's (search-and-banners.css) and the left
+  // panels' column rules are out-weighed by specificity rather than by source order.
   it("spans the window under the topbar, whichever left panel is open", () => {
-    const own = top(/\.ver-banner\.rating-banner\b/).find(r => decl(r, "grid-column") != null);
+    const own = top(/\.ver-banner/).find(r => r.selector.startsWith(".app.app.app ") && decl(r, "grid-column") != null);
     expect(own && decl(own, "grid-column")).toBe("1 / -1");
-    // The rules that put a banner in the canvas's column come earlier in the
-    // sheet with no more classes, so this one wins.
-    const dots = (s: string) => (s.match(/\./g) ?? []).length;
-    const sheet = sheetText();
-    for (const r of all.filter(r => /\.ver-banner\b/.test(r.selector) && !r.selector.includes("rating") && decl(r, "grid-column"))) {
-      expect(sheet.indexOf(r.selector + " {") < sheet.indexOf(own!.selector + " {") || r.selector.includes(","), r.selector).toBe(true);
-      for (const s of r.selector.split(",")) expect(dots(s), s).toBeLessThanOrEqual(dots(own!.selector));
+    expect(own!.selector).toContain(".conn-banner:has(> .banner-mark)");
+    const split = (list: string): string[] => {
+      const out: string[] = [];
+      let depth = 0, from = 0;
+      for (let i = 0; i < list.length; i++) {
+        if (list[i] === "(") depth++;
+        else if (list[i] === ")") depth--;
+        else if (list[i] === "," && depth === 0) { out.push(list.slice(from, i)); from = i + 1; }
+      }
+      return [...out, list.slice(from)];
+    };
+    const weight = (sel: string): number => {
+      let n = 0;
+      const rest = sel.replace(/:(is|not|has|where)\(((?:[^()]|\([^()]*\))*)\)/g, (_m, fn: string, args: string) => {
+        if (fn !== "where") n += Math.max(...split(args).map(weight));
+        return "";
+      });
+      return n + (rest.match(/\.[\w-]+|\[[^\]]*\]|:(?!:)[\w-]+/g) ?? []).length;
+    };
+    const others = all.filter(r => r !== own && /\.(ver|conn)-banner\b/.test(r.selector) && decl(r, "grid-column"));
+    expect(others.length).toBeGreaterThan(0);
+    for (const r of others) {
+      for (const sel of split(r.selector)) expect(weight(sel.trim()), sel).toBeLessThan(weight(own!.selector));
     }
   });
 
+  // CHANGED ON PURPOSE (V4's Figma): every banner with a mark pushes the docked panels down, so the rule is matched on `.banner-mark` as well as the question.
   it("starts the left panel and the detail panel under it", () => {
-    const docked = top(/\.app:has\(\.rating-banner\)/).filter(r => decl(r, "grid-row") === "3 / -1");
+    const docked = top(/\.app:has\(\.banner-mark, \.rating-banner\)/).filter(r => decl(r, "grid-row") === "3 / -1");
     const covered = docked.map(r => r.selector).join(" ");
     // The left column is the grid item both left panels are drawn in since
     // 2026-10-08, so it is what starts a row lower (styles/left-column.css).
@@ -88,7 +108,7 @@ describe("the rating question's row", () => {
     // literals they were the 52px bar's 60 and 76, and stayed so when the bar
     // became 44px (2026-10-08), so the rail stood 8px lower under the question
     // than it does without it.
-    const rail = top(/\.app:has\(\.rating-banner\)/).filter(r => /\.usage-panel/.test(r.selector) && /\.sysdetail/.test(r.selector));
+    const rail = top(/\.app:has\(\.banner-mark, \.rating-banner\)/).filter(r => /\.usage-panel/.test(r.selector) && /\.sysdetail/.test(r.selector));
     expect(rail).toHaveLength(1);
     const own = (prop: string) => {
       const values = top(/^\.usage-panel$/).map(r => decl(r, prop)).filter(Boolean);
@@ -99,13 +119,15 @@ describe("the rating question's row", () => {
     expect(decl(rail[0], "max-height")).toBe(`calc(${own("max-height")} - var(--rating-h, 0px))`);
   });
 
+  // CHANGED ON PURPOSE (V4's Figma): the phone corrections match every banner with a mark, not only the question, so an update or old-name banner stacks the rail the same way.
   it("on a phone, keeps the stacked rail stacked and starts the detail sheet under it too", () => {
     const at = (sel: RegExp, prop: string) => phone(sel).map(r => decl(r, prop)).filter(Boolean);
-    expect(at(/\.app:has\(\.rating-banner\) \.detail\b/, "top")).toContain("calc(var(--topbar-h) + var(--rating-h, 0px))");
+    expect(at(/\.app:has\(\.banner-mark, \.rating-banner\) \.detail\b/, "top")).toContain("calc(var(--topbar-h) + var(--rating-h, 0px))");
     // The machine panel holds the foot of a phone, so it is not moved down.
-    expect(at(/\.app:has\(\.rating-banner\) \.sysdetail\b/, "top")).toContain("auto");
+    expect(at(/\.app:has\(\.banner-mark, \.rating-banner\) \.sysdetail\b/, "top")).toContain("auto");
   });
 
+  // CHANGED ON PURPOSE (V4's Figma): matched on every banner with a mark (see above).
   it("on a phone, keeps both rail panels' caps clear of the dock along the bottom", () => {
     // Under 641px the controls stand in a dock along the bottom
     // (edge-rails.css), and each rail panel's cap gives half the dock back so
@@ -114,20 +136,24 @@ describe("the rating question's row", () => {
     // they have to carry the dock's half as well, or the pair overlaps by the
     // dock's height minus the gap while the question is up.
     const at = (sel: RegExp, prop: string) => phone(sel).map(r => decl(r, prop)).filter(Boolean);
-    expect(at(/\.app:has\(\.rating-banner\) \.usage-panel\b/, "max-height"))
+    expect(at(/\.app:has\(\.banner-mark, \.rating-banner\) \.usage-panel\b/, "max-height"))
       .toContain("calc(50vh - 38px - var(--dock-h) / 2 - var(--rating-h, 0px))");
-    expect(at(/\.app:has\(\.rating-banner\) \.sysdetail\b/, "max-height"))
+    expect(at(/\.app:has\(\.banner-mark, \.rating-banner\) \.sysdetail\b/, "max-height"))
       .toContain("calc(50vh - 38px - var(--dock-h) / 2)");
   });
 
+  // CHANGED ON PURPOSE (V4's Figma): the question has no mark, so its two lines are "ask end" over
+  // "next next"; the thanks keeps its mark, so it keeps a third column for it.
   it("on a phone, is two lines: the question and Not now, then the scale — and the thanks the same way", () => {
-    const grid = phone(/\.rating-banner/).find(r => decl(r, "display") === "grid");
-    expect(grid).toBeDefined();
-    // The question's row, and the low score's thanks, which has an offer.
-    expect(grid!.selector).toContain(":has(> .rating-scale)");
-    expect(grid!.selector).toContain(":has(> .ver-act + .ver-close)");
-    const areas = decl(grid!, "grid-template-areas")!.replace(/\s+/g, " ");
-    expect(areas).toBe(`"dot ask end" ". next next"`);
+    const grids = phone(/\.rating-banner/).filter(r => decl(r, "display") === "grid");
+    const area = (has: string) => grids.find(r => r.selector.includes(has));
+    const ask = area(":has(> .rating-scale)");
+    const thanks = area(":has(> .ver-act + .ver-close)");
+    expect(ask).toBeDefined();
+    expect(thanks).toBeDefined();
+    const areas = (r: Rule) => decl(r, "grid-template-areas")!.replace(/\s+/g, " ");
+    expect(areas(ask!)).toBe(`"ask end" "next next"`);
+    expect(areas(thanks!)).toBe(`"mark ask end" ". next next"`);
   });
 });
 
@@ -135,29 +161,70 @@ describe("the height it hands the page", () => {
   let observed: Array<() => void> = [];
   afterEach(() => { observed = []; vi.unstubAllGlobals(); });
 
-  it("is written as --rating-h while the row is up, follows it as it wraps, and is taken away with it", () => {
+  // CHANGED ON PURPOSE (V4's Figma): every banner reports its height, not only the question, so the
+  // hook is the strip's (use-strip-height.ts, run by DeckBanner) and finds the row in the page.
+  it("is written as --rating-h while a banner is up, follows it as it wraps, and is taken away with it", () => {
+    let made = 0;
     vi.stubGlobal("ResizeObserver", class {
-      constructor(private cb: () => void) {}
+      constructor(private cb: () => void) { made++; }
       observe() { observed.push(this.cb); }
       disconnect() { observed = observed.filter(cb => cb !== this.cb); }
     });
     const style = new Map<string, string>();
-    const page = { style: { setProperty: (k: string, v: string) => style.set(k, v), removeProperty: (k: string) => style.delete(k) } };
+    const sets: string[] = [];
+    const removes: string[] = [];
+    const page = { style: { setProperty: (k: string, v: string) => { sets.push(k); style.set(k, v); }, removeProperty: (k: string) => { removes.push(k); style.delete(k); } } };
     let height = 40.5;
+    let asked = "";
     const row = { getBoundingClientRect: () => ({ height }), closest: (sel: string) => (sel === ".app" ? page : null) };
-    const props = { phase: "asking" as const, score: null, onAnswer: () => {}, onLater: () => {}, onClose: () => {}, onFeedback: () => {} };
-    const view = mount(RatingBanner, props, {
-      commit: tree => {
-        const ref = (tree as { ref?: { current: unknown } } | null)?.ref;
-        if (ref && typeof ref === "object") ref.current = row;
-      },
-    });
+    vi.stubGlobal("document", { querySelector: (sel: string) => { asked = sel; return row; } });
+    const view = mount(() => { useStripHeight(); return null; }, {});
+    expect(asked).toContain(".ver-banner");
+    expect(asked).toContain(".conn-banner:has(> .banner-mark)");
     expect(style.get("--rating-h")).toBe("41px");
-    height = 70;
+    height = 72;
     for (const cb of observed) cb();
-    expect(style.get("--rating-h")).toBe("70px");
+    expect(style.get("--rating-h")).toBe("72px");
+    // A re-render with the same strip leaves the property and the observer alone.
+    sets.length = 0; removes.length = 0; made = 0;
+    view.rerender({});
+    view.rerender({});
+    expect(sets).toEqual([]);
+    expect(removes).toEqual([]);
+    expect(made).toBe(0);
+    expect(observed).toHaveLength(1);
     view.unmount();
     expect(style.has("--rating-h")).toBe(false);
     expect(observed).toHaveLength(0);
+  });
+});
+
+describe("the strip binder", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("rebinds only when the strip is a different element, and lets go when none is left", () => {
+    let made = 0, live = 0;
+    vi.stubGlobal("ResizeObserver", class {
+      constructor(_cb: () => void) { made++; live++; }
+      observe() {}
+      disconnect() { live--; }
+    });
+    const props: string[] = [];
+    const page = { style: { setProperty: (k: string, v: string) => props.push(`set ${v}`), removeProperty: () => props.push("remove") } };
+    const strip = (height: number) => ({ getBoundingClientRect: () => ({ height }), closest: () => page });
+    const a = strip(32), b = strip(72);
+    const binder = createStripBinder();
+    binder.sync(a); binder.sync(a); binder.sync(a);
+    expect(props).toEqual(["set 32px"]);
+    expect(made).toBe(1);
+    binder.sync(b);
+    expect(props).toEqual(["set 32px", "remove", "set 72px"]);
+    expect(made).toBe(2);
+    expect(live).toBe(1);
+    binder.sync(null);
+    expect(props.at(-1)).toBe("remove");
+    expect(live).toBe(0);
+    binder.sync(null);
+    expect(props.filter(p => p === "remove")).toHaveLength(2);
   });
 });

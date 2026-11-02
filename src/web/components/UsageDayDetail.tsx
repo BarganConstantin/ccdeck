@@ -1,5 +1,6 @@
 // The breakdown of the day selected in the usage-history chart: its date and
-// cost, the CLIs that ran it, its four token counts and each model's share.
+// cost, the CLIs that ran it, a table of its models (input, output, cost and
+// share, with a total row for two or more) and its cache counts.
 //
 // Lifted out of UsageHistoryModal.tsx with the small stat it alone draws. It
 // is handed the one day and reads nothing else.
@@ -32,38 +33,54 @@ export default function UsageDayDetail({ selectedDay }: { selectedDay: DayEntry 
       </div>
       {missing && <p className="uh-cost-note">{missingPriceNote()}</p>}
       {costNote && <p className="uh-cost-note">{costNote}</p>}
+      {/* V4's table: Model, Input, Output, Cost, with each model's share of the day
+          after its name, and a total row when two or more models ran. The cache
+          counts, which the table has no column for, sit on one quiet line under it. */}
+      <table className="uh-day-table">
+        <thead>
+          <tr>
+            <th scope="col">{t("insights.usage.model")}</th>
+            <th scope="col">{t("insights.cost.inputTitle")}</th>
+            <th scope="col">{t("insights.cost.outputTitle")}</th>
+            <th scope="col">{t("insights.usage.cost")}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {byCost(selectedDay.modelBreakdowns).map(mb => {
+            const pct = percentOf(mb.cost, selectedDay.totalCost);
+            return (
+              <tr key={mb.modelName} title={mb.modelName}>
+                <th scope="row">
+                  <span className="uh-model-name">
+                    <span className="uh-legend-dot" style={{ background: modelColor(mb.modelName) }} />
+                    {/* The label is in a span of its own so it can ellipsise: a label
+                        wider than the column degrades to an ellipsis over a title
+                        rather than to a broken row (#462). */}
+                    <span className="uh-model-label">{shortModel(mb.modelName)}</span>
+                    <span className="uh-model-share">{Math.round(pct)}%</span>
+                  </span>
+                </th>
+                <td>{fmtTokens(mb.inputTokens)}</td>
+                <td>{fmtTokens(mb.outputTokens)}</td>
+                <td>{reportedCost(mb.cost, mb.missingPricing)}</td>
+              </tr>
+            );
+          })}
+        </tbody>
+        {selectedDay.modelBreakdowns.length > 1 && (
+          <tfoot>
+            <tr>
+              <th scope="row">{t("insights.usage.dayTotal")}</th>
+              <td>{fmtTokens(selectedDay.inputTokens)}</td>
+              <td>{fmtTokens(selectedDay.outputTokens)}</td>
+              <td>{reportedCost(selectedDay.totalCost, missing)}</td>
+            </tr>
+          </tfoot>
+        )}
+      </table>
       <div className="uh-detail-mini">
-        <MiniStat label={t("insights.cost.input")}       val={fmtTokens(selectedDay.inputTokens)} />
-        <MiniStat label={t("insights.cost.output")}      val={fmtTokens(selectedDay.outputTokens)} />
         <MiniStat label={t("insights.usage.cacheWrite")} val={fmtTokens(selectedDay.cacheCreationTokens)} />
         <MiniStat label={t("insights.usage.cacheRead")}  val={fmtTokens(selectedDay.cacheReadTokens)} />
-      </div>
-      <div className="uh-detail-models">
-        {byCost(selectedDay.modelBreakdowns).map(mb => {
-          const pct = percentOf(mb.cost, selectedDay.totalCost);
-          return (
-            <div key={mb.modelName} className="uh-model-row" title={mb.modelName}>
-              <span className="uh-model-name">
-                <span className="uh-legend-dot" style={{ background: modelColor(mb.modelName) }} />
-                {/* The label is in a span of its own so it can
-                    ellipsise: this column is a hard 130px and the
-                    text used to be an anonymous flex item, which
-                    `text-overflow` cannot reach — a label wider than
-                    the column wrapped onto a second line and pushed
-                    the bar out of the row. Nothing in the known
-                    corpus is that wide (see model-label.ts), and the
-                    point is that the next qualifier to arrive
-                    degrades to an ellipsis over a `title` rather
-                    than to a broken row. */}
-                <span className="uh-model-label">{shortModel(mb.modelName)}</span>
-              </span>
-              <span className="uh-model-bar">
-                <span className="uh-model-bar-fill" style={{ width: `${pct}%`, background: modelColor(mb.modelName) }} />
-              </span>
-              <span className="uh-model-cost">{reportedCost(mb.cost, mb.missingPricing)}</span>
-            </div>
-          );
-        })}
       </div>
     </div>
   );
@@ -71,9 +88,9 @@ export default function UsageDayDetail({ selectedDay }: { selectedDay: DayEntry 
 
 function MiniStat({ label, val }: { label: string; val: string }) {
   return (
-    <div className="uh-ministat">
-      <span className="uh-ministat-val">{val}</span>
+    <span className="uh-ministat">
       <span className="uh-ministat-label">{label}</span>
-    </div>
+      <span className="uh-ministat-val">{val}</span>
+    </span>
   );
 }

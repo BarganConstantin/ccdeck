@@ -72,11 +72,12 @@
   .glyph-btn:active:not(:disabled):not(:focus-visible),
   .react-flow__controls-button:active:not(:disabled):not([aria-disabled="true"]):not(:focus-visible),
   .cat-filter:active, .uh-range-btn:active,
-  .ver-banner .ver-cmd:active,
+  .ver-banner .ver-copy:active,
   .ver-banner .ver-close:active,
   .topbar button.v:active,
   .ver-banner .ver-act:active:not(:disabled),
   .rating-banner .rating-pick:active,
+  .rating-banner .rating-later:active,
   .ctx-donut:active,
   .session-list .sl-row:active, .session-list .sl-icon-btn:active, button.tool.clickable:active,
   .session-list .sl-usage-btn:active,
@@ -115,12 +116,10 @@
      it are still dimmed and the live region still says what is being read, so
      nothing about the wait is only in the animation. */
   .up-period .uh-range-btn[data-pending]::after { animation: none; }
-  /* The history modal's two. The axis keeps its hairline and stops travelling;
-     the words beside it already say a subprocess is running. The days are
-     simply there, at their full height, with no rise and no stagger — the
-     reserved box means nothing jumps either way, which is the part of this that
-     was never decoration. */
-  .uh-wait-axis { animation: none; }
+  /* The history modal's bars. They are simply there, at their full height, with
+     no rise and no stagger; the words in the toolbar already say a subprocess is
+     running, and the wait's room is the chart's own height, so nothing jumps
+     either way. */
   .uh-bar { transition: none; }
 }
 

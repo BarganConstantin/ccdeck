@@ -478,8 +478,11 @@ describe("what a reader is told, now that the dot is decoration everywhere", () 
     // the ✓ and the × with `content:`, and generated content IS spoken by some
     // readers — so a dot left exposed would read its mark and then the word
     // beside it said the same thing again.
+    // CHANGED ON PURPOSE (V4's Figma): the tool call and Clear the deck no
+    // longer draw a dot, so four are left (the Inspector's and the usage
+    // panel's three). The floor only proves the scan still finds them.
     const all = dots();
-    expect(all.length).toBeGreaterThanOrEqual(5);
+    expect(all.length).toBeGreaterThanOrEqual(4);
     expect(all.filter(d => !/aria-hidden/.test(d.tag)).map(d => `${d.file}: ${d.tag}`)).toEqual([]);
   });
 
@@ -524,7 +527,9 @@ describe("what a reader is told, now that the dot is decoration everywhere", () 
     // than a literal in a function body. What this test is about did not
     // change: the word the modal prints where the duration goes is still
     // `in-flight…`, and it is still written in this file.
-    expect(toolModal).toMatch(/toolDuration\(tool, t\("insights\.tool\.inflight"\)\)/);
+    // CHANGED ON PURPOSE (V4's Figma): the dialog's header uses dialogDuration
+    // ("1.2 s"); the word printed where the duration goes is unchanged.
+    expect(toolModal).toMatch(/dialogDuration\(tool, t\("insights\.tool\.inflight"\)\)/);
     expect(toolModal).toMatch(/<span className="err-tag">\{t\("insights\.tool\.error"\)\}<\/span>/);
   });
 

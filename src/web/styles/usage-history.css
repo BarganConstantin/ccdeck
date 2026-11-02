@@ -3,26 +3,32 @@
    and `modal uh-modal`, so the scrim, surface, shadow and entrance are .modal's
    and only the size and this dialog's own padding are written here. */
 .modal.uh-modal {
-  display: block;
+  /* The chart's height, written once: the wait stands in the same room, so the
+     dialog does not move when the answer lands. */
+  --uh-chart-h: 180px;
   width: var(--dialog-m);
   max-height: 82vh;
-  overflow: auto;
-  padding: 16px 18px 20px;
   color: var(--text);
 }
-/* The one dialog header (dialogs.css), drawn out to the dialog's edges over
-   the padding the rest of this dialog keeps. */
-.uh-head { margin: -16px -18px 14px; }
-.uh-titlewrap { display: flex; flex-direction: column; gap: 2px; margin-right: auto; }
-.uh-sub { font-size: calc(10px + max(-1px, var(--ui-text-increase, 0px))); color: var(--text-dim); font-family: var(--font-mono); }
-/* Keep the close and refresh actions reachable when the range strip no longer
-   fits beside the title. The range moves onto its own row on narrow windows. */
+/* The shared header (dialogs.css): the title and the ×, nothing else. */
+/* The loaded parts (stats, notes, split, chart, legend, a day) are 12 apart, like the body's blocks. */
+.uh-loaded { display: flex; flex-direction: column; gap: 12px; }
+.uh-body { display: flex; flex-direction: column; min-height: 0; gap: 12px; }
+/* V4's toolbar: the range chips on the left, the source of the figures and the
+   re-run on the right. */
+.uh-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; min-width: 0; }
+.uh-source { display: flex; align-items: center; min-width: 0; margin-left: auto; }
+.uh-sub { color: var(--muted); font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: calc(16px + var(--ui-text-increase, 0px)); }
+/* V4's chips: pills with a hairline, the chosen one on the accent wash. */
+.uh-toolbar .uh-range { gap: 4px; padding: 0; border: 0; border-radius: 0; background: none; }
+.uh-toolbar .uh-range-btn { min-height: var(--ctl-h-sm); box-sizing: border-box; padding: 0 8px; border: 1px solid var(--line); border-radius: var(--r-pill); color: var(--text-secondary); font-family: inherit; font-size: calc(12px + var(--ui-text-increase, 0px)); font-weight: 400; line-height: calc(16px + var(--ui-text-increase, 0px)); }
+.uh-toolbar .uh-range-btn[aria-pressed="true"] { border-color: var(--accent); background: var(--accent-16); color: var(--text); }
+@media (hover: hover) and (pointer: fine) {
+.uh-toolbar .uh-range-btn:hover, .uh-toolbar .uh-range-btn[aria-pressed="true"]:hover { color: var(--text); }
+}
 @media (max-width: 520px) {
-  .uh-head { display: grid; grid-template-columns: minmax(0, 1fr) 24px 24px; gap: 8px; }
-  .uh-titlewrap { min-width: 0; margin-right: 0; }
-  .uh-head > .uh-range { grid-column: 1 / -1; grid-row: 2; justify-self: start; }
-  .uh-head > .uh-reload { grid-column: 2; grid-row: 1; }
-  .uh-head > .uh-close { grid-column: 3; grid-row: 1; }
+  .uh-source { flex-basis: 100%; order: 3; margin-left: 0; }
+  .uh-toolbar .uh-reload { margin-left: auto; }
 }
 .uh-range { display: inline-flex; gap: 2px; background: var(--bg-soft); border: 1px solid var(--line); border-radius: 999px; padding: 2px; }
 .uh-range-btn {
@@ -78,8 +84,8 @@
    24 x 24 with no padding is the box `.glyph-btn` would have given it anyway.
    What the reader sees is the 30px bordered square this actually rendered as
    becoming the 24px square it always said it was, with the edge gone. */
-.uh-reload { width: 24px; height: 24px; padding: 0; }
-/* A ccusage run is seconds long and the button is the only thing on the header
+.uh-reload { width: 24px; height: 24px; padding: 0; border-radius: var(--r-ctl); }
+/* A ccusage run is seconds long and the button is the only control on the toolbar
    that moves while it lasts, so it has to read as busy rather than as ignored. */
 .uh-reload:disabled { opacity: var(--dim-off); cursor: default; }
 /* Already borderless, already 24 x 24, already 16px and already --muted — this
@@ -100,47 +106,24 @@
 }
 
 .uh-status { padding: 40px 0; text-align: center; color: var(--muted); font-size: calc(12px + var(--ui-text-increase, 0px)); }
-/* The wait, standing in the room the answer will need.
-   184px is `.uh-chart`'s own 168 plus the 16 it reserves for date labels — the
-   two numbers are read off that rule rather than guessed, so this box and the
-   chart it precedes cannot drift apart. It is not the whole 429px the loaded
-   modal stands at; the totals and the legend are content and reserving THEM
-   would mean drawing four plausible empty cards, which is a skeleton standing
-   in for numbers nobody has. This takes the largest single piece and leaves the
-   rest to arrive. */
-.uh-status-wait {
-  display: flex;
-  flex-direction: column;
-  min-height: 184px;
-  padding: 0 0 16px;
-}
-.uh-wait-word { margin: auto; display: flex; flex-direction: column; align-items: center; gap: 4px; max-width: 100%; padding: 8px 12px 16px; }
-.uh-reading-art { width: 208px; height: 83px; max-width: 100%; color: var(--muted); margin-bottom: 4px; }
-.uh-reading-link { stroke: var(--line); stroke-dasharray: 2 5; }
-.uh-reading-packets { color: var(--accent); }
-.uh-reading-packets rect { transform-box: view-box; animation: uh-reading-transfer 1800ms ease-in-out infinite; opacity: 0; }
-.uh-reading-packets rect:nth-child(2) { animation-delay: 350ms; }
-.uh-reading-packets rect:nth-child(3) { animation-delay: 700ms; }
-.uh-reading-title { color: var(--text); font-size: calc(13px + var(--ui-text-increase, 0px)); font-weight: 600; }
-.uh-reading-note { color: var(--text-secondary); line-height: 1.5; max-width: 40ch; }
-.uh-reading-hint { font-size: calc(11px + var(--ui-text-increase, 0px)); color: var(--text-secondary); line-height: 1.5; }
-.uh-wait-axis { height: 1px; background: var(--line-soft); }
-.uh-status-wait[data-paused] .uh-reading-packets rect { animation-play-state: paused; }
-@keyframes uh-reading-transfer {
-  0% { opacity: 0; transform: translateX(-4px); }
-  15% { opacity: 1; }
-  75% { opacity: 1; }
-  100% { opacity: 0; transform: translateX(44px); }
-}
-@media (prefers-reduced-motion: reduce) {
-  .uh-reading-packets rect { animation: none; opacity: 1; transform: none; }
-  .uh-reading-packets rect:nth-child(2) { transform: translateX(18px); }
-  .uh-reading-packets rect:nth-child(3) { transform: translateX(36px); }
-}
-.uh-status.uh-err { color: var(--err); max-width: 46ch; margin: 0 auto; line-height: 1.5; }
-/* The recovery belongs where the failure is. The header's ↻ is on screen in
-   every branch, but nothing there says it is the fix for what the box says. */
-.uh-retry { margin-top: 14px; }
+/* The wait, standing in the room the answer will need: its min-height is the
+   chart's own, `--uh-chart-h`, written once on the dialog so the box and the
+   chart it precedes cannot drift apart. It is not the whole loaded dialog; the
+   totals and the legend are content, so the bones below stand for rows, never
+   for plausible empty figures. */
+/* V4's reading state: a 13/600 line, the 12/16 muted words under it, and two
+   28-high rows of quiet bones (a dot and two bars on the control fill). */
+.uh-status-wait { display: flex; flex-direction: column; align-items: stretch; gap: 4px; min-height: var(--uh-chart-h); padding: 0; text-align: left; }
+.uh-reading-title, .uh-err-title { color: var(--text); font-size: calc(13px + var(--ui-text-increase, 0px)); font-weight: 600; line-height: calc(20px + var(--ui-text-increase, 0px)); }
+.uh-reading-note, .uh-err-hint, .uh-err-reason { color: var(--muted); font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: calc(16px + var(--ui-text-increase, 0px)); }
+.uh-skeleton { display: flex; flex-direction: column; margin-top: 8px; }
+.uh-skel-row { display: flex; align-items: center; gap: 8px; height: var(--row-table, 28px); padding: 0 8px; }
+.uh-skel-row i { display: block; flex: none; background: var(--ctl-fill); }
+.uh-skel-dot { width: 14px; height: 14px; border-radius: 50%; }
+.uh-skel-bar { width: 120px; height: 8px; border-radius: var(--r-tag); }
+.uh-skel-end { width: 48px; margin-left: auto; }
+.uh-status.uh-err { display: flex; flex-direction: column; align-items: stretch; gap: 4px; max-width: none; margin: 0; padding: 0; color: var(--text); text-align: left; line-height: inherit; }
+.uh-err-reason { overflow-wrap: anywhere; }
 .uh-retry:disabled { opacity: var(--dim-off); cursor: default; }
 
 /* The chart the selected range answered, dimmed while a newer run for that same
@@ -149,26 +132,19 @@
    reading them until the new ones land — which is why it is the MARKS that dim
    and not the answer (#1289). This used to fade the whole wrapper, every total
    and label in it, to 3.55:1 at best. The day bars, the by-CLI strip, the
-   day-detail meters and the legend swatches recede; every word stays at full
-   contrast, and the header's subtitle says "running ccusage…" in words. Each
+   split bar and the legend swatches recede; every word stays at full
+   contrast, and the toolbar's source line says "running ccusage…" in words. Each
    of the four is a childless element, which contrast-floors.test.ts checks. */
 .uh-stale .uh-bar-seg,
 .uh-stale .uh-agent-seg,
-.uh-stale .uh-model-bar-fill,
 .uh-stale .uh-legend-dot { opacity: var(--dim-stale); transition: opacity var(--dur-fast) var(--ease); }
 
-.uh-totals {
-  display: grid; grid-template-columns: repeat(4, 1fr);
-  gap: 8px; margin-bottom: 14px;
-}
-.uh-stat {
-  display: flex; flex-direction: column; gap: 2px;
-  padding: 8px 10px; background: var(--bg-soft);
-  border: 1px solid var(--line-soft); border-radius: 8px;
-}
-.uh-stat-val { font-size: calc(14px + var(--ui-text-increase, 0px)); font-weight: 600; font-variant-numeric: tabular-nums; }
-.uh-stat-val.accent { color: var(--ok); }
-.uh-stat-label { font-size: calc(9px + max(0px, var(--ui-text-increase, 0px))); color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; }
+/* V4's stats: bare, the value (mono 18/24 600) over its label (12/16 muted),
+   32 apart. No boxes. */
+.uh-totals { display: flex; flex-wrap: wrap; gap: 4px 32px; }
+.uh-stat { display: flex; flex-direction: column; gap: 0; }
+.uh-stat-val { font-family: var(--font-mono); font-size: calc(18px + var(--ui-text-increase, 0px)); font-weight: 600; line-height: calc(24px + var(--ui-text-increase, 0px)); color: var(--text); font-variant-numeric: tabular-nums; }
+.uh-stat-label { font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: calc(16px + var(--ui-text-increase, 0px)); color: var(--muted); }
 
 /* Cost by CLI, between the range totals and the daily chart (#431). Only drawn
    when ccusage reported two or more agents, so a machine running one CLI has
@@ -177,7 +153,7 @@
    width, its segments are percentages of that, and the key wraps like
    .uh-legend does — which matters because ccusage reads sixteen sources and
    nothing bounds the entry count at two. */
-.uh-agents { margin-bottom: 12px; }
+.uh-agents { margin: 0; }
 .uh-agent-bar {
   display: flex; height: 6px; border-radius: 3px;
   background: var(--line); overflow: hidden; margin-bottom: 7px;
@@ -239,14 +215,12 @@
    on the way to the far end of a chart. */
 .uh-chart {
   display: flex; align-items: flex-end;
-  height: 168px; margin-bottom: 10px;
-  padding-bottom: 16px; /* room for date labels */
-  border-bottom: 1px solid var(--line-soft);
+  height: var(--uh-chart-h); margin: 0;
   overflow-x: auto;
 }
 .uh-bar-col {
   display: flex; flex-direction: column; align-items: center; justify-content: flex-end;
-  height: 100%; position: relative;
+  height: 100%; position: relative; gap: 3px;
   background: none; border: none; padding: 0; cursor: pointer;
   min-width: 24px; font: inherit; color: inherit;
   transition: transform var(--dur-fast) var(--ease);
@@ -267,8 +241,12 @@
    space above a short day still selects that day, so the whole column moves. */
 .uh-bar-col:active { transform: scale(var(--press)); }
 .uh-bar-col.sel .uh-bar { outline: 1px solid var(--accent); outline-offset: 1px; }
+/* V4's column: the plot (the value over its bar) takes the height the axis name
+   under it leaves. */
+.uh-bar-plot { flex: 1 1 0; min-height: 0; width: 100%; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; gap: 3px; }
+.uh-bar-value { flex: none; font-family: var(--font-mono); font-size: calc(11px + var(--ui-text-increase, 0px)); line-height: calc(14px + var(--ui-text-increase, 0px)); color: var(--muted); white-space: nowrap; }
 .uh-bar {
-  width: 78%;
+  width: min(24px, 78%);
   /* At rest the bar has its real height: its share of the column (--uh-h, 0 to
      1), so the selected-day outline, the cut between bands (.uh-bar-seg) and
      the 2px top radius are drawn at their true size, never squashed by a
@@ -277,7 +255,7 @@
      still eases the height (#863 kept it on purpose: a scaleY there would
      squash the ring, and ninety bars in a fixed-height chart reflow only the
      chart), with no stagger: the stagger belongs to the rise. */
-  height: calc(var(--uh-h, 1) * 100%); min-height: 1px;
+  height: calc(var(--uh-h, 1) * (100% - 17px)); min-height: 1px;
   display: flex; flex-direction: column;
   border-radius: 2px 2px 0 0; overflow: hidden;
   transform-origin: bottom;
@@ -308,67 +286,83 @@
    In --panel on purpose: every series colour clears 3:1 against --panel in both
    themes, so the same floor that makes a band visible makes this line visible
    against whichever two bands it lands between. One measurement, two jobs. */
-.uh-bar-seg { width: 100%; box-shadow: 0 -1px 0 var(--panel); }
-/* 9px, the sheet's floor, not the 8px this was alone in writing. It was the one
-   declaration in the file below the smallest size anything else is set in, and
-   an 8px monospace date under a chart is the label that says which bar you are
-   reading — so the exception was being spent on the one place a floor is for.
-   Centred under its column and never cut: past two weeks only every second or
-   seventh column carries one (dayLabelStep), so a whole date has the room of
-   the unlabelled columns beside it instead of ellipsising inside its own 24px. */
+.uh-bar-seg { display: block; width: 100%; box-shadow: 0 -1px 0 var(--panel); }
+/* The day's name under its bar, 11/14 in the muted step. Centred under its
+   column in a zero-width box so it never widens the column: with two weeks or
+   fewer it is the weekday; past that only every second or seventh column
+   carries a date (dayLabelStep), so a whole date has the room of the unlabelled
+   columns beside it instead of ellipsising inside its own 24px. */
 .uh-bar-label {
-  position: absolute; bottom: -15px; left: 50%;
-  font-size: calc(9px + max(0px, var(--ui-text-increase, 0px))); color: var(--text-dim);
-  font-family: var(--font-mono);
-  white-space: nowrap; transform: translateX(-50%);
+  flex: none; display: flex; justify-content: center; width: 0; height: calc(14px + var(--ui-text-increase, 0px)); overflow: visible;
+  font-size: calc(11px + var(--ui-text-increase, 0px)); line-height: calc(14px + var(--ui-text-increase, 0px)); color: var(--muted);
+  white-space: nowrap;
 }
 
 .uh-legend {
   display: flex; flex-wrap: wrap; gap: 10px;
-  margin-bottom: 12px; font-size: calc(11px + var(--ui-text-increase, 0px)); color: var(--muted);
+  margin: 0; font-size: calc(11px + var(--ui-text-increase, 0px)); color: var(--muted);
 }
 .uh-legend-item { display: inline-flex; align-items: center; gap: 5px; }
 .uh-legend-dot { width: 8px; height: 8px; border-radius: 2px; display: inline-block; flex-shrink: 0; }
 .uh-legend-cost { color: var(--text); font-variant-numeric: tabular-nums; }
 
-.uh-detail {
-  background: var(--bg-soft); border: 1px solid var(--line-soft);
-  border-radius: var(--r-panel); padding: 12px 14px;
-}
-.uh-detail-head { display: flex; align-items: baseline; gap: 10px; margin-bottom: 10px; }
-.uh-detail-date { font-size: calc(12px + var(--ui-text-increase, 0px)); font-weight: 600; }
-.uh-detail-cost { font-size: calc(12px + var(--ui-text-increase, 0px)); color: var(--ok); font-variant-numeric: tabular-nums; }
+/* A day: V4 draws it as a table of model, input, output and cost under the day's
+   name, with the CLIs that ran it as the caption. It stays under the chart here
+   (a second dialog would need a stack the deck does not have), on a rule instead
+   of in a box. */
+.uh-detail { border-top: 1px solid var(--line-soft); padding-top: 12px; }
+.uh-detail-head { display: flex; align-items: baseline; gap: 12px; margin-bottom: 8px; }
+.uh-detail-date { font-size: calc(13px + var(--ui-text-increase, 0px)); font-weight: 600; line-height: calc(20px + var(--ui-text-increase, 0px)); color: var(--text); }
+.uh-detail-cost { margin-left: auto; font-family: var(--font-mono); font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: calc(16px + var(--ui-text-increase, 0px)); color: var(--muted); font-variant-numeric: tabular-nums; }
 /* `min-width: 0` and the ellipsis are #462's lesson applied before it bites:
-   this cell prints named CLIs and their cost since #431, so it is no longer a
-   two-word list, and an unbounded flex item in a baseline row pushes the date
-   and the cost out rather than truncating. The whole text is on a `title`. */
+   this cell prints named CLIs and their cost, so it is no longer a two-word
+   list, and an unbounded flex item in a baseline row pushes the date and the
+   cost out rather than truncating. The whole text is on a `title`. */
 .uh-detail-agents {
-  margin-left: auto; min-width: 0;
+  min-width: 0;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-  font-size: calc(10px + max(-1px, var(--ui-text-increase, 0px))); color: var(--text-dim); font-family: var(--font-mono);
+  font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: calc(16px + var(--ui-text-increase, 0px)); color: var(--muted); font-family: var(--font-mono);
 }
-.uh-detail-mini { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-bottom: 12px; }
-.uh-ministat { display: flex; flex-direction: column; gap: 1px; }
-.uh-ministat-val { font-size: calc(12px + var(--ui-text-increase, 0px)); font-variant-numeric: tabular-nums; }
-.uh-ministat-label { font-size: calc(9px + max(0px, var(--ui-text-increase, 0px))); color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; }
-.uh-detail-models { display: flex; flex-direction: column; gap: 5px; }
-.uh-model-row { display: grid; grid-template-columns: 130px 1fr auto; align-items: center; gap: 8px; }
-.uh-model-name { display: inline-flex; align-items: center; gap: 5px; font-size: calc(11px + var(--ui-text-increase, 0px)); min-width: 0; }
-/* The 130px column above is the narrowest place a model label is printed, and
-   since #462 a label carries the variant that tells two rows of one family
-   apart. `min-width: 0` lets the flex item shrink below its content and the
-   ellipsis lands on the text rather than on the dot. */
+.uh-day-table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+.uh-day-table th, .uh-day-table td { padding: 0 6px; text-align: right; white-space: nowrap; }
+.uh-day-table th:first-child { width: auto; padding-left: 0; text-align: left; }
+.uh-day-table th:nth-child(2), .uh-day-table th:nth-child(3), .uh-day-table td:nth-child(2), .uh-day-table td:nth-child(3) { width: 90px; }
+.uh-day-table th:nth-child(4), .uh-day-table td:nth-child(4) { width: 110px; padding-right: 0; }
+.uh-day-table thead th { height: 24px; border-bottom: 1px solid var(--line-soft); font-size: calc(11px + var(--ui-text-increase, 0px)); font-weight: 500; line-height: calc(14px + var(--ui-text-increase, 0px)); color: var(--muted); }
+.uh-day-table tbody th, .uh-day-table tbody td { height: 28px; font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: calc(16px + var(--ui-text-increase, 0px)); }
+.uh-day-table tbody th { font-weight: 400; color: var(--text); }
+.uh-day-table tbody td { font-family: var(--font-mono); color: var(--text-secondary); font-variant-numeric: tabular-nums; }
+.uh-model-share { flex: none; margin-left: 4px; font-family: var(--font-mono); font-size: calc(11px + var(--ui-text-increase, 0px)); color: var(--muted); font-variant-numeric: tabular-nums; }
+.uh-day-table tfoot th, .uh-day-table tfoot td { height: 28px; border-top: 1px solid var(--line-soft); font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: calc(16px + var(--ui-text-increase, 0px)); }
+.uh-day-table tfoot th { font-weight: 600; color: var(--text); text-align: left; padding-left: 0; }
+.uh-day-table tfoot td { font-family: var(--font-mono); color: var(--text); font-variant-numeric: tabular-nums; }
+/* A phone: the figure columns narrow so the model keeps room, and a bar's value (its cost is
+   on the column's name) gives way to the weekday under it. */
+@media (max-width: 520px) {
+  .uh-day-table th:nth-child(2), .uh-day-table th:nth-child(3), .uh-day-table td:nth-child(2), .uh-day-table td:nth-child(3) { width: 64px; }
+  .uh-day-table th:nth-child(4), .uh-day-table td:nth-child(4) { width: 76px; }
+  .uh-day-table th, .uh-day-table td { padding-inline: 4px; }
+  .uh-bar-value { display: none; }
+}
+.uh-detail-mini { display: flex; flex-wrap: wrap; gap: 4px 16px; margin-top: 8px; }
+.uh-ministat { display: inline-flex; gap: 6px; font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: calc(16px + var(--ui-text-increase, 0px)); color: var(--muted); }
+.uh-ministat-label { color: var(--muted); }
+.uh-ministat-val { font-family: var(--font-mono); color: var(--text-secondary); font-variant-numeric: tabular-nums; }
+.uh-model-name { display: inline-flex; align-items: center; gap: 5px; min-width: 0; max-width: 100%; }
+/* The 200px column is the narrowest place a model label is printed, and since
+   #462 a label carries the variant that tells two rows of one family apart.
+   `min-width: 0` lets the flex item shrink below its content and the ellipsis
+   lands on the text rather than on the dot. */
 .uh-model-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.uh-model-bar { height: 6px; border-radius: 3px; background: var(--line); overflow: hidden; }
-.uh-model-bar-fill { display: block; height: 100%; border-radius: 3px; }
-.uh-model-cost { font-size: calc(11px + var(--ui-text-increase, 0px)); color: var(--text); font-variant-numeric: tabular-nums; }
 
-
-
+/* V4's note: the control fill, the panel radius, 12/16 in the second text step. */
 .uh-cost-note {
-  margin: 8px 0;
+  margin: 0;
+  padding: 6px 8px;
+  border-radius: var(--r-panel);
+  background: var(--ctl-fill);
   color: var(--text-secondary);
-  font-size: 12px;
-  line-height: 1.5;
+  font-size: calc(12px + var(--ui-text-increase, 0px));
+  line-height: calc(16px + var(--ui-text-increase, 0px));
   overflow-wrap: anywhere;
 }

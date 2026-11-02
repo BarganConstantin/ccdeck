@@ -400,6 +400,7 @@ const PRESSES: Press[] = [
   [".cat-filter:active", "0.97", "transform"],
   [".ctx-donut:active", "0.94", "transform"],
   [".uh-range-btn:active", "0.97", "transform"],
+  [".ta-period-btn:active", "0.97", "transform"],
   [".uh-bar-col:active", "0.97", "transform"],
   [".session-list .sl-row:active", "0.97", "transform"],
   // The rail's header icon buttons (Plus, and the phone's close), 24px icons: the icon tier.
@@ -422,12 +423,15 @@ const PRESSES: Press[] = [
   [".sa-session:active", "0.97", "transform"],
   ["button.tool.clickable:active", "0.97", "transform"],
   // (The selected ribbon and its × are gone, V4's top bar.)
-  [".ver-banner .ver-cmd:active", "0.97", "transform"],
+  // CHANGED ON PURPOSE (V4's Figma): the command is a box with an icon-only Copy at its end, so the press is the Copy button's (a 24px glyph button, the 0.94 the round glyphs take), not a pill's.
+  [".ver-banner .ver-copy:active", "0.94", "transform"],
   [".ver-banner .ver-act:active:not(:disabled)", "0.97", "transform"],
   [".ver-banner .ver-close:active", "0.94", "transform"],
   // A number on the one question's scale: a 24px square with a digit in it,
   // so the 0.94 the round glyphs take.
   [".rating-banner .rating-pick:active", "0.94", "transform"],
+  // "Not now": an outlined 28px button with a word in it, so 0.97 like every other labelled control.
+  [".rating-banner .rating-later:active", "0.97", "transform"],
   [".tool-burst.clickable:active", "0.97", "scale"],
   // "update anyway" on an import result row. A 10px word in a pill, so
   // 0.97 like every other labelled control rather than the 0.94 the round
@@ -538,6 +542,8 @@ const EXEMPT: string[] = [
   // The queue popover's rows (V4's top bar) are menu rows: they answer the
   // pointer and a press with the --selected fill, not a scale, like .ap-menu-item.
   ".queue-row",
+  // CHANGED ON PURPOSE (V4's Figma): the update banner's command box is pressable as a whole (the pill it replaced was), but a 1400px-wide box does not scale; its Copy button is the control that answers the press (`.ver-copy:active`, listed above).
+  ".ver-banner .ver-cmd",
   // V4's switch answers a pointer press with its KNOB (it stretches to 18px,
   // menus.css) and not with a scale of the whole track.
   ".switch",
@@ -802,15 +808,15 @@ const otherPulses = pulsing.filter(r => !live.includes(r));
  *  on screen at once, which is why they share a beat. The rail's Working glyph
  *  (V4's Attention rail) is the sixth: the same `agent.state`, breathing on the
  *  same --pulse-live, drawn in the mark's own --inflight. */
+// CHANGED ON PURPOSE (V4's Figma): the state pill (the recap's last use) and the dialog title's pulsing
+// status dot are gone from the sheet, so they leave this family.
 const LIVE_PULSE = [
-  ".state-pill.state-active::before",
   // V4's card: the Working glyph breathes where the pill's dot did.
   '.agent-node .state-line[data-tone="active"] .state-mark',
   ".sl-dot.state-active::before",
   `.session-list .sl-glyph[data-glyph="working"] .state-mark`,
   ".tool-burst .tb-spin",
   ".detail .tool .name .status-dot.inflight::before",
-  ".modal-title .status-dot.inflight",
 ];
 
 /** The pulses that are NOT that signal, each with the question it answers. They
@@ -824,15 +830,15 @@ const OTHER_PULSES: [selector: string, meaning: string][] = [
   // notice is only a notice, and pulses only once a restart is actually
   // counting down — which is the one thing in this banner that IS happening
   // right now, and so the one thing the live grammar is for.
-  [".ver-banner .ver-dot.armed", "--warn: the deck is about to restart itself"],
-  [".conn-banner .conn-dot", "--err: the event stream is down"],
+  // CHANGED ON PURPOSE (V4's Figma): a banner starts with a 14px kit icon, not a dot. The lost-connection icon is drawn still (the stream's state is also in the words and the top bar), so the --err pulse is gone; only the armed restart's mark moves.
+  [":is(.ver-banner, .conn-banner) .banner-mark.armed", "--warn: the deck is about to restart itself"],
 ];
 
 /** The two live pulses that live on the canvas, and so are switched off by the
  *  canvas block like everything else there. The other three are single dots in
  *  panels and keep pulsing — see the note at the foot of the sheet, and
  *  state-channels.test.ts, which forbids a state mark from depending on it. */
-const LIVE_ON_CANVAS = [".state-pill.state-active::before", '.agent-node .state-line[data-tone="active"] .state-mark', ".tool-burst .tb-spin"];
+const LIVE_ON_CANVAS = ['.agent-node .state-line[data-tone="active"] .state-mark', ".tool-burst .tb-spin"];
 
 describe("one tempo for one meaning: the live pulse", () => {
   it("sweeps the pulses the sheet actually has, so a pass means something", () => {

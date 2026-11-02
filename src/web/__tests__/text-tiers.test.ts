@@ -261,6 +261,9 @@ describe("what was migrated to the secondary tier", () => {
       // re-arrange strip's status words, the drag trash's first line, the recap
       // note's body and the cost tooltip's model line.
       ".autofit-chip",
+      // CHANGED ON PURPOSE (V4's Figma): the rating ask's score labels and its "Not now" are set in --text-secondary.
+      ".rating-banner .rating-pick",
+      ".rating-banner .rating-later",
       ".rearrange-undo",
       ".drag-trash-zone",
       ".drag-trash-text",
@@ -419,7 +422,9 @@ describe("what was migrated to the secondary tier", () => {
       // Gruvbox's spend figures (#2125 follow-up): a quantity, so neither the
       // success green the other themes give them nor the totals' --text. Read
       // down a column to compare sessions, which --muted is too quiet for.
-      ":root[data-theme^=\"gruvbox-\"] .uh-detail-cost",
+      // CHANGED ON PURPOSE (V4's Figma): the history day's cost left this rule (it is the muted
+      // caption of its table), so the rule now ends on the session cost.
+      ":root[data-theme^=\"gruvbox-\"] .up-session-cost:not(.up-unpriced)",
       // The machine panel's process door: the one line that says what the door
       // opens, "every process, with its command line". --muted on the door's
       // plate measured 4.34:1 in dark (#859).
@@ -479,8 +484,33 @@ describe("what was migrated to the secondary tier", () => {
       ".ap-proj-loading > span",
       ".read-activity > span",
       ".su-loading > span",
-      ".uh-reading-hint",
-      ".uh-reading-note",
+      // CHANGED ON PURPOSE (V4's Figma): the data dialogs' own prose and labels sit
+      // in the second text step. The recap's opening prompt and its tool chips,
+      // the tool call's code boxes, heads and note, the JSON box, the feedback
+      // dialog's field labels, the quiet Add details row and the armed Discard,
+      // the context dialog's current-turn label and memory paths, the session
+      // usage dialog's section heads, reuse figure and dates, a day's table
+      // figures and cache counts, and the history chips. The wait's two lines
+      // (.uh-reading-note, .uh-reading-hint) moved to the muted step.
+      ".ctx-modal .ctx-md-path",
+      ".ctx-window-label",
+      ".fb-field-label",
+      ".fb-foot .btn.danger.armed",
+      ".fb-label",
+      ".fb-tool",
+      ".modal-section pre.tm-err",
+      ".session-summary .ss-prompt",
+      ".session-summary .ss-tt",
+      ".su-cache-reuse strong",
+      ".su-dates dd",
+      ".su-section-head h3",
+      ".tool-modal .modal-note",
+      ".tool-modal .modal-section h4, .session-summary .modal-section h4",
+      ".tool-modal .modal-section pre",
+      ".tr-json-box",
+      ".uh-day-table tbody td",
+      ".uh-ministat-val",
+      ".uh-toolbar .uh-range-btn",
       // Radar's telemetry inspection adds more of the same utility labels: the
       // highlight and evidence terms, the project context's heading, the prompt
       // filter, the JSON search and its placeholder on --ctl-fill, the JSON

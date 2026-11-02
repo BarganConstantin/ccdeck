@@ -641,7 +641,7 @@ const CONTROLS: Control[] = [
   // which means it has to be legible the first frame it is there.
   { at: ".skip-link", beds: TOPBAR },
   // version banner
-  { at: ".ver-banner .ver-cmd", states: [".ver-banner .ver-cmd:hover"], beds: BANNER },
+  // CHANGED ON PURPOSE (V4's Figma): the command is a borderless --sunken box with an icon Copy; the old framed pill is gone, so it draws no edge to sweep. Its Copy is a glyph button with no edge either.
   // V4's banner: .ver-act is plain accent text with no edge, so it left this
   // sweep (a text control has no boundary to measure; its ink is held to 4.5:1
   // on --panel by v4-banner.test.ts).
@@ -650,7 +650,9 @@ const CONTROLS: Control[] = [
   { at: '.ver-banner .switch[aria-checked="true"]', beds: BANNER },
   // The one question's scale, eleven numbered buttons on the calm `note` bed,
   // framed at rest like the version banner's command and louder on hover.
-  { at: ".rating-banner .rating-pick", states: [".rating-banner .rating-pick:hover"], beds: ["--bg-soft"] },
+  { at: ".rating-banner .rating-pick", states: [".rating-banner .rating-pick:hover"], beds: BANNER },
+  // CHANGED ON PURPOSE (V4's Figma): "Not now" is an outlined 28px button, so its edge is swept like the pills' (the pills now sit on the banner's --panel with no fill).
+  { at: ".rating-banner .rating-later", states: [".rating-banner .rating-later:hover"], beds: BANNER },
   // canvas, detail panel, modals
   // `.detail-close:hover` and `.ctx-modal-close` used to be here, and they are
   // gone rather than exempted. Both are `.glyph-btn` now — a bare character in
@@ -1275,6 +1277,16 @@ describe("every control that draws a boundary draws one that can be seen (1.4.11
       // identified by the word written in it (today, month, all) — like the
       // history modal's own range strip, which this one is the pills form of.
       ".up-period .uh-range-btn",
+      // CHANGED ON PURPOSE (V4's Figma): the history modal's own range chips are the
+      // same pills, a 1px --line stroke at rest and an --accent stroke on the
+      // accent wash when chosen, each identified by the word written in it
+      // (7d, 14d, 30d, 90d).
+      ".uh-toolbar .uh-range-btn", '.uh-toolbar .uh-range-btn[aria-pressed="true"]',
+      // CHANGED ON PURPOSE (V4's Figma): Discard, once pressed, is the kit's quiet
+      // button (a --line stroke, no fill, no red) named by the words "Confirm
+      // discard" written in it; the armed state is also said in words to a screen
+      // reader and by the bar that drains across it.
+      ".fb-foot .btn.danger.armed",
       // A control whose own request is in flight. Same reason as the period
       // strip above and the same shape: the boundary is drawn at rest by
       // whatever control this is, and is measured there; `aria-busy` only

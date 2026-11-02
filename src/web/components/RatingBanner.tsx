@@ -17,10 +17,12 @@
 // arrives together with its words is one a screen reader is apt to skip.
 //
 // No way out of the row leaves focus on <body> (see landRef and leave below).
-import { useEffect, useLayoutEffect, useRef } from "react";
+import { useEffect, useRef } from "react";
 import { focusDropped } from "../panel-press";
 import type { RatingPhase } from "../use-rating-ask";
 import { t, useT } from "../i18n";
+import BannerMark from "./BannerMark";
+import { KitIcon } from "./kit-icons";
 
 /** What the thanks says, on the row and in DeckBanner's live region. */
 /** The English line; ratingThanks() is the translated one. */
@@ -38,26 +40,6 @@ function scoreLabel(n: number): string {
 
 /** At or under this, the thanks also offers the feedback dialog. */
 const LOW_SCORE = 6;
-
-/** The row's height, written on the page as --rating-h for as long as the row
- *  is up. The row takes the whole width under the topbar, and the rail's two
- *  panels are fixed rather than in the grid, so this is how they know where
- *  it ends (rating.css). Measured again whenever the row wraps differently —
- *  a resized window, the thanks after the question. */
-function useRowHeight(phase: RatingPhase) {
-  const ref = useRef<HTMLDivElement>(null);
-  useLayoutEffect(() => {
-    const row = ref.current;
-    const page = row?.closest<HTMLElement>(".app");
-    if (!row || !page) return;
-    const measure = () => page.style.setProperty("--rating-h", `${Math.ceil(row.getBoundingClientRect().height)}px`);
-    measure();
-    const ro = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(measure);
-    ro?.observe(row);
-    return () => { ro?.disconnect(); page.style.removeProperty("--rating-h"); };
-  }, [phase]);
-  return ref;
-}
 
 /** Where focus goes when the row leaves with it: the canvas — App.tsx's
  *  <main>, the skip link's target — which is the next thing on the page and
@@ -81,7 +63,8 @@ export default function RatingBanner({ phase, score, onAnswer, onLater, onClose,
   onHold: (held: boolean) => void;
 }) {
   useT();
-  const rowRef = useRowHeight(phase);
+  // The strip's height for the rail is DeckBanner's (use-strip-height.ts).
+  const rowRef = useRef<HTMLDivElement>(null);
   const offerRef = useRef<HTMLButtonElement>(null);
   const closeRef = useRef<HTMLButtonElement>(null);
   // A NUMBER TAKES ITSELF AWAY WHEN IT IS PRESSED: the row becomes the thanks,
@@ -107,31 +90,30 @@ export default function RatingBanner({ phase, score, onAnswer, onLater, onClose,
       // The same calm row the question was asked in, so the thanks reads as its
       // answer; `done`'s green and its amber button belong to a restart.
       <div
-        ref={rowRef} className="ver-banner note rating-banner"
+        ref={rowRef} className="ver-banner rating-banner"
         onFocus={() => onHold(true)}
         onBlur={e => { if (!e.currentTarget.contains(e.relatedTarget as Node | null)) onHold(false); }}
       >
-        <span className="ver-dot" />
+        <BannerMark glyph="done" tone="ok" />
         <strong>{ratingThanks()}</strong>
         {score !== null && score <= LOW_SCORE ? (
           <button ref={offerRef} type="button" className="ver-act" onClick={onFeedback}>{t("shell.rating.better")}</button>
         ) : null}
-        <button ref={closeRef} type="button" aria-label={t("shell.dismiss")} className="ver-close" onClick={() => leave(onClose)}>×</button>
+        <button ref={closeRef} type="button" aria-label={t("shell.dismiss")} className="ver-close" onClick={() => leave(onClose)}><KitIcon name="close" /></button>
       </div>
     );
   }
   return (
-    <div ref={rowRef} className="ver-banner note rating-banner" role="group" aria-labelledby="rating-question">
-      <span className="ver-dot" />
+    <div ref={rowRef} className="ver-banner rating-banner rating-ask" role="group" aria-labelledby="rating-question">
       <strong id="rating-question">{t("shell.rating.question")}</strong>
       <span className="rating-scale">
         {SCORES.map(n => (
-          <button key={n} type="button" className="rating-pick" aria-label={scoreLabel(n)}
+          <button key={n} type="button" className={n === 10 ? "rating-pick ten" : "rating-pick"} aria-label={scoreLabel(n)}
             onClick={e => { landRef.current = e.detail === 0 || e.currentTarget.matches(":focus-visible"); onAnswer(n); }}>{n}</button>
         ))}
       </span>
       <span className="ver-sub rating-ends" aria-hidden="true">{t("shell.rating.ends")}</span>
-      <button type="button" className="ver-act" onClick={() => leave(onLater)}>{t("shell.rating.later")}</button>
+      <button type="button" className="rating-later" onClick={() => leave(onLater)}>{t("shell.rating.later")}</button>
     </div>
   );
 }

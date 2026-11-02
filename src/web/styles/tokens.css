@@ -519,6 +519,7 @@ optgroup {
 /* Where the control already wears the accent, an inside ring would vanish into
    it: the ring steps outside, same stroke, 2px clear. */
 .uh-range-btn[aria-pressed="true"]:focus-visible,
+.fb-kind:has(input:checked:focus-visible),
 .switch[aria-checked="true"]:focus-visible,
 .cbx > input:checked:focus-visible,
 .fg-tabs .uh-range-btn[aria-selected="true"]:focus-visible,

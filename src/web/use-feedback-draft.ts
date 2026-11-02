@@ -40,7 +40,7 @@ const DRAFT = "draft";
 
 /** Discard's two presses: the first arms it, a second inside DISCARD_ARMED_MS
  *  — and not so soon that it was the same double-click — calls `onDiscard`. */
-export function useArmedDiscard(onDiscard: () => void): { armed: boolean; press: () => void } {
+export function useArmedDiscard(onDiscard: () => void): { armed: boolean; press: () => void; disarm: () => void } {
   const [armed, setArmed] = useState(false);
   const armedAt = useRef(0);
   useEffect(() => {
@@ -62,5 +62,7 @@ export function useArmedDiscard(onDiscard: () => void): { armed: boolean; press:
     setArmed(false);
     onDiscard();
   }
-  return { armed, press };
+  /** Typing again takes the arming back: the draft is being worked on, not dropped. */
+  const disarm = useCallback(() => setArmed(false), []);
+  return { armed, press, disarm };
 }
