@@ -82,10 +82,12 @@ describe("the account's row", () => {
     expect(html).toMatch(/class="ap-row-open"[^>]*aria-describedby="[^"]*\bap-shared-2\b/);
   });
 
-  it("carries it on the live row as well, which has no door", () => {
+  // CHANGED ON PURPOSE (V4's Figma): the live row is one shape with every other
+  // and has the door too — its windows are one press away, as theirs are.
+  it("carries it on the live row as well", () => {
     const html = row(account({ active: true }), []);
     expect(html).toContain('id="ap-shared-2"');
-    expect(html).not.toContain("ap-row-open");
+    expect(html).toContain("ap-row-open");
   });
 
   it("carries no mark when the login is not offered", () => {

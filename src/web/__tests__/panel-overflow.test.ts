@@ -334,12 +334,8 @@ describe("the account alias in the accounts panel row", () => {
     expect(decl(".ap-alias", "overflow")).toBe("hidden");
     expect(decl(".ap-alias", "text-overflow")).toBe("ellipsis");
     expect(decl(".ap-alias", "white-space")).toBe("nowrap");
-    // Its sibling, unchanged — a "fix" that took the containment off the email
-    // to make room for the alias would move the defect rather than close it.
-    expect(decl(".ap-email", "min-width")).toBe("0");
-    expect(decl(".ap-email", "overflow")).toBe("hidden");
-    expect(decl(".ap-email", "text-overflow")).toBe("ellipsis");
-    expect(decl(".ap-email", "white-space")).toBe("nowrap");
+    // CHANGED ON PURPOSE (V4's Figma): the row draws one name, so there is no
+    // email span beside it to contain; the address is on the door's title.
   });
 
   it("is capped below the row, so an absurd name cannot squeeze the email to nothing", () => {
@@ -357,10 +353,12 @@ describe("the account alias in the accounts panel row", () => {
     // length. The two measurements above are arithmetic done against 40, so
     // 40 is what the assertion says; the comments and the sheet cannot drift
     // apart while it does.
-    expect(decl(".ap-email", "flex")).toBe("1");
-    const cap = pct(decl(".ap-alias", "max-width"));
-    expect(cap, "the alias cap is not a plain percentage").not.toBeNaN();
-    expect(cap).toBe(40);
+    //
+    // CHANGED ON PURPOSE (V4's Figma): the row draws one name, so there is no
+    // second span to squeeze and no cap to hold; the name shrinks to what the
+    // plan, the tag and the figure leave it.
+    expect(decl(".ap-alias", "flex")).toBe("0 1 auto");
+    expect(decl(".ap-alias", "max-width")).toBeNull();
   });
 
   it("is never pinned unshrinkable, which would undo all of it", () => {
@@ -404,12 +402,16 @@ describe("the account alias in the accounts panel row", () => {
     expect(clientText()).toMatch(/const identity = a\.alias && a\.email \? `\$\{a\.alias\} · \$\{a\.email\}` : name;/);
     const door = /<button type="button" className="ap-row-open"[^>]*>/.exec(accountRow)?.[0] ?? "";
     expect(door, "the door button was not found").not.toBe("");
-    expect(door).toMatch(/title=\{identity\}/);
+    // CHANGED ON PURPOSE (V4's Figma): the title also carries the slot, every
+    // window and when it was read — what the row no longer draws.
+    expect(door).toMatch(/title=\{detailTitle\}/);
+    expect(clientText()).toMatch(/const detailTitle = \[\s*identity,/);
     // A title reaches neither a keyboard nor a screen reader (WCAG 1.4.13), and
     // the door is NAMED by the alias when there is one — so the email rides in
-    // its description, pointed at by the id the email span carries.
+    // its description, pointed at by the id the (screen-reader-only) email span
+    // carries.
     expect(door).toMatch(/aria-describedby=\{\[\s*a\.alias && a\.email \? `ap-\$\{ids\}email-\$\{a\.num\}` : null,/);
-    expect(clientText()).toMatch(/<span className="ap-email" id=\{`ap-\$\{ids\}email-\$\{a\.num\}`\}/);
+    expect(clientText()).toMatch(/<span className="ap-email vis-hidden" id=\{`ap-\$\{ids\}email-\$\{a\.num\}`\}>\{a\.email\}<\/span>/);
   });
 
   it("carries the whole name in a title, because the row may be showing part of it", () => {
@@ -424,8 +426,9 @@ describe("the account alias in the accounts panel row", () => {
     // pins by value instead of allowing the whole 0–100 interval, the email box
     // is 31.98px — about four characters and an ellipsis of a 55-character
     // address. Both spans carry their own whole value now.
-    expect(clientText()).toMatch(/<span className="ap-alias" title=\{a\.alias\}>\{a\.alias\}<\/span>/);
-    expect(clientText()).toMatch(/<span className="ap-email" id=\{`ap-\$\{ids\}email-\$\{a\.num\}`\} title=\{a\.email \?\? undefined\}>\{a\.email\}<\/span>/);
+    // CHANGED ON PURPOSE (V4's Figma): one name, titled with the whole identity
+    // (alias · address), so neither half of it is lost to the ellipsis.
+    expect(clientText()).toMatch(/<span className="ap-alias" title=\{identity\}>\{name\}<\/span>/);
     // And the org is not quietly promoted into the same attribute: two values
     // in one tooltip is how the identifier lost it in the first place.
     expect(accountsFeature).not.toMatch(/className="ap-email"[^>]*a\.org/);
@@ -454,6 +457,8 @@ describe("the account alias in the accounts panel row", () => {
     // the guard. Sixty-four W's measured 705px — two and a half times the
     // panel — before the ellipsis went on.
     expect(clientText()).toMatch(/className="ap-alias"/);
-    expect(decl(".ap-alias", "max-width")).not.toBeNull();
+    // CHANGED ON PURPOSE (V4's Figma): contained by overflow and the ellipsis,
+    // not by a cap.
+    expect(decl(".ap-alias", "overflow")).toBe("hidden");
   });
 });

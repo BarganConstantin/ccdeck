@@ -129,6 +129,10 @@
      shadows: draw it back as a line inside the box. */
   .hint { outline: 1px solid CanvasText; outline-offset: -1px; }
 
+  /* The command menu's chosen row is a fill (quick-open.css), and a Contrast
+     theme drops fills: draw it as a ring inside the row. */
+  .qo-row[aria-selected="true"] { outline: 2px solid Highlight; outline-offset: -2px; }
+
   .modal.settings-modal,
   .settings-nav { background: Canvas; color: CanvasText; }
   .reading-segmented::before { border-color: Highlight; background: Canvas; }
@@ -208,8 +212,10 @@
   .sl-dot.state-active::before,
   .state-pill.state-active::before,
   .bw-mode-dot.on,
-  .ap-live::before,
   .topbar button.v .v-dot { forced-color-adjust: none; background: Highlight; }
+  /* The live account's mark is the kit's done glyph, a stroke in the text colour,
+     so it takes the highlight as its colour rather than as a fill. */
+  .ap-live { forced-color-adjust: none; color: Highlight; }
   /* An open panel's line on its stripe, or on the dock's top edge, is a
      fill, which the theme paints Canvas like the stripe under it: it opts out
      and draws in the highlight, so open and closed still differ once the
@@ -226,6 +232,12 @@
   .uh-range-btn[aria-pressed="true"],
   .react-flow__controls-button[aria-pressed="true"],
   .aa-tab.on { forced-color-adjust: none; border-color: Highlight; background: Highlight; color: HighlightText; }
+  /* The picked threshold chip, the picked next-account option and the picked
+     Move slot are a tinted background alone, which a Contrast theme repaints
+     as Canvas: the pick keeps a ring. */
+  .ap-chip[aria-pressed="true"] { outline: 2px solid Highlight; outline-offset: -2px; border-color: Highlight; }
+  .ap-auto-option[data-selected] { outline: 2px solid Highlight; outline-offset: -2px; }
+  .ap-slot-row[data-selected] { outline: 2px solid Highlight; outline-offset: -2px; }
   @media (hover: hover) and (pointer: fine) {
   .uh-range-btn[aria-pressed="true"]:hover,
   .react-flow__controls-button[aria-pressed="true"]:hover { forced-color-adjust: none; border-color: Highlight; background: Highlight; color: HighlightText; }

@@ -10,15 +10,26 @@
 .modal-backdrop > .aa-modal { align-self: flex-start; margin-top: min(14vh, 128px); }
 .aa-body { gap: 18px; display: flex; flex-direction: column; }
 
-.aa-tabs { display: inline-flex; gap: 4px; }
+/* V4's segmented control: a --bg-soft box with the soft edge, 3 inside it and a
+   2 between the two segments; the chosen one lifts to the panel fill. */
+.aa-tabs {
+  display: inline-flex;
+  gap: 2px;
+  padding: 3px;
+  border: 1px solid var(--line-soft);
+  border-radius: 8px;
+  background: var(--bg-soft);
+}
 .aa-tab {
-  padding: 4px 12px;
-  border: 1px solid var(--ctl-edge);
-  border-radius: 999px;
+  padding: 4px 10px;
+  border: 0;
+  border-radius: 6px;
   background: none;
   color: var(--muted);
   font: inherit;
   font-size: calc(12px + var(--ui-text-increase, 0px));
+  font-weight: 500;
+  line-height: calc(16px + var(--ui-text-increase, 0px));
   cursor: pointer;
   transition: color var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease), background var(--dur-fast) var(--ease),
               transform var(--dur-fast) var(--ease);
@@ -29,27 +40,54 @@
 .aa-tab:active { transform: scale(var(--press)); }
 .aa-tab.on {
   color: var(--text);
-  border-color: var(--accent);
-  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  background: var(--panel);
 }
 
-.aa-step { display: flex; flex-direction: column; gap: 8px; }
+.aa-step { display: flex; flex-direction: column; gap: 12px; }
+/* V4's step heading: 13 on a 20 line, semibold, in the text ink, in the
+   sentence's own case. */
 .aa-step h4 {
   margin: 0;
-  color: var(--muted);
-  font-size: calc(10px + max(-1px, var(--ui-text-increase, 0px)));
+  color: var(--text);
+  font-size: calc(13px + var(--ui-text-increase, 0px));
+  line-height: calc(20px + var(--ui-text-increase, 0px));
   font-weight: 600;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
 }
-/* The address a re-sign-in is for (#1893), as the accounts panel prints it: a
-   caption in capitals is a label, and an address set in them is not the one
-   the reader knows. */
+/* The address a re-sign-in is for (#1893): the reader's own address, which
+   wraps rather than widening the dialog. */
 .aa-step h4 strong {
   color: var(--text);
-  letter-spacing: normal;
-  text-transform: none;
   overflow-wrap: anywhere;
+}
+/* The four stages (V4's Figma): 28 high rows, a 20 circle with the number in
+   mono 11, and the stage's name in the secondary ink at 13 medium. */
+.aa-steps { list-style: none; margin: 0; padding: 0; }
+.aa-steps li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 28px;
+  box-sizing: border-box;
+  padding: 4px 0;
+  font-size: calc(13px + var(--ui-text-increase, 0px));
+  line-height: calc(20px + var(--ui-text-increase, 0px));
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+.aa-step-n {
+  flex: none;
+  display: inline-grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  box-sizing: border-box;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  font-family: var(--font-mono);
+  font-size: calc(11px + var(--ui-text-increase, 0px));
+  line-height: calc(14px + var(--ui-text-increase, 0px));
+  font-weight: 400;
+  color: var(--muted);
 }
 .aa-note { margin: 0; color: var(--muted); font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: 1.5; }
 .aa-err { margin: 0; color: var(--err); font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: 1.5; }
