@@ -403,8 +403,9 @@ const PRESSES: Press[] = [
   [".uh-range-btn:active", "0.97", "transform"],
   [".uh-bar-col:active", "0.97", "transform"],
   [".session-list .sl-row:active", "0.97", "transform"],
-  // The rail's close button, a 24px icon: the icon tier.
-  [".session-list .sl-close:active", "0.94", "transform"],
+  // The rail's header icon buttons (Plus, and the phone's close), 24px icons: the icon tier.
+  // Renamed from .sl-close for V4's header, which has two such buttons.
+  [".session-list .sl-icon-btn:active", "0.94", "transform"],
   // The rail's usage meter, a labelled row that opens Usage: the rows' tier.
   [".session-list .sl-usage-btn:active", "0.97", "transform"],
   // Browser Watch's episode disclosure. Same tier and same number as the row

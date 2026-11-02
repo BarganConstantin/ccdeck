@@ -1044,6 +1044,7 @@ function Inner() {
               activeAlias={attention.accounts?.find(a => a.active)?.alias ?? null}
               onOpenUsage={() => usageRail.set(o => !o)}
               onOpenKeys={inWorkspace ? openSessionWithKeys : undefined}
+              onNewSession={inWorkspace && stage.enabled ? stage.newSessionFrom : undefined}
             />
           )}
         </LeftColumn>

@@ -7,7 +7,7 @@
 // cannot say is how old it is, so the meter does: past STALE_MS, or after a read
 // that failed, the numbers are drawn in --muted and the second line names the
 // age instead of passing them off as now. The click opens the Usage panel.
-import { quotaLevelColor, quotaPctText } from "./components/QuotaBar";
+import { quotaPctText } from "./components/QuotaBar";
 import { elapsedShort } from "./elapsed-short";
 import { resetCountdown } from "./relative-time";
 import type { MeterQuota } from "./use-quota";
@@ -24,9 +24,12 @@ export interface UsageMeter {
   pctText: string;
   /** The bar's fill, 0 to 100. */
   fill: number;
-  /** The fill's colour: the Usage panel bar's own data colour for this
-   *  reading, or --muted when the reading is stale. */
-  color: string;
+  /** The fill's parts, left to right: one cyan part unless the page holds an
+   *  honest per-session split of the window (see railSegments). */
+  segments: RailSegment[];
+  /** The figure's tone: under 70 quiet, 70 to 89 plain, 90 and up error. The
+   *  bar itself never changes colour. A stale reading is always quiet. */
+  level: FigureLevel;
   /** The reading is old or the last read failed: drawn quiet. */
   stale: boolean;
   /** "read 12m ago" when stale, else null. */
@@ -37,6 +40,38 @@ export interface UsageMeter {
   week: string | null;
   /** The button's whole name, every figure in one sentence. */
   spoken: string;
+}
+
+export type FigureLevel = "low" | "mid" | "high";
+
+/** The figure's tone at a reading: the 70 and 90 levels the deck's other meters use. */
+export function figureLevel(pct: number): FigureLevel {
+  return pct >= 90 ? "high" : pct >= 70 ? "mid" : "low";
+}
+
+/** The data colours of V4's rail meter segments, left to right. */
+export const SEGMENT_TOKENS = ["--usage-cyan", "--usage-indigo", "--usage-lime", "--usage-pink", "--usage-orange"] as const;
+
+export interface RailSegment {
+  /** The colour token (a var() name), one of SEGMENT_TOKENS. */
+  token: string;
+  /** This part's share of the fill, 0 to 1; the parts add up to 1. */
+  share: number;
+}
+
+/** The fill split by the sessions sharing the window: largest first, the first
+ *  four as they are and the fifth everything that is left. `shares` are the
+ *  sessions' weights in any one unit. Without an honest split (none given, or
+ *  fewer than two positive weights) the fill is ONE cyan part: the deck holds
+ *  no per-session reading of a quota window, only each session's lifetime
+ *  cost, so nothing passes shares in today. */
+export function railSegments(shares?: readonly number[] | null): RailSegment[] {
+  const parts = (shares ?? []).filter(n => Number.isFinite(n) && n > 0).sort((a, b) => b - a);
+  const total = parts.reduce((a, b) => a + b, 0);
+  if (parts.length < 2 || total <= 0) return [{ token: SEGMENT_TOKENS[0], share: 1 }];
+  const rest = parts.slice(4).reduce((a, b) => a + b, 0);
+  const all = rest > 0 ? [...parts.slice(0, 4), rest] : parts.slice(0, 4);
+  return all.map((n, i) => ({ token: SEGMENT_TOKENS[i], share: n / total }));
 }
 
 /** A window whose reset has passed is over and so is its reading: QuotaBar says
@@ -73,5 +108,5 @@ export function usageMeter(held: MeterQuota | null | undefined, nowMs: number, a
     [name, `5-hour limit ${pctText}`, countdown && `resets in ${countdown}`, week, stale && `last read ${minutesAgo(age)}`]
       .filter(Boolean).join(", "),
   ].join(" ");
-  return { name, pctText, fill: capped, color: stale ? "var(--muted)" : quotaLevelColor(capped), stale, readAgo, reset, week, spoken };
+  return { name, pctText, fill: capped, segments: railSegments(), level: stale ? "low" : figureLevel(capped), stale, readAgo, reset, week, spoken };
 }
