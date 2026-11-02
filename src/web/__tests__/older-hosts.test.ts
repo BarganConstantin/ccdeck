@@ -20,7 +20,7 @@ import type { ApiFailure, HostsAnswer, OlderHost } from "../terminal-api";
 import {
   REFUSED_UNTIL_THEY_END,
   endHost,
-  endLabel,
+  endAllLabel,
   hostReason,
   hostsConsequences,
   hostsFingerprint,
@@ -158,7 +158,7 @@ describe("End", () => {
 describe("the Review dialog", () => {
   const props = (over: Partial<HostsReviewProps> = {}): HostsReviewProps => ({
     view: view([host(1, "stranded", session(1), session(2, "codex"))]),
-    now: NOW, busy: null, said: null, onEnd: vi.fn(), onKeep: vi.fn(), ...over,
+    now: NOW, busy: null, said: null, onEndAll: vi.fn(), onKeep: vi.fn(), ...over,
   });
   const buttons = (tree: unknown) => all(tree, el => el.type === "button");
   const press = (el: Drawn | null) => { expect(el).not.toBeNull(); (el!.props.onClick as () => void)(); };
@@ -172,8 +172,11 @@ describe("the Review dialog", () => {
     expect(hostReason(host(1, "stranded"))).toBe("The Command Panel has moved to a newer session host and cannot open these here.");
     expect(hostReason(host(1, "security"))).toBe("A security update replaces this session host once these end.");
     expect(hostReason(host(1, "draining"))).toBe("This session host closes once these end.");
-    expect(textOf(HostsReview(props()))).toContain("Those agents, at once. Work they have not saved is lost.");
-    expect(textOf(HostsReview(props()))).toContain("Each conversation, in Claude's and Codex's own history. On Windows the Command Panel cannot reopen it.");
+    // CHANGED ON PURPOSE: V4 sets the two facts as plain lines, "Ends: those
+    // agents, ..." and "Stays: each conversation, ...", not a boxed list.
+    expect(textOf(HostsReview(props()))).toContain("Ends: those agents, at once. Work they have not saved is lost.");
+    expect(textOf(HostsReview(props()))).toContain("Stays: each conversation, in Claude's and Codex's own history. On Windows the Command Panel cannot reopen it.");
+    expect(html).not.toContain("<dl");
   });
 
   it("names whose history keeps the conversations", () => {
@@ -181,23 +184,35 @@ describe("the Review dialog", () => {
     expect(hostsConsequences(view([host(1, "stranded", session(1, "codex"))])).stays).toContain("in Codex's own history");
   });
 
-  it("offers Keep them running first, and one End per host for exactly its sessions", () => {
+  it("offers Keep them running first and one End last, which ends every listed session", () => {
+    // CHANGED ON PURPOSE: V4's footer is Keep them running, then "End {n}
+    // sessions" for all of them; the per-host End buttons left the body (new
+    // sessions are refused until every one ends, so one alone helps nothing).
     const p = props({ view: view([host(1, "stranded", session(1), session(2)), host(2, "security", session(3))], REFUSED) });
     const tree = HostsReview(p);
-    expect(buttons(tree).map(textOf)).toEqual(["End 2 sessions", "End 1 session", "Keep them running"]);
-    expect(endLabel(host(2, "security", session(3)))).toBe("End 1 session");
-    press(one(tree, el => el.type === "button" && textOf(el) === "End 1 session"));
-    expect(p.onEnd).toHaveBeenCalledWith(p.view.hosts[1]);
+    expect(buttons(tree).map(textOf)).toEqual(["Keep them running", "End 3 sessions"]);
+    expect(endAllLabel(1)).toBe("End 1 session");
+    press(one(tree, el => el.type === "button" && textOf(el) === "End 3 sessions"));
+    expect(p.onEndAll).toHaveBeenCalledTimes(1);
     press(one(tree, el => el.type === "button" && textOf(el) === "Keep them running"));
     expect(p.onKeep).toHaveBeenCalledTimes(1);
     expect(textOf(tree)).toContain(REFUSED);
   });
 
-  it("holds the other End while one is on its way, keeps the pressed one focusable (#518), and says a refusal as a status", () => {
+  it("keeps End focusable and busy while it is on its way (#518), and says a refusal as a status", () => {
     const tree = HostsReview(props({ view: view([host(1, "stranded", session(1)), host(2, "stranded", session(2))]), busy: 2, said: OUTDATED.error }));
     const ends = buttons(tree).filter(b => textOf(b).startsWith("End"));
-    expect(ends.map(b => [b.props.disabled, b.props["aria-busy"]])).toEqual([[true, undefined], [false, true]]);
+    expect(ends.map(b => [b.props.disabled, b.props["aria-busy"]])).toEqual([[undefined, true]]);
     expect(textOf(one(tree, el => el.props.role === "status"))).toBe(OUTDATED.error);
+  });
+
+  it("draws V4's dialog: no status dot, the footer in the shell's own, no separators or buttons in the list", () => {
+    const html = renderToStaticMarkup(createElement(HostsReview, props()));
+    expect(html).toContain('<footer class="modal-foot">');
+    expect(html).toMatch(/class="btn danger"[^>]*>End 2 sessions<\/button><\/footer>/);
+    const src = withoutComments(readFileSync(fileURLToPath(new URL("../components/terminal/HostsDialog.tsx", import.meta.url)), "utf8"));
+    expect(src).not.toContain("status-dot");
+    expect(src).not.toContain("cc-actions");
   });
 
   it("is a dialog on the confirm layer, in <body>, with Keep them running focused and ✕ as cancel", () => {

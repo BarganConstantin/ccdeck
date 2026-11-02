@@ -192,6 +192,11 @@
 /* ── the body: the terminal, or the card that stands in for it ───────────── */
 
 .ts-body { position: relative; flex: 1 1 auto; min-height: 0; overflow: hidden; }
+/* What the body is behind a state (V4's Term pane states): in Workspace the pane
+   is --sunken, beside the board --bg. Only while a state speaks: the terminal's
+   own frame (xterm, drawn on --panel) keeps the body it always had around it. */
+.ts-stage[data-fill] .ts-body:not([data-frame]) { background: var(--sunken); }
+.ts-stage:not([data-fill]) .ts-body:not([data-frame]) { background: var(--bg); }
 /* Hidden, never removed: the one terminal lives in here for the stage's whole
    life. Leaving takes 70ms; arriving fades in once the seed is drawn. */
 .ts-host {
@@ -251,23 +256,27 @@
 .ts-stage[data-pane-size] .ts-body { overflow-x: auto; overflow-y: hidden; }
 
 /* Every card is a column in the middle of the pane (V4), centred both ways:
-   10px between its lines, and a line of about 60 characters at most. Taller
+   10px between its lines, 464 wide at most, 48 in from the sides and 24 from
+   the top and bottom, straight in the body with no box of its own. Taller
    than a short pane (a phone on its side, the install card), it starts at the
    top and scrolls, so its title and its buttons stay reachable: `safe` keeps
    the centring from pushing either end out of reach. */
 .ts-card {
   position: absolute;
-  inset: 0;
+  /* The pane's 48 from each side is this 24 and the padding's 24 (the
+     spacing ladder has no 48). */
+  inset: 0 24px;
   box-sizing: border-box;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: safe center;
   gap: 10px;
-  padding: 12px 24px;
+  padding: 24px;
   overflow-y: auto;
   text-align: center;
 }
+.ts-card > * { max-width: 464px; }
 .ts-ctx {
   max-width: 100%;
   overflow: hidden;
@@ -277,41 +286,42 @@
   color: var(--muted);
 }
 .ts-prompt { color: var(--muted); }
-.ts-fact { display: flex; align-items: center; justify-content: center; gap: 8px; color: var(--muted); }
-/* Its own box, because a flex row's text is an anonymous item the row's
-   text-overflow never reaches: a long folder was cut mid-word with no
-   ellipsis. The whole line is the row's title. */
-.ts-fact-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
-.ts-fact-mark { flex: none; width: 6px; height: 6px; border-radius: 50%; background: var(--inflight); }
-.ts-fact-mark[data-kind="gone"] {
-  width: 7px;
-  height: 7px;
-  box-sizing: border-box;
-  background: none;
-  border: 1.5px solid var(--muted);
-}
 /* A card's title, where it has one ("tmux · setting up"). */
 .ts-title { margin: 0; font-size: 13px; font-weight: 600; line-height: 20px; color: var(--text); }
-.ts-text { margin: 0; max-width: 60ch; font-size: 13px; line-height: 20px; color: var(--text-secondary); }
+.ts-text { margin: 0; max-width: 464px; font-size: 13px; line-height: 20px; color: var(--text-secondary); }
+/* The empty pane's block (Workspace): 360 wide, 16 in, 4 between its lines; the
+   button's row has 8 above it. */
+.ts-empty-block {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  box-sizing: border-box;
+  width: 360px;
+  max-width: 100%;
+  padding: 16px;
+}
+.ts-empty-block .ts-text { color: var(--muted); }
+.ts-empty-block .ts-acts { padding-top: 8px; }
 /* Attaching and starting: the working glyph and the word, in one row. */
 .ts-wait { display: flex; align-items: center; justify-content: center; gap: 6px; }
 /* The deck's own tmux on its way: a 2px bar that fills with the download and
    holds full while the build is checked, its figure under it. Before it can
    say how far (no bytes yet, or no size given) a segment travels it, as the
    header's scan does. */
-.ts-setup { display: flex; flex-direction: column; align-items: center; gap: 6px; width: 320px; max-width: 100%; }
+.ts-setup { display: flex; flex-direction: column; align-items: center; gap: 4px; width: 320px; max-width: 100%; }
 .ts-setup-bar {
   position: relative;
   align-self: stretch;
   height: 2px;
-  border-radius: var(--r-pill);
-  background: var(--line);
+  border-radius: var(--r-tag);
+  background: var(--ctl-fill);
   overflow: hidden;
 }
 .ts-setup-fill {
   position: absolute;
   inset: 0;
-  background: var(--accent);
+  background: var(--muted);
   transform: scaleX(0);
   transform-origin: left center;
   transition: transform var(--dur-slow) var(--ease);
@@ -322,35 +332,35 @@
   transform: translateX(-100%);
   animation: ts-scan 1.1s cubic-bezier(0.45, 0, 0.55, 1) infinite;
 }
-.ts-setup-line { font: 400 12px/16px var(--font-mono); color: var(--muted); font-variant-numeric: tabular-nums; }
+.ts-setup-line { font: 400 11px/14px var(--font-mono); color: var(--muted); font-variant-numeric: tabular-nums; }
 /* The actions: the kit's Primary and Quiet buttons (topbar-controls.css) in a
    centred row; the cards set no size of their own for them. */
 .ts-acts { display: flex; align-items: center; justify-content: center; gap: 8px; }
 .ts-acts .btn { display: inline-flex; align-items: center; gap: 6px; }
 .ts-note { max-width: 60ch; margin: 0; font-size: 12px; line-height: 16px; color: var(--text-secondary); }
-/* The install line, 360 by 32, with its Copy at the end. */
+/* The install line, 360 by 32 on the sunken ground, no edge, with its Copy, a
+   24 square, at the end. */
 .ts-cmd {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 10px;
+  gap: 8px;
   box-sizing: border-box;
   width: 360px;
   max-width: 100%;
   height: 32px;
-  padding: 0 4px 0 12px;
-  border: 1px solid var(--line);
+  padding: 4px 4px 4px 8px;
   border-radius: var(--r-ctl);
-  background: var(--bg-soft);
+  background: var(--sunken);
   font: 400 12px/16px var(--font-mono);
   color: var(--text);
 }
 .ts-cmd code { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: inherit; }
-.ts-cmd .glyph-btn { flex: none; margin: 0; }
-.ts-empty-glyph { display: block; width: 28px; height: 28px; color: var(--muted); }
+.ts-cmd .glyph-btn { flex: none; box-sizing: border-box; width: 24px; height: 24px; margin: 0; padding: 0; border-radius: var(--r-ctl); }
 
 /* ── the keys bar: who has the keyboard, and the asks ────────────────────── */
 
+.ts-bar[hidden] { display: none; }
 .ts-bar {
   container: ts-bar / inline-size;
   flex: none;
@@ -373,6 +383,9 @@
    hint, a key and a button keep their size (a button cut in half is a button
    out of reach). */
 .ts-keys > * { flex: none; }
+/* A sentence with its one button at the right end (first run, ended, taken over). */
+.ts-keys[data-split] { flex: 1 1 auto; }
+.ts-keys[data-split] > .btn { margin-left: auto; }
 .ts-keys > .ts-label,
 .ts-keys > .ts-reconnecting,
 .ts-keys > .ts-end { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
@@ -396,13 +409,17 @@
    Answer) are plain text at rest, a word in the line; the pointer lifts it to
    --text, and the focus ring is the button's own. A fingertip gets them at
    32px, and the bar with them (touch-and-forced-colours.css). */
-.ts-keys .btn { min-height: 28px; padding: 0 10px; }
-.ts-hosts .btn { min-height: 28px; padding: 0 10px; }
+.ts-keys .btn { min-height: 28px; padding: 0 12px; }
+.ts-hosts .btn { min-height: 28px; padding: 0 12px; }
 .btn.ts-plain { border-color: transparent; background: none; font-weight: 400; color: var(--muted); }
+/* Those words read as the bar's own text: 12 on 16, 16 high, no padding, no
+   fill. A fingertip keeps its 32px floor (touch-and-forced-colours.css). */
+@media not (pointer: coarse) {
+.ts-bar button.btn.ts-plain { min-height: 16px; height: 16px; padding: 0; border-width: 0; font-size: 12px; line-height: 16px; }
+}
 @media (hover: hover) and (pointer: fine) {
 .btn.ts-plain:hover { border-color: transparent; background: none; color: var(--text); }
 }
-.ts-keys .ts-type { padding: 0 4px; }
 /* The first-run line is said whole wherever it shows: on a stage too narrow
    for it on one line (the takeover: a phone, a narrow window) it wraps in the
    bar rather than pushing Got it off the end. There, two lines of 15px fit
@@ -413,24 +430,23 @@
 .ts-first { flex: 0 1 auto; min-width: 0; white-space: normal; }
 .ts-stage[data-takeover] .ts-first { line-height: 15px; }
 .ts-bar:has(.ts-first) { height: auto; min-height: 32px; padding-block: 1px; }
-.ts-end { display: block; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.ts-end { display: block; min-width: 0; overflow: hidden; text-overflow: ellipsis; color: var(--text-secondary); }
+/* The first-run line is one plain sentence in the secondary text. */
+.ts-first { color: var(--text-secondary); }
 /* The asks sit at the bar's end; when they and the keys do not
    fit one row they wrap under them (the stage measures the bar and fits the
    terminal's rows above it, as for the first-run line). */
 .ts-bar:has(.ts-asks:not(.ts-hosts)) { height: auto; min-height: 32px; padding-block: 1px; flex-wrap: wrap; row-gap: 0; }
 
-.ts-asks { display: flex; align-items: center; gap: 6px; flex: 0 1 auto; min-width: 0; margin-left: auto; }
+.ts-asks { display: flex; align-items: center; gap: 8px; flex: 0 1 auto; min-width: 0; margin-left: auto; }
+.ts-asks[data-clear] { gap: 6px; }
 .ts-asks > * { flex: none; }
 .ts-asks-label { color: var(--muted); }
 .ts-count { font-variant-numeric: tabular-nums; color: var(--text-secondary); }
 .ts-resumed { color: var(--text-secondary); }
 /* Next ask and Answer: plain --muted text (.ts-plain), the name and the wait in
    the same colour. (v3 drew them as a pill with the words in --warn.) */
-.ts-asks .ts-next {
-  gap: 4px;
-  min-height: 28px;
-  padding: 0 4px;
-}
+.ts-asks .ts-next { gap: 4px; }
 .ts-next-name { max-width: 150px; overflow: hidden; text-overflow: ellipsis; }
 /* The ask note and the resumed note are one line of text led by a glyph: a
    block, so a long session name is cut with an ellipsis and never pushes the
@@ -438,7 +454,8 @@
 .ts-asks > .ts-arrival,
 .ts-asks > .ts-resumed { display: block; flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .ts-arrival .ts-glyph,
-.ts-resumed .ts-glyph { margin-right: 6px; vertical-align: middle; }
+.ts-resumed .ts-glyph { margin-right: 8px; vertical-align: middle; }
+.ts-asks[data-clear] .ts-resumed .ts-glyph { margin-right: 6px; }
 .ts-arrival { color: var(--text-secondary); animation: ts-arrive var(--dur-move) var(--ease); }
 @keyframes ts-arrive { from { opacity: 0; transform: translateY(6px); } }
 /* Sessions on an older session host (Windows, older-hosts.ts): a sentence
@@ -447,14 +464,19 @@
 .ts-asks.ts-hosts { flex: 0 1 auto; min-width: 0; }
 .ts-hosts-said { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; color: var(--muted); }
 
-/* Review: one host's sessions per block, its End under them. */
-.modal.older-hosts .modal-title .status-dot { background: var(--warn); }
-.oh-host { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; margin-bottom: 14px; }
-.oh-reason { margin: 0; color: var(--text); font-size: calc(12px + var(--ui-text-increase, 0px)); }
-.oh-sessions { display: flex; flex-direction: column; gap: 4px; margin: 0; padding: 0; list-style: none; font-size: calc(12px + var(--ui-text-increase, 0px)); }
-.oh-sessions li { display: flex; flex-wrap: wrap; gap: 0 8px; }
-.oh-sessions b { font-weight: 600; color: var(--text); }
-.oh-sessions span { color: var(--muted); }
+/* Review (V4's Hosts dialog), inside the shared dialog shell: an intro, one
+   44px row per session, the two facts as plain lines, the engine's refusal.
+   The body's own gap is 16; V4 spaces these 12 apart. */
+.modal.older-hosts > .modal-body { gap: 12px; }
+.oh-intro { margin: 0; font-size: 13px; line-height: 20px; color: var(--text-secondary); }
+.oh-sessions { display: flex; flex-direction: column; margin: 0; padding: 0; list-style: none; }
+.oh-sessions li { display: flex; flex-direction: column; justify-content: center; box-sizing: border-box; min-height: 44px; padding: 4px 0; }
+.oh-sessions b { font-size: 13px; font-weight: 600; line-height: 20px; color: var(--text); }
+.oh-sessions span { font-size: 12px; line-height: 16px; color: var(--muted); }
+.oh-facts { display: flex; flex-direction: column; gap: 4px; }
+.oh-facts p, .oh-last { margin: 0; font-size: 12px; line-height: 16px; }
+.oh-ends { color: var(--text-secondary); }
+.oh-stays, .oh-last { color: var(--muted); }
 
 /* ── the divider, on the stage's left edge ───────────────────────────────── */
 
@@ -502,42 +524,22 @@
 }
 .ts-divider[data-held]::before,
 .ts-divider:focus-visible::before { width: 2px; background: var(--accent); transition: none; }
-.ts-divider[data-held] .ts-grip,
 .ts-divider:focus-visible .ts-grip { opacity: 1; background: var(--accent); }
-/* While the edge is held the header recedes, so the plates read first. */
+/* Dragging, the edge is the 2px accent line alone (V4, Divider). */
+.ts-divider[data-held] .ts-grip { opacity: 0; }
+/* While the edge is held the header recedes. */
 .ts-stage[data-held] .ts-head > :not(.ts-scan) { opacity: 0.2; transition: opacity var(--dur-fast) var(--ease); }
-.ts-detents { position: absolute; top: 0; bottom: 0; left: 0; z-index: 6; pointer-events: none; }
-.ts-detent {
+/* The readout while dragging: bare mono text in the middle of the pane side. */
+.ts-detents {
   position: absolute;
-  top: 0;
-  translate: -50% 0;
+  inset: 0;
+  z-index: 6;
   display: flex;
-  flex-direction: column;
   align-items: center;
-  font: 600 10px/1 var(--font-mono);
-  font-variant-numeric: tabular-nums;
-  color: var(--muted);
+  justify-content: center;
+  pointer-events: none;
 }
-.ts-detent::before { content: ""; width: 1px; height: 8px; background: var(--ctl-edge); }
-.ts-detent span {
-  padding: 3px 6px;
-  border: 1px solid var(--ctl-edge);
-  border-radius: var(--r-tag);
-  background: var(--panel);
-  box-shadow: var(--shadow-contact);
-}
-.ts-detent[data-on] { color: var(--accent); }
-.ts-detent[data-on]::before { background: var(--accent); }
-.ts-detent[data-on] span { border-color: var(--accent); }
 .ts-readout {
-  position: absolute;
-  top: calc(50% + 28px);
-  left: 12px;
-  padding: 4px 8px;
-  border: 1px solid var(--accent);
-  border-radius: var(--r-ctl);
-  background: var(--panel);
-  box-shadow: var(--shadow-contact), var(--shadow-2);
   font: 400 13px/20px var(--font-mono);
   font-variant-numeric: tabular-nums;
   color: var(--text);

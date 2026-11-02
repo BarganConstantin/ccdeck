@@ -61,8 +61,10 @@ describe("the divider", () => {
     const sep = () => separator(m.tree);
     (sep().props.onPointerDown as (e: unknown) => void)({ button: 0, pointerId: 1, preventDefault() {}, currentTarget: target });
     expect(p.onHold).toHaveBeenLastCalledWith(true);
-    const plates = all(m.tree, el => el.props.className === "ts-detent");
-    expect(plates.map(el => textOf(el)), "the detents stand over the edge while it is held").toEqual(["80 col", "100 col", "120 col", "160 col"]);
+    // CHANGED ON PURPOSE: V4 draws no plate for the detents (they were 10px
+    // type); held, the pane side says the bare "cols × rows" readout alone.
+    expect(all(m.tree, el => el.props.className === "ts-detent"), "no detent plates").toHaveLength(0);
+    expect(all(m.tree, el => el.props.className === "ts-readout").map(el => textOf(el)), "the readout stands while it is held").toEqual(["120 × 40"]);
     // 1920 − x − 44 = 8 × cols: x = 1920 − 44 − 8 × 112 = 980 asks for 112.
     const at = (cols: number) => appW - 44 - cellW * cols;
     (sep().props.onPointerMove as (e: unknown) => void)({ clientX: at(112) });
@@ -75,7 +77,7 @@ describe("the divider", () => {
     expect((p.onCols as ReturnType<typeof vi.fn>).mock.calls.at(-1)).toEqual([120, true]);
     expect((p.onCols as ReturnType<typeof vi.fn>).mock.calls.filter(c => c[1] === true), "one release, one settle").toHaveLength(1);
     expect(p.onHold).toHaveBeenLastCalledWith(false);
-    expect(all(m.tree, el => el.props.className === "ts-detent")).toHaveLength(0);
+    expect(all(m.tree, el => el.props.className === "ts-readout")).toHaveLength(0);
   });
 
   it("ignores a press that is not the main button", () => {

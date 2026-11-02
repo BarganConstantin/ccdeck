@@ -77,8 +77,4 @@ export const CollapseGlyph = () => (
 );
 export const CloseGlyph = () => <KitIcon name="close" className="ts-icon" />;
 export const BackGlyph = () => <KitIcon name="chevron-left" className="ts-icon" />;
-export const PlusGlyph = () => <KitIcon name="plus" className="ts-icon" />;
 export const CopyGlyph = () => <KitIcon name="copy" className="ts-icon" />;
-export const TerminalGlyph = () => (
-  <Glyph size={28} box={28}><rect x="2.5" y="5" width="23" height="18" rx="3" /><path d="M8 11l3.5 3L8 17M14 17.5h6" /></Glyph>
-);
