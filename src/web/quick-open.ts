@@ -49,6 +49,9 @@ export interface QuickItem {
   glyph?: ReactNode;
   /** A session's state, drawn as its dot. */
   tone?: "waiting" | "active" | "done" | "err";
+  /** The tag is a state worth reading (Shown, Current), not just the kind of
+   *  row: the menu draws it, and only reads the kind aloud otherwise. */
+  tagIsState?: true;
   /** Listed only once something is typed: a theme, a single setting. There
    *  are dozens, and an empty field is the map of the deck, not the index. */
   queryOnly?: true;
@@ -207,9 +210,109 @@ function section(key: QuickSection, items: RankedItem[]): RankedSection {
   return { section: key, title: sectionTitle(key), items };
 }
 
-/** The rows in the order the arrows walk them. */
-export function flatRows(sections: readonly RankedSection[]): RankedItem[] {
-  return sections.flatMap(s => s.items);
+/** The groups V4's menu draws, in its order. Recent is the one extra, first
+ *  when something was opened lately; Panels and dialogs, Settings and Themes
+ *  follow Do, so a long list of them cannot bury the actions. */
+export type QuickGroup = "recent" | "needs" | "sessions" | "do" | "open" | "settings" | "themes";
+
+export const GROUP_ORDER: readonly QuickGroup[] = ["recent", "needs", "sessions", "do", "open", "settings", "themes"];
+
+export interface RankedGroup {
+  group: QuickGroup;
+  title: string;
+  items: RankedItem[];
+}
+
+/** Which group a ranked row belongs to: a session that needs you (the dot the
+ *  rail and the cards use for it) is in Needs you, even when it was opened
+ *  lately; the other sessions, failed ones included, are in Sessions, as the
+ *  rail's alarm signal puts them (one opened lately stays in Recent); the
+ *  deck's actions are in Do. */
+export function groupOf(item: QuickItem, section: QuickSection): QuickGroup {
+  if (item.tone === "waiting") return "needs";
+  if (section === "sessions") return "sessions";
+  if (section === "actions") return "do";
+  return section;
+}
+
+/** The group captions in the language on show. */
+export const groupTitle = (group: QuickGroup, tr: TFunction = t): string =>
+  group === "needs" || group === "do" ? tr(`board.quick.group.${group}`) : sectionTitle(group, tr);
+
+/**
+ * The sections as V4's groups. An empty field lists them in V4's order; a
+ * query keeps the order of the best answers, so the top row is still the best
+ * answer, with the sessions that need you split out of their section in place.
+ */
+export function groupQuick(sections: readonly RankedSection[], typed: boolean, tr: TFunction = t): RankedGroup[] {
+  const groups: RankedGroup[] = [];
+  const add = (group: QuickGroup, row: RankedItem) => {
+    let into = groups.find(g => g.group === group);
+    if (!into) { into = { group, title: groupTitle(group, tr), items: [] }; groups.push(into); }
+    into.items.push(row);
+  };
+  for (const s of sections) for (const row of s.items) add(groupOf(row.item, s.section), row);
+  if (!typed) groups.sort((a, b) => GROUP_ORDER.indexOf(a.group) - GROUP_ORDER.indexOf(b.group));
+  return groups;
+}
+
+/** The rows of the groups in the order the arrows walk them. */
+export function flatGroupRows(groups: readonly RankedGroup[]): RankedItem[] {
+  return groups.flatMap(g => g.items);
+}
+
+/** The row Tab (delta 1) or Shift+Tab (-1) moves to: the first of the next or
+ *  previous group, wrapping. The caller has a row chosen whenever there are rows. */
+export function jumpGroup(groups: readonly RankedGroup[], index: number, delta: 1 | -1): number {
+  const total = groups.reduce((n, g) => n + g.items.length, 0);
+  if (total === 0) return -1;
+  const starts: number[] = [];
+  let at = 0;
+  for (const g of groups) { starts.push(at); at += g.items.length; }
+  const current = starts.filter(start => start <= index).length - 1;
+  return starts[(current + delta + starts.length) % starts.length];
+}
+
+/** Rows a Page key moves. */
+const PAGE = 5;
+
+/** The parts of a key event the field reads (React's and the DOM's both fit). */
+export interface QuickKeyEvent {
+  key: string;
+  ctrlKey: boolean;
+  metaKey: boolean;
+  altKey: boolean;
+  shiftKey: boolean;
+  preventDefault(): void;
+  stopPropagation(): void;
+}
+
+/**
+ * What a key does in the field: a row to move to, "run" for Enter, or null
+ * when the key is the field's own (typing). The arrows, Page keys, Ctrl-N/P/J/K
+ * and Tab / Shift+Tab (the jump to the first row of the next or previous
+ * group) move; Tab is always claimed, with nothing listed too, so the dialog's
+ * window-level focus trap never walks focus off the field to the Esc button.
+ */
+export function quickKeyAction(e: QuickKeyEvent, groups: readonly RankedGroup[], active: number): "run" | { to: number } | null {
+  const count = groups.reduce((n, g) => n + g.items.length, 0);
+  const ctrlOnly = e.ctrlKey && !e.metaKey && !e.altKey;
+  let to: number | null = null;
+  if (e.key === "ArrowDown" || (ctrlOnly && (e.key === "n" || e.key === "j"))) to = stepRow(active, count, 1);
+  else if (e.key === "ArrowUp" || (ctrlOnly && (e.key === "p" || e.key === "k"))) to = stepRow(active, count, -1);
+  else if (e.key === "PageDown") to = Math.min(count - 1, active + PAGE);
+  else if (e.key === "PageUp") to = Math.max(0, active - PAGE);
+  else if (e.key === "Tab" && !e.ctrlKey && !e.metaKey && !e.altKey) {
+    e.preventDefault();
+    e.stopPropagation();
+    return count ? { to: jumpGroup(groups, active, e.shiftKey ? -1 : 1) } : null;
+  } else if (e.key === "Enter") {
+    e.preventDefault();
+    return "run";
+  }
+  if (to === null) return null;
+  e.preventDefault();
+  return { to };
 }
 
 /** The next row for an arrow, wrapping at both ends as Raycast's does. */
