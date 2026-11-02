@@ -916,7 +916,7 @@ describe("one entrance for one interaction: the modal", () => {
   it("dims behind all three of them the same way", () => {
     for (const [backdrop] of DIALOGS) {
       const rule = all.find(r => !r.reduced && r.selector === backdrop)!;
-      // R3-3: a transition with @starting-style, not a keyframe, so a dialog
+      // A transition with @starting-style, not a keyframe, so a dialog
       // reopened inside its own exit turns around from where it is.
       expect(decl(rule.body, "animation"), backdrop).toBeNull();
       expect(decl(rule.body, "transition"), backdrop).toBe("opacity var(--dur-base) var(--ease)"); // V4's dialog motion: Base, the one ease

@@ -1,4 +1,4 @@
-// R3-3: one shared Dialog, and a dialog that can leave (audit D1, J2, C4).
+// One shared Dialog, and a dialog that can leave.
 //
 // V4's motion rules for a dialog: Open is scrim opacity and dialog opacity and
 // scale 0.96 to 1 on Base 200; Close is scrim, opacity and scale 0.98 on Exit
@@ -172,7 +172,7 @@ function tsxFiles(dir: string): string[] {
 /** Real exceptions to "a scrim is the shared shell's". */
 const SCRIM_ALLOWLIST: readonly { file: string; why: string }[] = [
   { file: "Dialog.tsx", why: "it is the shell" },
-  { file: "QuickOpen.tsx", why: "a command field with its own keyframes and unmount-at-once (D19 removes its motion); it shares only the scrim's class, and dialogs.css keeps the shared transition off it" },
+  { file: "QuickOpen.tsx", why: "a command field with its own keyframes and unmount-at-once (V4's motion rules leave Quick open still); it shares only the scrim's class, and dialogs.css keeps the shared transition off it" },
 ];
 
 describe("every dialog is the shared shell", () => {
