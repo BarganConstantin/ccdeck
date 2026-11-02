@@ -193,6 +193,9 @@ describe("what was migrated to the secondary tier", () => {
       ".insp-none-title",
       ".prompt-text",
       ".qb-label",
+      // CHANGED ON PURPOSE (V4's Figma): the command menu's group captions
+      // (Needs you, Sessions, Do) are set in V4's secondary ink.
+      ".qo-caption",
       // Explains missing prices and recorded cost provenance.
       ".uh-cost-note",
       ".ap-issue-hint",
