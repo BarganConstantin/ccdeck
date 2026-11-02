@@ -165,8 +165,8 @@ export function WorkspaceEmpty({ waiting, onOpen, onNewSession }: {
           {waiting.command && <> <code>{waiting.command}</code></>}
         </p>
         <button type="button" className="btn ts-ws-open" data-stage-land onClick={onOpen}>
-          {singleKeys && <Kbd>n</Kbd>}
           <span>Open {waiting.name}</span>
+          {singleKeys && <Kbd>n</Kbd>}
         </button>
       </div>
     );

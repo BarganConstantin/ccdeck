@@ -152,6 +152,8 @@ describe("the empty pane", () => {
     expect(out).toContain("Allow this command?");
     expect(out).toContain("<code>npm test -- rate-limit</code>");
     expect(out).toContain("Open web-api");
+    // V4's Figma puts the key cap after the label.
+    expect(out).toMatch(/<span>Open web-api<\/span><kbd class="kbd">n<\/kbd><\/button>/);
     expect(out).not.toContain("New session");
     // Not a decision card: nothing to allow or deny here.
     expect(out).not.toMatch(/Allow<|Deny/);
