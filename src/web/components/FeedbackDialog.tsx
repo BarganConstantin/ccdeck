@@ -157,6 +157,9 @@ export default function FeedbackDialog({ onClose, initialKind, initialBody, init
     clearFailure();
     bodyRef.current?.focus();
   });
+  // Typing in the message or the contact takes an armed Discard back.
+  const { armed: discardArmed, disarm: disarmDiscard } = discard;
+  useEffect(() => { if (discardArmed) disarmDiscard(); }, [body, contact]); // eslint-disable-line react-hooks/exhaustive-deps
   const copy = kindCopy(kind);
   const bodyMissing = triedToSend && !hasMessage(body);
   // A draft brought back by a reload whose screenshots stayed behind says so
@@ -380,8 +383,12 @@ export default function FeedbackDialog({ onClose, initialKind, initialBody, init
               )}
               <FeedbackDetails open={detailsOpen} contact={contact} onContact={setContact} account={asAccount} mail={mail} />
             </div>
+            {/* V4's Figma: what rides along on the left, the send key on the right, both quiet. */}
             <p className="fb-facts">
-              {facts ? slot(factsWith(), "facts", <span className="fb-facts-value">{facts}</span>) : factsUnknown()}
+              <span className="fb-facts-text">{facts ? slot(factsWith(), "facts", <span className="fb-facts-value">{facts}</span>) : factsUnknown()}</span>
+              <span className="fb-shortcut" aria-hidden="true">
+                <kbd data-symbol={isSymbolCap(capA) || undefined}>{capA}</kbd><kbd>{capB}</kbd> {t("shell.feedback.toSend")}
+              </span>
             </p>
             {outcome.state === "failed" && <p className="fb-error" role="alert">{outcome.message}</p>}
           </section>
@@ -400,9 +407,6 @@ export default function FeedbackDialog({ onClose, initialKind, initialBody, init
                 {discard.armed ? discardArmedLabel() : discardLabel()}
               </button>
             )}
-            <span className="fb-shortcut" aria-hidden="true">
-              <kbd data-symbol={isSymbolCap(capA) || undefined}>{capA}</kbd><kbd>{capB}</kbd> {t("shell.feedback.toSend")}
-            </span>
             <button type="button" className="btn" onClick={onClose}>{t("shell.cancel")}</button>
             <button ref={sendRef} type="submit" className="btn primary fb-send" aria-keyshortcuts="Meta+Enter Control+Enter" {...selfPressProps(sending)}>
               {/* Both words always laid out in one cell, one of them hidden,

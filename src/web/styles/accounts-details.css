@@ -119,7 +119,6 @@
      simply there, at their full height, with no rise and no stagger — the
      reserved box means nothing jumps either way, which is the part of this that
      was never decoration. */
-  .uh-wait-axis { animation: none; }
   .uh-bar { transition: none; }
 }
 

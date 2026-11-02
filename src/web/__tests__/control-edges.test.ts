@@ -1257,6 +1257,16 @@ describe("every control that draws a boundary draws one that can be seen (1.4.11
       // identified by the word written in it (today, month, all) — like the
       // history modal's own range strip, which this one is the pills form of.
       ".up-period .uh-range-btn",
+      // CHANGED ON PURPOSE (V4's Figma): the history modal's own range chips are the
+      // same pills, a 1px --line stroke at rest and an --accent stroke on the
+      // accent wash when chosen, each identified by the word written in it
+      // (7d, 14d, 30d, 90d).
+      ".uh-toolbar .uh-range-btn", '.uh-toolbar .uh-range-btn[aria-pressed="true"]',
+      // CHANGED ON PURPOSE (V4's Figma): Discard, once pressed, is the kit's quiet
+      // button (a --line stroke, no fill, no red) named by the words "Confirm
+      // discard" written in it; the armed state is also said in words to a screen
+      // reader and by the bar that drains across it.
+      ".fb-foot .btn.danger.armed",
       // A control whose own request is in flight. Same reason as the period
       // strip above and the same shape: the boundary is drawn at rest by
       // whatever control this is, and is measured there; `aria-busy` only

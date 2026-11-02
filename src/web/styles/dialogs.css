@@ -185,14 +185,14 @@
   align-items: center;
   gap: 8px;
 }
+/* "error" beside the Response heading is plain text in V4: 12/500 in the error
+   ink, no pill, no edge, no wash. */
 .modal-section .err-tag {
-  font-size: calc(9px + max(0px, var(--ui-text-increase, 0px)));
-  font-weight: 700;
-  padding: 1px 6px;
-  border-radius: 4px;
+  margin-left: 8px;
+  font-size: calc(12px + var(--ui-text-increase, 0px));
+  font-weight: 500;
+  line-height: calc(16px + var(--ui-text-increase, 0px));
   color: var(--err);
-  background: rgba(252,165,165,0.10);
-  border: 1px solid rgba(252,165,165,0.30);
 }
 .modal-note {
   margin: 0;
@@ -246,25 +246,60 @@
    heading's own line; a labelled value that fits on one line is drawn as one,
    and a well holds the rest — a change coloured by side, with the side in a
    character as well so it reads without the colour. */
-.tm-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 0 0 6px; }
+.tm-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 24px; margin: 0 0 6px; }
 .tm-head h4 { margin: 0; }
 /* Both are the one button, at the one button height the sheet allows (see
    panel-rhythm.test.ts): the copy keeps its width beside the heading, and show
    all sits a step under the well it opens. */
 .tm-copy { flex: none; }
+/* The copy is the kit's 24 icon button at the control radius, no fill or edge. */
+.tm-copy.glyph-btn { width: 24px; height: 24px; padding: 0; margin: 0; border-radius: var(--r-ctl); }
 .tm-more { margin-top: 6px; }
 .tm-block,
 .tm-inline { margin: 0 0 8px; }
 .tm-block:last-child,
 .tm-inline:last-child { margin-bottom: 0; }
-.tm-label { display: block; margin: 0 0 3px; font-size: calc(10px + max(-1px, var(--ui-text-increase, 0px))); color: var(--muted); }
+.tm-label { display: block; margin: 0 0 3px; font-size: calc(11px + var(--ui-text-increase, 0px)); line-height: calc(14px + var(--ui-text-increase, 0px)); color: var(--muted); }
 .tm-inline { display: flex; align-items: baseline; gap: 8px; min-width: 0; font-size: calc(12px + var(--ui-text-increase, 0px)); color: var(--text); }
 .tm-inline .tm-label { display: inline; margin: 0; flex: none; }
 .tm-inline code { min-width: 0; font-family: var(--font-mono); word-break: break-all; }
 .tm-del { color: var(--err); }
 .tm-add { color: var(--ok); }
 .tm-ctx { color: var(--muted); }
-.modal-section pre.tm-err { color: var(--err); }
+.modal-section pre.tm-err { color: var(--text-secondary); }
+/* THE TOOL CALL (V4): the Input and Response heads are 12/600 labels in the
+   second text step; each payload sits in a code box on the sunken fill, 6 round,
+   no edge, 8 and 10 of padding, mono 12/16, lines not wrapped. */
+.tool-modal .modal-body { gap: 12px; }
+.tool-modal .modal-section h4, .session-summary .modal-section h4 {
+  margin: 0;
+  font-size: calc(12px + var(--ui-text-increase, 0px));
+  font-weight: 600;
+  line-height: calc(16px + var(--ui-text-increase, 0px));
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--text-secondary);
+}
+.tool-modal .modal-section pre {
+  padding: 8px 10px;
+  background: var(--sunken);
+  border: 0;
+  border-radius: var(--r-ctl);
+  color: var(--text-secondary);
+  font-size: calc(12px + var(--ui-text-increase, 0px));
+  line-height: calc(16px + var(--ui-text-increase, 0px));
+  white-space: pre;
+  word-break: normal;
+}
+.tool-modal .modal-note {
+  padding: 6px 8px;
+  border: 0;
+  border-radius: var(--r-panel);
+  background: var(--ctl-fill);
+  color: var(--text-secondary);
+  font-size: calc(12px + var(--ui-text-increase, 0px));
+  line-height: calc(16px + var(--ui-text-increase, 0px));
+}
 
 /* Also the reduced-motion entrance for every node and bubble on the canvas, and
    there with `both` — so no `to { opacity: 1 }`, which would fill over .tool-burst.dim,
@@ -335,7 +370,7 @@
 /* 8px under the body rather than the shared 16: the facts line, the last thing
    in it, says what is "sent with it", and sits nearer the Send it is about than
    the buttons it follows (14px). */
-.modal-body.fb-body { gap: 14px; padding-bottom: 8px; }
+.modal-body.fb-body { gap: 12px; }
 
 /* THE KINDS. Three words in a track: the control fill as the track, the chosen
    one raised onto the panel with the control edge round it, which is the mark
@@ -346,26 +381,25 @@
 .fb-kinds {
   display: inline-flex;
   align-self: flex-start;
-  gap: 2px;
+  gap: 4px;
   min-width: 0;
   margin: 0;
-  padding: 2px;
+  padding: 0;
   border: 0;
-  border-radius: var(--r-ctl);
-  background: var(--ctl-fill);
 }
 .fb-kind {
   position: relative;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-height: 24px;
-  padding: 0 12px;
-  border: 1px solid transparent;
-  border-radius: var(--r-tag);
+  min-height: var(--ctl-h-sm);
+  box-sizing: border-box;
+  padding: 0 8px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-pill);
   color: var(--text-secondary);
   font-size: calc(12px + var(--ui-text-increase, 0px));
-  font-weight: 500;
+  font-weight: 400;
   line-height: calc(16px + var(--ui-text-increase, 0px));
   cursor: pointer;
   user-select: none;
@@ -377,8 +411,8 @@
 }
 .fb-kind:active { transform: scale(var(--press)); }
 .fb-kind:has(input:checked) {
-  border-color: var(--ctl-edge);
-  background: var(--panel);
+  border-color: var(--accent);
+  background: var(--accent-16);
   color: var(--text);
 }
 .fb-kind:has(input:focus-visible) { outline: var(--focus-w) solid var(--accent); outline-offset: calc(-1 * var(--focus-w)); }
@@ -401,25 +435,29 @@
    field-sizing. The vertical padding is the field's own: the shared one is a
    one-line control with none, which set the first line on the frame. */
 .fb-compose { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
-.fb-label { color: var(--text); font-size: calc(13px + var(--ui-text-increase, 0px)); font-weight: 500; line-height: calc(18px + var(--ui-text-increase, 0px)); }
+.fb-label { color: var(--text-secondary); font-size: calc(12px + var(--ui-text-increase, 0px)); font-weight: 600; line-height: calc(16px + var(--ui-text-increase, 0px)); }
 .ap-manage-input.fb-message {
   display: block;
   width: 100%;
-  min-height: 116px;
+  min-height: 120px;
   max-height: min(40vh, 320px);
   padding: 8px 10px;
+  /* V4's fill; the edge stays the field's --ctl-edge (accounts-manage.css: the kit's
+     --line is under the 3:1 a field's boundary needs). */
+  background: var(--sunken);
   font-family: inherit;
   font-size: calc(13px + var(--ui-text-increase, 0px));
-  line-height: 1.5;
+  line-height: calc(20px + var(--ui-text-increase, 0px));
   resize: vertical;
   field-sizing: content;
 }
 /* Pressed with nothing written, the field says so with its edge as well as
    the line under it: a state has a mark and a word. The focus ring, which it
    has at that moment, stays the accent's. */
+.ap-manage-input.fb-message::placeholder { color: var(--muted); opacity: 1; }
 .ap-manage-input.fb-message[aria-invalid="true"] { border-color: var(--err); }
 .fb-error { animation: wstate-in var(--dur-fast) var(--ease) both; margin: 0; color: var(--err); font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: calc(16px + var(--ui-text-increase, 0px)); text-wrap: pretty; }
-.fb-hint { margin: 0; color: var(--text-dim); font-size: calc(11px + var(--ui-text-increase, 0px)); line-height: calc(16px + var(--ui-text-increase, 0px)); text-wrap: pretty; }
+.fb-hint { margin: 0; color: var(--muted); font-size: calc(11px + var(--ui-text-increase, 0px)); line-height: calc(14px + var(--ui-text-increase, 0px)); text-wrap: pretty; }
 
 /* THE TWO QUIET BUTTONS under the message — Add screenshot, Add details — a
    glyph or a chevron and their words, edgeless at rest like the other quiet
@@ -446,9 +484,10 @@
   border: 1px solid transparent;
   border-radius: var(--r-ctl);
   background: transparent;
-  color: var(--muted);
+  color: var(--text-secondary);
   font: inherit;
   font-size: calc(12px + var(--ui-text-increase, 0px));
+  font-weight: 500;
   line-height: calc(16px + var(--ui-text-increase, 0px));
   cursor: pointer;
   transition: background-color var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease),
@@ -461,7 +500,7 @@
 .fb-tool:active { transform: scale(var(--press)); }
 /* Turns rather than swaps, so open and shut are one control in two states. */
 .fb-chev { display: block; flex: none; transition: transform var(--dur-fast) var(--ease); }
-.fb-more[aria-expanded="true"] .fb-chev { transform: rotate(180deg); }
+.fb-more[aria-expanded="true"] .fb-chev { transform: rotate(90deg); }
 
 /* THE DETAILS, unfolding in place. Its row grows from nothing to its content
    (a 0fr → 1fr grid row, the one way to ease to an intrinsic height without
@@ -504,13 +543,13 @@
   display: flex;
   align-items: baseline;
   gap: 8px;
-  color: var(--muted);
+  color: var(--text-secondary);
   font-size: calc(12px + var(--ui-text-increase, 0px));
   font-weight: 500;
   line-height: calc(16px + var(--ui-text-increase, 0px));
 }
 .fb-optional { color: var(--text-dim); font-size: calc(11px + var(--ui-text-increase, 0px)); font-weight: 400; }
-.fb-field .ap-manage-input { width: 100%; }
+.fb-field .ap-manage-input { width: 100%; background: var(--sunken); }
 /* Where it goes and what may become of it: prose read once, to decide what to
    write, so the reading tier rather than the metadata one. */
 .fb-where {
@@ -525,13 +564,14 @@
 
 /* What rides along, on one line under everything a person writes: the values
    in the data face, the words in the body face, both at the annotation tier. */
-.fb-facts { margin: 0; color: var(--text-dim); font-size: calc(11px + var(--ui-text-increase, 0px)); line-height: calc(16px + var(--ui-text-increase, 0px)); }
-.fb-facts-value { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+.fb-facts { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin: 0; color: var(--muted); font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: calc(16px + var(--ui-text-increase, 0px)); }
+.fb-facts-text { min-width: 0; }
+.fb-facts-value { font-variant-numeric: tabular-nums; }
 /* A send that failed says so right under the facts line, 6px off it rather
    than the body's 14: the dialog is centred, so every pixel it grows moves
    Send half as far, and the pointer that pressed Send is about to press it
    again. One line of failure moves Send 11px, inside its own height. */
-.fb-facts + .fb-error { margin-top: -8px; }
+.fb-facts + .fb-error { margin-top: -6px; }
 
 /* IMAGES. The strip between the message and its buttons, once there is one:
    the thumbnails and their count on one line, what a screenshot can show under
@@ -686,18 +726,27 @@
   align-items: center;
   justify-content: flex-end;
   gap: 8px;
-  padding: 0 16px 16px;
+  /* V4's footer (the shell's .modal-foot): a rule above, 48 high, 16 at the sides. */
+  box-sizing: content-box;
+  min-height: var(--dialog-foot-h);
+  padding: 0 16px;
+  border-top: 1px solid var(--line-soft);
 }
 /* 8px more than the foot's gap before Cancel, so Cancel and Send read as the
    pair and the hint as a note on both, not as Cancel's. */
 .fb-shortcut {
   display: inline-flex;
+  flex: none;
   align-items: center;
   gap: 4px;
-  margin-right: 8px;
-  color: var(--text-dim);
+  color: var(--muted);
+  font-family: var(--font-mono);
   font-size: calc(11px + var(--ui-text-increase, 0px));
+  line-height: calc(14px + var(--ui-text-increase, 0px));
 }
+/* V4 draws the send key as plain mono text beside the facts, not as key caps:
+   the cap's box, edge and fill are taken off here, the keys stay <kbd>. */
+.fb-shortcut kbd { min-width: 0; height: auto; padding: 0; border: 0; border-radius: 0; background: none; box-shadow: none; color: inherit; font: inherit; }
 /* Edgeless and in the quiet ink until it is pointed at, the way the LAN
    dialog's Unpair is (.lan-peer-foot .btn.danger), and in the error colour
    only once armed, the moment the colour is about something. */
@@ -716,7 +765,7 @@
   color: var(--err);
 }
 }
-.fb-foot .btn.danger.armed { position: relative; overflow: hidden; color: var(--bg); background: var(--err); }
+.fb-foot .btn.danger.armed { position: relative; overflow: hidden; font-weight: 500; border-color: var(--line); color: var(--text-secondary); background: transparent; }
 /* The armed window is real (DISCARD_ARMED_MS), so it is visible: the accounts
    panel's drain bar (.ap-manage-btn.danger.armed), linear and exactly as long,
    because nothing about a countdown should ease. It starts with the arming and
@@ -728,7 +777,7 @@
   right: 0;
   bottom: 0;
   height: 2px;
-  background: color-mix(in srgb, var(--bg) 70%, transparent);
+  background: var(--muted);
   transform-origin: left center;
   animation: ap-disarm 4000ms linear forwards;
 }
@@ -985,34 +1034,18 @@
 
 /* ---------------- session-end summary modal ---------------- */
 
-.session-summary { width: min(720px, 92vw); }
-
-.session-summary .ss-hero {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1.6fr);
-  gap: 24px;
-  padding: 18px 18px 20px;
-  background: linear-gradient(180deg, rgba(134,239,172,0.05), transparent);
-  border-bottom: 1px solid var(--line);
-}
-.session-summary .ss-hero-left { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
-.session-summary .ss-cost-label {
-  font-size: calc(10px + max(-1px, var(--ui-text-increase, 0px)));
-  letter-spacing: 0.10em;
-  text-transform: uppercase;
-  color: var(--muted);
-}
-.session-summary .ss-cost {
-  font-size: calc(34px + var(--ui-text-increase, 0px));
-  font-weight: 700;
-  color: var(--ok);
-  font-variant-numeric: tabular-nums;
-  letter-spacing: -0.02em;
-  line-height: 1;
-}
+.session-summary { width: var(--dialog-s); }
+.modal.session-summary .modal-body { gap: 12px; }
+/* V4's recap: who it was (the done mark, the name, the short id), the figures bare
+   in one row, then what is under them. */
+.session-summary .ss-who { display: flex; align-items: center; gap: 6px; min-width: 0; min-height: 20px; }
+.session-summary .ss-who-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: calc(13px + var(--ui-text-increase, 0px)); font-weight: 600; line-height: calc(20px + var(--ui-text-increase, 0px)); color: var(--text); }
+.session-summary .ss-who-id { flex: none; font-family: var(--font-mono); font-size: calc(12px + var(--ui-text-increase, 0px)); color: var(--muted); }
+/* The model chips and the cost split are not drawn by V4's frame; they stay,
+   quietly, under the figures. */
+.session-summary .ss-hero { display: flex; flex-direction: column; gap: 8px; }
 .session-summary .ss-models { display: flex; gap: 6px; flex-wrap: wrap; }
 
-.session-summary .ss-hero-right { display: flex; flex-direction: column; justify-content: center; gap: 10px; min-width: 0; }
 .cost-bar.cost-bar-lg { height: 14px; border-radius: 999px; }
 .session-summary .ss-cost-legend {
   display: grid;
@@ -1041,91 +1074,46 @@
 .session-summary .ssl-cr::before  { background: var(--usage-teal); }
 .session-summary .ssl-cw::before  { background: var(--usage-lime); }
 
-.session-summary .ss-stats {
-  display: grid;
-  grid-template-columns: repeat(6, minmax(0, 1fr));
-  gap: 6px;
-  padding: 14px 18px;
-  border-bottom: 1px solid var(--line);
-}
-.session-summary .ss-stat {
-  display: flex; flex-direction: column; gap: 2px;
-  padding: 8px 10px;
-  background: var(--bg-soft);
-  border: 1px solid var(--line);
-  border-radius: 8px;
-}
+.session-summary .ss-stats { display: flex; flex-wrap: wrap; gap: 8px 32px; }
+.session-summary .ss-stat { display: flex; flex-direction: column; gap: 0; }
 .session-summary .ss-stat-value {
+  font-family: var(--font-mono);
   font-size: calc(18px + var(--ui-text-increase, 0px));
   font-weight: 600;
   color: var(--text);
   font-variant-numeric: tabular-nums;
-  letter-spacing: -0.01em;
-  line-height: 1.1;
+  line-height: calc(24px + var(--ui-text-increase, 0px));
 }
 .session-summary .ss-stat-label {
-  font-size: calc(10px + max(-1px, var(--ui-text-increase, 0px)));
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
+  font-size: calc(12px + var(--ui-text-increase, 0px));
+  line-height: calc(16px + var(--ui-text-increase, 0px));
   color: var(--muted);
 }
 .session-summary .ss-stat.tone-err .ss-stat-value { color: var(--err); }
 
-@media (max-width: 640px) {
-  .session-summary .ss-hero { grid-template-columns: 1fr; }
-  .session-summary .ss-stats { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-}
-
-.session-summary .ss-top-tools { display: flex; flex-direction: column; gap: 6px; }
+.session-summary .ss-top-tools { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
+/* A tool and how many times: the control fill, a pill, mono 11/14 in the second step. */
 .session-summary .ss-tt {
-  display: grid;
-  grid-template-columns: 130px 1fr 36px;
-  gap: 10px;
-  align-items: center;
-}
-.session-summary .ss-tt-name {
+  padding: 1px 6px;
+  border-radius: var(--r-pill);
+  background: var(--ctl-fill);
+  color: var(--text-secondary);
   font-family: var(--font-mono);
-  font-size: calc(12px + var(--ui-text-increase, 0px));
-  color: var(--text);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.session-summary .ss-tt-bar {
-  height: 6px;
-  background: var(--line);
-  border-radius: 3px;
-  overflow: hidden;
-}
-/* Counts of finished tool calls, so --accent and not the --accent-to-
-   --inflight gradient it drew until #1649. */
-.session-summary .ss-tt-bar-fill {
-  display: block;
-  height: 100%;
-  background: var(--accent);
-  border-radius: 3px;
-}
-.session-summary .ss-tt-count {
-  text-align: right;
-  font-variant-numeric: tabular-nums;
   font-size: calc(11px + var(--ui-text-increase, 0px));
-  color: var(--muted);
+  line-height: calc(14px + var(--ui-text-increase, 0px));
 }
+.session-summary .ss-tt b { font-weight: 400; }
 
-/* A plain inset block (#862). It wore a 3px accent stripe down its left edge
-   on top of this hairline, which spent the accent on a static quote; the
-   soft ground and the border are enough to say "this is what was typed". */
+/* The opening prompt: plain text, 13/20 in the second step. */
 .session-summary .ss-prompt {
-  font-size: calc(12px + var(--ui-text-increase, 0px));
-  line-height: 1.55;
-  color: var(--text);
-  padding: 10px 12px;
-  background: var(--bg-soft);
-  border: 1px solid var(--line);
-  border-radius: 4px;
+  margin-top: 4px;
+  font-size: calc(13px + var(--ui-text-increase, 0px));
+  line-height: calc(20px + var(--ui-text-increase, 0px));
+  color: var(--text-secondary);
   white-space: pre-wrap;
   word-break: break-word;
   max-height: 200px;
   overflow: auto;
 }
+
 

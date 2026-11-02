@@ -524,7 +524,9 @@ describe("what a reader is told, now that the dot is decoration everywhere", () 
     // than a literal in a function body. What this test is about did not
     // change: the word the modal prints where the duration goes is still
     // `in-flight…`, and it is still written in this file.
-    expect(toolModal).toMatch(/toolDuration\(tool, t\("insights\.tool\.inflight"\)\)/);
+    // CHANGED ON PURPOSE (V4's Figma): the dialog's header uses dialogDuration
+    // ("1.2 s"); the word printed where the duration goes is unchanged.
+    expect(toolModal).toMatch(/dialogDuration\(tool, t\("insights\.tool\.inflight"\)\)/);
     expect(toolModal).toMatch(/<span className="err-tag">\{t\("insights\.tool\.error"\)\}<\/span>/);
   });
 

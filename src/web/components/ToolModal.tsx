@@ -6,8 +6,9 @@ import { useModalDismiss, useScrimDismiss } from "./use-modal-dismiss";
 // The row that opens this dialog printed the same milliseconds one decimal
 // place coarser, so a 1.24s tool read "1.2s" there and "1.24s" here (#374).
 // One function now; the sentinel below is the only thing that still differs.
-import { toolDuration } from "../duration";
+import { dialogDuration } from "../duration";
 import { copyText } from "../copy-text";
+import { KitIcon, KitStateGlyph } from "./kit-icons";
 // What a call IS rather than its JSON (#816): an Edit as a change, a Bash call
 // as its command and output, a Read or Write as a file and its text, anything
 // else as its values with real newlines. See tool-view.ts.
@@ -74,18 +75,14 @@ export default function ToolModal({
     <Dialog scrim={scrimPress} dialogRef={dialogRef} className="tool-modal" labelledBy="tool-modal-title">
         <header className="modal-head">
           <div className="modal-title">
-            {/* Decoration, and marked as such (#373). This dot keeps its hue
-                and gains no mark, because unlike the row in the tool list this
-                dialog already carries all three states in words: the duration
-                reads `in-flight…` while a call is open, the Response section is
-                tagged `error` when it failed, and done is the one that is
-                neither. The dot reinforces that; it is not the only channel. */}
-            <span className={`status-dot ${status}`} aria-hidden />
+            {/* No status dot (V4's Figma): the duration reads `in-flight…` while a
+                call is open and the Response heading says `error` when it failed,
+                so every state is already in words. */}
             <span id="tool-modal-title" className="modal-tool-name">{tool.name}</span>
             <span className="modal-tool-id" title={tool.id}>{tool.id.slice(0, 12)}…</span>
           </div>
           <div className="modal-actions">
-            <span className="modal-dur">{toolDuration(tool, t("insights.tool.inflight"))}</span>
+            <span className="modal-dur">{dialogDuration(tool, t("insights.tool.inflight"))}</span>
             <DialogClose onClick={onClose} label={t("insights.audit.closeEsc")} />
           </div>
         </header>
@@ -107,7 +104,7 @@ export default function ToolModal({
           </div>
           <div className="modal-section">
             <div className="tm-head">
-              <h4>{t("insights.tool.response")} {status === "err" && <span className="err-tag">{t("insights.tool.error")}</span>}</h4>
+              <h4>{t("insights.tool.response")}{status === "err" && <span className="err-tag">{t("insights.tool.error")}</span>}</h4>
               {tool.endedAt != null && <CopyButton text={drawn.copyResponse} what="response" />}
             </div>
             {tool.endedAt == null
@@ -175,15 +172,16 @@ function CopyButton({ text, what }: { text: string; what: "input" | "response" }
   const [copied, setCopied] = useState(false);
   const alive = useRef(true);
   useEffect(() => () => { alive.current = false; }, []);
+  const label = t(copied ? `insights.tool.copied.${what}` : `insights.tool.copy.${what}`);
   return (
-    <button type="button" className="btn tm-copy" disabled={!text}
-      aria-label={t(copied ? `insights.tool.copied.${what}` : `insights.tool.copy.${what}`)}
+    <button type="button" className="glyph-btn tm-copy" disabled={!text} data-copied={copied || undefined}
+      aria-label={label} title={label}
       onClick={() => void copyText(text).then(ok => {
         if (!ok || !alive.current) return;
         setCopied(true);
         window.setTimeout(() => { if (alive.current) setCopied(false); }, 1_600);
       })}>
-      {copied ? t("insights.tool.copiedWord") : t("insights.tool.copyWord")}
+      {copied ? <KitStateGlyph name="done" /> : <KitIcon name="copy" />}
     </button>
   );
 }

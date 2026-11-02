@@ -27,11 +27,11 @@ export function DetailsToggle({ open, onToggle }: { open: boolean; onToggle: () 
   useT();
   return (
     <button type="button" className="fb-tool fb-more" aria-expanded={open} aria-controls={DETAILS_ID} onClick={onToggle}>
-      {addDetails()}
-      <svg className="fb-chev" width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor"
+      <svg className="fb-chev" width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor"
         strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden focusable="false">
-        <path d="M2.5 3.75 5 6.25l2.5-2.5" />
+        <path d="M5.25 3.5 8.75 7l-3.5 3.5" />
       </svg>
+      {addDetails()}
     </button>
   );
 }

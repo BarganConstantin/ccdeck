@@ -428,8 +428,33 @@ describe("what was migrated to the secondary tier", () => {
       ".ap-proj-loading > span",
       ".read-activity > span",
       ".su-loading > span",
-      ".uh-reading-hint",
-      ".uh-reading-note",
+      // CHANGED ON PURPOSE (V4's Figma): the data dialogs' own prose and labels sit
+      // in the second text step. The recap's opening prompt and its tool chips,
+      // the tool call's code boxes, heads and note, the JSON box, the feedback
+      // dialog's field labels, the quiet Add details row and the armed Discard,
+      // the context dialog's current-turn label and memory paths, the session
+      // usage dialog's section heads, reuse figure and dates, a day's table
+      // figures and cache counts, and the history chips. The wait's two lines
+      // (.uh-reading-note, .uh-reading-hint) moved to the muted step.
+      ".ctx-modal .ctx-md-path",
+      ".ctx-window-label",
+      ".fb-field-label",
+      ".fb-foot .btn.danger.armed",
+      ".fb-label",
+      ".fb-tool",
+      ".modal-section pre.tm-err",
+      ".session-summary .ss-prompt",
+      ".session-summary .ss-tt",
+      ".su-cache-reuse strong",
+      ".su-dates dd",
+      ".su-section-head h3",
+      ".tool-modal .modal-note",
+      ".tool-modal .modal-section h4, .session-summary .modal-section h4",
+      ".tool-modal .modal-section pre",
+      ".tr-json-box",
+      ".uh-day-table tbody td",
+      ".uh-ministat-val",
+      ".uh-toolbar .uh-range-btn",
       // Radar's telemetry inspection adds more of the same utility labels: the
       // highlight and evidence terms, the project context's heading, the prompt
       // filter, the JSON search and its placeholder on --ctl-fill, the JSON

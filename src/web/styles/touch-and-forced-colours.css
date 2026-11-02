@@ -297,8 +297,7 @@
 
   .sysdetail .sd-fill,
   .sysdetail .sd-core-fill,
-  .ctx-window-fill,
-  .session-summary .ss-tt-bar-fill { forced-color-adjust: none; background: Highlight; }
+  .ctx-window-fill { forced-color-adjust: none; background: Highlight; }
   /* The Inspector's Time tab: its bars are fills, so they keep a colour of their own. */
   .insp-time-bar i[data-lane="you"],
   .insp-time-span[data-group] { forced-color-adjust: none; background: Highlight; }
@@ -311,7 +310,6 @@
   .ap-report-meter i,
   .uh-bar-seg,
   .uh-agent-seg,
-  .uh-model-bar-fill,
   .uh-legend-dot,
   .cost-bar .cb-seg,
   .session-summary .ssl::before,
@@ -323,8 +321,6 @@
   .ap-lane-track,
   .sd-track,
   .sd-core,
-  .session-summary .ss-tt-bar,
-  .uh-model-bar,
   .uh-agent-bar,
   .cost-bar,
   .ap-report-meter,

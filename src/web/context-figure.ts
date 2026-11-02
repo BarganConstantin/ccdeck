@@ -51,3 +51,19 @@ export function contextFigureParts(used: number, window?: number | null): { lead
   if (!window || window <= 0) return { lead: contextTokens(used), pct: null };
   return { lead: `${contextTokens(used)} / ${contextTokens(window)} · `, pct: `${contextPercent(used, window)}%` };
 }
+
+/** A token count in V4's compact voice: "96K", "12.4K", "124K", "3.2M". Capital
+ *  K and M, one decimal under a hundred of a unit and none above, and no
+ *  trailing ".0". Under a thousand the number as it is. The exact count belongs
+ *  on a `title` beside it. */
+export function compactTokens(n: number): string {
+  const v = Math.max(0, Math.round(n));
+  if (v < 1000) return String(v);
+  const unit = (value: number, suffix: string) => {
+    const text = value < 100 ? (Math.round(value * 10) / 10).toString() : String(Math.round(value));
+    return text + suffix;
+  };
+  if (v < 999_500) return unit(v / 1000, "K");
+  if (v < 999_500_000) return unit(v / 1_000_000, "M");
+  return unit(v / 1_000_000_000, "B");
+}

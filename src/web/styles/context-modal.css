@@ -15,19 +15,31 @@
    rather than a head-and-body column, and it scrolls as a whole. Two classes,
    so it outranks .modal wherever the two sit in the sheet. */
 .modal.ctx-modal {
-  display: block;
   width: var(--dialog-s);
   max-height: 80vh;
-  overflow: auto;
-  padding: 18px 20px 24px;
   color: var(--text);
 }
 /* The one dialog header (dialogs.css), drawn out to the dialog's edges over
    the padding the rest of this dialog keeps. Its title is `.modal-tool-name`,
    14px/600: this one wrote 15px once, and 15 against 14 is a 7% step below
    anything a reader can resolve, so the size retired. */
-.ctx-modal-head { margin: -18px -20px 14px; }
-.ctx-modal-sub { font-size: calc(11px + var(--ui-text-increase, 0px)); color: var(--muted); margin-top: 3px; }
+.ctx-modal-body { min-height: 0; gap: 12px; }
+/* V4's first line in the body: what kind of number the window figure is. */
+.ctx-approx { margin: 0; font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: calc(16px + var(--ui-text-increase, 0px)); color: var(--muted); }
+/* THE MODAL'S CURRENT TURN (V4): the label and the whole percent on one line, a
+   2-high meter that is muted under 70, the text colour from 70 and the error
+   colour from 90 (never amber), and the compact count under it. The Inspector's
+   tab keeps its own 6-high bar. */
+.ctx-window-top { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: calc(16px + var(--ui-text-increase, 0px)); }
+.ctx-window-label { color: var(--text-secondary); }
+.ctx-modal .ctx-window-row { gap: 3px; }
+.ctx-modal .ctx-window-bar { height: 2px; border-radius: var(--r-tag); }
+.ctx-modal .ctx-window-fill { border-radius: var(--r-tag); background: var(--muted); }
+.ctx-modal .ctx-window-fill[data-level="high"] { background: var(--text); }
+.ctx-modal .ctx-window-fill[data-level="full"] { background: var(--err); }
+.ctx-modal .ctx-window-meta { justify-content: flex-start; font-family: inherit; font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: calc(16px + var(--ui-text-increase, 0px)); }
+.ctx-modal .ctx-window-pct { font-family: var(--font-mono); font-weight: 400; }
+
 /* The context modal's × — a header close like the other five, and the last one
    still drawing its own 28px bordered box. `.glyph-btn` now, which takes the
    edge, the fill, the 28px square and the 18px glyph with it; the header this
@@ -148,6 +160,10 @@
   font-variant-numeric: tabular-nums;
   flex-shrink: 0;
 }
+/* Rows 24 high; the memory files are plain mono lines in the second text step. */
+.ctx-modal .ctx-row, .ctx-modal .ctx-md-list li { height: 24px; }
+.ctx-modal .ctx-md-path { color: var(--text-secondary); }
+.ctx-modal .ctx-md-size { color: var(--muted); }
 /* WHO (V4): the name 13/20 at 600 in --text, then the model as plain mono 11/14
    in --muted — no pill, no border, no fill, no family tint, the word already
    names the family — and the other markers in the same plain voice. Baseline

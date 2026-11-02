@@ -1,9 +1,9 @@
 /* Tool activity: a large modal that answers four questions in order — how much,
    what is worth a look, which tools, and what one tool did. The report and the
    details panel sit side by side; only a phone's details are a sheet. */
-.modal.ta-report { width: var(--dialog-l); height: var(--dialog-l-h); max-height: var(--dialog-l-h); min-width: 0; box-sizing: border-box; overflow: hidden; display: flex; flex-direction: column; color: var(--text); background: var(--bg); font-size: calc(13px + var(--ui-text-increase, 0px)); }
+.modal.ta-report { width: var(--dialog-l); height: var(--dialog-l-h); max-height: var(--dialog-l-h); min-width: 0; box-sizing: border-box; overflow: hidden; display: flex; flex-direction: column; color: var(--text); font-size: calc(13px + var(--ui-text-increase, 0px)); }
 /* The header is the one dialog header (dialogs.css): `modal-head ta-report-header`. */
-.ta-actions { display: flex; align-items: center; margin-left: auto; gap: 10px; }
+.ta-actions { display: flex; align-items: center; margin-left: auto; gap: 8px; }
 .ta-freshness { color: var(--muted); font-size: calc(12px + var(--ui-text-increase, 0px)); font-variant-numeric: tabular-nums; }
 .ta-inspector-head .glyph-btn { display: inline-flex; align-items: center; justify-content: center; width: 36px; height: 36px; padding: 0; flex: none; }
 .ta-actions [aria-busy=true] { cursor: wait; }
@@ -72,7 +72,8 @@
 }
 .ta-search input::placeholder { color: var(--text-secondary); opacity: 1; }
 .ta-sorts { margin-top: 12px; }
-.ta-list-head, .ta-row { display: grid; grid-template-columns: minmax(0, 1fr) 72px 92px 84px 76px; gap: 16px; align-items: center; }
+.ta-list-head, .ta-row { display: grid; grid-template-columns: minmax(0, 1fr) 150px 60px 72px 84px 76px; gap: 12px; align-items: center; }
+
 .ta-list-head { margin-top: 16px; padding: 0 12px 8px; border-bottom: 1px solid var(--line); font-size: calc(11px + var(--ui-text-increase, 0px)); color: var(--muted); }
 .ta-list-head > span:not(:first-child) { text-align: right; }
 .ta-list-head[data-sort=calls] [data-col=calls], .ta-list-head[data-sort=time] [data-col=time],
@@ -98,6 +99,32 @@
 .ta-cell small { display: block; margin-top: 2px; font-size: calc(11px + var(--ui-text-increase, 0px)); font-weight: 400; color: var(--text-secondary); }
 .ta-zero { color: var(--muted); font-weight: 400; }
 .ta-unit { display: none; }
+/* THE TOOL ROW (V4's Tool activity): one line, 34 high. The name in the body
+   face at 13/500 with the tool's plain-words description after it in the
+   muted step, a neutral 150 x 6 bar on a --bg-soft track, then the calls in
+   mono muted and the time in mono text. The deck's other columns (how long it
+   usually takes, how many failed) stay, in the same mono 12/16, on the same
+   line. Skills keep their own row above. */
+.ta-list:not(.sa-list) .ta-row { min-height: 34px; padding: 6px 12px; }
+.ta-list:not(.sa-list) .ta-row-name { display: flex; align-items: baseline; gap: 8px; }
+.ta-list:not(.sa-list) .ta-op { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: inherit; font-size: calc(13px + var(--ui-text-increase, 0px)); font-weight: 500; line-height: calc(20px + var(--ui-text-increase, 0px)); }
+.ta-list:not(.sa-list) .ta-desc { flex: 1 1 0; min-width: 0; color: var(--muted); line-height: calc(16px + var(--ui-text-increase, 0px)); }
+.ta-track { display: block; height: 6px; border-radius: 3px; background: var(--bg-soft); overflow: hidden; }
+.ta-track > .ta-bar { height: 100%; margin: 0; border-radius: 3px; background: var(--muted); }
+.ta-list[data-sort=failed] .ta-track > .ta-bar { background: var(--err); }
+:where(.ta-list:not(.sa-list)) .ta-cell { line-height: calc(16px + var(--ui-text-increase, 0px)); }
+:where(.ta-list:not(.sa-list)) .ta-cell[data-col=calls] { color: var(--muted); }
+:where(.ta-list:not(.sa-list)) .ta-cell[data-col=time] { color: var(--text); }
+/* The header's control: V4's segmented control (24-high segments, 3 of padding,
+   a --panel thumb), beside the ×. */
+.ta-period { position: relative; display: inline-flex; gap: 2px; box-sizing: border-box; padding: 3px; border: 1px solid var(--line-soft); border-radius: var(--r-panel); background: var(--bg-soft); }
+.ta-period-btn { position: relative; z-index: 1; min-height: var(--ctl-h-sm); padding: 0 10px; border: 0; border-radius: var(--r-ctl); background: transparent; color: var(--muted); font: inherit; font-size: calc(12px + var(--ui-text-increase, 0px)); font-weight: 500; line-height: calc(16px + var(--ui-text-increase, 0px)); white-space: nowrap; cursor: pointer; transition: color var(--dur-fast) var(--ease), transform var(--dur-fast) var(--ease); }
+.ta-period-btn[aria-pressed=true] { color: var(--text); }
+.ta-period-btn:active { transform: scale(var(--press)); }
+@media (hover: hover) and (pointer: fine) {
+.ta-period-btn:hover { color: var(--text); }
+}
+.ta-period { margin-inline-end: 4px; }
 .ta-more { margin-top: 14px; }
 .ta-no-match { padding: 20px 12px; }
 
@@ -183,6 +210,7 @@
   .ta-row { display: flex; flex-wrap: wrap; gap: 4px 14px; padding: 10px 8px; }
   .ta-row-name { flex-basis: 100%; }
   .ta-cell { text-align: left; }
+  .ta-track { flex: 1 0 100%; }
   .ta-cell small { display: inline; margin-left: 4px; }
   .ta-unit { display: inline; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; }
   .ta-search { width: 100%; }
@@ -203,18 +231,19 @@
 }
 @media (max-width: 380px) {
   .ta-freshness { display: none; }
+  .ta-period-btn { padding-inline: 6px; }
   .ta-filters .uh-range-btn, .ta-sorts .uh-range-btn { padding-inline: 8px; }
 }
 @media (pointer: coarse) {
   .ta-actions .glyph-btn, .ta-inspector-head .glyph-btn, .ta-back { min-width: 44px; min-height: 44px; }
-  .ta-filters .uh-range-btn, .ta-sorts .uh-range-btn, .ta-search input { min-height: 40px; }
+  .ta-filters .uh-range-btn, .ta-sorts .uh-range-btn, .ta-search input, .ta-period-btn { min-height: 40px; }
   .ta-row, .ta-highlight { min-height: 56px; }
 }
 @media (prefers-reduced-motion: reduce) {
   .ta-report, .ta-loading i, .ta-skel, .ta-actions [data-loading] svg { animation: none; }
   .ta-drawer:not([data-keyboard]) { transition: none; }
   .ta-row, .ta-highlight { transition: none; }
-  .ta-row:active, .ta-highlight:active, .ta-back:active, .ta-explain summary:active { transform: none; }
+  .ta-row:active, .ta-highlight:active, .ta-back:active, .ta-explain summary:active, .ta-period-btn:active { transform: none; }
 }
 
 /* Opening details makes room in the report; resizing remains direct. */

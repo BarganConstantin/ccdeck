@@ -395,6 +395,7 @@ const PRESSES: Press[] = [
   [".cat-filter:active", "0.97", "transform"],
   [".ctx-donut:active", "0.94", "transform"],
   [".uh-range-btn:active", "0.97", "transform"],
+  [".ta-period-btn:active", "0.97", "transform"],
   [".uh-bar-col:active", "0.97", "transform"],
   [".session-list .sl-row:active", "0.97", "transform"],
   // The rail's close button, a 24px icon: the icon tier.

@@ -483,7 +483,7 @@ describe("the Context tab", () => {
   // head's figure is the one place it is printed there. The modal keeps its line, from the same fill.
   // CHANGED ON PURPOSE: V4's Figma gives the Inspector's head a whole percent (the Term chip's
   // figure), so the head says that fill rounded, 100%, where the modal's line keeps its 99.6%.
-  it("prints the head's percent once, the fill rounded, and the modal's meta line prints the same fill", () => {
+  it("prints the head's percent once, the fill rounded, and the modal's current-turn line prints the same fill", () => {
     stubStore({ [INSPECTOR_TAB_KEY]: "context" });
     const a = A("s", { model: "claude-opus-4-5", contextWindow: 200_000, context: { msgsUser: 1, msgsAssistant: 1, toolUses: 0, toolResults: 0, systemReminders: 0, currentContextTokens: 199_200, memoryFiles: [] } });
     expect(contextFill(a).pct).toBeCloseTo(99.6, 5);
@@ -493,7 +493,10 @@ describe("the Context tab", () => {
     expect(out).toContain('<span class="insp-fig">199k / 200k · 100%</span>');
     expect(out.match(/· 100%/g)).toHaveLength(1);
     const modal = renderToStaticMarkup(createElement(ContextView, { agent: a, meta: true }));
-    expect(modal).toContain('<span class="ctx-window-pct">99.6%</span>');
+    // CHANGED ON PURPOSE (V4's Figma): the modal's line is the whole percent beside its
+    // "Current turn" label, with the compact count under the meter.
+    expect(modal).toContain('<span class="ctx-window-pct">100%</span>');
+    expect(modal).toContain("199K / 200K tok");
   });
   it("sets the meter like Figma: the note directly under it, sentence-case rows, one column", () => {
     const out = withContext({ usage: SPENT });

@@ -71,7 +71,9 @@ describe("the panel readouts move by transform (#863)", () => {
     // The bar rests at its real height (its share of the column) with no
     // transform. A changing range eases that height; the rise owns the
     // transform, as a transition from @starting-style rather than a keyframe.
-    expect(decl(".uh-bar", "height")).toBe("calc(var(--uh-h, 1) * 100%)");
+    // CHANGED ON PURPOSE (V4's Figma): the share is of the plot less the 17px the value
+    // over each bar takes, so the tallest bar plus its value fills the column.
+    expect(decl(".uh-bar", "height")).toBe("calc(var(--uh-h, 1) * (100% - 17px))");
     expect(decl(".uh-bar", "transform")).toBe("none");
     expect(decl(".uh-bar", "transition")).toMatch(/^height var\(--dur-slow\) var\(--ease\), transform var\(--dur-slow\)/);
     expect(decl(".uh-bar", "animation")).toBeNull();

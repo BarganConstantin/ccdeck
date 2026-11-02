@@ -459,7 +459,9 @@ describe("every surface that prints one of these figures prints the shared label
     // The rail's row folded its cost into the row's tooltip (rail-row-copy.ts),
     // where it still wears the label.
     expect(code(read("rail-row-copy.ts"))).toContain("fmtCost(r.cost)} ${SESSION_SPEND_LABEL}");
-    expect(sessionSummary).toContain(`<div className="ss-cost-label">{sessionSpendLabel()}</div>`);
+    // CHANGED ON PURPOSE (V4's Figma): the recap's figure wears the word "spend" under
+    // its value, and the shared label stays on the stat as its title.
+    expect(sessionSummary).toContain('<Stat label={t("insights.summary.spend")} value={fmtCost(summary.cost.total)} title={sessionSpendLabel()} />');
     // The words behind the call are the shared label.
     expect(sessionSpendLabel()).toBe(SESSION_SPEND_LABEL);
   });

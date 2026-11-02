@@ -22,7 +22,7 @@ import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { fmtTokens } from "../token-format";
-import { elapsed, toolDuration } from "../duration";
+import { dialogDuration, elapsed, toolDuration } from "../duration";
 import { resetCountdown, shortAgo, shortAgoSec } from "../relative-time";
 import { en } from "../i18n/en";
 import { translate } from "../i18n/translate";
@@ -336,15 +336,24 @@ describe("a tool call's duration", () => {
     expect("999ms".length).toBeGreaterThanOrEqual(toolDuration(call(9990), "…").length);
   });
 
+  it("writes the dialog's header the way V4's Figma does: a space, and one decimal above a second", () => {
+    expect(dialogDuration(call(842), "…")).toBe("842 ms");
+    expect(dialogDuration(call(1240), "…")).toBe("1.2 s");
+    expect(dialogDuration(call(null), "in-flight…")).toBe("in-flight…");
+  });
+
   it("keeps each surface's own word for a call that has not finished", () => {
     expect(toolDuration(call(null), "…")).toBe("…");
     expect(toolDuration(call(null), "in-flight…")).toBe("in-flight…");
   });
 
-  it("is one function, called from the row and the dialog it opens", () => {
-    expect(toolModal).toMatch(/import \{ toolDuration \} from "\.\.\/duration";/);
+  it("is one module, written once for the row and once for the dialog it opens", () => {
+    // CHANGED ON PURPOSE (V4's Figma): the dialog's header writes the span as
+    // "1.2 s" (a space, one decimal), so it calls `dialogDuration`, which lives
+    // beside `toolDuration` in the one duration module. The row keeps its own.
+    expect(toolModal).toMatch(/import \{ dialogDuration \} from "\.\.\/duration";/);
     expect(code(detail)).toMatch(/const durLabel = toolDuration\(call, "…"\);/);
-    expect(code(toolModal)).toMatch(/toolDuration\(tool, t\("insights\.tool\.inflight"\)\)/);
+    expect(code(toolModal)).toMatch(/dialogDuration\(tool, t\("insights\.tool\.inflight"\)\)/);
     expect(code(toolModal)).not.toMatch(/function dur\(/);
     expect(code(app)).not.toMatch(/toFixed\(1\)\}s/);
     expect(code(detail)).not.toMatch(/toFixed\(1\)\}s/);

@@ -126,7 +126,9 @@ const FONT_SIZES: FontSize[] = RULES.flatMap(r => {
  *  that says they do would be worse than the literals it replaced. V4's type
  *  roles (tokens.css) are the one set that must move together, and each is a
  *  step of this ladder (v4-tokens.test.ts). */
-const LADDER = [9, 10, 11, 12, 13, 14, 16, 18, 22, 26, 34];
+// CHANGED ON PURPOSE (V4's Figma): the recap's 34px spend left with the box it sat in
+// (the spend is the first of the recap's bare figures, at 18), so 34 is no longer a step.
+const LADDER = [9, 10, 11, 12, 13, 14, 16, 18, 22, 26];
 
 /** The resolution floor the report measured and this issue acts on: a step
  *  smaller than this is not a rank, it is two spellings of one size. */
@@ -187,8 +189,8 @@ describe("the type ladder is a closed set (#379 §3)", () => {
     expect(decl(".ap-email", "font-size")).toBe("12px");            // was 10.5, #857's floor, then the row's name
     expect(decl(".detail .row .v", "font-size")).toBe("12px");      // was 11.5, then 11; V4's Figma sets the Inspector's values at 12
     expect(decl(".session-list .sl-label", "font-size")).toBe("13px"); // was 12.5, then 12; V4's rail row names at 13/20
-    expect(decl(".uh-stat-label", "font-size")).toBe("9px");        // was 9.5
-    expect(decl(".uh-bar-label", "font-size")).toBe("9px");         // was 8
+    expect(decl(".uh-stat-label", "font-size")).toBe("12px");       // was 9.5, then 9; V4's Figma: the history stats' labels at 12/16
+    expect(decl(".uh-bar-label", "font-size")).toBe("11px");        // was 8, then 9; V4's Figma: a day's name under its bar at 11/14
     expect(decl(".modal-tool-name", "font-size")).toBe("14px");     // the context title's was 15; every dialog title's since 2026-10-23
     expect(decl(".detail-hero .hero-title", "font-size")).toBe("14px");   // was 17, then 18; V4's Figma: 14/20 600
     expect(FONT_SIZES.length).toBeGreaterThan(150);
@@ -211,7 +213,8 @@ describe("the type ladder is a closed set (#379 §3)", () => {
     // CHANGED ON PURPOSE (V4's Figma): the Inspector's spend is 18 and the Usage panel's hero 22 (were 22 and 26).
     expect(decl(".detail-hero .hero-cost-value", "font-size")).toBe("18px");
     expect(decl(".up-total-value", "font-size")).toBe("22px");
-    expect(decl(".session-summary .ss-cost", "font-size")).toBe("34px");
+    // CHANGED ON PURPOSE (V4's Figma): the recap's spend is the first bare figure, 18/24 mono.
+    expect(decl(".session-summary .ss-stat-value", "font-size")).toBe("18px");
   });
 });
 
@@ -430,7 +433,8 @@ describe("one token per dimming decision, and two decisions (#379 §2)", () => {
     // silently restate itself about stale data. Since #1289 what reads the
     // token is the modal's marks rather than its words (contrast-floors.test.ts
     // holds it there), and the expired share keeps its ink altogether.
-    for (const mark of [".uh-stale .uh-bar-seg", ".uh-stale .uh-agent-seg", ".uh-stale .uh-model-bar-fill", ".uh-stale .uh-legend-dot"]) {
+    // CHANGED ON PURPOSE (V4's Figma): a day is a table now, so its model meter fill left the list.
+    for (const mark of [".uh-stale .uh-bar-seg", ".uh-stale .uh-agent-seg", ".uh-stale .uh-legend-dot"]) {
       expect(decl(mark, "opacity"), mark).toBe("var(--dim-stale)");
     }
     expect(decl(".uh-stale", "opacity")).toBeNull();

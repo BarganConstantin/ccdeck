@@ -40,7 +40,6 @@
 }
 :root[data-theme^="gruvbox-"] .up-cost-val:not(.up-unpriced),
 :root[data-theme^="gruvbox-"] .up-session-cost:not(.up-unpriced),
-:root[data-theme^="gruvbox-"] .uh-stat-val.accent,
 :root[data-theme^="gruvbox-"] .uh-detail-cost {
   color: var(--text-secondary);
 }
@@ -133,8 +132,7 @@
   border-color: var(--ok);
   background: color-mix(in srgb, var(--ok) 8%, var(--panel));
 }
-:root[data-theme="gruvbox-light"] .state-pill.state-err,
-:root[data-theme="gruvbox-light"] .modal-section .err-tag {
+:root[data-theme="gruvbox-light"] .state-pill.state-err {
   border-color: var(--err);
   background: color-mix(in srgb, var(--err) 8%, var(--panel));
 }

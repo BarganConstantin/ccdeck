@@ -29,10 +29,6 @@
   background: rgba(185,28,28,0.10);
 }
 
-:root[data-color-scheme="light"] .modal-section .err-tag {
-  background: rgba(185,28,28,0.10);
-  border-color: rgba(185,28,28,0.45);
-}
 
 
 /* react-flow edge dashflow uses --inflight which is now deep purple → fine */

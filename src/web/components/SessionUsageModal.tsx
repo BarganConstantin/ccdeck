@@ -4,7 +4,7 @@ import { currentLanguage, useT } from "../i18n";
 import { shortModel } from "../model-label";
 import { agentLabel } from "../provider-copy";
 import { fmtCost } from "../pricing";
-import { fmtTokens } from "../token-format";
+import { compactTokens } from "../context-figure";
 import { sessionFailure, type SessionReply, type SessionSelection, type SessionSpeed } from "../session-usage";
 import { Dialog } from "./Dialog";
 import { useModalDismiss, useScrimDismiss } from "./use-modal-dismiss";
@@ -60,16 +60,17 @@ export default function SessionUsageModal({ session, onClose }: { session: Sessi
         <header className="modal-head">
           <div className="su-title">
             <h2 id="session-usage-title">{t("insights.session.title")}</h2>
-            <span title={session.label}>{session.label}</span>
           </div>
           <div className="modal-actions">
+            {/* V4: the session's name sits on the right, before the buttons, in the dialog's caption voice. */}
+            <span className="modal-dur su-caption" title={session.label}>{session.label}</span>
             <button type="button" className="glyph-btn" onClick={() => setRevision(n => n + 1)} disabled={!reply}
               aria-label={t("insights.session.refresh")} title={t("insights.session.refresh")}><RefreshGlyph /></button>
             <button type="button" className="glyph-btn" ref={closeRef} onClick={onClose} aria-label={t("insights.session.closeEsc")} title={t("insights.audit.closeEsc")}>×</button>
           </div>
         </header>
         <div className="modal-body su-body" aria-busy={!reply}>
-          <div className="su-scope"><span>{agentLabel(session.agent)}</span><span>{t("insights.session.whole")}</span></div>
+          <div className="su-scope"><span>{t("insights.session.whole")}</span><span>{agentLabel(session.agent)}</span></div>
           {session.agent === "codex" && <label className="su-pricing">
             {t("insights.session.estimateUsing")}
             <select value={speed} disabled={!reply} onChange={event => { setReply(null); setSpeed(event.target.value as SessionSpeed); }}>
@@ -88,7 +89,7 @@ export default function SessionUsageModal({ session, onClose }: { session: Sessi
               <div><dt>{speed === "auto" ? t("insights.session.estimated") : t("insights.session.scenario")}{missing.length > 0 ? ` · ${t("insights.session.partial")}` : ""}</dt>
                 <dd>{detail.totalCost > 0 ? fmtCost(detail.totalCost)
                   : detail.totalTokens > 0 ? t("insights.session.noCost") : "$0.00"}{missing.length > 0 && detail.totalCost > 0 ? "+" : ""}</dd></div>
-              <div><dt>{t("insights.session.totalTokens")}</dt><dd title={count(detail.totalTokens)}>{fmtTokens(detail.totalTokens)}</dd></div>
+              <div><dt>{t("insights.session.totalTokens")}</dt><dd title={count(detail.totalTokens)}>{compactTokens(detail.totalTokens)}</dd></div>
             </dl>
             <section aria-labelledby="session-tokens-title">
               <div className="su-section-head"><h3 id="session-tokens-title">{t("insights.session.breakdown")}</h3></div>
@@ -107,10 +108,10 @@ export default function SessionUsageModal({ session, onClose }: { session: Sessi
               <dl className="su-tokens">
                 {tokens.map(({ id, name, n, color }) => <div key={id}>
                   <dt><span className="su-key" style={{ background: color }} aria-hidden="true" />{name}</dt>
-                  <dd title={count(n)}>{fmtTokens(n)}<span className="su-share">{tokenSum > 0 ? `${(n / tokenSum * 100).toLocaleString(currentLanguage(), { maximumFractionDigits: 1 })}%` : "—"}</span></dd>
+                  <dd title={count(n)}>{compactTokens(n)}<span className="su-share">{tokenSum > 0 ? `${(n / tokenSum * 100).toLocaleString(currentLanguage(), { maximumFractionDigits: 1 })}%` : "—"}</span></dd>
                 </div>)}
               </dl>
-              {detail.reasoningOutputTokens > 0 && <p className="su-note su-reasoning">{t("insights.session.reasoning", { tokens: fmtTokens(detail.reasoningOutputTokens) })}</p>}
+              {detail.reasoningOutputTokens > 0 && <p className="su-note su-reasoning">{t("insights.session.reasoning", { tokens: compactTokens(detail.reasoningOutputTokens) })}</p>}
             </section>
             <section className="su-models" aria-labelledby="session-models-title">
               <div className="su-section-head"><h3 id="session-models-title">{t("insights.session.models")}</h3><span>{t("insights.session.used", { n: detail.models.length })}</span></div>
@@ -118,7 +119,7 @@ export default function SessionUsageModal({ session, onClose }: { session: Sessi
                 <thead><tr><th scope="col">{t("insights.usage.model")}</th><th scope="col">{t("insights.usage.tokensCol")}</th></tr></thead>
                 <tbody>{detail.models.map(model => <tr key={model.model}>
                   <th scope="row" title={model.model}>{shortModel(model.model)}{model.missingPricing && <span className="su-unpriced"> · {t("insights.cost.notPriced")}</span>}</th>
-                  <td title={count(model.totalTokens)}>{fmtTokens(model.totalTokens)}</td>
+                  <td title={count(model.totalTokens)}>{compactTokens(model.totalTokens)}</td>
                 </tr>)}</tbody>
               </table>
               {detail.models.length === 0 && <p className="su-note">{t("insights.session.noModels")}</p>}
@@ -141,6 +142,9 @@ export default function SessionUsageModal({ session, onClose }: { session: Sessi
           <details className="su-id"><summary>{t("insights.session.id")}</summary><code>{session.sessionId}</code></details>
           </footer>
         </div>
+        <footer className="modal-foot">
+          <button type="button" className="btn primary" onClick={onClose}>{t("shell.done")}</button>
+        </footer>
     </Dialog>, document.body,
   );
 }

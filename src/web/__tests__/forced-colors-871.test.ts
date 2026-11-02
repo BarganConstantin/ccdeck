@@ -47,12 +47,14 @@ const RESTING = [".sl-dot::before", ".bw-dot", ".bw-mode-dot", ".bw-prof-dot"];
 // one rule names it; the ready chip's own recolouring rule, which had to be
 // named here as well, is gone.
 const LIVE = [".sl-dot.state-active::before", ".state-pill.state-active::before", ".bw-mode-dot.on", ".topbar button.v .v-dot"];
-const METERS = [".sysdetail .sd-fill", ".sysdetail .sd-core-fill", ".ctx-window-fill", ".session-summary .ss-tt-bar-fill"];
+// CHANGED ON PURPOSE (V4's Figma): the recap draws its tools as chips and a day as a table, so the
+// recap's tool bar and the history dialog's per-model meter are gone from these three lists.
+const METERS = [".sysdetail .sd-fill", ".sysdetail .sd-core-fill", ".ctx-window-fill"];
 // Account capacity's state marks (#1713) are not here on purpose: they are
 // drawn as borders, which a Contrast theme repaints in CanvasText with no rule
 // of this block's, a filled mark staying filled and a hollow one hollow.
-const OWN_COLOUR = [".qb-fill", ".ap-lane-fill", ".ap-report-meter i", ".uh-bar-seg", ".uh-agent-seg", ".uh-model-bar-fill", ".uh-legend-dot", ".cost-bar .cb-seg"];
-const TRACKS = [".qb-track", ".ap-lane-track", ".sd-track", ".sd-core", ".session-summary .ss-tt-bar", ".uh-model-bar", ".uh-agent-bar", ".cost-bar", ".ap-report-meter"];
+const OWN_COLOUR = [".qb-fill", ".ap-lane-fill", ".ap-report-meter i", ".uh-bar-seg", ".uh-agent-seg", ".uh-legend-dot", ".cost-bar .cb-seg"];
+const TRACKS = [".qb-track", ".ap-lane-track", ".sd-track", ".sd-core", ".uh-agent-bar", ".cost-bar", ".ap-report-meter"];
 
 describe("the deck under a Windows Contrast theme (#871)", () => {
   it("answers forced colours in exactly one block", () => {

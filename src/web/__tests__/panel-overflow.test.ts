@@ -302,7 +302,10 @@ describe("a percentage width under a horizontal margin", () => {
       // of the ring's legend, and a part, one button across its list row. No
       // rule gives either a margin.
       "tt-lane", "tt-part",
-      "uh-bar", "uh-bar-seg", "up-session-open", "up-table",
+      // CHANGED ON PURPOSE (V4's Figma): a day's bar is a fixed 24 wide now, inside a
+      // plot that fills its column (uh-bar-plot), and a day's detail is a table
+      // that fills the dialog (uh-day-table). No rule gives either a margin.
+      "uh-bar-plot", "uh-bar-seg", "uh-day-table", "up-session-open", "up-table",
     ]);
 
     const violations: string[] = [];

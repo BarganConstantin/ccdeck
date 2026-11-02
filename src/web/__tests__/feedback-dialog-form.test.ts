@@ -143,12 +143,18 @@ describe("the default state asks for one thing", () => {
     expect(value(".modal-head", "min-height")).toBe("var(--dialog-head-h)");
     const bodyPad = 2 * px(value(".modal-body", "padding"));
     const gap = px(value(".modal-body.fb-body", "gap"));
-    const kindsRow = px(value(".fb-kind", "min-height")) + 2 * px(value(".fb-kinds", "padding"));
+    // CHANGED ON PURPOSE (V4's Figma): the kinds are 24-high pills on the kit's small
+    // control height, with no track round them.
+    expect(value(".fb-kind", "min-height")).toBe("var(--ctl-h-sm)");
+    const kindsRow = 24 + 2 * px(value(".fb-kinds", "padding"));
     const inner = px(value(".fb-compose", "gap"));
     const compose = px(value(".fb-label", "line-height")) + inner + px(value(".ap-manage-input.fb-message", "min-height"))
       + inner + px(value(".fb-tool", "min-height")) + px(value(".fb-tools", "margin").split(" ")[0]);
     const factsLine = px(value(".fb-facts", "line-height"));
-    const foot = px(value(".fb-foot", "padding").split(" ")[2]) + 30;
+    // CHANGED ON PURPOSE (V4's Figma): the foot is the shell's, 48 high under a 1px rule.
+    expect(value(".fb-foot", "min-height")).toBe("var(--dialog-foot-h)");
+    expect(value(".fb-foot", "border-top")).toBe("1px solid var(--line-soft)");
+    const foot = 48 + 1;
     const total = head + bodyPad + kindsRow + gap + compose + gap + factsLine + foot;
     expect(total).toBeLessThanOrEqual(400);
     // The modal may be 82vh tall before its body scrolls; at a 1280×720 window
@@ -189,12 +195,20 @@ describe("the kinds, as one compact control", () => {
     expect(flatDialog).toMatch(/<FeedbackKinds kind=\{kind\} onChange=\{setKind\} \/>/);
   });
 
-  it("is a track of words, not a row of cards, and marks the chosen one with an edge", () => {
+  it("is a row of three pills, not a row of cards, and marks the chosen one with an accent edge and wash", () => {
+    // CHANGED ON PURPOSE (V4's Figma): the kinds are pills (a hairline, the pill
+    // radius, 24 high), the chosen one on the accent wash with the accent edge,
+    // where they were words in a track with a raised segment.
     expect(value(".fb-kinds", "display")).toBe("inline-flex");
-    expect(value(".fb-kinds", "background")).toBe("var(--ctl-fill)");
-    expect(value(".fb-kind", "min-height")).toBe("24px");
-    expect(value(".fb-kind", "border")).toMatch(/transparent/);
-    expect(value(".fb-kind:has(input:checked)", "border-color")).toBe("var(--ctl-edge)");
+    expect(value(".fb-kinds", "gap")).toBe("4px");
+    expect(sheet).not.toMatch(/\.fb-kinds \{[^}]*background/);
+    expect(value(".fb-kind", "min-height")).toBe("var(--ctl-h-sm)");
+    expect(value(".fb-kind", "border")).toBe("1px solid var(--line)");
+    expect(value(".fb-kind", "border-radius")).toBe("var(--r-pill)");
+    expect(value(".fb-kind", "color")).toBe("var(--text-secondary)");
+    expect(value(".fb-kind:has(input:checked)", "border-color")).toBe("var(--accent)");
+    expect(value(".fb-kind:has(input:checked)", "background")).toBe("var(--accent-16)");
+    expect(value(".fb-kind:has(input:checked)", "color")).toBe("var(--text)");
   });
 
   it("changes the question and nothing else, so what was typed stays", () => {
@@ -434,10 +448,12 @@ describe("what goes with it, said before Send", () => {
   it("draws one quiet line: the version and system, or the same words without them", () => {
     expect(factsLabel({ appVersion: "3.36.0", platform: "darwin-arm64" })).toBe("ccdeck 3.36.0 · macOS · arm64");
     expect(factsLabel(null)).toBeNull();
-    expect(factsWith()).toBe("{facts} — sent with it");
+    // CHANGED ON PURPOSE (V4's Figma): "ccdeck 3.51.0 · Linux, sent with it", a comma, not a dash.
+    expect(factsWith()).toBe("{facts}, sent with it");
     expect(FACTS_UNKNOWN).toBe("Your ccdeck version and system are sent with it.");
     expect(flatDialog).toMatch(/const facts = factsLabel\(useFeedbackFacts\(\)\);/);
-    expect(flatDialog).toMatch(/<p className="fb-facts"> \{facts \? slot\(factsWith\(\), "facts", <span className="fb-facts-value">\{facts\}<\/span>\) : factsUnknown\(\)\} <\/p>/);
+    // CHANGED ON PURPOSE (V4's Figma): the send key stands at the right of the same line.
+    expect(flatDialog).toMatch(/<p className="fb-facts"> <span className="fb-facts-text">\{facts \? slot\(factsWith\(\), "facts", <span className="fb-facts-value">\{facts\}<\/span>\) : factsUnknown\(\)\}<\/span> <span className="fb-shortcut" aria-hidden="true">/);
   });
 
   it("asks the deck's own server, which answers from the function that attaches them", () => {
@@ -476,7 +492,8 @@ describe("once it is sent", () => {
   });
 
   it("thanks, briefly, over the form at the form's own size", () => {
-    expect(SENT_LINE).toBe("Thanks — feedback sent.");
+    // CHANGED ON PURPOSE (V4's Figma): a comma where there was an em dash.
+    expect(SENT_LINE).toBe("Thanks, feedback sent.");
     // The line for how it went: SENT_LINE, unless it went as the account.
     expect(sentLine(false)).toBe(SENT_LINE);
     expect(flatDialog).toMatch(/\{sent && \( <div className="fb-done"> <SuccessMark \/> <p className="fb-done-line">\{sentLine\(sentAsAccount, mail\)\}<\/p> <\/div> \)\}/);
@@ -554,8 +571,13 @@ describe("the design pass: what each state shows, and where Send stays", () => {
     expect(/\.fb-shots-count \{([^}]*)\}/.exec(sheet)?.[1]).not.toMatch(/margin-left/);
   });
 
-  it("sets the facts line nearer Send than the buttons above it", () => {
-    expect(px(value(".modal-body.fb-body", "padding-bottom"))).toBeLessThan(px(value(".modal-body.fb-body", "gap")));
+  it("sets the facts line above the foot's own rule, with Send under it", () => {
+    // CHANGED ON PURPOSE (V4's Figma): the foot is its own band under a 1px rule
+    // (the shell's), so the facts line no longer needs a shorter padding to sit
+    // near Send: the rule parts the two and the body's padding is the shell's.
+    expect(value(".fb-foot", "border-top")).toBe("1px solid var(--line-soft)");
+    expect(value(".modal-body", "padding")).toBe("16px");
+    expect(rule(".modal-body.fb-body")).not.toMatch(/padding-bottom/);
   });
 
   it("gives a fingertip the deck's 32px floor on every small control in the dialog", () => {

@@ -19,9 +19,13 @@ describe("the opening prompt is a plain inset block (#862)", () => {
     expect(summary).toMatch(/<h4>\{t\("insights\.summary\.opening"\)\}<\/h4>\s*<div className="ss-prompt">\{summary\.firstPrompt\}<\/div>/);
   });
 
-  it("keeps the soft ground and one hairline all the way round", () => {
-    expect(prompt).toMatch(/background:\s*var\(--bg-soft\)/);
-    expect(prompt).toMatch(/border:\s*1px solid var\(--line\)/);
+  it("is plain text with no ground and no hairline", () => {
+    // CHANGED ON PURPOSE (V4's Figma): the opening prompt is plain text, 13/20 in
+    // the second text step, under its label. It is no longer an inset block, so
+    // neither the soft ground nor the hairline stays.
+    expect(prompt).not.toMatch(/background/);
+    expect(prompt).not.toMatch(/border/);
+    expect(prompt).toMatch(/color:\s*var\(--text-secondary\)/);
   });
 
   it("has no side stripe, in this rule or any other", () => {

@@ -20,7 +20,7 @@ import { Dialog } from "./Dialog";
 import { useModalDismiss, useScrimDismiss } from "./use-modal-dismiss";
 import { useFocusRescue } from "./use-focus-rescue";
 import { selfPressProps } from "../panel-press";
-import { byCost, dayLabelStep, historyTotals, legendOf, modelColor, percentOf } from "../usage-history";
+import { byCost, dayLabelStep, dayValue, historyTotals, legendOf, modelColor, percentOf, weekdayShort } from "../usage-history";
 // The ccusage run behind the chart, and the rules for which answer it keeps.
 import { useCcusage } from "../use-ccusage";
 import UsageDayDetail from "./UsageDayDetail";
@@ -105,28 +105,24 @@ export default function UsageHistoryModal({ onClose, providers }: Props) {
 
   const selectedDay = selected ? days.find(d => d.period === selected) ?? null : null;
   const labelStep = dayLabelStep(days.length);
+  // Two weeks or fewer have the room for a value over each bar and a weekday under it.
+  const valueLabels = days.length > 0 && days.length <= 14;
+  const failureReason = view.phase === "error" ? explainCcusageFailure(landed!.resp, t("insights.usage.noReport")) : "";
 
   return (
-    <Dialog scrim={scrimPress} dialogRef={dialogRef} className="uh-modal" aria-label={t("insights.usage.title")}>
+    <Dialog scrim={scrimPress} dialogRef={dialogRef} className="uh-modal" data-phase={view.phase} aria-label={t("insights.usage.title")}>
         <header className="modal-head uh-head">
-          <div className="uh-titlewrap">
-            <div className="modal-tool-name">{t("insights.usage.title")}</div>
-            {/* This line used to be the constant "via ccusage · local Claude /
-                Codex logs", which is the sentence #431 opens with: it named two
-                CLIs and the chart below then added them together. It is derived
-                now — from the agents the run came back with when there are any,
-                and from `providers` until then. Both halves matter: the deck
-                must not tell a Claude-only machine about Codex before any data
-                exists, and it must not deny a CLI whose spend is on screen. */}
-            {/* While a re-run of the range on screen is out, the line says so
-                in words (#1289). The answer under it used to fade to
-                --dim-stale, every total and label with it; only the chart's
-                marks dim now, so the state needs a word, and this line is the
-                one that already says where the figures come from. The same
-                words the busy branch prints, so a reader meets one phrase for
-                one wait. */}
-            <div className="uh-sub">{view.stale ? t("insights.usage.running") : usageSubtitle(providers, agents.map(a => a.id))}</div>
+          <div className="modal-tool-name">{t("insights.usage.title")}</div>
+          <div className="modal-actions">
+            <button ref={closeRef} className="glyph-btn uh-close" onClick={onClose} aria-label={t("insights.usage.close")}>×</button>
           </div>
+        </header>
+
+        <div className="modal-body uh-body">
+        {/* V4's toolbar: the range chips on the left; on the right, where the
+            figures come from and the re-run. The line was the header's
+            subtitle. */}
+        <div className="uh-toolbar">
           {/* Not a tablist (#381). role="tab" is a promise about keyboard
               behaviour — one tab stop for the whole strip, arrow keys between
               the members, and each tab pointing at a tabpanel it controls —
@@ -155,6 +151,23 @@ export default function UsageHistoryModal({ onClose, providers }: Props) {
               >{t("insights.usage.days", { n: p })}</button>
             ))}
           </div>
+          <div className="uh-source">
+            {/* This line used to be the constant "via ccusage · local Claude /
+                Codex logs", which is the sentence #431 opens with: it named two
+                CLIs and the chart below then added them together. It is derived
+                now — from the agents the run came back with when there are any,
+                and from `providers` until then. Both halves matter: the deck
+                must not tell a Claude-only machine about Codex before any data
+                exists, and it must not deny a CLI whose spend is on screen. */}
+            {/* While a re-run of the range on screen is out, the line says so
+                in words (#1289). The answer under it used to fade to
+                --dim-stale, every total and label with it; only the chart's
+                marks dim now, so the state needs a word, and this line is the
+                one that already says where the figures come from. The same
+                words the busy branch prints, so a reader meets one phrase for
+                one wait. */}
+            <span className="uh-sub">{view.stale ? t("insights.usage.running") : usageSubtitle(providers, agents.map(a => a.id))}</span>
+          </div>
           <button
             ref={reloadRef}
             className="glyph-btn uh-reload"
@@ -168,40 +181,28 @@ export default function UsageHistoryModal({ onClose, providers }: Props) {
             title={t("insights.usage.rerun")}
             aria-label={t("insights.usage.reload")}
           ><RefreshGlyph /></button>
-          <button ref={closeRef} className="glyph-btn uh-close" onClick={onClose} aria-label={t("insights.usage.close")}>×</button>
-        </header>
+        </div>
 
         {view.phase === "busy" ? (
-          /* A decorative local-files-to-report illustration, not sample data or
-             measured progress. Reserve the chart's room while ccusage runs. */
+          /* V4's reading state: the words, and two quiet rows standing where the
+             figures will be. Decoration only, not sample data or measured
+             progress. */
           <div className="uh-status uh-status-wait" role="status" aria-label={t("insights.usage.reading")} aria-busy="true" data-paused={pageHidden || undefined}>
-            <span className="uh-wait-word">
-              <svg className="uh-reading-art" viewBox="0 0 240 96" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                <path d="M25 24v-7a4 4 0 0 1 4-4h28a4 4 0 0 1 4 4v43" /><rect x="17" y="24" width="36" height="51" rx="4" /><path d="M25 36h19M25 44h19M25 52h13M25 64h7" />
-                <path className="uh-reading-link" d="M69 49h59" />
-                <g className="uh-reading-packets"><rect x="76" y="46" width="6" height="6" rx="1.5" /><rect x="76" y="46" width="6" height="6" rx="1.5" /><rect x="76" y="46" width="6" height="6" rx="1.5" /></g>
-                <rect x="145" y="18" width="76" height="57" rx="5" /><path d="M154 28h21M154 64h57M154 38v26M163 39h47M163 49h47" /><circle cx="209" cy="28" r="2" />
-              </svg>
-              <strong className="uh-reading-title">{t("insights.usage.reading")}</strong>
-              <span className="uh-reading-note">{t("insights.usage.gathering")}</span>
-              {!landed && <span className="uh-reading-hint">{t("insights.usage.firstRun")}</span>}
+            <strong className="uh-reading-title">{t("insights.usage.reading")}</strong>
+            <span className="uh-reading-note">{t("insights.usage.gathering")}{!landed && ` ${t("insights.usage.firstRun")}`}</span>
+            <span className="uh-skeleton" aria-hidden="true">
+              {[0, 1].map(row => <span key={row} className="uh-skel-row"><i className="uh-skel-dot" /><i className="uh-skel-bar" /><i className="uh-skel-bar uh-skel-end" /></span>)}
             </span>
-            <span className="uh-wait-axis" aria-hidden />
           </div>
         ) : view.phase === "error" ? (
-          // The reason map says what happened; ccusage's own line is evidence,
-          // one hover away, because it is what the user pastes into an issue.
-          <div className="uh-status uh-err" title={commandOutput(landed!.resp) || undefined}>
-            {explainCcusageFailure(landed!.resp, t("insights.usage.noReport"))}
-            <div>
-              {/* #620, and this one is the whole of the error branch: a
-                  failed run leaves `phase: "error"` with `stale: loading`, so
-                  the button stays mounted and simply went disabled under its
-                  own press. The word already says it is trying. */}
-              <button className="btn uh-retry" onClick={() => { rescueRetry(); reload(); }} {...selfPressProps(loading)}>
-                {loading ? t("insights.usage.trying") : t("insights.audit.tryAgain")}
-              </button>
-            </div>
+          // V4's failed state: the heading and the hint, the button in the
+          // footer. The reason map says what happened; ccusage's own line is
+          // evidence, one hover away, because it is what the user pastes into
+          // an issue.
+          <div className="uh-status uh-err" role="alert" title={commandOutput(landed!.resp) || undefined}>
+            <strong className="uh-err-title">{t("insights.usage.noReport")}</strong>
+            <span className="uh-err-hint">{t("insights.usage.checkHint")}</span>
+            {failureReason !== t("insights.usage.noReport") && <span className="uh-err-reason">{failureReason}</span>}
           </div>
         ) : view.phase === "empty" ? (
           <div className={`uh-status${view.stale ? " uh-stale" : ""}`} aria-busy={view.stale || undefined}>
@@ -344,19 +345,25 @@ export default function UsageHistoryModal({ onClose, providers }: Props) {
                       "--uh-step": `${Math.min(10, 160 / Math.max(days.length, 1))}ms`,
                     } as CSSProperties}
                   >
-                    <div className="uh-bar" style={{ "--uh-h": Math.max(h, d.totalCost > 0 ? 2 : 0) / 100 } as CSSProperties}>
-                      {byCost(d.modelBreakdowns).map(mb => {
-                        const seg = percentOf(mb.cost, d.totalCost);
-                        return (
-                          <div
-                            key={mb.modelName}
-                            className="uh-bar-seg"
-                            style={{ height: `${seg}%`, background: modelColor(mb.modelName) }}
-                          />
-                        );
-                      })}
-                    </div>
-                    {(days.length - 1 - i) % labelStep === 0 && <span className="uh-bar-label">{d.period.slice(5)}</span>}
+                    {/* V4's column: the day's value over its bar, the day's name under
+                        it. The value is drawn where there is room for it (two weeks or
+                        fewer); every day's cost is on its button's name regardless. */}
+                    <span className="uh-bar-plot">
+                      {valueLabels && d.totalCost > 0 && <span className="uh-bar-value" aria-hidden="true">{dayValue(d.totalCost)}</span>}
+                      <span className="uh-bar" style={{ "--uh-h": Math.max(h, d.totalCost > 0 ? 2 : 0) / 100 } as CSSProperties}>
+                        {byCost(d.modelBreakdowns).map(mb => {
+                          const seg = percentOf(mb.cost, d.totalCost);
+                          return (
+                            <span
+                              key={mb.modelName}
+                              className="uh-bar-seg"
+                              style={{ height: `${seg}%`, background: modelColor(mb.modelName) }}
+                            />
+                          );
+                        })}
+                      </span>
+                    </span>
+                    <span className="uh-bar-label" aria-hidden="true">{(days.length - 1 - i) % labelStep === 0 ? (valueLabels ? weekdayShort(d.period) : d.period.slice(5)) : ""}</span>
                   </button>
                 );
               })}
@@ -381,6 +388,24 @@ export default function UsageHistoryModal({ onClose, providers }: Props) {
 
             {selectedDay && <UsageDayDetail selectedDay={selectedDay} />}
           </div>
+        )}
+        </div>
+
+        {/* V4's footer: Done, or Try again when the run failed; none while it reads. */}
+        {view.phase === "error" ? (
+          <footer className="modal-foot">
+            {/* #620, and this one is the whole of the error branch: a failed run
+                leaves `phase: "error"` with `stale: loading`, so the button stays
+                mounted and simply went disabled under its own press. The word
+                already says it is trying. */}
+            <button className="btn primary uh-retry" onClick={() => { rescueRetry(); reload(); }} {...selfPressProps(loading)}>
+              {loading ? t("insights.usage.trying") : t("insights.audit.tryAgain")}
+            </button>
+          </footer>
+        ) : view.phase !== "busy" && (
+          <footer className="modal-foot">
+            <button type="button" className="btn primary" onClick={onClose}>{t("shell.done")}</button>
+          </footer>
         )}
     </Dialog>
   );

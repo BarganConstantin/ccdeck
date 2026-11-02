@@ -153,7 +153,8 @@ describe("every door but one opens on Write", () => {
 
 describe("the words for how it went", () => {
   it("thanks and announces the way it was sent", () => {
-    expect(SENT_LINE).toBe("Thanks — feedback sent.");
+    // CHANGED ON PURPOSE (V4's Figma): a comma where there was an em dash.
+    expect(SENT_LINE).toBe("Thanks, feedback sent.");
     expect(sentLine(false)).toBe(SENT_LINE);
     expect(sentLine(true)).toBe(SENT_LINE_ACCOUNT);
     expect(SENT_LINE_ACCOUNT).toBe("Sent — replies will show in Your conversations and by email.");
