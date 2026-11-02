@@ -1,7 +1,7 @@
 // Auto-switch for Codex accounts: when the account new sessions start on is
 // nearly full, move the default to another account that still has room.
-// Running sessions keep the account they started on; only the registry's
-// default moves, through the same selectCodexProfile the panel uses.
+// This loop moves only the registry's default, through selectCodexProfile.
+// Managed exec continuation is a separate adapter of the shared account engine.
 import { readFile, mkdir, unlink } from 'node:fs/promises';
 import { randomUUID } from 'node:crypto';
 import { dirname, join, resolve } from 'node:path';
@@ -9,6 +9,7 @@ import { deckDataDir } from './deck-home.mjs';
 import { createTemp, renameWithRetry } from './atomic-write.mjs';
 import { readCodexSelection, selectCodexProfile } from './codex-selection.mjs';
 import { discoverCodexProfiles, readCodexProfileQuota } from './codex-profiles.mjs';
+import { chooseEngineAccount } from './account-engine.mjs';
 
 // The same whole-percent range the page offers (CUSTOM_MIN / CUSTOM_MAX in
 // src/web/auto-switch-threshold.ts). A server module must not import from the
@@ -18,7 +19,6 @@ const THRESHOLD_MAX = 99;
 const DEFAULT_THRESHOLD = '90';
 const COOLDOWN_MS = 5 * 60_000;
 const TICK_MS = 60_000;
-const DAY = 86_400;
 const idPattern = /^[a-f0-9]{20}$/;
 
 const storeDir = o => resolve(o.store ?? deckDataDir());
@@ -117,12 +117,6 @@ const liveWindows = (quota, nowSec) =>
   (quota?.windows ?? []).filter(w => Number.isFinite(w.usedPercent) && (w.resetAt == null || w.resetAt > nowSec));
 const loadOf = live => (live.length ? Math.max(...live.map(w => w.usedPercent)) : null);
 
-// When the weekly window resets, if it does within 4 days; otherwise null.
-function weeklyReset(live, nowSec) {
-  const w = live.find(x => x.seconds >= 6 * DAY && x.resetAt != null && x.resetAt - nowSec <= 4 * DAY);
-  return w ? w.resetAt : null;
-}
-
 const hasLogin = row => (row.signedIn === undefined ? row.signedInFilePresent === true : row.signedIn === true);
 
 export async function codexAutoTick(options = {}) {
@@ -154,20 +148,15 @@ export async function codexAutoTick(options = {}) {
     // A row that is the same ChatGPT account shares the quota that just ran out.
     const roster = rows.filter(r => r.id !== home.id && r.available && hasLogin(r)
       && !state.heldOut.includes(r.id) && r.sameAccountAs !== home.id);
-    const fits = [];
+    const quotas = new Map();
     for (const row of roster) { // one at a time: each read may spawn a process
-      const quota = await readQuota(row.id, readOpts);
-      if (!quota?.ok || quota.stale) continue;
-      const live = liveWindows(quota, nowSec);
-      const load = loadOf(live) ?? 0;
-      if (load < threshold) fits.push({ id: row.id, load, reset: weeklyReset(live, nowSec) });
+      quotas.set(row.id, await readQuota(row.id, readOpts));
     }
-    if (!fits.length) {
+    const pick = chooseEngineAccount(roster, quotas, { threshold, next: state.next, nowSec });
+    if (!pick) {
       m.lastTick = { at: now(), event: 'nowhere', reason: 'no_account_with_room' };
       return;
     }
-    const soon = state.next === 'weekly' ? fits.filter(f => f.reset !== null) : [];
-    const pick = soon.length ? soon.sort((a, b) => a.reset - b.reset)[0] : fits.sort((a, b) => a.load - b.load)[0];
     try {
       await select({ id: pick.id, expectedRevision: selection.revision, operationId: randomUUID() }, options);
     } catch (e) {

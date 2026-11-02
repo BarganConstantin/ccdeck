@@ -56,3 +56,34 @@ Automated tests use fictional credentials and fake processes. Real authenticated
 cross-account continuation, OS-specific native process behavior and model/plan
 compatibility must be reported separately from those tests. A generic engine
 interface is not evidence that unsupported clients have been integrated.
+
+## Verification on the implementation branch
+
+- Node 22: all 63 Codex and engine test files passed (772 tests), including
+  terminal installation, Auto-switch, account discovery, live watcher and recovery.
+- `npm run typecheck` and `npm run build`.
+- `node scripts/verify-codex-engine.mjs /absolute/path/to/codex` runs the actual
+  installed CLI against a loopback mock Responses provider. With Codex 0.166.0,
+  one request failed with a terminal quota error; after transfer to a second
+  temporary home, exact-ID resume completed on the next request. No real login
+  or authenticated inference was used.
+- Upstream Codex's `codex-rs/rollout/src/policy.rs` excludes `EventMsg::Error`
+  from durable rollouts. Tailing rollout files alone therefore cannot reliably
+  supervise interactive quota failures. The TUI needs a supervised PTY or an
+  app-server integration, with independent conversation identification; it is
+  not claimed by the exec adapter.
+
+The terminal installer copies the engine's local module closure into its durable
+folder. Updating an existing integration is explicit through the existing install
+command; no production shell profile is modified by this branch's verification.
+Source/destination user configuration must match, and conflicting transcripts or
+conversation leases stop continuation rather than rewriting or duplicating work.
+
+Transferred files are published atomically with an exclusive link and a private
+sidecar recording the copied prefix. The live Codex watcher skips that prefix,
+so old prompts and tool calls are not re-emitted as new activity after a handoff.
+The original rollout stays available in its source home.
+
+An unrelated profile quoting test used the real registry when its explicit
+environment omitted a data directory. The failure reproduced on unmodified
+3.53.1. Its quoting assertions now run against a temporary registry.

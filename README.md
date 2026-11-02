@@ -414,6 +414,28 @@ Step by step: [Detect browser automation while you were away](https://ccdeck.dev
 
 The Accounts panel shows Claude accounts managed by [claude-swap](https://github.com/realiti4/claude-swap) and configured Codex profiles. With both CLIs on a machine, the Claude | Codex switch at the top of the panel chooses which you see; it changes the view, not the account in use. Codex profiles support adding accounts, isolated quota checks and a persistent default for new sessions. The Claude controls described below continue to use claude-swap.
 
+**Codex continuation:** with Codex Auto-switch enabled, the updated terminal
+integration can continue a managed `codex exec --json` task on another account
+when Codex reports a terminal usage-limit failure. In the default Codex account's
+**⋯** menu, run **Enable in terminal** again to update an older integration, then
+open a new terminal. The engine waits for the previous process to exit, transfers
+only that conversation's saved rollout and resumes its exact ID with a follow-up
+to continue the interrupted task. It keeps the global default and each account's
+login unchanged. A short throttle, network error, cancellation or unknown result
+never authorizes a continuation. Accounts with unknown/stale usage, held-out
+accounts and copies of the exhausted account are skipped.
+
+This first adapter covers `exec --json`, including an explicit-ID `exec resume`.
+Interactive full-screen Codex, desktop sessions, ephemeral sessions, images,
+unknown CLI options and a `CODEX_HOME` explicitly pinned by the caller keep their
+existing behavior. Source and destination `config.toml` must match; otherwise
+resume manually. An existing destination transcript is never overwritten. A
+continuation lease prevents two engines from resuming the same conversation;
+a lease left by a crashed launcher requires inspection before removing its file
+in `codex-engine-locks` under the ccdeck data directory. Native protocol/resume
+was verified against a local simulated provider, separately from authenticated
+cross-account inference, which is not yet verified.
+
 The deck installs that package itself, so it installs it **bounded**: `claude-swap~=0.26`, which is `>= 0.26, == 0.*`, and when PyPI can be reached the exact version it resolved rather than the range. What `cswap --version` reports afterwards has to be that version, or the deck says so and leaves the panel dark rather than driving a copy it cannot account for — this is the tool that holds your Claude logins. The daily upgrade is bounded by the same specifier, and what it left behind is written to `~/.agents-deck/cswap-upgrade.json`.
 
 The active account is the one Claude Code is signed in to, as `cswap list` shows it, even after a `/login` made outside the deck; when that login is not one of your accounts, the panel says so above the list, with **Add account**.

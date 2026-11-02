@@ -6,7 +6,7 @@ export function chooseEngineAccount(rows, quotas, { threshold = 90, next = 'room
     if (excluded.has(row.id) || excluded.has(row.sameAccountAs) || row.available === false
       || !(row.signedIn ?? row.signedInFilePresent)) return [];
     const q = quotas.get(row.id);
-    if (!q?.ok || q.stale || q.partial === true && !q.windows?.length) return [];
+    if (!q?.ok || q.stale || Number.isFinite(q.fetchedAt) && nowSec * 1000 - q.fetchedAt > 15 * 60_000) return [];
     const windows = (q.windows ?? []).filter(w => Number.isFinite(w.usedPercent) && w.usedPercent >= 0 && (w.resetAt == null || w.resetAt > nowSec));
     // An empty or expired reading is unknown, never unlimited room.
     if (!windows.length) return [];
@@ -55,11 +55,14 @@ export async function runAccountEngine(adapter, initial, { signal, onSwitch = ()
     // Recheck the switch immediately before it starts; a person may turn it off
     // or hold the target out while the quota probes are running.
     const latest = await adapter.settings();
-    if (!latest.enabled || latest.heldOut?.includes(pick.id) || signal?.aborted) return { ...result, reason: 'cancelled' };
+    if (!latest.enabled || signal?.aborted) return { ...result, reason: 'cancelled' };
+    if (!chooseEngineAccount(rows.filter(row => row.id === pick.id), quotas, { ...latest, exclude })) return { ...result, reason: 'settings_changed' };
     let next;
     try { next = await adapter.prepare({ from: current, id: pick.id, threadId }); }
     catch { return { ...result, reason: 'handoff_failed' }; }
     if (signal?.aborted) return { ...result, reason: 'cancelled' };
+    const beforeLaunch = await adapter.settings();
+    if (!beforeLaunch.enabled || beforeLaunch.heldOut?.includes(next.id)) return { ...result, reason: 'disabled' };
     onSwitch({ from: current.id, to: next.id, threadId });
     current = next;
   }
