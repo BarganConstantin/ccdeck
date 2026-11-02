@@ -142,7 +142,10 @@ describe("what names the chord", () => {
     ({ stageOpen: false, pane: null, onCard: true, zoomedOut: true, singleKeys: true, platform: "Linux", ...over });
 
   it("is silent about it where the Command Panel is off: the tables are the tables they were", () => {
-    expect(statusViewFor(input()).hints).toEqual([...BOARD_HINTS]);
+    // On a card the board's table less Space (the card's own key); off a card
+    // the table less ↵ select (a card's key). Either way no chord is added.
+    expect(statusViewFor(input()).hints).toEqual(BOARD_HINTS.filter(h => !h.offCard));
+    expect(statusViewFor(input({ onCard: false })).hints).toEqual(BOARD_HINTS.filter(h => !h.onCard));
     expect(statusViewFor(input({ stageOpen: true })).hints).toEqual([...DECK_HINTS]);
     expect(keyHelpFor(true)).toBe(KEY_HELP);
   });

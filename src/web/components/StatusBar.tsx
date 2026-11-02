@@ -64,9 +64,11 @@ function useFocusPlace(stageOpen: boolean): FocusPlace {
 
 /** Memoised: App re-renders on its clock several times a second, and the bar's
  *  only inputs are its two props, focus and the single-key switch. */
-export default memo(function StatusBar({ stageOpen, zoomedOut, viewChord = null, extra }: {
+export default memo(function StatusBar({ stageOpen, zoomedOut, viewChord = null, waiting = true, extra }: {
   stageOpen: boolean;
   zoomedOut: boolean;
+  /** A session waits on an answer: n has somewhere to go (status-hints.ts). */
+  waiting?: boolean;
   /** A layer the caller names while a screen has the keys (the Decision card's,
    *  handed over by prop so this first-load file names no such key). Left out,
    *  the bar is what it always was. A pane with the keys outranks it. */
@@ -76,7 +78,7 @@ export default memo(function StatusBar({ stageOpen, zoomedOut, viewChord = null,
 }) {
   const singleKeys = useSingleKeyShortcuts();
   const { pane, onCard } = useFocusPlace(stageOpen);
-  const standard = statusViewFor({ stageOpen, pane, onCard, zoomedOut, singleKeys, platform: platformName(), viewChord });
+  const standard = statusViewFor({ stageOpen, pane, onCard, zoomedOut, singleKeys, platform: platformName(), viewChord, waiting });
   const view = extra && pane == null ? extra : standard;
   return (
     <footer className="statusbar" aria-label="Keys" data-layer={view.layer}>
