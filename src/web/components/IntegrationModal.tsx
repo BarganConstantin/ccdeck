@@ -12,7 +12,7 @@
 //
 // Loaded when it first opens, with every panel, through
 // IntegrationModalOnDemand.tsx: nothing here is in the page's own bundle.
-import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type RefObject } from "react";
+import { useCallback, useEffect, useId, useMemo, useRef, useState, type RefObject } from "react";
 import { createPortal } from "react-dom";
 import { useT } from "../i18n";
 import { connectionApi, connectionAssetUrl, connectionHost } from "../integrations/client";
@@ -22,8 +22,8 @@ import { integrationDef } from "../integrations/registry";
 import type { IntegrationConnection, IntegrationKind } from "../integrations/types";
 import { useFeatureUse } from "../feature-use";
 import { isTabbable, TABBABLE_SELECTOR } from "../modal-dismiss";
-import { prefersReducedMotion } from "../viewport-motion";
 import { useDrillIn } from "./IntegrationSplit";
+import { Dialog } from "./Dialog";
 import { useModalDismiss, useScrimDismiss } from "./use-modal-dismiss";
 
 export interface IntegrationModalProps {
@@ -43,31 +43,16 @@ export default function IntegrationModal({ kind, connections, onClose, onReconne
   const narrow = useDrillIn();
   // Read once, while focus is still on the rail button that opened this.
   const [opener] = useState(() => (document.activeElement instanceof HTMLElement ? document.activeElement : null));
-  // Closing: focus goes back to the opener at once, and the modal leaves in
-  // 120ms (opacity and 2px down, integrations.css), inert while it does, and
-  // is unmounted when that ends, or after 200ms if the end never arrives.
-  // Under reduced motion it is simply gone.
-  const [closing, setClosing] = useState(false);
-  const closed = useRef(false);
+  // Closing: focus goes back to the opener at once and the owner is told at
+  // once; the shared dialog's presence plays the one exit and keeps the node
+  // drawn, inert, until it ends.
   const onCloseRef = useRef(onClose);
   onCloseRef.current = onClose;
-  const finish = useCallback(() => {
-    if (closed.current) return;
-    closed.current = true;
-    onCloseRef.current();
-  }, []);
   const close = useCallback(() => {
-    if (closing || closed.current) return;
     const fallback = Array.from(document.querySelectorAll<HTMLElement>(`[data-rail-item="integration-${kind}"], [data-rail-item="more"]`)).find(el => el.checkVisibility?.() ?? true);
     (opener && opener !== document.body && opener.isConnected && (opener.checkVisibility?.() ?? true) ? opener : fallback)?.focus({ preventScroll: true });
-    if (prefersReducedMotion()) finish();
-    else setClosing(true);
-  }, [closing, opener, kind, finish]);
-  useEffect(() => {
-    if (!closing) return;
-    const t = window.setTimeout(finish, 200);
-    return () => window.clearTimeout(t);
-  }, [closing, finish]);
+    onCloseRef.current();
+  }, [opener, kind]);
   // Where the keyboard starts: the panel's first control (its board or project
   // picker), not the connection selector, whose ring after a pointer open
   // read as an error. A keyboard open still shows the ring there.
@@ -85,9 +70,6 @@ export default function IntegrationModal({ kind, connections, onClose, onReconne
   }), []);
   const dialogRef = useModalDismiss(close, { focusRef: firstControl });
   const scrimPress = useScrimDismiss(close);
-  useLayoutEffect(() => {
-    if (dialogRef.current) dialogRef.current.inert = closing;
-  }, [closing, dialogRef]);
   // The provider's name, once a day, for the usage reports: never the
   // connection or anything read through it.
   useFeatureUse(kind);
@@ -117,10 +99,8 @@ export default function IntegrationModal({ kind, connections, onClose, onReconne
   const { Glyph } = def;
 
   return createPortal(
-    <div className="modal-backdrop" role="presentation" {...scrimPress}>
-      <div ref={dialogRef} id={`integration-${kind}-modal`} className="modal ig-modal" role="dialog" aria-modal="true" aria-labelledby="integration-modal-title"
-        data-kind={kind} data-closing={closing || undefined} onClick={event => event.stopPropagation()}
-        onAnimationEnd={event => { if (closing && event.target === event.currentTarget) finish(); }}>
+    <Dialog scrim={scrimPress} dialogRef={dialogRef} id={`integration-${kind}-modal`} className="ig-modal" labelledBy="integration-modal-title"
+        data-kind={kind}>
         {/* A div, not a <header>: the dialog's label already names it, and a
             second banner landmark is one too many (axe). */}
         <div className="ig-head">
@@ -149,8 +129,7 @@ export default function IntegrationModal({ kind, connections, onClose, onReconne
             onReconnect={() => { close(); onReconnect(connection.id); }}
           />
         </div>
-      </div>
-    </div>,
+    </Dialog>,
     document.body,
   );
 }

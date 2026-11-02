@@ -5,6 +5,7 @@ import { useT } from "../i18n";
 import { connectionsOf, kindOffered, kindOpenable, type IntegrationsState } from "../integrations/client";
 import { integrationDefs } from "../integrations/registry";
 import type { IntegrationKind } from "../integrations/types";
+import { Dialog } from "./Dialog";
 import { useModalDismiss, useScrimDismiss } from "./use-modal-dismiss";
 import { ExternalLinkGlyph } from "./action-glyphs";
 import { WaitingLoader } from "./Loader";
@@ -47,9 +48,8 @@ export default function ExploreIntegrationsModal({ integrations, onClose, onOpen
   const go = (action: () => void) => { onClose(); action(); };
 
   return createPortal(
-    <div className="modal-backdrop" role="presentation" {...scrimPress}>
-      <div ref={dialogRef} className="modal explore-integrations" role="dialog" aria-modal="true"
-        aria-labelledby="explore-integrations-title" aria-describedby="explore-integrations-description">
+    <Dialog scrim={scrimPress} dialogRef={dialogRef} className="explore-integrations"
+      labelledBy="explore-integrations-title" aria-describedby="explore-integrations-description">
         <div className="modal-head explore-head">
           <h2 id="explore-integrations-title">{t("integrations.explore.title")}</h2>
           <button type="button" className="glyph-btn" aria-label={t("integrations.explore.closeAria")} title={t("integrations.closeEsc")} onClick={onClose}>×</button>
@@ -98,7 +98,6 @@ export default function ExploreIntegrationsModal({ integrations, onClose, onOpen
           <span>{t("integrations.explore.footer")}</span>
           <button type="button" className="btn explore-text-action" onClick={() => go(() => onManage())}>{t("integrations.explore.manageInSettings")} <ExternalLinkGlyph /></button>
         </div>
-      </div>
-    </div>, document.body,
+    </Dialog>, document.body,
   );
 }

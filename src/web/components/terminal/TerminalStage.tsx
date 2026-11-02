@@ -63,6 +63,7 @@ import { usePaneRoom } from "./use-pane-room";
 import KeysBar, { type ArrivalView, type AsksView, type EndView } from "./KeysBar";
 import Divider from "./Divider";
 import HostsDialog from "./HostsDialog";
+import { DialogPresence } from "../Dialog";
 import type { HostsApi } from "./older-hosts";
 import { useOlderHosts } from "./use-older-hosts";
 import type { WaitingCard } from "./stage-board";
@@ -544,9 +545,9 @@ export default function TerminalStage(p: TerminalStageProps) {
         onAnswerArrival={p.onAnswerArrival}
         hosts={hosts.line ? { said: hosts.line, onReview: hosts.canReview ? hosts.review : null } : null}
       />
-      {hosts.open && hosts.view && (
+      <DialogPresence when={hosts.open && hosts.view}>{view => (
         <HostsDialog
-          view={hosts.view}
+          view={view}
           now={Date.now()}
           busy={hosts.busy}
           said={hosts.said}
@@ -554,7 +555,7 @@ export default function TerminalStage(p: TerminalStageProps) {
           onKeep={hosts.keep}
           onCancel={hosts.cancel}
         />
-      )}
+      )}</DialogPresence>
     </section>
   );
 }

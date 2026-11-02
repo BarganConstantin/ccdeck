@@ -45,6 +45,7 @@ import { rich } from "../insights-rich";
 import type { Memory, Snapshot, Swap, Thermal } from "../machine-snapshot";
 import { useSystem } from "../use-system";
 import ProcessListModal from "./ProcessListModal";
+import { DialogPresence } from "./Dialog";
 import { Fig, OpensHistory, Row } from "./MachineReadout";
 import NetworkSection from "./MachineNetwork";
 import MachineGpu from "./MachineGpu";
@@ -443,7 +444,7 @@ function Processes({ sys }: {
           <span className="sd-door-sub">{t("insights.machine.processesSub")}</span>
         </span>
       </button>
-      {open && <ProcessListModal sys={sys} onClose={() => setOpen(false)} />}
+      <DialogPresence when={open}>{() => <ProcessListModal sys={sys} onClose={() => setOpen(false)} />}</DialogPresence>
     </div>
   );
 }

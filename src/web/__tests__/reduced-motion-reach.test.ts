@@ -50,7 +50,7 @@ const rawCss = sheetText();
 const css = rawCss.replace(/\/\*[\s\S]*?\*\//g, m => m.replace(/[^\n]/g, " "));
 const lineOf = (at: number) => css.slice(0, at).split("\n").length;
 
-type Rule = { selector: string; body: string; reduced: boolean; at: number };
+type Rule = { selector: string; body: string; reduced: boolean; at: number; starting: boolean };
 
 /** The `{…}` opened at `open`, and the index of its closing brace. */
 function block(src: string, open: number): [string, number] {
@@ -65,7 +65,7 @@ function block(src: string, open: number): [string, number] {
 /** Flat rule list. @keyframes are collected separately — their `0%`/`to` are
  *  not selectors — and every other at-rule is descended into, carrying the
  *  reduced-motion flag and an absolute source position down with it. */
-function collect(src: string, base: number, reduced: boolean, out: Rule[]): Rule[] {
+function collect(src: string, base: number, reduced: boolean, out: Rule[], starting = false): Rule[] {
   let i = 0;
   while (i < src.length) {
     const open = src.indexOf("{", i);
@@ -75,9 +75,9 @@ function collect(src: string, base: number, reduced: boolean, out: Rule[]): Rule
     if (prelude.startsWith("@keyframes")) {
       // not a rule
     } else if (prelude.startsWith("@")) {
-      collect(inner, base + open + 1, reduced || /prefers-reduced-motion\s*:\s*reduce/.test(prelude), out);
+      collect(inner, base + open + 1, reduced || /prefers-reduced-motion\s*:\s*reduce/.test(prelude), out, starting || prelude.startsWith("@starting-style"));
     } else if (prelude) {
-      out.push({ selector: prelude, body: inner, reduced, at: base + open });
+      out.push({ selector: prelude, body: inner, reduced, at: base + open, starting });
     }
     i = end + 1;
   }
@@ -175,6 +175,41 @@ for (const rule of all) {
   }
 }
 
+/** An entrance written as a transition rather than as keyframes: the rule sits
+ *  in `@starting-style` and sets where the element comes FROM. It moves the
+ *  element when that starting state sets any of the properties a keyframe sweep
+ *  above would call travel (transform, translate, scale, an offset). The dialog
+ *  (`.modal`) opens this way since V4. It joins `animatesMovement`, so the
+ *  "answered by a later reduced rule" sweep covers it, and the case below holds
+ *  the answer to being a real one. */
+const entersFromStart: Moving[] = [];
+/** The dialog shell: `.modal` and `.modal.<name>`. The other @starting-style
+ *  entrances in the sheet (the left column, a feedback thumbnail, a report meter)
+ *  are not this sweep's to police; it exists so the dialog's move from keyframes
+ *  to a transition leaves reduced motion answered, and `.modal` cannot drop out. */
+const DIALOG_SHELL = /^\.modal(?![\w-])/;
+for (const rule of all) {
+  // `transform: none` as a starting state is the absence of travel (the
+  // release notes use it to opt out of the scale), so it does not count.
+  const body = rule.body.replace(/(?:^|[;{])\s*(?:transform|translate|rotate|scale)\s*:\s*none/g, ";");
+  if (rule.reduced || !rule.starting || !MOVED_BY_KEYFRAME.test(body)) continue;
+  for (const sel of selectors(rule).filter(sel => DIALOG_SHELL.test(sel))) {
+    entersFromStart.push({ sel, why: "@starting-style moves it", at: rule.at });
+    animatesMovement.push({ sel, why: "@starting-style moves it", at: rule.at });
+  }
+}
+
+/** The properties a reduced-motion rule leaves transitioning, read from
+ *  `transition-property` as well as from the `transition` shorthand (the dialog
+ *  answers with `transition-property: opacity`, keeping its durations), or null
+ *  when the rule says nothing about them. */
+const leftTransitioning = (body: string): string[] | null => {
+  const longhand = decl(body, "transition-property");
+  if (longhand != null) return longhand === "none" ? [] : splitTop(longhand);
+  const shorthand = decl(body, "transition");
+  return shorthand == null ? null : transitioned(shorthand);
+};
+
 const describeUncovered = (m: Moving) => `styles.css:${lineOf(m.at)} ${m.sel} — ${m.why}`;
 
 describe("reduced motion reaches the whole deck, not only the canvas", () => {
@@ -190,6 +225,22 @@ describe("reduced motion reaches the whole deck, not only the canvas", () => {
       .filter(m => m.sel !== CONFETTI)
       .filter(m => !answeredAfter(m.sel, m.at));
     expect(uncovered.map(describeUncovered)).toEqual([]);
+  });
+
+  it("answers every @starting-style entrance by keeping only what does not move", () => {
+    // Being answered by SOME later rule is not enough for a transition: the
+    // answer has to leave nothing that travels transitioning (transition-property
+    // or the shorthand) AND take the starting transform away.
+    const unanswered = entersFromStart.filter(m => {
+      const later = (answers.get(m.sel) ?? []).filter(r => r.at > m.at);
+      const keepsStill = later.some(r => {
+        const left = leftTransitioning(r.body);
+        return left != null && left.every(p => STILL.has(p));
+      });
+      const takesStartAway = later.some(r => r.starting && /transform:\s*none/.test(r.body));
+      return !(keepsStill && takesStartAway);
+    });
+    expect(unanswered.map(describeUncovered)).toEqual([]);
   });
 
   it("earns the confetti exclusion by checking the gate that replaces it", () => {
@@ -225,6 +276,7 @@ describe("reduced motion reaches the whole deck, not only the canvas", () => {
     // property now; the next case still stops all four under reduced motion.
     // The fourth, .uh-bar, still eases its height for a range that changes
     // under an open chart (#863); its rise alone is a transform.
+    // The modal's entrance is found by its @starting-style, no longer by keyframes.
     expect(easesLayout.some(m => m.sel === ".uh-bar"), ".uh-bar").toBe(true);
     for (const sel of [".ctx-window-fill", ".qb-fill", ".qb-pace-rail"]) {
       expect(easesLayout.some(m => m.sel === sel), `${sel} eases a layout property again`).toBe(false);
@@ -239,10 +291,20 @@ describe("reduced motion reaches the whole deck, not only the canvas", () => {
     // A dialog that is simply present on the next frame reads as a rendering
     // fault; the canvas block already collapses entrances to a 140ms fade and
     // the modal joins that convention, matched to its own backdrop.
-    const answer = (answers.get(".modal") ?? []).at(-1)!;
-    expect(decl(answer.body, "animation")).toMatch(/fadeIn 140ms/);
+    // V4's dialog motion is a transition, not keyframes: the surface keeps its
+    // fade (transition-property: opacity, the same durations) and loses its
+    // scale; it is not deleted (no `none`, no `animation: none`).
+    const answer = (answers.get(".modal") ?? []).filter(r => decl(r.body, "transition-property") != null).at(-1)!;
+    expect(decl(answer.body, "transition-property")).toBe("opacity");
+    expect(decl(answer.body, "transition")).toBeNull();
+    expect(decl(answer.body, "animation")).toBeNull();
+    // ...and still opens from transparent, so the fade has something to do.
+    expect(all.some(r => r.starting && !r.reduced && r.selector === ".modal" && /opacity:\s*0/.test(r.body))).toBe(true);
+    // The base rule it narrows really does move, on the Base duration.
+    const base = all.find(r => !r.reduced && !r.starting && r.selector === ".modal" && decl(r.body, "transition") != null)!;
+    expect(transitioned(decl(base.body, "transition"))).toEqual(["opacity", "transform"]);
     // V4's dialog motion: the scrim fades on Base, the token, no longer 140ms.
-    expect(decl(all.find(r => r.selector === ".modal-backdrop")!.body, "animation")).toMatch(/fadeIn var\(--dur-base\)/);
+    expect(decl(all.find(r => !r.starting && r.selector === ".modal-backdrop")!.body, "transition")).toMatch(/^opacity var\(--dur-base\)/);
   });
 
   it("stops the four readouts dead rather than easing them more slowly", () => {

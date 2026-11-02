@@ -254,7 +254,8 @@ describe("the rail control and I follow what the deck offers", () => {
     // I opens Jira through openIntegrationRef, which finds the kind among those.
     expect(app).toMatch(/const openIntegrationRef = useMirroredRef\(\(kind: string\) => \{\s*const def = connectedKinds\.find\(p => p\.kind === kind\);/);
     expect(app).toContain("integrations: connectedKinds.map(provider => ({ provider, onPress: () => setIntegrationOpen(provider.kind) })),");
-    expect(app).toContain("connections={kindOffered(integrations, integrationOpen) ? connectionsOf(integrations, integrationOpen) : []}");
+    expect(app).toContain("<DialogPresence when={integrationOpen}>{kind => (");
+    expect(app).toContain("connections={kindOffered(integrations, kind) ? connectionsOf(integrations, kind) : []}");
     expect(sourceOf("use-deck-shortcuts.ts")).toContain('openIntegrationRef?.current("jira")');
   });
 });

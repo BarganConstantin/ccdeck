@@ -38,8 +38,15 @@ beforeEach(() => {
 });
 afterEach(() => { vi.unstubAllGlobals(); });
 
-const scrim = (tree: unknown) =>
-  one(tree, el => typeof el.props.className === "string" && el.props.className.split(" ").includes("modal-backdrop")) as Drawn;
+// The scrim is the shared shell's now: the dialog draws <Dialog scrim={...}>
+// and the shell spreads those handlers on the backdrop (Dialog.tsx), so the
+// handlers the browser would call are that prop.
+const { Dialog } = await import("../components/Dialog");
+const scrim = (tree: unknown) => {
+  const shell = one(tree, el => el.type === Dialog);
+  if (shell) return { props: shell.props.scrim as Record<string, unknown> } as unknown as Drawn;
+  return one(tree, el => typeof el.props.className === "string" && el.props.className.split(" ").includes("modal-backdrop")) as Drawn;
+};
 
 /** Stand-ins for the nodes a press can land on: the scrim itself, and a field
  *  inside the dialog. */
@@ -102,13 +109,14 @@ describe.each(dialogs)("the scrim of %s", (_name, open) => {
   });
 });
 
-/** Every backdrop's opening tag, from `<div` to the `>` that closes it, with
- *  the file it is in. Braces are counted so an arrow inside an attribute does
- *  not end the tag. */
+/** Every shell opening tag (<Dialog or <DialogScrim), from `<` to the `>` that
+ *  closes it, with the file it is in, and every remaining hand-drawn backdrop
+ *  div. Braces are counted so an arrow inside an attribute does not end the tag. */
 function backdropTags(): Array<{ file: string; tag: string; src: string }> {
   const out: Array<{ file: string; tag: string; src: string }> = [];
   for (const [file, src] of clientPairs()) {
-    for (const m of src.matchAll(/<div className="modal-backdrop[" ]/g)) {
+    for (const m of src.matchAll(/<(?:Dialog|DialogScrim)(?=[\s>])|<div className="modal-backdrop[" ]/g)) {
+      if (file === "components/Dialog.tsx") continue;
       let depth = 0;
       let end = m.index;
       for (; end < src.length; end++) {
@@ -130,9 +138,17 @@ describe("every dialog backdrop", () => {
     expect(tags.length).toBeGreaterThanOrEqual(23);
     for (const { file, tag, src } of tags) {
       expect(tag, file).not.toMatch(/\sonClick=/);
-      const spread = /\{\.\.\.(\w+)\}/.exec(tag)?.[1];
-      expect(spread, file).toBeTruthy();
-      expect(src, file).toMatch(new RegExp(`const ${spread} = useScrimDismiss\\(`));
+      const spread = /scrim=\{(\w+)\}|\{\.\.\.(\w+)\}/.exec(tag);
+      const name = spread?.[1] ?? spread?.[2];
+      expect(name, file).toBeTruthy();
+      expect(src, file).toMatch(new RegExp(`const ${name} = useScrimDismiss\\(`));
     }
+  });
+
+  it("the shell spreads the handlers it is given and adds no click of its own to the scrim", () => {
+    const shell = clientPairs().find(([f]) => f === "components/Dialog.tsx")![1];
+    expect(shell).toMatch(/\{\.\.\.scrim\}/);
+    const scrimTag = /<div\s+\{\.\.\.backdropProps\}[\s\S]*?onTransitionEnd=\{onTransitionEnd\}\s*>/.exec(shell)![0];
+    expect(scrimTag).not.toMatch(/onClick/);
   });
 });

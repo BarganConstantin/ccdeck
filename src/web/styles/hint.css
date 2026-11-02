@@ -1,9 +1,11 @@
 /* ---------------- the chrome's hint ----------------
    One for the whole chrome (components/use-hint.tsx): the control's name and,
    while it does something, its key — beside a stripe on the side its panel
-   opens towards, under the topbar's controls, over the dock's. A popover's
-   elevation (the contact line under --shadow-2), on the popover layer: over
-   the panels it sits beside, under every dialog. */
+   opens towards, under the topbar's controls, over the dock's. V4's Tooltip
+   (Figma): one line, 24 high — the name and its key chip — in --panel with a
+   1px --line edge, 6 radius, the overlay shadow, on the popover layer: over
+   the panels it sits beside, under every dialog. A door's hint is that one
+   line; the longer help a door has is its accessible description. */
 .hint {
   position: fixed;
   z-index: 40;
@@ -12,23 +14,25 @@
   gap: 4px;
   max-width: 280px;
   box-sizing: border-box;
-  padding: 4px 10px;
-  border: 1px solid var(--line);
+  /* Figma's 4 8 is to the outer edge, its stroke drawn inside: the 1px edge is
+     an inset shadow over the padding, so a one-line hint is 24 tall, its label
+     starts 8 in, and the padding stays on the spacing ladder. */
+  padding: 4px 8px;
+  border: 0;
   border-radius: var(--r-ctl);
   background: var(--panel);
-  box-shadow: var(--shadow-contact), var(--shadow-2);
+  box-shadow: inset 0 0 0 1px var(--line), var(--shadow-overlay);
   color: var(--text);
   font-size: calc(12px + var(--ui-text-increase, 0px));
-  line-height: calc(18px + var(--ui-text-increase, 0px));
+  line-height: calc(16px + var(--ui-text-increase, 0px));
 }
 /* A hint for a control inside a dialog, one above .modal-backdrop like the
    add-account dialog's own overlay, or it would draw under the scrim. */
 .hint.hint-over-dialog { z-index: 101; }
-.hint:has(.hint-key) { padding-right: 4px; }
 .hint-head {
   display: inline-flex;
   align-items: center;
-  gap: 10px;
+  gap: 6px;
   max-width: 100%;
 }
 /* Whole, always: for a queued session whose name the bar cut, saying it whole
@@ -38,17 +42,22 @@
   min-width: 0;
   overflow-wrap: anywhere;
 }
-/* The keycap: the same chip the shortcuts sheet prints a key in. */
+/* A door's tooltip never wraps: the name is a few words. */
+.hint-right .hint-label { white-space: nowrap; }
+/* The keycap: V4's Kbd — 16 high, radius 4, --bg-soft with a 1px --line edge,
+   padding 1 5 (Figma draws its stroke inside the padding, so the 1px edge is
+   the vertical 1 and the first of the 5 across), mono 11/14 weight 500 in
+   --muted. */
 .hint-key {
-  min-width: 18px;
-  height: 18px;
-  padding: 0 5px;
+  display: inline-block;
+  height: 16px;
+  padding: 0 4px;
   box-sizing: border-box;
-  border: 1px solid var(--sm-edge);
-  border-radius: var(--r-tag);
-  background: var(--sm-fill);
-  color: var(--text);
-  font: calc(11px + var(--ui-text-increase, 0px))/16px var(--font-mono);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: var(--bg-soft);
+  color: var(--muted);
+  font: 500 calc(11px + var(--ui-text-increase, 0px))/calc(14px + var(--ui-text-increase, 0px)) var(--font-mono);
   text-align: center;
 }
 /* What the name alone does not say: whose block it is and what it is on, or
@@ -75,6 +84,11 @@
 }
 .hint[data-instant] { transition: none; }
 
+/* Reduced motion keeps the fade and drops the 4px: the hint still arrives,
+   it just does not travel. Below the @starting-style rules it answers. */
 @media (prefers-reduced-motion: reduce) {
-  .hint { transition: none; }
+  .hint { transition: opacity var(--dur-fast) var(--ease); }
+  @starting-style {
+    .hint-right, .hint-left, .hint-below, .hint-above { transform: none; }
+  }
 }

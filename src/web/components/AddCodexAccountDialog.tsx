@@ -31,6 +31,7 @@ import SuccessMark from "./SuccessMark";
 import { copyText } from "../copy-text";
 import { useT, type TFunction } from "../i18n";
 import { celebrates, doneTitle } from "../signin-stages";
+import { Dialog, DialogClose } from "./Dialog";
 import { useModalDismiss, useScrimDismiss } from "./use-modal-dismiss";
 import { prefersReducedMotion } from "../viewport-motion";
 
@@ -243,12 +244,11 @@ export default function AddCodexAccountDialog({ profile, onCreate, onCopyCommand
   const title = profile ? t("codex.add.titleSignIn", { label: profile.label }) : t("codex.add.titleNew");
 
   return createPortal(
-    <div className="modal-backdrop" {...scrimPress} role="presentation">
-      <div ref={dialogRef} className="modal aa-modal" onClick={event => event.stopPropagation()} role="dialog" aria-modal="true" aria-labelledby="aa-codex-title">
+    <Dialog scrim={scrimPress} dialogRef={dialogRef} className="aa-modal" labelledBy="aa-codex-title">
         <header className="modal-head">
           <div className="modal-title"><span id="aa-codex-title">{title}</span></div>
           <div className="modal-actions">
-            <button type="button" className="glyph-btn" onClick={close} aria-label={t("codex.add.close")} title={t("codex.add.close")}>×</button>
+            <DialogClose onClick={close} label={t("codex.add.close")} />
           </div>
         </header>
         <section className="modal-body aa-body">
@@ -369,8 +369,7 @@ export default function AddCodexAccountDialog({ profile, onCreate, onCopyCommand
             </div>
           )}
         </section>
-      </div>
-    </div>,
+    </Dialog>,
     document.body,
   );
 }

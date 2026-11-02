@@ -355,6 +355,7 @@
   --press: 0.97;
   --press-small: 0.94;
   --enter-scale: 0.96;
+  --exit-scale: 0.98;
 }
 
 /* V4's motion rules: a surface opened by a key (or by j/k) carries

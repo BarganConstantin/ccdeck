@@ -502,7 +502,7 @@ describe("once it is sent", () => {
     // Both timers go with the dialog, so one closed by hand is not closed twice.
     expect(flat(sendHook)).toMatch(/return \(\) => \{ window\.clearTimeout\(fade\); window\.clearTimeout\(close\); \};/);
     expect(dialog).toMatch(/const leaving = useCloseWhenSent\(sent, onClose\);/);
-    expect(flatDialog).toMatch(/data-leaving=\{leaving \|\| undefined\}/);
+    expect(flatDialog).toMatch(/"data-leaving": leaving \|\| undefined/);
     expect(value(".modal-backdrop[data-leaving]", "transition")).toBe("opacity var(--dur-exit) var(--ease)");
     expect(SENT_EXIT_MS).toBe(150); // = --dur-exit, the timer mirrors the token
     expect(value(".modal-backdrop[data-leaving]", "opacity")).toBe("0");

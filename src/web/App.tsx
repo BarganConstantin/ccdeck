@@ -7,6 +7,7 @@ import BoardFlow from "./components/BoardFlow";
 import DesktopTitlebar from "./components/DesktopTitlebar";
 import SessionList, { buildRows } from "./components/SessionList";
 import QuickOpen from "./components/QuickOpen";
+import { DialogPresence } from "./components/Dialog";
 import { quickOpenItems } from "./quick-open-items";
 import type { QuickItem } from "./quick-open";
 import { indexFor } from "./settings-search";
@@ -978,7 +979,7 @@ function Inner() {
             only where the Command Panel is on (use-view.ts), and never on a
             phone, where the Board is the whole of the deck. */}
         {!phone && stage.workspaceOffered && <ViewSwitch view={inWorkspace ? "workspace" : "board"} onChange={switchView} />}
-        {!phone && <div className="actions"><UtilityRun items={[rails.search, ...rails.utilities]} /></div>}
+        {!phone && <div className="actions"><UtilityRun items={[rails.search, ...rails.topUtilities]} /></div>}
       </header>
 
       {/* The left stripe, ahead of the column it opens so Tab reaches the
@@ -986,7 +987,7 @@ function Inner() {
           that stands in for both stripes and the utilities. */}
       {phone
         ? <EdgeDock items={[...rails.left, ...rails.right[0], rails.utilities[0]]} more={[rails.search, ...rails.capacity, ...rails.right.slice(1).flat(), ...rails.integrations, ...rails.explore, rails.utilities[1]]} />
-        : <EdgeRail side="left" label={t("shell.rail.left")} groups={[...rails.leftStripe, rails.integrations, rails.explore]} />}
+        : <EdgeRail label={t("board.rail.tools")} groups={rails.panelBar} foot={rails.panelFoot} />}
 
       {/* Mounted whether or not anything was removed, for the reason the
           topbar's alarm region is (#372): words that arrive with their region
@@ -1097,18 +1098,14 @@ function Inner() {
         onBoard={() => switchView("board", "key")}
       />
 
-      {/* The right stripe, ahead of the two panels it opens so Tab reaches the
-          control before the region it discloses. */}
-      {!phone && <EdgeRail side="right" label={t("shell.rail.right")} groups={rails.right} />}
-
-      {toolAuditView && <ToolAuditModal view={toolAuditView} onClose={closeToolAudit} sessionLabel={toolAuditSessionLabel} onOpenSession={openToolAuditSession} />}
-      {capacityView && <AccountCapacityDialog view={capacityView} onClose={closeCapacity} />}
-      {integrationOpen && (
-        <IntegrationModal kind={integrationOpen} connections={kindOffered(integrations, integrationOpen) ? connectionsOf(integrations, integrationOpen) : []}
+      <DialogPresence when={toolAuditView}>{view => <ToolAuditModal view={view} onClose={closeToolAudit} sessionLabel={toolAuditSessionLabel} onOpenSession={openToolAuditSession} />}</DialogPresence>
+      <DialogPresence when={capacityView}>{view => <AccountCapacityDialog view={view} onClose={closeCapacity} />}</DialogPresence>
+      <DialogPresence when={integrationOpen}>{kind => (
+        <IntegrationModal kind={kind} connections={kindOffered(integrations, kind) ? connectionsOf(integrations, kind) : []}
           onClose={closeIntegration} onReconnect={reconnectIntegration} />
-      )}
-      {exploreIntegrationsOpen && <ExploreIntegrationsModal integrations={integrations} onClose={closeExploreIntegrations}
-        onOpen={setIntegrationOpen} onConnect={connectIntegration} onManage={manageIntegration} />}
+      )}</DialogPresence>
+      <DialogPresence when={exploreIntegrationsOpen}>{() => <ExploreIntegrationsModal integrations={integrations} onClose={closeExploreIntegrations}
+        onOpen={setIntegrationOpen} onConnect={connectIntegration} onManage={manageIntegration} />}</DialogPresence>
       {/* Built while it is open only, from the same doors, rows and presses
           the chrome draws, so it can never offer something the deck does not. */}
       {quickOpenOpen && (

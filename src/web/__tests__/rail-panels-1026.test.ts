@@ -119,7 +119,7 @@ describe("below 640px the two rail panels stack rather than share a rectangle (#
     expect(decl(".usage-panel", "max-height")).toBe("calc(100vh - var(--topbar-h) - 24px - var(--status-room, 0px))");
     expect(decl(".sysdetail", "max-height")).toBe("calc(100vh - var(--topbar-h) - 24px - var(--status-room, 0px))");
     expect(decl(".sysdetail", "bottom")).toBeNull();
-    expect(decl(".sysdetail.shifted", "right")).toBe("calc(var(--rail-r) + 280px + 20px)");
+    expect(decl(".sysdetail.shifted", "right")).toBe("calc(var(--rail-r) + 320px + 20px)");
   });
 });
 
@@ -139,8 +139,9 @@ describe("--rail-r is read by both panels it was introduced to hold together (#1
     // The third is Workspace's, from 1320 up: its Inspector is a column beside the
     // pane, so the panels sit over it (workspace.css; review 11). It is the second
     // definition's value, keyed on the view, and written nowhere else.
-    expect(defs).toEqual(["calc(var(--inspector-w) + 8px + var(--edge-w))", "calc(8px + var(--edge-w))", "calc(8px + var(--edge-w))"]);
-    expect(raw.split("--rail-r: calc(8px + var(--edge-w));").length - 1, "two spellings of the no-detail value: the Board's and Workspace's").toBeGreaterThanOrEqual(2);
+    // V4's Figma: no right bar, so none of them carries a stripe's width; in
+    // Workspace the panels' right edge is the window's.
+    expect(defs).toEqual(["calc(var(--inspector-w) + 8px)", "8px", "0px"]);
     expect(css).not.toMatch(/\.usage-panel\s*\{[^}]*right:\s*368px/);
     // And the duplicate override is gone with it.
     expect(css).not.toMatch(/:not\(:has\(\.detail\)\)\s+\.usage-panel/);
@@ -217,7 +218,8 @@ describe("the sound menu's reading is described once (#1026)", () => {
     const settings = at("../components/SettingsModal.tsx");
     expect(at("../components/SoundsSection.tsx")).toMatch(/<ToneSection\b/);
     expect(settings).toMatch(/<SoundsSection\b/);
-    expect(settings).toMatch(/className="modal settings-modal"/);
+    expect(settings).toMatch(/<Dialog\b[^>]*\bclassName="settings-modal"/);
+    expect(at("../components/Dialog.tsx")).toMatch(/`modal \$\{className\}`/);
     expect(decl(".settings-modal .sm-read", "color")).toBe("var(--muted)");
     const others = ["../App.tsx", "../components/MachinePanel.tsx", "../components/ProcessListModal.tsx"];
     for (const f of others) expect(at(f), f).not.toMatch(/className="[^"]*\bsm-read\b/);

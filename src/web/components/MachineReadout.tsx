@@ -9,6 +9,7 @@ import React, { useEffect, useRef, useState } from "react";
 
 import type { Tone } from "../machine-readings";
 import SectionHistoryModal from "./SectionHistoryModal";
+import { DialogPresence } from "./Dialog";
 import { useT } from "../i18n";
 
 /**
@@ -151,7 +152,7 @@ export function OpensHistory({ group, title, action, label, value, hint, liveNot
         {children}
       </div>
       {hint && <span id={`sd-hint-${group}`} className="vis-hidden">{hint}</span>}
-      {open && <SectionHistoryModal group={group} title={title} liveNote={liveNote} onClose={() => setOpen(false)} />}
+      <DialogPresence when={open}>{() => <SectionHistoryModal group={group} title={title} liveNote={liveNote} onClose={() => setOpen(false)} />}</DialogPresence>
     </>
   );
 }

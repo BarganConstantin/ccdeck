@@ -25,6 +25,7 @@ import ReadActivity from "./ReadActivity";
 // you believe it was the whole machine would be lying about what it can answer.
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
+import { Dialog, DialogClose } from "./Dialog";
 import { useModalDismiss, useScrimDismiss } from "./use-modal-dismiss";
 import { SortHead as ColumnSortHead, type SortOf } from "./SortHead";
 import MachineStrip from "./MachineStrip";
@@ -230,18 +231,9 @@ export default function ProcessListModal({ sys, onClose }: {
     // Portalled for the reason SectionHistoryModal is: this opens from inside
     // `.sysdetail`, which is `position: fixed` and animates a transform, and a
     // transformed ancestor becomes the containing block for a fixed descendant.
-    <div className="modal-backdrop" {...scrimPress} role="presentation">
-      <div
-        ref={dialogRef}
-        className="modal pl-modal"
-        onClick={e => e.stopPropagation()}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="pl-modal-title"
-      >
-        <ProcessListView read={read} sort={sort} onSort={setSort} sys={sys} onClose={onClose} />
-      </div>
-    </div>,
+    <Dialog scrim={scrimPress} dialogRef={dialogRef} className="pl-modal" labelledBy="pl-modal-title">
+      <ProcessListView read={read} sort={sort} onSort={setSort} sys={sys} onClose={onClose} />
+    </Dialog>,
     document.body,
   );
 }
@@ -280,7 +272,7 @@ export function ProcessListView({ read, sort, onSort, sys, onClose }: {
             {t("insights.proc.count", { n: rows.length, total: read!.total })}
           </span>
         )}
-        <button type="button" className="glyph-btn" onClick={onClose} aria-label={t("insights.audit.closeEsc")} title={t("insights.audit.closeEsc")}>×</button>
+        <DialogClose onClick={onClose} label={t("insights.audit.closeEsc")} />
       </div>
 
       {/* THE TABLE AND THE MACHINE, in one box so a media query can decide

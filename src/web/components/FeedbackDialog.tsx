@@ -65,6 +65,7 @@ import { carriesFiles, shouldAttachPaste } from "../feedback-images";
 import { platformName } from "../platform";
 import { useFeedbackImages } from "../use-feedback-images";
 import { useFeedbackFacts } from "../use-feedback-facts";
+import { Dialog } from "./Dialog";
 import { useCloseWhenSent, useFeedbackSend } from "../use-feedback-send";
 import { useArmedDiscard, useKeepDraft } from "../use-feedback-draft";
 import {
@@ -283,22 +284,19 @@ export default function FeedbackDialog({ onClose, initialKind, initialBody, init
   const stage = renderStage();
 
   return (
-    <div className="modal-backdrop" {...scrimPress} role="presentation" onDragOver={refuseBesideDialog} onDrop={dropBesideDialog}
-      data-leaving={leaving || undefined}>
-      <div
-        ref={dialogRef}
-        className="modal feedback-dialog"
-        data-account={connected || undefined}
-        onClick={e => e.stopPropagation()}
-        onDragEnter={dragEnter}
-        onDragOver={dragOver}
-        onDragLeave={dragLeave}
-        onDrop={drop}
-        onPaste={paste}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="feedback-title"
-      >
+    <Dialog
+      scrim={scrimPress}
+      dialogRef={dialogRef}
+      backdropProps={{ onDragOver: refuseBesideDialog, onDrop: dropBesideDialog, "data-leaving": leaving || undefined }}
+      className="feedback-dialog"
+      data-account={connected || undefined}
+      onDragEnter={dragEnter}
+      onDragOver={dragOver}
+      onDragLeave={dragLeave}
+      onDrop={drop}
+      onPaste={paste}
+      labelledBy="feedback-title"
+    >
         <header className="modal-head">
           <div className="modal-title">
             <span id="feedback-title" className="modal-tool-name">{connected ? ACCOUNT_DIALOG_TITLE : t("shell.feedback.title")}</span>
@@ -328,8 +326,7 @@ export default function FeedbackDialog({ onClose, initialKind, initialBody, init
             <p className="fb-drop-note">{t("shell.feedback.dropNote")}</p>
           </div>
         </div>
-      </div>
-    </div>
+    </Dialog>
   );
 
   function renderStage() {

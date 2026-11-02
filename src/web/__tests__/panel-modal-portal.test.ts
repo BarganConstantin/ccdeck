@@ -38,7 +38,10 @@ const mountedFrom = (name: string) => components
   .map(([other]) => other);
 
 describe("a dialog opened from inside a panel is not laid out by it", () => {
-  const dialogs = components.filter(([, src]) => /className="[a-z-]*backdrop"/.test(src));
+  // A dialog is a file that draws a scrim: through the shared shell (<Dialog>, or
+  // <DialogScrim> for the radio, whose surface is its own) or, for the drawer,
+  // by hand. Dialog.tsx is the shell itself, not a dialog.
+  const dialogs = components.filter(([name, src]) => name !== "Dialog" && /<Dialog\b|<DialogScrim\b|className="[a-z-]*backdrop"/.test(src));
   const nested = dialogs.filter(([name]) => mountedFrom(name).length > 0);
 
   it("knows which dialogs are mounted below the top of the tree", () => {
@@ -56,6 +59,7 @@ describe("a dialog opened from inside a panel is not laid out by it", () => {
       "LanSetupModal",
       "ProcessListModal",
       "QuotaHistoryModal",
+      "RadioExperience", // a DialogScrim in a DialogPresence, portalled
       "SectionHistoryModal",
       "SessionUsageModal",
       "ShareAccountsDialog",
@@ -65,7 +69,7 @@ describe("a dialog opened from inside a panel is not laid out by it", () => {
 
   it("renders every one of them into <body> through a portal", () => {
     for (const [name, src] of nested) {
-      const portalled = /return createPortal\(\s*(?:\/\/[^\n]*\n\s*)*<div className="[a-z-]*backdrop"[\s\S]*?,\s*document\.body,?\s*\);/.test(src);
+      const portalled = /(?:return|=>) createPortal\(\s*(?:\/\/[^\n]*\n\s*)*<(?:Dialog\b|DialogScrim\b|div className="[a-z-]*backdrop")[\s\S]*?,\s*document\.body,?\s*\)/.test(src);
       expect(`${name}: ${portalled}`).toBe(`${name}: true`);
     }
   });
