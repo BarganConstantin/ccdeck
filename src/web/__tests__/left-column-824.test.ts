@@ -52,7 +52,11 @@ describe("a phone's session list is a drawer, and picking a session closes it", 
   it("closes the list on a pick only on a phone, through the path that keeps the panel away", () => {
     // On a phone the column lies over the canvas (left-column.css), so a pick
     // that left it open would focus a session nobody can see.
-    expect(app).toMatch(/const pickSession = useCallback\(\(sessionId: string\) => \{\s*openSession\(sessionId\);\s*if \(phone\) closeSessionListToCanvas\(\);\s*\}/);
+    // CHANGED ON PURPOSE (the owner's phone layout): a phone opens on Sessions and
+    // a row opens that session's pane (the Command Panel on), which covers the
+    // list, so the list closes there through this path; with no terminal the
+    // Inspector is a sheet over the list and the list stays under it.
+    expect(app).toMatch(/const pickSession = useCallback\(\(sessionId: string\) => \{\s*if \(phone && stage\.enabled\) \{[\s\S]*?closeSessionListToCanvas\(\);\s*return;\s*\}\s*(?:\/\/[^\n]*\s*)?openSession\(sessionId\);\s*\}/);
     expect(app).toMatch(/onSelect=\{pickSession\}/);
   });
 

@@ -256,9 +256,11 @@ describe("the bar keeps amber for the alarm", () => {
 
   it("gives the waiting chip the readout on a narrow screen, word and all", () => {
     const narrow = media("max-width: 640px");
-    // The wordmark leaves the screen but stays the page's <h1>.
-    expect(narrow).toMatch(/\.topbar \.brand h1 \{[^}]*clip-path: inset\(50%\);/);
+    // CHANGED ON PURPOSE (V4's Figma phone frame): the wordmark is drawn, the
+    // page's <h1> as ever: no rule clips it to a pixel or hides it any more.
+    expect(narrow).not.toMatch(/\.topbar \.brand h1[^{]*\{[^}]*clip-path/);
     expect(narrow).not.toMatch(/\.topbar \.brand h1[^{]*\{[^}]*display: none/);
+    expect(narrow).toMatch(/\.topbar \.brand \{ gap: 8px; \}/);
     // An up-to-date version chip goes; a stale one is a warning and stays, and
     // so does the app's ready update, the one way into it from the window.
     expect(narrow).not.toMatch(/button\.v:not\(\.stale\)/);

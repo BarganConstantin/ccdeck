@@ -10,18 +10,50 @@ import { UnreachableGlyph } from "./action-glyphs";
 import BannerMark from "./BannerMark";
 import { outageSentence } from "../status-pill";
 import type { useAutoRestart } from "../use-auto-restart";
-import { useT } from "../i18n";
+import { currentLanguage, useT } from "../i18n";
 
 type Restart = ReturnType<typeof useAutoRestart>;
 
 /** The phone's words for a dropped connection (Figma, "Can't reach your computer"):
  *  honest that the link dropped, not that the agents stopped. The apostrophe is
- *  the curly one the frame draws. There is no "last news" time in it: the deck
- *  keeps no newest-event time to say. */
+ *  the curly one the frame draws. The sentence names the last news when the
+ *  page heard any (use-event-stream.ts), and says it plainly when it never did. */
 export const UNREACHABLE_TITLE = "Can\u2019t reach your computer";
 export const UNREACHABLE_SUB = "Agents may still be running, so what you see may be old.";
 
-export default function ConnectionBanner({ restarting, restartMode, live, paused, phone = false }: {
+/** The last news as a clock time, 24-hour like the frame's "14:02", in the
+ *  language the deck is set to, and with the day in front when it was not
+ *  today (a tab left open overnight). */
+export function lastNewsTime(at: number, now: number = Date.now()): string {
+  const when = new Date(at);
+  const language = currentLanguage();
+  const clock = when.toLocaleTimeString(language, { hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
+  if (when.toDateString() === new Date(now).toDateString()) return clock;
+  return `${when.toLocaleDateString(language, { month: "short", day: "numeric" })} ${clock}`;
+}
+
+/** The card's second line: the last news named when there is one. */
+export function unreachableSub(lastNewsAt: number | null | undefined, now: number = Date.now()): string {
+  if (lastNewsAt == null) return UNREACHABLE_SUB;
+  return `Agents may still be running. Last news ${lastNewsTime(lastNewsAt, now)}, so what you see may be old.`;
+}
+
+/** The "Can't reach your computer" card: the phone's dropped connection. Inside
+ *  the Sessions panel when it is up (SessionList's `offline`), else under the
+ *  top bar (DeckBanner). */
+export function OfflineCard({ lastNewsAt }: { lastNewsAt?: number | null }) {
+  return (
+    <div className="conn-banner conn-banner-phone" role="alert">
+      <span className="conn-unreachable"><UnreachableGlyph /></span>
+      <span className="conn-phone-text">
+        <span className="conn-phone-title">{UNREACHABLE_TITLE}</span>
+        <span className="conn-phone-sub">{unreachableSub(lastNewsAt)}</span>
+      </span>
+    </div>
+  );
+}
+
+export default function ConnectionBanner({ restarting, restartMode, live, paused, phone = false, lastNewsAt = null }: {
   restarting: Restart["restarting"];
   restartMode: Restart["restartMode"];
   /** Whether the event stream is connected right now. */
@@ -31,19 +63,11 @@ export default function ConnectionBanner({ restarting, restartMode, live, paused
   /** 640px and under: the lost connection reads as the phone frame does. A
    *  restart the deck asked for keeps its own sentence at every width. */
   phone?: boolean;
+  /** When the stream last had news, for the phone's card. */
+  lastNewsAt?: number | null;
 }) {
   const t = useT();
-  if (phone && !restarting) {
-    return (
-      <div className="conn-banner conn-banner-phone" role="alert">
-        <span className="conn-unreachable"><UnreachableGlyph /></span>
-        <span className="conn-phone-text">
-          <span className="conn-phone-title">{UNREACHABLE_TITLE}</span>
-          <span className="conn-phone-sub">{UNREACHABLE_SUB}</span>
-        </span>
-      </div>
-    );
-  }
+  if (phone && !restarting) return <OfflineCard lastNewsAt={lastNewsAt} />;
   return (
     <div className="conn-banner" role="alert">
       <BannerMark glyph="unreachable" tone="err" />

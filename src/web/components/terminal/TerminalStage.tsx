@@ -61,6 +61,7 @@ import { useFullStage } from "./use-full-stage";
 import { WORKSPACE_PANE_ID } from "../../workspace-pane";
 import { usePaneRoom } from "./use-pane-room";
 import KeysBar, { type ArrivalView, type AsksView, type EndView } from "./KeysBar";
+import PhoneKeys from "./PhoneKeys";
 import Divider from "./Divider";
 import HostsDialog from "./HostsDialog";
 import { DialogPresence } from "../Dialog";
@@ -295,21 +296,26 @@ export function endView(
  * is not a pixel more. A part not laid out (0px) says nothing: the rows keep
  * the last height that was drawn rather than run under the part.
  */
-function useDrawnHeight(rootRef: RefObject<HTMLElement>, selector: string, onHeight: ((height: number) => void) | undefined): void {
+function useDrawnHeight(rootRef: RefObject<HTMLElement>, selector: string, onHeight: ((height: number) => void) | undefined, also?: string): void {
   const say = useRef(onHeight);
   say.current = onHeight;
   useEffect(() => {
-    const part = rootRef.current?.querySelector<HTMLElement>(selector);
-    if (!part || typeof ResizeObserver === "undefined") return;
+    // `also` is the same part in a second piece (the note and the phone's key
+    // row under it): its height is added, and it says nothing where it is not drawn.
+    const parts = [selector, also]
+      .map(s => (s ? rootRef.current?.querySelector<HTMLElement>(s) ?? null : null))
+      .filter((part): part is HTMLElement => part !== null);
+    if (parts.length === 0 || typeof ResizeObserver === "undefined") return;
     const measure = () => {
-      const h = Math.ceil(Math.round(part.getBoundingClientRect().height * 100) / 100);
+      const total = parts.reduce((sum, part) => sum + part.getBoundingClientRect().height, 0);
+      const h = Math.ceil(Math.round(total * 100) / 100);
       if (h > 0) say.current?.(h);
     };
     measure();
     const watch = new ResizeObserver(measure);
-    watch.observe(part);
+    for (const part of parts) watch.observe(part);
     return () => watch.disconnect();
-  }, [rootRef, selector]);
+  }, [rootRef, selector, also]);
 }
 
 export default function TerminalStage(p: TerminalStageProps) {
@@ -407,7 +413,7 @@ export default function TerminalStage(p: TerminalStageProps) {
   // to its nominal height left the last one under it. The header's goes up
   // the same way: V4's header is one row at `--pane-head-h`, which the density
   // changes, so the rows are fitted to the height it was drawn at.
-  useDrawnHeight(rootRef, ".ts-bar", p.onBarH);
+  useDrawnHeight(rootRef, ".ts-bar", p.onBarH, ".ts-keyrow");
   useDrawnHeight(rootRef, ".ts-head", p.onHeadH);
   // The session hook's snapshot is the shown subject's only once it has said
   // so: in the render that moves the stage, it is still the last one's, and
@@ -543,6 +549,9 @@ export default function TerminalStage(p: TerminalStageProps) {
         onAnswerArrival={p.onAnswerArrival}
         hosts={hosts.line ? { said: hosts.line, onReview: hosts.canReview ? hosts.review : null } : null}
       />
+      {/* The phone's key row (640 and under; hidden by the sheet elsewhere):
+          the pane's own input, six keys a screen keyboard lacks. */}
+      <PhoneKeys canType={typing} paneless={p.show.kind === "empty" || PANELESS.has(phase.kind)} onKey={session.press} holdsFocus={session.holdsFocus} />
       <DialogPresence when={hosts.open && hosts.view}>{view => (
         <HostsDialog
           view={view}

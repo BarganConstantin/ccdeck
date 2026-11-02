@@ -84,10 +84,18 @@ function matches(sel: string, subject: "app" | "detail", left: Left): number | n
     return spec;
   }
   if (last !== ".detail") {
+    // CHANGED ON PURPOSE (the phone layout): the sheet's leaving state is not
+    // the open sheet the boxes below are asked of.
+    if (last === ".detail.leaving") return null;
     if (last.startsWith(".detail")) throw new Error(`unread selector: ${sel}`);
     return null;
   }
   if (parts.length === 1) return 10;
+  // CHANGED ON PURPOSE (the phone layout): the Inspector sheet's box is written
+  // once, in phone-sheet.css, under the app's weight three times so that no
+  // banner row's rule outranks it (three classes and one: 40, over the 30 of
+  // `.app:has(...) .detail`). It used to be repeated in detail-panel.css.
+  if (parts.length === 2 && parts[0] === ".app.app.app") return 40;
   if (parts.length !== 2) throw new Error(`unread selector: ${sel}`);
   const anc = appCompound(parts[0], left);
   return anc == null ? null : anc + 10;
@@ -112,7 +120,9 @@ function length(v: string, width: number): number {
     return length(value, width);
   }
   if (s === "0") return 0;
-  const m = /^(-?[\d.]+)(px|vw)$/.exec(s);
+  // CHANGED ON PURPOSE (the owner's phone layout): the Inspector sheet is `100%`
+  // of the window, which here is `vw`'s own arithmetic.
+  const m = /^(-?[\d.]+)(px|vw|%)$/.exec(s);
   if (!m) throw new Error(`unread length: ${v}`);
   return m[2] === "px" ? +m[1] : (+m[1] * width) / 100;
 }
@@ -153,33 +163,44 @@ describe("a selected session on a narrow window (#1790)", () => {
       });
     }
 
-    it(`puts the panel over the canvas at ${width}px, inside the window and under the topbar`, () => {
+    // CHANGED ON PURPOSE (the owner's phone layout): the Inspector is a bottom
+    // sheet at this width: the window's whole width, up from the dock, with its
+    // height capped under the top bar (phone-sheet.css), not a panel pinned at
+    // the right edge from the bar down.
+    it(`puts the panel over the canvas at ${width}px as a sheet, inside the window and under the topbar`, () => {
       for (const left of LEFTS) {
         const right = length(resolve("detail", "right", left, width)!, width);
+        const edge = length(resolve("detail", "left", left, width)!, width);
         const w = length(resolve("detail", "width", left, width)!, width);
-        const top = length(resolve("detail", "top", left, width)!, width);
         expect(right).toBeGreaterThanOrEqual(0);
+        expect(edge).toBeGreaterThanOrEqual(0);
         // Its left edge, and the × pinned inside its right one, both on screen.
         expect(width - right - w).toBeGreaterThanOrEqual(0);
-        // Under the topbar: no higher than the grid's first row, the bar's
-        // own, read from the same sheet rather than from a number this test
-        // keeps — the bar was 52px, and is 44 since its panel toggles left for
-        // the window's edges (2026-10-08).
+        expect(w).toBe(width);
+        // Under the topbar: the sheet hangs from the dock, and what it may
+        // take is the window less the grid's first row, the bar's own, read
+        // from the same sheet (50 on the phone frame, from 44).
         const bar = length(splitTop(resolve("app", "grid-template-rows", left, width)!.replace(/\s+(?![^(]*\))/g, ","))[0], width);
-        expect(bar).toBe(44);
-        expect(top).toBeGreaterThanOrEqual(bar);
+        expect(bar).toBe(50);
+        expect(resolve("detail", "top", left, width)).toBe("auto");
+        expect(resolve("detail", "--sheet-room", left, width)).toContain("var(--topbar-h)");
       }
     });
 
     it(`ends the panel above the phone's dock at ${width}px, so its foot is not drawn under it`, () => {
       // Under 641px the controls stand in a dock along the bottom
       // (edge-rails.css), fixed over everything docked (z-index 25 against the
-      // sheet's 20). A sheet that ran to the window's foot had its last 56px
+      // sheet's 23). A sheet that ran to the window's foot had its last 58px
       // under the dock — its last rows out of reach. It ends where the dock
       // begins, by the dock's own height, safe area and all.
+      // CHANGED ON PURPOSE (the phone layout): the sheet's `bottom` is the
+      // custom property `--sheet-bottom` (phone-sheet.css), and that property is
+      // the dock's height plus the safe area: the same hang from the dock, read
+      // through one more step. Both are pinned below.
       const dock = cascade(sel => selects(sel, [el("div", ["edge-dock"])]), "height", width);
       for (const left of LEFTS) {
-        expect(resolve("detail", "bottom", left, width), left).toBe(dock);
+        expect(resolve("detail", "bottom", left, width), left).toBe("var(--sheet-bottom)");
+        expect(resolve("detail", "--sheet-bottom", left, width), left).toBe(dock);
       }
     });
   }

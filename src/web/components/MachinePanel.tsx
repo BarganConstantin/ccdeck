@@ -43,6 +43,7 @@
 // strip under it is the only reading in the panel with no number of its own.
 import React, { useState } from "react";
 import { currentLanguage, useT } from "../i18n";
+import SheetHandle from "./SheetHandle";
 import { attentionFlag, loadQueueNote, thermalTone, throttleRow, uptime } from "../machine-readings";
 import { fmtBytes } from "../byte-format";
 import type { Memory, Snapshot, Swap, Thermal } from "../machine-snapshot";
@@ -93,6 +94,7 @@ function Shell({ usageOpen, leaving, sub, flag, onClose, children }: {
     // Its header moves it (panel-place.ts); a moved panel is past the shift.
     <aside className={`sysdetail${usageOpen ? " shifted" : ""}${leaving ? " leaving" : ""}`} id="system-panel" aria-labelledby="sd-title"
       {...place.panel}>
+      <SheetHandle />
       <div className="sd-top" {...place.grip}>
         <div className="sd-head">
           <h2 className="sd-title" id="sd-title">{t("insights.machine.title")}</h2>

@@ -97,6 +97,8 @@ export const BAR_H_TOUCH = 36;
  *  measured them. */
 export const PHONE_HEAD_H = 56;
 export const PHONE_BAR_H = 52;
+/** The key row under that note on a phone: always on screen, 55 high. */
+export const PHONE_KEYS_H = 55;
 /** Vertical slack kept around the grid so its first and last rows never
  *  touch the header's rule or the bar's. */
 const ROW_SLACK = 12;

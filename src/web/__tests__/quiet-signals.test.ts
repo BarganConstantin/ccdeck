@@ -393,8 +393,14 @@ describe("5. one focus language, and nothing quietly opting out of it", () => {
       ".radio-panel .radio-map-canvas:focus:not(:focus-visible),\n.radio-panel .radio-map-canvas[data-pointer-focus]:focus",
       ".radio-panel:not([data-keyboard-interaction]) .radio-filter-popup :focus-visible",
       ".jr-row-main:focus-visible",
+      // CHANGED ON PURPOSE (the phone layout): a phone sheet takes focus by
+      // script when it opens, and after a keyboard press the ring would be
+      // drawn around the whole sheet. The four sheet containers draw none,
+      // inside the phone query only (phone-sheet.css); the controls inside
+      // keep the global ring, so there is nothing to restore on the container.
+      ".app.app.app .usage-panel[tabindex=\"-1\"]:focus-visible,\n  .app.app.app .sysdetail[tabindex=\"-1\"]:focus-visible,\n  .app.app.app .detail[tabindex=\"-1\"]:focus-visible,\n  .app.app.app .accounts-panel[tabindex=\"-1\"]:focus-visible",
     ]);
-    for (const sel of killers.filter(sel => !sel.startsWith(".radio") && !sel.startsWith(".qo-") && !sel.startsWith(".jr-row-main") && !sel.startsWith(".settings-filter-field"))) {
+    for (const sel of killers.filter(sel => !sel.startsWith(".radio") && !sel.startsWith(".qo-") && !sel.startsWith(".jr-row-main") && !sel.startsWith(".settings-filter-field") && !sel.startsWith(".app.app.app .usage-panel[tabindex"))) {
       expect(declOf(`${sel}:focus-visible`, "outline"), sel).not.toBeNull();
     }
   });

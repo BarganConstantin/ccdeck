@@ -422,7 +422,9 @@ describe("Settings › General › Elsewhere on the deck", () => {
 
   it("opens the accounts panel without ever shutting it, and Local network once the panel can draw it", () => {
     const column = flat(read("../use-left-column.ts"));
-    expect(column).toContain("const openAccountsPanel = useCallback(() => { accountsEvictedRef.current = false; setAccountsPanelOpen(open => { if (!open) setSessionListOpen(false); return true; }); }, []);");
+    // CHANGED ON PURPOSE (the owner's phone layout): on a phone the panel is a
+    // sheet over the list and does not take its place.
+    expect(column).toContain("const openAccountsPanel = useCallback(() => { accountsEvictedRef.current = false; setAccountsPanelOpen(open => { if (!open && !loadsOnPhone()) setSessionListOpen(false); return true; }); }, []);");
     const app = flat(read("../App.tsx"));
     expect(app).toContain('const openLocalNetwork = useCallback(() => { rememberAccountSide("claude"); openAccountsPanel(); setLanWanted(true); }, [openAccountsPanel, rememberAccountSide]);');
     expect(app).toContain("useEffect(() => { if (!accountsPanelOpen) setLanWanted(false); }, [accountsPanelOpen]);");

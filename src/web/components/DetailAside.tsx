@@ -15,6 +15,7 @@ import { useInspectorStatus } from "../inspector-state";
 import Detail from "./Detail";
 import Inspector from "./Inspector";
 import { useT } from "../i18n";
+import SheetHandle from "./SheetHandle";
 
 /** Build a portable JSON snapshot of a single session (root + every subagent)
  *  and trigger a browser download.
@@ -37,9 +38,11 @@ function exportSessionJson(state: GraphState, sessionId: string): void {
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
-export default function DetailAside({ selected, now, openTool, setSummaryFor, onClose, onSelectAgent, stateRef, removeSelectedNode, workspace = false }: {
+export default function DetailAside({ selected, now, openTool, setSummaryFor, onClose, onSelectAgent, stateRef, removeSelectedNode, workspace = false, leaving = false }: {
   /** The Workspace is drawn: the title takes the pane's sentence for the state. */
   workspace?: boolean;
+  /** A phone's sheet on its way down the bottom edge, the flag already dropped. */
+  leaving?: boolean;
   /** The primary selection, which is what the panel is about. */
   selected: AgentNodeData;
   now: number;
@@ -68,7 +71,8 @@ export default function DetailAside({ selected, now, openTool, setSummaryFor, on
     // identity when nothing is selected, and a landmark whose name changes
     // under the reader is a landmark they cannot come back to. The agent's
     // name is the panel's <h2>, which is where a changing title belongs.
-    <aside className="detail" aria-label={t("board.detailPanel.title")}>
+    <aside className={leaving ? "detail leaving" : "detail"} aria-label={t("board.detailPanel.title")}>
+      <SheetHandle />
       <Inspector
         selected={selected}
         agents={stateRef.current.agents}

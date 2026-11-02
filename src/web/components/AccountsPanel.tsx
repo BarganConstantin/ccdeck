@@ -45,6 +45,7 @@ import { homeTitle, isHome } from "../auto-choice";
 import { POLL_MS, useAccountRoster } from "../use-account-roster";
 import { reloadText } from "../accounts-reload";
 import { useT } from "../i18n";
+import SheetHandle from "./SheetHandle";
 import { translate } from "../i18n/translate";
 import { tNodes } from "../accounts-rich";
 import { useRosterFocus } from "../use-roster-focus";
@@ -83,6 +84,10 @@ export default function AccountsPanel({ onClose, leaving, onReport, onRoster, la
   // Opened: one of the features the usage reports name (feature-use.ts).
   useFeatureUse("accounts-panel", side !== "hidden");
   const t = useT();
+  // Shown again by the Claude | Codex switch after being hidden: a phone's
+  // sheet does not rise again for it (phone-sheet.css).
+  const wasHidden = useRef(false);
+  if (side === "hidden") wasHidden.current = true;
   const singleKeys = useSingleKeyShortcuts();
   // The one request the panel has out, and the attributes it puts on every
   // control that request makes inert — see use-request-slot.ts (#518).
@@ -534,8 +539,9 @@ export default function AccountsPanel({ onClose, leaving, onReport, onRoster, la
     // the name away (#381). This panel is the left sidebar beside the canvas,
     // which is complementary content by any reading.
     <aside className={`accounts-panel${leaving ? " leaving" : ""}`} id="accounts-panel" aria-label={t("accounts.panel.label")}
-      hidden={side === "hidden"} data-side={side}
+      hidden={side === "hidden"} data-side={side} data-switched={wasHidden.current && side !== "hidden" ? "" : undefined}
       onFocus={rosterFocus.onFocus} onBlur={rosterFocus.onBlur}>
+      <SheetHandle />
       {view === "accounts" && (
         <AccountsHeader canShare={(data?.accounts?.length ?? 0) > 0}
           onAdd={() => setAddOpen(true)}

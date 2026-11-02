@@ -80,7 +80,10 @@ describe("a queued tab says so instead of blaming the server (#830)", () => {
   });
 
   it("tells the reader to close a tab, not to check the server", () => {
-    expect(app).toMatch(/\{agentCount === 0 && \(!live && tabCapped\s*\? <TabCapHero reservedRight=\{railInsetRef.current\} \/>\s*: <EmptyHero live=\{live\}/);
+    // CHANGED ON PURPOSE (the owner's phone layout): the choice is a function of the
+    // room it is given, so a phone can put the same notice in the Sessions panel.
+    expect(app).toMatch(/const emptyHero = \(reservedRight: number\) => agentCount === 0 \? \(!live && tabCapped\s*\? <TabCapHero reservedRight=\{reservedRight\} \/>\s*: <EmptyHero live=\{live\}/);
+    expect(app).toContain("{!heroInList && emptyHero(phone ? 0 : railInsetRef.current)}");
     // The hero itself is components/EmptyHero.tsx's; App.tsx picks it.
     const heroes = readFileSync(fileURLToPath(new URL("../components/EmptyHero.tsx", import.meta.url)), "utf8");
     const hero = /function TabCapHero\([^\n]*\) \{[\s\S]*?\n\}/.exec(heroes)?.[0] ?? "";

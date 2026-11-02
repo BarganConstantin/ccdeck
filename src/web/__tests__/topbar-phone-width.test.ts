@@ -102,7 +102,9 @@ describe("the topbar at a phone's width", () => {
     // The queue is the waiting pill's popover now; on a phone the working and
     // done pills and the pill at 0 (the spans) stay off the bar.
     expect(sheetText()).toMatch(/\.topbar \.counts span\.count-pill \{ display: none; \}/);
-    expect(app).toMatch(/\{phone\s*\?\s*<EdgeDock\b/);
+    // CHANGED ON PURPOSE (the phone layout): comments may stand between `phone`
+    // and `?` in the JSX that draws the dock (they say how its doors are chosen).
+    expect(app).toMatch(/\{phone\s*(?:\/\/[^\n]*\s*)*\?\s*<EdgeDock\b/);
     expect(app).not.toMatch(/TopbarMore|tb-more|tb-fold/);
   });
 

@@ -107,7 +107,11 @@ describe("the header", () => {
   it("keeps the × for the phone drawer: 24 to see, 44 to press, header unchanged", () => {
     expect(decl(".session-list .sl-close", "display")).toBe("none");
     expect(decl(".session-list .sl-close", "display", "(max-width: 640px)")).toBe("inline-flex");
-    expect(decl(".session-list .sl-icon-btn::after", "inset", "(max-width: 640px)")).toBe("-10px");
+    // CHANGED ON PURPOSE (the owner's phone layout): 6 above the 24 and 14 below
+    // it, so the 44 target is whole (10 above ran past the panel's top edge and
+    // was cut off there); the header rises over the list so the target reaches
+    // down over its first rows.
+    expect(decl(".session-list .sl-icon-btn::after", "inset", "(max-width: 640px)")).toBe("-6px -10px -14px");
     expect((list.match(/className="sl-icon-btn sl-close"/g) ?? []).length).toBe(1);
   });
 });

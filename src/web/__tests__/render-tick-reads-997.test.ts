@@ -198,7 +198,12 @@ describe("the rail inset is measured when something can have moved it", () => {
     // 360px further right. Both halves are pinned, so changing the mount
     // condition without changing the derivation goes red here.
     expect(app).toMatch(/const detailShown = detailOpen && selected != null;/);
-    expect(app).toMatch(/\{detailOpen && selected \? \(/);
+    // CHANGED ON PURPOSE (the phone layout): the panel is drawn for
+    // `detailOnScreen`, which is `selected` while `detailShown` and, on a phone
+    // only, the last selection while the sheet slides down. Wider than a phone
+    // it is `detailShown ? selected : null`: the same condition.
+    expect(app).toMatch(/const detailOnScreen = detailShown \? selected : detailLeaving \? lastSelected\.current : null;/);
+    expect(app).toMatch(/\{detailOnScreen \? \(/);
   });
 
   it("keeps railCover to the two callers that are not on the render path", () => {

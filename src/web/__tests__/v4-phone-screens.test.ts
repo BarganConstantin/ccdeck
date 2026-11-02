@@ -4,9 +4,11 @@
 // so the desktop (641 and up) is the sheet it was: the phone declarations are held
 // inside the query by name, and none of them is in the desktop part of its sheet.
 //
-// Not built here, and held not built: the Term key row (a new input path), the
-// Machine tab's online dot, the push note, the rail's usage meter. What opens at
-// load is phone-load.ts's, untouched.
+// The Term key row and the dock's offline dot were held not built here; the
+// owner's phone layout builds them (v4-phone-layout.test.ts), the key row on the
+// pane's own input and the dot on the data the page already has. Still not
+// built: the push note and the rail's usage meter. What opens at load is
+// phone-load.ts's query, and the panels' own hooks decide what it opens.
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { createElement } from "react";
@@ -79,7 +81,9 @@ describe("every rule this phase added sits inside the phone query", () => {
         ".session-list .sl-more, .session-list .sl-fold-btn { min-height: 44px; }",
         // Changed for V4's header: the × shows only here, 24 to see and a 44 target via ::after.
         ".session-list .sl-close { display: inline-flex; }",
-        ".session-list .sl-icon-btn::after { content: \"\"; position: absolute; inset: -10px; }",
+        // CHANGED ON PURPOSE (the owner's phone layout): 6 above the 24, 14 below, so the
+        // 44 target is whole under the panel's top edge.
+        ".session-list .sl-icon-btn::after { content: \"\"; position: absolute; inset: -6px -10px -14px; }",
       ],
       "styles/left-column.css": [
         ".left-column:not(.closing) { width: 100vw; }",
@@ -120,7 +124,8 @@ describe("the rail on a phone", () => {
     expect(phone).toContain(".session-list .sl-more, .session-list .sl-fold-btn { min-height: 44px; }");
     // Changed for V4's header: the × is a 24 button with a 44 target that does not grow the 36 header.
     expect(phone).toContain(".session-list .sl-close { display: inline-flex; }");
-    expect(phone).toContain(".session-list .sl-icon-btn::after { content: \"\"; position: absolute; inset: -10px; }");
+    // CHANGED ON PURPOSE (the owner's phone layout): reaching 6 up and 14 down, not 10 each way.
+    expect(phone).toContain(".session-list .sl-icon-btn::after { content: \"\"; position: absolute; inset: -6px -10px -14px; }");
   });
 });
 
@@ -134,10 +139,20 @@ describe("the Term takeover", () => {
     expect(phone).toMatch(/\.ts-stage\[data-takeover\] \.ts-bar \{ height: auto; min-height: 52px;/);
   });
 
-  it("draws no key row and no machine dot: no new input path, no data that does not exist", () => {
+  // CHANGED ON PURPOSE (the owner's phone layout): this held the key row and the
+  // dock's machine dot unbuilt. The key row is built, on the pane's existing
+  // input (no new input path), and the dot is the dropped connection's, on data
+  // the page already has (the stream going quiet): no new route, nothing sent.
+  it("draws the key row on the pane's existing input, and the offline dot on data the page already has", () => {
     const stage = read("components/terminal/KeysBar.tsx") + read("components/terminal/StageHeader.tsx");
     expect(stage).not.toMatch(/key-row|keyrow|onKey\b|Ctrl\+C/);
-    expect(read("components/EdgeRails.tsx")).not.toMatch(/machine-dot|online/i);
+    expect(read("components/terminal/TerminalStage.tsx")).toContain("onKey={session.press}");
+    // CHANGED ON PURPOSE (the phone layout): still the terminal's onInput, with
+    // the arrow in the terminal's cursor-key mode and the view brought to the
+    // bottom as a typed key does (use-terminal-session.test.ts runs both).
+    expect(read("use-terminal-session.ts")).toContain("events.onInput(term?.applicationCursorKeys() ? applicationArrow(bytes) : bytes);");
+    expect(read("components/EdgeRails.tsx")).toContain("rail-offline-dot");
+    expect(read("components/EdgeRails.tsx")).not.toMatch(/fetch\(|machine-dot/);
   });
 });
 
@@ -154,8 +169,13 @@ describe("the banner for a dropped connection", () => {
     expect(words(out)).toContain("Agents may still be running");
   });
 
-  it("names no time of last news: the deck keeps none to say", () => {
+  // CHANGED ON PURPOSE (the owner's phone layout): the card names the last news
+  // when the page heard any (use-event-stream.ts keeps when the stream last said
+  // anything); with none it keeps the plain sentence.
+  it("names the time of the last news when there is one, and none when there is not", () => {
     expect(words(banner({ phone: true }))).not.toMatch(/last news|\d{1,2}:\d{2}/i);
+    const at = new Date(2026, 10, 2, 14, 2).getTime();
+    expect(words(banner({ phone: true, lastNewsAt: at }))).toContain("Last news 14:02");
   });
 
   it("is the markup it was at desktop width, whether the prop is left out or false", () => {

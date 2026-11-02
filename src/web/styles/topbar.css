@@ -260,15 +260,20 @@
      the one way into it from the window; the plain version has no chip at
      all any more, V4's Figma). The count keeps its word: with the
      controls in the dock, the bar has the room for "2 waiting" whole. */
-  .topbar .readout { gap: 12px; }
-  .topbar .brand h1 {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    overflow: hidden;
-    clip-path: inset(50%);
-    white-space: nowrap;
-  }
+  /* The full height of the bar, so a 44 target drawn around a 28 pill is not
+     cut off by the group's clip. */
+  .topbar .readout { gap: 12px; align-self: stretch; }
+  /* The phone frame's bar is the mark, the name 8 beside it and the count: the
+     wordmark is drawn, the page's <h1>, and the readout still clips from the
+     left before the alarm does. */
+  .topbar .brand { gap: 8px; }
+  /* The count the frame draws: a 28 pill, and a 44 target around it. */
+  .topbar .counts .count-pill.waiting-stat { position: relative; height: 28px; }
+  .topbar .counts .count-pill.waiting-stat::after { content: ""; position: absolute; inset: -8px -4px; }
+  /* Every other button the bar keeps (the version and update chips, the
+     incident chip) is a 24 to look at and a 44 to press. */
+  .topbar button.v, .topbar .v-update, .topbar .provider-incident { position: relative; }
+  .topbar button.v::after, .topbar .v-update::after, .topbar .provider-incident::after { content: ""; position: absolute; inset: -10px -4px; }
   /* The counts are the waiting one alone, and only while something waits:
      the working and done pills, and the waiting pill at 0, are readouts a
      phone's bar has no room for (the cards and the list say the same). */

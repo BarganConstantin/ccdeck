@@ -468,6 +468,10 @@ describe("what was migrated to the secondary tier", () => {
       ".ta-note",
       ".ta-search input::placeholder",
       ".ta-summary",
+      // CHANGED ON PURPOSE (the owner's phone layout): the phone's key row, whose
+      // caps (Esc, Tab, the arrows, Ctrl+C, Enter) are set in --text-secondary as
+      // the frame draws them, on a --bg-soft key: labels a thumb reads to choose a key.
+      ".ts-key",
       // Its Where the time went, by bed as well: a lane in the ring's legend is
       // raised on --ctl-fill while its level is open, with its time and what it
       // mostly was under the name, and the parts that are not a command — the

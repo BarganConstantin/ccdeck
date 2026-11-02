@@ -171,7 +171,10 @@ describe("Accounts, and the left column it shares", () => {
     expect(app).toMatch(/railItems\(\{\s*providers, sessionListOpen, toggleSessionList,\s*accountsPanelOpen, toggleAccountsPanel, accountsPanelId: panelId\(shownAccountProvider\),\s*codexPanelOpen: accountsPanelOpen && shownAccountProvider === "codex",\s*toggleCodexPanel: \(\) => openAccountSide\("codex"\),/);
     expect(app).toContain("if (!accountsPanelOpen || shownAccountProvider === side) toggleAccountsPanel();");
     const column = sourceOf("use-left-column.ts");
-    expect(column).toMatch(/const toggleSessionList = useCallback\(\(\) => \{\s*setSessionListOpen\(open => \{[\s\S]*?if \(!open\) setAccountsPanelOpen\(/);
-    expect(column).toMatch(/const toggleAccountsPanel = useCallback\(\(\) => \{[\s\S]*?if \(!open\) setSessionListOpen\(false\);/);
+    // CHANGED ON PURPOSE (the owner's phone layout): each still evicts the other
+    // beside a canvas; on a phone Accounts is a sheet over the list, so neither
+    // takes the other's place there.
+    expect(column).toMatch(/const toggleSessionList = useCallback\(\(\) => \{\s*setSessionListOpen\(open => \{[\s\S]*?if \(!open && !loadsOnPhone\(\)\) setAccountsPanelOpen\(/);
+    expect(column).toMatch(/const toggleAccountsPanel = useCallback\(\(\) => \{[\s\S]*?if \(!open && !loadsOnPhone\(\)\) setSessionListOpen\(false\);/);
   });
 });

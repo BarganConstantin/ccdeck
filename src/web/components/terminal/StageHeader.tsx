@@ -43,7 +43,77 @@
 import { contextFigure, contextFigureParts, contextPercent } from "../../context-figure";
 import type { TerminalProvider } from "../../terminal-api";
 import { agentName, type KeysOwner, type StageStatus } from "./stage-model";
+import { useState } from "react";
+import AnchoredPopover from "../AnchoredPopover";
+import { useT } from "../../i18n";
 import { BackGlyph, CloseGlyph, CollapseGlyph, ExpandGlyph, KeyboardGlyph, StageGlyph, glyphForState } from "./stage-icons";
+
+const PANE_MORE_ID = "ts-more";
+const PANE_MORE_MENU_ID = "ts-more-menu";
+
+/** A menu row's words. The full-screen item's label carries the shortcut hint
+ *  after " — " (it stays on the desktop button's tooltip); the menu shows the
+ *  part before it. The close item keeps its whole label: "the session keeps
+ *  running" is the promise that closing stops nothing. */
+export function menuLabel(item: { id: string; label: string }): string {
+  if (item.id === "close") return item.label;
+  const cut = item.label.indexOf(" — ");
+  return cut > 0 ? item.label.slice(0, cut) : item.label;
+}
+
+/** On a phone the three 24px controls the frame does not draw (type into the
+ *  session, full screen, close) are one ⋯ at a 44 target, and its menu holds
+ *  them, each doing what the control did. Hidden at any wider layout, where the
+ *  controls themselves are drawn (stage-shell.css). */
+function PaneMore({ items }: { items: Array<{ id: string; label: string; run(): void }> }) {
+  const t = useT();
+  // Open at the first row, or (ArrowUp on the button) at the last, like the
+  // dock's More.
+  const [menu, setMenu] = useState<"first" | "last" | null>(null);
+  const open = menu !== null;
+  const more = t("board.rail.more");
+  return (
+    <>
+      <button
+        type="button"
+        id={PANE_MORE_ID}
+        className="glyph-btn ts-more"
+        aria-label={more}
+        title={more}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        aria-controls={open ? PANE_MORE_MENU_ID : undefined}
+        onKeyDown={e => {
+          if (e.key !== "ArrowDown" && e.key !== "ArrowUp") return;
+          e.preventDefault();
+          setMenu(e.key === "ArrowUp" ? "last" : "first");
+        }}
+        onClick={() => setMenu(open ? null : "first")}
+      >
+        <svg className="ts-icon" width="14" height="14" viewBox="0 0 14 14" aria-hidden="true">
+          <circle cx="2.8" cy="7" r="0.7" /><circle cx="7" cy="7" r="0.7" /><circle cx="11.2" cy="7" r="0.7" />
+        </svg>
+      </button>
+      {open && (
+        <AnchoredPopover anchorId={PANE_MORE_ID} id={PANE_MORE_MENU_ID} className="ap-pop dock-more-pop" role="menu"
+          labelledBy={PANE_MORE_ID} start={menu} onClose={() => setMenu(null)}>
+          {items.map(item => (
+            <button key={item.id} type="button" role="menuitem" className="ap-menu-item"
+              onClick={() => {
+                // Focus goes back to the ⋯ before the menu closes, so whatever
+                // the item opens or closes gives it back there.
+                document.getElementById(PANE_MORE_ID)?.focus();
+                setMenu(null);
+                window.requestAnimationFrame(item.run);
+              }}>
+              {menuLabel(item)}
+            </button>
+          ))}
+        </AnchoredPopover>
+      )}
+    </>
+  );
+}
 
 /** ✕'s name and tooltip, word for word (DESIGN.md: never "stop"/"end"/"quit"). */
 export const CLOSE_LABEL = "Close — the session keeps running";
@@ -181,6 +251,13 @@ export default function StageHeader(p: StageHeaderProps) {
             </button>
           ))}
         </div>
+      )}
+      {p.takeover && (
+        <PaneMore items={[
+          ...(p.canType ? [{ id: "keys", label: keysLabel, run: p.onKeys }] : []),
+          ...(p.canFull && p.workspace !== "empty" ? [{ id: "expand", label: expandLabel, run: p.onExpand }] : []),
+          { id: "close", label: closeLabel, run: p.onClose },
+        ]} />
       )}
       <div className="ts-ctl">
         <div className="ts-tools">

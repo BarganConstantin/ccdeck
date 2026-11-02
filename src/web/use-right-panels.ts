@@ -78,16 +78,31 @@ export function useRightPanels(leftColumnW = 0) {
   const [detailOpen, setDetailOpen] = useState<boolean>(loadDetailOpen);
   useEffect(() => { saveDetailOpen(detailOpen); }, [detailOpen]);
   /** Usage panel visibility — persisted across refresh. */
-  const [usagePanelOpen, setUsagePanelOpen] = useState<boolean>(loadUsagePanelOpen);
-  useEffect(() => { saveUsagePanelOpen(usagePanelOpen); }, [usagePanelOpen]);
-  /** Shut for this load, not by the reader: a phone's load opens one sheet, and
-   *  Usage is it, and a desktop window too narrow for both panels beside the
-   *  board opens Usage alone (phone-load.ts). Never written as a close; the
-   *  reader's own open ends it. */
+  // A phone opens on Sessions with no panel open: Usage waits for its door, as
+  // a sheet over the list, and the stored flag is not touched by the wait.
+  const usageHeldRef = useRef(false);
+  const [usagePanelOpen, setUsagePanelOpen] = useState<boolean>(() => {
+    const wanted = loadUsagePanelOpen();
+    if (wanted && loadsOnPhone()) { usageHeldRef.current = true; return false; }
+    return wanted;
+  });
+  useEffect(() => {
+    if (usagePanelOpen) usageHeldRef.current = false;
+    else if (usageHeldRef.current) return;
+    saveUsagePanelOpen(usagePanelOpen);
+  }, [usagePanelOpen]);
+  /** Shut for this load, not by the reader: a phone's load opens no sheet, and
+   *  a desktop window too narrow for both panels beside the board opens Usage
+   *  alone (phone-load.ts). Never written as a close; the reader's own open
+   *  ends it. */
   const machineHeldRef = useRef(false);
   const [machinePanelOpen, setMachinePanelOpen] = useState<boolean>(() => {
     const wanted = loadMachinePanelOpen();
-    if (wanted && usagePanelOpen && (loadsOnPhone() || rightPanelsCrowd(leftColumnW))) {
+    if (wanted && loadsOnPhone()) {
+      machineHeldRef.current = true;
+      return false;
+    }
+    if (wanted && usagePanelOpen && rightPanelsCrowd(leftColumnW)) {
       machineHeldRef.current = true;
       return false;
     }
@@ -103,5 +118,14 @@ export function useRightPanels(leftColumnW = 0) {
   // reload it is on with nothing drawn. DetailAside says it, when it mounts.
   useFeatureUse("usage-panel", usagePanelOpen);
   useFeatureUse("machine-panel", machinePanelOpen);
-  return { detailOpen, setDetailOpen, usagePanelOpen, setUsagePanelOpen, machinePanelOpen, setMachinePanelOpen };
+  /** A window narrowed to a phone's width with several panels open draws one
+   *  sheet; the others wait shut, in memory, by the same holds a phone's load
+   *  uses: the flag turns false and is not written, and the reader's own open
+   *  ends the hold. Widening does not reopen them (the hold only ends on an
+   *  open), and their stored flags are as they were. */
+  const hold = {
+    usage: () => { usageHeldRef.current = true; setUsagePanelOpen(false); },
+    machine: () => { machineHeldRef.current = true; setMachinePanelOpen(false); },
+  };
+  return { detailOpen, setDetailOpen, usagePanelOpen, setUsagePanelOpen, machinePanelOpen, setMachinePanelOpen, hold };
 }

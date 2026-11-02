@@ -10,6 +10,7 @@
 // last: the three lanes come from /api/tool-audit?session=, the spans from the
 // calls the session holds (InspectorTime.tsx).
 import { memo, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
+import SheetHandle from "./SheetHandle";
 
 import { agentAriaLabel } from "../agent-copy";
 import { agentTree, sessionCostLabel, subagentCount, type TreeRow } from "../inspector-tree";
@@ -122,6 +123,7 @@ export const EMPTY_INSPECTOR_LINE = "Open one from the list.";
 export function EmptyInspector() {
   return (
     <aside className="detail" aria-label="Detail" data-empty="">
+      <SheetHandle />
       <header className="insp-h">
         {/* The tabs' look, with nothing to switch between: not a tablist. */}
         <div className="insp-tabs" aria-hidden="true">

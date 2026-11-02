@@ -1,6 +1,7 @@
-import { type ReactNode } from "react";
+import { type ReactNode, useRef } from "react";
 
 import { useT } from "../i18n";
+import SheetHandle from "./SheetHandle";
 import CodexProfilesSection from "./CodexProfilesSection";
 
 /** Codex's side of the Accounts panel, or the whole panel on a deck with only
@@ -14,9 +15,14 @@ export default function CodexAccountsPanel({ onClose, leaving, switcher, side, o
   onNotice?: (needs: boolean) => void;
 }) {
   const t = useT();
+  // Shown again by the Claude | Codex switch after being hidden: a phone's
+  // sheet does not rise again for it (phone-sheet.css).
+  const wasHidden = useRef(false);
+  if (side === "hidden") wasHidden.current = true;
   return (
     <aside className={`accounts-panel codex-accounts-panel${leaving ? " leaving" : ""}`} id="codex-accounts-panel" aria-label={t("codex.panel.title")}
-      hidden={side === "hidden"} data-side={side}>
+      hidden={side === "hidden"} data-side={side} data-switched={wasHidden.current && side !== "hidden" ? "" : undefined}>
+      <SheetHandle />
       <CodexProfilesSection onClose={onClose} switcher={switcher} onNotice={onNotice} />
     </aside>
   );

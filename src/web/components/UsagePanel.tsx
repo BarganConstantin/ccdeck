@@ -38,6 +38,7 @@ import { useCountUp } from "../use-count-up";
 import { useBoardSpend } from "../use-board-spend";
 import { usePanelClock } from "../use-panel-clock";
 import { useT } from "../i18n";
+import SheetHandle from "./SheetHandle";
 import { anyUnpriced, quotaRefreshLabel, worthALine } from "../usage-panel-rules";
 import { reportedCost } from "../reported-cost";
 import { boardSessionNames, boardSessionStates, distinctSessionLabels } from "../usage-session-join";
@@ -319,6 +320,7 @@ export default function UsagePanel({ state, now, providers, incidents = [], leav
     // canvas, openable and closable without changing what the canvas shows.
     // Its header moves it (panel-place.ts).
     <aside className={`usage-panel${leaving ? " leaving" : ""}`} id="usage-panel" aria-label={t("usage.title")} {...place.panel}>
+      <SheetHandle />
       <div className="up-header" {...place.grip}>
         {/* h2, under the topbar's h1 (#381). Same level as the other panels'
             titles, and the four `up-section-title`s below stepped from h4 to h3

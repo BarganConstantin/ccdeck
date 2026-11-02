@@ -64,7 +64,62 @@
   /* Drawn at 32, hit at 44 by 44: the invisible target reaches 6px out each side. */
   .ts-stage[data-takeover] .ts-head > .glyph-btn::after { inset: 0 -6px; }
   .ts-stage[data-takeover] .ts-bar { height: auto; min-height: 52px; padding-inline: 16px; }
+  /* The header's rest as the frame draws it: the back 4 in, the title block (the
+     14px glyph, then the name over the meta line) taking the row, 12 to the
+     right edge, 8 between. The three 24px controls are the ⋯ at the end
+     (StageHeader.tsx): type into the session, full screen and close are its
+     menu, a 44 target where they were three 24s. */
+  .ts-stage[data-takeover] .ts-head { gap: 8px; padding: 0 12px 0 4px; }
+  .ts-stage[data-takeover] .ts-ctl { display: none; }
+  .ts-stage[data-takeover] .ts-head > .ts-more.glyph-btn { display: inline-flex; flex: none; width: 44px; height: 44px; margin-right: -4px; }
+  .ts-stage[data-takeover] .ts-head > .ts-more.glyph-btn::after { inset: 0; }
+  .ts-stage[data-takeover] .ts-id { display: grid; grid-template-columns: 14px minmax(0, 1fr); gap: 0 6px; align-items: center; padding-top: 3px; }
+  .ts-stage[data-takeover] .ts-id:not(:has(> .ts-glyph)) { grid-template-columns: minmax(0, 1fr); }
+  .ts-stage[data-takeover] .ts-id > .ts-glyph { grid-column: 1; grid-row: 1; }
+  .ts-stage[data-takeover] .ts-id > .ts-name { grid-column: -2; grid-row: 1; }
+  .ts-stage[data-takeover] .ts-id > .ts-meta { grid-column: -2; grid-row: 2; }
+  /* The note at the foot is --bg-soft under a --line-soft rule; the key row is
+     under it, always drawn: six keys sharing the width, 38 high and a 44 target. */
+  .ts-stage[data-takeover] .ts-bar { background: var(--bg-soft); border-top: 1px solid var(--line-soft); }
+  .ts-stage[data-takeover] .ts-keyrow {
+    display: flex;
+    flex: none;
+    box-sizing: border-box;
+    height: 55px;
+    gap: 6px;
+    padding: 8px;
+    background: var(--panel);
+    border-top: 1px solid var(--line);
+  }
+  .ts-stage[data-takeover] .ts-keyrow[hidden] { display: none; }
+  .ts-key { flex: 1 1 0; min-width: 0; height: 38px; }
+  /* 38 to look at, 44 to press: the target reaches 3px past the key, above and below. */
+  .ts-key::after { content: ""; position: absolute; inset: -3px 0; }
+  /* Pressed on the finger going down, not after it lifts: the scale and the fill
+     are the kit's press. */
+  .ts-key:active:not(:disabled) { transform: scale(var(--press)); background: var(--selected); color: var(--text); }
+  .ts-key:disabled { opacity: var(--dim-off); }
 }
+@media (max-width: 640px) and (prefers-reduced-motion: reduce) {
+  .ts-key { transition: none; }
+  .ts-key:active:not(:disabled) { transform: none; }
+}
+/* Drawn at a phone's width only. A key's own look is here, beside the hide of
+   the row it is in (a button's look is not left to a query: the sheet's
+   control-appearance guard reads it here); its size and its press are in the
+   phone block above. */
+.ts-keyrow { display: none; }
+.ts-key {
+  position: relative;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: var(--r-panel);
+  background: var(--bg-soft);
+  color: var(--text-secondary);
+  font: 500 12px/16px var(--font-mono);
+  transition: transform var(--dur-fast) var(--ease);
+}
+.ts-head > .ts-more.glyph-btn { display: none; }
 
 /* While it grows out of a card or back into one, the stage covers the whole
    cell and a clip-path is the window onto it (stage-morph.ts): the terminal

@@ -47,9 +47,12 @@ function rails({ claude = true, usageOpen = false, unread = 0, onHistory = noop 
   } as unknown as Parameters<typeof railItems>[0]);
 }
 
-/** The dock exactly as App.tsx composes it from the rails. */
+/** The dock exactly as App.tsx composes it from the rails. CHANGED ON PURPOSE
+ *  (the owner's phone layout): five doors as the phone frame draws them
+ *  (Accounts, Sessions, Usage, Machine, More), so Settings is in More with
+ *  Feedback and the rest. */
 function dockFor(r: ReturnType<typeof rails>) {
-  return mount(EdgeDock, { items: [...r.left, ...r.right[0], r.utilities[0]], more: [...r.right.slice(1).flat(), r.utilities[1]] });
+  return mount(EdgeDock, { items: [...r.left, ...r.right[0]], more: [...r.right.slice(1).flat(), ...r.utilities] });
 }
 
 /** The control elements the dock draws: its RailButtons, then its More. */
@@ -77,22 +80,25 @@ beforeEach(() => {
 });
 afterEach(() => { vi.unstubAllGlobals(); });
 
-describe("the dock holds the four panels and Settings, then More", () => {
-  it("in the order the edges hold them: the left column's two, the right rail's two, then the gear", () => {
+describe("the dock holds the four panels, then More", () => {
+  it("in the order the edges hold them: the left column's two, the right rail's two, then More", () => {
     const view = dockFor(rails());
     // The left stripe's order, Accounts first since 2026-10-08.
+    // CHANGED ON PURPOSE (the owner's phone layout): Settings moved into More.
     expect(buttons(view.tree).map(b => (b.props.item as { id: string }).id))
-      .toEqual(["accounts", "session-list", "usage", "machine", "settings"]);
+      .toEqual(["accounts", "session-list", "usage", "machine"]);
     expect((moreOf(view.tree).props.items as { id: string }[]).map(i => i.id))
-      .toEqual(["history", "browser-watch", "feedback"]);
+      .toEqual(["history", "browser-watch", "settings", "feedback"]);
   });
 
   it("puts Codex's own button where Claude's was on a machine without Claude Code", () => {
     // Claude's accounts panel is Claude's alone; a Codex-only machine gets
     // Codex's own button in its place, and the dock keeps its five slots.
+    // CHANGED ON PURPOSE (the phone layout): the dock is four doors and More, so
+    // the expected ids are four (Settings is in More).
     const view = dockFor(rails({ claude: false }));
     expect(buttons(view.tree).map(b => (b.props.item as { id: string }).id))
-      .toEqual(["codex-accounts", "session-list", "usage", "machine", "settings"]);
+      .toEqual(["codex-accounts", "session-list", "usage", "machine"]);
   });
 
   it("is what App.tsx draws at a phone's width, in place of both stripes and the topbar's utilities", () => {
@@ -101,7 +107,10 @@ describe("the dock holds the four panels and Settings, then More", () => {
     // A connected tracker (#2178) is a left-stripe control on a desktop and a
     // More row on a phone, before Feedback: the dock keeps its five slots. So
     // are Account capacity and Reset calendar, the first two rows of More.
-    expect(app).toMatch(/\{phone\s*\?\s*<EdgeDock items=\{\[\.\.\.rails\.left, \.\.\.rails\.right\[0\], rails\.utilities\[0\]\]\} more=\{\[rails\.search, \.\.\.rails\.capacity, \.\.\.rails\.right\.slice\(1\)\.flat\(\), \.\.\.rails\.integrations, \.\.\.rails\.explore, rails\.utilities\[1\]\]\} \/>\s*:\s*<EdgeRail label/);
+    // CHANGED ON PURPOSE (the owner's phone layout): the dock's five doors are
+    // the left column's two and the right rail's first run; Settings, Feedback
+    // and the rest are in More; the Machine door wears the offline dot.
+    expect(app).toMatch(/\{phone\s*(?:\/\/[^\n]*\s*)*\?\s*<EdgeDock\s+items=\{\[\.\.\.rails\.left, \.\.\.rails\.right\[0\]\]\.map\([^\n]*\)\}\s+more=\{\[rails\.search, \.\.\.rails\.capacity, \.\.\.rails\.right\.slice\(1\)\.flat\(\), \.\.\.rails\.integrations, \.\.\.rails\.explore, \.\.\.rails\.utilities\]\}\s+offline=\{everConnected && !live\} \/>\s*:\s*<EdgeRail label/);
     // V4's Figma: one bar on the left, no right bar.
     expect(app).not.toMatch(/<EdgeRail side="right"/);
     expect(app).toMatch(/\{!phone && <div className="actions"><UtilityRun items=\{\[rails\.search, \.\.\.rails\.topUtilities\]\} \/><\/div>\}/);
@@ -123,46 +132,56 @@ describe("the dock holds the four panels and Settings, then More", () => {
 
 describe("the dock is one toolbar", () => {
   it("is a toolbar named for what it holds, horizontal, with one Tab stop", () => {
+    // CHANGED ON PURPOSE (the phone layout): four doors and More, so four
+    // roving stops before More's own, not five.
     const view = dockFor(rails());
     const root = view.tree as Drawn;
     expect(root.props.role).toBe("toolbar");
     expect(root.props["aria-label"]).toBe("Panels and tools");
     expect(root.props["aria-orientation"] ?? "horizontal").toBe("horizontal");
     expect(typeof root.props.onKeyDown).toBe("function");
-    expect(buttons(view.tree).map(b => b.props.tabbable)).toEqual([true, false, false, false, false]);
+    expect(buttons(view.tree).map(b => b.props.tabbable)).toEqual([true, false, false, false]);
     expect(moreOf(view.tree).props.tabbable).toBe(false);
   });
 
   it("draws the short word under each glyph, where a column is a sixth of a phone", () => {
+    // CHANGED ON PURPOSE (the phone layout): the short words of the four doors;
+    // Settings' word is in More's menu now.
     const view = dockFor(rails());
-    expect(buttons(view.tree).map(b => b.props.variant)).toEqual(["dock", "dock", "dock", "dock", "dock"]);
+    expect(buttons(view.tree).map(b => b.props.variant)).toEqual(["dock", "dock", "dock", "dock"]);
     expect(buttons(view.tree).map(b => (b.props.item as { short: string }).short))
-      .toEqual(["Accounts", "Sessions", "Usage", "Machine", "Settings"]);
+      .toEqual(["Accounts", "Sessions", "Usage", "Machine"]);
   });
 
   it("gives every control a thumb's target on the narrowest phone", () => {
-    // Six columns share the dock's width less its 2px sides, each 48px tall:
-    // at 320px that is 52px a column, over the 44px a touch target wants and
-    // well over 2.5.8's 24.
+    // CHANGED ON PURPOSE (the owner's phone layout): five cells of an equal
+    // share of the dock's width, each the dock's whole height (58, the frame's
+    // dock) with a 44 floor: at 320px that is 64px a cell, over the 44px a touch
+    // target wants and well over 2.5.8's 24.
     const dockBtn = [el("div", ["edge-dock"]), el("button", ["rail-btn", "rail-btn-dock"])];
-    expect(cascade(s => selects(s, dockBtn), "height", 320)).toBe("48px");
+    expect(cascade(s => selects(s, dockBtn), "min-height", 320)).toBe("44px");
     expect(cascade(s => selects(s, dockBtn), "flex", 320)).toBe("1 1 0");
+    expect(cascade(s => selects(s, [el("div", ["edge-dock"])]), "align-items", 320)).toBe("stretch");
     const pad = cascade(s => selects(s, [el("div", ["edge-dock"])]), "padding", 320)!.split(/\s+/);
-    expect((320 - 2 * parseFloat(pad[1])) / 6).toBeGreaterThanOrEqual(44);
+    expect((320 - 2 * parseFloat(pad[1])) / 5).toBeGreaterThanOrEqual(44);
   });
 });
 
-describe("More is a menu button for the three rare dialogs", () => {
+describe("More is a menu button for the rare dialogs and Settings", () => {
   it("says what it holds, and is a closed menu button until pressed", () => {
+    // CHANGED ON PURPOSE (the phone layout): More's name lists what it holds now,
+    // Settings among them.
     const { button, menu } = openMore(dockFor(rails()).tree);
     expect(button().props["aria-haspopup"]).toBe("menu");
     expect(button().props["aria-expanded"]).toBe(false);
     expect(button().props["aria-controls"]).toBeUndefined();
-    expect(button().props["aria-label"]).toBe("More: Usage history, Browser watch, not watching, Send feedback");
+    expect(button().props["aria-label"]).toBe("More: Usage history, Browser watch, not watching, Settings, Send feedback");
     expect(menu()).toBeNull();
   });
 
-  it("opens a menu of the three by their whole names, focus on the first", () => {
+  it("opens a menu of them by their whole names, focus on the first", () => {
+    // CHANGED ON PURPOSE (the phone layout): the rows are the four More holds,
+    // Settings before Feedback.
     const { button, menu } = openMore(dockFor(rails()).tree);
     (button().props.onClick as () => void)();
     expect(button().props["aria-expanded"]).toBe(true);
@@ -170,7 +189,7 @@ describe("More is a menu button for the three rare dialogs", () => {
     expect(menu()!.props.role).toBe("menu");
     expect(menu()!.props.start).toBe("first");
     const rows = all(menu(), e => e.props.role === "menuitem");
-    expect(rows.map(r => textOf(r))).toEqual(["Usage history", "Browser watch", "Send feedback"]);
+    expect(rows.map(r => textOf(r))).toEqual(["Usage history", "Browser watch", "Settings", "Send feedback"]);
   });
 
   it("opens at either end from the keyboard, the way a native menu button does", () => {
@@ -182,8 +201,9 @@ describe("More is a menu button for the three rare dialogs", () => {
   });
 
   it("carries Browser watch's unread count, in the chrome's grey, while the row it stands for is folded", () => {
+    // CHANGED ON PURPOSE (the phone layout): More's name lists Settings too.
     const { button, menu } = openMore(dockFor(rails({ unread: 2 })).tree);
-    expect(button().props["aria-label"]).toBe("More: Usage history, Browser watch, not watching, 2 unread, Send feedback");
+    expect(button().props["aria-label"]).toBe("More: Usage history, Browser watch, not watching, 2 unread, Settings, Send feedback");
     expect(textOf(one(button(), e => e.props.className === "rail-badge"))).toBe("2");
     (button().props.onClick as () => void)();
     expect(all(menu(), e => e.props.role === "menuitem").map(r => textOf(r))[1]).toBe("Browser watch · 2 unread");
@@ -218,7 +238,8 @@ describe("the page around the dock", () => {
     const dockHeight = decl(".edge-dock", "height");
     expect(dockHeight).toBe("calc(var(--dock-h) + env(safe-area-inset-bottom))");
     expect(decl(".app", "padding-bottom")).toBe(dockHeight);
-    expect(cascade(s => selects(s, [el("html", [], { states: ["root"] })]), "--dock-h", 390)).toBe("56px");
+    // CHANGED ON PURPOSE (V4's Figma phone frame): the dock is 58 high.
+    expect(cascade(s => selects(s, [el("html", [], { states: ["root"] })]), "--dock-h", 390)).toBe("58px");
   });
 
   it("gives the stripes' width back to the page, which has no stripes there", () => {
@@ -227,10 +248,11 @@ describe("the page around the dock", () => {
     expect(cascade(s => selects(s, root), "--edge-w", 641)).toBe("40px");
   });
 
-  it("marks an open panel with the stripes' fill and line, on the dock's top edge, in the foreground and not the accent", () => {
-    // The line sits on the seam the dock shares with the panel above it: its
-    // top is the dock's own top padding and edge, above the button. The fill
-    // under the button is the stripes' V4 --selected.
+  it("marks the open door by its word alone: --text against --muted, no pill, no bar, no fill, and no line on the top edge", () => {
+    // CHANGED ON PURPOSE (V4's Figma phone frame): the active item's label is
+    // --text and the other four --muted; "there is no pill, bar or fill". The
+    // line on the dock's top edge and the --selected fill the stripes draw are
+    // not the dock's any more.
     const btn = [el("div", ["edge-dock"]), el("button", ["rail-btn", "rail-btn-dock"])];
     const open = [el("div", ["edge-dock"]), el("button", ["rail-btn", "rail-btn-dock"], { attrs: { "aria-expanded": "true" } })];
     const own = (chain: typeof btn, prop: string) => cascade(s => selects(s, chain), prop, 390);
@@ -238,16 +260,11 @@ describe("the page around the dock", () => {
       const m = /::before$/.exec(s);
       return m ? selects(s.slice(0, m.index), chain) : null;
     }, prop, 390);
-    const pad = cascade(s => selects(s, [el("div", ["edge-dock"])]), "padding", 390)!.split(/\s+/);
-    const edge = parseFloat(cascade(s => selects(s, [el("div", ["edge-dock"])]), "border-top", 390)!);
-    expect(before(btn, "top")).toBe(`-${parseFloat(pad[0]) + edge}px`);
-    expect(before(btn, "height")).toBe("2px");
-    expect(before(btn, "background")).toBe("var(--text)");
-    expect(before(btn, "opacity")).toBe("0");
-    expect(before(open, "opacity")).toBe("1");
-    expect(own(btn, "background")).not.toBe("var(--selected)");
-    expect(own(open, "background")).toBe("var(--selected)");
+    expect(before(btn, "opacity")).toBeNull();
+    expect(before(open, "background")).toBeNull();
+    expect(own(btn, "color")).toBe("var(--muted)");
     expect(own(open, "color")).toBe("var(--text)");
+    expect(own(open, "background")).toBe("transparent");
   });
 
   it("says an open panel to assistive tech as the disclosure it is, not a tab", () => {

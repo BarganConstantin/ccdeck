@@ -140,6 +140,12 @@ export interface LeftColumn {
   /** Whatever the column holds goes, the eviction memory with it (Workspace
    *  under 1100, where the column would be a sheet over the pane). */
   dismissColumn: () => void;
+  /** The window grew past a phone's width: with the list and Accounts both
+   *  open, Accounts is evicted (use-phone-sheets.ts). */
+  leavePhone: () => void;
+  /** Accounts waits shut while another sheet keeps a phone's screen: not
+   *  stored (use-phone-sheets.ts). */
+  holdAccounts: () => void;
   /** WORKSPACE changing the column is not the reader's choice, so it is not
    *  stored: `hold` stops the two writes, `release` lets them go on, with
    *  `write` saying whether the column as it stands is the reader's. */
@@ -147,24 +153,23 @@ export interface LeftColumn {
 }
 
 export function useLeftColumn(): LeftColumn {
-  /** Shut for this load, not by the reader: on a phone the column is a drawer
-   *  over the canvas, and a load does not open it (phone-load.ts). Never
-   *  written as a close; the reader's own open ends it. */
-  const sessionListHeldRef = useRef(false);
   const accountsHeldRef = useRef(false);
   /** Workspace has put the list in the column, or taken out what it held:
    *  neither is written, so a reload (or a crash) in Workspace comes back to
    *  the column the reader left, and leaving gives it back. */
   const workspaceHeldRef = useRef(false);
   /** Left sidebar (session list) visibility — persisted across refresh. */
+  /** A phone opens on Sessions, full width: the list is the home screen there,
+   *  whatever the browser stored for a wider window, which this load leaves as
+   *  it was. */
+  const phoneOpenedRef = useRef(false);
   const [sessionListOpen, setSessionListOpen] = useState<boolean>(() => {
     const wanted = loadSessionListOpen();
-    if (wanted && loadsOnPhone()) { sessionListHeldRef.current = true; return false; }
+    if (loadsOnPhone()) { phoneOpenedRef.current = !wanted; return true; }
     return wanted;
   });
   useEffect(() => {
-    if (sessionListOpen) sessionListHeldRef.current = false;
-    else if (sessionListHeldRef.current) return;
+    if (phoneOpenedRef.current) { phoneOpenedRef.current = false; return; }
     if (workspaceHeldRef.current) return;
     saveSessionListOpen(sessionListOpen);
   }, [sessionListOpen]);
@@ -176,10 +181,10 @@ export function useLeftColumn(): LeftColumn {
   const accountsEvictedRef = useRef(false);
   const [accountsPanelOpen, setAccountsPanelOpen] = useState<boolean>(() => {
     const wanted = loadAccountsPanelOpen();
+    // A phone's load opens Sessions alone: Accounts is a sheet over it, from its door.
+    if (wanted && loadsOnPhone()) { accountsHeldRef.current = true; return false; }
     // The list holds the column on this load, so the panel waits behind it.
     if (wanted && sessionListOpen) { accountsEvictedRef.current = true; return false; }
-    // A phone's load leaves the drawer shut.
-    if (wanted && loadsOnPhone()) { accountsHeldRef.current = true; return false; }
     return wanted;
   });
   useEffect(() => {
@@ -210,7 +215,8 @@ export function useLeftColumn(): LeftColumn {
     setSessionListOpen(open => {
       // Opening the list takes the column. If the panel was in it, that is an
       // eviction to undo when the list closes (#824), not the panel closing.
-      if (!open) setAccountsPanelOpen(was => { if (was) accountsEvictedRef.current = true; return false; });
+      // On a phone Accounts is a sheet over the list, not a panel that takes its place.
+      if (!open && !loadsOnPhone()) setAccountsPanelOpen(was => { if (was) accountsEvictedRef.current = true; return false; });
       return !open;
     });
   }, []);
@@ -218,7 +224,7 @@ export function useLeftColumn(): LeftColumn {
     // The reader's own call on the panel ends any eviction.
     accountsEvictedRef.current = false;
     setAccountsPanelOpen(open => {
-      if (!open) setSessionListOpen(false);
+      if (!open && !loadsOnPhone()) setSessionListOpen(false);
       return !open;
     });
   }, []);
@@ -230,7 +236,7 @@ export function useLeftColumn(): LeftColumn {
   const openAccountsPanel = useCallback(() => {
     accountsEvictedRef.current = false;
     setAccountsPanelOpen(open => {
-      if (!open) setSessionListOpen(false);
+      if (!open && !loadsOnPhone()) setSessionListOpen(false);
       return true;
     });
   }, []);
@@ -256,6 +262,25 @@ export function useLeftColumn(): LeftColumn {
   // What the column is now, for a release that keeps it as the reader left it.
   const nowRef = useRef<{ sessionListOpen: boolean; accountsPanelOpen: boolean } | null>(null);
   nowRef.current = { sessionListOpen, accountsPanelOpen };
+  /** The window grew past a phone's width with the list and Accounts both open
+   *  (on a phone Accounts is a sheet over the list): they cannot share the
+   *  column, so Accounts waits behind the list as an eviction does, and comes
+   *  back when the list goes. It is not the reader closing it, so nothing is
+   *  stored. */
+  const leavePhone = useCallback(() => {
+    const now = nowRef.current;
+    if (!now || !now.sessionListOpen || !now.accountsPanelOpen) return;
+    accountsEvictedRef.current = true;
+    setAccountsPanelOpen(false);
+  }, []);
+  /** A window narrowed to a phone's width with several panels open draws one
+   *  sheet, and Accounts, the lowest, waits shut: in memory, by the hold a
+   *  phone's load uses, so the flag turns false and is not written. The
+   *  reader's own open ends it; widening does not reopen it. */
+  const holdAccounts = useCallback(() => {
+    accountsHeldRef.current = true;
+    setAccountsPanelOpen(false);
+  }, []);
   const storeHold = useMemo(() => ({
     hold: () => { workspaceHeldRef.current = true; },
     // `baseline` is the column as Workspace itself left it: only a flag that
@@ -272,7 +297,7 @@ export function useLeftColumn(): LeftColumn {
   }), []);
 
   return { sessionListOpen, accountsPanelOpen, panel, toggleSessionList, toggleAccountsPanel, openAccountsPanel,
-           closeSessionList, closeSessionListToCanvas, closeAccountsPanel, dismissColumn, storeHold };
+           closeSessionList, closeSessionListToCanvas, closeAccountsPanel, dismissColumn, leavePhone, holdAccounts, storeHold };
 }
 
 /**

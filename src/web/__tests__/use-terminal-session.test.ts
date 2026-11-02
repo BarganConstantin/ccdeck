@@ -114,6 +114,13 @@ class FakeTerminal implements StageTerminal {
   viewAnswers(kinds: unknown) { this.answers.push(kinds); }
   focus() { this.log.push("focus"); }
   blur() { this.log.push("blur"); }
+  /** The terminal's input holds the focus, and the program asked for
+   *  application cursor keys: set by the case. */
+  focused = false;
+  appKeys = false;
+  hasFocus() { return this.focused; }
+  applicationCursorKeys() { return this.appKeys; }
+  scrollForInput() { this.log.push("scroll-for-input"); }
   cell() { return { w: 8, h: 18 }; }
   dispose() { this.disposed = true; }
 }
@@ -625,6 +632,71 @@ describe("keys, paste and the pane's size", () => {
     r.events().onPaste("line one\nline two");
     expect(s.sentBytes()).toEqual(["ls -la\r"]);
     expect(s.sentText().at(-1)).toEqual({ t: "paste", text: "line one\nline two" });
+  });
+
+  describe("the phone's key row (press)", () => {
+    it("sends an arrow as the terminal itself would: ESC [ A normally, ESC O A in application cursor-key mode", async () => {
+      const { r, ctl, s } = await liveRig();
+      ctl.press("\x1b[A");
+      ctl.press("\x1b[B");
+      r.terminal().appKeys = true;
+      ctl.press("\x1b[A");
+      ctl.press("\x1b[B");
+      expect(s.sentBytes()).toEqual(["\x1b[A", "\x1b[B", "\x1bOA", "\x1bOB"]);
+    });
+
+    it("leaves the other keys' bytes alone in either mode", async () => {
+      const { r, ctl, s } = await liveRig();
+      r.terminal().appKeys = true;
+      for (const bytes of ["\x1b", "\t", "\x03", "\r"]) ctl.press(bytes);
+      expect(s.sentBytes()).toEqual(["\x1b", "\t", "\x03", "\r"]);
+    });
+
+    it("brings a view scrolled back to the bottom, as a typed key does", async () => {
+      const { r, ctl } = await liveRig();
+      r.terminal().log.length = 0;
+      ctl.press("\r");
+      expect(r.terminal().log).toContain("scroll-for-input");
+    });
+
+    // CHANGED ON PURPOSE (the phone layout): the test used to set the focus on
+    // the terminal at press time. In the case the refocus exists for, the focus
+    // has already left the terminal when the click lands, so the press is sent
+    // with what was noted when it BEGAN (pointerdown), in that order.
+    it("gives the focus back when the terminal held it as the press began, even though it left before the click", async () => {
+      const { r, ctl } = await liveRig();
+      r.terminal().log.length = 0;
+      // Pointerdown: the terminal holds the focus.
+      r.terminal().focused = true;
+      const heldAtStart = ctl.holdsFocus();
+      expect(heldAtStart).toBe(true);
+      // The browser takes the focus off it before the click.
+      r.terminal().focused = false;
+      ctl.press("\t", heldAtStart);
+      expect(r.terminal().log, "it held the focus when the press began").toContain("focus");
+    });
+
+    it("takes no focus when the terminal did not hold it as the press began", async () => {
+      const { r, ctl } = await liveRig();
+      r.terminal().log.length = 0;
+      expect(ctl.holdsFocus()).toBe(false);
+      ctl.press("\t", false);
+      expect(r.terminal().log).not.toContain("focus");
+      // Held at the click but not at the start: the start decides.
+      r.terminal().focused = true;
+      ctl.press("\t", false);
+      expect(r.terminal().log).not.toContain("focus");
+    });
+
+    it("with no start noted, the focus held at the click is used", async () => {
+      const { r, ctl } = await liveRig();
+      r.terminal().log.length = 0;
+      ctl.press("\t");
+      expect(r.terminal().log).not.toContain("focus");
+      r.terminal().focused = true;
+      ctl.press("\t");
+      expect(r.terminal().log).toContain("focus");
+    });
   });
 
   it("sends keys typed before the pane was ready one at a time, as they were typed, and only to a live pane", async () => {
