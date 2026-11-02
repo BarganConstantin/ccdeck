@@ -1,23 +1,26 @@
 // The auto-switch policy's row in the accounts panel, and the popover it opens.
 //
-// The panel draws the policy from two places — inside the fold, or under a
-// roster with nothing to fold — and it was already one value there for that
-// reason; this is what the value renders. The draft the picker proposes, the
-// `saved` after a store, and the two elements focus moves between stay in the
-// panel and are handed in, because the row unmounts whenever the fold is shut
-// and a pick nobody saved must outlive that.
+// The panel draws the policy from one place, under the roster and outside the
+// fold, and so does Codex's; this is what the value renders. The draft the
+// picker proposes, the `saved` after a store, and the two elements focus moves
+// between stay in the panel and are handed in, because the draft is held
+// across the popover opening and closing and a pick nobody saved must outlive
+// that.
 //
 // V4's Figma draws it as ONE ROW — "Auto-switch · at 90%" and the switch — and
 // the two settings in a popover from that row: where it trips, as chips, and
 // where it goes, as two options. The settings and the writes are the ones the
 // selects had; a chip or an option is a deliberate press, so it stores at once
 // (the select's save step existed because a keystroke could pick an option).
+// Both are toggle buttons in a labelled group: pressed or not, no arrow keys
+// owed, because nothing here claims to be a radio.
 import { type KeyboardEvent, type Ref, useId, useState } from "react";
 
 import { NEXT_OPTIONS, type NextChoice, nextOptionLabel, weeklyHint } from "../auto-choice";
 import { Rich } from "../accounts-rich";
 import { useT } from "../i18n";
 import { customHint, CUSTOM_PICK, thresholdChoices } from "../auto-switch-threshold";
+import { type Failure } from "../accounts-reload";
 import { type AutoStatus } from "../claude-accounts";
 import { type PickerCommit, thresholdCommit } from "../picker-commit";
 import { type useRequestSlot } from "../use-request-slot";
@@ -32,7 +35,9 @@ interface Props {
   thresholdPick: string;
   thresholdCtl: PickerCommit;
   thresholdSaved: boolean;
-  thresholdRef: Ref<HTMLSelectElement>;
+  /** The `Custom…` chip: where focus goes when the field closes or `saved`
+   *  goes. */
+  thresholdRef: Ref<HTMLButtonElement>;
   thresholdSaveRef: Ref<HTMLButtonElement>;
   /** Whether the custom field stands in for the picker. */
   thresholdCustom: boolean;
@@ -42,23 +47,27 @@ interface Props {
   proposeThreshold: (pick: string) => void;
   typeThreshold: (text: string) => void;
   cancelThreshold: (e: KeyboardEvent) => void;
-  leaveThreshold: () => void;
-  doThreshold: (pick: string, commit: PickerCommit) => void;
-  /** How the next account is picked, as the panel holds the draft of it —
-   *  see use-next-draft.ts. */
-  nextPick: NextChoice;
-  nextCtl: PickerCommit;
-  nextSaved: boolean;
-  nextRef: Ref<HTMLSelectElement>;
-  nextSaveRef: Ref<HTMLButtonElement>;
-  proposeNext: (pick: string) => void;
-  doNext: () => void;
+  leaveThreshold: (focusLost?: boolean) => void;
+  doThreshold: (pick: string, commit: PickerCommit, fromField?: boolean) => void;
   pressProps: ReturnType<typeof useRequestSlot>["pressProps"];
+  /** The row's switch: a refusal is said at the foot of the column. */
   post: (body: Record<string, unknown>, tag: string) => Promise<unknown>;
+  /** Everything pressed inside the popover: a refusal is said in the popover,
+   *  which is drawn over the foot of the column. See use-setting-post.ts. */
+  settingPost: (body: Record<string, unknown>, tag: string) => Promise<unknown>;
+  settingFailure: Failure | null;
+  clearSettingFailure: () => void;
   load: (force?: boolean) => Promise<void>;
+  /** The box the row scrolls in, which the popover closes against once the row
+   *  has left it. Each column names its own: both can be mounted, and the one
+   *  that is hidden measures as all zeros. */
+  boundaryId: string;
   /** What the policy does, in a line under its name in the popover. Absent for
    *  a provider whose sessions it does not move. */
   blurb?: string;
+  /** Whether the provider has a home account to come back to, and so a line
+   *  that says so. */
+  hasHome?: boolean;
 }
 
 /**
@@ -87,10 +96,13 @@ function AutoSwitchToggle({ auto, pressProps, post, load }: Pick<Props, "auto" |
 }
 
 export default function AutoSwitchPolicy(props: Props) {
-  const { auto, threshold, pressProps, post, load } = props;
+  const { auto, threshold, pressProps, post, load, boundaryId, clearSettingFailure } = props;
   const t = useT();
   const popId = useId();
   const [open, setOpen] = useState(false);
+  // A refusal belongs to the press that earned it: opening or closing the
+  // popover starts it clean.
+  const setOpenClean = (next: boolean) => { clearSettingFailure(); setOpen(next); };
   const anchorId = `ap-auto-open-${popId.replace(/:/g, "")}`;
   const titleId = `${anchorId}-title`;
   const toggle = <AutoSwitchToggle auto={auto} pressProps={pressProps} post={post} load={load} />;
@@ -103,7 +115,7 @@ export default function AutoSwitchPolicy(props: Props) {
           <button type="button" id={anchorId} className="ap-auto-open"
             aria-haspopup="dialog" aria-expanded={open} aria-controls={open ? popId : undefined}
             title={t("accounts.policy.settingsTip")}
-            onClick={() => setOpen(o => !o)}>
+            onClick={() => setOpenClean(!open)}>
             <span className="ap-auto-name">{t("accounts.policy.title")}</span>
             <span className="ap-auto-at">{t("accounts.policy.atPct", { pct: threshold })}</span>
           </button>
@@ -115,8 +127,8 @@ export default function AutoSwitchPolicy(props: Props) {
       </div>
 
       {open && (
-        <AnchoredPopover anchorId={anchorId} boundaryId="ap-scroll" id={popId} className="ap-pop ap-auto-pop"
-          role="dialog" labelledBy={titleId} align="start" onClose={() => setOpen(false)}>
+        <AnchoredPopover anchorId={anchorId} boundaryId={boundaryId} id={popId} className="ap-pop ap-auto-pop"
+          role="dialog" labelledBy={titleId} align="start" onClose={() => setOpenClean(false)}>
           <AutoSwitchSettings {...props} titleId={titleId} />
         </AnchoredPopover>
       )}
@@ -139,21 +151,24 @@ export default function AutoSwitchPolicy(props: Props) {
  * needed to read what it says.
  */
 export function AutoSwitchSettings({
-  auto, threshold, thresholdPick, thresholdCtl, thresholdSaved, thresholdSaveRef,
+  auto, threshold, thresholdPick, thresholdCtl, thresholdSaved, thresholdRef, thresholdSaveRef,
   thresholdCustom, thresholdRefusal, thresholdFieldRef,
   proposeThreshold, typeThreshold, cancelThreshold, leaveThreshold, doThreshold,
-  nextPick, pressProps, post, load, blurb, titleId,
+  pressProps, settingPost, settingFailure, load, blurb, hasHome = false, titleId,
 }: Props & { titleId: string }) {
   const t = useT();
   const noteId = useId();
   const thresholdId = useId();
   const hintId = useId();
   const chosen = Number(threshold);
+  // How it picks where to go, as the store holds it: there is no draft, because
+  // an option is a press that stores at once.
+  const nextPick: NextChoice = auto.choice?.next ?? "room";
   return (
           <div className="ap-auto-form">
             <div className="ap-auto-head">
               <p className="ap-pop-title" id={titleId}>{t("accounts.policy.title")}</p>
-              <AutoSwitchToggle auto={auto} pressProps={pressProps} post={post} load={load} />
+              <AutoSwitchToggle auto={auto} pressProps={pressProps} post={settingPost} load={load} />
             </div>
             {blurb && <p className="ap-auto-blurb">{blurb}</p>}
 
@@ -171,20 +186,23 @@ export function AutoSwitchSettings({
                     {n}%
                   </button>
                 ))}
-                <button type="button" className="ap-chip" aria-pressed={thresholdCustom}
+                <button ref={thresholdRef} type="button" className="ap-chip" aria-pressed={thresholdCustom}
                   {...pressProps("threshold")}
                   onClick={() => proposeThreshold(CUSTOM_PICK)}>
                   {t("accounts.policy.custom")}
                 </button>
               </div>
-              {/* `Custom…` puts a field in the chips' place, its unit where
-                  the chevron was. A form, so Enter is `save` and never fires
+              {/* `Custom…` puts a field under the chips, its unit where the
+                  chevron was. A form, so Enter is `save` and never fires
                   mid-composition; the press is doThreshold either way, so
-                  there is one path to the store. */}
-              {thresholdCustom && (
+                  there is one path to the store. The form outlives the field
+                  by the 1.8s that `saved` stands: the control that says it is
+                  in the form, and the press that stored the pick is made on
+                  it, so it cannot leave under the reader's focus. */}
+              {(thresholdCustom || thresholdSaved) && (
                 <form className="ap-threshold-form" noValidate
-                  onSubmit={e => { e.preventDefault(); doThreshold(thresholdPick, thresholdCtl); }}>
-                  <span className="ap-threshold-field" title={t("accounts.policy.switchAtTip")}>
+                  onSubmit={e => { e.preventDefault(); if (thresholdCustom) doThreshold(thresholdPick, thresholdCtl, true); }}>
+                  {thresholdCustom && <span className="ap-threshold-field" title={t("accounts.policy.switchAtTip")}>
                     <input
                       ref={thresholdFieldRef}
                       className="ap-manage-input ap-threshold-input"
@@ -196,16 +214,16 @@ export function AutoSwitchSettings({
                       value={thresholdPick}
                       {...pressProps("threshold")}
                       onChange={e => typeThreshold(e.target.value)}
-                      onBlur={() => leaveThreshold()}
+                      onBlur={e => leaveThreshold(e.relatedTarget == null)}
                       autoComplete="off"
                       spellCheck={false}
                     />
                     <span className="ap-threshold-unit" aria-hidden>%</span>
-                  </span>
+                  </span>}
                   {(thresholdCtl.sends || thresholdSaved) && (
                     <button ref={thresholdSaveRef} type="button" className="ap-manage-btn" {...pressProps("threshold")}
                       title={thresholdCtl.title}
-                      onClick={() => doThreshold(thresholdPick, thresholdCtl)}
+                      onClick={() => doThreshold(thresholdPick, thresholdCtl, true)}
                     >{thresholdSaved && !thresholdCtl.sends ? thresholdCtl.done : thresholdCtl.label}</button>
                   )}
                 </form>
@@ -226,12 +244,12 @@ export function AutoSwitchSettings({
                 word in that row's ⋯, and the line at the foot says so. */}
             <div className="ap-auto-group">
               <span className="ap-auto-label" id={`${hintId}-label`}>{t("accounts.policy.next")}</span>
-              <div className="ap-auto-options" role="radiogroup" aria-labelledby={`${hintId}-label`}>
+              <div className="ap-auto-options" role="group" aria-labelledby={`${hintId}-label`}>
                 {NEXT_OPTIONS.map(o => (
-                  <button key={o.value} type="button" role="radio" aria-checked={nextPick === o.value}
+                  <button key={o.value} type="button" aria-pressed={nextPick === o.value}
                     className="ap-auto-option" data-selected={nextPick === o.value ? "" : undefined}
                     {...pressProps("next")}
-                    onClick={() => { if (nextPick !== o.value) post({ action: "next", value: o.value }, "next").then(() => load(true)); }}>
+                    onClick={() => { if (nextPick !== o.value) settingPost({ action: "next", value: o.value }, "next").then(() => load(true)); }}>
                     <KitStateGlyph name={nextPick === o.value ? "done" : "idle"} />
                     <span className="ap-auto-option-text">
                       <span className="ap-auto-option-name">{nextOptionLabel(o.value, t)}</span>
@@ -241,7 +259,12 @@ export function AutoSwitchSettings({
                 ))}
               </div>
             </div>
-            <p className="ap-auto-blurb">{t("accounts.policy.homeNote")}</p>
+            {/* A refusal of anything pressed here, said where it was pressed:
+                the panel's own line is drawn under this popover. */}
+            {settingFailure && (
+              <p className="ap-pop-error" role="alert" title={settingFailure.raw || undefined}>{settingFailure.text}</p>
+            )}
+            {hasHome && <p className="ap-auto-blurb">{t("accounts.policy.homeNote")}</p>}
           </div>
   );
 }

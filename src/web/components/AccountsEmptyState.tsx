@@ -8,28 +8,25 @@
 // one thing to do, which is a command to copy or a button to press.
 import { useState } from "react";
 import { type AccountsData } from "../claude-accounts";
-import { useT } from "../i18n";
+import { t as tNow, type TFunction, useT } from "../i18n";
 import { Rich } from "../accounts-rich";
 import { copyText } from "../copy-text";
 import { KitIcon } from "./kit-icons";
 
-/** The command the Wrong-version state offers: the one the deck itself runs to
- *  bring claude-swap up to date (cswap-install.mjs's upgrade step). */
-const UPGRADE_COMMAND = "uv tool upgrade claude-swap";
-
 /**
- * A REASON IN WORDS. The store answers with a code or the operating system's
- * own message; a code is not for a reader, so only a message that already
- * reads as a phrase is kept, and a permission refusal is said as one.
+ * A REASON IN WORDS, WITH THE CODE KEPT. The store answers with a code or the
+ * operating system's own message. A permission refusal and a missing file are
+ * said as a phrase in the language on show, and the answer itself stays beside
+ * it, because the code is what a report or a search needs.
  */
-export function plainReason(reason: string | undefined | null): string {
+export function plainReason(reason: string | undefined | null, t: TFunction = tNow): string {
   const raw = (reason ?? "").trim();
   if (!raw) return "";
-  if (/eacces|eperm|permission/i.test(raw)) return "permission denied";
-  if (/enoent|no such file|not found/i.test(raw)) return "file not found";
-  // snake_case or SCREAMING codes ("store_unreadable", "EIO") read as codes.
-  if (/^[a-z]+(?:_[a-z0-9]+)+$/i.test(raw) || /^[A-Z0-9]{2,}$/.test(raw)) return "";
-  return raw;
+  const words = /eacces|eperm|permission/i.test(raw) ? t("accounts.empty.reasonDenied")
+    : /enoent|no such file|not found/i.test(raw) ? t("accounts.empty.reasonMissing")
+    : "";
+  if (!words || words.toLowerCase() === raw.toLowerCase()) return raw;
+  return `${words} · ${raw}`;
 }
 
 /** A command in its box with a Copy button (V4's Figma). */
@@ -82,14 +79,18 @@ export default function AccountsEmptyState({ data, onAdd, onRetry, retrying = fa
         <>
           {/* #1799: the deck installed claude-swap and a different version
               answered. The version that answered, the one asked for and the
-              way to point the deck at another copy are the title's: V4 draws
-              the state as a title, one sentence and the command. */}
-          <span className="ap-state-title" title={t("accounts.empty.refusedHint", {
-            answered: data.version ? t("accounts.empty.answeredVersion", { version: data.version }) : t("accounts.empty.answeredOther"),
-            wanted: data.want ? t("accounts.empty.wanted", { want: data.want }) : "",
-          })}>{t("accounts.empty.refusedTitle")}</span>
+              way to point the deck at another copy are said in the panel, not
+              in a tooltip. No command is offered: the one that looks right
+              does nothing for the deck's pinned install and is the wrong tool
+              for a pipx one (cswap-install.mjs's upgrade step says why). */}
+          <span className="ap-state-title">{t("accounts.empty.refusedTitle")}</span>
           <span className="ap-state-text">{t("accounts.empty.refused")}</span>
-          <CommandBox command={UPGRADE_COMMAND} />
+          <span className="ap-state-text">
+            {t("accounts.empty.refusedHint", {
+              answered: data.version ? t("accounts.empty.answeredVersion", { version: data.version }) : t("accounts.empty.answeredOther"),
+              wanted: data.want ? t("accounts.empty.wanted", { want: data.want }) : "",
+            })}
+          </span>
         </>
       ) : data.reason === "no_accounts" ? (
         <>
@@ -101,7 +102,7 @@ export default function AccountsEmptyState({ data, onAdd, onRetry, retrying = fa
         <>
           <span className="ap-state-title">{t("accounts.empty.unreadable")}</span>
           <span className="ap-state-text">
-            {t("accounts.empty.unreadableHint", { reason: plainReason(data.reason) ? t("accounts.empty.reason", { reason: plainReason(data.reason) }) : "" })}
+            {t("accounts.empty.unreadableHint", { reason: plainReason(data.reason, t) ? t("accounts.empty.reason", { reason: plainReason(data.reason, t) }) : "" })}
           </span>
           {onRetry && (
             <button type="button" className="btn ap-state-btn" {...(pressProps?.("reload", retrying) ?? {})} onClick={onRetry}>

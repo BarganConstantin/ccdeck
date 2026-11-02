@@ -135,4 +135,11 @@ describe("the Accounts panel's live account under a Contrast theme (#1784)", () 
     expect(opts(".ap-live")).toBe(true);
     expect(bodyOf(".ap-live")).toMatch(/color:\s*Highlight/);
   });
+
+  it("rings the picked threshold chip, next-account option and Move slot", () => {
+    // Each is a tinted background alone, and a Contrast theme repaints it.
+    for (const sel of ['.ap-chip[aria-pressed="true"]', ".ap-auto-option[data-selected]", ".ap-slot-row[data-selected]"]) {
+      expect(bodyOf(sel), sel).toMatch(/outline:\s*2px solid Highlight/);
+    }
+  });
 });

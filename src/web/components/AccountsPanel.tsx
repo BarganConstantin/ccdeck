@@ -25,7 +25,7 @@ import ShareAccountsDialog from "./ShareAccountsDialog";
 import { DialogPresence } from "./Dialog";
 import { isAutoArmed, pastThreshold, peersOf, reachable } from "../account-fold";
 import { lanAccounts, type SharedMark } from "../account-lan";
-import { laneKey } from "../lane-open";
+import { laneKey, toggleLane } from "../lane-open";
 import {
   allOpen, holdOrder, isOpen, orderChoices, orderKey, sortAccounts, toggleAll, toggleOne, trimOpenness, validOrder,
   type Openness,
@@ -40,7 +40,7 @@ import { useAccountMenu } from "../use-account-menu";
 import { useAccountSwitching } from "../use-account-switching";
 import { afterRemoval, type RemoveAnswer } from "../expired-switch";
 import { useThresholdDraft } from "../use-threshold-draft";
-import { useNextDraft } from "../use-next-draft";
+import { useSettingPost } from "../use-setting-post";
 import { homeTitle, isHome } from "../auto-choice";
 import { POLL_MS, useAccountRoster } from "../use-account-roster";
 import { reloadText } from "../accounts-reload";
@@ -138,6 +138,10 @@ export default function AccountsPanel({ onClose, leaving, onReport, onRoster, la
   // press still works after it — see other-accounts-order.ts. What is stored,
   // and where, is accounts-prefs.ts's.
   const [openness, setOpenness] = useState<Openness>(loadOpenness);
+  // The live row's own press, apart from the mode above: "Expand all" is the
+  // fold's control and speaks for the accounts behind it, as it did when the
+  // live row was open by what it is. Not remembered between visits.
+  const [liveOpen, setLiveOpen] = useState<string[]>([]);
   // The order the accounts behind the fold are listed in (#1579): slot, how
   // full they are by one window, or how much room they have. Kept the same way.
   const [order, setOrder] = useState<string>(loadOrder);
@@ -169,6 +173,10 @@ export default function AccountsPanel({ onClose, leaving, onReport, onRoster, la
   onRosterRef.current = onRoster;
   const trimLanes = useCallback((fresh: AccountsData) => {
     setOpenness(open => trimOpenness(open, fresh.accounts));
+    setLiveOpen(keys => {
+      const left = keys.filter(k => (fresh.accounts ?? []).some(a => laneKey(a) === k));
+      return left.length === keys.length ? keys : left;
+    });
     onRosterRef.current?.(fresh);
   }, []);
   const { data, auto, reloading, failure, load, sayFailure, clearFailure } = useAccountRoster(trimLanes);
@@ -223,16 +231,18 @@ export default function AccountsPanel({ onClose, leaving, onReport, onRoster, la
   /** The sign-in dialog, filled in with this account's address. */
   const signInAgain = (email: string | null) => { setSignInAs(email); setAddOpen(true); };
 
+  // What is pressed inside the Auto-switch popover says its refusal inside it —
+  // see use-setting-post.ts — and the draft below stores through the same POST.
+  const { settingFailure, settingPost, clearSettingFailure } = useSettingPost(post);
   // Where auto-switch trips, what the picker proposes instead, and the press
-  // that stores it — see use-threshold-draft.ts.
+  // that stores it — see use-threshold-draft.ts. No effect of its own beyond
+  // the focus hand-offs, so the clock below keeps its place after the
+  // roster's poll.
   const {
     threshold, thresholdPick, thresholdCtl, thresholdSaved, thresholdRef, thresholdSaveRef,
     thresholdCustom, thresholdRefusal, thresholdFieldRef,
     proposeThreshold, typeThreshold, cancelThreshold, leaveThreshold, doThreshold,
-  } = useThresholdDraft({ auto, post, load });
-  // How it picks where to go, the same way — see use-next-draft.ts. No effect
-  // in it, so the clock below keeps its place after the roster's poll.
-  const { nextPick, nextCtl, nextSaved, nextRef, nextSaveRef, proposeNext, doNext } = useNextDraft({ auto, post, load });
+  } = useThresholdDraft({ auto, post: settingPost, load });
 
 
   // Countdowns tick independently of the fetch so they stay honest between polls.
@@ -472,7 +482,7 @@ export default function AccountsPanel({ onClose, leaving, onReport, onRoster, la
   // on it left, whether a switch from the panel just landed on it, the note a
   // swap left on it and who that swap displaced, and whether its warning's
   // explanation is open.
-  const opened = isOpen(openness, a);
+  const opened = a.active ? liveOpen.includes(laneKey(a)) : isOpen(openness, a);
   const menuOpen = menuFor === a.num;
   const refusal = failure?.row === a.num ? failure : null;
   const switchedHere = switched?.num === a.num;
@@ -481,7 +491,8 @@ export default function AccountsPanel({ onClose, leaving, onReport, onRoster, la
   const issueExpanded = issueOpen?.anchor === `ap-issue-${a.num}`;
     return (
       <AccountRow key={a.num} a={a} nowSec={nowSec} lan={lanFor(a)}
-        opened={opened} onToggleLanes={() => setOpenness(o => toggleOne(o, a))}
+        opened={opened}
+        onToggleLanes={() => (a.active ? setLiveOpen(o => toggleLane(o, a)) : setOpenness(o => toggleOne(o, a)))}
         busy={busy} pressProps={pressProps} onSwitch={doSwitch}
         menuOpen={menuOpen} onOpenMenu={openMenu} onCloseMenu={closeMenu}
         refusal={refusal} onDismissRefusal={() => clearFailure()} onSignIn={signInAgain}
@@ -496,22 +507,14 @@ export default function AccountsPanel({ onClose, leaving, onReport, onRoster, la
   };
 
   /**
-   * THE POLICY, AS ONE VALUE, because the column now draws it from two places.
+   * THE POLICY, under the roster it is about, fold open or shut.
    *
-   * It lives INSIDE the fold — after the accounts it switches between, revealed
-   * by the same press that reveals them — and the fold is not always there. A
-   * store with one account has nothing to fold, and a policy nobody could reach
-   * would be a setting the product had hidden rather than folded, so in that
-   * case it stands on its own under the roster.
-   *
-   * WHAT PAYS FOR THE MOVE is the tail of the fold row's line: `auto 90%` or
-   * `auto off`, said whether the fold is open or shut. A control behind a
-   * disclosure is a control whose state has to be readable without opening it,
-   * or the disclosure has hidden a fact rather than a form. See restLine.
-   *
-   * What the row says is AutoSwitchPolicy's; the draft it proposes is held
-   * by the panel (use-threshold-draft.ts), so folding the list away does not
-   * drop a pick nobody saved.
+   * It is one row — its name and where it trips, and its switch — so its state
+   * is readable without opening anything, which is what the fold's old
+   * `auto 90%` tail was for. Codex's column draws the same component the same
+   * way. What the row says is AutoSwitchPolicy's; the draft it proposes is held
+   * by the panel (use-threshold-draft.ts), so the popover closing does not drop
+   * a pick nobody saved.
    */
   const policyBlock = data?.ok && auto?.ok ? (
     <AutoSwitchPolicy auto={auto} threshold={threshold} thresholdPick={thresholdPick}
@@ -520,9 +523,9 @@ export default function AccountsPanel({ onClose, leaving, onReport, onRoster, la
       thresholdCustom={thresholdCustom} thresholdRefusal={thresholdRefusal} thresholdFieldRef={thresholdFieldRef}
       proposeThreshold={proposeThreshold} typeThreshold={typeThreshold}
       cancelThreshold={cancelThreshold} leaveThreshold={leaveThreshold} doThreshold={doThreshold}
-      nextPick={nextPick} nextCtl={nextCtl} nextSaved={nextSaved} nextRef={nextRef} nextSaveRef={nextSaveRef}
-      proposeNext={proposeNext} doNext={doNext}
-      pressProps={pressProps} post={post} load={load} blurb={t("accounts.policy.blurb")} />
+      pressProps={pressProps} post={post} settingPost={settingPost}
+      settingFailure={settingFailure} clearSettingFailure={clearSettingFailure}
+      load={load} boundaryId="ap-scroll" hasHome blurb={t("accounts.policy.blurb")} />
   ) : null;
   return (
     // Named for the topbar toggle's aria-controls — see UsagePanel, which also
@@ -656,11 +659,9 @@ export default function AccountsPanel({ onClose, leaving, onReport, onRoster, la
                   held={held != null}
                 />
               )}
-              {/* WHAT THE ROW OPENS, in one box, because that is what it claims
-                  to control. The accounts and the policy over them are revealed
-                  together and named together by `aria-controls`; the list inside
-                  keeps its own id, because the list is the thing that scrolls
-                  and a row's menu closes against it. */}
+              {/* WHAT THE ROW OPENS, in one box named by `aria-controls`; the
+                  list inside keeps its own id, because the list is the thing
+                  that scrolls and a row's menu closes against it. */}
               {rest.length > 0 && restOpen && (
                 <div className="ap-rest-panel" id="ap-rest-panel">
                   <ul className="ap-list ap-others" id="ap-rest-list" {...listHold}>

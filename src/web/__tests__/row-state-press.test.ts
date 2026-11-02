@@ -133,12 +133,10 @@ function beds(theme: Theme) {
 }
 
 const BODY = 4.5;
-// CHANGED ON PURPOSE (V4's Figma): V4 fills the selected row with --selected and
-// draws its plan and second line in --muted. In dark that pair measures 3.95:1,
-// under the 4.5 body floor this suite held the old 2% wash to; the floor on that
-// bed is 3.9 here so the figure is pinned and cannot slip further. Flagged for
-// the owner: V4's own tokens are the cause.
-const SELECTED_FLOOR = 3.9;
+// CHANGED ON PURPOSE (V4's Figma): the selected row's text tiers are painted in
+// --text-secondary by one rule (the plan, the lane label and reset, the footer,
+// the age and the ⋯), because V4's --muted on --selected is 3.95:1 in dark.
+const ACTIVE_INKS = ".ap-account.active :where(.ap-plan, .ap-lane-label, .ap-lane-reset, .ap-meta, .ap-age:not(.ap-stale), .ap-more)";
 
 describe("the wash stopped being asked to be a state channel (#519)", () => {
   // CHANGED ON PURPOSE (V4's Figma): the live row is the selected row, filled with
@@ -157,15 +155,20 @@ describe("the wash stopped being asked to be a state channel (#519)", () => {
     for (const theme of themes) {
       const bed = beds(theme).active;
       for (const sel of tiers) {
-        // `.ap-age` takes its colour from `.ap-meta`, which is the row footer.
-        const raw = declOf(sel, "color") ?? declOf(".ap-meta", "color")!;
+        // The selected row paints every one of them in the one rule below.
+        expect(ACTIVE_INKS, sel).toContain(sel);
+        const raw = declOf(ACTIVE_INKS, "color")!;
         expect(contrastRatio(resolve(raw, theme), bed), `${theme} ${sel} on the active row`)
-          .toBeGreaterThanOrEqual(SELECTED_FLOOR);
+          .toBeGreaterThanOrEqual(BODY);
       }
     }
-    // The muted ink on the --selected bed, both themes.
-    expect(contrastRatio(resolve("var(--muted)", "dark"), beds("dark").active)).toBeGreaterThanOrEqual(SELECTED_FLOOR);
-    expect(contrastRatio(resolve("var(--muted)", "light"), beds("light").active)).toBeGreaterThanOrEqual(BODY);
+    // The one ink the rule paints, on the --selected bed, both themes.
+    for (const theme of themes) {
+      expect(contrastRatio(resolve(declOf(ACTIVE_INKS, "color")!, theme), beds(theme).active), `${theme} secondary ink`).toBeGreaterThanOrEqual(BODY);
+    }
+    // The numbers, so a later tweak that squeaks past 4.5 still has to say so.
+    expect(contrastRatio(resolve(declOf(ACTIVE_INKS, "color")!, "dark"), beds("dark").active)).toBeCloseTo(5.784, 2);
+    expect(contrastRatio(resolve(declOf(ACTIVE_INKS, "color")!, "light"), beds("light").active)).toBeCloseTo(9.995, 2);
   });
 
   it("cannot be turned back into a state channel by raising it", () => {

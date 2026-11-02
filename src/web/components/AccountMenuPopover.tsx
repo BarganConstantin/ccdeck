@@ -17,6 +17,7 @@ import { PRODUCT } from "../brand";
 import { type Account } from "../claude-accounts";
 import { slotChoiceLabel, slotCommit, slotShowing } from "../picker-commit";
 import { shareExpiry } from "../share-bundle";
+import { radioMove } from "../menu-keys";
 import { type useAccountMenu } from "../use-account-menu";
 import { type useRequestSlot } from "../use-request-slot";
 import { useT } from "../i18n";
@@ -228,9 +229,19 @@ export default function AccountMenuPopover({
                 does said beside it — "swap with Home" or "free" — where the
                 native list said it in the option. Still nothing is sent until
                 the button under it is pressed (#516). */}
-            <div className="ap-slot-list" role="radiogroup" aria-labelledby={titleId} id={`ap-slot-${a.num}`}>
+            {/* A radio group keeps its promise: one Tab stop, which is the picked
+                slot, and the arrows walk the others. An arrow only moves focus;
+                the pick is Enter or Space on a slot, and nothing is sent until
+                the button under the list is pressed. */}
+            <div className="ap-slot-list" role="radiogroup" aria-labelledby={titleId} id={`ap-slot-${a.num}`}
+              onKeyDown={e => {
+                const radios = Array.from(e.currentTarget.querySelectorAll<HTMLButtonElement>('[role="radio"]')).filter(b => !b.disabled);
+                const move = radioMove(e, radios.indexOf(document.activeElement as HTMLButtonElement), radios.length);
+                if (move.kind === "focus") { e.preventDefault(); radios[move.index].focus(); }
+              }}>
               {choices.map(c => (
                 <button key={c.slot} type="button" role="radio" aria-checked={c.slot === picked}
+                  tabIndex={c.slot === picked ? 0 : -1}
                   className="ap-slot-row" data-selected={c.slot === picked ? "" : undefined}
                   title={slotChoiceLabel(c, t)}
                   {...pressProps(`move-${a.num}`)}

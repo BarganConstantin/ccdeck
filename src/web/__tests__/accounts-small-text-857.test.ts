@@ -50,7 +50,7 @@ describe("the accounts panel's reading sizes (#857)", () => {
     // CHANGED ON PURPOSE (V4's motion-free text rule: nothing on screen under
     // 11px): the open bar's reset was 10 and is 11, the size of its key.
     expect(px(".ap-lane-reset")).toBe(11);
-    expect(px(".ap-lane-label")).toBeGreaterThanOrEqual(px(".ap-lane-reset"));
+    expect(px(".ap-lane-label")).toBe(11);
   });
 
   it("sets every line under the name, and every control on those lines, at one size, 11px", () => {

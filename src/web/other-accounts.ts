@@ -124,12 +124,12 @@ export function restLine(peers: readonly Peer[], mode: {
   const free = mode.strained && !mode.armed ? bestFree(ready) : null;
   const clauses = [base];
   if (free != null) clauses.push(t("accounts.rest.free", { free }));
-  // THE TAIL IS ALWAYS THE POLICY, and it is here because the control moved
-  // behind this row. A toggle nobody can see is a toggle nobody can tell the
-  // state of, and `off` has to be as sayable as `on`: a row that only spoke
-  // when the policy was armed would leave a reader unable to tell a deck that
-  // will not switch from a row that does not mention switching. The threshold
-  // rides with `on` because it is the whole of what on MEANS here.
+  // THE TAIL IS THE POLICY, said in words: `auto 90%` or `auto off`. The fold's
+  // row prints only the count before it, because the policy has its own row
+  // under the roster, outside the fold, with its switch and its threshold; the
+  // tail stays in the line for a caller that has no such row to read the state
+  // from. `off` is as sayable as `on`, and the threshold rides with `on` because
+  // it is the whole of what on MEANS.
   clauses.push(mode.armed ? (mode.threshold ? t("accounts.rest.autoAt", { pct: mode.threshold }) : t("accounts.rest.autoOn")) : t("accounts.rest.autoOff"));
   return { text: clauses.join(" · "), tone, free };
 }
@@ -158,8 +158,9 @@ export const FOLD_PREVIEW = 2;
  */
 export function foldPreview(peers: readonly Peer[], t: TFunction = tNow): FoldPreviewLine[] {
   const { shown } = foldPeek(peers, t);
-  const ordered = [...peers].sort((a, b) => shown.indexOf(a) - shown.indexOf(b));
-  const named = peers.length <= FOLD_PREVIEW + 1 ? ordered : ordered.slice(0, FOLD_PREVIEW);
+  // `shown` is the peek's order cut at FOLD_NAMES, so past that many others the
+  // accounts it left out are not in it at all: the best-ready two are its head.
+  const named = peers.length <= FOLD_PREVIEW + 1 ? shown : shown.slice(0, FOLD_PREVIEW);
   const lines: FoldPreviewLine[] = named.map(p => ({
     kind: "peer" as const,
     key: p.key,

@@ -36,6 +36,8 @@ const catalog: Catalog = {
   "accounts.empty.copy": "Copy the command",
   "accounts.empty.copied": "Copied",
   "accounts.empty.reason": " ({reason})",
+  "accounts.empty.reasonDenied": "permission denied",
+  "accounts.empty.reasonMissing": "file not found",
   "accounts.empty.unreadable": "Couldn't read the account store",
   "accounts.empty.unreadableHint": "claude-swap is installed, but its store could not be read{reason}.",
   "accounts.issuePop.lastCollected": "last collected {ago}",

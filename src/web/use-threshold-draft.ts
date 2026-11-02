@@ -36,14 +36,15 @@ export function useThresholdDraft({ auto, post, load }: ThresholdDraftDeps) {
   // (#516). A null pick follows whatever the store holds.
   const [draft, edit] = useReducer(editThreshold, NO_DRAFT);
   const [thresholdSaved, setThresholdSaved] = useState(false);
-  // `save` only exists while there is a pick to store, so it leaves the panel
-  // under the reader's focus: the press that stored the pick is the press that
-  // unmounts it. The picker is where focus goes when that happens.
-  const thresholdRef = useRef<HTMLSelectElement>(null);
+  // `save` only exists while there is a pick to store, and `saved` after it, so
+  // it leaves the panel under the reader's focus. The `Custom…` chip is where
+  // focus goes when that happens: it is the control that opened the field, and
+  // it stays in the popover whatever the field does.
+  const thresholdRef = useRef<HTMLButtonElement>(null);
   const thresholdSaveRef = useRef<HTMLButtonElement>(null);
-  // The custom field takes the picker's place, so each is where focus goes
-  // when the other leaves: into the field when `Custom…` is chosen, back to the
-  // picker when the field closes from under the keyboard.
+  // The custom field opens from the chip and closes back to it, so each is
+  // where focus goes when the other leaves: into the field when `Custom…` is
+  // chosen, back to the chip when the field closes from under the keyboard.
   const thresholdFieldRef = useRef<HTMLInputElement>(null);
   const refocusPicker = useRef(false);
 
@@ -91,13 +92,22 @@ export function useThresholdDraft({ auto, post, load }: ThresholdDraftDeps) {
   };
 
   /** A field left with nothing in it to save closes itself — see the `leave`
-   *  edit. */
-  const leaveThreshold = () => edit({ kind: "leave", stored: threshold });
+   *  edit. When the blur is focus going nowhere (the window losing it, a press
+   *  on something that cannot take it) and the field is about to close, the
+   *  chip takes the keyboard, so it never rests on <body>. */
+  const leaveThreshold = (focusLost = false) => {
+    if (focusLost && draft.custom && (draft.pick ?? threshold) === threshold) refocusPicker.current = true;
+    edit({ kind: "leave", stored: threshold });
+  };
 
   /** The slot picker's rule (doSlot, in use-account-menu.ts) for the
    *  threshold: the picker proposes, `save` stores it. Enter in the custom
-   *  field is the same press. */
-  const doThreshold = async (pick: string, commit: PickerCommit) => {
+   *  field is the same press. A chip is a press that stores at once, so a
+   *  chip's pick is a proposal only until the answer: when the store kept its
+   *  value the pick goes back to following it, rather than stay as a draft
+   *  nobody can see that `Custom…` would then open prefilled with. The text
+   *  in the field is the reader's to retry, so it stays. */
+  const doThreshold = async (pick: string, commit: PickerCommit, fromField = false) => {
     const outcome = await commitThreshold(pick, commit, post);
     if (outcome.kind === "refused") {
       edit({ kind: "refuse", message: outcome.message });
@@ -105,19 +115,26 @@ export function useThresholdDraft({ auto, post, load }: ThresholdDraftDeps) {
     }
     if (outcome.kind === "sent") {
       await load(true);
-      if (!outcome.ok) return;
+      if (!outcome.ok) {
+        if (!fromField) edit({ kind: "settle" });
+        return;
+      }
     }
     // Enter in the field is the press that closes it, and a focused field that
     // unmounts drops focus on <body>.
     refocusPicker.current = document.activeElement === thresholdFieldRef.current;
     edit({ kind: "settle" });
+    // A chip says it in the chip itself, which fills; `saved` is the field's.
+    if (!fromField) return;
     setThresholdSaved(true);
     window.setTimeout(() => {
       // `saved` is the last thing the control says before it goes. A focused
-      // button that unmounts drops focus on <body>, so hand it to the picker
+      // button that unmounts drops focus on <body>, so hand it to the chip
       // first — only if it is still there, never out from under a reader who
-      // has moved on.
-      if (document.activeElement === thresholdSaveRef.current) thresholdRef.current?.focus();
+      // has moved on. Focus already on <body> with the popover still open is
+      // the same fall, and the chip is where it goes.
+      const at = document.activeElement;
+      if (at === thresholdSaveRef.current || at === document.body) thresholdRef.current?.focus();
       setThresholdSaved(false);
     }, SAVED_MS);
   };

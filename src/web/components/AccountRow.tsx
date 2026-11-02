@@ -485,6 +485,13 @@ export default function AccountRow({
         <p className="ap-quota" id={`ap-${ids}quota-${a.num}`}>
           {primary
             ? <>
+                {/* The figure in the head is the first window's, and the head is
+                    not what this line is read from: the door is described by
+                    this line, so the figure is said here too, with its window,
+                    for a screen reader ("5h 31%"). */}
+                <span className="vis-hidden">
+                  {laneLabel(primary.label, t)}{" "}{primaryRolled ? t("accounts.row.resetWord") : `${Math.round(primary.pct)}%`}{". "}
+                </span>
                 {primaryReset && <span className="ap-q-reset">{t("accounts.row.resetsIn", { time: primaryReset })}</span>}
                 {quick.slice(1).map(l => (
                   <span key={l.id} className="ap-q" data-sort-key={l.id === keyLane?.id ? "" : undefined}>
@@ -525,6 +532,10 @@ export default function AccountRow({
               : <div className="ap-hint">{voice.waiting ?? t("accounts.row.noUsage")}</div>}
           </div>
           <div className="ap-meta">
+            {/* The address a name stands in for, as text: the head draws one
+                name, and a title is reachable by neither touch nor keyboard.
+                The screen reader has it already, in the door's description. */}
+            {a.alias && a.email && <span className="ap-meta-email" aria-hidden>{a.email}</span>}
             {a.fetchedAt
               ? <span
                   // ONE ATTENTION COLOUR PER ROW, ON THE CAUSE: an

@@ -284,6 +284,13 @@
    held-out state is a word in the head row now, beside where `active` puts its
    own, and nothing on the row is dimmed that a reader could still use. */
 .ap-account.active { background: var(--selected); }
+/* The text on the selected bed is the secondary ink: the muted ink measures
+   3.95:1 on --selected in dark, under the 4.5 a body line is held to. `:where`
+   keeps the specificity low, so the ⋯'s hover and focus inks and the stale
+   age's warning still win. */
+.ap-account.active :where(.ap-plan, .ap-lane-label, .ap-lane-reset, .ap-meta, .ap-age:not(.ap-stale), .ap-more) {
+  color: var(--text-secondary);
+}
 
 /* Line 1 (V4's Figma): 20 high, the mark in a 14 box, then the name, the plan and
    the tag on a 6 gap, and the one figure at the far end. */
@@ -517,6 +524,16 @@
   font-size: calc(11px + var(--ui-text-increase, 0px));
   color: var(--muted);
 }
+/* The address a name stands in for, in the open detail as text: the secondary
+   ink, on its own line when it is too long to share one with the age. */
+.ap-meta-email {
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-secondary);
+}
 .ap-stale { color: var(--warn); }
 .ap-age {
   margin-left: auto;
@@ -545,7 +562,8 @@
   font-variant-numeric: tabular-nums;
 }
 .ap-quota > :is(.ap-q-reset, .ap-q) { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
-.ap-quota > * + :is(.ap-q-reset, .ap-q)::before { content: "·"; margin-right: 6px; }
+/* The dot goes before a part that has a visible part before it: the screen-reader copy of the figure leads the line and is not one. */
+.ap-quota > :not(.vis-hidden) ~ :is(.ap-q-reset, .ap-q)::before { content: "·"; margin-right: 6px; }
 .ap-q { white-space: nowrap; }
 .ap-q-label { color: var(--muted); }
 /* A figure is the muted ink below 70%, the text ink from 70 and the error ink

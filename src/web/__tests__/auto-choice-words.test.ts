@@ -13,12 +13,13 @@ import { type AutoStatus } from "../claude-accounts";
 import { AutoSwitchSettings } from "../components/AutoSwitchPolicy";
 import { nextCommit, thresholdCommit } from "../picker-commit";
 
-/** The policy block as the panel draws it, with Auto-switch on or off and a
- *  next-account pick over what is stored. */
-function policy(enabled: boolean, pick: NextChoice, stored: NextChoice = pick): string {
+/** The policy block as the panel draws it, with Auto-switch on or off and the
+ *  next-account rule the store holds. */
+function policy(enabled: boolean, stored: NextChoice, extra: Record<string, unknown> = {}): string {
   const auto: AutoStatus = {
     ok: true, enabled, external: false, lastTick: null,
     settings: { "autoswitch.threshold": { value: "90", isDefault: true } },
+    choice: { next: stored, home: null },
   };
   return renderToStaticMarkup(createElement(AutoSwitchSettings, {
     titleId: "t",
@@ -26,9 +27,9 @@ function policy(enabled: boolean, pick: NextChoice, stored: NextChoice = pick): 
     thresholdRef: null, thresholdSaveRef: null, thresholdFieldRef: null, thresholdCustom: false, thresholdRefusal: null,
     proposeThreshold: () => {}, typeThreshold: () => {}, cancelThreshold: () => {}, leaveThreshold: () => {},
     doThreshold: () => {},
-    nextPick: pick, nextCtl: nextCommit(pick, stored), nextSaved: false, nextRef: null, nextSaveRef: null,
-    proposeNext: () => {}, doNext: () => {},
-    pressProps: () => ({}), post: async () => null, load: async () => {},
+    pressProps: () => ({}), post: async () => null, settingPost: async () => null,
+    settingFailure: null, clearSettingFailure: () => {}, load: async () => {}, boundaryId: "ap-scroll",
+    ...extra,
   }));
 }
 
@@ -54,18 +55,25 @@ describe("the next-account picker", () => {
     expect(policy(true, "room")).toContain(">Next account</span>");
     expect(policy(false, "room")).toContain(">Next account</span>");
     expect(policy(false, "weekly")).toContain(WEEKLY_HINT);
-    expect(policy(false, "weekly", "room")).toMatch(/role="radiogroup"/);
+    // CHANGED ON PURPOSE: a labelled group of toggle buttons, not a radio group
+    // — the keys a radio group owes (arrows) are not honoured here, so the role
+    // is not claimed.
+    const html = policy(false, "room");
+    expect(html).toMatch(/role="group" aria-labelledby="[^"]*-label"/);
+    expect(html).not.toMatch(/role="radio/);
   });
 
   it("explains the weekly rule on its own option, and says which option is chosen", () => {
     const html = policy(true, "weekly");
     expect(html).toContain(`<span class="ap-auto-option-note">${WEEKLY_HINT}</span>`);
-    expect(html).toMatch(/role="radio" aria-checked="true" class="ap-auto-option" data-selected=""[^>]*>[\s\S]*?Soonest weekly reset/);
-    expect(policy(true, "room")).toMatch(/role="radio" aria-checked="true" class="ap-auto-option" data-selected=""[^>]*>[\s\S]*?Most room left/);
+    expect(html).toMatch(/aria-pressed="true" class="ap-auto-option" data-selected=""[^>]*>[\s\S]*?Soonest weekly reset/);
+    expect(policy(true, "room")).toMatch(/aria-pressed="true" class="ap-auto-option" data-selected=""[^>]*>[\s\S]*?Most room left/);
+    // And only the chosen one is pressed.
+    expect([...html.matchAll(/aria-pressed="true" class="ap-auto-option"/g)]).toHaveLength(1);
   });
 
   it("stores a pick by pressing it, so there is no save button", () => {
-    expect(policy(true, "weekly", "room")).not.toMatch(/>save<\/button>/);
+    expect(policy(true, "weekly")).not.toMatch(/>save<\/button>/);
     expect(policy(true, "room")).not.toMatch(/<select/);
   });
 });

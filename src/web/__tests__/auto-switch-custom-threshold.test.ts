@@ -33,7 +33,7 @@ import {
   checkThreshold, commitThreshold, CUSTOM_HINT, CUSTOM_MAX, CUSTOM_MIN, CUSTOM_PICK, editThreshold, NO_DRAFT,
   type ThresholdDraft,
 } from "../auto-switch-threshold";
-import { nextCommit, thresholdCommit } from "../picker-commit";
+import { thresholdCommit } from "../picker-commit";
 import { type AutoStatus } from "../claude-accounts";
 import { accountsSurface } from "./accounts-surface";
 import { withoutComments } from "./tsx-scan";
@@ -56,9 +56,8 @@ function row(draft: ThresholdDraft, stored: string): string {
     thresholdCustom: draft.custom != null, thresholdRefusal: draft.refusal,
     proposeThreshold: () => {}, typeThreshold: () => {}, cancelThreshold: () => {}, leaveThreshold: () => {},
     doThreshold: () => {},
-    nextPick: "room", nextCtl: nextCommit("room", "room"), nextSaved: false, nextRef: null, nextSaveRef: null,
-    proposeNext: () => {}, doNext: () => {},
-    pressProps: () => ({}), post: async () => null, load: async () => {},
+    pressProps: () => ({}), post: async () => null, settingPost: async () => null,
+    settingFailure: null, clearSettingFailure: () => {}, load: async () => {}, boundaryId: "ap-scroll",
   }));
 }
 
@@ -115,8 +114,9 @@ describe("choosing Custom…", () => {
 
   it("is a form, so Enter is the same press as save", () => {
     const policy = withoutComments(accountsSurface());
-    expect(policy).toMatch(/onSubmit=\{e => \{ e\.preventDefault\(\); doThreshold\(thresholdPick, thresholdCtl\); \}\}/);
-    expect(policy).toMatch(/onClick=\{\(\) => doThreshold\(thresholdPick, thresholdCtl\)\}/);
+    // The field's own presses say so (`true`): a chip's store has no `saved`.
+    expect(policy).toMatch(/onSubmit=\{e => \{ e\.preventDefault\(\); if \(thresholdCustom\) doThreshold\(thresholdPick, thresholdCtl, true\); \}\}/);
+    expect(policy).toMatch(/onClick=\{\(\) => doThreshold\(thresholdPick, thresholdCtl, true\)\}/);
   });
 });
 
@@ -259,8 +259,8 @@ describe("a field losing focus", () => {
     expect(leave(choose(NO_DRAFT, CUSTOM_PICK), "90")).toEqual(NO_DRAFT);
     expect(leave(type(choose(NO_DRAFT, CUSTOM_PICK), "90"), "90")).toEqual(NO_DRAFT);
     const surface = withoutComments(accountsSurface());
-    expect(surface).toMatch(/onBlur=\{\(\) => leaveThreshold\(\)\}/);
-    expect(surface).toMatch(/const leaveThreshold = \(\) => edit\(\{ kind: "leave", stored: threshold \}\);/);
+    expect(surface).toMatch(/onBlur=\{e => leaveThreshold\(e\.relatedTarget == null\)\}/);
+    expect(surface).toMatch(/edit\(\{ kind: "leave", stored: threshold \}\);/);
   });
 
   it("stays while it holds a change, refused or not, the way a picked option does", () => {

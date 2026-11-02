@@ -710,12 +710,12 @@ export default function AddAccountDialog({ onClose, onChanged, email = null, onS
               <div className="aa-step aa-primer">
                 {cancelNote ? <p className="aa-note aa-warn" role="status">{cancelNote}</p> : null}
                 <h4>{email ? richParts(t("accounts.add.againAs", { email })) : t("accounts.add.toAnthropic")}</h4>
-                {/* V4's words: what happens, in one line. The longer account of
-                    it — the code that is pasted back only if the page hands
-                    one over — is the line's title. */}
-                <p className="aa-note" title={t(email ? "accounts.add.primerNoteEmail" : "accounts.add.primerNote")}>
-                  {t(email ? "accounts.add.primerNoteEmail" : "accounts.add.primerShort")}
-                </p>
+                {/* V4's words: what happens, in one line, and under it the
+                    longer account — the code that is pasted back only if the
+                    page hands one over — as text, not as a tooltip. The
+                    re-sign-in note already is that account. */}
+                {!email && <p className="aa-note">{t("accounts.add.primerShort")}</p>}
+                <p className="aa-note">{t(email ? "accounts.add.primerNoteEmail" : "accounts.add.primerNote")}</p>
                 {/* The four stages the progress list goes through after the
                     press, said first. */}
                 <ol className="aa-steps">

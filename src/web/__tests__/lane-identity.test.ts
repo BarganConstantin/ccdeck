@@ -204,11 +204,14 @@ describe("the panel holds the set the way this module says", () => {
     // Whether the reader opened it is read off the set by account, once.
     // Since #1579 the set is a mode and its exceptions, still keyed by laneKey —
     // isOpen and toggleOne in other-accounts-order.ts, pinned there.
-    expect(clientText()).toMatch(/const opened = isOpen\(openness, a\);/);
+    // The live row has a list of its own, keyed the same way ("Expand all" is
+    // the fold's, so it never reaches the live row).
+    expect(clientText()).toMatch(/const opened = a\.active \? liveOpen\.includes\(laneKey\(a\)\) : isOpen\(openness, a\);/);
     // CHANGED ON PURPOSE (V4's Figma): the live row is one shape with the others
     // and opens only when the reader opens it.
     expect(clientText()).toMatch(/const open = opened;/);
     expect(panelCode).toMatch(/setOpenness\((\w+) => toggleOne\(\1, a\)\)/);
+    expect(panelCode).toMatch(/setLiveOpen\((\w+) => toggleLane\(\1, a\)\)/);
     // The two shapes the bug was made of.
     expect(surfaceCode).not.toMatch(/openLanes\.includes\(a\.num\)/);
     expect(surfaceCode).not.toMatch(/\[\.\.\.open, a\.num\]/);
@@ -218,12 +221,14 @@ describe("the panel holds the set the way this module says", () => {
     // Where it has to happen: the load is the only place an account's departure
     // is observable, and doMove cannot see a removal at all.
     expect(panelCode).toMatch(/setOpenness\(open => trimOpenness\(open, fresh\.accounts\)\)/);
+    // The live row's own list is trimmed against the same roster.
+    expect(panelCode).toMatch(/setLiveOpen\(keys => \{/);
   });
 
   it("takes all three from the module rather than re-deriving them", () => {
     // The key from lane-open.ts; the set's rules from other-accounts-order.ts,
     // which reads the key and knownLanes from lane-open.ts in its turn.
-    expect(panelCode).toMatch(/import \{ laneKey \} from "\.\.\/lane-open";/);
+    expect(panelCode).toMatch(/import \{ laneKey, toggleLane \} from "\.\.\/lane-open";/);
     expect(panelCode).toMatch(/allOpen, holdOrder, isOpen, orderChoices, orderKey, sortAccounts, toggleAll, toggleOne, trimOpenness, validOrder,/);
   });
 });

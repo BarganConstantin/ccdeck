@@ -360,7 +360,7 @@ describe("what the column folds, and when it does not", () => {
     // CHANGED ON PURPOSE (V4's Figma): the Auto-switch row is a row of the group,
     // under the roster and its fold, open or shut — it is one 28-high row, and
     // the summary no longer carries its state in a tail ("auto 90%"), so the
-    // row has to be in sight to say it. (The Codex panel keeps it in its fold.)
+    // row has to be in sight to say it. (The Codex panel draws it the same way.)
     expect(panel).not.toMatch(/<div className="ap-rest-panel" id="ap-rest-panel">[\s\S]{0,400}\{policyBlock\}/);
     expect(panel).toMatch(/\n\s*\{policyBlock\}\n/);
     // The refusal did NOT follow it in: one that a collapse could hide is one
@@ -371,7 +371,10 @@ describe("what the column folds, and when it does not", () => {
     const box = /\n\.ap-rest-panel \{([^}]*)\}/.exec(css)?.[1] ?? "";
     expect(box).toMatch(/flex: 0 1 auto/);
     expect(box).toMatch(/min-height: 0/);
-    expect(css).toMatch(/\.ap-rest-panel > \.ap-policy-block \{ flex: none; \}/);
+    // The policy row is a child of the scroll, not of the box, and the scroll
+    // keeps every child of it at its own size.
+    expect(css).toMatch(/\.ap-scroll > \* \{ flex: none; \}/);
+    expect(css).not.toMatch(/\.ap-rest-panel > \.ap-policy-block/);
   });
 
   it("keeps the policy's own spacing and draws no rule of its own", () => {
@@ -407,7 +410,9 @@ describe("what the column folds, and when it does not", () => {
     // A region that scrolls inside itself ends on a row cut in half, and at
     // 288px that reads as a glitch rather than a boundary. The rule exists for
     // exactly as long as there is a list to close.
-    expect(css).toMatch(/\.ap-others \+ \.ap-policy-block \{[^}]*border-top: 1px solid var\(--line-soft\);/);
+    // CHANGED ON PURPOSE: the policy row stands after the open box, not inside it.
+    expect(css).toMatch(/\.ap-rest-panel \+ \.ap-policy-block \{[^}]*border-top: 1px solid var\(--line-soft\);/);
+    expect(css).not.toMatch(/\.ap-others \+ \.ap-policy-block/);
     expect(/\n\.ap-policy-block \{([^}]*)\}/.exec(css)?.[1] ?? "").not.toMatch(/border/);
   });
 

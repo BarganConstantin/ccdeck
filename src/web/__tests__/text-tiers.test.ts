@@ -165,8 +165,12 @@ describe("what was migrated to the secondary tier", () => {
       // words — the sign-in stages, the held-out name, the Auto-switch row's
       // name and its popover's labels and chips, the fold's summary name and
       // preview lines, and the bold in a panel state's sentence.
-      ".aa-steps li", ".ap-account:has(.ap-held) .ap-alias", ".ap-auto-label", ".ap-auto-title", ".ap-chip",
-      ".ap-preview", ".ap-state-text b", ".ap-sum .ap-nav-name",
+      // And the selected row's text tiers and an aliased account's address in
+      // the open detail, for the same tier: the muted ink measures 3.95:1 on
+      // the selected bed in dark, and the address is read, not glanced at.
+      ".aa-steps li", ".ap-account.active :where(.ap-plan, .ap-lane-label, .ap-lane-reset, .ap-meta, .ap-age:not(.ap-stale), .ap-more)",
+      ".ap-account:has(.ap-held) .ap-alias", ".ap-auto-label", ".ap-auto-title", ".ap-chip",
+      ".ap-meta-email", ".ap-preview", ".ap-state-text b", ".ap-sum .ap-nav-name",
       // V4's Agent / Card sets its task line (the session's name or title, or a
       // subagent's kind and folder) in this tier, and its foot — cost · time …
       // and the sub-agent count — in the same ink as mono figures. The foot is

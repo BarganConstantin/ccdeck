@@ -228,6 +228,12 @@
   .uh-range-btn[aria-pressed="true"],
   .react-flow__controls-button[aria-pressed="true"],
   .aa-tab.on { forced-color-adjust: none; border-color: Highlight; background: Highlight; color: HighlightText; }
+  /* The picked threshold chip, the picked next-account option and the picked
+     Move slot are a tinted background alone, which a Contrast theme repaints
+     as Canvas: the pick keeps a ring. */
+  .ap-chip[aria-pressed="true"] { outline: 2px solid Highlight; outline-offset: -2px; border-color: Highlight; }
+  .ap-auto-option[data-selected] { outline: 2px solid Highlight; outline-offset: -2px; }
+  .ap-slot-row[data-selected] { outline: 2px solid Highlight; outline-offset: -2px; }
   @media (hover: hover) and (pointer: fine) {
   .uh-range-btn[aria-pressed="true"]:hover,
   .react-flow__controls-button[aria-pressed="true"]:hover { forced-color-adjust: none; border-color: Highlight; background: Highlight; color: HighlightText; }

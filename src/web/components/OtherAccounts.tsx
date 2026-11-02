@@ -179,9 +179,8 @@ export default function OtherAccounts({
     <div className="ap-rest">
       <button type="button" id={`ap-${idPrefix}rest-entry`} className="ap-nav ap-sum"
         aria-expanded={open}
-        // THE WHOLE BOX, not the list inside it. The press reveals the accounts
-        // AND the policy over them; naming only the list would tell a screen
-        // reader that half of what appeared is not what this row controls.
+        // THE WHOLE BOX, not the list inside it: the list's own id is the one
+        // its rows' menus close against.
         aria-controls={open ? `ap-${idPrefix}rest-panel` : undefined}
         // Described by the card while the card is there, so a screen reader on
         // this row is read the same names a pointer is shown.

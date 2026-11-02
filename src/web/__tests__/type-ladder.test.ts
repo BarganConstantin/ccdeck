@@ -583,7 +583,7 @@ describe("the accounts lane reads its name before its footnote (#379 §1)", () =
     expect(decl(".ap-lane-reset", "color")).toBe("var(--text-dim)");
     // And the size step under it: the name is no smaller. CHANGED ON PURPOSE
     // (nothing on screen under 11px): the reset moved up to the key's 11.
-    expect(parseFloat(decl(".ap-lane-label", "font-size")!))
-      .toBeGreaterThanOrEqual(parseFloat(decl(".ap-lane-reset", "font-size")!));
+    expect(parseFloat(decl(".ap-lane-label", "font-size")!)).toBe(11);
+    expect(parseFloat(decl(".ap-lane-reset", "font-size")!)).toBe(11);
   });
 });

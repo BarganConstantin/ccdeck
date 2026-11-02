@@ -289,21 +289,22 @@
    rule, which is why the block can hold a list of any length without becoming
    a card. */
 .ap-policy-block { padding: 0 4px 8px; }
-.ap-others + .ap-policy-block {
+/* ONE HAIRLINE, AND ONLY WHILE THE LIST IS OPEN: the policy row stands right
+   after the open fold, so the rule is on the row that follows it. */
+.ap-rest-panel + .ap-policy-block {
   margin-top: 8px;
   padding-top: 10px;
   border-top: 1px solid var(--line-soft);
 }
-/* WHAT THE FOLD OPENS: the accounts, and the policy over them. It is the flex
-   line that gives, so the list inside it can take the room that is left and
-   scroll; the policy under the list never does. */
+/* WHAT THE FOLD OPENS: the accounts. It is the flex line that gives, so the
+   list inside it can take the room that is left and scroll; the policy row
+   under it never does (`.ap-scroll > *` keeps every other child at its size). */
 .ap-rest-panel {
   display: flex;
   flex-direction: column;
   flex: 0 1 auto;
   min-height: 0;
 }
-.ap-rest-panel > .ap-policy-block { flex: none; }
 /* THE FOLD OPENS (V4's motion spec, Row expand): the list grows in height and
    fades in, on Base, and reduced motion jumps. Backwards only, so the open
    list is the layout's own once it has arrived. */

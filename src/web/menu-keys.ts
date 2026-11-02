@@ -52,3 +52,17 @@ export function menuMove(e: MenuKey, current: number, count: number): MenuMove {
       return { kind: "pass" };
   }
 }
+
+/**
+ * Where an arrow lands in a radio group, from the one at `current`.
+ *
+ * A radio group owes the keys a menu does, and Right and Left too: a group has
+ * no axis of its own, so Right is Down and Left is Up. Moving focus is all an
+ * arrow does. The pick is the press (Enter or Space on the focused radio), so
+ * an arrow never writes anything; the group has one Tab stop, which is the
+ * picked radio, and the arrows walk the rest.
+ */
+export function radioMove(e: MenuKey, current: number, count: number): MenuMove {
+  const key = e.key === "ArrowRight" ? "ArrowDown" : e.key === "ArrowLeft" ? "ArrowUp" : e.key;
+  return menuMove({ ...e, key }, current, count);
+}
