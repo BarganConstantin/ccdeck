@@ -10,24 +10,26 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { homeTitle, isHome, isNextChoice, type NextChoice, NEXT_OPTIONS, WEEKLY_HINT } from "../auto-choice";
 import { type AutoStatus } from "../claude-accounts";
-import AutoSwitchPolicy from "../components/AutoSwitchPolicy";
+import { AutoSwitchSettings } from "../components/AutoSwitchPolicy";
 import { nextCommit, thresholdCommit } from "../picker-commit";
 
-/** The policy block as the panel draws it, with Auto-switch on or off and a
- *  next-account pick over what is stored. */
-function policy(enabled: boolean, pick: NextChoice, stored: NextChoice = pick): string {
+/** The policy block as the panel draws it, with Auto-switch on or off and the
+ *  next-account rule the store holds. */
+function policy(enabled: boolean, stored: NextChoice, extra: Record<string, unknown> = {}): string {
   const auto: AutoStatus = {
     ok: true, enabled, external: false, lastTick: null,
     settings: { "autoswitch.threshold": { value: "90", isDefault: true } },
+    choice: { next: stored, home: null },
   };
-  return renderToStaticMarkup(createElement(AutoSwitchPolicy, {
+  return renderToStaticMarkup(createElement(AutoSwitchSettings, {
+    titleId: "t",
     auto, threshold: "90", thresholdPick: "90", thresholdCtl: thresholdCommit("90", "90"), thresholdSaved: false,
     thresholdRef: null, thresholdSaveRef: null, thresholdFieldRef: null, thresholdCustom: false, thresholdRefusal: null,
     proposeThreshold: () => {}, typeThreshold: () => {}, cancelThreshold: () => {}, leaveThreshold: () => {},
     doThreshold: () => {},
-    nextPick: pick, nextCtl: nextCommit(pick, stored), nextSaved: false, nextRef: null, nextSaveRef: null,
-    proposeNext: () => {}, doNext: () => {},
-    pressProps: () => ({}), post: async () => null, load: async () => {},
+    pressProps: () => ({}), post: async () => null, settingPost: async () => null,
+    settingFailure: null, clearSettingFailure: () => {}, load: async () => {}, boundaryId: "ap-scroll",
+    ...extra,
   }));
 }
 
@@ -46,24 +48,33 @@ describe("the next-account picker", () => {
     expect(nextCommit("weekly", "room").title).toMatch(/weekly limit resets soonest/);
   });
 
-  it("is a row with Auto-switch on or off, so it is set up before it is turned on", () => {
-    expect(policy(true, "room")).toContain(">Next account</label>");
-    expect(policy(false, "room")).toContain(">Next account</label>");
+  // CHANGED ON PURPOSE (V4's Figma): the policy's settings are a popover from the
+  // Auto-switch row — "Switch at" as chips and "Next account" as two options,
+  // each stored by its own press, so the save step and the select are gone.
+  it("is a group with Auto-switch on or off, so it is set up before it is turned on", () => {
+    expect(policy(true, "room")).toContain(">Next account</span>");
+    expect(policy(false, "room")).toContain(">Next account</span>");
     expect(policy(false, "weekly")).toContain(WEEKLY_HINT);
-    expect(policy(false, "weekly", "room")).toMatch(/<div class="ap-policy ap-setting ap-next">[\s\S]*?<button[^>]*>save<\/button>/);
+    // CHANGED ON PURPOSE: a labelled group of toggle buttons, not a radio group
+    // — the keys a radio group owes (arrows) are not honoured here, so the role
+    // is not claimed.
+    const html = policy(false, "room");
+    expect(html).toMatch(/role="group" aria-labelledby="[^"]*-label"/);
+    expect(html).not.toMatch(/role="radio/);
   });
 
-  it("explains the weekly rule in one line under it, and only that rule", () => {
-    expect(policy(true, "room")).not.toContain(WEEKLY_HINT);
+  it("explains the weekly rule on its own option, and says which option is chosen", () => {
     const html = policy(true, "weekly");
-    const hint = new RegExp(`<p id="([^"]+)" class="ap-threshold-note">${WEEKLY_HINT}</p>`).exec(html);
-    expect(hint, html).not.toBeNull();
-    expect(html).toContain(`aria-describedby="${hint![1]}"`);
+    expect(html).toContain(`<span class="ap-auto-option-note">${WEEKLY_HINT}</span>`);
+    expect(html).toMatch(/aria-pressed="true" class="ap-auto-option" data-selected=""[^>]*>[\s\S]*?Soonest weekly reset/);
+    expect(policy(true, "room")).toMatch(/aria-pressed="true" class="ap-auto-option" data-selected=""[^>]*>[\s\S]*?Most room left/);
+    // And only the chosen one is pressed.
+    expect([...html.matchAll(/aria-pressed="true" class="ap-auto-option"/g)]).toHaveLength(1);
   });
 
-  it("offers save only for a pick nobody stored yet", () => {
-    expect(policy(true, "room")).not.toMatch(/ap-next[\s\S]*?<button/);
-    expect(policy(true, "weekly", "room")).toMatch(/<div class="ap-policy ap-setting ap-next">[\s\S]*?<button[^>]*>save<\/button>/);
+  it("stores a pick by pressing it, so there is no save button", () => {
+    expect(policy(true, "weekly")).not.toMatch(/>save<\/button>/);
+    expect(policy(true, "room")).not.toMatch(/<select/);
   });
 });
 

@@ -198,7 +198,9 @@ describe("the distance a panel prints its content at", () => {
    *  usage panel's five were already right and are here as the standard the
    *  other two are being held to, not because they changed. */
   const EDGES: Array<[string, "padding" | "margin"]> = [
-    [".ap-header", "padding"],
+    // CHANGED ON PURPOSE (V4's Figma): the accounts header left this list with
+    // the rail's — it is Figma's pane header (12 left, 4 right beside its
+    // buttons), held to the rows below it by section 2, not to the panel inset.
     [".ap-empty", "padding"],
     [".ap-foot", "padding"],
     [".ap-lan", "padding"],
@@ -224,10 +226,12 @@ describe("the distance a panel prints its content at", () => {
     // The row is inset from the column so the tone it takes under the pointer
     // keeps a margin, and pads the rest — the way a session row reaches its
     // inset through the gutter, the edge and the padding.
-    const inset = px(TOKENS["--panel-inset"]);
+    // CHANGED ON PURPOSE (V4's Figma): the row's content edge is 12 on both
+    // sides (the list's 4 and the row's 8), the same 12 the pane header
+    // starts on, where it was the 14 of the panel inset.
     const [listL, listR] = horizontal(".ap-list", "padding");
     const [rowL, rowR] = horizontal(".ap-account", "padding");
-    expect([listL + rowL, listR + rowR]).toEqual([inset, inset]);
+    expect([listL + rowL, listR + rowR]).toEqual([12, 12]);
     expect(listL).toBeGreaterThan(0);
   });
 
@@ -264,8 +268,12 @@ describe("a panel header against the rows it heads", () => {
     // declaration, and the odd one out was the right, 2px inside every row.
     const [listL, listR] = horizontal(".ap-list", "padding");
     const [rowL, rowR] = horizontal(".ap-account", "padding");
-    expect(horizontal(".ap-header", "padding")).toEqual([listL + rowL, listR + rowR]);
-    expect(horizontal(".ap-header", "padding")).toEqual(horizontal(".ap-foot", "padding"));
+    // CHANGED ON PURPOSE (V4's Figma): the header's title starts where the rows'
+    // content does; its right side ends in buttons, 4px from the edge, and is
+    // not held to the rows (as the session list's is not).
+    expect(horizontal(".ap-header", "padding")[0]).toEqual(listL + rowL);
+    expect(listR + rowR).toBe(12);
+    void listR;
   });
 
   it("starts where they do, in the session list", () => {

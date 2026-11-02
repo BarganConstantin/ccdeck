@@ -1020,7 +1020,8 @@ function Inner() {
             <AccountsPanel leaving={isLeaving(accountsPanelOpen, accountsPhase)} onReport={dialogs.openFeedback}
               onRoster={attention.observe} onClose={closeAccounts}
               lanWanted={lanWanted} onLanShown={lanShown} switcher={accountsSwitch}
-              side={sideState("claude")} onNotice={accountSide.noteClaude} />
+              side={sideState("claude")} onNotice={accountSide.noteClaude}
+              planLabel={meterQuota.reading?.planLabel ?? null} />
           )}
           {accountsDrawn && (shownAccountProvider === "codex" || accountSide.bothMounted) && (
             <CodexAccountsPanel leaving={isLeaving(accountsPanelOpen, accountsPhase)}

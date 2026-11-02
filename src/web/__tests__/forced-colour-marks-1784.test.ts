@@ -129,8 +129,17 @@ describe("the session summary's cost legend under a Contrast theme (#1784)", () 
 });
 
 describe("the Accounts panel's live account under a Contrast theme (#1784)", () => {
-  it("draws its dot in the highlight, as every other live mark is", () => {
-    expect(opts(".ap-live::before")).toBe(true);
-    expect(background(".ap-live::before")).toBe("Highlight");
+  // CHANGED ON PURPOSE (V4's Figma): the mark is the kit's done glyph, a stroke,
+  // so the highlight is its colour and not a fill.
+  it("draws its mark in the highlight, as every other live mark is", () => {
+    expect(opts(".ap-live")).toBe(true);
+    expect(bodyOf(".ap-live")).toMatch(/color:\s*Highlight/);
+  });
+
+  it("rings the picked threshold chip, next-account option and Move slot", () => {
+    // Each is a tinted background alone, and a Contrast theme repaints it.
+    for (const sel of ['.ap-chip[aria-pressed="true"]', ".ap-auto-option[data-selected]", ".ap-slot-row[data-selected]"]) {
+      expect(bodyOf(sel), sel).toMatch(/outline:\s*2px solid Highlight/);
+    }
   });
 });

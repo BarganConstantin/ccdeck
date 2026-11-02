@@ -21,6 +21,7 @@ import { commandOutput, explainCommandFailure } from "./admin-failure";
 import { expiredSwitch } from "./expired-switch";
 import { type Failure } from "./accounts-reload";
 import { type AccountsData } from "./claude-accounts";
+import { type Say } from "./use-setting-post";
 import { t as tNow } from "./i18n";
 
 export interface AccountSwitchingDeps {
@@ -51,10 +52,11 @@ export function useAccountSwitching({
 
   /** Every auto-switch control is one POST; they all reload afterwards. The
    *  refusal is said where the press was: at the foot of the column for the
-   *  policy row, and inside the ⋯ menu for an account held out or put back. */
-  const post = useCallback(async (body: Record<string, unknown>, tag: string, where: "panel" | "menu" = "panel") => {
+   *  policy row, inside the ⋯ menu for an account held out or put back, and in
+   *  the Auto-switch popover for what is pressed in it (use-setting-post.ts). */
+  const post = useCallback(async (body: Record<string, unknown>, tag: string, where: "panel" | "menu" | Say = "panel") => {
     if (!claim(tag)) return null;
-    const say = where === "menu" ? sayInMenu : sayFailure;
+    const say = typeof where === "function" ? where : where === "menu" ? sayInMenu : sayFailure;
     say(null);
     try {
       const res = await fetch("/api/cswap-auto", {

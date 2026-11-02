@@ -25,7 +25,9 @@ const body = (selector: string) =>
 
 describe("the left column moves, and what is in it does not resize (#866)", () => {
   it("keeps each panel at its own width, with no width animation of its own", () => {
-    expect(body(".accounts-panel")).toMatch(/width:\s*288px/);
+    // CHANGED ON PURPOSE (V4's Figma): the accounts panel is drawn at the rail's
+    // width too, 264 at Compact and 288 at Default.
+    expect(body(".accounts-panel")).toMatch(/width:\s*calc\(var\(--rail-w\)/);
     // The rail's own width is V4's --rail-w (288 at Default, 264 at Compact).
     expect(body(".session-list")).toMatch(/width:\s*calc\(var\(--rail-w\)/);
     for (const sel of [".accounts-panel", ".session-list"]) expect(body(sel), sel).not.toMatch(/\b(animation|transition)\s*:/);
