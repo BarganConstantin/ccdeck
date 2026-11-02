@@ -180,12 +180,13 @@ describe("V4's Tooltip", () => {
   it("is one 24-high line: --r-ctl corners, --panel, a 1px --line edge, 4 8 to its outer edge, --shadow-overlay", () => {
     expect(decl(".hint", "border-radius")).toBe("var(--r-ctl)");
     expect(decl(".hint", "background")).toBe("var(--panel)");
-    expect(decl(".hint", "border")).toBe("1px solid var(--line)");
-    // V4's 4 8 counts its stroke, drawn inside: 3 7 plus the 1px edge, so a
-    // line of 16 makes 24, with or without a key.
-    expect(decl(".hint", "padding")).toBe("3px 7px");
+    // V4's 4 8 counts its stroke, drawn inside: the 1px --line edge is an inset
+    // shadow over the padding, so a line of 16 makes 24, with or without a key,
+    // and the padding is a step on the spacing ladder.
+    expect(decl(".hint", "border")).toBe("0");
+    expect(decl(".hint", "padding")).toBe("4px 8px");
     expect(decl(".hint:has(.hint-key)", "padding-right")).toBeUndefined();
-    expect(decl(".hint", "box-shadow")).toBe("var(--shadow-overlay)");
+    expect(decl(".hint", "box-shadow")).toBe("inset 0 0 0 1px var(--line), var(--shadow-overlay)");
     expect(decl(".hint", "line-height")).toMatch(/^calc\(16px/);
     expect(decl(".hint-head", "gap")).toBe("6px");
     expect(decl(".hint-right .hint-label", "white-space")).toBe("nowrap");

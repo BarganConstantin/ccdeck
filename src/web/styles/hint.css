@@ -14,13 +14,14 @@
   gap: 4px;
   max-width: 280px;
   box-sizing: border-box;
-  /* Figma's 4 8 is to the outer edge, its stroke drawn inside: 3 7 inside the
-     1px edge, so a one-line hint is 24 tall and its label starts 8 in. */
-  padding: 3px 7px;
-  border: 1px solid var(--line);
+  /* Figma's 4 8 is to the outer edge, its stroke drawn inside: the 1px edge is
+     an inset shadow over the padding, so a one-line hint is 24 tall, its label
+     starts 8 in, and the padding stays on the spacing ladder. */
+  padding: 4px 8px;
+  border: 0;
   border-radius: var(--r-ctl);
   background: var(--panel);
-  box-shadow: var(--shadow-overlay);
+  box-shadow: inset 0 0 0 1px var(--line), var(--shadow-overlay);
   color: var(--text);
   font-size: calc(12px + var(--ui-text-increase, 0px));
   line-height: calc(16px + var(--ui-text-increase, 0px));
