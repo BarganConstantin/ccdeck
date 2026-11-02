@@ -43,7 +43,7 @@ describe("the panel readouts move by transform (#863)", () => {
   }
 
   it("sets the fills' readings as a scale, not a width", () => {
-    expect(quotaBar).toMatch(/className="qb-fill" style=\{\{ transform: `scaleX\(\$\{fillW \/ 100\}\)`/);
+    expect(quotaBar).toMatch(/className="qb-fill" data-jump=\{jump \|\| undefined\} style=\{\{ transform: `scaleX\(\$\{fillW \/ 100\}\)`/);
     expect(ctx).toMatch(/className="ctx-window-fill" style=\{\{ transform: `scaleX\(/);
     expect(usageSurface()).not.toMatch(/className="qb-fill" style=\{\{ width:/);
     expect(ctx).not.toMatch(/className="ctx-window-fill" style=\{\{ width:/);

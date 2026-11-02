@@ -402,7 +402,10 @@ function surfaces(theme: Theme): Record<string, Rgba> {
   const panel = parseColor(TOK[theme]["--panel"]);
   const bg = parseColor(TOK[theme]["--bg"]);
   const bannerTint = resolve(colourIn(decl(".ver-banner", "background")!), theme);
-  const activeTint = resolve(colourIn(decl(".ap-account.active", "background")!), theme);
+  // CHANGED ON PURPOSE (V4's Figma): the selected row's fill is the --selected
+  // token, which is the text ink at 8% over the panel.
+  expect(decl(".ap-account.active", "background")).toBe("var(--selected)");
+  const activeTint = resolve("color-mix(in srgb, var(--text) 8%, transparent)", theme);
   return {
     "--panel": panel,
     "--bg-soft": parseColor(TOK[theme]["--bg-soft"]),
@@ -767,8 +770,9 @@ const CONTROLS: Control[] = [
     fillFrom: "button.btn",
     states: [".fb-foot .btn.danger:not(.armed):focus-visible"], beds: ["--panel"] },
   { at: ".ap-fix", states: [".ap-fix:hover"], beds: ["--panel"] },
-  // add-account dialog
-  { at: ".aa-tab", states: [".aa-tab.on"], beds: ["--panel"] },
+  // add-account dialog. CHANGED ON PURPOSE (V4's Figma): the two tabs are the
+  // segments of one control and draw no edge of their own — the chosen one is
+  // the panel fill on the --bg-soft box.
   { at: ".aa-link", states: [".aa-link:hover"], beds: ["--panel"] },
   { at: ".aa-field input", beds: ["--panel"] },
   // The escape hatch on an import result row — a pill whose border is the
@@ -1311,6 +1315,10 @@ describe("every control that draws a boundary draws one that can be seen (1.4.11
       // identification 1.4.11 accepts in place of a boundary, and the showing
       // state is also filled with --accent-16.
       ".cat-filter", ".cat-filter.off",
+      // CHANGED ON PURPOSE (V4's Figma): the Auto-switch chips are the same
+      // pills — a --line rim at rest, and the chosen one filled with
+      // --accent-16 and edged in --accent — each named by its own word.
+      ".ap-chip", '.ap-chip[aria-pressed="true"]',
       ".settings-filter-field:focus-visible", ".sm-select:focus-visible", ".ap-manage-input:focus-visible",
       ".aa-field input:focus-visible", ".tr-input:focus-visible", ".tr-select:focus-visible",
       ".qh-window select:focus-visible", ".jr-move-pop select:focus-visible", ".jr-transition select:focus-visible",

@@ -86,6 +86,32 @@
     transform var(--side-exit) var(--ease-stage);
 }
 
+/* THE ACCOUNTS PANEL'S OWN MOTION (V4's motion spec for a side panel). Open: the
+   column grows on Move while the panel travels the last 12px with it, and its
+   opacity follows 180ms after a 40ms delay, all on the stage curve — it begins
+   invisible, so the column opens before the panel is seen. Close: the panel's
+   opacity goes in 120ms, the column in the 200 it takes, the panel 12px back.
+   (The rail keeps its own: it travels its whole width.) */
+.left-column > .accounts-panel {
+  transition:
+    transform var(--dur-move) var(--ease-stage),
+    opacity var(--accounts-fade-in) var(--ease-stage) var(--delay-step);
+}
+@starting-style {
+  .left-column > .accounts-panel:only-child { transform: translateX(-12px); opacity: 0; }
+}
+.left-column > .accounts-panel.leaving {
+  transition:
+    opacity var(--dur-fast) var(--ease),
+    transform var(--dur-move) var(--ease-stage);
+}
+.left-column.closing > .accounts-panel.leaving {
+  transform: translateX(-12px);
+  transition:
+    opacity var(--dur-fast) var(--ease-stage),
+    transform var(--side-exit) var(--ease-stage);
+}
+
 /* REDUCED MOTION: the column is at its new width on the first frame and does
    not travel. The panel leaving is gone at once, and the one arriving
    dissolves in where it stands — opacity only, which moves nothing. Never a
@@ -96,8 +122,13 @@
   .left-column > .accounts-panel { transition: opacity 140ms ease; }
   .left-column > .leaving,
   .left-column.closing > .leaving { transform: none; transition: none; }
+  /* The accounts panel closes on the same 140ms crossfade it opens on, with no
+     travel. */
+  .left-column > .accounts-panel.leaving { transform: none; transition: none; }
+  .left-column.closing > .accounts-panel.leaving { transform: none; transition: opacity 140ms ease; }
   @starting-style {
     .left-column > :only-child { opacity: 0; }
+    .left-column > .accounts-panel:only-child { transform: none; opacity: 0; }
   }
 }
 

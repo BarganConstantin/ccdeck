@@ -209,10 +209,17 @@ describe("the row renders the windows, and the panel reads the same function", (
     // since #1579, which is other-accounts-order.ts's and accounts-prefs.ts's.
     expect(panelCode).toMatch(/useState<Openness>\(loadOpenness\)/);
     // Whether the reader opened it is read off the set by account, once.
-    expect(clientText()).toMatch(/const opened = isOpen\(openness, a\);/);
-    expect(clientText()).toMatch(/const open = a\.active \|\| opened;/);
+    // The live row is read off its own list, which "Expand all" (a mode of
+    // that set, for the accounts behind the fold) never touches, as it never
+    // reached the live row when that row was open by what it is.
+    expect(clientText()).toMatch(/const opened = a\.active \? liveOpen\.includes\(laneKey\(a\)\) : isOpen\(openness, a\);/);
+    expect(clientText()).toMatch(/a\.active \? setLiveOpen\(o => toggleLane\(o, a\)\) : setOpenness\(o => toggleOne\(o, a\)\)/);
+    // CHANGED ON PURPOSE (V4's Figma): the live row is one shape with the others
+    // and opens only when the reader opens it.
+    expect(clientText()).toMatch(/const open = opened;/);
     // The live row has nothing folded, so it has no door.
-    expect(clientText()).toMatch(/\{!a\.active && \(\s*<button type="button" className="ap-row-open"/);
+    // CHANGED ON PURPOSE (V4's Figma): every row, the live one too, has the door.
+    expect(clientText()).toMatch(/<button type="button" className="ap-row-open"/);
   });
 
   it("points the door at the detail only while the detail exists", () => {

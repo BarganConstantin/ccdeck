@@ -14,7 +14,8 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useT } from "../i18n";
 import { createPortal } from "react-dom";
-import { type Peer, foldPeek, restLine } from "../other-accounts";
+import { type Peer, foldPeek, foldPreview, restLine } from "../other-accounts";
+import { KitIcon } from "./kit-icons";
 import { SLOT_ORDER, type OrderChoice } from "../other-accounts-order";
 import { placeBeside } from "../popover-place";
 import { PEEK_DELAY_MS, PEEK_GRACE_MS } from "./LanSyncSection";
@@ -169,13 +170,17 @@ export default function OtherAccounts({
   // rows underneath say it per account, and a summary repeating one of them
   // makes a reader check whether the two are counting the same thing.
   const line = restLine(peers, { strained: strained && !open, armed, threshold }, t);
+  // V4's Figma says only how many are ready ("6 of 9 ready"); where auto-switch
+  // trips is the Auto-switch row's, and the one alarm the line has — nowhere to
+  // go — stays in the line.
+  const summary = line.tone === "bad" ? line.text : line.text.split(" · ")[0];
+  const previews = open ? [] : foldPreview(peers, t);
   return (
     <div className="ap-rest">
-      <button type="button" id={`ap-${idPrefix}rest-entry`} className="ap-nav"
+      <button type="button" id={`ap-${idPrefix}rest-entry`} className="ap-nav ap-sum"
         aria-expanded={open}
-        // THE WHOLE BOX, not the list inside it. The press reveals the accounts
-        // AND the policy over them; naming only the list would tell a screen
-        // reader that half of what appeared is not what this row controls.
+        // THE WHOLE BOX, not the list inside it: the list's own id is the one
+        // its rows' menus close against.
         aria-controls={open ? `ap-${idPrefix}rest-panel` : undefined}
         // Described by the card while the card is there, so a screen reader on
         // this row is read the same names a pointer is shown.
@@ -201,15 +206,22 @@ export default function OtherAccounts({
             where `Claude accounts` above and `Auto-switch` below already start.
             Those three left edges are the column's spine, and a 23px indent on
             the middle one was the loudest thing in the block. */}
+        <KitIcon name="chevron-right" className="ap-nav-chev" />
         <span className="ap-nav-text">
           <span className="ap-nav-name">{t("accounts.other.title")}</span>
-          <span className="ap-nav-state" data-tone={line.tone}>{line.text}</span>
+          <span className="ap-nav-state" data-tone={line.tone}>{summary}</span>
         </span>
-        <svg className="ap-nav-chev" width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor"
-          strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-          <path d="M5.6 3.4 9.2 7l-3.6 3.6" />
-        </svg>
       </button>
+      {/* WHO IS BEHIND THE FOLD, in three lines while it is shut (V4's Figma):
+          the two with the most room and the count of the rest. The fold opens
+          from the summary above; these are not controls. */}
+      {previews.length > 0 && (
+        <div className="ap-previews">
+          {previews.map(p => p.kind === "more"
+            ? <p key="more" className="ap-preview ap-preview-more">{p.text}</p>
+            : <p key={p.key} className="ap-preview"><span className="ap-preview-name" title={p.name}>{p.name}</span><span className="ap-preview-state">{p.state}</span></p>)}
+        </div>
+      )}
       {peek && <FoldPeek anchorId={`ap-${idPrefix}rest-entry`} id={`ap-${idPrefix}rest-peek`} peers={peers}
         onHold={holdPeek} onLet={shutPeek} />}
       {open && <RestTools order={order} choices={choices} onOrder={onOrder}

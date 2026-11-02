@@ -63,9 +63,15 @@ function memo<T>(make: () => T, deps: Deps): T {
   return s.value;
 }
 
+let nextId = 1;
+
 export const react = {
   useRef<T>(init: T) {
     return slot(() => ({ current: init }));
+  },
+  /** A stable id per call site, like React's `:r1:`. */
+  useId() {
+    return slot(() => `:r${nextId++}:`);
   },
   useState<T>(init: T | (() => T)) {
     const inst = current;
