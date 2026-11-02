@@ -18,8 +18,12 @@ const rule = (sel: string) => {
 describe("the integrations' loading rows", () => {
   it("tells a screen reader what is being read, once, and hides the bars from it", () => {
     const html = renderToStaticMarkup(createElement(IntegrationSkeleton, { label: "Reading the board", rows: 3 }));
+    // CHANGED ON PURPOSE (V4's Figma): each row is a dot and two bones, so a row carries one bone
+    // element beside its two pseudo-elements; the lines variant is unchanged.
     expect(html).toBe('<div class="ig-skeleton" data-variant="rows" role="status"><span class="vis-hidden">Reading the board</span>'
-      + '<i aria-hidden="true"></i><i aria-hidden="true"></i><i aria-hidden="true"></i></div>');
+      + '<i aria-hidden="true"><b></b></i><i aria-hidden="true"><b></b></i><i aria-hidden="true"><b></b></i></div>');
+    const lines = renderToStaticMarkup(createElement(IntegrationSkeleton, { label: "Reading", rows: 2, variant: "lines" }));
+    expect(lines).toContain('<i aria-hidden="true"></i><i aria-hidden="true"></i>');
   });
 
   it("stays out of sight for 300 ms, then fades in", () => {

@@ -535,6 +535,11 @@ interface Control {
 }
 
 const CONTROLS: Control[] = [
+  // CHANGED ON PURPOSE (V4's Figma): the integrations' tabs, detail tabs and the New session chips
+  // are outlined pills on the kit chip's --ctl-edge, swept here like any other control edge.
+  { at: ".fg-tabs .uh-range-btn", states: ['.fg-tabs .uh-range-btn[aria-selected="true"]'], beds: ["--panel"] },
+  { at: ".fd-sections .uh-range-btn", states: ['.fd-sections .uh-range-btn[aria-selected="true"]'], beds: ["--panel"] },
+  { at: '.ns-form .uh-range-btn[aria-pressed="false"]', fillFrom: '.ns-form .uh-range-btn[aria-pressed="false"]', states: ['.ns-form .uh-range-btn[aria-pressed="false"]:hover'], beds: ["--panel"] },
   { at: ".qh-provider", states: [".qh-provider:hover"], beds: ["--panel"] },
   { at: '.qh-provider[aria-pressed="true"]', beds: ["--panel"] },
   { at: ".qh-window select", beds: ["--panel"] },
@@ -975,7 +980,9 @@ describe("what counts as an edge, which BORDER_PROPS decides (#655)", () => {
     // the row around it.
     // Jira Move adds a select boundary and the full-row keyboard perimeter;
     // both are swept at the unchanged 3:1 floor, not exempted.
-    expect(EDGED_CONTROLS.length).toBeLessThan(166);
+    // CHANGED ON PURPOSE (V4's Figma): the integrations' tabs, detail tabs and the New session
+    // chips are outlined pills, a few rules more, so the ceiling moves from 166 to 172.
+    expect(EDGED_CONTROLS.length).toBeLessThan(172);
     // The shapes #378 and #655 each added, still answered: a ring-only rule and
     // a `-color`-longhand-only rule both read as edges.
     expect(paintsAnEdge("outline: 1px solid var(--line);")).toBe(true);
