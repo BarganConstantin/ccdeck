@@ -57,13 +57,13 @@
      that caused it. A circle keeps the ring honest about where you can press
      while restoring what it looked like. Squared corners belong to the bordered
      `.btn`s, which are boxes on purpose. */
-  border-radius: 50%;
+  border-radius: var(--r-ctl);
   color: var(--muted);
   font: inherit;
   font-size: calc(16px + var(--ui-text-increase, 0px));
   line-height: 1;
   cursor: pointer;
-  transition: color var(--dur-fast) var(--ease), transform var(--dur-fast) var(--ease);
+  transition: color var(--dur-fast) var(--ease), background-color var(--dur-fast) var(--ease), transform var(--dur-fast) var(--ease);
 }
 /* THE TARGET IS A RECTANGLE, NOT THE CIRCLE. The radius above does not only
    round the ring: browsers hit-test against the rounded border edge, so the
@@ -90,8 +90,12 @@
    the corners of. A circle has no corners to clear and 2px leaves a visible gap,
    so this one hugs. */
 @media (hover: hover) and (pointer: fine) {
-.glyph-btn:hover { color: var(--text); }
+.glyph-btn:hover:not(:disabled) { background: var(--line-soft); color: var(--text); }
 }
+/* V4's icon button: --selected while it is pressed and while what it opened is
+   open (aria-expanded, aria-pressed). Declared after the hover rule so a pointer
+   resting on an open one keeps the open fill. */
+.glyph-btn:active:not(:disabled), .glyph-btn[aria-expanded="true"], .glyph-btn[aria-pressed="true"] { background: var(--selected); }
 /* 0.94, not the 0.97 a labelled button gets. The sheet's own rule is written at
    `.insp-fold`, the detail panel's close now — on a box this size three percent is under a pixel of travel
    and reads as nothing having happened — and three of the four bare closes that
@@ -102,7 +106,7 @@
    `.up-refresh-btn`, `.ap-refresh` and `.uh-reload` all go inert while the run
    they started is out. `button.btn:active` was guarded and they used to inherit
    that; the guard comes with them rather than being left behind. */
-.glyph-btn:active:not(:disabled) { transform: scale(var(--press-small)); }
+.glyph-btn:active:not(:disabled):not(:focus-visible) { transform: scale(var(--press-small)); }
 
 /* Refresh keeps its arrow while it reads and turns it, one tempo of 900 ms
    (V4: "Stays, one tempo of 900"). The button says it is busy through

@@ -371,7 +371,7 @@
    the line under it: a state has a mark and a word. The focus ring, which it
    has at that moment, stays the accent's. */
 .ap-manage-input.fb-message[aria-invalid="true"] { border-color: var(--err); }
-.fb-error { margin: 0; color: var(--err); font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: calc(16px + var(--ui-text-increase, 0px)); text-wrap: pretty; }
+.fb-error { animation: wstate-in var(--dur-fast) var(--ease) both; margin: 0; color: var(--err); font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: calc(16px + var(--ui-text-increase, 0px)); text-wrap: pretty; }
 .fb-hint { margin: 0; color: var(--text-dim); font-size: calc(11px + var(--ui-text-increase, 0px)); line-height: calc(16px + var(--ui-text-increase, 0px)); text-wrap: pretty; }
 
 /* THE TWO QUIET BUTTONS under the message — Add screenshot, Add details — a
@@ -689,24 +689,8 @@
    the panel the foot now sits on. Its ink is the buttons' resting --muted: in
    --text the two caps were the brightest words in the foot, louder than the
    Cancel and Send they annotate. */
-.fb-shortcut kbd {
-  /* A box with its own height, so a cap whose glyph is drawn larger stands
-     exactly as tall as its neighbour: an inline box is as tall as its font,
-     and the two caps are set in two sizes. */
-  display: inline-block;
-  min-width: 18px;
-  font-family: var(--font-mono);
-  font-size: calc(11px + var(--ui-text-increase, 0px));
-  font-weight: 600;
-  line-height: calc(14px + var(--ui-text-increase, 0px));
-  text-align: center;
-  color: var(--muted);
-  background: var(--bg);
-  border: 1px solid var(--line);
-  border-bottom-width: 2px;
-  border-radius: 4px;
-  padding: 0 5px;
-}
+/* The cap's look is the kit's (quick-open.css, the one key-cap rule); this keeps
+   only its ink, the buttons' resting --muted. */
 /* ⌘ in the mono stack is drawn at a fraction of a capital's height, so beside
    `Enter` it read as a speck. The system face draws it to the height of the
    word beside it; the cap keeps the same box. */

@@ -78,7 +78,7 @@ describe("with an account connected", () => {
     expect(words(markup)).toContain(accountSentAs("me@example.com"));
     expect(accountSentAs("me@example.com")).toBe("Sent as me@example.com — you'll get replies here and by email");
     expect(accountSentAs(null)).toBe("Sent from your ccdeck account — you'll get replies here and by email");
-    expect(markup).toMatch(/<label class="fc-anon"><input type="checkbox"\/>Send without my account<\/label>/);
+    expect(markup).toMatch(/<label class="fc-anon"><span class="cbx"><input type="checkbox"\/><svg[^>]*>.*?<\/svg><\/span>Send without my account<\/label>/);
     expect(markup).not.toContain('id="fb-contact"');
     for (const line of WHERE_IT_GOES_ACCOUNT) expect(words(markup)).toContain(line);
     expect(words(markup)).not.toContain(WHERE_IT_GOES[1]);
@@ -107,7 +107,7 @@ describe("with an account connected", () => {
     feedbackDrafts.keep(draftKey(seed), { kind: "bug", body: "The panel is empty", contact: "", images: { ready: [], waiting: [] }, anonymous: true }, seed);
     expect(feedbackDrafts.read(draftKey(seed))?.anonymous).toBe(true);
     const markup = html({ account: ACCOUNT });
-    expect(markup).toMatch(/<input type="checkbox" checked=""\/>Send without my account/);
+    expect(markup).toMatch(/<input type="checkbox" checked=""\/><svg[^>]*>.*?<\/svg><\/span>Send without my account/);
     expect(markup).toContain('id="fb-contact"');
     expect(words(markup)).not.toContain("Sent as me@example.com");
     for (const line of WHERE_IT_GOES) expect(words(markup)).toContain(line.replace(/\s+/g, " "));

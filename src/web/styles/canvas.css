@@ -40,7 +40,7 @@
   box-shadow: var(--shadow-1);
   font-size: calc(12px + var(--ui-text-increase, 0px));
   pointer-events: none;
-  animation: dragTrashIn 180ms var(--ease) both;
+  animation: dragTrashIn var(--dur-base) var(--ease) both;
   transition: border-color var(--dur-fast) var(--ease), background var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease),
     transform var(--dur-base) var(--ease), box-shadow var(--dur-base) var(--ease);
 }

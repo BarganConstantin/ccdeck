@@ -140,7 +140,12 @@
   border-radius: var(--r-tag);
   background: transparent;
   color: var(--muted);
-  transition: background var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease);
+  transition: background var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease), transform var(--dur-fast) var(--ease);
+}
+/* Pointer only, as every press: a key that fires the button shows the focus ring. */
+.react-flow__controls-button:active:not(:disabled):not([aria-disabled="true"]):not(:focus-visible) { transform: scale(var(--press-small)); }
+@media (prefers-reduced-motion: reduce) {
+  .react-flow__controls-button { transition: background var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease); }
 }
 /* The zoom level is a button that prints a figure, in the mono 11 on 14 the
    V4 bar sets numbers in. Never narrower than four figures ("100%"): the bar

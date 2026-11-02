@@ -49,6 +49,7 @@
 // connected, revoked — this is the dialog it always was, and the tabs are
 // never drawn. It opens on Write from every door but one: the topbar's
 // Feedback pressed while it shows the dot opens on Your conversations.
+import Checkbox from "./Checkbox";
 import { useEffect, useRef, useState, type ClipboardEvent, type DragEvent, type FormEvent } from "react";
 import { useModalDismiss, useScrimDismiss } from "./use-modal-dismiss";
 import { useT } from "../i18n";
@@ -374,7 +375,7 @@ export default function FeedbackDialog({ onClose, initialKind, initialBody, init
               {connected && (
                 <div className="fc-account">
                   <label className="fc-anon">
-                    <input type="checkbox" checked={anonymous} onChange={e => setAnonymous(e.target.checked)} />
+                    <Checkbox checked={anonymous} onChange={e => setAnonymous(e.target.checked)} />
                     {SEND_WITHOUT_ACCOUNT}
                   </label>
                   {!anonymous && <p className="fc-sent-as">{accountSentAs(account?.email ?? null, mail)}</p>}

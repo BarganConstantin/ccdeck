@@ -13,6 +13,7 @@
 // untick — see shareCountLine. The envelope holds each account's OAuth login in
 // the clear, so five boxes is five live logins on the clipboard, and that is a
 // fact the user should meet before the copy rather than after it.
+import Checkbox from "./Checkbox";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { explainFailure } from "../admin-failure";
@@ -277,8 +278,7 @@ export default function ShareAccountsDialog({ accounts, onClose, copyText }: Pro
                 {rows.map(r => (
                   <li key={r.num}>
                     <label className="sa-row">
-                      <input
-                        type="checkbox"
+                      <Checkbox
                         checked={picked.includes(r.num)}
                         onChange={() => toggle(r.num)}
                       />

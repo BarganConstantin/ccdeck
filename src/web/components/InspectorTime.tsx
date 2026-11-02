@@ -13,7 +13,7 @@ import {
 import { sessionRoot } from "../inspector-tree";
 import type { AgentNodeData } from "../types";
 import { useNow } from "../use-now";
-import Loader from "./Loader";
+import { WaitingLoader } from "./Loader";
 
 interface Reading { session: string; turn: SessionTurn | null; readAt: number }
 
@@ -94,7 +94,7 @@ function TimeTab({ root, agents, revision }: { root: AgentNodeData; agents: Read
   }, [turn, agents, root.sessionId, revision, readAt]);
   if (turn === undefined) {
     if (failed) return <p className="insp-note" role="status">This turn could not be read. Trying again.</p>;
-    return <p className="insp-note insp-time-load" role="status"><Loader size="s" /><span>Reading this turn…</span></p>;
+    return <p className="insp-note insp-time-load" role="status"><WaitingLoader busy size="s" /><span>Reading this turn…</span></p>;
   }
   if (turn === null || !table) return <p className="insp-note">No turn recorded yet.</p>;
   return <TimeBody turn={turn} table={table} now={now} />;

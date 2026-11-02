@@ -25,6 +25,7 @@ import { claudeReasonText, refreshClaudeSettings, setClaudeSetting, useClaudeSet
 import ClaudeSettingsIndex from "./ClaudeSettingsIndex";
 import { SettingRow, SettingsGroup } from "./SettingsParts";
 import { t as tNow, useT, type TFunction } from "../i18n";
+import { useOptimisticSwitch } from "../use-optimistic-switch";
 
 export const CLAUDE_UNDONE = "Changed back after saving, most likely by a running Claude Code session. Set it again to keep it.";
 export const CLAUDE_NO_FILE = "There is no settings.json yet, so Claude Code uses its defaults. The first change here creates it.";
@@ -59,6 +60,9 @@ function Control({ entry, row, saving, nameId, noteId }: {
   const ready = !!row && row.editable && !saving;
   const busy = !row || saving === entry.id;
   const disabled = row ? !row.editable : undefined;
+  // A switch flips on the press and the write runs behind it; a refused write
+  // slides it back, and the group's alert says why.
+  const flip = useOptimisticSwitch(row ? row.value === true : null, next => setClaudeSetting(entry.id, next));
   if (entry.kind === "choice" || entry.kind === "days") {
     const options: ClaudeSettingOption[] = entry.kind === "days"
       ? (entry.options as number[]).map(days => ({ value: String(days), label: claudeDaysLabel(days, t) }))
@@ -86,7 +90,7 @@ function Control({ entry, row, saving, nameId, noteId }: {
       </select>
     );
   }
-  const on = row?.value === true;
+  const on = flip.checked;
   return (
     <button
       type="button"
@@ -97,7 +101,7 @@ function Control({ entry, row, saving, nameId, noteId }: {
       aria-describedby={noteId}
       aria-busy={busy}
       disabled={disabled}
-      onClick={() => { if (ready) void setClaudeSetting(entry.id, !on); }}
+      onClick={() => { if (ready) void flip.flip(); }}
     >
       <span className="switch-knob" />
     </button>

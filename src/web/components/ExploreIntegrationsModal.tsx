@@ -7,7 +7,7 @@ import { integrationDefs } from "../integrations/registry";
 import type { IntegrationKind } from "../integrations/types";
 import { useModalDismiss, useScrimDismiss } from "./use-modal-dismiss";
 import { ExternalLinkGlyph } from "./action-glyphs";
-import { Loader } from "./Loader";
+import { WaitingLoader } from "./Loader";
 
 export interface ExploreIntegrationsProps {
   integrations: IntegrationsState;
@@ -58,7 +58,7 @@ export default function ExploreIntegrationsModal({ integrations, onClose, onOpen
           <p id="explore-integrations-description" className="explore-intro">{t("integrations.explore.intro")}</p>
           {integrations.error && <p className="explore-status" role="alert">{integrations.error} {t("integrations.explore.stale")}</p>}
           {integrations.connections === null ? (
-            <p className="explore-status" role="status">{integrations.error ? t("integrations.explore.statusUnavailable") : <span className="loader-line"><Loader />{t("integrations.explore.reading")}</span>}</p>
+            <p className="explore-status" role="status">{integrations.error ? t("integrations.explore.statusUnavailable") : <span className="loader-line"><WaitingLoader busy />{t("integrations.explore.reading")}</span>}</p>
           ) : providers.length === 0 ? (
             <p className="explore-status" role="status">{t("integrations.explore.none")}</p>
           ) : <>

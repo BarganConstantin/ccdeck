@@ -457,7 +457,7 @@ describe("the three rules the panel above it already keeps", () => {
     expect(CODE).toMatch(/LanSetupModal/);
     for (const field of [
       `aria-label="This deck's name on the network"`,
-      'type="checkbox"',
+      '<Checkbox',
     ]) {
       expect(SURFACE, field).not.toContain(field);
       expect(MODAL, field).toContain(field);
@@ -528,7 +528,7 @@ describe("who pairs with whom, without anybody pressing anything", () => {
     expect(SURFACE).not.toContain("autoAccept: !");
     // Last, after the list it is a permission over, so the warning under it
     // points at rows the reader has just looked at.
-    expect(MODAL.indexOf('type="checkbox"')).toBeLessThan(MODAL.indexOf("Pairing"));
+    expect(MODAL.indexOf('<Checkbox')).toBeLessThan(MODAL.indexOf("Pairing"));
   });
 
   it("reads a missing answer as on, because that is what the engine is doing", () => {

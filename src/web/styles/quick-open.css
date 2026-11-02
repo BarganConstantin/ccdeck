@@ -65,22 +65,34 @@
 }
 .qo-input:focus-visible { outline: none; }
 .qo-input::placeholder { color: var(--muted); opacity: 1; }
-/* A key's chip that is also the pointer's way out: a fill and no edge, so it
-   reads as the keys in the rows do and not as a second field. */
-.qo-esc {
-  flex: none;
-  height: 22px;
-  padding: 0 8px;
-  border: 0;
-  border-radius: var(--r-tag);
-  background: var(--sm-fill);
-  color: var(--muted);
-  font: calc(11px + var(--ui-text-increase, 0px))/22px var(--font-mono);
-  cursor: pointer;
-}
+/* A key's chip that is also the pointer's way out: the kit's key cap (below),
+   with the pointer's cursor. */
+.qo-esc { cursor: pointer; }
 /* Quick open has no motion (V4's motion rules): no transition, no press. */
 @media (hover: hover) and (pointer: fine) {
 .qo-esc:hover { color: var(--text); }
+}
+
+/* V4's key cap (V4's kit), the one rule for every cap but the status bar's
+   own: 16 high, 0 4px of padding inside a 1px --line border, r4, --bg-soft, the
+   deck's mono 11/500/14 in --muted; one letter is 17x16. Quick open's caps keep
+   the rule's stillness: nothing here moves. */
+kbd.qo-key, .qo-esc, .qo-foot kbd, .fb-shortcut kbd {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  min-width: 17px;
+  height: 16px;
+  padding: 0 4px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-tag);
+  background: var(--bg-soft);
+  color: var(--muted);
+  font: 500 calc(11px + var(--ui-text-increase, 0px))/calc(14px + var(--ui-text-increase, 0px)) var(--font-mono);
+  text-align: center;
+  white-space: nowrap;
 }
 
 /* The list. One height whatever it holds. */
@@ -187,19 +199,6 @@
   color: var(--accent);
   font-weight: 600;
 }
-.qo-key {
-  flex: none;
-  min-width: 20px;
-  height: 20px;
-  padding: 0 5px;
-  box-sizing: border-box;
-  border: 1px solid var(--sm-edge);
-  border-radius: var(--r-tag);
-  background: var(--sm-fill);
-  color: var(--muted);
-  font: calc(11px + var(--ui-text-increase, 0px))/18px var(--font-mono);
-  text-align: center;
-}
 .qo-tag {
   flex: none;
   min-width: 52px;
@@ -233,18 +232,7 @@
 }
 .qo-foot-keys { display: flex; align-items: center; gap: 16px; }
 .qo-foot-act { display: inline-flex; align-items: center; gap: 6px; }
-.qo-foot kbd {
-  min-width: 18px;
-  height: 18px;
-  padding: 0 4px;
-  box-sizing: border-box;
-  border: 1px solid var(--sm-edge);
-  border-radius: var(--r-tag);
-  background: var(--sm-fill);
-  color: var(--text);
-  font: calc(11px + var(--ui-text-increase, 0px))/16px var(--font-mono);
-  text-align: center;
-}
+.qo-foot kbd { color: var(--text); }
 .qo-foot-act kbd + kbd { margin-left: -2px; }
 
 .qo-live {
