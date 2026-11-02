@@ -400,6 +400,7 @@ const PRESSES: Press[] = [
   [".cat-filter:active", "0.97", "transform"],
   [".ctx-donut:active", "0.94", "transform"],
   [".uh-range-btn:active", "0.97", "transform"],
+  [".ta-period-btn:active", "0.97", "transform"],
   [".uh-bar-col:active", "0.97", "transform"],
   [".session-list .sl-row:active", "0.97", "transform"],
   // The rail's header icon buttons (Plus, and the phone's close), 24px icons: the icon tier.
@@ -807,15 +808,15 @@ const otherPulses = pulsing.filter(r => !live.includes(r));
  *  on screen at once, which is why they share a beat. The rail's Working glyph
  *  (V4's Attention rail) is the sixth: the same `agent.state`, breathing on the
  *  same --pulse-live, drawn in the mark's own --inflight. */
+// CHANGED ON PURPOSE (V4's Figma): the state pill (the recap's last use) and the dialog title's pulsing
+// status dot are gone from the sheet, so they leave this family.
 const LIVE_PULSE = [
-  ".state-pill.state-active::before",
   // V4's card: the Working glyph breathes where the pill's dot did.
   '.agent-node .state-line[data-tone="active"] .state-mark',
   ".sl-dot.state-active::before",
   `.session-list .sl-glyph[data-glyph="working"] .state-mark`,
   ".tool-burst .tb-spin",
   ".detail .tool .name .status-dot.inflight::before",
-  ".modal-title .status-dot.inflight",
 ];
 
 /** The pulses that are NOT that signal, each with the question it answers. They
@@ -837,7 +838,7 @@ const OTHER_PULSES: [selector: string, meaning: string][] = [
  *  canvas block like everything else there. The other three are single dots in
  *  panels and keep pulsing — see the note at the foot of the sheet, and
  *  state-channels.test.ts, which forbids a state mark from depending on it. */
-const LIVE_ON_CANVAS = [".state-pill.state-active::before", '.agent-node .state-line[data-tone="active"] .state-mark', ".tool-burst .tb-spin"];
+const LIVE_ON_CANVAS = ['.agent-node .state-line[data-tone="active"] .state-mark', ".tool-burst .tb-spin"];
 
 describe("one tempo for one meaning: the live pulse", () => {
   it("sweeps the pulses the sheet actually has, so a pass means something", () => {

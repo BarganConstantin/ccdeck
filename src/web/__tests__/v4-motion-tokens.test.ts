@@ -50,8 +50,8 @@ const ALLOWLIST: Allowed[] = [
   { file: "styles/radio.css", needle: "radioSignalOut", why: "radio signal loop lives apart" },
   { file: "styles/radio.css", needle: "animation-delay: 180ms", why: "radio signal loop stagger" },
   { file: "styles/radio.css", needle: "animation-delay: 360ms", why: "radio signal loop stagger" },
-  { file: "styles/usage-history.css", needle: "animation-delay: 350ms", why: "reading-transfer loop stagger" },
-  { file: "styles/usage-history.css", needle: "animation-delay: 700ms", why: "reading-transfer loop stagger" },
+  // CHANGED ON PURPOSE (V4's Figma): the history dialog's reading-transfer loop is gone (the wait is
+  // still bones now), so its two stagger entries left the list with it.
   { file: "styles/read-activity.css", needle: "animation-duration: 1200ms", why: "processes reading loop: its own period" },
   // ---- spinners, progress and sweeps: linear by rule ----
   { file: "styles/accounts-panel.css", needle: "spin 900ms linear", why: "the refresh arrow: 900, linear" },

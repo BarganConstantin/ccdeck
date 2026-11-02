@@ -42,10 +42,8 @@ function contrast(a: Rgba, b: Rgba): number {
 
 describe("Material status text on its painted background", () => {
   const cases = [
-    ...["active", "done", "err"].map(state => ({
-      name: `card ${state}`,
-      chain: [root, el("div", ["react-flow__node"]), el("div", ["agent-node", `state-${state}`]), el("span", ["state-pill", `state-${state}`])],
-    })),
+    // CHANGED ON PURPOSE (V4's Figma): the card's state pill is gone (the card says its state with a mark
+    // and a word, and the recap names its session with the done mark), so its three cases left.
     ...["live", "paused", "dead"].map(state => ({
       name: `connection ${state}`,
       chain: [root, el("header", ["topbar"]), el("div", ["status"]), el("span", ["pill", state])],

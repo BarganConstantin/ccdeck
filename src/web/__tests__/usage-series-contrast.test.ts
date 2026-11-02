@@ -284,8 +284,12 @@ const WAS: Record<string, string> = {
 const BEDS = {
   // The shared shell's surface: the dialog composes `.modal` since #874.
   panel: tokenNameOf(decl(".modal", "background")!)!,
-  detail: tokenNameOf(decl(".uh-detail", "background")!)!,
-  track: tokenNameOf(decl(".uh-model-bar", "background")!)!,
+  // CHANGED ON PURPOSE (V4's Figma): a day is a table on the panel now, with no
+  // box and no model meters, so the two other beds are read from the rules that
+  // still paint them: the range strip's --bg-soft track, and the CLI split bar's
+  // --line track. The same three beds are swept below, none dropped.
+  detail: tokenNameOf(decl(".uh-range", "background")!)!,
+  track: tokenNameOf(decl(".uh-agent-bar", "background")!)!,
 };
 
 // ── the maths, against ends everybody already knows ─────────────────────────
@@ -726,9 +730,14 @@ describe("the selected range is a state you can see (#583)", () => {
     // CHANGED ON PURPOSE (V4's Figma): two, not three. The strip is pills now; the chosen one
     // carries its state on its own box (an --accent stroke at full strength and the --accent-16
     // wash V4 draws), so there is no ::after indicator rule.
+    // CHANGED ON PURPOSE (V4's Figma): the history dialog's own range chips are the
+    // same pills, so its toolbar adds the same two rules (the chosen chip and the
+    // hover that holds its label): an --accent stroke at full strength on the --accent-16 wash.
     expect(scoped.map(r => r.sel)).toEqual([
       '.up-period .uh-range-btn[aria-pressed="true"]',
       '.up-period .uh-range-btn[aria-pressed="true"]:hover',
+      '.uh-toolbar .uh-range-btn[aria-pressed="true"]',
+      '.uh-toolbar .uh-range-btn:hover, .uh-toolbar .uh-range-btn[aria-pressed="true"]:hover',
     ]);
     // The indicator arrives solid, in exactly one of them. It is the
     // foreground now rather than the accent: which range is showing is a
@@ -736,7 +745,10 @@ describe("the selected range is a state you can see (#583)", () => {
     // focus. The doctrine is unchanged, a small mark at full strength.
     // The stroke, in --accent, solid: the state arrives at full strength in exactly one rule.
     const carries = scoped.filter(r => /border-color:\s*var\(--accent\)\s*;/.test(r.body));
-    expect(carries.map(r => r.sel)).toEqual(['.up-period .uh-range-btn[aria-pressed="true"]']);
+    expect(carries.map(r => r.sel)).toEqual([
+      '.up-period .uh-range-btn[aria-pressed="true"]',
+      '.uh-toolbar .uh-range-btn[aria-pressed="true"]',
+    ]);
     for (const r of all) {
       // And nowhere is it diluted, in any spelling.
       expect(r.body, `${r.sel} paints the state as a wash`)
@@ -922,14 +934,16 @@ const INLINE = MODULES.flatMap(m => inlineColours(m.path, m.src));
 
 describe("the sweep that could not see a .tsx literal, which is why none of this was caught", () => {
   it("finds the colours the components set inline at all", () => {
-    // Six of them are this modal's — the day bars' segments, both legend dots,
-    // the per-CLI share bar and the per-model bar fill — and the rest are the
+    // Five of them are this modal's — the day bars' segments, both legend dots,
+    // the per-CLI share bar and the day table's model dot — and the rest are the
     // deck's. If this number collapses, the scanner broke and every assertion
     // below went vacuous with it.
     expect(INLINE.length).toBeGreaterThanOrEqual(10);
     // The modal and every file lifted out of it: the day's breakdown draws two.
     const modal = INLINE.filter(c => USAGE_HISTORY_FILES.some(f => isModule(c.file, f)));
-    expect(modal.length).toBe(6);
+    // CHANGED ON PURPOSE (V4's Figma): the day's table keeps each model's dot and drops
+    // the per-model bar fill, so five, not six.
+    expect(modal.length).toBe(5);
     expect(new Set(modal.map(c => c.prop))).toEqual(new Set(["background"]));
   });
 

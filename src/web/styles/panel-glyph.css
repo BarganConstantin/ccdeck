@@ -26,7 +26,7 @@
    reason: a header row should be the height of what is written in it, not of
    the invisible area around it. The HORIZONTAL half is deliberately NOT handed
    back. These controls come in runs of two and three (`.up-header-right`,
-   `.ap-header-right`, `.modal-actions`, `.uh-head`), and a negative margin
+   `.ap-header-right`, `.modal-actions`), and a negative margin
    between two neighbours would slide their 24px targets into each other — one
    accessible target eating the next is not a fix, it is the same defect with
    the numbers moved around. Where a run needs to sit tighter, the container's
