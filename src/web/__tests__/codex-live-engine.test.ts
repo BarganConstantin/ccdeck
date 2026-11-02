@@ -1,0 +1,244 @@
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { createHash } from 'node:crypto';
+// @ts-expect-error server ES module
+import { createCodexLiveAccountController } from '../../server/codex-live-engine.mjs';
+const A = 'a'.repeat(20), B = 'b'.repeat(20);
+const controllers: { close(): Promise<void> }[] = [];
+afterEach(async () => { for (const c of controllers.splice(0)) await c.close(); vi.restoreAllMocks(); });
+async function fixture({ saved = null as any, actual = A, readCredential = null as any, auto = false, persistError = false,
+  initial = null as any, resolveEndpoint = null as any } = {}) {
+  const selection = { originalHome: '/native-home', profileId: A, revision: 0, runningSelection: null as any,
+    profiles: [{ id: A, available: true }, { id: B, available: true }] };
+  const email = (id: string) => id === A ? 'first@example.test' : 'second@example.test';
+  let account = { type: 'chatgpt', email: email(actual), planType: 'plus' };
+  const calls: { method: string; params: any }[] = [], sent: any[] = [], persisted: any[] = [];
+  let callbacks: any;
+  const rpc = {
+    request: vi.fn(async (method: string, params: any) => {
+      calls.push({ method, params });
+      if (method === 'account/read') return { account };
+      if (method === 'account/login/start') {
+        account = { type: 'chatgpt', email: email(params.chatgptAccountId === 'first' ? A : B), planType: 'plus' };
+        callbacks.onNotification({ method: 'account/updated', params: { authMode: 'chatgptAuthTokens', planType: 'plus' } });
+        return { type: 'chatgptAuthTokens' };
+      }
+      throw Error('Unexpected native RPC');
+    }),
+    send: vi.fn((m: any) => sent.push(m)), close: vi.fn(),
+  };
+  const lease = { valid: vi.fn(async () => true), release: vi.fn(async () => {}) };
+  const credential = (id: string) => ({ profileId: id, accessToken: `fictional-access-${id}`, accountId: id === A ? 'first' : 'second',
+    email: email(id), planType: 'plus', expiresAt: Date.now() + 3600_000 });
+  if (saved) { selection.profileId = saved.profileId; selection.revision = saved.revision; selection.runningSelection = { id: saved.profileId, revision: saved.revision }; }
+  if (initial) Object.assign(selection, initial);
+  const c = createCodexLiveAccountController({
+    store: '/unused-fixture-store', pollMs: 1000_000, restoreRetryMs: 0,
+    readSelection: async () => ({ ...selection }), readAuto: async () => ({ enabled: auto }),
+    loadState: async () => saved, persistState: async (m: any) => { if (persistError) throw Error('private disk detail'); persisted.push(m); },
+    resolveEndpoint: resolveEndpoint ?? (async () => ({ home: '/native-home', generation: 'native-generation' })),
+    acquireLease: async () => lease,
+    connectRpc: async (_endpoint: any, hooks: any) => { callbacks = hooks; return rpc; },
+    readCredential: vi.fn(readCredential ?? (async (id: string) => credential(id))),
+  });
+  controllers.push(c); await c.ready;
+  return { c, selection, rpc, calls, sent, persisted, lease, credential, notify: (m: any) => callbacks.onNotification(m),
+    serverRequest: (m: any) => callbacks.onRequest(m), actual: () => account,
+    disconnect: () => callbacks.onClose(),
+    externalLogin: (id: string) => { account = { ...account, email: email(id) }; callbacks.onNotification({ method: 'account/updated' }); } };
+}
+describe('existing Codex session account engine', () => {
+  it('changes native authentication without interrupting, resuming or stopping existing threads', async () => {
+    const f = await fixture();
+    expect(f.calls).toHaveLength(0);
+    const result = await f.c.request({ id: B, revision: 1 });
+    expect(result).toMatchObject({ state: 'applied', profileId: B, scope: 'shared_native_server' });
+    expect(f.actual().email).toBe('second@example.test');
+    expect(f.calls.map(c => c.method)).toEqual(['account/read', 'account/login/start', 'account/read']);
+    expect(f.rpc.close).not.toHaveBeenCalled();
+    expect(JSON.stringify(result)).not.toContain('fictional-access');
+    expect(JSON.stringify(f.persisted)).not.toContain('fictional-access');
+    await f.c.close();
+    expect(f.rpc.close).toHaveBeenCalledOnce();
+    expect(f.calls.some(c => /logout|interrupt|resume/.test(c.method))).toBe(false);
+  });
+  it('supersedes an unsent selection and submits only the most recent requested identity', async () => {
+    let release!: () => void;
+    const blocked = new Promise<void>(resolve => { release = resolve; });
+    let entered!: () => void; const waiting = new Promise<void>(resolve => { entered = resolve; });
+    let f: Awaited<ReturnType<typeof fixture>>;
+    f = await fixture({ readCredential: async (id: string) => { if (id === A) { entered(); await blocked; } return f.credential(id); } });
+    const first = f.c.request({ id: A, revision: 1 }); await waiting;
+    const second = f.c.request({ id: B, revision: 2 }); release();
+    await Promise.all([first, second]);
+    expect(f.calls.filter(c => c.method === 'account/login/start').map(c => c.params.chatgptAccountId)).toEqual(['second']);
+    expect(f.c.status().profileId).toBe(B);
+  });
+  it('does not replay a timed-out native login or expose its raw error', async () => {
+    const f = await fixture();
+    f.rpc.request.mockImplementation(async (method: string) => {
+      if (method === 'account/read') return { account: f.actual() } as any;
+      throw Object.assign(new Error('private native detail'), { code: 'native_request_timeout' });
+    });
+    const result = await f.c.request({ id: B, revision: 1 });
+    await f.c.request({ id: B, revision: 1 }); await f.c.tick();
+    expect(result).toMatchObject({ state: 'failed', profileId: null, reason: 'native_request_timeout' });
+    expect(JSON.stringify(result)).not.toContain('private native detail');
+    expect(f.rpc.request.mock.calls.filter(c => c[0] === 'account/login/start')).toHaveLength(1);
+  });
+  it('serializes a credential refresh before a new identity and ignores unrelated server requests', async () => {
+    const f = await fixture(); await f.c.request({ id: A, revision: 1 });
+    await f.serverRequest({ id: 'approval', method: 'item/commandExecution/requestApproval', params: {} });
+    await f.serverRequest({ id: 'foreign', method: 'account/chatgptAuthTokens/refresh', params: { previousAccountId: 'unowned' } });
+    expect(f.sent).toHaveLength(0);
+    const refreshing = f.serverRequest({ id: 'refresh', method: 'account/chatgptAuthTokens/refresh', params: { previousAccountId: 'first' } });
+    const changing = f.c.request({ id: B, revision: 2 });
+    await Promise.all([refreshing, changing]);
+    expect(f.sent).toEqual([{ id: 'refresh', result: { accessToken: `fictional-access-${A}`, chatgptAccountId: 'first', chatgptPlanType: 'plus' } }]);
+    expect(f.actual().email).toBe('second@example.test');
+  });
+  it('honors a native login performed outside ccdeck instead of changing it back', async () => {
+    const f = await fixture(); await f.c.request({ id: B, revision: 1 });
+    f.externalLogin(A);
+    await new Promise(resolve => setTimeout(resolve, 0)); await f.c.tick();
+    expect(f.c.status()).toMatchObject({ state: 'external_change', profileId: null });
+    expect(f.persisted.at(-1).wasControlling).toBe(false);
+    expect(f.calls.filter(c => c.method === 'account/login/start')).toHaveLength(1);
+  });
+  it('retains ownership when a native notification only renews the same account', async () => {
+    const f = await fixture(); await f.c.request({ id: B, revision: 1 });
+    f.notify({ method: 'account/updated', params: { authMode: 'chatgptAuthTokens' } });
+    await new Promise(resolve => setTimeout(resolve, 0));
+    expect(f.c.status().state).toBe('applied');
+    expect(f.lease.release).not.toHaveBeenCalled();
+  });
+  it('keeps live renewal ownership if metadata persistence fails after a successful native login', async () => {
+    const f = await fixture({ persistError: true });
+    expect(await f.c.request({ id: B, revision: 1 })).toMatchObject({ state: 'applied', profileId: B, reason: 'ownership_not_saved' });
+    await f.serverRequest({ id: 'refresh', method: 'account/chatgptAuthTokens/refresh', params: { previousAccountId: 'second' } });
+    expect(f.sent[0].result.chatgptAccountId).toBe('second');
+    expect(f.rpc.close).not.toHaveBeenCalled();
+  });
+  it('rejects a stale renewal queued behind a committed account change', async () => {
+    let release!: () => void, entered!: () => void;
+    const blocked = new Promise<void>(resolve => { release = resolve; });
+    const waiting = new Promise<void>(resolve => { entered = resolve; });
+    let f: Awaited<ReturnType<typeof fixture>>;
+    const reads: string[] = [];
+    f = await fixture({ readCredential: async (id: string) => { reads.push(id); if (id === B) { entered(); await blocked; } return f.credential(id); } });
+    await f.c.request({ id: A, revision: 1 });
+    const changing = f.c.request({ id: B, revision: 2 }); await waiting;
+    const refresh = f.serverRequest({ id: 'late-refresh', method: 'account/chatgptAuthTokens/refresh', params: { previousAccountId: 'first' } });
+    release(); await Promise.all([changing, refresh]);
+    expect(reads).toEqual([A, B]);
+    expect(f.sent).toEqual([{ id: 'late-refresh', error: { code: -32000, message: 'Codex account changed during renewal.' } }]);
+    expect(f.actual().email).toBe('second@example.test');
+  });
+  it.each([true, false])('renews an expiring credential before login and rejects one still expiring: %s', async renewed => {
+    let f: Awaited<ReturnType<typeof fixture>>;
+    const reads: boolean[] = [];
+    f = await fixture({ readCredential: async (id: string, options: any) => {
+      reads.push(options.refresh);
+      return { ...f.credential(id), expiresAt: Date.now() + (options.refresh && renewed ? 3600_000 : 10_000) };
+    } });
+    const result = await f.c.request({ id: B, revision: 1 });
+    expect(reads).toEqual([false, true]);
+    expect(result.state).toBe(renewed ? 'applied' : 'failed');
+    expect(f.calls.filter(c => c.method === 'account/login/start')).toHaveLength(renewed ? 1 : 0);
+  });
+  it('restores its saved refresh ownership without a logout when the daemon still uses that account', async () => {
+    const endpoint = createHash('sha256').update('native-generation').digest('hex');
+    const f = await fixture({ actual: B, saved: { version: 1, wasControlling: true, profileId: B, revision: 3, endpoint } });
+    expect(f.c.status()).toMatchObject({ state: 'applied', profileId: B });
+    expect(f.calls.filter(c => c.method === 'account/login/start')).toHaveLength(0);
+    await f.serverRequest({ id: 'restore-refresh', method: 'account/chatgptAuthTokens/refresh', params: { previousAccountId: 'second' } });
+    expect(f.sent[0].result.chatgptAccountId).toBe('second');
+    expect(f.calls.some(c => c.method === 'account/logout')).toBe(false);
+  });
+  it('does not restore an old selection over a native login changed while ccdeck was closed', async () => {
+    const endpoint = createHash('sha256').update('native-generation').digest('hex');
+    const f = await fixture({ actual: A, saved: { version: 1, wasControlling: true, profileId: B, revision: 3, endpoint } });
+    expect(f.c.status().state).toBe('external_change');
+    expect(f.calls.some(c => c.method === 'account/login/start')).toBe(false);
+    expect(f.rpc.close).toHaveBeenCalledOnce();
+    expect(f.lease.release).toHaveBeenCalledOnce();
+  });
+  it('restores automatic selection ownership when the last manual selection is older', async () => {
+    const endpoint = createHash('sha256').update('native-generation').digest('hex');
+    const f = await fixture({ actual: B, auto: true,
+      saved: { version: 1, wasControlling: true, profileId: B, revision: 3, endpoint },
+      initial: { profileId: B, revision: 3, runningSelection: { id: A, revision: 1 } } });
+    expect(f.c.status()).toMatchObject({ state: 'applied', profileId: B });
+    expect(f.calls.some(c => c.method === 'account/login/start')).toBe(false);
+    await f.serverRequest({ id: 'auto-refresh', method: 'account/chatgptAuthTokens/refresh', params: { previousAccountId: 'second' } });
+    expect(f.sent[0].result.chatgptAccountId).toBe('second');
+  });
+  it.each([A, B])('reconciles an unacknowledged newer selection after restart without replaying login, actual=%s', async actual => {
+    const endpoint = createHash('sha256').update('native-generation').digest('hex');
+    const f = await fixture({ actual,
+      saved: { version: 1, wasControlling: true, profileId: A, revision: 1, endpoint },
+      initial: { profileId: B, revision: 2, runningSelection: { id: B, revision: 2 } } });
+    expect(f.c.status()).toMatchObject({ state: actual === B ? 'applied' : 'failed', profileId: actual, requestedProfileId: B });
+    expect(f.calls.some(c => c.method === 'account/login/start')).toBe(false);
+    await f.c.tick();
+    expect(f.calls.some(c => c.method === 'account/login/start')).toBe(false);
+    await f.serverRequest({ id: 'reconciled-refresh', method: 'account/chatgptAuthTokens/refresh', params: { previousAccountId: actual === A ? 'first' : 'second' } });
+    expect(f.sent[0].result.chatgptAccountId).toBe(actual === A ? 'first' : 'second');
+  });
+  it('keeps the surviving saved login renewed when an unconfirmed target credential is unavailable', async () => {
+    const endpoint = createHash('sha256').update('native-generation').digest('hex');
+    const f = await fixture({ actual: A,
+      saved: { version: 1, wasControlling: true, profileId: A, revision: 1, endpoint },
+      initial: { profileId: B, revision: 2, runningSelection: { id: B, revision: 2 } },
+      readCredential: async (id: string) => {
+        if (id === B) throw Error('target unavailable');
+        return { profileId: A, accessToken: 'fictional-access', accountId: 'first', email: 'first@example.test', planType: 'plus', expiresAt: Date.now() + 3600_000 };
+      } });
+    expect(f.c.status()).toMatchObject({ state: 'failed', profileId: A, requestedProfileId: B });
+    await f.serverRequest({ id: 'surviving-refresh', method: 'account/chatgptAuthTokens/refresh', params: { previousAccountId: 'first' } });
+    expect(f.sent[0].result.chatgptAccountId).toBe('first');
+    expect(f.calls.some(c => c.method === 'account/login/start')).toBe(false);
+  });
+  it('retries saved ownership discovery when the native daemon starts after ccdeck', async () => {
+    const endpoint = createHash('sha256').update('native-generation').digest('hex');
+    const resolveEndpoint = vi.fn().mockRejectedValueOnce(Object.assign(Error('offline'), { code: 'native_not_running' }))
+      .mockResolvedValue({ home: '/native-home', generation: 'native-generation' });
+    const f = await fixture({ actual: B, saved: { version: 1, wasControlling: true, profileId: B, revision: 3, endpoint }, resolveEndpoint });
+    expect(f.c.status().state).toBe('unavailable');
+    await f.c.tick();
+    expect(f.c.status()).toMatchObject({ state: 'applied', profileId: B });
+    expect(resolveEndpoint).toHaveBeenCalledTimes(2);
+    expect(f.calls.some(c => c.method === 'account/login/start')).toBe(false);
+  });
+  it('asks native Codex to renew an expired source token once before changing live authentication', async () => {
+    let f: Awaited<ReturnType<typeof fixture>>;
+    const reads: boolean[] = [];
+    f = await fixture({ readCredential: async (id: string, options: any) => {
+      reads.push(options.refresh); if (!options.refresh) throw Object.assign(Error('expired'), { code: 'credential_expired' });
+      return f.credential(id);
+    } });
+    expect((await f.c.request({ id: B, revision: 1 })).state).toBe('applied');
+    expect(reads).toEqual([false, true]);
+    expect(f.calls.filter(c => c.method === 'account/login/start')).toHaveLength(1);
+  });
+  it('reconnects to a surviving daemon without logging in again or retrying a failed selection', async () => {
+    let f: Awaited<ReturnType<typeof fixture>>;
+    const reads: string[] = [];
+    f = await fixture({ readCredential: async (id: string) => {
+      reads.push(id); if (id === B) throw Error('credential unavailable'); return f.credential(id);
+    } });
+    await f.c.request({ id: A, revision: 1 });
+    expect((await f.c.request({ id: B, revision: 2 })).state).toBe('failed');
+    f.disconnect(); await f.c.tick();
+    expect(f.c.status()).toMatchObject({ state: 'applied', profileId: A, requestedProfileId: B });
+    expect(f.calls.filter(c => c.method === 'account/login/start')).toHaveLength(1);
+    expect(reads).toEqual([A, B]);
+    await f.serverRequest({ id: 'old-account-refresh', method: 'account/chatgptAuthTokens/refresh', params: { previousAccountId: 'first' } });
+    expect(f.sent[0].result.chatgptAccountId).toBe('first');
+  });
+  it.each([false, true])('follows an automatic default change only with Auto-switch enabled=%s', async auto => {
+    const f = await fixture({ auto }); await f.c.request({ id: A, revision: 1 });
+    f.selection.profileId = B; f.selection.revision = 2;
+    await f.c.tick();
+    expect(f.c.status().profileId).toBe(auto ? B : A);
+  });
+});

@@ -563,6 +563,10 @@ export async function startServer({ port = 4317, host = "127.0.0.1", persist = n
       if (codex) {
         startCodexWatcher(workspace);
         server.once("close", stopCodexEnrichment);
+        const liveOptions = { env: { ...process.env } };
+        const liveAccounts = await import("./codex-live-engine.mjs");
+        liveAccounts.startCodexLiveAccounts(liveOptions);
+        server.once("close", () => { void liveAccounts.stopCodexLiveAccounts(liveOptions); });
       }
       if (claude) {
         const recovery = createClaudeRecovery({ workspace });

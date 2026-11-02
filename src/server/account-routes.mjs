@@ -43,7 +43,8 @@ export async function handleCodexProfiles(_req, res) {
   const { discoverCodexProfiles } = await import('./codex-profiles.mjs');
   const { readCodexSelection } = await import('./codex-selection.mjs');
   const selection = await readCodexSelection();
-  send(res, 200, { profiles: await discoverCodexProfiles({ selection, enableNative: true }), revision: selection.revision });
+  const { codexLiveAccountStatus } = await import('./codex-live-engine.mjs');
+  send(res, 200, { profiles: await discoverCodexProfiles({ selection, enableNative: true }), revision: selection.revision, live: codexLiveAccountStatus() });
 }
 
 export async function handleCodexProfileMutation(req, res, action) {
@@ -61,9 +62,14 @@ export async function handleCodexProfileMutation(req, res, action) {
       : action === 'remove' ? await removeCodexProfile(body)
       : action === 'replace' ? await replaceCodexLogin(body)
       : action === 'rename' ? await renameCodexProfile(body) : await addCodexProfile(body);
+    let live;
+    if (action === 'select') {
+      try { live = await (await import('./codex-live-engine.mjs')).requestCodexLiveAccount(result.runningSelection); }
+      catch { live = { state: 'failed', reason: 'live_switch_failed', profileId: null }; }
+    }
     // Registry paths are local implementation details; only explicit command
     // requests below return a home as part of a copyable terminal command.
-    send(res, 200, { ok: true, id: result.id ?? result.profileId, revision: result.revision, status: result.status });
+    send(res, 200, { ok: true, id: result.id ?? result.profileId, revision: result.revision, status: result.status, ...(live ? { live } : {}) });
   } catch (error) {
     const reason = error?.code ?? 'operation_failed';
     const conflicts = ['selection_conflict', 'operation_conflict', 'selection_busy'];
