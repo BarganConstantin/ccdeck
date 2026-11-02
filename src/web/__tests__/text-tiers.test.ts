@@ -200,6 +200,17 @@ describe("what was migrated to the secondary tier", () => {
       ".uh-cost-note",
       ".ap-issue-hint",
       ".ap-lan-intro-text",
+      // CHANGED ON PURPOSE (V4's Figma): the Local network screens set their
+      // empty-state lead, the Add a deck heading and note, the pairing
+      // request's note and fingerprint line, the field labels, a deck's facts
+      // and the quiet Unpair in V4's secondary ink.
+      ".ap-lan-nothing",
+      ".lan-add .lan-h",
+      ".lan-add .lan-h + .lan-note",
+      ".lan-ask-note, .lan-ask-fp",
+      ".lan-field-label",
+      ".lan-peer .lan-fact dd",
+      ".lan-peer-foot .btn.danger:not(.armed)",
       // (V4's field: the shared text field's placeholder left this tier for
       // --muted, which is 4.91:1+ on its --bg-soft fill.)
       // The Projects report's Copy and Show buttons: a control's words, kept

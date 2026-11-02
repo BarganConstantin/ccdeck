@@ -228,7 +228,7 @@
    one button, so the link stands over its corner rather than inside it. */
 .ap-lan-intro-row { position: relative; }
 .ap-lan-intro-row > .film-link { position: absolute; right: 10px; bottom: 7px; font-size: calc(10px + max(-1px, var(--ui-text-increase, 0px))); }
-.ap-lan-how + .film-link { margin-left: 12px; font-size: calc(10px + max(-1px, var(--ui-text-increase, 0px))); }
+.ap-lan-how + .film-link { margin-left: 12px; font-size: calc(11px + var(--ui-text-increase, 0px)); }
 /* Beside the hero's tour button, and given its pointer back like it. */
 .empty-hero .empty-actions { display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 8px; margin-top: 22px; }
 .empty-hero .film-link { pointer-events: auto; margin-left: 0; }
