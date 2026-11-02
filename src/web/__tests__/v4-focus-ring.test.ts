@@ -44,7 +44,9 @@ function rules(file: string): Rule[] {
       }
       const end = css.indexOf("}", i);
       out.push({
-        file: relative(WEB, file), line: startLine + (css.slice(start, i).match(/^\s*/)![0].match(/\n/g)?.length ?? 0),
+        // Forward slashes on every platform: the allowlist and the checks name
+        // "styles/tokens.css", and relative() answers with backslashes on Windows.
+        file: relative(WEB, file).replace(/\\/g, "/"), line: startLine + (css.slice(start, i).match(/^\s*/)![0].match(/\n/g)?.length ?? 0),
         selector: header, body: css.slice(i + 1, end), forced: stack.some(Boolean),
       });
       for (const ch of css.slice(i, end)) if (ch === "\n") line++;
