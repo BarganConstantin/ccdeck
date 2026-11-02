@@ -5,8 +5,8 @@
 // LAZY, AND THE ONLY DOOR TO XTERM. The integrator reaches this file only
 // through the lazy chunk (components/terminal/StageShell.tsx, behind
 // React.lazy), so nothing here — nor xterm, nor its stylesheet, nor the
-// session hook — is in the chunk every visit loads (DESIGN-UI decision 9:
-// flag off is byte-for-byte today's deck). xterm itself, and its stylesheet
+// session hook — is in the chunk every visit loads (the flag
+// off is byte-for-byte today's deck). xterm itself, and its stylesheet
 // with it (xterm-sheet.ts), are a further dynamic import inside
 // use-terminal-session.ts, so the stage's chrome can draw while the library is
 // on its way.

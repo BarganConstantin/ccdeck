@@ -1,5 +1,5 @@
 // The navigator is the board folded to the left while a session has the stage
-// (DESIGN-UI decision 1), and the whole design rests on one promise: the fold
+// (the stage's design), and the whole design rests on one promise: the fold
 // keeps the board's shape. Every session stays in its column and in its place
 // in that column, so "paycore is top right" is still true beside the stage and
 // nothing crosses anything on the way there. When the navigator is too narrow

@@ -24,8 +24,8 @@ import { agentName } from "./terminal/stage-model";
  * THE BOARD, GATHERED TO THE LEFT WHILE A SESSION HAS THE STAGE.
  *
  * Screen-space HTML at 1:1, drawn in the canvas's place while React Flow stays
- * mounted underneath, hidden, with its camera and its state (DESIGN-UI decision
- * 1). Every session is a tile in the board's own column and order — see
+ * mounted underneath, hidden, with its camera and its state (the stage's
+ * design). Every session is a tile in the board's own column and order — see
  * board-navigator.ts for why that order is never re-decided — with the face a
  * card shows at a distance, its task on the rim, and every subagent alive on a
  * line of its own. The session on the stage is the SOCKET: its face's skin has

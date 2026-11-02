@@ -1,5 +1,5 @@
-// The Inspector, its Time tab and the title block as V4's Figma draws them (the
-// second look pass): header and tabs boxes, the fold, the title block's type,
+// The Inspector, its Time tab and the title block as V4's Figma draws them:
+// header and tabs boxes, the fold, the title block's type,
 // section labels, row heights, the state the rail and the pane share, the Time
 // tab's split colours and waterfall geometry, the tool icons, and the argument
 // without its braces.

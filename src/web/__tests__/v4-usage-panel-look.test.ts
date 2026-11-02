@@ -1,4 +1,4 @@
-// The Usage panel as V4's Figma draws it (the second look pass): the box, one
+// The Usage panel as V4's Figma draws it: the box, one
 // close in the header with the other two controls moved, the period chips, the
 // hero, the tokens row, the quota rows and the meter rule, and the By model /
 // By session rows.

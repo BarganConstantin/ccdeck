@@ -140,7 +140,7 @@
    React Flow's stylesheet sizes these at 16px plus 5px of padding with a 12px
    cap on the icon; both are overridden here, not added to.
    A control in a bar takes the bar's radius less its inset: --r-ctl less the
-   2px padding is --r-tag (V4 decision 21), so the fill a hover or a press
+   2px padding is --r-tag, so the fill a hover or a press
    brings up follows the bar's corner instead of rounding wider than it. */
 .react-flow__controls-button {
   width: var(--board-controls-btn);

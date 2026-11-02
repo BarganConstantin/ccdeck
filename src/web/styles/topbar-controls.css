@@ -95,7 +95,7 @@
    token itself does (control-edges.test.ts measures it). The dot is 6px in
    the same colour, with no halo — the halo was a second mark for the same
    fact — and it holds still: nothing on this bar pulses at rest.
-   Live has no chip at all (V4 decision 19): nothing to act on, so nothing
+   Live has no chip at all in V4: nothing to act on, so nothing
    drawn. statusPill() still names the state, `resting`, for anything that
    wants the words, but no rule here dresses it, because it never renders. */
 .topbar .status .pill.paused { border-color: var(--warn); }

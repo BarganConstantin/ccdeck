@@ -6,9 +6,9 @@
 // WHY A STATE MACHINE AND NOT A BOOLEAN. "Open" is four different screens. A
 // click on a card does not cover the board at once: the stage is mounted
 // unseen while its pane attaches, because the morph out of the card has to
-// uncover the session already drawn — never a box that boots (DESIGN-UI
-// decision 2). So there is a WAITING step, then OPENING (the morph and the
-// navigator's fold, one clock), then OPEN, and on the way back CLOSING. Every
+// uncover the session already drawn — never a box that boots. So there is a
+// WAITING step, then OPENING (the morph and the navigator's fold, one clock),
+// then OPEN, and on the way back CLOSING. Every
 // way in and out of the stage is one of the actions below, and the reducer is
 // the one place that says what each does from each step.
 //
@@ -17,8 +17,8 @@
 // state stays at `closed` and every rule the deck had before still holds.
 //
 // THE FIRST CLICK OF A DOUBLE-CLICK. A click on a card opens the stage, and a
-// double-click still opens the detail panel (DESIGN-UI decision 8). The
-// second press of that double-click lands where the first one's stage is
+// double-click still opens the detail panel. The second press of that
+// double-click lands where the first one's stage is
 // about to be, so for one double-click interval after an open that came from
 // a click the stage and the navigator let presses through to the board, and
 // the board stays reachable under them (`grace`). Then the double-click
