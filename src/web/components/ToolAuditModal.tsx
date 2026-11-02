@@ -19,7 +19,7 @@ import { useModalDismiss, useScrimDismiss } from './use-modal-dismiss';
 const FIRST_ROWS = 12;
 const providers: { id: AuditProvider; label: string }[] = [{ id: 'all', label: translate('insights.audit.agents.all') }, { id: 'claude', label: 'Claude' }, { id: 'codex', label: 'Codex' }];
 const agentLabel = (id: AuditProvider) => id === 'all' ? translate('insights.audit.agents.all') : id === 'claude' ? 'Claude' : 'Codex';
-/** The two views, each opened by a door of its own on the right stripe (rail-items.tsx). */
+/** The two views, each opened by a door of its own on the Panel bar (rail-items.tsx). */
 export type ToolActivityView = 'tools' | 'skills';
 type View = ToolActivityView;
 /** Each view's title, and the stripe door that opens it — where focus goes back to. */

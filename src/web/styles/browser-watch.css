@@ -1,5 +1,5 @@
 /* ── Browser watch ────────────────────────────────────────────────────────
-   Its control is on the right stripe (edge-rails.css), where its unread count
+   Its control is on the Panel bar (edge-rails.css), where its unread count
    is `.rail-badge`: in the chrome's resting grey, never in amber. */
 
 .bw-modal { width: var(--dialog-m); }

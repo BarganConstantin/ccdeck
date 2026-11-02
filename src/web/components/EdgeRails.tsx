@@ -1,24 +1,17 @@
-// THE CONTROLS LIVE WHERE THEIR PANELS OPEN.
+// THE PANEL BAR: ONE BAR ON THE LEFT HOLDS ALL THE DOORS (V4's Figma).
 //
-// Each panel toggle used to sit in one row at the top right, whatever side its
-// panel opened on: Session list and Accounts open a column on the far LEFT,
-// from a button 1,100px away on the right. Here each side of the window owns
-// its own controls, in a stripe one control-height wide on that edge:
+// The panel toggles used to sit in two stripes, one on each edge. Now one bar,
+// 40 wide, runs down the left edge: the doors at the top in runs between rules
+// (Sessions, Accounts · reports · Usage, Machine · activity · watchers ·
+// trackers, Explore), and the utilities at its foot (Radio, Settings).
+// rail-items.tsx lists them; each run is a named group.
 //
-//   left   Accounts, its two reports · Session list · trackers · Explore
-//   right  Usage, Machine · Usage history, Tool and Skill activity ·
-//          Browser watch, Telemetry Radar · Radio
-//
-// Each stripe is runs of doors that answer one question, between the same
-// rules on both edges, each run a named group: rail-items.tsx lists them.
-//
-// Desktop rails use upright icons, with names and shortcuts in their hints.
+// The bar uses upright icons, with names and shortcuts in its tooltips.
 // Phone controls and the topbar utilities keep their visible words.
-// The topbar keeps the identity, the stream's state, the waiting queue, and the two utilities every
-// product keeps in that corner (UtilityRun). Under 641px the stripes and the
-// utilities become one dock along the bottom: the four panels and Settings one
-// tap away, and the three rare dialogs — History, Browser watch, Feedback —
-// behind a More, the three the phone's ⋯ folded before.
+// The topbar keeps the identity, the stream's state, the waiting queue, Search
+// and Feedback (UtilityRun). Under 641px the bar and the utilities become one
+// dock along the bottom: the four panels and Settings one tap away, and the
+// three rare dialogs — History, Browser watch, Feedback — behind a More.
 //
 // THESE ARE NOT TABS. A stripe button shows or hides a panel beside the canvas,
 // several can be open at once, and the canvas never leaves the screen: "One
@@ -111,7 +104,7 @@ export function railHint(item: RailItem, singleKeys: boolean, wordShown: boolean
  *  carry is a literal the sheet sweeps can hold to a rule. */
 const BUTTON_CLASS = { stripe: "rail-btn rail-btn-stripe", dock: "rail-btn rail-btn-dock", bar: "rail-btn rail-btn-bar" } as const;
 const BAR_LOOK_CLASS = { field: "rail-btn rail-btn-bar rail-btn-field" } as const;
-const RAIL_CLASS = { left: "edge-rail edge-rail-left", right: "edge-rail edge-rail-right" } as const;
+const RAIL_CLASS = { left: "edge-rail edge-rail-left" } as const;
 
 const NEXT_KEYS = { vertical: "ArrowDown", horizontal: "ArrowRight" } as const;
 const PREV_KEYS = { vertical: "ArrowUp", horizontal: "ArrowLeft" } as const;
@@ -180,7 +173,11 @@ function RailButton({ item, index, tabbable, onFocusIndex, hint, variant }: {
   const look = variant === "bar" ? item.barLook : undefined;
   const fieldText = look === "field" ? item.fieldText ?? item.label : null;
   const hinted = fieldText != null ? { ...item, label: fieldText, hint: undefined } : item;
-  const hintHandlers = hint.bind(railHint(hinted, singleKeys, variant !== "stripe"));
+  const spec = railHint(hinted, singleKeys, variant !== "stripe");
+  // V4's door tooltip is one line, the name and its key: the longer help line
+  // stays for assistive tech as the door's description.
+  const oneLine = variant === "stripe" && spec != null && spec.detail != null;
+  const hintHandlers = hint.bind(oneLine ? { ...spec, detail: undefined } : spec);
   const disclosure = item.kind === "panel";
   return (
     <button
@@ -191,6 +188,7 @@ function RailButton({ item, index, tabbable, onFocusIndex, hint, variant }: {
       tabIndex={variant === "bar" ? undefined : tabbable ? 0 : -1}
       aria-label={fieldText ?? item.ariaLabel}
       aria-keyshortcuts={liveKey(item.key, singleKeys)?.aria}
+      aria-description={oneLine ? spec.detail : undefined}
       aria-expanded={disclosure ? item.open === true : undefined}
       aria-controls={disclosure && item.open ? item.controls : undefined}
       aria-haspopup={disclosure ? undefined : "dialog"}
@@ -209,18 +207,28 @@ function RailButton({ item, index, tabbable, onFocusIndex, hint, variant }: {
   );
 }
 
-/** A stripe on one edge of the window, under the topbar. Its hint opens
- *  towards the canvas, the side its panels open on. */
-export function EdgeRail({ side, label, groups }: { side: "left" | "right"; label: string; groups: RailItem[][] }) {
-  const hint = useHint(side === "left" ? "right" : "left");
+/** The Panel bar: the one bar on the window's left edge, under the topbar. Its
+ *  doors are runs between rules at the top; its foot (utilities, no rule) is
+ *  pushed to the bottom. Its hint opens towards the canvas, to its right. */
+export function EdgeRail({ label, groups, foot = [] }: { label: string; groups: RailItem[][]; foot?: RailItem[] }) {
+  const t = useT();
+  const hint = useHint("right");
   const items = groups.filter(g => g.length > 0);
-  const roving = useRoving(items.flat().length, "vertical");
+  const roving = useRoving(items.flat().length + foot.length, "vertical");
   const ref = useRef<HTMLDivElement>(null);
   useFocusHandover(ref);
   let index = 0;
+  const door = (item: RailItem) => {
+    const i = index++;
+    return (
+      <RailButton key={item.id} item={item} index={i} tabbable={i === roving.active}
+        onFocusIndex={roving.setCurrent} hint={hint} variant="stripe" />
+    );
+  };
   return (
-    <div ref={ref} className={RAIL_CLASS[side]} role="toolbar" aria-label={label}
+    <div ref={ref} className={RAIL_CLASS.left} role="toolbar" aria-label={label}
       aria-orientation="vertical" onKeyDown={roving.onKeyDown}>
+      <div className="rail-doors">
       {items.map(group => {
         // A run of two or more is a named group, so a screen reader moving
         // down the stripe hears "Activity history" before the three doors in
@@ -229,16 +237,17 @@ export function EdgeRail({ side, label, groups }: { side: "left" | "right"; labe
         return (
           <div className="rail-group" key={group[0].id} role={name ? "group" : undefined} aria-label={name}
             data-rail-group={group[0].id === "explore-integrations" ? "explore" : undefined}>
-            {group.map(item => {
-              const i = index++;
-              return (
-                <RailButton key={item.id} item={item} index={i} tabbable={i === roving.active}
-                  onFocusIndex={roving.setCurrent} hint={hint} variant="stripe" />
-              );
-            })}
+            {group.map(door)}
           </div>
         );
       })}
+      </div>
+      {foot.length > 0 && (
+        <div className="rail-foot" role="group"
+          aria-label={foot.map(item => item.label).join(t("board.listSep"))}>
+          {foot.map(door)}
+        </div>
+      )}
       {hint.node}
     </div>
   );

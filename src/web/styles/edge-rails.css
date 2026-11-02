@@ -1,12 +1,13 @@
-/* ---------------- the edges: controls where their panels open ----------------
+/* ---------------- the Panel bar: one bar on the left holds the doors ----------
    components/EdgeRails.tsx says why. The geometry is two tokens in the
-   geometry block (tokens.css): --topbar-h, the bar these stripes hang under,
-   and --edge-w, the shared stripe width, with upright icons.
+   geometry block (tokens.css): --topbar-h, the bar this one hangs under,
+   and --edge-w, its width, with upright icons.
 
-   The stripes are fixed to the window's edges; `.app` keeps their width free
-   with its own inline padding, so every grid column, banner and panel inside
-   it moves in by exactly one stripe and nothing else has to know. The topbar
-   reaches back out across the padding to keep the full width.
+   The bar is fixed to the window's left edge; `.app` keeps its width free
+   with its own left padding, so every grid column, banner and panel inside
+   it moves in by exactly one bar and nothing else has to know. The right
+   edge is free: there is no right bar. The topbar reaches back out across the
+   padding to keep the full width.
 
    SHOW AND HIDE, NOT TABS. Each stripe button shows or hides a panel BESIDE
    the canvas, any number of them can be open at once, and the canvas never
@@ -14,10 +15,10 @@
    an open button is a fill on the button and a line on the edge it opened
    from, the seam the panel and its button share, and never a tab joined to a
    page. */
-.app { padding-inline: var(--edge-w); }
-.app > .topbar { margin-inline: calc(-1 * var(--edge-w)); }
+.app { padding-left: var(--edge-w); }
+.app > .topbar { margin-left: calc(-1 * var(--edge-w)); }
 
-/* ── the stripes ─────────────────────────────────────────────────────────── */
+/* ── the bar ─────────────────────────────────────────────────────────────── */
 /* Under the popover layer (40) and the rail panels (20), over the canvas and
    its chrome (12): a panel that slides out past a stripe goes over it. */
 .edge-rail {
@@ -30,15 +31,23 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  /* V4's Panel bar: 2px between every child — a door, a group's rule, the
-     next door — and 6px of air at the top and the foot. */
-  gap: 2px;
+  /* V4's Panel bar: two groups, pushed apart — the doors at the top, the
+     utilities at the foot — with 6px of air above and below. */
+  justify-content: space-between;
   padding: 6px 0;
   background: var(--panel);
   user-select: none;
 }
 .edge-rail-left { left: 0; border-right: 1px solid var(--line); }
-.edge-rail-right { right: 0; border-left: 1px solid var(--line); }
+/* The doors and the foot: 2px between every child — a door, a group's rule,
+   the next door. */
+.rail-doors,
+.rail-foot {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
 .rail-group {
   display: flex;
   flex-direction: column;
@@ -51,7 +60,7 @@
    on History then dropped a dialog where the stripe had promised a panel. It is
    a flex item and not a border so the 16px stays 16 whatever the stripe's
    width, and the group's own 2px gap spaces it from the door under it. */
-.edge-rail .rail-group + .rail-group::before {
+.rail-doors .rail-group + .rail-group::before {
   content: "";
   flex: none;
   width: 16px;
@@ -59,13 +68,10 @@
   background: var(--line-soft);
 }
 
-/* Discovery stays at the foot of the left toolbar, in its existing roving
-   sequence. Short windows can scroll the rail rather than clipping actions. */
+/* Short windows can scroll the bar rather than clipping actions. */
 .edge-rail-left { overflow-y: auto; }
 .edge-rail-left .rail-group { flex-shrink: 0; }
-/* Its rule is the one every group after the first draws, above; this group
-   only takes the free space above itself. */
-.edge-rail-left .rail-group[data-rail-group="explore"] { margin-top: auto; }
+.rail-foot { flex-shrink: 0; }
 
 /* One control, three placements: a stripe, the phone's dock, the topbar's
    corner. The toolbar button of the old bar with the chrome taken off: no
@@ -156,13 +162,11 @@
   background: var(--text);
   opacity: 0;
 }
-/* The door is 28 in a 39px column (the stripe less its border), so it starts
-   5.5px in. On the left stripe the line ends a pixel inside the border, where
-   it always has: the rail scrolls, and a line past its edge widened
-   scrollWidth into a horizontal scrollbar even while transparent. On the right
-   stripe it lies over the border. */
+/* The door is 28 in a 39px column (the bar less its border), so it starts
+   5.5px in. The line ends a pixel inside the border, where it always has: the
+   bar scrolls, and a line past its edge widened scrollWidth into a horizontal
+   scrollbar even while transparent. */
 .edge-rail-left .rail-btn-stripe::before { right: -5px; }
-.edge-rail-right .rail-btn-stripe::before { left: -7px; }
 .rail-btn-stripe[aria-expanded="true"]::before { opacity: 1; }
 
 /* Unread findings, Browser watch's: a count, not an alarm, so --muted and

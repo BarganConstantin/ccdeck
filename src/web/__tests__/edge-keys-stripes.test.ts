@@ -63,7 +63,7 @@ describe("each stripe is a toolbar, and the dock is one", () => {
     expect(src).toMatch(/const PREV_KEYS = \{ vertical: "ArrowUp", horizontal: "ArrowLeft" \} as const;/);
     expect(src).toMatch(/else if \(e\.key === "Home"\) to = 0;/);
     expect(src).toMatch(/else if \(e\.key === "End"\) to = buttons\.length - 1;/);
-    expect(src).toMatch(/useRoving\(items\.flat\(\)\.length, "vertical"\)/);
+    expect(src).toMatch(/useRoving\(items\.flat\(\)\.length \+ foot\.length, "vertical"\)/);
     expect(src).toMatch(/useRoving\(items\.length \+ 1, "horizontal"\)/);
   });
 });

@@ -44,7 +44,7 @@ describe("the bar's geometry, from Figma", () => {
     expect(bar["grid-row"]).toBe("4");
     expect(bar["grid-column"]).toBe("1 / -1");
     // Out across the stripes' padding, as the topbar is.
-    expect(bar["margin-inline"]).toBe("calc(-1 * var(--edge-w))");
+    expect(bar["margin-left"]).toBe("calc(-1 * var(--edge-w))"); // one bar, on the left only (V4's Figma)
     expect(bar["overflow"]).toBe("hidden");
     expect(bar["position"]).toBeUndefined();
   });

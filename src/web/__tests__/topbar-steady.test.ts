@@ -37,7 +37,7 @@ const items = (watchUnseen: number) => railItems({
 
 describe("the bar holds nothing a panel changes", () => {
   it("draws no panel toggle: only Search, Settings and Feedback, which open dialogs", () => {
-    expect(header).toContain("<UtilityRun items={[rails.search, ...rails.utilities]} />");
+    expect(header).toContain("<UtilityRun items={[rails.search, ...rails.topUtilities]} />");
     expect(header).not.toMatch(/rails\.left|rails\.right|<EdgeRail|<EdgeDock/);
     const utilities = items(0).utilities;
     expect(utilities.map(i => i.id)).toEqual(["settings", "feedback"]);
@@ -62,8 +62,8 @@ describe("an unread finding moves nothing but its own button's foot", () => {
     const last = right[right.length - 1];
     expect(last[last.length - 1].id).toBe("browser-watch");
     const html = renderToStaticMarkup(createElement(EdgeRail, { side: "right", label: "Right panels", groups: right }));
-    // The badge closes the button, and the button closes the stripe.
-    expect(html).toMatch(/<span class="rail-badge" aria-hidden="true">1<\/span><\/button><\/div><\/div>$/);
+    // The badge closes the button, which closes its run, the doors and the bar.
+    expect(html).toMatch(/<span class="rail-badge" aria-hidden="true">1<\/span><\/button><\/div><\/div><\/div>$/);
     expect(renderToStaticMarkup(createElement(EdgeRail, { side: "right", label: "Right panels", groups: items(0).right })))
       .not.toContain("rail-badge");
   });
