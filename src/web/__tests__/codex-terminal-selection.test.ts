@@ -72,6 +72,9 @@ describe('durable terminal selection', () => {
     const first = await readFile(rc, 'utf8');
     await configureCodexTerminal('install', options);
     expect(await readFile(rc, 'utf8')).toBe(first);
+    // Reports or unrelated project files above the data directory must not
+    // become the installed helper's Node package configuration.
+    await writeFile(join(f.root, 'package.json'), '[]\n');
     const runner = join(f.store, 'codex-terminal', 'codex-terminal-runner.mjs');
     const interactive = pathToFileURL(join(f.store, 'codex-terminal', 'codex-interactive-engine.mjs')).href;
     expect(execFileSync(process.execPath, ['--input-type=module', '-e',

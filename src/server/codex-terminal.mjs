@@ -86,6 +86,11 @@ export async function configureCodexTerminal(action, options = {}) {
     const data = options.store ?? deckDataDir(undefined, env, home);
     const directory = join(data, 'codex-terminal');
     await mkdir(directory, { recursive: true, mode: 0o700 });
+    // Keep Node's package lookup inside the durable helper. An unrelated
+    // package.json above the data directory must not prevent startup.
+    const manifest = join(directory, 'package.json');
+    await writeFileAtomic(manifest, JSON.stringify({ private: true, type: 'module' }) + '\n');
+    await chmod(manifest, 0o600);
     for (const name of ['codex-terminal-runner.mjs', 'exec-spec.mjs', 'account-engine.mjs', 'codex-engine-adapter.mjs', 'codex-handoff.mjs',
       'codex-interactive-engine.mjs', 'codex-engine-config.mjs', 'codex-engine-rpc.mjs', 'codex-engine-bridge.mjs',
       'codex-auto.mjs', 'codex-selection.mjs', 'codex-profiles.mjs', 'codex-native-account.mjs',
