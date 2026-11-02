@@ -716,9 +716,10 @@
   color: var(--text-dim);
   font-size: calc(11px + var(--ui-text-increase, 0px));
 }
-/* Edgeless and in the quiet ink until it is pointed at, the way the LAN
-   dialog's Unpair is (.lan-peer-foot .btn.danger), and in the error colour
-   only once armed, the moment the colour is about something. */
+/* Edgeless and in the quiet ink until it is pointed at, and in the error
+   colour only once armed, the moment the colour is about something. (The LAN
+   dialog's Unpair used to share this look; V4 draws it outlined, so it has its
+   own rule in lan-setup.css.) */
 .fb-discard { margin-right: auto; }
 .fb-foot .btn.danger:not(.armed) {
   border-color: transparent;

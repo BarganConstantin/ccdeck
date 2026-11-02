@@ -765,15 +765,17 @@ const CONTROLS: Control[] = [
       // undone.
       ".ap-lan-who .ap-manage-btn.danger.armed",
     ], beds: ACCOUNTS },
-  // The same verb as the row's, holding the same line one panel in. Unpair is
-  // rare and cannot be undone from here, and it sat in the loudest ink on the
-  // surface beside the button somebody presses every day — so it keeps its
-  // word and its place and loses the edge until it is pointed at, exactly as
-  // the row above does. Measured at the state where the edge exists, on the
-  // foot's own ground rather than the body's.
-  { at: ".lan-peer-foot .btn.danger:not(.armed):hover:not(:disabled)",
+  // CHANGED ON PURPOSE (V4's Figma): the deck's own dialog draws Unpair as the
+  // quiet outlined button on the left of its foot, so the control now has an
+  // edge at rest (the shared control edge) as well as under the pointer and
+  // the keyboard, and all three are measured. The foot is the dialog's own
+  // --panel now, not the --bg-soft band it used to be.
+  { at: ".lan-peer-foot .btn.danger:not(.armed)",
     fillFrom: "button.btn",
-    states: [".lan-peer-foot .btn.danger:not(.armed):focus-visible"], beds: ["--bg-soft"] },
+    states: [
+      ".lan-peer-foot .btn.danger:not(.armed):hover:not(:disabled)",
+      ".lan-peer-foot .btn.danger:not(.armed):focus-visible",
+    ], beds: ["--panel"] },
   // The feedback dialog's Discard holds the same line in its own foot: it is
   // drawn only while there is a draft, keeps its word and loses the edge until
   // it is pointed at or focused. The foot is the dialog's panel, not a band.

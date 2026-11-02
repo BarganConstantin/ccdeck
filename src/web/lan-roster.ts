@@ -689,6 +689,13 @@ export function entryLine(
   return { text: t("lan.entry.someOnline", { online, n: paired.length }), tone: "ok", live: true };
 }
 
+/** How many PAIRED decks the list draws in full before the ones that are not on
+ *  go behind the fold. V4's Figma draws the offline decks as rows like any
+ *  other, so a short list shows all of them; a long one keeps the fold. Only
+ *  paired decks count: a nearby deck whose beacon comes and goes would
+ *  otherwise flip the list between rows and `5 more` on every poll. */
+export const FOLD_AT = 6;
+
 /**
  * The view's rows, split the way the view draws them: the requests, which it
  * answers first and on their own, and the rest — the machines that are on,
@@ -705,8 +712,12 @@ export function entryLine(
  * one press opens it. A count in the right colour is a smaller lie than no
  * count at all — it is not a lie at all.
  *
- * Lifted out of LanSyncSection.tsx unchanged, so the fold can be asked what it
- * does rather than read.
+ * A SHORT LIST HAS NO FOLD. Up to FOLD_AT paired decks the ones that are not on are
+ * rows like the rest, in the order above, as V4's Figma draws them; past that
+ * the fold counts them again.
+ *
+ * Lifted out of LanSyncSection.tsx so the fold can be asked what it does
+ * rather than read.
  */
 export function viewRows(rows: DeckRow[], foldOpen: boolean) {
   const asks = rows.filter(r => r.kind === "asks");
@@ -716,12 +727,16 @@ export function viewRows(rows: DeckRow[], foldOpen: boolean) {
   const troubled = folded.filter(r => r.tone === "bad").length;
   // Nothing to lead with means nothing to fold behind: an empty list over a
   // `3 more` is a list that has hidden all of itself.
-  const showFolded = foldOpen || live.length === 0;
+  const paired = rest.filter(r => r.kind === "paired").length;
+  const showFolded = foldOpen || live.length === 0 || paired <= FOLD_AT;
+  // Whether there is a fold to draw at all: the ones that are not on are
+  // behind it, there are some, and the list is long enough to need one. Counted
+  // on the paired decks, which come and go only when somebody pairs or unpairs.
+  const foldable = live.length > 0 && folded.length > 0 && paired > FOLD_AT;
   // The ones that are on stay at the top when the fold opens. Sorting the
   // whole list by presence would move a row between two five-second polls on
   // a lost beacon; sorting the two GROUPS moves a row only when the thing it
   // reports actually changed.
   const shown = showFolded ? [...live, ...folded] : live;
-  const paired = rest.filter(r => r.kind === "paired").length;
-  return { asks, rest, live, folded, troubled, showFolded, shown, paired };
+  return { asks, rest, live, folded, troubled, showFolded, foldable, shown, paired };
 }

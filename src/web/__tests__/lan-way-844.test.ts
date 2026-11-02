@@ -125,7 +125,10 @@ describe("one way in, at the foot of the accounts (#844)", () => {
   it("is the section itself, drawn as one row while the accounts have the column", () => {
     // The section's foot holds the row, and the row is the button first.
     expect(lan).toMatch(/<div className="ap-foot">\s*<LanEntryRow /);
-    expect(entryRow).toMatch(/return \(\s*<>\s*<button type="button" id="ap-lan-entry" className="ap-nav"/);
+    // CHANGED ON PURPOSE (V4's Figma): the row wears `ap-lan-nav` as well, so
+    // its 44px two-line sizes apply to this row and not to the other accounts'
+    // fold that shares `ap-nav`. It is still the button first.
+    expect(entryRow).toMatch(/return \(\s*<>\s*<button type="button" id="ap-lan-entry" className="ap-nav ap-lan-nav"/);
     // No grace on the way into the view: a card that outlived the view it
     // belongs to would be a card about a list the reader is already looking at.
     expect(entryRow).toMatch(/onClick=\{\(\) => \{ dropPeek\(\); onOpen\(\); \}\}/);

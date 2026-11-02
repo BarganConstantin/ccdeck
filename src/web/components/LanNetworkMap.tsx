@@ -266,7 +266,6 @@ export default function LanNetworkMap({ status, rows, accounts, now, covered, on
         <header className="modal-head nm-head">
           <div className="nm-heading">
             <h2 id="nm-title" className="modal-title nm-title">{t("lan.nm.title")}</h2>
-            <p id="nm-sub" className="nm-sub">{headline}</p>
           </div>
           <div className="modal-actions">
             <button ref={closeRef} type="button" className="glyph-btn" onClick={onClose}
@@ -317,6 +316,10 @@ export default function LanNetworkMap({ status, rows, accounts, now, covered, on
               </>
             )}
           </div>
+          {/* THE CAPTION, under the picture and at its left edge, as V4's Figma
+              puts it: what the map says in one line, in the kit's 12. It used to
+              sit under the title; the dialog reads it as its description. */}
+          <p id="nm-sub" className="nm-sub">{headline}</p>
           <Legend slice={layout?.zone != null} />
           </div>
 
@@ -476,7 +479,7 @@ function Core({ status }: { status: LanStatus | null }) {
   const listening = status?.enabled === true && status.running;
   return (
     <div className="nm-core" data-listening={listening || undefined}>
-      <span className="nm-core-orb" aria-hidden />
+      <span className="nm-core-orb" aria-hidden><Machine /></span>
       <span className="nm-core-label">
         <span className="nm-core-name">{status?.name ?? "…"}</span>
         <span className="nm-core-what">{t("lan.nm.thisDeck")}</span>

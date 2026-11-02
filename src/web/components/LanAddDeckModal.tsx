@@ -22,9 +22,10 @@
 // directly under that section's field and its help — the strongest visual
 // weight in the dialog, in the position a form puts its submit, for the one
 // action that does not add a deck at all. It is the OTHER DIRECTION of the
-// invite method: they add this deck rather than this deck adding them. So it
-// moved onto the invite heading's own row, where a trailing quiet verb reads as
-// a second direction inside the method rather than as the field's commit.
+// invite method: they add this deck rather than this deck adding them. So it is
+// an outlined button of its own under the paste field, at the left edge, as
+// V4's Figma draws it — apart from the field's row, so it does not read as that
+// field's commit.
 //
 // What is left below is two methods with identical rhythm — heading, field,
 // one sentence — because two things drawn the same way read as two of a kind,
@@ -37,7 +38,7 @@ import { Dialog, DialogClose } from "./Dialog";
 import { useModalDismiss, useScrimDismiss } from "./use-modal-dismiss";
 import { focusDropped, pressAccepted, pressState } from "../panel-press";
 import LanReachNote from "./LanReachNote";
-import { leftLabel, parseAddress } from "../lan-add-deck";
+import { hasText, joinToken, leftLabel, parseAddress } from "../lan-add-deck";
 import type { LanStatus } from "../lan-types";
 import { writeFailure } from "../use-lan-section";
 import { t as tNow, useT } from "../i18n";
@@ -206,7 +207,7 @@ export default function LanAddDeckModal({ status, manual, startWith, onClose, on
   }, [onChanged, claim, release]);
 
   const join = useCallback(async () => {
-    const token = joinDraft.trim();
+    const token = joinToken(joinDraft);
     if (!token || !claim("join")) return;
     setTried(null);
     try {
@@ -321,30 +322,32 @@ export default function LanAddDeckModal({ status, manual, startWith, onClose, on
           )}
           {!inviteOnly && <div className="modal-section">
             <h3 className="lan-h">{t("lan.add.byAddress")}</h3>
-            <div className="ap-lan-row">
-              <input
-                ref={addrRef}
-                className="ap-manage-input ap-lan-input"
-                aria-label={t("lan.add.addrAria")}
-                value={addrDraft}
-                placeholder="192.168.1.5:54340"
-                spellCheck={false}
-                {...fieldProps("addr")}
-                onChange={e => { setAddrDraft(e.target.value); clearFor("addr"); }}
-                onKeyDown={e => { if (e.key === "Enter") void addAddress(); }}
-              />
-              {/* The verb arrives with something to commit, rather than sitting
-                  there disabled: #620's rule is that a press never disables the
-                  control it came from, and `disabled` here would have to mean
-                  two different things at once. Its width is NOT held open for
-                  it: an empty 70px gutter is a permanent raggedness against the
-                  edge the heading's own verb sits on, paid every time the dialog
-                  opens, to spare one field's right border moving once. */}
-              {addrDraft.trim() !== "" && (
-                <button type="button" className="ap-manage-btn" {...pressProps("add")}
+            <div className="lan-field">
+              <label className="lan-field-label" htmlFor="lan-add-addr">{t("lan.add.addrAria")}</label>
+              <div className="ap-lan-row">
+                <input
+                  id="lan-add-addr"
+                  ref={addrRef}
+                  className="ap-manage-input ap-lan-input"
+                  value={addrDraft}
+                  placeholder="192.168.1.5:54340"
+                  spellCheck={false}
+                  {...fieldProps("addr")}
+                  onChange={e => { setAddrDraft(e.target.value); clearFor("addr"); }}
+                  onKeyDown={e => { if (e.key === "Enter") void addAddress(); }}
+                />
+                {/* Drawn from the first frame, outlined, as V4's Figma has it,
+                    and inert while there is nothing to commit. #620's rule still
+                    holds: a press never disables the control it came from —
+                    `pressProps` only goes inert for somebody else's request,
+                    and the empty-field half of `disabled` cannot be true while
+                    this one's own request is out, because the draft is only
+                    cleared once it has landed. */}
+                <button type="button" className="btn lan-field-act" {...pressProps("add")}
+                  disabled={!hasText(addrDraft) || pressProps("add").disabled}
                   onClick={() => void addAddress()}
                   title={t("lan.add.addTitle")}>{t("lan.add.add")}</button>
-              )}
+              </div>
             </div>
             <p className="lan-note">{t("lan.add.callsNote")}</p>
             {/* THE OTHER HALF OF "TYPE THEIR ADDRESS", and it was missing.
@@ -380,40 +383,43 @@ export default function LanAddDeckModal({ status, manual, startWith, onClose, on
           </div>}
 
           <div className="modal-section">
-            {/* The other direction, on the heading's own row. Below the heading
-                is the one field this method has; beside it is the way to be on
-                the other end of somebody else's. */}
-            <h3 className="lan-h">
-              {t("lan.add.withInvite")}
-              {!live && (
-                <button type="button" className="ap-lan-word lan-h-act" ref={makeRef} {...pressProps("invite:make")}
-                  onClick={() => void invite("make")}
-                  title={t("lan.add.makeTitle")}>
-                  {busy === "invite:make" ? t("lan.add.making") : t("lan.add.makeOne")}
-                </button>
-              )}
-            </h3>
-            <div className="ap-lan-row">
-              <input
-                ref={joinRef}
-                className="ap-manage-input ap-lan-input"
-                aria-label={t("lan.add.joinAria")}
-                value={joinDraft}
-                placeholder={t("lan.add.joinPlaceholder")}
-                spellCheck={false}
-                {...fieldProps("join")}
-                onChange={e => { setJoinDraft(e.target.value); setTried(null); clearFor("join"); }}
-                onKeyDown={e => { if (e.key === "Enter") void join(); }}
-              />
-              {joinDraft.trim() !== "" && (
-                <button type="button" className="ap-manage-btn" {...pressProps("join")}
+            <h3 className="lan-h">{t("lan.add.withInvite")}</h3>
+            <p className="lan-note">{t("lan.add.inviteIntro")}</p>
+            <div className="lan-field">
+              <label className="lan-field-label" htmlFor="lan-add-join">{t("lan.add.joinAria")}</label>
+              <div className="ap-lan-row">
+                <input
+                  id="lan-add-join"
+                  ref={joinRef}
+                  className="ap-manage-input ap-lan-input"
+                  value={joinDraft}
+                  placeholder={t("lan.add.joinPlaceholder")}
+                  spellCheck={false}
+                  {...fieldProps("join")}
+                  onChange={e => { setJoinDraft(e.target.value); setTried(null); clearFor("join"); }}
+                  onKeyDown={e => { if (e.key === "Enter") void join(); }}
+                />
+                <button type="button" className="btn lan-field-act" {...pressProps("join")}
+                  disabled={!hasText(joinDraft) || pressProps("join").disabled}
                   onClick={() => void join()}
                   title={t("lan.add.joinTitle")}>
                   {busy === "join" ? t("lan.add.joining") : t("lan.add.join")}
                 </button>
-              )}
+              </div>
             </div>
             <p className="lan-note">{t("lan.add.pasteNote")}</p>
+
+            {/* The other direction of the invite method, as V4's Figma draws
+                it: an outlined button under the paste field. It goes away while
+                one is live, because the card below is then the thing to act on
+                and a deck may only offer one token at a time. */}
+            {!live && (
+              <button type="button" className="btn lan-make" ref={makeRef} {...pressProps("invite:make")}
+                onClick={() => void invite("make")}
+                title={t("lan.add.makeTitle")}>
+                {busy === "invite:make" ? t("lan.add.making") : t("lan.add.makeOne")}
+              </button>
+            )}
 
             {tried && (
               <div className="ap-lan-tried">
@@ -461,6 +467,10 @@ export default function LanAddDeckModal({ status, manual, startWith, onClose, on
             )}
           </div>
         </section>
+
+        <footer className="modal-foot">
+          <button type="button" className="btn primary" onClick={onClose}>{t("lan.setup.done")}</button>
+        </footer>
     </Dialog>,
     document.body,
   );

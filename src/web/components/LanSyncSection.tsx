@@ -168,7 +168,7 @@ export default function LanSyncSection({
     if (peerOpen && status && !openRow) setPeerOpen(null);
   }, [peerOpen, status, openRow]);
   // The requests, and the rest split at the fold — see viewRows.
-  const { asks, rest, live, folded, troubled, shown, paired } = viewRows(rows, foldOpen);
+  const { asks, rest, folded, troubled, foldable, shown, paired } = viewRows(rows, foldOpen);
   const state = sectionState(status, now);
   // What the way in says, from the same rows the list is drawn from.
   const entry = entryLine(status, rows);
@@ -403,12 +403,12 @@ export default function LanSyncSection({
                     boundary apart, each alone on its own row — one word on the left,
                     one figure below it, and nothing between them but sixteen pixels.
                     One row, two ends, and the section stops there. */}
-                {((live.length > 0 && folded.length > 0) || (on && paired > 0)) && (
+                {(foldable || (on && paired > 0)) && (
                 <div className="ap-lan-tail">
                 {/* The count of what is not on, in the ink that says whether any of it
                     matters. A chevron rather than a plus: this is one list with a
                     part of it folded, not a second thing to open. */}
-                {live.length > 0 && folded.length > 0 && (
+                {foldable && (
                   <button type="button" className="ap-lan-word ap-lan-more" aria-expanded={foldOpen}
                     onClick={() => setFoldOpen(v => !v)}
                     title={foldOpen
@@ -437,13 +437,14 @@ export default function LanSyncSection({
                     the network for the line above it. */}
                 {rest.length === 0 && asks.length === 0 && !status?.stalled && !status?.deaf && !status?.lanTunneled && (
                   <>
-                    <p className="ap-lan-fine">
+                    <p className="ap-lan-nothing">{t("lan.sync.emptyLead")}</p>
+                    <p className="ap-lan-nothing">
                       {t("lan.sync.empty")}
                     </p>
                     {/* The moment somebody has switched this on and is waiting for a
                         first machine is the moment they most want to know what the
                         other machine has to do. */}
-                    <button type="button" className="ap-lan-word ap-lan-how" onClick={() => setGuideOpen(true)}>
+                    <button type="button" className="btn ap-lan-how" onClick={() => setGuideOpen(true)}>
                       {t("lan.sync.how")}
                     </button>
                     <FilmLink film="localNetwork" />

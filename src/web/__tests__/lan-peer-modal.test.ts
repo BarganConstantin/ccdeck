@@ -331,7 +331,12 @@ describe("the dialog is as quiet as the row it opens from", () => {
   // this dialog drew the sentence anyway, and then printed the same fact again
   // as `Last round` seven rows below.
   it("does not draw the state a healthy deck shares with every other healthy deck", () => {
-    expect(MODAL).toMatch(/row\.quiet \? "vis-hidden" : "lan-peer-state"/);
+    // CHANGED ON PURPOSE (V4's Figma): the header's sub-line says
+    // `calls itself <name> · online` for a healthy deck too, and the list it
+    // opens from draws the same sentence on every row, so the dialog no longer
+    // hides it. `quiet` stays the data's word for the steady state.
+    expect(MODAL).toMatch(/<span className="lan-peer-state">\{row\.state\}<\/span>/);
+    expect(MODAL).not.toMatch(/row\.quiet \? "vis-hidden"/);
   });
 
   // Not deleted — read aloud. The row keeps the sentence for anybody being
@@ -412,13 +417,20 @@ describe("the row is the door", () => {
     );
   });
 
-  it("gives a healthy row one grid track, so its box is one line high", () => {
-    expect(CSS).toMatch(/\.ap-lan-who:has\(> \.vis-hidden\) \{ grid-template-areas: "dot name verb"; \}/);
+  it("gives every row two lines and a 44px box, a healthy one too", () => {
+    // CHANGED ON PURPOSE (V4's Figma): no row is one line any more. Every row
+    // is the glyph, the name over the state, and the verb — 44 high — so the
+    // one-track variant is gone and the grid has two lines for all of them.
+    expect(CSS).not.toMatch(/\.ap-lan-who:has\(> \.vis-hidden\)/);
+    expect(CSS).toMatch(/grid-template-areas:\s*"glyph name  verb"\s*"glyph state verb";/);
+    expect(CSS).toMatch(/\.ap-lan-who \{[^}]*min-height: 44px;/);
   });
 
   it("tells a keyboard reader what is happening to the machine, not only its name", () => {
     expect(LIST).toMatch(/aria-describedby=\{`lan-who-state-\$\{i\}`\}/);
-    expect(LIST).toMatch(/<span id=\{`lan-who-state-\$\{i\}`\} className=\{p\.quiet \? "vis-hidden" : "ap-lan-who-when"\}>/);
+    // CHANGED ON PURPOSE (V4's Figma): the state is drawn on every row, so the
+    // node is always the visible one.
+    expect(LIST).toMatch(/<span id=\{`lan-who-state-\$\{i\}`\} className="ap-lan-who-when">/);
   });
 
   it("does in the dialog exactly what the row's verb does, under the same busy tag", () => {
