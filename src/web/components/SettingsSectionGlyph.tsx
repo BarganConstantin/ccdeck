@@ -26,8 +26,17 @@
 // Experimental is a flask, the shape a settings window's labs page wears.
 // A dot is a zero-length stroke, which the round cap draws as a dot.
 import type { SettingsSection } from "../settings";
+import { KitIcon, type KitIconName } from "./kit-icons";
+
+// The sections the kit has an icon for; the rest keep the 13px drawings below.
+const KIT_SECTION: Partial<Record<SettingsSection, KitIconName>> = {
+  radar: "radar", claude: "terminal", appearance: "theme", keyboard: "keyboard",
+  integrations: "integrations", about: "info", account: "account",
+};
 
 export default function SettingsSectionGlyph({ section }: { section: SettingsSection }) {
+  const kit = KIT_SECTION[section];
+  if (kit) return <KitIcon name={kit} />;
   return (
     <svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
       {section === "radar" && <><path d="M11.8 7a4.8 4.8 0 1 1-4.8-4.8M9.7 7A2.7 2.7 0 1 1 7 4.3M7 7l4.8-4.8" /></>}

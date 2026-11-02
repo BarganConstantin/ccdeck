@@ -182,7 +182,7 @@ describe("Refresh keeps its arrow and turns it at one tempo of 900ms", () => {
     // class would turn it whenever its button is busy.
     const glyphs = source("action-glyphs.tsx");
     expect(glyphs.match(/className="refresh-glyph"/g)).toHaveLength(1);
-    expect(glyphs).toMatch(/export function RefreshGlyph\(\) \{\s*return <svg className="refresh-glyph" width="13"/);
+    expect(glyphs).toMatch(/export function RefreshGlyph\(\) \{\s*return <KitIcon name="update" className="refresh-glyph" \/>/);
     expect(source("UsagePanel.tsx")).toMatch(/<svg className="refresh-glyph" width="16"/);
   });
   for (const file of ["UsagePanel.tsx", "UsageHistoryModal.tsx", "QuotaHistoryModal.tsx", "BrowserWatchModal.tsx"]) {

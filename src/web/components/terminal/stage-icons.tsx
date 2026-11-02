@@ -7,6 +7,7 @@
 // copies of one path are two drawings that drift.
 import type { ReactNode } from "react";
 import type { TerminalProvider } from "../../terminal-api";
+import { KitIcon } from "../kit-icons";
 import { AlertMark, StateMark } from "../StateMark";
 import type { StageState } from "./stage-model";
 
@@ -67,21 +68,17 @@ export function StageGlyph({ kind }: { kind: StageGlyphKind }) {
   );
 }
 
-export const KeyboardGlyph = () => (
-  <Glyph><rect x="1.75" y="4" width="12.5" height="8" rx="1.5" /><path d="M4.5 6.5h.01M7 6.5h.01M9.5 6.5h.01M12 6.5h.01M5 9.5h6" /></Glyph>
-);
+export const KeyboardGlyph = () => <KitIcon name="keyboard" className="ts-icon" />;
 export const ExpandGlyph = () => (
   <Glyph><path d="M9.5 2.5h4v4M13.5 2.5 9 7M6.5 13.5h-4v-4M2.5 13.5 7 9" /></Glyph>
 );
 export const CollapseGlyph = () => (
   <Glyph><path d="M13.5 6.5h-4v-4M9.5 6.5 14 2M2.5 9.5h4v4M6.5 9.5 2 14" /></Glyph>
 );
-export const CloseGlyph = () => <Glyph><path d="M4 4l8 8M12 4l-8 8" /></Glyph>;
-export const BackGlyph = () => <Glyph><path d="M9.75 3.5 5.25 8l4.5 4.5" /></Glyph>;
-export const PlusGlyph = () => <Glyph><path d="M8 3v10M3 8h10" /></Glyph>;
-export const CopyGlyph = () => (
-  <Glyph><rect x="5.5" y="5.5" width="8" height="8" rx="1.5" /><path d="M10.5 5.5v-2a1 1 0 0 0-1-1h-6a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h2" /></Glyph>
-);
+export const CloseGlyph = () => <KitIcon name="close" className="ts-icon" />;
+export const BackGlyph = () => <KitIcon name="chevron-left" className="ts-icon" />;
+export const PlusGlyph = () => <KitIcon name="plus" className="ts-icon" />;
+export const CopyGlyph = () => <KitIcon name="copy" className="ts-icon" />;
 export const TerminalGlyph = () => (
   <Glyph size={28} box={28}><rect x="2.5" y="5" width="23" height="18" rx="3" /><path d="M8 11l3.5 3L8 17M14 17.5h6" /></Glyph>
 );
