@@ -1,8 +1,11 @@
-// The deck's control glyphs, on the one spec #837 drew them to: 13px on a 14
-// viewBox, a 1.4 stroke, round caps and joins. Moved out of TopbarRuns.tsx
-// unchanged when the panel toggles left the topbar for the edges, so the rails,
-// the phone dock and the two utilities left on the bar draw from one set.
+// The deck's control glyphs. Where V4's kit has the icon they are the kit's own
+// drawing (kit-icons.tsx: 14px, a 1.5 stroke, round caps and joins); the brand
+// marks and the few shapes the kit has no counterpart for keep the old 13px
+// spec below. Moved out of TopbarRuns.tsx when the panel toggles left the topbar
+// for the edges, so the rails, the phone dock and the two utilities left on the
+// bar draw from one set.
 import type { ReactNode } from "react";
+import { KitIcon } from "./kit-icons";
 
 function Glyph({ children, narrow }: { children: ReactNode; narrow?: boolean }) {
   return (
@@ -13,155 +16,61 @@ function Glyph({ children, narrow }: { children: ReactNode; narrow?: boolean }) 
   );
 }
 
-export const SessionListGlyph = () => (
-  <Glyph>
-    <path d="M5.4 3.6h6.6M5.4 7h6.6M5.4 10.4h6.6" />
-    <path d="M2.2 3.6h.2M2.2 7h.2M2.2 10.4h.2" />
-  </Glyph>
-);
+export const SessionListGlyph = () => <KitIcon name="sessions" className="glyph" />;
 
 /** Discovery, distinct from a provider shortcut or a generic Add action. */
-export const IntegrationsGlyph = () => (
-  <Glyph>
-    <g transform="rotate(45 7 7)">
-      <path d="M7 1v1.5M4.5 2.5h5v1.3a2.5 2.5 0 0 1-5 0zM5.5 7v1.5M8.5 7v1.5M4.5 8.5h5v1.3a2.5 2.5 0 0 1-5 0zM7 12.3V14" />
-    </g>
-  </Glyph>
-);
+export const IntegrationsGlyph = () => <KitIcon name="integrations" className="glyph" />;
 
-export const AccountsGlyph = () => (
-  <Glyph>
-    <circle cx="7" cy="4.6" r="2.4" />
-    <path d="M2.4 12c0-2.3 2.1-3.7 4.6-3.7s4.6 1.4 4.6 3.7" />
-  </Glyph>
-);
+export const AccountsGlyph = () => <KitIcon name="account" className="glyph" />;
 
-export const UsageGlyph = () => (
-  <Glyph narrow>
-    <path d="M9.4 4.5C9 3.6 8.1 3.1 7 3.1c-1.4 0-2.4.8-2.4 1.9 0 1.2 1.2 1.6 2.4 2s2.4.8 2.4 2c0 1.1-1 1.9-2.4 1.9-1.1 0-2-.5-2.4-1.4" />
-    <path d="M7 1.6v1.5M7 10.9v1.5" />
-  </Glyph>
-);
+export const UsageGlyph = () => <KitIcon name="usage" className="glyph glyph-narrow" />;
 
-export const HistoryGlyph = () => (
-  <Glyph>
-    <line x1="3" y1="11.5" x2="3" y2="7" />
-    <line x1="7" y1="11.5" x2="7" y2="3" />
-    <line x1="11" y1="11.5" x2="11" y2="8.5" />
-  </Glyph>
-);
+export const HistoryGlyph = () => <KitIcon name="activity" className="glyph" />;
 
-export const MachineGlyph = () => (
-  <Glyph>
-    <rect x="3.6" y="3.6" width="6.8" height="6.8" rx="1.2" />
-    <path d="M5.8 1.4v2.2M8.2 1.4v2.2M5.8 10.4v2.2M8.2 10.4v2.2M1.4 5.8h2.2M1.4 8.2h2.2M10.4 5.8h2.2M10.4 8.2h2.2" />
-  </Glyph>
-);
+export const MachineGlyph = () => <KitIcon name="machine" className="glyph" />;
 
-export const TrafficRadarGlyph = () => (
-  <Glyph>
-    <circle cx="7" cy="7" r="5" />
-    <path d="M7 2v5l3.5-3.5" />
-    <circle cx="4.5" cy="8.5" r=".7" />
-  </Glyph>
-);
+export const TrafficRadarGlyph = () => <KitIcon name="radar" className="glyph" />;
 
+// Watching is the kit's eye; the not-watching slash has no kit drawing yet.
 export const BrowserWatchGlyph = ({ watching }: { watching: boolean }) => (
-  <Glyph>
-    <path d="M0.9 7s2.2-4 6.1-4 6.1 4 6.1 4-2.2 4-6.1 4S0.9 7 0.9 7Z" />
-    {watching
-      ? <circle cx="7" cy="7" r="1.8" fill="currentColor" stroke="none" />
-      : <line x1="2.4" y1="11.6" x2="11.6" y2="2.4" />}
-  </Glyph>
+  watching ? <KitIcon name="browser-watch" className="glyph" /> : (
+    <Glyph>
+      <path d="M0.9 7s2.2-4 6.1-4 6.1 4 6.1 4-2.2 4-6.1 4S0.9 7 0.9 7Z" />
+      <line x1="2.4" y1="11.6" x2="11.6" y2="2.4" />
+    </Glyph>
+  )
 );
 
-export const SettingsGlyph = () => (
-  <Glyph>
-    <path d="M5.4 2.9L5.6 1.1L8.4 1.1L8.6 2.9L9.8 3.6L11.5 2.8L12.8 5.2L11.3 6.3L11.3 7.7L12.8 8.8L11.5 11.2L9.8 10.4L8.6 11.1L8.4 12.9L5.6 12.9L5.4 11.1L4.2 10.4L2.5 11.2L1.2 8.8L2.7 7.7L2.7 6.3L1.2 5.2L2.5 2.8L4.2 3.6Z" />
-    <circle cx="7" cy="7" r="1.9" />
-  </Glyph>
-);
+export const SettingsGlyph = () => <KitIcon name="settings" className="glyph" />;
 
-export const FeedbackGlyph = () => (
-  <Glyph>
-    <path d="M2.2 3.3h9.6v5.3H6.1L3.5 10.8V8.6H2.2Z" />
-    <path d="M7 4.9v1.7" />
-    <path d="M7 7.7v.05" />
-  </Glyph>
-);
+export const FeedbackGlyph = () => <KitIcon name="feedback" className="glyph" />;
 
-// What's new's three actions (ReleaseActions.tsx), on the same spec. The arrow
-// is the one the Accounts panel's reload turns while it works, and this one
-// turns the same way while a check is out.
+// What's new's three actions (ReleaseActions.tsx). The arrow is the one the
+// Accounts panel's reload turns while it works, and this one turns the same way
+// while a check is out.
 
-export const TourGlyph = () => (
-  <Glyph>
-    <path d="M4.6 2.9v8.2L11.1 7Z" />
-  </Glyph>
-);
+export const TourGlyph = () => <KitIcon name="play" className="glyph" />;
 
-export const UpdateCheckGlyph = () => (
-  <Glyph>
-    <path d="M11.6 6.2A4.8 4.8 0 1 0 11 9.6" />
-    <path d="M11.9 2.6v3.7h-3.6" />
-  </Glyph>
-);
+export const UpdateCheckGlyph = () => <KitIcon name="update" className="glyph" />;
 
-export const RestartGlyph = () => (
-  <Glyph>
-    <path d="M7 1.6v5" />
-    <path d="M4.2 3.6a4.8 4.8 0 1 0 5.6 0" />
-  </Glyph>
-);
+export const RestartGlyph = () => <KitIcon name="restart" className="glyph" />;
 
-export const RadioGlyph = () => (
-  <Glyph><path d="M2 5h10v7H2z M4 5l6-3 M4 8h3 M9 8h1 M4 10h1 M8 10h2" /></Glyph>
-);
+export const RadioGlyph = () => <KitIcon name="radio" className="glyph" />;
 
-/** Tool activity: a toolbox — a wide handle, a lid line and the latch on it.
- *  Straight strokes only: the crossed hammer and wrench it replaced was all
- *  diagonals, which a 13px glyph at 1x rendered as a blur. The wide handle and
- *  the latch keep it from reading as a briefcase. */
-export const ToolActivityGlyph = () => (
-  <Glyph>
-    <rect x="1.6" y="5.4" width="10.8" height="6.4" rx="1.2" />
-    <path d="M4 5.4V3h6v2.4" />
-    <path d="M1.6 8.4h4.2M8.2 8.4h4.2" />
-    <path d="M5.8 7.6h2.4v1.6H5.8z" />
-  </Glyph>
-);
+/** Tool activity. */
+export const ToolActivityGlyph = () => <KitIcon name="tools" className="glyph" />;
 
-/** Skill activity: two sparks, the sign for an ability the agent can call on,
- *  and nothing like the toolbox beside it. */
-export const SkillActivityGlyph = () => (
-  <Glyph>
-    <path d="M6 2.4c.4 2.5 1.5 3.6 4 4-2.5.4-3.6 1.5-4 4-.4-2.5-1.5-3.6-4-4 2.5-.4 3.6-1.5 4-4Z" />
-    <path d="M11.2 1.4v2.6M9.9 2.7h2.6" />
-  </Glyph>
-);
+/** Skill activity. */
+export const SkillActivityGlyph = () => <KitIcon name="skills" className="glyph" />;
 
-/** Account capacity: the gauge the accounts panel's header carried before the
- *  report moved to the stripe, the same two strokes (#1713's dial). */
-export const CapacityGlyph = () => (
-  <Glyph>
-    <path d="M2.5 10.9A5.2 5.2 0 1 1 11.5 10.9" />
-    <path d="M7 8.3l2.1-2.1" />
-  </Glyph>
-);
+/** Account capacity: the gauge. */
+export const CapacityGlyph = () => <KitIcon name="capacity" className="glyph" />;
 
-/** Reset calendar: a page with its two rings and one day marked. */
-export const ResetCalendarGlyph = () => (
-  <Glyph>
-    <rect x="2.2" y="3.2" width="9.6" height="8.6" rx="1.4" />
-    <path d="M2.2 6.2h9.6M4.9 1.8v2.6M9.1 1.8v2.6" />
-    <path d="M8.6 9h.2" />
-  </Glyph>
-);
+/** Reset calendar. */
+export const ResetCalendarGlyph = () => <KitIcon name="calendar" className="glyph" />;
 
-/** Reported reset timing uses the same control-glyph geometry. */
-export const ClockGlyph = () => (
-  <Glyph><circle cx="7" cy="7" r="5" /><path d="M7 3.8V7l2.2 1.4" /></Glyph>
-);
+/** Reported reset timing. */
+export const ClockGlyph = () => <KitIcon name="time" className="glyph" />;
 
 /** Jira (#2178): the three-tile mark from Simple Icons' Jira icon (CC0;
  *  THIRD_PARTY_NOTICES.md), filled in currentColor so it takes the stripe's
@@ -192,42 +101,16 @@ export const GitlabGlyph = () => (
 );
 
 // Quick open (quick-open.ts): the field's own glass, and the canvas actions it
-// lists, redrawn on this spec rather than borrowed from the canvas stack's
-// 24px set, so a row's glyph is one family with the doors above it.
-export const SearchGlyph = () => (
-  <Glyph>
-    <circle cx="6.1" cy="6.1" r="3.9" />
-    <path d="M9 9l3.2 3.2" />
-  </Glyph>
-);
+// lists, on the kit's drawings so a row's glyph is one family with the doors above it.
+export const SearchGlyph = () => <KitIcon name="search" className="glyph" />;
 
-export const FitGlyph = () => (
-  <Glyph>
-    <path d="M2 5V2.6c0-.3.3-.6.6-.6H5M9 2h2.4c.3 0 .6.3.6.6V5M12 9v2.4c0 .3-.3.6-.6.6H9M5 12H2.6c-.3 0-.6-.3-.6-.6V9" />
-    <circle cx="7" cy="7" r="1.6" />
-  </Glyph>
-);
+export const FitGlyph = () => <KitIcon name="recenter" className="glyph" />;
 
-export const ArrangeGlyph = () => (
-  <Glyph>
-    <rect x="1.8" y="5.3" width="3.6" height="3.4" rx=".7" />
-    <rect x="8.6" y="1.8" width="3.6" height="3.4" rx=".7" />
-    <rect x="8.6" y="8.8" width="3.6" height="3.4" rx=".7" />
-    <path d="M5.4 7h1.6M7 3.5v7M7 3.5h1.6M7 10.5h1.6" />
-  </Glyph>
-);
+export const ArrangeGlyph = () => <KitIcon name="arrange" className="glyph" />;
 
-export const PauseGlyph = () => (
-  <Glyph>
-    <path d="M5 3v8M9 3v8" />
-  </Glyph>
-);
+export const PauseGlyph = () => <KitIcon name="pause" className="glyph" />;
 
-export const ClearGlyph = () => (
-  <Glyph>
-    <path d="M2.4 3.8h9.2M5.6 3.8V2.6h2.8v1.2M3.6 3.8l.6 7.6c0 .4.4.6.7.6h4.2c.4 0 .7-.3.7-.6l.6-7.6" />
-  </Glyph>
-);
+export const ClearGlyph = () => <KitIcon name="clear" className="glyph" />;
 
 export const CodexAccountsGlyph = () => (
   <Glyph>

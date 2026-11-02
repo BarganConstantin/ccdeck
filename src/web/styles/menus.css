@@ -289,6 +289,22 @@
   line-height: calc(16px + var(--ui-text-increase, 0px));
 }
 .settings-row-said:empty { position: absolute; }
+/* Where a write stands (WriteState): one short word, a crossfade between the
+   words, Saved fading out on its own. The line holds its height so nothing
+   below it moves when the word comes or goes. */
+.wstate {
+  display: block;
+  min-height: calc(16px + var(--ui-text-increase, 0px));
+  color: var(--muted);
+  font-size: calc(12px + var(--ui-text-increase, 0px));
+  line-height: calc(16px + var(--ui-text-increase, 0px));
+  transition: opacity var(--dur-fast) var(--ease);
+}
+.wstate-word { display: inline-flex; align-items: center; gap: 6px; animation: wstate-in var(--dur-fast) var(--ease) both; }
+@keyframes wstate-in { from { opacity: 0; } }
+.wstate[data-state="failed"] { color: var(--err); }
+.wstate[data-state="uncertain"] { color: var(--warn); }
+.wstate[data-quiet], .wstate[data-gone] { opacity: 0; }
 /* A reason the row says under itself rather than a result of a press: why
    its control is off (Settings › Claude Code), in the note's quieter ink. */
 .settings-row-said-quiet { color: var(--text-secondary); }
@@ -651,8 +667,9 @@
    straight off the attribute, so the sheet and the accessibility tree cannot
    disagree.
    V4's geometry: a 32x18 track (border-box, the 1px border kept in both
-   states so the box never changes size) and a 14px knob, 3px from the outer
-   edge at rest and at the far end (30px inside - 2 - 14 - 2 = 12px of travel).
+   states so the box never changes size) and a 14px knob, 2px from the outer
+   edge at rest and at the far end: the 1px stroke sits inside V4's 2px
+   padding, so the knob starts 1px inside the border and travels 14px.
    Off the track is --bg-soft with the --ctl-edge edge (Figma draws --line,
    which falls under the 3:1 a switch's edge is held to, control-edges.test.ts)
    and a --muted knob; on it fills with --accent and the knob goes --panel.
@@ -681,7 +698,7 @@
 .switch-knob {
   position: absolute;
   top: 50%;
-  left: 2px;
+  left: 1px;
   width: 14px;
   height: 14px;
   border-radius: 50%;
@@ -693,7 +710,7 @@
    --accent a pale knob is a pale shape on a pale ground, and the one thing a
    switch has to say at a glance is which end its knob is at. */
 .switch[aria-checked="true"] { border-color: var(--accent); background: var(--accent); }
-.switch[aria-checked="true"] .switch-knob { background: var(--panel); transform: translateY(-50%) translateX(12px); }
+.switch[aria-checked="true"] .switch-knob { background: var(--panel); transform: translateY(-50%) translateX(14px); }
 @media (hover: hover) and (pointer: fine) {
   .switch:hover:not(:disabled) { border-color: var(--text); }
   .switch:hover:not(:disabled) .switch-knob { background: var(--text); }
@@ -701,17 +718,18 @@
 }
 .switch:focus-visible .switch-knob { transition-duration: var(--dur-fast); }
 /* Chrome sets :active on Space too, so the stretch is the pointer's alone. The
-   on knob grows toward the left (12 - 4 = 8px) so its right edge stays put. */
+   on knob grows toward the left (14 - 4 = 10px) so its right edge stays put. */
 .switch:active:not(:disabled):not(:focus-visible) .switch-knob { width: 18px; transition-duration: var(--dur-fast); }
-.switch[aria-checked="true"]:active:not(:disabled):not(:focus-visible) .switch-knob { transform: translateY(-50%) translateX(8px); }
+.switch[aria-checked="true"]:active:not(:disabled):not(:focus-visible) .switch-knob { transform: translateY(-50%) translateX(10px); }
 .switch:disabled { cursor: default; opacity: var(--dim-off); }
 /* Reduced motion: no stretch and no travel. The answers carry the press rules'
    own selectors: a plainer `.switch:active .switch-knob` lost to them on
    specificity and the knob still stretched. */
 @media (prefers-reduced-motion: reduce) {
+  .switch { transition: border-color var(--dur-fast) var(--ease), background-color var(--dur-fast) var(--ease); }
   .switch-knob { transition: background-color var(--dur-fast) var(--ease); }
   .switch:active:not(:disabled):not(:focus-visible) .switch-knob { width: 14px; }
-  .switch[aria-checked="true"]:active:not(:disabled):not(:focus-visible) .switch-knob { transform: translateY(-50%) translateX(12px); }
+  .switch[aria-checked="true"]:active:not(:disabled):not(:focus-visible) .switch-knob { transform: translateY(-50%) translateX(14px); }
 }
 /* The track stays 32x18, the size its proportions and the LAN dialog's spacing
    were argued from above; the target around it is 24px tall (#884), drawn the
@@ -733,6 +751,56 @@
    state their deck was already in. After the shared hover rules, so a pointer
    resting on it does not wash the warning back out. */
 .switch[data-tone="warn"][aria-checked="true"] { border-color: var(--warn); background: var(--warn); }
+
+/* V4's checkbox (Checkbox.tsx): a 14px box, filled with --accent when ticked, and
+   a tick that draws itself by its dash offset over Fast. Unticking fades the
+   tick over Fast and only then resets the dash, so nothing draws backwards.
+   Under reduced motion the tick does not draw, it fades. */
+.cbx { --dim-off: 0.45; position: relative; display: inline-grid; flex: none; width: 14px; height: 14px; }
+.cbx > input {
+  grid-area: 1 / 1;
+  appearance: none;
+  box-sizing: border-box;
+  width: 14px;
+  height: 14px;
+  margin: 0;
+  border: 1px solid var(--ctl-edge);
+  border-radius: var(--r-tag);
+  background: var(--bg-soft);
+  cursor: inherit;
+  transition: background-color var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease);
+}
+.cbx > input:checked { border-color: var(--accent); background: var(--accent); }
+.cbx > input:disabled { cursor: default; opacity: var(--dim-off); }
+.cbx-tick {
+  grid-area: 1 / 1;
+  width: 14px;
+  height: 14px;
+  fill: none;
+  stroke: var(--panel);
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--dur-fast) var(--ease), stroke-dashoffset 0s var(--ease) var(--dur-fast);
+}
+.cbx > input:checked + .cbx-tick {
+  stroke-dashoffset: 0;
+  opacity: 1;
+  transition: stroke-dashoffset var(--dur-fast) var(--ease);
+}
+@media (prefers-reduced-motion: reduce) {
+  .cbx > input:checked + .cbx-tick { transition: opacity var(--dur-fast) var(--ease); }
+  .cbx-tick { transition: opacity var(--dur-fast) var(--ease), stroke-dashoffset 0s var(--ease) var(--dur-fast); }
+}
+
+/* V4's radio dot (.character-check here, .reading-selected-mark in reading.css):
+   on, it grows from half size with its opacity over Fast; off, it only fades and
+   the scale resets after the fade. A transition, so a first paint is still.
+   Under reduced motion it only fades. */
 
 /* Sized like `.sm-hear` and named for itself. They are the same small button in
    the same slot, but "hear" is what one of them does and a permission prompt is
@@ -1039,6 +1107,7 @@ button.btn.sm-custom-icon.armed { color: var(--bg); background: var(--err); }
   display: flex; align-items: center; gap: 8px; flex: 1 1 150px; min-width: 0;
   padding: 10px; border: 1px solid var(--ctl-edge); border-radius: 6px;
   color: var(--text); background: var(--panel); font: inherit; text-align: left; cursor: pointer;
+  transition: background-color var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease);
 }
 @media (hover: hover) and (pointer: fine) {
 .character-choice:hover { background: var(--ctl-fill); }
@@ -1046,8 +1115,11 @@ button.btn.sm-custom-icon.armed { color: var(--bg); background: var(--err); }
 .character-choice[aria-checked="true"] { border-color: var(--accent); }
 .character-preview { display: block; flex: 0 0 36px; width: 36px; height: 32px; }
 .character-preview svg { width: 36px; height: 28px; overflow: visible; }
-.character-check { flex: 0 0 16px; width: 16px; height: 16px; margin-left: auto; visibility: hidden; }
-.character-choice[aria-checked="true"] .character-check { visibility: visible; }
+.character-check { flex: 0 0 16px; width: 16px; height: 16px; margin-left: auto; opacity: 0; transform: scale(0.5); transition: opacity var(--dur-fast) var(--ease), transform 0s var(--ease) var(--dur-fast); }
+.character-choice[aria-checked="true"] .character-check { opacity: 1; transform: none; transition: opacity var(--dur-fast) var(--ease), transform var(--dur-fast) var(--ease); }
+@media (prefers-reduced-motion: reduce) {
+  .character-check, .character-choice[aria-checked="true"] .character-check { transform: none; transition: opacity var(--dur-fast) var(--ease); }
+}
 .character-preview :is(.fm-body, .fm-leg) { fill: var(--pixel-character-body, var(--accent)); }
 .character-preview .fm-eye { fill: var(--text); }
 @media (max-width: 420px) {

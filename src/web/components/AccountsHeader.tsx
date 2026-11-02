@@ -13,6 +13,7 @@ import { type ReactNode } from "react";
 
 import { PRODUCT } from "../brand";
 import { useT } from "../i18n";
+import { KitIcon } from "./kit-icons";
 import { type useRequestSlot } from "../use-request-slot";
 
 type RequestSlot = ReturnType<typeof useRequestSlot>;
@@ -71,10 +72,7 @@ export default function AccountsHeader({
               buttons cannot be one size while the glyphs in them come from
               four typefaces. Drawn at the app's own small-icon spec, which is
               what the topbar's five already are. */}
-          <svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor"
-            strokeWidth="1.3" strokeLinecap="round" aria-hidden>
-            <path d="M7 2.2v9.6M2.2 7h9.6" />
-          </svg>
+          <KitIcon name="plus" />
         </button>
         {/* #518: this used to be `disabled={reloading}`, which disabled the
             control the press came from and dropped focus to the document
@@ -102,11 +100,7 @@ export default function AccountsHeader({
             title={t("accounts.header.shareTip", { product: PRODUCT })}>
             {/* Out and away: the same arrowhead the reload beside it is built
                 from, so the two read as one hand rather than two. */}
-            <svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor"
-              strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-              <path d="M3.3 10.7L10.7 3.3" />
-              <path d="M5.5 3.3h5.2v5.2" />
-            </svg>
+            <KitIcon name="external" />
           </button>
         )}
         <button type="button" className="glyph-btn ap-refresh" onClick={() => onReload()}
@@ -117,11 +111,7 @@ export default function AccountsHeader({
               which is what #518 asked of it; a rotation says it without the
               button's ink changing shape. The LAN section's check turns the
               same way while it works, with its own glyph since #838. */}
-          <svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor"
-            strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-            <path d="M11.6 6.2A4.8 4.8 0 1 0 11 9.6" />
-            <path d="M11.9 2.6v3.7h-3.6" />
-          </svg>
+          <KitIcon name="update" />
         </button>
         {closeButton}
       </div>

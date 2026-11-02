@@ -11,6 +11,7 @@
 import { type KeyboardEvent } from "react";
 
 import { useT } from "../i18n";
+import SegmentGroup from "./SegmentGroup";
 
 export type AccountSide = "claude" | "codex";
 
@@ -53,7 +54,7 @@ export default function AccountsSwitch({ shown, notices, onPick }: Props) {
     onPick(next);
   };
   return (
-    <div className="ap-sides" role="radiogroup" aria-label={t("accounts.switch.label")} onKeyDown={move}>
+    <SegmentGroup className="ap-sides" role="radiogroup" aria-label={t("accounts.switch.label")} onKeyDown={move}>
       {SIDES.map(({ side, name }) => {
         const flagged = side !== shown && notices[side];
         return (
@@ -67,6 +68,6 @@ export default function AccountsSwitch({ shown, notices, onPick }: Props) {
           </button>
         );
       })}
-    </div>
+    </SegmentGroup>
   );
 }

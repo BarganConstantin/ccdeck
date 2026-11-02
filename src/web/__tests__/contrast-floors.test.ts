@@ -305,7 +305,12 @@ describe("--text-dim, the token the annotation rules now read from (#262)", () =
 
   it("is the only dim tier that text is allowed to use — no rule sets --muted-dim as a colour", () => {
     // `border-color:` keeps it; a bare `color:` is the regression.
-    const offenders = [...css.matchAll(/(^|[^-\w])color:\s*var\(--muted-dim\)/g)];
+    // One scoped exception: a DISABLED field or select takes V4's --muted-dim ink.
+    // WCAG 1.4.3 exempts inactive controls from the contrast minimum, so only a
+    // rule whose every selector is a :disabled one is let through.
+    const withoutDisabled = css.replace(/\/\*[\s\S]*?\*\//g, "").replace(/([^{}]+)\{([^{}]*)\}/g, (all, sel: string) =>
+      sel.split(",").every(part => /:disabled/.test(part.replace(/:not\([^)]*\)/g, ""))) ? "" : all);
+    const offenders = [...withoutDisabled.matchAll(/(^|[^-\w])color:\s*var\(--muted-dim\)/g)];
     expect(offenders.map(m => m[0].trim())).toEqual([]);
     // Fifteen, down from the seventeen #262 converted: .chips-empty went with
     // #243 as unreachable, and .ap-manage-label went when the manage block's
