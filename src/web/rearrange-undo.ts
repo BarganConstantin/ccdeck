@@ -90,12 +90,8 @@ export const REARRANGE_UNDO_RESUME_MS = 2_000;
 /** The strip's exit, which the presence hook keeps it mounted for. */
 export const REARRANGE_UNDO_EXIT_MS = 150;
 
-/** What the strip says, and what the live region says for it. */
-export const REARRANGE_UNDO_TEXT = "Layout re-arranged";
-export const REARRANGE_UNDO_SAID = "Layout re-arranged. Undo available.";
-export const REARRANGE_RESTORED_SAID = "Layout restored.";
-
-/** The same three in the language on show; the constants stay the English ones. */
+/** What the strip says, and what the live region says for it, in the language
+ *  on show. */
 export const rearrangeUndoText = (tr: TFunction = t): string => tr("board.rearrange.text");
 export const rearrangeUndoSaid = (tr: TFunction = t): string => tr("board.rearrange.said");
 export const rearrangeRestoredSaid = (tr: TFunction = t): string => tr("board.rearrange.restored");

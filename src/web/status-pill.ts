@@ -141,10 +141,10 @@ export function heldShort(held: number): string {
  *  contradictory halves. The same rule the sound switch in the bar above
  *  follows: a stable name, the state in the attribute the tree reads. What flips
  *  is `pauseTitle` below, which is a description and is allowed to be one. */
-export const PAUSE_LABEL = "Pause the canvas";
+export const PAUSE_LABEL_MSG = "board.pill.pause";
 
-/** PAUSE_LABEL in the language on show; the constant stays the English one. */
-export const pauseLabel = (tr: TFunction = t): string => tr("board.pill.pause");
+/** The pause control's name in the language on show. */
+export const pauseLabel = (tr: TFunction = t): string => tr(PAUSE_LABEL_MSG);
 
 /** The pause control's tooltip. The half that does flip.
  *

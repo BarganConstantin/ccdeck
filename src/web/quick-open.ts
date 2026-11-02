@@ -17,16 +17,7 @@ import { t, type TFunction } from "./i18n";
 /** The sections, in the order an empty field lists them. */
 export type QuickSection = "recent" | "sessions" | "open" | "settings" | "actions" | "themes";
 
-export const SECTION_TITLES: Record<QuickSection, string> = {
-  recent: "Recent",
-  sessions: "Sessions",
-  open: "Panels and dialogs",
-  settings: "Settings",
-  actions: "Actions",
-  themes: "Themes",
-};
-
-/** The section titles in the language on show; SECTION_TITLES stays the English. */
+/** The section titles in the language on show. */
 export const sectionTitle = (key: QuickSection, tr: TFunction = t): string => tr(`board.quick.section.${key}`);
 
 const SECTION_ORDER: readonly QuickSection[] = ["recent", "sessions", "open", "settings", "actions", "themes"];

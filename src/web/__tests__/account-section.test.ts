@@ -7,7 +7,10 @@
 import { describe, expect, it } from "vitest";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { AccountPanel, ACCOUNT_COPY, expiresIn, PROBLEM_COPY, STORAGE_COPY } from "../components/AccountSection";
+import { AccountPanel, ACCOUNT_MSGS, expiresIn, PROBLEM_MSGS, STORAGE_MSGS, statusLine } from "../components/AccountSection";
+import { en } from "../i18n/en";
+import { resetLanguageForTest, setLanguage } from "../i18n";
+import { catalogFor } from "../i18n/catalogs";
 import SettingsModal, { type SettingsModalProps } from "../components/SettingsModal";
 import type { AccountView, SyncView } from "../account-bridge";
 import { settingsSections, SETTINGS_SECTIONS } from "../settings";
@@ -18,6 +21,12 @@ import { ACCOUNT_NOTIFY_DEFAULTS } from "../use-os-notifications";
 const noop = () => {};
 const asyncNoop = async () => {};
 const NOW = Date.parse("2026-10-18T09:00:00Z");
+
+// CHANGED ON PURPOSE (the UI in every language): the section's sentences are
+// keys now, so these tests read each one through the English catalog.
+const ACCOUNT_COPY = Object.fromEntries(Object.entries(ACCOUNT_MSGS).map(([name, key]) => [name, en[key]])) as Record<keyof typeof ACCOUNT_MSGS, string>;
+const PROBLEM_COPY = Object.fromEntries(Object.entries(PROBLEM_MSGS).map(([name, key]) => [name, en[key]])) as Record<string, string>;
+const STORAGE_COPY = Object.fromEntries(Object.entries(STORAGE_MSGS).map(([name, key]) => [name, en[key]])) as Record<string, string>;
 
 function settingsProps(over: Partial<SettingsModalProps> = {}): SettingsModalProps {
   return {
@@ -214,5 +223,81 @@ describe("each state says its own sentences", () => {
     }
     // And it says plainly that the server can read what is sent.
     expect(ACCOUNT_COPY.sent).toContain("which can read them");
+  });
+});
+
+describe("the section's words read through keys, so they follow the language", () => {
+  it("each sentence is a key the English catalog maps to the words it has always shown", () => {
+    for (const msgs of [ACCOUNT_MSGS, PROBLEM_MSGS, STORAGE_MSGS]) {
+      for (const [name, key] of Object.entries(msgs)) {
+        expect(typeof key, name).toBe("string");
+        expect(en[key], `${name} -> ${key}`).toMatch(/\S/);
+        expect(en[key], `${name} is a key, not the words`).not.toBe(key);
+      }
+    }
+    expect(ACCOUNT_COPY).toEqual({
+      vetoed: "Off on this machine: the deck was started with AGENTS_DECK_NO_ACCOUNT=1 or AGENTS_DECK_NO_INSTALL=1, which keep it away from any account.",
+      loading: "Reading this deck's account…",
+      unreachable: "The deck did not answer. It may be restarting.",
+      explain: "Connect this deck to your ccdeck account to see it in Machines at app.ccdeck.dev, and to keep the settings you choose in step with your other decks.",
+      sent: "While connected it sends, every 15 seconds: its name, version and system, CPU and memory use, and how many sessions are running or waiting on you. Never what your sessions do, their names, your files or your Claude accounts. What it sends, and the settings you sync, are kept on ccdeck's server, which can read them.",
+      nameNote: "How this deck is listed in your account. Change it before connecting if you would rather not use this computer's name.",
+      connecting: "Approve this deck in the browser. Check that the code there matches this one.",
+      revoked: "This deck was removed from your account at app.ccdeck.dev.",
+      accountGone: "The ccdeck account this deck was connected to was deleted.",
+      disconnectNote: "It stops sending status and syncing settings. Its settings stay as they are.",
+      tokenMissing: "This deck's sign-in could not be found. Connect it again.",
+    });
+    expect(PROBLEM_COPY).toEqual({
+      "api-disabled": "Accounts are not open yet.",
+      offline: "Could not reach ccdeck. Check the connection and try again.",
+      "rate-limited": "Too many tries just now. Wait a minute and try again.",
+      "connect-denied": "Cancelled in the browser.",
+      "connect-expired": "The code expired before it was approved. Connect again.",
+      "connect-failed": "Connecting did not work. Try again.",
+      "keychain-locked": "The keychain is locked, so this deck cannot read its sign-in. Retrying every minute.",
+      "token-missing": "This deck's sign-in could not be found. Connect it again.",
+    });
+    expect(STORAGE_COPY).toEqual({
+      keychain: "Stored in your keychain.",
+      dpapi: "Stored encrypted for your Windows user.",
+      "secret-service": "Stored in your keyring.",
+      file: "Stored in a file only you can read.",
+    });
+  });
+
+  it("the section's source draws every sentence with t, and holds no sentence of its own", () => {
+    const source = sourceOf("components/AccountSection.tsx");
+    expect(source).toContain("t(ACCOUNT_MSGS.vetoed)");
+    expect(source).toContain('"settings.account.connect"');
+    expect(source).toContain("t(ACCOUNT_MSGS.disconnectNote)");
+    expect(source).not.toContain("Connect account");
+    expect(source).not.toContain("Disconnect this deck");
+    expect(source).not.toContain("Changed elsewhere");
+    expect(source).not.toMatch(/toLocaleTimeString\(\[\]/);
+  });
+
+  it("the status line and its time follow the language on show", () => {
+    const v = connected();
+    const at = new Date("2026-10-18T09:00:03.000Z");
+    const clock = (lang: string) => at.toLocaleTimeString(lang, { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+    // The expected line is that language's own catalog text with the time and
+    // the seconds filled in, so the test does not depend on a translation's words.
+    const inLanguage = (lang: string, time: string) =>
+      (catalogFor(lang)["settings.account.status.sent"] ?? en["settings.account.status.sent"]).replace("{time}", time).replace("{seconds}", "15");
+    try {
+      setLanguage("en");
+      expect(statusLine(v)).toBe(`Status: sent ${clock("en")} · every 15 s.`);
+      setLanguage("ja");
+      expect(statusLine(v)).toBe(inLanguage("ja", clock("ja")));
+      expect(statusLine(v)).toContain(clock("ja"));
+      setLanguage("de");
+      expect(statusLine(v)).toBe(inLanguage("de", clock("de")));
+      expect(statusLine(v)).toContain(clock("de"));
+      expect(clock("en")).not.toBe(clock("de"));
+    } finally {
+      setLanguage("en");
+      resetLanguageForTest();
+    }
   });
 });

@@ -52,14 +52,14 @@ import { fileURLToPath } from "node:url";
 import { join } from "node:path";
 import {
   boardTotals,
-  BOARD_SCOPE_LABEL,
-  BOARD_SCOPE_TITLE,
+  BOARD_SCOPE_LABEL_MSG,
   boardScopeTitle,
-  BOARD_SPEND_LABEL,
-  SESSION_SPEND_LABEL,
+  BOARD_SPEND_LABEL_MSG,
+  SESSION_SPEND_LABEL_MSG,
   sessionSpendLabel,
   type Billable,
 } from "../board-usage";
+import { en } from "../i18n/en";
 import { costForUsage, fmtCost } from "../pricing";
 import { fmtTokens } from "../token-format";
 import { applyEvent, initialState, pruneDoneSessions, pruneOldAgents, type GraphState } from "../reducer";
@@ -74,6 +74,14 @@ import { sheetText } from "./sheet-source";
 // and ccusage-bin-escape do it. Nothing under test here touches the filesystem
 // — `boardTotals`, the reducer and the pricing table are pure — but a client
 // suite that assumes so is one import away from being wrong.
+// CHANGED ON PURPOSE (the UI in every language): the labels are keys now, so
+// these read each one through the English catalog; the scope sentence is
+// boardScopeTitle's output with the single-key shortcuts on.
+const BOARD_SPEND_LABEL = en[BOARD_SPEND_LABEL_MSG];
+const BOARD_SCOPE_LABEL = en[BOARD_SCOPE_LABEL_MSG];
+const SESSION_SPEND_LABEL = en[SESSION_SPEND_LABEL_MSG];
+const BOARD_SCOPE_TITLE = boardScopeTitle(true);
+
 const SANDBOX = join(
   process.env.TMPDIR ?? process.env.TEMP ?? "/tmp",
   "ccdeck-687-sandbox",
@@ -327,8 +335,9 @@ describe("the label lives in the same module as the sum", () => {
     const declared = code(boardUsage);
     expect(declared).toContain("export function boardTotals(");
     for (const name of [
-      "BOARD_SPEND_LABEL", "BOARD_SCOPE_LABEL",
-      "BOARD_SCOPE_TITLE", "SESSION_SPEND_LABEL",
+      // CHANGED ON PURPOSE (the UI in every language): the labels are keys now, so the
+      // module declares the key constants and the scope sentence is a function.
+      "BOARD_SPEND_LABEL_MSG", "BOARD_SCOPE_LABEL_MSG", "SESSION_SPEND_LABEL_MSG",
     ]) {
       expect(declared, `${name} is not declared beside the sum`).toContain(`export const ${name}`);
     }
@@ -336,6 +345,8 @@ describe("the label lives in the same module as the sum", () => {
   });
 
   it("says board of the board figures and session of the session ones", () => {
+    expect([BOARD_SPEND_LABEL_MSG, BOARD_SCOPE_LABEL_MSG, SESSION_SPEND_LABEL_MSG])
+      .toEqual(["insights.board.spend", "insights.board.scope", "insights.board.sessionSpend"]);
     expect(BOARD_SPEND_LABEL).toBe("spend on this board");
     expect(BOARD_SCOPE_LABEL).toBe("on this board");
     expect(SESSION_SPEND_LABEL).toBe("session spend");

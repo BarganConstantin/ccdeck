@@ -47,6 +47,7 @@ import {
 } from "../usage-from-ccusage";
 import { distinctSessionLabels } from "../usage-session-join";
 import { sheetText } from "./sheet-source";
+import { en } from "../i18n/en";
 
 const read = (rel: string) => readFileSync(fileURLToPath(new URL(rel, import.meta.url)), "utf8");
 const panel = read("../components/UsagePanel.tsx");
@@ -223,7 +224,8 @@ describe("what the figures are labelled with while a slower period loads", () =>
     const view = rangeView(landedToday, "all");
     expect(view.shown).toBe("today");
     expect(view.stale).toBe(true);
-    expect(nounFor(view.shown, "all")).toBe(PERIODS.find(p => p.key === "today")!.noun);
+    // CHANGED ON PURPOSE (the UI in every language): the period's noun is a key now, read through the English catalog.
+    expect(nounFor(view.shown, "all")).toBe(en[PERIODS.find(p => p.key === "today")!.nounMsg]);
   });
 
   it("is not stale once the pressed period is the one on screen", () => {
@@ -252,7 +254,8 @@ describe("what the figures are labelled with while a slower period loads", () =>
   it("always has a noun, including for a period this build no longer offers", () => {
     // A stored preference from an older build must not leave the headline with
     // a bare figure and no word over it.
-    expect(nounFor(null, "month")).toBe(PERIODS.find(p => p.key === "month")!.noun);
+    // CHANGED ON PURPOSE (the UI in every language): the period's noun is a key now, read through the English catalog.
+    expect(nounFor(null, "month")).toBe(en[PERIODS.find(p => p.key === "month")!.nounMsg]);
     expect(nounFor("nope" as never, "today")).toBe("today");
   });
 });
@@ -432,7 +435,10 @@ describe("markup, read as source", () => {
     // The tooltip is now a pair — what the span covers at rest, and what is
     // being read while it reads — so the assertion is that `p.hint` is still
     // the resting half rather than that it is the only half.
-    expect(strip).toMatch(/title=\{period === p\.key && rangePending \? t\("usage\.period\.reading", \{ period: t\(`usage\.period\.\$\{p\.key\}\.noun`\) \}\) : t\(`usage\.period\.\$\{p\.key\}\.hint`\)\}/);
+    // CHANGED ON PURPOSE (the UI in every language): the shaper's PERIODS entry
+    // now carries the keys (nounMsg, hintMsg), and the strip reads them with t.
+    expect(strip).toMatch(/title=\{period === p\.key && rangePending \? t\("usage\.period\.reading", \{ period: t\(p\.nounMsg\) \}\) : t\(p\.hintMsg\)\}/);
+    expect(strip).toContain("{t(p.labelMsg)}");
     expect(surface).not.toMatch(/title="[^"]*month/i);
   });
 
@@ -505,7 +511,7 @@ describe("markup, read as source", () => {
     expect(sessions).not.toMatch(/staleCls|up-stale/);
     expect(css).not.toMatch(/\.up-stale\b/);
     // The scope sentence is boardScopeTitle's since Settings › General's
-    // single-key switch: BOARD_SCOPE_TITLE while H opens the history, the same
+    // single-key switch: the sentence pointing at H while H opens the history, the same
     // sentence naming Usage history once it does not (WCAG 2.1.4).
     expect(panel).toContain('<div className="up-total" title={fromRange ? undefined : boardScopeTitle(singleKeys)}>');
     expect(panel).toContain('<div className="up-tokens-row" title={fromRange ? undefined : boardScopeTitle(singleKeys)}>');
@@ -725,9 +731,10 @@ describe("the period strip's keyboard and memory", () => {
     // and a reader who takes the middle of a scale for a rolling 30 days is
     // wrong by up to 30 days on the 1st with nothing on screen to correct them.
     const month = PERIODS.find(p => p.key === "month")!;
-    expect(month.hint).toMatch(/calendar month/i);
-    expect(month.hint).toMatch(/not the last 30 days/i);
-    for (const p of PERIODS) expect(p.hint, `${p.key} has no hint`).toMatch(/\S/);
+    // CHANGED ON PURPOSE (the UI in every language): the hint is a key now, read through the English catalog.
+    expect(en[month.hintMsg]).toMatch(/calendar month/i);
+    expect(en[month.hintMsg]).toMatch(/not the last 30 days/i);
+    for (const p of PERIODS) expect(en[p.hintMsg], `${p.key} has no hint`).toMatch(/\S/);
     // And the sentence has to stay true of `sinceFor`, which is what actually
     // asks for the range: the month starts on the 1st, locally.
     const may = new Date(2026, 4, 17, 9, 30);

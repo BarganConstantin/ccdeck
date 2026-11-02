@@ -5,9 +5,10 @@ import { fileURLToPath } from "node:url";
 import { clientText } from "./client-source";
 import { claudeFmSurface } from "./claude-fm-surface";
 import {
-  FM_CUSTOM_STATIONS_KEY, FM_MUTED_KEY, STATION_URL_MAX, customFmId, customFmSelection, fmAvailabilityKey, fmUnavailableNote, newCustomFmStation, parseFmStationUrl,
+  FM_CUSTOM_STATIONS_KEY, FM_MUTED_KEY, STATION_URL_MAX, customFmId, customFmSelection, fmAvailabilityKey, fmUnavailableMsg, newCustomFmStation, parseFmStationUrl,
   resolveCustomFmStations, resolveFmMuted, selectionAfterRemovingStation,
 } from "../fm-stations";
+import { en } from "../i18n/en";
 
 // Claude FM's state, storage and station operations moved to use-claude-fm.ts;
 // the props they are handed on are still App.tsx's. This reads the client:
@@ -172,8 +173,10 @@ describe("a silent station says why (#1267)", () => {
   });
 
   it("says a built-in is not live and a custom station could not be played", () => {
-    expect(fmUnavailableNote(false)).toMatch(/not live right now/);
-    expect(fmUnavailableNote(true)).toMatch(/could not be played/);
+    // CHANGED ON PURPOSE (the UI in every language): the note is a key now,
+    // read here through the English catalog.
+    expect(en[fmUnavailableMsg(false)]).toMatch(/not live right now/);
+    expect(en[fmUnavailableMsg(true)]).toMatch(/could not be played/);
   });
 
   it("reports a built-in station that is not live, instead of only drawing nothing", () => {

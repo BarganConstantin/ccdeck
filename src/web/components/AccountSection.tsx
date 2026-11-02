@@ -31,61 +31,74 @@ import { selfPressAccepted, selfPressProps } from "../panel-press";
 import { accountActions, openableUrl, useAccountView } from "../use-account";
 import AccountSyncPreview, { shownValue } from "./AccountSyncPreview";
 import { SettingRow, SettingsGroup } from "./SettingsParts";
-import { useT } from "../i18n";
+import { currentLanguage, t as say, useT, type MessageKey } from "../i18n";
 
-export const ACCOUNT_COPY = {
-  vetoed: "Off on this machine: the deck was started with AGENTS_DECK_NO_ACCOUNT=1 or AGENTS_DECK_NO_INSTALL=1, which keep it away from any account.",
-  loading: "Reading this deck's account…",
-  unreachable: "The deck did not answer. It may be restarting.",
-  explain: "Connect this deck to your ccdeck account to see it in Machines at app.ccdeck.dev, and to keep the settings you choose in step with your other decks.",
-  sent: "While connected it sends, every 15 seconds: its name, version and system, CPU and memory use, and how many sessions are running or waiting on you. Never what your sessions do, their names, your files or your Claude accounts. What it sends, and the settings you sync, are kept on ccdeck's server, which can read them.",
-  nameNote: "How this deck is listed in your account. Change it before connecting if you would rather not use this computer's name.",
-  connecting: "Approve this deck in the browser. Check that the code there matches this one.",
-  revoked: "This deck was removed from your account at app.ccdeck.dev.",
-  accountGone: "The ccdeck account this deck was connected to was deleted.",
-  disconnectNote: "It stops sending status and syncing settings. Its settings stay as they are.",
-  tokenMissing: "This deck's sign-in could not be found. Connect it again.",
+/** The section's sentences, as keys read with `t` where each is drawn. */
+export const ACCOUNT_MSGS: Record<"vetoed" | "loading" | "unreachable" | "explain" | "sent" | "nameNote" | "connecting" | "revoked" | "accountGone" | "disconnectNote" | "tokenMissing", MessageKey> = {
+  vetoed: "settings.account.copy.vetoed",
+  loading: "settings.account.copy.loading",
+  unreachable: "settings.account.copy.unreachable",
+  explain: "settings.account.copy.explain",
+  sent: "settings.account.copy.sent",
+  nameNote: "settings.account.copy.nameNote",
+  connecting: "settings.account.copy.connecting",
+  revoked: "settings.account.copy.revoked",
+  accountGone: "settings.account.copy.accountGone",
+  disconnectNote: "settings.account.copy.disconnectNote",
+  tokenMissing: "settings.account.copy.tokenMissing",
 };
 
-export const PROBLEM_COPY: Record<string, string> = {
-  "api-disabled": "Accounts are not open yet.",
-  offline: "Could not reach ccdeck. Check the connection and try again.",
-  "rate-limited": "Too many tries just now. Wait a minute and try again.",
-  "connect-denied": "Cancelled in the browser.",
-  "connect-expired": "The code expired before it was approved. Connect again.",
-  "connect-failed": "Connecting did not work. Try again.",
-  "keychain-locked": "The keychain is locked, so this deck cannot read its sign-in. Retrying every minute.",
-  "token-missing": ACCOUNT_COPY.tokenMissing,
+/** What went wrong last time, by the deck's problem code, as a key. */
+export const PROBLEM_MSGS: Record<string, MessageKey> = {
+  "api-disabled": "settings.account.problem.apiDisabled",
+  offline: "settings.account.problem.offline",
+  "rate-limited": "settings.account.problem.rateLimited",
+  "connect-denied": "settings.account.problem.connectDenied",
+  "connect-expired": "settings.account.problem.connectExpired",
+  "connect-failed": "settings.account.problem.connectFailed",
+  "keychain-locked": "settings.account.problem.keychainLocked",
+  "token-missing": ACCOUNT_MSGS.tokenMissing,
 };
 
-export const STORAGE_COPY: Record<string, string> = {
-  keychain: "Stored in your keychain.",
-  dpapi: "Stored encrypted for your Windows user.",
-  "secret-service": "Stored in your keyring.",
-  file: "Stored in a file only you can read.",
+/** Where the sign-in is kept, by the deck's storage code, as a key. */
+export const STORAGE_MSGS: Record<string, MessageKey> = {
+  keychain: "settings.account.storage.keychain",
+  dpapi: "settings.account.storage.dpapi",
+  "secret-service": "settings.account.storage.secretService",
+  file: "settings.account.storage.file",
 };
 
+/** The same, as the not-connected sentence "Its sign-in will be stored …". */
+const SIGN_IN_MSGS: Record<string, MessageKey> = {
+  keychain: "settings.account.signIn.keychain",
+  dpapi: "settings.account.signIn.dpapi",
+  "secret-service": "settings.account.signIn.secretService",
+  file: "settings.account.signIn.file",
+};
+
+/** A time of day in the deck's chosen language. */
 const time = (iso: string | null | undefined) => {
   if (!iso) return "";
   const d = new Date(iso);
-  return Number.isFinite(d.getTime()) ? d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" }) : "";
+  return Number.isFinite(d.getTime()) ? d.toLocaleTimeString(currentLanguage(), { hour: "2-digit", minute: "2-digit", second: "2-digit" }) : "";
 };
 
 /** The status line: when the last frame went, or that it is not getting through. */
 export function statusLine(view: AccountView): string {
   const s = view.status;
-  if (!s || !s.lastSentAt) return "Status: not sent yet.";
-  if (s.lastResult === "offline") return `Offline, retrying. Last tried ${time(s.lastSentAt)}.`;
-  if (s.lastResult === "rejected") return `Status: refused at ${time(s.lastSentAt)}, sending again.`;
-  return `Status: sent ${time(s.lastSentAt)} · every ${s.everySec} s.`;
+  if (!s || !s.lastSentAt) return say("settings.account.status.notSent");
+  if (s.lastResult === "offline") return say("settings.account.status.offline", { time: time(s.lastSentAt) });
+  if (s.lastResult === "rejected") return say("settings.account.status.refused", { time: time(s.lastSentAt) });
+  return say("settings.account.status.sent", { time: time(s.lastSentAt), seconds: s.everySec });
 }
 
 /** "Saved r14 · Applied r13", the console's own words for the two revisions. */
 export function revisionsLine(view: AccountView): string {
   const sync = view.sync;
   if (!sync) return "";
-  const applied = sync.appliedRevision == null ? "not yet" : `r${sync.appliedRevision}`;
-  return `Saved r${sync.savedRevision} · Applied ${applied}`;
+  return sync.appliedRevision == null
+    ? say("settings.account.revisionsNotYet", { saved: sync.savedRevision })
+    : say("settings.account.revisions", { saved: sync.savedRevision, applied: sync.appliedRevision });
 }
 
 /** How long a code has left, as m:ss. */
@@ -118,15 +131,17 @@ export function AccountPanel({ view, failed = false, vetoed, now = Date.now() }:
   if (vetoed) {
     return (
       <SettingsGroup id="settings-account-caption" title={t("settings.account.title")}>
-        <SettingRow as="div" name="Account" note={ACCOUNT_COPY.vetoed} />
+        <SettingRow as="div" name={t("settings.section.account.label")} note={t(ACCOUNT_MSGS.vetoed)} />
       </SettingsGroup>
     );
   }
   if (!view) {
-    return <p className="settings-row-note">{failed ? ACCOUNT_COPY.unreachable : ACCOUNT_COPY.loading}</p>;
+    return <p className="settings-row-note">{t(failed ? ACCOUNT_MSGS.unreachable : ACCOUNT_MSGS.loading)}</p>;
   }
 
-  const problem = view.problem ? PROBLEM_COPY[view.problem] ?? null : null;
+  const problemMsg = view.problem ? PROBLEM_MSGS[view.problem] : undefined;
+  const problem = problemMsg ? t(problemMsg) : null;
+  const storageMsg = STORAGE_MSGS[view.tokenStorage ?? ""];
   const run = async (fn: () => Promise<unknown>) => {
     if (!selfPressAccepted(busyRef.current)) return;
     busyRef.current = true;
@@ -146,9 +161,9 @@ export function AccountPanel({ view, failed = false, vetoed, now = Date.now() }:
     const c = view.connect;
     return (
       <SettingsGroup id="settings-account-caption" title={t("settings.account.connecting")}>
-        <SettingRow as="div" name="Code" note={ACCOUNT_COPY.connecting}
+        <SettingRow as="div" name={t("settings.account.code")} note={t(ACCOUNT_MSGS.connecting)}
           control={<span className="account-code">{c.userCode}</span>} />
-        <SettingRow as="div" name="Waiting for approval…" note={`The code expires in ${expiresIn(c.expiresAt, now)}.`}
+        <SettingRow as="div" name={t("settings.account.waiting")} note={t("settings.account.expiresIn", { time: expiresIn(c.expiresAt, now) })}
           control={
             <span className="account-actions">
               {openableUrl(c.verificationUriComplete) && (
@@ -163,7 +178,7 @@ export function AccountPanel({ view, failed = false, vetoed, now = Date.now() }:
 
   if (view.state === "connected" && view.device) {
     const sync = view.sync;
-    const email = view.account?.email ?? "your account";
+    const email = view.account?.email ?? t("settings.account.yourAccount");
     return (
       <>
         <SettingsGroup id="settings-account-caption" title={t("settings.account.title")}>
@@ -171,32 +186,37 @@ export function AccountPanel({ view, failed = false, vetoed, now = Date.now() }:
             control={view.device.consoleUrl && openableUrl(view.device.consoleUrl)
               ? <a className="settings-link" href={view.device.consoleUrl} target="_blank" rel="noopener noreferrer">{t("settings.account.openMachines")}</a>
               : undefined} />
-          <SettingRow as="div" name={`This deck: ${view.device.name}`}
-            note={problem ?? STORAGE_COPY[view.tokenStorage ?? ""] ?? ""} />
+          <SettingRow as="div" name={t("settings.account.thisDeck", { name: view.device.name })}
+            note={problem ?? (storageMsg ? t(storageMsg) : "")} />
         </SettingsGroup>
         {sync && (
           <SettingsGroup id="settings-account-sync-caption" title={t("settings.account.syncTitle")}>
             <SettingRow as="div"
-              name={sync.mode === "shared" ? "Shared with your other decks" : "This deck only"}
+              name={t(sync.mode === "shared" ? "settings.account.sharedName" : "settings.account.deckOnlyName")}
               note={sync.mode === "shared"
-                ? `Theme, text, panels and the rest follow your account; ${sync.overrides.map(k => uiLabelOf(t, k)?.toLowerCase() ?? k).join(", ") || "nothing"} stays on this deck. ${revisionsLine(view)}`
-                : `This deck keeps its own settings in your account. ${revisionsLine(view)}`}
+                ? t("settings.account.sharedNote", { stays: sync.overrides.map(k => uiLabelOf(t, k)?.toLowerCase() ?? k).join(", ") || t("settings.account.nothing"), revisions: revisionsLine(view) })
+                : t("settings.account.deckOnlyNote", { revisions: revisionsLine(view) })}
               control={sync.mode === "shared"
                 ? <button type="button" className="btn" {...selfPressProps(busy)} onClick={() => run(() => accountActions.setMode({ mode: "independent" }))}>{t("settings.account.stopSharing")}</button>
                 : <button type="button" className="btn" {...selfPressProps(busy, joining)} onClick={() => setJoining(true)}>{t("settings.account.shareSettings")}</button>} />
             {joining && (
-              <SettingRow as="div" className="settings-row-wide" name="Share settings with your other decks">
+              <SettingRow as="div" className="settings-row-wide" name={t("settings.account.joinName")}>
                 <AccountSyncPreview onDone={() => setJoining(false)} />
               </SettingRow>
             )}
             {sync.pending && !sync.conflict && (
-              <SettingRow as="div" name="Pending"
-                note={`${sync.pending.keys.map(k => uiLabelOf(t, k) ?? k).join(", ")}. ${sync.saving === "offline" ? "Will save when back online." : sync.saving === "refused" ? "The account refused part of it." : "Saving…"}`} />
+              <SettingRow as="div" name={t("settings.account.pending")}
+                note={t("settings.account.pendingNote", {
+                  keys: sync.pending.keys.map(k => uiLabelOf(t, k) ?? k).join(", "),
+                  state: t(sync.saving === "offline" ? "settings.account.pendingOffline" : sync.saving === "refused" ? "settings.account.pendingRefused" : "settings.account.pendingSaving"),
+                })} />
             )}
             {sync.conflict && (
               <SettingRow as="div" className={reviewing ? "settings-row-wide" : undefined}
-                name="Changed elsewhere"
-                note={`Your account has r${sync.conflict.latest.revision}${sync.conflict.latest.updatedBy?.name ? ` from ${sync.conflict.latest.updatedBy.name}` : ""}; this deck has changes it has not saved.`}
+                name={t("settings.account.changedElsewhere")}
+                note={sync.conflict.latest.updatedBy?.name
+                  ? t("settings.account.changedElsewhereBy", { revision: sync.conflict.latest.revision, name: sync.conflict.latest.updatedBy.name })
+                  : t("settings.account.changedElsewhereNote", { revision: sync.conflict.latest.revision })}
                 control={reviewing ? undefined : (
                   <span className="account-actions">
                     <button type="button" className="btn" {...selfPressProps(busy)} onClick={() => setReviewing(true)}>{t("settings.account.review")}</button>
@@ -211,8 +231,8 @@ export function AccountPanel({ view, failed = false, vetoed, now = Date.now() }:
                         {Object.keys(sync.conflict.mine).map(k => (
                           <tr key={k}>
                             <th scope="row">{uiLabelOf(t, k) ?? k}</th>
-                            <td>{shownValue(k, sync.conflict!.mine[k])}</td>
-                            <td>{shownValue(k, sync.conflict!.latest.values[k])}</td>
+                            <td>{shownValue(t, k, sync.conflict!.mine[k])}</td>
+                            <td>{shownValue(t, k, sync.conflict!.latest.values[k])}</td>
                           </tr>
                         ))}
                       </tbody>
@@ -228,18 +248,18 @@ export function AccountPanel({ view, failed = false, vetoed, now = Date.now() }:
               </SettingRow>
             )}
             {sync.askUploadForNewAccount && (
-              <SettingRow as="div" name="Not saved to this account yet"
-                note={`This deck's settings are not in ${email}. Nothing is uploaded until you say so, or change a setting.`}
-                control={<button type="button" className="btn" {...selfPressProps(busy)} onClick={() => run(accountActions.upload)}>{`Save this deck's settings to ${email}`}</button>} />
+              <SettingRow as="div" name={t("settings.account.notSavedName")}
+                note={t("settings.account.notSavedNote", { email })}
+                control={<button type="button" className="btn" {...selfPressProps(busy)} onClick={() => run(accountActions.upload)}>{t("settings.account.saveToAccount", { email })}</button>} />
             )}
             {sync.skipped?.theme && (
-              <SettingRow as="div" name="Theme kept"
-                note={`The theme “${sync.skipped.theme}” is not in this version of ccdeck, so this deck kept its own.`} />
+              <SettingRow as="div" name={t("settings.account.themeKept")}
+                note={t("settings.account.themeKeptNote", { theme: sync.skipped.theme })} />
             )}
           </SettingsGroup>
         )}
         <SettingsGroup id="settings-account-leave-caption" title={t("settings.account.disconnectTitle")}>
-          <SettingRow as="div" name="Disconnect this deck" note={ACCOUNT_COPY.disconnectNote}
+          <SettingRow as="div" name={t("settings.account.disconnectName")} note={t(ACCOUNT_MSGS.disconnectNote)}
             control={confirming ? (
               <span className="account-actions">
                 <button type="button" className="btn" {...selfPressProps(busy)} onClick={() => setConfirming(false)}>{t("common.cancel")}</button>
@@ -257,13 +277,14 @@ export function AccountPanel({ view, failed = false, vetoed, now = Date.now() }:
   // Not connected: never connected, disconnected, removed, or a sign-in lost.
   const removed = view.state === "revoked";
   const lead = removed
-    ? (view.revokedReason === "account_gone" ? ACCOUNT_COPY.accountGone : ACCOUNT_COPY.revoked)
-    : view.state === "error" ? ACCOUNT_COPY.tokenMissing : ACCOUNT_COPY.explain;
+    ? (view.revokedReason === "account_gone" ? ACCOUNT_MSGS.accountGone : ACCOUNT_MSGS.revoked)
+    : view.state === "error" ? ACCOUNT_MSGS.tokenMissing : ACCOUNT_MSGS.explain;
+  const signInMsg = SIGN_IN_MSGS[view.tokenStorage ?? ""];
   return (
-    <SettingsGroup id="settings-account-caption" title={t("settings.account.title")} note={lead}>
-      <SettingRow as="div" name="What is sent" note={ACCOUNT_COPY.sent} />
-      <SettingRow name="This deck will appear as" nameId="settings-account-name-label"
-        note={ACCOUNT_COPY.nameNote} noteId="settings-account-name-note"
+    <SettingsGroup id="settings-account-caption" title={t("settings.account.title")} note={t(lead)}>
+      <SettingRow as="div" name={t("settings.account.whatIsSent")} note={t(ACCOUNT_MSGS.sent)} />
+      <SettingRow name={t("settings.account.appearAs")} nameId="settings-account-name-label"
+        note={t(ACCOUNT_MSGS.nameNote)} noteId="settings-account-name-note"
         control={
           <input
             className="ap-manage-input account-name"
@@ -277,9 +298,9 @@ export function AccountPanel({ view, failed = false, vetoed, now = Date.now() }:
             onChange={e => setName(e.target.value)}
           />
         } />
-      <SettingRow as="div" name={removed ? "Connect again" : "Connect account"}
-        note={problem ?? (STORAGE_COPY[view.tokenStorage ?? ""] ? `Its sign-in will be ${STORAGE_COPY[view.tokenStorage ?? ""].replace(/^Stored/, "stored")}` : undefined)}
-        control={<button type="button" className="btn primary" {...selfPressProps(busy)} onClick={connect}>{removed ? "Connect again" : "Connect account"}</button>} />
+      <SettingRow as="div" name={t(removed ? "settings.account.connectAgain" : "settings.account.connect")}
+        note={problem ?? (signInMsg ? t(signInMsg) : undefined)}
+        control={<button type="button" className="btn primary" {...selfPressProps(busy)} onClick={connect}>{t(removed ? "settings.account.connectAgain" : "settings.account.connect")}</button>} />
     </SettingsGroup>
   );
 }

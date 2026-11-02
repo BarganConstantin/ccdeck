@@ -14,6 +14,7 @@
 // Fixtures are the real shapes, taken from a live run against this machine's
 // own transcripts — including the two field names that are easy to guess wrong.
 import { describe, it, expect } from "vitest";
+import { en } from "../i18n/en";
 import {
   PERIODS, sinceFor, modelRows, sessionRows, rangeTotals,
   sessionListScale, sessionListNote,
@@ -86,7 +87,10 @@ describe("which span the panel asks for", () => {
 
   it("offers three spans, each with a word for it", () => {
     expect(PERIODS.map(p => p.key)).toEqual(["today", "month", "all"]);
-    for (const p of PERIODS) expect(p.noun.length).toBeGreaterThan(0);
+    // CHANGED ON PURPOSE (the UI in every language): each span's words are keys
+    // now, read through the English catalog.
+    expect(PERIODS.map(p => [en[p.labelMsg], en[p.nounMsg]])).toEqual([["today", "today"], ["month", "this month"], ["all", "all time"]]);
+    for (const p of PERIODS) expect(en[p.nounMsg].length).toBeGreaterThan(0);
   });
 });
 

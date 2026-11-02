@@ -30,8 +30,13 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { join } from "node:path";
 import {
-  HELD_LABEL_CAP, heldEvents, heldShort, outageSentence, PAUSE_LABEL, pauseTitle, statusPill,
+  HELD_LABEL_CAP, heldEvents, heldShort, outageSentence, PAUSE_LABEL_MSG, pauseLabel, pauseTitle, statusPill,
 } from "../status-pill";
+import { en } from "../i18n/en";
+
+// CHANGED ON PURPOSE (the UI in every language): the name is a key now, read
+// here through the English catalog.
+const PAUSE_LABEL = en[PAUSE_LABEL_MSG];
 import { sheetText } from "./sheet-source";
 
 const web = fileURLToPath(new URL("..", import.meta.url));
@@ -375,6 +380,7 @@ describe("Pause is a canvas verb and lives on the canvas (#527's rule, applied l
     // The name does not flip with it. "Resume the canvas, pressed" is two
     // halves contradicting each other; the state belongs in the attribute.
     expect(PAUSE_LABEL).toBe("Pause the canvas");
+    expect(pauseLabel()).toBe(PAUSE_LABEL);
     expect(CONTROL).not.toMatch(/Resume/);
   });
 

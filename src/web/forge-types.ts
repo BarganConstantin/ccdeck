@@ -11,7 +11,7 @@
 // ONE WORD FOR BOTH. A GitHub pull request and a GitLab merge request are a
 // "change" here, a workflow run and a pipeline are a "pipeline", a check run
 // and a CI job are a "job". The panel says the forge's own word on screen
-// (forgeWords below); the data does not care which one it came from.
+// (forgeNouns below); the data does not care which one it came from.
 //
 // TIMES ARE EPOCH MS. Every `…At` is a number or null, never a string, so the
 // page sorts and formats without parsing.
@@ -360,21 +360,14 @@ export interface ForgeRefTarget {
   number: number;
 }
 
-/** The forge's own words for the same things. */
-export const forgeWords: Record<ForgeKind, {
-  name: string; change: string; changes: string; changeSigil: string; pipeline: string; pipelines: string; repo: string;
-}> = {
-  github: {
-    name: "GitHub", change: "Pull request", changes: "Pull requests", changeSigil: "#",
-    pipeline: "Workflow run", pipelines: "Actions", repo: "Repository",
-  },
-  gitlab: {
-    name: "GitLab", change: "Merge request", changes: "Merge requests", changeSigil: "!",
-    pipeline: "Pipeline", pipelines: "Pipelines", repo: "Project",
-  },
+/** The forge's name and the mark before a change's number ("#12", "!12"). The
+ *  rest of its words are forgeNouns', in the language on show. */
+export const forgeWords: Record<ForgeKind, { name: string; changeSigil: string }> = {
+  github: { name: "GitHub", changeSigil: "#" },
+  gitlab: { name: "GitLab", changeSigil: "!" },
 };
 
-/** The same words in the language on show (forge.word.*): a merge request on
+/** The forge's words for these things in the language on show (forge.word.*): a merge request on
  *  GitLab and a pull request on GitHub, in the wording each language uses for
  *  them. The Lc forms are for the middle of a sentence; `runs` is the plural of
  *  what the forge calls a pipeline ("workflow runs"), `pipelinesLc` the tab as

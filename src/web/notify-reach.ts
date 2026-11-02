@@ -33,14 +33,14 @@ export type NotifyPermission = "default" | "granted" | "denied" | "unsupported";
  *  separating it from the Sound switch above it — the two fire on the same
  *  moments, sound while a tab is open and this once none is (block-notify.mjs
  *  `isChimeEvent`). */
-export const NOTIFY_NOTE = "With no deck tab open, get a notification wherever a sound would have played.";
+export const NOTIFY_NOTE_MSG = "settings.notify.note";
 
 /** The same promise inside the desktop app, where what closes is its window. */
-export const NOTIFY_NOTE_APP = "With the ccdeck window closed, get a notification wherever a sound would have played.";
+export const NOTIFY_NOTE_APP_MSG = "settings.notify.noteApp";
 
 /** The note under the switch, for where the page is running. */
 export function notifyNote(inApp: boolean, t: TFunction = tNow): string {
-  return inApp ? t("settings.notify.noteApp") : t("settings.notify.note");
+  return inApp ? t(NOTIFY_NOTE_APP_MSG) : t(NOTIFY_NOTE_MSG);
 }
 
 /** AGENTS_DECK_NO_NOTIFY=1 at launch. Not the same as the switch being off:
@@ -48,8 +48,7 @@ export function notifyNote(inApp: boolean, t: TFunction = tNow): string {
  *  it silences BOTH notifiers — which is more than any browser setting can do.
  *  So it replaces the note above and hides the channel below: there is nothing
  *  to say about a channel when the whole feature is held. */
-export const NOTIFY_VETO_NOTE =
-  "Held off for this run — the deck was started with alerts disabled. Your choice is saved for the next start.";
+export const NOTIFY_VETO_NOTE_MSG = "settings.notify.veto";
 
 /** The four account notifications, in the order the menu draws them: what
  *  each switch is called, and the line its tooltip adds about when it fires.
@@ -64,10 +63,10 @@ export const ACCOUNT_NOTIFY_SWITCHES = [
 
 /** Under the four: whose accounts, and that a closed deck is not required —
  *  the one way they differ from the switch above them. */
-export const ACCOUNT_NOTIFY_NOTE = "For the Claude and Codex accounts you're on, whether or not the deck is open.";
+export const ACCOUNT_NOTIFY_NOTE_MSG = "settings.notify.accountsNote";
 
 /** The same launch veto, under the four it also silences. */
-export const ACCOUNT_NOTIFY_VETO_NOTE = "Held off for this run too.";
+export const ACCOUNT_NOTIFY_VETO_NOTE_MSG = "settings.notify.accountsVeto";
 
 export interface Channel {
   /** Right of the heading: a word when there is nothing to do, and `null` when

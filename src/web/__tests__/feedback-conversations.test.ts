@@ -6,6 +6,7 @@
 // generated from this deck's own feedbackTitle.
 import { describe, expect, it } from "vitest";
 import { fixture } from "./account-fake-api";
+import { resetLanguageForTest, setLanguage } from "../i18n";
 import { feedbackTitle, limitLine as fromWrite, type Kind } from "../feedback";
 import {
   dayLabel, highestSeq, imagesOnWeb, limitLine, linkify, listTime, mergeItems, parseReplyCreated, parseThreadList,
@@ -119,6 +120,23 @@ describe("a list row and the words", () => {
     expect(listTime("2026-10-28T09:12:00Z", NOW, TZ)).toBe("11:12");
     expect(listTime("2026-10-27T16:45:00Z", NOW, TZ)).toBe("Yesterday");
     expect(listTime("2026-10-20T12:30:00Z", NOW, TZ)).toBe("Oct 20");
+  });
+
+  it("writes a date in the deck's chosen language, English by default", () => {
+    // English is the default, so the dates above read "Oct 20".
+    expect(dayLabel("2026-10-20T12:30:00Z", NOW, TZ)).toBe("Oct 20");
+    expect(dayLabel("2025-12-31T10:00:00Z", NOW, TZ)).toBe("Dec 31, 2025");
+    try {
+      setLanguage("ja");
+      expect(dayLabel("2026-10-20T12:30:00Z", NOW, TZ)).toBe("10月20日");
+      expect(dayLabel("2025-12-31T10:00:00Z", NOW, TZ)).toBe("2025年12月31日");
+      setLanguage("de");
+      expect(dayLabel("2026-10-20T12:30:00Z", NOW, TZ)).not.toBe("Oct 20");
+      expect(dayLabel("2026-10-20T12:30:00Z", NOW, TZ)).toMatch(/20\.\s?Okt/);
+    } finally {
+      setLanguage("en");
+      resetLanguageForTest();
+    }
   });
 
   it("tones a pill by its code, never by its words", () => {

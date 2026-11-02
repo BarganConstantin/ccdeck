@@ -20,7 +20,13 @@ import { readdirSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { emptyScope } from "../scope";
 import { autoRestartStep } from "../restart";
-import { browserChannel, NOTIFY_NOTE, NOTIFY_VETO_NOTE } from "../notify-reach";
+import { ACCOUNT_NOTIFY_NOTE_MSG, ACCOUNT_NOTIFY_VETO_NOTE_MSG, browserChannel, NOTIFY_NOTE_MSG, NOTIFY_VETO_NOTE_MSG } from "../notify-reach";
+import { en } from "../i18n/en";
+
+// CHANGED ON PURPOSE (the UI in every language): the notes are keys now; the
+// words are read through the English catalog.
+const NOTIFY_NOTE = en[NOTIFY_NOTE_MSG];
+const NOTIFY_VETO_NOTE = en[NOTIFY_VETO_NOTE_MSG];
 import { clientText } from "./client-source";
 import { browserWatchSurface } from "./browser-watch-surface";
 import { soundMenuSurface } from "./sound-menu-surface";
@@ -269,6 +275,11 @@ describe("#801 — what the Notifications switch is saying", () => {
     expect(notifications).toContain("const showChannel = notifyOn && !notifyVetoed && !inApp;");
     expect(notifications).toContain("{showChannel && (");
     expect(NOTIFY_VETO_NOTE).toContain("saved for the next start");
+    // CHANGED ON PURPOSE (the UI in every language): the sentences are keys now;
+    // the English they carry is pinned here word for word.
+    expect(NOTIFY_VETO_NOTE).toBe("Held off for this run — the deck was started with alerts disabled. Your choice is saved for the next start.");
+    expect(en[ACCOUNT_NOTIFY_NOTE_MSG]).toBe("For the Claude and Codex accounts you're on, whether or not the deck is open.");
+    expect(en[ACCOUNT_NOTIFY_VETO_NOTE_MSG]).toBe("Held off for this run too.");
     // The switch still moves under a veto, because the preference is still the
     // user's to record for the next launch.
     expect(notifications).toContain("onClick={onToggleNotify}");

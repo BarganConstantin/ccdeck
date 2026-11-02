@@ -38,9 +38,9 @@ export function desktopAppVersion(ua: string = typeof navigator === "undefined" 
  *  place a failed press sends people to did not use the words of the button
  *  that failed. The tray's was kept because it names both halves in the order
  *  they happen, and it is what the updater itself calls the action. */
-/** The English label, for callers outside the shell (About) that have not moved to restartToUpdate() yet. */
-export const RESTART_TO_UPDATE = "Restart to update";
-export const restartToUpdate = (): string => t("shell.desktop.restartToUpdate");
+/** The key of that label, and the label in the language on show. */
+export const RESTART_TO_UPDATE_MSG = "shell.desktop.restartToUpdate";
+export const restartToUpdate = (): string => t(RESTART_TO_UPDATE_MSG);
 
 /** How long a press waits for the window to close before it is handed back.
  *  A restart that worked ends this page; one still here after this did not

@@ -30,8 +30,13 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { join } from "node:path";
 import {
-  HELD_LABEL_CAP, heldEvents, heldShort, PAUSE_LABEL, pauseTitle, statusPill,
+  HELD_LABEL_CAP, heldEvents, heldShort, PAUSE_LABEL_MSG, pauseLabel, pauseTitle, statusPill,
 } from "../status-pill";
+import { en } from "../i18n/en";
+
+// CHANGED ON PURPOSE (the UI in every language): the name is a key now, read
+// here through the English catalog.
+const PAUSE_LABEL = en[PAUSE_LABEL_MSG];
 
 const HERE = fileURLToPath(new URL(".", import.meta.url));
 const src = (rel: string) => readFileSync(join(HERE, "..", rel), "utf8");
@@ -219,6 +224,7 @@ describe("the pause control, which is a glyph on the canvas now", () => {
     // pressed" is two halves contradicting each other. The name is a constant
     // for exactly that reason, and it is the title that flips.
     expect(PAUSE_LABEL).toBe("Pause the canvas");
+    expect(pauseLabel()).toBe(PAUSE_LABEL);
     expect(PAUSE_LABEL).not.toMatch(/resume/i);
     expect(pauseTitle({ paused: true, held: 0 })).not.toBe(pauseTitle({ paused: false, held: 0 }));
   });

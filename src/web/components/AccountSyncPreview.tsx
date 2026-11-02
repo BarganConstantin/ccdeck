@@ -7,24 +7,25 @@ import { useEffect, useRef, useState } from "react";
 import { uiLabelOf } from "../account-ui-fields";
 import { accountActions } from "../use-account";
 import { selfPressAccepted, selfPressProps } from "../panel-press";
-import { useT } from "../i18n";
+import { useT, type MessageKey, type TFunction } from "../i18n";
 
 type Preview = Awaited<ReturnType<typeof accountActions.preview>>;
 
-/** A setting's value as a person reads it. */
-export function shownValue(key: string, value: unknown): string {
-  if (value === null || value === undefined) return "not set";
-  if (typeof value === "boolean") return value ? "On" : "Off";
-  if (key === "hideFinishedAfter") return value === 0 ? "Never" : `${value} min`;
+/** A setting's value as a person reads it, in the language `tr` speaks. */
+export function shownValue(tr: TFunction, key: string, value: unknown): string {
+  if (value === null || value === undefined) return tr("settings.account.notSet");
+  if (typeof value === "boolean") return tr(value ? "settings.claude.effect.on" : "settings.claude.effect.off");
+  if (key === "hideFinishedAfter") return value === 0 ? tr("settings.board.never") : tr("settings.board.minutes", { n: String(value) });
   return String(value);
 }
 
-export const PREVIEW_COPY = {
-  loading: "Comparing this deck with your shared settings…",
-  failed: "Could not read the shared settings. Try again in a moment.",
-  none: "There are no shared settings in this account yet. Publish this deck's, and your other decks can join them.",
-  same: "This deck already shows the shared settings.",
-  stale: "The shared settings changed while you were looking. Here they are again.",
+/** The sentences this panel says, as keys read with `t` where they are drawn. */
+export const PREVIEW_MSGS: Record<"loading" | "failed" | "none" | "same" | "stale", MessageKey> = {
+  loading: "settings.account.preview.loading",
+  failed: "settings.account.preview.failed",
+  none: "settings.account.preview.none",
+  same: "settings.account.preview.same",
+  stale: "settings.account.preview.stale",
 };
 
 export default function AccountSyncPreview({ onDone }: { onDone: () => void }) {
@@ -33,7 +34,7 @@ export default function AccountSyncPreview({ onDone }: { onDone: () => void }) {
   const [failed, setFailed] = useState(false);
   const [busy, setBusy] = useState(false);
   const busyRef = useRef(false);
-  const [note, setNote] = useState("");
+  const [note, setNote] = useState<MessageKey | "">("");
 
   const load = () => {
     setFailed(false);
@@ -50,8 +51,8 @@ export default function AccountSyncPreview({ onDone }: { onDone: () => void }) {
     setBusy(true);
     try {
       const out = await accountActions.setMode(body);
-      if (out?.error === "revision_conflict") { setNote(PREVIEW_COPY.stale); load(); return; }
-      if (out?.error) { setNote(PREVIEW_COPY.failed); return; }
+      if (out?.error === "revision_conflict") { setNote(PREVIEW_MSGS.stale); load(); return; }
+      if (out?.error) { setNote(PREVIEW_MSGS.failed); return; }
       onDone();
     } finally {
       busyRef.current = false;
@@ -62,20 +63,20 @@ export default function AccountSyncPreview({ onDone }: { onDone: () => void }) {
   if (failed) {
     return (
       <div className="account-preview" role="group" aria-label={t("settings.account.shareLabel")}>
-        <p className="settings-row-note">{PREVIEW_COPY.failed}</p>
+        <p className="settings-row-note">{t(PREVIEW_MSGS.failed)}</p>
         <div className="account-actions"><button type="button" className="btn" onClick={onDone}>{t("common.close")}</button></div>
       </div>
     );
   }
-  if (!preview) return <p className="settings-row-note account-preview">{PREVIEW_COPY.loading}</p>;
+  if (!preview) return <p className="settings-row-note account-preview">{t(PREVIEW_MSGS.loading)}</p>;
 
   const shared = preview.shared;
   return (
     <div className="account-preview" role="group" aria-label={t("settings.account.shareLabel")}>
-      {note && <p className="settings-row-said" role="status">{note}</p>}
+      {note && <p className="settings-row-said" role="status">{t(note)}</p>}
       {!shared ? (
         <>
-          <p className="settings-row-note">{PREVIEW_COPY.none}</p>
+          <p className="settings-row-note">{t(PREVIEW_MSGS.none)}</p>
           <div className="account-actions">
             <button type="button" className="btn" onClick={onDone} {...selfPressProps(busy)}>{t("common.cancel")}</button>
             <button type="button" className="btn primary" {...selfPressProps(busy)}
@@ -85,7 +86,7 @@ export default function AccountSyncPreview({ onDone }: { onDone: () => void }) {
       ) : (
         <>
           {preview.differences.length === 0 ? (
-            <p className="settings-row-note">{PREVIEW_COPY.same}</p>
+            <p className="settings-row-note">{t(PREVIEW_MSGS.same)}</p>
           ) : (
             <table className="account-diff">
               <caption className="settings-row-note">
@@ -98,8 +99,8 @@ export default function AccountSyncPreview({ onDone }: { onDone: () => void }) {
                 {preview.differences.map(d => (
                   <tr key={d.key}>
                     <th scope="row">{uiLabelOf(t, d.key) ?? d.key}</th>
-                    <td>{shownValue(d.key, d.local)}</td>
-                    <td>{shownValue(d.key, d.shared)}</td>
+                    <td>{shownValue(t, d.key, d.local)}</td>
+                    <td>{shownValue(t, d.key, d.shared)}</td>
                   </tr>
                 ))}
               </tbody>

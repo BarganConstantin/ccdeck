@@ -30,9 +30,13 @@ const { setCswapConfig, settingArg } = await import("../../server/cswap-auto.mjs
 
 import { AutoSwitchSettings } from "../components/AutoSwitchPolicy";
 import {
-  checkThreshold, commitThreshold, CUSTOM_HINT, CUSTOM_MAX, CUSTOM_MIN, CUSTOM_PICK, editThreshold, NO_DRAFT,
+  checkThreshold, commitThreshold, customHint, CUSTOM_MAX, CUSTOM_MIN, CUSTOM_PICK, editThreshold, NO_DRAFT,
   type ThresholdDraft,
 } from "../auto-switch-threshold";
+
+// CHANGED ON PURPOSE (the UI in every language): the hint is a function of the
+// language on show now, not a constant.
+const CUSTOM_HINT = customHint();
 import { thresholdCommit } from "../picker-commit";
 import { type AutoStatus } from "../claude-accounts";
 import { accountsSurface } from "./accounts-surface";

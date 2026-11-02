@@ -30,7 +30,7 @@
 // its keys (#852), and Esc is the documented way back.
 import { Fragment } from "react";
 import { kindOffered, useIntegrations } from "../integrations/client";
-import { KEY_HELP_NOTE, KEY_HELP_OFF_TITLE, KEY_HELP_SWITCH_NOTE, keyHelpFor, SINGLE_KEYS_PLACE, type KeyHelpGroup } from "../key-help";
+import { keyHelpFor, type KeyHelpGroup } from "../key-help";
 import { isApplePlatform, platformName } from "../platform";
 import { useSingleKeyShortcuts } from "../use-single-key-shortcuts";
 import { Dialog, DialogClose } from "./Dialog";
