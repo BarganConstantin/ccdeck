@@ -875,24 +875,23 @@
    two numbers printed twenty pixels away. It lives in the cost tooltip, where
    it always did. */
 
+/* The Tokens rows in the Inspector (V4's Figma): a label in 400 12/16 --muted
+   and its value in mono 12/16 --text, one row each, no box. */
 .tokens-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 6px 12px;
-  padding: 8px 10px;
-  background: var(--bg-soft);
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  font-family: var(--font-mono);
+  display: flex;
+  flex-direction: column;
+  gap: 0;
   font-size: calc(12px + var(--ui-text-increase, 0px));
+  line-height: 16px;
 }
 .tokens-grid > div {
   display: flex;
   justify-content: space-between;
   align-items: baseline;
+  padding: 2px 0;
 }
-.tokens-grid .k { color: var(--muted); font-size: calc(10px + max(-1px, var(--ui-text-increase, 0px))); text-transform: uppercase; letter-spacing: 0.06em; }
-.tokens-grid b { color: var(--text); font-weight: 600; font-variant-numeric: tabular-nums; }
+.tokens-grid .k { color: var(--muted); font-weight: 400; }
+.tokens-grid b { color: var(--text); font-family: var(--font-mono); font-weight: 400; font-variant-numeric: tabular-nums; }
 
 /* The dashed edge is the whole difference. It also faded the card to 0.92,
    which took the "?" — the only word on the card for "this start was

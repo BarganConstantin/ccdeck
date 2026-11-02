@@ -58,6 +58,7 @@ const ALLOWLIST: Allowed[] = [
   { file: "styles/dialogs.css", needle: "spin 900ms linear", why: "the refresh arrow: 900, linear" },
   { file: "styles/lan-setup.css", needle: "spin 900ms linear", why: "the refresh arrow: 900, linear" },
   { file: "styles/panel-glyph.css", needle: "spin 900ms linear", why: "the refresh arrow: 900, linear" },
+  { file: "styles/usage-panel.css", needle: "spin 900ms linear", why: "the refresh arrow: 900, linear" },
   { file: "styles/integrations.css", needle: "ta-spin 900ms linear", why: "the refresh arrow: 900, linear" },
   { file: "styles/tool-audit.css", needle: "ta-spin 900ms linear", why: "the refresh arrow: 900, linear" },
   { file: "styles/accounts-details.css", needle: "ap-disarm 4000ms linear", why: "arm-to-confirm countdown: a progress drain, linear, as long as the arm window" },

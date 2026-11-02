@@ -16,7 +16,42 @@ export interface SessionTurn { open: boolean; totalMs: number; claudeMs: number;
 
 /** What a call ran on, as the board's sub-bubble says it (the command, the file),
  *  else the raw input preview: a Bash row reads "npm test", not its JSON. */
-const callArg = (call: ToolCall): string => skinFor(call.name, call.input)?.detail ?? call.inputPreview ?? "";
+export const callArg = (call: ToolCall): string => skinFor(call.name, call.input)?.detail ?? plainArg(call.inputPreview ?? "");
+
+/** A call's argument without its braces: a tool with no skin of its own keeps
+ *  its input as JSON, and a row reads the first string in it (the URL, the path,
+ *  the pattern), never `{"url":"…"}`. A preview cut short mid-JSON is read the
+ *  same way; anything that is not JSON is returned as it is. */
+export function plainArg(preview: string): string {
+  const s = preview.trim();
+  if (!s.startsWith("{") && !s.startsWith("[")) return s;
+  const first = (v: unknown, depth = 0): string | null => {
+    if (typeof v === "string") return v;
+    if (depth > 2 || v === null || typeof v !== "object") return null;
+    for (const item of Object.values(v)) {
+      const found = first(item, depth + 1);
+      if (found) return found;
+    }
+    return null;
+  };
+  try {
+    return first(JSON.parse(s)) ?? "";
+  } catch {
+    const m = /"(?:[^"\\]|\\.)*"\s*:\s*"((?:[^"\\]|\\.)*)/.exec(s);
+    return m ? m[1].replace(/\\(.)/g, "$1") : "";
+  }
+}
+
+/** The kit icon a call's row wears: the file glyph for the file tools, the
+ *  magnifier for the searches, the terminal for Bash, the agents glyph for a
+ *  subagent; any other tool takes the kit's tools glyph. */
+export function toolIconName(name: string, group = false): "file" | "search" | "terminal" | "agents" | "tools" {
+  if (group || name === "Task" || name === "Agent") return "agents";
+  if (name === "Read" || name === "Edit" || name === "Write" || name === "MultiEdit" || name === "NotebookEdit") return "file";
+  if (name === "Search" || name === "Grep" || name === "Glob" || name === "WebSearch" || name === "WebFetch") return "search";
+  if (name === "Bash") return "terminal";
+  return "tools";
+}
 
 const finite = (n: unknown): n is number => typeof n === "number" && Number.isFinite(n) && n >= 0;
 

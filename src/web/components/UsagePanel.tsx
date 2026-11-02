@@ -19,6 +19,7 @@ import { fmtTokens } from "../token-format";
 import type { Providers } from "../providers";
 import type { Incident } from "../provider-status";
 import CostBar from "./CostBar";
+import { KitIcon } from "./kit-icons";
 import FilmLink from "./FilmLink";
 import { ClaudeQuotaSection, CodexQuotaSection } from "./QuotaSections";
 import UsageModelTable from "./UsageModelTable";
@@ -309,67 +310,19 @@ export default function UsagePanel({ state, now, providers, incidents = [], leav
             titles, and the four `up-section-title`s below stepped from h4 to h3
             with it, so the panel reads h1 → h2 → h3 with nothing skipped. */}
         <h2>{t("usage.title")}</h2>
-        <div className="up-header-right">
-          {(providers.claude || providers.codex) && <button type="button"
-            className="glyph-btn" aria-label={t("usage.historyOpen")}
-            title={t("usage.history")} onClick={event => setQuotaHistoryOpen(event.detail === 0 ? "keyboard" : "pointer")}>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-              strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-              <path d="M4 4v16h16M8 8l4 4 4-3 4 7" />
-            </svg>
-          </button>}
-          {/* Named after what is actually below it, and gone when neither
-              section is. On a Codex-only deck "Refresh Claude + Codex quota"
-              promises a section that is not there, which is the same lie in
-              miniature as the panel this change removed; with both CLIs absent
-              the control refreshes nothing at all. */}
-          {(providers.claude || providers.codex) && (
-          <button
-            type="button"
-            className="glyph-btn up-refresh-btn"
-            onClick={refreshAll}
-            /* #620: this was `disabled={anyLoading}`, and both hooks set their
-               `loading` before their first await — so the ↻ went disabled
-               under the press that had just come from it. It is the worst of
-               the nine to lose focus on: the panel is docked with no focus
-               trap, and the Codex leg of this refresh is a full second or
-               more, all of it with focus on `<body>` and nothing to hand it
-               back. The arrow stays and turns while it reads (panel-glyph.css). */
-            {...selfPressProps(anyLoading)}
-            aria-label={refreshLabel}
-            title={refreshLabel}
-          ><svg className="refresh-glyph" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-              strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-              <path d="M20 7v5h-5M20 12a8 8 0 1 0-2 5" />
-            </svg></button>
-          )}
-          <button
-            type="button"
-            className="glyph-btn up-close"
-            onClick={onClose}
-            aria-label={t("usage.closePanel")}
-            title={withKey(t("usage.close"), "U", singleKeys)}
-          ><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-              strokeWidth="1.6" strokeLinecap="round" aria-hidden><path d="m6 6 12 12M18 6 6 18" /></svg></button>
-        </div>
+        {/* ONE close (V4's Figma). The panel's two other header buttons went to
+            its foot: the refresh as a quiet "Refresh" and the quota history as
+            a quiet "Quota history", both still here and still pressable. */}
+        <button
+          type="button"
+          className="glyph-btn up-close"
+          onClick={onClose}
+          aria-label={t("usage.closePanel")}
+          title={withKey(t("usage.close"), "U", singleKeys)}
+        ><KitIcon name="close" /></button>
       </div>
 
-      {/* ── Claude quota ── */}
-      {providers.claude && (
-        <ClaudeQuotaSection quota={quota} quotaLoading={quotaLoading} nowSec={nowSec} weekEnds={claudeWeekEnds}
-          incident={incidents.find(i => i.provider === "claude")} />
-      )}
-
-      {/* ── Codex quota ──
-          The mirror of the accounts panel, and fixed by the same fact arriving
-          from /api/health: a Claude-only machine used to carry "Quota
-          unavailable. / Run codex login to authenticate." permanently, for a
-          CLI it has no reason to install. */}
-      {providers.codex && (
-        <CodexQuotaSection codexQuota={codexQuota} codexLoading={codexLoading} nowSec={nowSec} weekEnds={codexWeekEnds}
-          incident={incidents.find(i => i.provider === "codex")} />
-      )}
-
+      <div className="up-body">
       {/* ── Cost + tokens ──
           Gated on TOKENS, not on cost. The two tables used to live inside a
           `hasCost` branch, which meant a deck of nothing but unpriced sessions
@@ -386,7 +339,7 @@ export default function UsagePanel({ state, now, providers, incidents = [], leav
               the same thing. */}
       {fromRange && <UsagePeriodStrip period={period} rangePending={rangePending} setPeriod={setPeriod} />}
 
-      {totalTokenSum > 0 ? (
+      {totalTokenSum > 0 && (
         <>
           {/* The headline says whose spend it is (#687).
               It read "total spend", and it is not a total of anything: it walks
@@ -453,6 +406,27 @@ export default function UsagePanel({ state, now, providers, incidents = [], leav
                 and "on this board" there named a canvas it does not count. */}
             {!hasCost && <span className="up-tok up-scope">{fromRange ? periodWord : boardScopeLabel()}</span>}
           </div>
+        </>
+      )}
+
+      {/* ── Claude quota ── (under the figures, as V4's Figma orders them) */}
+      {providers.claude && (
+        <ClaudeQuotaSection quota={quota} quotaLoading={quotaLoading} nowSec={nowSec} weekEnds={claudeWeekEnds}
+          incident={incidents.find(i => i.provider === "claude")} />
+      )}
+
+      {/* ── Codex quota ──
+          The mirror of the accounts panel, and fixed by the same fact arriving
+          from /api/health: a Claude-only machine used to carry "Quota
+          unavailable. / Run codex login to authenticate." permanently, for a
+          CLI it has no reason to install. */}
+      {providers.codex && (
+        <CodexQuotaSection codexQuota={codexQuota} codexLoading={codexLoading} nowSec={nowSec} weekEnds={codexWeekEnds}
+          incident={incidents.find(i => i.provider === "codex")} />
+      )}
+
+      {totalTokenSum > 0 ? (
+        <>
 
           {/* NO BOARD FIGURE UNDER A ccusage HEADLINE.
               There used to be one here — the canvas's own spend, on its own
@@ -535,6 +509,32 @@ export default function UsagePanel({ state, now, providers, incidents = [], leav
       {/* The panel's last line, whatever is above it: the header's row is
           already the title, the burn rate and two acts. */}
       <div className="film-foot"><FilmLink film="usage" /></div>
+      {/* The two acts the header lost (V4's Figma draws one close there). The
+          refresh is named after what is below it and gone when neither quota
+          section is: with both CLIs absent it would refresh nothing, and on a
+          Codex-only deck "Refresh Claude + Codex quota" promises a section that
+          is not there. */}
+      {(providers.claude || providers.codex) && (
+        <div className="up-acts">
+          <button
+            type="button"
+            className="up-quiet up-refresh-btn"
+            onClick={refreshAll}
+            /* #620: this was `disabled={anyLoading}`, and both hooks set their
+               `loading` before their first await, so the button went disabled
+               under the press that had just come from it and focus fell to
+               <body>. It stays pressable and says it is busy instead. */
+            {...selfPressProps(anyLoading)}
+            aria-label={refreshLabel}
+            title={refreshLabel}
+          ><KitIcon name="update" className="refresh-glyph" />Refresh</button>
+          <button type="button" className="up-quiet" aria-label={t("usage.historyOpen")}
+            title={t("usage.history")} onClick={event => setQuotaHistoryOpen(event.detail === 0 ? "keyboard" : "pointer")}>
+            <KitIcon name="history" />Quota history
+          </button>
+        </div>
+      )}
+      </div>
       <DialogPresence when={inspectedSession}>{session => (
         <SessionUsageModal key={`${session.agent}:${session.sessionId}`}
           session={session} onClose={() => setInspectedSession(null)} />

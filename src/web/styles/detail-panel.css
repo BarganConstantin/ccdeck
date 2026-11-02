@@ -81,15 +81,15 @@
 @media (hover: hover) and (pointer: fine) {
 .detail .insp-fold:hover { background: var(--ctl-fill); }
 }
-/* The body: padding 8 12 12, a gap of 8, and the scroller. A tabpanel that is
+/* The body: padding 12, a gap of 12, and the scroller. A tabpanel that is
    not the chosen one is `hidden`, which a `display` here would otherwise beat. */
 .insp-b {
   flex: 1;
   min-height: 0;
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  padding: 8px 12px 12px;
+  gap: 12px;
+  padding: 12px;
   overflow-y: auto;
 }
 .insp-b[hidden] { display: none; }
@@ -164,12 +164,15 @@
   height: 6px;
   border-radius: 3px;
   overflow: hidden;
-  background: var(--ctl-fill);
+  background: color-mix(in srgb, var(--text) 6%, transparent);
 }
+/* The lanes, in the order the bar has always had them (you, Claude, this
+   machine), each at its share of strength (V4's Figma): the wait is the loud
+   one, the machine the quietest. */
 .insp-time-bar i { flex: 1 1 0; min-width: 0; }
-.insp-time-bar i[data-lane="you"] { background: var(--usage-cyan); }
-.insp-time-bar i[data-lane="claude"] { background: var(--usage-purple); }
-.insp-time-bar i[data-lane="machine"] { background: var(--usage-lime); }
+.insp-time-bar i[data-lane="you"] { background: color-mix(in srgb, var(--warn) 55%, transparent); }
+.insp-time-bar i[data-lane="claude"] { background: color-mix(in srgb, var(--accent) 34%, transparent); }
+.insp-time-bar i[data-lane="machine"] { background: color-mix(in srgb, var(--accent) 14%, transparent); }
 .insp-time-table { display: flex; flex-direction: column; }
 .insp-time-axis,
 .insp-time-row {
@@ -189,13 +192,18 @@
 /* Figma draws the row radius 5, which has no fill to show it and no step on the
    radius ladder (spacing-ladder-887), so it is left out. */
 .insp-time-row { height: 24px; }
+/* The name column, 124 wide (V4's Figma): the chevron's 12px slot at x 5, the
+   14px tool icon at x 24, the name at x 44; a call a subagent made is 14
+   further in on all three. The argument takes what is left, right-aligned. */
 .insp-time-name {
   display: flex;
   align-items: center;
-  gap: 4px;
   min-width: 0;
-  padding-left: calc(var(--depth, 0) * 14px);
+  padding-left: calc(5px + var(--depth, 0) * 14px);
 }
+.insp-time-slot { flex: none; width: 12px; height: 12px; margin-right: 7px; display: inline-flex; }
+.insp-time-icon { flex: none; width: 14px; height: 14px; margin-right: 6px; display: inline-flex; color: var(--muted); }
+.insp-time-icon svg { width: 14px; height: 14px; }
 .insp-time-op {
   flex: none;
   font-size: calc(12px + var(--ui-text-increase, 0px));
@@ -207,17 +215,18 @@
 .insp-time-took {
   font-family: var(--font-mono);
   font-size: calc(11px + var(--ui-text-increase, 0px));
+  font-weight: 400;
   line-height: 14px;
   color: var(--muted);
 }
-.insp-time-arg { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.insp-time-took { flex: none; }
+.insp-time-arg { flex: 1 1 auto; min-width: 0; margin-left: 4px; text-align: right; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* The duration rides the lane, right of the bar (its place is set inline). */
+.insp-time-took { position: absolute; top: 5px; white-space: nowrap; }
 .insp-time-fold {
   flex: none;
   display: inline-flex;
   width: 12px;
   height: 12px;
-  margin-left: -2px;
   padding: 0;
   border: 0;
   background: transparent;
@@ -231,9 +240,14 @@
   height: 10px;
   min-width: 2px;
   border-radius: 3px;
-  background: var(--text);
+  background: color-mix(in srgb, var(--text) 16%, transparent);
 }
-.insp-time-span[data-group] { background: var(--accent); }
+.insp-time-span[data-thin] { border-radius: 1px; }
+/* A subagent's span: --accent at 14% with an inset 1px edge of it at 40%. */
+.insp-time-span[data-group] {
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 40%, transparent);
+}
 .insp-time-wait {
   position: absolute;
   top: 5px;
@@ -389,10 +403,11 @@
 .detail > h2,
 .detail h3:not(.ctx-section-title) {
   margin: 0;
-  font-size: calc(11px + var(--ui-text-increase, 0px));
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--muted);
+  font-size: calc(12px + var(--ui-text-increase, 0px));
+  line-height: 16px;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--text-secondary);
   font-weight: 600;
 }
 .detail .empty {
@@ -403,17 +418,16 @@
   display: flex;
   justify-content: space-between;
   align-items: baseline;
-  padding: calc(5px * var(--ui-space, 1)) 0;
-  border-bottom: 1px solid var(--line-soft);
+  padding: 2px 0;
   font-size: calc(12px + var(--ui-text-increase, 0px));
+  line-height: 16px;
   gap: 12px;
 }
-.detail .row:last-child { border-bottom: none; }
-.detail .row .k { color: var(--muted); }
+.detail .row .k { color: var(--muted); font-weight: 400; }
 .detail .row .v {
   color: var(--text);
   font-family: var(--font-mono);
-  font-size: calc(11px + var(--ui-text-increase, 0px));
+  font-size: calc(12px + var(--ui-text-increase, 0px));
   overflow: hidden;
   text-overflow: ellipsis;
   max-width: 220px;

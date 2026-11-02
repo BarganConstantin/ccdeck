@@ -1,29 +1,29 @@
 /* ---------------- detail panel: hero + sections ---------------- */
 
+/* THE TITLE BLOCK (V4's Figma): the 14px state glyph and the name at 600
+   14/20, the meta line at 400 12/16, the spend figure in mono 600 18/24 with
+   its word. No rule under it and no box round the spend: the body's 12px gap
+   is the spacing. */
 .detail-hero {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  padding: 4px 0 14px;
-  border-bottom: 1px solid var(--line);
+  gap: 4px;
 }
 .detail-hero .hero-line {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 6px;
   min-width: 0;
 }
-/* 18px, joining `.empty-hero h2` rather than sitting 1px under it. Both are the
-   largest text on the surface they head and both are 600, and 17 against 18 is a
-   6% step — under what a reader can resolve, so the difference was not encoding
-   "a side panel is smaller than a splash screen", it was just a second number
-   for one job. The title already clips with an ellipsis, so a 1px lift spends
-   one character rather than any width. */
+.detail-hero .hero-state { flex: none; display: inline-flex; width: 14px; height: 14px; color: var(--text-secondary); }
+.detail-hero .hero-state[data-state="idle"] { color: var(--muted); }
+.detail-hero .hero-state[data-state="error"] { color: var(--err); }
+.detail-hero .hero-state[data-state="working"] { color: var(--inflight); }
 .detail-hero .hero-title {
   margin: 0;
-  font-size: calc(18px + var(--ui-text-increase, 0px));
+  font-size: calc(14px + var(--ui-text-increase, 0px));
+  line-height: 20px;
   font-weight: 600;
-  letter-spacing: 0.01em;
   color: var(--text);
   white-space: nowrap;
   overflow: hidden;
@@ -33,48 +33,63 @@
 .detail-hero .hero-meta {
   display: flex;
   align-items: center;
-  gap: 8px;
-  font-size: calc(11px + var(--ui-text-increase, 0px));
+  gap: 4px;
+  font-size: calc(12px + var(--ui-text-increase, 0px));
+  line-height: 16px;
+  font-weight: 400;
   color: var(--muted);
-  font-family: var(--font-mono);
   flex-wrap: wrap;
 }
-.detail-hero .hero-meta-item { letter-spacing: 0.03em; }
-.detail-hero .hero-sep { color: var(--text-dim); }
-.detail-hero .hero-cost {
-  margin-top: 8px;
-  padding: 10px 12px;
-  background: var(--bg-soft);
-  border: 1px solid var(--line);
-  border-radius: var(--r-panel);
+.detail-hero .hero-meta-item { white-space: nowrap; }
+.detail-hero .hero-sep { color: var(--muted); }
+/* The model, in the meta line's own type: "opus 5 +1", not a tinted pill. */
+.detail-hero .hero-meta .model-chip[data-family],
+.detail-hero .hero-meta .model-chip {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  color: var(--muted);
+  font-family: inherit;
+  font-size: calc(12px + var(--ui-text-increase, 0px));
+  line-height: 16px;
+  font-weight: 400;
+  letter-spacing: 0;
 }
-.detail-hero .hero-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  margin-top: 4px;
-}
-.detail-hero .hero-action-btn {
-  padding: 5px 12px;
-  font-size: calc(11px + var(--ui-text-increase, 0px));
-}
+.detail-hero .hero-cost { margin-top: 8px; display: flex; flex-direction: column; gap: 6px; }
+/* The split of the spend: kept (the frame does not draw it), quieter than the figure. */
+.detail-hero .hero-cost .cost-bar { height: 4px; border-radius: var(--r-tag); }
 .detail-hero .hero-cost-headline {
   display: flex;
   align-items: baseline;
   gap: 6px;
-  margin-bottom: 8px;
 }
 .detail-hero .hero-cost-value {
-  font-size: calc(22px + var(--ui-text-increase, 0px));
-  font-weight: 700;
-  color: var(--ok);
+  font-family: var(--font-mono);
+  font-size: calc(18px + var(--ui-text-increase, 0px));
+  line-height: 24px;
+  font-weight: 600;
+  color: var(--text);
   font-variant-numeric: tabular-nums;
-  letter-spacing: -0.01em;
 }
 .detail-hero .hero-cost-label {
-  font-size: calc(10px + max(-1px, var(--ui-text-increase, 0px)));
-  text-transform: uppercase;
-  letter-spacing: 0.10em;
+  font-size: calc(12px + var(--ui-text-increase, 0px));
+  line-height: 16px;
+  font-weight: 400;
+  color: var(--muted);
+}
+/* The verbs about the card (Recap, Export JSON, Remove from board): the frame
+   draws none of them, so they close the body as quiet small buttons. */
+.detail .hero-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.detail .hero-action-btn {
+  padding: 0 8px;
+  font-size: calc(12px + var(--ui-text-increase, 0px));
+  line-height: 16px;
   color: var(--muted);
 }
 
@@ -155,67 +170,67 @@
   display: flex;
   flex-direction: column;
   gap: 8px;
-  padding-top: 4px;
 }
+/* The section label (V4's Figma): a 20-high row, 600 12/16 in --text-secondary,
+   in the case it is written in; the count beside it is mono 400 11/14 --muted. */
 .detail-section h3 {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
+  height: 20px;
 }
 .detail-section h3 .section-count {
-  display: inline-flex;
-  align-items: center;
-  padding: 1px 8px;
-  border-radius: 999px;
-  background: var(--bg-soft);
-  border: 1px solid var(--line);
-  color: var(--text);
-  font-size: calc(10px + max(-1px, var(--ui-text-increase, 0px)));
-  font-weight: 600;
+  font-size: calc(11px + var(--ui-text-increase, 0px));
+  line-height: 14px;
+  font-weight: 400;
+  color: var(--muted);
   text-transform: none;
   letter-spacing: 0;
   font-family: var(--font-mono);
 }
 
-/* Activity row — counters on the left, category chips on the right */
+/* Activity row — the counts on top, the category pills under them */
 .activity-row {
   display: flex;
   flex-direction: column;
   gap: 8px;
 }
+/* "42 calls  2 live  1 err": mono 12/16, the whole item in its colour. */
 .activity-counters {
   display: flex;
   gap: 12px;
+  font-family: var(--font-mono);
   font-size: calc(12px + var(--ui-text-increase, 0px));
-  color: var(--muted);
+  line-height: 16px;
+  color: var(--text);
 }
-.activity-counters .ac-item b { color: var(--text); font-weight: 600; font-variant-numeric: tabular-nums; }
+.activity-counters .ac-item b { font-weight: 400; font-variant-numeric: tabular-nums; }
 .activity-counters .ac-live { color: var(--inflight); }
-.activity-counters .ac-live b { color: var(--inflight); }
 .activity-counters .ac-err { color: var(--err); }
-.activity-counters .ac-err b { color: var(--err); }
 
 .cat-strip {
   display: flex;
   flex-wrap: wrap;
-  gap: 5px;
+  gap: 4px;
 }
+/* A pill: --ctl-fill, padding 1 6, mono 400 11/14 --text-secondary. */
 .cat-chip {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
-  padding: 3px 10px 3px 8px;
-  border-radius: 999px;
-  border: 1px solid var(--line);
-  background: var(--bg-soft);
+  gap: 4px;
+  padding: 1px 6px;
+  border-radius: var(--r-pill);
+  border: 0;
+  background: var(--ctl-fill);
+  color: var(--text-secondary);
   font-size: calc(11px + var(--ui-text-increase, 0px));
+  line-height: 14px;
+  font-weight: 400;
   font-family: var(--font-mono);
 }
-.cat-chip .cat-emoji { font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: 1; }
-.cat-chip .cat-count { color: var(--text); font-weight: 600; font-variant-numeric: tabular-nums; }
-/* The category's word, at rest (#841) — the key to the count beside it, in the
-   key tier, at the chip's own 11px. */
-.cat-chip .cat-name { color: var(--muted); }
+.cat-chip .cat-count { color: inherit; font-weight: 400; font-variant-numeric: tabular-nums; }
+/* The category's word, at rest (#841) — the key to the count beside it. */
+.cat-chip .cat-name { color: inherit; }
 /* The server an MCP chip is counting, when every one of its calls went to the
    same one (#489). It is the half of that answer a colour cannot give: the tint
    beside it is per-server, and a reader who does not receive hue gets the whole
@@ -228,7 +243,7 @@
    carried the rest of the row off the edge. A length, not a percentage — the
    ellipsis has to land at the same place whatever else is in the strip. */
 .cat-chip .cat-server {
-  color: var(--muted);
+  color: var(--text-secondary);
   max-width: 120px;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -267,24 +282,23 @@
   flex-direction: column;
   gap: 8px;
 }
+/* A prompt is a line of text (V4's Figma): 400 12/16 in --text-secondary, no
+   box; its time keeps a small mono line above it. */
 .prompt-entry {
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  padding: 8px 10px;
-  background: var(--bg-soft);
+  padding: 0;
 }
 .prompt-time {
   color: var(--muted);
-  font-size: calc(10px + max(-1px, var(--ui-text-increase, 0px)));
+  font-size: calc(11px + var(--ui-text-increase, 0px));
+  line-height: 14px;
   font-family: var(--font-mono);
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  margin-bottom: 4px;
+  margin-bottom: 2px;
 }
 .prompt-text {
   font-size: calc(12px + var(--ui-text-increase, 0px));
-  line-height: 1.5;
-  color: var(--text);
+  line-height: 16px;
+  font-weight: 400;
+  color: var(--text-secondary);
   white-space: pre-wrap;
   word-break: break-word;
 }
@@ -419,6 +433,40 @@ button.btn.detail-continue-btn {
   font-size: calc(10px + max(-1px, var(--ui-text-increase, 0px)));
   color: var(--accent);
 }
+/* THE INSPECTOR'S PLAN (V4's Figma): a step is 22 high, a 14px kit state glyph
+   in place of the ring and tick (done and working in --text-secondary, idle in
+   --muted), the step in 400 12/16, and "now" in mono 11/14 --inflight. The note
+   and the card keep the ring and the tick above. */
+.detail .plan-list { display: flex; flex-direction: column; gap: 0; }
+.detail .plan-item {
+  align-items: center;
+  gap: 6px;
+  min-height: 22px;
+  line-height: 16px;
+  font-weight: 400;
+  color: var(--text-secondary);
+}
+.detail .plan-mark {
+  top: 0;
+  display: inline-flex;
+  width: 14px;
+  height: 14px;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  color: var(--text-secondary);
+}
+.detail .plan-item[data-status="in_progress"] .plan-mark { background: none; }
+.detail .plan-item[data-status="completed"] .plan-mark::after { content: none; }
+.detail .plan-item[data-status="in_progress"] { color: var(--text-secondary); }
+.detail .plan-item[data-status="completed"] { color: var(--text-secondary); }
+.detail .plan-item[data-status="pending"] { color: var(--muted); }
+.detail .plan-item[data-status="pending"] .plan-mark { color: var(--muted); }
+.detail .plan-now {
+  font-size: calc(11px + var(--ui-text-increase, 0px));
+  line-height: 14px;
+  color: var(--inflight);
+}
 
 /* A background task's notice, which Claude Code submits through the same hook
    as a human's typing (#834). It keeps its place in time but reads as an event,
@@ -448,12 +496,12 @@ button.tool.clickable {
   width: 100%;
   background: transparent;
   border: none;
-  border-bottom: 1px solid var(--line-soft);
   text-align: left;
   cursor: pointer;
   color: var(--text);
   font: inherit;
-  padding: 6px 0;
+  padding: 0 6px;
+  height: 24px;
   display: flex;
   align-items: center;
   gap: 8px;
@@ -461,7 +509,22 @@ button.tool.clickable {
   border-radius: 4px;
   transition: background var(--dur-fast) var(--ease), transform var(--dur-fast) var(--ease);
 }
-button.tool.clickable { padding-left: 6px; padding-right: 6px; }
+/* A tool row (V4's Figma): the name 500 12/16 in --text, what it ran on in
+   mono 400 11/14 --muted, cut with an ellipsis; the time closes the row. */
+button.tool.clickable .name { flex: 1; min-width: 0; font-family: inherit; font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: 16px; font-weight: 500; }
+button.tool.clickable .tool-name { flex: none; }
+button.tool.clickable .tool-arg {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--font-mono);
+  font-size: calc(11px + var(--ui-text-increase, 0px));
+  line-height: 14px;
+  font-weight: 400;
+  color: var(--muted);
+}
+button.tool.clickable .tool-dur { flex: none; font-family: var(--font-mono); font-size: calc(11px + var(--ui-text-increase, 0px)); line-height: 14px; color: var(--muted); }
 @media (hover: hover) and (pointer: fine) {
 button.tool.clickable:hover { background: var(--ctl-fill); }
 }

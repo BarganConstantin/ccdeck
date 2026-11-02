@@ -152,8 +152,13 @@ describe("the wiring", () => {
     expect(app).toMatch(/onClose=\{\(\) => \{ panelReturn\.sessionList\(\); closeSessionList\(\); \}\}/);
     expect(app).toMatch(/onClose=\{\(\) => \{ panelReturn\.usage\(\); setUsagePanelOpen\(false\); \}\}/);
     expect(app).toMatch(/onClose=\{\(\) => \{ panelReturn\.machine\(\); setMachinePanelOpen\(false\); \}\}/);
-    expect(app).toMatch(/onClose=\{\(\) => \{ panelReturn\.detail\(\); setDetailOpen\(false\); \}\}/);
-    expect(detail).toMatch(/aria-label=\{t\("board\.detailPanel\.closeLabel"\)\}\s+onClick=\{onClose\}/);
+    // CHANGED ON PURPOSE (V4's Figma): the Workspace's Inspector column folds
+    // through foldInspector, which gives the keyboard to the pane; the Board's
+    // sheet keeps the hand-off to the card.
+    expect(app).toMatch(/onClose=\{inWorkspace && inspectorColumn \? foldInspector : \(\) => \{ panelReturn\.detail\(\); setDetailOpen\(false\); \}\}/);
+    expect(app).toMatch(/const foldInspector = useCallback\(\(\) => \{\s*setInspectorFolded\(true\);\s*setDetailOpen\(false\);/);
+    // CHANGED ON PURPOSE (V4's Figma): the Inspector's fold is named "Fold the Inspector".
+    expect(detail).toMatch(/aria-label="Fold the Inspector"\s+onClick=\{onClose\}/);
     expect(en["board.detailPanel.closeLabel"]).toBe("Close detail panel");
   });
 
