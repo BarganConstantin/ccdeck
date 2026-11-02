@@ -130,7 +130,9 @@ describe("where the guides open from", () => {
     }
     // The card while it is off, and the word under an empty list.
     expect(lan).toMatch(/className="ap-lan-intro" onClick=\{\(\) => setGuideOpen\(true\)\}/);
-    expect(lan).toMatch(/className="ap-lan-word ap-lan-how" onClick=\{\(\) => setGuideOpen\(true\)\}/);
+    // CHANGED ON PURPOSE (V4's Figma): the word under an empty list is the
+    // kit's outlined button now; it still opens the guide on a press.
+    expect(lan).toMatch(/className="btn ap-lan-how" onClick=\{\(\) => setGuideOpen\(true\)\}/);
     expect([...lan.matchAll(/setGuideOpen\(true\)/g)]).toHaveLength(2);
   });
 

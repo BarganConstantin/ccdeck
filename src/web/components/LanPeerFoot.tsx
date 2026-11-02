@@ -44,20 +44,9 @@ export default function LanPeerFoot({
     // details panel. Before this, the bar drew itself empty: 51px of
     // border and nothing in it, in the one state where the reader most
     // needs telling what changed.
-    <footer className="lan-peer-foot">
+    <footer className="modal-foot lan-peer-foot">
       {row.kind === "asks" && (
         <p className="lan-foot-note">{t("lan.foot.asking")}</p>
-      )}
-      {/* Not drawn for a deck that only calls in, rather than drawn dead:
-          there is no address here to call it on, the note above says so,
-          and a button that can never be pressed is a question with no
-          answer. */}
-      {paired && !peer?.waiting && (
-        <button type="button" className="btn" {...press(`check:${row.fp}`)}
-          onClick={checkNow}
-          title={t("lan.foot.checkTitle")}>
-          {busy === `check:${row.fp}` ? t("lan.foot.checking") : t("lan.foot.checkNow")}
-        </button>
       )}
       {row.kind === "paired" && (
         <button type="button" className={`btn danger lan-peer-verb${armed ? " armed" : ""}`}
@@ -76,6 +65,17 @@ export default function LanPeerFoot({
             ? t("lan.unpair.confirmTitle")
             : t("lan.unpair.title")}>
           {busy === `unpair:${row.fp}` ? t("lan.unpair.working") : armed ? t("lan.unpair.confirm") : t("lan.unpair.word")}
+        </button>
+      )}
+      {/* Not drawn for a deck that only calls in, rather than drawn dead:
+          there is no address here to call it on, the note above says so,
+          and a button that can never be pressed is a question with no
+          answer. */}
+      {paired && !peer?.waiting && (
+        <button type="button" className="btn primary lan-peer-check" {...press(`check:${row.fp}`)}
+          onClick={checkNow}
+          title={t("lan.foot.checkTitle")}>
+          {busy === `check:${row.fp}` ? t("lan.foot.checking") : t("lan.foot.checkNow")}
         </button>
       )}
       {row.kind === "nearby" && status.pairingMode !== "invite" && (

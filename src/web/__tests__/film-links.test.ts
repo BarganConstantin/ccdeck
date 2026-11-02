@@ -106,6 +106,9 @@ describe("each place draws its film", () => {
 
   it("Local network while it is on with no other deck, beside `How it works`", () => {
     expect(read("../components/LanSyncSection.tsx"))
-      .toMatch(/className="ap-lan-word ap-lan-how"[^\n]*\n\s*\{t\("lan\.sync\.how"\)\}\s*<\/button>\s*<FilmLink film="localNetwork" \/>/);
+      // CHANGED ON PURPOSE (V4's Figma): `How it works` is the kit's outlined
+      // button now, not a bare word; where it opens and the film beside it
+      // are unchanged.
+      .toMatch(/className="btn ap-lan-how"[^\n]*\n\s*\{t\("lan\.sync\.how"\)\}\s*<\/button>\s*<FilmLink film="localNetwork" \/>/);
   });
 });

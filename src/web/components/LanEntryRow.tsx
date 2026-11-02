@@ -28,7 +28,7 @@ export default function LanEntryRow({ entry, rows, onOpen, onMap, peek, openPeek
   const t = useT();
   return (
     <>
-      <button type="button" id="ap-lan-entry" className="ap-nav"
+      <button type="button" id="ap-lan-entry" className="ap-nav ap-lan-nav"
         onClick={() => { dropPeek(); onOpen(); }}
         // Described by the card while the card is there, so a screen reader
         // on this row is read the same names a pointer is shown.
@@ -50,7 +50,7 @@ export default function LanEntryRow({ entry, rows, onOpen, onMap, peek, openPeek
         // nothing that can be pressed — there is nothing to escape from, and
         // App.tsx stays the only place in this app that reads that key.
         onBlur={shutPeek}>
-        <svg className="ap-nav-glyph" width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor"
+        <svg className="ap-nav-glyph" width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor"
           strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
           <rect x="1.8" y="2.3" width="10.4" height="7.2" rx="1.2" />
           <path d="M5 11.9h4M7 9.5v2.4" />

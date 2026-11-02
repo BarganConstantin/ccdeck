@@ -125,11 +125,16 @@ export interface MapLayout {
 
 /** The room the drawing needs outside the outer ring: half a name either
  *  side, and a name and the key under it. */
-export const MAP_EDGE_X = 76;
-export const MAP_EDGE_Y = 62;
+export const MAP_EDGE_X = 84;
+export const MAP_EDGE_Y = 70;
 /** The least distance, along a ring, between two decks' centres — a disc and
  *  a name either side of it. */
-export const MAP_MIN_GAP = 96;
+export const MAP_MIN_GAP = 104;
+/** The same three for a compact map, which draws the 40-wide decks of a dense
+ *  one (see DENSE_DISC_R): tried where the full-size map cannot clear its names. */
+const COMPACT_EDGE_X = 76;
+const COMPACT_EDGE_Y = 62;
+const COMPACT_MIN_GAP = 96;
 /** How far out, as a share of the stage's usable half, each ring stands, by
  *  how many rings there are. One ring alone is pulled in from the edge so the
  *  picture reads as a group rather than a frame. */
@@ -148,15 +153,20 @@ const SCATTER_REACH = 0.05;
 /** A deck's disc, and the box its name and caption take, as the stylesheet
  *  draws them — see `.nm-node` and `.nm-label`. Estimated here rather than
  *  measured, so the layout stays a function with no DOM in it; the glyph
- *  widths are the 12px sans's and 10px mono's average. */
-const DISC_R = 20;
-const LOOSE_DISC_R = 17;
+ *  widths are the 13px sans's and 11px mono's average. */
+const DISC_R = 28;
+const LOOSE_DISC_R = 24;
+/** The same discs in a dense map, where the stage cannot hold 56-wide decks
+ *  and their names: the sizes the stylesheet gives `data-dense`. */
+const DENSE_DISC_R = 20;
+const DENSE_LOOSE_DISC_R = 17;
+const DENSE_ORB_R = 26;
 const LABEL_GAP = 7;
-const LABEL_TALL = 30;
+const LABEL_TALL = 35;
 const LABEL_MAX_W = 116;
-const NAME_CH_W = 6.6;
-/** The 10px mono caption's glyph width. */
-const CAP_CH_W = 6.0;
+const NAME_CH_W = 7.6;
+/** The 11px mono caption's glyph width. */
+const CAP_CH_W = 6.6;
 
 /** The line under a deck's name, as the map draws it. The map knows what a
  *  live deck runs and the layout does not, so the dialog hands it in; without
@@ -183,7 +193,7 @@ const ZONE_INNER = 0.3;
  *  name, in pixels: its decks' names hang below them, and the slice's name
  *  runs along its outer edge, and the two must not meet. Nothing else stands
  *  out there — no deck off the tailnet is ever placed inside the slice. */
-const ZONE_OUTER_PAD_PX = 84;
+const ZONE_OUTER_PAD_PX = 98;
 /** How far the edge steps out at a time when its name finds no clear stretch
  *  — see placeRings. */
 const ZONE_PAD_STEP = 8;
@@ -252,17 +262,17 @@ function scatter(key: string, salt: number): number {
 /** How far out each drawn ring stands: its share of the usable half, widened
  *  where it holds more decks than it has room for, never closer than
  *  RING_STEP to the ring outside it. */
-function ringSpread(counts: number[], ax: number, ay: number): number[] {
+function ringSpread(counts: number[], ax: number, ay: number, minGap = MAP_MIN_GAP): number[] {
   const spread = [...(RING_SPREAD[counts.length] ?? [])];
   for (let i = 0; i < spread.length; i++) {
     const n = counts[i];
     if (n < 2) continue;
     const room = ellipsePerimeter(ax * spread[i], ay * spread[i]) / n;
-    if (!(room > 0) || room >= MAP_MIN_GAP) continue;
+    if (!(room > 0) || room >= minGap) continue;
     const ceiling = i + 1 < spread.length ? spread[i + 1] - RING_STEP : 1;
     // A little over the exact answer: perimeter is linear in the spread, and
     // landing on the gap to the last decimal still reads as crowded.
-    spread[i] = Math.max(spread[i], Math.min(ceiling, spread[i] * (MAP_MIN_GAP / room) * 1.02));
+    spread[i] = Math.max(spread[i], Math.min(ceiling, spread[i] * (minGap / room) * 1.02));
   }
   return spread;
 }
@@ -276,16 +286,21 @@ const overlaps = (a: Box, b: Box) => a.x0 < b.x1 && b.x0 < a.x1 && a.y0 < b.y1 &
  *  box keeps the height. */
 const DENSE_LABEL = { h: 16, ch: 6.1, maxW: 100 };
 
-/** This deck's own name at the centre, on its plate: the one box every deck
- *  has to stay clear of wherever it stands. See `.nm-core-label`. */
-function coreBox(coreName: string): Box {
-  const w = coreName ? Math.max(80, coreName.length * 7.2 + 16) : 128;
-  return { x0: -w / 2, y0: 32, x1: w / 2, y1: 66 };
+/** This deck at the centre: the orb (72 across, see `.nm-core-orb`) and the
+ *  name on its plate under it (`.nm-core-label`) as one box, the one every
+ *  deck has to stay clear of wherever it stands. */
+const CORE_ORB_R = 36;
+function coreBox(coreName: string, dense = false): Box {
+  const w = coreName ? Math.max(80, coreName.length * 7.8 + 16) : 128;
+  const orb = dense ? DENSE_ORB_R : CORE_ORB_R;
+  const half = Math.max(w / 2, orb);
+  // The plate hangs 8px under the orb, whatever its size.
+  return { x0: -half, y0: -orb, x1: half, y1: orb + 50 };
 }
 
 /** The disc and the name box of a deck standing at (x, y). */
 function footprint(row: DeckRow, tier: MapTier, x: number, y: number, dense: boolean, caption: string): [Box, Box] {
-  const r = tier === "loose" ? LOOSE_DISC_R : DISC_R;
+  const r = dense ? (tier === "loose" ? DENSE_LOOSE_DISC_R : DENSE_DISC_R) : (tier === "loose" ? LOOSE_DISC_R : DISC_R);
   const tall = !dense || row.kind === "asks";
   const LABEL_H = tall ? LABEL_TALL : DENSE_LABEL.h;
   const ch = dense ? DENSE_LABEL.ch : NAME_CH_W;
@@ -373,7 +388,7 @@ function easeApart(placed: Placed[], dense: boolean, core: Box): number {
     const boxes = boxesNow();
     let moved = false;
     for (let i = 0; i < placed.length; i++) {
-      // THE CENTRE'S NAME IS AN OBSTACLE TOO. It hangs under the orb, so a
+      // THE CENTRE IS AN OBSTACLE TOO, ORB AND NAME. The name hangs under the orb, so a
       // deck at six o'clock whose name lands on it turns away from six.
       if (onCore(boxes[i])) {
         moved = slide(placed[i], turnBetween(placed[i].theta, 90) >= 0 ? 1 : -1, true) || moved;
@@ -427,11 +442,11 @@ export function mapLayout(
   // with the fewest names on something else.
   const tried: Array<{ clashes: number; named: () => MapLayout }> = [];
   for (const slice of [true, false]) {
-    const three = placeRings(rows, width, height, coreName, RING_OF, captionOf, slice);
+    const three = placeBest(rows, width, height, coreName, RING_OF, captionOf, slice);
     if (three.clashes === 0) return three.named();
     tried.push(three);
     if (three.layout.rings.length === 3) {
-      const two = placeRings(rows, width, height, coreName, RING_OF_FOLDED, captionOf, slice);
+      const two = placeBest(rows, width, height, coreName, RING_OF_FOLDED, captionOf, slice);
       const folded = { clashes: two.clashes, named: () => ({ ...two.named(), folded: true }) };
       if (folded.clashes === 0) return folded.named();
       tried.push(folded);
@@ -441,10 +456,24 @@ export function mapLayout(
   return tried.reduce((best, t) => (t.clashes < best.clashes ? t : best)).named();
 }
 
+/** The full-size drawing, or where it cannot clear its names the compact one
+ *  (dense, 40-wide decks, the old edge room), whichever leaves fewer names on
+ *  something else. */
+function placeBest(
+  rows: DeckRow[], width: number, height: number, coreName: string, ringOf: Record<MapTier, number>,
+  captionOf: CaptionOf, slice: boolean,
+) {
+  const full = placeRings(rows, width, height, coreName, ringOf, captionOf, slice, false);
+  if (full.clashes === 0) return full;
+  const compact = placeRings(rows, width, height, coreName, ringOf, captionOf, slice, true);
+  return compact.clashes < full.clashes ? compact : full;
+}
+
 function placeRings(
   rows: DeckRow[], width: number, height: number, coreName: string, ringOf: Record<MapTier, number>,
-  captionOf: CaptionOf, slice = true,
+  captionOf: CaptionOf, slice = true, compact = false,
 ): { layout: MapLayout; clashes: number; named: () => MapLayout } {
+  const minGap = compact ? COMPACT_MIN_GAP : MAP_MIN_GAP;
   const byRing = new Map<number, Array<{ row: DeckRow; tier: MapTier }>>();
   for (const row of rows) {
     const tier = mapTier(row);
@@ -454,9 +483,18 @@ function placeRings(
     byRing.get(r)!.push({ row, tier });
   }
   const drawn = [...byRing.keys()].sort((a, b) => a - b);
-  const ax = Math.max(0, width / 2 - MAP_EDGE_X);
-  const ay = Math.max(0, height / 2 - MAP_EDGE_Y);
-  const spread = ringSpread(drawn.map(r => byRing.get(r)!.length), ax, ay);
+  const ax = Math.max(0, width / 2 - (compact ? COMPACT_EDGE_X : MAP_EDGE_X));
+  const ay = Math.max(0, height / 2 - (compact ? COMPACT_EDGE_Y : MAP_EDGE_Y));
+  const spread = ringSpread(drawn.map(r => byRing.get(r)!.length), ax, ay, minGap);
+  // THE INNER RING CLEARS THE ORB. A narrow stage gives the first ring a few
+  // pixels of radius, less than the orb and a deck's disc side by side, so the
+  // decks at three and nine o'clock would stand on the orb. The ring is held at
+  // least that far out, as far as the ring outside it allows.
+  const least = Math.min(ax, ay);
+  if (spread.length > 0 && least > 0) {
+    const need = ((compact ? DENSE_ORB_R + DENSE_DISC_R : CORE_ORB_R + DISC_R) + 6) / least;
+    spread[0] = Math.min(Math.max(spread[0], need), spread.length > 1 ? spread[1] - 0.1 : 1);
+  }
 
   const rings: MapRing[] = drawn.map((ring, i) => ({
     ring, rx: ax * spread[i], ry: ay * spread[i], count: byRing.get(ring)!.length,
@@ -473,7 +511,7 @@ function placeRings(
   const needed = Math.max(0, ...rings.map(ring => {
     const k = byRing.get(ring.ring)!.filter(isTailnet).length;
     const around = ellipsePerimeter(ring.rx, ring.ry);
-    return k > 0 && around > 0 ? ((k * MAP_MIN_GAP * ZONE_ROOM) / around) * 360 : 0;
+    return k > 0 && around > 0 ? ((k * minGap * ZONE_ROOM) / around) * 360 : 0;
   }));
   const zoneWidth = slice && overTailnet > 0 && overTailnet < onMap
     ? Math.min(ZONE_MAX, Math.max(ZONE_MIN, (overTailnet / onMap) * 360, needed))
@@ -482,11 +520,11 @@ function placeRings(
   const zoneTo = ZONE_AT + zoneWidth / 2;
 
   const placed: Placed[] = [];
-  let dense = false;
+  let dense = compact;
   rings.forEach((ring, r) => {
     const members = ringOrder(byRing.get(ring.ring)!);
     const n = members.length;
-    const crowded = n > 1 && ellipsePerimeter(ring.rx, ring.ry) / n < MAP_MIN_GAP;
+    const crowded = n > 1 && ellipsePerimeter(ring.rx, ring.ry) / n < minGap;
     if (crowded) dense = true;
     // The step out is toward the next ring; the outer ring steps in instead,
     // since outside it is the edge.
@@ -533,11 +571,10 @@ function placeRings(
   // size at which that starts, the layout eases with the full names, and if
   // something still meets, it eases again with the dense ones — the step
   // smaller, captionless names the stylesheet draws under `data-dense`.
-  const core = coreBox(coreName);
-  let clashes = easeApart(placed, dense, core);
+  let clashes = easeApart(placed, dense, coreBox(coreName, dense));
   if (clashes > 0 && !dense) {
     dense = true;
-    clashes = easeApart(placed, true, core);
+    clashes = easeApart(placed, true, coreBox(coreName, true));
   }
 
   const nodes: MapNode[] = placed.map((p, order) => {
@@ -677,7 +714,7 @@ export function nodeBoxes(
   layout: MapLayout, coreName = "", captionOf: CaptionOf = plainCaption,
 ): { core: Box; decks: Array<{ key: string; disc: Box; label: Box }> } {
   return {
-    core: coreBox(coreName),
+    core: coreBox(coreName, layout.dense),
     decks: layout.nodes.map(n => {
       const [disc, label] = footprint(n.row, n.tier, n.x, n.y, layout.dense, captionOf(n.row));
       return { key: machineKey(n.row), disc, label };
