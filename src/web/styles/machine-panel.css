@@ -114,15 +114,14 @@
    exit jumped to a different opacity). The arrival is the @starting-style;
    the exit is the .leaving class panel-exit.ts holds the panel for.
    By a key it is at once (input-modality.ts); reduced motion has no travel and
-   crossfades over 140. The two lengths are written once, as properties, so
-   the exit hold in App.tsx can be pinned to them. */
+   crossfades over --dur-xfade. The arrival is --accounts-fade-in (the 180 the
+   left column's arriving panel uses too); the exit hold in App.tsx reads
+   --dur-fast and --dur-xfade. */
 .usage-panel,
 .sysdetail {
-  --panel-fade: 180ms;
-  --panel-xfade: 140ms;
   transition:
     transform var(--dur-move) var(--ease-stage),
-    opacity var(--panel-fade) var(--ease-stage) var(--delay-step);
+    opacity var(--accounts-fade-in) var(--ease-stage) var(--delay-step);
 }
 @starting-style {
   .usage-panel,
@@ -138,7 +137,7 @@
   .usage-panel,
   .sysdetail,
   .sysdetail.leaving,
-  .usage-panel.leaving { transition: opacity var(--panel-xfade) var(--ease); }
+  .usage-panel.leaving { transition: opacity var(--dur-xfade) var(--ease); }
   @starting-style {
     .usage-panel,
     .sysdetail { transform: none; }

@@ -136,12 +136,12 @@ describe("--rail-r is read by both panels it was introduced to hold together (#1
     // moved to the window's edges (edge-rails.css): the rail starts inside the
     // stripe, by the stripe's own token, which is nothing on a phone.
     const defs = [...css.matchAll(/--rail-r\s*:\s*([^;]+);/g)].map(m => m[1].trim());
-    // The third is Workspace's, from 1320 up: its Inspector is a column beside the
-    // pane, so the panels sit over it (workspace.css; review 11). It is the second
-    // definition's value, keyed on the view, and written nowhere else.
-    // V4's Figma: no right bar, so none of them carries a stripe's width; in
-    // Workspace the panels' right edge is the window's.
-    expect(defs).toEqual(["calc(var(--inspector-w) + 8px)", "8px", "0px"]);
+    // CHANGED ON PURPOSE (V4's motion spec): Workspace had a third definition
+    // (0px, from 1320 up) that nothing read once its panels were placed by their
+    // own rules (workspace.css: top and right 0 in the Inspector's column), so it
+    // is gone and the two are the Board's.
+    // V4's Figma: no right bar, so none of them carries a stripe's width.
+    expect(defs).toEqual(["calc(var(--inspector-w) + 8px)", "8px"]);
     expect(css).not.toMatch(/\.usage-panel\s*\{[^}]*right:\s*368px/);
     // And the duplicate override is gone with it.
     expect(css).not.toMatch(/:not\(:has\(\.detail\)\)\s+\.usage-panel/);

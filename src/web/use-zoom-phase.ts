@@ -22,13 +22,9 @@ import { prefersReducedMotion } from "./viewport-motion";
 
 export type ZoomPhase = "fold" | "unfold" | undefined;
 
-/** The crossfade a reduced-motion reader gets in place of the slide
- *  (workspace.css, --zoom-xfade). */
-export const ZOOM_REDUCED_MS = 140;
-
 /** How long the unfold takes: Move, or the crossfade when motion is reduced. */
 export function unfoldMs(): number {
-  return prefersReducedMotion() ? ZOOM_REDUCED_MS : tokenMs("--dur-move");
+  return tokenMs(prefersReducedMotion() ? "--dur-xfade" : "--dur-move");
 }
 
 function byKey(): boolean {

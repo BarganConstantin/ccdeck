@@ -229,9 +229,6 @@ export interface TerminalStageProps {
   onLaunchAgain?(): void;
   /** A sentence for the deck's live region, once per change. */
   onAnnounce?(sentence: string): void;
-  /** The body's phase changed — once per kind. The open morph waits on it:
-   *  the stage is uncovered only once there is a pane (or a card) to show. */
-  onPhase?(kind: StagePhaseKind): void;
   /** The deck runs on Windows: sessions live in the session host, not in a
    *  tmux, and older session hosts are worth a line in the keys bar. */
   windows?: boolean;
@@ -403,11 +400,6 @@ export default function TerminalStage(p: TerminalStageProps) {
   useEffect(() => {
     if (fullStage.full) setNotice(n => (isKeptKeysNotice(n) ? null : n));
   }, [fullStage.full]);
-
-  // The phase itself, for the integrator's morph, which waits for the pane.
-  const onPhase = useRef(p.onPhase);
-  onPhase.current = p.onPhase;
-  useEffect(() => { onPhase.current?.(phase.kind); }, [phase.kind]);
 
   const rootRef = useRef<HTMLElement>(null);
   // The keys bar's height goes up as it is drawn: the first-run line wraps to

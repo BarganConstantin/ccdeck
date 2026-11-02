@@ -52,15 +52,22 @@ export function canCrossfade(doc: Document = document): boolean {
   return typeof (doc as Document & { startViewTransition?: unknown }).startViewTransition === "function" && !doc.hidden;
 }
 
+let current = 0;
+let pending: ReturnType<typeof setTimeout> | undefined;
+
 /**
  * Runs `update` (the state change that switches the view) as one frame: now,
  * rendered before it returns. By pointer the old view is faded into the new on
  * Fast when the page can; by key, or where it cannot, there is no fade.
+ * Each switch owns the root's mark: an older one finishing (a view transition
+ * skipped by a newer one resolves at once) never clears the newer one's.
  */
 export function runSwitch(how: "pointer" | "key", update: () => void, doc: Document = document): void {
   const root = doc.documentElement;
+  const mine = ++current;
+  if (pending !== undefined) { clearTimeout(pending); pending = undefined; }
   root.setAttribute(SWITCH_ATTR, "");
-  const clear = () => root.removeAttribute(SWITCH_ATTR);
+  const clear = () => { if (mine === current) root.removeAttribute(SWITCH_ATTR); };
   if (how === "pointer" && canCrossfade(doc)) {
     const start = (doc as Document & { startViewTransition: (cb: () => void) => { finished: Promise<unknown> } }).startViewTransition;
     const transition = start.call(doc, () => { flushSync(update); });
@@ -69,6 +76,6 @@ export function runSwitch(how: "pointer" | "key", update: () => void, doc: Docum
   }
   flushSync(update);
   // The effects that follow the commit (the list taking the column) have run
-  // by now; the attribute is kept a beat for the frames they land in.
-  setTimeout(clear, 60);
+  // by now; the mark is kept a beat for the frames they land in.
+  pending = setTimeout(() => { pending = undefined; clear(); }, 60);
 }

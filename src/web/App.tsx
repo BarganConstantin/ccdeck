@@ -121,6 +121,7 @@ import { createChimePlayer } from "./chime-player";
 import type { AccountSwitch } from "./components/SettingsModal";
 import type { Appliers } from "./account-bridge";
 import { useZoomPhase } from "./use-zoom-phase";
+import { tokenMs } from "./rail-motion";
 import { pinBoard, runSwitch, unpinBoard } from "./view-switch";
 import { lastInputWasKey } from "./input-modality";
 import { setSingleKeyShortcuts } from "./single-key-shortcuts";
@@ -133,10 +134,8 @@ import type { Theme } from "./theme";
 const INSPECTOR_SHEET_QUERY = "(max-width: 1319px)";
 /** Under this width the Sessions list is a sheet in Workspace (workspace.css). */
 const WORKSPACE_LIST_SHEET_QUERY = "(max-width: 1099px)";
-/** How long Usage and Machine are held for their exit: --dur-fast, and the
- *  crossfade's 140 under reduced motion (machine-panel.css). */
-const RAIL_EXIT_MS = 120;
-const RAIL_EXIT_REDUCED_MS = 140;
+/** Usage and Machine are held for their exit: --dur-fast, and --dur-xfade
+ *  under reduced motion (machine-panel.css), read from the tokens. */
 const REDUCED_MOTION_QUERY = "(prefers-reduced-motion: reduce)";
 
 // The ccdeck account's settings sync in this tab — hidden, and its own chunk:
@@ -204,9 +203,10 @@ function Inner() {
    *  the column's width changes in (panel-exit.ts, isDrawn). */
   const sessionListDrawn = isDrawn(sessionListOpen, sessionListPhase);
   /** The rail's two panels leave the same way, by a fade alone: held for its
-   *  length, --dur-fast, or --panel-xfade under reduced motion (the sheet,
+   *  length, --dur-fast, or --dur-xfade under reduced motion (the sheet,
    *  machine-panel.css). */
-  const railExitMs = useMediaQuery(REDUCED_MOTION_QUERY) ? RAIL_EXIT_REDUCED_MS : RAIL_EXIT_MS;
+  const reducedMotion = useMediaQuery(REDUCED_MOTION_QUERY);
+  const railExitMs = useMemo(() => tokenMs(reducedMotion ? "--dur-xfade" : "--dur-fast"), [reducedMotion]);
   const usagePhase = usePanelPresence(usagePanelOpen, railExitMs);
   const machinePhase = usePanelPresence(machinePanelOpen, railExitMs);
 

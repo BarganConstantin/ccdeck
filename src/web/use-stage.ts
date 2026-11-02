@@ -662,6 +662,8 @@ export function useStage({ stateRef, canvasRef, detailOpen, detailShown, setDeta
     removeStored(STAGE_COLS_KEY);
   }, []);
   const toggleExpand = useCallback(() => setExpanded(x => !x), []);
+  /** Zoom off, whichever way it stood: a panel asked for ends it. */
+  const unzoom = useCallback(() => setExpanded(false), []);
   const firstRunDone = useCallback(() => {
     setFirstRun(false);
     writeStored(STAGE_FIRST_RUN_KEY, "1");
@@ -958,7 +960,7 @@ export function useStage({ stateRef, canvasRef, detailOpen, detailShown, setDeta
     workspace, workspaceOffered: onOffer, chunkFailed, openInPane, emptyPane, leaveWorkspace,
     onNodeClick, followSession, switchTo, openFromButton, openTile, launch, onLaunched,
     focusPane, release, takeTypeAhead, holdsTypeAhead, close, closed, failed, giveRightBack, reveal, revealed, announce,
-    openPopover, newSessionFrom, closePopover, onCols, onColsReset, toggleExpand, firstRunDone, onCell, onBarH, onHeadH,
+    openPopover, newSessionFrom, closePopover, onCols, onColsReset, toggleExpand, unzoom, firstRunDone, onCell, onBarH, onHeadH,
   };
 }
 
@@ -1002,7 +1004,7 @@ export interface RailPanel {
  * listener once and keeps the setters it was first given.
  */
 export function useRailPanel(
-  stage: Pick<Stage, "enabled" | "shell" | "giveRightBack"> & { workspace?: boolean },
+  stage: Pick<Stage, "enabled" | "shell" | "giveRightBack"> & { workspace?: boolean; expanded?: boolean; unzoom?: () => void },
   open: boolean,
   setOpen: Dispatch<SetStateAction<boolean>>,
 ): RailPanel {
@@ -1010,19 +1012,27 @@ export function useRailPanel(
   // the stage is not "up" in the sense that matters here: it neither hides
   // them nor goes when one is asked for.
   const up = stage.enabled && stage.shell.phase !== "closed" && stage.workspace !== true;
-  const shown = open && !(up && stageSeen(stage.shell.phase));
+  // Zoom folds the panels with the list and the Inspector, so while it is on a
+  // panel is not on screen, and asking for one ends Zoom: the panel appears
+  // where it belongs, and the second press of Zoom is not needed to see it.
+  const zoomed = stage.workspace === true && stage.expanded === true;
+  const shown = open && !(up && stageSeen(stage.shell.phase)) && !zoomed;
   const upRef = useMirroredRef(up);
   const shownRef = useMirroredRef(shown);
-  const { giveRightBack } = stage;
+  const zoomedRef = useMirroredRef(zoomed);
+  const { giveRightBack, unzoom } = stage;
   const set = useCallback((next: SetStateAction<boolean>) => {
     if (!upRef.current) {
-      setOpen(next);
+      if (!zoomedRef.current) { setOpen(next); return; }
+      const wanted = typeof next === "function" ? next(shownRef.current) : next;
+      if (wanted) unzoom?.();
+      setOpen(wanted);
       return;
     }
     const want = typeof next === "function" ? next(shownRef.current) : next;
     if (want) giveRightBack();
     setOpen(want);
-  }, [upRef, shownRef, giveRightBack, setOpen]);
+  }, [upRef, shownRef, zoomedRef, giveRightBack, unzoom, setOpen]);
   return { shown, set };
 }
 

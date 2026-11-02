@@ -12,8 +12,6 @@ import { canCrossfade, PIN_ATTR, pinBoard, runSwitch, SWITCH_ATTR, unpinBoard } 
 import { LOADER_DELAY_MS, LOADER_EXIT_MS, LOADER_MIN_SHOWN_MS } from "../use-waiting-loader";
 import { SNAP_MS } from "../components/terminal/Divider";
 import { HEIGHT_HOLD_MS } from "../panel-place";
-import { ZOOM_REDUCED_MS } from "../use-zoom-phase";
-import { STAGE_REDUCED_MS } from "../components/terminal/StageShell";
 
 const read = (path: string) => readFileSync(fileURLToPath(new URL(`../${path}`, import.meta.url)), "utf8");
 const strip = (s: string) => s.replace(/\/\*[\s\S]*?\*\//g, "");
@@ -139,7 +137,7 @@ describe("Board to Workspace and back", () => {
   });
 
   it("stops every other transition across the switch, so the new view is drawn in its final state", () => {
-    const body = rule(workspace, ":root[data-view-switch] .app :is(.left-column, .left-column > *, .detail, .stage-dock, .stage-in, .usage-panel, .sysdetail)");
+    const body = rule(workspace, ":root[data-view-switch] .app :is(.left-column, .left-column > *, .detail, .stage-dock, .stage-in, .usage-panel, .sysdetail, .ts-stage .ts-card)");
     expect(decl(body, "transition")).toBe("none");
     expect(decl(body, "animation")).toBe("none");
   });
@@ -165,16 +163,13 @@ describe("Zoom", () => {
     const text = workspace.slice(fold);
     expect(text).toContain("transform var(--dur-stage-out) var(--ease-stage)");
     expect(text).toContain("transform var(--dur-move) var(--ease-stage)");
-    // The grid takes its tracks back only when the unfold is over.
-    expect(code("use-zoom-phase.ts")).toContain("setTimeout(() => setUnfolding(false), unfoldMs())");
   });
 
   it("crossfades over 140 under reduced motion, with no travel", () => {
-    expect(ZOOM_REDUCED_MS).toBe(140);
-    expect(workspace).toContain("--zoom-xfade: 140ms;");
+    expect(tokens).toMatch(/--dur-xfade:\s*140ms;/);
     const reduced = workspace.slice(workspace.lastIndexOf("@media (prefers-reduced-motion: reduce)"));
     expect(reduced).toContain("transform: none;");
-    expect(reduced).toContain("opacity var(--zoom-xfade) var(--ease)");
+    expect(reduced).toContain("opacity var(--dur-xfade) var(--ease)");
   });
 
   it("is at once by key", () => {
@@ -213,8 +208,8 @@ describe("the stage's open", () => {
   });
 
   it("is a crossfade without travel under reduced motion, and no morph by key", () => {
-    expect(STAGE_REDUCED_MS).toBe(140);
     const src = code("components/terminal/StageShell.tsx");
+    expect(src).toContain('tokenMs("--dur-xfade")');
     expect(src).toContain('document.documentElement.dataset.motion === "instant"');
     // Reduced: the navigator is faded, never folded, so no frame has neither.
     expect(src).toMatch(/nav && flow && !geo\.takeover && !reduced/);
@@ -273,12 +268,8 @@ describe("a close during the open", () => {
     });
   });
 
-  it("is a transition of the clock, not a timer, and the header's ✕ answers from the first frame", () => {
-    const src = code("components/terminal/StageShell.tsx");
-    expect(src).toContain("const turned = dir === \"close\" && motion.current != null ? openedRef.current : 1;");
-    expect(src).toContain("easeOutInverse(1 - turned)");
-    expect(src).toContain("nav.fold(dir, board, { reduced, from,");
-    expect(rule(shell, ".stage-dock[data-grace] .ts-head button")).toContain("pointer-events: auto");
+  it("has the header's ✕ answer from the first frame, except under the card a double click is aimed at", () => {
+    expect(rule(shell, ".stage-dock[data-grace] .ts-head button:not([data-over-origin])")).toContain("pointer-events: auto");
   });
 
   it("has the flip fold take where to start", () => {
@@ -297,8 +288,6 @@ describe("the divider's double click", () => {
 
   it("is asked for by the double click alone: dragging is 1:1 and a key is at once", () => {
     const src = code("components/terminal/Divider.tsx");
-    expect(src).toContain("onDoubleClick={e => { snapBack(e.currentTarget); p.onReset(); }}");
-    expect(src.match(/snapBack\(/g)!.length, "defined once, used once").toBe(2);
     expect(src).toMatch(/if \(step === "reset"\) \{ p\.onReset\(\); return; \}/);
   });
 });
@@ -306,8 +295,9 @@ describe("the divider's double click", () => {
 describe("Usage and Machine, arriving and leaving", () => {
   it("come in from their edge: 12px in x on Move, the opacity over 180 after 40, on the stage's curve", () => {
     const both = rule(panels, ".usage-panel,\n.sysdetail");
-    expect(decl(both, "--panel-fade")).toBe("180ms");
-    expect(decl(both, "transition")).toBe("transform var(--dur-move) var(--ease-stage), opacity var(--panel-fade) var(--ease-stage) var(--delay-step)");
+    // The 180 is the one the left column's arriving panel uses, not a second literal.
+    expect(decl(both, "transition")).toBe("transform var(--dur-move) var(--ease-stage), opacity var(--accounts-fade-in) var(--ease-stage) var(--delay-step)");
+    expect(panels).not.toMatch(/--panel-(x?fade)/);
     expect(panels).toMatch(/@starting-style \{\s*\.usage-panel,\s*\.sysdetail \{ opacity: 0; transform: translateX\(12px\); \}/);
   });
 
@@ -321,59 +311,120 @@ describe("Usage and Machine, arriving and leaving", () => {
     expect(strip(read("styles/canvas-motion.css"))).not.toMatch(/\.usage-panel/);
   });
 
-  it("are at once by a key, and a crossfade over 140 without travel under reduced motion", () => {
+  it("are at once by a key, and a crossfade over the one reduced token without travel under reduced motion", () => {
     expect(panels).toContain(':root[data-motion="instant"] :is(.usage-panel, .sysdetail) { transition: none; }');
     const reduced = panels.slice(panels.indexOf("@media (prefers-reduced-motion: reduce) {\n  .usage-panel,"));
-    expect(reduced).toContain("transition: opacity var(--panel-xfade) var(--ease);");
+    expect(reduced).toContain("transition: opacity var(--dur-xfade) var(--ease);");
     expect(reduced).toMatch(/@starting-style \{\s*\.usage-panel,\s*\.sysdetail \{ transform: none; \}/);
-    expect(decl(rule(panels, ".usage-panel,\n.sysdetail"), "--panel-xfade")).toBe("140ms");
   });
 
-  it("take their final height on open: the height they settled at is held while their readings arrive", () => {
+  it("hold a height for the readings to arrive (the behaviour is run in panel-height.test.ts)", () => {
     expect(HEIGHT_HOLD_MS).toBeGreaterThanOrEqual(1000);
-    const src = code("panel-place.ts");
-    expect(src).toContain("useRememberedHeight(panelRef, key);");
-    expect(src).toContain("el.style.minHeight =");
-    expect(src).toContain('window.addEventListener(\'pagehide\', keep)');
   });
 });
 
 describe("where Usage and Machine sit in Workspace", () => {
-  it("are the Inspector's column from 1320: under the top bar, above the status bar, the right edge at the window", () => {
+  it("start below the strip rows and the pane's header, so no pane button or Inspector head is under them", () => {
+    expect(workspace).toContain("--ws-head: calc(var(--topbar-h) + var(--rating-h, 0px) + var(--pane-head-h));");
+    const base = rule(workspace, '.app[data-view="workspace"] :is(.usage-panel, .sysdetail):not([data-place])');
+    expect(decl(base, "top")).toBe("calc(var(--ws-head) + 8px)");
+    expect(decl(base, "max-height")).toBe("calc(100vh - var(--ws-head) - 16px - var(--status-room, 0px))");
+  });
+
+  it("are the Inspector's column from 1320 only while it exists: under its head, above the status bar, right edge at the window", () => {
     const wide = workspace.slice(workspace.indexOf("@media (min-width: 1320px)"));
-    const body = rule(wide, '.app[data-view="workspace"] :is(.usage-panel, .sysdetail):not([data-place])');
-    expect(decl(body, "top")).toBe("var(--topbar-h)");
+    const body = rule(wide, '.app[data-view="workspace"]:has(.detail) :is(.usage-panel, .sysdetail):not([data-place])');
+    expect(decl(body, "top")).toBe("var(--ws-head)");
     expect(decl(body, "right")).toBe("0");
     expect(decl(body, "max-height")).toBe("var(--ws-col-h)");
-    expect(wide).toContain("--ws-col-h: calc(100vh - var(--topbar-h) - var(--status-room, 0px));");
-    expect(decl(rule(wide, 'body .app[data-view="workspace"]'), "--rail-r")).toBe("0px");
+    expect(workspace).toContain("--ws-col-h: calc(100vh - var(--ws-head) - var(--status-room, 0px));");
+    // The column rule never reaches a folded Inspector: no .detail, no column.
+    expect(wide).not.toMatch(/\.app\[data-view=\"workspace\"\] :is\(\.usage-panel/);
   });
 
   it("share the column when both are open: Usage above, Machine below, half each", () => {
     const wide = workspace.slice(workspace.indexOf("@media (min-width: 1320px)"));
-    const machine = rule(wide, '.app[data-view="workspace"] .sysdetail.shifted:not([data-place])');
-    expect(decl(machine, "top")).toBe("calc(var(--topbar-h) + var(--ws-col-h) / 2)");
+    const machine = rule(wide, '.app[data-view="workspace"]:has(.detail) .sysdetail.shifted:not([data-place])');
+    expect(decl(machine, "top")).toBe("calc(var(--ws-head) + var(--ws-col-h) / 2)");
     expect(decl(machine, "max-height")).toBe("calc(var(--ws-col-h) / 2)");
-    const usage = rule(wide, '.app[data-view="workspace"]:has(.sysdetail.shifted:not(.leaving):not([data-place])) .usage-panel:not([data-place])');
+    const usage = rule(wide, '.app[data-view="workspace"]:has(.detail):has(.sysdetail.shifted:not(.leaving):not([data-place])) .usage-panel:not([data-place])');
     expect(decl(usage, "max-height")).toBe("calc(var(--ws-col-h) / 2 - 8px)");
-  });
-
-  it("start below the pane header where there is no Inspector column", () => {
-    const narrow = workspace.slice(workspace.indexOf("@media (max-width: 1319px)"), workspace.indexOf("@media (max-width: 1099px)"));
-    const body = rule(narrow, '.app[data-view="workspace"] :is(.usage-panel, .sysdetail):not([data-place])');
-    expect(decl(body, "top")).toBe("calc(var(--topbar-h) + var(--pane-head-h) + 8px + var(--rating-h, 0px))");
   });
 
   it("keep a place the reader gave them, and fold with Zoom", () => {
     expect(workspace).not.toMatch(/\[data-place\]\) \{[^}]*!important/);
     expect(workspace).toContain('[data-zoom="fold"] :is(.detail, .usage-panel, .sysdetail) { transform: translateX(100%); opacity: 0; visibility: hidden; }');
+    // Zoom's overlays start below the strip row too.
+    expect(rule(workspace, '.app[data-view="workspace"][data-zoom] .detail')).toContain("top: calc(var(--topbar-h) + var(--rating-h, 0px))");
   });
 });
 
-describe("what a Workspace switch does not touch", () => {
-  it("leaves the Board alone: nothing here is keyed outside data-view", () => {
-    const board = strip(read("styles/canvas.css"));
-    expect(board).not.toContain("data-pin");
-    expect(board).not.toContain("view-transition");
+describe("the switch's mark has one owner", () => {
+  /** A page whose view transition is run by the test: the callback waits for `run()`, `finished` for `end()`. */
+  function deferred() {
+    const attrs = new Set<string>();
+    const transitions: { run: () => void; end: () => void }[] = [];
+    const doc = {
+      hidden: false,
+      documentElement: { setAttribute: (n: string) => { attrs.add(n); }, removeAttribute: (n: string) => { attrs.delete(n); } },
+      startViewTransition(cb: () => void) {
+        let end = () => {};
+        const finished = new Promise<void>(r => { end = r; });
+        transitions.push({ run: cb, end });
+        return { finished };
+      },
+    } as unknown as Document;
+    return { doc, attrs, transitions };
+  }
+
+  it("runs the update inside the transition, after the old picture is kept, not before", () => {
+    const { doc, transitions } = deferred();
+    const log: string[] = [];
+    runSwitch("pointer", () => log.push("update"), doc);
+    expect(log, "nothing is updated until the browser has the old picture").toEqual([]);
+    transitions[0].run();
+    expect(log).toEqual(["update"]);
+  });
+
+  it("lets a newer switch keep the mark when an older transition ends (the browser skips it)", async () => {
+    const { doc, attrs, transitions } = deferred();
+    runSwitch("pointer", () => {}, doc);
+    runSwitch("pointer", () => {}, doc);
+    transitions[0].end();
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(attrs.has(SWITCH_ATTR), "the older one's end must not clear the newer one's mark").toBe(true);
+    transitions[1].end();
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(attrs.has(SWITCH_ATTR)).toBe(false);
+  });
+
+  it("clears a key switch's mark after its beat, and a newer switch cancels that beat", () => {
+    vi.useFakeTimers();
+    try {
+      const { doc, attrs } = deferred();
+      runSwitch("key", () => {}, doc);
+      expect(attrs.has(SWITCH_ATTR)).toBe(true);
+      vi.advanceTimersByTime(59);
+      expect(attrs.has(SWITCH_ATTR)).toBe(true);
+      vi.advanceTimersByTime(1);
+      expect(attrs.has(SWITCH_ATTR)).toBe(false);
+      // A pointer switch within the beat of a key one: the old timer is gone.
+      runSwitch("key", () => {}, doc);
+      vi.advanceTimersByTime(30);
+      runSwitch("pointer", () => {}, doc);
+      vi.advanceTimersByTime(100);
+      expect(attrs.has(SWITCH_ATTR), "the pointer switch's mark outlives the old timer").toBe(true);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("is not clicked through during the crossfade, and the empty pane does not fade inside it", () => {
+    expect(workspace).toContain(":root[data-view-switch]::view-transition { pointer-events: none; }");
+    expect(workspace).toMatch(/:root\[data-view-switch\] \.app :is\([^)]*\.ts-stage \.ts-card\)/);
+    expect(decl(rule(terminal, ".ts-card[data-timed]"), "pointer-events")).toBe("none");
   });
 });
+

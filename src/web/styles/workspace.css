@@ -82,39 +82,37 @@
    edge), so the hide is lifted. Same specificity as that rule, later. */
 .app[data-view="workspace"]:has(.stage-dock) :is(.usage-panel, .sysdetail) { visibility: visible; }
 
-/* USAGE AND MACHINE SIT OVER THE INSPECTOR'S COLUMN, from 1320 up, where the
-   Inspector is a column. The Board puts their right edge at --rail-r, which
-   clears the detail column (machine-panel.css): there the column is under the
-   canvas's cell, and in Workspace that cell is the pane, which they covered
-   (x 792-1072 at 1440, the pane ending at 1080). Here --rail-r is the value
-   it has at the window's right edge (V4's Figma: no right bar, the panels
-   320 wide with their right edge at the window), so the panel's left edge is
-   320 (+ the density's increase) in from there, inside the Inspector's 320
-   (Compact) or 360 (Default): never
-   left of the pane's right edge. Under 1320 the Inspector is a sheet and the
-   Board's place stands. \`body\` in front outranks the Board's two --rail-r rules
-   whichever of them is in force. */
+/* WHERE USAGE AND MACHINE SIT (V4's motion spec). Never over a pane button
+   or the Inspector's head: every top starts below the strip rows (--rating-h
+   is the height of whatever strip banner is up, and 0 with none) and below a
+   head --pane-head-h tall.
+   Where there is no Inspector column (a sheet under 1320, or the Inspector
+   folded) they start below the pane's header, as on the Board nothing sits
+   there. At 1320 and up, with the column, they are its column: 320 wide, from
+   under the Inspector's head to above the status bar, the right edge at the
+   window, so its tab strip and Fold stay reachable. Both open share it,
+   Usage above and Machine below, each half the column less the gap
+   panel-place.ts keeps between them (fitStack lands on the same numbers).
+   A panel the reader has put somewhere keeps its place. */
+.app[data-view="workspace"] {
+  --ws-head: calc(var(--topbar-h) + var(--rating-h, 0px) + var(--pane-head-h));
+  --ws-col-h: calc(100vh - var(--ws-head) - var(--status-room, 0px));
+}
+.app[data-view="workspace"] :is(.usage-panel, .sysdetail):not([data-place]) {
+  top: calc(var(--ws-head) + 8px);
+  max-height: calc(100vh - var(--ws-head) - 16px - var(--status-room, 0px));
+}
 @media (min-width: 1320px) {
-  body .app[data-view="workspace"] { --rail-r: 0px; }
-  /* V4's motion spec, where they sit: the Inspector's column, from under the
-     top bar to above the status bar, the right edge at the window, so neither
-     covers a pane button or the Inspector's tab strip. Both open share it,
-     Usage above and Machine below, each half the column less the gap
-     panel-place.ts keeps between them (fitStack lands on the same numbers). A
-     panel the reader has put somewhere keeps its place. */
-  .app[data-view="workspace"] {
-    --ws-col-h: calc(100vh - var(--topbar-h) - var(--status-room, 0px));
-  }
-  .app[data-view="workspace"] :is(.usage-panel, .sysdetail):not([data-place]) {
-    top: var(--topbar-h);
+  .app[data-view="workspace"]:has(.detail) :is(.usage-panel, .sysdetail):not([data-place]) {
+    top: var(--ws-head);
     right: 0;
     max-height: var(--ws-col-h);
   }
-  .app[data-view="workspace"] .sysdetail.shifted:not([data-place]) {
-    top: calc(var(--topbar-h) + var(--ws-col-h) / 2);
+  .app[data-view="workspace"]:has(.detail) .sysdetail.shifted:not([data-place]) {
+    top: calc(var(--ws-head) + var(--ws-col-h) / 2);
     max-height: calc(var(--ws-col-h) / 2);
   }
-  .app[data-view="workspace"]:has(.sysdetail.shifted:not(.leaving):not([data-place])) .usage-panel:not([data-place]) {
+  .app[data-view="workspace"]:has(.detail):has(.sysdetail.shifted:not(.leaving):not([data-place])) .usage-panel:not([data-place]) {
     max-height: calc(var(--ws-col-h) / 2 - 8px);
   }
 }
@@ -198,6 +196,7 @@
 /* The crossfade is the browser's: the old view's picture under the new one,
    fading in over it on Fast, on the deck's curve. Only while view-switch.ts
    has the root marked. Reduced motion keeps it: it moves nothing. */
+:root[data-view-switch]::view-transition { pointer-events: none; }
 :root[data-view-switch]::view-transition-group(root) { animation-duration: var(--dur-fast); }
 :root[data-view-switch]::view-transition-old(root),
 :root[data-view-switch]::view-transition-new(root) {
@@ -207,7 +206,7 @@
 /* Nothing else moves across the switch: the new view is drawn in its final
    state, so the left column is at its width, not easing to it, and a panel
    that arrives is already there. */
-:root[data-view-switch] .app :is(.left-column, .left-column > *, .detail, .stage-dock, .stage-in, .usage-panel, .sysdetail) {
+:root[data-view-switch] .app :is(.left-column, .left-column > *, .detail, .stage-dock, .stage-in, .usage-panel, .sysdetail, .ts-stage .ts-card) {
   transition: none;
   animation: none;
 }
@@ -234,13 +233,6 @@
     bottom: var(--status-room);
     width: min(var(--inspector-w), 100vw);
     z-index: 20;
-  }
-  /* Under 1320 there is no Inspector column for Usage and Machine to sit over,
-     and the Board's slot would put them on the pane's header: they start below
-     it instead. */
-  .app[data-view="workspace"] :is(.usage-panel, .sysdetail):not([data-place]) {
-    top: calc(var(--topbar-h) + var(--pane-head-h) + 8px + var(--rating-h, 0px));
-    max-height: calc(100vh - var(--topbar-h) - var(--pane-head-h) - 16px - var(--rating-h, 0px) - var(--status-room, 0px));
   }
 }
 /* Under 1100 the list is a sheet too, from the panel bar's Sessions door: the
@@ -274,21 +266,20 @@
    scales: it is the panels that travel, the text never moves. Out of sight
    they are visibility: hidden, after the slide, which is what display: none
    was. A key is at once (input-modality.ts); reduced motion has no travel and
-   crossfades over --zoom-xfade. */
-.app[data-view="workspace"] { --zoom-xfade: 140ms; }
+   crossfades over --dur-xfade. */
 body .app[data-view="workspace"][data-zoom],
 body .app[data-view="workspace"][data-zoom]:has(.left-column) { grid-template-columns: minmax(0, 1fr); }
 .app[data-view="workspace"][data-zoom] :is(.canvas-wrap, .ws-cell, .stage-dock, .conn-banner, .ver-banner) { grid-column: 1; }
 .app[data-view="workspace"][data-zoom] .left-column {
   position: fixed;
-  top: var(--topbar-h);
+  top: calc(var(--topbar-h) + var(--rating-h, 0px));
   bottom: var(--status-room, 0px);
   left: var(--edge-w);
   z-index: 21;
 }
 .app[data-view="workspace"][data-zoom] .detail {
   position: fixed;
-  top: var(--topbar-h);
+  top: calc(var(--topbar-h) + var(--rating-h, 0px));
   right: 0;
   bottom: var(--status-room, 0px);
   width: min(var(--inspector-w), 100vw);
@@ -314,10 +305,10 @@ body .app[data-view="workspace"][data-zoom]:has(.left-column) { grid-template-co
   .app[data-view="workspace"][data-zoom="fold"] :is(.left-column, .detail, .usage-panel, .sysdetail),
   .app[data-view="workspace"][data-zoom="unfold"] :is(.left-column, .detail, .usage-panel, .sysdetail) {
     transform: none;
-    transition: opacity var(--zoom-xfade) var(--ease), visibility 0s var(--ease) var(--zoom-xfade);
+    transition: opacity var(--dur-xfade) var(--ease), visibility 0s var(--ease) var(--dur-xfade);
   }
   .app[data-view="workspace"][data-zoom="unfold"] :is(.left-column, .detail, .usage-panel, .sysdetail) {
-    transition: opacity var(--zoom-xfade) var(--ease), visibility 0s var(--ease);
+    transition: opacity var(--dur-xfade) var(--ease), visibility 0s var(--ease);
   }
   :root[data-motion="instant"] .app[data-view="workspace"][data-zoom] :is(.left-column, .detail, .usage-panel, .sysdetail) { transition: none; }
 }

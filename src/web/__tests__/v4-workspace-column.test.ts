@@ -209,15 +209,28 @@ describe("what Workspace does to the column is not stored", () => {
     expect(store.get("agent-dag.accountsPanelOpen")).toBe("1");
   });
 
-  it("stores what the reader does with the column inside Workspace", () => {
+  it("stores what the reader does with the column inside Workspace, and only that", () => {
+    // Under 1100 entering empties the column (Workspace's doing, not stored).
+    // The reader then opens the Sessions sheet: that flag is theirs and is
+    // written; the Accounts panel they never closed stays stored open.
+    const { col, go, view } = setup({ workspace: false, wide: false });
+    expect(store.get("agent-dag.sessionListOpen")).toBe("0");
+    go({ workspace: true });
+    expect(col().panel).toBeNull();
+    col().toggleSessionList();
+    view.rerender();
+    expect(store.get("agent-dag.sessionListOpen"), "the reader's own open").toBe("1");
+    expect(store.get("agent-dag.accountsPanelOpen"), "never closed by the reader").toBe("1");
+  });
+
+  it("keeps a wide reader's own Accounts open too, and the list it was never given", () => {
+    store.set("agent-dag.accountsPanelOpen", "0");
     const { col, go, view } = setup({ workspace: false, wide: true });
     go({ workspace: true });
-    // L closes the list: the reader's own call, kept.
-    col().closeSessionList();
+    expect(col().panel).toBe("session-list");
+    col().openAccountsPanel();
     view.rerender();
+    expect(store.get("agent-dag.accountsPanelOpen")).toBe("1");
     expect(store.get("agent-dag.sessionListOpen")).toBe("0");
-    expect(col().sessionListOpen).toBe(false);
-    go({ workspace: false });
-    expect(col().sessionListOpen).toBe(false);
   });
 });

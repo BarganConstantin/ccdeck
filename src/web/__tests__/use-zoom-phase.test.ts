@@ -3,7 +3,7 @@
 // grid's own tracks. By a key there is no slide; under reduced motion the
 // slide is the crossfade's length. Run as a hook under fake-react.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { unfoldMs, useZoomPhase, ZOOM_REDUCED_MS } from "../use-zoom-phase";
+import { unfoldMs, useZoomPhase } from "../use-zoom-phase";
 import { mount } from "./fake-react";
 
 vi.mock("react", async () => (await import("./fake-react")).react);
@@ -80,7 +80,6 @@ describe("Zoom's phases", () => {
 
   it("unfolds over the crossfade's 140 under reduced motion", () => {
     reduced = true;
-    expect(ZOOM_REDUCED_MS).toBe(140);
     expect(unfoldMs()).toBe(140);
     const { phase, zoom } = setup();
     zoom(true);

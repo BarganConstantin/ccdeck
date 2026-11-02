@@ -13,7 +13,7 @@ import { fileURLToPath } from "node:url";
 import { createElement, type ReactElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { ReactFlowProvider } from "reactflow";
-import { StageDock, StageNavigator, showable, STAGE_REDUCED_MS } from "../components/terminal/StageShell";
+import { StageDock, StageNavigator } from "../components/terminal/StageShell";
 import { initialShell, type ShellState, type StageTarget } from "../stage-shell";
 import { ASSUMED_CELL, stageGeometry } from "../stage-geometry";
 import type { Stage } from "../use-stage";
@@ -164,28 +164,7 @@ describe("the navigator in the canvas", () => {
   });
 });
 
-describe("when an unseen stage may be uncovered", () => {
-  it("is when a session's pane is up, or the card that says why there is none", () => {
-    for (const kind of ["live", "not-attachable", "tmux-installing", "tmux-missing", "ended", "detached", "error"] as const) {
-      expect(showable(kind, "session"), kind).toBe(true);
-    }
-  });
-
-  it("is never on an attach still in flight", () => {
-    expect(showable("attaching", "session")).toBe(false);
-  });
-
-  it("is never on the empty phase every session starts in before it is told what to show", () => {
-    expect(showable("empty", "session")).toBe(false);
-    expect(showable("empty", "launch")).toBe(false);
-    expect(showable("empty", "empty"), "the empty stage's own card is what it shows").toBe(true);
-  });
-
-  it("is from a new session's starting line on", () => {
-    expect(showable("starting", "launch")).toBe(true);
-    expect(showable("starting", "session")).toBe(false);
-  });
-
+describe("the stage is uncovered on the press", () => {
   it("does not wait for the pane: the morph starts on the press, and nothing times a reveal", () => {
     // CHANGED ON PURPOSE (V4's motion spec): a stage was held unseen for up to
     // 400ms (REVEAL_WAIT_MS) until its pane was ready. The open starts in the
@@ -195,7 +174,7 @@ describe("when an unseen stage may be uncovered", () => {
     expect(source).not.toContain("REVEAL_WAIT_MS");
     expect(source).not.toMatch(/setTimeout\(stage\.reveal/);
     expect(source).toMatch(/useLayoutEffect\(\(\) => \{\s*if \(shell\.phase === "waiting"\) stage\.reveal\(\);/);
-    // Reduced motion crossfades, in the 140 every reduced crossfade is.
-    expect(STAGE_REDUCED_MS).toBe(140);
+    // Reduced motion crossfades over the one token every reduced crossfade is.
+    expect(source).toContain('tokenMs("--dur-xfade")');
   });
 });

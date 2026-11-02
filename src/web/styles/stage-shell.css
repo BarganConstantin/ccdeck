@@ -156,9 +156,11 @@
 .stage-dock[data-grace],
 .stage-nav[data-grace] { pointer-events: none; }
 /* But the header's buttons answer from the first frame (V4's motion spec): ✕
-   during the open closes it, turning the morph around. The second press of a
-   double click aims at a card, and no card sits under a header button. */
-.stage-dock[data-grace] .ts-head button { pointer-events: auto; }
+   during the open closes it, turning the morph around. Except a button the
+   pressed card lies under: StageDock marks it data-over-origin while the
+   window is open, so the second press of a double click still reaches the
+   card and its detail panel. */
+.stage-dock[data-grace] .ts-head button:not([data-over-origin]) { pointer-events: auto; }
 
 /* THE RIGHT-HAND RAILS STAND ASIDE while the stage is on screen. Usage and
    Machine float at the right edge (machine-panel.css's --rail-r), which is

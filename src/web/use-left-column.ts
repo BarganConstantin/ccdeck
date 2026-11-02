@@ -143,7 +143,7 @@ export interface LeftColumn {
   /** WORKSPACE changing the column is not the reader's choice, so it is not
    *  stored: `hold` stops the two writes, `release` lets them go on, with
    *  `write` saying whether the column as it stands is the reader's. */
-  storeHold: { hold: () => void; release: (write: boolean) => void };
+  storeHold: { hold: () => void; release: (write: boolean, baseline?: { list: boolean; accounts: boolean }) => void };
 }
 
 export function useLeftColumn(): LeftColumn {
@@ -258,12 +258,14 @@ export function useLeftColumn(): LeftColumn {
   nowRef.current = { sessionListOpen, accountsPanelOpen };
   const storeHold = useMemo(() => ({
     hold: () => { workspaceHeldRef.current = true; },
-    release: (write: boolean) => {
+    // `baseline` is the column as Workspace itself left it: only a flag that
+    // differs from it is the reader's, and only that one is written.
+    release: (write: boolean, baseline?: { list: boolean; accounts: boolean }) => {
       workspaceHeldRef.current = false;
       const now = nowRef.current;
       if (!write || !now) return;
-      saveSessionListOpen(now.sessionListOpen);
-      if (now.accountsPanelOpen || !accountsEvictedRef.current) {
+      if (!baseline || now.sessionListOpen !== baseline.list) saveSessionListOpen(now.sessionListOpen);
+      if ((!baseline || now.accountsPanelOpen !== baseline.accounts) && (now.accountsPanelOpen || !accountsEvictedRef.current)) {
         writeStored(ACCOUNTS_PANEL_OPEN_KEY, now.accountsPanelOpen ? "1" : "0");
       }
     },
@@ -336,7 +338,7 @@ export function useWorkspaceColumn({ active, wide, column }: {
       // The reader changed the column inside Workspace: that is their choice
       // and is kept, as the column now stands.
       putRef.current = null;
-      storeHold?.release(true);
+      storeHold?.release(true, put.kind === "list" ? { list: true, accounts: false } : { list: false, accounts: false });
     }
   }, [active, sessionListOpen, accountsPanelOpen]);
 }

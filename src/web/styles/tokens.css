@@ -345,6 +345,7 @@
   --dur-stage-in: 280ms;
   --dur-stage-out: 200ms;
   --dur-slow: 400ms;
+  --dur-xfade: 140ms;
   --delay-step: 40ms;
   --delay-loader: 150ms;
   --delay-tooltip: 450ms;

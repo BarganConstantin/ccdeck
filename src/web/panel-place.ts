@@ -137,12 +137,23 @@ export function fitStack(): void {
   if (!usage || !machine || window.matchMedia(PHONE_QUERY).matches) return;
   const box = (el: HTMLElement): Box => ({ left: el.offsetLeft, top: el.offsetTop, width: el.offsetWidth });
   const fit = stackCap(box(usage), box(machine));
-  if (fit) {
-    const upper = fit.upper === "a" ? usage : machine;
-    upper.style.maxHeight = `${fit.cap}px`;
-    // A held height (useRememberedHeight) never outgrows the cap.
-    if (parseFloat(upper.style.minHeight) > fit.cap) upper.style.minHeight = `${fit.cap}px`;
+  if (fit) (fit.upper === "a" ? usage : machine).style.maxHeight = `${fit.cap}px`;
+  // A held height (useRememberedHeight) is a floor that beats max-height, so
+  // it is kept inside what each panel has: the cap of the one above, and the
+  // room to the status bar for both.
+  for (const el of [usage, machine]) {
+    const held = parseFloat(el.style.minHeight);
+    if (!(held > 0)) continue;
+    const cap = parseFloat(el.style.maxHeight);
+    el.style.minHeight = `${Math.min(held, Number.isFinite(cap) ? cap : Infinity, roomBelow(el))}px`;
   }
+}
+
+/** How much window a panel has from its top to the status bar, less the 8 the
+ *  panels keep from an edge. */
+export function roomBelow(el: HTMLElement): number {
+  const status = document.querySelector(".statusbar")?.getBoundingClientRect().height ?? 0;
+  return Math.max(0, window.innerHeight - status - el.offsetTop - 8);
 }
 
 let fitFrame = 0;
@@ -176,14 +187,14 @@ type Drag = {
  * its content again; whatever height it has when it closes is remembered. The
  * first open on a machine has nothing to hold and still grows once.
  */
-function useRememberedHeight(panelRef: { readonly current: HTMLElement | null }, key: string): void {
+export function useRememberedHeight(panelRef: { readonly current: HTMLElement | null }, key: string): void {
   useLayoutEffect(() => {
     const el = panelRef.current;
     const heightKey = HEIGHT_KEYS[key];
     if (!el || !heightKey || window.matchMedia(PHONE_QUERY).matches) return;
     const saved = Number(readStored(heightKey));
     if (Number.isFinite(saved) && saved > 0) {
-      el.style.minHeight = `${Math.min(saved, Math.max(0, window.innerHeight - HEIGHT_SPARE))}px`;
+      el.style.minHeight = `${Math.min(saved, Math.max(0, window.innerHeight - HEIGHT_SPARE), roomBelow(el))}px`;
       fitStack();
     }
     const release = window.setTimeout(() => {
@@ -193,11 +204,11 @@ function useRememberedHeight(panelRef: { readonly current: HTMLElement | null },
     const watch = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(() => { latest = el.offsetHeight; });
     watch?.observe(el);
     const keep = () => { if (latest > 0) writeStored(heightKey, String(Math.round(latest))); };
-    window.addEventListener('pagehide', keep);
+    window.addEventListener("pagehide", keep);
     return () => {
       window.clearTimeout(release);
       watch?.disconnect();
-      window.removeEventListener('pagehide', keep);
+      window.removeEventListener("pagehide", keep);
       keep();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps

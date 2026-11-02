@@ -127,10 +127,10 @@ describe("Zoom", () => {
     expect(unfold).toContain("transform var(--dur-move) var(--ease-stage)");
     expect(unfold).toContain("opacity var(--dur-move) var(--ease-stage)");
     expect(decl(ruleFor(css, `:root[data-motion="instant"] .app[data-view="workspace"][data-zoom] :is(${list})`).body, "transition")).toBe("none");
-    expect(css).toContain("--zoom-xfade: 140ms;");
+    expect(strip(read("styles/tokens.css"))).toContain("--dur-xfade: 140ms;");
     const reduced = block(css.slice(css.indexOf("[data-zoom=\"unfold\"] :is(")), "@media (prefers-reduced-motion: reduce)");
     expect(decl(ruleFor(reduced, `.app[data-view="workspace"][data-zoom="fold"] :is(${list})`).body, "transform")).toBe("none");
-    expect(decl(ruleFor(reduced, `.app[data-view="workspace"][data-zoom="fold"] :is(${list})`).body, "transition")).toContain("opacity var(--zoom-xfade) var(--ease)");
+    expect(decl(ruleFor(reduced, `.app[data-view="workspace"][data-zoom="fold"] :is(${list})`).body, "transition")).toContain("opacity var(--dur-xfade) var(--ease)");
   });
 
   it("is last in the sheet, so it outranks the narrower windows' templates", () => {
@@ -202,7 +202,7 @@ describe("tokens only", () => {
     // The pane measures its own cell, where the canvas would have been.
     expect(decl(ruleFor(css, ".ws-cell").body, "visibility")).toBe("hidden");
     // Nothing else moves across the switch.
-    const still = ruleFor(css, ":root[data-view-switch] .app :is(.left-column, .left-column > *, .detail, .stage-dock, .stage-in, .usage-panel, .sysdetail)").body;
+    const still = ruleFor(css, ":root[data-view-switch] .app :is(.left-column, .left-column > *, .detail, .stage-dock, .stage-in, .usage-panel, .sysdetail, .ts-stage .ts-card)").body;
     expect(decl(still, "transition")).toBe("none");
     expect(decl(still, "animation")).toBe("none");
   });

@@ -281,7 +281,7 @@
    (StageBody.tsx holds the 150 before it is drawn and the 300 it stays): it
    fades in over Fast and out over Exit, as transitions, so a pane that attaches
    twice in a row does it twice. */
-.ts-card[data-timed] { transition: opacity var(--dur-fast) var(--ease); }
+.ts-card[data-timed] { transition: opacity var(--dur-fast) var(--ease); pointer-events: none; }
 @starting-style {
   .ts-card[data-timed] { opacity: 0; }
 }

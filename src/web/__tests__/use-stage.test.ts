@@ -1530,3 +1530,50 @@ describe("Workspace: the one-time gate hold (PREFS_WAIT_MS)", () => {
     expect(now().stage.shell, "the same pane, not reopened").toBe(first);
   });
 });
+
+describe("Workspace: a rail panel asked for while Zoom is on", () => {
+  // Zoom folds Usage and Machine with the list and the Inspector. A panel asked
+  // for during it (U, S, the panel bar, the menu) ends Zoom, so the panel is
+  // on screen where it belongs and the press is answered.
+  interface Rail { deps: StageDeps; open: boolean; setOpen: ReturnType<typeof vi.fn> }
+  function ZoomRail({ deps, open, setOpen }: Rail) {
+    const stage = useStage(deps);
+    const rail = useRailPanel(stage, open, setOpen);
+    return { stage, rail };
+  }
+  function railInWorkspace(open: boolean) {
+    const base = setup({ view: "workspace" });
+    const setOpen = vi.fn();
+    const view = mount(ZoomRail, { deps: base.deps, open, setOpen });
+    const now = () => view.tree as { stage: ReturnType<typeof useStage>; rail: ReturnType<typeof useRailPanel> };
+    now().stage.loadTerminalPrefs({ terminalOn: true });
+    return { now, setOpen, view, deps: base.deps };
+  }
+
+  it("leaves Zoom and opens the panel", () => {
+    const { now, setOpen } = railInWorkspace(false);
+    now().stage.toggleExpand();
+    expect(now().stage.expanded).toBe(true);
+    now().rail.set(o => !o);
+    expect(now().stage.expanded, "asking for a panel ends Zoom").toBe(false);
+    expect(setOpen).toHaveBeenCalledWith(true);
+  });
+
+  it("treats a panel that was open and folded as closed, so the press brings it back instead of closing it", () => {
+    const { now, setOpen, view, deps } = railInWorkspace(true);
+    expect(now().rail.shown).toBe(true);
+    now().stage.toggleExpand();
+    view.rerender({ deps, open: true, setOpen });
+    expect(now().rail.shown, "folded: aria-expanded must not promise it").toBe(false);
+    now().rail.set(o => !o);
+    expect(now().stage.expanded).toBe(false);
+    expect(setOpen).toHaveBeenCalledWith(true);
+  });
+
+  it("does nothing to Zoom when the panel is being closed", () => {
+    const { now, setOpen } = railInWorkspace(true);
+    now().rail.set(false);
+    expect(setOpen).toHaveBeenCalledWith(false);
+    expect(now().stage.expanded).toBe(false);
+  });
+});

@@ -9,7 +9,7 @@ import { joinMotion, measureGate, membershipChange, releaseMotion } from "./rail
 const useBeforePaint = typeof window === "undefined" ? useEffect : useLayoutEffect;
 
 const FALLBACK: Record<string, string> = {
-  "--dur-fast": "120ms", "--dur-exit": "150ms", "--dur-base": "200ms", "--dur-move": "240ms",
+  "--dur-fast": "120ms", "--dur-exit": "150ms", "--dur-base": "200ms", "--dur-move": "240ms", "--dur-xfade": "140ms",
   "--ease": "cubic-bezier(0.23, 1, 0.32, 1)", "--ease-stage": "cubic-bezier(0.32, 0.72, 0, 1)",
 };
 
