@@ -44,6 +44,11 @@ export function useEventStream({ stateRef, rerender, pauseGate, chimesRef, deskt
    *  tab-census.ts. */
   const [tabCapped, setTabCapped] = useState(false);
   const [everConnected, setEverConnected] = useState(false);
+  /** When the stream last said anything (a connection, an event), kept in a ref,
+   *  and the moment of it that was current when the stream dropped: what the
+   *  phone's "Can't reach your computer" card names as the last news. */
+  const heardRef = useRef<number | null>(null);
+  const [lastNewsAt, setLastNewsAt] = useState<number | null>(null);
 
   // SSE subscription.
   //
@@ -102,6 +107,9 @@ export function useEventStream({ stateRef, rerender, pauseGate, chimesRef, deskt
     }, 3_000);
     es.addEventListener("open", () => { setLive(true); setEverConnected(true); });
     es.addEventListener("error", () => { setLive(false); setLiveSince(null); });
+    // The last news, for the phone's card: when the stream last said anything, taken as it drops.
+    es.addEventListener("open", () => { heardRef.current = Date.now(); });
+    es.addEventListener("error", () => { setLastNewsAt(heardRef.current); });
     // What this tab answers a census with, kept beside the stream it describes.
     es.addEventListener("open", () => { streaming = true; setTabCapped(false); });
     es.addEventListener("error", () => { streaming = false; });
@@ -121,6 +129,7 @@ export function useEventStream({ stateRef, rerender, pauseGate, chimesRef, deskt
     es.addEventListener("hook", (e) => {
       try {
         const env: HookEnvelope = JSON.parse((e as MessageEvent).data);
+        if (typeof env.receivedAt === "number" && Date.now() - env.receivedAt <= 30_000) heardRef.current = Date.now();
         if (!pauseGate.accept(env)) return; // paused: held for the resume
         stateRef.current = applyEvent(stateRef.current, env);
         const isReplay = env.replay === true
@@ -148,5 +157,5 @@ export function useEventStream({ stateRef, rerender, pauseGate, chimesRef, deskt
     // answers with a full replay of its ring buffer. The gate handles pausing.
   }, [rerender]);
 
-  return { live, tabCapped, everConnected, liveSince };
+  return { live, tabCapped, everConnected, liveSince, lastNewsAt };
 }

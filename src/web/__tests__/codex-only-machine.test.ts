@@ -467,7 +467,9 @@ describe("which panels the UI draws for each machine", () => {
     // The left stripe — and the phone's dock, which draws the same list — holds
     // Claude's accounts button where Claude Code is and Codex's where only Codex is.
     expect(appSrc).toContain("left: providers.claude ? [accounts, sessionList] : providers.codex ? [codex, sessionList] : [sessionList]");
-    expect(appSrc).toMatch(/<EdgeDock items=\{\[\.\.\.rails\.left, /);
+    // CHANGED ON PURPOSE (the owner's phone layout): the dock's JSX now breaks
+    // after the tag (items on their own line, plus the offline flag).
+    expect(appSrc).toMatch(/<EdgeDock\s+items=\{\[\.\.\.rails\.left, /);
     // With both, one Accounts button covers both CLIs (a switch in the panel's
     // header picks the side); only quick open keeps a door to Codex's side.
     expect(appSrc).toContain("codexDoor: providers.claude && providers.codex ? [codex] : []");

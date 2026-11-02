@@ -78,8 +78,19 @@ export function useRightPanels(leftColumnW = 0) {
   const [detailOpen, setDetailOpen] = useState<boolean>(loadDetailOpen);
   useEffect(() => { saveDetailOpen(detailOpen); }, [detailOpen]);
   /** Usage panel visibility — persisted across refresh. */
-  const [usagePanelOpen, setUsagePanelOpen] = useState<boolean>(loadUsagePanelOpen);
-  useEffect(() => { saveUsagePanelOpen(usagePanelOpen); }, [usagePanelOpen]);
+  // A phone opens on Sessions with no panel open: Usage waits for its door, as
+  // a sheet over the list, and the stored flag is not touched by the wait.
+  const usageHeldRef = useRef(false);
+  const [usagePanelOpen, setUsagePanelOpen] = useState<boolean>(() => {
+    const wanted = loadUsagePanelOpen();
+    if (wanted && loadsOnPhone()) { usageHeldRef.current = true; return false; }
+    return wanted;
+  });
+  useEffect(() => {
+    if (usagePanelOpen) usageHeldRef.current = false;
+    else if (usageHeldRef.current) return;
+    saveUsagePanelOpen(usagePanelOpen);
+  }, [usagePanelOpen]);
   /** Shut for this load, not by the reader: a phone's load opens one sheet, and
    *  Usage is it, and a desktop window too narrow for both panels beside the
    *  board opens Usage alone (phone-load.ts). Never written as a close; the
@@ -87,7 +98,11 @@ export function useRightPanels(leftColumnW = 0) {
   const machineHeldRef = useRef(false);
   const [machinePanelOpen, setMachinePanelOpen] = useState<boolean>(() => {
     const wanted = loadMachinePanelOpen();
-    if (wanted && usagePanelOpen && (loadsOnPhone() || rightPanelsCrowd(leftColumnW))) {
+    if (wanted && loadsOnPhone()) {
+      machineHeldRef.current = true;
+      return false;
+    }
+    if (wanted && usagePanelOpen && rightPanelsCrowd(leftColumnW)) {
       machineHeldRef.current = true;
       return false;
     }

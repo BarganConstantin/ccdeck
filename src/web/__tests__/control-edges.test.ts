@@ -1261,6 +1261,10 @@ describe("every control that draws a boundary draws one that can be seen (1.4.11
       // The stack's frame and the rules between its buttons. Each button is a
       // glyph; the group's outline is a group's outline.
       ".react-flow__controls-button",
+      // CHANGED ON PURPOSE (the owner's phone layout): the phone's key row. Each key
+      // is identified by the cap written in it (Esc, Tab, Ctrl+C...) as the frame
+      // draws it, with a --line rim on --bg-soft like the other quiet buttons.
+      ".ts-key",
       // Rows in the tool list. `border: none` plus a hairline separating one
       // row from the next — the row is identified by the tool's name in it.
       ".detail .tool", "button.tool.clickable", "button.tool.clickable:last-child",

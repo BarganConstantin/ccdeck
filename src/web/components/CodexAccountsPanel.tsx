@@ -1,6 +1,7 @@
 import { type ReactNode } from "react";
 
 import { useT } from "../i18n";
+import SheetHandle from "./SheetHandle";
 import CodexProfilesSection from "./CodexProfilesSection";
 
 /** Codex's side of the Accounts panel, or the whole panel on a deck with only
@@ -17,6 +18,7 @@ export default function CodexAccountsPanel({ onClose, leaving, switcher, side, o
   return (
     <aside className={`accounts-panel codex-accounts-panel${leaving ? " leaving" : ""}`} id="codex-accounts-panel" aria-label={t("codex.panel.title")}
       hidden={side === "hidden"} data-side={side}>
+      <SheetHandle />
       <CodexProfilesSection onClose={onClose} switcher={switcher} onNotice={onNotice} />
     </aside>
   );

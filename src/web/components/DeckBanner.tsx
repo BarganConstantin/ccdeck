@@ -21,6 +21,7 @@ import VersionBanner from "./VersionBanner";
 
 export default function DeckBanner({
   restart, versionCheck, upgrade, oldNameNotice, rating, onFeedback, everConnected, live, paused, phone = false,
+  lastNewsAt = null, cardInList = false,
 }: {
   restart: ReturnType<typeof useAutoRestart>;
   versionCheck: ReturnType<typeof useVersionCheck>;
@@ -35,6 +36,12 @@ export default function DeckBanner({
   paused: boolean;
   /** 640px and under: the dropped connection says it in the phone's words. */
   phone?: boolean;
+  /** When the stream last had news, named by the phone's card. */
+  lastNewsAt?: number | null;
+  /** The Sessions panel is up on a phone and holds the "Can't reach your
+   *  computer" card itself: the strip does not draw it a second time under
+   *  the panel. */
+  cardInList?: boolean;
 }) {
   const t = useT();
   const { autoRestart, toggleAutoRestart, restarting, restartMode, restartedTo, askRestart,
@@ -53,7 +60,8 @@ export default function DeckBanner({
         <span className="ver-sub">{t("shell.banner.replayed")}</span>
       </div>
     ) : everConnected && !live ? (
-      <ConnectionBanner restarting={restarting} restartMode={restartMode} live={live} paused={paused} phone={phone} />
+      phone && cardInList && !restarting ? null
+        : <ConnectionBanner restarting={restarting} restartMode={restartMode} live={live} paused={paused} phone={phone} lastNewsAt={lastNewsAt} />
     ) : noticeOpen && notice ? (
       <VersionBanner
         notice={notice} version={version} dismissNotice={dismissNotice}

@@ -345,16 +345,18 @@ describe("V4's Panel bar (the one bar)", () => {
 
 describe("V4's phone dock", () => {
   const phone = "(max-width: 640px)";
-  it("fills with --panel and keeps its 56px height and 48px targets", () => {
+  // CHANGED ON PURPOSE (V4's Figma phone frame): 58 high, cells that fill it
+  // (a 44 floor), and an open door that is its word alone.
+  it("fills with --panel, 58 high, and cells the dock's whole height with a 44 floor", () => {
     expect(decl(".edge-dock", "background", phone)).toBe("var(--panel)");
     expect(decl(".edge-dock", "height", phone)).toBe("calc(var(--dock-h) + env(safe-area-inset-bottom))");
-    expect(decl(".rail-btn-dock", "height", phone)).toBe("48px");
+    expect(decl(".edge-dock", "align-items", phone)).toBe("stretch");
+    expect(decl(".rail-btn-dock", "min-height", phone)).toBe("44px");
   });
-  it("opens as the same --selected fill, with the same line on its top edge, at once", () => {
+  it("opens as its word in --text, with no fill and no line on its top edge", () => {
     expect(decl('.rail-btn[aria-expanded="true"]', "background")).toBe("var(--selected)");
-    expect(decl(".rail-btn-dock::before", "background", phone)).toBe("var(--text)");
-    expect(decl(".rail-btn-dock::before", "transition", phone)).toBeUndefined();
-    expect(decl('.rail-btn-dock[aria-expanded="true"]::before', "opacity", phone)).toBe("1");
+    expect(decl('.rail-btn-dock[aria-expanded="true"]', "background", phone)).toBe("transparent");
+    expect(decl(".rail-btn-dock::before", "background", phone)).toBeUndefined();
   });
 });
 

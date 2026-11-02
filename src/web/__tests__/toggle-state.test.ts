@@ -258,12 +258,12 @@ function layer(value: string, theme: Theme): Rgba {
 
 /** A chrome button whose panel is open: the --selected fill and the foreground. */
 const OPEN = '.rail-btn[aria-expanded="true"]';
-/** And its line on the edge the panel came out of: a stripe's inner edge, the
- *  dock's top edge. Drawn always, shown only while open. */
-const LINES = [".rail-btn-stripe::before", ".rail-btn-dock::before"] as const;
+/** And its line on the edge the panel came out of: a stripe's inner edge. Drawn
+ *  always, shown only while open. CHANGED ON PURPOSE (V4's Figma phone frame):
+ *  the dock has no line any more; its active item is its word in --text. */
+const LINES = [".rail-btn-stripe::before"] as const;
 const LINE_SHOWN = {
   ".rail-btn-stripe::before": '.rail-btn-stripe[aria-expanded="true"]::before',
-  ".rail-btn-dock::before": '.rail-btn-dock[aria-expanded="true"]::before',
 } as const;
 /** The bed the chrome's buttons stand on: a stripe and the dock are both
  *  --panel (edge-rails.css; V4's Panel bar, it was --bg-soft). */
@@ -378,7 +378,8 @@ describe("the open state, as the sheet draws it now", () => {
     expect(decl(".edge-rail-left .rail-btn-stripe::before", "right")).toBe("-5px");
     // V4's Figma: one bar on the left; there is no right bar to draw a line on.
     expect(decl(".rail-btn-stripe::before", "width")).toBe("2px");
-    expect(declIn(mediaBodyOf(PHONE, ".rail-btn-dock::before"), "height")).toBe("2px");
+    // The dock draws no line (V4's phone frame): its open door is its word, --text.
+    expect(declIn(mediaBodyOf(PHONE, ".rail-btn-dock"), "min-height")).toBe("44px");
     // And the open fill itself arrives at once.
     const open = RULES.find(r => selectors(r.selector).includes(OPEN))!;
     expect(declIn(open.body, "transition"), "an open door fades in").toBeNull();

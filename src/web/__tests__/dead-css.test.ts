@@ -90,7 +90,8 @@ const V4_AHEAD_OF_READERS = [
   // --dur-stage-out is read by Zoom's fold now (workspace.css).
   // --dur-stage-in is read in JS now (navigator-flip.ts mirrors it as FLIP_OPEN_MS); the
   // row fold that read it in CSS moved to --dur-base / --dur-exit.
-  "--dur-stage-in",
+  // CHANGED ON PURPOSE (the owner's phone layout): the phone sheet reads it in CSS again,
+  // for its 280ms open (phone-sheet.css), so it leaves this list.
   // V4's Loader: --delay-loader, --loop-loader and --loop-loader-person are read by loader.css now.
   "--delay-tooltip",
 ];

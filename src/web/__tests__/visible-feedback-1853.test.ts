@@ -247,7 +247,9 @@ describe("the topbar's Feedback button", () => {
     // More, where a row has the room to say "Send feedback" whole.
     expect(item).toMatch(/menu: t\("board\.rail\.feedback\.menu"\)/);
     // A connected tracker's row (#2178) comes before it; Feedback stays last.
-    expect(app).toMatch(/more=\{\[rails\.search, \.\.\.rails\.capacity, \.\.\.rails\.right\.slice\(1\)\.flat\(\), \.\.\.rails\.integrations, \.\.\.rails\.explore, rails\.utilities\[1\]\]\}/);
+    // CHANGED ON PURPOSE (the owner's phone layout): the dock has five doors, so
+    // Settings (utilities[0]) joins Feedback in More, in the order they had.
+    expect(app).toMatch(/more=\{\[rails\.search, \.\.\.rails\.capacity, \.\.\.rails\.right\.slice\(1\)\.flat\(\), \.\.\.rails\.integrations, \.\.\.rails\.explore, \.\.\.rails\.utilities\]\}/);
     expect(rails).toMatch(/item\.menu \?\? item\.label/);
   });
 

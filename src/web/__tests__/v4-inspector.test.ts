@@ -120,8 +120,10 @@ describe("the Inspector's column", () => {
     expect(decl(".detail", "display")).toBe("flex");
     expect(decl(".detail", "flex-direction")).toBe("column");
   });
-  it("keeps the phone's sheet as it was", () => {
-    expect(decl(".detail", "width", "(max-width: 640px)")).toBe("min(var(--inspector-w), 100vw)");
+  // CHANGED ON PURPOSE (the owner's phone layout): still a fixed sheet, now the
+  // window's whole width and up from the dock (phone-sheet.css).
+  it("keeps the phone's sheet fixed, now the window's width", () => {
+    expect(decl(".detail", "width", "(max-width: 640px)")).toBe("100%");
     expect(decl(".detail", "position", "(max-width: 640px)")).toBe("fixed");
   });
 });

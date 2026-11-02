@@ -380,12 +380,17 @@
    window when that is narrower. The desktop layout is untouched. */
 @media (max-width: 640px) {
   .app, .app:not(:has(.detail)) { grid-template-columns: minmax(0, 1fr); }
+  /* THE INSPECTOR IS A SHEET HERE (phone-sheet.css has the look): the whole width
+     of the window, up from the dock, its height capped under the top bar. */
   .detail {
+    --sheet-bottom: calc(var(--dock-h) + env(safe-area-inset-bottom));
+    --sheet-room: calc(100dvh - var(--topbar-h) - var(--sheet-bottom) - 16px);
     position: fixed;
-    top: var(--topbar-h);
+    top: auto;
+    left: 0;
     right: 0;
-    bottom: 0;
-    width: min(var(--inspector-w), 100vw);
+    bottom: var(--sheet-bottom);
+    width: 100%;
     z-index: 20;
   }
 }

@@ -158,13 +158,15 @@ function useFocusHandover(ref: RefObject<HTMLElement>) {
   }, [ref]);
 }
 
-function RailButton({ item, index, tabbable, onFocusIndex, hint, variant }: {
+function RailButton({ item, index, tabbable, onFocusIndex, hint, variant, offlineDot = false }: {
   item: RailItem;
   index: number;
   tabbable: boolean;
   onFocusIndex: (i: number) => void;
   hint: ReturnType<typeof useHint>;
   variant: "stripe" | "dock" | "bar";
+  /** The phone dock's red dot: the deck cannot reach the computer. */
+  offlineDot?: boolean;
 }) {
   const singleKeys = useSingleKeyShortcuts();
   // V4's top bar draws Search as a field (its sentence and its chord): looks
@@ -206,6 +208,7 @@ function RailButton({ item, index, tabbable, onFocusIndex, hint, variant }: {
       </> : variant !== "stripe" && !iconOnly && <span className="rail-word">{variant === "dock" ? item.short : item.label}</span>}
       {item.badge != null && item.badge > 0 && <span className="rail-badge" aria-hidden>{item.badge}</span>}
       {item.dot && !(item.badge != null && item.badge > 0) && <span className="rail-dot" aria-hidden />}
+      {offlineDot && <span className="rail-offline-dot" aria-hidden />}
     </button>
   );
 }
@@ -309,7 +312,7 @@ function DockMore({ items, tabbable, onFocusIndex, index }: {
         {dotted && <span className="rail-dot" aria-hidden />}
       </button>
       {open && (
-        <AnchoredPopover anchorId={DOCK_MORE_ID} id={DOCK_MENU_ID} className="ap-pop" role="menu"
+        <AnchoredPopover anchorId={DOCK_MORE_ID} id={DOCK_MENU_ID} className="ap-pop dock-more-pop" role="menu"
           labelledBy={DOCK_MORE_ID} start={menu} onClose={() => setMenu(null)}>
           {items.map(item => (
             <button key={item.id} type="button" role="menuitem" className="ap-menu-item" data-rail-item={item.id}
@@ -324,7 +327,7 @@ function DockMore({ items, tabbable, onFocusIndex, index }: {
 }
 
 /** The phone's one dock: the four panels and Settings, and a More for the rest. */
-export function EdgeDock({ items, more }: { items: RailItem[]; more: RailItem[] }) {
+export function EdgeDock({ items, more, offline = false }: { items: RailItem[]; more: RailItem[]; offline?: boolean }) {
   const t = useT();
   const hint = useHint("above");
   const roving = useRoving(items.length + 1, "horizontal");
@@ -334,7 +337,7 @@ export function EdgeDock({ items, more }: { items: RailItem[]; more: RailItem[] 
     <div ref={ref} className="edge-dock" role="toolbar" aria-label={t("board.rail.tools")} onKeyDown={roving.onKeyDown}>
       {items.map((item, i) => (
         <RailButton key={item.id} item={item} index={i} tabbable={i === roving.active}
-          onFocusIndex={roving.setCurrent} hint={hint} variant="dock" />
+          onFocusIndex={roving.setCurrent} hint={hint} variant="dock" offlineDot={offline && item.id === "machine"} />
       ))}
       <DockMore items={more} index={items.length} tabbable={roving.active === items.length} onFocusIndex={roving.setCurrent} />
       {hint.node}

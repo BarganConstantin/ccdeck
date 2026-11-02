@@ -60,6 +60,9 @@ describe("the rail panels at phone widths (#849)", () => {
     // They stay side by side on a desktop (the owner's call after #847 stacked
     // them); only below 640px, where the shifted machine panel sat at -199,
     // does each of them take the window's width.
-    expect(narrow).toMatch(/\.app \.usage-panel,\s*\.app \.sysdetail\s*\{[^}]*left:\s*8px[^}]*right:\s*8px[^}]*width:\s*auto/);
+    // CHANGED ON PURPOSE (the owner's phone layout): each is a bottom sheet the
+    // window's whole width (phone-sheet.css), not 8px in from each edge.
+    const sheet = readFileSync(fileURLToPath(new URL("../styles/phone-sheet.css", import.meta.url)), "utf8");
+    expect(sheet).toMatch(/\.app\.app\.app \.usage-panel,\s*\.app\.app\.app \.sysdetail,[^{]*\{[^}]*left:\s*0;[^}]*right:\s*0;[^}]*width:\s*100%/);
   });
 });

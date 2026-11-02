@@ -88,6 +88,10 @@
     border: 1px solid var(--line);
     border-radius: var(--r-panel);
   }
+  /* Inside the Sessions panel (SessionList's `offline`), as the frame draws it:
+     14 under the header and 12 in from each side, then the list. It is the
+     panel's own, so the list can never be drawn over it. */
+  .session-list .conn-banner-phone { flex: none; margin: 14px 12px 0; }
   .conn-banner-phone .conn-unreachable { flex: none; display: inline-flex; padding-top: 2px; color: var(--muted); }
   .conn-banner-phone .conn-phone-text { display: flex; flex-direction: column; min-width: 0; }
   .conn-banner-phone .conn-phone-title { font-weight: 600; color: var(--text); }

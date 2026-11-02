@@ -517,6 +517,9 @@ export interface TerminalSessionController {
   focus(): void;
   /** Keys typed before the pane could take them (type-ahead.ts). */
   type(text: string): void;
+  /** One key from the phone's key row, as the bytes the terminal would have sent
+   *  for it: through the same input the keyboard types into. */
+  press(bytes: string): void;
   release(): void;
   dispose(): void;
   snapshot(): SessionSnapshot;
@@ -1111,6 +1114,7 @@ export function createTerminalSession(deps: SessionDeps, callbacks: SessionCallb
         else events.onInput(keys[i]);
       }
     },
+    press(bytes) { events.onInput(bytes); },
     release() { term?.blur(); },
 
     dispose() {
@@ -1157,6 +1161,7 @@ export interface TerminalSessionView extends SessionSnapshot {
   retry(): void;
   focus(): void;
   type(text: string): void;
+  press(bytes: string): void;
   release(): void;
 }
 
@@ -1202,7 +1207,8 @@ export function useTerminalSession(options: UseTerminalSessionOptions): Terminal
   const retry = useCallback(() => controller.current?.retry(), []);
   const focus = useCallback(() => controller.current?.focus(), []);
   const type = useCallback((text: string) => controller.current?.type(text), []);
+  const press = useCallback((bytes: string) => controller.current?.press(bytes), []);
   const release = useCallback(() => controller.current?.release(), []);
 
-  return { ...snapshot, hostRef, adopt, retry, focus, type, release };
+  return { ...snapshot, hostRef, adopt, retry, focus, type, press, release };
 }

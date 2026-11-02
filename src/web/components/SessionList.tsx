@@ -236,13 +236,19 @@ interface Props {
    *  (use-stage.ts newSessionFrom), given the button as the popover's anchor.
    *  Absent where that launch does not exist, and the Plus with it. */
   onNewSession?: (anchor: HTMLElement) => void;
+  /** The phone's "Can't reach your computer" card, drawn inside the panel under
+   *  its header so the list can never cover it. Absent when the link is up. */
+  offline?: ReactNode;
+  /** The empty board's notice, on a phone, where this panel covers the canvas
+   *  it would sit on: shown in place of the one-line empty state. */
+  emptyNotice?: ReactNode;
 }
 
 /** A row that has left the list, kept drawn until its fade and its closing space are done. */
 interface Ghost { row: Row; group: RailGroup; after: string | null; until: number }
 interface Entry { id: string; row: Row; ghost: boolean }
 
-export default function SessionList({ state, now, selectedIds, onSelect, onClose, removedIds, onBringBackAll, leaving = false, landed = null, watching, quota, activeAlias = null, onOpenUsage, onOpenKeys, onNewSession }: Props) {
+export default function SessionList({ state, now, selectedIds, onSelect, onClose, removedIds, onBringBackAll, leaving = false, landed = null, watching, quota, activeAlias = null, onOpenUsage, onOpenKeys, onNewSession, offline = null, emptyNotice = null }: Props) {
   const t = useT();
   const singleKeys = useSingleKeyShortcuts();
   // `state.revision`, not `state.lastSeq`: the prop is `stateRef.current` and
@@ -400,7 +406,9 @@ export default function SessionList({ state, now, selectedIds, onSelect, onClose
 
   const nodes: ReactNode[] = [];
   if (rows.length === 0) {
-    nodes.push(<li key="empty" className="sl-empty">{t("board.list.empty")}</li>);
+    nodes.push(emptyNotice
+      ? <li key="empty" className="sl-empty sl-empty-notice">{emptyNotice}</li>
+      : <li key="empty" className="sl-empty">{t("board.list.empty")}</li>);
   } else if (counts[0] === 0) {
     // Quiet when nothing needs you; the count is the rows at work.
     nodes.push(<li key="nobody" className="sl-nobody"><RailGlyph kind="idle" /><span>{nobodyWaitingText(counts[1])}</span></li>);
@@ -468,6 +476,7 @@ export default function SessionList({ state, now, selectedIds, onSelect, onClose
           <button type="button" className="sl-icon-btn sl-close" onClick={onClose} title={withKey(t("board.list.hideSidebar"), "L", singleKeys)} aria-label={t("board.list.hide")}><CloseGlyph /></button>
         </div>
       </div>
+      {offline}
       <ul className="sl-rows" ref={list}>
         {nodes}
       </ul>

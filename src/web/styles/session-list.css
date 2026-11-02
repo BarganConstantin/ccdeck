@@ -500,10 +500,14 @@
   .session-list .sl-usage-btn { min-height: 44px; }
   .session-list .sl-row { min-height: 62px; }
   .session-list .sl-more, .session-list .sl-fold-btn { min-height: 44px; }
+  /* Rows at 8 in from each edge: the 374 the phone frame draws in a 390 panel. */
+  .session-list .sl-rows { padding-inline: 8px; }
+  /* Above the list, so the header buttons' 44 targets reach down over its top. */
+  .session-list .sl-header { position: relative; z-index: 1; }
   .session-list .sl-close { display: inline-flex; }
   /* 24 to look at, 44 to press, and the header stays 36. */
   .session-list .sl-icon-btn { position: relative; }
-  .session-list .sl-icon-btn::after { content: ""; position: absolute; inset: -10px; }
+  .session-list .sl-icon-btn::after { content: ""; position: absolute; inset: -6px -10px -14px; }
 }
 
 /* REDUCED MOTION: a joining row's space opens at once and only its opacity

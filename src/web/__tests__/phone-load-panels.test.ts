@@ -7,11 +7,11 @@
 // machine panel its foot. A 390px load opened all three, with the accounts
 // drawer over Usage and no part of the board in sight.
 //
-// A phone's load opens one sheet at most: Usage when it is wanted, the machine
-// panel when only it is, and never the drawer, which opens from the dock. What
-// is stored is not touched — a held panel is not the reader closing it — so a
-// wider window opens what it always did, and the reader's own open or close of
-// a held panel is written as ever.
+// A phone's load opens Sessions, full width, and no panel: Usage, the machine
+// panel and Accounts are sheets over it, opened from their doors in the dock.
+// What is stored is not touched — a held panel is not the reader closing it —
+// so a wider window opens what it always did, and the reader's own open or
+// close of a held panel is written as ever.
 //
 // Run, not read: both hooks on fake-react.ts's React, against a stubbed store
 // and a matchMedia that answers the dock's breakpoint (edge-dock-phone.test.ts
@@ -78,32 +78,35 @@ const kept = (panel: Panel) => stored[KEYS[panel]] ?? null;
 beforeEach(() => { stored = {}; writes = []; });
 afterEach(() => { vi.unstubAllGlobals(); });
 
-describe("a phone's load opens one sheet at most", () => {
-  it("opens Usage alone on a first run at 390px", () => {
+// CHANGED ON PURPOSE (the owner's phone layout): a phone opens on Sessions, full
+// width, with no panel open. Usage, This machine and Accounts are sheets over it
+// from their doors, so none of them opens by itself.
+describe("a phone's load opens Sessions and no panel", () => {
+  it("opens Sessions alone on a first run at 390px", () => {
     windowAt(390);
-    expect(load().open).toEqual({ sessionList: false, accounts: false, usage: true, machine: false });
+    expect(load().open).toEqual({ sessionList: true, accounts: false, usage: false, machine: false });
   });
 
-  it("opens Usage alone when every panel was left open", () => {
+  it("opens Sessions alone when every panel was left open", () => {
     windowAt(390, { sessionList: "1", accounts: "1", usage: "1", machine: "1" });
-    expect(load().open).toEqual({ sessionList: false, accounts: false, usage: true, machine: false });
+    expect(load().open).toEqual({ sessionList: true, accounts: false, usage: false, machine: false });
   });
 
-  it("opens the machine panel when it is the one sheet wanted", () => {
-    windowAt(390, { accounts: "1", usage: "0", machine: "1" });
-    expect(load().open).toEqual({ sessionList: false, accounts: false, usage: false, machine: true });
+  it("opens Sessions even when the reader had shut it on a wider window, and when only the machine panel was wanted", () => {
+    windowAt(390, { sessionList: "0", accounts: "1", usage: "0", machine: "1" });
+    expect(load().open).toEqual({ sessionList: true, accounts: false, usage: false, machine: false });
   });
 
-  it("never opens the drawer by itself, whichever panel of the column was left open", () => {
-    windowAt(390, { sessionList: "1", usage: "0", machine: "0" });
-    expect(load().open.sessionList).toBe(false);
+  it("never opens a sheet by itself, whichever panel was left open", () => {
+    windowAt(390, { sessionList: "1", usage: "1", machine: "1" });
+    expect(load().open).toMatchObject({ usage: false, machine: false });
     windowAt(390, { accounts: "1", usage: "0", machine: "0" });
     expect(load().open.accounts).toBe(false);
   });
 
   it("holds at the dock's own breakpoint, and not a pixel wider", () => {
     windowAt(640);
-    expect(load().open).toEqual({ sessionList: false, accounts: false, usage: true, machine: false });
+    expect(load().open).toEqual({ sessionList: true, accounts: false, usage: false, machine: false });
     // One pixel wider the column and both sheets come back — but 641px has no
     // room for the board beside both right panels, so the machine panel waits
     // behind Usage there as it does on any window too narrow for both.
@@ -117,8 +120,15 @@ describe("a held panel is not the reader closing it", () => {
     windowAt(390);
     load();
     expect(kept("accounts")).toBeNull();
+    expect(kept("usage")).toBeNull();
     expect(kept("machine")).toBeNull();
-    expect(writes.filter(([k]) => k === KEYS.accounts || k === KEYS.machine)).toEqual([]);
+    expect(writes.filter(([k]) => k === KEYS.accounts || k === KEYS.usage || k === KEYS.machine)).toEqual([]);
+  });
+
+  it("opens Sessions on a phone without writing it over a wider window's choice", () => {
+    windowAt(390, { sessionList: "0" });
+    expect(load().open.sessionList).toBe(true);
+    expect(kept("sessionList")).toBe("0");
   });
 
   it("keeps an open panel on record as open", () => {
@@ -145,14 +155,25 @@ describe("a held panel is not the reader closing it", () => {
     expect(kept("machine")).toBe("0");
   });
 
-  it("writes the reader's open of a held session list", () => {
+  it("writes the reader's own close of the list on a phone, and its open again", () => {
     windowAt(390, { sessionList: "1" });
     const deck = load();
     deck.left.toggleSessionList();
+    expect(deck.open.sessionList).toBe(false);
+    expect(kept("sessionList")).toBe("0");
+    deck.left.toggleSessionList();
     expect(deck.open.sessionList).toBe(true);
     expect(kept("sessionList")).toBe("1");
+  });
+
+  it("opens Accounts over the list on a phone without taking its place", () => {
+    windowAt(390, { sessionList: "1", accounts: "1" });
+    const deck = load();
+    deck.left.toggleAccountsPanel();
+    expect(deck.open).toMatchObject({ sessionList: true, accounts: true });
     deck.left.toggleSessionList();
-    expect(kept("sessionList")).toBe("0");
+    deck.left.toggleSessionList();
+    expect(deck.open).toMatchObject({ sessionList: true, accounts: true });
   });
 });
 

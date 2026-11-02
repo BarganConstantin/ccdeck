@@ -66,6 +66,9 @@ import { ReadoutGroup } from "./components/TopbarReadouts";
 import CategoryFilterBar from "./components/CategoryFilterBar";
 import CanvasMain from "./components/CanvasMain";
 import DeckBanner from "./components/DeckBanner";
+import { OfflineCard } from "./components/ConnectionBanner";
+import { usePhoneSheets } from "./use-phone-sheets";
+import { SHEET_CLOSE_MS, SHEET_FADE_MS } from "./phone-sheet";
 import DeckDialogs from "./components/DeckDialogs";
 import StatusBar from "./components/StatusBar";
 import ErrorBoundary from "./components/ErrorBoundary";
@@ -206,7 +209,13 @@ function Inner() {
    *  length, --dur-fast, or --dur-xfade under reduced motion (the sheet,
    *  machine-panel.css). */
   const reducedMotion = useMediaQuery(REDUCED_MOTION_QUERY);
-  const railExitMs = useMemo(() => tokenMs(reducedMotion ? "--dur-xfade" : "--dur-fast"), [reducedMotion]);
+  // A phone is the Board alone (and the dock instead of the stripes): asked
+  // here because Workspace, which the stage hook decides, is never on one, and
+  // because a sheet on a phone is held for its own, longer, exit.
+  const phone = useMediaQuery(PHONE_QUERY);
+  const railExitMs = useMemo(
+    () => phone ? (reducedMotion ? SHEET_FADE_MS : SHEET_CLOSE_MS) : tokenMs(reducedMotion ? "--dur-xfade" : "--dur-fast"),
+    [reducedMotion, phone]);
   const usagePhase = usePanelPresence(usagePanelOpen, railExitMs);
   const machinePhase = usePanelPresence(machinePanelOpen, railExitMs);
 
@@ -262,7 +271,7 @@ function Inner() {
   // for them comes out of useDesktopUpdate below, which itself keys off `live`.
   // Bound once that hook has run; it is a stable callback.
   const desktopUpdateRef = useRef<(data: string) => void>(() => {});
-  const { live, tabCapped, everConnected, liveSince } =
+  const { live, tabCapped, everConnected, liveSince, lastNewsAt } =
     useEventStream({ stateRef, rerender, pauseGate, chimesRef, desktopUpdateRef });
   // The deck's own version check — the banner, the chip and the poll behind
   // them — lives in use-version-check.ts. `live` drives the reconnect refresh.
@@ -300,7 +309,11 @@ function Inner() {
   /** How wide the left column is drawn: the open panel's own width, or 0 —
    *  never anything the two panels make between them (LeftColumn.tsx). The
    *  accounts panel has no width when neither provider is installed. */
-  const leftColumnTarget = leftColumnWidth(leftPanel === "accounts" && !(providers.claude || providers.codex) ? null : leftPanel, railWidth);
+  const leftColumnTarget = leftColumnWidth(
+    // On a phone the column holds the list alone: Accounts is a sheet over it.
+    phone ? (sessionListOpen ? "session-list" : null)
+      : leftPanel === "accounts" && !(providers.claude || providers.codex) ? null : leftPanel,
+    railWidth);
   const columnSettleRef = useColumnSettle(leftColumnTarget);
   const accountsDrawn = isDrawn(accountsPanelOpen, accountsPhase) && (providers.claude || providers.codex);
   // Settings › General's door to Local network (#2176), which is the accounts
@@ -624,9 +637,6 @@ function Inner() {
   // the right of the canvas, the board gathered into a navigator on its left,
   // and every way in and out of it — use-stage.ts. With the flag off it is
   // inert: every entry point below answers "not mine".
-  // A phone is the Board alone (and the dock instead of the stripes): asked
-  // here because Workspace, which the stage hook decides, is never on one.
-  const phone = useMediaQuery(PHONE_QUERY);
   // Board or Workspace, as the browser remembered it (use-view.ts). Whether the
   // layout follows it is the stage hook's: it holds the gate (use-stage.ts).
   const viewState = useView();
@@ -921,23 +931,86 @@ function Inner() {
     openQuickOpen,
     feedbackUnread, openFeedbackConversations,
   });
-  /** On a phone the list is a drawer over the canvas it would otherwise hide,
-   *  so picking a session there also closes it, and the session is on screen. */
+  /** A phone opens on Sessions, and a row there opens that session's pane when
+   *  the deck has a terminal for it (the Command Panel is on), else the
+   *  Inspector, a sheet over the list. The pane covers the list, so the list
+   *  closes to show it and comes back when the pane is left. */
+  const paneFromListRef = useRef(false);
   const pickSession = useCallback((sessionId: string) => {
+    if (phone && stage.enabled) {
+      if (removedAgentIds.has(sessionId)) bringBack([sessionId]);
+      openInPane(sessionId);
+      markLanded(sessionId);
+      paneFromListRef.current = true;
+      closeSessionListToCanvas();
+      return;
+    }
+    // No terminal: the Inspector opens as a sheet and the list stays under it.
     openSession(sessionId);
-    if (phone) closeSessionListToCanvas();
-  }, [openSession, phone, closeSessionListToCanvas]);
+  }, [openSession, phone, closeSessionListToCanvas, stage.enabled, openInPane, markLanded, removedAgentIds, bringBack]);
+  // Back from the pane, the phone is on Sessions again.
+  const paneOpen = stage.enabled && stage.shell.phase !== "closed";
+  const paneWasOpen = useRef(false);
+  useEffect(() => {
+    if (paneWasOpen.current && !paneOpen) {
+      const back = phone && paneFromListRef.current;
+      paneFromListRef.current = false;
+      if (back && !sessionListOpen) toggleSessionList();
+    }
+    paneWasOpen.current = paneOpen;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [phone, paneOpen]);
   const closeAccounts = () => { (providers.claude ? panelReturn.accounts : panelReturn.codex)(); closeAccountsPanel(); };
+  // The empty board's notice (nothing seen yet, the stream unreachable, too many
+  // tabs). On a phone the Sessions list covers the canvas it would sit on, so
+  // the notice is the list's own empty state, the panel's width less 8 a side;
+  // the card for a dropped connection already says that one.
+  const emptyHero = (reservedRight: number) => agentCount === 0 ? (!live && tabCapped
+    ? <TabCapHero reservedRight={reservedRight} />
+    : <EmptyHero live={live} everConnected={everConnected} providers={providers} workspace={workspace} onTour={openTour} reservedRight={reservedRight} />) : null;
+  const heroInList = phone && sessionListDrawn && !(everConnected && !live);
+  // The four panels that are sheets on a phone: one at a time, Esc and a flick
+  // close the one up (use-phone-sheets.ts); nothing here opens or sends.
+  const sheets = usePhoneSheets({
+    phone,
+    open: { accounts: accountsDrawn && accountsPanelOpen, usage: usageRail.shown, machine: machineRail.shown, inspector: detailShown },
+    close: {
+      accounts: closeAccounts,
+      usage: () => { panelReturn.usage(); usageRail.set(false); },
+      machine: () => { panelReturn.machine(); machineRail.set(false); },
+      inspector: () => { panelReturn.detail(); setDetailOpen(false); },
+    },
+    modalOpenRef,
+  });
   const accountsSwitch = accountSide.both
     ? <AccountsSwitch shown={shownAccountProvider} notices={accountSide.notices} onPick={accountSide.pick} />
     : undefined;
   const sideState = (side: AccountSide) => accountSide.bothMounted ? (side === shownAccountProvider ? "shown" : "hidden") : undefined;
+  // One Accounts panel: with both CLIs a switch in its header shows one side
+  // and keeps the other mounted (use-account-side.ts).
+  const accountsNodes = (
+    <>
+      {accountsDrawn && (shownAccountProvider === "claude" || accountSide.bothMounted) && (
+        <AccountsPanel leaving={isLeaving(accountsPanelOpen, accountsPhase)} onReport={dialogs.openFeedback}
+          onRoster={attention.observe} onClose={closeAccounts}
+          lanWanted={lanWanted} onLanShown={lanShown} switcher={accountsSwitch}
+          side={sideState("claude")} onNotice={accountSide.noteClaude}
+          planLabel={meterQuota.reading?.planLabel ?? null} />
+      )}
+      {accountsDrawn && (shownAccountProvider === "codex" || accountSide.bothMounted) && (
+        <CodexAccountsPanel leaving={isLeaving(accountsPanelOpen, accountsPhase)}
+          onClose={closeAccounts} switcher={accountsSwitch}
+          side={sideState("codex")} onNotice={accountSide.noteCodex} />
+      )}
+    </>
+  );
 
   return (
     // data-view exists only in Workspace, so with the Command Panel off the
     // root is the root it was; data-zoom folds the list and the Inspector
     // (workspace.css); the switch between the views is view-switch.ts.
-    <div ref={appRef} className="app" data-view={inWorkspace ? "workspace" : undefined} data-zoom={zoomPhase}>
+    <div ref={appRef} className="app" data-view={inWorkspace ? "workspace" : undefined} data-zoom={zoomPhase}
+      data-sheet={phone ? sheets.sheet ?? undefined : undefined}>
       {/* The deck's regions, and why each one is the element it is (#381).
           Before this the whole page was <div>s apart from the topbar, so a
           screen reader's landmark rotor listed one entry — Banner — for an
@@ -1003,7 +1076,14 @@ function Inner() {
           control before the region it discloses — or, on a phone, the dock
           that stands in for both stripes and the utilities. */}
       {phone
-        ? <EdgeDock items={[...rails.left, ...rails.right[0], rails.utilities[0]]} more={[rails.search, ...rails.capacity, ...rails.right.slice(1).flat(), ...rails.integrations, ...rails.explore, rails.utilities[1]]} />
+        // Five doors, as the phone frame draws them: Accounts, Sessions, Usage,
+        // Machine and More. Settings and the rest are in More. One door is
+        // active at a time: Sessions gives way while a sheet that has a door
+        // of its own is up over it.
+        ? <EdgeDock
+            items={[...rails.left, ...rails.right[0]].map(item => item.id === "session-list" && sheets.sheet != null && sheets.sheet !== "inspector" ? { ...item, open: false } : item)}
+            more={[rails.search, ...rails.capacity, ...rails.right.slice(1).flat(), ...rails.integrations, ...rails.explore, ...rails.utilities]}
+            offline={everConnected && !live} />
         : <EdgeRail label={t("board.rail.tools")} groups={rails.panelBar} foot={rails.panelFoot} />}
 
       {/* Mounted whether or not anything was removed, for the reason the
@@ -1022,27 +1102,19 @@ function Inner() {
         restart={restart} versionCheck={versionCheck} upgrade={upgrade} oldNameNotice={oldNameNotice}
         rating={rating} onFeedback={dialogs.openFeedback}
         everConnected={everConnected} live={live} paused={paused} phone={phone}
+        lastNewsAt={lastNewsAt} cardInList={sessionListDrawn}
       />
 
       {/* The left column, one element both panels are drawn in: its width is
           the open panel's, eased from the last one, and a switch cross-fades
           the two inside it — components/LeftColumn.tsx. */}
+      {/* On a phone Accounts is a sheet over Sessions, so it is drawn outside the
+          column (a sheet inside the column's stacking layer would sit under the
+          scrim) and the column holds the list alone. */}
+      {phone && accountsNodes}
       {(sessionListDrawn || accountsDrawn) && (
         <LeftColumn width={leftColumnTarget}>
-          {/* One Accounts panel: with both CLIs a switch in its header shows
-              one side and keeps the other mounted (use-account-side.ts). */}
-          {accountsDrawn && (shownAccountProvider === "claude" || accountSide.bothMounted) && (
-            <AccountsPanel leaving={isLeaving(accountsPanelOpen, accountsPhase)} onReport={dialogs.openFeedback}
-              onRoster={attention.observe} onClose={closeAccounts}
-              lanWanted={lanWanted} onLanShown={lanShown} switcher={accountsSwitch}
-              side={sideState("claude")} onNotice={accountSide.noteClaude}
-              planLabel={meterQuota.reading?.planLabel ?? null} />
-          )}
-          {accountsDrawn && (shownAccountProvider === "codex" || accountSide.bothMounted) && (
-            <CodexAccountsPanel leaving={isLeaving(accountsPanelOpen, accountsPhase)}
-              onClose={closeAccounts} switcher={accountsSwitch}
-              side={sideState("codex")} onNotice={accountSide.noteCodex} />
-          )}
+          {!phone && accountsNodes}
           {sessionListDrawn && (
             <SessionList
               leaving={isLeaving(sessionListOpen, sessionListPhase)}
@@ -1060,6 +1132,8 @@ function Inner() {
               onOpenUsage={() => usageRail.set(o => !o)}
               onOpenKeys={inWorkspace ? openSessionWithKeys : undefined}
               onNewSession={inWorkspace && stage.enabled ? stage.newSessionFrom : undefined}
+              offline={phone && everConnected && !live && !restart.restarting ? <OfflineCard lastNewsAt={lastNewsAt} /> : undefined}
+              emptyNotice={heroInList ? emptyHero(0) : undefined}
             />
           )}
         </LeftColumn>
@@ -1077,9 +1151,7 @@ function Inner() {
         head={boardHead} headInset={railInsetRef.current}
         joins={historyReplayed && settled} closing={closing}
       >
-        {agentCount === 0 && (!live && tabCapped
-          ? <TabCapHero reservedRight={railInsetRef.current} />
-          : <EmptyHero live={live} everConnected={everConnected} providers={providers} workspace={workspace} onTour={openTour} reservedRight={railInsetRef.current} />)}
+        {!heroInList && emptyHero(phone ? 0 : railInsetRef.current)}
         {/* `|| hiddenCats.size > 0` is the half that was missing (#783). The
             bar was gated on categories present on the canvas NOW, while the
             filter is independent state that nothing trims — so hide a category,
@@ -1200,6 +1272,9 @@ function Inner() {
           onClose={inWorkspace && inspectorColumn ? foldInspector : () => { panelReturn.detail(); setDetailOpen(false); }}
         />
       ) : null}
+
+      {/* A phone's sheets lie over a scrim; a press on it closes the one up. */}
+      {phone && <div className="phone-scrim" data-open={sheets.sheet ? "" : undefined} aria-hidden="true" onClick={sheets.closeSheet} />}
 
       {account.on && <Suspense fallback={null}><AccountBridge appliers={accountAppliers} /></Suspense>}
 

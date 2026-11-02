@@ -99,7 +99,9 @@ describe("the dot itself", () => {
 
   it("sits on the glyph's corner on the bar and in the dock, as a badge does", () => {
     expect(rule(".rail-btn-bar .rail-dot")).toMatch(/top: .*left: /s);
-    expect(edges).toMatch(/\.rail-btn-dock \.rail-dot \{ top: 8px; left: calc\(50% \+ 5px\); \}/);
+    // CHANGED ON PURPOSE (V4's Figma phone frame): the glyph is 12 under the
+    // dock's border now, so the dot on its corner is 10 down, not 8.
+    expect(edges).toMatch(/\.rail-btn-dock \.rail-dot \{ top: 10px; left: calc\(50% \+ 5px\); \}/);
   });
 
   it("is redrawn in a forced-colours theme, in the one block that is last", () => {

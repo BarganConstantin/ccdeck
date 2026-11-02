@@ -294,7 +294,7 @@
    rare dialogs behind a More. 56px tall, a 48px target in it. */
 .edge-dock { display: none; }
 @media (max-width: 640px) {
-  :root { --edge-w: 0px; }
+  :root { --edge-w: 0px; --dock-h: 58px; }
   .app {
     box-sizing: border-box;
     padding-bottom: calc(var(--dock-h) + env(safe-area-inset-bottom));
@@ -308,22 +308,29 @@
     box-sizing: border-box;
     height: calc(var(--dock-h) + env(safe-area-inset-bottom));
     display: flex;
-    align-items: flex-start;
-    padding: 4px 2px env(safe-area-inset-bottom);
+    align-items: stretch;
+    padding: 0 0 env(safe-area-inset-bottom);
     background: var(--panel);
     border-top: 1px solid var(--line);
     user-select: none;
   }
+  /* The phone frame's dock: five cells of an equal share, the 14px glyph 13
+     below the dock's top edge (12 under its border) and the 11/14 label 2
+     under the glyph (the frame's 2.5, rounded to the spacing ladder). Every cell is the dock's whole height, well over 44. The
+     word is --muted; the door that is up has --text, with no pill, bar or fill. */
   .rail-btn-dock {
     flex: 1 1 0;
     min-width: 0;
-    height: 48px;
-    padding: 0;
+    min-height: 44px;
+    padding: 12px 0 0;
+    border-radius: 0;
     flex-direction: column;
-    justify-content: center;
-    gap: 6px;
+    justify-content: flex-start;
+    gap: 2px;
     font-size: calc(11px + var(--ui-text-increase, 0px));
   }
+  .rail-btn-dock .glyph { width: 14px; height: 14px; }
+  .rail-btn-dock[aria-expanded="true"] { background: transparent; }
   .rail-btn-dock .rail-word {
     max-width: 100%;
     /* Its own line box: at the button's line-height of 1 the clip below cut
@@ -335,32 +342,22 @@
   }
   .rail-btn-dock .rail-badge {
     position: absolute;
-    top: 4px;
+    top: 6px;
     left: calc(50% + 4px);
   }
-  .rail-btn-dock .rail-dot { top: 8px; left: calc(50% + 5px); }
-  /* Open is the --selected fill the stripes draw (`.rail-btn[aria-expanded]`
-     above) and the same line, on the dock's top edge, the seam it shares with
-     the panel above it. At once, like the stripes'. */
-  .rail-btn-dock::before {
-    content: "";
+  .rail-btn-dock .rail-dot { top: 10px; left: calc(50% + 5px); }
+  /* The deck cannot reach the computer: a 7px --err dot 2 right of the Machine
+     glyph's top right corner (the glyph spans 7 either side of the cell's
+     centre, so the dot starts 9 past it, 10 below the dock's border). */
+  .rail-btn-dock .rail-offline-dot {
     position: absolute;
-    top: -5px;
-    left: 30%;
-    right: 30%;
-    height: 2px;
-    border-radius: 1px;
-    background: var(--text);
-    opacity: 0;
-  }
-  .rail-btn-dock[aria-expanded="true"]::before { opacity: 1; }
-  /* The detail sheet and the rail panels end above the dock instead of under
-     it. */
-  .app .detail { bottom: calc(var(--dock-h) + env(safe-area-inset-bottom)); }
-  .app .usage-panel { max-height: calc(50vh - 38px - var(--dock-h) / 2); }
-  .app .sysdetail {
-    bottom: calc(var(--dock-h) + env(safe-area-inset-bottom) + 8px);
-    max-height: calc(50vh - 38px - var(--dock-h) / 2);
+    top: 10px;
+    left: calc(50% + 9px);
+    width: 7px;
+    height: 7px;
+    border-radius: 4px;
+    background: var(--err);
+    pointer-events: none;
   }
 }
 

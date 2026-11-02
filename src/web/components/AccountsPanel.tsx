@@ -45,6 +45,7 @@ import { homeTitle, isHome } from "../auto-choice";
 import { POLL_MS, useAccountRoster } from "../use-account-roster";
 import { reloadText } from "../accounts-reload";
 import { useT } from "../i18n";
+import SheetHandle from "./SheetHandle";
 import { translate } from "../i18n/translate";
 import { tNodes } from "../accounts-rich";
 import { useRosterFocus } from "../use-roster-focus";
@@ -536,6 +537,7 @@ export default function AccountsPanel({ onClose, leaving, onReport, onRoster, la
     <aside className={`accounts-panel${leaving ? " leaving" : ""}`} id="accounts-panel" aria-label={t("accounts.panel.label")}
       hidden={side === "hidden"} data-side={side}
       onFocus={rosterFocus.onFocus} onBlur={rosterFocus.onBlur}>
+      <SheetHandle />
       {view === "accounts" && (
         <AccountsHeader canShare={(data?.accounts?.length ?? 0) > 0}
           onAdd={() => setAddOpen(true)}

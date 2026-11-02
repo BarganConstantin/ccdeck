@@ -700,7 +700,9 @@ describe("the geometry follows the header as it is drawn", () => {
   it("TerminalStage measures .ts-head and reports it through onHeadH, with the bar's one measure", () => {
     // keys-bar-rows.test.ts runs that measure (rounding, a part not laid out).
     expect(ts).toContain("onHeadH?(height: number): void;");
-    expect(ts).toContain('useDrawnHeight(rootRef, ".ts-bar", p.onBarH);');
+    // CHANGED ON PURPOSE (the owner's phone layout): the bar's measure takes the
+    // phone's key row under it as a second piece, so the rows are fitted above both.
+    expect(ts).toContain('useDrawnHeight(rootRef, ".ts-bar", p.onBarH, ".ts-keyrow");');
     expect(ts).toContain('useDrawnHeight(rootRef, ".ts-head", p.onHeadH);');
   });
 

@@ -59,44 +59,10 @@
 
 /* THE TWO RAIL PANELS STAY SIDE BY SIDE, over the canvas, as they were before
    #847: the owner chose that on 2026-09-14 after seeing them stacked in one
-   column. On a phone the shifted machine panel would sit past the left edge
-   (#849), so below the sheet's 640px breakpoint each of them spans the window
-   instead. The desktop layout is untouched. */
-@media (max-width: 640px) {
-  .app .usage-panel,
-  .app .sysdetail { left: 8px; right: 8px; width: auto; }
-  /* AND THEY STACK, because spanning the window is only half an answer. Both
-     are `position: fixed; top: 60px; z-index: 20`, and this block used to
-     change the horizontal box alone — so with both panels open they occupied
-     the IDENTICAL rectangle and the later one in DOM order, the machine panel,
-     painted over the whole of the usage panel. Measured in Firefox at a 500px
-     viewport, both open:
-
-       .usage-panel  left 8  right 492  top 57  bottom 257
-       .sysdetail    left 8  right 492  top 57  bottom 257   — 96,800px² of overlap
-
-     against the desktop layout at 1200px, which is the design and is untouched:
-
-       .usage-panel  left 552  right 832
-       .sysdetail    left 252  right 532   — the 20px gap .shifted exists to open
-
-     Both panels persist their open state, so a user who leaves the pair open on
-     a desktop and then opens the deck on a phone saw one panel and a `U` key
-     that flipped `aria-expanded` with nothing on screen moving.
-
-     Usage keeps the top because it keeps it everywhere else; the machine panel
-     takes the bottom. The cap is half the viewport less the chrome each end, so
-     the two cannot grow into each other whatever they contain — 8px of daylight
-     between them at any height. This is not the stacking the owner turned down
-     for #847: that was one column on a DESKTOP, where the pair fits side by
-     side. Here nothing fits beside anything. */
-  .app .usage-panel { max-height: calc(50vh - 38px); }
-  .app .sysdetail {
-    top: auto;
-    bottom: 8px;
-    max-height: calc(50vh - 38px);
-  }
-}
+   column. On a phone nothing fits beside anything, and the pair no longer
+   shares a rectangle either: each is a bottom sheet over Sessions, one at a
+   time, the width of the window (phone-sheet.css). The desktop layout is
+   untouched. */
 /* THE RAIL'S TWO PANELS ARRIVE AND LEAVE THE SAME WAY, because they are the
    same object: both fixed at the same top, both 280px, both opened by a button
    in the topbar directly above them. Before this one of them dropped 4px and

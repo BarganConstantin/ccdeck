@@ -88,4 +88,5 @@
 @import "./styles/theme-transition.css";         /* deliberate palette changes, including the canvas */
 @import "./styles/reading.css";
 @import "./styles/workspace.css";                /* Workspace: the Board's second view; after every sheet whose ties it wins on order */
+@import "./styles/phone-sheet.css";              /* the phone: Sessions, and the sheet that comes up over it; last of the layout sheets */
 @import "./styles/touch-and-forced-colours.css"; /* touch, and forced colours */

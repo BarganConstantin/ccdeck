@@ -15,6 +15,7 @@ import { useInspectorStatus } from "../inspector-state";
 import Detail from "./Detail";
 import Inspector from "./Inspector";
 import { useT } from "../i18n";
+import SheetHandle from "./SheetHandle";
 
 /** Build a portable JSON snapshot of a single session (root + every subagent)
  *  and trigger a browser download.
@@ -69,6 +70,7 @@ export default function DetailAside({ selected, now, openTool, setSummaryFor, on
     // under the reader is a landmark they cannot come back to. The agent's
     // name is the panel's <h2>, which is where a changing title belongs.
     <aside className="detail" aria-label={t("board.detailPanel.title")}>
+      <SheetHandle />
       <Inspector
         selected={selected}
         agents={stateRef.current.agents}

@@ -313,7 +313,9 @@ describe("#802 — the empty hero and the scope it was started with", () => {
   });
 
   it("is handed the workspace at the call site, which is what was missing", () => {
-    expect(app).toContain("<EmptyHero live={live} everConnected={everConnected} providers={providers} workspace={workspace} onTour={openTour} reservedRight={railInsetRef.current} />");
+    // CHANGED ON PURPOSE (the owner's phone layout): the call is a function of the
+    // room it is given (the canvas's, or none inside the phone's Sessions panel).
+    expect(app).toContain("<EmptyHero live={live} everConnected={everConnected} providers={providers} workspace={workspace} onTour={openTour} reservedRight={reservedRight} />");
     expect(hero).toContain("function agentNoneCopy(providers: Providers, workspace: string | null, t: TFunction) {");
   });
 });

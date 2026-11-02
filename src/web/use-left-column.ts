@@ -157,12 +157,17 @@ export function useLeftColumn(): LeftColumn {
    *  the column the reader left, and leaving gives it back. */
   const workspaceHeldRef = useRef(false);
   /** Left sidebar (session list) visibility — persisted across refresh. */
+  /** A phone opens on Sessions, full width: the list is the home screen there,
+   *  whatever the browser stored for a wider window, which this load leaves as
+   *  it was. */
+  const phoneOpenedRef = useRef(false);
   const [sessionListOpen, setSessionListOpen] = useState<boolean>(() => {
     const wanted = loadSessionListOpen();
-    if (wanted && loadsOnPhone()) { sessionListHeldRef.current = true; return false; }
+    if (loadsOnPhone()) { phoneOpenedRef.current = !wanted; return true; }
     return wanted;
   });
   useEffect(() => {
+    if (phoneOpenedRef.current) { phoneOpenedRef.current = false; return; }
     if (sessionListOpen) sessionListHeldRef.current = false;
     else if (sessionListHeldRef.current) return;
     if (workspaceHeldRef.current) return;
@@ -176,10 +181,10 @@ export function useLeftColumn(): LeftColumn {
   const accountsEvictedRef = useRef(false);
   const [accountsPanelOpen, setAccountsPanelOpen] = useState<boolean>(() => {
     const wanted = loadAccountsPanelOpen();
+    // A phone's load opens Sessions alone: Accounts is a sheet over it, from its door.
+    if (wanted && loadsOnPhone()) { accountsHeldRef.current = true; return false; }
     // The list holds the column on this load, so the panel waits behind it.
     if (wanted && sessionListOpen) { accountsEvictedRef.current = true; return false; }
-    // A phone's load leaves the drawer shut.
-    if (wanted && loadsOnPhone()) { accountsHeldRef.current = true; return false; }
     return wanted;
   });
   useEffect(() => {
@@ -210,7 +215,8 @@ export function useLeftColumn(): LeftColumn {
     setSessionListOpen(open => {
       // Opening the list takes the column. If the panel was in it, that is an
       // eviction to undo when the list closes (#824), not the panel closing.
-      if (!open) setAccountsPanelOpen(was => { if (was) accountsEvictedRef.current = true; return false; });
+      // On a phone Accounts is a sheet over the list, not a panel that takes its place.
+      if (!open && !loadsOnPhone()) setAccountsPanelOpen(was => { if (was) accountsEvictedRef.current = true; return false; });
       return !open;
     });
   }, []);
@@ -218,7 +224,7 @@ export function useLeftColumn(): LeftColumn {
     // The reader's own call on the panel ends any eviction.
     accountsEvictedRef.current = false;
     setAccountsPanelOpen(open => {
-      if (!open) setSessionListOpen(false);
+      if (!open && !loadsOnPhone()) setSessionListOpen(false);
       return !open;
     });
   }, []);
@@ -230,7 +236,7 @@ export function useLeftColumn(): LeftColumn {
   const openAccountsPanel = useCallback(() => {
     accountsEvictedRef.current = false;
     setAccountsPanelOpen(open => {
-      if (!open) setSessionListOpen(false);
+      if (!open && !loadsOnPhone()) setSessionListOpen(false);
       return true;
     });
   }, []);

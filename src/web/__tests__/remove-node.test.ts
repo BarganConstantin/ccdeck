@@ -571,7 +571,10 @@ describe("where Remove lives and what follows it", () => {
   it("keeps a removed session in the session list, marked, as the way back", () => {
     // Through pickSession, which closes a phone's drawer after openSession.
     expect(app).toMatch(/onSelect=\{pickSession\}[\s\S]*?removedIds=\{removedAgentIds\}/);
-    expect(app).toMatch(/const pickSession = useCallback\(\(sessionId: string\) => \{\s*openSession\(sessionId\);/);
+    // CHANGED ON PURPOSE (the owner's phone layout): a phone with the Command Panel on
+    // opens the pane first (bringing a removed session back as it does); every other
+    // pick is openSession, as it was.
+    expect(app).toMatch(/const pickSession = useCallback\(\(sessionId: string\) => \{\s*if \(phone && stage\.enabled\) \{\s*if \(removedAgentIds\.has\(sessionId\)\) bringBack\(\[sessionId\]\);[\s\S]*?\}\s*(?:\/\/[^\n]*\s*)?openSession\(sessionId\);/);
     expect(app).toMatch(/if \(removedAgentIds\.has\(sessionId\)\) bringBack\(\[sessionId\]\);\s*focusSession\(sessionId\);/);
     // The row (components/RailParts.tsx since V4's Attention rail) says it in the model tag's own face.
     expect(readFileSync(fileURLToPath(new URL("../components/RailParts.tsx", import.meta.url)), "utf8")).toMatch(/\{removed && <span className="sl-model">off the board<\/span>\}/);

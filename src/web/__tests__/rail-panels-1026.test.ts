@@ -81,32 +81,32 @@ function decl(selector: string, prop: string, body = css): string | null {
   return out;
 }
 
-describe("below 640px the two rail panels stack rather than share a rectangle (#1026)", () => {
-  it("gives the machine panel the bottom of the window, not the same top", () => {
-    // `top: auto` is the load-bearing half: without it, `bottom` joins the
-    // desktop `top` and the panel stretches over the other one rather than
-    // moving.
-    expect(decl(".app .sysdetail", "top", narrow)).toBe("auto");
+// CHANGED ON PURPOSE (the owner's phone layout): below 640px the two rail panels
+// are bottom sheets, one at a time (phone-sheet.ts), so they cannot share a
+// rectangle: the one opened last is the only one drawn. What was pinned here is
+// the rule of the stacked layout (the machine panel at the bottom, the two
+// capped to half the viewport each); what is pinned now is the sheet's.
+describe("below 640px the two rail panels are sheets that stand clear of the dock (#1026)", () => {
+  const sheet = at("../styles/phone-sheet.css").replace(/\/\*[\s\S]*?\*\//g, "").replace(/\s+/g, " ");
+  const rule = /\.app\.app\.app \.usage-panel, \.app\.app\.app \.sysdetail, \.app\.app\.app \.detail, \.app\.app\.app \.accounts-panel \{([^}]*)\}/.exec(sheet)?.[1] ?? "";
+
+  it("hangs both from the dock, not from a top the two would share", () => {
+    expect(rule).not.toBe("");
+    expect(rule).toContain("top: auto;");
+    expect(rule).toContain("bottom: var(--sheet-bottom);");
   });
 
-  it("stands the machine panel 8px clear of the dock along the bottom, safe area and all", () => {
-    // Its foot was 8px off the window's edge. Under 641px the controls stand in
-    // a dock along the bottom (edge-rails.css), fixed over the panel, so the
-    // same 8px of daylight is kept above the dock instead — the dock's own
-    // height, the phone's safe area, then the 8.
-    expect(decl(".app .sysdetail", "bottom", narrow)).toBe("calc(var(--dock-h) + env(safe-area-inset-bottom) + 8px)");
+  it("stands both clear of the dock along the bottom, safe area and all", () => {
+    // Under 641px the controls stand in a dock along the bottom
+    // (edge-rails.css), fixed over the sheet's foot: the sheet ends where the
+    // dock starts, by the dock's own height and the phone's safe area.
+    expect(rule).toContain("--sheet-bottom: calc(var(--dock-h) + env(safe-area-inset-bottom));");
     expect(decl(".edge-dock", "height", narrow)).toBe("calc(var(--dock-h) + env(safe-area-inset-bottom))");
   });
 
-  it("caps both so they cannot grow into each other, whatever they contain", () => {
-    // Half the viewport each, less the chrome at either end — measured at 8px
-    // of daylight with both panels overflowing — and less half the dock each,
-    // which takes its height out of the column the two share.
-    const cap = decl(".app .usage-panel", "max-height", narrow);
-    expect(cap, "the usage panel keeps the full-height cap and can reach the other").not.toBeNull();
-    expect(cap).toBe(decl(".app .sysdetail", "max-height", narrow));
-    expect(cap).toMatch(/50vh/);
-    expect(cap).toMatch(/var\(--dock-h\) \/ 2/);
+  it("caps both under the top bar, whatever they contain", () => {
+    expect(rule).toContain("--sheet-room: calc(100dvh - var(--topbar-h) - var(--sheet-bottom) - 16px);");
+    expect(rule).toContain("max-height: min(80dvh, var(--sheet-room));");
   });
 
   it("leaves the desktop layout alone, which is the one the owner chose (#847)", () => {
