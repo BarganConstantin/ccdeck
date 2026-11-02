@@ -307,8 +307,3 @@ kbd.qo-key, .qo-esc, .qo-foot kbd, .fb-shortcut kbd {
   .qo-row { height: 40px; }
   .qo-foot-tab { display: none; }
 }
-
-/* Forced colours drop the fills: the chosen row is drawn with an outline. */
-@media (forced-colors: active) {
-  .qo-row[aria-selected="true"] { outline: 2px solid Highlight; outline-offset: -2px; }
-}

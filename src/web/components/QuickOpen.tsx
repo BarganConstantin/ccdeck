@@ -22,6 +22,9 @@ import { useT } from "../i18n";
 import { isApplePlatform, platformName } from "../platform";
 import { SearchGlyph } from "./rail-glyphs";
 
+/** The groups that hold more than one kind of row, where the kind tag is drawn. */
+const MIXED_GROUPS: ReadonlySet<string> = new Set(["recent", "open"]);
+
 function Highlighted({ text, hits }: { text: string; hits: number[] }) {
   if (!hits.length) return <>{text}</>;
   const marked = new Set(hits);
@@ -90,7 +93,7 @@ export default function QuickOpen({ items, onClose, onRun }: {
     if (active <= 0) { list.scrollTop = 0; return; }
     const row = list.querySelector<HTMLElement>(`[data-index="${active}"]`);
     if (!row) return;
-    if (row.dataset.first === "true") row.closest(".qo-group")?.scrollIntoView({ block: "nearest" });
+    if (row.dataset.first === "true") row.closest('[role="group"]')?.scrollIntoView({ block: "nearest" });
     row.scrollIntoView({ block: "nearest" });
   }, [active, rows]);
 
@@ -163,7 +166,7 @@ export default function QuickOpen({ items, onClose, onRun }: {
         <div ref={listRef} className="qo-list" id="qo-list" role="listbox" aria-label={t("board.quick.results")} tabIndex={-1}
           onMouseDown={e => e.preventDefault()}>
           {groups.map(group => (
-            <div key={group.group} className="qo-group" role="group" aria-labelledby={`qo-cap-${group.group}`}>
+            <div key={group.group} role="group" aria-labelledby={`qo-cap-${group.group}`}>
               <div className="qo-caption" id={`qo-cap-${group.group}`} role="presentation">{group.title}</div>
               {group.items.map((row, n) => {
                 index++;
@@ -193,7 +196,7 @@ export default function QuickOpen({ items, onClose, onRun }: {
                         except where a group mixes kinds (Recent, Panels and
                         dialogs): there it is drawn, as a state (Shown,
                         Current) always is. */}
-                    <span className={item.tagIsState || group.group === "recent" || group.group === "open" ? "qo-tag state" : "qo-tag"}>{item.tag}</span>
+                    <span className={item.tagIsState || MIXED_GROUPS.has(group.group) ? "qo-tag state" : "qo-tag"}>{item.tag}</span>
                     {item.keyCap && <kbd className="qo-key">{item.keyCap}</kbd>}
                   </div>
                 );

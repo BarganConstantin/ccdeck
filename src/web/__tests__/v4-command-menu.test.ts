@@ -115,7 +115,9 @@ describe("the rows", () => {
   });
 
   it("draw the chosen row with an outline in forced colours", () => {
-    expect(css).toMatch(/@media \(forced-colors: active\) \{\s*\.qo-row\[aria-selected="true"\] \{ outline: 2px solid Highlight;/);
+    // The deck answers forced colours in one block at the end of the sheet.
+    const forced = css.slice(css.indexOf("@media (forced-colors: active)"));
+    expect(forced).toMatch(/\n\s*\.qo-row\[aria-selected="true"\] \{ outline: 2px solid Highlight;/);
   });
 
   it("show the group names in V4's caption style", () => {
