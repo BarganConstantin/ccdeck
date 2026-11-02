@@ -74,7 +74,7 @@ describe("the Select", () => {
     for (const sel of [select, ".settings-tab"]) expect(decl(sel, "min-height", "(pointer: coarse)"), sel).toBe("32px");
     expect(decl(select, "appearance")).toBe("none");
     // 12 of padding before the name; 8 + 12 + 8 after it.
-    expect(decl(select, "padding")).toBe("0 28px 0 12px");
+    expect(decl(select, "padding")).toBe("0 calc(8px + 12px + 8px) 0 12px");
     expect(decl(".sm-select", "background")).toBe("var(--bg-soft)");
     expect(decl(".sm-select", "border-radius")).toBe("var(--r-ctl)");
     expect(decl(".sm-select", "font-size")).toBe(INC(13));
@@ -119,8 +119,8 @@ describe("the nav", () => {
     expect(decl(".settings-nav", "gap")).toBe("2px");
     // 200 less the 1px divider = 199; 8 and 15 of padding leave 176.
     expect(decl(".settings-body", "grid-template-columns")).toBe("200px minmax(0, 1fr)");
-    expect(decl(".settings-nav", "padding")).toBe("8px 15px 8px 8px");
-    expect(decl(".settings-search", "padding")).toBe("8px 15px 4px 8px");
+    expect(decl(".settings-nav", "padding")).toBe("8px calc(16px - 1px) 8px 8px");
+    expect(decl(".settings-search", "padding")).toBe("8px calc(16px - 1px) 4px 8px");
     expect(decl(".settings-search .settings-search-field", "min-height")).toBe("30px");
     expect(decl(".settings-side", "border-right")).toBe("1px solid var(--line-soft)");
   });

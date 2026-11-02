@@ -45,9 +45,10 @@
   gap: 2px;
   min-height: 0;
   /* V4's nav is 176 wide inside its 8px pad: the column keeps its 200px and
-     the right side takes the 15px the left 8px does not (199px inside the
-     divider), so an item and the search field above it are 176 wide. */
-  padding: 8px 15px 8px 8px;
+     the right side takes the 16px step less the divider's hairline (199px
+     inside the divider), so an item and the search field above it are 176
+     wide. */
+  padding: 8px calc(16px - 1px) 8px 8px;
   overflow-y: auto;
 }
 /* V4's nav item: text only, 176 wide and a control tall (28 at Compact, with
@@ -411,7 +412,8 @@
   display: flex;
   flex: none;
   align-items: center;
-  padding: 8px 15px 4px 8px;
+  /* The nav's own inline pad, so the field lines up with the items. */
+  padding: 8px calc(16px - 1px) 4px 8px;
   color: var(--muted);
 }
 .settings-search-glyph { position: absolute; left: 18px; pointer-events: none; }
@@ -1056,7 +1058,8 @@ button.btn.sm-hear {
      tone) does not make the row reflow when it arrives. */
   min-width: 90px;
   max-width: 100%;
-  padding: 0 28px 0 12px;
+  /* The right side holds the chevron: 8px before it, its 12px, 8px after. */
+  padding: 0 calc(8px + 12px + 8px) 0 12px;
   text-overflow: ellipsis;
 }
 .v4-select:has(> .sm-select:disabled) > .v4-select-chevron { opacity: var(--dim-off); }

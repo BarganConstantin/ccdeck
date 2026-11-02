@@ -67,14 +67,14 @@ describe("V4's Settings dialog body", () => {
   });
   it("pads the nav 8, with 15 on the right so an item is 176 wide, 2 between the items, and parts no group of them", () => {
     // CHANGED ON PURPOSE (V4's Figma): 176 wide items in the 200px column.
-    expect(decl(".settings-nav", "padding")).toBe("8px 15px 8px 8px");
+    expect(decl(".settings-nav", "padding")).toBe("8px calc(16px - 1px) 8px 8px");
     expect(decl(".settings-nav", "gap")).toBe("2px");
     expect(css).not.toMatch(/#settings-tab-(notifications|integrations|about)/);
   });
   it("keeps the field 12px off the first item (4 under it, 8 of nav padding)", () => {
     // CHANGED ON PURPOSE (V4's Figma): the field is 176 wide, like an item, so
     // the right side takes the 15 the nav's does; the 8 above and 4 below keep.
-    expect(decl(".settings-search", "padding")).toBe("8px 15px 4px 8px");
+    expect(decl(".settings-search", "padding")).toBe("8px calc(16px - 1px) 4px 8px");
   });
   it("pads the pane 16 on all four sides, with the same scroll padding, and leaves no gap between groups", () => {
     expect(decl(".settings-pane", "padding")).toBe("16px");
