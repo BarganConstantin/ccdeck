@@ -32,6 +32,16 @@ describe("where focus goes when a roster takes the focused control away (#1497)"
     expect(refocusSelectors("ap-row-3")[0]).toBe("#ap-row-3");
   });
 
+  it("says a generated id as a selector can: `#:r1:` is not one and made querySelector throw", () => {
+    // useId() ids, which Auto-switch's own fields carry, hold colons. Unescaped
+    // they were a SyntaxError in the layout effect that restores focus
+    // ("'#:r1:' is not a valid selector", reported from 3.52.0).
+    const [first] = refocusSelectors(":r1:");
+    expect(first).toBe("#\\:r1\\:");
+    expect(first.replace(/\\./g, "")).toBe("#r1");
+    expect(refocusSelectors("ap-more-2")[0]).toBe("#ap-more-2");
+  });
+
   it("falls back to the fold's own row, then to the panel's reload", () => {
     expect(FOLD_ROW).toBe("#ap-rest-entry");
     expect(refocusSelectors("ap-more-2")).toEqual(["#ap-more-2", FOLD_ROW, ...rescueSelectors(null)]);
