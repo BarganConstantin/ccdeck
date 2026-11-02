@@ -147,10 +147,6 @@
   border-radius: var(--r-ctl);
   font-size: calc(14px + var(--ui-text-increase, 0px));
 }
-/* The Usage header's buttons are 28 already (quota-history.css) and the recap
-   pin keeps its box; both lose the circle. */
-.up-header-right > .glyph-btn,
-.agent-node .recap-pin { border-radius: var(--r-ctl); }
 .modal-dur {
   color: var(--muted);
   font-size: calc(12px + var(--ui-text-increase, 0px));
