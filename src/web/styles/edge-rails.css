@@ -32,9 +32,11 @@
   flex-direction: column;
   align-items: center;
   /* V4's Panel bar: two groups, pushed apart — the doors at the top, the
-     utilities at the foot — with 6px of air above and below. */
+     utilities at the foot — with 6px of air above and below. Figma centres
+     them on the bar's whole 40, its edge drawn inside; the border here takes
+     its 1px off the right, so 1px on the left puts the doors back 6 in. */
   justify-content: space-between;
-  padding: 6px 0;
+  padding: 6px 0 6px 1px;
   background: var(--panel);
   user-select: none;
 }
@@ -159,8 +161,8 @@
   background: var(--text);
   opacity: 0;
 }
-/* The door is 28 in a 39px column (the bar less its border), so it starts
-   5.5px in. The line ends a pixel inside the border, where it always has: the
+/* The door is 28, 6 in from the bar's left, so it ends at 34 and the line runs
+   37 to 39, against the border, where V4 draws it. Never past the border: the
    bar scrolls, and a line past its edge widened scrollWidth into a horizontal
    scrollbar even while transparent. */
 .edge-rail-left .rail-btn-stripe::before { right: -5px; }

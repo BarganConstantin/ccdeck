@@ -218,7 +218,8 @@ describe("the sound menu's reading is described once (#1026)", () => {
     const settings = at("../components/SettingsModal.tsx");
     expect(at("../components/SoundsSection.tsx")).toMatch(/<ToneSection\b/);
     expect(settings).toMatch(/<SoundsSection\b/);
-    expect(settings).toMatch(/className="modal settings-modal"/);
+    expect(settings).toMatch(/<Dialog\b[^>]*\bclassName="settings-modal"/);
+    expect(at("../components/Dialog.tsx")).toMatch(/`modal \$\{className\}`/);
     expect(decl(".settings-modal .sm-read", "color")).toBe("var(--muted)");
     const others = ["../App.tsx", "../components/MachinePanel.tsx", "../components/ProcessListModal.tsx"];
     for (const f of others) expect(at(f), f).not.toMatch(/className="[^"]*\bsm-read\b/);

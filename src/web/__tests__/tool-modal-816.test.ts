@@ -55,7 +55,11 @@ describe("the tool dialog shows a call as what it is (#816)", () => {
   });
 
   it("keeps the × the first control in the dialog, so focus lands where it did", () => {
-    const first = /<button(?:=>|[^>])*>/.exec(code)?.[0] ?? "";
-    expect(first).toContain('className="glyph-btn"');
+    // The first control in source order is the header's ×: either the shell's
+    // DialogClose or a button of the dialog's own that wears the glyph-btn class.
+    const first = /<DialogClose\b[^>]*>|<button(?:=>|[^>])*>/.exec(code)?.[0] ?? "";
+    expect(first.startsWith("<DialogClose") || first.includes('className="glyph-btn"')).toBe(true);
+    // And DialogClose is the kit's glyph-btn ×.
+    expect(read("../components/Dialog.tsx")).toMatch(/<button type="button" className="glyph-btn"[^>]*>×<\/button>/);
   });
 });

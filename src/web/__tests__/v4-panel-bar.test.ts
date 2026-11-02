@@ -1,4 +1,4 @@
-// V4's Panel bar (V4's Figma, decision 10): ONE bar on the left, 40 wide, holds
+// V4's Panel bar (V4's Figma): ONE bar on the left, 40 wide, holds
 // every door. Doors at the top in runs between 16x1 rules, Radio and Settings
 // at the foot, no right bar, Settings gone from the top bar. And V4's Tooltip:
 // one line, 24 high, the name and a key chip.
@@ -132,7 +132,9 @@ describe("the bar's look", () => {
     expect(decl(".edge-rail", "width")).toBe("var(--edge-w)");
     expect(decl(".edge-rail", "background")).toBe("var(--panel)");
     expect(decl(".edge-rail", "justify-content")).toBe("space-between");
-    expect(decl(".edge-rail", "padding")).toBe("6px 0");
+    // 1 on the left for the 1px border on the right: the doors centre on the
+    // whole 40, 6 in, where V4 draws them with its edge inside the bar.
+    expect(decl(".edge-rail", "padding")).toBe("6px 0 6px 1px");
     expect(decl(".edge-rail-left", "border-right")).toBe("1px solid var(--line)");
     expect(decl(".edge-rail-left", "border-left")).toBeUndefined();
   });
@@ -175,12 +177,16 @@ describe("the bar's look", () => {
 });
 
 describe("V4's Tooltip", () => {
-  it("is one 24-high line: --r-ctl corners, --panel, a 1px --line edge, 4 8 padding, --shadow-overlay", () => {
+  it("is one 24-high line: --r-ctl corners, --panel, a 1px --line edge, 4 8 to its outer edge, --shadow-overlay", () => {
     expect(decl(".hint", "border-radius")).toBe("var(--r-ctl)");
     expect(decl(".hint", "background")).toBe("var(--panel)");
-    expect(decl(".hint", "border")).toBe("1px solid var(--line)");
+    // V4's 4 8 counts its stroke, drawn inside: the 1px --line edge is an inset
+    // shadow over the padding, so a line of 16 makes 24, with or without a key,
+    // and the padding is a step on the spacing ladder.
+    expect(decl(".hint", "border")).toBe("0");
     expect(decl(".hint", "padding")).toBe("4px 8px");
-    expect(decl(".hint", "box-shadow")).toBe("var(--shadow-overlay)");
+    expect(decl(".hint:has(.hint-key)", "padding-right")).toBeUndefined();
+    expect(decl(".hint", "box-shadow")).toBe("inset 0 0 0 1px var(--line), var(--shadow-overlay)");
     expect(decl(".hint", "line-height")).toMatch(/^calc\(16px/);
     expect(decl(".hint-head", "gap")).toBe("6px");
     expect(decl(".hint-right .hint-label", "white-space")).toBe("nowrap");
@@ -193,6 +199,8 @@ describe("V4's Tooltip", () => {
 
   it("draws the key as the kit's Kbd: 16 high, radius 4, --bg-soft, 1px --line, mono 11/14 500 --muted", () => {
     expect(decl(".hint-key", "height")).toBe("16px");
+    // Its 5 across counts the 1px edge, as V4 draws it.
+    expect(decl(".hint-key", "padding")).toBe("0 4px");
     expect(decl(".hint-key", "border-radius")).toBe("4px");
     expect(decl(".hint-key", "background")).toBe("var(--bg-soft)");
     expect(decl(".hint-key", "border")).toBe("1px solid var(--line)");
@@ -211,5 +219,11 @@ describe("V4's Tooltip", () => {
     const hint = source("../components/use-hint.tsx");
     expect(hint).toContain("FIRST_HINT_DELAY_MS = 450");
     expect(hint).toContain("HINT_GRACE_MS = 100");
+  });
+
+  it("arrives in Fast with 4px of travel, and under reduced motion fades without the travel", () => {
+    expect(decl(".hint", "transition")).toBe("opacity var(--dur-fast) var(--ease), transform var(--dur-fast) var(--ease)");
+    expect(decl(".hint", "transition", "(prefers-reduced-motion: reduce)")).toBe("opacity var(--dur-fast) var(--ease)");
+    expect(source("../styles/hint.css")).toMatch(/@media \(prefers-reduced-motion: reduce\) \{[^@]*@starting-style \{\s*\.hint-right, \.hint-left, \.hint-below, \.hint-above \{ transform: none; \}/);
   });
 });

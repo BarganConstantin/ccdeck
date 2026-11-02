@@ -34,6 +34,7 @@ import { Fill } from "./LanAsks";
 import { rowSource, type DeckRow } from "../lan-roster";
 import type { LanAccount, LanStatus } from "../lan-types";
 import { Machine } from "./LanPeerMap";
+import { Dialog } from "./Dialog";
 import { useModalDismiss, useScrimDismiss } from "./use-modal-dismiss";
 
 /** The disc a deck is drawn as, and this deck's own at the centre — the
@@ -259,10 +260,9 @@ export default function LanNetworkMap({ status, rows, accounts, now, covered, on
   };
 
   return createPortal(
-    <div className="modal-backdrop" {...scrimPress} role="presentation">
-      <div ref={dialogRef} className="modal nm-modal" onClick={e => e.stopPropagation()}
-        data-paused={covered || hidden || undefined}
-        role="dialog" aria-modal="true" aria-labelledby="nm-title" aria-describedby="nm-sub">
+    <Dialog scrim={scrimPress} dialogRef={dialogRef} className="nm-modal"
+      data-paused={covered || hidden || undefined}
+      labelledBy="nm-title" aria-describedby="nm-sub">
         <header className="modal-head nm-head">
           <div className="nm-heading">
             <h2 id="nm-title" className="modal-title nm-title">{t("lan.nm.title")}</h2>
@@ -328,8 +328,7 @@ export default function LanNetworkMap({ status, rows, accounts, now, covered, on
               : <NetworkDetails status={status} summary={summary} entrance={entrance} slice={layout?.zone != null} />}
           </aside>
         </div>
-      </div>
-    </div>,
+    </Dialog>,
     document.body,
   );
 }

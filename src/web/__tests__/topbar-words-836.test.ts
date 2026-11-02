@@ -56,7 +56,7 @@ const rails = railItems({
   setUsageHistoryOpen: noop, watchOn: false, watchUnseen: 0, setBrowserWatchOpen: noop,
   openSettings: noop, onFeedback: noop, toggles: { sessionList: ref(), usage: ref(), accounts: ref(), machine: ref() },
 });
-// V4's Panel bar (decision 10): one bar holds every door and Settings at its foot.
+// V4's Panel bar: one bar holds every door and Settings at its foot.
 const left = renderToStaticMarkup(createElement(EdgeRail, { label: "Panels and tools", groups: rails.panelBar, foot: rails.panelFoot }));
 const corner = renderToStaticMarkup(createElement(UtilityRun, { items: rails.topUtilities }));
 const dock = renderToStaticMarkup(createElement(EdgeDock, {
@@ -141,7 +141,7 @@ describe("every control in the chrome says its name (#836)", () => {
     // Since 2026-10-23 both stripes follow one rule: runs of doors that answer
     // one question (rail-items.tsx), so the records and the watchers are two
     // runs, and a run of two or more is a group named for a screen reader.
-    // V4's Figma (decision 10): one bar, Sessions first, Settings at the foot.
+    // V4's Figma: one bar, Sessions first, Settings at the foot.
     expect(buttons(left).map(b => b.name)).toEqual(["Session list", "Accounts", "Usage", "Machine", "Usage history", "Browser watch, not watching", "Settings"]);
     expect(left.match(/<div class="rail-group"/g)).toHaveLength(4);
     expect(left).toContain('<div class="rail-group" role="group" aria-label="Usage and machine">');

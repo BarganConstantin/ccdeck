@@ -202,11 +202,15 @@ describe("the Review dialog", () => {
 
   it("is a dialog on the confirm layer, in <body>, with Keep them running focused and ✕ as cancel", () => {
     const src = withoutComments(readFileSync(fileURLToPath(new URL("../components/terminal/HostsDialog.tsx", import.meta.url)), "utf8"));
-    expect(src).toMatch(/return createPortal\(\s*<div className="modal-backdrop"[\s\S]*?,\s*document\.body,?\s*\);/);
+    expect(src).toMatch(/return createPortal\(\s*<Dialog scrim=\{scrimPress\}[\s\S]*?,\s*document\.body,?\s*\);/);
+    expect(src).toMatch(/<Dialog [^>]*labelledBy="older-hosts-title"/);
     expect(src).toMatch(/useModalDismiss\(p\.onCancel, \{ focusRef: keepRef, layer: CONFIRM_LAYER \}\)/);
     expect(src).toMatch(/useScrimDismiss\(p\.onCancel\)/);
-    expect(src).toMatch(/onClick=\{p\.onCancel\} aria-label="Cancel \(Esc\)"/);
-    expect(src).toMatch(/role="dialog"\s+aria-modal="true"/);
+    expect(src).toMatch(/<DialogClose onClick=\{p\.onCancel\} label="Cancel \(Esc\)" \/>/);
+    // The role and aria-modal are Dialog.tsx's, and the × it draws is labelled.
+    const shell = withoutComments(readFileSync(fileURLToPath(new URL("../components/Dialog.tsx", import.meta.url)), "utf8"));
+    expect(shell).toMatch(/role="dialog"\s+aria-modal="true"/);
+    expect(shell).toMatch(/aria-label=\{label\}/);
   });
 });
 

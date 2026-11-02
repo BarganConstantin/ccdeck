@@ -70,7 +70,6 @@ const ALLOWLIST: Allowed[] = [
   { file: "styles/loader.css", needle: "loader-in var(--dur-fast) linear", why: "the Loader's own fade-in (v4-loader.test.ts pins it)" },
   // ---- the spec'd reduced-motion crossfades of 140 ----
   { file: "styles/canvas-motion.css", needle: "fadeIn 140ms ease both", why: "reduced motion: the stage board's fade on open, 140 (spec'd)" },
-  { file: "styles/accounts-details.css", needle: "fadeIn 140ms ease-out", why: "reduced motion: the modal's crossfade, 140 (reduced-motion-reach.test.ts)" },
   { file: "styles/left-column.css", needle: "opacity 140ms ease", why: "reduced motion: the side panels' crossfade, 140 (spec'd)" },
   { file: "styles/left-column.css", needle: "var(--side-exit) linear", why: "a side panel's exit crossfade: linear opacity beside the --ease-stage travel; --side-exit is set per panel in JS" },
   { file: "styles/workspace.css", needle: "view-fade var(--dur-fast) linear", why: "Workspace reduced crossfade (v4-workspace-layout.test.ts pins it)" },

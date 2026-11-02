@@ -31,6 +31,7 @@ import { useThresholdDraft } from "../use-threshold-draft";
 import AccountIssuePopover, { WarnGlyph } from "./AccountIssuePopover";
 import AccountRow from "./AccountRow";
 import AddCodexAccountDialog from "./AddCodexAccountDialog";
+import { DialogPresence } from "./Dialog";
 import AnchoredPopover from "./AnchoredPopover";
 import AutoSwitchPolicy from "./AutoSwitchPolicy";
 import OtherAccounts from "./OtherAccounts";
@@ -593,9 +594,10 @@ export default function CodexProfilesSection({ onClose, switcher, onNotice }: {
           fetchedAt={issueRow.account.fetchedAt} nowSec={nowSec}
           onClose={closeIssue} onSignIn={() => signIn(issueRow.profile)} />
       )}
-      {dialog && (
+      <DialogPresence when={dialog}>
+        {d => (
         <AddCodexAccountDialog
-          profile={dialog.id && dialog.label ? { id: dialog.id, label: dialog.label, account: dialog.account } : undefined}
+          profile={d.id && d.label ? { id: d.id, label: d.label, account: d.account } : undefined}
           onCreate={createProfile}
           onCopyCommand={id => void copyCommand(`/api/codex-profile-login?id=${encodeURIComponent(id)}`, t("codex.panel.commandCopied"))}
           onSignedIn={async id => {
@@ -610,7 +612,8 @@ export default function CodexProfilesSection({ onClose, switcher, onNotice }: {
           onDiscard={removeProfile}
           onClose={() => { setDialog(null); void refreshProfiles().catch(() => setError(true)); }}
         />
-      )}
+        )}
+      </DialogPresence>
     </>
   );
 }

@@ -195,9 +195,6 @@
   .qb-pace-rail,
   .uh-bar { transition: none; }
 
-  /* Every dialog, the context and usage-history ones included since #874
-     put them on this shell. */
-  .modal { animation: fadeIn 140ms ease-out; }
   .appearance-theme,
   .appearance-preview,
   .appearance-check { transition: none; }

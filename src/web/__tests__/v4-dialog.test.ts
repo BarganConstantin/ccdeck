@@ -47,21 +47,36 @@ describe("V4 dialog frame", () => {
 });
 
 describe("V4 dialog motion", () => {
-  it("popIn scales in from --enter-scale and no longer lifts", () => {
-    const m = /@keyframes popIn\s*\{([^\n]*)\}\s*\n/.exec(css);
-    expect(m).not.toBeNull();
-    expect(m![1]).toContain("transform: scale(var(--enter-scale))");
-    expect(m![1]).not.toContain("translateY");
+  it("the dialog opens from @starting-style: opacity 0 and scale(--enter-scale), and no longer lifts", () => {
+    // Transitions, not keyframes: no popIn is left to scale in.
+    expect(css).not.toMatch(/@keyframes popIn/);
+    const start = /@starting-style\s*\{\s*\.modal\s*\{([^}]*)\}\s*\}/.exec(css);
+    expect(start).not.toBeNull();
+    expect(start![1]).toMatch(/opacity:\s*0/);
+    expect(start![1]).toContain("transform: scale(var(--enter-scale))");
+    expect(start![1]).not.toContain("translateY");
+    expect(decl(".modal", "animation")).toBeNull();
+    expect(decl(".modal", "transform")).toBe("none");
+    // And the scrim opens from transparent.
+    expect(css).toMatch(/@starting-style\s*\{\s*\.modal-backdrop\s*\{\s*opacity:\s*0;\s*\}\s*\}/);
+    expect(decl(".modal-backdrop", "animation")).toBeNull();
   });
 
-  it("the dialog and its scrim animate on the Base duration and the house ease", () => {
-    expect(decl(".modal", "animation")).toBe("popIn var(--dur-base) var(--ease)");
-    expect(decl(".modal-backdrop", "animation")).toBe("fadeIn var(--dur-base) var(--ease)");
+  it("the dialog and its scrim transition on the Base duration and the house ease", () => {
+    expect(decl(".modal", "transition")).toBe("opacity var(--dur-base) var(--ease), transform var(--dur-base) var(--ease)");
+    expect(decl(".modal-backdrop", "transition")).toBe("opacity var(--dur-base) var(--ease)");
+  });
+
+  it("leaves on Exit: the closing scrim fades and the surface scales to --exit-scale", () => {
+    expect(decl('.modal-backdrop[data-state="closing"]', "opacity")).toBe("0");
+    expect(decl('.modal-backdrop[data-state="closing"]', "transition-duration")).toBe("var(--dur-exit)");
+    expect(decl('.modal-backdrop[data-state="closing"] > .modal', "transform")).toBe("scale(var(--exit-scale))");
+    expect(decl('.modal-backdrop[data-state="closing"] > .modal', "transition-duration")).toBe("var(--dur-exit)");
   });
 
   it("data-motion=instant turns the dialog and its scrim off", () => {
     expect(css).toMatch(
-      /:root\[data-motion="instant"\] :is\(\.modal-backdrop, \.modal\)\s*\{\s*animation:\s*none;\s*\}/,
+      /:root\[data-motion="instant"\] :is\(\.modal-backdrop, \.modal\)\s*\{\s*transition:\s*none;\s*\}/,
     );
   });
 });

@@ -22,6 +22,7 @@ import AddAccountDialog from "./AddAccountDialog";
 import AccountMenuPopover from "./AccountMenuPopover";
 import OtherAccounts from "./OtherAccounts";
 import ShareAccountsDialog from "./ShareAccountsDialog";
+import { DialogPresence } from "./Dialog";
 import { isAutoArmed, pastThreshold, peersOf, reachable } from "../account-fold";
 import { lanAccounts, type SharedMark } from "../account-lan";
 import { laneKey } from "../lane-open";
@@ -765,13 +766,15 @@ export default function AccountsPanel({ onClose, leaving, onReport, onRoster, la
         />
       )}
 
-      {addOpen && (
-        <AddAccountDialog
-          email={signInAs}
-          onClose={() => { setAddOpen(false); setSignInAs(null); }}
-          onChanged={() => load(true)}
-        />
-      )}
+      <DialogPresence when={addOpen}>
+        {() => (
+          <AddAccountDialog
+            email={signInAs}
+            onClose={() => { setAddOpen(false); setSignInAs(null); }}
+            onChanged={() => load(true)}
+          />
+        )}
+      </DialogPresence>
 
       {/* Gated on the open flag ALONE, the way the add dialog is. Adding
           `data?.accounts?.length` to the condition made a poll that came back
@@ -781,14 +784,16 @@ export default function AccountsPanel({ onClose, leaving, onReport, onRoster, la
           copied yet, and then silently reopen it on a fresh picker. The roster
           being empty is a state for the dialog to show, not a reason to
           destroy it. */}
-      {shareSetOpen && (
-        <ShareAccountsDialog
-          accounts={(data?.accounts ?? []).map(a => ({ num: a.num, email: a.email, alias: a.alias, org: a.org }))}
-          onClose={() => setShareSetOpen(false)}
-          copyText={copyText}
-        />
-      )}
-      {projectsFor != null && (() => {
+      <DialogPresence when={shareSetOpen}>
+        {() => (
+          <ShareAccountsDialog
+            accounts={(data?.accounts ?? []).map(a => ({ num: a.num, email: a.email, alias: a.alias, org: a.org }))}
+            onClose={() => setShareSetOpen(false)}
+            copyText={copyText}
+          />
+        )}
+      </DialogPresence>
+      <DialogPresence when={projectsFor}>{projectsFor => {
         const a = data?.accounts?.find(x => x.num === projectsFor.num);
         // Gone from a roster that was read: nothing to draw, and the effect
         // that watches the roster closes the report. No roster at all is a
@@ -802,7 +807,7 @@ export default function AccountsPanel({ onClose, leaving, onReport, onRoster, la
             onClose={() => setProjectsFor(null)}
           />
         );
-      })()}
+      }}</DialogPresence>
     </aside>
   );
 }

@@ -91,6 +91,7 @@ const usagePanel = markup("components", "UsagePanel.tsx");
 const accountsPanel = markup("components", "AccountsPanel.tsx");
 const sessionList = markup("components", "SessionList.tsx");
 const historyModal = markup("components", "UsageHistoryModal.tsx");
+const dialogShell = markup("components", "Dialog.tsx");
 
 /** WCAG 1.4.3 for the glyph, 1.4.11 for the difference between two states. */
 const BODY = 4.5;
@@ -616,10 +617,12 @@ describe("what each of the four toggles announces", () => {
       expect(tag!, id).not.toMatch(/aria-pressed|aria-expanded/);
     }
     expect(attr(tags.get("history")!, "aria-label")).toBe("Usage history");
-    expect(historyModal).toMatch(/role="dialog" aria-modal="true"/);
+    // On the shared dialog shell, which draws the scrim (#874's .modal-backdrop)
+    // and the surface's role="dialog" aria-modal="true" for every dialog.
+    expect(historyModal).toMatch(/<Dialog scrim=\{scrimPress\}/);
     expect(historyModal).toMatch(/useModalDismiss/);
-    // The shared scrim since #874, which put this dialog on the .modal shell.
-    expect(historyModal).toMatch(/className="modal-backdrop"/);
+    expect(dialogShell).toMatch(/role="dialog"\s+aria-modal="true"/);
+    expect(dialogShell).toMatch(/"modal-backdrop"/);
     expect(declIn(bodyOf(".modal-backdrop"), "position")).toBe("fixed");
   });
 

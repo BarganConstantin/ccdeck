@@ -96,7 +96,13 @@ describe("Settings keeps one height across sections", () => {
     expect(onDialog("margin-top", DESKTOP)).toBeNull();
     expect(onDialog("margin-top", PHONE)).toBeNull();
     expect(at([backdrop], "align-items", DESKTOP)).toBe("center");
-    expect(onDialog("transition", DESKTOP)).toBeNull();
+    // Nothing of its own to move: it takes .modal's open/close transition on
+    // opacity and transform (the Base tokens), and no transform, animation or
+    // transition rule of its own on top.
+    expect(onDialog("transition", DESKTOP)).toBe("opacity var(--dur-base) var(--ease), transform var(--dur-base) var(--ease)");
+    expect(onDialog("transform", DESKTOP)).toBe("none");
+    expect(onDialog("animation", DESKTOP)).toBeNull();
+    expect(onDialog("translate", DESKTOP)).toBeNull();
   });
 
   it("scrolls the section, never the nav or the header, on a gutter that does not move", () => {

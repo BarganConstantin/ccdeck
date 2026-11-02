@@ -13,10 +13,20 @@ import { fileURLToPath } from "node:url";
 const dir = fileURLToPath(new URL("../components", import.meta.url));
 const read = (f: string) => readFileSync(`${dir}/${f}`, "utf8");
 
-/** The opening tag of the scrim — the element with the dismiss handlers. */
+/** The generic dialog markup is one file's now: the scrim and the surface that
+ *  every dialog on the shell draws. The sweep reads it once, then reads each
+ *  dialog's own use of it. */
+const SHELL = read("Dialog.tsx");
+
+/** The opening tag of the scrim in the shell — the element with the dismiss handlers. */
 function backdropTag(src: string): string | null {
-  const m = /<div className="[a-z-]*backdrop"[^>]*>/.exec(src);
+  const m = /<div\s(?:=>|[^>])*className=\{className \? `modal-backdrop(?:=>|[^>])*>/.exec(src);
   return m ? m[0] : null;
+}
+
+/** The `<Dialog ...>` tags a file draws: its use of the shell. */
+function shellUses(src: string): string[] {
+  return src.match(/<Dialog\s(?:=>|[^>])*>/g) ?? [];
 }
 
 /** Every element in the file that claims to be a dialog. The `=>` alternative
@@ -27,9 +37,14 @@ function dialogTags(src: string): string[] {
   return src.match(/<div\s(?:=>|[^>])*role="dialog"(?:=>|[^>])*>/g) ?? [];
 }
 
+// Every dialog on the shell: a file that draws `<Dialog` (a surface on the
+// shell) or `<DialogScrim` (the radio, whose panel is its own surface, in
+// RadioPanel.tsx). QuickOpen is the one documented literal exception: it keeps
+// its own `modal-backdrop qo-backdrop` div and its own keyframes.
 const MODALS = readdirSync(dir)
-  .filter(f => f.endsWith(".tsx"))
-  .filter(f => backdropTag(read(f)) !== null);
+  .filter(f => f.endsWith(".tsx") && f !== "Dialog.tsx")
+  .filter(f => /<Dialog\s|<DialogScrim\s/.test(read(f)));
+const ON_SURFACE = MODALS.filter(f => shellUses(read(f)).length > 0);
 
 describe("the deck's modals", () => {
   it("has found all seventeen of them, so a new one cannot skip this file", () => {
@@ -58,34 +73,49 @@ describe("the deck's modals", () => {
     // sheet on phones. The thirtieth is a connected tracker's panel — Jira's
     // backlog and its issues — opened from its stripe control or I (#2178).
     // Explore integrations follows every shared dialog assertion below.
+    // Thirty-one of them draw `<Dialog` and the radio draws `<DialogScrim`.
     expect(MODALS.length).toBe(32);
+    expect(ON_SURFACE.length).toBe(31);
+    expect(MODALS.filter(f => !ON_SURFACE.includes(f))).toEqual(["RadioExperience.tsx"]);
   });
 
   it("never calls the dismiss scrim a dialog", () => {
+    const tag = backdropTag(SHELL)!;
+    expect(tag).toBeTruthy();
+    expect(/role="(?!presentation)/.test(tag)).toBe(false);
+    expect(tag.includes("aria-modal")).toBe(false);
+    // and no dialog file spells a scrim of its own beside the shell's
     for (const f of MODALS) {
-      const tag = backdropTag(read(f))!;
-      expect(`${f}: ${/role="(?!presentation)/.test(tag)}`).toBe(`${f}: false`);
-      expect(`${f}: ${tag.includes("aria-modal")}`).toBe(`${f}: false`);
+      expect(`${f}: ${/className="modal-backdrop/.test(read(f))}`).toBe(`${f}: false`);
     }
   });
 
   it("marks the scrim as presentational, since it is a gesture and not content", () => {
-    for (const f of MODALS) {
-      expect(`${f}: ${backdropTag(read(f))!.includes('role="presentation"')}`).toBe(`${f}: true`);
-    }
+    expect(backdropTag(SHELL)!.includes('role="presentation"')).toBe(true);
+    // The shell is the only place the scrim is drawn; the radio goes through it too.
+    expect(/<DialogScrim\s/.test(read("RadioExperience.tsx"))).toBe(true);
   });
 
   it("puts the dialog role on the surface inside the scrim, exactly once", () => {
-    for (const f of MODALS) {
-      expect(`${f}: ${dialogTags(read(f)).length}`).toBe(`${f}: 1`);
+    // The shell's surface carries it once, with aria-modal beside it.
+    expect(dialogTags(SHELL)).toHaveLength(1);
+    expect(dialogTags(SHELL)[0]).toContain('aria-modal="true"');
+    for (const f of ON_SURFACE) {
+      expect(`${f}: ${shellUses(read(f)).length >= 1}`).toBe(`${f}: true`);
+      // and no second, hand-written dialog role beside the shell's
+      expect(`${f}: ${dialogTags(read(f)).length}`).toBe(`${f}: 0`);
     }
+    // The radio's panel is its own surface, the one other place.
+    expect(dialogTags(read("RadioPanel.tsx"))).toHaveLength(1);
   });
 
   it("gives every dialog a name, so none of them announces as just 'dialog'", () => {
-    for (const f of MODALS) {
-      const tag = dialogTags(read(f))[0];
-      expect(`${f}: ${/aria-label(ledby)?=("|\{t\()/.test(tag)}`).toBe(`${f}: true`);
+    for (const f of ON_SURFACE) {
+      for (const tag of shellUses(read(f))) {
+        expect(`${f}: ${/(aria-label(ledby)?|labelledBy)=("|\{t\()/.test(tag)}`).toBe(`${f}: true`);
+      }
     }
+    expect(dialogTags(read("RadioPanel.tsx"))[0]).toMatch(/aria-labelledby="radio-title"/);
   });
 });
 
@@ -93,7 +123,7 @@ describe("ToolModal", () => {
   const src = read("ToolModal.tsx");
 
   it("names itself after the tool, the one thing that tells two of these apart", () => {
-    expect(dialogTags(src)[0]).toContain('aria-labelledby="tool-modal-title"');
+    expect(shellUses(src)[0]).toContain('labelledBy="tool-modal-title"');
     // The id has to be on something that renders, or the name resolves to
     // nothing and the dialog is unnamed again in a way no attribute shows.
     expect(src).toMatch(/<span id="tool-modal-title" className="modal-tool-name">\{tool\.name\}<\/span>/);
@@ -103,6 +133,8 @@ describe("ToolModal", () => {
     // A press of the scrim itself, not a selection let go over it — see
     // useScrimDismiss.
     expect(src).toContain("const scrimPress = useScrimDismiss(onClose);");
-    expect(backdropTag(src)).toContain("{...scrimPress}");
+    expect(shellUses(src)[0]).toContain("scrim={scrimPress}");
+    // and the shell is what puts the handlers on the scrim
+    expect(SHELL).toMatch(/\{\.\.\.scrim\}/);
   });
 });

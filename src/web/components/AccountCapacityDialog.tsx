@@ -13,6 +13,7 @@
 // fills: the read is local, and a failed one still opens it, saying so.
 import { useEffect, useState } from "react";
 import AccountsUsageReport, { type CapacityView } from "./AccountsUsageReport";
+import { DialogPresence } from "./Dialog";
 import { useAccountRoster } from "../use-account-roster";
 import { usePanelClock } from "../use-panel-clock";
 import { loadOrder } from "../accounts-prefs";
@@ -46,10 +47,13 @@ export default function AccountCapacityDialog({ view, onClose }: { view: Capacit
   useEffect(() => {
     if (order == null && data) setOrder(panelOrder(data.accounts ?? [], loadOrder(), nowSec));
   }, [data, order, nowSec]);
-  if (order == null && failure == null) return null;
   return (
-    <AccountsUsageReport accounts={data?.accounts ?? null} order={order ?? []}
-      failed={failure?.reload ? reloadText(failure, t) : null}
-      nowSec={nowSec} onClose={onClose} view={view} />
+    <DialogPresence when={order != null || failure != null}>
+      {() => (
+        <AccountsUsageReport accounts={data?.accounts ?? null} order={order ?? []}
+          failed={failure?.reload ? reloadText(failure, t) : null}
+          nowSec={nowSec} onClose={onClose} view={view} />
+      )}
+    </DialogPresence>
   );
 }

@@ -31,6 +31,7 @@ import { createPortal } from "react-dom";
 import { peerView, sinceLabel } from "../lan-peer";
 import { focusDropped, pressState } from "../panel-press";
 import { usePeerUnpair } from "../use-peer-unpair";
+import { Dialog } from "./Dialog";
 import { useModalDismiss, useScrimDismiss } from "./use-modal-dismiss";
 import LanPeerFoot from "./LanPeerFoot";
 import LanPeerMap from "./LanPeerMap";
@@ -197,9 +198,8 @@ export default function LanPeerModal({
   // Portalled like every dialog opened from inside the accounts panel: the
   // panel's layout rules are not a modal's to inherit — see AddAccountDialog.
   return createPortal(
-    <div className="modal-backdrop" {...scrimPress} role="presentation">
-      <div ref={dialogRef} className="modal lan-peer" data-tone={row.tone} onClick={e => e.stopPropagation()}
-        role="dialog" aria-modal="true" aria-labelledby="lan-peer-title" aria-describedby="lan-peer-sub">
+    <Dialog scrim={scrimPress} dialogRef={dialogRef} className="lan-peer" data-tone={row.tone}
+      labelledBy="lan-peer-title" aria-describedby="lan-peer-sub">
         <header className="modal-head lan-peer-head">
           <i className={row.here ? "ap-pulse" : "ap-dot"} aria-hidden />
           <div className="lan-peer-id">
@@ -287,8 +287,7 @@ export default function LanPeerModal({
 
         <LanPeerFoot row={row} paired={paired} peer={peer} status={status} busy={busy} press={press}
           checkNow={checkNow} armed={armed} pressOwn={pressOwn} run={run} onVerb={onVerb} onInvite={onInvite} />
-      </div>
-    </div>,
+    </Dialog>,
     document.body,
   );
 }

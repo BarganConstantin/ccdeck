@@ -254,12 +254,13 @@ describe("V4's chip entrance and exit: opacity and 4px of x, over --dur-base in 
   });
 });
 
-// V4's Figma: ONE bar on the left (decision 10), its doors and its foot 2px
+// V4's Figma: ONE bar on the left, its doors and its foot 2px
 // apart inside, the two groups pushed apart (v4-panel-bar.test.ts has the rest).
 describe("V4's Panel bar (the one bar)", () => {
   it("fills with --panel, 6px at the top and foot, 2px between every child", () => {
     expect(decl(".edge-rail", "background")).toBe("var(--panel)");
-    expect(decl(".edge-rail", "padding")).toBe("6px 0");
+    // The 1 on the left answers the 1px border on the right (v4-panel-bar.test.ts).
+    expect(decl(".edge-rail", "padding")).toBe("6px 0 6px 1px");
     expect(decl(".rail-doors", "gap")).toBe("2px");
     expect(decl(".rail-group", "gap")).toBe("2px");
   });

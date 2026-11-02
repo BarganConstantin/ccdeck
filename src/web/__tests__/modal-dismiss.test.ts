@@ -168,7 +168,16 @@ describe("the modals themselves", () => {
   });
 
   it("wires every backdrop in the app to the shared hook", () => {
-    const withBackdrop = sources.filter(([, src]) => /className="[a-z-]*backdrop"/.test(src));
+    // A backdrop is drawn by Dialog.tsx now, so a dialog is found by its use of
+    // the shell: `<Dialog` (scrim and surface). The radio draws `<DialogScrim`
+    // around a panel of its own and is checked below; QuickOpen is the one
+    // documented literal exception, with a backdrop of its own.
+    // The tool-audit drawer is a drawer, not a centred dialog: its literal
+    // `ta-drawer-backdrop` is found by the old pattern and stays in the sweep.
+    // (The radio's `radio-backdrop` is its own sweep below: its panel, a
+    // separate file, carries the dismiss hook.)
+    const withBackdrop = sources.filter(([name, src]) => name !== "Dialog.tsx" && name !== "RadioExperience.tsx"
+      && (/<Dialog\s/.test(src) || /className="[a-z-]*backdrop"/.test(src)));
     expect(withBackdrop.map(([name]) => name).sort()).toEqual([
       // The re-sign-in prompt for an account the deck signed in (#1893),
       // arriving on its own like the pairing request below.
@@ -233,5 +242,20 @@ describe("the modals themselves", () => {
     for (const [name, src] of withBackdrop) {
       expect(`${name}: ${src.includes("useModalDismiss(")}`).toBe(`${name}: true`);
     }
+    // Every <Dialog is handed the scrim press built on the shared hook.
+    for (const [name, src] of withBackdrop) {
+      const drawn = /<Dialog\s[^]*?scrim=\{/.test(src) || /className="[a-z-]*backdrop"[^>]*\{\.\.\.scrim\}/.test(src);
+      expect(`${name}: ${drawn && src.includes("useScrimDismiss(")}`).toBe(`${name}: true`);
+    }
+    const byName = new Map(sources);
+    // The radio: the shell's scrim wired to the shared scrim hook, and a panel
+    // that is its own surface wired to the shared dismiss hook.
+    expect(byName.get("RadioExperience.tsx")).toMatch(/<DialogScrim scrim=\{scrimPress\}/);
+    expect(byName.get("RadioExperience.tsx")).toContain("useScrimDismiss(");
+    expect(byName.get("RadioPanel.tsx")).toContain("useModalDismiss<");
+    // QuickOpen keeps a backdrop of its own on purpose: it has no motion, so
+    // it never takes the shell's leaving state.
+    expect(byName.get("QuickOpen.tsx")).toMatch(/className="modal-backdrop qo-backdrop" \{\.\.\.scrimPress\}/);
+    expect(byName.get("QuickOpen.tsx")).toContain("useModalDismiss(");
   });
 });

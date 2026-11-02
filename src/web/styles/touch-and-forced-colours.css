@@ -126,6 +126,10 @@
   }
   .radio-search:focus-within { outline: var(--focus-w) solid Highlight; outline-offset: calc(-1 * var(--focus-w)); }
 
+  /* The hint's edge is an inset shadow (hint.css), and a Contrast theme drops
+     shadows: draw it back as a line inside the box. */
+  .hint { outline: 1px solid CanvasText; outline-offset: -1px; }
+
   .modal.settings-modal,
   .settings-nav { background: Canvas; color: CanvasText; }
   .reading-segmented::before { border-color: Highlight; background: Canvas; }

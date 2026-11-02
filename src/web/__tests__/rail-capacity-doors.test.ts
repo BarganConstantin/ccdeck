@@ -43,7 +43,7 @@ const ids = (items: { id: string }[]) => items.map(i => i.id);
 describe("the Panel bar's two doors into Account capacity", () => {
   it("stand right after Sessions and Accounts, in V4's order", () => {
     const groups = rails().panelBar;
-    // V4's Panel bar (decision 10): Sessions and Accounts, then the two reports.
+    // V4's Panel bar: Sessions and Accounts, then the two reports.
     expect(groups.slice(0, 2).map(ids)).toEqual([["session-list", "accounts"], ["account-capacity", "reset-calendar"]]);
     // The reports are one run about the accounts, named for a screen reader
     // (with both CLIs one Accounts button covers Claude and Codex, so Codex has
