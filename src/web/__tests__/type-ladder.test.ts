@@ -184,7 +184,7 @@ describe("the type ladder is a closed set (#379 §3)", () => {
 
   it("still finds the rules the collapse moved, so a pass is not vacuous", () => {
     // The four rules the report singled out, at the values they landed on.
-    expect(decl(".ap-email", "font-size")).toBe("12px");            // was 10.5, #857's floor, then the row's name
+    expect(decl(".ap-alias", "font-size")).toBe("13px");            // was .ap-email at 10.5, #857's floor, then the row's name; V4's account row names at 13/20
     expect(decl(".detail .row .v", "font-size")).toBe("12px");      // was 11.5, then 11; V4's Figma sets the Inspector's values at 12
     expect(decl(".session-list .sl-label", "font-size")).toBe("13px"); // was 12.5, then 12; V4's rail row names at 13/20
     expect(decl(".uh-stat-label", "font-size")).toBe("9px");        // was 9.5
@@ -358,8 +358,8 @@ describe("no font-size is declared where a shared rule outranks it (#379, #380)"
     expect(decl(".ap-add", "margin-right")).toBe("6px");
     expect(decl(".up-close", "font-size")).toBeNull();
     expect(decl(".up-close", "color")).toBe("var(--muted)");
-    expect(decl(".session-list .sl-close", "font-size")).toBeNull();
-    expect(decl(".session-list .sl-close", "width")).toBe("24px"); // was 26; V4's rail header button is 24x24
+    expect(decl(".session-list .sl-icon-btn", "font-size")).toBeNull();
+    expect(decl(".session-list .sl-icon-btn", "width")).toBe("24px"); // was 26; V4's rail header button is 24x24
     expect(decl(".uh-reload", "font-size")).toBeNull();
     expect(decl(".uh-reload", "padding")).toBe("0");
     expect(decl(".up-refresh-btn", "font-size")).toBeNull();
@@ -563,14 +563,13 @@ describe("the accounts lane reads its name before its footnote (#379 §1)", () =
   });
 
   it("holds on the active row too, which is the one the reader is looking at", () => {
-    // `.ap-account.active` tints the whole row with 6% --accent, so the lane's
-    // bed there is not --panel. The order has to survive that bed as well.
-    const tint = /color-mix\(in srgb, var\(--accent\) (\d+)%/.exec(
-      decl(".ap-account.active", "background")!,
-    )!;
-    const pct = parseInt(tint[1], 10) / 100;
+    // `.ap-account.active` fills the whole row with --selected (V4's Figma: the
+    // text ink at 8% over the panel), so the lane's bed there is not --panel.
+    // The order has to survive that bed as well. CHANGED ON PURPOSE.
+    expect(decl(".ap-account.active", "background")).toBe("var(--selected)");
+    const pct = 0.08;
     for (const theme of ["dark", "light"] as const) {
-      const bed = over([...rgb(TOKENS[theme]["--accent"]), pct], rgb(TOKENS[theme]["--panel"]));
+      const bed = over([...rgb(TOKENS[theme]["--text"]), pct], rgb(TOKENS[theme]["--panel"]));
       const l = contrastRatio(rgb(TOKENS[theme][/var\((--[\w-]+)\)/.exec(decl(".ap-lane-label", "color")!)![1]]), bed);
       const r = contrastRatio(rgb(TOKENS[theme][/var\((--[\w-]+)\)/.exec(decl(".ap-lane-reset", "color")!)![1]]), bed);
       expect(l, `${theme} active row`).toBeGreaterThanOrEqual(r);
@@ -582,8 +581,9 @@ describe("the accounts lane reads its name before its footnote (#379 §1)", () =
     // on the row quieter than it already was. The label takes the stronger tier.
     expect(decl(".ap-lane-label", "color")).toBe("var(--muted)");
     expect(decl(".ap-lane-reset", "color")).toBe("var(--text-dim)");
-    // And the size step under it is untouched: the name is still the larger.
-    expect(parseFloat(decl(".ap-lane-label", "font-size")!))
-      .toBeGreaterThan(parseFloat(decl(".ap-lane-reset", "font-size")!));
+    // And the size step under it: the name is no smaller. CHANGED ON PURPOSE
+    // (nothing on screen under 11px): the reset moved up to the key's 11.
+    expect(parseFloat(decl(".ap-lane-label", "font-size")!)).toBe(11);
+    expect(parseFloat(decl(".ap-lane-reset", "font-size")!)).toBe(11);
   });
 });

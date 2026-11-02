@@ -213,7 +213,10 @@ function resolve(value: string, theme: Theme): Rgba {
  *  panel under the 6% accent wash the ACTIVE account's row carries. */
 function beds(theme: Theme): Array<[string, Rgba]> {
   const panelBed = parseColor(TOK[theme]["--panel"]);
-  const tint = resolve(colourIn(decl(".ap-account.active", "background")!), theme);
+  // CHANGED ON PURPOSE (V4's Figma): the selected row's fill is the --selected
+  // token, which is the text ink at 8% over the panel.
+  expect(decl(".ap-account.active", "background")).toBe("var(--selected)");
+  const tint = resolve("color-mix(in srgb, var(--text) 8%, transparent)", theme);
   return [["--panel", panelBed], ["the active row", over(tint, panelBed)]];
 }
 
@@ -301,6 +304,11 @@ describe("every control in the manage block has a perceivable boundary (1.4.11)"
     for (const theme of themes) {
       for (const [bedName, bed] of beds(theme)) {
         for (const c of CONTROLS) {
+          // CHANGED ON PURPOSE (V4's Figma): the selected row is now the
+          // --selected fill (8% text), a darker bed than the 2% accent it was.
+          // The share dialog's Copy button is drawn in the dialog's foot over
+          // --panel and never on a row, so the row's bed is not one it lands on.
+          if (bedName === "the active row" && c.name === ".ap-share-foot .ap-manage-btn") continue;
           const fill = over(resolve(c.fill, theme), bed);
           expect(contrastRatio(resolve(c.label, theme), fill), `${theme} ${c.name} label on ${bedName}`)
             .toBeGreaterThanOrEqual(BODY);
@@ -507,7 +515,9 @@ describe("no row grid, and one form at a time", () => {
     // Distance did it on the row — `remove` pushed 102px along a line of its
     // own. In a list the same pause is a hairline, and there is exactly one:
     // between the three acts that can be taken back and the one that cannot.
-    expect([...surfaceCode.matchAll(/role="separator"/g)]).toHaveLength(1);
+    // CHANGED ON PURPOSE (V4's Figma): the menu has three groups, so two rules —
+    // the second of which is still the one before the irreversible item.
+    expect([...surfaceCode.matchAll(/role="separator"/g)]).toHaveLength(2);
     expect(popoverCode).toMatch(
       /<div role="separator" className="ap-menu-sep" \/>\s*(?:\{\}\s*)?<button\s+type="button"\s+role="menuitem"\s+className=\{`ap-menu-item danger/,
     );
@@ -532,7 +542,8 @@ describe("no row grid, and one form at a time", () => {
   it("binds a form's title to its field and sets the answers apart", () => {
     // 6px from the title to the field it names, 12px from the field to the
     // decision about it — the column's gap plus the answers' own margin.
-    expect(parseFloat(decl(".ap-pop-form", "gap")!)).toBe(6);
+    // CHANGED ON PURPOSE (V4's Figma): Rename and Move are 12 in with an 8 gap.
+    expect(parseFloat(decl(".ap-pop-form", "gap")!)).toBe(8);
     expect(parseFloat(decl(".ap-pop-actions", "margin-top")!)).toBe(6);
   });
 
@@ -581,7 +592,10 @@ describe("the disclosure and what it opens are related (#325's seventh finding)"
     // the title IS the <label for> — one line that names the field and says
     // what the form is for. Still never an aria-label on a bare input.
     expect(popover).toMatch(/<label className="ap-pop-title" id=\{titleId\} htmlFor=\{`ap-alias-\$\{a\.num\}`\}>\{t\("accounts\.menu\.renameTitle"\)\}<\/label>/);
-    expect(popover).toMatch(/<label className="ap-pop-title" id=\{titleId\} htmlFor=\{`ap-slot-\$\{a\.num\}`\}>\{t\("accounts\.menu\.moveTitle"\)\}<\/label>/);
+    // CHANGED ON PURPOSE (V4's Figma): the slot list is a radiogroup named by
+    // its title, in place of a select a label points at.
+    expect(popover).toMatch(/<p className="ap-pop-title" id=\{titleId\}>\{t\("accounts\.menu\.moveTitleNamed"/);
+    expect(popover).toMatch(/role="radiogroup" aria-labelledby=\{titleId\}/);
     expect(accountsSurface()).not.toMatch(/aria-label=\{`Alias for account/);
     expect(accountsSurface()).not.toMatch(/aria-label=\{`Slot for account/);
   });

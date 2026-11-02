@@ -377,6 +377,12 @@ const PRESSES: Press[] = [
   // An inactive account's one verb, a word on the control fill: a labelled
   // control, 0.97 like every other one.
   [".ap-switch:active:not(:disabled)", "0.97", "transform"],
+  // CHANGED ON PURPOSE (V4's Figma): the Auto-switch row's opener, its chips and
+  // options, and the Move list's rows are labelled controls too, 0.97 like the rest.
+  [".ap-auto-open:active:not(:disabled)", "0.97", "transform"],
+  [".ap-chip:active:not(:disabled)", "0.97", "transform"],
+  [".ap-auto-option:active:not(:disabled)", "0.97", "transform"],
+  [".ap-slot-row:active:not(:disabled)", "0.97", "transform"],
   [".ap-sign-in:active:not(:disabled)", "0.97", "transform"],
   // #856's two disclosures: a warning that opens its reason, a pace note that
   // opens its number. Text-weight, and still a thing being pressed — the
@@ -396,8 +402,9 @@ const PRESSES: Press[] = [
   [".uh-range-btn:active", "0.97", "transform"],
   [".uh-bar-col:active", "0.97", "transform"],
   [".session-list .sl-row:active", "0.97", "transform"],
-  // The rail's close button, a 24px icon: the icon tier.
-  [".session-list .sl-close:active", "0.94", "transform"],
+  // The rail's header icon buttons (Plus, and the phone's close), 24px icons: the icon tier.
+  // Renamed from .sl-close for V4's header, which has two such buttons.
+  [".session-list .sl-icon-btn:active", "0.94", "transform"],
   // The rail's usage meter, a labelled row that opens Usage: the rows' tier.
   [".session-list .sl-usage-btn:active", "0.97", "transform"],
   // Browser Watch's episode disclosure. Same tier and same number as the row

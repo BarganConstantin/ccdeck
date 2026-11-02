@@ -62,12 +62,13 @@ describe("Rail / Usage box", () => {
     expect(list.indexOf("<RailUsage")).toBeGreaterThan(list.indexOf('className="sl-foot"'));
   });
 
-  it("is a column, 4 apart, 8 and 12 in, the rows' --r-panel round (the kit has no 9), nothing at rest", () => {
+  // Changed for V4's Figma: the meter box's radius is the literal 9, not --r-panel.
+  it("is a column, 4 apart, 8 and 12 in, 9 round (V4's literal), nothing at rest", () => {
     expect(decl(".session-list .sl-usage-btn", "display")).toBe("flex");
     expect(decl(".session-list .sl-usage-btn", "flex-direction")).toBe("column");
     expect(decl(".session-list .sl-usage-btn", "gap")).toBe("4px");
     expect(decl(".session-list .sl-usage-btn", "padding")).toBe("8px 12px");
-    expect(decl(".session-list .sl-usage-btn", "border-radius")).toBe("var(--r-panel)");
+    expect(decl(".session-list .sl-usage-btn", "border-radius")).toBe("9px");
     expect(decl(".session-list .sl-usage-btn", "background")).toBe("transparent");
     expect(decl(".session-list .sl-usage-btn", "border")).toBe("0");
     expect(decl(".session-list .sl-usage-btn", "width")).toBe("100%");
@@ -95,12 +96,14 @@ describe("Rail / Usage box", () => {
     expect(decl(".session-list .sl-usage-line2", "color")).toBe("var(--muted)");
   });
 
-  it("draws the bar 4 tall, --r-tag round, clipped, on a --line track", () => {
+  // Changed for V4's Figma: the bar itself is --line-soft; the track is its own part in --line.
+  it("draws the bar 4 tall, --r-tag round, clipped, on --line-soft, the track in --line", () => {
     expect(decl(".session-list .sl-usage-bar", "height")).toBe("4px");
     expect(decl(".session-list .sl-usage-bar", "width")).toBe("100%");
     expect(decl(".session-list .sl-usage-bar", "border-radius")).toBe("var(--r-tag)");
     expect(decl(".session-list .sl-usage-bar", "overflow")).toBe("hidden");
-    expect(decl(".session-list .sl-usage-bar", "background")).toBe("var(--line)");
+    expect(decl(".session-list .sl-usage-bar", "background")).toBe("var(--line-soft)");
+    expect(decl(".session-list .sl-usage-track", "background")).toBe("var(--line)");
   });
 
   it("answers the rows' hover wash, press and ring, and keeps a phone target of 44", () => {
@@ -119,31 +122,34 @@ describe("Rail / Usage box", () => {
 });
 
 describe("one fill, in the Usage panel bar's data colours", () => {
-  it("draws ONE fill whose width is the percent, in --accent at a normal reading", () => {
+  // Changed for V4's Figma: the fill is one cyan data part, not --accent, until a split exists.
+  it("draws ONE fill whose width is the percent, as one --usage-cyan part", () => {
     const html = draw(reading({ session5hPct: 62 }));
     expect(html.match(/sl-usage-fill/g)).toHaveLength(1);
-    expect(html).toContain('style="width:62%;background:var(--accent)"');
-    // None of the five Figma segment colours: they have no data behind them.
-    expect(rail).not.toMatch(/--usage-(?:cyan|indigo|lime|pink|orange)/);
+    expect(html).toContain('style="width:62%"');
+    expect(html.match(/sl-usage-seg/g)).toHaveLength(1);
+    expect(html).toContain("background:var(--usage-cyan)");
   });
 
-  it("wears the colour QuotaBar's own bar wears for the same reading: --accent, --warn from 70, --err from 90", () => {
-    const colour = (pct: number) => draw(reading({ session5hPct: pct })).match(/background:(var\(--[a-z]+\))/)?.[1];
-    expect(colour(69)).toBe("var(--accent)");
-    expect(colour(70)).toBe("var(--warn)");
-    expect(colour(89)).toBe("var(--warn)");
-    expect(colour(90)).toBe("var(--err)");
-    expect(colour(100)).toBe("var(--err)");
-    // One source for both: the bar calls the same function, no colour of its own here.
-    // CHANGED ON PURPOSE (V4's Figma): the Usage panel's own bar follows the panel's meter rule
-    // (quotaMeterColor: --muted, --text from 70, --err from 90, never amber); this level function is
-    // the rail's, and the bar no longer calls it.
+  // Changed for V4's Figma: the bar never turns amber or red; the figure changes tone.
+  it("keeps the bar one colour at every reading and tones the figure: quiet, plain, error from 70 and 90", () => {
+    const level = (pct: number) => draw(reading({ session5hPct: pct })).match(/data-level="(\w+)"/)?.[1];
+    expect(level(69)).toBe("low");
+    expect(level(70)).toBe("mid");
+    expect(level(89)).toBe("mid");
+    expect(level(90)).toBe("high");
+    expect(level(100)).toBe("high");
+    for (const pct of [10, 75, 95]) {
+      expect(draw(reading({ session5hPct: pct }))).not.toMatch(/background:var\(--(?:warn|err|accent)\)/);
+    }
+    const css = rail.slice(rail.indexOf(".session-list .sl-usage {"), rail.indexOf("The phone keeps the drawer")).replace(/\/\*[\s\S]*?\*\//g, "");
+    // --err appears once, on the figure; the bar and its parts carry none of the level colours.
+    expect(css.match(/--err/g)).toHaveLength(1);
+    expect(css).toMatch(/\[data-level="high"\] \.sl-usage-pct \{ color: var\(--err\)/);
+    expect(css).not.toMatch(/--warn|--accent|#[0-9a-f]{3,8}\b|rgba?\(|hsla?\(/i);
+    // The Usage panel's bar keeps its own meter rule; neither meter shares a level colour now.
     expect(code("../components/QuotaBar.tsx")).toContain("quotaMeterColor(capped, isErr)");
-    expect(code("../components/QuotaBar.tsx")).toMatch(/capped >= 70 \? "var\(--warn\)" : "var\(--accent\)"/);
-    expect(code("../rail-usage.ts")).toContain("quotaLevelColor(capped)");
-    // No hex, no new token in the rule the meter adds.
-    const css = rail.slice(rail.indexOf(".session-list .sl-usage {"), rail.indexOf("The phone keeps the drawer"));
-    expect(css.replace(/\/\*[\s\S]*?\*\//g, "")).not.toMatch(/--warn|--err|--accent|#[0-9a-f]{3,8}\b|rgba?\(|hsla?\(/i);
+    expect(code("../rail-usage.ts")).not.toMatch(/quota\w*Color/);
   });
 
   it("caps the width at 0 to 100", () => {
@@ -315,16 +321,18 @@ describe("a reading the deck has not taken lately is drawn quiet and says so", (
     expect(meter(reading(), NOW, { readAt: readAgo(1), failed: false })?.stale).toBe(false);
   });
 
-  it("draws the fill and the percent in the accent when fresh, in --muted when stale, on the same markup otherwise", () => {
+  // Changed for V4's Figma: staleness is carried by the figure's quiet level; the bar keeps its colour.
+  it("draws the figure at its level when fresh, quiet when stale, on the same markup otherwise", () => {
     const fresh = draw(reading(), NOW, { readAt: readAgo(2) });
     const stale = draw(reading(), NOW, { readAt: readAgo(12) });
     expect(fresh).not.toContain("data-stale");
     expect(stale).toContain('data-stale="true"');
-    expect(fresh).toContain("width:62%;background:var(--accent)");
-    expect(stale).toContain("width:62%;background:var(--muted)");
-    // A stale reading goes quiet even where it would be --warn or --err when fresh.
-    expect(draw(reading({ session5hPct: 95 }), NOW, { readAt: readAgo(12) })).toContain("background:var(--muted)");
-    expect(draw(reading({ session5hPct: 95 }), NOW, { failed: true })).toContain("background:var(--muted)");
+    expect(fresh).toContain('width:62%"');
+    expect(stale).toContain('width:62%"');
+    expect(draw(reading({ session5hPct: 95 }), NOW, { readAt: readAgo(2) })).toContain('data-level="high"');
+    // A stale reading goes quiet even where it would be error when fresh.
+    expect(draw(reading({ session5hPct: 95 }), NOW, { readAt: readAgo(12) })).toContain('data-level="low"');
+    expect(draw(reading({ session5hPct: 95 }), NOW, { failed: true })).toContain('data-level="low"');
     expect(decl(".session-list .sl-usage-btn[data-stale] .sl-usage-pct", "color")).toBe("var(--muted)");
     // The same one fill, the same width: only its colour changes.
     expect(stale.match(/sl-usage-fill/g)).toHaveLength(1);
