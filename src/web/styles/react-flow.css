@@ -160,14 +160,6 @@
   font-variant-numeric: tabular-nums;
 }
 .react-flow__controls-button svg { max-width: 14px; max-height: 14px; }
-/* The keyboard glyph is Settings › Keyboard's own, drawn on the topbar's spec
-   (13px on a 14 viewBox, a 1.4 stroke). In the bar it takes the bar's: 14px,
-   and the line a 2-unit stroke on 24 units comes to at that size. */
-.react-flow__controls-button[aria-label="Open the keyboard shortcuts"] svg {
-  width: 14px;
-  height: 14px;
-  stroke-width: 1.17px;
-}
 @media (hover: hover) and (pointer: fine) {
 .react-flow__controls-button:hover { background: var(--ctl-fill); color: var(--text); }
 }

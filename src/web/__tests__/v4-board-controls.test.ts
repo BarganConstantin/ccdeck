@@ -76,6 +76,10 @@ describe("the bar's items, left to right", () => {
   it("keeps the keyboard glyph Settings › Keyboard wears", () => {
     expect(component).toContain('<KitIcon name="keyboard" />');
   });
+  it("draws the keyboard glyph with the kit's stroke, like its neighbours: no rule thins it", () => {
+    expect(decls('.react-flow__controls-button[aria-label="Open the keyboard shortcuts"] svg')).toEqual({});
+    expect(stripped).not.toMatch(/\.react-flow__controls-button[^{}]*svg[^{}]*\{[^}]*stroke-width/);
+  });
 });
 
 describe("the zoom figure", () => {
