@@ -29,9 +29,9 @@ export default function SoundSwitch({ soundOn, onToggleSound }: Props) {
     // reaches the switch once and there is one tab stop. Named for what it
     // does, "Play sounds", and not for the section: Settings heads the section
     // "Sounds" right above it, and the two would read as one word said twice.
-    // Its group has no caption: it is the section's master switch, above the
-    // groups it governs.
-    <SettingsGroup>
+    // Its group is captioned "Sound" (V4): it is the section's master switch,
+    // above the groups it governs.
+    <SettingsGroup id="sm-sound-caption" title={t("settings.sounds.group")}>
       <SettingRow
         settingId="play-sounds"
         name={t("radio.sound.name")}

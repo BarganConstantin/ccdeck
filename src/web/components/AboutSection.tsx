@@ -109,7 +109,7 @@ export default function AboutSection({
   const offer = updateOffer(readyAppUpdate, notice, t);
   return (
     <>
-      <SettingsGroup id="settings-about-caption" title={PRODUCT}>
+      <SettingsGroup id="settings-about-caption" title={t("settings.about.version")}>
         <SettingRow
           as="div"
           settingId="version"
@@ -126,6 +126,24 @@ export default function AboutSection({
           note={t("settings.about.whatsNewNote")}
           control={<button type="button" className="btn" aria-haspopup="dialog" aria-label={t("settings.about.openWhatsNew")} onClick={doors.whatsNew}>{t("settings.about.open")}</button>}
         />
+      </SettingsGroup>
+      <SettingsGroup id="settings-about-help-caption" title={t("settings.about.helpGroup")}>
+        <SettingRow
+          as="div"
+          settingId="tour"
+          name={t("settings.about.tour")}
+          note={t("settings.key.tourText")}
+          control={<button type="button" className="btn" aria-haspopup="dialog" aria-label={t("settings.about.startTour")} onClick={doors.tour}>{t("settings.about.start")}</button>}
+        />
+        <SettingRow
+          as="div"
+          settingId="feedback"
+          name={t("settings.about.feedback")}
+          note={t("settings.about.feedbackNote")}
+          control={<button type="button" className="btn" aria-haspopup="dialog" aria-label={t("settings.about.openFeedback")} onClick={doors.feedback}>{t("settings.about.open")}</button>}
+        />
+      </SettingsGroup>
+      <SettingsGroup id="settings-about-project-caption" title={t("settings.about.projectGroup")}>
         <SettingRow
           as="div"
           settingId="licence"
@@ -157,22 +175,6 @@ export default function AboutSection({
               {t("settings.about.sponsorLink")}<span className="vis-hidden">{t("settings.about.sponsorHidden")}</span>
             </a>
           }
-        />
-      </SettingsGroup>
-      <SettingsGroup id="settings-about-help-caption" title={t("settings.about.helpGroup")}>
-        <SettingRow
-          as="div"
-          settingId="tour"
-          name={t("settings.about.tour")}
-          note={t("settings.key.tourText")}
-          control={<button type="button" className="btn" aria-haspopup="dialog" aria-label={t("settings.about.startTour")} onClick={doors.tour}>{t("settings.about.start")}</button>}
-        />
-        <SettingRow
-          as="div"
-          settingId="feedback"
-          name={t("settings.about.feedback")}
-          note={t("settings.about.feedbackNote")}
-          control={<button type="button" className="btn" aria-haspopup="dialog" aria-label={t("settings.about.openFeedback")} onClick={doors.feedback}>{t("settings.about.open")}</button>}
         />
       </SettingsGroup>
     </>

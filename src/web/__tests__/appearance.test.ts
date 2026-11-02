@@ -88,7 +88,9 @@ describe("character appearance preference", () => {
     // One tab stop in the pair, on the theme that is set; the arrows walk it.
     expect(themes()).toContain("tabIndex={theme === choice ? 0 : -1}");
     // The previews are pictures; the name is the word under each.
-    expect(themes()).toMatch(/<svg viewBox="0 0 112 56" aria-hidden focusable="false">/);
+    // CHANGED ON PURPOSE (V4's Figma): the preview is 128 × 62 and not 2:1, so the
+    // drawing fills it (slice) instead of sitting in it; it is still aria-hidden.
+    expect(themes()).toMatch(/<svg viewBox="0 0 112 56" preserveAspectRatio="xMidYMid slice" aria-hidden focusable="false">/);
     // The character's switch is a row now, named by the words beside it and
     // described by the line under them (#2176); the caption names the group.
     expect(character()).toContain('aria-labelledby="appearance-character-label"');

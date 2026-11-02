@@ -48,6 +48,8 @@ describe("the canvas's radius tier is named beside the chrome's (#1288)", () => 
     const readers = [...css.matchAll(/([^{}]+)\{([^{}]*var\(--r-(?:node|cluster)\)[^{}]*)\}/g)].map(m => m[1].trim());
     // CHANGED ON PURPOSE: V4's Figma draws the Usage panel's box at --r-node (10), the one
     // chrome surface that reads it; the canvas objects still read the tier from the same token.
-    expect(readers.sort()).toEqual([...Object.keys(CANVAS), ".usage-panel"].sort());
+    // CHANGED ON PURPOSE: V4's Figma draws Settings' Text & density preview as a
+    // sunken box at the same 10, a picture of the board's rows.
+    expect(readers.sort()).toEqual([...Object.keys(CANVAS), ".usage-panel", ".reading-preview"].sort());
   });
 });
