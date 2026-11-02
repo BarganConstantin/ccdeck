@@ -1,4 +1,4 @@
-// V4's Panel bar (V4's Figma, decision 10): ONE bar on the left, 40 wide, holds
+// V4's Panel bar (V4's Figma): ONE bar on the left, 40 wide, holds
 // every door. Doors at the top in runs between 16x1 rules, Radio and Settings
 // at the foot, no right bar, Settings gone from the top bar. And V4's Tooltip:
 // one line, 24 high, the name and a key chip.
@@ -211,5 +211,11 @@ describe("V4's Tooltip", () => {
     const hint = source("../components/use-hint.tsx");
     expect(hint).toContain("FIRST_HINT_DELAY_MS = 450");
     expect(hint).toContain("HINT_GRACE_MS = 100");
+  });
+
+  it("arrives in Fast with 4px of travel, and under reduced motion fades without the travel", () => {
+    expect(decl(".hint", "transition")).toBe("opacity var(--dur-fast) var(--ease), transform var(--dur-fast) var(--ease)");
+    expect(decl(".hint", "transition", "(prefers-reduced-motion: reduce)")).toBe("opacity var(--dur-fast) var(--ease)");
+    expect(source("../styles/hint.css")).toMatch(/@media \(prefers-reduced-motion: reduce\) \{[^@]*@starting-style \{\s*\.hint-right, \.hint-left, \.hint-below, \.hint-above \{ transform: none; \}/);
   });
 });

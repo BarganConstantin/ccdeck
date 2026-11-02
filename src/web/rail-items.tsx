@@ -7,7 +7,7 @@
 // label cannot drift between them. The keys are the ones the deck has always
 // answered (use-deck-shortcuts.ts); moving a button moved none of them.
 //
-// ONE PANEL BAR (V4's Figma, decision 10). The two stripes became one bar on
+// ONE PANEL BAR (V4's Figma). The two stripes became one bar on
 // the left: runs of doors that answer one question each, three doors at most,
 // between rules, each run a name a screen reader says on the way in, and a foot
 // of utilities pushed to the bottom:

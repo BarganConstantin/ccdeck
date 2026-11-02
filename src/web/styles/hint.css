@@ -81,6 +81,11 @@
 }
 .hint[data-instant] { transition: none; }
 
+/* Reduced motion keeps the fade and drops the 4px: the hint still arrives,
+   it just does not travel. Below the @starting-style rules it answers. */
 @media (prefers-reduced-motion: reduce) {
-  .hint { transition: none; }
+  .hint { transition: opacity var(--dur-fast) var(--ease); }
+  @starting-style {
+    .hint-right, .hint-left, .hint-below, .hint-above { transform: none; }
+  }
 }

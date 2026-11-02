@@ -1,4 +1,4 @@
-// One rule for the doors (2026-10-23), now on V4's one Panel bar (decision 10).
+// One rule for the doors (2026-10-23), now on V4's one Panel bar.
 //
 // A user wrote that the deck has a lot in it but is "not organized". Thirteen
 // doors had grown on two stripes in runs grouped by two different rules, so
