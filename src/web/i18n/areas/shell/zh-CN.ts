@@ -433,6 +433,7 @@ const catalog: Catalog = {
   "shell.feedback.problem.count": "最多 {n} 张图片。",
   "shell.feedback.problem.size": "第 {n} 张图片超过 {mb} MB。",
   "shell.feedback.problem.format": "第 {n} 张图片不是 PNG 或 JPEG。",
+  "shell.feedback.didNotLoad": "无法加载您的对话。请重新加载 ccdeck。",
   "shell.feedback.tabs": "反馈",
   "shell.feedback.unreadSuffix": "，未读",
   "shell.feedback.teamSignature": "ccdeck 团队",

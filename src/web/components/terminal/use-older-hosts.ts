@@ -6,6 +6,7 @@
 // reader most needs the line, is always a move (a launch is a subject), and a
 // host only changes when someone ends or starts sessions.
 import { useEffect, useRef, useState } from "react";
+import { t } from "../../i18n";
 import {
   HOSTS_API,
   endHost,
@@ -94,7 +95,7 @@ export function useOlderHosts(
         if (gone.current) return;
         setBusy(null);
         setView(latest);
-        if (ended) announce.current?.(`Ended ${ended === 1 ? "1 session" : `${ended} sessions`} on an older session host.`);
+        if (ended) announce.current?.(t("board.hosts.endedAnnounce", { count: ended }));
         if (!reviewable(latest)) close();
         else setSaid(said);
       })();

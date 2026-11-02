@@ -431,6 +431,7 @@ const catalog: Catalog = {
   "shell.feedback.problem.count": "이미지는 최대 {n}장입니다.",
   "shell.feedback.problem.size": "이미지 {n}이(가) {mb} MB를 초과합니다.",
   "shell.feedback.problem.format": "이미지 {n}은(는) PNG나 JPEG가 아닙니다.",
+  "shell.feedback.didNotLoad": "대화를 불러오지 못했습니다. ccdeck을 새로 고쳐 주세요.",
   "shell.feedback.tabs": "피드백",
   "shell.feedback.unreadSuffix": ", 읽지 않음",
   "shell.feedback.teamSignature": "ccdeck 팀",

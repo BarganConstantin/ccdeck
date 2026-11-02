@@ -31,8 +31,8 @@ export interface ConversationsProps {
   announce: (words: string) => void;
 }
 
-/** Said when the conversations could not be drawn at all. */
-export const CONVERSATIONS_DID_NOT_LOAD = "Couldn't load your conversations. Reload the deck.";
+/** The catalog key of what is said when the conversations could not be drawn at all. */
+export const CONVERSATIONS_DID_NOT_LOAD_MSG = "shell.feedback.didNotLoad";
 
 /** The note a missing chunk or a thrown panel leaves, with the reload that
  *  fixes the first. */
@@ -40,7 +40,7 @@ export function ConversationsDidNotLoad() {
   const t = useT();
   return (
     <div className="fc-missing">
-      <p className="fc-note">{CONVERSATIONS_DID_NOT_LOAD}</p>
+      <p className="fc-note">{t(CONVERSATIONS_DID_NOT_LOAD_MSG)}</p>
       <button type="button" className="btn" onClick={() => window.location.reload()}>{t("shell.reload")}</button>
     </div>
   );

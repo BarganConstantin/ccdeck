@@ -15,7 +15,7 @@
 // Pure, and first-load: no stage code is imported, only the helpers of
 // terminal-keys.ts that the shortcuts handler already carries.
 import { isCharacterKey } from "./single-key-shortcuts";
-import { releaseChordLabel, RELEASE_CHORD_SPOKEN, VIEW_CHORD_LABEL } from "./terminal-keys";
+import { releaseChordLabel, RELEASE_CHORD_SPOKEN_MSG, VIEW_CHORD_LABEL } from "./terminal-keys";
 import { t } from "./i18n";
 
 /** The view chord in words, for a screen reader: a backtick is read as nothing. */
@@ -53,7 +53,8 @@ export interface StatusHint {
 export type StatusLayer = "board" | "deck" | "terminal";
 
 const cap = (text: string, spoken?: string): StatusCap => ({ text, spoken });
-const ENTER = cap("↵", "Enter");
+// A getter, so a screen reader hears the language on show when the bar is drawn.
+const ENTER: StatusCap = { text: "↵", get spoken() { return t("board.keys.enterSpoken"); } };
 
 /** The board's layer. Figma's last item here, Ctrl + backtick → workspace, is added
  *  by statusViewFor only where the chord works (the Command Panel is on): the
@@ -123,7 +124,7 @@ export function statusViewFor({ stageOpen, pane, onCard, zoomedOut, singleKeys, 
       layer: "terminal",
       label: pane ? t("board.status.keysIn", { name: pane }) : t("board.status.keysInSession"),
       // A chord, so it stays with the single keys off.
-      hints: [{ caps: [cap(releaseChordLabel(platform), RELEASE_CHORD_SPOKEN)], word: t("board.status.keysBack"), binds: [] }, ...view],
+      hints: [{ caps: [cap(releaseChordLabel(platform), t(RELEASE_CHORD_SPOKEN_MSG))], word: t("board.status.keysBack"), binds: [] }, ...view],
     };
   }
   const deck = stageOpen;

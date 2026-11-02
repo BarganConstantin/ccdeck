@@ -28,7 +28,8 @@ vi.mock("../components/FeedbackConversations", () => {
 });
 
 import DeckDialogs from "../components/DeckDialogs";
-import { CONVERSATIONS_DID_NOT_LOAD, ConversationsPanel, FeedbackConversations } from "../components/FeedbackTabs";
+import { en } from "../i18n/en";
+import { CONVERSATIONS_DID_NOT_LOAD_MSG, ConversationsPanel, FeedbackConversations } from "../components/FeedbackTabs";
 
 function fakeRes() {
   const r: { status?: number; headers?: Record<string, unknown>; body?: string } = {};
@@ -160,7 +161,8 @@ describe("Your conversations, when its chunk does not arrive", () => {
     // being rethrown into the boundary round the whole deck.
     const Shown = await settle(FeedbackConversations as unknown as Lazy);
     const html = renderToStaticMarkup(createElement(Shown, {}));
-    expect(CONVERSATIONS_DID_NOT_LOAD).toBe("Couldn't load your conversations. Reload the deck.");
+    // CHANGED ON PURPOSE (the UI in every language): the sentence is a catalog key now.
+    expect(en[CONVERSATIONS_DID_NOT_LOAD_MSG]).toBe("Couldn't load your conversations. Reload the deck.");
     expect(html).toContain("Couldn&#x27;t load your conversations. Reload the deck.");
     expect(html).toMatch(/>Reload</);
     expect(html).not.toContain('role="dialog"');

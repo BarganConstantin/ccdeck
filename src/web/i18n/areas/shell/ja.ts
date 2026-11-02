@@ -425,6 +425,7 @@ const catalog: Catalog = {
   "shell.feedback.problem.count": "画像は最大{n}枚までです。",
   "shell.feedback.problem.size": "{n}枚目の画像が {mb} MB を超えています。",
   "shell.feedback.problem.format": "{n}枚目の画像は PNG でも JPEG でもありません。",
+  "shell.feedback.didNotLoad": "会話を読み込めませんでした。ccdeck を再読み込みしてください。",
   "shell.feedback.tabs": "フィードバック",
   "shell.feedback.unreadSuffix": "、未読",
   "shell.feedback.teamSignature": "ccdeck チーム",

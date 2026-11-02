@@ -433,6 +433,7 @@ const catalog: Catalog = {
   "shell.feedback.problem.count": "{n} images au plus.",
   "shell.feedback.problem.size": "L’image {n} dépasse {mb} Mo.",
   "shell.feedback.problem.format": "L’image {n} n’est ni un PNG ni un JPEG.",
+  "shell.feedback.didNotLoad": "Impossible de charger vos conversations. Rechargez ccdeck.",
   "shell.feedback.tabs": "Avis",
   "shell.feedback.unreadSuffix": ", non lu",
   "shell.feedback.teamSignature": "l’équipe ccdeck",

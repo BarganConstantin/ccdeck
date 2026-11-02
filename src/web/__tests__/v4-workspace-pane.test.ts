@@ -21,7 +21,7 @@ const BACK_EMPTY_LABEL = en[BACK_EMPTY_LABEL_MSG], CLOSE_LABEL = en[CLOSE_LABEL_
 const FULL_LEAVE_LABEL = en[FULL_LEAVE_LABEL_MSG], PANE_CLOSE_LABEL = en[PANE_CLOSE_LABEL_MSG];
 const ZOOM_LABEL = en[ZOOM_LABEL_MSG], ZOOM_OFF_LABEL = en[ZOOM_OFF_LABEL_MSG];
 const WS_EMPTY_LINE = en[WS_EMPTY_LINE_MSG], WS_EMPTY_TITLE = en[WS_EMPTY_TITLE_MSG];
-import { EMPTY_PANE_NAME, stageName } from "../components/terminal/TerminalStage";
+import { EMPTY_PANE_NAME_MSG, stageName } from "../components/terminal/TerminalStage";
 import { askSentence, waitedExact, waitingCardFor } from "../components/terminal/stage-board";
 import type { BlockedSession } from "../ambient-counts";
 import type { StageStatus } from "../components/terminal/stage-model";
@@ -130,7 +130,8 @@ describe("the header", () => {
   });
 
   it("titles the empty pane \"Empty pane\", and only in Workspace", () => {
-    expect(EMPTY_PANE_NAME).toBe("Empty pane");
+    // CHANGED ON PURPOSE (the UI in every language): the name is a catalog key now.
+    expect(en[EMPTY_PANE_NAME_MSG]).toBe("Empty pane");
     expect(stageName({ kind: "empty" }, true)).toBe("Empty pane");
     expect(stageName({ kind: "empty" })).toBe("No session open");
   });

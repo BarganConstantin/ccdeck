@@ -77,14 +77,15 @@ export function hostsLine(view: HostsView | null, kept: boolean): string | null 
   const n = listed.reduce((sum, h) => sum + h.sessions.length, 0);
   if (n === 0) return view.launchesRefused;
   const one = listed.length === 1;
+  const refused = !!view.launchesRefused;
+  // The plain count is Figma's phrase, with no full stop of its own; with the
+  // refusal after it, it is a sentence, and its "…Stop" form carries the stop.
   const said = kept
     ? t("board.hosts.kept", { count: n })
     : listed.some(h => h.state === "security")
       ? t(one ? "board.hosts.securityOne" : "board.hosts.securityMany", { sessions: count(n) })
-      : t(one ? "board.hosts.plainOne" : "board.hosts.plainMany", { sessions: count(n) });
-  // The plain count is Figma's phrase, with no full stop of its own; the refusal
-  // follows it as a sentence.
-  return view.launchesRefused ? `${said.endsWith(".") ? said : `${said}.`} ${t(REFUSED_UNTIL_THEY_END_MSG)}` : said;
+      : t(one ? (refused ? "board.hosts.plainOneStop" : "board.hosts.plainOne") : (refused ? "board.hosts.plainManyStop" : "board.hosts.plainMany"), { sessions: count(n) });
+  return refused ? t("board.stage.twoSentences", { first: said, second: t(REFUSED_UNTIL_THEY_END_MSG) }) : said;
 }
 
 /** The dialog's sentence for why a host is listed. */

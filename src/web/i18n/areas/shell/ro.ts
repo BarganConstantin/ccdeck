@@ -448,6 +448,7 @@ const catalog: Catalog = {
   "shell.feedback.problem.count": "Cel mult {n} imagini.",
   "shell.feedback.problem.size": "Imaginea {n} depășește {mb} MB.",
   "shell.feedback.problem.format": "Imaginea {n} nu este PNG sau JPEG.",
+  "shell.feedback.didNotLoad": "Nu am putut încărca conversațiile tale. Reîncarcă ccdeck.",
   "shell.feedback.tabs": "Feedback",
   "shell.feedback.unreadSuffix": ", necitit",
   "shell.feedback.teamSignature": "echipa ccdeck",
