@@ -51,6 +51,7 @@ import DetailAside from "./components/DetailAside";
 import { EdgeDock, EdgeRail, PHONE_QUERY, UtilityRun } from "./components/EdgeRails";
 import { railItems } from "./rail-items";
 import { unreadOf, useFeedbackAccount } from "./feedback-unread";
+import { focusFirstTaking } from "./fold-focus";
 // The modal and its panels load on demand; this is the light wrapper that
 // fetches them (IntegrationModalOnDemand.tsx).
 import IntegrationModal, { preloadIntegrationModal } from "./components/IntegrationModalOnDemand";
@@ -640,20 +641,8 @@ function Inner() {
   const foldInspector = useCallback(() => {
     setInspectorFolded(true);
     setDetailOpen(false);
-    // The keyboard goes to the pane: its terminal, or else its first control, or else
-    // the session's row in the rail; never the page. A terminal under a state card
-    // is in the tree but takes no focus, so each one is tried in turn.
-    requestAnimationFrame(() => {
-      const dock = document.querySelector<HTMLElement>(".stage-dock");
-      for (const el of [
-        dock?.querySelector<HTMLElement>(".xterm-helper-textarea"),
-        dock?.querySelector<HTMLElement>("button:not(:disabled)"),
-        document.querySelector<HTMLElement>(".sl-row[aria-current=\"true\"]"),
-      ]) {
-        el?.focus();
-        if (el && document.activeElement === el) break;
-      }
-    });
+    // The keyboard goes to the pane, never the page (fold-focus.ts).
+    requestAnimationFrame(() => { focusFirstTaking(document); });
   }, [setDetailOpen]);
   // A click on the switch crossfades the middle of the deck; a key does not.
   const [viewFade, setViewFade] = useState(false);
