@@ -216,14 +216,6 @@
 }
 }
 .topbar .waiting-stat:active { transform: scale(var(--press)); }
-@media (prefers-reduced-motion: reduce) {
-  .topbar .waiting-stat:active { transform: none; }
-  /* Starting where it ends: nothing to run. */
-  @starting-style {
-    .topbar .status .pill, .topbar .waiting-stat, .topbar .provider-incident,
-    .topbar .wait-list li[data-fresh] { opacity: 1; transform: none; }
-  }
-}
 /* V4's chip entrance (V4's motion rules, top bar chip): opacity and 4px of x, over
    --dur-base. The same keyframe `wait-in` below draws for a queue name, but
    that one is 160ms from its own curve and is the queue's alone, so the two
@@ -281,6 +273,15 @@
    an entrance on every refit would be the bar fidgeting. */
 .topbar .wait-list li[data-fresh] { transition: opacity var(--dur-base) var(--ease), transform var(--dur-base) var(--ease); }
 @starting-style { .topbar .wait-list li[data-fresh] { opacity: 0; transform: translateX(-4px); } }
+/* Reduced motion: starting where it ends, nothing to run. Below both
+   @starting-style rules above, which it answers at the same specificity. */
+@media (prefers-reduced-motion: reduce) {
+  .topbar .waiting-stat:active { transform: none; }
+  @starting-style {
+    .topbar .status .pill, .topbar .waiting-stat, .topbar .provider-incident,
+    .topbar .wait-list li[data-fresh] { opacity: 1; transform: none; }
+  }
+}
 
 /* One name: edgeless at rest, like every control a word identifies on this
    bar, and neutral — the amber is the count's, and a row of amber names would

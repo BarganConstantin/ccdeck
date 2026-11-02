@@ -951,8 +951,11 @@ input, textarea { caret-color: var(--accent); }
 /* A lit row lifts the ground under its verbs as it does under its sentence,
    so they are mixed toward the foreground there too: a step under the name,
    which stays the brightest thing in the row, and clear of 4.5:1 on the tone. */
+.ap-lan-who:has(:focus-visible) .ap-manage-btn {
+  color: color-mix(in srgb, var(--muted) 65%, var(--text));
+}
 @media (hover: hover) and (pointer: fine) {
-.ap-lan-who:is(:hover, :has(:focus-visible)) .ap-manage-btn {
+.ap-lan-who:hover .ap-manage-btn {
   color: color-mix(in srgb, var(--muted) 65%, var(--text));
 }
 }

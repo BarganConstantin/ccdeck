@@ -869,13 +869,17 @@
 .release-notes .rn-more > div { padding-top: 8px; }
 .release-notes .rn-history > div { padding: 0; }
 /* Keep the full reading row clickable; structural surfaces are not hover fills. */
+.release-notes .rn-more > summary:focus-visible .rn-more-label,
+.release-notes .rn-history > summary:focus-visible { text-decoration: underline; text-decoration-color: var(--ctl-edge); text-underline-offset: 3px; }
 @media (hover: hover) and (pointer: fine) {
-.release-notes .rn-more > summary:is(:hover, :focus-visible) .rn-more-label,
-.release-notes .rn-history > summary:is(:hover, :focus-visible) { text-decoration: underline; text-decoration-color: var(--ctl-edge); text-underline-offset: 3px; }
+.release-notes .rn-more > summary:hover .rn-more-label,
+.release-notes .rn-history > summary:hover { text-decoration: underline; text-decoration-color: var(--ctl-edge); text-underline-offset: 3px; }
 }
+.release-notes .rn-more > summary:focus-visible :is(.rn-chevron, .rn-more-hint),
+.release-notes .rn-history > summary:focus-visible { color: var(--text); }
 @media (hover: hover) and (pointer: fine) {
-.release-notes .rn-more > summary:is(:hover, :focus-visible) :is(.rn-chevron, .rn-more-hint),
-.release-notes .rn-history > summary:is(:hover, :focus-visible) { color: var(--text); }
+.release-notes .rn-more > summary:hover :is(.rn-chevron, .rn-more-hint),
+.release-notes .rn-history > summary:hover { color: var(--text); }
 }
 .release-notes .rn-more > summary:active .rn-more-label { text-decoration-color: currentColor; text-decoration-thickness: 2px; }
 .release-notes .rn-history > summary { font-size: calc(12px + var(--ui-text-increase, 0px)); font-weight: 400; color: var(--muted); }

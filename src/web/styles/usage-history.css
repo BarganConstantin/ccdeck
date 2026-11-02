@@ -269,23 +269,25 @@
 .uh-bar-col.sel .uh-bar { outline: 1px solid var(--accent); outline-offset: 1px; }
 .uh-bar {
   width: 78%;
-  /* The bar is as tall as its column and drawn at its share of it: the day's
-     height is a scaleY (--uh-h, 0 to 1), never a `height` (V4's motion rules,
-     rule 4: transform and opacity only). It used to ease `height` when the
-     range changed under an open chart and rise by a keyframe when the chart
-     first drew; it is one transition now, so a range that changes mid-rise
-     turns round from where the bars are. It squashes the stacked bands with the
-     column, so a day's mix is right in every frame. */
-  height: 100%;
+  /* At rest the bar has its real height: its share of the column (--uh-h, 0 to
+     1), so the selected-day outline, the cut between bands (.uh-bar-seg) and
+     the 2px top radius are drawn at their true size, never squashed by a
+     transform. Only the rise is a scaleY, from the first frame below, and it
+     is gone when the rise ends. A range that changes under an open chart
+     still eases the height (#863 kept it on purpose: a scaleY there would
+     squash the ring, and ninety bars in a fixed-height chart reflow only the
+     chart), with no stagger: the stagger belongs to the rise. */
+  height: calc(var(--uh-h, 1) * 100%); min-height: 1px;
   display: flex; flex-direction: column;
   border-radius: 2px 2px 0 0; overflow: hidden;
   transform-origin: bottom;
-  transform: scaleY(var(--uh-h, 1));
-  transition: transform var(--dur-slow) var(--ease), opacity var(--dur-slow) var(--ease);
-  transition-delay: calc(var(--uh-i, 0) * var(--uh-step, 10ms));
+  transform: none;
+  transition: height var(--dur-slow) var(--ease), transform var(--dur-slow) var(--ease), opacity var(--dur-slow) var(--ease);
+  transition-delay: 0s, calc(var(--uh-i, 0) * var(--uh-step, 10ms)), calc(var(--uh-i, 0) * var(--uh-step, 10ms));
 }
 /* THE DAYS RISE FROM THE AXIS THEY ARE MEASURED AGAINST, flat on the first
-   frame so the whole chart never paints at full height and then drops. */
+   frame so the whole chart never paints at full height and then drops. The
+   squash exists only during the rise. */
 @starting-style { .uh-bar { transform: scaleY(0); opacity: 0.4; } }
 /* A cut between stacked bands, in the modal's own paper (#583).
    The palette above can make every band visible against the panel; what it

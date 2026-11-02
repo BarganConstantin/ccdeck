@@ -511,7 +511,7 @@
   transition: border-color var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease), transform var(--dur-fast) var(--ease);
 }
 @media (hover: hover) and (pointer: fine) {
-.bw-settings select:hover:not(:disabled) { border-color: var(--text); color: var(--text); }
+.bw-settings select:hover:not(:disabled):not(:focus-visible) { border-color: var(--text); color: var(--text); }
 }
 .bw-settings select:active:not(:disabled) { transform: scale(var(--press)); }
 .bw-settings-note {

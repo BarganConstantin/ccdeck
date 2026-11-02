@@ -601,10 +601,10 @@ describe("the period strip's indicator", () => {
     // the indicator's own colour, so the selected tab, focused, showed no
     // indicator at all; and `border-radius: 0` on the segment had shadowed the
     // global ring's 4px, leaving the one hard-cornered ring in the deck.
-    // V4's Figma: the global ring is 1.5px accent INSIDE the box and never sets
-    // a radius, so the segment needs no rule of its own (its -4px offset and
-    // its 4px radius on focus are gone).
-    expect(css).not.toContain(".up-period .uh-range-btn:focus-visible");
+    // V4's Figma: the global ring is 1.5px accent INSIDE the box, offset 0. The
+    // inside ring would land on the indicator's pixels again, so the segment
+    // keeps its own offset (-4px) and radius (4px) with the global stroke.
+    expect(css).toMatch(/\.up-period \.uh-range-btn:focus-visible \{\s*outline: var\(--focus-w\) solid var\(--accent\);\s*outline-offset: -4px;\s*border-radius: 4px;\s*\}/);
     expect(css).toMatch(/:focus-visible \{\s*outline: var\(--focus-w\) solid var\(--accent\);\s*outline-offset: calc\(-1 \* var\(--focus-w\)\);\s*\}/);
   });
 });

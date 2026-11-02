@@ -368,7 +368,7 @@ describe("every control in the manage block has a perceivable boundary (1.4.11)"
         ] as const) {
           const rest = contrastRatio(over(resolve(borderColour(base), theme), bed), bed);
           const hovered = contrastRatio(
-            over(resolve(borderColour(`${base}:hover${base === ".ap-manage-btn" ? ":not(:disabled)" : ""}`), theme), bed),
+            over(resolve(borderColour(`${base}:hover${base === ".ap-manage-btn" ? ":not(:disabled)" : ":not(:focus-visible)"}`), theme), bed),
             bed,
           );
           expect(hovered, `${theme} ${name} hover on ${bedName}`).toBeGreaterThanOrEqual(rest);
@@ -550,7 +550,7 @@ describe("the input behaves like its four siblings (#325's ninth finding)", () =
   it("transitions its border, which every other control in the block already did", () => {
     // V4's field: the 120ms literal became --dur-fast on --ease.
     expect(decl(".ap-manage-input", "transition")).toMatch(/border-color var\(--dur-fast\) var\(--ease\)/);
-    expect(decl(".ap-manage-input:hover", "border-color")).toBeTruthy();
+    expect(decl(".ap-manage-input:hover:not(:focus-visible)", "border-color")).toBeTruthy();
   });
 
   it("arrives rather than appears, and briefly — a popover now, not a drawer", () => {

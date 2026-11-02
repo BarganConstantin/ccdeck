@@ -22,6 +22,9 @@
    inverted on it (.uh-range-btn[aria-pressed="true"], #583). It out-specifies
    the strip's hover, which would repaint the word in --text. */
 .fg-tabs .uh-range-btn[aria-selected="true"], .fd-sections .uh-range-btn[aria-selected="true"] { background: var(--accent); color: var(--bg); }
+/* .fg-tabs scrolls sideways, so its box clips an outside ring at the 2px of
+   padding: the chosen tab's ring keeps the old 1px step (tokens.css steps 2px). */
+.fg-tabs .uh-range-btn[aria-selected="true"]:focus-visible { outline-offset: 1px; }
 /* A narrow list — the column beside an open item, or a phone — keeps the
    four tabs on one row across the list, each name whole: smaller words and
    tighter cells (all four fit a 360px phone), and when even that does not

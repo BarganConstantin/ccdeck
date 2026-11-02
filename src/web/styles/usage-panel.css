@@ -213,7 +213,13 @@
 .up-period .uh-range-btn[data-pending]::after {
   animation: up-period-reading 1100ms ease-in-out infinite;
 }
-
+/* The ring is inset 4px (and rounded) so it clears the hairline and the
+   indicator's 2px mark instead of landing on their pixels. */
+.up-period .uh-range-btn:focus-visible {
+  outline: var(--focus-w) solid var(--accent);
+  outline-offset: -4px;
+  border-radius: 4px;
+}
 
 /* A session ccusage remembers and the canvas is not drawing. The dot keeps its
    box so every label in the list starts at the same x — a ragged left edge

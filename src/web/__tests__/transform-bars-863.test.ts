@@ -65,14 +65,13 @@ describe("the panel readouts move by transform (#863)", () => {
     }
   });
 
-  it("moves the history bars by transform too, and no longer eases a height", () => {
-    // V4's motion rules, rule 4: the bar is as tall as its column and drawn at
-    // its share by scaleY(--uh-h); the range change and the first rise are one
-    // transition from @starting-style, not a height and a keyframe.
-    expect(decl(".uh-bar", "height")).toBe("100%");
-    expect(decl(".uh-bar", "transform")).toBe("scaleY(var(--uh-h, 1))");
-    expect(decl(".uh-bar", "transition")).not.toMatch(/\bheight\b/);
-    expect(decl(".uh-bar", "transition")).toMatch(/^transform var\(--dur-slow\)/);
+  it("keeps the history bars' height transition, for the reasons at the top", () => {
+    // The bar rests at its real height (its share of the column) with no
+    // transform. A changing range eases that height; the rise owns the
+    // transform, as a transition from @starting-style rather than a keyframe.
+    expect(decl(".uh-bar", "height")).toBe("calc(var(--uh-h, 1) * 100%)");
+    expect(decl(".uh-bar", "transform")).toBe("none");
+    expect(decl(".uh-bar", "transition")).toMatch(/^height var\(--dur-slow\) var\(--ease\), transform var\(--dur-slow\)/);
     expect(decl(".uh-bar", "animation")).toBeNull();
   });
 });

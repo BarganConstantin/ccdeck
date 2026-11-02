@@ -554,8 +554,8 @@ const CONTROLS: Control[] = [
   { at: '.tr-message[aria-pressed="true"]', fillFrom: '.tr-message[aria-pressed="true"]', beds: ["--panel"] },
   { at: '.tr-tab[aria-selected="true"]', fillFrom: '.tr-tab[aria-selected="true"]', beds: ["--panel"] },
   { at: ".tr-body .btn.tr-quiet:hover:not(:disabled)", beds: ["--panel"] },
-  { at: ".tr-input:hover", beds: ["--panel"] },
-  { at: ".tr-select:hover", beds: ["--panel"] },
+  { at: ".tr-input:hover:not(:focus-visible)", beds: ["--panel"] },
+  { at: ".tr-select:hover:not(:focus-visible)", beds: ["--panel"] },
   // Continue at the end of a stopped background session's stop row (#2193),
   // edged in the row's own hue on the card's face, and in the text colour
   // under the pointer.
@@ -613,7 +613,7 @@ const CONTROLS: Control[] = [
   // the sweep rather than an exemption for the reason 1.4.11 gives: a `select`
   // is identified by nothing but the option text inside it, so the box IS the
   // control. Its bed is --panel, which is the popover's own surface.
-  { at: ".sm-select", states: [".sm-select:hover"], beds: ["--panel"] },
+  { at: ".sm-select", states: [".sm-select:hover:not(:focus-visible)"], beds: ["--panel"] },
   // The sound menu's two small buttons, softened off --ctl-edge onto --sm-edge
   // when they were made secondary. Swept here so the softer edge is MEASURED
   // against 1.4.11 rather than argued for in a comment.
@@ -686,18 +686,18 @@ const CONTROLS: Control[] = [
   { at: ".fb-shot-img", states: [".fb-shot-pick:hover .fb-shot-img", ".fb-shot-pick:focus-visible .fb-shot-img"], beds: ["--panel"] },
   // Settings › Keyboard's filter (#2176): framed at rest, as Tool activity's
   // search field is, and louder under the pointer.
-  { at: ".settings-filter-field", states: [".settings-filter-field:hover"], beds: ["--panel"] },
+  { at: ".settings-filter-field", states: [".settings-filter-field:hover:not(:focus-visible)"], beds: ["--panel"] },
   // The one switch whose on gives something away (#828): on, it fills with
   // --warn; waiting for its second press, its edge is --warn, hovered or not.
   // It lives in the LAN dialog, on the panel.
   { at: '.switch[data-tone="warn"][aria-checked="true"]', beds: ["--panel"] },
-  { at: ".ap-field select", states: [".ap-field select:hover:not(:disabled)"], beds: ACCOUNTS },
+  { at: ".ap-field select", states: [".ap-field select:hover:not(:disabled):not(:focus-visible)"], beds: ACCOUNTS },
   // The Local network intro card, while the section is off: a drawing and two
   // lines in one button, whose boundary is the same --ctl-edge on --ctl-fill
   // every labelled control wears. Its bed is the panel it sits at the foot of.
   { at: ".ap-lan-intro", states: [".ap-lan-intro:hover:not(:disabled)"], beds: ["--panel"] },
   // browser watch
-  { at: ".bw-settings select", states: [".bw-settings select:hover:not(:disabled)"], beds: ["--panel"] },
+  { at: ".bw-settings select", states: [".bw-settings select:hover:not(:disabled):not(:focus-visible)"], beds: ["--panel"] },
   // The overview's help disclosure — a 16px circle whose border IS the control,
   // so all three of its states are measured.
   { at: ".bw-help", states: [".bw-help:hover", '.bw-help[aria-expanded="true"]'], beds: ["--panel"] },
@@ -707,7 +707,7 @@ const CONTROLS: Control[] = [
   // threshold's custom field holding a value it refused does the same, beside
   // the words under its row that say why.
   { at: ".ap-manage-input", states: [
-    ".ap-manage-input:hover",
+    ".ap-manage-input:hover:not(:focus-visible)",
     '.ap-manage-input.fb-message[aria-invalid="true"]',
     '.ap-policy .ap-threshold-input[aria-invalid="true"]',
   ], beds: ACCOUNTS },
@@ -730,7 +730,7 @@ const CONTROLS: Control[] = [
   // The Other accounts list's two controls (#1579), on the same terms: no
   // boundary at rest — the order is its words and the other is named — and the
   // edge they draw under the pointer and the keyboard measured on the column.
-  { at: ".ap-rest-sort select:hover", fillFrom: ".ap-rest-sort select:hover",
+  { at: ".ap-rest-sort select:hover:not(:focus-visible)", fillFrom: ".ap-rest-sort select:hover:not(:focus-visible)",
     states: [".ap-rest-sort select:focus-visible", ".ap-rest-sort select[data-held]"], beds: ACCOUNTS },
   { at: ".ap-rest-all:hover", fillFrom: ".ap-rest-all:hover",
     states: [".ap-rest-all:focus-visible"], beds: ACCOUNTS },
@@ -908,15 +908,18 @@ describe("what counts as an edge, which BORDER_PROPS decides (#655)", () => {
       // Quick open's field: the input in it is borderless, so the row it
       // sits in draws the ring, as the feedback kinds' cards do.
       ".qo-field:has(.qo-input:focus-visible)",
-      ".react-flow__node:focus-visible .agent-node",
+      // (not on a selected card: there the selection ring is the one drawn)
       // And the same ring on the card's face at the compact and overview
       // distances, where the card's own is a hairline of layout units.
       ".react-flow__node:focus-visible .lod-face",
+      ".react-flow__node:focus-visible:not(.rf-selected) .agent-node",
       ".reading-choice:has(input:focus-visible)",
       // Settings' search results: the highlight the arrows move while focus
       // stays in the field — VIRTUAL_FOCUS again (SettingsSearch.tsx).
       '.settings-result[data-highlighted="true"]',
       ".uh-bar-col.sel .uh-bar",
+      // The period strip's segment: the ring is inset 4px, off its indicator.
+      ".up-period .uh-range-btn:focus-visible",
       ":focus-visible",
     ]);
   });

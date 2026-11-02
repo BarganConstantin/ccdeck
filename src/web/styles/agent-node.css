@@ -104,8 +104,9 @@
    beating `:focus-visible` at (0,1,0) — and nothing selects a card on focus,
    so `.rf-selected` above never stands in for it. The ring goes on the card, like
    selection's, because the card is the box with the radius and the session's
-   own --accent. Focus without selection still reads apart: no lift. */
-.react-flow__node:focus-visible .agent-node {
+   own --accent. Focus without selection still reads apart: no lift. A
+   selected card keeps its selection ring (same wrapper carries both). */
+.react-flow__node:focus-visible:not(.rf-selected) .agent-node {
   outline: var(--focus-w) solid var(--accent);
   outline-offset: calc(-1 * var(--focus-w));
 }

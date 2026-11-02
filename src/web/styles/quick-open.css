@@ -77,12 +77,11 @@
   color: var(--muted);
   font: calc(11px + var(--ui-text-increase, 0px))/22px var(--font-mono);
   cursor: pointer;
-  transition: color var(--dur-fast) var(--ease), transform var(--dur-fast) var(--ease);
 }
+/* Quick open has no motion (V4's motion rules): no transition, no press. */
 @media (hover: hover) and (pointer: fine) {
 .qo-esc:hover { color: var(--text); }
 }
-.qo-esc:active { transform: scale(var(--press-small)); }
 
 /* The list. One height whatever it holds. */
 .qo-list {
@@ -263,8 +262,4 @@
   .qo { width: 100%; }
   .qo-list { height: min(360px, 48dvh); }
   .qo-foot-count { display: none; }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .qo-esc:active { transform: none; }
 }

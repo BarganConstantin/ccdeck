@@ -202,6 +202,8 @@ describe("V4's motion rules: durations, delays and curves are tokens", () => {
     expect(tokens).toMatch(/\[data-motion="instant"\]:not\(:root\),\s*\[data-motion="instant"\]:not\(:root\) \*:not\([^)]*\.loader[^)]*\)\s*\{\s*transition-duration:\s*0ms !important;\s*animation:\s*none !important;\s*\}/);
     // The loader and the --pulse-live marks are exempt: they show a wait.
     expect(tokens).toMatch(/\.loader, \.loader \*, \.state-mark, \.tb-spin/);
+    // .sl-land clears itself on animationend, so cutting its animation would leave it lit for good.
+    expect(tokens).toMatch(/\.loader, \.loader \*, \.state-mark, \.tb-spin, \.sl-land\)/);
     // No bare form anywhere: it would match the root flag input-modality.ts sets.
     for (const [file, src] of sources) {
       for (const m of src.matchAll(/^\s*\[data-motion="instant"\](?!:not\(:root\))[^{]*\{[^}]*!important/gm)) {
@@ -215,5 +217,41 @@ describe("V4's motion rules: durations, delays and curves are tokens", () => {
     expect(qo).not.toMatch(/@keyframes qo-/);
     expect(decls.filter(d => d.file === "styles/quick-open.css" && d.prop === "animation").map(d => d.value).filter(v => v !== "none")).toEqual([]);
     expect(qo).not.toMatch(/\.closing/);
+    // No motion at all: the esc chip neither eases nor presses.
+    expect(decls.filter(d => d.file === "styles/quick-open.css" && d.prop === "transition").map(d => d.value).filter(v => v !== "none")).toEqual([]);
+    expect(qo).not.toMatch(/\.qo-esc[^{]*:active/);
+    expect(qo).not.toMatch(/transform\s*:\s*scale/);
+  });
+
+  it("a reduced-motion @starting-style answer comes after the @starting-style rule it answers", () => {
+    const bad: string[] = [];
+    for (const [file, src] of sources) {
+      const blocks: { pos: number; reduced: boolean; selectors: string[] }[] = [];
+      for (const m of src.matchAll(/@starting-style\s*\{/g)) {
+        let depth = 1, i = m.index! + m[0].length;
+        while (depth && i < src.length) { if (src[i] === "{") depth++; else if (src[i] === "}") depth--; i++; }
+        const body = src.slice(m.index! + m[0].length, i - 1);
+        const selectors = [...body.matchAll(/([^{}]+)\{[^{}]*\}/g)].flatMap(r => r[1].split(",").map(s => s.replace(/\s+/g, " ").trim()));
+        // enclosing @media: walk back to the unmatched `{` and read its head
+        let reduced = false, d = 0;
+        for (let j = m.index! - 1; j >= 0; j--) {
+          if (src[j] === "}") d++;
+          else if (src[j] === "{") {
+            if (d === 0) {
+              const head = src.slice(Math.max(src.lastIndexOf("}", j), src.lastIndexOf(";", j), 0), j);
+              if (/prefers-reduced-motion/.test(head)) { reduced = true; break; }
+            } else d--;
+          }
+        }
+        blocks.push({ pos: m.index!, reduced, selectors });
+      }
+      for (const rm of blocks.filter(b => b.reduced)) {
+        for (const later of blocks.filter(b => !b.reduced && b.pos > rm.pos)) {
+          const shared = later.selectors.filter(s => rm.selectors.includes(s));
+          if (shared.length) bad.push(`${file}: ${shared.join(" | ")} is answered above the rule it answers`);
+        }
+      }
+    }
+    expect(bad).toEqual([]);
   });
 });

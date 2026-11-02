@@ -27,7 +27,8 @@ const css = sheetText()
 const reactFlowCss = readFileSync(
   fileURLToPath(new URL("../../../node_modules/reactflow/dist/style.css", import.meta.url)), "utf8");
 
-const FOCUSED_CARD = ".react-flow__node:focus-visible .agent-node";
+// Not on a selected card: the wrapper carries both, and the selection ring wins there.
+const FOCUSED_CARD = ".react-flow__node:focus-visible:not(.rf-selected) .agent-node";
 const SELECTED_CARD = ".react-flow__node.rf-selected .agent-node";
 
 function decl(selector: string, prop: string): string | null {

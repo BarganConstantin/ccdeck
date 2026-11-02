@@ -316,8 +316,9 @@
 .fm-sprite:hover { opacity: 1; }
 }
 .fm-arms { transition: transform 160ms steps(2, end); }
+.fm-sprite:focus-visible .fm-arms { transform: translateY(-2px); }
 @media (hover: hover) and (pointer: fine) {
-.fm-sprite:is(:hover, :focus-visible) .fm-arms { transform: translateY(-2px); }
+.fm-sprite:hover .fm-arms { transform: translateY(-2px); }
 }
 .fm-sprite[data-playing] { opacity: 1; }
 /* The deck's one press convention, at the tier a control with no label wears.

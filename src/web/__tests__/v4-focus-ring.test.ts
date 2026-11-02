@@ -7,6 +7,7 @@ import { readdirSync, readFileSync, statSync } from "node:fs";
 import { dirname, join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
+import { cascade, el, selects } from "./sheet-cascade";
 
 const WEB = join(dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -64,7 +65,11 @@ const FOCUS = /:focus-visible|:focus-within|:focus\b/;
 const focusRules = ALL.filter(r => FOCUS.test(r.selector));
 
 // A real exception, if one ever remains: { file, needle (in the selector), why }.
-const ALLOWLIST: { file: string; needle: string; why: string }[] = [];
+const ALLOWLIST: { file: string; needle: string; why: string }[] = [
+  { file: "styles/tokens.css", needle: '.switch[aria-checked="true"]:focus-visible', why: "the grouped outside ring for controls that already wear the accent (its own case below)" },
+  { file: "styles/usage-panel.css", needle: ".up-period .uh-range-btn:focus-visible", why: "the period strip's ring is inset 4px and rounded so it keeps off the ::after indicator and the hairline" },
+  { file: "styles/forge-panel.css", needle: '.fg-tabs .uh-range-btn[aria-selected="true"]:focus-visible', why: ".fg-tabs scrolls and clips an outside ring at 2px, so it keeps a 1px step" },
+];
 const allowed = (r: Rule) => ALLOWLIST.some(a => a.file === r.file && r.selector.includes(a.needle));
 
 // The selectors styled as the V4 text field (sunken fill, 1px border, --r-ctl).
@@ -132,5 +137,36 @@ describe("one focus ring (V4's Figma)", () => {
     expect(forced, "forced-colors field rule").toBeDefined();
     expect(forced!.body).toMatch(/outline:\s*var\(--focus-w\)\s+solid\s+Highlight/);
     for (const f of FIELDS) expect(forced!.selector, f).toContain(f + ":focus-visible");
+  });
+
+  it("where a control already wears the accent, the ring steps outside: same stroke, offset 2px", () => {
+    const g = ALL.find(r => r.file === "styles/tokens.css" && r.selector.includes('.switch[aria-checked="true"]:focus-visible'));
+    expect(g, "grouped outside-ring rule").toBeDefined();
+    const sels = g!.selector.split(",").map(x => x.replace(/\s+/g, " ").trim());
+    // The controls whose on/pressed/selected state fills or borders itself with --accent.
+    for (const s of [
+      '.switch[aria-checked="true"]', '.uh-range-btn[aria-pressed="true"]',
+      '.fg-tabs .uh-range-btn[aria-selected="true"]', '.fd-sections .uh-range-btn[aria-selected="true"]',
+      ".aa-tab.on", '.character-choice[aria-checked="true"]', '.qh-provider[aria-pressed="true"]',
+      'button.btn.jr-chip[aria-pressed="true"]', '.radio-controls .radio-mute[aria-pressed="true"]',
+      '.radio-filter-trigger[data-filtered="true"]', "button.btn.primary",
+    ]) expect(sels, s).toContain(s + ":focus-visible");
+    // Offset only: width, style and colour stay the global ring's.
+    expect(g!.body.replace(/\s+/g, " ").trim()).toBe("outline-offset: 2px;");
+    // The one place that clips an outside ring keeps the old 1px step.
+    const forge = ALL.find(r => r.file === "styles/forge-panel.css" && r.selector.includes('.fg-tabs .uh-range-btn[aria-selected="true"]:focus-visible'));
+    expect(forge?.body.replace(/\s+/g, " ").trim()).toBe("outline-offset: 1px;");
+  });
+
+  it("a hovered AND focused text field keeps the accent border (no later hover rule beats the focus one)", () => {
+    for (const f of FIELDS) {
+      const parts = f.split(" ");
+      const chain = parts.map((tok, i) => {
+        if (i < parts.length - 1) return el("div", [tok.replace(/^\./, "")]);
+        const tag = /^[a-z]/.test(tok) ? tok : "input";
+        return el(tag, tok.startsWith(".") ? [tok.slice(1)] : [], { states: ["hover", "focus-visible"] });
+      });
+      expect(cascade(sel => selects(sel, chain), "border-color", 1200), f).toBe("var(--accent)");
+    }
   });
 });

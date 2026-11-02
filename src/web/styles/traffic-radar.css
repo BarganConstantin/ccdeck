@@ -257,7 +257,7 @@
 .tr-select-wrap .tr-select { appearance: none; width: 100%; padding-right: calc(2 * 14px); min-height: var(--tr-control-h); background: var(--panel); }
 .tr-select-wrap > svg { position: absolute; top: 50%; right: 10px; transform: translateY(-50%); pointer-events: none; color: var(--text-secondary); }
 @media (hover: hover) and (pointer: fine) {
-.tr-select:hover, .tr-input:hover { border-color: var(--text); }
+.tr-select:hover:not(:focus-visible), .tr-input:hover:not(:focus-visible) { border-color: var(--text); }
 }
 .tr-select:disabled { opacity: var(--dim-off); }
 .tr-select-wrap:has(.tr-select:disabled) > svg { opacity: var(--dim-off); }

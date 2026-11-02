@@ -365,10 +365,12 @@
    surfaces that opt in by name (`:root[data-motion="instant"] :is(.modal-backdrop,
    .modal)` in dialogs.css, the peek in lan-sync.css, the workspace fade).
    Exempt: loops that show a wait or a live state keep running inside an
-   instant surface, .loader, the --pulse-live marks (.state-mark, .tb-spin).
+   instant surface, .loader, the --pulse-live marks (.state-mark, .tb-spin),
+   and .sl-land, the "you are here" flash: it clears itself on animationend,
+   so with the animation cut it would stay lit for good.
    (`*` never matches a pseudo-element, so ::before pulses are untouched.) */
 [data-motion="instant"]:not(:root),
-[data-motion="instant"]:not(:root) *:not(.loader, .loader *, .state-mark, .tb-spin) {
+[data-motion="instant"]:not(:root) *:not(.loader, .loader *, .state-mark, .tb-spin, .sl-land) {
   transition-duration: 0ms !important;
   animation: none !important;
 }
@@ -511,6 +513,21 @@ optgroup {
 :focus-visible {
   outline: var(--focus-w) solid var(--accent);
   outline-offset: calc(-1 * var(--focus-w));
+}
+/* Where the control already wears the accent, an inside ring would vanish into
+   it: the ring steps outside, same stroke, 2px clear. */
+.uh-range-btn[aria-pressed="true"]:focus-visible,
+.switch[aria-checked="true"]:focus-visible,
+.fg-tabs .uh-range-btn[aria-selected="true"]:focus-visible,
+.fd-sections .uh-range-btn[aria-selected="true"]:focus-visible,
+.aa-tab.on:focus-visible,
+.character-choice[aria-checked="true"]:focus-visible,
+.qh-provider[aria-pressed="true"]:focus-visible,
+button.btn.jr-chip[aria-pressed="true"]:focus-visible,
+.radio-controls .radio-mute[aria-pressed="true"]:focus-visible,
+.radio-filter-trigger[data-filtered="true"]:focus-visible,
+button.btn.primary:focus-visible {
+  outline-offset: 2px;
 }
 /* The text-field family (the V4 field: sunken fill, 1px --line/--ctl-edge
    border, --r-ctl): NO ring, the 1px border turns --accent. Every field is

@@ -391,8 +391,6 @@ const PRESSES: Press[] = [
   [".session-list .sl-close:active", "0.94", "transform"],
   // The rail's usage meter, a labelled row that opens Usage: the rows' tier.
   [".session-list .sl-usage-btn:active", "0.97", "transform"],
-  // Quick open's esc chip, a 22px key: the icon tier.
-  [".qo-esc:active", "0.94", "transform"],
   // Browser Watch's episode disclosure. Same tier and same number as the row
   // above it: a full-width row that opens to show what it is summarising.
   [".bw-ep-head:active", "0.97", "transform"],
@@ -528,6 +526,8 @@ const EXEMPT: string[] = [
   // V4's switch answers a pointer press with its KNOB (it stretches to 18px,
   // menus.css) and not with a scale of the whole track.
   ".switch",
+  // Quick open has no motion (V4's motion rules): its esc chip neither eases nor presses.
+  ".qo-esc",
   // Native Settings disclosures answer through expanded state, without moving labels.
   ".ig-access summary", ".ig-token-help summary", ".settings-row-details summary",
   // What's new's disclosures are full-width reading rows: they answer through

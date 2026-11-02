@@ -96,12 +96,16 @@ describe("the days land on it, oldest first", () => {
     expect(bar).toMatch(/transform-origin: bottom/);
     // V4's motion rules (rule 6): a transition from @starting-style, not a
     // keyframe, so a range that changes mid-rise turns round from where it is.
-    expect(bar).toMatch(/transition: transform var\(--dur-slow\) var\(--ease\)/);
-    expect(bar).toMatch(/transform: scaleY\(var\(--uh-h, 1\)\)/);
+    expect(bar).toMatch(/transition:[^;]*\btransform var\(--dur-slow\) var\(--ease\)/);
+    // At rest the bar has its real height and no transform; the squash is the rise only.
+    expect(bar).toMatch(/height: calc\(var\(--uh-h, 1\) \* 100%\)/);
+    expect(bar).toMatch(/transform: none/);
+    expect(bar).not.toMatch(/transform:\s*scaleY/);
     expect(css).not.toMatch(/@keyframes uh-bar-rise/);
     expect(css).toMatch(/@starting-style \{ \.uh-bar \{ transform: scaleY\(0\); opacity: 0\.4; \} \}/);
-    // No layout property eases: the bar is full height and drawn at its share.
-    expect(bar).not.toMatch(/transition:[^;]*\b(width|height|margin|padding|top|left)\b/);
+    // The only layout property that eases is the height, for a range that
+    // changes under an open chart (#863); nothing else.
+    expect(bar).not.toMatch(/transition:[^;]*\b(width|margin|padding|top|left)\b/);
   });
 
   it("starts flat, so no frame paints the chart at full height first", () => {
@@ -117,7 +121,8 @@ describe("the days land on it, oldest first", () => {
     // range reading as a sequence rather than as one block.
     expect(modal).toMatch(/"--uh-step": `\$\{Math\.min\(10, 160 \/ Math\.max\(days\.length, 1\)\)\}ms`/);
     expect(modal).toMatch(/"--uh-i": i/);
-    expect(block(".uh-bar")).toMatch(/transition-delay: calc\(var\(--uh-i, 0\) \* var\(--uh-step, 10ms\)\)/);
+    // The rise staggers (transform, opacity); the height of a changing range does not.
+    expect(block(".uh-bar")).toMatch(/transition-delay: 0s, calc\(var\(--uh-i, 0\) \* var\(--uh-step, 10ms\)\), calc\(var\(--uh-i, 0\) \* var\(--uh-step, 10ms\)\)/);
     // The arithmetic the sentence above depends on, so the cap cannot be
     // loosened without this saying so: at 160ms of span plus a 400ms column (--dur-slow),
     // every range arrives inside the band an authored entrance is allowed.

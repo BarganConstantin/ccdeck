@@ -210,7 +210,7 @@
    accent (tokens.css), not the hover's neutral one. */
 .ap-rest-sort select:focus-visible { color: var(--text); background: var(--ctl-fill); }
 @media (hover: hover) and (pointer: fine) {
-.ap-rest-sort select:hover { border-color: var(--ctl-edge); color: var(--text); background: var(--ctl-fill); }
+.ap-rest-sort select:hover:not(:focus-visible) { border-color: var(--ctl-edge); color: var(--text); background: var(--ctl-fill); }
 }
 /* Held: the order the reader found, not the latest — dashed, as the deck
    draws everything it is showing as the last thing rather than the current
@@ -831,8 +831,11 @@
    keyboard-focused row it is mixed toward the foreground, the rule
    `.ap-lan-pick` writes down for the same reason: 6.2:1 there, and still a
    step under the name. */
+.ap-lan-who:is([data-tone="idle"], [data-tone="ok"]):has(:focus-visible) .ap-lan-who-when {
+  color: color-mix(in srgb, var(--muted) 65%, var(--text));
+}
 @media (hover: hover) and (pointer: fine) {
-.ap-lan-who:is([data-tone="idle"], [data-tone="ok"]):is(:hover, :has(:focus-visible)) .ap-lan-who-when {
+.ap-lan-who:is([data-tone="idle"], [data-tone="ok"]):hover .ap-lan-who-when {
   color: color-mix(in srgb, var(--muted) 65%, var(--text));
 }
 }
@@ -1088,7 +1091,7 @@
    hover. The auto-switch select rests on the same edge now, so the override is
    the rule and the local copy is gone. */
 @media (hover: hover) and (pointer: fine) {
-.ap-field select:hover:not(:disabled) { border-color: var(--text); color: var(--text); }
+.ap-field select:hover:not(:disabled):not(:focus-visible) { border-color: var(--text); color: var(--text); }
 }
 /* The only native control in the convention. It is styled like everything else
    here — appearance:none, the sheet's own fill, edge and chevron — so a press

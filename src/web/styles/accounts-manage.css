@@ -327,7 +327,7 @@
   transition: border-color var(--dur-fast) var(--ease), background var(--dur-fast) var(--ease);
 }
 @media (hover: hover) and (pointer: fine) {
-.ap-manage-input:hover { border-color: var(--text); }
+.ap-manage-input:hover:not(:focus-visible) { border-color: var(--text); }
 }
 /* V4's field: the six placeholders these fields carry take --muted in both
    schemes. On --bg-soft it is at least 4.91:1 in every theme (it was 4.05:1 on

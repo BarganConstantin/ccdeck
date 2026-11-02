@@ -370,7 +370,7 @@
 .settings-filter-field::-webkit-search-cancel-button:hover { background-color: var(--text); }
 }
 @media (hover: hover) and (pointer: fine) {
-.settings-filter-field:hover { border-color: var(--text); }
+.settings-filter-field:hover:not(:focus-visible) { border-color: var(--text); }
 }
 /* SEARCH (SettingsSearch.tsx): the same field at the top of the nav's
    column, with a magnifier inside its leading edge — the glyph is centred on
@@ -947,7 +947,7 @@ button.btn.sm-hear {
   accent-color: var(--accent);
 }
 @media (hover: hover) and (pointer: fine) {
-.sm-select:hover { border-color: var(--text); }
+.sm-select:hover:not(:focus-visible) { border-color: var(--text); }
 }
 
 /* Custom sounds and voices (#1207), under the tones they can stand in for.
