@@ -64,13 +64,29 @@ export function dragOffset(dy: number): number {
   return -(pull * 24) / (pull + 24);
 }
 
+/** The sheet that is on top of the others when several are drawn: the last of
+ *  SHEET_NAMES that is open. The four are `position: fixed` in one box and
+ *  App draws them in that order, so the last one paints over the rest. */
+export function topSheet(now: SheetFlags): SheetName | null {
+  const open = SHEET_NAMES.filter(n => now[n]);
+  return open.length > 0 ? open[open.length - 1] : null;
+}
+
 /** The sheet that keeps the screen when the flags change: the one opened last,
- *  else the one that was already up. Others are closed by the caller. */
+ *  else the one on top (what the reader sees). Others are closed by the caller. */
 export function sheetToKeep(was: SheetFlags, now: SheetFlags): SheetName | null {
   const open = SHEET_NAMES.filter(n => now[n]);
   if (open.length === 0) return null;
   const opened = open.filter(n => !was[n]);
-  return (opened.length > 0 ? opened[opened.length - 1] : open[0]);
+  return opened.length > 0 ? opened[opened.length - 1] : topSheet(now);
+}
+
+/** Accounts, asked for on a phone while a pane is up, takes the right of the
+ *  deck back from the pane: the pane is the whole screen under the top bar, and
+ *  a sheet over it would cover its header's buttons. True on the render in which
+ *  Accounts turns open. */
+export function accountsGivesPaneBack(a: { phone: boolean; accountsOpen: boolean; accountsWasOpen: boolean; paneOpen: boolean }): boolean {
+  return a.phone && a.accountsOpen && !a.accountsWasOpen && a.paneOpen;
 }
 
 /** A press on the Sessions door. With a sheet up it means "go to Sessions":

@@ -68,7 +68,7 @@ import CanvasMain from "./components/CanvasMain";
 import DeckBanner from "./components/DeckBanner";
 import { OfflineCard } from "./components/ConnectionBanner";
 import { usePhoneSheets } from "./use-phone-sheets";
-import { pressSessionsDoor, sheetCloseMs, sheetFadeMs } from "./phone-sheet";
+import { accountsGivesPaneBack, pressSessionsDoor, sheetCloseMs, sheetFadeMs } from "./phone-sheet";
 import DeckDialogs from "./components/DeckDialogs";
 import StatusBar from "./components/StatusBar";
 import ErrorBoundary from "./components/ErrorBoundary";
@@ -182,14 +182,14 @@ function Inner() {
   const leftColumn = useLeftColumn();
   const { sessionListOpen, accountsPanelOpen, panel: leftPanel, toggleSessionList, toggleAccountsPanel,
           openAccountsPanel, closeSessionList, closeSessionListToCanvas, closeAccountsPanel,
-          leavePhone: leaveColumnPhone } = leftColumn;
+          leavePhone: leaveColumnPhone, holdAccounts } = leftColumn;
   // The rail's width at the density in force (--rail-w), which the column and
   // the right-hand panels' room both follow.
   const railWidth = useRailWidth();
   // The detail, Usage and Machine panels' open flags, each kept in the browser
   // across a refresh — use-right-panels.ts. Called ahead of the selection
   // below, because a plain selection opens the detail panel (#814).
-  const { detailOpen, setDetailOpen, usagePanelOpen, setUsagePanelOpen, machinePanelOpen, setMachinePanelOpen }
+  const { detailOpen, setDetailOpen, usagePanelOpen, setUsagePanelOpen, machinePanelOpen, setMachinePanelOpen, hold: holdRight }
     = useRightPanels(leftColumnWidth(leftPanel, railWidth));
 
   const { selectedIds, primarySelectedId, selectAgent, clearSelection, pruneSelectionToBoard } =
@@ -792,6 +792,11 @@ function Inner() {
   const runQuick = useCallback((item: QuickItem) => { setQuickOpenOpen(false); item.run(); }, []);
   const singleKeys = useSingleKeyShortcuts();
 
+  // The L key is the Sessions door's press: with a sheet up over the list it
+  // means "go to Sessions" (the sheet closes, the list stays), set once the
+  // sheets are known (below); until then, and with no sheet, the plain toggle.
+  const sessionsKeyRef = useRef<() => void>(toggleSessionList);
+  const pressSessionsKey = useCallback(() => sessionsKeyRef.current(), []);
   // Every key the deck answers, and what each one reaches: see
   // use-deck-shortcuts.ts, whose parameter list is that list.
   useDeckShortcuts({
@@ -802,7 +807,7 @@ function Inner() {
     stageRef: stage.keysRef, lodRef,
     // What the keys do.
     clearSelection, selectAgent, focusAgent, stepAgent, focusSession: focusSessionOnView, requestClear,
-    handleRelayout, undoRearrange: rearrangeUndo.undo, handleFit, togglePause, toggleSessionList, toggleAccountsPanel,
+    handleRelayout, undoRearrange: rearrangeUndo.undo, handleFit, togglePause, toggleSessionList: pressSessionsKey, toggleAccountsPanel,
     setDetailOpen, setUsageHistoryOpen, setUsagePanelOpen: usageRail.set, setMachinePanelOpen: machineRail.set,
     setBrowserWatchOpen, setKeyHelpOpen, setTheme, openSettings, openIntegrationRef, openQuickOpen,
   });
@@ -978,9 +983,9 @@ function Inner() {
   const accountsWasOpen = useRef(accountsPanelOpen);
   const { giveRightBack } = stage;
   useLayoutEffect(() => {
-    const opened = accountsPanelOpen && !accountsWasOpen.current;
+    const give = accountsGivesPaneBack({ phone, accountsOpen: accountsPanelOpen, accountsWasOpen: accountsWasOpen.current, paneOpen });
     accountsWasOpen.current = accountsPanelOpen;
-    if (phone && opened && paneOpen) giveRightBack();
+    if (give) giveRightBack();
   }, [phone, accountsPanelOpen, paneOpen, giveRightBack]);
   const closeAccounts = () => { (providers.claude ? panelReturn.accounts : panelReturn.codex)(); closeAccountsPanel(); };
   // The empty board's notice (nothing seen yet, the stream unreachable, too many
@@ -1017,6 +1022,11 @@ function Inner() {
     // column become the list, Accounts waiting behind it (an eviction, which
     // is not stored).
     onLeavePhone: leaveColumnPhone,
+    // A window narrowed to a phone's width with several panels open draws the
+    // one on top; the rest wait shut, in memory, not stored.
+    hold: { accounts: holdAccounts, usage: holdRight.usage, machine: holdRight.machine },
+    // Where focus goes when what opened a sheet is gone.
+    home: () => panelReturn.toggles.sessionList.current,
   });
   /** The Sessions door with a sheet up over the list: it reads not pressed, and
    *  its press is "go to Sessions" (phone-sheet.ts pressSessionsDoor). */
@@ -1026,6 +1036,16 @@ function Inner() {
         sheet: sheets.sheet, listOpen: sessionListOpen, closeSheet: sheets.closeSheet, toggleList: item.onPress,
       }) }
       : item;
+  // The L key goes the same way, and so does Quick Open's Sessions row (built
+  // from these mapped doors): one path, whoever asks.
+  sessionsKeyRef.current = () => pressSessionsDoor({
+    sheet: sheets.sheet, listOpen: sessionListOpen, closeSheet: sheets.closeSheet, toggleList: toggleSessionList,
+  });
+  const quickRails = {
+    ...rails,
+    left: rails.left.map(sessionsDoorUnderSheet),
+    right: rails.right.map(group => group.map(sessionsDoorUnderSheet)),
+  };
   /** A sheet's × on a phone is the sheet's one close, whichever sheet it is. */
   const sheetClose = (name: "accounts" | "usage" | "machine" | "inspector", plain: () => void) => (phone ? () => sheets.closeSheet(name) : plain);
   const accountsSwitch = accountSide.both
@@ -1252,7 +1272,7 @@ function Inner() {
           the chrome draws, so it can never offer something the deck does not. */}
       {quickOpenOpen && (
         <QuickOpen onClose={closeQuickOpen} onRun={runQuick} items={quickOpenItems({
-          rails, sessions: buildRows(stateRef.current, now), now, openSession: pickSession,
+          rails: quickRails, sessions: buildRows(stateRef.current, now), now, openSession: pickSession,
           settings: indexFor(providers.claude, integrationsReach(integrations), offeredKinds(integrations)), openSettings,
           singleKeys, fit: handleFit, rearrange: handleRelayout, paused, togglePause,
           clear: agentCount > 0 ? () => requestClear("button") : undefined,

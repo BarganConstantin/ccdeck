@@ -73,6 +73,16 @@
     transform: none;
     transition: transform var(--dur-stage-in) var(--ease-stage);
   }
+  /* A sheet takes focus by script when it opens, so a screen reader announces
+     it (use-phone-sheets.ts). After a keyboard press that matches
+     :focus-visible, and the ring would be drawn around the whole sheet: the
+     container draws none; the controls inside keep theirs. */
+  .app.app.app .usage-panel[tabindex="-1"]:focus-visible,
+  .app.app.app .sysdetail[tabindex="-1"]:focus-visible,
+  .app.app.app .detail[tabindex="-1"]:focus-visible,
+  .app.app.app .accounts-panel[tabindex="-1"]:focus-visible {
+    outline: none;
+  }
   /* The Inspector is a column of its own scroll, so it takes a height. */
   .app.app.app .detail {
     height: min(80vh, var(--sheet-room));

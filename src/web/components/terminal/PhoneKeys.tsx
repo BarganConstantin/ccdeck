@@ -31,13 +31,35 @@ export const PHONE_KEYS: readonly PhoneKey[] = [
  *  is up stays up, and the next letter typed still goes to the session. */
 const keepFocus = (e: PointerEvent<HTMLButtonElement>) => e.preventDefault();
 
-export default function PhoneKeys({ canType, paneless = false, onKey }: {
+/** Whether the terminal held the focus when the press now under way began. The
+ *  browser may take the focus off the terminal before the click lands (a
+ *  pointerdown that is not cancelled), so it is read at the start of the press,
+ *  at pointerdown and at the keydown of a keyboard press, and used after the
+ *  key is sent. null: no start was seen (a click made by other means). One
+ *  press at a time, so one value. */
+let heldAtStart: boolean | null = null;
+
+/** A press begins: note whether the terminal holds the focus. */
+export function pressBegins(holdsFocus: (() => boolean) | undefined): void {
+  heldAtStart = holdsFocus ? holdsFocus() : null;
+}
+
+/** A press ends: send the key with what was noted at its start. */
+export function pressEnds(onKey: (bytes: string, held?: boolean) => void, bytes: string): void {
+  const held = heldAtStart ?? undefined;
+  heldAtStart = null;
+  onKey(bytes, held);
+}
+
+export default function PhoneKeys({ canType, paneless = false, onKey, holdsFocus }: {
   /** The pane takes keys right now. */
   canType: boolean;
   /** No pane to type into (the keys bar is hidden too): hidden, not removed,
    *  because the stage measures the row by element. */
   paneless?: boolean;
-  onKey(bytes: string): void;
+  onKey(bytes: string, held?: boolean): void;
+  /** Whether the terminal holds the focus now. */
+  holdsFocus?(): boolean;
 }) {
   return (
     <div className="ts-keyrow" role="group" aria-label="Terminal keys" hidden={paneless || undefined}>
@@ -49,8 +71,9 @@ export default function PhoneKeys({ canType, paneless = false, onKey }: {
           data-key={key.id}
           aria-label={key.name}
           disabled={!canType}
-          onPointerDown={keepFocus}
-          onClick={() => onKey(key.bytes)}
+          onPointerDown={e => { pressBegins(holdsFocus); keepFocus(e); }}
+          onKeyDown={e => { if (e.key === "Enter" || e.key === " ") pressBegins(holdsFocus); }}
+          onClick={() => pressEnds(onKey, key.bytes)}
         >
           {key.cap}
         </button>

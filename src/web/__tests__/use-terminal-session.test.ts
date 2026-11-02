@@ -659,14 +659,43 @@ describe("keys, paste and the pane's size", () => {
       expect(r.terminal().log).toContain("scroll-for-input");
     });
 
-    it("gives the focus back to the terminal when it held it before the press, and takes none otherwise", async () => {
+    // CHANGED ON PURPOSE (the phone layout): the test used to set the focus on
+    // the terminal at press time. In the case the refocus exists for, the focus
+    // has already left the terminal when the click lands, so the press is sent
+    // with what was noted when it BEGAN (pointerdown), in that order.
+    it("gives the focus back when the terminal held it as the press began, even though it left before the click", async () => {
+      const { r, ctl } = await liveRig();
+      r.terminal().log.length = 0;
+      // Pointerdown: the terminal holds the focus.
+      r.terminal().focused = true;
+      const heldAtStart = ctl.holdsFocus();
+      expect(heldAtStart).toBe(true);
+      // The browser takes the focus off it before the click.
+      r.terminal().focused = false;
+      ctl.press("\t", heldAtStart);
+      expect(r.terminal().log, "it held the focus when the press began").toContain("focus");
+    });
+
+    it("takes no focus when the terminal did not hold it as the press began", async () => {
+      const { r, ctl } = await liveRig();
+      r.terminal().log.length = 0;
+      expect(ctl.holdsFocus()).toBe(false);
+      ctl.press("\t", false);
+      expect(r.terminal().log).not.toContain("focus");
+      // Held at the click but not at the start: the start decides.
+      r.terminal().focused = true;
+      ctl.press("\t", false);
+      expect(r.terminal().log).not.toContain("focus");
+    });
+
+    it("with no start noted, the focus held at the click is used", async () => {
       const { r, ctl } = await liveRig();
       r.terminal().log.length = 0;
       ctl.press("\t");
-      expect(r.terminal().log, "it did not hold the focus").not.toContain("focus");
+      expect(r.terminal().log).not.toContain("focus");
       r.terminal().focused = true;
       ctl.press("\t");
-      expect(r.terminal().log, "it held the focus").toContain("focus");
+      expect(r.terminal().log).toContain("focus");
     });
   });
 

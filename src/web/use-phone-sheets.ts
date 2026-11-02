@@ -20,11 +20,11 @@
 // A SHEET IS MODAL IN LOOK, SO IT IS IN BEHAVIOUR. What the scrim covers is
 // inert while a sheet is up, focus moves into the sheet when it opens, and
 // goes back to what opened it when it closes.
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef } from "react";
 import { modalStack } from "./modal-dismiss";
 import {
   GRAB_ZONE_PX, SHEET_NAMES, dragOffset, dragStarts, releaseCloses, sheetCloseMs, sheetEase,
-  sheetOpenMs, sheetToKeep, type SheetFlags, type SheetName,
+  sheetOpenMs, sheetToKeep, topSheet, type SheetFlags, type SheetName,
 } from "./phone-sheet";
 import { prefersReducedMotion } from "./viewport-motion";
 
@@ -40,9 +40,10 @@ const SELECTOR: Record<SheetName, string> = {
 const CONTROL = "button, a, input, select, textarea, label, summary, [role='button'], [role='tab'], [role='switch'], [role='menuitem']";
 /** What stands over a sheet and owns Esc while it is up. */
 const OVER = ".anchored-popover, .modal-backdrop, [role='dialog'], [role='alertdialog']";
-/** What the scrim covers: the top bar, the list, the board and the stage. Not
- *  the dock, not a sheet, not a popover (those are portaled). */
-const COVERED = ".topbar, .left-column, main, .stage-dock";
+/** What the scrim covers: the top bar, the list, the board and the stage, the
+ *  deck's banner and the skip link. Not the dock, not a sheet, not a popover
+ *  (those are portaled). */
+const COVERED = ".topbar, .left-column, main, .stage-dock, .ver-banner, .conn-banner, .skip-link";
 /** How many frames to wait for a sheet's element to be drawn before giving up
  *  on moving focus into it. */
 const FOCUS_FRAMES = 12;
@@ -91,7 +92,7 @@ function settle(el: HTMLElement, from: number): void {
   el.animate([{ transform: `translateY(${from}px)` }, { transform: "translateY(0)" }], { duration: sheetOpenMs(), easing: sheetEase() });
 }
 
-export function usePhoneSheets({ phone, open, close, openers, modalOpenRef, onLeavePhone }: {
+export function usePhoneSheets({ phone, open, close, openers, modalOpenRef, onLeavePhone, hold, home }: {
   phone: boolean;
   open: SheetFlags;
   /** Each sheet's own way to close, the same the panel's × takes. */
@@ -104,6 +105,12 @@ export function usePhoneSheets({ phone, open, close, openers, modalOpenRef, onLe
   modalOpenRef?: { readonly current: boolean };
   /** The window grew past a phone's width. */
   onLeavePhone?: () => void;
+  /** Each panel's in-memory hold: shut, not stored, and not reopened by this
+   *  hook (use-right-panels.ts, use-left-column.ts). Used when the window
+   *  narrows to a phone's width with several panels open. */
+  hold?: Partial<Record<SheetName, () => void>>;
+  /** Where focus goes when what opened a sheet is gone: the Sessions door. */
+  home?: () => HTMLElement | null;
 }): PhoneSheets {
   const was = useRef<SheetFlags>(ALL_CLOSED);
   const closeRef = useRef(close);
@@ -112,6 +119,10 @@ export function usePhoneSheets({ phone, open, close, openers, modalOpenRef, onLe
   openersRef.current = openers;
   const leaveRef = useRef(onLeavePhone);
   leaveRef.current = onLeavePhone;
+  const holdRef = useRef(hold);
+  holdRef.current = hold;
+  const homeRef = useRef(home);
+  homeRef.current = home;
   const prevPhone = useRef(phone);
   /** The sheet being closed right now, so that a second ask is nothing. */
   const closingRef = useRef<SheetName | null>(null);
@@ -121,12 +132,16 @@ export function usePhoneSheets({ phone, open, close, openers, modalOpenRef, onLe
   const flags = SHEET_NAMES.map(n => open[n]).join();
 
   // ONE AT A TIME. The sheet opened last keeps the screen; the others are
-  // asked to close, which is what opening one while another is up means. Only
-  // for a flag that turns true while the window is a phone: crossing the
-  // breakpoint closes nothing (a resize is not the reader closing a panel, and
-  // what is stored must not change because of one), it only takes the flags as
-  // they are.
-  useEffect(() => {
+  // asked to close, which is what opening one while another is up means. A
+  // window narrowed to a phone's width with several open keeps the one on top
+  // (the one the reader sees) and holds the rest shut in memory, through the
+  // panels' own holds: they are not drawn, their doors read closed, and
+  // nothing is stored (a resize is not the reader closing a panel).
+  //
+  // A layout effect, so the crossing is settled before a frame is painted: the
+  // desktop frame after a widening never shows the list and Accounts in one
+  // column, and the phone frame after a narrowing never shows two sheets.
+  useLayoutEffect(() => {
     const crossed = prevPhone.current !== phone;
     prevPhone.current = phone;
     for (const n of SHEET_NAMES) {
@@ -136,6 +151,10 @@ export function usePhoneSheets({ phone, open, close, openers, modalOpenRef, onLe
       if (open[n]) { slidesRef.current[n]?.cancel(); delete slidesRef.current[n]; }
     }
     if (crossed) {
+      if (phone) {
+        const top = topSheet(open);
+        for (const n of SHEET_NAMES) if (open[n] && n !== top) holdRef.current?.[n]?.();
+      }
       was.current = { ...open };
       if (!phone) leaveRef.current?.();
       return;
@@ -178,15 +197,27 @@ export function usePhoneSheets({ phone, open, close, openers, modalOpenRef, onLe
 
   // WHAT THE SCRIM COVERS IS INERT while a sheet is up, and not a moment longer
   // than the sheet is: it ends when the close starts.
+  // A covered part that mounts while the sheet is up (a banner when the
+  // connection drops) is made inert as it arrives: a MutationObserver on the
+  // page's own children, which is where those parts are mounted.
   useEffect(() => {
     if (!phone || !sheet) return;
     const held: Element[] = [];
-    for (const el of Array.from(document.querySelectorAll(COVERED))) {
-      if (el.hasAttribute("inert")) continue;
-      el.setAttribute("inert", "");
-      held.push(el);
-    }
-    return () => { for (const el of held) el.removeAttribute("inert"); };
+    const cover = () => {
+      for (const el of Array.from(document.querySelectorAll(COVERED))) {
+        if (el.hasAttribute("inert")) continue;
+        el.setAttribute("inert", "");
+        held.push(el);
+      }
+    };
+    cover();
+    const root = document.querySelector(".app");
+    const watcher = root && typeof MutationObserver === "function" ? new MutationObserver(cover) : null;
+    if (root) watcher?.observe(root, { childList: true });
+    return () => {
+      watcher?.disconnect();
+      for (const el of held) el.removeAttribute("inert");
+    };
   }, [phone, sheet]);
 
   // FOCUS goes into the sheet when it opens, so a screen reader announces the
@@ -228,7 +259,10 @@ export function usePhoneSheets({ phone, open, close, openers, modalOpenRef, onLe
       const active = document.activeElement as HTMLElement | null;
       const lost = !active || active === document.body || !active.isConnected || (el != null && el.contains(active));
       if (!lost) return;
-      const target = openersRef.current?.[before]?.() ?? openerRef.current;
+      // What opened it, else where focus was when it opened; if that is gone
+      // (a session that ended took its row with it), the Sessions door.
+      const opener = openersRef.current?.[before]?.() ?? openerRef.current;
+      const target = opener && opener.isConnected ? opener : homeRef.current?.() ?? null;
       if (target && target.isConnected) target.focus({ preventScroll: true });
     }
   }, [phone, sheet]);

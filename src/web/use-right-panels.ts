@@ -118,5 +118,14 @@ export function useRightPanels(leftColumnW = 0) {
   // reload it is on with nothing drawn. DetailAside says it, when it mounts.
   useFeatureUse("usage-panel", usagePanelOpen);
   useFeatureUse("machine-panel", machinePanelOpen);
-  return { detailOpen, setDetailOpen, usagePanelOpen, setUsagePanelOpen, machinePanelOpen, setMachinePanelOpen };
+  /** A window narrowed to a phone's width with several panels open draws one
+   *  sheet; the others wait shut, in memory, by the same holds a phone's load
+   *  uses: the flag turns false and is not written, and the reader's own open
+   *  ends the hold. Widening does not reopen them (the hold only ends on an
+   *  open), and their stored flags are as they were. */
+  const hold = {
+    usage: () => { usageHeldRef.current = true; setUsagePanelOpen(false); },
+    machine: () => { machineHeldRef.current = true; setMachinePanelOpen(false); },
+  };
+  return { detailOpen, setDetailOpen, usagePanelOpen, setUsagePanelOpen, machinePanelOpen, setMachinePanelOpen, hold };
 }

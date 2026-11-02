@@ -536,7 +536,9 @@ export interface TerminalSessionController {
   type(text: string): void;
   /** One key from the phone's key row, as the bytes the terminal would have sent
    *  for it: through the same input the keyboard types into. */
-  press(bytes: string): void;
+  press(bytes: string, held?: boolean): void;
+  /** Whether the terminal holds the focus right now. */
+  holdsFocus(): boolean;
   release(): void;
   dispose(): void;
   snapshot(): SessionSnapshot;
@@ -1131,15 +1133,18 @@ export function createTerminalSession(deps: SessionDeps, callbacks: SessionCallb
         else events.onInput(keys[i]);
       }
     },
-    press(bytes) {
+    press(bytes, heldBefore) {
       // The terminal's own key: an arrow follows the cursor-key mode, a view
       // scrolled back comes to the bottom as it does for a typed key, and a
-      // terminal that held the focus before the press holds it after.
-      const held = term?.hasFocus() === true;
+      // terminal that held the focus before the press holds it after. "Before"
+      // is when the press began (the key row records it at pointerdown): by the
+      // click the focus may already have left the terminal.
+      const held = heldBefore ?? term?.hasFocus() === true;
       events.onInput(term?.applicationCursorKeys() ? applicationArrow(bytes) : bytes);
       term?.scrollForInput();
       if (held) term?.focus();
     },
+    holdsFocus() { return term?.hasFocus() === true; },
     release() { term?.blur(); },
 
     dispose() {
@@ -1186,7 +1191,8 @@ export interface TerminalSessionView extends SessionSnapshot {
   retry(): void;
   focus(): void;
   type(text: string): void;
-  press(bytes: string): void;
+  press(bytes: string, held?: boolean): void;
+  holdsFocus(): boolean;
   release(): void;
 }
 
@@ -1232,8 +1238,9 @@ export function useTerminalSession(options: UseTerminalSessionOptions): Terminal
   const retry = useCallback(() => controller.current?.retry(), []);
   const focus = useCallback(() => controller.current?.focus(), []);
   const type = useCallback((text: string) => controller.current?.type(text), []);
-  const press = useCallback((bytes: string) => controller.current?.press(bytes), []);
+  const press = useCallback((bytes: string, held?: boolean) => controller.current?.press(bytes, held), []);
+  const holdsFocus = useCallback(() => controller.current?.holdsFocus() === true, []);
   const release = useCallback(() => controller.current?.release(), []);
 
-  return { ...snapshot, hostRef, adopt, retry, focus, type, press, release };
+  return { ...snapshot, hostRef, adopt, retry, focus, type, press, holdsFocus, release };
 }

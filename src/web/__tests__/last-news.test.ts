@@ -1,9 +1,10 @@
 // "Last news" on the phone's offline card: the moment the link dropped, when it
 // had been open, in the deck's language, with the day when it is not today.
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { lastNewsTime, unreachableSub, UNREACHABLE_SUB } from "../components/ConnectionBanner";
+import { setLanguage } from "../i18n";
 import { NEVER_OPEN, linkDropped, linkOpened } from "../last-news";
 
 const read = (path: string) => readFileSync(fileURLToPath(new URL(`../${path}`, import.meta.url)), "utf8");
@@ -61,10 +62,30 @@ describe("the time on the card", () => {
     expect(unreachableSub(at, next)).toContain(`Last news ${out}`);
   });
 
-  it("is formatted with the deck's chosen language, not the browser's", () => {
-    const banner = read("components/ConnectionBanner.tsx");
-    expect(banner).toContain("const language = currentLanguage();");
-    expect(banner).toContain("toLocaleTimeString(language,");
-    expect(banner).not.toContain("toLocaleTimeString(undefined");
+  // CHANGED ON PURPOSE (the phone layout): the test used to read the source for
+  // `toLocaleTimeString(language,`; it now renders a time that is not today
+  // in two of the deck's languages and compares what comes out.
+  describe("is formatted with the deck's chosen language, not the browser's", () => {
+    const next = new Date(2026, 10, 3, 8, 0).getTime();
+    afterEach(() => setLanguage("en"));
+
+    it("renders the same moment differently in two languages, each as that language writes the day", () => {
+      setLanguage("en");
+      const english = lastNewsTime(at, next);
+      setLanguage("ja");
+      const japanese = lastNewsTime(at, next);
+      expect(english).toMatch(/14:02$/);
+      expect(japanese).toMatch(/14:02$/);
+      expect(japanese, "the day is written in the chosen language").not.toBe(english);
+      expect(english).toContain(new Date(at).toLocaleDateString("en", { month: "short", day: "numeric" }));
+      expect(japanese).toContain(new Date(at).toLocaleDateString("ja", { month: "short", day: "numeric" }));
+      expect(japanese).toContain("月");
+    });
+
+    it("the card's sentence carries the time of the language on show", () => {
+      setLanguage("ja");
+      expect(unreachableSub(at, next)).toContain(lastNewsTime(at, next));
+      expect(lastNewsTime(at, next)).toContain("月");
+    });
   });
 });

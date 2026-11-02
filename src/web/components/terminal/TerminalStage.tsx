@@ -551,7 +551,7 @@ export default function TerminalStage(p: TerminalStageProps) {
       />
       {/* The phone's key row (640 and under; hidden by the sheet elsewhere):
           the pane's own input, six keys a screen keyboard lacks. */}
-      <PhoneKeys canType={typing} paneless={p.show.kind === "empty" || PANELESS.has(phase.kind)} onKey={session.press} />
+      <PhoneKeys canType={typing} paneless={p.show.kind === "empty" || PANELESS.has(phase.kind)} onKey={session.press} holdsFocus={session.holdsFocus} />
       <DialogPresence when={hosts.open && hosts.view}>{view => (
         <HostsDialog
           view={view}

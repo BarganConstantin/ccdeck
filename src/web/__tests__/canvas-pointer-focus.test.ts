@@ -255,6 +255,12 @@ describe("the ring #381 put there is exactly what it was (#434)", () => {
       ".radio-panel .radio-map-canvas:focus:not(:focus-visible),\n.radio-panel .radio-map-canvas[data-pointer-focus]:focus",
       ".radio-panel:not([data-keyboard-interaction]) .radio-filter-popup :focus-visible",
       ".jr-row-main:focus-visible",
+      // CHANGED ON PURPOSE (the phone layout): a phone sheet takes focus by
+      // script when it opens, and after a keyboard press the ring would be
+      // drawn around the whole sheet. The four sheet containers draw none,
+      // inside the phone query only (phone-sheet.css); the controls inside
+      // keep the global ring.
+      ".app.app.app .usage-panel[tabindex=\"-1\"]:focus-visible,\n  .app.app.app .sysdetail[tabindex=\"-1\"]:focus-visible,\n  .app.app.app .detail[tabindex=\"-1\"]:focus-visible,\n  .app.app.app .accounts-panel[tabindex=\"-1\"]:focus-visible",
     ]);
     // V4's Figma: the map canvas takes the global ring (no rule of its own now).
     expect(bareCss).not.toContain(".radio-map-canvas:focus-visible {");

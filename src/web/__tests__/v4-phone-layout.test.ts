@@ -12,10 +12,11 @@ import { createElement, type ReactElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { OfflineCard, UNREACHABLE_SUB, lastNewsTime, unreachableSub } from "../components/ConnectionBanner";
-import PhoneKeys, { PHONE_KEYS } from "../components/terminal/PhoneKeys";
+import PhoneKeys, { PHONE_KEYS, pressBegins, pressEnds } from "../components/terminal/PhoneKeys";
 import {
   CLOSE_SHARE, DRAG_SLOP_PX, FLICK_SPEED, GRAB_ZONE_PX, MIN_FLICK_PX, SHEET_NAMES,
-  dragOffset, dragStarts, pressSessionsDoor, releaseCloses, sheetCloseMs, sheetEase, sheetFadeMs, sheetOpenMs, sheetToKeep,
+  accountsGivesPaneBack, dragOffset, dragStarts, pressSessionsDoor, releaseCloses, sheetCloseMs, sheetEase, sheetFadeMs, sheetOpenMs,
+  sheetToKeep, topSheet,
   type SheetFlags,
 } from "../phone-sheet";
 import { PHONE_BAR_H, PHONE_HEAD_H, PHONE_KEYS_H } from "../stage-geometry";
@@ -180,8 +181,46 @@ describe("the key row sends through the pane's existing terminal input", () => {
 
   it("a press does not take the focus off the terminal", () => {
     const markup = read("components/terminal/PhoneKeys.tsx");
-    expect(markup).toContain("onPointerDown={keepFocus}");
+    // CHANGED ON PURPOSE (the phone layout): the pointerdown also notes whether
+    // the terminal holds the focus (the click may find it already gone); it
+    // still cancels the focus change.
+    expect(markup).toContain("onPointerDown={e => { pressBegins(holdsFocus); keepFocus(e); }}");
     expect(markup).toContain("e.preventDefault()");
+  });
+
+  it("the focus the terminal held when the press began is what the key is sent with, at the click", () => {
+    const sent: Array<[string, boolean | undefined]> = [];
+    const onKey = (b: string, held?: boolean) => { sent.push([b, held]); };
+    // Pointer: the terminal holds the focus at pointerdown; by the click it has gone.
+    let focus = true;
+    pressBegins(() => focus);
+    focus = false;
+    pressEnds(onKey, "\t");
+    // Pointer, the terminal did not hold it.
+    pressBegins(() => false);
+    pressEnds(onKey, "\t");
+    // A click with no start seen (a click made by other means): unknown.
+    pressEnds(onKey, "\t");
+    // A press is one: what was noted is spent.
+    pressBegins(() => true);
+    pressEnds(onKey, "\t");
+    pressEnds(onKey, "\t");
+    expect(sent).toEqual([["\t", true], ["\t", false], ["\t", undefined], ["\t", true], ["\t", undefined]]);
+  });
+
+  it("the row notes the start at pointerdown and at the keydown of a keyboard press, and sends at the click", () => {
+    const sent: Array<boolean | undefined> = [];
+    const row = PhoneKeys({ canType: true, onKey: (_b, held) => { sent.push(held); }, holdsFocus: () => true }) as ReactElement<never>;
+    const first = buttons(row as never)[0] as unknown as {
+      props: { onPointerDown(e: unknown): void; onKeyDown(e: { key: string }): void; onClick(): void };
+    };
+    first.props.onPointerDown({ preventDefault() {} });
+    first.props.onClick();
+    first.props.onKeyDown({ key: "a" });
+    first.props.onClick();
+    first.props.onKeyDown({ key: "Enter" });
+    first.props.onClick();
+    expect(sent, "pointerdown noted it; a letter's keydown does not start a press; Enter does").toEqual([true, undefined, true]);
   });
 
   it("the row is wired to the session's own input: press() is the terminal's onInput, and no new transport is touched", () => {
@@ -214,6 +253,50 @@ describe("one sheet at a time, closed by Esc or a flick", () => {
     expect(sheetToKeep(none, { ...none, usage: true })).toBe("usage");
     expect(sheetToKeep({ ...none, usage: true }, { ...none, usage: true, machine: true })).toBe("machine");
     expect(sheetToKeep({ ...none, usage: true, machine: true }, { ...none, machine: true })).toBe("machine");
+  });
+
+  it("the sheet on top is the last in paint order (Accounts, Usage, This machine, the Inspector); with none new, that is the one kept", () => {
+    expect(topSheet(none)).toBeNull();
+    expect(topSheet({ ...none, accounts: true, usage: true })).toBe("usage");
+    expect(topSheet({ ...none, usage: true, machine: true, inspector: true })).toBe("inspector");
+    const both = { ...none, accounts: true, usage: true };
+    expect(sheetToKeep(both, both), "nothing newly opened: the top one, not the first by name").toBe("usage");
+    // The order the page draws them in is the order the rule reads.
+    const app = read("App.tsx");
+    const at = (needle: string) => app.indexOf(needle);
+    expect(at("{phone && accountsNodes}")).toBeLessThan(at("<UsagePanel"));
+    expect(at("<UsagePanel")).toBeLessThan(at("<MachinePanel"));
+    expect(at("<MachinePanel")).toBeLessThan(app.lastIndexOf("<DetailAside"));
+  });
+
+  it("Accounts asked for with a pane up gives the pane back first, on a phone, once, on the render it turns open", () => {
+    const base = { phone: true, accountsOpen: true, accountsWasOpen: false, paneOpen: true };
+    expect(accountsGivesPaneBack(base)).toBe(true);
+    expect(accountsGivesPaneBack({ ...base, phone: false }), "off a phone Accounts is a column").toBe(false);
+    expect(accountsGivesPaneBack({ ...base, paneOpen: false }), "no pane to give back").toBe(false);
+    expect(accountsGivesPaneBack({ ...base, accountsWasOpen: true }), "already open: not again").toBe(false);
+    expect(accountsGivesPaneBack({ ...base, accountsOpen: false }), "closing is not asking").toBe(false);
+  });
+
+  // The App's effect cannot be run here, so what it does with the answer is
+  // pinned beside the function that is tested.
+  it("App asks that function in a layout effect and hands the pane back when it says so", () => {
+    const app = read("App.tsx");
+    expect(app).toContain("const give = accountsGivesPaneBack({ phone, accountsOpen: accountsPanelOpen, accountsWasOpen: accountsWasOpen.current, paneOpen });");
+    expect(app).toContain("if (give) giveRightBack();");
+    expect(app).toMatch(/useLayoutEffect\(\(\) => \{\s*const give = accountsGivesPaneBack/);
+  });
+
+  it("the L key and Quick Open's Sessions row take the door's path; the doors of the page are mapped for both", () => {
+    const app = read("App.tsx");
+    expect(app).toContain("toggleSessionList: pressSessionsKey");
+    expect(app).toContain("sessionsKeyRef.current = () => pressSessionsDoor({");
+    expect(app).toContain("rails: quickRails");
+    expect(app).toContain("left: rails.left.map(sessionsDoorUnderSheet),");
+    expect(app).toContain("right: rails.right.map(group => group.map(sessionsDoorUnderSheet)),");
+    // The door's own press must not call the key's wrapper (it would loop):
+    // the rails are built with the plain toggle.
+    expect(app).toMatch(/railItems\(\{\s*providers, sessionListOpen, toggleSessionList,/);
   });
 
   // CHANGED ON PURPOSE (the phone layout): a flick needs the speed AND 12px of
@@ -336,6 +419,20 @@ describe("one sheet at a time, closed by Esc or a flick", () => {
   it("every header of a sheet is part of the grab zone, the Accounts one too", () => {
     const css = strip(read("styles/phone-sheet.css"));
     expect(css).toContain(".up-header, .sd-top, .insp-h, .ap-header { touch-action: none; }");
+  });
+
+  it("the four sheets' own containers draw no focus ring for their programmatic focus, on a phone only; the controls inside keep theirs", () => {
+    const css = strip(read("styles/phone-sheet.css"));
+    const rule = squash(`
+      .app.app.app .usage-panel[tabindex="-1"]:focus-visible,
+      .app.app.app .sysdetail[tabindex="-1"]:focus-visible,
+      .app.app.app .detail[tabindex="-1"]:focus-visible,
+      .app.app.app .accounts-panel[tabindex="-1"]:focus-visible { outline: none; }`);
+    expect(squash(phoneOf(css))).toContain(rule);
+    const outside = blocksOf(css, PHONE).reduceRight((s, [a, b]) => s.slice(0, a) + s.slice(b), css);
+    expect(outside, "nothing of it leaks past the phone query").not.toContain("focus-visible");
+    // Nothing on a control inside: only the four containers are named.
+    expect(squash(phoneOf(css))).not.toMatch(/button[^{]*:focus-visible\{outline:none/);
   });
 
   it("every sheet carries the handle, and the drag starts on the strip or the header, never on a control", () => {

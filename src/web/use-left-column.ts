@@ -143,6 +143,9 @@ export interface LeftColumn {
   /** The window grew past a phone's width: with the list and Accounts both
    *  open, Accounts is evicted (use-phone-sheets.ts). */
   leavePhone: () => void;
+  /** Accounts waits shut while another sheet keeps a phone's screen: not
+   *  stored (use-phone-sheets.ts). */
+  holdAccounts: () => void;
   /** WORKSPACE changing the column is not the reader's choice, so it is not
    *  stored: `hold` stops the two writes, `release` lets them go on, with
    *  `write` saying whether the column as it stands is the reader's. */
@@ -270,6 +273,14 @@ export function useLeftColumn(): LeftColumn {
     accountsEvictedRef.current = true;
     setAccountsPanelOpen(false);
   }, []);
+  /** A window narrowed to a phone's width with several panels open draws one
+   *  sheet, and Accounts, the lowest, waits shut: in memory, by the hold a
+   *  phone's load uses, so the flag turns false and is not written. The
+   *  reader's own open ends it; widening does not reopen it. */
+  const holdAccounts = useCallback(() => {
+    accountsHeldRef.current = true;
+    setAccountsPanelOpen(false);
+  }, []);
   const storeHold = useMemo(() => ({
     hold: () => { workspaceHeldRef.current = true; },
     // `baseline` is the column as Workspace itself left it: only a flag that
@@ -286,7 +297,7 @@ export function useLeftColumn(): LeftColumn {
   }), []);
 
   return { sessionListOpen, accountsPanelOpen, panel, toggleSessionList, toggleAccountsPanel, openAccountsPanel,
-           closeSessionList, closeSessionListToCanvas, closeAccountsPanel, dismissColumn, leavePhone, storeHold };
+           closeSessionList, closeSessionListToCanvas, closeAccountsPanel, dismissColumn, leavePhone, holdAccounts, storeHold };
 }
 
 /**
