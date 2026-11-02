@@ -26,7 +26,7 @@ describe("Browser Watch refresh stays independent of system fonts", () => {
     state.busy = false;
     const button = refreshMarkup();
     expect(button).toContain("<svg");
-    expect(button).toMatch(/width="13" height="13"/);
+    expect(button).toMatch(/width="14" height="14"/);
     expect(button).toContain('aria-hidden="true"');
     expect(button).not.toContain("↻");
   });

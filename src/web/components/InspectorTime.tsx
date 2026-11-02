@@ -13,6 +13,7 @@ import {
 import { sessionRoot } from "../inspector-tree";
 import type { AgentNodeData } from "../types";
 import { useNow } from "../use-now";
+import { KitIcon } from "./kit-icons";
 import { WaitingLoader } from "./Loader";
 
 interface Reading { session: string; turn: SessionTurn | null; readAt: number }
@@ -162,9 +163,7 @@ function SpanLine({ row, table, now, folded, onToggle }: {
       <span className="insp-time-name" role="cell">
         {row.group ? (
           <button type="button" className="insp-time-fold" aria-expanded={!folded} aria-label={`${folded ? "Show" : "Hide"} the calls of ${row.name}`} onClick={() => onToggle(row.key)}>
-            <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" focusable="false">
-              <path d="m3 4.5 3 3 3-3" />
-            </svg>
+            <KitIcon name="chevron-down" />
           </button>
         ) : null}
         <span className="insp-time-op">{row.name}</span>

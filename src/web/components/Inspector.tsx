@@ -24,6 +24,7 @@ import type { AgentNodeData } from "../types";
 import { AgentCard } from "./AgentNode";
 import { ContextView } from "./ContextModal";
 import InspectorTime from "./InspectorTime";
+import { KitIcon } from "./kit-icons";
 import { CapacityGlyph, ClockGlyph, SessionListGlyph } from "./rail-glyphs";
 
 const TAB_GLYPH: Record<InspectorTab, () => ReactNode> = {
@@ -92,8 +93,7 @@ export default function Inspector({ selected, agents, revision = 0, onSelectAgen
           aria-label={t("board.detailPanel.closeLabel")}
           onClick={onClose}
         >
-          <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.4"
-            strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" focusable="false"><path d="M8.6 3.2 4.8 7l3.8 3.8" /></svg>
+          <KitIcon name="chevron-left" />
         </button>
       </header>
       {INSPECTOR_TABS.map(t => (

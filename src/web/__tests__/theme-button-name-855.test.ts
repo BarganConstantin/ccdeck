@@ -68,22 +68,19 @@ describe("the settings button reads as settings, not as a theme switch", () => {
     expect(gear).not.toMatch(/theme\s*===/);
     expect(gear).not.toMatch(/M11\.8 8\.4A5 5 0 1 1 5\.6 2\.2/);
     expect(gear).not.toMatch(/M7 1\.5v1\.2M7 11\.3v1\.2/);
-    // A toothed wheel round a hub: one closed outline and one circle.
-    expect(gear.match(/<path\b/g)).toHaveLength(1);
-    expect(gear.match(/<circle\b/g)).toHaveLength(1);
-    expect(gear).toMatch(/<path d="M5\.4 2\.9L5\.6 1\.1L8\.4 1\.1[^"]*Z" \/>/);
+    // V4's kit settings icon, not a theme drawing.
+    expect(gear).toContain('<KitIcon name="settings"');
   });
 
   it("stays apart from the Machine button's processor", () => {
-    // The processor is a square with straight pins off it; the gear has no
-    // square and its teeth are one outline, so the two never read as one shape.
-    expect(glyph("MachineGlyph")).toMatch(/<rect\b/);
-    expect(gear).not.toMatch(/<rect\b/);
+    // The kit draws the two as different icons, so they never read as one shape.
+    expect(glyph("MachineGlyph")).toContain('<KitIcon name="machine"');
+    expect(gear).not.toContain('name="machine"');
   });
 
   it("keeps the chrome's one icon spec", () => {
-    // Drawn through the set's one frame, which carries the spec (#837).
-    expect(gear).toMatch(/<Glyph>/);
+    // The kit's icon carries the spec (kit-icons.tsx); the set's own frame stays for the marks the kit lacks (#837).
+    expect(gear).toContain("<KitIcon");
     expect(glyphs).toMatch(/width="13" height="13" viewBox="0 0 14 14" fill="none"\s+stroke="currentColor" strokeWidth="1\.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden/);
   });
 });

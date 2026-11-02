@@ -199,7 +199,7 @@ describe("the chrome is quiet: no edge at rest, a neutral look under the pointer
   });
 
   it("gives the narrow dollar sign back the air its box adds", () => {
-    expect(read("../components/rail-glyphs.tsx")).toMatch(/export const UsageGlyph = \(\) => \(\s*<Glyph narrow>/);
+    expect(read("../components/rail-glyphs.tsx")).toMatch(/export const UsageGlyph = \(\) => <KitIcon name="usage" className="glyph glyph-narrow" \/>;/);
     // Both sides at once, so the glyph stays centred over its word.
     expect(css).toMatch(/\.rail-btn \.glyph-narrow \{ margin-inline: -2px; \}/);
   });
