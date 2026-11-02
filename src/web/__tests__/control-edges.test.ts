@@ -540,7 +540,8 @@ const CONTROLS: Control[] = [
   // named by its word, inside the track, as the feedback dialog's kinds are —
   // and the chosen one is raised onto the panel with the control edge round it,
   // which is the entry below.
-  { at: '.qh-provider[aria-pressed="true"]', beds: ["--panel"] },
+  // CHANGED ON PURPOSE (V4's Figma): the chosen segment sits on the --bg-soft track, not on the panel.
+  { at: '.qh-provider[aria-pressed="true"]', beds: ["--bg-soft"] },
   { at: ".qh-window select", beds: ["--panel"] },
   { at: ".radio-controls > .radio-player-button", states: ['.radio-controls > .radio-player-button:not(.radio-mute[aria-pressed="true"]):not(:disabled):hover'], beds: ["--bg-soft"] },
   { at: '.radio-controls .radio-mute[aria-pressed="true"]', beds: ["--bg-soft"] },

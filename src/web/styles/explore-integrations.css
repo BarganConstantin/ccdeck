@@ -13,17 +13,17 @@
 .explore-intro { margin: 0; color: var(--text-secondary); line-height: var(--lh-body); }
 .explore-body { min-height: 0; overflow-y: auto; padding: 16px; display: flex; flex-direction: column; gap: 12px; }
 .explore-body > * { flex: none; }
-.explore-caption { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; margin: 0; min-height: 20px; color: var(--muted); font-family: var(--font-mono); font-size: calc(var(--fs-meta) + var(--ui-text-increase, 0px)); line-height: var(--lh-meta); }
-.explore-caption > :first-child { font-family: inherit; font-size: calc(var(--fs-small) + var(--ui-text-increase, 0px)); line-height: var(--lh-small); font-weight: 600; color: var(--text-secondary); }
+.explore-caption { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; margin: 0; min-height: 20px; color: var(--muted); font-family: var(--font-mono); font-size: calc(11px + var(--ui-text-increase, 0px)); line-height: 14px; }
+.explore-caption > :first-child { font-family: inherit; font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: 16px; font-weight: 600; color: var(--text-secondary); }
 .explore-providers { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
 /* V4's row: 58 tall, r10, a 1px --line-soft stroke and no fill; no icon. */
-.explore-provider { display: flex; align-items: center; gap: 12px; min-height: 58px; box-sizing: border-box; padding: 9px 12px; border: 1px solid var(--line-soft); border-radius: var(--r-node); }
+.explore-provider { display: flex; align-items: center; gap: 12px; min-height: 58px; box-sizing: border-box; padding: 8px 12px; border: 1px solid var(--line-soft); border-radius: var(--r-node); }
 .explore-info { flex: 1; min-width: 0; overflow-wrap: anywhere; }
 .explore-name { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
-.explore-info h3 { font-size: calc(var(--fs-body) + var(--ui-text-increase, 0px)); line-height: var(--lh-body); margin: 0; font-weight: 600; color: var(--text); }
-.explore-tag { color: var(--muted); font-size: calc(var(--fs-meta) + var(--ui-text-increase, 0px)); line-height: var(--lh-meta); }
-.explore-info p { color: var(--muted); font-size: calc(var(--fs-small) + var(--ui-text-increase, 0px)); line-height: var(--lh-small); margin: 2px 0 0; }
-.explore-connection, .explore-unavailable { flex: none; color: var(--muted); font-size: calc(var(--fs-small) + var(--ui-text-increase, 0px)); line-height: var(--lh-small); }
+.explore-info h3 { font-size: calc(13px + var(--ui-text-increase, 0px)); line-height: var(--lh-body); margin: 0; font-weight: 600; color: var(--text); }
+.explore-tag { color: var(--muted); font-size: calc(11px + var(--ui-text-increase, 0px)); line-height: 14px; }
+.explore-info p { color: var(--muted); font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: 16px; margin: 2px 0 0; }
+.explore-connection, .explore-unavailable { flex: none; color: var(--muted); font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: 16px; }
 .explore-actions { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
 .explore-actions .btn { gap: 4px; }
 .explore-text-action { display: inline-flex; align-items: center; gap: 4px; border: 0; border-radius: var(--r-ctl); background: transparent; color: var(--text-secondary); font: inherit; font-size: calc(13px + var(--ui-text-increase, 0px)); padding: 6px 4px; text-decoration: underline; text-underline-offset: 3px; text-decoration-color: var(--ctl-edge); }
@@ -31,7 +31,7 @@
   .explore-text-action:hover { color: var(--text); text-decoration-color: currentColor; }
 }
 .explore-text-action:active { color: var(--text); text-decoration-thickness: 2px; }
-.explore-footnote { margin: 0; color: var(--muted); font-size: calc(var(--fs-small) + var(--ui-text-increase, 0px)); line-height: var(--lh-small); }
+.explore-footnote { margin: 0; color: var(--muted); font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: 16px; }
 /* The footer: Manage in Settings (quiet) at the left, Done (primary) at the
    right, on the shared 48 band and --line-soft rule. */
 .explore-footer { display: flex; align-items: center; justify-content: space-between; gap: 8px 16px; min-height: var(--dialog-foot-h); box-sizing: content-box; padding: 0 16px; border-top: 1px solid var(--line-soft); flex-shrink: 0; }

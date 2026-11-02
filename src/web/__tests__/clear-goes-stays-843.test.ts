@@ -36,10 +36,11 @@ describe("what goes and what stays, per plan (#843)", () => {
     const c = clearCopy(3, plan({ mine: false, decks: 3, ownerPort: 4318 }));
     expect(c.goes.join(" ")).not.toMatch(/event log/);
     expect(c.stays).toEqual([
-      "The event log, the deck on port 4318 owns that file, one of 3 decks sharing it",
+      "The event log stays, because the deck on port 4318 owns that file, one of 3 decks sharing it",
       "Restart this deck and the log replays back onto it",
     ]);
     expect(c.final).toBeNull();
+    // CHANGED ON PURPOSE (V4's Figma): the button says Clear the deck on this branch too.
     expect(c.confirm).toBe("Clear the deck");
   });
 
@@ -51,8 +52,8 @@ describe("what goes and what stays, per plan (#843)", () => {
 
   it("a shared log it owns: the other decks keep their canvas only until they restart", () => {
     const c = clearCopy(4, plan({ decks: 3 }));
-    expect(c.goes[1]).toMatch(/2 other running decks share with this one, every session recorded in it/);
-    expect(c.stays).toEqual(["What those decks show, until they restart, then it is gone there too"]);
+    expect(c.goes[1]).toMatch(/2 other running decks share with this one. Every session recorded in it goes/);
+    expect(c.stays).toEqual(["What those decks show, until they restart. Then it is gone there too"]);
     expect(c.final).toBe("This cannot be undone.");
   });
 

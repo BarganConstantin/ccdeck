@@ -84,10 +84,8 @@ const V4_AHEAD_OF_READERS = [
   // V4's banner: --ctl-h-lg is read now (the banner strip's min-height).
   // V4's bars: --r-pill is read now (the top bar's chips).
   // V4's category filter: --ctl-h-sm is read now (the pills' height).
-  // V4's dialogs: --fs-card-title, --fs-body, --fs-small, --lh-small, --fs-code,
-  // --lh-code, --fs-meta and --lh-meta are read now (the clear prompt, the
-  // shortcuts sheet, the tour, the busiest processes, the error pane).
-  "--fs-hero", "--lh-hero", "--fs-title", "--lh-title",
+  "--fs-hero", "--lh-hero", "--fs-title", "--lh-title", "--fs-card-title",
+  "--fs-body", "--fs-small", "--lh-small", "--fs-code", "--lh-code", "--fs-meta", "--lh-meta",
   // V4's motion rules: --dur-stage-in, --dur-slow, --delay-step and --press-small are read now.
   "--dur-stage-out",
   // --dur-stage-in is read in JS now (navigator-flip.ts mirrors it as FLIP_OPEN_MS); the

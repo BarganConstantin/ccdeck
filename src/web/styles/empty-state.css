@@ -94,14 +94,14 @@
 .error-fallback-title {
   margin: 0;
   color: var(--text);
-  font-size: calc(var(--fs-card-title) + var(--ui-text-increase, 0px));
+  font-size: calc(14px + var(--ui-text-increase, 0px));
   line-height: var(--lh-card-title);
   font-weight: 600;
 }
 .error-fallback-note {
   margin: 0;
   color: var(--muted);
-  font-size: calc(var(--fs-body) + var(--ui-text-increase, 0px));
+  font-size: calc(13px + var(--ui-text-increase, 0px));
   line-height: var(--lh-body);
 }
 .error-fallback-actions {

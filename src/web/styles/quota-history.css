@@ -9,7 +9,7 @@
 /* V4's segmented control in the header: a --bg-soft track with a --line-soft
    edge, r8, 3px inside; the active segment lifts to --panel. */
 .qh-providers { display: flex; gap: 2px; padding: 3px; background: var(--bg-soft); border: 1px solid var(--line-soft); border-radius: var(--r-panel); }
-.qh-provider { font: inherit; font-size: calc(var(--fs-small) + var(--ui-text-increase, 0px)); line-height: var(--lh-small); font-weight: 500; color: var(--muted); background: transparent; border: 1px solid transparent; border-radius: var(--r-ctl); padding: 3px 9px; cursor: pointer; }
+.qh-provider { font: inherit; font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: 16px; font-weight: 500; color: var(--muted); background: transparent; border: 1px solid transparent; border-radius: var(--r-ctl); padding: 3px 8px; min-height: 28px; cursor: pointer; }
 .qh-provider[aria-pressed="true"] { color: var(--text); background: var(--panel); border: 1px solid var(--ctl-edge); }
 @media (hover: hover) and (pointer: fine) {
 .qh-provider:hover { color: var(--text); background: var(--ctl-fill); }

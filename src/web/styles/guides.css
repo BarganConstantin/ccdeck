@@ -21,7 +21,7 @@
 .guide-line {
   margin: 0;
   min-height: 2.9em;
-  font-size: calc(var(--fs-card-title) + var(--ui-text-increase, 0px));
+  font-size: calc(14px + var(--ui-text-increase, 0px));
   line-height: var(--lh-card-title);
   font-weight: 500;
   color: var(--text);
@@ -29,20 +29,21 @@
 .guide-tip {
   margin: 0;
   min-height: 1.5em;
-  font-size: calc(var(--fs-body) + var(--ui-text-increase, 0px));
+  font-size: calc(13px + var(--ui-text-increase, 0px));
   line-height: var(--lh-body);
   color: var(--muted);
 }
 .guide-count {
   color: var(--muted);
   font-family: var(--font-mono);
-  font-size: calc(var(--fs-code) + var(--ui-text-increase, 0px));
-  line-height: var(--lh-code);
+  font-size: calc(12px + var(--ui-text-increase, 0px));
+  line-height: 16px;
   font-variant-numeric: tabular-nums;
 }
 .modal-actions .guide-count { margin-right: 4px; }
 /* The footer holds the step dots at its left and the buttons at its right. */
 .guide-foot { flex-wrap: wrap; }
+.guide-skip { min-width: 64px; }
 .guide-dots { display: flex; margin-right: auto; }
 /* V4's step dot: 6px on a 12px pitch, --accent for the step you are on and
    --muted-dim for the rest. The target is 12 wide and the footer's height
@@ -56,7 +57,9 @@
   background: var(--muted-dim);
 }
 .guide-dot[aria-current="step"]::before { background: var(--accent); }
-.guide-dot::after { inset-inline: 0; }
+/* The target is 24 square around the 6px dot (the dots are 12 apart, so
+   neighbouring areas overlap by half). */
+.guide-dot::after { inset: -6px 0; }
 .guide-aside { margin-right: 4px; }
 
 /* The drawings. Every fill and stroke is a token, so they are right in both
@@ -188,19 +191,6 @@
 .ap-lan-intro-text { font-size: calc(11px + var(--ui-text-increase, 0px)); line-height: 1.45; color: var(--text-secondary); }
 .ap-lan-intro-go { font-size: calc(10px + max(-1px, var(--ui-text-increase, 0px))); color: var(--accent); }
 .ap-lan-how { color: var(--accent); }
-
-/* The tour's two permanent doors, in the shortcuts sheet and the release
-   notes: one line saying what is behind it, and the button, on one row. */
-.guide-door {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  font-size: calc(12px + var(--ui-text-increase, 0px));
-  color: var(--muted);
-}
-/* The button keeps its words on one line; the sentence beside it wraps. */
-.guide-door .btn { flex: none; }
 
 /* The welcome's way back, on the empty canvas: the hero is pointer-transparent
    so a drag starting on it still pans, and this is the one thing on it a

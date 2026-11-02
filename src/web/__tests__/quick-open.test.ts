@@ -204,6 +204,7 @@ describe("the chord", () => {
   it("is on the shortcuts sheet, and stays there with the letters off as the one way to the panels", () => {
     const row = keyHelpFor(true).flatMap(g => g.rows).find(r => r.cap === "Ctrl + K");
     expect(row).toMatchObject({ macCap: "⌘ K", chord: true });
+    // CHANGED ON PURPOSE (V4's Figma): Quick open is still alone in the panels group with the letters off, which V4 names Panels.
     expect(keyHelpFor(false).find(g => g.title === "Panels")?.rows.map(r => r.cap)).toEqual(["Ctrl + K"]);
   });
 });

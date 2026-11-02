@@ -48,6 +48,8 @@ describe("the canvas's radius tier is named beside the chrome's (#1288)", () => 
     const readers = [...css.matchAll(/([^{}]+)\{([^{}]*var\(--r-(?:node|cluster)\)[^{}]*)\}/g)].map(m => m[1].trim());
     // CHANGED ON PURPOSE: V4's Figma draws the Usage panel's box at --r-node (10), the one
     // chrome surface that reads it; the canvas objects still read the tier from the same token.
-    expect(readers.sort()).toEqual([...Object.keys(CANVAS), ".usage-panel"].sort());
+    // CHANGED ON PURPOSE (V4's Figma): the Explore integrations rows are cards drawn at
+    // --r-node (10), so .explore-provider reads it too.
+    expect(readers.sort()).toEqual([...Object.keys(CANVAS), ".usage-panel", ".explore-provider"].sort());
   });
 });

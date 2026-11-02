@@ -45,7 +45,7 @@ describe("Clear the deck", () => {
     expect(decl(".cc-plan", "grid-template-columns")).toBe("repeat(2, minmax(0, 1fr))");
     expect(decl(".cc-plan", "gap")).toBe("24px");
     expect(decl(".cc-col dt", "font-weight")).toBe("600");
-    expect(decl(".cc-col dt", "line-height")).toBe("var(--lh-small)");
+    expect(decl(".cc-col dt", "line-height")).toBe("16px");
     expect(decl(".cc-col dd", "line-height")).toBe("var(--lh-body)");
     expect(decl(".cc-col dd", "color")).toBe("var(--text)");
     expect(decl(".modal-body.cc-body", "gap")).toBe("20px");
@@ -73,7 +73,7 @@ describe("Keyboard shortcuts", () => {
     expect(decl(".modal.key-help", "width")).toBe("var(--dialog-m)");
     expect(decl(".key-help > .modal-body", "padding")).toBe("24px");
     expect(decl(".kh-cols", "grid-template-columns")).toBe("repeat(2, minmax(0, 1fr))");
-    expect(decl(".kh-cols", "column-gap")).toBe("48px");
+    expect(decl(".kh-cols", "column-gap")).toBe("40px");
   });
   it("has V4's five groups in order, with Terminal only where the Command Panel is on", () => {
     expect(KEY_HELP.map(g => g.title)).toEqual(["Deck", "The question", "Canvas", "Panels"]);
@@ -179,7 +179,7 @@ describe("What's new", () => {
     expect(notes).toContain("isVersion(running) ? running :");
     expect(decl(".release-notes .rn-pill", "border")).toBe("1px solid var(--line)");
     expect(decl(".release-notes .rn-pill", "border-radius")).toBe("10px");
-    expect(decl(".release-notes .rn-pill", "padding")).toBe("1px 7px");
+    expect(decl(".release-notes .rn-pill", "padding")).toBe("1px 6px");
     expect(decl(".release-notes .rn-pill", "color")).toBe("var(--text-secondary)");
   });
   it("has the plain 1px --line-soft footer rule, no fill, Take the tour as a bordered button, Done on the right", () => {
@@ -197,9 +197,12 @@ describe("What's new", () => {
 });
 
 describe("Core history and Busiest processes", () => {
-  it("are 560 wide, with the title in the shared 14/600 style and a Done footer", () => {
+  it("Core history is 560 wide and Busiest processes keeps 1120, both with the title in the shared 14/600 style and a Done footer", () => {
     expect(decl(".hist-modal", "width")).toBe("var(--dialog-s)");
-    expect(decl(".pl-modal", "width")).toBe("var(--dialog-s)");
+    // Busiest processes stays the deck's 1120 with all seven columns: at 560 the
+    // process name would get about 104px of the 690 it has now. V4's three-column
+    // table is skipped (the deck also shows Threads, Up, User and PID).
+    expect(decl(".pl-modal", "width")).toBe("var(--dialog-l)");
     expect(css).toMatch(/\.modal-head > span\.modal-title,/);
     expect(src("../components/SectionHistoryModal.tsx")).toContain("onClick={onClose}>{t(\"shell.done\")}");
     expect(src("../components/ProcessListModal.tsx")).toContain("onClick={onClose}>{t(\"shell.done\")}");
@@ -207,7 +210,7 @@ describe("Core history and Busiest processes", () => {
   it("sets the busiest table's headers in sentence case at 11/14 500, with 12px figures in mono --text-secondary", () => {
     expect([insights["insights.proc.process"], insights["insights.proc.cpu"], insights["insights.proc.memory"]]).toEqual(["Process", "CPU", "Memory"]);
     expect(decl(".pl-body .pl-table .sd-sort", "font-weight")).toBe("500");
-    expect(decl(".pl-body .pl-table .sd-sort", "line-height")).toBe("var(--lh-meta)");
+    expect(decl(".pl-body .pl-table .sd-sort", "line-height")).toBe("14px");
     expect(decl(".pl-body .pl-table td.sd-num", "color")).toBe("var(--text-secondary)");
     expect(decl(".pl-body .pl-table td.sd-num", "font-family")).toBe("var(--font-mono)");
     expect(decl(".pl-body .pl-table thead th", "height")).toBe("24px");
@@ -269,7 +272,7 @@ describe("Explore integrations", () => {
   });
   it("writes Connected / Not connected as plain 12px --muted text and the tag beside the name", () => {
     expect(decl(".explore-connection, .explore-unavailable", "color")).toBe("var(--muted)");
-    expect(px(decl(".explore-connection, .explore-unavailable", "font-size"))).toContain("var(--fs-small)");
+    expect(decl(".explore-connection, .explore-unavailable", "font-size")).toBe("calc(12px + var(--ui-text-increase, 0px))");
     expect(css).not.toContain(".explore-connection[data-connected]");
     expect(integrations["integrations.explore.connected"]).toBe("Connected");
     expect(integrations["integrations.explore.notConnected"]).toBe("Not connected");
@@ -319,5 +322,42 @@ describe("The crash pane", () => {
   });
   it("writes its note as two sentences", () => {
     expect(shell["shell.error.note"]).toBe("The deck hit an error it could not draw past. Reloading usually clears it. If it keeps happening, a report tells the people who make ccdeck what broke.");
+  });
+});
+
+describe("Touch, density and forced colours", () => {
+  const touch = src("../styles/touch-and-forced-colours.css");
+  const coarse = touch.slice(touch.indexOf("@media (pointer: coarse) {"), touch.indexOf("@media (forced-colors: active) {"));
+  it("gives the link-shaped buttons and the provider segments a floor of the control height", () => {
+    expect(decl(".kh-tour", "min-height")).toBe("var(--ctl-h)");
+    expect(decl(".release-notes .rn-history-link a", "min-height")).toBe("var(--ctl-h)");
+    expect(decl(".qh-provider", "min-height")).toBe("28px");
+  });
+  it("gives the tour's dots a 24px target around the 6px dot", () => {
+    expect(decl(".guide-dot::after", "inset")).toBe("-6px 0");
+  });
+  it("takes all of them to 32px under a coarse pointer, and What's new's links to 44", () => {
+    expect(coarse).toMatch(/\.kh-tour,\s*\.release-notes \.rn-history-link a,\s*\.qh-provider,\s*\.guide-dot \{ min-height: 32px; \}/);
+    expect(css).toMatch(/\.rn-history-link a, \.release-notes \.rn-footer > \.primary \{ min-height: 44px; \}/);
+  });
+  it("redraws the chosen provider segment in the system colours inside the one forced-colours block", () => {
+    expect(touch.match(/@media \(forced-colors: active\)/g)).toHaveLength(1);
+    expect(touch).toMatch(/\.aa-tab\.on,\s*\.qh-provider\[aria-pressed="true"\] \{ forced-color-adjust: none;/);
+  });
+  it("keeps What's new's footer 48 on a phone: no vertical padding", () => {
+    expect(css).toContain(".release-notes .rn-footer { padding: 0 16px; }");
+    expect(css).toContain(".release-notes .rn-footer { padding: 0 12px; gap: 8px; }");
+  });
+  it("lifts the busiest table's figures on a row hover, under the mouse query", () => {
+    expect(css).toMatch(/@media \(hover: hover\) and \(pointer: fine\) \{\s*\.pl-body tbody tr:hover td \{[^}]*\}\s*\}\s*(?:\/\*[\s\S]*?\*\/\s*)?\.pl-body tbody tr:hover td\.sd-num|\.pl-body tbody tr:hover td\.sd-num \{ color: var\(--text\); \}/);
+  });
+  it("leaves no dead rules for the retired shortcut grid, tour door or What's new text button", () => {
+    expect(css).not.toContain(".shortcuts");
+    expect(css).not.toContain(".guide-door");
+    expect(css).not.toContain(".rn-text-button");
+  });
+  it("shows the pill's fallback version without a v, and puts a hidden plus between chord chips", () => {
+    expect(src("../components/ReleaseNotesModal.tsx")).toContain("entries[0]?.version");
+    expect(src("../components/KeyboardHelp.tsx")).toContain("<span className=\"kh-plus\">+</span>");
   });
 });

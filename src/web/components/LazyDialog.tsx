@@ -58,7 +58,7 @@ export function DialogDidNotLoad({ name, onClose }: { name: string; onClose: () 
             {t("shell.lazy.didNotLoad", { name })}
           </p>
         </section>
-        <footer className="modal-foot dm-actions">
+        <footer className="modal-foot">
           <button type="button" className="btn" onClick={onClose}>{t("shell.close")}</button>
           <button type="button" ref={reloadRef} className="btn primary" onClick={() => window.location.reload()}>{t("shell.reload")}</button>
         </footer>

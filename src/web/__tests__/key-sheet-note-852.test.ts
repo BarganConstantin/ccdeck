@@ -40,7 +40,7 @@ describe("the keyboard sheet's note (#852)", () => {
   it("reads as a footnote — no box of its own", () => {
     const rule = /(?:^|\n)\.kh-foot\s*\{([^}]*)\}/.exec(css)?.[1] ?? "";
     // CHANGED ON PURPOSE (V4's Figma): the footnote is the Small style, 12/16.
-    expect(rule).toMatch(/font-size:\s*calc\(var\(--fs-small\)/);
+    expect(rule).toMatch(/font-size:\s*12px/);
     expect(rule).not.toMatch(/border|background/);
   });
 });

@@ -1,6 +1,6 @@
 // Release selection and seen-state stay upstream; this sheet only presents them.
 import { useEffect, useId, useRef, useState } from "react";
-import { groupReleaseNotes, presentReleaseNotes, splitNoteTitle, versionRangeLabel, isVersion, type ReleaseNote, type VersionNotes } from "../release-notes";
+import { groupReleaseNotes, presentReleaseNotes, splitNoteTitle, isVersion, type ReleaseNote, type VersionNotes } from "../release-notes";
 import { Dialog } from "./Dialog";
 import { useModalDismiss, useScrimDismiss } from "./use-modal-dismiss";
 import { parseInline, type Inline } from "../inline-markdown";
@@ -49,7 +49,7 @@ export default function ReleaseNotesModal({ entries, since, running, firstRun, o
       if (document.activeElement === document.body) closeRef.current?.focus();
     }
   }, [hasMenu, menu]);
-  const range = isVersion(running) ? running : versionRangeLabel(entries.slice(0, 1));
+  const range = isVersion(running) ? running : (entries[0]?.version ?? "");
   const context = firstRun && running ? t("shell.notes.contextFirst", { version: running })
     : since ? t("shell.notes.contextSince", { since }) : null;
   const hasLegacyUpgrade = visiblePrevious.some(entry => entry.notes.some(note => !note.priority && !note.notice));

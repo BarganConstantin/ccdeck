@@ -79,7 +79,7 @@ export interface KeyHelpGroup {
  *  keys. What is left is a control the KEYBOARD put focus on, which still owns
  *  its keys (a bare "c" from a focused dropdown used to truncate the event
  *  log), and this sheet, which takes focus while it is open. Esc is the way out
- *  of both, and it is the last row of the fourth group — so that is all the
+ *  of both, and it is the last row of the Deck group — so that is all the
  *  line says. */
 export const KEY_HELP_NOTE = "Press Esc first if a key does nothing.";
 

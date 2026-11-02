@@ -348,6 +348,7 @@ describe("Clear on the deck that does own it", () => {
     const { goes, confirm } = clearCopy(3, plan);
     // The sentence the reporter never saw: what goes is not only this deck's.
     expect(goes.join(" ")).toContain("1 other running deck shares");
+    // CHANGED ON PURPOSE (V4's Figma): the lines start with a capital.
     expect(goes.join(" ")).toContain("All 3 agents on the canvas");
     expect(confirm).toBe("Clear everything");
   });
@@ -377,6 +378,7 @@ describe("A deck whose log nobody else holds", () => {
     // And it is the deck the old copy was written for, so it keeps the old
     // promise.
     const { goes, confirm } = clearCopy(1, readClearPlan(res.json));
+    // CHANGED ON PURPOSE (V4's Figma): the lines start with a capital.
     expect(goes.join(" ")).toContain("This deck's event log");
     expect(goes.join(" ")).toContain("The one agent");
     expect(confirm).toBe("Clear everything");
@@ -426,6 +428,7 @@ describe("The sentence when the server has not answered yet", () => {
     // under-warning is somebody's history.
     const { goes } = clearCopy(2, null);
     expect(goes.join(" ")).toContain("every deck on this machine shares");
+    // CHANGED ON PURPOSE (V4's Figma): the lines start with a capital.
     expect(goes.join(" ")).toContain("All 2 agents");
   });
 

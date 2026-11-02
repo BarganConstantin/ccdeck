@@ -187,6 +187,14 @@ describe("what names the chord", () => {
         setLanguage(code);
         const terminal = keyHelpFor(true, () => true, true).find(g => g.id === "terminal")!;
         expect(terminal.rows).toEqual([WORKSPACE_KEY_ROW]);
+        // CHANGED ON PURPOSE (V4's Figma): the group is found by its id, and the
+        // titles around it are the language's own where it has one. German keeps
+        // "Canvas" as its own word; Japanese translates it. (The V4 names Deck,
+        // The question, Terminal and Panels fall back to English until
+        // translated.)
+        const canvas = keyHelpFor(true, () => true, true).find(g => g.id === "canvas")!;
+        expect(canvas.title).toBe(code === "ja" ? "キャンバス" : "Canvas");
+        if (code === "ja") expect(canvas.title, "the title is the translated one").not.toBe("Canvas");
       });
     }
   });

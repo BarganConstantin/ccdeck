@@ -72,6 +72,7 @@ function open() {
       if (page.activeElement.find && !page.activeElement.find(tree)) page.activeElement = BODY;
     },
   });
+  // CHANGED ON PURPOSE (V4's Figma): the step counter moved from beside the title to the header's right and is class guide-count.
   const counter = () => textOf(one(view.tree, el => el.props.className === "guide-count"));
   const click = (find: (tree: unknown) => Drawn | null) => (find(view.tree)!.props.onClick as () => void)();
   /** A key pressed wherever focus is: the dialog hears it only from inside. */

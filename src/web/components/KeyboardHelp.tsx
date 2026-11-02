@@ -13,8 +13,8 @@
 // It is the deck's seventh modal and it is deliberately built out of the six
 // others' parts: `.modal-backdrop` and `.modal` carry the entrance
 // (fadeIn/popIn, and the fade alone under reduced motion), `useModalDismiss`
-// carries Escape, the focus trap and the focus hand-back, and `.shortcuts` is
-// the same two-column grid the rail has always drawn. Nothing here is a fourth
+// carries Escape, the focus trap and the focus hand-back, and `.kh-cols` is
+// V4's two columns of groups. Nothing here is a fourth
 // spelling of anything.
 //
 // The rows come from key-help.ts rather than from this file, for the reason
@@ -28,6 +28,7 @@
 // is inert. That is not a bug to route around: it is the rule that stops a
 // stray "c" from truncating the event log. The sheet says so in one line under
 // its keys (#852), and Esc is the documented way back.
+import { Fragment } from "react";
 import { kindOffered, useIntegrations } from "../integrations/client";
 import { KEY_HELP_NOTE, KEY_HELP_OFF_TITLE, KEY_HELP_SWITCH_NOTE, keyHelpFor, SINGLE_KEYS_PLACE, type KeyHelpGroup } from "../key-help";
 import { isApplePlatform, platformName } from "../platform";
@@ -149,7 +150,9 @@ export default function KeyboardHelp({ onClose, onTour, onSettings, workspace = 
                       <div className="sc" key={`${group.id}:${row.cap}:${row.action}`}>
                         <span className="kh-action">{row.action}</span>
                         <span className="kh-keys">
-                          {capChips(apple && row.macCap ? row.macCap : row.cap).map((chip, n) => <kbd key={n}>{chip}</kbd>)}
+                          {capChips(apple && row.macCap ? row.macCap : row.cap).map((chip, n) => (
+                            <Fragment key={n}>{n > 0 && <span className="kh-plus">+</span>}<kbd>{chip}</kbd></Fragment>
+                          ))}
                         </span>
                       </div>
                     ))}

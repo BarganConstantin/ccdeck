@@ -44,6 +44,7 @@ describe("the three pointer-only panels get keys (#826)", () => {
   });
 
   it("lists all three in the sheet: S and B under Panels, V under Deck (V4's groups)", () => {
+    // CHANGED ON PURPOSE (V4's Figma): the group is named Panels, and V sits in Deck.
     const panels = KEY_HELP.find(g => g.title === "Panels")!.rows.map(r => r.cap);
     for (const cap of ["S", "B"]) expect(panels, cap).toContain(cap);
     const settings = KEY_HELP.find(g => g.title === "Deck")!.rows;
