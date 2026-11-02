@@ -5,59 +5,68 @@
    them. */
 .modal.guide { width: var(--dialog-s); }
 .guide .modal-body { gap: 12px; }
-/* The ground the drawing is on: the page's own, one step below the dialog, so
-   a machine drawn on it reads as a surface the way a panel does on the canvas. */
+/* V4's picture box: --sunken with a --line-soft edge, r8, 16 inside. */
 .guide-stage {
-  padding: 10px 8px;
-  border: 1px solid var(--line);
+  box-sizing: border-box;
+  height: 182px;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  border: 1px solid var(--line-soft);
   border-radius: var(--r-panel);
-  background: var(--bg);
+  background: var(--sunken);
   animation: fadeIn var(--dur-base) var(--ease);
 }
+/* The tip: 14px medium --text over a 13px --muted second line. */
 .guide-line {
-  margin: 4px 2px 0;
+  margin: 0;
   min-height: 2.9em;
   font-size: calc(14px + var(--ui-text-increase, 0px));
-  line-height: 1.45;
+  line-height: var(--lh-card-title);
+  font-weight: 500;
   color: var(--text);
 }
 .guide-tip {
-  margin: -4px 2px 0;
+  margin: 0;
   min-height: 1.5em;
-  font-size: calc(11px + var(--ui-text-increase, 0px));
-  line-height: 1.5;
+  font-size: calc(13px + var(--ui-text-increase, 0px));
+  line-height: var(--lh-body);
   color: var(--muted);
 }
-/* Eight 24px dots and two buttons do not fit a phone's card, so Back and Next
-   take a line of their own there instead of leaving the screen. */
-.guide-foot {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-  align-items: center;
-  gap: 8px;
-  margin-top: 4px;
+.guide-count {
+  color: var(--muted);
+  font-family: var(--font-mono);
+  font-size: calc(12px + var(--ui-text-increase, 0px));
+  line-height: 16px;
+  font-variant-numeric: tabular-nums;
 }
+.modal-actions .guide-count { margin-right: 4px; }
+/* The footer holds the step dots at its left and the buttons at its right. */
+.guide-foot { flex-wrap: wrap; }
+.guide-skip { min-width: 64px; }
 .guide-dots { display: flex; margin-right: auto; }
-/* A dot in a 24px target: the shared glyph button supplies the target, the
-   ring and the ink, and the dot is drawn in that ink so hover and the current
-   step are the same two rules every other glyph obeys. */
+/* V4's step dot: 6px on a 12px pitch, --accent for the step you are on and
+   --muted-dim for the rest. The target is 12 wide and the footer's height
+   tall, so neighbours do not overlap. */
+.guide-dot { width: 12px; min-width: 12px; padding: 0; }
 .guide-dot::before {
   content: "";
-  width: 7px;
-  height: 7px;
+  flex: none;
+  width: 6px;
+  height: 6px;
   border-radius: 50%;
-  background: currentColor;
+  background: var(--muted-dim);
 }
-.guide-dot[aria-current="step"] { color: var(--accent); }
-/* The dots sit edge to edge, so their targets already meet; the 2px each side
-   `.glyph-btn::after` adds would lay every dot over the next. */
-.guide-dot::after { inset-inline: 0; }
+.guide-dot[aria-current="step"]::before { background: var(--accent); }
+/* The target is 24 square around the 6px dot (the dots are 12 apart, so
+   neighbouring areas overlap by half). */
+.guide-dot::after { inset: -6px; }
 .guide-aside { margin-right: 4px; }
 
 /* The drawings. Every fill and stroke is a token, so they are right in both
    themes; every size is on the type ladder, in the drawing's own units. */
 .guide-art { display: block; width: 100%; height: auto; overflow: visible; }
+.guide-stage > .guide-art { height: 100%; }
 .ga-screen { fill: var(--panel); stroke: color-mix(in srgb, var(--text) 16%, transparent); }
 .ga-canvas { fill: none; stroke: color-mix(in srgb, var(--text) 16%, transparent); stroke-dasharray: 3 5; }
 .ga-line { stroke: color-mix(in srgb, var(--text) 12%, transparent); }
@@ -184,19 +193,6 @@
 .ap-lan-intro-go { font-size: calc(10px + max(-1px, var(--ui-text-increase, 0px))); color: var(--accent); }
 .ap-lan-how { color: var(--accent); }
 
-/* The tour's two permanent doors, in the shortcuts sheet and the release
-   notes: one line saying what is behind it, and the button, on one row. */
-.guide-door {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  font-size: calc(12px + var(--ui-text-increase, 0px));
-  color: var(--muted);
-}
-/* The button keeps its words on one line; the sentence beside it wraps. */
-.guide-door .btn { flex: none; }
-
 /* The welcome's way back, on the empty canvas: the hero is pointer-transparent
    so a drag starting on it still pans, and this is the one thing on it a
    pointer is meant to land on. */
@@ -228,7 +224,7 @@
    one button, so the link stands over its corner rather than inside it. */
 .ap-lan-intro-row { position: relative; }
 .ap-lan-intro-row > .film-link { position: absolute; right: 10px; bottom: 7px; font-size: calc(10px + max(-1px, var(--ui-text-increase, 0px))); }
-.ap-lan-how + .film-link { margin-left: 12px; font-size: calc(10px + max(-1px, var(--ui-text-increase, 0px))); }
+.ap-lan-how + .film-link { margin-left: 12px; font-size: calc(11px + var(--ui-text-increase, 0px)); }
 /* Beside the hero's tour button, and given its pointer back like it. */
 .empty-hero .empty-actions { display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 8px; margin-top: 22px; }
 .empty-hero .film-link { pointer-events: auto; margin-left: 0; }

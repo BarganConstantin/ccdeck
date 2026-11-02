@@ -1,23 +1,26 @@
 /* Usage histories share the existing report shell and measurement palette. */
-.modal.qh-modal { width: var(--dialog-m); color: var(--text); animation: radioOpen var(--dur-base) var(--ease); }
+.modal.qh-modal { width: var(--dialog-s); color: var(--text); animation: radioOpen var(--dur-base) var(--ease); }
 .modal.qh-modal[data-keyboard-interaction] { animation: none; }
-.qh-header-actions { display: flex; gap: 8px; margin-left: auto; }
+.qh-header-actions { display: flex; align-items: center; gap: 12px; margin-left: auto; }
 .qh-body { gap: 16px; font-size: calc(12px + var(--ui-text-increase, 0px)); }
 .qh-body > * { flex: none; }
-.qh-controls { display: flex; align-items: end; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
-.qh-providers { display: flex; gap: 4px; }
-.qh-provider { font: inherit; color: var(--text-dim); background: transparent; border: 1px solid var(--ctl-edge); border-radius: var(--r-ctl); padding: 6px 10px; cursor: pointer; min-height: 28px; }
-.qh-provider[aria-pressed="true"] { color: var(--text); border-color: var(--accent); background: var(--ctl-fill); }
+.qh-controls { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.qh-controls:empty { display: none; }
+/* V4's segmented control in the header: a --bg-soft track with a --line-soft
+   edge, r8, 3px inside; the active segment lifts to --panel. */
+.qh-providers { display: flex; gap: 2px; padding: 3px; background: var(--bg-soft); border: 1px solid var(--line-soft); border-radius: var(--r-panel); }
+.qh-provider { font: inherit; font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: 16px; font-weight: 500; color: var(--muted); background: transparent; border: 1px solid transparent; border-radius: var(--r-ctl); padding: 3px 8px; min-height: 28px; cursor: pointer; }
+.qh-provider[aria-pressed="true"] { color: var(--text); background: var(--panel); border: 1px solid var(--ctl-edge); }
 @media (hover: hover) and (pointer: fine) {
 .qh-provider:hover { color: var(--text); background: var(--ctl-fill); }
 }
-.qh-window { display: grid; gap: 6px; min-width: 0; max-width: 100%; color: var(--text-dim); }
+.qh-window { display: flex; align-items: center; gap: 8px; min-width: 0; max-width: 100%; color: var(--text-dim); }
 .qh-window select { min-width: 0; max-width: 100%; font: inherit; color: var(--text); background: var(--ctl-fill); border: 1px solid var(--ctl-edge); border-radius: var(--r-ctl); padding: 6px 8px; }
 .qh-summary { display: flex; align-items: baseline; justify-content: space-between; gap: 8px 16px; flex-wrap: wrap; padding-top: 4px; }
-.qh-summary strong { font-weight: 600; font-size: calc(22px + var(--ui-text-increase, 0px)); font-variant-numeric: tabular-nums; }
+.qh-summary strong { font-family: var(--font-mono); font-weight: 600; font-size: calc(18px + var(--ui-text-increase, 0px)); line-height: 24px; font-variant-numeric: tabular-nums; }
 .qh-summary > span { color: var(--text-dim); font-size: calc(11px + var(--ui-text-increase, 0px)); }
 .qh-chart { display: block; width: 100%; height: auto; overflow: visible; }
-.qh-chart-wrap { display: grid; grid-template-columns: 36px minmax(0, 1fr); gap: 10px 8px; padding-block: 6px; }
+.qh-chart-wrap { display: grid; grid-template-columns: 36px minmax(0, 1fr); gap: 10px 8px; padding: 6px; background: var(--sunken); border-radius: var(--r-ctl); }
 .qh-axis { display: flex; flex-direction: column; justify-content: space-between; text-align: right; color: var(--text-dim); font: calc(11px + var(--ui-text-increase, 0px)) var(--font-mono); }
 .qh-axis span:first-child { transform: translateY(-50%); }
 .qh-axis span:last-child { transform: translateY(50%); }

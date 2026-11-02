@@ -380,6 +380,10 @@ export default function SectionHistoryModal({ group, title, liveNote, onClose }:
             <strong>{liveNote}</strong>
           </p>}
         </div>
+
+        <footer className="modal-foot">
+          <button type="button" className="btn primary" onClick={onClose}>{t("shell.done")}</button>
+        </footer>
     </Dialog>,
     document.body,
   );

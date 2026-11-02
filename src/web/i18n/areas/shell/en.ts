@@ -13,6 +13,7 @@ const catalog: Catalog = {
   "shell.done": "Done",
   "shell.back": "Back",
   "shell.next": "Next",
+  "shell.skip": "Skip",
   "shell.skipToCanvas": "Skip to the canvas",
   "shell.rail.left": "Accounts and sessions",
   "shell.rail.right": "Usage and activity",
@@ -31,7 +32,7 @@ const catalog: Catalog = {
 
   // ── error boundary and dialogs that fail to load ──
   "shell.error.title": "Something went wrong",
-  "shell.error.note": "The deck hit an error it could not draw past. Reloading usually clears it — and if it keeps happening, a report tells the people who make ccdeck what broke.",
+  "shell.error.note": "The deck hit an error it could not draw past. Reloading usually clears it. If it keeps happening, a report tells the people who make ccdeck what broke.",
   "shell.error.report": "Send report",
   "shell.error.noMessage": "The deck threw an error with no message.",
   "shell.lazy.didNotLoad": "{name} did not load. The deck has most likely been updated since this tab opened, and a reload picks up the new version.",

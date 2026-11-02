@@ -540,8 +540,13 @@ const CONTROLS: Control[] = [
   { at: ".fg-tabs .uh-range-btn", states: ['.fg-tabs .uh-range-btn[aria-selected="true"]'], beds: ["--panel"] },
   { at: ".fd-sections .uh-range-btn", states: ['.fd-sections .uh-range-btn[aria-selected="true"]'], beds: ["--panel"] },
   { at: '.ns-form .uh-range-btn[aria-pressed="false"]', fillFrom: '.ns-form .uh-range-btn[aria-pressed="false"]', states: ['.ns-form .uh-range-btn[aria-pressed="false"]:hover'], beds: ["--panel"] },
-  { at: ".qh-provider", states: [".qh-provider:hover"], beds: ["--panel"] },
-  { at: '.qh-provider[aria-pressed="true"]', beds: ["--panel"] },
+  // CHANGED ON PURPOSE (V4's Figma): Quota history's provider switch is a
+  // segmented track in the header. A segment at rest draws no boundary — it is
+  // named by its word, inside the track, as the feedback dialog's kinds are —
+  // and the chosen one is raised onto the panel with the control edge round it,
+  // which is the entry below.
+  // CHANGED ON PURPOSE (V4's Figma): the chosen segment sits on the --bg-soft track, not on the panel.
+  { at: '.qh-provider[aria-pressed="true"]', beds: ["--bg-soft"] },
   { at: ".qh-window select", beds: ["--panel"] },
   { at: ".radio-controls > .radio-player-button", states: ['.radio-controls > .radio-player-button:not(.radio-mute[aria-pressed="true"]):not(:disabled):hover'], beds: ["--bg-soft"] },
   { at: '.radio-controls .radio-mute[aria-pressed="true"]', beds: ["--bg-soft"] },
@@ -762,15 +767,17 @@ const CONTROLS: Control[] = [
       // undone.
       ".ap-lan-who .ap-manage-btn.danger.armed",
     ], beds: ACCOUNTS },
-  // The same verb as the row's, holding the same line one panel in. Unpair is
-  // rare and cannot be undone from here, and it sat in the loudest ink on the
-  // surface beside the button somebody presses every day — so it keeps its
-  // word and its place and loses the edge until it is pointed at, exactly as
-  // the row above does. Measured at the state where the edge exists, on the
-  // foot's own ground rather than the body's.
-  { at: ".lan-peer-foot .btn.danger:not(.armed):hover:not(:disabled)",
+  // CHANGED ON PURPOSE (V4's Figma): the deck's own dialog draws Unpair as the
+  // quiet outlined button on the left of its foot, so the control now has an
+  // edge at rest (the shared control edge) as well as under the pointer and
+  // the keyboard, and all three are measured. The foot is the dialog's own
+  // --panel now, not the --bg-soft band it used to be.
+  { at: ".lan-peer-foot .btn.danger:not(.armed)",
     fillFrom: "button.btn",
-    states: [".lan-peer-foot .btn.danger:not(.armed):focus-visible"], beds: ["--bg-soft"] },
+    states: [
+      ".lan-peer-foot .btn.danger:not(.armed):hover:not(:disabled)",
+      ".lan-peer-foot .btn.danger:not(.armed):focus-visible",
+    ], beds: ["--panel"] },
   // The feedback dialog's Discard holds the same line in its own foot: it is
   // drawn only while there is a draft, keeps its word and loses the edge until
   // it is pointed at or focused. The foot is the dialog's panel, not a band.

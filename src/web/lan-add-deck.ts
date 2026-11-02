@@ -33,6 +33,16 @@ export function parseAddress(raw: string): { addr: string; port: number } | null
   return { addr, port };
 }
 
+/** Whether a field has anything to commit: the verb beside it is inert until it
+ *  does, and Enter in an empty one reaches no deck. Whitespace is nothing. */
+export const hasText = (draft: string): boolean => draft.trim() !== "";
+
+/** The invite a person pasted, trimmed, or null when there is nothing to join. */
+export function joinToken(draft: string): string | null {
+  const token = draft.trim();
+  return token === "" ? null : token;
+}
+
 /** A countdown a person reads while somebody else is reading the token out. */
 export function leftLabel(expiresAt: number, now: number): string {
   const s = Math.max(0, Math.round((expiresAt - now) / 1000));

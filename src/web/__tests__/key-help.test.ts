@@ -264,7 +264,9 @@ describe("the sound switch, which had a control and no key", () => {
     // The half of #711 that had to survive the redesign: a keyboard user must
     // still be able to shut the deck up without opening anything. M is that,
     // and the sheet is where it is promised.
-    const settings = KEY_HELP.find(g => g.title === "Settings")!.rows;
+    // CHANGED ON PURPOSE (V4's Figma): Settings' keys sit in the Deck group, and the
+    // mouse rows in Canvas.
+    const settings = KEY_HELP.find(g => g.title === "Deck")!.rows;
     const row = settings.find(r => /^m$/i.test(r.cap));
     expect(row!.action).toMatch(/sound on or off/);
     // V, beside it, opens Settings at Sounds: the switch, and each tone's
@@ -276,7 +278,7 @@ describe("the sound switch, which had a control and no key", () => {
     // where M toggled, and the Mouse group wrote the divergence down — went
     // with the speaker (2026-10-07). No row describes a control the bar does
     // not draw.
-    const mouse = KEY_HELP.find(g => g.title === "Mouse")!;
+    const mouse = KEY_HELP.find(g => g.title === "Canvas")!;
     expect(mouse.rows.some(r => /speaker/i.test(r.action))).toBe(false);
   });
 

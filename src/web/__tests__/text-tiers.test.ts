@@ -200,6 +200,17 @@ describe("what was migrated to the secondary tier", () => {
       ".uh-cost-note",
       ".ap-issue-hint",
       ".ap-lan-intro-text",
+      // CHANGED ON PURPOSE (V4's Figma): the Local network screens set their
+      // empty-state lead, the Add a deck heading and note, the pairing
+      // request's note and fingerprint line, the field labels, a deck's facts
+      // and the quiet Unpair in V4's secondary ink.
+      ".ap-lan-nothing",
+      ".lan-add .lan-h",
+      ".lan-add .lan-h + .lan-note",
+      ".lan-ask-note, .lan-ask-fp",
+      ".lan-field-label",
+      ".lan-peer .lan-fact dd",
+      ".lan-peer-foot .btn.danger:not(.armed)",
       // (V4's field: the shared text field's placeholder left this tier for
       // --muted, which is 4.91:1+ on its --bg-soft fill.)
       // The Projects report's Copy and Show buttons: a control's words, kept
@@ -268,10 +279,13 @@ describe("what was migrated to the secondary tier", () => {
       // undone, on the zone's red tint, where --muted is 3.42:1 in dark
       // (#1788).
       ".drag-trash-zone.over .drag-trash-hint",
-      // The crash pane's one sentence: that reloading usually clears it and a
-      // report tells the makers what broke (#1853). Prose the reader reads to
-      // decide which of the two buttons under it to press, on the panel surface.
-      ".error-fallback-note",
+      // CHANGED ON PURPOSE (V4's Figma): the crash pane's sentence is --muted on
+      // the bare pane now (no card), so it leaves this list; the dialogs the
+      // frames draw in --text-secondary join it: the clear prompt's labels, the
+      // lazy note, the shortcut sheet's actions and group names, the busiest
+      // table's figures, the Explore caption's label and the version pill.
+      ".cc-col dt", ".dm-note", ".kh-action", ".kh-group", ".pl-body .pl-table td.sd-num",
+      ".explore-caption > :first-child", ".release-notes .rn-pill",
       // The feedback dialog's kinds (#1853): a word to choose by, sitting on
       // the segmented track, which is a fill mixed from the foreground, where
       // --muted is 4.05:1 in dark. Read to choose between the three.
@@ -371,7 +385,6 @@ describe("what was migrated to the secondary tier", () => {
       ".radio-filter-back", ".radio-filter-field > span:nth-child(2)", ".radio-filter-heading .icon-btn", ".radio-filter-note",
       ".radio-filter-trigger", ".radio-filter-toggle", ".radio-tab-count",
       ".radio-source-heading > span", ".radio-source-heading > svg", ".radio-workspace-toggle > svg", ".radio-source-help",
-      ".radio-header h2 span",
       ".radio-header-note",
       ".radio-loading > .icon-btn",
       ".radio-map-heading > span",
@@ -513,8 +526,6 @@ describe("what was migrated to the secondary tier", () => {
       ".tr-tone-unknown",
       ".tr-variables dt > span, .tr-variables dt > code",
           // Readable descriptions in integration discovery and focused Settings.
-      ".explore-glyph",
-      ".explore-info p",
       ".explore-intro",
       ".explore-status",
       ".explore-text-action",

@@ -552,10 +552,13 @@ const EXEMPT: string[] = [
   ".ig-access summary", ".ig-token-help summary", ".settings-row-details summary",
   // What's new's disclosures are full-width reading rows: they answer through
   // the underlined label, the turning chevron and the expanded state, and a
-  // row scaled on press would shift the words under the pointer. Take the tour
-  // is a link-shaped word in the footer beside Release history, and answers the
-  // way that link does, with a heavier underline.
-  ".release-notes .rn-history > summary", ".release-notes .rn-more > summary", ".release-notes .rn-text-button",
+  // row scaled on press would shift the words under the pointer. The Keyboard
+  // sheet's Take the tour is the link-shaped word in its footer; it answers the
+  // way a link does, with an underline under the pointer.
+  // CHANGED ON PURPOSE (V4's Figma): .kh-tour joins the link-shaped words, and
+  // What's new's text button (.rn-text-button) is gone: its Take the tour is a
+  // bordered .btn now, which the button rule presses.
+  ".release-notes .rn-history > summary", ".release-notes .rn-more > summary", ".kh-tour",
   // Radio uses pointer-only feedback on the control or its child glyph.
   // Range thumbs and map markers must retain fixed interaction geometry.
   ".radio-cluster-preview > div > .radio-cluster-station",
