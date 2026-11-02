@@ -69,12 +69,12 @@ describe("the twelve frames, word for word", () => {
 describe("the structure", () => {
   const markup = draw({ model: PERMISSION });
 
-  it("draws one tree tick per option, a stub and a spine, hidden from assistive technology", () => {
+  it("draws one tree tick per option and a stub (the ticks draw the spine), hidden from assistive technology", () => {
     expect((markup.match(/class="dc-tick"/g) ?? [])).toHaveLength(3);
     expect(markup).toContain('class="dc-tree" aria-hidden="true"');
     expect(draw({ model: PLAN }).match(/class="dc-tick"/g)).toHaveLength(3);
     expect(markup).toContain('class="dc-stub"');
-    expect(markup).toContain('class="dc-spine"');
+    expect(markup).not.toContain('class="dc-spine"');
   });
 
   it("is a group named by its title, the options a radio group of radios", () => {
