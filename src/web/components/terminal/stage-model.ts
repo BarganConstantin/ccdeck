@@ -6,7 +6,7 @@
 // about words and states, and every rule here is a pure function so the suite
 // can hold it in plain node — the components only draw what these return.
 //
-// ONE WORD PER STATE, EVERYWHERE (DESIGN-UI decision 3). The header IS the
+// ONE WORD PER STATE, EVERYWHERE. The header IS the
 // face's sentence: "waiting 6m" because the face, the topbar chip and the
 // navigator say "waiting", never "blocked". What the board knows about a
 // session (stageStatusFrom) is the header's default, and only what the stage
@@ -15,7 +15,7 @@
 //
 // THE KEYS ARE terminal-keys.ts's. Which chord gives the keyboard back to the
 // board, what Shift+Enter sends and who acts on each were researched and
-// decided there (DESIGN-UI decision 4); the stage only prints the chord and
+// decided there; the stage only prints the chord and
 // says who owns the keys.
 import type { SizeOwner } from "../../terminal-protocol";
 import type { PanelUnavailable, TerminalProvider, TerminalTarget, TmuxProgress } from "../../terminal-api";

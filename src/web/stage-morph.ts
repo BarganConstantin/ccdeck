@@ -5,7 +5,7 @@
 // A WINDOW, NOT A SCALE. While it moves, the stage covers the whole canvas
 // cell and a clip-path inset is the window onto it. The terminal inside is
 // already at its final size and place, with the session's seed written
-// (DESIGN-UI decision 2), so the morph UNCOVERS the session running — nothing
+// (the stage's design), so the morph UNCOVERS the session running — nothing
 // in it is ever scaled. The one element that does travel is the RIDER: the
 // card's name, flying from where the card printed it to where the header
 // prints it, at the header's size scaled down to the card's at the start.

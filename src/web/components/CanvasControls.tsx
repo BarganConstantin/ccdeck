@@ -166,7 +166,7 @@ export default function CanvasControls({
           is not lost — it is the dialog's own heading, one click away,
           which is where the user reads it when it matters. The name is
           the dialog's too, "Clear the deck": "canvas" read like something
-          a refresh would undo (V4 decision 24). */}
+          a refresh would undo. */}
       <ControlButton
         data-danger=""
         onClick={() => requestClear("button")}

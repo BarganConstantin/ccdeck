@@ -209,7 +209,7 @@ describe("the distance a panel prints its content at", () => {
     // Figma's Rail / Header (12 left, 6 right), held to the rows below it by
     // the session list's own case in section 2, not to the panel inset.
     // CHANGED ON PURPOSE (V4's Figma): the Usage panel left this list. Its header is 12 in and
-    // 4 out and its body pads 12 (v4-usage-panel-r3.test.ts), so its content edge is the
+    // 4 out and its body pads 12 (v4-usage-panel-look.test.ts), so its content edge is the
     // body's 12, not --panel-inset's 14.
   ];
 

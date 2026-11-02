@@ -198,7 +198,7 @@ page sends binary input in chunks of at most 64 KiB and `size`, `paste`,
   whole columns, with detents at 80, 100, 120 and 160 and at least 80 columns;
   the stage takes the whole cell when the range collapses. Opening the stage
   never resizes the canvas under it.
-- **The switch off is the deck unchanged** (decision 9 in the code comments):
+- **The switch off is the deck unchanged** (the code comments say the same):
   no effect touches the page with it off.
 
 ### Tests that pin source text

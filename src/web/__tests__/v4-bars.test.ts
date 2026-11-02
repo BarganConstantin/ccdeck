@@ -150,7 +150,7 @@ describe("V4's chips: 24 tall, 12 on 16", () => {
     expect(decl(pill, "font-size")).toBe(INC(12));
     expect(decl(pill, "line-height")).toBe("16px");
     expect(decl(pill, "font-weight")).toBe("400");
-    // Live has no chip (V4 decision 19): only the two states the bar draws.
+    // V4 draws Live without a chip: only the two states the bar draws.
     expect(decl(`${pill}.live`, "border-color"), "no rule dresses a live chip").toBeUndefined();
     for (const [state, token] of [["paused", "--warn"], ["dead", "--err"]] as const) {
       expect(decl(`${pill}.${state}`, "border-color"), state).toBe(`var(${token})`);
@@ -165,7 +165,7 @@ describe("V4's chips: 24 tall, 12 on 16", () => {
     expect(decl(`${pill} .pill-box`, "display")).toBe("inline-grid");
     expect(decl(`${pill} .pill-widest`, "visibility")).toBe("hidden");
   });
-  it("has no live dot to pulse, and the paused and lost dots stand still (V4 decision 19)", () => {
+  it("has no live dot to pulse, and the paused and lost dots stand still", () => {
     expect(decl(`${pill}.live::before`, "animation")).toBeUndefined();
     expect(decl(`${pill}.paused::before`, "animation")).toBeUndefined();
     expect(decl(`${pill}.dead::before`, "animation")).toBeUndefined();
@@ -216,7 +216,7 @@ describe("V4's chips: 24 tall, 12 on 16", () => {
     for (const r of own) expect(JSON.stringify(r.decls), r.selectors.join(", ")).not.toContain("--warn");
     expect(decl(`${ver} .v-dot`, "background")).toBe("var(--accent)");
     expect(decl(`${ver} .v-dot`, "box-shadow")).toBeUndefined();
-    // A still dot (V4 decision 19): nothing on the top bar pulses at rest, so
+    // A still dot: nothing on the top bar pulses at rest, so
     // there is no animation for reduced motion to take away either.
     expect(decl(`${ver} .v-dot`, "animation")).toBeUndefined();
     expect(decl(`${ver} .v-dot`, "animation", REDUCED)).toBeUndefined();

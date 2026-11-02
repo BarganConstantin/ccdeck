@@ -879,8 +879,8 @@ describe("one tempo for one meaning: the live pulse", () => {
     }
   });
 
-  it("holds the top bar's dots still: the newer-version dot and the stream chip's (V4 decision 19)", () => {
-    // Decision 19 (2026-11-01): Live has no chip, and Paused, Lost and Version
+  it("holds the top bar's dots still: the newer-version dot and the stream chip's", () => {
+    // Since 2026-11-01 Live has no chip, and Paused, Lost and Version
     // hold a still dot — nothing on the top bar pulses at rest. The version
     // dot used to breathe on --pulse-live; a newer version waiting is a fact
     // at rest, not something happening now. And no stream-chip dot pulses,

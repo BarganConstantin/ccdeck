@@ -1,7 +1,7 @@
 // The stage's two controls with state of their own: the divider and the New
 // session form, run under fake-react and pressed the way a browser would.
 //
-// The divider is pinned for what DESIGN-UI decision 6 asks of it — whole
+// The divider is pinned for what the stage's design asks of it — whole
 // columns, soft detents, one resize per gesture, a separator a keyboard can
 // drive — and the form for what v3 drew: an agent, a project the board already
 // knows (or a full path), and a button that says what it will start.

@@ -118,7 +118,7 @@ describe("the bar's box", () => {
     const b = decls(".react-flow__controls-button");
     expect(b["width"]).toBe("var(--board-controls-btn)");
     expect(b["height"]).toBe("var(--board-controls-btn)");
-    // The bar's radius less its inset, 6 less 2 (V4 decision 21).
+    // The bar's radius less its inset, 6 less 2.
     expect(b["border-radius"]).toBe("var(--r-tag)");
     const d = decls(".react-flow__controls-divider");
     expect(d["width"]).toBe("1px");

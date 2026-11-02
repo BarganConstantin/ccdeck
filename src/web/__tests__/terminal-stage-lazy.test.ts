@@ -1,5 +1,5 @@
-// The terminal stage costs a deck with the flag off nothing (DESIGN-UI decision
-// 9): no xterm, no stage, no navigator in what main.tsx's static imports reach,
+// The terminal stage costs a deck with the flag off nothing:
+// no xterm, no stage, no navigator in what main.tsx's static imports reach,
 // one dynamic import as the only way in, and nothing rendered, mounted or
 // fetched until the flag says so.
 //

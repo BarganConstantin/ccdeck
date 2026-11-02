@@ -52,7 +52,7 @@ describe("V4's card frame", () => {
     expect(decl(".agent-node", "gap")).toBe("2px");
     // CHANGED ON PURPOSE (V4's Figma, Agent / Card): the left side was 4px wider
     // than V4's 10 for the session stripe; the stripe is gone, so it is 10 too.
-    // (Browser round 2: 8px * --ui-space gave 5.6px at Compact, not Figma's 8.
+    // (Seen in the browser: 8px * --ui-space gave 5.6px at Compact, not Figma's 8.
     // The vertical padding is 8 at Compact (space 0.7) and 10 at Default (space
     // 1, what the card has had), and keeps growing with density.)
     // V4 draws the 1px edge inside the 8 and 10, so CSS pads 1px less on each
@@ -306,7 +306,7 @@ describe("review fixes", () => {
   });
 });
 
-describe("browser round 2", () => {
+describe("fixes found in the browser", () => {
   it("draws the ask line as plain mono 12/16 text: no border, no fill, no pill, one line", () => {
     const row = ".agent-node .waiting-row";
     expect(decl(row, "font-family")).toBe("var(--font-mono)");
@@ -315,7 +315,7 @@ describe("browser round 2", () => {
     expect(decl(row, "font-weight")).toBe("400");
     expect(decl(row, "white-space")).toBe("nowrap");
     expect(body(row)).not.toMatch(/border|background|padding|radius/);
-    // One Waiting colour (V4 decision 22): the row itself is --warn, so a
+    // One Waiting colour in V4: the row itself is --warn, so a
     // permission ask and an idle prompt read alike, and no kind recolours it.
     expect(decl(row, "color")).toBe("var(--warn)");
     expect(sheet).not.toMatch(/\.waiting-row\.(permission|idle)\b/);

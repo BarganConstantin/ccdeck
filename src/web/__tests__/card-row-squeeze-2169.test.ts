@@ -147,7 +147,7 @@ describe("the head's shrink order", () => {
 
   it("gives the model text way first: a 6ch floor, a far larger shrink factor, its own ellipsis", () => {
     const model = body(".agent-node .title .model-text");
-    // CHANGED ON PURPOSE (browser round 2): the model text had no floor and its
+    // CHANGED ON PURPOSE (found in the browser): the model text had no floor and its
     // box collapsed to 0px on a long name, so no ellipsis showed. It keeps 6ch.
     expect(model).toMatch(/min-width:\s*min\(6ch,\s*100%\);/);
     expect(model).toMatch(/text-overflow:\s*ellipsis;/);
