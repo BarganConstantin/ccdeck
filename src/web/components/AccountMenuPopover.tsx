@@ -43,11 +43,13 @@ interface Props {
   home: boolean;
   /** Make this account home, or stop it being home. */
   onHome: () => void;
+  /** Who holds each slot, by name, for the move list's "swap with …". */
+  names?: Record<number, string>;
 }
 
 export default function AccountMenuPopover({
   a, slots, nowSec, boundaryId, accountMenu, busy, pressProps, onProjects, onRotation,
-  home, onHome,
+  home, onHome, names,
 }: Props) {
   const {
     menu, menuError, aliasDraft, confirmRemove, share, shareCopied, slotDraft,
@@ -104,6 +106,11 @@ export default function AccountMenuPopover({
             title={t("accounts.menu.projectsTip")}
             onClick={() => onProjects()}
           >{t("accounts.menu.projects")}</button>
+          {/* V4's menu has three groups: the account's own acts, then how it
+              takes part in rotation, then the one that cannot be undone. The
+              middle group is absent for the live account with nothing held
+              out and no address to make home. */}
+          {((!a.active || a.disabled) || home || a.email) && <div role="separator" className="ap-menu-sep" />}
           {/* Holding an account out is offered on every account but the
               one in use, with Auto-switch on or off: it is set up before
               the switch is turned on, and claude-swap keeps it either way.
@@ -216,21 +223,27 @@ export default function AccountMenuPopover({
           // Enter to submit from, and the one way to send is the
           // press on the button — which is the point of #516.
           <div className="ap-pop-form">
-            <label className="ap-pop-title" id={titleId} htmlFor={`ap-slot-${a.num}`}>{t("accounts.menu.moveTitle")}</label>
-            <span className="ap-field">
-              <select
-                id={`ap-slot-${a.num}`}
-                value={String(picked)}
-                {...pressProps(`move-${a.num}`)}
-                onChange={e => pickSlot(Number(e.target.value))}
-                autoFocus
-              >
-                {/* The consequence rides on the option that carries
-                    it, and the one harmless move is visible as the
-                    exception — see slotChoices. */}
-                {choices.map(c => <option key={c.slot} value={c.slot}>{slotChoiceLabel(c, t)}</option>)}
-              </select>
-            </span>
+            <p className="ap-pop-title" id={titleId}>{t("accounts.menu.moveTitleNamed", { name: a.alias ?? a.email ?? t("accounts.accountNLower", { n: a.num }) })}</p>
+            {/* V4's slot list: a 28-high row for each slot, and what picking it
+                does said beside it — "swap with Home" or "free" — where the
+                native list said it in the option. Still nothing is sent until
+                the button under it is pressed (#516). */}
+            <div className="ap-slot-list" role="radiogroup" aria-labelledby={titleId} id={`ap-slot-${a.num}`}>
+              {choices.map(c => (
+                <button key={c.slot} type="button" role="radio" aria-checked={c.slot === picked}
+                  className="ap-slot-row" data-selected={c.slot === picked ? "" : undefined}
+                  title={slotChoiceLabel(c, t)}
+                  {...pressProps(`move-${a.num}`)}
+                  autoFocus={c.slot === picked}
+                  onClick={() => pickSlot(c.slot)}>
+                  <span className="ap-slot-name">{t("accounts.menu.slotName", { n: c.slot })}</span>
+                  <span className="ap-slot-cap">{c.kind === "swap"
+                    ? t("accounts.menu.swapWith", { who: names?.[c.slot] ?? t("accounts.row.whoWasThere") })
+                    : c.kind === "free" ? t("accounts.menu.slotFree") : t("accounts.menu.slotHere")}</span>
+                </button>
+              ))}
+            </div>
+            {choices.find(c => c.slot === picked)?.kind === "swap" && <p className="ap-pop-note">{t("accounts.menu.swapNote")}</p>}
             {refusal}
             <div className="ap-pop-actions">
               <button type="button" className="btn" onClick={() => closeMenu()}>{t("accounts.cancel")}</button>

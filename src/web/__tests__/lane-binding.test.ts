@@ -210,9 +210,12 @@ describe("the row renders the windows, and the panel reads the same function", (
     expect(panelCode).toMatch(/useState<Openness>\(loadOpenness\)/);
     // Whether the reader opened it is read off the set by account, once.
     expect(clientText()).toMatch(/const opened = isOpen\(openness, a\);/);
-    expect(clientText()).toMatch(/const open = a\.active \|\| opened;/);
+    // CHANGED ON PURPOSE (V4's Figma): the live row is one shape with the others
+    // and opens only when the reader opens it.
+    expect(clientText()).toMatch(/const open = opened;/);
     // The live row has nothing folded, so it has no door.
-    expect(clientText()).toMatch(/\{!a\.active && \(\s*<button type="button" className="ap-row-open"/);
+    // CHANGED ON PURPOSE (V4's Figma): every row, the live one too, has the door.
+    expect(clientText()).toMatch(/<button type="button" className="ap-row-open"/);
   });
 
   it("points the door at the detail only while the detail exists", () => {

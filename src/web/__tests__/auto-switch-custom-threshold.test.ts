@@ -28,7 +28,7 @@ vi.mock("../../server/exec.mjs", async (orig) => {
 // @ts-expect-error — .mjs server module, no types
 const { setCswapConfig, settingArg } = await import("../../server/cswap-auto.mjs");
 
-import AutoSwitchPolicy from "../components/AutoSwitchPolicy";
+import { AutoSwitchSettings } from "../components/AutoSwitchPolicy";
 import {
   checkThreshold, commitThreshold, CUSTOM_HINT, CUSTOM_MAX, CUSTOM_MIN, CUSTOM_PICK, editThreshold, NO_DRAFT,
   type ThresholdDraft,
@@ -49,8 +49,8 @@ const auto = (stored: string): AutoStatus => ({
  *  its own (auto-choice-words.test.ts), and its options are not the threshold's. */
 function row(draft: ThresholdDraft, stored: string): string {
   const pick = draft.pick ?? stored;
-  return renderToStaticMarkup(createElement(AutoSwitchPolicy, {
-    auto: auto(stored), threshold: stored, thresholdPick: pick,
+  return renderToStaticMarkup(createElement(AutoSwitchSettings, {
+    titleId: "t", auto: auto(stored), threshold: stored, thresholdPick: pick,
     thresholdCtl: thresholdCommit(pick, stored), thresholdSaved: false,
     thresholdRef: null, thresholdSaveRef: null, thresholdFieldRef: null,
     thresholdCustom: draft.custom != null, thresholdRefusal: draft.refusal,
@@ -59,11 +59,17 @@ function row(draft: ThresholdDraft, stored: string): string {
     nextPick: "room", nextCtl: nextCommit("room", "room"), nextSaved: false, nextRef: null, nextSaveRef: null,
     proposeNext: () => {}, doNext: () => {},
     pressProps: () => ({}), post: async () => null, load: async () => {},
-  })).replace(/<div class="ap-policy ap-setting ap-next">[\s\S]*?<\/div>/, "");
+  }));
 }
 
-const options = (html: string) => [...html.matchAll(/<option value="([^"]*)"[^>]*>([^<]*)<\/option>/g)].map(m => m[2]);
-const selected = (html: string) => /<option value="([^"]*)" selected="">/.exec(html)?.[1] ?? null;
+// CHANGED ON PURPOSE (V4's Figma): the threshold is a row of chips in the
+// Auto-switch popover, each stored by its own press, in place of the select.
+const chipText = (b: string) => b.replace(/<!-- -->/g, "").replace(/<[^>]+>/g, "");
+const options = (html: string) => [...html.matchAll(/<button[^>]*class="ap-chip"[^>]*>([^]*?)<\/button>/g)].map(m => chipText(m[1]));
+const selected = (html: string) => {
+  const m = /<button[^>]*class="ap-chip" aria-pressed="true"[^>]*>([^]*?)<\/button>/.exec(html);
+  return m ? chipText(m[1]).replace("%", "") : null;
+};
 const input = (html: string) => /<input[^>]*>/.exec(html)?.[0] ?? null;
 
 const choose = (draft: ThresholdDraft, pick: string) => editThreshold(draft, { kind: "pick", pick });
@@ -74,7 +80,6 @@ describe("choosing Custom…", () => {
   it("is the picker's last option, after the five", () => {
     const html = row(NO_DRAFT, "90");
     expect(options(html)).toEqual(["70%", "80%", "85%", "90%", "95%", "Custom…"]);
-    expect(html).toContain(`<option value="${CUSTOM_PICK}">Custom…</option>`);
     expect(selected(html)).toBe("90");
   });
 
@@ -85,9 +90,9 @@ describe("choosing Custom…", () => {
     expect(html).not.toContain("<select");
     const field = input(html);
     expect(field).not.toBeNull();
-    // Named by the picker's own label, since it is the same setting.
-    const label = /<label class="ap-setting-label" for="([^"]+)"[^>]*>Switch at<\/label>/.exec(html);
-    expect(label?.[1]).toBe(/\sid="([^"]+)"/.exec(field ?? "")?.[1]);
+    // Named by the chips' own label, since it is the same setting.
+    const label = /<span class="ap-auto-label" id="([^"]+)"[^>]*>Switch at<\/span>/.exec(html);
+    expect(field).toContain(`aria-labelledby="${label?.[1]}"`);
     expect(field).toContain('inputMode="numeric"');
     expect(field).toContain('value="90"');
     expect(field).not.toContain("aria-invalid");
@@ -97,7 +102,7 @@ describe("choosing Custom…", () => {
   it("says what it takes under itself, and is described by it", () => {
     const html = row(choose(NO_DRAFT, CUSTOM_PICK), "90");
     expect(CUSTOM_HINT).toBe("A whole percent from 50 to 99.");
-    const note = /<p id="([^"]+)" class="ap-threshold-note">([^<]+)<\/p>/.exec(html);
+    const note = /<p id="([^"]+)" class="ap-threshold-note">([^<]+)<\/p>/.exec(html.replace(/<!-- -->/g, ""));
     expect(note?.[2]).toBe(CUSTOM_HINT);
     expect(input(html)).toContain(`aria-describedby="${note?.[1]}"`);
   });
@@ -134,7 +139,7 @@ describe("Escape", () => {
 
   it("is answered by the row only while the field is open, and never mid-composition", () => {
     const surface = withoutComments(accountsSurface());
-    expect(surface).toMatch(/<div className="ap-policy ap-setting" onKeyDown=\{thresholdCustom \? cancelThreshold : undefined\}>/);
+    expect(surface).toMatch(/<div className="ap-auto-group" onKeyDown=\{thresholdCustom \? cancelThreshold : undefined\}>/);
     const handler = /const cancelThreshold = \(e: KeyboardEvent\) => \{[\s\S]*?\n {2}\};/.exec(surface)?.[0] ?? "";
     expect(handler).toMatch(/e\.key !== "Escape" \|\| e\.nativeEvent\.isComposing \|\| !draft\.custom/);
     expect(handler).toMatch(/e\.stopPropagation\(\)/);

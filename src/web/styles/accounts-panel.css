@@ -9,10 +9,13 @@
     holds both panels mounted for exactly this — see panel-exit.ts — so the two
     must not drift apart. Out is faster than in, as an exit should be: arriving
     is worth watching, leaving is not. */
-:root { --side-exit: 200ms; }
+:root { --side-exit: 200ms; --accounts-fade-in: 180ms; }
 
 .accounts-panel {
-  width: calc(288px + var(--ui-panel-increase, 0px));
+  /* V4's Figma: 264 wide, the rail's own width (--rail-w, 264 at Compact and
+     below and 288 at Default and Comfortable), so the two panels that share
+     the left column are one measure. */
+  width: calc(var(--rail-w) + var(--ui-panel-increase, 0px));
   background: var(--panel);
   border-right: 1px solid var(--line);
   display: flex;
@@ -28,12 +31,12 @@
   min-height: 0;
   overflow: hidden;
 }
-.accounts-panel > * { width: calc(288px + var(--ui-panel-increase, 0px)); }
+.accounts-panel > * { width: calc(var(--rail-w) + var(--ui-panel-increase, 0px)); }
 /* The one child that prints its inset as a margin rather than a padding. A
-   fixed 288 plus 14 either side is a 316px box anchored to the right edge, so
+   fixed panel width plus 14 either side is a box anchored to the right edge, so
    the refusal the panel exists to show hung 14px off the left and lost the first
    letters of every message. Its measure is what the margins leave. */
-.accounts-panel > .ap-failure { width: calc(288px + var(--ui-panel-increase, 0px) - var(--panel-inset) - var(--panel-inset)); }
+.accounts-panel > .ap-failure { width: calc(var(--rail-w) + var(--ui-panel-increase, 0px) - var(--panel-inset) - var(--panel-inset)); }
 
 /* THE ROSTER SCROLLS; THE HEADER AND THE FOOT STAND. The column used to be one
    scroll of three sections, so past a few accounts Auto-switch and Local network
@@ -77,11 +80,15 @@
   min-height: 0;
 }
 
+/* V4's Figma header: the kit's pane-head height, 12 in and 4 out, a 6 gap and the
+   panel's own line under it. */
 .ap-header {
+  box-sizing: border-box;
+  height: var(--pane-head-h);
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: calc(12px * var(--ui-space, 1)) var(--panel-inset) calc(10px * var(--ui-space, 1));
+  gap: 6px;
+  padding: 0 4px 0 12px;
   border-bottom: 1px solid var(--line);
   flex-shrink: 0;
 }
@@ -173,28 +180,36 @@
 .ap-list {
   list-style: none;
   margin: 0;
-  padding: calc(6px * var(--ui-space, 1)) 6px calc(8px * var(--ui-space, 1));
+  padding: 0 4px 8px;
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 0;
 }
+/* V4's account row: 44 high (the kit's --row-rail), 8 in on each side with a
+   4 above, and the kit's panel radius. The text starts 22px in: the 14px mark
+   and an 8 gap. */
 .ap-account {
   /* The box the row's door is laid over, and a stacking context of its own so
      the row's controls can sit above the door without climbing over the
      popover layer. */
+  --ap-indent: 22px;
   position: relative;
   isolation: isolate;
-  padding: calc(6px * var(--ui-space, 1)) 8px;
-  border-radius: var(--r-ctl);
+  box-sizing: border-box;
+  min-height: 44px;
+  padding: 4px 8px 2px;
+  border-radius: var(--r-panel);
 }
 /* A shut row is a door, and it answers the pointer with a tone rather than a
    card: the row's own box, 4%, on at once and off at once — the same answer a
    machine's row gives in Local network. */
 @media (hover: hover) and (pointer: fine) {
-.ap-account:has(> .ap-row-open):hover { background: color-mix(in srgb, var(--text) 4%, transparent); }
+/* V4's Figma: the control fill under the pointer; the selected row keeps its
+   own fill (below) and a pointer on it does not lift it. */
+.ap-account:has(> .ap-row-open):hover:not(.active) { background: var(--ctl-fill); }
 }
-.ap-account:has(> .ap-row-open):active:not(:has(:is(.ap-switch, .ap-sign-in, .ap-more, .ap-issue):active)) {
-  background: color-mix(in srgb, var(--text) 7%, transparent);
+.ap-account:has(> .ap-row-open):active:not(.active):not(:has(:is(.ap-switch, .ap-sign-in, .ap-more, .ap-issue):active)) {
+  background: var(--selected);
 }
 /* Secondary text on a lit row is still text. The tone lifts the ground under
    it, and --muted clears 4.5:1 only against --panel, so on a lit row it is
@@ -268,21 +283,26 @@
    on, and the control that puts the account back into rotation lives on it. The
    held-out state is a word in the head row now, beside where `active` puts its
    own, and nothing on the row is dimmed that a reader could still use. */
-.ap-account.active { background: color-mix(in srgb, var(--accent) 2%, transparent); }
+.ap-account.active { background: var(--selected); }
 
+/* Line 1 (V4's Figma): 20 high, the mark in a 14 box, then the name, the plan and
+   the tag on a 6 gap, and the one figure at the far end. */
 .ap-account-head {
   display: flex;
   align-items: center;
   gap: 6px;
-  min-height: 24px;
+  height: 20px;
 }
+.ap-account-head > .ap-num,
+.ap-account-head > .ap-live { margin-right: 2px; }
 .ap-num {
   flex: none;
-  min-width: 14px;
-  font-size: calc(10px + max(-1px, var(--ui-text-increase, 0px)));
+  display: inline-grid;
+  place-items: center;
+  width: 14px;
   color: var(--muted);
-  font-variant-numeric: tabular-nums;
 }
+.ap-num > svg { display: block; }
 /* THE LIVE ACCOUNT, MARKED AND NOT SHOUTED. It was a filled accent pill saying
    `active` — the loudest thing in the column, on the one row whose state never
    needs a second look once the reader knows the column. A dot in the slot's own
@@ -291,18 +311,12 @@
    The word is still there for a screen reader, and the row is aria-current. */
 .ap-live {
   flex: none;
-  display: grid;
+  display: inline-grid;
   place-items: center;
   width: 14px;
-  height: 10px;
+  color: var(--accent);
 }
-.ap-live::before {
-  content: "";
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--accent);
-}
+.ap-live > svg { display: block; }
 /* Two text spans share this row and only one of them was told it may be cut.
    `.ap-email` below carries the full `min-width: 0` + `overflow: hidden` +
    ellipsis set; the alias — the one string here a person types — carried none
@@ -331,32 +345,77 @@
    about seventeen characters at this size — well past any alias the field's
    own `e.g. work` placeholder invites, so in the ordinary case the clamp never
    binds and the row renders exactly as it did. */
+/* V4's name: 13 on a 20 line, semibold, in the text ink. It is the only name on
+   the row — the address a name stands in for is on the door's title. */
 .ap-alias {
-  font-size: calc(12px + var(--ui-text-increase, 0px));
+  flex: 0 1 auto;
+  font-size: calc(13px + var(--ui-text-increase, 0px));
+  line-height: calc(20px + var(--ui-text-increase, 0px));
   font-weight: 600;
   color: var(--text);
   min-width: 0;
-  max-width: 40%;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-/* The identity is the first thing on the row and reads at the row's size. Under
-   an alias it steps down, because then the alias is the name. */
-.ap-email {
+.ap-account:has(.ap-held) .ap-alias { color: var(--text-secondary); }
+/* The plan, as plain text beside the name (V4's Figma: no fill, no edge): the
+   mono 11 on a 14 line in the muted ink. */
+.ap-plan {
+  flex: none;
+  font-family: var(--font-mono);
+  font-size: calc(11px + var(--ui-text-increase, 0px));
+  line-height: calc(14px + var(--ui-text-increase, 0px));
+  color: var(--muted);
+  white-space: nowrap;
+}
+/* The one figure at the end of line 1: the mono 12 on a 16 line (V4's Figma),
+   in the muted ink below 70%, the text ink from 70 and the error ink from 90.
+   Held out says so in the same place, in the same face. */
+.ap-value {
+  flex: none;
+  margin-left: auto;
+  font-family: var(--font-mono);
   font-size: calc(12px + var(--ui-text-increase, 0px));
-  color: var(--text);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  min-width: 0;
-  flex: 1;
+  line-height: calc(16px + var(--ui-text-increase, 0px));
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
 }
-.ap-alias + .ap-email { font-size: calc(11px + var(--ui-text-increase, 0px)); color: var(--muted); }
-/* Held out is a state, said in a word where `Switch` would stand. It was a
-   pill — a second chip shape on a row that already had one — and a marker is
-   not a thing to press; putting the account back is in its ⋯. */
+.ap-value.ap-q-pct[data-level="mid"] { color: var(--text); }
+.ap-value.ap-q-pct[data-level="hi"] { color: var(--err); }
+.ap-account[data-frozen] .ap-value.ap-q-pct { color: var(--muted); }
+/* A state, said in a word and not in a pill. Held out stands where the figure
+   stands; putting the account back is in its ⋯. */
 .ap-held { flex: none; font-size: calc(11px + var(--ui-text-increase, 0px)); color: var(--muted); }
+.ap-held.ap-value { font-size: calc(12px + var(--ui-text-increase, 0px)); }
+/* The row's two acts: the one verb and the ⋯. Under a fine pointer they take the
+   figure's place while the row is hovered or focused, so the row never grows a
+   column of buttons it does not need at rest; on touch, where there is no hover,
+   they stand beside the figure. */
+.ap-acts { display: inline-flex; align-items: center; gap: 4px; flex: none; margin-left: auto; }
+.ap-value + .ap-acts { margin-left: 4px; }
+@media (hover: hover) and (pointer: fine) {
+  .ap-acts {
+    position: absolute;
+    top: 4px;
+    right: 8px;
+    height: 20px;
+    margin: 0;
+    opacity: 0;
+    pointer-events: none;
+  }
+  .ap-value + .ap-acts { margin-left: 0; }
+  .ap-account:hover .ap-acts { opacity: 1; pointer-events: auto; }
+  .ap-account:hover .ap-account-head > .ap-value { visibility: hidden; }
+}
+/* The same for the keyboard and for an open menu, outside the mouse query so
+   focus never depends on a pointer. */
+@media (pointer: fine) {
+  .ap-account:has(:focus-visible) .ap-acts,
+  .ap-account:has(.ap-more[aria-expanded="true"]) .ap-acts { opacity: 1; pointer-events: auto; }
+  .ap-account:has(:focus-visible) .ap-account-head > .ap-value,
+  .ap-account:has(.ap-more[aria-expanded="true"]) .ap-account-head > .ap-value { visibility: hidden; }
+}
 /* Shared on Local network (#2170): a 12px mark in the muted ink of the row's
    other secondary marks, at the 24px row's middle. It is a state, not a
    control, so it takes no fill, no edge and no hover of its own; the title
@@ -365,7 +424,7 @@
 /* Home (Auto-switch comes back here): the shared mark's twin, for the same
    reasons — a state, not a control, 12px in the row's muted ink, with what it
    means and whether Auto-switch is passing it over in its title. */
-.ap-home { flex: none; display: inline-grid; place-items: center; color: var(--muted); }
+.ap-home { flex: none; display: inline-grid; place-items: center; color: var(--muted); font-size: calc(11px + var(--ui-text-increase, 0px)); line-height: calc(14px + var(--ui-text-increase, 0px)); }
 /* THE ROW'S ONE VERB, QUIETER THAN THE ACCOUNT. It was an outlined pill with the
    control edge at rest, the strongest boundary on a row whose name and numbers
    are what a switch is decided on. A word on the control fill says "press me"
@@ -373,11 +432,13 @@
    the pointer. */
 .ap-sign-in,
 .ap-switch {
+  /* V4's Switch button: 18 high, 6 in, the kit's tag radius. */
+  position: relative;
   flex: none;
-  min-height: 24px;
-  padding: 0 8px;
+  min-height: 18px;
+  padding: 0 6px;
   border: 0;
-  border-radius: var(--r-ctl);
+  border-radius: var(--r-tag);
   background: var(--ctl-fill);
   color: var(--text);
   font: inherit;
@@ -397,7 +458,7 @@
    others start on — and the head's gap are 20px, and the lines below are
    indented by them, so the eye
    reads down from the account rather than from the row's edge. */
-.ap-detail { margin: 6px 0 0 20px; }
+.ap-detail { margin: 6px 0 4px var(--ap-indent); }
 /* One lane is one line: its key, its bar, how full, and when it rolls over. The
    reset used to sit on a second line under every bar, which made the live row
    five lines tall for two facts. It is a column at the far end now, dim and
@@ -438,7 +499,7 @@
 .ap-lane-pct { grid-area: pct; font-size: calc(11px + var(--ui-text-increase, 0px)); text-align: right; font-variant-numeric: tabular-nums; }
 .ap-lane-reset {
   grid-area: reset;
-  font-size: calc(10px + max(-1px, var(--ui-text-increase, 0px)));
+  font-size: calc(11px + var(--ui-text-increase, 0px));
   color: var(--text-dim);
   text-align: right;
   white-space: nowrap;
@@ -468,30 +529,49 @@
    take a colour once they are a reason not to switch, in the same inks the bars
    use. Numbers that cannot move are drawn in one quiet ink, and the age that
    says so takes the warning. */
+/* V4's line 2: sans 12 on a 16 line in the muted ink, on one line that ends in an
+   ellipsis, its parts joined by a middle dot ("Resets in 2h 09m · 7-day 31%"). */
 .ap-quota {
   display: flex;
-  flex-wrap: wrap;
   align-items: baseline;
-  gap: 2px 12px;
-  margin: 1px 0 0 20px;
-  font-size: calc(11px + var(--ui-text-increase, 0px));
-  line-height: 1.5;
-  color: var(--text);
+  gap: 0 6px;
+  height: calc(16px + var(--ui-text-increase, 0px));
+  margin: 0 0 0 var(--ap-indent);
+  overflow: hidden;
+  white-space: nowrap;
+  font-size: calc(12px + var(--ui-text-increase, 0px));
+  line-height: calc(16px + var(--ui-text-increase, 0px));
+  color: var(--muted);
   font-variant-numeric: tabular-nums;
 }
+.ap-quota > :is(.ap-q-reset, .ap-q) { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.ap-quota > * + :is(.ap-q-reset, .ap-q)::before { content: "·"; margin-right: 6px; }
 .ap-q { white-space: nowrap; }
 .ap-q-label { color: var(--muted); }
-.ap-q-pct[data-level="mid"] { color: var(--warn); }
+/* A figure is the muted ink below 70%, the text ink from 70 and the error ink
+   from 90: never the warning ink, which a quota is not. */
+.ap-q-pct { color: var(--muted); }
+.ap-q-pct[data-level="mid"] { color: var(--text); }
 .ap-q-pct[data-level="hi"] { color: var(--err); }
+/* The first window's meter (V4's Figma): 2 high under line 2, on the text's
+   own column, the control fill for a track and the fill's ink by fullness. */
+.ap-meter {
+  height: 2px;
+  margin: 0 0 0 var(--ap-indent);
+  border-radius: var(--r-tag);
+  background: var(--ctl-fill);
+  overflow: hidden;
+}
+.ap-meter-fill { height: 100%; border-radius: var(--r-tag); }
 .ap-account[data-frozen] .ap-q-pct { color: var(--muted); }
-.ap-q-age { margin-left: auto; color: var(--warn); white-space: nowrap; }
+.ap-q-age { margin-left: auto; color: var(--warn); white-space: nowrap; flex: none; }
 /* An account nobody has read yet is usually one added a minute ago: news, not
    a warning. */
 .ap-q-age[data-never] { color: var(--muted); }
 
 /* A note about the row that is news rather than state — a move that traded two
    accounts' slots. */
-.ap-note { margin: 2px 0 0 20px; font-size: calc(11px + var(--ui-text-increase, 0px)); }
+.ap-note { margin: 2px 0 0 var(--ap-indent); font-size: calc(11px + var(--ui-text-increase, 0px)); }
 
 /* WHAT IS WRONG, AS A LINE ON THE ROW. A mark and a few words, never a banner
    and never a pill, in the warning ink when it is the reader's to act on and in
@@ -505,7 +585,7 @@
   align-items: center;
   gap: 8px;
   min-height: 20px;
-  margin: 2px 0 0 20px;
+  margin: 2px 0 0 var(--ap-indent);
   font-size: calc(11px + var(--ui-text-increase, 0px));
 }
 .ap-issue {
@@ -729,8 +809,9 @@
 .ap-policy {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
   min-height: 28px;
+  padding: 0 8px;
 }
 /* The one control that comes and goes, so it arrives rather than appears — from
    a little smaller. Backwards only: a fill that outlived the entrance would hold
@@ -750,9 +831,11 @@
 .ap-auto-title {
   margin: 0;
   margin-right: auto;
+  flex: 1 1 auto;
+  min-width: 0;
   font-size: calc(12px + var(--ui-text-increase, 0px));
-  font-weight: 500;
-  color: var(--text);
+  font-weight: 400;
+  color: var(--text-secondary);
 }
 /* Where the accounts panel's and the LAN dialog's switches sit — the far edge
    of the control line — and nothing about how they look, which is `.switch`'s
@@ -850,3 +933,171 @@
    insets the lines that are not rows. */
 .codex-accounts-panel .ap-codex { border-top: 0; padding: 0 0 14px; }
 .codex-accounts-panel .ap-codex > .ap-codex-hint { margin-inline: var(--panel-inset); }
+
+/* ── V4's Figma, the Auto-switch row and its popover ──────────────────────── */
+/* The row: the name in the secondary ink at 12/16, "at 90%" in mono 11 beside it
+   and the switch at the far end. The name and the figure are one button — it
+   opens the settings — so the switch keeps the row's end to itself. */
+.ap-auto-open {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 8px;
+  max-width: 100%;
+  min-height: 24px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--r-tag);
+  background: none;
+  color: inherit;
+  font: inherit;
+  line-height: calc(16px + var(--ui-text-increase, 0px));
+  text-align: left;
+  cursor: pointer;
+  align-items: center;
+}
+.ap-auto-at {
+  font-family: var(--font-mono);
+  font-size: calc(11px + var(--ui-text-increase, 0px));
+  line-height: calc(14px + var(--ui-text-increase, 0px));
+  color: var(--muted);
+}
+@media (hover: hover) and (pointer: fine) {
+.ap-auto-open:hover .ap-auto-name { color: var(--text); }
+}
+.ap-auto-open, .ap-chip, .ap-auto-option, .ap-slot-row { transition: transform var(--dur-fast) var(--ease), background var(--dur-fast) var(--ease); }
+.ap-auto-open:active:not(:disabled),
+.ap-chip:active:not(:disabled),
+.ap-auto-option:active:not(:disabled),
+.ap-slot-row:active:not(:disabled) { transform: scale(var(--press)); }
+.ap-auto-pop { width: 320px; }
+.ap-auto-form { display: flex; flex-direction: column; gap: 8px; padding: 12px; }
+.ap-auto-head { display: flex; align-items: center; gap: 8px; }
+.ap-auto-head .ap-pop-title { flex: 1; }
+.ap-auto-blurb { margin: 0; font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: calc(16px + var(--ui-text-increase, 0px)); color: var(--muted); }
+.ap-auto-group { display: flex; flex-direction: column; gap: 8px; }
+.ap-auto-label { font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: calc(16px + var(--ui-text-increase, 0px)); font-weight: 500; color: var(--text-secondary); }
+.ap-auto-chips { display: flex; flex-wrap: wrap; gap: 4px; }
+.ap-chip {
+  min-height: 24px;
+  padding: 0 8px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-pill);
+  background: none;
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: calc(12px + var(--ui-text-increase, 0px));
+  cursor: pointer;
+  transition: background var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease);
+}
+.ap-chip[aria-pressed="true"] { background: var(--accent-16); border-color: var(--accent); color: var(--text); }
+@media (hover: hover) and (pointer: fine) {
+.ap-chip:hover:not([aria-pressed="true"]):not(:disabled) { background: var(--ctl-fill); }
+}
+.ap-auto-options { display: flex; flex-direction: column; gap: 2px; }
+.ap-auto-option {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 4px 8px;
+  border: 0;
+  border-radius: var(--r-panel);
+  background: none;
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.ap-auto-option[data-selected] { background: var(--selected); }
+.ap-auto-option > svg { flex: none; margin-top: 1px; color: var(--muted); }
+.ap-auto-option[data-selected] > svg { color: var(--accent); }
+@media (hover: hover) and (pointer: fine) {
+.ap-auto-option:hover:not([data-selected]):not(:disabled) { background: var(--ctl-fill); }
+}
+.ap-auto-option-text { display: flex; flex-direction: column; min-width: 0; }
+.ap-auto-option-name { font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: calc(16px + var(--ui-text-increase, 0px)); font-weight: 500; }
+.ap-auto-option-note { font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: calc(16px + var(--ui-text-increase, 0px)); color: var(--muted); }
+
+/* ── V4's Figma, the rest of the roster ───────────────────────────────────── */
+/* The row's two acts at the row's own 20: the ⋯ keeps its 24 target but not the
+   room, and the Switch word its 18 with the target drawn round it. */
+.ap-acts > .ap-more { margin: -2px 0; }
+.ap-sign-in::after,
+.ap-switch::after { content: ""; position: absolute; inset: -3px -2px; }
+
+/* THE FOLD'S SUMMARY: 28 high, 8 in, a 14 chevron, the name in the secondary ink
+   at 12 medium and the count in mono 11 (V4's Figma). */
+.ap-rest .ap-nav.ap-sum {
+  width: 100%;
+  min-height: 28px;
+  margin: 0;
+  padding: 0 8px;
+  border-radius: var(--r-panel);
+}
+.ap-sum .ap-nav-text { flex-direction: row; align-items: baseline; gap: 6px; }
+.ap-sum .ap-nav-name { color: var(--text-secondary); line-height: calc(16px + var(--ui-text-increase, 0px)); }
+.ap-sum .ap-nav-state {
+  font-family: var(--font-mono);
+  line-height: calc(14px + var(--ui-text-increase, 0px));
+  color: var(--muted);
+}
+.ap-sum .ap-nav-state[data-tone="bad"] { color: var(--warn); font-family: inherit; }
+.ap-sum .ap-nav-chev { order: -1; margin: 0; }
+.ap-rest:has(.ap-rest-tools) .ap-sum .ap-nav-chev { margin-left: 0; }
+/* The three lines under it while it is shut: 20 high, 28 in, 2 above and below. */
+.ap-previews { padding-bottom: 4px; }
+.ap-preview {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  min-height: 20px;
+  margin: 0;
+  margin-left: 12px;
+  padding: 2px 8px 2px 16px;
+  box-sizing: border-box;
+  font-size: calc(12px + var(--ui-text-increase, 0px));
+  line-height: calc(16px + var(--ui-text-increase, 0px));
+  color: var(--text-secondary);
+}
+.ap-preview-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ap-preview-state {
+  flex: none;
+  font-family: var(--font-mono);
+  font-size: calc(11px + var(--ui-text-increase, 0px));
+  line-height: calc(14px + var(--ui-text-increase, 0px));
+  color: var(--muted);
+}
+.ap-preview-more { color: var(--muted); }
+
+/* THE PANEL'S STATES (V4's Figma): a title, plain words, then the one thing to do,
+   on a 12 inset with an 8 gap. */
+.ap-state { gap: 8px; padding: 12px 12px 4px; }
+.ap-state-title { font-size: calc(13px + var(--ui-text-increase, 0px)); line-height: calc(20px + var(--ui-text-increase, 0px)); font-weight: 600; color: var(--text); }
+.ap-state-text { font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: calc(16px + var(--ui-text-increase, 0px)); color: var(--muted); }
+.ap-state-text b { font-weight: 600; color: var(--text-secondary); }
+.ap-state-btn { align-self: flex-start; }
+.ap-state-cmd {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 32px;
+  box-sizing: border-box;
+  padding: 4px 4px 4px 8px;
+  border-radius: var(--r-ctl);
+  background: var(--sunken);
+}
+.ap-state-cmd .ap-cmd {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  background: none;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  user-select: all;
+  font-family: var(--font-mono);
+  font-size: calc(12px + var(--ui-text-increase, 0px));
+  line-height: calc(16px + var(--ui-text-increase, 0px));
+  color: var(--text);
+}
+.ap-state-cmd .glyph-btn { margin: 0; flex: none; }

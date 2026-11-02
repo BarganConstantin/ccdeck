@@ -153,8 +153,13 @@ function atWindowWidth(sheet: string): string {
  *  open and close animate. The number is still declared exactly once and still
  *  belongs in the table below; it is simply read from where it now lives. */
 function accountsPanelWidth(): number {
-  const m = /\.accounts-panel\s*\{[^}]*?\bwidth:\s*(\d+)px/.exec(css.replace(/\/\*[\s\S]*?\*\//g, ""));
-  expect(m, ".accounts-panel declares its own width").toBeTruthy();
+  // CHANGED ON PURPOSE (V4's Figma): the panel draws at the rail's --rail-w
+  // (264 at Compact), the Default density's 288 being what this suite's
+  // layouts are written at.
+  const text = css.replace(/\/\*[\s\S]*?\*\//g, "");
+  expect(/\.accounts-panel\s*\{[^}]*?\bwidth:\s*calc\(var\(--rail-w\)/.test(text), ".accounts-panel declares its own width").toBe(true);
+  const m = /--rail-w:\s*(\d+)px/.exec(text);
+  expect(m, "--rail-w declares the Default width").toBeTruthy();
   return Number(m![1]);
 }
 

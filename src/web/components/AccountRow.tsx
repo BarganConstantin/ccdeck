@@ -15,6 +15,7 @@
 // the row never reads another account's part of that state. The writes it
 // makes are callbacks the panel spells.
 import { WarnGlyph } from "./AccountIssuePopover";
+import { KitIcon, KitStateGlyph } from "./kit-icons";
 import AccountTelemetry from "./AccountTelemetry";
 import AccountHint from "./AccountHint";
 import { accountIssue, type AccountIssue } from "../account-issue";
@@ -34,11 +35,16 @@ import { switchedTelemetry, telemetryLine } from "../org-telemetry";
 
 type RequestSlot = ReturnType<typeof useRequestSlot>;
 
-/** How full a window is, in the inks its bar uses: the warning past 70% and
- *  the error past 90%. Undefined below that — the shut row's numbers are
- *  neutral until they are a reason not to switch. */
+/** How full a window is, in the inks its meter and figure use (V4's Figma):
+ *  the text ink from 70%, the error ink from 90%, and the muted ink below that.
+ *  Never the warning ink, which is for a problem and not for a quota. */
 function fullness(pct: number): "mid" | "hi" | undefined {
   return pct >= 90 ? "hi" : pct >= 70 ? "mid" : undefined;
+}
+
+/** The ink a meter fill is drawn in at this percentage. */
+function meterInk(pct: number): string {
+  return pct >= 90 ? "var(--err)" : pct >= 70 ? "var(--text)" : "var(--muted)";
 }
 
 export function LaneBar({ lane, nowSec, readAt, frozen, sortedBy }: {
@@ -52,7 +58,7 @@ export function LaneBar({ lane, nowSec, readAt, frozen, sortedBy }: {
   // A reading that cannot move is drawn as a record rather than a reading: one
   // ink, no warning colours, the fill at half strength. The row says how old.
   const record = frozen || rolled;
-  const color  = record ? "var(--muted)" : capped >= 90 ? "var(--err)" : capped >= 70 ? "var(--warn)" : "var(--accent)";
+  const color  = record ? "var(--muted)" : meterInk(capped);
   // And a reset from a reading that old has most likely happened already.
   const reset  = lane.resetAt && !record ? resetCountdown(lane.resetAt, nowSec) : null;
   // RESET, FROZEN OR NOT, where the number was — as the shut row, the Usage
@@ -170,12 +176,16 @@ interface Props {
   rotating?: boolean;
   /** The scroll area that can clip this row's telemetry indicator. */
   telemetryBoundaryId?: string;
+  /** The plan the signed-in login is on ("Max 20x"), from the reading the deck
+   *  already takes. It belongs to the live account only, so only that row
+   *  draws it; absent, no row has a plan. */
+  planLabel?: string | null;
 }
 
 export default function AccountRow({
   a, nowSec, voice = CLAUDE_VOICE, issueOverride, lan, opened, onToggleLanes, busy, pressProps, onSwitch, menuOpen, onOpenMenu, onCloseMenu,
   refusal, onDismissRefusal, onSignIn, switchedHere, swapped, displaced, issueExpanded, onOpenIssue, sortKey = null, home = null,
-  rotating = false, telemetryBoundaryId,
+  rotating = false, telemetryBoundaryId, planLabel = null,
 }: Props) {
   const t = useT();
   const ids = voice.idPrefix;
@@ -200,7 +210,10 @@ export default function AccountRow({
   // opened for. Any other account only has to answer one question —
   // is it worth switching to — and two numbers answer it. The rest
   // is one press on the row away, and held by account (#542).
-  const open = a.active || opened;
+  // EVERY ROW IS ONE SHAPE (V4's Figma): the name, one figure, one line under
+  // it and one meter. The live row used to be open by what it is, with a bar per
+  // window; those bars are one press away on every row now, the live one too.
+  const open = opened;
   const name = a.alias ?? a.email ?? t("accounts.accountNLower", { n: a.num });
   // The whole identity, for the door. The head clips both names with an
   // ellipsis and the door lies over them, so the door is where a pointer
@@ -214,7 +227,26 @@ export default function AccountRow({
   // only when it is the fullest, so two calm numbers never sit over
   // a hidden hot one. See lane-view.ts.
   const quick = fuller ? [...shown, fuller] : shown;
+  // THE ONE FIGURE AND THE ONE METER are the first window's; the others ride
+  // in the line under the name (V4's Figma: "Resets in 2h 09m · 7-day 31%").
+  const primary = quick[0] ?? null;
+  const primaryRolled = primary ? lapsed(primary, nowSec) : false;
+  const primaryPct = primary ? Math.min(100, Math.max(0, primary.pct)) : 0;
+  const primaryReset = primary?.resetAt && !primaryRolled && !frozen ? resetCountdown(primary.resetAt, nowSec) : null;
   const age = a.fetchedAt ? ago(a.fetchedAt, nowSec, t) : null;
+  // What the row no longer draws stays on the row: the whole identity, the slot
+  // and every window with its reset, and when it was read, in the title of the
+  // row's door and in what a screen reader is told.
+  const detailTitle = [
+    identity,
+    a.active ? t("accounts.row.activeTitle", { n: a.num }) : t("accounts.row.slotTitle", { n: a.num }),
+    ...a.lanes.map(l => {
+      const left = !lapsed(l, nowSec) && l.resetAt ? resetCountdown(l.resetAt, nowSec) : null;
+      const said = `${laneLabel(l.label, t)} ${lapsed(l, nowSec) ? t("accounts.row.resetWord") : `${Math.round(l.pct)}%`}`;
+      return left ? `${said} · ${t("accounts.row.resetsIn", { time: left })}` : said;
+    }),
+    a.fetchedAt ? `${t("accounts.row.collected", { ago: ago(a.fetchedAt, nowSec, t) })}${issue?.blocksSwitch ? "" : due(a.nextAt, nowSec, t)}` : null,
+  ].filter(Boolean).join("\n");
   // Every row says only the age; whose read it was waits in its tooltip.
   const ageTitle = a.sharedFrom
     ? t("accounts.row.readOn", { from: a.sharedFrom })
@@ -240,9 +272,8 @@ export default function AccountRow({
           neither the keyboard nor a screen reader (WCAG 1.4.13) — the
           email in its description when the name it is called by is the
           alias. */}
-      {!a.active && (
         <button type="button" className="ap-row-open" id={`ap-${ids}row-${a.num}`}
-          title={identity}
+          title={detailTitle}
           aria-expanded={open}
           aria-controls={open ? `ap-${ids}detail-${a.num}` : undefined}
           aria-describedby={[
@@ -255,7 +286,6 @@ export default function AccountRow({
           onClick={() => onToggleLanes()}>
           <span className="vis-hidden">{t(open ? "accounts.row.hideDetails" : "accounts.row.showDetails", { name })}</span>
         </button>
-      )}
       <div className="ap-account-head">
         {/* The live account is marked by a dot where the other rows
             carry their slot, in the accent, which in this deck means
@@ -263,18 +293,25 @@ export default function AccountRow({
             in the title and in what a screen reader is told. */}
         {a.active
           ? <span className="ap-live" title={voice.liveTitle?.(a.num) ?? t("accounts.row.activeTitle", { n: a.num })}>
+              <KitStateGlyph name="done" />
               <span className="vis-hidden">{voice.liveSpoken?.(a.num) ?? t("accounts.row.activeSr", { n: a.num })}</span>
             </span>
-          : <span className="ap-num">{a.num}</span>}
+          : <span className="ap-num" title={t("accounts.row.slotTitle", { n: a.num })}>
+              {a.disabled ? <KitIcon name="pause" /> : <KitStateGlyph name="idle" />}
+              <span className="vis-hidden">{a.num}</span>
+            </span>}
         {/* Both of these are clipped with an ellipsis so a long one
             cannot widen the panel, which means the row can be showing
             less than the whole string — so each one carries its own
             whole value in a title (#517). On a shut row the door lies
             over them and says the same in its own title; the email's
             id is what the door's description points at. */}
-        {a.alias && <span className="ap-alias" title={a.alias}>{a.alias}</span>}
-        <span className="ap-email" id={`ap-${ids}email-${a.num}`} title={a.email ?? undefined}>{a.email}</span>
-        {telemetry && <AccountTelemetry num={a.num} name={name} telemetry={telemetry} boundaryId={telemetryBoundaryId} />}
+        <span className="ap-alias" title={identity}>{name}</span>
+        {/* The address a name stands in for: said to a screen reader, and on
+            the row's title; V4's row draws one name. */}
+        {a.alias && a.email && <span className="ap-email vis-hidden" id={`ap-${ids}email-${a.num}`}>{a.email}</span>}
+        {a.active && planLabel && <span className="ap-plan">{planLabel}</span>}
+        {telemetry &&<AccountTelemetry num={a.num} name={name} telemetry={telemetry} boundaryId={telemetryBoundaryId} />}
         {/* HOME: the account Auto-switch comes back to. A mark, like the
             shared one beside it, and set from the ⋯ rather than by another
             control on every row; whether Auto-switch is passing it over
@@ -282,12 +319,7 @@ export default function AccountRow({
         {home && (
           <AccountHint detail={home}>
             <span className="ap-home" id={`ap-${ids}home-${a.num}`} title={home} role="img" aria-label={t("accounts.row.homeLabel")}>
-              <svg width="12" height="12" viewBox="0 0 14 14" fill="none" stroke="currentColor"
-                strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-                <path d="M2.2 6.6 7 2.6l4.8 4" />
-                <path d="M3.6 5.6v5.8h6.8V5.6" />
-                <path d="M6 11.4V8.6h2v2.8" />
-              </svg>
+              <span aria-hidden>{t("accounts.row.homeTag")}</span>
               <span className="vis-hidden">{home}</span>
             </span>
           </AccountHint>
@@ -319,7 +351,18 @@ export default function AccountRow({
             `Switch` would, because a switch to a held-out account is
             refused and a control that can never act is worse than
             none (#519). Putting it back is in the ⋯. */}
-        {a.disabled && <span className="ap-held">{t("accounts.heldOut")}</span>}
+        {a.disabled && <span className="ap-held ap-value">{t("accounts.heldOut")}</span>}
+        {/* THE ONE FIGURE, at the right: the first window's fullness, in the
+            muted, text or error ink by how full it is. A login that cannot
+            be read shows none; the line on the row says why. */}
+        {!a.disabled && primary && !issue?.blocksSwitch && (
+          primaryRolled
+            ? <span className="ap-value ap-q-pct" title={t("accounts.row.laneReset", { label: primary.label })}>{t("accounts.row.resetWord")}</span>
+            : <span className="ap-value ap-q-pct" data-level={frozen ? undefined : fullness(primary.pct)}>{Math.round(primary.pct)}%</span>
+        )}
+        {/* The row's two acts take the value's place under the pointer and are
+            always there on touch (accounts-panel.css). */}
+        <span className="ap-acts">
         {/* The one verb a row carries, and quieter than the account it
             is about: a word on the control fill, no edge. Not offered
             where it cannot work — to a login that is dead or was never
@@ -354,14 +397,9 @@ export default function AccountRow({
             e.preventDefault();
             onOpenMenu(a.num, e.key === "ArrowUp" ? "last" : "first");
           }}>
-          {/* AUTHORED, NOT TYPED, like the header's four: three dots on
-              the same 14px grid the header draws at. */}
-          <svg width="13" height="13" viewBox="0 0 14 14" fill="currentColor" aria-hidden>
-            <circle cx="2.8" cy="7" r="1.15" />
-            <circle cx="7" cy="7" r="1.15" />
-            <circle cx="11.2" cy="7" r="1.15" />
-          </svg>
+          <KitIcon name="more" />
         </button>
+        </span>
       </div>
 
       {/* THE ANSWER TO A SWITCH, on the row it was about (#827). A
@@ -437,27 +475,29 @@ export default function AccountRow({
         </div>
       )}
 
-      {/* SHUT: THE TWO NUMBERS AN ACCOUNT IS CHOSEN BY. No bars, no
-          resets, no clock — unless the numbers are old, and then the
-          age is the one thing that must be said beside them. A login
-          that cannot be used shows no numbers at all here: the line
-          above is the answer, and last week's quota under it would
-          read as this week's. */}
-      {!open && !issue?.blocksSwitch && (
+      {/* THE LINE UNDER THE NAME AND THE ONE METER (V4's Figma): when the first
+          window resets and the other windows' fullness, then a 2px meter on the
+          first window. No bars, no clock — unless the numbers are old, and then
+          the age is the one thing that must be said beside them. A login that
+          cannot be used shows none of it: the line below is the answer, and last
+          week's quota under it would read as this week's. */}
+      {!issue?.blocksSwitch && (
         <p className="ap-quota" id={`ap-${ids}quota-${a.num}`}>
-          {quick.length
-            ? quick.map(l => (
-                <span key={l.id} className="ap-q" data-sort-key={l.id === keyLane?.id ? "" : undefined}>
-                  <span className="ap-q-label">{laneLabel(l.label, t)}</span>{" "}
-                  {/* A window that has reset since it was read is said to
-                      have, as its open bar says it: its number is the old
-                      window's, and in the warning ink it read as a reason not
-                      to switch to an account that has the room. */}
-                  {lapsed(l, nowSec)
-                    ? <span className="ap-q-pct" title={t("accounts.row.laneReset", { label: l.label })}>{t("accounts.row.resetWord")}</span>
-                    : <span className="ap-q-pct" data-level={frozen ? undefined : fullness(l.pct)}>{Math.round(l.pct)}%</span>}
-                </span>
-              ))
+          {primary
+            ? <>
+                {primaryReset && <span className="ap-q-reset">{t("accounts.row.resetsIn", { time: primaryReset })}</span>}
+                {quick.slice(1).map(l => (
+                  <span key={l.id} className="ap-q" data-sort-key={l.id === keyLane?.id ? "" : undefined}>
+                    <span className="ap-q-label">{laneLabel(l.label, t)}</span>{" "}
+                    {/* A window that has reset since it was read is said to
+                        have, as its open bar says it: its number is the old
+                        window's. */}
+                    {lapsed(l, nowSec)
+                      ? <span className="ap-q-pct" title={t("accounts.row.laneReset", { label: l.label })}>{t("accounts.row.resetWord")}</span>
+                      : <span className="ap-q-pct" data-level={frozen ? undefined : fullness(l.pct)}>{Math.round(l.pct)}%</span>}
+                  </span>
+                ))}
+              </>
             : <span className="ap-q-label">{voice.waiting ?? t("accounts.row.noUsageLower")}</span>}
           {a.stale && !issue && (
             <span className="ap-q-age" data-never={age ? undefined : ""} title={ageTitle}>
@@ -465,6 +505,12 @@ export default function AccountRow({
             </span>
           )}
         </p>
+      )}
+      {primary && !issue?.blocksSwitch && !a.disabled && (
+        <div className="ap-meter" aria-hidden>
+          {!primaryRolled && <div className="ap-meter-fill" data-sort-key={primary.id === keyLane?.id ? "" : undefined}
+            style={{ width: `${primaryPct === 0 ? 1.5 : primaryPct}%`, background: frozen ? "var(--muted)" : meterInk(primaryPct), opacity: primaryPct === 0 || frozen ? 0.4 : 1 }} />}
+        </div>
       )}
 
       {/* OPEN: every window as a bar, when each one resets, and when

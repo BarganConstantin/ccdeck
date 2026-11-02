@@ -543,6 +543,9 @@ export default function AddAccountDialog({ onClose, onChanged, email = null, onS
     <Dialog scrim={scrimPress} dialogRef={dialogRef} className="aa-modal" aria-label={t("accounts.add.dialogLabel")}>
         <header className="modal-head">
           <div className="modal-title">
+            <h2>{t("accounts.add.title")}</h2>
+          </div>
+          <div className="modal-actions">
             {/* A real tablist, finally (#581). It announced one and delivered
                 none of the three things the role promises: both buttons were
                 ordinary tab stops so Tab walked INTO the strip and through it,
@@ -576,8 +579,6 @@ export default function AddAccountDialog({ onClose, onChanged, email = null, onS
                 >{t(tb.key)}</button>
               ))}
             </span>
-          </div>
-          <div className="modal-actions">
             <DialogClose onClick={close} label={t("accounts.closeEsc")} />
           </div>
         </header>
@@ -709,19 +710,19 @@ export default function AddAccountDialog({ onClose, onChanged, email = null, onS
               <div className="aa-step aa-primer">
                 {cancelNote ? <p className="aa-note aa-warn" role="status">{cancelNote}</p> : null}
                 <h4>{email ? richParts(t("accounts.add.againAs", { email })) : t("accounts.add.toAnthropic")}</h4>
-                <p className="aa-note">{t(email ? "accounts.add.primerNoteEmail" : "accounts.add.primerNote")}</p>
-                <div className="aa-actions">
-                  {/* No `disabled={busy}`: the press takes this control away
-                      rather than disabling it, which is the half #518 answers
-                      with rescueSelectors and not with a busy flag. No sign-in
-                      request is out while this branch renders, but an import
-                      from the other tab can be (#1795), and the lock refuses a
-                      press until it is back — so it says aria-busy then, as
-                      Continue and Import do (#620). */}
-                  <button type="button" ref={primerRef} className="btn primary" {...selfPressProps(busy)} onClick={start}>
-                    {t("accounts.add.openSignIn")}
-                  </button>
-                </div>
+                {/* V4's words: what happens, in one line. The longer account of
+                    it — the code that is pasted back only if the page hands
+                    one over — is the line's title. */}
+                <p className="aa-note" title={t(email ? "accounts.add.primerNoteEmail" : "accounts.add.primerNote")}>
+                  {t(email ? "accounts.add.primerNoteEmail" : "accounts.add.primerShort")}
+                </p>
+                {/* The four stages the progress list goes through after the
+                    press, said first. */}
+                <ol className="aa-steps">
+                  {[t("accounts.add.step1"), t("accounts.add.step2"), t("accounts.add.step3"), t("accounts.add.step4")].map((text, i) => (
+                    <li key={i}><span className="aa-step-n" aria-hidden>{i + 1}</span>{text}</li>
+                  ))}
+                </ol>
               </div>
             )
           ) : imported ? (() => {
@@ -829,6 +830,23 @@ export default function AddAccountDialog({ onClose, onChanged, email = null, onS
               one most screen readers never read. */}
           <p className="vis-hidden" role="status" aria-live="polite">{said}</p>
         </section>
+        {/* The primer's two answers on the shell's footer (V4's Figma): Cancel,
+            then the one that starts it. Every later face carries its own. */}
+        {tab === "login" && face !== "done" && face !== "progress" && (
+          <footer className="modal-foot">
+            <button type="button" className="btn" onClick={close}>{t("accounts.cancel")}</button>
+            {/* No `disabled={busy}`: the press takes this control away
+                rather than disabling it, which is the half #518 answers
+                with rescueSelectors and not with a busy flag. No sign-in
+                request is out while this branch renders, but an import
+                from the other tab can be (#1795), and the lock refuses a
+                press until it is back — so it says aria-busy then, as
+                Continue and Import do (#620). */}
+            <button type="button" ref={primerRef} className="btn primary" {...selfPressProps(busy)} onClick={start}>
+              {t("accounts.add.openSignIn")}
+            </button>
+          </footer>
+        )}
     </Dialog>,
     document.body,
   );

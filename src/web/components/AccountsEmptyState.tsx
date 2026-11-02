@@ -1,19 +1,66 @@
 // What the accounts panel says when there is no roster to draw.
 //
-// Lifted out of AccountsPanel.tsx unchanged. The roster read answers `ok:
-// false` for five different reasons — claude-swap still installing, not
-// installed, installed with nothing in its store, a copy the deck refused to
-// drive, or a store that could not be read — and each needs a different thing
-// from the reader, so each gets its own sentence. It was a forty-line branch of the panel's render that read nothing
-// but the answer's reason and hint, and that is all it is handed.
+// The roster read answers `ok: false` for five different reasons — claude-swap
+// still installing, not installed, installed with nothing in its store, a copy
+// the deck refused to drive, or a store that could not be read — and each needs
+// a different thing from the reader, so each gets its own sentence. V4's Figma
+// draws four of them the same way: a title, a line of plain words, and then the
+// one thing to do, which is a command to copy or a button to press.
+import { useState } from "react";
 import { type AccountsData } from "../claude-accounts";
 import { useT } from "../i18n";
 import { Rich } from "../accounts-rich";
+import { copyText } from "../copy-text";
+import { KitIcon } from "./kit-icons";
 
-export default function AccountsEmptyState({ data }: { data: Pick<AccountsData, "reason" | "hint" | "version" | "want"> }) {
+/** The command the Wrong-version state offers: the one the deck itself runs to
+ *  bring claude-swap up to date (cswap-install.mjs's upgrade step). */
+const UPGRADE_COMMAND = "uv tool upgrade claude-swap";
+
+/**
+ * A REASON IN WORDS. The store answers with a code or the operating system's
+ * own message; a code is not for a reader, so only a message that already
+ * reads as a phrase is kept, and a permission refusal is said as one.
+ */
+export function plainReason(reason: string | undefined | null): string {
+  const raw = (reason ?? "").trim();
+  if (!raw) return "";
+  if (/eacces|eperm|permission/i.test(raw)) return "permission denied";
+  if (/enoent|no such file|not found/i.test(raw)) return "file not found";
+  // snake_case or SCREAMING codes ("store_unreadable", "EIO") read as codes.
+  if (/^[a-z]+(?:_[a-z0-9]+)+$/i.test(raw) || /^[A-Z0-9]{2,}$/.test(raw)) return "";
+  return raw;
+}
+
+/** A command in its box with a Copy button (V4's Figma). */
+function CommandBox({ command }: { command: string }) {
+  const t = useT();
+  const [copied, setCopied] = useState(false);
+  return (
+    <div className="ap-state-cmd">
+      <code className="ap-cmd" title={command}>{command}</code>
+      <button type="button" className="glyph-btn" aria-label={t("accounts.empty.copy")}
+        title={copied ? t("accounts.empty.copied") : t("accounts.empty.copy")}
+        onClick={() => { void copyText(command).then(ok => { if (ok) { setCopied(true); window.setTimeout(() => setCopied(false), 1500); } }); }}>
+        <KitIcon name="copy" />
+      </button>
+    </div>
+  );
+}
+
+export default function AccountsEmptyState({ data, onAdd, onRetry, retrying = false, pressProps }: {
+  data: Pick<AccountsData, "reason" | "hint" | "version" | "want">;
+  /** Opens the sign-in dialog: the "No accounts" state's one button. */
+  onAdd?: () => void;
+  /** Reads the store again: the "Couldn't read" state's one button. */
+  onRetry?: () => void;
+  retrying?: boolean;
+  /** The panel's request slot, so the retry is inert while another is out. */
+  pressProps?: (key: string, busy?: boolean) => Record<string, unknown>;
+}) {
   const t = useT();
   return (
-    <div className="ap-empty">
+    <div className="ap-empty ap-state">
       {/* The deck's own install, still running. Said as a wait rather
           than a fault, and with no command in it: the command belongs
           to `no_cswap`, where there is no install coming, and printed
@@ -21,41 +68,46 @@ export default function AccountsEmptyState({ data }: { data: Pick<AccountsData, 
           one already running. */}
       {data.reason === "cswap_installing" ? (
         <>
-          <span>{t("accounts.empty.installing")}</span>
-          <span className="ap-hint">{t("accounts.empty.installingHint")}</span>
+          <span className="ap-state-title">{t("accounts.empty.installing")}</span>
+          <span className="ap-state-text">{t("accounts.empty.installingHint")}</span>
         </>
       ) : data.reason === "no_cswap" ? (
         <>
-          <span>{t("accounts.empty.noCswap")}</span>
-          <span className="ap-hint">{t("accounts.empty.noCswapHint")}</span>
-          {data.hint && <code className="ap-cmd">{data.hint}</code>}
-          <span className="ap-hint"><Rich text={t("accounts.empty.thenAdd")} /></span>
+          <span className="ap-state-title">{t("accounts.empty.noCswap")}</span>
+          <span className="ap-state-text">{t("accounts.empty.noCswapHint")}</span>
+          {data.hint && <CommandBox command={data.hint} />}
+          <span className="ap-state-text"><Rich text={t("accounts.empty.thenAdd")} /></span>
         </>
       ) : data.reason === "cswap_refused" ? (
         <>
           {/* #1799: the deck installed claude-swap and a different version
-              answered. Said as the deck's decision, with the two ways out of
-              it, rather than as "not installed" — it is installed, and the
-              boot row names it. */}
-          <span>{t("accounts.empty.refused")}</span>
-          <span className="ap-hint">
-            {t("accounts.empty.refusedHint", {
-              answered: data.version ? t("accounts.empty.answeredVersion", { version: data.version }) : t("accounts.empty.answeredOther"),
-              wanted: data.want ? t("accounts.empty.wanted", { want: data.want }) : "",
-            })}
-          </span>
+              answered. The version that answered, the one asked for and the
+              way to point the deck at another copy are the title's: V4 draws
+              the state as a title, one sentence and the command. */}
+          <span className="ap-state-title" title={t("accounts.empty.refusedHint", {
+            answered: data.version ? t("accounts.empty.answeredVersion", { version: data.version }) : t("accounts.empty.answeredOther"),
+            wanted: data.want ? t("accounts.empty.wanted", { want: data.want }) : "",
+          })}>{t("accounts.empty.refusedTitle")}</span>
+          <span className="ap-state-text">{t("accounts.empty.refused")}</span>
+          <CommandBox command={UPGRADE_COMMAND} />
         </>
       ) : data.reason === "no_accounts" ? (
         <>
-          <span>{t("accounts.empty.none")}</span>
-          <span className="ap-hint"><Rich text={t("accounts.empty.noneHint")} /></span>
+          <span className="ap-state-title">{t("accounts.empty.none")}</span>
+          <span className="ap-state-text">{t("accounts.empty.noneHint")}</span>
+          {onAdd && <button type="button" className="btn primary ap-state-btn" onClick={onAdd}>{t("accounts.panel.addAccount")}</button>}
         </>
       ) : (
         <>
-          <span>{t("accounts.empty.unreadable")}</span>
-          <span className="ap-hint">
-            {t("accounts.empty.unreadableHint", { reason: data.reason ? t("accounts.empty.reason", { reason: data.reason }) : "" })}
+          <span className="ap-state-title">{t("accounts.empty.unreadable")}</span>
+          <span className="ap-state-text">
+            {t("accounts.empty.unreadableHint", { reason: plainReason(data.reason) ? t("accounts.empty.reason", { reason: plainReason(data.reason) }) : "" })}
           </span>
+          {onRetry && (
+            <button type="button" className="btn ap-state-btn" {...(pressProps?.("reload", retrying) ?? {})} onClick={onRetry}>
+              {retrying ? t("accounts.panel.trying") : t("accounts.panel.tryAgainBtn")}
+            </button>
+          )}
         </>
       )}
     </div>

@@ -205,7 +205,9 @@ describe("the panel holds the set the way this module says", () => {
     // Since #1579 the set is a mode and its exceptions, still keyed by laneKey —
     // isOpen and toggleOne in other-accounts-order.ts, pinned there.
     expect(clientText()).toMatch(/const opened = isOpen\(openness, a\);/);
-    expect(clientText()).toMatch(/const open = a\.active \|\| opened;/);
+    // CHANGED ON PURPOSE (V4's Figma): the live row is one shape with the others
+    // and opens only when the reader opens it.
+    expect(clientText()).toMatch(/const open = opened;/);
     expect(panelCode).toMatch(/setOpenness\((\w+) => toggleOne\(\1, a\)\)/);
     // The two shapes the bug was made of.
     expect(surfaceCode).not.toMatch(/openLanes\.includes\(a\.num\)/);

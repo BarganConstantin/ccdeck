@@ -76,8 +76,9 @@ describe("the row keeps its shape when its ⋯ is pressed", () => {
     expect(trigger).toMatch(/title=\{t\("accounts\.row\.more"\)\}/);
     // The account in the name, from the account's own data.
     expect(trigger).toMatch(/aria-label=\{t\("accounts\.row\.moreFor", \{ who: a\.email \?\? a\.alias \?\? t\("accounts\.accountNLower", \{ n: a\.num \}\) \}\)\}/);
-    // Drawn, not typed.
-    expect(trigger).toMatch(/<svg[^>]*aria-hidden/);
+    // Drawn, not typed. CHANGED ON PURPOSE (V4's Figma): the kit's own "more"
+    // icon, which is an aria-hidden svg, in place of the hand-drawn dots.
+    expect(trigger).toMatch(/<KitIcon name="more" \/>/);
     expect(trigger).not.toMatch(/⋯/);
   });
 });
@@ -91,8 +92,16 @@ describe("the menu", () => {
     // Auto-switch's home or removing that, which the row's ⌂ only shows.
     const menu = view("menu");
     expect([...menu.matchAll(/role="menuitem"/g)]).toHaveLength(7);
-    const order = ['t("accounts.menu.rename")}</button>', 't("accounts.menu.moveSlot")}</button>', ': t("accounts.menu.share")}', 't("accounts.menu.projects")}</button>', ': t("accounts.menu.holdOut")}', ': t("accounts.menu.setHome")}', 'role="separator"', ': t("accounts.menu.remove")}']
-      .map(s => menu.indexOf(s));
+    // CHANGED ON PURPOSE (V4's Figma): the menu has three groups, so there are
+    // two separators — one after Projects and one before Remove.
+    const at = (s: string) => menu.indexOf(s);
+    const order = [
+      at('t("accounts.menu.rename")}</button>'), at('t("accounts.menu.moveSlot")}</button>'),
+      at(': t("accounts.menu.share")}'), at('t("accounts.menu.projects")}</button>'),
+      at('role="separator"'),
+      at(': t("accounts.menu.holdOut")}'), at(': t("accounts.menu.setHome")}'),
+      menu.lastIndexOf('role="separator"'), at(': t("accounts.menu.remove")}'),
+    ];
     expect(order.every(i => i >= 0), order.join()).toBe(true);
     expect([...order].sort((x, y) => x - y)).toEqual(order);
   });

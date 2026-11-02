@@ -206,8 +206,10 @@
   .sl-dot.state-active::before,
   .state-pill.state-active::before,
   .bw-mode-dot.on,
-  .ap-live::before,
   .topbar button.v .v-dot { forced-color-adjust: none; background: Highlight; }
+  /* The live account's mark is the kit's done glyph, a stroke in the text colour,
+     so it takes the highlight as its colour rather than as a fill. */
+  .ap-live { forced-color-adjust: none; color: Highlight; }
   /* An open panel's line on its stripe, or on the dock's top edge, is a
      fill, which the theme paints Canvas like the stripe under it: it opts out
      and draws in the highlight, so open and closed still differ once the

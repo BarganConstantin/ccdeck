@@ -142,6 +142,34 @@ function bestFree(peers: readonly Peer[]): number | null {
   return known.length ? Math.round(Math.max(...known)) : null;
 }
 
+/** One line under the fold's summary while it is shut (V4's Figma): an account
+ *  and how much room it has, or the count of the ones not named. */
+export type FoldPreviewLine =
+  | { kind: "peer"; key: string; name: string; state: string }
+  | { kind: "more"; text: string };
+
+/** How many accounts the shut fold names before it counts the rest. */
+export const FOLD_PREVIEW = 2;
+
+/**
+ * THE SHUT FOLD'S THREE LINES: the accounts you could switch to with the most
+ * room first, in the peek's own order, two of them by name and then "and N more".
+ * With three or fewer behind the fold, all are named.
+ */
+export function foldPreview(peers: readonly Peer[], t: TFunction = tNow): FoldPreviewLine[] {
+  const { shown } = foldPeek(peers, t);
+  const ordered = [...peers].sort((a, b) => shown.indexOf(a) - shown.indexOf(b));
+  const named = peers.length <= FOLD_PREVIEW + 1 ? ordered : ordered.slice(0, FOLD_PREVIEW);
+  const lines: FoldPreviewLine[] = named.map(p => ({
+    kind: "peer" as const,
+    key: p.key,
+    name: p.name,
+    state: p.ready ? (p.headroom == null ? t("accounts.other.notReadYet") : t("accounts.other.free", { pct: Math.round(p.headroom) })) : p.why ?? "",
+  }));
+  if (named.length < peers.length) lines.push({ kind: "more", text: t("accounts.rest.more", { n: peers.length - named.length }) });
+  return lines;
+}
+
 /**
  * WHAT THE PEEK SHOWS — the names the count refuses to say, in the order the
  * question is asked in.

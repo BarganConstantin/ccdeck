@@ -191,7 +191,9 @@ describe("nothing in the accounts panel acts on a `change`", () => {
   it("reads enough handlers for the sweep to mean anything", () => {
     // The alias field, the slot picker and the threshold picker. If this drops,
     // the assertion below is passing over markup it never found.
-    expect(handlers(surfaceCode, "onChange").length).toBeGreaterThanOrEqual(3);
+    // CHANGED ON PURPOSE (V4's Figma): two — the alias field and the custom
+    // threshold field. The slot list and the threshold chips are buttons.
+    expect(handlers(surfaceCode, "onChange").length).toBeGreaterThanOrEqual(2);
   });
 
   it("leaves every onChange setting state and nothing else", () => {
@@ -240,13 +242,16 @@ describe("nothing in the accounts panel acts on a `change`", () => {
     // The retired shape, which must not come back in either picker.
     expect(withoutComments(accountsSurface())).not.toMatch(/onChange=\{e => doMove\(/);
     expect(withoutComments(accountsSurface())).not.toMatch(/onChange=\{e => post\(/);
-    expect(popoverCode).toMatch(/onChange=\{e => pickSlot\(Number\(e\.target\.value\)\)\}/);
-    expect(clientText()).toMatch(/onChange=\{e => proposeThreshold\(e\.target\.value\)\}/);
+    // CHANGED ON PURPOSE (V4's Figma): a slot row is a button that picks, and
+    // nothing is sent until the Move or Swap button is pressed.
+    expect(popoverCode).toMatch(/onClick=\{\(\) => pickSlot\(c\.slot\)\}/);
+    expect(clientText()).toMatch(/proposeThreshold\(CUSTOM_PICK\)/);
   });
 
   it("shows the pending pick in the picker, so the button and the box agree", () => {
     expect(popoverCode).toMatch(/const picked = slotShowing\(choices, slotDraft, a\.num\)/);
-    expect(popoverCode).toMatch(/value=\{String\(picked\)\}/);
+    // CHANGED ON PURPOSE (V4's Figma): the picked row says so with aria-checked.
+    expect(popoverCode).toMatch(/aria-checked=\{c\.slot === picked\}/);
     expect(clientText()).toMatch(/value=\{thresholdPick\}/);
   });
 
@@ -276,8 +281,10 @@ describe("both commit controls are reachable and named", () => {
   it("keeps the picker itself named by a real label", () => {
     // Visible now. The row's block had no room for a label and hid it; the
     // popover's form has a title, and the title is the label.
-    expect(popoverCode).toMatch(/<label className="ap-pop-title" id=\{titleId\} htmlFor=\{`ap-slot-\$\{a\.num\}`\}>\{t\("accounts\.menu\.moveTitle"\)\}<\/label>/);
-    expect(clientText()).toMatch(/htmlFor=\{thresholdId\}[^>]*>\{t\("accounts\.policy\.switchAt"\)\}<\/label>/);
+    // CHANGED ON PURPOSE (V4's Figma): the slot list is a radiogroup named by
+    // its title, and the chips by the "Switch at" label.
+    expect(popoverCode).toMatch(/<p className="ap-pop-title" id=\{titleId\}>\{t\("accounts\.menu\.moveTitleNamed"/);
+    expect(clientText()).toMatch(/id=\{thresholdId\}[^>]*>\{t\("accounts\.policy\.switchAt"\)\}<\/span>/);
   });
 
   it("dims both only while a request is out, never at rest", () => {
@@ -322,6 +329,9 @@ describe("the threshold's commit control exists only while there is a pick to st
     const commit = /const doThreshold = async[\s\S]*?\n {2}\};/.exec(draftCode)?.[0] ?? "";
     expect(commit).toMatch(/document\.activeElement === thresholdSaveRef\.current\) thresholdRef\.current\?\.focus\(\)/);
     expect(commit.indexOf("thresholdRef.current?.focus()")).toBeLessThan(commit.indexOf("setThresholdSaved(false)"));
-    expect(clientText()).toMatch(/<select\s+ref=\{thresholdRef\}/);
+    // CHANGED ON PURPOSE (V4's Figma): the picker is a row of chips, which a
+    // press stores at once, so the pick's `save` button only belongs to the
+    // custom field.
+    expect(clientText()).toMatch(/<form className="ap-threshold-form"/);
   });
 });

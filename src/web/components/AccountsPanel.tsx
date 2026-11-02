@@ -74,9 +74,12 @@ interface Props {
   switcher?: ReactNode;
   side?: "shown" | "hidden";
   onNotice?: (needs: boolean) => void;
+  /** The plan the signed-in Claude login is on ("Max 20x"), from the reading the
+   *  deck already takes. The live row draws it beside its name. */
+  planLabel?: string | null;
 }
 
-export default function AccountsPanel({ onClose, leaving, onReport, onRoster, lanWanted = false, onLanShown, switcher, side, onNotice }: Props) {
+export default function AccountsPanel({ onClose, leaving, onReport, onRoster, lanWanted = false, onLanShown, switcher, side, onNotice, planLabel = null }: Props) {
   // Opened: one of the features the usage reports name (feature-use.ts).
   useFeatureUse("accounts-panel", side !== "hidden");
   const t = useT();
@@ -485,6 +488,7 @@ export default function AccountsPanel({ onClose, leaving, onReport, onRoster, la
         switchedHere={switchedHere} swapped={swapped} displaced={displaced}
         issueExpanded={issueExpanded} onOpenIssue={openIssue}
         telemetryBoundaryId={rowBoundary(a.num)}
+        planLabel={a.active ? planLabel : null}
         sortKey={a.active ? null : orderKey(shownOrder)}
         home={isHome(a, auto?.choice?.home) ? homeTitle(a, !!auto?.enabled) : null}
         rotating={!!(auto?.enabled || auto?.external)} />
@@ -518,7 +522,7 @@ export default function AccountsPanel({ onClose, leaving, onReport, onRoster, la
       cancelThreshold={cancelThreshold} leaveThreshold={leaveThreshold} doThreshold={doThreshold}
       nextPick={nextPick} nextCtl={nextCtl} nextSaved={nextSaved} nextRef={nextRef} nextSaveRef={nextSaveRef}
       proposeNext={proposeNext} doNext={doNext}
-      pressProps={pressProps} post={post} load={load} />
+      pressProps={pressProps} post={post} load={load} blurb={t("accounts.policy.blurb")} />
   ) : null;
   return (
     // Named for the topbar toggle's aria-controls — see UsagePanel, which also
@@ -576,7 +580,8 @@ export default function AccountsPanel({ onClose, leaving, onReport, onRoster, la
               <div className="ap-empty">{t("accounts.panel.checking")}</div>
             )
           ) : !data.ok ? (
-            <AccountsEmptyState data={data} />
+            <AccountsEmptyState data={data} onAdd={() => setAddOpen(true)}
+              onRetry={() => load(true).then(() => rescueFocus(null))} retrying={reloading} pressProps={pressProps} />
           ) : (
             <>
               {/* THE LIVE ACCOUNT'S TROUBLE, ONCE, ABOVE THE LIST. Every session
@@ -661,12 +666,13 @@ export default function AccountsPanel({ onClose, leaving, onReport, onRoster, la
                   <ul className="ap-list ap-others" id="ap-rest-list" {...listHold}>
                   {rest.map(accountRow)}
                   </ul>
-                  {policyBlock}
                 </div>
               )}
-              {/* Nothing to fold, so nothing to hide it behind: the policy
-                  stands under the roster it is about. */}
-              {rest.length === 0 && policyBlock}
+              {/* THE POLICY STANDS UNDER THE ROSTER IT IS ABOUT, fold open or
+                  shut (V4's Figma draws it as the group's last row): one
+                  28-high row whose settings are a popover, so it costs the
+                  column nothing to keep it in sight. */}
+              {policyBlock}
 
               {/* Announced, and dismissible, because nothing else here clears it: the
                   next action does, and until then a stale refusal sits under a roster
@@ -690,6 +696,7 @@ export default function AccountsPanel({ onClose, leaving, onReport, onRoster, la
                 return (
                   <AccountMenuPopover a={a} accountMenu={accountMenu}
                     slots={(data.accounts ?? []).map(x => x.num)}
+                    names={Object.fromEntries((data.accounts ?? []).map(x => [x.num, x.alias ?? x.email ?? t("accounts.accountNLower", { n: x.num })]))}
                     boundaryId={rowBoundary(a.num)} nowSec={nowSec}
                     busy={busy} pressProps={pressProps}
                     onProjects={() => { setProjectsFor({ num: a.num, name: a.alias ?? a.email ?? t("accounts.accountNLower", { n: a.num }) }); closeMenu(a.num); }}

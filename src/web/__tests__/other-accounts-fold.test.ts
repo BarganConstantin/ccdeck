@@ -326,7 +326,9 @@ describe("what the column folds, and when it does not", () => {
   });
 
   it("carries the panel's inset itself, because it stands in the scroll and not in the foot", () => {
-    expect(css).toMatch(/\.ap-rest \{ padding: 4px var\(--panel-inset\) 0; \}/);
+    // CHANGED ON PURPOSE (V4's Figma): the summary row stands 4 in from the
+    // column's edge and pads its own 8, like an account row.
+    expect(css).toMatch(/\.ap-rest \{ padding: 0 4px; \}/);
   });
 
   it("wears no glyph, so its name starts on the column's own left edge", () => {
@@ -335,17 +337,19 @@ describe("what the column folds, and when it does not", () => {
     // stands. With the icon gone, `Claude accounts`, `Other accounts` and
     // `Auto-switch` share one left edge, which is the spine of the block.
     expect(fold).not.toMatch(/ap-nav-glyph/);
-    expect(css).toMatch(/\.ap-rest \.ap-nav \{ gap: 0; \}/);
+    // CHANGED ON PURPOSE (V4's Figma): the summary leads with a 14 chevron, so
+    // its row has a 6 gap, and it is a glyph of the row itself, not a destination.
+    expect(css).toMatch(/\.ap-rest \.ap-nav \{ gap: 6px; \}/);
     // Local network keeps its own: it is the row that goes somewhere.
     expect(read("../components/LanEntryRow.tsx")).toMatch(/className="ap-nav-glyph"/);
   });
 
   it("puts a wider gap over the fold than under it, so the two rows read as one group", () => {
-    // 4px over, 2px under — the account above is a different thing, the policy
-    // below is the same one. Proximity does the grouping; no container does.
-    const over = /\n\.ap-rest \{ padding: (\d+)px/.exec(css)?.[1];
-    const under = /\n\.ap-policy-block \{ padding: (\d+)px/.exec(css)?.[1];
-    expect(Number(over)).toBeGreaterThan(Number(under));
+    // CHANGED ON PURPOSE (V4's Figma): the fold's summary and previews are one
+    // block of rows 4 in from the edge with 4 under the previews, and the policy
+    // is a 28-high row under it; proximity does the grouping, no container does.
+    expect(css).toMatch(/\.ap-previews \{ padding-bottom: 4px; \}/);
+    expect(css).toMatch(/\n\.ap-policy-block \{ padding: 0 4px 8px; \}/);
   });
 
   it("puts the policy inside the fold, and leaves it reachable when there is no fold", () => {
@@ -353,11 +357,15 @@ describe("what the column folds, and when it does not", () => {
     // tail of the row's own line, which says `auto 90%` or `auto off` whether
     // the fold is open or shut — and the one store that has nothing to fold
     // keeps the policy in the open, or the setting would be unreachable.
-    expect(panel).toMatch(/<div className="ap-rest-panel" id="ap-rest-panel">[\s\S]{0,400}\{policyBlock\}/);
-    expect(panel).toMatch(/\{rest\.length === 0 && policyBlock\}/);
+    // CHANGED ON PURPOSE (V4's Figma): the Auto-switch row is a row of the group,
+    // under the roster and its fold, open or shut — it is one 28-high row, and
+    // the summary no longer carries its state in a tail ("auto 90%"), so the
+    // row has to be in sight to say it. (The Codex panel keeps it in its fold.)
+    expect(panel).not.toMatch(/<div className="ap-rest-panel" id="ap-rest-panel">[\s\S]{0,400}\{policyBlock\}/);
+    expect(panel).toMatch(/\n\s*\{policyBlock\}\n/);
     // The refusal did NOT follow it in: one that a collapse could hide is one
     // the reader can lose.
-    expect(panel.indexOf("{failure && failure.row == null && (")).toBeGreaterThan(panel.indexOf("{rest.length === 0 && policyBlock}"));
+    expect(panel.indexOf("{failure && failure.row == null && (")).toBeGreaterThan(panel.indexOf("{policyBlock}\n"));
     // The box gives, so the list inside it can scroll and the policy cannot be
     // pushed off the bottom.
     const box = /\n\.ap-rest-panel \{([^}]*)\}/.exec(css)?.[1] ?? "";
@@ -370,7 +378,8 @@ describe("what the column folds, and when it does not", () => {
     // It was a pinned `.ap-foot` with a hairline, and both of those were about
     // standing apart from a roster it could not fit beside. It sits with the
     // roster now: same inset, space instead of a rule.
-    expect(css).toMatch(/\.ap-policy-block \{ padding: 2px var\(--panel-inset\) 14px; \}/);
+    // CHANGED ON PURPOSE (V4's Figma): the row's 4 in from the edge and 8 under.
+    expect(css).toMatch(/\.ap-policy-block \{ padding: 0 4px 8px; \}/);
     // The hairline it does get is the fold's, and it belongs to the list above
     // it rather than to the policy itself — see the rule below.
     expect(/\n\.ap-policy-block \{([^}]*)\}/.exec(css)?.[1] ?? "").not.toMatch(/border/);

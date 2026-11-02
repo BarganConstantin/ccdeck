@@ -60,9 +60,14 @@ const laneOf = (html: string, label: string) =>
     .exec(html)?.[0] ?? "";
 
 /** What the shut row says of one window, without its label. */
+// CHANGED ON PURPOSE (V4's Figma): the first window is the row's one figure at
+// the right of the name (`ap-value`), and the others are named in the line
+// under it (`ap-q`).
 const shutSays = (html: string, label: string) =>
-  seen(new RegExp(`<span class="ap-q"[^>]*><span class="ap-q-label">${label}</span>[^]*?</span></span>`).exec(html)?.[0] ?? "")
-    .replace(label, "").trim();
+  label === "5h"
+    ? seen(/<span class="ap-value ap-q-pct"[^>]*>[^]*?<\/span>/.exec(html)?.[0] ?? "")
+    : seen(new RegExp(`<span class="ap-q"[^>]*><span class="ap-q-label">${label}</span>[^]*?</span></span>`).exec(html)?.[0] ?? "")
+      .replace(label, "").trim();
 
 const WINDOWS = [
   { label: "5h", said: "Reported reset time passed 15h ago, 96% when read 18h ago" },
