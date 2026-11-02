@@ -4,7 +4,13 @@ import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { inDesktopApp } from "../in-app";
-import { notifyNote, NOTIFY_NOTE, NOTIFY_NOTE_APP } from "../notify-reach";
+import { notifyNote, NOTIFY_NOTE_MSG, NOTIFY_NOTE_APP_MSG } from "../notify-reach";
+import { en } from "../i18n/en";
+
+// CHANGED ON PURPOSE (the UI in every language): the notes are keys now; the
+// words are read through the English catalog.
+const NOTIFY_NOTE = en[NOTIFY_NOTE_MSG];
+const NOTIFY_NOTE_APP = en[NOTIFY_NOTE_APP_MSG];
 
 const CHROME = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36";
 
@@ -48,6 +54,8 @@ describe("knowing the page is in the app", () => {
   it("words the notification switch for a window there, and for a tab everywhere else", () => {
     expect(notifyNote(true)).toBe(NOTIFY_NOTE_APP);
     expect(NOTIFY_NOTE_APP).toMatch(/window closed/);
+    // CHANGED ON PURPOSE (the UI in every language): the English the key carries.
+    expect(en[NOTIFY_NOTE_APP_MSG]).toBe("With the ccdeck window closed, get a notification wherever a sound would have played.");
     expect(notifyNote(false)).toBe(NOTIFY_NOTE);
   });
 });

@@ -18,7 +18,7 @@
 // API's FeedbackText.Parts held to the shared fixture feedback-links.json, and
 // drawn as React elements; dangerouslySetInnerHTML is never used.
 export { limitLine } from "./feedback";
-import { t } from "./i18n";
+import { currentLanguage, t } from "./i18n";
 
 // ── the API's shapes ─────────────────────────────────────────────────────────
 
@@ -236,14 +236,15 @@ function dayKind(at: string, now: number, timeZone?: string): "today" | "yesterd
   return day === yesterday ? "yesterday" : "date";
 }
 
-/** "Today", "Yesterday", "Oct 26" — and "Oct 26, 2025" in another year. */
+/** "Today", "Yesterday", and a date in the chosen language ("Oct 26" in English)
+ *  — with the year when it is another year ("Oct 26, 2025" in English). */
 export function dayLabel(at: string, now: number, timeZone?: string): string {
   const kind = dayKind(at, now, timeZone);
   if (kind === "today") return t("insights.audit.today");
   if (kind === "yesterday") return t("insights.audit.yesterday");
   const ms = Date.parse(at);
   const sameYear = dayKey(ms, timeZone).slice(0, 4) === dayKey(now, timeZone).slice(0, 4);
-  return new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", ...(sameYear ? {} : { year: "numeric" }), timeZone }).format(ms);
+  return new Intl.DateTimeFormat(currentLanguage(), { month: "short", day: "numeric", ...(sameYear ? {} : { year: "numeric" }), timeZone }).format(ms);
 }
 
 /** `09:12`: the time a run or an event was written, on the reader's clock. */

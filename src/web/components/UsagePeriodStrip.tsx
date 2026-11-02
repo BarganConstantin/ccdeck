@@ -84,10 +84,10 @@ export default function UsagePeriodStrip({ period, rangePending, setPeriod }: {
             // the deck walking transcripts on this disk, and a reader who
             // knows that reads two and a half seconds as work rather than as a
             // request that may not come back.
-            title={period === p.key && rangePending ? t("usage.period.reading", { period: t(`usage.period.${p.key}.noun`) }) : t(`usage.period.${p.key}.hint`)}
+            title={period === p.key && rangePending ? t("usage.period.reading", { period: t(p.nounMsg) }) : t(p.hintMsg)}
             className="uh-range-btn"
             onClick={() => setPeriod(p.key)}
-          >{t(`usage.period.${p.key}`)}</button>
+          >{t(p.labelMsg)}</button>
         ))}
       </div>
       {/* WHAT THE WAIT SOUNDS LIKE, since until now it made no sound at all: a

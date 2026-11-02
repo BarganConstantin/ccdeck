@@ -9,9 +9,27 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { isCharacterKey, setSingleKeyShortcuts, singleKeyShortcutsOn, SINGLE_KEY_SHORTCUTS_KEY } from "../single-key-shortcuts";
-import { KEY_HELP, KEY_HELP_NOTE, KEY_HELP_OFF_TITLE, KEY_HELP_SWITCH_NOTE, keyHelpFor } from "../key-help";
+import { KEY_HELP, KEY_HELP_NOTE_MSG, KEY_HELP_OFF_TITLE_MSG, KEY_HELP_SWITCH_NOTE_MSG, SINGLE_KEYS_PLACE_MSG, keyHelpFor } from "../key-help";
 import { pauseTitle, statusPill } from "../status-pill";
-import { boardScopeTitle, BOARD_SCOPE_TITLE } from "../board-usage";
+import { boardScopeTitle } from "../board-usage";
+import { en } from "../i18n/en";
+import { fill } from "../i18n/translate";
+
+// CHANGED ON PURPOSE (the UI in every language): these sentences are keys now;
+// the words are read through the English catalog.
+const KEY_HELP_NOTE = en[KEY_HELP_NOTE_MSG];
+const KEY_HELP_OFF_TITLE = en[KEY_HELP_OFF_TITLE_MSG];
+const KEY_HELP_SWITCH_NOTE = fill(en[KEY_HELP_SWITCH_NOTE_MSG], { place: en[SINGLE_KEYS_PLACE_MSG] });
+// The board's scope sentence with the single-key shortcuts on: what it said as
+// one constant, from its two keys.
+const BOARD_SCOPE_TITLE =
+  "Everything on the board right now, and only that.\n"
+  + "Finished sessions are evicted from the canvas a couple of minutes after they end, "
+  + "and their tokens and dollars leave with them — so this figure falls on its own.\n"
+  + "Press H for the totals ccusage reads off the logs on disk, which do not forget.";
+const BOARD_SCOPE_TITLE_NO_KEYS =
+  BOARD_SCOPE_TITLE.slice(0, BOARD_SCOPE_TITLE.indexOf("Press H"))
+  + "Usage history has the totals ccusage reads off the logs on disk, which do not forget.";
 import { WaitingStat } from "../components/TopbarReadouts";
 import { EdgeRail, UtilityRun, liveKey, railHint } from "../components/EdgeRails";
 import { attr, buttons, draw, items } from "./edge-keys-rails";
@@ -223,6 +241,7 @@ describe("titles drop the letter when the switch is off", () => {
 
   it("points the usage scope at Usage history by name instead of by H", () => {
     expect(boardScopeTitle(true)).toBe(BOARD_SCOPE_TITLE);
+    expect(boardScopeTitle(false)).toBe(BOARD_SCOPE_TITLE_NO_KEYS);
     expect(boardScopeTitle(false)).not.toMatch(/\bH\b/);
     expect(boardScopeTitle(false)).toMatch(/Usage history has the totals ccusage reads/);
     expect(boardScopeTitle(false).startsWith(BOARD_SCOPE_TITLE.slice(0, BOARD_SCOPE_TITLE.indexOf("Press H")))).toBe(true);
@@ -294,6 +313,8 @@ describe("the shortcuts sheet with the switch off", () => {
     setSingleKeyShortcuts(false);
     const html = renderToStaticMarkup(createElement(KeyboardHelp, { onClose: noop, onSettings: noop }));
     expect(html).toContain(KEY_HELP_OFF_TITLE);
+    // CHANGED ON PURPOSE (the UI in every language): the English the key carries.
+    expect(en[KEY_HELP_OFF_TITLE_MSG]).toBe("Single-key shortcuts are off.");
     expect(html).toContain('<span class="kh-place">Settings › Keyboard</span>');
     expect(html).toMatch(/<button type="button" class="btn">Open Settings<\/button>/);
     // CHANGED ON PURPOSE (V4's Figma): a chord is one chip per key now, so the

@@ -9,13 +9,17 @@ import {
   readDesktopUpdate,
   readyChipCopy,
   readyDesktopUpdate,
-  RESTART_TO_UPDATE,
+  RESTART_TO_UPDATE_MSG,
   trayMenuName,
   UPDATE_RESTART_WAIT_MS,
   updateRestartFailureText,
   updateRestartRefusal,
   type UpdateRestartFailure,
 } from "../desktop-update";
+
+// CHANGED ON PURPOSE (the UI in every language): the label is a key now, read
+// here through the English catalog.
+const RESTART_TO_UPDATE = shellEn[RESTART_TO_UPDATE_MSG];
 
 const read = (path: string) => readFileSync(fileURLToPath(new URL(path, import.meta.url)), "utf8");
 

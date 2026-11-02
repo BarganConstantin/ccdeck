@@ -22,7 +22,11 @@ vi.mock("../use-usage-range", () => ({
 const { default: UsagePanel } = await import("../components/UsagePanel");
 const { initialState } = await import("../reducer");
 const { ASSUMED } = await import("../providers");
-const { BOARD_SCOPE_LABEL } = await import("../board-usage");
+// CHANGED ON PURPOSE (the UI in every language): the label is a key now, read
+// here through the English catalog.
+const { BOARD_SCOPE_LABEL_MSG } = await import("../board-usage");
+const { en } = await import("../i18n/en");
+const BOARD_SCOPE_LABEL = en[BOARD_SCOPE_LABEL_MSG];
 
 /** One day of ccusage's daily report, its totals the sum of its rows. */
 function ccusage(rows: Array<{ model: string; cost: number; missingPricing?: boolean }>) {

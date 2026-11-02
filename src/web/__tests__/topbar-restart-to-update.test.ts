@@ -10,7 +10,12 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import VersionChip from "../components/VersionChip";
-import { readyButtonCopy, RESTART_TO_UPDATE } from "../desktop-update";
+import { readyButtonCopy, RESTART_TO_UPDATE_MSG } from "../desktop-update";
+import { en } from "../i18n/en";
+
+// CHANGED ON PURPOSE (the UI in every language): the label is a key now, read
+// here through the English catalog.
+const RESTART_TO_UPDATE = en[RESTART_TO_UPDATE_MSG];
 
 const read = (path: string) => readFileSync(fileURLToPath(new URL(path, import.meta.url)), "utf8");
 

@@ -26,7 +26,12 @@ import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { join } from "node:path";
-import { KEY_HELP, KEY_HELP_NOTE, documentedKeys } from "../key-help";
+import { KEY_HELP, KEY_HELP_NOTE_MSG, documentedKeys } from "../key-help";
+import { en } from "../i18n/en";
+
+// CHANGED ON PURPOSE (the UI in every language): the note is a key now; the
+// words are read through the English catalog.
+const KEY_HELP_NOTE = en[KEY_HELP_NOTE_MSG];
 
 const web = fileURLToPath(new URL("..", import.meta.url));
 const read = (rel: string) => readFileSync(join(web, rel), "utf8");
@@ -215,6 +220,7 @@ describe("the way in", () => {
     // keyboard-focused control, or the sheet itself, owns the keys. It used to
     // open on a paragraph about focus internals; #852 cut it to the one thing to
     // do and moved it under the reference the reader opened the sheet for.
+    expect(KEY_HELP_NOTE_MSG).toBe("settings.key.note");
     expect(KEY_HELP_NOTE).toMatch(/Esc/);
     expect(KEY_HELP_NOTE.split(/\s+/).length).toBeLessThanOrEqual(10);
     expect(sheet.indexOf('t("settings.key.note")')).toBeGreaterThan(sheet.indexOf('className="shortcuts"'));

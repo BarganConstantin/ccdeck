@@ -128,17 +128,17 @@ export function boardTotals(agents: Iterable<Billable>): BoardTotals {
 /** The usage panel's headline, under the dollar figure. "board" is this repo's
  *  own word for the canvas — `pruneDoneSessions` has said "on the board" since
  *  it was written — and it is the word the reporter of #687 reached for too. */
-export const BOARD_SPEND_LABEL = "spend on this board";
+export const BOARD_SPEND_LABEL_MSG = "insights.board.spend";
 /** The same label in the language on show. */
-export const boardSpendLabel = () => t("insights.board.spend");
+export const boardSpendLabel = () => t(BOARD_SPEND_LABEL_MSG);
 
 /** The same scope, as a bare qualifier. The panel prints this beside the token
  *  strip on a deck where every model is unpriced: there is no headline on that
  *  deck — the money block is gated on cost — so the strip is the only aggregate
  *  on screen and would otherwise stand with no scope stated anywhere. Only on
  *  the board's own figures: under ccusage the strip takes the period's noun. */
-export const BOARD_SCOPE_LABEL = "on this board";
-export const boardScopeLabel = () => t("insights.board.scope");
+export const BOARD_SCOPE_LABEL_MSG = "insights.board.scope";
+export const boardScopeLabel = () => t(BOARD_SCOPE_LABEL_MSG);
 
 /**
  * The tooltip every board-wide figure carries. One surface now — the usage
@@ -152,18 +152,11 @@ export const boardScopeLabel = () => t("insights.board.scope");
  * No CLI is named in it. The board sums Claude and Codex agents alike, and
  * `codex-copy.test.ts` holds the deck's copy to that: a provider-blind figure
  * must not carry one product's name.
+ *
+ * The last sentence points at Usage history by name rather than by H once the
+ * single-key shortcuts are off (Settings › General), so the way to the durable
+ * total is one that still works.
  */
-const BOARD_SCOPE_FACTS =
-  "Everything on the board right now, and only that.\n"
-  + "Finished sessions are evicted from the canvas a couple of minutes after they end, "
-  + "and their tokens and dollars leave with them — so this figure falls on its own.\n";
-
-export const BOARD_SCOPE_TITLE =
-  BOARD_SCOPE_FACTS + "Press H for the totals ccusage reads off the logs on disk, which do not forget.";
-
-/** The same three sentences, with the last pointing at Usage history by name
- *  rather than by H once the single-key shortcuts are off (Settings › General),
- *  so the way to the durable total is one that still works. */
 export function boardScopeTitle(singleKeys: boolean): string {
   return t("insights.board.scopeFacts") + "\n" + t(singleKeys ? "insights.board.scopeKeys" : "insights.board.scopeNoKeys");
 }
@@ -179,8 +172,8 @@ export function boardScopeTitle(singleKeys: boolean): string {
  * these two surfaces can honestly claim is a scope, which is the session named
  * beside the figure.
  */
-export const SESSION_SPEND_LABEL = "session spend";
-export const sessionSpendLabel = () => t("insights.board.sessionSpend");
+export const SESSION_SPEND_LABEL_MSG = "insights.board.sessionSpend";
+export const sessionSpendLabel = () => t(SESSION_SPEND_LABEL_MSG);
 
 // ── the usage panel's two tables, when ccusage has not answered ─────────────
 //

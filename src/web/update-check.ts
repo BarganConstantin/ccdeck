@@ -78,10 +78,10 @@ export const checkWhy = () => t("shell.update.checkWhy");
 export const checkingWord = () => t("shell.update.checking");
 export const npmUnreachable = () => t("shell.update.npmUnreachable");
 export const deckUnreachable = () => t("shell.update.deckUnreachable");
-export const checksOff = () => t("shell.update.checksOff");
+export const checksOff = () => t(CHECKS_OFF_MSG);
 export const pendingRetry = () => t("shell.update.pendingRetry");
-/** The English line, for a caller outside the shell that has not moved to checksOff() yet. */
-export const CHECKS_OFF = "Update checks are off on this deck (AGENTS_DECK_NO_UPDATE_CHECK or AGENTS_DECK_NO_INSTALL).";
+/** The key of that line, for a caller that reads it with its own translator. */
+export const CHECKS_OFF_MSG = "shell.update.checksOff";
 
 /** "3.38.7 is out", and why this install is offered a command rather than a
  *  button, in the banner's own words (VersionBanner.tsx's UPGRADE_BLOCK_TEXT).

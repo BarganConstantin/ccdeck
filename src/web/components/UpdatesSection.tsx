@@ -22,7 +22,6 @@
 // update checks were switched off at launch, and the desktop app's own deck,
 // whose updates are the app's and which this switch does not reach.
 import { inDesktopApp } from "../in-app";
-import { CHECKS_OFF } from "../update-check";
 import type { VersionInfo } from "../use-version-check";
 import { SettingRow, SettingsGroup } from "./SettingsParts";
 import { useT, type TFunction } from "../i18n";
@@ -35,7 +34,7 @@ export const AUTO_UPDATE_NOTE =
  *  has nothing to install; a version installed by hand is still restarted
  *  into. */
 export const AUTO_UPDATE_CHECKS_OFF_NOTE =
-  `${CHECKS_OFF} It hears of no new release from npm, and restarts only into a version installed some other way, once nothing has been running for 30 seconds.`;
+  "Update checks are off on this deck (AGENTS_DECK_NO_UPDATE_CHECK or AGENTS_DECK_NO_INSTALL). It hears of no new release from npm, and restarts only into a version installed some other way, once nothing has been running for 30 seconds.";
 /** `canRestart: false` — no supervisor, --no-persist, or an event log it
  *  cannot write (lifecycle.mjs). Neither path runs without a restart, so the
  *  switch records a choice and does nothing yet. */

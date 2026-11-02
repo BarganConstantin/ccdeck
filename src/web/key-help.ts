@@ -81,7 +81,7 @@ export interface KeyHelpGroup {
  *  log), and this sheet, which takes focus while it is open. Esc is the way out
  *  of both, and it is the last row of the Deck group — so that is all the
  *  line says. */
-export const KEY_HELP_NOTE = "Press Esc first if a key does nothing.";
+export const KEY_HELP_NOTE_MSG = "settings.key.note";
 
 // V4's Figma draws the sheet as five groups: Deck, The question, Terminal,
 // Canvas and Panels. The rows are the deck's own, sorted into them: the keys
@@ -237,12 +237,13 @@ export function keyHelpFor(
 /** What the sheet says first while the single-key shortcuts are off: that they
  *  are, and where they are turned back on. The place is its own string so the
  *  sheet can keep "Settings › Keyboard" on one line. */
-export const KEY_HELP_OFF_TITLE = "Single-key shortcuts are off.";
-export const SINGLE_KEYS_PLACE = "Settings › Keyboard";
+export const KEY_HELP_OFF_TITLE_MSG = "settings.key.offTitle";
+export const SINGLE_KEYS_PLACE_MSG = "settings.key.place";
 
 /** The footnote's second sentence while they are on: where the reader whose
- *  letters fire by accident — dictation, a stray hand — turns them off. */
-export const KEY_HELP_SWITCH_NOTE = `Single-key shortcuts can be turned off in ${SINGLE_KEYS_PLACE}.`;
+ *  letters fire by accident — dictation, a stray hand — turns them off. It
+ *  takes the place's name as `{place}`. */
+export const KEY_HELP_SWITCH_NOTE_MSG = "settings.key.switchNote";
 
 /** Every `e.key` value the table claims the deck answers, lower-cased so a
  *  test can compare it with the handler's own literals without caring which

@@ -5,7 +5,12 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { KEY_HELP, KEY_HELP_NOTE } from "../key-help";
+import { KEY_HELP, KEY_HELP_NOTE_MSG } from "../key-help";
+import { en } from "../i18n/en";
+
+// CHANGED ON PURPOSE (the UI in every language): the note is a key now; the
+// words are read through the English catalog.
+const KEY_HELP_NOTE = en[KEY_HELP_NOTE_MSG];
 import { defaultReadingSheetText as sheetText } from "./sheet-source";
 
 const read = (rel: string) => readFileSync(fileURLToPath(new URL(rel, import.meta.url)), "utf8");

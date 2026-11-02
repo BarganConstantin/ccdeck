@@ -30,14 +30,19 @@ import ElsewhereSection, {
 } from "../components/ElsewhereSection";
 import { TOUR_WHY } from "../components/ReleaseActions";
 import { doorOut, SETTINGS_SECTIONS, type SettingsDoors, type SettingsSection } from "../settings";
-import { readyButtonCopy, RESTART_TO_UPDATE, updateRestartFailureText } from "../desktop-update";
+import { readyButtonCopy, RESTART_TO_UPDATE_MSG, updateRestartFailureText } from "../desktop-update";
 import { IDLE_BEFORE_RESTART_MS } from "../restart";
-import { CHECKS_OFF } from "../update-check";
+import { CHECKS_OFF_MSG } from "../update-check";
 import type { VersionInfo } from "../use-version-check";
 import { DEFAULT_PREFS } from "../sound";
 import { ACCOUNT_NOTIFY_DEFAULTS } from "../use-os-notifications";
 import { AWAY_QUIET_MS } from "../../server/auto-update.mjs";
 import shellEn from "../i18n/areas/shell/en";
+
+// CHANGED ON PURPOSE (the UI in every language): these are keys now, read here
+// through the English catalog.
+const RESTART_TO_UPDATE = shellEn[RESTART_TO_UPDATE_MSG];
+const CHECKS_OFF = shellEn[CHECKS_OFF_MSG];
 
 const read = (rel: string) => readFileSync(fileURLToPath(new URL(rel, import.meta.url)), "utf8");
 const flat = (text: string) => text.replace(/\s+/g, " ");

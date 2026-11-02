@@ -70,17 +70,18 @@ export interface RangeTotals {
  */
 export type PeriodKey = "today" | "month" | "all";
 
-export const PERIODS: ReadonlyArray<{ key: PeriodKey; label: string; noun: string; hint: string }> = [
-  // The `hint` is what the tab says when you rest on it, and `month` is the
+export const PERIODS: ReadonlyArray<{ key: PeriodKey; labelMsg: string; nounMsg: string; hintMsg: string }> = [
+  // The `hintMsg` is the key of what the tab says when you rest on it, and `month` is the
   // reason all three have one. Three words with no unit between them read as a
   // scale, and a reader who assumes the middle of a scale is a rolling 30 days
   // is wrong by up to 30 days on the 1st of the month with nothing on screen to
   // correct them. Saying it on one tab and not the others would have made the
   // named one look like the exception; these are the three sentences `sinceFor`
   // already implements, written down.
-  { key: "today", label: "today", noun: "today", hint: "Since midnight, on this machine's clock." },
-  { key: "month", label: "month", noun: "this month", hint: "Since the 1st of this calendar month — not the last 30 days." },
-  { key: "all", label: "all", noun: "all time", hint: "Every transcript on disk, back to 2020." },
+  // Each field is the key of the words, read with `t` where the strip draws it.
+  { key: "today", labelMsg: "usage.period.today", nounMsg: "usage.period.today.noun", hintMsg: "usage.period.today.hint" },
+  { key: "month", labelMsg: "usage.period.month", nounMsg: "usage.period.month.noun", hintMsg: "usage.period.month.hint" },
+  { key: "all", labelMsg: "usage.period.all", nounMsg: "usage.period.all.noun", hintMsg: "usage.period.all.hint" },
 ];
 
 /**
@@ -341,16 +342,10 @@ export function sessionListNote(
   noun: string,
   scale: SessionListScale,
   money: (usd: number) => string,
-  tr?: TFunction,
+  tr: TFunction = translateNow,
 ): string {
-  if (tr) {
-    const head = tr("usage.sessionNote", { noun });
-    return scale.over ? `${head}\n${tr("usage.sessionNote.over", { sum: money(scale.sum), total: money(scale.total) })}` : head;
-  }
-  const first = `Sessions with activity ${noun}, and what ccusage puts against each one.`;
-  if (!scale.over) return first;
-  return `${first}\nThey add up to ${money(scale.sum)}, more than the ${money(scale.total)} above: `
-    + "what a session cost and what a day cost are two different measurements, and they need not agree.";
+  const head = tr("usage.sessionNote", { noun });
+  return scale.over ? `${head}\n${tr("usage.sessionNote.over", { sum: money(scale.sum), total: money(scale.total) })}` : head;
 }
 
 /**
@@ -485,8 +480,8 @@ export function rangeView(landed: Landed | null, pressed: PeriodKey): RangeView 
  * not leave the headline with no noun at all.
  */
 export function nounFor(shown: PeriodKey | null, pressed: PeriodKey, tr: TFunction = translateNow): string {
-  const key = PERIODS.find(p => p.key === (shown ?? pressed))?.key ?? "today";
-  return tr(`usage.period.${key}.noun`);
+  const period = PERIODS.find(p => p.key === (shown ?? pressed)) ?? PERIODS[0];
+  return tr(period.nounMsg);
 }
 
 /** Everything the canvas can add to a reading between two of them. Structurally

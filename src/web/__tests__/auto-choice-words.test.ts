@@ -8,7 +8,12 @@
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
-import { homeTitle, isHome, isNextChoice, type NextChoice, NEXT_OPTIONS, WEEKLY_HINT } from "../auto-choice";
+import { homeTitle, isHome, isNextChoice, type NextChoice, NEXT_OPTIONS, nextOptionLabel, WEEKLY_HINT_MSG } from "../auto-choice";
+import { en } from "../i18n/en";
+
+// CHANGED ON PURPOSE (the UI in every language): the options and the hint are
+// keys now; the words are read through the English catalog.
+const WEEKLY_HINT = en[WEEKLY_HINT_MSG];
 import { type AutoStatus } from "../claude-accounts";
 import { AutoSwitchSettings } from "../components/AutoSwitchPolicy";
 import { nextCommit, thresholdCommit } from "../picker-commit";
@@ -35,7 +40,8 @@ function policy(enabled: boolean, stored: NextChoice, extra: Record<string, unkn
 
 describe("the next-account picker", () => {
   it("offers the two rules in plain words, the old behaviour first", () => {
-    expect(NEXT_OPTIONS.map(o => o.label)).toEqual(["Most room left", "Soonest weekly reset"]);
+    expect(NEXT_OPTIONS.map(o => en[o.labelMsg])).toEqual(["Most room left", "Soonest weekly reset"]);
+    expect(NEXT_OPTIONS.map(o => nextOptionLabel(o.value))).toEqual(["Most room left", "Soonest weekly reset"]);
     expect(NEXT_OPTIONS[0].value).toBe("room");
     expect(WEEKLY_HINT).toMatch(/4 days/);
     expect(isNextChoice("weekly")).toBe(true);

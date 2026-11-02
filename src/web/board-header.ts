@@ -26,7 +26,7 @@ export const BOARD_HEAD_CLASS = "board-head";
  *  is drawn. "Done on this board" and "Spent on this board" where Figma says
  *  "today": both figures are the board's, which forgets finished sessions a
  *  couple of minutes after they end (board-limits.ts DONE_SESSION_GRACE_MS,
- *  board-usage.ts BOARD_SPEND_LABEL), not the calendar day's, and the code's
+ *  board-usage.ts BOARD_SPEND_LABEL_MSG), not the calendar day's, and the code's
  *  wording wins over the drawing's. */
 export const BOARD_HEAD_LABEL_MSGS = [
   "board.header.waiting",
