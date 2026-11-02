@@ -64,6 +64,9 @@ function stageOn(open: unknown) {
     // The textarea taking the focus is what tells the session the pane has the keys.
     focus: vi.fn(() => { doc().activeElement = textarea; events?.onFocusChange(true); }),
     blur: () => { doc().activeElement = body; events?.onFocusChange(false); },
+    hasFocus: () => doc().activeElement === textarea,
+    applicationCursorKeys: () => false,
+    scrollForInput() {},
     cell: () => null,
     dispose() {},
   };

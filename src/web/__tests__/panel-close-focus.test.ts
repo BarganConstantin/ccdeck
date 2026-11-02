@@ -147,15 +147,18 @@ describe("the wiring", () => {
     // Both sides of the one Accounts panel close through closeAccounts, which
     // arms the hand-off of the side the deck has (Claude's, else Codex's).
     expect(app).toContain("const closeAccounts = () => { (providers.claude ? panelReturn.accounts : panelReturn.codex)(); closeAccountsPanel(); };");
-    expect(app).toMatch(/<AccountsPanel[^>]*onClose=\{closeAccounts\}/);
-    expect(app).toMatch(/<CodexAccountsPanel[^>]*onClose=\{closeAccounts\}/);
+    // CHANGED ON PURPOSE (the phone layout): the × of a sheet is the sheet's one
+    // close on a phone (sheetClose), which calls the same close it is given.
+    expect(app).toMatch(/<AccountsPanel[^>]*onClose=\{sheetClose\("accounts", closeAccounts\)\}/);
+    expect(app).toMatch(/<CodexAccountsPanel[^>]*onClose=\{sheetClose\("accounts", closeAccounts\)\}/);
     expect(app).toMatch(/onClose=\{\(\) => \{ panelReturn\.sessionList\(\); closeSessionList\(\); \}\}/);
-    expect(app).toMatch(/onClose=\{\(\) => \{ panelReturn\.usage\(\); setUsagePanelOpen\(false\); \}\}/);
-    expect(app).toMatch(/onClose=\{\(\) => \{ panelReturn\.machine\(\); setMachinePanelOpen\(false\); \}\}/);
+    expect(app).toMatch(/onClose=\{sheetClose\("usage", \(\) => \{ panelReturn\.usage\(\); setUsagePanelOpen\(false\); \}\)\}/);
+    expect(app).toMatch(/onClose=\{sheetClose\("machine", \(\) => \{ panelReturn\.machine\(\); setMachinePanelOpen\(false\); \}\)\}/);
     // CHANGED ON PURPOSE (V4's Figma): the Workspace's Inspector column folds
     // through foldInspector, which gives the keyboard to the pane; the Board's
     // sheet keeps the hand-off to the card.
-    expect(app).toMatch(/onClose=\{inWorkspace && inspectorColumn \? foldInspector : \(\) => \{ panelReturn\.detail\(\); setDetailOpen\(false\); \}\}/);
+    // And (the phone layout) on a phone the same close is the sheet's one close.
+    expect(app).toMatch(/onClose=\{inWorkspace && inspectorColumn \? foldInspector : sheetClose\("inspector", \(\) => \{ panelReturn\.detail\(\); setDetailOpen\(false\); \}\)\}/);
     expect(app).toMatch(/const foldInspector = useCallback\(\(\) => \{\s*setInspectorFolded\(true\);\s*setDetailOpen\(false\);/);
     // CHANGED ON PURPOSE (V4's Figma): the Inspector's fold is named "Fold the Inspector".
     expect(detail).toMatch(/aria-label="Fold the Inspector"\s+onClick=\{onClose\}/);

@@ -158,6 +158,14 @@ export interface StageTerminal {
   viewAnswers(kinds: readonly ViewKind[]): void;
   focus(): void;
   blur(): void;
+  /** Whether the terminal's own input holds the focus. */
+  hasFocus(): boolean;
+  /** Whether the program turned application cursor keys on (DECCKM, what vim
+   *  and less ask for): then an arrow is ESC O A, not ESC [ A. */
+  applicationCursorKeys(): boolean;
+  /** What a typed key does to a view scrolled back: it comes to the bottom,
+   *  unless the terminal's own scrollOnUserInput is off. */
+  scrollForInput(): void;
   /** The cell it drew with, in CSS pixels, once it has drawn. */
   cell(): Cell | null;
   dispose(): void;
@@ -235,6 +243,12 @@ export function forgetKeyInFlight(term: unknown): void {
 /** The byte Ctrl+V sends in a terminal: Claude Code and Codex read an image
  *  from the clipboard on it. */
 export const CTRL_V = "\x16";
+
+/** An up or down arrow as a program in application cursor-key mode wants it
+ *  (ESC O A / ESC O B); any other bytes are returned as they are. */
+export function applicationArrow(bytes: string): string {
+  return bytes === "\x1b[A" || bytes === "\x1b[B" ? `\x1bO${bytes[2]}` : bytes;
+}
 
 /** How soon after a middle press a paste counts as that press's: the browser
  *  fires it within the same click. */
@@ -426,6 +440,9 @@ export const mountXterm: MountTerminal = async (host, init, events) => {
     viewAnswers: kinds => replies.setViewAnswers(kinds),
     focus: () => term.focus(),
     blur: () => term.blur(),
+    hasFocus: () => term.textarea != null && document.activeElement === term.textarea,
+    applicationCursorKeys: () => term.modes.applicationCursorKeysMode,
+    scrollForInput: () => { if (term.options.scrollOnUserInput !== false) term.scrollToBottom(); },
     // The screen element is exactly cols × rows cells: xterm sizes it to the
     // renderer's canvas. Measured rather than read off xterm's private render
     // service, which has no public accessor in xterm 6.
@@ -1114,7 +1131,15 @@ export function createTerminalSession(deps: SessionDeps, callbacks: SessionCallb
         else events.onInput(keys[i]);
       }
     },
-    press(bytes) { events.onInput(bytes); },
+    press(bytes) {
+      // The terminal's own key: an arrow follows the cursor-key mode, a view
+      // scrolled back comes to the bottom as it does for a typed key, and a
+      // terminal that held the focus before the press holds it after.
+      const held = term?.hasFocus() === true;
+      events.onInput(term?.applicationCursorKeys() ? applicationArrow(bytes) : bytes);
+      term?.scrollForInput();
+      if (held) term?.focus();
+    },
     release() { term?.blur(); },
 
     dispose() {

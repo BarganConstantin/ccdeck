@@ -205,13 +205,19 @@ describe("the deck's five regions are five landmarks (#381)", () => {
       // focus is inside it, which renders nothing either. The accounts panel also says which
       // side of the Claude/Codex switch it is (hidden, data-side): the hidden
       // side stays mounted but leaves the tree.
+      // CHANGED ON PURPOSE (the phone layout): it also marks a side the switch
+      // showed again (data-switched), so a phone's sheet does not rise again
+      // for it; a data attribute, nothing the rotor reads.
       expect(code(source(file)), file)
-        .toMatch(new RegExp(`<aside className=${className} id="${cls}" aria-label=${label}(?:\\s+on[A-Z]\\w*=\\{[\\w.]+\\}|\\s+ref=\\{\\w+\\}|\\s+\\{\\.\\.\\.place\\.panel\\}|\\s+hidden=\\{side === "hidden"\\}|\\s+data-side=\\{side\\})*>`));
+        .toMatch(new RegExp(`<aside className=${className} id="${cls}" aria-label=${label}(?:\\s+on[A-Z]\\w*=\\{[\\w.]+\\}|\\s+ref=\\{\\w+\\}|\\s+\\{\\.\\.\\.place\\.panel\\}|\\s+hidden=\\{side === "hidden"\\}|\\s+data-side=\\{side\\}|\\s+data-switched=\\{wasHidden\\.current && side !== "hidden" \\? "" : undefined\\})*>`));
     }
     // The detail panel was already an <aside> and was the unnamed one. Its
     // frame is components/DetailAside.tsx, which App.tsx mounts.
     expect(code(app)).toMatch(/<DetailAside\b/);
-    expect(code(source("components/DetailAside.tsx"))).toMatch(/<aside className="detail" aria-label=\{t\("board\.detailPanel\.title"\)\}>/);
+    // CHANGED ON PURPOSE (the phone layout): on a phone the Inspector sheet is
+    // held for its slide down the bottom edge and wears `leaving` while it goes
+    // (like the other three sheets); the landmark and its name are the same.
+    expect(code(source("components/DetailAside.tsx"))).toMatch(/<aside className=\{leaving \? "detail leaving" : "detail"\} aria-label=\{t\("board\.detailPanel\.title"\)\}>/);
   });
 
   it("has no <div> left wearing one of those class names", () => {

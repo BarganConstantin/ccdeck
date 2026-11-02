@@ -380,19 +380,9 @@
    window when that is narrower. The desktop layout is untouched. */
 @media (max-width: 640px) {
   .app, .app:not(:has(.detail)) { grid-template-columns: minmax(0, 1fr); }
-  /* THE INSPECTOR IS A SHEET HERE (phone-sheet.css has the look): the whole width
-     of the window, up from the dock, its height capped under the top bar. */
-  .detail {
-    --sheet-bottom: calc(var(--dock-h) + env(safe-area-inset-bottom));
-    --sheet-room: calc(100dvh - var(--topbar-h) - var(--sheet-bottom) - 16px);
-    position: fixed;
-    top: auto;
-    left: 0;
-    right: 0;
-    bottom: var(--sheet-bottom);
-    width: 100%;
-    z-index: 20;
-  }
+  /* THE INSPECTOR IS A SHEET HERE: phone-sheet.css has its geometry and its
+     look (the whole width of the window, up from the dock, its height capped
+     under the top bar), written once for all four sheets. */
 }
 
 /* The panel's captions, at both of the levels they now sit at (#381): the

@@ -68,7 +68,7 @@ import CanvasMain from "./components/CanvasMain";
 import DeckBanner from "./components/DeckBanner";
 import { OfflineCard } from "./components/ConnectionBanner";
 import { usePhoneSheets } from "./use-phone-sheets";
-import { SHEET_CLOSE_MS, SHEET_FADE_MS } from "./phone-sheet";
+import { pressSessionsDoor, sheetCloseMs, sheetFadeMs } from "./phone-sheet";
 import DeckDialogs from "./components/DeckDialogs";
 import StatusBar from "./components/StatusBar";
 import ErrorBoundary from "./components/ErrorBoundary";
@@ -181,7 +181,8 @@ function Inner() {
   // Restored first, because the right-hand panels' room depends on its width.
   const leftColumn = useLeftColumn();
   const { sessionListOpen, accountsPanelOpen, panel: leftPanel, toggleSessionList, toggleAccountsPanel,
-          openAccountsPanel, closeSessionList, closeSessionListToCanvas, closeAccountsPanel } = leftColumn;
+          openAccountsPanel, closeSessionList, closeSessionListToCanvas, closeAccountsPanel,
+          leavePhone: leaveColumnPhone } = leftColumn;
   // The rail's width at the density in force (--rail-w), which the column and
   // the right-hand panels' room both follow.
   const railWidth = useRailWidth();
@@ -214,7 +215,7 @@ function Inner() {
   // because a sheet on a phone is held for its own, longer, exit.
   const phone = useMediaQuery(PHONE_QUERY);
   const railExitMs = useMemo(
-    () => phone ? (reducedMotion ? SHEET_FADE_MS : SHEET_CLOSE_MS) : tokenMs(reducedMotion ? "--dur-xfade" : "--dur-fast"),
+    () => phone ? (reducedMotion ? sheetFadeMs() : sheetCloseMs()) : tokenMs(reducedMotion ? "--dur-xfade" : "--dur-fast"),
     [reducedMotion, phone]);
   const usagePhase = usePanelPresence(usagePanelOpen, railExitMs);
   const machinePhase = usePanelPresence(machinePanelOpen, railExitMs);
@@ -556,6 +557,14 @@ function Inner() {
    *  Not `detailOpen` on its own — the panel is `detailOpen && selected`, so a
    *  deck with the panel enabled and nothing selected is 360px out. */
   const detailShown = detailOpen && selected != null;
+  // On a phone the Inspector is a sheet, and leaves down the bottom edge as the
+  // other three do: its element is held for the slide, the flag already
+  // dropped. Never held on a wider window, where it goes at once as it did.
+  const detailPhase = usePanelPresence(detailShown, phone ? railExitMs : 0);
+  const detailLeaving = phone && isLeaving(detailShown, detailPhase);
+  const lastSelected = useRef(selected);
+  if (selected) lastSelected.current = selected;
+  const detailOnScreen = detailShown ? selected : detailLeaving ? lastSelected.current : null;
   // Where keyboard focus goes when a panel's own × or ‹ takes it away with the
   // panel: the topbar button that opens it, or the card the detail panel was
   // about — use-panel-return.ts.
@@ -960,6 +969,19 @@ function Inner() {
     paneWasOpen.current = paneOpen;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [phone, paneOpen]);
+  // ACCOUNTS OVER A PANE. A pane on a phone is the whole screen under the top
+  // bar, and a sheet drawn over its header would cover the buttons there (and
+  // the Inspector and the other two already give the pane back). So Accounts,
+  // asked for from any door or key while a pane is up, takes the right of the
+  // deck back from it: the pane goes at once, the list comes back as it does on
+  // leaving a pane, and the sheet comes up over the list.
+  const accountsWasOpen = useRef(accountsPanelOpen);
+  const { giveRightBack } = stage;
+  useLayoutEffect(() => {
+    const opened = accountsPanelOpen && !accountsWasOpen.current;
+    accountsWasOpen.current = accountsPanelOpen;
+    if (phone && opened && paneOpen) giveRightBack();
+  }, [phone, accountsPanelOpen, paneOpen, giveRightBack]);
   const closeAccounts = () => { (providers.claude ? panelReturn.accounts : panelReturn.codex)(); closeAccountsPanel(); };
   // The empty board's notice (nothing seen yet, the stream unreachable, too many
   // tabs). On a phone the Sessions list covers the canvas it would sit on, so
@@ -980,8 +1002,32 @@ function Inner() {
       machine: () => { panelReturn.machine(); machineRail.set(false); },
       inspector: () => { panelReturn.detail(); setDetailOpen(false); },
     },
+    // What focus goes back to when a sheet closes: the dock's door, or the
+    // session's row in the list.
+    openers: {
+      accounts: () => (providers.claude ? panelReturn.toggles.accounts : panelReturn.toggles.codex)?.current ?? null,
+      usage: () => panelReturn.toggles.usage.current,
+      machine: () => panelReturn.toggles.machine.current,
+      inspector: () => (primarySelectedId
+        ? document.querySelector<HTMLElement>(`.session-list .sl-row[data-session="${CSS.escape(primarySelectedId)}"]`)
+        : null),
+    },
     modalOpenRef,
+    // The window grew past a phone's width: Accounts and the list in one
+    // column become the list, Accounts waiting behind it (an eviction, which
+    // is not stored).
+    onLeavePhone: leaveColumnPhone,
   });
+  /** The Sessions door with a sheet up over the list: it reads not pressed, and
+   *  its press is "go to Sessions" (phone-sheet.ts pressSessionsDoor). */
+  const sessionsDoorUnderSheet = <T extends { id: string; open?: boolean; onPress: () => void }>(item: T): T =>
+    item.id === "session-list" && sheets.sheet != null
+      ? { ...item, open: false, onPress: () => pressSessionsDoor({
+        sheet: sheets.sheet, listOpen: sessionListOpen, closeSheet: sheets.closeSheet, toggleList: item.onPress,
+      }) }
+      : item;
+  /** A sheet's × on a phone is the sheet's one close, whichever sheet it is. */
+  const sheetClose = (name: "accounts" | "usage" | "machine" | "inspector", plain: () => void) => (phone ? () => sheets.closeSheet(name) : plain);
   const accountsSwitch = accountSide.both
     ? <AccountsSwitch shown={shownAccountProvider} notices={accountSide.notices} onPick={accountSide.pick} />
     : undefined;
@@ -992,14 +1038,14 @@ function Inner() {
     <>
       {accountsDrawn && (shownAccountProvider === "claude" || accountSide.bothMounted) && (
         <AccountsPanel leaving={isLeaving(accountsPanelOpen, accountsPhase)} onReport={dialogs.openFeedback}
-          onRoster={attention.observe} onClose={closeAccounts}
+          onRoster={attention.observe} onClose={sheetClose("accounts", closeAccounts)}
           lanWanted={lanWanted} onLanShown={lanShown} switcher={accountsSwitch}
           side={sideState("claude")} onNotice={accountSide.noteClaude}
           planLabel={meterQuota.reading?.planLabel ?? null} />
       )}
       {accountsDrawn && (shownAccountProvider === "codex" || accountSide.bothMounted) && (
         <CodexAccountsPanel leaving={isLeaving(accountsPanelOpen, accountsPhase)}
-          onClose={closeAccounts} switcher={accountsSwitch}
+          onClose={sheetClose("accounts", closeAccounts)} switcher={accountsSwitch}
           side={sideState("codex")} onNotice={accountSide.noteCodex} />
       )}
     </>
@@ -1009,8 +1055,7 @@ function Inner() {
     // data-view exists only in Workspace, so with the Command Panel off the
     // root is the root it was; data-zoom folds the list and the Inspector
     // (workspace.css); the switch between the views is view-switch.ts.
-    <div ref={appRef} className="app" data-view={inWorkspace ? "workspace" : undefined} data-zoom={zoomPhase}
-      data-sheet={phone ? sheets.sheet ?? undefined : undefined}>
+    <div ref={appRef} className="app" data-view={inWorkspace ? "workspace" : undefined} data-zoom={zoomPhase}>
       {/* The deck's regions, and why each one is the element it is (#381).
           Before this the whole page was <div>s apart from the topbar, so a
           screen reader's landmark rotor listed one entry — Banner — for an
@@ -1078,10 +1123,11 @@ function Inner() {
       {phone
         // Five doors, as the phone frame draws them: Accounts, Sessions, Usage,
         // Machine and More. Settings and the rest are in More. One door is
-        // active at a time: Sessions gives way while a sheet that has a door
-        // of its own is up over it.
+        // active at a time: Sessions gives way while a sheet is up over it, and
+        // then its press means "go to Sessions" (the sheet closes, the list
+        // stays), so the door never says closed and does the other thing.
         ? <EdgeDock
-            items={[...rails.left, ...rails.right[0]].map(item => item.id === "session-list" && sheets.sheet != null && sheets.sheet !== "inspector" ? { ...item, open: false } : item)}
+            items={[...rails.left, ...rails.right[0]].map(sessionsDoorUnderSheet)}
             more={[rails.search, ...rails.capacity, ...rails.right.slice(1).flat(), ...rails.integrations, ...rails.explore, ...rails.utilities]}
             offline={everConnected && !live} />
         : <EdgeRail label={t("board.rail.tools")} groups={rails.panelBar} foot={rails.panelFoot} />}
@@ -1228,7 +1274,7 @@ function Inner() {
           incidents={incidents}
           liveSince={liveSince}
           leaving={usagePhase === "leaving"}
-          onClose={() => { panelReturn.usage(); setUsagePanelOpen(false); }}
+          onClose={sheetClose("usage", () => { panelReturn.usage(); setUsagePanelOpen(false); })}
         />
       )}
 
@@ -1238,7 +1284,7 @@ function Inner() {
           slot left when usage has the first one — see .sysdetail.shifted. */}
       {isMounted(machinePhase) && (
         <MachinePanel usageOpen={usagePanelOpen} leaving={machinePhase === "leaving"}
-          onClose={() => { panelReturn.machine(); setMachinePanelOpen(false); }} />
+          onClose={sheetClose("machine", () => { panelReturn.machine(); setMachinePanelOpen(false); })} />
       )}
 
       {/* NOTHING SELECTED, NO PANEL. It used to draw an `EmptyDetail` — a title,
@@ -1263,18 +1309,18 @@ function Inner() {
           />
         ) : <EmptyInspector />
       ) : null}
-      {detailOpen && selected ? (
+      {detailOnScreen ? (
         <DetailAside
-          workspace={inWorkspace}
-          selected={selected} now={now} openTool={openTool} setSummaryFor={setSummaryFor}
+          workspace={inWorkspace} leaving={detailLeaving}
+          selected={detailOnScreen} now={now} openTool={openTool} setSummaryFor={setSummaryFor}
           stateRef={stateRef} removeSelectedNode={removeSelectedNode}
           onSelectAgent={selectInspected}
-          onClose={inWorkspace && inspectorColumn ? foldInspector : () => { panelReturn.detail(); setDetailOpen(false); }}
+          onClose={inWorkspace && inspectorColumn ? foldInspector : sheetClose("inspector", () => { panelReturn.detail(); setDetailOpen(false); })}
         />
       ) : null}
 
       {/* A phone's sheets lie over a scrim; a press on it closes the one up. */}
-      {phone && <div className="phone-scrim" data-open={sheets.sheet ? "" : undefined} aria-hidden="true" onClick={sheets.closeSheet} />}
+      {phone && <div className="phone-scrim" data-open={sheets.sheet ? "" : undefined} aria-hidden="true" onClick={() => sheets.closeSheet()} />}
 
       {account.on && <Suspense fallback={null}><AccountBridge appliers={accountAppliers} /></Suspense>}
 

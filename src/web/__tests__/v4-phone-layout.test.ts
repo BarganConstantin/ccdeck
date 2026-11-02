@@ -14,8 +14,9 @@ import { describe, expect, it } from "vitest";
 import { OfflineCard, UNREACHABLE_SUB, lastNewsTime, unreachableSub } from "../components/ConnectionBanner";
 import PhoneKeys, { PHONE_KEYS } from "../components/terminal/PhoneKeys";
 import {
-  CLOSE_SHARE, FLICK_SPEED, GRAB_ZONE_PX, SHEET_CLOSE_MS, SHEET_EASE, SHEET_NAMES, SHEET_OPEN_MS,
-  dragOffset, releaseCloses, sheetToKeep, type SheetFlags,
+  CLOSE_SHARE, DRAG_SLOP_PX, FLICK_SPEED, GRAB_ZONE_PX, MIN_FLICK_PX, SHEET_NAMES,
+  dragOffset, dragStarts, pressSessionsDoor, releaseCloses, sheetCloseMs, sheetEase, sheetFadeMs, sheetOpenMs, sheetToKeep,
+  type SheetFlags,
 } from "../phone-sheet";
 import { PHONE_BAR_H, PHONE_HEAD_H, PHONE_KEYS_H } from "../stage-geometry";
 
@@ -185,7 +186,11 @@ describe("the key row sends through the pane's existing terminal input", () => {
 
   it("the row is wired to the session's own input: press() is the terminal's onInput, and no new transport is touched", () => {
     const session = read("use-terminal-session.ts");
-    expect(session).toContain("press(bytes) { events.onInput(bytes); },");
+    // CHANGED ON PURPOSE (the phone layout): the press is still the terminal's
+    // onInput, but an arrow follows the terminal's cursor-key mode and a view
+    // scrolled back comes to the bottom, as a typed key does (use-terminal-
+    // session.test.ts runs both).
+    expect(session).toContain("events.onInput(term?.applicationCursorKeys() ? applicationArrow(bytes) : bytes);");
     expect(read("components/terminal/TerminalStage.tsx")).toContain("onKey={session.press}");
     expect(read("components/terminal/PhoneKeys.tsx")).not.toMatch(/fetch|WebSocket|sendInput|terminal-api|terminal-protocol/);
   });
@@ -211,13 +216,37 @@ describe("one sheet at a time, closed by Esc or a flick", () => {
     expect(sheetToKeep({ ...none, usage: true, machine: true }, { ...none, machine: true })).toBe("machine");
   });
 
-  it("a release closes over 0.11 px/ms whatever the distance, else past 40% of the height", () => {
+  // CHANGED ON PURPOSE (the phone layout): a flick needs the speed AND 12px of
+  // downward travel, so a tap whose finger moved a pixel or two in a frame
+  // (2px in 16ms is 0.125 px/ms, over the speed) does not close the sheet. The
+  // first and last pins below are the ones the old test held; the middle ones
+  // are the new rule.
+  it("a release closes over 0.11 px/ms once it went 12px down, else past 40% of the height", () => {
     expect(FLICK_SPEED).toBe(0.11);
+    expect(MIN_FLICK_PX).toBe(12);
     expect(CLOSE_SHARE).toBe(0.4);
-    expect(releaseCloses(10, 400, 30, 100)).toBe(true);
-    expect(releaseCloses(10, 400, 10, 100)).toBe(false);
+    expect(releaseCloses(30, 400, 30, 100)).toBe(true);
+    expect(releaseCloses(30, 400, 10, 100)).toBe(false);
     expect(releaseCloses(161, 400, 1, 100)).toBe(true);
     expect(releaseCloses(159, 400, 1, 100)).toBe(false);
+  });
+
+  it("a tap with a little jitter is not a flick: 2px in 16ms never closes, a fast 30px does", () => {
+    expect(releaseCloses(2, 400, 2, 16)).toBe(false);
+    expect(releaseCloses(11, 400, 11, 16)).toBe(false);
+    expect(releaseCloses(12, 400, 12, 16)).toBe(true);
+    expect(releaseCloses(30, 400, 30, 100)).toBe(true);
+    // Fast but upward is no flick either.
+    expect(releaseCloses(-30, 400, -30, 100)).toBe(false);
+  });
+
+  it("a press becomes a drag only after 8px of vertical travel, either way", () => {
+    expect(DRAG_SLOP_PX).toBe(8);
+    expect(dragStarts(0)).toBe(false);
+    expect(dragStarts(6)).toBe(false);
+    expect(dragStarts(-7.9)).toBe(false);
+    expect(dragStarts(8)).toBe(true);
+    expect(dragStarts(-8)).toBe(true);
   });
 
   it("a drag follows the finger 1:1 on the way down and a pull up resists without a stop", () => {
@@ -229,13 +258,25 @@ describe("one sheet at a time, closed by Esc or a flick", () => {
   });
 
   it("opens in 280 ms and closes in 200, both on the stage's curve, from the tokens", () => {
+    // CHANGED ON PURPOSE (the phone layout): the times and the curve are read
+    // from the tokens at run time (rail-motion.ts motionToken), no longer
+    // restated as constants. With no page to read them from they fall back to
+    // tokens.css's own values, which this pins to the sheet.
     const tokens = read("styles/tokens.css");
-    expect(SHEET_OPEN_MS).toBe(280);
-    expect(SHEET_CLOSE_MS).toBe(200);
-    expect(SHEET_EASE).toBe("cubic-bezier(0.32, 0.72, 0, 1)");
-    expect(tokens).toContain(`--dur-stage-in: ${SHEET_OPEN_MS}ms;`);
-    expect(tokens).toContain(`--dur-stage-out: ${SHEET_CLOSE_MS}ms;`);
-    expect(tokens).toContain(`--ease-stage: ${SHEET_EASE};`);
+    expect(sheetOpenMs()).toBe(280);
+    expect(sheetCloseMs()).toBe(200);
+    expect(sheetFadeMs()).toBe(200);
+    expect(sheetEase()).toBe("cubic-bezier(0.32, 0.72, 0, 1)");
+    expect(tokens).toContain(`--dur-stage-in: ${sheetOpenMs()}ms;`);
+    expect(tokens).toContain(`--dur-stage-out: ${sheetCloseMs()}ms;`);
+    expect(tokens).toContain(`--dur-base: ${sheetFadeMs()}ms;`);
+    expect(tokens).toContain(`--ease-stage: ${sheetEase()};`);
+    const motion = read("rail-motion.ts");
+    expect(motion).toContain('"--dur-stage-in": "280ms", "--dur-stage-out": "200ms"');
+    const phoneSheet = read("phone-sheet.ts");
+    expect(phoneSheet).toContain('tokenMs("--dur-stage-in")');
+    expect(phoneSheet).toContain('tokenMs("--dur-stage-out")');
+    expect(phoneSheet).toContain('motionToken("--ease-stage")');
   });
 
   it("the sheet is --panel with --r-overlay on its top corners, full width, up from the bottom edge, over a scrim", () => {
@@ -257,7 +298,44 @@ describe("one sheet at a time, closed by Esc or a flick", () => {
     const reduced = css.slice(css.indexOf("@media (max-width: 640px) and (prefers-reduced-motion: reduce)"));
     expect(squash(reduced)).toContain("transition:opacityvar(--dur-base)var(--ease);");
     expect(squash(reduced)).toContain("transform:none;");
-    expect(read("use-phone-sheets.ts")).toContain("SHEET_FADE_MS");
+    // CHANGED ON PURPOSE (the phone layout): the crossfade's length is the
+    // token, read by sheetFadeMs, and App holds the panel for it.
+    expect(read("phone-sheet.ts")).toContain('tokenMs("--dur-base")');
+    expect(read("App.tsx")).toContain("sheetFadeMs()");
+  });
+
+  it("the Claude | Codex switch does not replay the slide: the starting style exempts the side shown again", () => {
+    const css = strip(read("styles/phone-sheet.css"));
+    const starting = blocksOf(css, "@starting-style {").map(([a, b]) => squash(css.slice(a, b)));
+    expect(starting.length).toBe(2);
+    // CHANGED ON PURPOSE (the phone layout): the exemption names a side the
+    // switch showed again (data-switched), not every side (data-side), so the
+    // sheet's first rise still plays on a deck with both CLIs.
+    // Open: the same sheet slide, but the switch's side keeps its place.
+    expect(starting[0]).toContain(squash(".app.app.app .accounts-panel[data-switched] { transform: none; }"));
+    // Reduced motion: no fade on the switch either.
+    expect(starting[1]).toContain(squash(".app.app.app .accounts-panel[data-switched] { transform: none; opacity: 1; }"));
+    expect(starting.join("")).not.toContain("accounts-panel[data-side]");
+    // Both sides set the mark only after they were hidden once.
+    for (const f of ["components/AccountsPanel.tsx", "components/CodexAccountsPanel.tsx"]) {
+      expect(read(f)).toContain('if (side === "hidden") wasHidden.current = true;');
+      expect(read(f)).toContain('data-switched={wasHidden.current && side !== "hidden" ? "" : undefined}');
+    }
+    // And the desktop's own exemption is still there, untouched.
+    expect(squash(strip(read("styles/left-column.css")))).toContain(squash(".left-column > .accounts-panel[data-side] { opacity: 1; }"));
+  });
+
+  it("the Inspector's leaving state is the other sheets', and its box is written once", () => {
+    const sheet = squash(strip(read("styles/phone-sheet.css")));
+    expect(sheet).toContain(".app.app.app.detail.leaving,");
+    const detail = strip(read("styles/detail-panel.css"));
+    expect(squash(phoneOf(detail))).not.toContain("position:fixed");
+    expect(squash(phoneOf(detail))).not.toContain("--sheet-bottom");
+  });
+
+  it("every header of a sheet is part of the grab zone, the Accounts one too", () => {
+    const css = strip(read("styles/phone-sheet.css"));
+    expect(css).toContain(".up-header, .sd-top, .insp-h, .ap-header { touch-action: none; }");
   });
 
   it("every sheet carries the handle, and the drag starts on the strip or the header, never on a control", () => {
@@ -267,7 +345,11 @@ describe("one sheet at a time, closed by Esc or a flick", () => {
     const hook = read("use-phone-sheets.ts");
     expect(GRAB_ZONE_PX).toBe(44);
     expect(hook).toContain("target.closest(CONTROL)");
-    expect(hook).toContain('e.key !== "Escape"');
+    // CHANGED ON PURPOSE (the phone layout): Esc has one owner, the deck's own
+    // handler, asked through the dismiss stack the sheet is on while it is up;
+    // the hook has no key listener (use-phone-sheets-run.test.ts runs it).
+    expect(hook).toContain('modalStack.push(() => dismissRef.current(), 0, "popover")');
+    expect(hook).not.toContain('"keydown"');
     expect(hook).toContain("pointerdown");
     expect(strip(read("styles/phone-sheet.css"))).toContain("touch-action: none;");
   });
@@ -290,8 +372,8 @@ describe("the offline card is inside Sessions, with the last news time", () => {
   it("the card says when the last news was, in the frame's words, and keeps the plain sentence when none came", () => {
     expect(unreachableSub(null)).toBe(UNREACHABLE_SUB);
     const at = new Date(2026, 10, 2, 14, 2).getTime();
-    expect(lastNewsTime(at)).toBe("14:02");
-    expect(unreachableSub(at)).toBe("Agents may still be running. Last news 14:02, so what you see may be old.");
+    expect(lastNewsTime(at, at)).toBe("14:02");
+    expect(unreachableSub(at, at)).toBe("Agents may still be running. Last news 14:02, so what you see may be old.");
     const out = renderToStaticMarkup(createElement(OfflineCard, { lastNewsAt: at }));
     expect(out).toContain('class="conn-banner conn-banner-phone" role="alert"');
     expect(out).toContain("Last news 14:02");
@@ -312,7 +394,12 @@ describe("the offline card is inside Sessions, with the last news time", () => {
     const dock = squash(phoneOf(strip(read("styles/edge-rails.css"))));
     expect(dock).toContain("width:7px;height:7px;border-radius:4px;background:var(--err);");
     expect(read("components/EdgeRails.tsx")).toContain('offlineDot={offline && item.id === "machine"}');
-    expect(read("use-event-stream.ts")).toContain("setLastNewsAt(heardRef.current)");
+    // CHANGED ON PURPOSE (the phone layout): the last news is the moment the
+    // link dropped, taken from the stream's own open and error (last-news.ts).
+    const stream = read("use-event-stream.ts");
+    expect(stream).toContain("linkRef.current = linkDropped(linkRef.current, Date.now());");
+    expect(stream).toContain("setLastNewsAt(linkRef.current.droppedAt);");
+    expect(stream).not.toContain("heardRef");
   });
 });
 
@@ -324,8 +411,29 @@ describe("the dock has five doors, and the rest are in More", () => {
     expect(app).toContain("more={[rails.search, ...rails.capacity, ...rails.right.slice(1).flat(), ...rails.integrations, ...rails.explore, ...rails.utilities]}");
   });
 
-  it("one door is active at a time: Sessions gives way while Accounts, Usage or Machine is up over it", () => {
-    expect(app).toContain('item.id === "session-list" && sheets.sheet != null && sheets.sheet !== "inspector" ? { ...item, open: false } : item');
+  // CHANGED ON PURPOSE (the phone layout): Sessions reads not pressed while ANY
+  // sheet is up over it (the Inspector too), and its press then means "go to
+  // Sessions" (the sheet closes, the list stays) instead of toggling the list
+  // shut under the sheet.
+  it("one door is active at a time: Sessions gives way while a sheet is up over it, and its press then goes to Sessions", () => {
+    expect(app).toContain('item.id === "session-list" && sheets.sheet != null');
+    expect(app).toContain("{ ...item, open: false, onPress: () => pressSessionsDoor({");
+    expect(app).toContain("items={[...rails.left, ...rails.right[0]].map(sessionsDoorUnderSheet)}");
+  });
+
+  it("pressing the Sessions door with a sheet up closes the sheet and leaves the list open, never toggling it shut", () => {
+    const calls: string[] = [];
+    const press = (sheet: "usage" | null, listOpen: boolean) => pressSessionsDoor({
+      sheet, listOpen, closeSheet: () => calls.push("closeSheet"), toggleList: () => calls.push("toggleList"),
+    });
+    press("usage", true);
+    expect(calls, "the list is open: only the sheet closes").toEqual(["closeSheet"]);
+    calls.length = 0;
+    press("usage", false);
+    expect(calls, "the list was shut: the sheet closes and Sessions opens").toEqual(["closeSheet", "toggleList"]);
+    calls.length = 0;
+    press(null, true);
+    expect(calls, "no sheet: the door is its plain toggle").toEqual(["toggleList"]);
   });
 
   it("each door is the dock's whole height, 14px glyphs, the word --muted and --text when active, no fill", () => {
@@ -395,28 +503,45 @@ describe("the phone's top bar and empty states", () => {
 });
 
 describe("the desktop layout is unchanged: no phone rule is outside the phone query", () => {
-  const sheets: Array<[string, RegExp[]]> = [
-    ["styles/phone-sheet.css", [/phone-scrim/, /sheet-handle/, /dock-more-pop/, /sl-empty-notice/, /\.accounts-panel/, /--topbar-h/]],
-    ["styles/stage-shell.css", [/\.ts-key\b/, /\.ts-more/, /ts-keyrow/]],
-    ["styles/edge-rails.css", [/rail-offline-dot/]],
-    ["styles/session-list.css", [/sl-header \{ position: relative/]],
-    ["styles/search-and-banners.css", [/\.session-list \.conn-banner-phone/]],
+  const KEY_LOOK = `.ts-key { position: relative; padding: 0; border: 1px solid var(--line); border-radius: var(--r-panel); background: var(--bg-soft); color: var(--text-secondary); font: 500 12px/16px var(--font-mono); transition: transform var(--dur-fast) var(--ease); }`;
+  // CHANGED ON PURPOSE (the phone layout): the old guard let a rule outside the
+  // query pass when "display: none" happened to stand within 60 characters
+  // before it, so a rule next to a hide passed on its neighbour's account. Now
+  // the rules a sheet may carry outside the query are listed, exactly, and each
+  // is a hide of a phone-only part. Anything else that names a phone selector
+  // outside the query fails.
+  const sheets: Array<[string, RegExp[], string[]]> = [
+    ["styles/phone-sheet.css", [/phone-scrim/, /sheet-handle/, /dock-more-pop/, /sl-empty-notice/, /\.accounts-panel/, /--topbar-h/],
+      [".sheet-handle { display: none; }"]],
+    // The key's own look is the one rule that is not a hide: a button's look is
+    // not left to a query (control-appearance.test.ts reads it outside), and the
+    // row it is in is display: none above 640, so it draws nothing there.
+    ["styles/stage-shell.css", [/\.ts-key\b/, /\.ts-more/, /ts-keyrow/],
+      [".ts-keyrow { display: none; }", ".ts-head > .ts-more.glyph-btn { display: none; }", KEY_LOOK]],
+    ["styles/edge-rails.css", [/rail-offline-dot/], []],
+    ["styles/session-list.css", [/\.sl-header\{position:relative/], []],
+    ["styles/search-and-banners.css", [/\.session-list\.conn-banner-phone/], []],
   ];
 
-  for (const [path, needles] of sheets) {
-    it(`${path}: what the phone adds is held by the query, the desktop part carries no such declaration`, () => {
-      const css = strip(read(path));
-      const desktop = outsideMedia(css);
+  for (const [path, needles, allowed] of sheets) {
+    it(`${path}: what the phone adds is held by the query, and outside it only ${allowed.length === 0 ? "nothing" : "the listed hides"}`, () => {
+      for (const rule of allowed) expect(rule, "an allowed rule is a hide (or the key's look)").toSatisfy((r: string) => /\{ display: none; \}$/.test(r) || r === KEY_LOOK);
+      const desktop = outsideMedia(strip(read(path)));
+      const rules = [...desktop.matchAll(/([^{}]+)\{([^{}]*)\}/g)].map(m => ({ selector: m[1].trim(), text: squash(`${m[1]}{${m[2]}}`) }));
       for (const needle of needles) {
-        const hits = [...desktop.matchAll(new RegExp(needle.source, "g"))];
-        // Only a rule that hides a phone-only part at desktop width may be outside the query.
-        for (const hit of hits) {
-          const line = desktop.slice(Math.max(0, hit.index! - 60), hit.index! + 120);
-          expect(line, `${path}: ${needle}`).toMatch(/display: none/);
+        for (const r of rules.filter(r => needle.test(r.text))) {
+          expect(allowed.map(squash), `${path}: ${needle} outside the query: ${r.text}`).toContain(r.text);
         }
       }
     });
   }
+
+  it("the More menu's keyframes are used only inside the phone query", () => {
+    const css = strip(read("styles/phone-sheet.css"));
+    expect(css).toContain("@keyframes dock-more-in {");
+    expect(squash(outsideMedia(css).replace(/@keyframes dock-more-in \{[\s\S]*?\}\s*\}/, ""))).not.toContain("dock-more-in");
+    expect(squash(phoneOf(css))).toContain("animation:dock-more-invar(--dur-base)var(--ease);");
+  });
 
   it("desktop rules the phone work touched keep their numbers", () => {
     const edge = squash(outsideMedia(strip(read("styles/edge-rails.css"))));

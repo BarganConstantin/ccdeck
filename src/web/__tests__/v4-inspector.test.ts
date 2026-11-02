@@ -123,8 +123,12 @@ describe("the Inspector's column", () => {
   // CHANGED ON PURPOSE (the owner's phone layout): still a fixed sheet, now the
   // window's whole width and up from the dock (phone-sheet.css).
   it("keeps the phone's sheet fixed, now the window's width", () => {
-    expect(decl(".detail", "width", "(max-width: 640px)")).toBe("100%");
-    expect(decl(".detail", "position", "(max-width: 640px)")).toBe("fixed");
+    // CHANGED ON PURPOSE (the phone layout): the Inspector sheet's box is
+    // written once, in phone-sheet.css, for all four sheets, under the app's
+    // weight three times; detail-panel.css no longer repeats it.
+    expect(decl(".app.app.app .detail", "width", "(max-width: 640px)")).toBe("100%");
+    expect(decl(".app.app.app .detail", "position", "(max-width: 640px)")).toBe("fixed");
+    expect(decl(".detail", "position", "(max-width: 640px)")).toBeUndefined();
   });
 });
 

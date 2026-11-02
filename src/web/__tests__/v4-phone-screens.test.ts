@@ -147,7 +147,10 @@ describe("the Term takeover", () => {
     const stage = read("components/terminal/KeysBar.tsx") + read("components/terminal/StageHeader.tsx");
     expect(stage).not.toMatch(/key-row|keyrow|onKey\b|Ctrl\+C/);
     expect(read("components/terminal/TerminalStage.tsx")).toContain("onKey={session.press}");
-    expect(read("use-terminal-session.ts")).toContain("press(bytes) { events.onInput(bytes); },");
+    // CHANGED ON PURPOSE (the phone layout): still the terminal's onInput, with
+    // the arrow in the terminal's cursor-key mode and the view brought to the
+    // bottom as a typed key does (use-terminal-session.test.ts runs both).
+    expect(read("use-terminal-session.ts")).toContain("events.onInput(term?.applicationCursorKeys() ? applicationArrow(bytes) : bytes);");
     expect(read("components/EdgeRails.tsx")).toContain("rail-offline-dot");
     expect(read("components/EdgeRails.tsx")).not.toMatch(/fetch\(|machine-dot/);
   });

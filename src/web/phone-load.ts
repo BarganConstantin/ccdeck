@@ -9,11 +9,11 @@
 // drawer over Usage and both sheets over the canvas, with no part of the board
 // in sight and nothing to say which of the three had been asked for.
 //
-// So a phone's load opens one sheet at most:
-// - the left column waits: a drawer opens from the dock, the way it closes to
-//   the canvas once a session is picked;
-// - Usage, when it is wanted, and the machine panel waits behind it;
-// - the machine panel, when it is the one sheet wanted.
+// So a phone's load opens Sessions, the whole width, and no sheet:
+// - the list opens whatever was stored for a wider window;
+// - Accounts, Usage and the machine panel wait for their doors in the dock,
+//   where each comes up from the bottom edge as a sheet over the list
+//   (phone-sheet.ts).
 //
 // What is stored is not touched. A held panel is not the reader closing it, so
 // nothing is written for it: a wider window opens what it always did, a first

@@ -94,6 +94,8 @@ describe("the dock holds the four panels, then More", () => {
   it("puts Codex's own button where Claude's was on a machine without Claude Code", () => {
     // Claude's accounts panel is Claude's alone; a Codex-only machine gets
     // Codex's own button in its place, and the dock keeps its five slots.
+    // CHANGED ON PURPOSE (the phone layout): the dock is four doors and More, so
+    // the expected ids are four (Settings is in More).
     const view = dockFor(rails({ claude: false }));
     expect(buttons(view.tree).map(b => (b.props.item as { id: string }).id))
       .toEqual(["codex-accounts", "session-list", "usage", "machine"]);
@@ -130,6 +132,8 @@ describe("the dock holds the four panels, then More", () => {
 
 describe("the dock is one toolbar", () => {
   it("is a toolbar named for what it holds, horizontal, with one Tab stop", () => {
+    // CHANGED ON PURPOSE (the phone layout): four doors and More, so four
+    // roving stops before More's own, not five.
     const view = dockFor(rails());
     const root = view.tree as Drawn;
     expect(root.props.role).toBe("toolbar");
@@ -141,6 +145,8 @@ describe("the dock is one toolbar", () => {
   });
 
   it("draws the short word under each glyph, where a column is a sixth of a phone", () => {
+    // CHANGED ON PURPOSE (the phone layout): the short words of the four doors;
+    // Settings' word is in More's menu now.
     const view = dockFor(rails());
     expect(buttons(view.tree).map(b => b.props.variant)).toEqual(["dock", "dock", "dock", "dock"]);
     expect(buttons(view.tree).map(b => (b.props.item as { short: string }).short))
@@ -163,6 +169,8 @@ describe("the dock is one toolbar", () => {
 
 describe("More is a menu button for the rare dialogs and Settings", () => {
   it("says what it holds, and is a closed menu button until pressed", () => {
+    // CHANGED ON PURPOSE (the phone layout): More's name lists what it holds now,
+    // Settings among them.
     const { button, menu } = openMore(dockFor(rails()).tree);
     expect(button().props["aria-haspopup"]).toBe("menu");
     expect(button().props["aria-expanded"]).toBe(false);
@@ -172,6 +180,8 @@ describe("More is a menu button for the rare dialogs and Settings", () => {
   });
 
   it("opens a menu of them by their whole names, focus on the first", () => {
+    // CHANGED ON PURPOSE (the phone layout): the rows are the four More holds,
+    // Settings before Feedback.
     const { button, menu } = openMore(dockFor(rails()).tree);
     (button().props.onClick as () => void)();
     expect(button().props["aria-expanded"]).toBe(true);
@@ -191,6 +201,7 @@ describe("More is a menu button for the rare dialogs and Settings", () => {
   });
 
   it("carries Browser watch's unread count, in the chrome's grey, while the row it stands for is folded", () => {
+    // CHANGED ON PURPOSE (the phone layout): More's name lists Settings too.
     const { button, menu } = openMore(dockFor(rails({ unread: 2 })).tree);
     expect(button().props["aria-label"]).toBe("More: Usage history, Browser watch, not watching, 2 unread, Settings, Send feedback");
     expect(textOf(one(button(), e => e.props.className === "rail-badge"))).toBe("2");

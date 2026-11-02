@@ -285,7 +285,7 @@ describe("each panel is held for as long as its exit animation runs", () => {
       // CHANGED ON PURPOSE (the owner's phone layout): at 640 and under the two are
       // sheets that leave back down the bottom edge, on --dur-stage-out (200ms),
       // or crossfade over --dur-base (200ms) under reduced motion (phone-sheet.css);
-      // App.tsx holds them for that long there (SHEET_CLOSE_MS, SHEET_FADE_MS).
+      // App.tsx holds them for that long there (sheetCloseMs, sheetFadeMs).
       for (const r of rules) expect(r, selector).toMatch(/^(?:opacity var\(--(?:dur-fast|dur-xfade|dur-base)\)|transform var\(--dur-stage-out\)) var\(--ease(-stage)?\)$/);
       expect(rules.some(r => r.includes("var(--dur-fast)")), selector).toBe(true);
       expect(rules.some(r => r.includes("var(--dur-xfade)")), selector).toBe(true);
@@ -295,7 +295,9 @@ describe("each panel is held for as long as its exit animation runs", () => {
     // CHANGED ON PURPOSE (the owner's phone layout): on a phone the two panels are
     // sheets that go back down the bottom edge in 200ms (a crossfade of the same
     // length under reduced motion), so the hold is the sheet's, not --dur-fast.
-    expect(app).toMatch(/const railExitMs = useMemo\(\s*\(\) => phone \? \(reducedMotion \? SHEET_FADE_MS : SHEET_CLOSE_MS\) : tokenMs\(reducedMotion \? "--dur-xfade" : "--dur-fast"\),\s*\[reducedMotion, phone\]\);/);
+    // CHANGED ON PURPOSE (the phone layout): the sheet's times are read from the
+    // tokens (sheetCloseMs, sheetFadeMs), not restated as constants.
+    expect(app).toMatch(/const railExitMs = useMemo\(\s*\(\) => phone \? \(reducedMotion \? sheetFadeMs\(\) : sheetCloseMs\(\)\) : tokenMs\(reducedMotion \? "--dur-xfade" : "--dur-fast"\),\s*\[reducedMotion, phone\]\);/);
     expect(app).toMatch(/usePanelPresence\(usagePanelOpen, railExitMs\)/);
     expect(app).toMatch(/usePanelPresence\(machinePanelOpen, railExitMs\)/);
   });

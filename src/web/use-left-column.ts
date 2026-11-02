@@ -140,6 +140,9 @@ export interface LeftColumn {
   /** Whatever the column holds goes, the eviction memory with it (Workspace
    *  under 1100, where the column would be a sheet over the pane). */
   dismissColumn: () => void;
+  /** The window grew past a phone's width: with the list and Accounts both
+   *  open, Accounts is evicted (use-phone-sheets.ts). */
+  leavePhone: () => void;
   /** WORKSPACE changing the column is not the reader's choice, so it is not
    *  stored: `hold` stops the two writes, `release` lets them go on, with
    *  `write` saying whether the column as it stands is the reader's. */
@@ -147,10 +150,6 @@ export interface LeftColumn {
 }
 
 export function useLeftColumn(): LeftColumn {
-  /** Shut for this load, not by the reader: on a phone the column is a drawer
-   *  over the canvas, and a load does not open it (phone-load.ts). Never
-   *  written as a close; the reader's own open ends it. */
-  const sessionListHeldRef = useRef(false);
   const accountsHeldRef = useRef(false);
   /** Workspace has put the list in the column, or taken out what it held:
    *  neither is written, so a reload (or a crash) in Workspace comes back to
@@ -168,8 +167,6 @@ export function useLeftColumn(): LeftColumn {
   });
   useEffect(() => {
     if (phoneOpenedRef.current) { phoneOpenedRef.current = false; return; }
-    if (sessionListOpen) sessionListHeldRef.current = false;
-    else if (sessionListHeldRef.current) return;
     if (workspaceHeldRef.current) return;
     saveSessionListOpen(sessionListOpen);
   }, [sessionListOpen]);
@@ -262,6 +259,17 @@ export function useLeftColumn(): LeftColumn {
   // What the column is now, for a release that keeps it as the reader left it.
   const nowRef = useRef<{ sessionListOpen: boolean; accountsPanelOpen: boolean } | null>(null);
   nowRef.current = { sessionListOpen, accountsPanelOpen };
+  /** The window grew past a phone's width with the list and Accounts both open
+   *  (on a phone Accounts is a sheet over the list): they cannot share the
+   *  column, so Accounts waits behind the list as an eviction does, and comes
+   *  back when the list goes. It is not the reader closing it, so nothing is
+   *  stored. */
+  const leavePhone = useCallback(() => {
+    const now = nowRef.current;
+    if (!now || !now.sessionListOpen || !now.accountsPanelOpen) return;
+    accountsEvictedRef.current = true;
+    setAccountsPanelOpen(false);
+  }, []);
   const storeHold = useMemo(() => ({
     hold: () => { workspaceHeldRef.current = true; },
     // `baseline` is the column as Workspace itself left it: only a flag that
@@ -278,7 +286,7 @@ export function useLeftColumn(): LeftColumn {
   }), []);
 
   return { sessionListOpen, accountsPanelOpen, panel, toggleSessionList, toggleAccountsPanel, openAccountsPanel,
-           closeSessionList, closeSessionListToCanvas, closeAccountsPanel, dismissColumn, storeHold };
+           closeSessionList, closeSessionListToCanvas, closeAccountsPanel, dismissColumn, leavePhone, storeHold };
 }
 
 /**

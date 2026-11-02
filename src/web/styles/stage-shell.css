@@ -104,8 +104,10 @@
   .ts-key { transition: none; }
   .ts-key:active:not(:disabled) { transform: none; }
 }
-/* Drawn at a phone's width only. A key's own look is here, where the row is not
-   drawn at all; its size and its press are in the phone block above. */
+/* Drawn at a phone's width only. A key's own look is here, beside the hide of
+   the row it is in (a button's look is not left to a query: the sheet's
+   control-appearance guard reads it here); its size and its press are in the
+   phone block above. */
 .ts-keyrow { display: none; }
 .ts-key {
   position: relative;

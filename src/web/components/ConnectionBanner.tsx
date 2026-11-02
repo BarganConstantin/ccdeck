@@ -10,7 +10,7 @@ import { UnreachableGlyph } from "./action-glyphs";
 import BannerMark from "./BannerMark";
 import { outageSentence } from "../status-pill";
 import type { useAutoRestart } from "../use-auto-restart";
-import { useT } from "../i18n";
+import { currentLanguage, useT } from "../i18n";
 
 type Restart = ReturnType<typeof useAutoRestart>;
 
@@ -21,15 +21,21 @@ type Restart = ReturnType<typeof useAutoRestart>;
 export const UNREACHABLE_TITLE = "Can\u2019t reach your computer";
 export const UNREACHABLE_SUB = "Agents may still be running, so what you see may be old.";
 
-/** The last news as a clock time, 24-hour like the frame's "14:02". */
-export function lastNewsTime(at: number): string {
-  return new Date(at).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
+/** The last news as a clock time, 24-hour like the frame's "14:02", in the
+ *  language the deck is set to, and with the day in front when it was not
+ *  today (a tab left open overnight). */
+export function lastNewsTime(at: number, now: number = Date.now()): string {
+  const when = new Date(at);
+  const language = currentLanguage();
+  const clock = when.toLocaleTimeString(language, { hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
+  if (when.toDateString() === new Date(now).toDateString()) return clock;
+  return `${when.toLocaleDateString(language, { month: "short", day: "numeric" })} ${clock}`;
 }
 
 /** The card's second line: the last news named when there is one. */
-export function unreachableSub(lastNewsAt: number | null | undefined): string {
+export function unreachableSub(lastNewsAt: number | null | undefined, now: number = Date.now()): string {
   if (lastNewsAt == null) return UNREACHABLE_SUB;
-  return `Agents may still be running. Last news ${lastNewsTime(lastNewsAt)}, so what you see may be old.`;
+  return `Agents may still be running. Last news ${lastNewsTime(lastNewsAt, now)}, so what you see may be old.`;
 }
 
 /** The "Can't reach your computer" card: the phone's dropped connection. Inside

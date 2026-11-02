@@ -91,10 +91,10 @@ export function useRightPanels(leftColumnW = 0) {
     else if (usageHeldRef.current) return;
     saveUsagePanelOpen(usagePanelOpen);
   }, [usagePanelOpen]);
-  /** Shut for this load, not by the reader: a phone's load opens one sheet, and
-   *  Usage is it, and a desktop window too narrow for both panels beside the
-   *  board opens Usage alone (phone-load.ts). Never written as a close; the
-   *  reader's own open ends it. */
+  /** Shut for this load, not by the reader: a phone's load opens no sheet, and
+   *  a desktop window too narrow for both panels beside the board opens Usage
+   *  alone (phone-load.ts). Never written as a close; the reader's own open
+   *  ends it. */
   const machineHeldRef = useRef(false);
   const [machinePanelOpen, setMachinePanelOpen] = useState<boolean>(() => {
     const wanted = loadMachinePanelOpen();

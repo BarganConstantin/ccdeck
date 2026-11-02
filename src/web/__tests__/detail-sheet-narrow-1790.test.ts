@@ -84,10 +84,18 @@ function matches(sel: string, subject: "app" | "detail", left: Left): number | n
     return spec;
   }
   if (last !== ".detail") {
+    // CHANGED ON PURPOSE (the phone layout): the sheet's leaving state is not
+    // the open sheet the boxes below are asked of.
+    if (last === ".detail.leaving") return null;
     if (last.startsWith(".detail")) throw new Error(`unread selector: ${sel}`);
     return null;
   }
   if (parts.length === 1) return 10;
+  // CHANGED ON PURPOSE (the phone layout): the Inspector sheet's box is written
+  // once, in phone-sheet.css, under the app's weight three times so that no
+  // banner row's rule outranks it (three classes and one: 40, over the 30 of
+  // `.app:has(...) .detail`). It used to be repeated in detail-panel.css.
+  if (parts.length === 2 && parts[0] === ".app.app.app") return 40;
   if (parts.length !== 2) throw new Error(`unread selector: ${sel}`);
   const anc = appCompound(parts[0], left);
   return anc == null ? null : anc + 10;
@@ -185,6 +193,10 @@ describe("a selected session on a narrow window (#1790)", () => {
       // sheet's 23). A sheet that ran to the window's foot had its last 58px
       // under the dock — its last rows out of reach. It ends where the dock
       // begins, by the dock's own height, safe area and all.
+      // CHANGED ON PURPOSE (the phone layout): the sheet's `bottom` is the
+      // custom property `--sheet-bottom` (phone-sheet.css), and that property is
+      // the dock's height plus the safe area: the same hang from the dock, read
+      // through one more step. Both are pinned below.
       const dock = cascade(sel => selects(sel, [el("div", ["edge-dock"])]), "height", width);
       for (const left of LEFTS) {
         expect(resolve("detail", "bottom", left, width), left).toBe("var(--sheet-bottom)");

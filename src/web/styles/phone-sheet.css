@@ -13,6 +13,8 @@
    THE MOTION. Open 280 ms, close 200 ms, both on the stage's curve; the scrim
    rides the same times. A flick or a drag is use-phone-sheets.ts's. Under
    reduced motion the sheet crossfades over 200 ms and does not travel. */
+/* The handle is a phone's: drawn nowhere else. */
+.sheet-handle { display: none; }
 @media (max-width: 640px) {
   /* The top bar the phone frame draws: 50 high, its border inside. Written
      with the root twice so the density tokens (reading.css) cannot undo it. */
@@ -77,15 +79,21 @@
     height: min(80dvh, var(--sheet-room));
     overflow: hidden;
   }
-  /* Arriving: up from the bottom edge. Leaving: back down it. */
+  /* Arriving: up from the bottom edge. Leaving: back down it. The Accounts
+     switch (Claude | Codex) is pressed over and over, and the side it shows
+     comes from display: none each time: a side shown again after being hidden
+     (data-switched) does not rise again, as the desktop's does not fade again
+     (left-column.css). The sheet's first rise is every deck's. */
   @starting-style {
     .app.app.app .usage-panel,
     .app.app.app .sysdetail,
     .app.app.app .detail,
     .app.app.app .accounts-panel { transform: translateY(100%); opacity: 1; }
+    .app.app.app .accounts-panel[data-switched] { transform: none; }
   }
   .app.app.app .usage-panel.leaving,
   .app.app.app .sysdetail.leaving,
+  .app.app.app .detail.leaving,
   .app.app.app .accounts-panel.leaving {
     opacity: 1;
     transform: translateY(100%);
@@ -117,7 +125,7 @@
     border-radius: 2px;
     background: var(--line);
   }
-  .up-header, .sd-top, .insp-h { touch-action: none; }
+  .up-header, .sd-top, .insp-h, .ap-header { touch-action: none; }
   /* A sheet under a finger follows it 1:1, without the rule's transition. */
   [data-sheet-dragging] { transition: none; user-select: none; }
 
@@ -169,9 +177,11 @@
     .app.app.app .sysdetail,
     .app.app.app .detail,
     .app.app.app .accounts-panel { transform: none; opacity: 0; }
+    .app.app.app .accounts-panel[data-switched] { transform: none; opacity: 1; }
   }
   .app.app.app .usage-panel.leaving,
   .app.app.app .sysdetail.leaving,
+  .app.app.app .detail.leaving,
   .app.app.app .accounts-panel.leaving {
     opacity: 0;
     transform: none;
