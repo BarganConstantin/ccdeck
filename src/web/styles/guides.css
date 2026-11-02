@@ -48,9 +48,10 @@
 /* V4's step dot: 6px on a 12px pitch, --accent for the step you are on and
    --muted-dim for the rest. The target is 12 wide and the footer's height
    tall, so neighbours do not overlap. */
-.guide-dot { width: 12px; min-width: 12px; }
+.guide-dot { width: 12px; min-width: 12px; padding: 0; }
 .guide-dot::before {
   content: "";
+  flex: none;
   width: 6px;
   height: 6px;
   border-radius: 50%;
@@ -59,7 +60,7 @@
 .guide-dot[aria-current="step"]::before { background: var(--accent); }
 /* The target is 24 square around the 6px dot (the dots are 12 apart, so
    neighbouring areas overlap by half). */
-.guide-dot::after { inset: -6px 0; }
+.guide-dot::after { inset: -6px; }
 .guide-aside { margin-right: 4px; }
 
 /* The drawings. Every fill and stroke is a token, so they are right in both

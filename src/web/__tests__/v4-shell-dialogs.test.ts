@@ -334,10 +334,10 @@ describe("Touch, density and forced colours", () => {
     expect(decl(".qh-provider", "min-height")).toBe("28px");
   });
   it("gives the tour's dots a 24px target around the 6px dot", () => {
-    expect(decl(".guide-dot::after", "inset")).toBe("-6px 0");
+    expect(decl(".guide-dot::after", "inset")).toBe("-6px");
   });
   it("takes all of them to 32px under a coarse pointer, and What's new's links to 44", () => {
-    expect(coarse).toMatch(/\.kh-tour,\s*\.release-notes \.rn-history-link a,\s*\.qh-provider,\s*\.guide-dot \{ min-height: 32px; \}/);
+    expect(coarse).toMatch(/\.kh-tour,\s*\.qh-provider,\s*\.guide-dot \{ min-height: 32px; \}/);
     expect(css).toMatch(/\.rn-history-link a, \.release-notes \.rn-footer > \.primary \{ min-height: 44px; \}/);
   });
   it("redraws the chosen provider segment in the system colours inside the one forced-colours block", () => {

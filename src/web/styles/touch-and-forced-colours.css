@@ -93,10 +93,9 @@
      brings one still moves nothing. */
   .release-notes .rn-line-act,
   .release-notes .rn-update-line { min-height: 32px; }
-  /* V4's shell dialogs: the sheet's Take the tour, What's new's Release history,
+  /* V4's shell dialogs: the sheet's Take the tour (What's new's Release history link takes 44 in dialogs.css),
      Usage history's provider switch and the tour's step dots take the floor. */
   .kh-tour,
-  .release-notes .rn-history-link a,
   .qh-provider,
   .guide-dot { min-height: 32px; }
 }
