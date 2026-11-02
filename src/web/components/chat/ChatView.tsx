@@ -7,7 +7,7 @@
 // (StageHeader draws it only when a source is given). Test and harness data
 // live in __tests__/, never here.
 //
-// THE COLUMN stops at 760 and centres from 1920 up (chat.css). It sticks to the
+// THE COLUMN stops at 776 and centres in a wider pane (chat.css). It sticks to the
 // bottom as lines arrive, unless the reader scrolled up to read; there is no
 // virtualisation in 4.0, and a host caps the turns it hands over.
 import { useEffect, useLayoutEffect, useRef } from "react";
