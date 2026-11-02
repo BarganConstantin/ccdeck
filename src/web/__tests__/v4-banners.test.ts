@@ -110,8 +110,8 @@ describe("an update is two rows: the message, then the command in a box with Cop
     expect(decl(box, "height")).toBe("32px");
     expect(decl(box, "background")).toBe("var(--sunken)");
     expect(decl(box, "border-radius")).toBe("var(--r-ctl)");
-    // 1px transparent edge + 3px 3px 3px 7px = V4's 4 4 4 8 inside; the edge is painted only in forced colours.
-    expect(decl(box, "padding")).toBe("3px 3px 3px 7px");
+    // 1px transparent edge + V4's 4 4 4 8 less that edge = V4's 4 4 4 8 inside; the edge is painted only in forced colours.
+    expect(decl(box, "padding")).toBe("calc(4px - 1px) calc(4px - 1px) calc(4px - 1px) calc(8px - 1px)");
     expect(decl(box, "border")).toBe("1px solid transparent");
     expect(decl(box, "gap")).toBe("8px");
     expect(decl(box, "cursor")).toBe("pointer");

@@ -157,7 +157,8 @@
   align-items: center;
   gap: 8px;
   height: 32px;
-  padding: 3px 3px 3px 7px;
+  /* V4's 4 4 4 8, less the 1px edge below. */
+  padding: calc(4px - 1px) calc(4px - 1px) calc(4px - 1px) calc(8px - 1px);
   /* An edge only a Contrast theme or forced colours paints: --sunken alone would vanish there. */
   border: 1px solid transparent;
   cursor: pointer;

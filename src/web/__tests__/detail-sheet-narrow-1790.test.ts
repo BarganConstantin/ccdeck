@@ -26,10 +26,13 @@ const token = (name: string, width: number) => cascade(sel => selects(sel, [el("
 
 type Left = "none" | "sessions" | "accounts";
 
-/** `.app` with any run of `:has(.x)` / `:not(:has(.x))`, against what is open
+/** `:has(.x)` or `:has(.x, .y)`: it matches when any of its classes is there. */
+const HAS = String.raw`:has\(\.[\w-]+(?:,\s*\.[\w-]+)*\)`;
+
+/** `.app` with any run of `:has(...)` / `:not(:has(...))`, against what is open
  *  beside a selected session's panel. Its weight, or null when it does not match. */
 function appCompound(sel: string, left: Left): number | null {
-  const m = /^\.app((?::has\(\.[\w-]+\)|:not\(:has\(\.[\w-]+\)\))*)$/.exec(sel);
+  const m = new RegExp(`^\\.app((?:${HAS}|:not\\(${HAS}\\))*)$`).exec(sel);
   if (!m) return null;
   const present = (cls: string) =>
     (cls === "session-list" && left === "sessions")
@@ -37,19 +40,41 @@ function appCompound(sel: string, left: Left): number | null {
     || (cls === "left-column" && left !== "none")
     || cls === "detail";
   let spec = 10;
-  for (const p of m[1].match(/:has\(\.[\w-]+\)|:not\(:has\(\.[\w-]+\)\)/g) ?? []) {
-    const cls = /\.([\w-]+)/.exec(p)![1];
-    if (present(cls) !== !p.startsWith(":not")) return null;
+  for (const p of m[1].match(new RegExp(`${HAS}|:not\\(${HAS}\\)`, "g")) ?? []) {
+    const classes = [...p.matchAll(/\.([\w-]+)/g)].map(c => c[1]);
+    if (classes.some(present) !== !p.startsWith(":not")) return null;
     spec += 10;
   }
   return spec;
+}
+
+/** `sel`'s compound selectors, split at the spaces between them and never at
+ *  the one after a comma inside a `:has(...)` list. */
+function compounds(sel: string): string[] {
+  const out: string[] = [];
+  let depth = 0;
+  let cur = "";
+  for (const ch of sel.trim()) {
+    if (ch === "(") depth++;
+    if (ch === ")") depth--;
+    if (/\s/.test(ch) && depth === 0) {
+      if (cur) out.push(cur);
+      cur = "";
+    } else cur += ch;
+  }
+  if (cur) out.push(cur);
+  return out;
 }
 
 /** How heavily `sel` selects the element, or null. Any selector whose subject
  *  is `.app` or `.detail` in a form this cannot read fails the test rather than
  *  being skipped, so a new kind of rule cannot slip past it. */
 function matches(sel: string, subject: "app" | "detail", left: Left): number | null {
-  const parts = sel.split(/\s+/);
+  // CHANGED ON PURPOSE: the phone corrections now apply under every strip
+  // banner, `.app:has(.banner-mark, .rating-banner) .detail`, so the reader
+  // reads a `:has()` list instead of failing on the space after its comma.
+  // No banner is open in these cases, so that rule still never matches.
+  const parts = compounds(sel);
   const last = parts.at(-1)!;
   if (!/^\.(app|detail)(?![\w-])/.test(last)) return null;
   if (subject === "app") {
