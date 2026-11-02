@@ -516,6 +516,14 @@ describe("what was migrated to the secondary tier", () => {
       ".ts-note",
       ".ts-resumed",
       ".ts-text",
+      // The keys bar's sentences that ask nothing of the eye but are read whole:
+      // the end bar and the first-run line (V4 draws both in this tier, with
+      // one Quiet button at the right), and the older hosts dialog's intro and
+      // its "Ends" fact.
+      ".ts-end",
+      ".ts-first",
+      ".oh-intro",
+      ".oh-ends",
       // What's new: the sentence under each change, the always-visible notice
       // beside it, the one line that says which releases are shown (or that
       // this build has none), and the options menu's line about the last
