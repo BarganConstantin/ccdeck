@@ -106,7 +106,7 @@ describe("Rail / Usage box", () => {
   it("answers the rows' hover wash, press and ring, and keeps a phone target of 44", () => {
     expect(decl(".session-list .sl-usage-btn:hover", "background", MOUSE_MEDIA)).toBe("var(--ctl-fill)");
     expect(decl(".session-list .sl-usage-btn:active", "transform")).toBe(decl(".session-list .sl-row:active", "transform"));
-    // The ring is the one inset ring (V4's Figma, M1): the box writes neither its
+    // The ring is the one inset ring (V4's Figma): the box writes neither its
     // own offset nor its own outline, the global rule draws it inside.
     expect(decl(".session-list .sl-usage-btn:focus-visible", "outline-offset")).toBeUndefined();
     expect(decl(".session-list .sl-usage-btn:focus-visible", "outline")).toBeUndefined();
