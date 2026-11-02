@@ -112,7 +112,7 @@ describe("the failure note and the skeleton", () => {
   it("draws five rows 28 high 12 apart, each a 14 dot and a 120 x 8 bone and a 48 x 8 bone", () => {
     expect(rule(integrations, ".ig-skeleton")).toMatch(/gap:\s*12px/);
     expect(rule(integrations, ".ig-skeleton i")).toMatch(/height:\s*28px/);
-    expect(rule(integrations, ".ig-skeleton i::before")).toMatch(/width:\s*14px;\s*height:\s*14px;\s*border-radius:\s*7px/);
+    expect(rule(integrations, ".ig-skeleton i::before")).toMatch(/width:\s*14px;\s*height:\s*14px;\s*border-radius:\s*50%/);
     expect(rule(integrations, ".ig-skeleton i b")).toMatch(/width:\s*120px;[^}]*height:\s*8px/);
     expect(rule(integrations, ".ig-skeleton i::after")).toMatch(/width:\s*48px;\s*height:\s*8px/);
     expect(integrations).toMatch(/\.ig-skeleton i::before, \.ig-skeleton i::after, \.ig-skeleton i b\s*\{[^}]*var\(--ctl-fill\)/);
@@ -129,7 +129,7 @@ describe("Jira", () => {
     expect(read("i18n/areas/integrations/en.ts")).toContain('"integrations.panel.boardPrefix": "Board:"');
     expect(jira).not.toMatch(/content:\s*":"/);
     const chip = rule(jira, "button.btn.jr-chip");
-    expect(chip).toMatch(/height:\s*24px/);
+    expect(chip).toMatch(/--ctl-h:\s*24px/);
     expect(chip).toMatch(/border-radius:\s*var\(--r-pill\)/);
     expect(chip).toMatch(/font-size:\s*calc\(12px/);
     expect(chip).toMatch(/font-weight:\s*400/);
@@ -222,7 +222,7 @@ describe("the forge panel", () => {
     expect(picker).toContain('<span className="fgl-repo-group">{parts.group}</span><span className="fgl-repo-name">{parts.name}</span>');
     expect(rule(forgeLists, ".fgl-repo-group")).toMatch(/flex:\s*0 1 auto/);
     expect(rule(forgeLists, ".fgl-repo-name")).toMatch(/flex:\s*none/);
-    expect(rule(forgeLists, "button.btn.fgl-repo-trigger")).toMatch(/min-height:\s*28px/);
+    expect(rule(forgeLists, "button.btn.fgl-repo-trigger")).toMatch(/--ctl-h:\s*28px/);
     const tabs = rule(forgePanel, ".fg-tabs .uh-range-btn");
     expect(tabs).toMatch(/height:\s*24px/);
     expect(tabs).toMatch(/border-radius:\s*var\(--r-pill\)/);
@@ -259,7 +259,7 @@ describe("the forge panel", () => {
     expect(tab).toContain('t("forge.branches.both"');
     expect(tab).not.toContain('join(" · ")');
     expect(forgeLists).not.toMatch(/text-transform:\s*(lowercase|capitalize)/);
-    expect(tab).toContain('className="fgl-change-text"');
+    expect(tab).toContain("<code>{changeName}</code> {markWord(badge, t)}");
     const en = read("i18n/areas/forge/en.ts");
     expect(en).toContain('"forge.branches.ahead": "{n} ahead"');
   });

@@ -285,7 +285,7 @@
   outline: 1px solid transparent;
 }
 .ig-skeleton i::before, .ig-skeleton i::after, .ig-skeleton i b { content: ""; flex: none; display: block; background: var(--ctl-fill); outline: 1px solid transparent; }
-.ig-skeleton i::before { width: 14px; height: 14px; border-radius: 7px; }
+.ig-skeleton i::before { width: 14px; height: 14px; border-radius: 50%; }
 .ig-skeleton i b { width: 120px; max-width: 40%; height: 8px; border-radius: var(--r-tag); }
 .ig-skeleton i::after { width: 48px; height: 8px; margin-left: auto; border-radius: var(--r-tag); }
 .ig-skeleton[data-variant="lines"] { gap: 10px; margin: 0; border: 0; border-radius: 0; background: none; }

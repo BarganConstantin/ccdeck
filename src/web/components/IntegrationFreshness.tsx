@@ -104,7 +104,7 @@ export default function IntegrationFreshness({ loadedAt, loading, stale = false,
       {words.tone !== "none" && (
         <span className="ig-fresh">
           {words.tone === "stale" && <WarnMark />}
-          <span className="ig-fresh-word">{words.word}</span>
+          {words.word}
           {words.join}
           {at && words.ago && <time dateTime={at.toISOString()} title={at.toLocaleString(currentLanguage())}>{words.ago}</time>}
         </span>

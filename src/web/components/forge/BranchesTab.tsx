@@ -58,7 +58,7 @@ export default function BranchesTab({ view, query }: ForgeTabProps) {
   useReportRows(drawn, phase !== "loading");
 
   const rows = (list: ForgeBranch[], stale = false) => (
-    <ul className="fg-rows fgl-table">
+    <ul className="fg-rows">
       {list.map(b => <BranchRow key={b.name} kind={kind} repo={repo} branch={b} defaultBranch={defaultBranch} stale={stale} />)}
     </ul>
   );
@@ -146,7 +146,7 @@ function BranchRow({ kind, repo, branch: b, defaultBranch, stale }: {
       <span className="fgl-branch-change">
         {badge && changeName
           ? (
-            <span className="fgl-change-text" title={t("forge.branches.badgeTitle", { change: words.change, ref: changeName, word: markWord(badge, t) })}>
+            <span title={t("forge.branches.badgeTitle", { change: words.change, ref: changeName, word: markWord(badge, t) })}>
               <code>{changeName}</code> {markWord(badge, t)}
             </span>
           )

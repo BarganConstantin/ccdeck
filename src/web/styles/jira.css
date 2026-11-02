@@ -53,7 +53,7 @@
 .jr-filter-chips > * { flex: none; }
 /* V4's chip: 24 high, fully round, 12/400 in --text-secondary on a --line edge;
    chosen, the accent wash on the accent edge with its words in --text. */
-button.btn.jr-chip { min-height: 24px; height: 24px; padding: 0 8px; border-radius: var(--r-pill); font-size: calc(12px + var(--ui-text-increase, 0px)); font-weight: 400; line-height: 16px; color: var(--text-secondary); }
+button.btn.jr-chip { --ctl-h: 24px; padding: 0 8px; border-radius: var(--r-pill); font-size: calc(12px + var(--ui-text-increase, 0px)); font-weight: 400; line-height: 16px; color: var(--text-secondary); }
 button.btn.jr-chip[aria-pressed="true"] { background: color-mix(in srgb, var(--accent) 14%, var(--panel)); border-color: var(--accent); color: var(--text); }
 .jr-link-btn {
   padding: 0;
@@ -300,7 +300,7 @@ button.btn.jr-chip[aria-pressed="true"] { background: color-mix(in srgb, var(--a
    plain accent word. */
 .jr-selection { position: sticky; top: calc(-1 * var(--jr-pad-t)); z-index: 1; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; min-height: 40px; box-sizing: border-box; margin: calc(-1 * var(--jr-pad-t)) calc(-1 * var(--jr-pad-x)) 8px; padding: 6px 12px; background: var(--selected); color: var(--text); font-size: calc(13px + var(--ui-text-increase, 0px)); font-weight: 500; }
 .jr-selection > [role="status"] { color: var(--text); }
-.jr-selection .btn { min-height: 28px; font-weight: 500; color: var(--text-secondary); background: transparent; }
+.jr-selection .btn { --ctl-h: 28px; font-weight: 500; color: var(--text-secondary); background: transparent; }
 .jr-selection-clear { text-decoration: none; font-weight: 500; line-height: 16px; }
 /* The hint at the foot of the list, 12px in --muted. */
 .jr-selection-hint { position: sticky; bottom: calc(-1 * var(--jr-pad-b)); margin: auto calc(-1 * var(--jr-pad-x)) calc(-1 * var(--jr-pad-b)); padding: 6px 12px; background: var(--panel); color: var(--muted); font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: 16px; }
@@ -637,7 +637,7 @@ button.btn.jr-chip[aria-pressed="true"] { background: color-mix(in srgb, var(--a
   .jr-row { min-height: 44px; }
   .jr-toggle, .jr-toggle-space { width: 40px; }
   .jr-group-toggle, .jr-board-item, .jr-detail-sub { min-height: 44px; }
-  button.btn.jr-chip { min-height: 32px; height: 32px; }
+  button.btn.jr-chip { --ctl-h: 32px; }
   /* The hint names a right-click, Shift+F10 and Alt+M, none of which a finger has. */
   .jr-selection-hint { display: none; }
 }
@@ -651,7 +651,7 @@ button.btn.jr-chip[aria-pressed="true"] { background: color-mix(in srgb, var(--a
 /* Workflow actions stay beside the current status, wrapping on narrow screens. */
 .jr-transition, .jr-transition-controls { display: inline-flex; align-items: center; flex-wrap: wrap; gap: 6px; }
 /* The status is the control that changes it (V4's Figma): its name on a --line edge, 13/500. */
-button.btn.jr-status-btn { min-height: 28px; height: 28px; box-sizing: border-box; padding: 0 12px; border-radius: var(--r-panel); font-weight: 500; color: var(--text-secondary); }
+button.btn.jr-status-btn { --ctl-h: 28px; padding: 0 12px; border-radius: var(--r-panel); font-weight: 500; color: var(--text-secondary); }
 .jr-transition select { max-width: 100%; color: var(--text); background: var(--ctl-fill); border: 1px solid var(--ctl-edge); border-radius: var(--r-ctl); padding: 4px 6px; }
 .jr-transition [role="alert"] { flex-basis: 100%; }
 

@@ -134,7 +134,7 @@
 /* The button is the deck's .btn; this only lays its words out and keeps it
    filled while its list is open. */
 /* V4: 28 high, 13/500 in --text-secondary on a --line edge. */
-button.btn.fgl-repo-trigger { justify-content: flex-start; gap: 6px; min-width: 0; max-width: min(100%, 320px); min-height: 28px; padding: 0 12px; box-sizing: border-box; border-radius: var(--r-panel); font-weight: 500; color: var(--text-secondary); }
+button.btn.fgl-repo-trigger { justify-content: flex-start; gap: 6px; min-width: 0; max-width: min(100%, 320px); --ctl-h: 28px; padding: 0 12px; box-sizing: border-box; border-radius: var(--r-panel); font-weight: 500; color: var(--text-secondary); }
 .fgl-repo-trigger > .fgl-glyph { display: none; }
 button.btn.fgl-repo-trigger[aria-expanded="true"] { background: var(--ctl-fill); }
 .fgl-glyph, .fgl-chevron { flex: none; color: var(--muted); }

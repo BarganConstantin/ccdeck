@@ -42,9 +42,10 @@ describe("the freshness line's words", () => {
 
 describe("the freshness line on screen", () => {
   it("puts the warning mark beside its word, and the exact moment behind the age", () => {
+    // CHANGED ON PURPOSE (V4's Figma pass): the word is plain text inside the pill, no span of its own (it had no rule).
     const html = render({ loadedAt: NOW - 12 * MIN, stale: true });
     expect(html).toMatch(/data-tone="stale"/);
-    expect(html).toMatch(/<svg class="ig-mark"[^>]*aria-hidden="true"[\s\S]*?<\/svg><span class="ig-fresh-word">Not updated<\/span> · last answer <time dateTime="2026-10-22T11:48:00.000Z" title="[^"]+">12m ago<\/time>/);
+    expect(html).toMatch(/<svg class="ig-mark"[^>]*aria-hidden="true"[\s\S]*?<\/svg>Not updated · last answer <time dateTime="2026-10-22T11:48:00.000Z" title="[^"]+">12m ago<\/time>/);
   });
 
   it("names Refresh for what it reads, and keeps it out of a second read while one is out", () => {
