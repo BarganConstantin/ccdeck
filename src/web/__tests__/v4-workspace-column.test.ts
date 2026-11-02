@@ -170,3 +170,67 @@ describe("nothing is forced at render", () => {
     expect(app).not.toContain("workspaceColumnWidth");
   });
 });
+
+describe("what Workspace does to the column is not stored", () => {
+  // The deck remembers the column across a reload (the two open flags). The
+  // list Workspace puts there, and the column it empties under 1100, are its
+  // own doing: written, a reload in Workspace (or a crash) came back to a list
+  // the reader never opened, or to no column at all.
+  it("keeps the reader's column in storage while the list is put in it, and gives it back", () => {
+    const { go } = setup({ workspace: false, wide: true });
+    expect(store.get("agent-dag.accountsPanelOpen")).toBe("1");
+    expect(store.get("agent-dag.sessionListOpen")).toBe("0");
+    go({ workspace: true });
+    expect(store.get("agent-dag.sessionListOpen"), "the list is Workspace's, not stored open").toBe("0");
+    expect(store.get("agent-dag.accountsPanelOpen"), "accounts are evicted, not closed").toBe("1");
+    go({ workspace: false });
+    expect(store.get("agent-dag.sessionListOpen")).toBe("0");
+    expect(store.get("agent-dag.accountsPanelOpen")).toBe("1");
+  });
+
+  it("comes back to the same column after a reload in Workspace, and leaving still restores it", () => {
+    const first = setup({ workspace: false, wide: true });
+    first.go({ workspace: true });
+    // The reload: a new page reads what was stored.
+    const second = setup({ workspace: true, wide: true });
+    expect(second.col().panel).toBe("session-list");
+    second.go({ workspace: false });
+    expect(second.col().panel, "accounts, as the reader left them").toBe("accounts");
+    expect(store.get("agent-dag.accountsPanelOpen")).toBe("1");
+  });
+
+  it("keeps both flags under 1100, where entering empties the column", () => {
+    const { col, go } = setup({ workspace: false, wide: false });
+    go({ workspace: true });
+    expect(col().panel).toBeNull();
+    expect(store.get("agent-dag.accountsPanelOpen"), "emptied for the view, not by the reader").toBe("1");
+    go({ workspace: false });
+    expect(col().panel).toBe("accounts");
+    expect(store.get("agent-dag.accountsPanelOpen")).toBe("1");
+  });
+
+  it("stores what the reader does with the column inside Workspace, and only that", () => {
+    // Under 1100 entering empties the column (Workspace's doing, not stored).
+    // The reader then opens the Sessions sheet: that flag is theirs and is
+    // written; the Accounts panel they never closed stays stored open.
+    const { col, go, view } = setup({ workspace: false, wide: false });
+    expect(store.get("agent-dag.sessionListOpen")).toBe("0");
+    go({ workspace: true });
+    expect(col().panel).toBeNull();
+    col().toggleSessionList();
+    view.rerender();
+    expect(store.get("agent-dag.sessionListOpen"), "the reader's own open").toBe("1");
+    expect(store.get("agent-dag.accountsPanelOpen"), "never closed by the reader").toBe("1");
+  });
+
+  it("keeps a wide reader's own Accounts open too, and the list it was never given", () => {
+    store.set("agent-dag.accountsPanelOpen", "0");
+    const { col, go, view } = setup({ workspace: false, wide: true });
+    go({ workspace: true });
+    expect(col().panel).toBe("session-list");
+    col().openAccountsPanel();
+    view.rerender();
+    expect(store.get("agent-dag.accountsPanelOpen")).toBe("1");
+    expect(store.get("agent-dag.sessionListOpen")).toBe("0");
+  });
+});

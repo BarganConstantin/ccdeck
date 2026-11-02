@@ -1480,3 +1480,100 @@ describe("the gate, the hook and j and k, run (beside the source pins of v4-work
     expect(board.now().stage.keysRef.current!.mode).toBeUndefined();
   });
 });
+
+describe("Workspace: the one-time gate hold (PREFS_WAIT_MS)", () => {
+  // A tab left in Workspace holds that layout while the deck has not said
+  // whether the Command Panel is on, so a reader whose gate is on never sees
+  // the Board flash. The hold is given up after PREFS_WAIT_MS, or released by
+  // the answer; nothing opens before the answer, and the answer opens the pane
+  // once.
+  it("pins the hold: Workspace is drawn before the answer, with nothing on the pane, for PREFS_WAIT_MS", () => {
+    const { now } = setup({ view: "workspace" });
+    expect(PREFS_WAIT_MS).toBe(3000);
+    expect(now().stage.enabled).toBe(false);
+    expect(now().stage.workspace, "held").toBe(true);
+    expect(now().stage.shell.phase, "nothing opens before the deck has answered").toBe("closed");
+    vi.advanceTimersByTime(PREFS_WAIT_MS - 1);
+    expect(now().stage.workspace, "still held a beat before the end").toBe(true);
+    vi.advanceTimersByTime(1);
+    expect(now().stage.workspace, "given up at PREFS_WAIT_MS").toBe(false);
+    expect(now().stage.shell.phase).toBe("closed");
+  });
+
+  it("releases it with the answer: the pane opens, and the wait running out afterwards changes nothing", () => {
+    const { now, turnOn } = setup({ view: "workspace" });
+    vi.advanceTimersByTime(PREFS_WAIT_MS - 100);
+    turnOn();
+    expect(now().stage.workspace).toBe(true);
+    const opened = now().stage.shell;
+    expect(opened.phase).not.toBe("closed");
+    expect(opened.target).toEqual({ kind: "empty" });
+    vi.advanceTimersByTime(PREFS_WAIT_MS * 2);
+    expect(now().stage.workspace, "the answer ended the hold for good").toBe(true);
+    expect(now().stage.shell.target).toEqual(opened.target);
+    expect(now().stage.shell.phase).toBe(opened.phase);
+  });
+
+  it("opens the pane once however many presses and answers come during the hold", () => {
+    const { now, turnOn } = setup({ view: "workspace" });
+    // Presses while the flag is not known to be on are not the stage's.
+    now().stage.openInPane("s1");
+    now().stage.openInPane("s1", { focusPane: true });
+    now().stage.emptyPane();
+    expect(now().stage.shell.phase).toBe("closed");
+    turnOn();
+    const first = now().stage.shell;
+    expect(first.phase).not.toBe("closed");
+    // The same answer again (two tabs, or a press that crossed the first): no second open.
+    now().stage.loadTerminalPrefs({ terminalOn: true });
+    now().stage.loadTerminalPrefs({ terminalOn: true, terminalSupported: true });
+    expect(now().stage.shell, "the same pane, not reopened").toBe(first);
+  });
+});
+
+describe("Workspace: a rail panel asked for while Zoom is on", () => {
+  // Zoom folds Usage and Machine with the list and the Inspector. A panel asked
+  // for during it (U, S, the panel bar, the menu) ends Zoom, so the panel is
+  // on screen where it belongs and the press is answered.
+  interface Rail { deps: StageDeps; open: boolean; setOpen: ReturnType<typeof vi.fn> }
+  function ZoomRail({ deps, open, setOpen }: Rail) {
+    const stage = useStage(deps);
+    const rail = useRailPanel(stage, open, setOpen);
+    return { stage, rail };
+  }
+  function railInWorkspace(open: boolean) {
+    const base = setup({ view: "workspace" });
+    const setOpen = vi.fn();
+    const view = mount(ZoomRail, { deps: base.deps, open, setOpen });
+    const now = () => view.tree as { stage: ReturnType<typeof useStage>; rail: ReturnType<typeof useRailPanel> };
+    now().stage.loadTerminalPrefs({ terminalOn: true });
+    return { now, setOpen, view, deps: base.deps };
+  }
+
+  it("leaves Zoom and opens the panel", () => {
+    const { now, setOpen } = railInWorkspace(false);
+    now().stage.toggleExpand();
+    expect(now().stage.expanded).toBe(true);
+    now().rail.set(o => !o);
+    expect(now().stage.expanded, "asking for a panel ends Zoom").toBe(false);
+    expect(setOpen).toHaveBeenCalledWith(true);
+  });
+
+  it("treats a panel that was open and folded as closed, so the press brings it back instead of closing it", () => {
+    const { now, setOpen, view, deps } = railInWorkspace(true);
+    expect(now().rail.shown).toBe(true);
+    now().stage.toggleExpand();
+    view.rerender({ deps, open: true, setOpen });
+    expect(now().rail.shown, "folded: aria-expanded must not promise it").toBe(false);
+    now().rail.set(o => !o);
+    expect(now().stage.expanded).toBe(false);
+    expect(setOpen).toHaveBeenCalledWith(true);
+  });
+
+  it("does nothing to Zoom when the panel is being closed", () => {
+    const { now, setOpen } = railInWorkspace(true);
+    now().rail.set(false);
+    expect(setOpen).toHaveBeenCalledWith(false);
+    expect(now().stage.expanded).toBe(false);
+  });
+});

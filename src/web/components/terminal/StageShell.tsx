@@ -15,23 +15,29 @@
 // a press meant for the terminal. They share use-stage.ts's state and its
 // navigator handle, and the dock runs the motion for both.
 //
-// THE MORPH WAITS FOR THE PANE. A click mounts the stage unseen and the
-// session attaches behind it; the window opens out of the card only once the
-// body has something to show — the pane with its seed already parsed, or the
-// card that says why there is none — or after REVEAL_WAIT_MS, when it opens on
-// the attaching card rather than keep a click unanswered (DESIGN-UI decision
-// 2). The morph and the navigator's fold then start in the same frame on the
-// same timer clock, and nothing waits on an animation's promise.
+// THE MORPH STARTS ON THE PRESS (V4's motion spec). A click mounts the stage
+// and the window opens out of the card in the same frame: the press is answered
+// at once, and nothing waits for the pane. The session attaches behind it, and
+// the terminal fades in over 150 once its seed is parsed (terminal-stage.css);
+// when that is later than the morph, the attaching card follows the Waiting
+// loader's rule (150 before it shows, 300 at least, StageBody.tsx). The morph
+// and the navigator's fold start in the same frame on the same timer clock,
+// and nothing waits on an animation's promise.
+//
+// A CLOSE DURING THE OPEN TURNS AROUND from the frame on screen: the close
+// starts at the progress that draws the frame the open drew last, so nothing
+// jumps. By a key there is no morph at all, and under reduced motion the stage
+// crossfades in its column, the board and the navigator fading with it.
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, type CSSProperties, type MutableRefObject } from "react";
 import { useReactFlow, useStoreApi } from "reactflow";
 import type { BlockedSession } from "../../ambient-counts";
 import { boardRect } from "../../board-rect";
 import { clusterBounds } from "../../cluster-bounds";
-import { FLIP_CLOSE_MS, FLIP_OPEN_MS, readBoardClusterRects, runTween, type Running } from "../../navigator-flip";
+import { FLIP_CLOSE_MS, FLIP_OPEN_MS, easeOutInverse, readBoardClusterRects, runTween, type Running } from "../../navigator-flip";
 import { paletteReader, type Palette } from "../../palette";
-import type { GraphState } from "../../reducer";
-import { targetSession, type StageTarget } from "../../stage-shell";
 import { tokenMs } from "../../rail-motion";
+import type { GraphState } from "../../reducer";
+import { targetSession } from "../../stage-shell";
 import { columnSeed, crossfadeFrame, localRect, morphFrame, type MorphFrame, type MorphPlan, type MorphRect } from "../../stage-morph";
 import type { Asks } from "../../use-asks";
 import { useMirroredRef } from "../../use-mirrored-ref";
@@ -41,33 +47,8 @@ import BoardNavigator from "../BoardNavigator";
 import NewSessionPopover from "./NewSessionPopover";
 import { useCodexLaunch } from "./codex-launch";
 import { barArrival, barAsks, boardProjects, stageShowFor, waitingCardFor } from "./stage-board";
-import { closedAnnouncement, type StagePhaseKind } from "./stage-model";
+import { closedAnnouncement } from "./stage-model";
 import TerminalStage, { stageName } from "./TerminalStage";
-
-/** How long a stage waits, unseen, for its pane before it opens on the
- *  attaching card instead. Past v3's 300ms "no spinner" line, so a pane that
- *  attaches promptly is never preceded by a card it would replace at once. */
-export const REVEAL_WAIT_MS = 400;
-
-/** The body phases a session's stage can be uncovered on: the pane, or the
- *  card that says why there is none — anything but an attach in flight. */
-const SESSION_SHOWABLE: ReadonlySet<StagePhaseKind> = new Set<StagePhaseKind>([
-  "live", "not-attachable", "tmux-installing", "tmux-missing", "ended", "detached", "error",
-]);
-
-/**
- * Whether a stage showing `target` can be uncovered on a body in `kind`.
- *
- * By target, because "empty" is two things: the empty stage's own card, and
- * the phase every terminal session starts in before it has been told what to
- * show — a stage that opened on that would open on nothing, a frame before
- * its attach began. A new session is shown from its "starting" line on.
- */
-export function showable(kind: StagePhaseKind, target: StageTarget["kind"] | null | undefined): boolean {
-  if (target === "empty") return kind === "empty";
-  if (target === "launch") return kind === "starting" || SESSION_SHOWABLE.has(kind);
-  return SESSION_SHOWABLE.has(kind);
-}
 
 // ---------------------------------------------------------------------------
 // The navigator, in the canvas.
@@ -152,6 +133,9 @@ export function StageDock(p: StageDockProps) {
   const edgeRef = useRef<HTMLSpanElement | null>(null);
   const riderRef = useRef<HTMLSpanElement | null>(null);
   const motion = useRef<Running | null>(null);
+  /** How far the open stands (0 → 1, the eased progress it drew last); 1 when
+   *  nothing is opening. A close that turns it around starts from here. */
+  const openedRef = useRef(1);
 
   const agents = stateRef.current.agents;
   const show = stageShowFor(shell.target, agents, p.now);
@@ -167,15 +151,23 @@ export function StageDock(p: StageDockProps) {
   const geometryRef = useMirroredRef(g);
 
   // ── uncovering the stage ───────────────────────────────────────────────────
-  const onPhase = useCallback((kind: StagePhaseKind) => {
-    const s = shellRef.current;
-    if (s.phase === "waiting" && showable(kind, s.target?.kind)) stage.reveal();
-  }, [shellRef, stage.reveal]);
-  useEffect(() => {
-    if (shell.phase !== "waiting") return;
-    const t = window.setTimeout(stage.reveal, REVEAL_WAIT_MS);
-    return () => window.clearTimeout(t);
+  // The press is answered in the frame it came in: a stage that was only just
+  // asked for is uncovered before it paints, with no wait for the pane.
+  useLayoutEffect(() => {
+    if (shell.phase === "waiting") stage.reveal();
   }, [shell.phase, stage.reveal]);
+  // During the double-click window the header's buttons answer, except one the
+  // pressed card lies under: the second press of the double click is aimed at
+  // that card, and must reach it (stage-shell.css).
+  useLayoutEffect(() => {
+    const dock = dockRef.current;
+    if (!dock) return;
+    const o = shell.grace ? shell.origin : null;
+    for (const b of dock.querySelectorAll<HTMLElement>(".ts-head button")) {
+      const r = b.getBoundingClientRect();
+      b.toggleAttribute("data-over-origin", !!o && r.left < o.x + o.w && r.right > o.x && r.top < o.y + o.h && r.bottom > o.y);
+    }
+  }, [shell.grace, shell.origin, shell.phase, g]);
 
   // ── the motion ─────────────────────────────────────────────────────────────
   /** Writes one frame of the morph onto the stage (and the board, when no
@@ -215,6 +207,8 @@ export function StageDock(p: StageDockProps) {
       dock.removeAttribute("data-rider");
     }
     if (inRef.current) inRef.current.style.opacity = "";
+    const navEl = canvasRef.current?.querySelector<HTMLElement>(".stage-nav .board-nav");
+    if (navEl) navEl.style.opacity = "";
     for (const el of [edgeRef.current, riderRef.current]) {
       if (!el) continue;
       el.style.transform = "";
@@ -225,16 +219,22 @@ export function StageDock(p: StageDockProps) {
   }, [canvasRef]);
 
   const start = useCallback((dir: "open" | "close") => {
+    // Where the open stood when this close came in (1 when none was running):
+    // the close starts from the same frame instead of from the open stage.
+    const turned = dir === "close" && motion.current != null ? openedRef.current : 1;
     motion.current?.cancel();
     motion.current = null;
+    openedRef.current = dir === "open" ? 0 : 1;
     const dock = dockRef.current;
     const geo = geometryRef.current;
-    const done = () => (dir === "open" ? stage.revealed() : stage.closed(closedAnnouncement(nameRef.current)));
+    const done = () => { openedRef.current = 1; if (dir === "open") stage.revealed(); else stage.closed(closedAnnouncement(nameRef.current)); };
     if (!dock || !geo) { done(); return; }
     // WORKSPACE: the pane is the cell, not a window growing out of a card. No
     // morph and no fold (there is no navigator): it is there, and the view
     // switch's own fade is the only motion (workspace.css).
     if (geo.fill) { settle(); done(); return; }
+    // By a key there is no morph: the last input decides (input-modality.ts).
+    if (document.documentElement.dataset.motion === "instant") { settle(); done(); return; }
 
     const box = dock.getBoundingClientRect();
     const origin = { x: box.left, y: box.top };
@@ -272,15 +272,25 @@ export function StageDock(p: StageDockProps) {
     // navigator — the takeover — the morph draws the fade itself.
     const flow = flowOf(canvasRef.current);
     const nav = stage.navRef.current;
+    // A close that turns an open around starts at the raw progress whose frame
+    // is the one the open drew last (the close runs the same curve downward).
+    const from = turned < 1 ? easeOutInverse(1 - turned) : 0;
     let folding = false;
-    if (nav && flow && !geo.takeover) {
+    // Reduced motion: no tile flies. The navigator is faded with the stage and
+    // the board (paint), never folded, so no frame has neither of them.
+    const navEl = canvasRef.current?.querySelector<HTMLElement>(".stage-nav .board-nav") ?? null;
+    if (nav && flow && !geo.takeover && !reduced) {
       const board = readBoardClusterRects(flow, clusterBounds(store.getState().nodeInternals.values()), rf.getViewport());
       folding = true;
-      void nav.fold(dir, board, { reduced, onFrame: f => { flow.style.opacity = String(f.board); } });
+      void nav.fold(dir, board, { reduced, from, onFrame: f => { flow.style.opacity = String(f.board); } });
     }
-    const run = runTween(reduced ? tokenMs("--dur-fast") : dir === "open" ? FLIP_OPEN_MS : FLIP_CLOSE_MS, (_raw, eased) => {
-      paint((reduced ? crossfadeFrame : morphFrame)(plan, eased), folding ? null : flow);
-    });
+    const ms = reduced ? tokenMs("--dur-xfade") : dir === "open" ? FLIP_OPEN_MS : FLIP_CLOSE_MS;
+    const run = runTween(ms, (_raw, eased) => {
+      if (dir === "open") openedRef.current = eased;
+      const f = (reduced ? crossfadeFrame : morphFrame)(plan, eased);
+      if (reduced && navEl && !geo.takeover) navEl.style.opacity = String(f.stage);
+      paint(f, folding ? null : flow);
+    }, undefined, from);
     motion.current = run;
     void run.finished.then(ran => {
       if (!ran || motion.current !== run) return;
@@ -303,6 +313,7 @@ export function StageDock(p: StageDockProps) {
       const interrupted = motion.current != null;
       motion.current?.cancel();
       motion.current = null;
+      openedRef.current = 1;
       settle();
       if (interrupted) void stage.navRef.current?.fold("open", new Map(), { reduced: true });
     }
@@ -368,7 +379,6 @@ export function StageDock(p: StageDockProps) {
           onLaunched={stage.onLaunched}
           onLaunchAgain={show.kind === "launch" ? () => stage.launch(show.agent, show.cwd, show.options) : undefined}
           onAnnounce={stage.announce}
-          onPhase={onPhase}
           windows={stage.windows}
         />
       </div>

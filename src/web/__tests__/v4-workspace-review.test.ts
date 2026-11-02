@@ -202,7 +202,10 @@ describe("Usage and Machine over the Inspector (review 11)", () => {
 
   it("puts their right edge where the Board has no Inspector under them, from 1320 up, in Workspace only", () => {
     const wide = block(css, "@media (min-width: 1320px)");
-    expect(wide.replace(/\s+/g, " ")).toContain('body .app[data-view="workspace"] { --rail-r: 0px; }');
+    // CHANGED ON PURPOSE (V4's motion spec): the right edge is written by the
+    // panels' own rule in the Inspector's column (right: 0, while .detail
+    // exists), not by a --rail-r that nothing reads any more.
+    expect(wide.replace(/\s+/g, " ")).toContain('.app[data-view="workspace"]:has(.detail) :is(.usage-panel, .sysdetail):not([data-place]) { top: var(--ws-head); right: 0;');
   });
 
   it("states it nowhere else: under 1320 the Board's place stands", () => {

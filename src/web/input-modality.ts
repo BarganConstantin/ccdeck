@@ -6,6 +6,11 @@
 
 let installed: (() => void) | null = null;
 
+/** Whether the last input was a key (any key sets data-motion="instant"). */
+export function lastInputWasKey(doc: Document = document): boolean {
+  return doc.documentElement.dataset.motion === "instant";
+}
+
 /** Starts tracking the last input. Safe to call twice; returns the remover. */
 export function installInputModality(doc: Document = document): () => void {
   if (installed) return installed;

@@ -18,7 +18,7 @@
 // closing the list by any route still gives the panel its column back, because
 // that is an effect on the list's state rather than a step each caller must
 // remember.
-import { useCallback, useEffect, useLayoutEffect, useRef, useState, type MutableRefObject } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type MutableRefObject } from "react";
 import { readStored, writeStored } from "./storage";
 import { prefersReducedMotion } from "./viewport-motion";
 import { loadsOnPhone } from "./phone-load";
@@ -140,6 +140,10 @@ export interface LeftColumn {
   /** Whatever the column holds goes, the eviction memory with it (Workspace
    *  under 1100, where the column would be a sheet over the pane). */
   dismissColumn: () => void;
+  /** WORKSPACE changing the column is not the reader's choice, so it is not
+   *  stored: `hold` stops the two writes, `release` lets them go on, with
+   *  `write` saying whether the column as it stands is the reader's. */
+  storeHold: { hold: () => void; release: (write: boolean, baseline?: { list: boolean; accounts: boolean }) => void };
 }
 
 export function useLeftColumn(): LeftColumn {
@@ -148,6 +152,10 @@ export function useLeftColumn(): LeftColumn {
    *  written as a close; the reader's own open ends it. */
   const sessionListHeldRef = useRef(false);
   const accountsHeldRef = useRef(false);
+  /** Workspace has put the list in the column, or taken out what it held:
+   *  neither is written, so a reload (or a crash) in Workspace comes back to
+   *  the column the reader left, and leaving gives it back. */
+  const workspaceHeldRef = useRef(false);
   /** Left sidebar (session list) visibility — persisted across refresh. */
   const [sessionListOpen, setSessionListOpen] = useState<boolean>(() => {
     const wanted = loadSessionListOpen();
@@ -157,6 +165,7 @@ export function useLeftColumn(): LeftColumn {
   useEffect(() => {
     if (sessionListOpen) sessionListHeldRef.current = false;
     else if (sessionListHeldRef.current) return;
+    if (workspaceHeldRef.current) return;
     saveSessionListOpen(sessionListOpen);
   }, [sessionListOpen]);
   /** True while the session list holds the left column the accounts panel was
@@ -176,6 +185,7 @@ export function useLeftColumn(): LeftColumn {
   useEffect(() => {
     if (accountsPanelOpen) accountsHeldRef.current = false;
     else if (accountsHeldRef.current) return;
+    if (workspaceHeldRef.current) return;
     // An eviction is not the reader closing the panel, so it is not stored as one.
     if (!accountsPanelOpen && accountsEvictedRef.current) return;
     writeStored(ACCOUNTS_PANEL_OPEN_KEY, accountsPanelOpen ? "1" : "0");
@@ -243,8 +253,26 @@ export function useLeftColumn(): LeftColumn {
 
   const panel = leftColumnPanel(sessionListOpen, accountsPanelOpen, accountsEvictedRef.current);
 
+  // What the column is now, for a release that keeps it as the reader left it.
+  const nowRef = useRef<{ sessionListOpen: boolean; accountsPanelOpen: boolean } | null>(null);
+  nowRef.current = { sessionListOpen, accountsPanelOpen };
+  const storeHold = useMemo(() => ({
+    hold: () => { workspaceHeldRef.current = true; },
+    // `baseline` is the column as Workspace itself left it: only a flag that
+    // differs from it is the reader's, and only that one is written.
+    release: (write: boolean, baseline?: { list: boolean; accounts: boolean }) => {
+      workspaceHeldRef.current = false;
+      const now = nowRef.current;
+      if (!write || !now) return;
+      if (!baseline || now.sessionListOpen !== baseline.list) saveSessionListOpen(now.sessionListOpen);
+      if ((!baseline || now.accountsPanelOpen !== baseline.accounts) && (now.accountsPanelOpen || !accountsEvictedRef.current)) {
+        writeStored(ACCOUNTS_PANEL_OPEN_KEY, now.accountsPanelOpen ? "1" : "0");
+      }
+    },
+  }), []);
+
   return { sessionListOpen, accountsPanelOpen, panel, toggleSessionList, toggleAccountsPanel, openAccountsPanel,
-           closeSessionList, closeSessionListToCanvas, closeAccountsPanel, dismissColumn };
+           closeSessionList, closeSessionListToCanvas, closeAccountsPanel, dismissColumn, storeHold };
 }
 
 /**
@@ -264,24 +292,28 @@ export function useWorkspaceColumn({ active, wide, column }: {
   active: boolean;
   /** The window is 1100px or wider. */
   wide: boolean;
-  column: Pick<LeftColumn, "sessionListOpen" | "accountsPanelOpen" | "toggleSessionList" | "closeSessionList" | "openAccountsPanel" | "dismissColumn">;
+  column: Pick<LeftColumn, "sessionListOpen" | "accountsPanelOpen" | "toggleSessionList" | "closeSessionList" | "openAccountsPanel" | "dismissColumn"> & { storeHold?: LeftColumn["storeHold"] };
 }): void {
   /** What entering did to the column: put the list in it, or took out what it held. */
   const putRef = useRef<null | { kind: "list" } | { kind: "dismissed"; held: "list" | "accounts" }>(null);
   /** The column has been seen as entering left it, so a change after is the reader's. */
   const seenRef = useRef(false);
   const wasRef = useRef(false);
-  const { sessionListOpen, accountsPanelOpen, toggleSessionList, closeSessionList, openAccountsPanel, dismissColumn } = column;
-  useEffect(() => {
+  const { sessionListOpen, accountsPanelOpen, toggleSessionList, closeSessionList, openAccountsPanel, dismissColumn, storeHold } = column;
+  // A layout effect, so the column Workspace needs is in the same commit as
+  // the view that needs it: a switch by key is one frame, not two.
+  useLayoutEffect(() => {
     const was = wasRef.current;
     wasRef.current = active;
     if (active && !was) {
       seenRef.current = false;
       if (wide && !sessionListOpen) {
         putRef.current = { kind: "list" };
+        storeHold?.hold();
         toggleSessionList();
       } else if (!wide && (sessionListOpen || accountsPanelOpen)) {
         putRef.current = { kind: "dismissed", held: sessionListOpen ? "list" : "accounts" };
+        storeHold?.hold();
         dismissColumn();
       }
       return;
@@ -289,6 +321,9 @@ export function useWorkspaceColumn({ active, wide, column }: {
     const put = putRef.current;
     if (!active && was) {
       putRef.current = null;
+      // The column goes back to what the reader left, and what is written is
+      // what that change makes of it.
+      storeHold?.release(false);
       if (put?.kind === "list" && sessionListOpen) closeSessionList();
       // Closing the list gives the column back to the panel it evicted (#824).
       else if (put?.kind === "dismissed" && !sessionListOpen && !accountsPanelOpen) {
@@ -299,6 +334,11 @@ export function useWorkspaceColumn({ active, wide, column }: {
     if (!active || !put) return;
     const asLeft = put.kind === "list" ? sessionListOpen : !sessionListOpen && !accountsPanelOpen;
     if (asLeft) seenRef.current = true;
-    else if (seenRef.current) putRef.current = null;
+    else if (seenRef.current) {
+      // The reader changed the column inside Workspace: that is their choice
+      // and is kept, as the column now stands.
+      putRef.current = null;
+      storeHold?.release(true, put.kind === "list" ? { list: true, accounts: false } : { list: false, accounts: false });
+    }
   }, [active, sessionListOpen, accountsPanelOpen]);
 }

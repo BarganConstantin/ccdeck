@@ -23,7 +23,10 @@ describe("with the Command Panel off", () => {
 
   it("the root carries data-view only in Workspace: the Board's root is the root it was", () => {
     expect(app).toContain('data-view={inWorkspace ? "workspace" : undefined}');
-    expect(app).toContain('data-zoom={inWorkspace && stage.expanded ? "" : undefined}');
+    // CHANGED ON PURPOSE (V4's motion spec): Zoom is a fold and an unfold now,
+    // so the attribute carries the phase (use-zoom-phase.ts), not a bare flag.
+    expect(app).toContain('data-zoom={zoomPhase}');
+    expect(app).toContain('useZoomPhase(inWorkspace && stage.expanded)');
   });
 
   it("the chord is not available, so the window listener leaves it to the page", () => {

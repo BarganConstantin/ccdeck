@@ -277,6 +277,15 @@
   text-align: center;
 }
 .ts-card > * { max-width: 464px; }
+/* The attaching card is a wait on data, so it keeps the Waiting loader's rule
+   (StageBody.tsx holds the 150 before it is drawn and the 300 it stays): it
+   fades in over Fast and out over Exit, as transitions, so a pane that attaches
+   twice in a row does it twice. */
+.ts-card[data-timed] { transition: opacity var(--dur-fast) var(--ease); pointer-events: none; }
+@starting-style {
+  .ts-card[data-timed] { opacity: 0; }
+}
+.ts-card[data-timed="out"] { opacity: 0; pointer-events: none; transition-duration: var(--dur-exit); }
 .ts-ctx {
   max-width: 100%;
   overflow: hidden;

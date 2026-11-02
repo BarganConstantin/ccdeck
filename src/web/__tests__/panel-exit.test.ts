@@ -252,11 +252,11 @@ describe("each panel is held for as long as its exit animation runs", () => {
     return values[0];
   };
 
-  /** The animation of every rule that styles a panel's `.leaving` state,
-   *  reduced motion's included. Each has to be timed by the same property. */
+  /** The transition of every rule that styles a panel's `.leaving` state,
+   *  reduced motion's included. Each has to be timed by the same properties. */
   const leaving = (selector: string) =>
     [...css.matchAll(new RegExp(`${selector.replace(/[.]/g, "\\.")}\\.leaving\\b[^{]*\\{([^}]*)\\}`, "g"))]
-      .map(m => /animation:\s*([^;]+)/.exec(m[1])?.[1] ?? "");
+      .map(m => /transition:\s*([^;]+)/.exec(m[1])?.[1] ?? "");
 
   it("holds both left panels for --side-exit, the length of the column's close", () => {
     // The two left panels leave by transitions inside the left column since
@@ -271,14 +271,25 @@ describe("each panel is held for as long as its exit animation runs", () => {
     expect(closing).toMatch(/transform var\(--side-exit\)/);
   });
 
-  it("holds the usage and machine panels for --rail-exit", () => {
+  it("holds the usage and machine panels for the length of their fade out", () => {
+    // CHANGED ON PURPOSE (V4's motion spec): the rail panels leave by a
+    // transition, no longer by the rail-out animation timed by --rail-exit, so
+    // a reopen during the close turns around from the opacity on screen. The
+    // fade is --dur-fast, or --dur-xfade under reduced motion, and the hold
+    // in App.tsx is those two lengths.
     // The machine panel renders as .sysdetail, and shares the usage panel's rule.
     for (const selector of [".usage-panel", ".sysdetail"]) {
       const rules = leaving(selector);
       expect(rules.length, selector).toBeGreaterThan(0);
-      for (const animation of rules) expect(animation, selector).toContain("var(--rail-exit)");
+      // EVERY rule that styles the leaving state is timed by one of the two tokens.
+      for (const r of rules) expect(r, selector).toMatch(/^opacity var\(--(dur-fast|dur-xfade)\) var\(--ease(-stage)?\)$/);
+      expect(rules.some(r => r.includes("var(--dur-fast)")), selector).toBe(true);
+      expect(rules.some(r => r.includes("var(--dur-xfade)")), selector).toBe(true);
     }
-    expect(held("usagePanelOpen")).toBe(cssMs("--rail-exit"));
-    expect(held("machinePanelOpen")).toBe(cssMs("--rail-exit"));
+    expect(css).not.toContain("--rail-exit");
+    // The hold is those tokens, read: --dur-fast, or --dur-xfade under reduced motion.
+    expect(app).toMatch(/const railExitMs = useMemo\(\(\) => tokenMs\(reducedMotion \? "--dur-xfade" : "--dur-fast"\), \[reducedMotion\]\);/);
+    expect(app).toMatch(/usePanelPresence\(usagePanelOpen, railExitMs\)/);
+    expect(app).toMatch(/usePanelPresence\(machinePanelOpen, railExitMs\)/);
   });
 });

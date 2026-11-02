@@ -69,15 +69,12 @@ const ALLOWLIST: Allowed[] = [
   { file: "styles/tool-bursts.css", needle: "dashflow", why: "Board PR: wire flow (dashflow, linear)" },
   { file: "styles/loader.css", needle: "loader-in var(--dur-fast) linear", why: "the Loader's own fade-in (v4-loader.test.ts pins it)" },
   // ---- the spec'd reduced-motion crossfades of 140 ----
-  { file: "styles/canvas-motion.css", needle: "fadeIn 140ms ease both", why: "reduced motion: the rail panels' fade on open, 140 (spec'd)" },
   { file: "styles/left-column.css", needle: "opacity 140ms ease", why: "reduced motion: the side panels' crossfade, 140 (spec'd)" },
   { file: "styles/left-column.css", needle: "var(--side-exit) linear", why: "a side panel's exit crossfade: linear opacity beside the --ease-stage travel; --side-exit is set per panel in JS" },
-  { file: "styles/workspace.css", needle: "view-fade var(--dur-fast) linear", why: "Workspace reduced crossfade (v4-workspace-layout.test.ts pins it)" },
   // ---- the Board's own (V4's motion spec, Board) ----
   { file: "styles/react-flow.css", needle: "node-arm 1ms steps(1, end) 600ms", why: "the arming counter: a card eases its moves only once it has existed 600ms, so first paint is still; a step of a number, not a motion" },
   { file: "styles/session-clusters.css", needle: "node-arm 1ms steps(1, end) 600ms", why: "the session box arms with its cards (react-flow.css)" },
   // ---- other holds ----
-  { file: "styles/machine-panel.css", needle: "rail-out", why: "rail-out belongs to the Usage panel / Workspace PR" },
   { file: "styles/integrations.css", needle: "var(--ease) 300ms", why: "the skeleton's hold-off: 300ms before it shows, so a quick read never flashes (integrations-skeleton.test.ts)" },
 ];
 

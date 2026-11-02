@@ -87,7 +87,7 @@ const V4_AHEAD_OF_READERS = [
   "--fs-hero", "--lh-hero", "--fs-title", "--lh-title", "--fs-card-title",
   "--fs-body", "--fs-small", "--lh-small", "--fs-code", "--lh-code", "--fs-meta", "--lh-meta",
   // V4's motion rules: --dur-stage-in, --dur-slow, --delay-step and --press-small are read now.
-  "--dur-stage-out",
+  // --dur-stage-out is read by Zoom's fold now (workspace.css).
   // --dur-stage-in is read in JS now (navigator-flip.ts mirrors it as FLIP_OPEN_MS); the
   // row fold that read it in CSS moved to --dur-base / --dur-exit.
   "--dur-stage-in",

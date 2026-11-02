@@ -651,7 +651,10 @@ describe("the morph's motion", () => {
     // and V4's motion rules say "Crossfade, no travel", and
     // "Travel goes, fades stay", over --dur-fast.
     const src = withoutComments(read("components/terminal/StageShell.tsx"));
-    expect(src).toContain('reduced ? tokenMs("--dur-fast") : dir === "open" ? FLIP_OPEN_MS : FLIP_CLOSE_MS');
+    // CHANGED ON PURPOSE (V4's motion spec): the crossfade is 140 (--dur-xfade,
+    // the one length every reduced crossfade has), and the navigator is faded with the
+    // stage and the board instead of being folded instantly, so no frame has neither.
+    expect(src).toContain('reduced ? tokenMs("--dur-xfade") : dir === "open" ? FLIP_OPEN_MS : FLIP_CLOSE_MS');
     expect(src).toContain("(reduced ? crossfadeFrame : morphFrame)(plan, eased)");
     expect(src).toMatch(/rider: !reduced && card/);
   });

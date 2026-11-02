@@ -1,9 +1,8 @@
 /* ---------------- usage panel ---------------- */
 
 .usage-panel {
-  /* The rail's own arrival — see @keyframes rail-in, beside the machine
-     panel's copy of this line. It had none at all. */
-  animation: rail-in var(--dur-base) var(--ease) both;
+  /* The rail's arrival and exit are transitions, set for both panels beside
+     the machine panel's rules (machine-panel.css, "THE RAIL'S TWO PANELS"). */
   position: fixed;
   top: calc(var(--topbar-h) + 8px);
   /* THE SAME VARIABLE THE MACHINE PANEL READS. This was a literal 368 with a
