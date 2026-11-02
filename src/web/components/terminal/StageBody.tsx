@@ -31,8 +31,8 @@ import { useEffect, useLayoutEffect, useRef, useState, type MutableRefObject } f
 import { copyText } from "../../copy-text";
 import { CAUGHT_KEYS_ATTR } from "../../shortcuts";
 import type { TmuxProgress } from "../../terminal-api";
-import { LAUNCHED_UNREACHABLE, PROVENANCE_UNKNOWN, agentName, frameRun, launchedUnreachable, provenanceUnknown, type FrameRun, type StagePhase } from "./stage-model";
-import { CopyGlyph, PlusGlyph, StageGlyph, TerminalGlyph } from "./stage-icons";
+import { LAUNCHED_UNREACHABLE, PROVENANCE_UNKNOWN, agentName, errorWords, frameRun, launchedUnreachable, provenanceUnknown, type FrameRun, type StagePhase } from "./stage-model";
+import { CopyGlyph, StageGlyph } from "./stage-icons";
 import type { WaitingCard } from "./stage-board";
 import { Kbd } from "../Kbd";
 import { useSingleKeyShortcuts } from "../../use-single-key-shortcuts";
@@ -49,7 +49,9 @@ export const STILL_RUNNING_NOTE =
 export interface StageContext {
   /** The last prompt, printed after "❯ ". */
   prompt?: string | null;
-  /** One line of fact: "3 subagents working · running in another terminal". */
+  /** One line of fact: "3 subagents working · running in another terminal".
+   *  V4's cards draw no such line (the prompt, one paragraph, the actions), so
+   *  the stage does not print it. */
   fact?: string | null;
 }
 
@@ -59,8 +61,6 @@ export interface StageBodyProps {
    *  status bar (terminal-keys.ts, PANE_NAME_ATTR). */
   paneName?: string;
   phase: StagePhase;
-  /** The last line the board knew, shown while attaching. */
-  ghostLine?: string | null;
   context?: StageContext | null;
   /** The deck's sessions run in the Windows session host. */
   windows?: boolean;
@@ -128,7 +128,7 @@ function InstallPlate({ line }: { line: string }) {
   const [copied, setCopied] = useState(false);
   return (
     <div className="ts-cmd">
-      <code><span className="ts-prompt">$ </span>{line}</code>
+      <code title={line}>{line}</code>
       <button
         type="button"
         className="glyph-btn"
@@ -172,13 +172,15 @@ export function WorkspaceEmpty({ waiting, onOpen, onNewSession }: {
     );
   }
   return (
-    <div className="ts-card ts-ws-empty">
-      <p className="ts-ws-title">{WS_EMPTY_TITLE}</p>
-      <p className="ts-text">{WS_EMPTY_LINE}</p>
-      <div className="ts-acts">
-        <button type="button" id={EMPTY_NEW_SESSION_ID} className="btn primary" aria-haspopup="dialog" data-stage-land onClick={() => onNewSession(EMPTY_NEW_SESSION_ID)}>
-          New session
-        </button>
+    <div className="ts-card">
+      <div className="ts-empty-block">
+        <p className="ts-ws-title">{WS_EMPTY_TITLE}</p>
+        <p className="ts-text">{WS_EMPTY_LINE}</p>
+        <div className="ts-acts">
+          <button type="button" id={EMPTY_NEW_SESSION_ID} className="btn primary" aria-haspopup="dialog" data-stage-land onClick={() => onNewSession(EMPTY_NEW_SESSION_ID)}>
+            New session
+          </button>
+        </div>
       </div>
     </div>
   );
@@ -194,11 +196,10 @@ export function StateCard(p: Omit<StageBodyProps, "hostRef"> & { held?: boolean 
       if (p.workspace) return <WorkspaceEmpty waiting={p.waiting} onOpen={p.onOpenWaiting} onNewSession={p.onNewSession} />;
       return (
         <div className="ts-card">
-          <span className="ts-empty-glyph"><TerminalGlyph /></span>
           <p className="ts-text">Click a session on the board to watch it here, or start a new one.</p>
           <div className="ts-acts">
             <button type="button" id={EMPTY_NEW_SESSION_ID} className="btn primary" aria-haspopup="dialog" data-stage-land onClick={() => p.onNewSession(EMPTY_NEW_SESSION_ID)}>
-              <PlusGlyph />New session
+              New session
             </button>
           </div>
         </div>
@@ -208,7 +209,6 @@ export function StateCard(p: Omit<StageBodyProps, "hostRef"> & { held?: boolean 
       if (phase.reconnect || p.held) return null;
       return (
         <div className="ts-card">
-          {p.ghostLine && <div className="ts-ctx">{p.ghostLine}</div>}
           <div className="ts-text ts-wait"><StageGlyph kind="working" /><span>attaching…</span></div>
         </div>
       );
@@ -226,16 +226,14 @@ export function StateCard(p: Omit<StageBodyProps, "hostRef"> & { held?: boolean 
       return (
         <div className="ts-card">
           {p.context?.prompt && <div className="ts-ctx"><span className="ts-prompt">❯ </span>{p.context.prompt}</div>}
-          {p.context?.fact && (
-            <div className="ts-ctx ts-fact" title={p.context.fact}>
-              <i className="ts-fact-mark" data-kind={target.kind} aria-hidden="true" /><span className="ts-fact-text">{p.context.fact}</span>
-            </div>
-          )}
-          <p className="ts-text">{ours ? LAUNCHED_UNREACHABLE : unsure ? PROVENANCE_UNKNOWN : target.label}</p>
-          {phase.stillRunning && <p className="ts-note" role="status">{STILL_RUNNING_NOTE}</p>}
+          {/* One paragraph: after a refused Reopen the deck says the session is
+              still running, and that sentence is the whole body. */}
+          {phase.stillRunning
+            ? <p className="ts-text" role="status">{STILL_RUNNING_NOTE}</p>
+            : <p className="ts-text">{ours ? LAUNCHED_UNREACHABLE : unsure ? PROVENANCE_UNKNOWN : target.label}</p>}
           <div className="ts-acts">
             {adoptable && (
-              <button type="button" className="btn primary" aria-busy={phase.busy || undefined} data-stage-land onClick={p.onAdopt}>
+              <button type="button" className={phase.stillRunning ? "btn" : "btn primary"} aria-busy={phase.busy || undefined} data-stage-land onClick={p.onAdopt}>
                 {phase.stillRunning ? "Check again" : "Reopen here"}
               </button>
             )}
@@ -281,7 +279,7 @@ export function StateCard(p: Omit<StageBodyProps, "hostRef"> & { held?: boolean 
           </p>
           {phase.install && <InstallPlate line={phase.install} />}
           <div className="ts-acts">
-            <button type="button" className="btn primary" aria-busy={phase.busy || undefined} data-stage-land onClick={p.onRetry}>
+            <button type="button" className="btn" aria-busy={phase.busy || undefined} data-stage-land onClick={p.onRetry}>
               {phase.busy ? "Checking…" : "Check again"}
             </button>
           </div>
@@ -295,10 +293,10 @@ export function StateCard(p: Omit<StageBodyProps, "hostRef"> & { held?: boolean 
       const check = !!phase.code;
       return (
         <div className="ts-card">
-          <p className="ts-text">{phase.message}</p>
+          <p className="ts-text">{errorWords(phase.message)}</p>
           <div className="ts-acts">
             {again && (
-              <button type="button" className="btn primary" aria-busy={phase.busy || undefined} data-stage-land onClick={p.onRetry}>
+              <button type="button" className="btn" aria-busy={phase.busy || undefined} data-stage-land onClick={p.onRetry}>
                 {check ? (phase.busy ? "Checking…" : "Check again") : "Try again"}
               </button>
             )}
@@ -422,7 +420,7 @@ export default function StageBody(p: StageBodyProps) {
     if (retry) catchKeys(retry);
   }, [kind, hostRef]);
   return (
-    <div className="ts-body" data-view={inChat ? "chat" : undefined}>
+    <div className="ts-body" data-view={inChat ? "chat" : undefined} data-frame={state !== "hidden" || undefined}>
       {/* The pane: every key pressed in here is the session's, Escape
           included (terminal-keys.ts reads this attribute). */}
       <div

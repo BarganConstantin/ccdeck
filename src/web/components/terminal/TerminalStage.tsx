@@ -68,6 +68,11 @@ import type { HostsApi } from "./older-hosts";
 import { useOlderHosts } from "./use-older-hosts";
 import type { WaitingCard } from "./stage-board";
 
+/** The phases with no pane to type into, whose cards carry no keys bar. */
+const PANELESS: ReadonlySet<StagePhaseKind> = new Set<StagePhaseKind>([
+  "empty", "not-attachable", "error", "tmux-missing", "tmux-installing",
+]);
+
 /** How long the keys bar holds a refusal before its hints come back. */
 const NOTICE_MS = 6000;
 
@@ -514,7 +519,6 @@ export default function TerminalStage(p: TerminalStageProps) {
         hostRef={session.hostRef}
         paneName={name}
         phase={phase}
-        ghostLine={p.show.kind === "session" ? p.show.session.ghostLine : null}
         context={p.show.kind === "session" ? p.show.session.context : null}
         windows={p.windows}
         launched={p.show.kind === "session" && (p.show.session.launched === true || !!p.show.launch)}
@@ -536,6 +540,8 @@ export default function TerminalStage(p: TerminalStageProps) {
         takeover={p.geometry.takeover}
         notice={notice}
         firstRun={p.firstRun}
+        workspace={workspace}
+        paneless={p.show.kind === "empty" || PANELESS.has(phase.kind)}
         onFirstRunDone={p.onFirstRunDone}
         onTypeHere={session.focus}
         end={end}
@@ -551,7 +557,7 @@ export default function TerminalStage(p: TerminalStageProps) {
           now={Date.now()}
           busy={hosts.busy}
           said={hosts.said}
-          onEnd={hosts.end}
+          onEndAll={hosts.endAll}
           onKeep={hosts.keep}
           onCancel={hosts.cancel}
         />

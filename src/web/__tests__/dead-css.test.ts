@@ -76,7 +76,8 @@ const V4_AHEAD_OF_READERS = [
   "--muted-30", "--secondary-30", "--warn-35", "--inflight-30",
   // V4's menu: --selected and --row-table are read by .ap-menu-item now.
   // V4's Settings: --dock (the nav column) and --row-settings (a row's height) are read now.
-  "--sunken", "--your-message",
+  // V4's Term pane states: --sunken is read now (the pane body in Workspace, the install line).
+  "--your-message",
   // V4's rail: --rail-w, --pane-head-h, --row-rail and --row-group are read now.
   // V4's Inspector: --inspector-w is the detail column's width now.
   "--row-tool", "--row-option",
