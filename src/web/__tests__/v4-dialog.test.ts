@@ -33,7 +33,9 @@ describe("V4 dialog frame", () => {
     expect(decl(".modal-head", "border-bottom")).toBe("1px solid var(--line-soft)");
     expect(decl(".modal-head", "background")).toBeNull();
     expect(decl(".modal-head", "min-height")).toBe("var(--dialog-head-h)");
-    expect(decl(".modal-head h2,\n.modal-tool-name", "line-height")).toBe("var(--lh-card-title)");
+    // CHANGED ON PURPOSE (V4's Figma): the selector list also names the dialogs
+    // whose title is a bare span in the header.
+    expect(decl(".modal-head h2,\n.modal-head > span.modal-title,\n.modal-tool-name", "line-height")).toBe("var(--lh-card-title)");
   });
 
   it(".modal-foot: the token height, 16px sides, a soft top divider", () => {

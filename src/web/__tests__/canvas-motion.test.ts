@@ -542,9 +542,11 @@ const EXEMPT: string[] = [
   // What's new's disclosures are full-width reading rows: they answer through
   // the underlined label, the turning chevron and the expanded state, and a
   // row scaled on press would shift the words under the pointer. Take the tour
-  // is a link-shaped word in the footer beside Release history, and answers the
-  // way that link does, with a heavier underline.
-  ".release-notes .rn-history > summary", ".release-notes .rn-more > summary", ".release-notes .rn-text-button",
+  // is a quiet bordered button in the footer now, and the Keyboard sheet's
+  // Take the tour is the link-shaped word in its footer; it answers the way a
+  // link does, with an underline under the pointer.
+  // CHANGED ON PURPOSE (V4's Figma): .kh-tour joins the link-shaped words.
+  ".release-notes .rn-history > summary", ".release-notes .rn-more > summary", ".release-notes .rn-text-button", ".kh-tour",
   // Radio uses pointer-only feedback on the control or its child glyph.
   // Range thumbs and map markers must retain fixed interaction geometry.
   ".radio-cluster-preview > div > .radio-cluster-station",

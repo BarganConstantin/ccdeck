@@ -263,15 +263,9 @@ export function ProcessListView({ read, sort, onSort, sys, onClose }: {
     <>
       <div className="modal-head">
         <span className="modal-title" id="pl-modal-title">{t("insights.proc.title")}</span>
-        {/* Silent until there is something to count. "0 of 0 running" for
-            the first half-second is a claim about a machine nobody has asked
-            yet, and the heading already says what this is — and after a first
-            read that failed it was a count of a machine nobody could read. */}
-        {rows != null && rows.length > 0 && (
-          <span className="pl-count">
-            {t("insights.proc.count", { n: rows.length, total: read!.total })}
-          </span>
-        )}
+        {/* V4 draws what the list is beside the title: every process, with
+            its command line. */}
+        <span className="pl-hint">{t("insights.machine.processesSub")}</span>
         <DialogClose onClick={onClose} label={t("insights.audit.closeEsc")} />
       </div>
 
@@ -371,6 +365,19 @@ export function ProcessListView({ read, sort, onSort, sys, onClose }: {
           reason for opening it. */}
       <MachineStrip sys={sys} />
       </div>
+
+      <footer className="modal-foot pl-foot">
+        {/* Silent until there is something to count. "0 of 0 running" for
+            the first half-second is a claim about a machine nobody has asked
+            yet, and the heading already says what this is. In the footer's
+            free left side since V4's header carries the hint instead. */}
+        {rows != null && rows.length > 0 && (
+          <span className="pl-count">
+            {t("insights.proc.count", { n: rows.length, total: read!.total })}
+          </span>
+        )}
+        <button type="button" className="btn primary" onClick={onClose}>{t("shell.done")}</button>
+      </footer>
 
       {/* WHAT THE MEMORY COLUMN IS, said here rather than left to be
           discovered. It is resident set size, which is what `ps` and Task

@@ -204,7 +204,7 @@ describe("the chord", () => {
   it("is on the shortcuts sheet, and stays there with the letters off as the one way to the panels", () => {
     const row = keyHelpFor(true).flatMap(g => g.rows).find(r => r.cap === "Ctrl + K");
     expect(row).toMatchObject({ macCap: "⌘ K", chord: true });
-    expect(keyHelpFor(false).find(g => g.title === "Panels and dialogs")?.rows.map(r => r.cap)).toEqual(["Ctrl + K"]);
+    expect(keyHelpFor(false).find(g => g.title === "Panels")?.rows.map(r => r.cap)).toEqual(["Ctrl + K"]);
   });
 });
 

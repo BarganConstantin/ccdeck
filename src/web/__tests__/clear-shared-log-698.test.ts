@@ -315,11 +315,14 @@ describe("Clear on a deck that does not own the shared log", () => {
     // Goes and stays since #843, which sorted this sentence into lines.
     const { goes, stays, confirm } = clearCopy(3, plan);
     expect(stays.join(" ")).toContain(`the deck on port ${wide.port} owns that file`);
-    expect(stays.join(" ")).toMatch(/the event log/);
+    // CHANGED ON PURPOSE (V4's Figma): the lines start with a capital.
+    expect(stays.join(" ")).toMatch(/The event log/);
     expect(goes.join(" ")).not.toMatch(/event log/);
     // The button stops saying "everything" when it is not going to destroy
     // everything.
-    expect(confirm).toBe("Clear this canvas");
+    // CHANGED ON PURPOSE (V4's Figma): the words are "Clear the deck" everywhere,
+    // including where another deck owns the log.
+    expect(confirm).toBe("Clear the deck");
   });
 });
 
@@ -345,7 +348,7 @@ describe("Clear on the deck that does own it", () => {
     const { goes, confirm } = clearCopy(3, plan);
     // The sentence the reporter never saw: what goes is not only this deck's.
     expect(goes.join(" ")).toContain("1 other running deck shares");
-    expect(goes.join(" ")).toContain("all 3 agents on the canvas");
+    expect(goes.join(" ")).toContain("All 3 agents on the canvas");
     expect(confirm).toBe("Clear everything");
   });
 });
@@ -374,8 +377,8 @@ describe("A deck whose log nobody else holds", () => {
     // And it is the deck the old copy was written for, so it keeps the old
     // promise.
     const { goes, confirm } = clearCopy(1, readClearPlan(res.json));
-    expect(goes.join(" ")).toContain("this deck's event log");
-    expect(goes.join(" ")).toContain("the one agent");
+    expect(goes.join(" ")).toContain("This deck's event log");
+    expect(goes.join(" ")).toContain("The one agent");
     expect(confirm).toBe("Clear everything");
   }, 60_000);
 });
@@ -423,7 +426,7 @@ describe("The sentence when the server has not answered yet", () => {
     // under-warning is somebody's history.
     const { goes } = clearCopy(2, null);
     expect(goes.join(" ")).toContain("every deck on this machine shares");
-    expect(goes.join(" ")).toContain("all 2 agents");
+    expect(goes.join(" ")).toContain("All 2 agents");
   });
 
   it("is the sentence the dialog actually shows", () => {

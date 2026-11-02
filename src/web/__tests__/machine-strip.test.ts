@@ -459,9 +459,12 @@ describe("the dialog's own rhythm", () => {
     // paddings.
     const body = pad(".pl-body"), strip = pad(".pl-strip");
     const head = 12; // .modal-head, shared by every dialog
-    expect(body.bottom + strip.top).toBe(20);
+    // CHANGED ON PURPOSE (V4's Figma): the body is padded 16 on every side, so
+    // the air between the list and the band is 26 and under the title 28; the
+    // relationship (a title keeps more than a peer band) holds.
+    expect(body.bottom + strip.top).toBe(26);
     // A title is not a peer, so it keeps slightly more.
-    expect(head + body.top).toBe(22);
+    expect(head + body.top).toBe(28);
     // The strip is the last band, so its bottom IS the outer frame, and the
     // frame matches itself top and bottom.
     expect(strip.bottom).toBe(12);
@@ -556,7 +559,9 @@ describe("the dialog's type", () => {
     expect(modalSrc).toContain('note={t("insights.proc.memoryNote")}');
     expect(modalSrc).toContain('note={t("insights.proc.processNote")}');
     // On the headers, not in a band of their own.
-    expect(modalSrc).not.toContain("pl-foot");
+    // CHANGED ON PURPOSE (V4's Figma): the footer is V4's Done band, carrying
+    // the count; it has no footnote and no sheet rule of its own.
+    expect(modalSrc).toContain('className="modal-foot pl-foot"');
     expect(css).not.toContain(".pl-foot");
     // And the header is what carries them. SortHead moved into this file with
     // the rest of the process code when the panel stopped drawing rows, and on
@@ -567,94 +572,37 @@ describe("the dialog's type", () => {
   });
 });
 
-describe("two layouts, and the arithmetic that decides between them", () => {
+// CHANGED ON PURPOSE (V4's Figma): Busiest processes is the 560 dialog at every
+// width, so the table and the machine's band never stand side by side. The
+// tests that measured the 1120 layout (the breakpoint, the 216px column, the
+// `order`, the moved rule and the taller drawing) are replaced by the ones
+// below; the list-before-machine reading order and the pinned stroke stay.
+describe("one layout: the short dialog, the band under the list", () => {
   const modalSrc = readFileSync(at("../components/ProcessListModal.tsx"), "utf8");
-  const wide = (() => {
-    const i = css.indexOf("@media (min-width: 1200px) {");
-    if (i < 0) return "";
-    // brace-bounded, because the block holds nested rules
-    let depth = 0;
-    for (let j = i; j < css.length; j++) {
-      if (css[j] === "{") depth++;
-      else if (css[j] === "}" && --depth === 0) return css.slice(i, j + 1);
-    }
-    return "";
-  })();
 
-  it("puts the table and the band in one box so a query can turn it on its side", () => {
+  it("puts the table and the band in one box", () => {
     expect(modalSrc).toContain('className="pl-split"');
     expect(css).toContain(".pl-split { display: flex; flex-direction: column; min-height: 0; }");
   });
 
-  it("waits for a viewport that can actually hold the wide modal", () => {
-    // The large dialog, `min(1120px, calc(100vw - 32px))`, reaches 1120 at
-    // 1152px of viewport. 1200 with room, and the block sets no width of its
-    // own: the modal is already that wide there.
-    expect(wide).toBeTruthy();
-    expect(css).toContain(".pl-modal { width: var(--dialog-l); }");
-    expect(css).toContain("--dialog-l: min(1120px, calc(100vw - 32px));");
-    expect(wide).not.toContain(".pl-modal {");
+  it("is V4's 560 and has no wide layout to wait for", () => {
+    expect(css).toContain(".pl-modal { width: var(--dialog-s); }");
+    expect(css).not.toContain("@media (min-width: 1200px) {");
   });
 
-  it("is 1120 wide because of the process column, not because it looked right", () => {
-    // The table needs the 848px it has at 880, or the process column starts
-    // losing the part of a command line a person reads — the median row wants
-    // 519px of it and has 504. A 216px chart column plus 32px of modal padding
-    // is 248: 1120 - 248 = 872, which leaves the table BETTER off than it is
-    // now. 1080 was the first guess and would have left it at 488.
-    const modal = 1120, pad = 32, others = 344;
-    const column = Number(wide.match(/flex:\s*0 0 (\d+)px/)?.[1]);
-    expect(column).toBe(216);
-    expect(modal - pad - column - others).toBeGreaterThanOrEqual(504);
-  });
-
-  it("moves the band with `order` and never with the markup", () => {
-    // So a screen reader hears the list and then the machine at EVERY width,
-    // which is what it hears today: the wide layout changes where the pixels
-    // are and nothing about the reading.
-    expect(wide).toContain("order: -1");
+  it("keeps the list before the machine in the markup, so a screen reader hears them in that order", () => {
     const split = modalSrc.slice(modalSrc.indexOf('className="pl-split"'));
     expect(split.indexOf('className="pl-body"')).toBeLessThan(split.indexOf("<MachineStrip"));
   });
 
-  it("moves the rule with the band rather than drawing a second one", () => {
-    // It separated the band from the table underneath; it separates them beside.
-    expect(wide).toContain("border-top: 0");
-    expect(wide).toContain("border-right: 1px solid var(--line)");
-  });
-
   it("pins the stroke to the screen, so a taller box is not a thicker line", () => {
-    // The box is stretched by the layout — 116 wide in the band, 180 and twice
-    // as tall in the column — and `preserveAspectRatio="none"` would drag the
-    // stroke with it.
     expect(strip).toContain('preserveAspectRatio="none"');
     const line = css.slice(css.indexOf(".pl-spark-line {"));
     expect(line.slice(0, line.indexOf("}"))).toContain("vector-effect: non-scaling-stroke");
     expect(css).toMatch(/\.pl-spark-floor \{[^}]*vector-effect: non-scaling-stroke/);
   });
 
-  it("gives the drawing the height the column has room for, and stops short of filling it", () => {
-    // 24px was chosen for a band where height was scarce, and at 24 a ten-point
-    // swing is 2.4 pixels — the shape is there and nobody can see it. At 48 the
-    // one bump in an hour of throttling is visible, which is the whole reason
-    // that reading earns a cell.
-    //
-    // Seven readings stretched to fill 804px would be 86px each, and at that
-    // size they stop being a glance beside the list.
-    const h = Number(wide.match(/\.pl-split \.pl-spark \{[^}]*height: (\d+)px/)?.[1]);
-    expect(h).toBe(SPARK_H * 2);
-    expect(h).toBeLessThan(80);
-  });
-
-  it("changes nothing at all below the breakpoint", () => {
-    // Verified in the page by deleting the media rule: modal back to 880, band
-    // under the table, border-top and not border-right, spark 116x24, cell head
-    // 116px, no overflow. Every measurement in this file was taken against that
-    // layout and none of them moved.
-    // The modal is the large dialog now, never narrower than that 880 from a
-    // 912px window up, and wider than `min(880px, 94vw)` was at every window
-    // from 534px.
-    expect(css).toContain(".pl-modal { width: var(--dialog-l); }");
+  it("keeps the rule above the band, under the list", () => {
     const band = css.slice(css.indexOf("\n.pl-strip {") + 1);
     expect(band.slice(0, band.indexOf("}"))).toContain("border-top: 1px solid var(--line)");
   });

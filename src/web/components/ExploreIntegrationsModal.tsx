@@ -7,7 +7,6 @@ import { integrationDefs } from "../integrations/registry";
 import type { IntegrationKind } from "../integrations/types";
 import { Dialog } from "./Dialog";
 import { useModalDismiss, useScrimDismiss } from "./use-modal-dismiss";
-import { ExternalLinkGlyph } from "./action-glyphs";
 import { WaitingLoader } from "./Loader";
 
 export interface ExploreIntegrationsProps {
@@ -70,20 +69,19 @@ export default function ExploreIntegrationsModal({ integrations, onClose, onOpen
                 const first = connectionsOf(integrations, def.kind)[0];
                 return (
                   <li key={def.kind} className="explore-provider">
-                    <span className="explore-glyph" aria-hidden><def.Glyph /></span>
                     <div className="explore-info">
-                      <h3>{def.label}</h3>
+                      <div className="explore-name"><h3>{def.label}</h3><span className="explore-tag">{t(access[def.kind])}</span></div>
                       <p>{t(capabilities[def.kind])}</p>
-                      <span className="explore-connection" data-connected={openable || undefined}>
-                        {offered ? openable ? t("integrations.explore.connected") : t("integrations.explore.notConnected") : t("integrations.explore.unavailableOnDeck")} · {t(access[def.kind])}
-                      </span>
                     </div>
+                    <span className="explore-connection">
+                      {offered ? openable ? t("integrations.explore.connected") : t("integrations.explore.notConnected") : t("integrations.explore.unavailableOnDeck")}
+                    </span>
                     <div className="explore-actions">
                       {openable ? <>
-                        <button type="button" className="btn" aria-label={t("integrations.explore.openAria", { label: def.label })} onClick={() => go(() => onOpen(def.kind))}>{t("integrations.explore.open")} <ExternalLinkGlyph /></button>
+                        <button type="button" className="btn primary" aria-label={t("integrations.explore.openAria", { label: def.label })} onClick={() => go(() => onOpen(def.kind))}>{t("integrations.explore.open")}</button>
                         <button type="button" className="btn explore-text-action" aria-label={t("integrations.manageProvider", { label: def.label })} onClick={() => go(() => onManage(first?.id))}>{t("integrations.manage")}</button>
                       </> : offered ? (
-                        <button type="button" className="btn primary" aria-label={t("integrations.form.connect", { provider: def.label })} onClick={() => go(() => onConnect(def.kind))}>{t("integrations.form.connectBtn")}</button>
+                        <button type="button" className="btn" aria-label={t("integrations.form.connect", { provider: def.label })} onClick={() => go(() => onConnect(def.kind))}>{t("integrations.form.connectBtn")}</button>
                       ) : first ? (
                         <button type="button" className="btn explore-text-action" aria-label={t("integrations.manageProvider", { label: def.label })} onClick={() => go(() => onManage(first.id))}>{t("integrations.manage")}</button>
                       ) : <span className="explore-unavailable">{t("integrations.explore.notAvailable")}</span>}
@@ -93,10 +91,11 @@ export default function ExploreIntegrationsModal({ integrations, onClose, onOpen
               })}
             </ul>
           </>}
+          <p className="explore-footnote">{t("integrations.explore.footer")}</p>
         </div>
         <div className="explore-footer">
-          <span>{t("integrations.explore.footer")}</span>
-          <button type="button" className="btn explore-text-action" onClick={() => go(() => onManage())}>{t("integrations.explore.manageInSettings")} <ExternalLinkGlyph /></button>
+          <button type="button" className="btn" onClick={() => go(() => onManage())}>{t("integrations.explore.manageInSettings")}</button>
+          <button type="button" className="btn primary" onClick={onClose}>{t("shell.done")}</button>
         </div>
     </Dialog>, document.body,
   );

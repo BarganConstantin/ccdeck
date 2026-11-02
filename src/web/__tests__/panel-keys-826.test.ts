@@ -43,10 +43,10 @@ describe("the three pointer-only panels get keys (#826)", () => {
     expect(app).not.toMatch(/setSoundMenuOpen/);
   });
 
-  it("lists all three in the sheet: S and B under panels, V under Settings", () => {
-    const panels = KEY_HELP.find(g => g.title === "Panels and dialogs")!.rows.map(r => r.cap);
+  it("lists all three in the sheet: S and B under Panels, V under Deck (V4's groups)", () => {
+    const panels = KEY_HELP.find(g => g.title === "Panels")!.rows.map(r => r.cap);
     for (const cap of ["S", "B"]) expect(panels, cap).toContain(cap);
-    const settings = KEY_HELP.find(g => g.title === "Settings")!.rows;
+    const settings = KEY_HELP.find(g => g.title === "Deck")!.rows;
     expect(settings.map(r => r.cap)).toContain("V");
     expect(settings.find(r => r.cap === "V")!.action).toMatch(/^sound settings/);
     expect(rows.find(r => r.cap === "S")!.binds).toEqual(["s", "S"]);

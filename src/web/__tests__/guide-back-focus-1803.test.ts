@@ -72,7 +72,7 @@ function open() {
       if (page.activeElement.find && !page.activeElement.find(tree)) page.activeElement = BODY;
     },
   });
-  const counter = () => textOf(one(view.tree, el => el.props.className === "modal-tool-id"));
+  const counter = () => textOf(one(view.tree, el => el.props.className === "guide-count"));
   const click = (find: (tree: unknown) => Drawn | null) => (find(view.tree)!.props.onClick as () => void)();
   /** A key pressed wherever focus is: the dialog hears it only from inside. */
   const press = (key: string) => {

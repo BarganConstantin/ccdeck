@@ -49,7 +49,7 @@ export default function ReleaseNotesModal({ entries, since, running, firstRun, o
       if (document.activeElement === document.body) closeRef.current?.focus();
     }
   }, [hasMenu, menu]);
-  const range = isVersion(running) ? `v${running}` : versionRangeLabel(entries.slice(0, 1));
+  const range = isVersion(running) ? running : versionRangeLabel(entries.slice(0, 1));
   const context = firstRun && running ? t("shell.notes.contextFirst", { version: running })
     : since ? t("shell.notes.contextSince", { since }) : null;
   const hasLegacyUpgrade = visiblePrevious.some(entry => entry.notes.some(note => !note.priority && !note.notice));
@@ -59,7 +59,7 @@ export default function ReleaseNotesModal({ entries, since, running, firstRun, o
       <header className="modal-head">
         <div className="modal-title">
           <span id="release-notes-title" className="modal-tool-name">{t("shell.notes.title")}</span>
-          {range && <span className="modal-tool-id">{range}</span>}
+          {range && <span className="modal-tool-id rn-pill">{range}</span>}
         </div>
         <div className="modal-actions">
           {hasMenu && <button id={`${id}-options`} type="button" className="glyph-btn" aria-label={t("shell.notes.moreOptions")}
@@ -90,11 +90,15 @@ export default function ReleaseNotesModal({ entries, since, running, firstRun, o
           <summary aria-controls={historyId}>{t("shell.notes.otherSince", { since: since ?? "" })}</summary>
           <div id={historyId}>{history.map(entry => <ReleaseSection key={entry.version} entry={entry} showVersion />)}</div>
         </details>}
+        {/* V4 draws the release history as an accent link with its arrow, at
+            the foot of the notes. */}
+        <p className="rn-history-link">
+          <a href="https://ccdeck.dev/changelog/" target="_blank" rel="noopener noreferrer" aria-label={t("shell.notes.historyLabel")}>{t("shell.notes.history")} <ExternalLinkGlyph /></a>
+        </p>
       </section>
       <footer className="rn-footer">
         <div className="rn-footer-links">
-          <a href="https://ccdeck.dev/changelog/" target="_blank" rel="noopener noreferrer" aria-label={t("shell.notes.historyLabel")}>{t("shell.notes.history")} <ExternalLinkGlyph /></a>
-          {onTour && !updateVersion && <button className="rn-text-button" type="button" onClick={onTour}>{t("shell.notes.tour")}</button>}
+          {onTour && !updateVersion && <button className="btn rn-tour" type="button" onClick={onTour}>{t("shell.notes.tour")}</button>}
         </div>
         {updateVersion && onUpdateRestart ? <button className="btn primary" type="button" onClick={onUpdateRestart} aria-busy={updateBusy || undefined}>
           {updateBusy ? t("shell.notes.restarting") : restartToUpdate()}

@@ -57,11 +57,11 @@ export function DialogDidNotLoad({ name, onClose }: { name: string; onClose: () 
           <p className="dm-note">
             {t("shell.lazy.didNotLoad", { name })}
           </p>
-          <div className="dm-actions">
-            <button type="button" className="btn" onClick={onClose}>{t("shell.close")}</button>
-            <button type="button" ref={reloadRef} className="btn primary" onClick={() => window.location.reload()}>{t("shell.reload")}</button>
-          </div>
         </section>
+        <footer className="modal-foot dm-actions">
+          <button type="button" className="btn" onClick={onClose}>{t("shell.close")}</button>
+          <button type="button" ref={reloadRef} className="btn primary" onClick={() => window.location.reload()}>{t("shell.reload")}</button>
+        </footer>
     </Dialog>
   );
 }

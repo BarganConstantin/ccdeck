@@ -3,14 +3,15 @@
    deck's own: no blur (#882), so the waiting chip and the canvas still read
    through it. */
 .radio-backdrop { padding: 24px; }
-.radio-panel, .radio-loading { background: var(--panel); color: var(--text); border: 1px solid var(--line); border-radius: var(--r-panel); box-shadow: var(--shadow-2); }
+.radio-panel, .radio-loading { background: var(--panel); color: var(--text); border: 1px solid var(--line); border-radius: var(--r-overlay); box-shadow: var(--shadow-overlay); }
 .radio-panel { width: min(var(--dialog-l), 100%); height: var(--dialog-l-h); display: flex; flex-direction: column; overflow: hidden; font-size: calc(12px + var(--ui-text-increase, 0px)); animation: radioOpen var(--dur-base) var(--ease); }
 .radio-loading { position: relative; width: min(400px, 100%); padding: 24px; }
 .radio-loading > .icon-btn { position: absolute; top: 12px; right: 12px; display: grid; place-items: center; width: 32px; height: 32px; padding: 0; border: 0; border-radius: var(--r-ctl); color: var(--text-secondary); background: none; cursor: pointer; }
 /* The header is the one dialog header (dialogs.css): the name, its note beside
    it, the ×. */
 .radio-heading { display: flex; align-items: baseline; gap: 12px; min-width: 0; }
-.radio-header h2 span { font-weight: 400; color: var(--text-secondary); }
+/* V4: the caption beside the name is Meta, mono 11 in --muted. */
+.radio-header h2 span { font-family: var(--font-mono); font-size: calc(var(--fs-meta) + var(--ui-text-increase, 0px)); line-height: var(--lh-meta); font-weight: 400; color: var(--muted); }
 .radio-header-note { color: var(--text-secondary); font-size: calc(11px + var(--ui-text-increase, 0px)); }
 .radio-panel .icon-btn { display: grid; place-items: center; width: 32px; min-width: 32px; height: 32px; flex: none; background: none; border: 0; border-radius: var(--r-ctl); color: var(--text-secondary); cursor: pointer; padding: 0; }
 .radio-panel .radio-favorite[aria-pressed="true"],

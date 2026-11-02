@@ -532,7 +532,11 @@ interface Control {
 }
 
 const CONTROLS: Control[] = [
-  { at: ".qh-provider", states: [".qh-provider:hover"], beds: ["--panel"] },
+  // CHANGED ON PURPOSE (V4's Figma): Usage history's provider switch is a
+  // segmented track in the header. A segment at rest draws no boundary — it is
+  // named by its word, inside the track, as the feedback dialog's kinds are —
+  // and the chosen one is raised onto the panel with the control edge round it,
+  // which is the entry below.
   { at: '.qh-provider[aria-pressed="true"]', beds: ["--panel"] },
   { at: ".qh-window select", beds: ["--panel"] },
   { at: ".radio-controls > .radio-player-button", states: ['.radio-controls > .radio-player-button:not(.radio-mute[aria-pressed="true"]):not(:disabled):hover'], beds: ["--bg-soft"] },

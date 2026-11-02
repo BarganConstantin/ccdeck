@@ -10,19 +10,20 @@
    it the first line of the body: a title row is the dialog's name and its ×. */
 .explore-head h2 { min-width: 0; overflow-wrap: anywhere; }
 .explore-head .glyph-btn { flex-shrink: 0; }
-.explore-intro { margin: 0 8px 16px; color: var(--text-secondary); line-height: 1.55; }
-.explore-body { min-height: 0; overflow-y: auto; padding: 16px; }
-.explore-caption { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 8px; margin: 0 8px 12px; color: var(--muted); font-size: calc(11px + var(--ui-text-increase, 0px)); }
-.explore-caption > :first-child { font-weight: 600; }
+.explore-intro { margin: 0; color: var(--text-secondary); line-height: var(--lh-body); }
+.explore-body { min-height: 0; overflow-y: auto; padding: 16px; display: flex; flex-direction: column; gap: 12px; }
+.explore-body > * { flex: none; }
+.explore-caption { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; margin: 0; min-height: 20px; color: var(--muted); font-family: var(--font-mono); font-size: calc(var(--fs-meta) + var(--ui-text-increase, 0px)); line-height: var(--lh-meta); }
+.explore-caption > :first-child { font-family: inherit; font-size: calc(var(--fs-small) + var(--ui-text-increase, 0px)); line-height: var(--lh-small); font-weight: 600; color: var(--text-secondary); }
 .explore-providers { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
-.explore-provider { display: flex; align-items: center; gap: 12px; padding: 16px 12px; border: 1px solid var(--line); border-radius: var(--r-ctl); }
-.explore-glyph { display: grid; place-items: center; width: 36px; height: 36px; flex-shrink: 0; color: var(--text-secondary); }
-.explore-glyph .glyph { width: 22px; height: 22px; }
+/* V4's row: 58 tall, r10, a 1px --line-soft stroke and no fill; no icon. */
+.explore-provider { display: flex; align-items: center; gap: 12px; min-height: 58px; box-sizing: border-box; padding: 9px 12px; border: 1px solid var(--line-soft); border-radius: var(--r-node); }
 .explore-info { flex: 1; min-width: 0; overflow-wrap: anywhere; }
-.explore-info h3 { font-size: calc(13px + var(--ui-text-increase, 0px)); line-height: 1.4; margin: 0; font-weight: 600; }
-.explore-info p { color: var(--text-secondary); font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: 1.5; margin: 4px 0 6px; }
-.explore-connection, .explore-unavailable { color: var(--muted); font-size: calc(11px + var(--ui-text-increase, 0px)); }
-.explore-connection[data-connected] { color: var(--ok); }
+.explore-name { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
+.explore-info h3 { font-size: calc(var(--fs-body) + var(--ui-text-increase, 0px)); line-height: var(--lh-body); margin: 0; font-weight: 600; color: var(--text); }
+.explore-tag { color: var(--muted); font-size: calc(var(--fs-meta) + var(--ui-text-increase, 0px)); line-height: var(--lh-meta); }
+.explore-info p { color: var(--muted); font-size: calc(var(--fs-small) + var(--ui-text-increase, 0px)); line-height: var(--lh-small); margin: 2px 0 0; }
+.explore-connection, .explore-unavailable { flex: none; color: var(--muted); font-size: calc(var(--fs-small) + var(--ui-text-increase, 0px)); line-height: var(--lh-small); }
 .explore-actions { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
 .explore-actions .btn { gap: 4px; }
 .explore-text-action { display: inline-flex; align-items: center; gap: 4px; border: 0; border-radius: var(--r-ctl); background: transparent; color: var(--text-secondary); font: inherit; font-size: calc(13px + var(--ui-text-increase, 0px)); padding: 6px 4px; text-decoration: underline; text-underline-offset: 3px; text-decoration-color: var(--ctl-edge); }
@@ -30,23 +31,20 @@
   .explore-text-action:hover { color: var(--text); text-decoration-color: currentColor; }
 }
 .explore-text-action:active { color: var(--text); text-decoration-thickness: 2px; }
-.explore-footer { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px 16px; padding: 12px 24px; border-top: 1px solid var(--line); flex-shrink: 0; }
-.explore-footer > span { color: var(--muted); font-size: calc(11px + var(--ui-text-increase, 0px)); }
+.explore-footnote { margin: 0; color: var(--muted); font-size: calc(var(--fs-small) + var(--ui-text-increase, 0px)); line-height: var(--lh-small); }
+/* The footer: Manage in Settings (quiet) at the left, Done (primary) at the
+   right, on the shared 48 band and --line-soft rule. */
+.explore-footer { display: flex; align-items: center; justify-content: space-between; gap: 8px 16px; min-height: var(--dialog-foot-h); box-sizing: content-box; padding: 0 16px; border-top: 1px solid var(--line-soft); flex-shrink: 0; }
 .explore-status { margin: 8px; color: var(--text-secondary); }
 @media (max-width: 640px) {
   .explore-body { padding: 12px; }
-  .explore-caption, .explore-intro { margin-inline: 4px; }
-  .explore-provider { align-items: flex-start; gap: 8px; padding: 12px 8px; }
-  .explore-glyph { width: 28px; height: 32px; }
-  .explore-glyph .glyph { width: 20px; height: 20px; }
+  .explore-provider { flex-wrap: wrap; align-items: flex-start; gap: 8px; padding: 10px 12px; }
   .explore-actions { flex-direction: column; align-items: stretch; gap: 4px; }
-  .explore-footer { padding: 12px 16px; }
   .explore-integrations .btn, .explore-text-action, .explore-head .glyph-btn { min-height: 44px; }
   .explore-head .glyph-btn { min-width: 44px; }
 }
 @media (max-width: 370px) {
-  .explore-provider { flex-wrap: wrap; }
-  .explore-info { flex-basis: calc(100% - 36px); }
+  .explore-info { flex-basis: 100%; }
   .explore-actions { width: 100%; flex-direction: row; justify-content: flex-end; }
 }
 /* A fixed header/footer would leave only a few pixels of reading space in a

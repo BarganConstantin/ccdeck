@@ -121,7 +121,7 @@ describe("the one-button window wiring", () => {
     // ...and its restart takes Done's place as the footer's one primary action.
     expect(body).toMatch(/\{updateVersion && onUpdateRestart \? <button className="btn primary" type="button" onClick=\{onUpdateRestart\}/);
     // The tour and the deck's own Restart are held back while it is ready.
-    expect(body).toMatch(/\{onTour && !updateVersion && <button className="rn-text-button" type="button" onClick=\{onTour\}>\{t\("shell\.notes\.tour"\)\}<\/button>\}/);
+    expect(body).toMatch(/\{onTour && !updateVersion && <button className="btn rn-tour" type="button" onClick=\{onTour\}>\{t\("shell\.notes\.tour"\)\}<\/button>\}/);
     expect(modal).toContain("const canRestart = onRestart && !updateVersion && !updating;");
   });
 

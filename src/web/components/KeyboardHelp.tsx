@@ -28,7 +28,6 @@
 // is inert. That is not a bug to route around: it is the rule that stops a
 // stray "c" from truncating the event log. The sheet says so in one line under
 // its keys (#852), and Esc is the documented way back.
-import { Fragment } from "react";
 import { kindOffered, useIntegrations } from "../integrations/client";
 import { KEY_HELP_NOTE, KEY_HELP_OFF_TITLE, KEY_HELP_SWITCH_NOTE, keyHelpFor, SINGLE_KEYS_PLACE, type KeyHelpGroup } from "../key-help";
 import { isApplePlatform, platformName } from "../platform";
@@ -53,6 +52,32 @@ interface Props {
   extraGroups?: readonly KeyHelpGroup[];
 }
 
+/** V4's left column: what acts on the deck and the questions waiting on you.
+ *  Every other group, and any a screen adds, is the right column's. */
+const LEFT_GROUPS: readonly string[] = ["deck", "question"];
+const RIGHT_GROUPS: readonly string[] = ["terminal", "canvas", "panels"];
+
+/** The groups in V4's two columns. A group a screen adds goes where there are
+ *  fewer rows, so neither column runs away. */
+export function splitColumns(groups: readonly KeyHelpGroup[]): KeyHelpGroup[][] {
+  const left: KeyHelpGroup[] = [];
+  const right: KeyHelpGroup[] = [];
+  const size = (column: KeyHelpGroup[]) => column.reduce((n, g) => n + g.rows.length + 1, 0);
+  for (const group of groups) {
+    const known = LEFT_GROUPS.includes(group.id) || RIGHT_GROUPS.includes(group.id);
+    const toLeft = known ? LEFT_GROUPS.includes(group.id) : size(left) < size(right);
+    (toLeft ? left : right).push(group);
+  }
+  return [left, right].filter(column => column.length > 0);
+}
+
+/** A cap as V4's key chips: one chip to a key ("Ctrl + K" is Ctrl and K, a
+ *  Mac's "⌘ K" is ⌘ and K); a mouse word stays one chip. */
+export function capChips(cap: string): string[] {
+  if (cap.includes(" + ")) return cap.split(" + ");
+  if (cap.startsWith("⌘ ")) return cap.split(" ");
+  return [cap];
+}
 export default function KeyboardHelp({ onClose, onTour, onSettings, workspace = false, extraGroups }: Props) {
   const t = useT();
   const dialogRef = useModalDismiss(onClose);
@@ -108,32 +133,34 @@ export default function KeyboardHelp({ onClose, onTour, onSettings, workspace = 
               {onSettings && <button type="button" className="btn" onClick={onSettings}>{t("settings.key.openSettings")}</button>}
             </div>
           )}
-          {/* The tour's permanent door, beside the other kind of help. Above
-              the grid, so it is found before the reader starts scanning keys;
-              after the ×, so the × stays the first stop. */}
-          {onTour && (
-            <div className="guide-door">
-              <span>{t("settings.key.tourText")}</span>
-              <button type="button" className="btn" onClick={onTour}>{t("settings.key.tour")}</button>
-            </div>
-          )}
-          {/* One grid for the whole sheet rather than one per group, and the
-              captions span it. A grid each would have measured its own key
-              column, so `Shift + Enter` would have pushed one group's caps
-              wider than the four around it and the eye would have five left
-              edges to follow down a list whose whole job is to be scanned. */}
-          <div className="shortcuts">
-            {groups.map(group => (
-              <Fragment key={group.id}>
-                <h3 className="kh-group">{group.title}</h3>
-                {group.rows.map(row => (
-                  <div className="sc" key={`${group.id}:${row.cap}:${row.action}`}>
-                    <kbd>{apple && row.macCap ? row.macCap : row.cap}</kbd><span>{row.action}</span>
-                  </div>
+          {/* The tour's intro line, above the keys; the door itself is the
+              footer's link (V4's Figma). */}
+          {onTour && <p className="kh-intro">{t("settings.key.tourText")}</p>}
+          {/* V4's two columns, the Deck and The question on the left and the
+              rest on the right, one row to a shortcut: the action on the left
+              and its keys as chips on the right. */}
+          <div className="kh-cols">
+            {splitColumns(groups).map((column, i) => (
+              <div className="kh-col" key={i}>
+                {column.map(group => (
+                  <section className="kh-block" key={group.id}>
+                    <h3 className="kh-group">{group.title}</h3>
+                    {group.rows.map(row => (
+                      <div className="sc" key={`${group.id}:${row.cap}:${row.action}`}>
+                        <span className="kh-action">{row.action}</span>
+                        <span className="kh-keys">
+                          {capChips(apple && row.macCap ? row.macCap : row.cap).map((chip, n) => <kbd key={n}>{chip}</kbd>)}
+                        </span>
+                      </div>
+                    ))}
+                  </section>
                 ))}
-              </Fragment>
+              </div>
             ))}
           </div>
+        </section>
+
+        <footer className="modal-foot kh-bottom">
           {/* Under the keys, not over them (#852): the reference comes first,
               and what to do when a key does nothing is a footnote to it, with
               where to turn the letters off for whoever opened the sheet
@@ -141,7 +168,8 @@ export default function KeyboardHelp({ onClose, onTour, onSettings, workspace = 
               when Esc is no answer to a letter doing nothing and the note
               above has said why. */}
           {singleKeys && <p className="kh-foot">{t("settings.key.note")} {t("settings.key.switchNote", { place: t("settings.key.place") })}</p>}
-        </section>
+          {onTour && <button type="button" className="kh-tour" onClick={onTour}>{t("settings.key.tour")}</button>}
+        </footer>
     </Dialog>
   );
 }
