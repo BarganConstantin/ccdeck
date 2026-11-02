@@ -2,26 +2,34 @@
 
 .react-flow__renderer { background: transparent; }
 
-/* Smooth layout transitions on every node move EXCEPT during user drag. */
+/* THE BOARD'S CARDS MOVE ON THE STAGE CURVE (V4's motion spec: Board, A session
+   joins, Re-arrange). A card that is pushed aside, re-arranged or closed up
+   after a neighbour left travels in Slow on --ease-stage, and only transform
+   and opacity ever animate. The outer element is React Flow's: it owns the
+   translate, so a join's opacity and 0.96 scale are the card's own
+   (agent-node.css), not this element's.
+
+   NOT IN ITS FIRST SECOND. Every node arms its move transition 600ms after it
+   mounts: a card is drawn where it lands, and the measure-and-lay-out passes
+   that settle it in its first moments (and every card of a board that is just
+   opening: first paint is still) take their new place at once instead of
+   travelling to it. The arming is an animation of a registered number, because
+   a transition's duration is read when the change happens and a number that is
+   0 for 600ms and 1 after is the one thing a stylesheet can say about age. No
+   transition on the dragged card: it follows the pointer 1:1. */
+@property --node-armed {
+  syntax: "<number>";
+  inherits: false;
+  initial-value: 0;
+}
 .react-flow__node {
-  transition: transform 320ms var(--ease);
-  animation: nodeSpawn 360ms var(--ease) both;
+  --node-armed: 0;
+  transition: transform calc(var(--node-armed) * var(--dur-slow)) var(--ease-stage), opacity var(--dur-base) var(--ease);
+  animation: node-arm 1ms steps(1, end) 600ms forwards;
 }
-/* No terminal keyframe, and that is the whole rule for entrances on this canvas.
-   The animation is declared on the base class, so it stays attached for the
-   node's whole life, and `both` keeps it filling its last keyframe forever —
-   a filling animation outranks every author declaration under it. A `to` that
-   restated the resting opacity and blur would therefore pin both properties,
-   and .rf-spotlit-out fades with exactly those two: a selection would
-   match, the class would land, and nothing on screen would change. Leaving a
-   property out of the last keyframe hands it back to the cascade — the
-   animation interpolates towards whatever the element's own rules say, so an
-   unfiltered node still arrives at opacity 1 with no blur, a dimmed one arrives
-   at 0.22 and stays there, and a class added after the spawn is over is picked
-   up on the next frame. */
-@keyframes nodeSpawn {
-  from { opacity: 0; filter: blur(2px); }
-}
+@keyframes node-arm { to { --node-armed: 1; } }
+/* A card that has just gone does not pull its neighbours after it at once: the
+   hold (V4's "A row leaves") is canvas-motion.css's. */
 .react-flow__node.dragging,
 .react-flow__node:active {
   transition: none;

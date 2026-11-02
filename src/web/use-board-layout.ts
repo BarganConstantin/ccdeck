@@ -20,6 +20,7 @@ import {
 } from "./rearrange-undo";
 import { restoreLayout } from "./stored-layout";
 import type { useCamera } from "./use-camera";
+import { CAMERA_SLOW_MS } from "./viewport-motion";
 
 type Camera = ReturnType<typeof useCamera>;
 
@@ -144,7 +145,7 @@ export function useBoardLayout({ fitLeft, moveCamera, currentViewport }: Pick<Ca
       // removed with the arrangement it described.
       saveLayout(positionsRef.current, pinnedRef.current);
       if (lastLayoutFrameRef.current) saveLayoutFrame(lastLayoutFrameRef.current);
-      fitLeft(500);
+      fitLeft();
     }, 80);
   }, [fitLeft, currentViewport, undoWindow]);
 
@@ -161,7 +162,7 @@ export function useBoardLayout({ fitLeft, moveCamera, currentViewport }: Pick<Ca
     setLayoutEpoch(e => e + 1);
     // The cards snap back as R snapped them away; the camera travels back over
     // the 500ms R's fit took, through the door that keeps auto-fit as it was.
-    if (kept.viewport) moveCamera(kept.viewport, 500);
+    if (kept.viewport) moveCamera(kept.viewport, CAMERA_SLOW_MS);
     setUndoSaid(rearrangeRestoredSaid());
     return true;
   }, [moveCamera, undoWindow]);

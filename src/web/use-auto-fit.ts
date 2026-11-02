@@ -79,7 +79,7 @@ export function useAutoFit({
       // always open: right in one of the six layouts `.app` grids itself into,
       // wrong in the five others including the one the deck starts in (#615).
       if (shouldRefit({ pane: paneSizeRef.current, viewport: rf.getViewport(), boxes })) {
-        fitLeft(600);
+        fitLeft();
       }
     }, 1500);
     return () => clearInterval(id);
@@ -99,12 +99,12 @@ export function useAutoFit({
     if (autoFitDisabledRef.current) return;
     const tnow = Date.now();
     if (tnow - lastFitTimeRef.current > 1200) {
-      fitLeft(400);
+      fitLeft();
     }
     if (fitTimerRef.current) window.clearTimeout(fitTimerRef.current);
     fitTimerRef.current = window.setTimeout(() => {
       if (autoFitDisabledRef.current) return;
-      fitLeft(500);
+      fitLeft();
     }, 280);
   }, [layoutSig, rf, fitLeft]);
 }

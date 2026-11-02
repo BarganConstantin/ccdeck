@@ -395,11 +395,14 @@ describe("what a selection does to the cards around it", () => {
     expect(frame(state, { lineage: null }).nodes.every(n => !n.className)).toBe(true);
   });
 
-  it("thickens and animates an edge that touches the selection", () => {
+  it("thickens an edge that touches the selection, and flows it only while its session works", () => {
+    // V4's motion spec: dashflow is the Working state drawn on the wire, never a
+    // selected idle one. A selected edge of an idle session keeps its dash
+    // pattern and its width and does not animate.
     const state = board(agent("s1"), agent("s1::a"));
     const { edges } = frame(state, { selected: new Set(["s1::a"]) });
     const edge = edges[0];
-    expect(edge.animated).toBe(true);
+    expect(edge.animated).toBe(false);
     expect(edge.style?.strokeWidth).toBe("calc(3px * var(--edge-k, 1))");
   });
 });

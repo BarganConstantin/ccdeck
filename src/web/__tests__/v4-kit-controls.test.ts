@@ -498,10 +498,13 @@ describe("row fold", () => {
 });
 
 describe("two durations", () => {
-  it("runs the new-session popover and the drag trash on Base, keeping the keyframes", () => {
+  it("runs the new-session popover on Base with its keyframes, and the drag trash on Base as a transition", () => {
     expect(css).toMatch(/animation: ns-pop-in var\(--dur-base\) var\(--ease\)/);
-    expect(css).toMatch(/animation: dragTrashIn var\(--dur-base\) var\(--ease\) both/);
-    expect(css).toMatch(/@keyframes dragTrashIn/);
+    // The drag trash is a transition from @starting-style (opacity and 8px, Base in, Exit out) so a card picked up
+    // again while it leaves turns it round; its keyframes are gone.
+    expect(css).toMatch(/opacity var\(--dur-base\) var\(--ease\), translate var\(--dur-base\) var\(--ease\);/);
+    expect(css).toMatch(/@starting-style\s*\{\s*\.drag-trash-zone\s*\{\s*opacity:\s*0;\s*translate:\s*0 8px;/);
+    expect(css).not.toMatch(/@keyframes dragTrash/);
     expect(css).toMatch(/@keyframes ns-pop-in/);
   });
 });

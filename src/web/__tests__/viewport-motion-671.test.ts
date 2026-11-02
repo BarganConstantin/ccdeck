@@ -218,14 +218,17 @@ describe("a tab that goes away while a fit is running", () => {
 });
 
 describe("React Flow's own opening fit, which the deck does not perform itself", () => {
-  it("asks the same rule for its duration", () => {
-    // The first frame a deck ever draws, and the most likely one to be drawn
-    // for nobody: the deck opens its own browser tab, which lands behind
-    // whatever the user was already reading. Left animated, that tab showed a
-    // graph at the identity transform until it was brought forward.
+  it("is still: it asks for no duration at all", () => {
+    // V4's motion spec: first paint is still. The first frame a deck ever draws
+    // is the one most likely to be drawn for nobody (the deck opens its own
+    // browser tab, which lands behind whatever the user was already reading),
+    // and a duration here is a d3 transition that never arrives in a tab that is
+    // not rendered. With none, React Flow's fitView applies the transform
+    // outright, so the board opens already fitted in either case.
     const at = appCode.indexOf("fitViewOptions={");
     const props = at < 0 ? "" : appCode.slice(at, appCode.indexOf("minZoom={", at));
-    expect(props).toMatch(/shouldAnimateViewport\(\{ durationMs: OPENING_FIT_MS, documentHidden: document\.hidden \}\)/);
-    expect(props).toMatch(/\?\s*OPENING_FIT_MS\s*:\s*0/);
+    expect(props).toMatch(/fitViewOptions=\{\{ padding: 0\.25 \}\}/);
+    expect(props).not.toMatch(/duration|OPENING_FIT_MS/);
+    expect(appCode).not.toMatch(/OPENING_FIT_MS/);
   });
 });

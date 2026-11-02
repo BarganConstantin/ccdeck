@@ -368,13 +368,15 @@ describe("the eased geometry carries layout coordinates, not screen ones", () =>
 describe("the easing the camera was abusing is still there for its own reason", () => {
   const card = () => ruleFor(".cluster-card");
 
-  it("still eases the position and the size, because a layout move is what they are for", () => {
-    // Deleting them would have cured a lag by introducing a lead: the box reads
+  it("still eases the position, because a layout move is what it is for", () => {
+    // Deleting it would have cured a lag by introducing a lead: the box reads
     // each node's FINAL position the frame the layout changes, while the nodes
     // are still travelling to it. The position eases as a transform since #864.
+    // The size no longer eases (V4's motion rule 4: only transform and opacity
+    // animate), so the box takes its new size at once and its cards glide in.
     const eased = transitioned(decl(card().body, "transition"));
-    for (const p of ["transform", "width", "height"]) expect(eased, p).toContain(p);
-    for (const p of ["left", "top"]) expect(eased, `${p} is eased again`).not.toContain(p);
+    expect(eased).toContain("transform");
+    for (const p of ["left", "top", "width", "height"]) expect(eased, `${p} is eased again`).not.toContain(p);
   });
 
   it("keeps the fade, which is not travel and never was", () => {
@@ -390,9 +392,9 @@ describe("the easing the camera was abusing is still there for its own reason", 
       .map(part => part.replace(/^\S+\s*/, "").replace(/\s+/g, ""));
     expect(nodeTiming.length, ".react-flow__node transition").toBeGreaterThan(0);
     const boxTiming = splitTop(decl(card().body, "transition")!)
-      .filter(part => /^(transform|width|height)\b/.test(part))
+      .filter(part => /^transform\b/.test(part))
       .map(part => part.replace(/^\S+\s*/, "").replace(/\s+/g, ""));
-    expect(boxTiming).toHaveLength(3);
+    expect(boxTiming).toHaveLength(1);
     for (const timing of boxTiming) expect(timing).toBe(nodeTiming[0]);
   });
 
@@ -402,12 +404,16 @@ describe("the easing the camera was abusing is still there for its own reason", 
     // a box travel because a session gained a node. A media query adds no
     // specificity, so the answer has to come later in the file.
     const base = card();
-    expect(transitioned(decl(base.body, "transition")).filter(p => TRAVELS.has(p)).length).toBeGreaterThan(0);
+    // The box eases no layout property any more (V4's motion rule 4): its
+    // position is a transform, so what the reduced answer takes away is that.
+    expect(transitioned(decl(base.body, "transition")).filter(p => TRAVELS.has(p))).toEqual([]);
+    expect(transitioned(decl(base.body, "transition"))).toContain("transform");
     const answers = rulesFor(".cluster-card", true);
     expect(answers.length, ".cluster-card answered under reduced motion").toBeGreaterThan(0);
     const last = answers[answers.length - 1];
     expect(last.at, "answered after it is declared").toBeGreaterThan(base.at);
     expect(transitioned(decl(last.body, "transition")).filter(p => TRAVELS.has(p))).toEqual([]);
+    expect(transitioned(decl(last.body, "transition"))).not.toContain("transform");
   });
 });
 

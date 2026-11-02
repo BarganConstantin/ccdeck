@@ -40,7 +40,7 @@ export function useAutoFitSwitch(fitLeft: (duration?: number) => void) {
   const enableAutoFitAndRefit = useCallback(() => {
     autoFitDisabledRef.current = false;
     setAutoFitDisabled(false);
-    fitLeft(400);
+    fitLeft();
   }, [fitLeft]);
 
   return { autoFitDisabled, autoFitDisabledRef, disableAutoFit, enableAutoFitAndRefit };

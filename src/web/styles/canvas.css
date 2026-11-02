@@ -43,9 +43,17 @@
   background: var(--panel);
   color: var(--text-secondary);
   pointer-events: none;
-  animation: dragTrashIn var(--dur-base) var(--ease) both;
+  /* The zone comes up with opacity and 8px of y, Base, and goes with the same
+     two in Exit (V4's motion spec, Drag trash). Transitions from
+     @starting-style, so a card picked up again while it is leaving turns it
+     round from where it is. */
+  opacity: 1;
+  translate: 0 0;
   transition: border-color var(--dur-fast) var(--ease), background var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease),
-    transform var(--dur-base) var(--ease);
+    transform var(--dur-base) var(--ease), opacity var(--dur-base) var(--ease), translate var(--dur-base) var(--ease);
+}
+@starting-style {
+  .drag-trash-zone { opacity: 0; translate: 0 8px; }
 }
 .drag-trash-zone.near {
   border-color: color-mix(in srgb, var(--err) 45%, var(--line));
@@ -59,7 +67,11 @@
   background: color-mix(in srgb, var(--panel) 90%, var(--err) 10%);
   transform: translateY(-6px) scale(1.06);
 }
-.drag-trash-zone.leaving { animation: dragTrashOut 140ms ease both; }
+.drag-trash-zone.leaving {
+  opacity: 0;
+  translate: 0 8px;
+  transition: opacity var(--dur-exit) var(--ease), translate var(--dur-exit) var(--ease);
+}
 .drag-trash-copy { display: flex; flex-direction: column; align-items: center; gap: 2px; min-width: 0; max-width: 100%; }
 .drag-trash-text {
   font-size: calc(13px + var(--ui-text-increase, 0px));
@@ -85,7 +97,7 @@
 .drag-trash-zone.over .drag-trash-hint { color: var(--text-secondary); }
 .canvas-wrap.dragging-any .autofit-chip { visibility: hidden; }
 .react-flow__node.dragging .agent-node {
-  transition: border-color var(--dur-base) var(--ease), box-shadow var(--dur-base) var(--ease), transform var(--dur-fast) var(--ease),
+  transition: border-color var(--dur-fast) var(--ease), transform var(--dur-fast) var(--ease),
     opacity var(--dur-fast) var(--ease);
 }
 .canvas-wrap.trash-hover .react-flow__node.dragging .agent-node {
@@ -101,21 +113,14 @@
   outline: 2px solid var(--err);
   background: color-mix(in srgb, var(--err) 12%, transparent);
 }
-@keyframes dragTrashIn {
-  from { opacity: 0; translate: 0 14px; }
-  to { opacity: 1; translate: 0 0; }
-}
-@keyframes dragTrashOut {
-  from { opacity: 1; translate: 0 0; }
-  to { opacity: 0; translate: 0 12px; }
-}
 @media (prefers-reduced-motion: reduce) {
-  .drag-trash-zone,
-  .drag-trash-zone.leaving { animation: none; }
-  .drag-trash-zone,
+  /* The fade stays; the 8px of y and the lift go. */
+  .drag-trash-zone.leaving { translate: 0 0; }
+  @starting-style {
+    .drag-trash-zone { translate: 0 0; }
+  }
   .drag-trash-zone.near,
   .drag-trash-zone.over { transform: none; }
-  .drag-trash-zone,
   .react-flow__node.dragging .agent-node { transition: none; }
 }
 
@@ -209,8 +214,20 @@
   color: var(--text-secondary);
   font-size: calc(12px + var(--ui-text-increase, 0px));
   line-height: calc(16px + var(--ui-text-increase, 0px));
-  animation: rearrangeUndoIn 200ms var(--ease) both;
-  transition: transform var(--dur-base) var(--ease);
+  /* V4's undo strip (motion spec, Things that open): it enters with opacity
+     and 8px of y, Base, and leaves with the same two, Exit. Transitions from
+     @starting-style below, not keyframes, so R pressed again while it is going
+     (or its Undo pressed while it is coming) turns it round from where it is.
+     Its Enter waits one Slow (the 400 after R: the board has moved, then the
+     strip says so; the clock and Ctrl+Z are live from the press, see
+     rearrange-undo.ts). `translate`, not `transform`: the notices row sets
+     `transform: none` on it. */
+  opacity: 1;
+  translate: 0 0;
+  transition: opacity var(--dur-base) var(--ease) var(--dur-slow), translate var(--dur-base) var(--ease) var(--dur-slow);
+}
+@starting-style {
+  .rearrange-undo { opacity: 0; translate: 0 8px; }
 }
 /* One measured floor obstacle, with both notices on the same baseline.
    Bottom left, in the control bar's row (react-flow.css) and on its edge,
@@ -258,9 +275,12 @@
   .canvas-notices .rearrange-undo-key { display: none; }
 }
 /* Out quicker than it came in, and deaf to a press on the way: the offer has
-   already ended by the time this runs. */
+   already ended by the time this runs. No wait on the way out. */
 .rearrange-undo.leaving {
-  animation: rearrangeUndoOut 140ms var(--ease) both;
+  opacity: 0;
+  translate: 0 8px;
+  transition-duration: var(--dur-exit);
+  transition-delay: 0s;
   pointer-events: none;
 }
 .rearrange-undo-state { white-space: nowrap; }
@@ -294,31 +314,15 @@
 }
 .rearrange-undo-act:active { transform: scale(var(--press)); }
 .rearrange-undo-key { display: inline-flex; flex: none; }
-@keyframes rearrangeUndoIn {
-  from { opacity: 0; translate: 0 6px; }
-  to { opacity: 1; translate: 0 0; }
-}
-@keyframes rearrangeUndoOut {
-  from { opacity: 1; translate: 0 0; }
-  to { opacity: 0; translate: 0 4px; }
-}
-@keyframes rearrangeUndoFadeIn {
-  from { opacity: 0; }
-  to { opacity: 1; }
-}
-@keyframes rearrangeUndoFadeOut {
-  from { opacity: 1; }
-  to { opacity: 0; }
-}
 /* No slide under reduced motion, in or out, and no travel when the chip comes
    or goes: the strip fades where it stands, which says it arrived and left
    without moving anything. */
 @media (prefers-reduced-motion: reduce) {
-  .rearrange-undo {
-    animation: rearrangeUndoFadeIn 200ms var(--ease) both;
-    transition: none;
+  .rearrange-undo { transition-property: opacity; }
+  .rearrange-undo.leaving { translate: 0 0; }
+  @starting-style {
+    .rearrange-undo { translate: 0 0; }
   }
-  .rearrange-undo.leaving { animation: rearrangeUndoFadeOut 140ms var(--ease) both; }
 }
 
 /* Filter chips above the canvas — small toolbar lets you toggle entire

@@ -267,40 +267,32 @@
 
 /* Spotlight: when an agent is selected, non-lineage nodes fade further.
    Reinforces "follow the chain you clicked" attention. Restores on hover. */
-.react-flow__node.rf-spotlit-out { opacity: 0.16; filter: saturate(0.3) blur(0.3px); transition: opacity var(--dur-base) var(--ease); /* opacity only (rule 4): the filter lands at once, the fade carries the change */ }
+.react-flow__node.rf-spotlit-out { opacity: 0.16; filter: saturate(0.3) blur(0.3px); /* the fade is the node's own opacity transition (react-flow.css, Base); the filter lands at once */ }
 @media (hover: hover) and (pointer: fine) {
 .react-flow__node.rf-spotlit-out:hover { opacity: 0.55; filter: saturate(0.7); }
 }
 
-/* Selected edge: thicker, with a flowing dash so the connection stands
-   out even when the edge is far away on a busy canvas. */
+/* Selected edge: a dash pattern, so the connection stands out even when the
+   edge is far away on a busy canvas. Still: the dashes only travel on a wire
+   whose session is working (react-flow.css, dashflow). */
 .react-flow__edge.rf-edge-selected .react-flow__edge-path {
   stroke-dasharray: 6 3;
-  animation: dashflow 0.8s linear infinite;
-  /* No drop-shadow, for the reason at `.tool-conn.status-inflight` (#882). */
 }
 
-/* exit animation when a done subagent is being retired for a new turn.
-   Apply on inner .agent-node so React Flow's translate transform on the
-   outer .react-flow__node element is not clobbered. */
+/* A card leaves (V4's motion spec, Board): its opacity goes in Exit, no scale
+   and no travel, and the removal timer (EXIT_ANIM_MS, visibility.ts) takes the
+   element out afterwards; the neighbours close the gap in Slow after the hold
+   (canvas-motion.css). Applied on the inner .agent-node so React Flow's
+   translate on the outer .react-flow__node is not touched. A transition, so a
+   card that comes back mid-fade turns round from where it is. */
 .react-flow__node.rf-exiting { pointer-events: none; }
 .react-flow__node.rf-exiting .agent-node {
-  animation: nodeExit 600ms var(--ease) forwards;
-  /* Promoted for the exit only (#881). This was `will-change: transform` on
-     every `.agent-node`, a compositor layer per card for the life of the board,
-     and the only transform a card ever runs is this 600ms leaving — React Flow
-     moves the wrapper, not the card. */
-  will-change: transform, opacity, filter;
+  opacity: 0;
+  transition: opacity var(--dur-exit) var(--ease);
+  /* Promoted for the exit only (#881): a compositor layer per card for the
+     life of the board would be twenty-one extra on a busy one, and the only
+     thing a card ever animates on its way out is its opacity. */
+  will-change: opacity;
 }
-@keyframes nodeExit {
-  0%   { opacity: 1; filter: blur(0) saturate(1); transform: scale(1); }
-  60%  { opacity: 0.4; filter: blur(2px) saturate(0.4); }
-  100% { opacity: 0; filter: blur(6px) saturate(0); transform: scale(0.85); }
-}
-.react-flow__edge.rf-edge-exiting .react-flow__edge-path {
-  animation: edgeExit 600ms var(--ease) forwards;
-}
-@keyframes edgeExit {
-  to { opacity: 0; stroke-dashoffset: 40; }
-}
-
+/* Its wire leaves with it: snapshotToFlow sets the path to opacity 0 and the
+   same Exit transition inline (canvas-flow.ts), which outranks any rule here. */

@@ -29,9 +29,37 @@
   color: var(--text);
   font-size: calc(12px + var(--ui-text-increase, 0px));
   box-shadow: none;
-  transition: border-color var(--dur-base) var(--ease), box-shadow var(--dur-base) var(--ease), background-color var(--dur-fast) var(--ease);
+  /* A border or a plate changing colour is a colour change, Fast; the card
+     itself only ever animates transform and opacity (V4's motion rule 4), and
+     those two are its join (below) and its leaving (search-and-banners.css).
+     No box-shadow in the list: the selected card's lift lands at once. */
+  transition: border-color var(--dur-fast) var(--ease), background-color var(--dur-fast) var(--ease),
+              opacity var(--dur-base) var(--ease), transform var(--dur-base) var(--ease);
   overflow: hidden;
 }
+/* A SESSION JOINS (V4's motion spec, Board): opacity and scale 0.96 to 1, Base,
+   from the place it lands, no blur. A transition from @starting-style, so it is
+   only ever a card that mounts while the board is live (`data-live`, set once
+   the log has replayed and the cards have settled): the cards of a board that is
+   opening are already there, and first paint is still. Its neighbours' move is
+   the outer element's (react-flow.css, Slow on the stage curve). */
+@starting-style {
+  .canvas-wrap[data-live] .react-flow__node .agent-node { opacity: 0; transform: scale(var(--enter-scale)); }
+}
+/* LAND (V4's motion spec): n, a notification or ⌘K that goes to a session. The
+   card takes --accent at 16% and lets it go over Base, once (card-land.ts sets
+   and clears `data-land`). A colour, so it is the same under reduced motion. */
+.agent-node::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--dur-base) var(--ease);
+}
+.agent-node[data-land]::after { opacity: 1; transition: none; }
 @media (hover: hover) and (pointer: fine) {
 /* Flat under the pointer too (V4's card has no shadow, lifted or not): the
    plate takes the tint the faces at a distance and the recap note take. */
@@ -301,12 +329,11 @@
    scale is the mode's: about 1.3px and up on screen instead of half of one. */
 .canvas-wrap[data-lod="compact"] { --edge-k: max(1, calc(0.9 / var(--zoom, 1))); }
 .canvas-wrap[data-lod="overview"] { --edge-k: calc(0.85 / var(--zoom, 1)); }
-/* And without the width's 200ms ease: the width now follows the zoom, so it
-   changes on every frame of a gesture, and an ease restarted on every edge on
-   every frame is a lag and a cost with nothing to show for either. The fade on
-   opacity, which is what a selection or an exit actually animates, stays. */
-.canvas-wrap[data-lod="compact"],
-.canvas-wrap[data-lod="overview"] { --edge-transition: opacity 500ms ease; }
+/* An edge animates its opacity and nothing else (V4's motion rule 4): a
+   selection or an exit is a fade in Base (an exit in Exit, set inline), and
+   the stroke width takes its new value at once, at every distance and under
+   reduced motion, as it always did while the zoom moves it every frame. */
+.canvas-wrap { --edge-transition: opacity var(--dur-base) var(--ease); }
 
 /* The bubbles are a second view of the tool list and the densest thing on the
    canvas; below the full card they are 5px pills with nothing readable in them.
@@ -371,7 +398,7 @@
   cursor: pointer;
   line-height: 0;
   border-radius: 50%;
-  transition: filter var(--dur-fast) var(--ease), transform var(--dur-fast) var(--ease);
+  transition: transform var(--dur-fast) var(--ease);
 }
 @media (hover: hover) and (pointer: fine) {
 .ctx-donut:hover { filter: brightness(1.2); transform: scale(1.08); }
@@ -406,6 +433,21 @@
   font-size: calc(11px + var(--ui-text-increase, 0px));
   line-height: calc(14px + var(--ui-text-increase, 0px));
   pointer-events: none;
+}
+/* V4's tooltip motion, the deck's hint (hint.css) applied to this one: after
+   the 450 wait it comes with opacity and 4px, Fast, from @starting-style so a
+   tip raised twice turns round from where it is; the next tooltip along comes
+   at once (`data-instant`); it goes after a 100ms grace, at once. */
+.cost-tip { transition: opacity var(--dur-fast) var(--ease), transform var(--dur-fast) var(--ease); }
+@starting-style {
+  .cost-tip { opacity: 0; transform: translateY(-4px); }
+}
+.cost-tip[data-instant] { transition: none; }
+@media (prefers-reduced-motion: reduce) {
+  .cost-tip { transition: opacity var(--dur-fast) var(--ease); }
+  @starting-style {
+    .cost-tip { transform: none; }
+  }
 }
 .cost-tip-title, .cost-tip-row { font-family: var(--font-mono); }
 .cost-tip-section { display: flex; flex-direction: column; gap: 8px; }
