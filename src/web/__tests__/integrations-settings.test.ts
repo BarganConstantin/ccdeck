@@ -54,7 +54,11 @@ describe("Settings provider entries", () => {
     for (const [kind, label] of [["github", "GitHub"], ["gitlab", "GitLab"], ["jira", "Jira"]] as const) {
       expectProviderAction(html, kind, `Connect ${label}`, kind === "github" ? true : undefined);
     }
-    expect(html.match(/Not connected/g)).toHaveLength(3);
+    // CHANGED ON PURPOSE (V4's Figma): the three providers are the rows of one
+    // group named Not connected, so the words stand once more as its label.
+    expect(html.match(/Not connected/g)).toHaveLength(4);
+    expect(html).toContain('id="ig-group-not-connected">Not connected</h3>');
+    expect(html).not.toContain('id="ig-group-connected"');
     expectOverviewActionsOnly(html);
     expect(html).not.toContain("More trackers");
   });

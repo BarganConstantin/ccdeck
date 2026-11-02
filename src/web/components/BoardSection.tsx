@@ -9,6 +9,7 @@
 import { HIDE_FINISHED_CHOICES, setHideFinishedAfter } from "../hide-finished";
 import { useHideFinishedAfter } from "../use-hide-finished";
 import { SettingRow, SettingsGroup } from "./SettingsParts";
+import SelectShell from "./SelectShell";
 import { useT } from "../i18n";
 
 export const HIDE_FINISHED_LABEL = "Hide finished sessions after";
@@ -28,17 +29,19 @@ export default function BoardSection() {
         details={t("settings.board.hideDetails")}
         noteId="settings-hide-finished-note"
         control={
-          <select
-            className="sm-select"
-            value={minutes}
-            aria-labelledby="settings-hide-finished-label"
-            aria-describedby="settings-hide-finished-note"
-            onChange={event => setHideFinishedAfter(Number(event.target.value))}
-          >
-            {HIDE_FINISHED_CHOICES.map(choice => (
-              <option key={choice} value={choice}>{choice === 0 ? t("settings.board.never") : t("settings.board.minutes", { n: choice })}</option>
-            ))}
-          </select>
+          <SelectShell>
+            <select
+              className="sm-select"
+              value={minutes}
+              aria-labelledby="settings-hide-finished-label"
+              aria-describedby="settings-hide-finished-note"
+              onChange={event => setHideFinishedAfter(Number(event.target.value))}
+            >
+              {HIDE_FINISHED_CHOICES.map(choice => (
+                <option key={choice} value={choice}>{choice === 0 ? t("settings.board.never") : t("settings.board.minutes", { n: choice })}</option>
+              ))}
+            </select>
+          </SelectShell>
         }
       />
     </SettingsGroup>

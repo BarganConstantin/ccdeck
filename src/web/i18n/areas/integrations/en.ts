@@ -171,6 +171,8 @@ const catalog: Catalog = {
   "integrations.settings.noLongerSaved": "This connection is no longer saved.",
   "integrations.settings.reading": "Reading connections…",
   "integrations.settings.notConnected": "Not connected",
+  "integrations.settings.connectedGroup": "Connected",
+  "integrations.settings.notConnectedGroup": "Not connected",
   "integrations.settings.count.one": "{count} saved connection",
   "integrations.settings.count.other": "{count} saved connections",
   "integrations.settings.moreInstances": "+{n} more instances",

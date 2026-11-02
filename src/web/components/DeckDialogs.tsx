@@ -91,7 +91,7 @@ export default function DeckDialogs({
   /** The two panels Settings › General points at that are App's to open: the
    *  accounts panel, and the Local network view inside it (#2176). */
   panelDoors: { accounts: () => void; localNetwork: () => void };
-  /** The Command Panel's switch, which Settings › Experimental draws. */
+  /** The Command Panel's switch, which Settings › General draws, in its Experimental group. */
   terminal?: TerminalSwitch;
   /** Whether Settings draws its hidden Account section (/api/prefs). */
   account?: AccountSwitch;
