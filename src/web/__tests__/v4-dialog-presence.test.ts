@@ -321,7 +321,14 @@ describe("dialogs.css: the header and the × are V4's Figma", () => {
   });
 
   it("the Usage header's buttons and the recap pin lose the circle", () => {
-    expect(rule(".up-header-right > .glyph-btn,\n.agent-node .recap-pin")).toMatch(/border-radius:\s*var\(--r-ctl\)/);
-    expect(rule('.agent-node .recap-pin[aria-expanded="true"]')).toMatch(/border-radius:\s*var\(--r-ctl\)/);
+    // Both are the kit's icon button, which is on --r-ctl for every state; no
+    // rule of theirs rounds them back into a circle.
+    expect(rule(".glyph-btn")).toMatch(/border-radius:\s*var\(--r-ctl\)/);
+    expect(read("components/UsagePanel.tsx")).toMatch(/className="glyph-btn up-close"/);
+    expect(read("components/AgentNode.tsx")).toMatch(/className="glyph-btn recap-pin"/);
+    const own = [...css.matchAll(/([^{}]+)\{([^}]*)\}/g)]
+      .filter(m => /\.up-header-right|\.recap-pin/.test(m[1]))
+      .map(m => m[2]);
+    for (const body of own) expect(body).not.toMatch(/border-radius:\s*(50%|999px|var\(--r-pill\))/);
   });
 });
