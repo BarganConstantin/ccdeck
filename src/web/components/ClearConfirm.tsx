@@ -61,7 +61,6 @@ export default function ClearConfirm({ agentCount, onConfirm, onCancel }: Props)
     <Dialog scrim={scrimPress} dialogRef={dialogRef} className="clear-confirm" labelledBy="clear-confirm-title">
         <header className="modal-head">
           <div className="modal-title">
-            <span className="status-dot err" aria-hidden />
             <span id="clear-confirm-title" className="modal-tool-name">{t("board.clear.title")}</span>
           </div>
           <div className="modal-actions">
@@ -69,14 +68,19 @@ export default function ClearConfirm({ agentCount, onConfirm, onCancel }: Props)
           </div>
         </header>
 
-        <section className="modal-body">
-          {/* What goes and what stays, one fact to a line (#843), rather than
-              one sentence the reader has to parse while deciding. */}
+        <section className="modal-body cc-body">
+          {/* What goes and what stays, one fact to a line (#843), in V4's two
+              columns rather than one sentence the reader has to parse while
+              deciding. */}
           <dl className="cc-plan">
-            <dt>{t("board.clear.goes")}</dt>
-            <dd>{goes.map(line => <span key={line}>{line}</span>)}</dd>
-            <dt>{t("board.clear.stays")}</dt>
-            <dd>{stays.length > 0 ? stays.map(line => <span key={line}>{line}</span>) : <span>{t("board.clear.nothing")}</span>}</dd>
+            <div className="cc-col">
+              <dt>{t("board.clear.goes")}</dt>
+              <dd>{goes.map(line => <span key={line}>{line}</span>)}</dd>
+            </div>
+            <div className="cc-col">
+              <dt>{t("board.clear.stays")}</dt>
+              <dd>{stays.length > 0 ? stays.map(line => <span key={line}>{line}</span>) : <span className="cc-none">{t("board.clear.nothing")}</span>}</dd>
+            </div>
           </dl>
           {final && <p className="cc-final">{final}</p>}
         </section>

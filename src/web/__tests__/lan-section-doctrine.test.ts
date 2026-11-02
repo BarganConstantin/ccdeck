@@ -468,9 +468,13 @@ describe("the three rules the panel above it already keeps", () => {
     // characters, and unfolded in a 288px column they turned a list of machines
     // into a form with a list on top of it. What stays in the panel is the word
     // that opens them.
+    //
+    // CHANGED ON PURPOSE (V4's Figma): the two fields carry a visible label
+    // above them, tied to the input by `htmlFor`, instead of an `aria-label`
+    // — the same accessible name, now seen as well as heard.
     for (const field of [
-      `aria-label="Another deck's address"`,
-      `aria-label="An invite you were sent"`,
+      `>Another deck's address</label>`,
+      `>An invite you were sent</label>`,
     ]) {
       expect(MODAL, field).not.toContain(field);
       expect(SURFACE, field).not.toContain(field);
@@ -511,7 +515,8 @@ describe("the three rules the panel above it already keeps", () => {
     // when it lands.
     expect(CODE).toMatch(/checkedLabel\(status\?\.checkedAt, now, busy === "check"\)/);
     expect(checkedLabel(NOW, NOW, true)).toBe("checking…");
-    expect(ADD).toMatch(/"joining…"\s*:\s*"join"/);
+    // CHANGED ON PURPOSE (V4's Figma): the verbs are capitalised, `Join`.
+    expect(ADD).toMatch(/"joining…"\s*:\s*"Join"/);
   });
 });
 
@@ -641,7 +646,14 @@ describe("the list is quiet until it is not", () => {
     // word the dot beside it cannot say, kept for anybody being read the list.
     // Dropping the node instead would have made the colour of a 5px dot the
     // only evidence that a deck is fine.
-    expect(LIST).toMatch(/p\.quiet \? "vis-hidden" : "ap-lan-who-when"/);
+    //
+    // CHANGED ON PURPOSE (V4's Figma): the list is rows of two lines, so the
+    // sentence is drawn on every row — a healthy one too — and is in the
+    // accessibility tree because it is on the screen. `quiet` stays in the
+    // data (the first test of this block pins it). What is guarded is the
+    // same: the row's state is a real node, named by the row's door.
+    expect(LIST).toMatch(/<span id=\{`lan-who-state-\$\{i\}`\} className="ap-lan-who-when">\{p\.state\}<\/span>/);
+    expect(LIST).not.toMatch(/p\.quiet \? "vis-hidden"/);
     expect(CSS).toContain(".vis-hidden");
   });
 

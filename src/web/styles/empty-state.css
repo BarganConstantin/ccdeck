@@ -77,34 +77,36 @@
   padding: 24px;
   background: var(--bg);
 }
+/* V4's bare empty state: no card fill, edge or shadow. A centred 360 column,
+   16 inside, a 24px icon, the title and the body 4 apart, then the actions. */
 .error-fallback-card {
-  width: min(440px, 100%);
+  width: min(360px, 100%);
+  box-sizing: border-box;
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  padding: 24px;
+  align-items: center;
+  gap: 4px;
+  padding: 16px;
   text-align: center;
-  background: var(--panel);
-  border: 1px solid var(--line);
-  border-radius: var(--r-panel);
-  box-shadow: var(--shadow-2);
 }
+.error-fallback-icon { display: grid; place-items: center; width: 24px; height: 24px; color: var(--muted); }
+.error-fallback-icon svg { width: 24px; height: 24px; }
 .error-fallback-title {
   margin: 0;
   color: var(--text);
-  font-size: calc(18px + var(--ui-text-increase, 0px));
+  font-size: calc(14px + var(--ui-text-increase, 0px));
+  line-height: var(--lh-card-title);
   font-weight: 600;
-  letter-spacing: 0.01em;
 }
 .error-fallback-note {
   margin: 0;
-  color: var(--text-secondary);
+  color: var(--muted);
   font-size: calc(13px + var(--ui-text-increase, 0px));
-  line-height: 1.65;
+  line-height: var(--lh-body);
 }
 .error-fallback-actions {
   display: flex;
   justify-content: center;
   gap: 8px;
-  margin-top: 4px;
+  padding-top: 8px;
 }

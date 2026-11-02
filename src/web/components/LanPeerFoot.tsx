@@ -44,23 +44,12 @@ export default function LanPeerFoot({
     // details panel. Before this, the bar drew itself empty: 51px of
     // border and nothing in it, in the one state where the reader most
     // needs telling what changed.
-    <footer className="lan-peer-foot">
+    <footer className="modal-foot lan-peer-foot">
       {row.kind === "asks" && (
         <p className="lan-foot-note">{t("lan.foot.asking")}</p>
       )}
-      {/* Not drawn for a deck that only calls in, rather than drawn dead:
-          there is no address here to call it on, the note above says so,
-          and a button that can never be pressed is a question with no
-          answer. */}
-      {paired && !peer?.waiting && (
-        <button type="button" className="btn" {...press(`check:${row.fp}`)}
-          onClick={checkNow}
-          title={t("lan.foot.checkTitle")}>
-          {busy === `check:${row.fp}` ? t("lan.foot.checking") : t("lan.foot.checkNow")}
-        </button>
-      )}
       {row.kind === "paired" && (
-        <button type="button" className={`btn danger lan-peer-verb${armed ? " armed" : ""}`}
+        <button type="button" className={`btn danger${armed ? " armed" : ""}`}
           {...press(`unpair:${row.fp}`)}
           // A HELD KEY IS ONE DECISION TOO. The clock in pressOwn is the
           // rule for a mouse, where the second press cannot arrive before
@@ -78,22 +67,33 @@ export default function LanPeerFoot({
           {busy === `unpair:${row.fp}` ? t("lan.unpair.working") : armed ? t("lan.unpair.confirm") : t("lan.unpair.word")}
         </button>
       )}
+      {/* Not drawn for a deck that only calls in, rather than drawn dead:
+          there is no address here to call it on, the note above says so,
+          and a button that can never be pressed is a question with no
+          answer. */}
+      {paired && !peer?.waiting && (
+        <button type="button" className="btn primary" {...press(`check:${row.fp}`)}
+          onClick={checkNow}
+          title={t("lan.foot.checkTitle")}>
+          {busy === `check:${row.fp}` ? t("lan.foot.checking") : t("lan.foot.checkNow")}
+        </button>
+      )}
       {row.kind === "nearby" && status.pairingMode !== "invite" && (
-        <button type="button" className="btn primary lan-peer-verb" {...press(`accept:${row.fp}`)}
+        <button type="button" className="btn primary" {...press(`accept:${row.fp}`)}
           onClick={() => void run(onVerb)}
           title={t("lan.foot.askTitle")}>
           {busy === `accept:${row.fp}` ? t("lan.foot.asking2") : t("lan.foot.askToPair")}
         </button>
       )}
       {row.kind === "dialling" && (
-        <button type="button" className="btn lan-peer-verb" {...press(`drop:${row.fp}`)}
+        <button type="button" className="btn" {...press(`drop:${row.fp}`)}
           onClick={() => void run(onVerb)}
           title={t("lan.foot.dropTitle")}>
           {busy === `drop:${row.fp}` ? t("lan.foot.stopping") : t("lan.foot.stopDialling")}
         </button>
       )}
       {row.kind === "declined" && status.pairingMode !== "invite" && (
-        <button type="button" className="btn lan-peer-verb" {...press(`allow:${row.fp}`)}
+        <button type="button" className="btn" {...press(`allow:${row.fp}`)}
           onClick={() => void run(onVerb)}
           title={t("lan.foot.allowTitle")}>
           {busy === `allow:${row.fp}` ? t("lan.foot.allowing") : t("lan.foot.letAsk")}
@@ -104,7 +104,7 @@ export default function LanPeerFoot({
           nothing in it — the state the comment on this footer says was
           fixed — at the moment the reader came here to pair it. */}
       {(row.kind === "nearby" || row.kind === "declined") && status.pairingMode === "invite" && onInvite && (
-        <button type="button" className="btn primary lan-peer-verb"
+        <button type="button" className="btn primary"
           onClick={onInvite}
           title={t("lan.foot.inviteTitle")}>
           {t("lan.foot.invite")}

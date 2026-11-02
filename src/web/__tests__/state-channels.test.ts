@@ -478,8 +478,11 @@ describe("what a reader is told, now that the dot is decoration everywhere", () 
     // the ✓ and the × with `content:`, and generated content IS spoken by some
     // readers — so a dot left exposed would read its mark and then the word
     // beside it said the same thing again.
+    // CHANGED ON PURPOSE (V4's Figma): the tool call and Clear the deck no
+    // longer draw a dot, so four are left (the Inspector's and the usage
+    // panel's three). The floor only proves the scan still finds them.
     const all = dots();
-    expect(all.length).toBeGreaterThanOrEqual(5);
+    expect(all.length).toBeGreaterThanOrEqual(4);
     expect(all.filter(d => !/aria-hidden/.test(d.tag)).map(d => `${d.file}: ${d.tag}`)).toEqual([]);
   });
 

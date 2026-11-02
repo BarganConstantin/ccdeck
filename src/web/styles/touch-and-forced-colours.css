@@ -95,6 +95,11 @@
      brings one still moves nothing. */
   .release-notes .rn-line-act,
   .release-notes .rn-update-line { min-height: 32px; }
+  /* V4's shell dialogs: the sheet's Take the tour (What's new's Release history link takes 44 in dialogs.css),
+     Usage history's provider switch and the tour's step dots take the floor. */
+  .kh-tour,
+  .qh-provider,
+  .guide-dot { min-height: 32px; }
 }
 
 /* ---------------- forced colours (#871) ----------------
@@ -228,7 +233,8 @@
      under the pointer, where their own hover would outrank this. */
   .uh-range-btn[aria-pressed="true"],
   .react-flow__controls-button[aria-pressed="true"],
-  .aa-tab.on { forced-color-adjust: none; border-color: Highlight; background: Highlight; color: HighlightText; }
+  .aa-tab.on,
+  .qh-provider[aria-pressed="true"] { forced-color-adjust: none; border-color: Highlight; background: Highlight; color: HighlightText; }
   /* The picked threshold chip, the picked next-account option and the picked
      Move slot are a tinted background alone, which a Contrast theme repaints
      as Canvas: the pick keeps a ring. */
@@ -490,6 +496,5 @@
   .fgl-repo-option[data-active="true"] { outline: 1px solid Highlight; outline-offset: -1px; }
   button.btn.jr-chip[aria-pressed="true"] { outline: 2px solid Highlight; outline-offset: -3px; border-color: Highlight; }
   /* Integration discovery follows the same final forced-colors layer. */
-  .explore-connection[data-connected] { color: CanvasText; }
   .explore-text-action { color: LinkText; text-decoration-color: LinkText; }
 }

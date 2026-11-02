@@ -83,7 +83,6 @@ export default function LanPairRequestModal({ request, waiting, busy, now, onAcc
     <Dialog scrim={scrimPress} dialogRef={dialogRef} className="lan-ask" labelledBy="lan-ask-title" aria-describedby="lan-ask-who">
         <header className="modal-head">
           <div className="modal-title">
-            <i className="ap-pulse" aria-hidden />
             <span id="lan-ask-title" className="modal-tool-name">{t("lan.ask.title")}</span>
           </div>
           <div className="modal-actions">
@@ -101,24 +100,26 @@ export default function LanPairRequestModal({ request, waiting, busy, now, onAcc
             }} />
           </p>
 
-          <p className="modal-note">
+          <p className="lan-ask-note">
             {t("lan.ask.note")}
           </p>
 
           {/* The one value worth comparing, printed rather than described — and
               where the other machine prints its own (#815), because comparing
-              with a screen nobody can find is not a check. */}
-          <p className="lan-ask-fp">
-            <Fill text={t("lan.ask.fp")} parts={{ fp: <code className="ap-lan-code">{request.fp}</code> }} />
-          </p>
+              with a screen nobody can find is not a check. It stands alone in a
+              sunken box, as V4's Figma draws it, under the sentence that says
+              what to compare it with. */}
+          <p className="lan-ask-fp">{t("lan.ask.fp")}</p>
+          <code className="lan-ask-fp-box">{request.fp}</code>
 
           {waiting > 0 && (
             <p className="lan-ask-more">
               {t("lan.ask.more", { count: waiting })}
             </p>
           )}
+        </section>
 
-          <div className="lan-ask-acts">
+        <footer className="modal-foot lan-ask-foot">
             <button type="button" ref={declineRef} className="btn"
               disabled={decline.disabled} aria-busy={decline.busy}
               onClick={onDecline}
@@ -131,8 +132,7 @@ export default function LanPairRequestModal({ request, waiting, busy, now, onAcc
               title={t("lan.ask.acceptTitle")}>
               {busy === "accept" ? t("lan.ask.accepting") : t("lan.ask.accept")}
             </button>
-          </div>
-        </section>
+        </footer>
     </Dialog>
   );
 }

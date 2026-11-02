@@ -531,29 +531,6 @@ button.tool.clickable:hover { background: var(--ctl-fill); }
 button.tool.clickable:active { transform: scale(var(--press)); }
 button.tool.clickable:last-child { border-bottom: none; }
 
-/* ---------------- shortcuts grid ---------------- */
-.shortcuts {
-  display: grid;
-  grid-template-columns: auto 1fr;
-  gap: 6px 12px;
-  align-items: center;
-}
-.shortcuts .sc { display: contents; }
-.shortcuts .sc kbd {
-  font-family: var(--font-mono);
-  font-size: calc(10px + max(-1px, var(--ui-text-increase, 0px)));
-  font-weight: 600;
-  color: var(--text);
-  background: var(--bg-soft);
-  border: 1px solid var(--line);
-  border-bottom-width: 2px;
-  border-radius: 4px;
-  padding: 2px 8px;
-  text-align: center;
-  min-width: 38px;
-}
-.shortcuts .sc span { color: var(--muted); font-size: calc(12px + var(--ui-text-increase, 0px)); }
-
 /* hint row inside empty hero */
 /* A tier under the paragraph above it, not an opacity over it (#1787): 0.75
    took --muted to 3.33:1 on the dark canvas and 3.83:1 on the light one, and

@@ -87,6 +87,21 @@
   border-radius: 50%;
   background: var(--ok);
 }
+/* LOCAL NETWORK'S WAY IN, as V4's Figma draws it: 44 high on two lines, the name
+   in 13/20 regular over the state in 12/16, and a 14px glyph. `.ap-nav` is
+   shared with the other accounts' fold, so every size here is written under
+   `.ap-lan-nav` and the fold keeps its own. The row keeps the shared 6px bleed, so it lines up with
+   the other accounts' row and the map button keeps its gap to the chevron. */
+.ap-nav.ap-lan-nav {
+  width: calc(100% + 12px);
+  min-height: 44px;
+  margin: 0 -6px;
+  padding: 4px 6px;
+  box-sizing: border-box;
+}
+.ap-lan-nav .ap-nav-text { gap: 0; }
+.ap-lan-nav .ap-nav-name { font-size: calc(13px + var(--ui-text-increase, 0px)); font-weight: 400; line-height: 20px; }
+.ap-lan-nav .ap-nav-state { font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: 16px; }
 .ap-nav-state[data-tone="bad"] { color: var(--warn); }
 .ap-nav-state[data-tone="wait"] { color: var(--accent); }
 .ap-nav-chev {
@@ -720,7 +735,7 @@
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 5px;
+  gap: 4px;
 }
 /* TWO LINES, BY STRUCTURE. One row used to be one line of three flex items —
    a dot, the machine's name, and the sentence about it — and the sentence was
@@ -743,24 +758,31 @@
      says so. */
   cursor: pointer;
   display: grid;
-  grid-template-columns: 5px minmax(0, 1fr) auto;
+  /* V4's row: a 14px glyph, then two lines — the name over what is happening
+     to it — and the verb on the end. 44 high at rest (4 + 20 + 16 + 4), and
+     taller only when the second line has more to say than one line holds. */
+  grid-template-columns: 14px minmax(0, 1fr) auto;
   grid-template-areas:
-    "dot  name  verb"
-    ".    state verb";
-  column-gap: 8px;
-  row-gap: 1px;
+    "glyph name  verb"
+    "glyph state verb";
+  column-gap: 10px;
+  row-gap: 0;
   align-items: center;
   min-width: 0;
+  min-height: 44px;
+  padding: 4px 0;
+  box-sizing: border-box;
 }
-/* A ROW WITH NOTHING TO REPORT IS ONE LINE, AND NOW ITS BOX IS ONE LINE. Its
-   sentence is out of flow (`.vis-hidden`), but the grid kept a second track,
-   and the 24px verb spanning both left an empty 9px under every healthy row:
-   a 27.4px box round a 14px name, the name at the top of it and `unpair`
-   five pixels below the name. One track puts the dot, the name and the verb
-   on one centre line, in the 24px the spacing rule below was written for —
-   its own comment has their centres 29px apart. */
-.ap-lan-who:has(> .vis-hidden) { grid-template-areas: "dot name verb"; }
-.ap-lan-who > .ap-pulse, .ap-lan-who > .ap-dot { grid-area: dot; }
+/* THE GLYPH IS THE MACHINE; THE MARK IS ITS STATE. Both sit in the one narrow
+   column, the mark on the glyph's lower corner, ringed in the panel's ground so
+   the two read as one thing. The verb is centred on the whole row. */
+.ap-lan-glyph { grid-area: glyph; color: var(--muted); }
+.ap-lan-who > .ap-pulse, .ap-lan-who > .ap-dot {
+  grid-area: glyph;
+  justify-self: end;
+  translate: 3px 6px;
+  box-shadow: 0 0 0 2px var(--panel);
+}
 .ap-lan-who > .ap-manage-btn { grid-area: verb; align-self: center; }
 /* The name is the row. It takes --text at 12px against the panel's 10px
    labels, because a machine somebody is talking to is a thing and the words
@@ -774,7 +796,8 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: calc(12px + var(--ui-text-increase, 0px));
+  font-size: calc(13px + var(--ui-text-increase, 0px));
+  line-height: 20px;
   color: var(--text);
 }
 /* THE ROW IS THE DOOR. A row opens that machine's dialog, and a row is two
@@ -860,8 +883,8 @@
 .ap-lan-who-when {
   grid-area: state;
   min-width: 0;
-  font-size: calc(10px + max(-1px, var(--ui-text-increase, 0px)));
-  line-height: 1.45;
+  font-size: calc(12px + var(--ui-text-increase, 0px));
+  line-height: 16px;
   color: var(--muted);
   overflow-wrap: anywhere;
 }
@@ -915,7 +938,7 @@
 /* The countdown is a number that changes while somebody reads the token out
    loud, so it is set as one: tabular, so it does not shuffle its own width. */
 .ap-lan-invite-left {
-  font-size: calc(10px + max(-1px, var(--ui-text-increase, 0px)));
+  font-size: calc(11px + var(--ui-text-increase, 0px));
   color: var(--muted);
   font-variant-numeric: tabular-nums;
 }
@@ -929,7 +952,7 @@
   border-radius: 6px;
   background: color-mix(in srgb, var(--text) 6%, transparent);
   font-family: var(--font-mono);
-  font-size: calc(10px + max(-1px, var(--ui-text-increase, 0px)));
+  font-size: calc(11px + var(--ui-text-increase, 0px));
   line-height: 1.5;
   color: var(--text);
   word-break: break-all;
@@ -944,6 +967,12 @@
   color: var(--text-dim);
 }
 
+/* NOTHING YET, as V4's Figma draws it: the sentence in the kit's 12/16 body
+   text, then the outlined button that opens the guide. The button is the kit's
+   own, so it is 28 high and as wide as its words. */
+.ap-lan-nothing { margin: 8px 0 0; font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: 16px; color: var(--text-secondary); }
+.btn.ap-lan-how { margin-top: 12px; }
+
 /* Which addresses were tried and what each one said. An invite carries several
    because nobody knows which routes; when none did, this list is the only thing
    the reader can act on. */
@@ -957,7 +986,7 @@
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
-  font-size: calc(10px + max(-1px, var(--ui-text-increase, 0px)));
+  font-size: calc(11px + var(--ui-text-increase, 0px));
 }
 
 
@@ -987,7 +1016,7 @@
 
 .ap-lan-code {
   font-family: var(--font-mono);
-  font-size: calc(10px + max(-1px, var(--ui-text-increase, 0px)));
+  font-size: calc(11px + var(--ui-text-increase, 0px));
   color: var(--text);
   user-select: all;
   /* An IPv6 literal is 39 characters with no space and no hyphen in it, which

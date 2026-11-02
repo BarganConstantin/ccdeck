@@ -226,12 +226,11 @@ export default function LanPeerModal({
                 )}
               </span>
             )}
-            {/* THE STEADY STATE IS SILENCE HERE TOO. `quiet` is the row's own
-                word for online with nothing to repair, and the list has obeyed
-                it since it was written — a line every healthy row carries
-                identically is a line that cannot be scanned. The sentence is
-                still HERE, and still read aloud; it simply stops competing
-                with the one thing on the surface a reader can act on. */}
+            {/* THE SUB-LINE, AT THE HEADER'S RIGHT, as V4's Figma writes it: what
+                the deck calls itself, when somebody here gave it another name,
+                and whether it is there — "calls itself imac-home · online". The
+                state is said for a healthy deck too: the list draws it on every
+                row now, and the dialog it opens from says what the row says. */}
             <p id="lan-peer-sub" className="lan-peer-sub">
               {row.self && (
                 <>
@@ -246,10 +245,10 @@ export default function LanPeerModal({
                       aloud, an aria-hidden `·` ran the name straight into the
                       state as one breathless clause. */}
                   <span className="vis-hidden">{". "}</span>
-                  {!row.quiet && <span aria-hidden>{" · "}</span>}
+                  <span aria-hidden>{" · "}</span>
                 </>
               )}
-              <span className={row.quiet ? "vis-hidden" : "lan-peer-state"}>{row.state}</span>
+              <span className="lan-peer-state">{row.state}</span>
             </p>
           </div>
           <div className="modal-actions">

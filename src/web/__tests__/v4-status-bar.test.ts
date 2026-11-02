@@ -514,10 +514,12 @@ describe("N, Shift+N and P", () => {
     expect(read("styles/lan-sync.css")).toMatch(/:root\[data-motion="instant"\] \.ap-peek \{ animation: none; \}/);
   });
 
-  it("is on the sheet, in Canvas after W", () => {
-    const canvas = KEY_HELP.find(g => g.title === "Canvas")!.rows;
-    const caps = canvas.map(r => r.cap);
-    expect(caps.slice(caps.indexOf("W") + 1, caps.indexOf("W") + 4)).toEqual(["N", "Shift + N", "P"]);
+  it("is on the sheet, N and Shift + N after W in The question, P in Canvas", () => {
+    // CHANGED ON PURPOSE (V4's Figma): W, N and Shift + N are V4's group
+    // "The question"; P is Canvas's.
+    const question = KEY_HELP.find(g => g.title === "The question")!.rows;
+    expect(question.map(r => r.cap)).toEqual(["W", "N", "Shift + N"]);
+    const canvas = [...question, ...KEY_HELP.find(g => g.title === "Canvas")!.rows];
     const row = (cap: string) => canvas.find(r => r.cap === cap)!;
     expect(row("N")).toMatchObject({ action: "the next one waiting on you — W does the same", binds: ["n", "N"] });
     // "on the board": with the Command Panel open, Shift+N is its next ask.

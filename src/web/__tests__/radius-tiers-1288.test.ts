@@ -50,8 +50,10 @@ describe("the canvas's radius tier is named beside the chrome's (#1288)", () => 
     // chrome surface that reads it; the canvas objects still read the tier from the same token.
     // CHANGED ON PURPOSE: V4's Figma draws Settings' Text & density preview as a
     // sunken box at the same 10, a picture of the board's rows.
+    // CHANGED ON PURPOSE (V4's Figma): the Explore integrations rows are cards drawn at
+    // --r-node (10), so .explore-provider reads it too.
     // CHANGED ON PURPOSE (V4's Figma): the integrations' failure note and loading skeleton are
     // drawn as 10px notes (the kit's --r-node), so they read the token as the Usage panel does.
-    expect(readers.sort()).toEqual([...Object.keys(CANVAS), ".usage-panel", ".reading-preview", ".ig-failure", ".ig-skeleton"].sort());
+    expect(readers.sort()).toEqual([...Object.keys(CANVAS), ".usage-panel", ".reading-preview", ".explore-provider", ".ig-failure", ".ig-skeleton"].sort());
   });
 });

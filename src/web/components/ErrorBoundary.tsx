@@ -26,6 +26,7 @@ import { isEscapeKey, modalStack } from "../modal-dismiss";
 import { forwardCaughtError, scrubReport } from "../report-errors";
 import { showTabIcon } from "../use-tab-ambient";
 import FeedbackDialog from "./FeedbackDialog";
+import { UnreachableGlyph } from "./action-glyphs";
 import { DialogPresence } from "./Dialog";
 import { readFeedbackAccount, type FeedbackAccount } from "../feedback-unread";
 import { t } from "../i18n";
@@ -113,6 +114,7 @@ export default class ErrorBoundary extends Component<Props, State> {
             it, since everything inside an alert is read out, assertively,
             whenever any of it changes. */}
         <div className="error-fallback-card" role="alert">
+          <span className="error-fallback-icon" aria-hidden><UnreachableGlyph /></span>
           <p className="error-fallback-title">{t("shell.error.title")}</p>
           <p className="error-fallback-note">{t("shell.error.note")}</p>
           <div className="error-fallback-actions">

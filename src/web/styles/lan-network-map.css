@@ -47,21 +47,24 @@
 .nm-head { gap: 16px; }
 .nm-heading { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
 .nm-title { margin: 0; font-size: calc(14px + var(--ui-text-increase, 0px)); font-weight: 600; }
+/* The caption under the picture: V4's 12/16 in the muted ink, 24 in from the
+   edge. It can wrap on a narrow stage rather than be cut. */
 .nm-sub {
+  flex: none;
   margin: 0;
-  font-size: calc(11px + var(--ui-text-increase, 0px));
+  padding: 8px 24px 0;
+  background: var(--bg);
+  font-size: calc(12px + var(--ui-text-increase, 0px));
+  line-height: 16px;
   color: var(--muted);
   font-variant-numeric: tabular-nums;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .nm-body {
   flex: 1 1 auto;
   min-height: 0;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 296px;
+  grid-template-columns: minmax(0, 1fr) 360px;
 }
 
 /* THE STAGE. The canvas's own ground — its dot grid, fading out toward the
@@ -271,10 +274,13 @@
 }
 .nm-core-orb {
   position: absolute;
-  left: -26px;
-  top: -26px;
-  width: 52px;
-  height: 52px;
+  left: -36px;
+  top: -36px;
+  width: 72px;
+  height: 72px;
+  display: grid;
+  place-items: center;
+  color: var(--bg);
   border-radius: 50%;
   background: var(--hero-core);
   box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 35%, transparent), 0 0 28px color-mix(in srgb, var(--accent) 22%, transparent);
@@ -300,7 +306,7 @@
 .nm-core-label {
   position: absolute;
   z-index: 1;
-  top: 32px;
+  top: 44px;
   left: 0;
   translate: -50% 0;
   display: flex;
@@ -313,8 +319,14 @@
   white-space: nowrap;
   text-align: center;
 }
-.nm-core-name { font-size: calc(12px + var(--ui-text-increase, 0px)); font-weight: 600; color: var(--text); }
-.nm-core-what { font-size: calc(10px + max(-1px, var(--ui-text-increase, 0px))); color: var(--muted); }
+.nm-core-name { font-size: calc(13px + var(--ui-text-increase, 0px)); font-weight: 600; line-height: 20px; color: var(--text); }
+.nm-core-what { font-size: calc(11px + var(--ui-text-increase, 0px)); line-height: 14px; color: var(--muted); }
+.nm-core-orb .lan-machine, .nm-node .lan-machine { width: 14px; height: 14px; }
+/* THE ORB'S GLYPH IS THE ORB'S INK, --bg: 5.2 to 12.1:1 on the orb of every
+   theme but Light, whose gradient is a mid blue at its middle (2.6:1 under
+   --bg); there the ink is --text (6.5:1). Held by v4-lan-screens.test.ts. */
+.nm-core-orb .lan-machine { color: inherit; }
+:root[data-theme="light"] .nm-core-orb { color: var(--text); }
 
 /* A DECK. The button is the disc; its mark, its name and its caption hang off
    it. It is anchored at its own centre and moved there with `translate`, which
@@ -326,9 +338,9 @@
   position: absolute;
   left: 50%;
   top: 50%;
-  width: 40px;
-  height: 40px;
-  margin: -20px 0 0 -20px;
+  width: 56px;
+  height: 56px;
+  margin: -28px 0 0 -28px;
   padding: 0;
   display: grid;
   place-items: center;
@@ -369,9 +381,9 @@
 /* Not paired: the disc's edge is dashed and it sits a step back on the ground,
    the ring's own stroke carried onto the machine. */
 .nm-node[data-tier="loose"] {
-  width: 34px;
-  height: 34px;
-  margin: -17px 0 0 -17px;
+  width: 48px;
+  height: 48px;
+  margin: -24px 0 0 -24px;
   border-style: dashed;
   background: var(--bg-soft);
 }
@@ -426,8 +438,10 @@
    list's own emission in the accent. */
 .nm-mark {
   position: absolute;
-  right: -2px;
-  bottom: -2px;
+  /* On the disc's own lower-right edge: the point at 45 degrees on a 56 circle
+     is 8px in from the box's corner, and the 10px mark is centred there. */
+  right: 3px;
+  bottom: 3px;
   width: 10px;
   height: 10px;
   border-radius: 50%;
@@ -439,7 +453,9 @@
 .nm-mark[data-tier="online"] { background: var(--ok); border-color: var(--ok); }
 .nm-mark[data-tier="offline"],
 .nm-key-mark[data-tier="offline"] { border-color: var(--nm-away); }
-.nm-mark[data-tier="loose"] { border-style: dashed; }
+.nm-mark[data-tier="loose"] { border-style: dashed; right: 2px; bottom: 2px; }
+.nm-stage[data-dense] .nm-mark { right: 1px; bottom: 1px; }
+.nm-stage[data-dense] .nm-mark[data-tier="loose"] { right: 0; bottom: 0; }
 .nm-mark[data-kind="asks"] { background: var(--accent); border-color: var(--accent); }
 .nm-mark[data-kind="asks"]::after {
   content: "";
@@ -482,9 +498,9 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: calc(12px + var(--ui-text-increase, 0px));
-  font-weight: 500;
-  line-height: 1.3;
+  font-size: calc(13px + var(--ui-text-increase, 0px));
+  font-weight: 600;
+  line-height: 20px;
   color: var(--text);
 }
 .nm-node[data-tier="offline"] .nm-name,
@@ -500,17 +516,25 @@
   text-overflow: ellipsis;
   white-space: nowrap;
   font-family: var(--font-mono);
-  font-size: calc(10px + max(-1px, var(--ui-text-increase, 0px)));
-  line-height: 1.3;
+  font-size: calc(11px + var(--ui-text-increase, 0px));
+  line-height: 14px;
   color: var(--muted);
   font-variant-numeric: tabular-nums;
 }
 .nm-node[data-kind="asks"] .nm-cap { color: var(--accent); }
 /* A crowded ring sets its names a step down and drops the line under them,
    so thirty decks still fit; the side panel has every caption in full. */
-.nm-stage[data-dense] .nm-name { font-size: calc(11px + var(--ui-text-increase, 0px)); }
+.nm-stage[data-dense] .nm-name { font-size: calc(11px + var(--ui-text-increase, 0px)); line-height: 16px; }
 .nm-stage[data-dense] .nm-node:not([data-kind="asks"]) .nm-cap { display: none; }
 .nm-stage[data-dense] .nm-label { max-width: 100px; }
+/* A DENSE MAP DRAWS THE SMALLER DISCS TOO. Where the stage cannot hold 56-wide
+   decks with their names (a phone, a short stacked map), the decks are 40 across
+   (34 when not paired) and this deck's orb 52, which are the sizes the layout
+   measures for a dense map (DENSE_DISC_R in lan-network-map.ts). */
+.nm-stage[data-dense] .nm-node { width: 40px; height: 40px; margin: -20px 0 0 -20px; }
+.nm-stage[data-dense] .nm-node[data-tier="loose"] { width: 34px; height: 34px; margin: -17px 0 0 -17px; }
+.nm-stage[data-dense] .nm-core-orb { left: -26px; top: -26px; width: 52px; height: 52px; }
+.nm-stage[data-dense] .nm-core-label { top: 34px; }
 
 .nm-empty {
   position: absolute;
@@ -534,12 +558,11 @@
   column-gap: 14px;
   row-gap: 4px;
   margin: 0;
-  padding: 8px 16px 10px;
-  border-top: 1px solid var(--line-soft);
+  padding: 4px 24px 12px;
   background: var(--bg);
   list-style: none;
-  font-size: calc(10px + max(-1px, var(--ui-text-increase, 0px)));
-  line-height: 1.5;
+  font-size: calc(12px + var(--ui-text-increase, 0px));
+  line-height: 16px;
   color: var(--muted);
 }
 .nm-legend li { display: inline-flex; align-items: center; gap: 6px; }
@@ -573,14 +596,16 @@
 .nm-side {
   min-height: 0;
   overflow: hidden auto;
-  border-left: 1px solid var(--line);
+  border-left: 1px solid var(--line-soft);
   background: var(--bg-soft);
 }
+/* The details column: 360 with its divider, 24 of padding on every side, so
+   the content is V4's 311 wide. */
 .nm-panel {
   display: flex;
   flex-direction: column;
   gap: 10px;
-  padding: 16px var(--panel-inset) 18px;
+  padding: 24px;
 }
 /* HOW THE PANEL ARRIVES — see `entrance` in LanNetworkMap.tsx. The first
    deck unfolds, its parts rising a few pixels out of a blur one after
