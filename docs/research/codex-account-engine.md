@@ -82,7 +82,7 @@ conversation leases stop continuation rather than rewriting or duplicating work.
 Transferred files are published atomically with an exclusive link and a private
 sidecar recording the copied prefix. The live Codex watcher skips that prefix,
 so old prompts and tool calls are not re-emitted as new activity after a handoff.
-The original rollout stays available in its source home.
+Exec continuation keeps the original rollout in its source home. Interactive handoff moves it to an owner-only source backup, including its prefix receipt, so later round trips can publish a fresh active rollout without collisions.
 
 An unrelated profile quoting test used the real registry when its explicit
 environment omitted a data directory. The failure reproduced on unmodified
@@ -114,8 +114,7 @@ notifications caused by shutting down the old backend are suppressed during
 migration so the TUI does not race the engine with its own resume.
 
 Failure to select a target restores the current thread idle without submitting
-another prompt. The bounded engine then stops monitoring until the next managed
-launch; manual retries stay usable. Unknown/ambiguous submission outcomes are
+another prompt. The automatic attempt loop then stops; a later manual selection can rearm it without relaunching the TUI, and manual retries stay usable. Unknown/ambiguous submission outcomes are
 never replayed. A TUI that changes conversation ownership can likewise require
 a fresh managed launch. This is not a desktop-app integration or a promise that
 arbitrary externally launched sessions can be taken over.
@@ -133,8 +132,8 @@ arbitrary externally launched sessions can be taken over.
   `INTERACTIVE_RESUMED_OK`, submit another prompt on the new backend, then quit.
   The same TUI remained open. Real logins, external inference and production
   shell configuration were not used.
-- Windows/Linux native TUI and authenticated two-account acceptance are not
-  established by fake-process tests or the macOS loopback probe.
+- Windows/Linux native TUI acceptance is not established by the macOS probes.
+  Authenticated macOS acceptance was subsequently performed as recorded below.
 
 Final interactive branch checks on Node 22: 68 relevant test files / 820 tests,
 typecheck, production build, and package dry-run. The package contains `ws` and
@@ -145,3 +144,41 @@ zero advisories. The desktop licence check now verifies the actual MIT text for
 A dedicated signal test confirms that terminal Ctrl+C does not kill the owned
 backend, and a timeout test confirms that internal submissions are not retried or
 leaked into the TUI as late responses.
+
+## Manual switching and authenticated acceptance — 2026-11-02
+
+A manual Accounts selection atomically records a separate running-session intent
+in the local registry. Managed interactive engines poll its revision, including
+with Auto-switch disabled. Automatic changes of the launch default do not create
+that intent. The engine waits for owned tools, other active turns, outstanding
+requests and approvals, then interrupts the foreground turn by its exact ID.
+A confirmed interrupted turn receives one Continue after the backend changes;
+a completed or idle turn receives no extra prompt. Ephemeral title-generation
+threads never replace foreground ownership. Metadata requests arriving during
+the handoff are held once rather than turned into native TUI warnings.
+
+The configuration snapshot comes from native raw config layers, merged in native
+priority order. The effective display view is not a round-trip format: its null
+policy fields can become invalid override values. Settings remain in memory and
+are sent through native RPC, never process argv or rewritten account files. Empty
+or project-trust-only login homes inherit the original CLI settings at launch.
+A destination with unrelated runtime settings is refused. A separate lease is
+held for every transferred foreground thread.
+
+Real Codex CLI 0.166.0 on macOS was exercised with two existing authenticated
+ChatGPT accounts, including the installed durable terminal helper with automatic
+rotation off. Native /status showed different account/workspace identities with
+the same conversation ID and retained model and permissions. A marker established
+on the first account was recalled on the second. Switching while a shell command
+was active waited for it to finish, interrupted the response, and completed the
+remaining task on the other account. The command's artifact contained exactly
+one START and one DONE. Starting directly on the isolated second account and
+switching back was also verified. Credentials were handled by the native CLI;
+no authentication files were copied. Production shell integration and the
+installed dashboard were not replaced by these checks.
+
+The real plugin catalog also exposed a transport limit: native responses can
+exceed 16 MiB. Frames now have a 64 MiB bound and are accumulated without repeated
+scanning of earlier chunks. A large-frame regression and native TUI startup
+verify this path. Internal resumes request metadata only with excludeTurns,
+avoiding deprecated full-history hydration.
