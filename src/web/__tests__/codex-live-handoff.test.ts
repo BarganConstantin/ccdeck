@@ -1,0 +1,118 @@
+import { describe, expect, it, vi } from 'vitest';
+// @ts-expect-error server module
+import { prepareCodexLiveHandoff, continueCodexLiveHandoff } from '../../server/codex-live-handoff.mjs';
+function fixture() {
+  const turn = { id: 'turn-one', rootTurnId: 'root-turn', status: 'inProgress', itemsView: 'full', items: [{ id: 'input', type: 'userMessage' }, { id: 'reason', type: 'reasoning' }] as any[] };
+  const thread = { id: 'thread-one', parentThreadId: null as string | null, historyMode: 'legacy', status: { type: 'active', activeFlags: [] as string[] } };
+  const rpc = { request: vi.fn(async (method: string, params: any) => {
+    if (method === 'thread/loaded/list') return { data: [thread.id] };
+    if (method === 'thread/read') return { thread: { ...thread } };
+    if (method === 'thread/turns/list') return { data: [{ ...turn, items: [...turn.items] }] };
+    if (method === 'thread/resume') return { thread, initialTurnsPage: { data: [{ ...turn, items: [...turn.items] }] } };
+    if (method === 'thread/unsubscribe') return {};
+    if (method === 'turn/interrupt') { expect(params.turnId).toBe(turn.id); turn.status = 'interrupted'; thread.status.type = 'idle'; return {}; }
+    if (method === 'turn/start') { thread.status.type = 'active'; return { turn: { id: 'continued-turn' } }; }
+    throw Error('Unexpected method');
+  }) };
+  return { turn, thread, rpc };
+}
+describe('native account handoff without network-permit revocation', () => {
+  it('interrupts only an observed response, then continues the exact thread once without permission overrides', async () => {
+    const { rpc } = fixture(); const journal = vi.fn(async () => {});
+    const handoff = await prepareCodexLiveHandoff(rpc);
+    expect(handoff.paused).toMatchObject([{ threadId: 'thread-one', turnId: 'turn-one' }]);
+    expect(await continueCodexLiveHandoff(rpc, handoff, { beforeSend: journal })).toEqual({ resumed: 1 });
+    await continueCodexLiveHandoff(rpc, handoff, { beforeSend: journal });
+    const starts = rpc.request.mock.calls.filter(c => c[0] === 'turn/start'); expect(starts).toHaveLength(1);
+    expect(starts[0][1]).toMatchObject({ threadId: 'thread-one', rootTurnId: 'root-turn' });
+    expect(Object.keys(starts[0][1]).sort()).toEqual(['clientUserMessageId', 'input', 'rootTurnId', 'threadId']);
+    expect(journal).toHaveBeenCalledOnce();
+  });
+  it.each(['commandExecution', 'mcpToolCall', 'dynamicToolCall', 'fileChange', 'collabAgentToolCall'])('waits for an active %s without interrupting or sending input', async type => {
+    const { rpc, turn } = fixture(); turn.items.push({ id: 'tool', type, status: 'inProgress' });
+    expect(await prepareCodexLiveHandoff(rpc)).toEqual({ waiting: true, paused: [] });
+    expect(rpc.request.mock.calls.some(c => c[0].startsWith('turn/'))).toBe(false);
+  });
+  it.each(['waitingOnApproval', 'waitingOnUserInput'])('preserves %s instead of answering or cancelling it', async flag => {
+    const { rpc, thread } = fixture(); thread.status.activeFlags.push(flag);
+    expect((await prepareCodexLiveHandoff(rpc)).waiting).toBe(true);
+    expect(rpc.request.mock.calls.some(c => c[0] === 'turn/interrupt')).toBe(false);
+  });
+  it('waits for a child agent and an unfinished PTY even when its original turn is terminal', async () => {
+    const f = fixture(); f.thread.parentThreadId = 'parent';
+    expect((await prepareCodexLiveHandoff(f.rpc)).waiting).toBe(true);
+    f.thread.parentThreadId = null; f.thread.status.type = 'idle'; f.turn.status = 'completed';
+    f.turn.items.push({ id: 'pty', type: 'commandExecution', status: 'inProgress', processId: '123' });
+    expect((await prepareCodexLiveHandoff(f.rpc)).waiting).toBe(true);
+  });
+  it('refuses a contradictory idle-thread/in-progress-turn snapshot', async () => {
+    const f = fixture(); f.thread.status.type = 'idle';
+    expect((await prepareCodexLiveHandoff(f.rpc)).waiting).toBe(true);
+    expect(f.rpc.request.mock.calls.some(c => c[0] === 'turn/interrupt')).toBe(false);
+  });
+  it.each(['notLoaded', 'summary'])('fails closed on a %s item snapshot', async view => {
+    const f = fixture(); f.turn.itemsView = view;
+    expect((await prepareCodexLiveHandoff(f.rpc)).waiting).toBe(true);
+  });
+  it('waits for an empty live snapshot instead of assuming model-only work', async () => {
+    const f = fixture(); f.turn.items = [];
+    expect((await prepareCodexLiveHandoff(f.rpc)).waiting).toBe(true);
+    expect(f.rpc.request.mock.calls.some(c => c[0] === 'turn/interrupt')).toBe(false);
+  });
+  it('does not automatically interrupt unknown tool lifecycles', async () => {
+    const f = fixture(); f.turn.items.push({ id: 'future', type: 'futureTool' });
+    expect((await prepareCodexLiveHandoff(f.rpc)).waiting).toBe(true);
+  });
+  it('uses a native live snapshot for paginated threads and detaches without changing thread settings', async () => {
+    const f = fixture(); f.thread.historyMode = 'paginated';
+    const handoff = await prepareCodexLiveHandoff(f.rpc); expect(handoff.paused).toHaveLength(1);
+    const resumes = f.rpc.request.mock.calls.filter(c => c[0] === 'thread/resume');
+    expect(resumes[0][1]).toEqual({ threadId: 'thread-one', excludeTurns: true, initialTurnsPage: { limit: 1, sortDirection: 'desc', itemsView: 'full' } });
+    expect(f.rpc.request.mock.calls.filter(c => c[0] === 'thread/unsubscribe')).toHaveLength(resumes.length);
+  });
+  it('does not mistake a missing stored tool-start event for a safe paginated response', async () => {
+    const f = fixture(); f.thread.historyMode = 'paginated'; const original = f.rpc.request.getMockImplementation()!;
+    f.rpc.request.mockImplementation(async (method, params) => {
+      if (method === 'thread/turns/list') return { data: [{ ...f.turn, items: [] }] };
+      if (method === 'thread/resume') return { thread: f.thread, initialTurnsPage: { data: [{ ...f.turn, items: [{ id: 'active-command', type: 'commandExecution', status: 'inProgress' }] }] } };
+      return original(method, params);
+    });
+    expect((await prepareCodexLiveHandoff(f.rpc)).waiting).toBe(true);
+    expect(f.rpc.request.mock.calls.some(c => c[0] === 'turn/interrupt')).toBe(false);
+  });
+  it('leaves a naturally completed response idle even if its completion acknowledges the interrupt', async () => {
+    const f = fixture(); const original = f.rpc.request.getMockImplementation()!;
+    f.rpc.request.mockImplementation(async (method, params) => { if (method === 'turn/interrupt') { f.turn.status = 'completed'; f.thread.status.type = 'idle'; return {}; } return original(method, params); });
+    const handoff = await prepareCodexLiveHandoff(f.rpc); expect(handoff.paused).toEqual([]);
+    expect(await continueCodexLiveHandoff(f.rpc, handoff)).toEqual({ resumed: 0 });
+  });
+  it('does not inject Continue over a new user turn', async () => {
+    const f = fixture(); const handoff = await prepareCodexLiveHandoff(f.rpc);
+    f.turn.id = 'user-next-turn'; f.thread.status.type = 'active';
+    expect(await continueCodexLiveHandoff(f.rpc, handoff)).toEqual({ resumed: 0 });
+    expect(f.rpc.request.mock.calls.some(c => c[0] === 'turn/start')).toBe(false);
+  });
+  it('marks an uncertain Continue as sent and never retries it', async () => {
+    const f = fixture(); const handoff = await prepareCodexLiveHandoff(f.rpc); const original = f.rpc.request.getMockImplementation()!;
+    f.rpc.request.mockImplementation(async (method, params) => { if (method === 'turn/start') throw Error('timeout'); return original(method, params); });
+    await expect(continueCodexLiveHandoff(f.rpc, handoff)).rejects.toThrow('timeout');
+    await continueCodexLiveHandoff(f.rpc, handoff);
+    expect(f.rpc.request.mock.calls.filter(c => c[0] === 'turn/start')).toHaveLength(1);
+  });
+  it('does not send Continue if its durable intent cannot be saved', async () => {
+    const f = fixture(); const handoff = await prepareCodexLiveHandoff(f.rpc);
+    await expect(continueCodexLiveHandoff(f.rpc, handoff, { beforeSend: async () => { throw Error('disk'); } })).rejects.toThrow('disk');
+    expect(f.rpc.request.mock.calls.some(c => c[0] === 'turn/start')).toBe(false);
+  });
+  it('does not interrupt if its durable intent cannot be saved', async () => {
+    const f = fixture();
+    await expect(prepareCodexLiveHandoff(f.rpc, { beforeInterrupt: async () => { throw Error('disk'); } })).rejects.toThrow('disk');
+    expect(f.rpc.request.mock.calls.some(c => c[0] === 'turn/interrupt')).toBe(false);
+  });
+  it('refuses a changed exact turn instead of interrupting the replacement', async () => {
+    const f = fixture(); let reads = 0; const original = f.rpc.request.getMockImplementation()!;
+    f.rpc.request.mockImplementation(async (method, params) => { if (method === 'thread/turns/list' && ++reads === 2) f.turn.id = 'replacement'; return original(method, params); });
+    await expect(prepareCodexLiveHandoff(f.rpc)).rejects.toMatchObject({ code: 'native_activity_changed' });
+    expect(f.rpc.request.mock.calls.some(c => c[0] === 'turn/interrupt')).toBe(false);
+  });
+});

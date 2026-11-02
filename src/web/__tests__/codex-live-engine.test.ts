@@ -6,16 +6,24 @@ const A = 'a'.repeat(20), B = 'b'.repeat(20);
 const controllers: { close(): Promise<void> }[] = [];
 afterEach(async () => { for (const c of controllers.splice(0)) await c.close(); vi.restoreAllMocks(); });
 async function fixture({ saved = null as any, actual = A, readCredential = null as any, auto = false, persistError = false,
-  initial = null as any, resolveEndpoint = null as any } = {}) {
+  initial = null as any, resolveEndpoint = null as any, active = false, savedHandoff = null as any } = {}) {
   const selection = { originalHome: '/native-home', profileId: A, revision: 0, runningSelection: null as any,
     profiles: [{ id: A, available: true }, { id: B, available: true }] };
   const email = (id: string) => id === A ? 'first@example.test' : 'second@example.test';
   let account = { type: 'chatgpt', email: email(actual), planType: 'plus' };
   const calls: { method: string; params: any }[] = [], sent: any[] = [], persisted: any[] = [];
+  const journals: any[] = [], autoSettings = { enabled: auto };
+  const thread = { id: 'active-thread', historyMode: 'legacy', status: { type: 'active', activeFlags: [] as string[] } };
+  const turn = { id: 'original-turn', rootTurnId: 'root-turn', status: 'inProgress', itemsView: 'full', items: [{ id: 'input', type: 'userMessage' }] as any[] };
   let callbacks: any;
   const rpc = {
     request: vi.fn(async (method: string, params: any) => {
       calls.push({ method, params });
+      if (method === 'thread/loaded/list') return { data: active ? [thread.id] : [] } as any;
+      if (method === 'thread/read') return { thread } as any;
+      if (method === 'thread/turns/list') return { data: [{ ...turn, items: [...turn.items] }] } as any;
+      if (method === 'turn/interrupt') { thread.status.type = 'idle'; turn.status = 'interrupted'; return {} as any; }
+      if (method === 'turn/start') { thread.status.type = 'active'; turn.id = 'continued-turn'; turn.status = 'inProgress'; return { turn: { id: turn.id } } as any; }
       if (method === 'account/read') return { account };
       if (method === 'account/login/start') {
         account = { type: 'chatgpt', email: email(params.chatgptAccountId === 'first' ? A : B), planType: 'plus' };
@@ -33,27 +41,90 @@ async function fixture({ saved = null as any, actual = A, readCredential = null 
   if (initial) Object.assign(selection, initial);
   const c = createCodexLiveAccountController({
     store: '/unused-fixture-store', pollMs: 1000_000, restoreRetryMs: 0,
-    readSelection: async () => ({ ...selection }), readAuto: async () => ({ enabled: auto }),
+    readSelection: async () => ({ ...selection }), readAuto: async () => autoSettings,
     loadState: async () => saved, persistState: async (m: any) => { if (persistError) throw Error('private disk detail'); persisted.push(m); },
+    loadHandoff: async () => savedHandoff,
+    persistHandoff: async (data: any) => { journals.push(structuredClone(data)); },
     resolveEndpoint: resolveEndpoint ?? (async () => ({ home: '/native-home', generation: 'native-generation' })),
     acquireLease: async () => lease,
     connectRpc: async (_endpoint: any, hooks: any) => { callbacks = hooks; return rpc; },
     readCredential: vi.fn(readCredential ?? (async (id: string) => credential(id))),
   });
   controllers.push(c); await c.ready;
-  return { c, selection, rpc, calls, sent, persisted, lease, credential, notify: (m: any) => callbacks.onNotification(m),
+  return { c, selection, rpc, calls, sent, persisted, lease, credential, journals, thread, turn, autoSettings, notify: (m: any) => callbacks.onNotification(m),
     serverRequest: (m: any) => callbacks.onRequest(m), actual: () => account,
     disconnect: () => callbacks.onClose(),
     externalLogin: (id: string) => { account = { ...account, email: email(id) }; callbacks.onNotification({ method: 'account/updated' }); } };
 }
 describe('existing Codex session account engine', () => {
+  it('waits for an existing tool, switches after a clean interrupt and automatically continues once', async () => {
+    const f = await fixture({ active: true }); f.turn.items.push({ id: 'command', type: 'commandExecution', status: 'inProgress' });
+    expect(await f.c.request({ id: B, revision: 1 })).toMatchObject({ state: 'waiting', continuation: 'waiting' });
+    expect(f.calls.some(c => ['turn/interrupt', 'account/login/start'].includes(c.method))).toBe(false);
+    f.turn.items[1].status = 'completed'; await f.c.tick();
+    expect(f.c.status()).toMatchObject({ state: 'applied', profileId: B, continuation: 'automatic' });
+    expect(f.calls.filter(c => c.method === 'turn/start')).toHaveLength(1);
+    expect(f.calls.findIndex(c => c.method === 'turn/interrupt')).toBeLessThan(f.calls.findIndex(c => c.method === 'account/login/start'));
+    expect(f.journals.at(-1)).toMatchObject({ phase: 'finished', entries: [{ threadId: 'active-thread', phase: 'continued' }] });
+    expect(JSON.stringify(f.journals)).not.toContain('fictional-access');
+  });
+  it.each(['lease', 'account'])('does not resume after losing %s control during a handoff', async loss => {
+    const f = await fixture({ active: true });
+    if (loss === 'lease') f.lease.valid.mockResolvedValueOnce(true).mockResolvedValueOnce(true).mockResolvedValue(false);
+    else {
+      const original = f.rpc.request.getMockImplementation()!;
+      f.rpc.request.mockImplementation(async (method, params) => {
+        if (method === 'account/read' && f.turn.status === 'interrupted') f.externalLogin(B);
+        return original(method, params);
+      });
+    }
+    const result = await f.c.request({ id: B, revision: 1 });
+    expect(result).toMatchObject({ state: 'failed', continuation: 'manual_required' });
+    expect(f.calls.some(c => ['turn/start', 'account/login/start'].includes(c.method))).toBe(false);
+  });
+  it('reports manual recovery for a rejected native login after interruption', async () => {
+    const f = await fixture({ active: true }); const original = f.rpc.request.getMockImplementation()!;
+    f.rpc.request.mockImplementation(async (method, params) => { if (method === 'account/login/start') throw Object.assign(Error('rejected'), { code: 'native_request_rejected' }); return original(method, params); });
+    expect(await f.c.request({ id: B, revision: 1 })).toMatchObject({ state: 'failed', continuation: 'manual_required' });
+    expect(f.turn.status).toBe('interrupted');
+    expect(f.calls.some(c => c.method === 'turn/start')).toBe(false);
+  });
+  it('cancels a deferred automatic move when Auto-switch is disabled', async () => {
+    const f = await fixture({ active: true, auto: true }); f.thread.status.type = 'idle'; f.turn.status = 'completed';
+    await f.c.request({ id: A, revision: 1 });
+    f.thread.status.type = 'active'; f.turn.status = 'inProgress'; f.turn.items.push({ id: 'tool', type: 'dynamicToolCall', status: 'inProgress' });
+    f.selection.profileId = B; f.selection.revision = 2; await f.c.tick();
+    expect(f.c.status().state).toBe('waiting');
+    f.autoSettings.enabled = false; f.turn.items[1].status = 'completed'; await f.c.tick();
+    expect(f.c.status()).toMatchObject({ profileId: A, reason: 'auto_switch_disabled' });
+    expect(f.calls.filter(c => c.method === 'account/login/start').map(c => c.params.chatgptAccountId)).toEqual(['first']);
+  });
+  it('does not resend an uncertain Continue, including after restoring ownership', async () => {
+    const f = await fixture({ active: true }); const original = f.rpc.request.getMockImplementation()!;
+    let starts = 0;
+    f.rpc.request.mockImplementation(async (method, params) => { if (method === 'turn/start') { starts++; throw Error('connection ended'); } return original(method, params); });
+    expect(await f.c.request({ id: B, revision: 1 })).toMatchObject({ state: 'applied', continuation: 'manual_required' });
+    await f.c.tick(); await f.c.request({ id: B, revision: 1 }); expect(starts).toBe(1);
+    const restored = await fixture({ actual: B, saved: f.persisted.at(-1), savedHandoff: f.journals.at(-1) });
+    expect(restored.c.status()).toMatchObject({ state: 'applied', continuation: 'manual_required', reason: 'native_continue_unconfirmed' });
+    expect(restored.calls.some(c => c.method === 'turn/start')).toBe(false);
+  });
+  it.each([false, true])('reports an unfinished handoff journal even without successfully restored ownership: %s', async prior => {
+    const endpoint = createHash('sha256').update('native-generation').digest('hex');
+    const f = await fixture({ actual: A,
+      saved: prior ? { version: 1, wasControlling: true, profileId: A, revision: 1, endpoint } : null,
+      initial: { profileId: B, revision: 2, runningSelection: { id: B, revision: 2 } },
+      savedHandoff: { version: 1, phase: 'paused', entries: [{ threadId: 'active-thread', turnId: 'interrupted-turn', phase: 'paused' }] } });
+    expect(f.c.status()).toMatchObject({ continuation: 'manual_required', reason: 'native_continue_unconfirmed' });
+    expect(f.calls.some(c => c.method === 'turn/start')).toBe(false);
+  });
   it('changes native authentication without interrupting, resuming or stopping existing threads', async () => {
     const f = await fixture();
     expect(f.calls).toHaveLength(0);
     const result = await f.c.request({ id: B, revision: 1 });
     expect(result).toMatchObject({ state: 'applied', profileId: B, scope: 'shared_native_server' });
     expect(f.actual().email).toBe('second@example.test');
-    expect(f.calls.map(c => c.method)).toEqual(['account/read', 'account/login/start', 'account/read']);
+    expect(f.calls.filter(c => c.method === 'account/login/start')).toHaveLength(1);
     expect(f.rpc.close).not.toHaveBeenCalled();
     expect(JSON.stringify(result)).not.toContain('fictional-access');
     expect(JSON.stringify(f.persisted)).not.toContain('fictional-access');
@@ -77,6 +148,7 @@ describe('existing Codex session account engine', () => {
     const f = await fixture();
     f.rpc.request.mockImplementation(async (method: string) => {
       if (method === 'account/read') return { account: f.actual() } as any;
+      if (method === 'thread/loaded/list') return { data: [] } as any;
       throw Object.assign(new Error('private native detail'), { code: 'native_request_timeout' });
     });
     const result = await f.c.request({ id: B, revision: 1 });

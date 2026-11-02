@@ -1,5 +1,5 @@
-// The shared daemon retains its threads, tools and current stream. Native Codex
-// applies its new authentication to the next model request in those threads.
+// The shared daemon retains its threads. Active responses use a controlled
+// interrupt/login/continue handoff so auth cannot revoke an in-flight stream.
 import { readFile, mkdir, chmod } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import { createHash } from 'node:crypto';
@@ -10,6 +10,7 @@ import { readCodexAuto } from './codex-auto.mjs';
 import { resolveCodexLiveEndpoint, connectCodexLiveRpc, liveError } from './codex-live-rpc.mjs';
 import { acquireCodexLiveLease } from './codex-live-lease.mjs';
 import { readLiveCodexCredential } from './codex-live-credentials.mjs';
+import { prepareCodexLiveHandoff, assertCodexLiveQuiet, continueCodexLiveHandoff } from './codex-live-handoff.mjs';
 
 const idPattern = /^[a-f0-9]{20}$/;
 const publicReason = e => /^[a-z_]{1,64}$/.test(e?.code ?? '') ? e.code : 'live_switch_failed';
@@ -25,12 +26,14 @@ export function createCodexLiveAccountController(input = {}) {
   const credentialFor = options.readCredential ?? ((id, extra) => readLiveCodexCredential(id, { ...options, ...extra, store }));
   const resolveEndpoint = options.resolveEndpoint ?? (home => resolveCodexLiveEndpoint(home, options));
   const connect = options.connectRpc ?? ((ep, callbacks) => connectCodexLiveRpc(ep, callbacks));
-  let state = { state: 'idle', profileId: null, requestedProfileId: null, reason: null };
+  let state = { state: 'idle', profileId: null, requestedProfileId: null, reason: null, continuation: 'none' };
   let rpc = null, endpoint = null, lease = null, credential = null, desired = null, appliedIntent = null;
   let owned = false, applying = false, refreshing = false, closed = false, ticking = false;
   let lastManual = 0, lastSelected = null, lastCheck = 0, lastRefresh = 0;
   let chain = Promise.resolve(), pendingKey = '', pendingSwitch = null;
   let restorePending = null, restoreRetryAt = 0;
+  let deferred = null;
+  let recoveryNeeded = false;
   const status = () => ({ ...state, scope: 'shared_native_server' });
   const update = patch => { state = { ...state, ...patch }; options.onState?.(status()); };
   const enqueue = fn => { const next = chain.then(fn, fn); chain = next.catch(() => {}); return next; };
@@ -42,6 +45,12 @@ export function createCodexLiveAccountController(input = {}) {
     await mkdir(store, { recursive: true, mode: 0o700 });
     await writeFileAtomic(metadata, JSON.stringify(data) + '\n'); await chmod(metadata, 0o600);
   };
+  const saveHandoff = async data => {
+    if (options.persistHandoff) return options.persistHandoff(data);
+    await mkdir(store, { recursive: true, mode: 0o700 });
+    const file = join(store, 'codex-live-handoff.json');
+    await writeFileAtomic(file, JSON.stringify(data) + '\n'); await chmod(file, 0o600);
+  };
   async function disconnect() {
     rpc?.close(); rpc = null; await lease?.release(); lease = null;
   }
@@ -52,7 +61,7 @@ export function createCodexLiveAccountController(input = {}) {
   }
   async function externalChange() {
     if (!owned || closed) return;
-    owned = false; credential = null;
+    owned = false; credential = null; deferred = null;
     update({ state: 'external_change', profileId: null, reason: 'account_changed_outside_deck' });
     await save().catch(() => {});
     await disconnect();
@@ -112,17 +121,53 @@ export function createCodexLiveAccountController(input = {}) {
     if (next.profileId !== id) throw liveError('profile_changed');
     return next;
   }
-  async function apply(intent, refresh = false) {
+  async function apply(intent, refresh = false, automatic = false) {
     const currentIntent = () => refresh ? appliedIntent : desired;
     if (closed || currentIntent()?.revision !== intent.revision || currentIntent().id !== intent.id) return status();
-    update({ state: 'switching', requestedProfileId: intent.id, reason: null });
-    let maybeApplied = false;
+    if (automatic && !(await (options.readAuto ?? (() => readCodexAuto({ ...options, store })))()).enabled) {
+      update({ state: owned ? 'applied' : 'idle', reason: 'auto_switch_disabled', continuation: 'none' }); return status();
+    }
+    update({ state: 'switching', requestedProfileId: intent.id, reason: null, continuation: 'none' });
+    let maybeApplied = false, handoff = null, resumeIdentity = null;
+    const journal = { version: 1, phase: 'paused', profileId: intent.id, revision: intent.revision, entries: [] };
+    const record = async (entry, phase, turnId) => {
+      if (!journal.entries.some(e => e.messageId === entry.messageId)) journal.entries.push(entry);
+      Object.assign(entry, { phase, ...(turnId ? { continuedTurnId: turnId } : {}) });
+      journal.phase = journal.entries.every(e => ['continued', 'skipped'].includes(e.phase)) ? 'finished' : 'pending';
+      await saveHandoff(journal);
+    };
+    const owner = () => !closed && currentIntent()?.revision === intent.revision && currentIntent()?.id === intent.id;
+    const resume = async () => continueCodexLiveHandoff(rpc, handoff, {
+      isCurrent: () => !closed && !!rpc,
+      beforeSend: async entry => {
+        if (!await lease?.valid()) throw liveError('native_control_lost');
+        const actual = await rpc.request('account/read', { refreshToken: false });
+        if (actual.account?.email !== resumeIdentity?.email || actual.account?.type !== resumeIdentity?.type) throw liveError('account_changed_outside_deck');
+        await record(entry, 'sent');
+      },
+      afterSend: (entry, turnId) => record(entry, 'continued', turnId),
+      onSkip: entry => record(entry, 'skipped'),
+    });
     try {
       const s = await selection();
       if (!s.profiles?.some(p => p.id === intent.id && p.available !== false)) throw liveError('profile_unavailable');
       await ensureRpc(s.originalHome);
       const next = await loginCredential(intent.id, refresh);
       if (closed || currentIntent()?.revision !== intent.revision || currentIntent().id !== intent.id) return status();
+      if (!await lease.valid()) throw liveError('native_control_lost');
+      const before = await rpc.request('account/read', { refreshToken: false });
+      resumeIdentity = before.account;
+      handoff = await prepareCodexLiveHandoff(rpc, { isCurrent: owner,
+        beforeInterrupt: entry => record(entry, 'interrupt_sent'), afterInterrupt: (entry, phase) => record(entry, phase) });
+      if (handoff.waiting) {
+        deferred = { intent: { ...intent }, refresh, automatic };
+        update({ state: 'waiting', reason: 'native_tools_active', continuation: 'waiting' }); return status();
+      }
+      deferred = null;
+      if (!owner()) throw liveError('native_switch_superseded');
+      await assertCodexLiveQuiet(rpc);
+      const current = await rpc.request('account/read', { refreshToken: false });
+      if (current.account?.email !== before.account?.email || current.account?.type !== before.account?.type) throw liveError('account_changed_outside_deck');
       if (!await lease.valid()) throw liveError('native_control_lost');
       applying = true;
       // Authentication crosses only this owner-validated local socket. Codex
@@ -134,11 +179,23 @@ export function createCodexLiveAccountController(input = {}) {
       const account = await rpc.request('account/read', { refreshToken: false });
       if (!sameAccount(account.account, next)) throw liveError('native_identity_mismatch');
       credential = next; appliedIntent = { ...intent }; owned = true; lastRefresh = Date.now(); lastCheck = Date.now();
+      resumeIdentity = account.account;
       update({ state: 'applied', profileId: intent.id, requestedProfileId: intent.id, reason: null });
       // The daemon has acknowledged this login. Keep renewal ownership even
       // if local metadata cannot be saved; losing it would strand live auth.
       await save().catch(() => update({ reason: 'ownership_not_saved' }));
+      if (handoff.paused.length) {
+        try { const result = await resume(); update({ continuation: result.resumed ? 'automatic' : 'none' }); }
+        catch { update({ reason: 'native_continue_unconfirmed', continuation: 'manual_required' }); }
+      }
     } catch (error) {
+      handoff ??= error.handoff;
+      const lostControl = ['native_control_lost', 'account_changed_outside_deck', 'native_disconnected'].includes(error.code);
+      if (!maybeApplied && !lostControl && handoff?.paused?.length && rpc && !closed) {
+        try { await resume(); } catch { update({ continuation: 'manual_required' }); }
+      }
+      if (handoff?.paused?.length && (maybeApplied || lostControl)) update({ continuation: 'manual_required' });
+      if (journal.entries.length && journal.phase !== 'finished') update({ continuation: 'manual_required' });
       if (maybeApplied) { credential = null; owned = false; }
       const reason = publicReason(error);
       update({ state: ['native_not_running', 'cli_unavailable'].includes(reason) ? 'unavailable' : 'failed',
@@ -147,7 +204,7 @@ export function createCodexLiveAccountController(input = {}) {
     } finally { applying = false; }
     return status();
   }
-  async function request(intent) {
+  async function request(intent, automatic = false) {
     await ready;
     if (closed) return status();
     if (!idPattern.test(intent?.id ?? '') || !Number.isSafeInteger(intent.revision) || intent.revision < 1) throw liveError('invalid_selection');
@@ -155,9 +212,10 @@ export function createCodexLiveAccountController(input = {}) {
     if (pendingKey === key && pendingSwitch) return pendingSwitch;
     if (desired && intent.revision < desired.revision) return status();
     restorePending = null;
+    deferred = null;
     desired = { id: intent.id, revision: intent.revision };
     pendingKey = key;
-    pendingSwitch = enqueue(() => apply(intent));
+    pendingSwitch = enqueue(() => apply(intent, false, automatic));
     return pendingSwitch;
   }
   async function restorePrevious(saved, intent, actual) {
@@ -212,6 +270,7 @@ export function createCodexLiveAccountController(input = {}) {
         credential = next; appliedIntent = { ...intent }; owned = true;
         lastCheck = Date.now(); lastRefresh = Date.now();
         update({ state: 'applied', profileId: intent.id, requestedProfileId: intent.id, reason: null });
+        if (recoveryNeeded) update({ reason: 'native_continue_unconfirmed', continuation: 'manual_required' });
         await save().catch(() => update({ reason: 'ownership_not_saved' }));
         restorePending = null; return;
       }
@@ -228,10 +287,13 @@ export function createCodexLiveAccountController(input = {}) {
   }
   const ready = (async () => {
     try {
+      const savedHandoff = options.loadHandoff ? await options.loadHandoff() : await readFile(join(store, 'codex-live-handoff.json'), 'utf8').then(JSON.parse).catch(() => null);
+      recoveryNeeded = savedHandoff?.version === 1 && savedHandoff.phase !== 'finished' && savedHandoff.entries?.some(e => !['continued', 'skipped'].includes(e.phase)) === true;
       const s = await selection(); lastManual = s.runningSelection?.revision ?? 0; lastSelected = s.profileId;
       restorePending = options.loadState ? await options.loadState() : JSON.parse(await readFile(metadata, 'utf8'));
       if (restorePending) await enqueue(() => restore(restorePending));
     } catch { /* No prior ownership means no native authentication mutation. */ }
+    finally { if (recoveryNeeded) update({ continuation: 'manual_required', reason: 'native_continue_unconfirmed' }); }
   })();
   async function reconnect() {
     const generation = endpoint?.generation;
@@ -252,10 +314,11 @@ export function createCodexLiveAccountController(input = {}) {
         lastManual = s.runningSelection.revision; await request(s.runningSelection);
       } else if (s.profileId !== lastSelected) {
         const auto = await (options.readAuto ?? (() => readCodexAuto({ ...options, store })))();
-        if (auto.enabled) await request({ id: s.profileId, revision: s.revision });
+        if (auto.enabled) await request({ id: s.profileId, revision: s.revision }, true);
       }
       lastSelected = s.profileId;
       if (restorePending && Date.now() >= restoreRetryAt) await enqueue(() => restore(restorePending));
+      if (deferred) { const retry = deferred; deferred = null; await enqueue(() => apply(retry.intent, retry.refresh, retry.automatic)); }
       if (owned && !rpc && appliedIntent) await enqueue(reconnect);
       if (owned && credential && appliedIntent && Date.now() - lastRefresh > 60_000 && credential.expiresAt - Date.now() < 10 * 60_000) {
         lastRefresh = Date.now(); await enqueue(() => apply(appliedIntent, true));
