@@ -183,7 +183,9 @@ describe("Refresh keeps its arrow and turns it at one tempo of 900ms", () => {
     const glyphs = source("action-glyphs.tsx");
     expect(glyphs.match(/className="refresh-glyph"/g)).toHaveLength(1);
     expect(glyphs).toMatch(/export function RefreshGlyph\(\) \{\s*return <KitIcon name="update" className="refresh-glyph" \/>/);
-    expect(source("UsagePanel.tsx")).toMatch(/<svg className="refresh-glyph" width="16"/);
+    // CHANGED ON PURPOSE (V4's Figma): the Usage panel's refresh is a quiet text button with the
+    // kit's update arrow, the same one RefreshGlyph draws.
+    expect(source("UsagePanel.tsx")).toMatch(/<KitIcon name="update" className="refresh-glyph" \/>/);
   });
   for (const file of ["UsagePanel.tsx", "UsageHistoryModal.tsx", "QuotaHistoryModal.tsx", "BrowserWatchModal.tsx"]) {
     it(`${file} does not swap its arrow for "…"`, () => {

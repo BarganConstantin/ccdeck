@@ -75,15 +75,20 @@ export function restoreArrangement(snapshot: RearrangeSnapshot, live: Arrangemen
   live.layoutSig.current = snapshot.layoutSig;
 }
 
+/** The strip shows this long after R (V4's motion spec: 400, the camera's Slow,
+ *  while the board moves), and the clock below is that much longer so the strip
+ *  stays the 7 seconds the spec says. Ctrl+Z works from the press, not from
+ *  the strip. Mirrors the transition delay on `.rearrange-undo` (canvas.css). */
+export const REARRANGE_UNDO_SHOW_MS = 400;
 /** How long the canvas offers the board back: long enough to notice the board
  *  moved and reach for the button, short enough that the offer is about the
  *  press that made it. */
-export const REARRANGE_UNDO_MS = 7_000;
+export const REARRANGE_UNDO_MS = 7_000 + REARRANGE_UNDO_SHOW_MS;
 /** What is left at least, once a pointer or focus lets go of the strip: one that
  *  left it with a second to spare would see it vanish under the next glance. */
 export const REARRANGE_UNDO_RESUME_MS = 2_000;
 /** The strip's exit, which the presence hook keeps it mounted for. */
-export const REARRANGE_UNDO_EXIT_MS = 140;
+export const REARRANGE_UNDO_EXIT_MS = 150;
 
 /** What the strip says, and what the live region says for it. */
 export const REARRANGE_UNDO_TEXT = "Layout re-arranged";

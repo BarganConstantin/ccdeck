@@ -63,6 +63,23 @@ export function skipsDelay(now: number, hiddenAt: number, anotherShown: boolean)
   return anotherShown || now - hiddenAt < SKIP_DELAY_WINDOW_MS;
 }
 
+/** The deck's other tooltips (the card's cost tip) take turns with the hints
+ *  above: whether the next one skips the wait, and the two moves that keep the
+ *  count. `claimHint` takes the turn (and takes the one on screen down), and
+ *  answers whether this one comes at once; `releaseHint` gives it back. */
+export function hintSkipsWait(): boolean {
+  return skipsDelay(performance.now(), lastHiddenAt, current !== null);
+}
+export function claimHint(hide: () => void): boolean {
+  const instant = hintSkipsWait();
+  if (current && current !== hide) current();
+  current = hide;
+  return instant;
+}
+export function releaseHint(hide: () => void): void {
+  if (current === hide) { current = null; lastHiddenAt = performance.now(); }
+}
+
 interface Shown {
   spec: HintSpec;
   box: DOMRect;

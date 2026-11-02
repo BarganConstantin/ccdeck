@@ -185,35 +185,27 @@ describe("the cost bar inside the usage panel", () => {
     expect(Number.isNaN(panelWidth)).toBe(false);
   });
 
-  it("keeps its margins inside the panel instead of adding them to a full width", () => {
-    expect(isZero(ml)).toBe(false);
-    expect(isZero(mr)).toBe(false);
-    const margins = px(ml) + px(mr);
-
-    // The used width of the bar's box, for the two forms the width can take.
-    // `auto` on a block-level flex container is the space left after margins;
-    // a percentage is a share of the content box and knows nothing about them.
+  // CHANGED ON PURPOSE (V4's Figma): the Usage panel's body pads 12 on every side and the bar
+  // carries no margin of its own, so there is nothing to add to its width. The claim is the
+  // same: the bar never overhangs the panel's content box.
+  it("keeps the bar inside the panel: no margin of its own, the body's padding is its inset", () => {
+    expect(isZero(ml)).toBe(true);
+    expect(isZero(mr)).toBe(true);
+    const inset = px(decl(".up-body", "padding")!);
     const used = effectiveWidth === "auto"
-      ? contentWidth - margins
-      : Number.isNaN(pct(effectiveWidth)) ? px(effectiveWidth) : (contentWidth * pct(effectiveWidth)) / 100;
+      ? contentWidth - 2 * inset
+      : Number.isNaN(pct(effectiveWidth)) ? px(effectiveWidth) : ((contentWidth - 2 * inset) * pct(effectiveWidth)) / 100;
     expect(Number.isNaN(used)).toBe(false);
-
-    const overhang = margins + used - contentWidth;
-    expect(overhang).toBeLessThanOrEqual(0);
-    // The live numbers, kept as numbers: 28px of overhang before, none after,
-    // and a bar that now measures the same 290px as the rows above and below.
-    expect(overhang).toBe(0);
-    expect(used).toBe(290);
-    expect(margins).toBe(28);
+    expect(inset).toBe(12);
+    expect(used).toBeLessThanOrEqual(contentWidth - 2 * inset);
+    expect(used).toBe(294);
   });
 
-  it("lines up with the two rows it sits between, which is what 290px is", () => {
-    // `.qb-track` and `.up-table` fill `.up-section`'s 14px padding box and
-    // measured 1775 → 2025 all along. The bar overhanging them by 14px was the
-    // visible half of this defect before anything scrolled.
-    expect(decl(".up-section", "padding")).toBe("0 14px");
-    expect(px(ml)).toBe(14);
-    expect(px(mr)).toBe(14);
+  it("lines up with the two rows it sits between, which is what 294px is", () => {
+    // The tables and the quota tracks fill the body's padding box like the bar, so all three
+    // measure the body's 294.
+    expect(decl(".up-section", "padding")).toBe("0");
+    expect(decl(".up-body", "padding")).toBe("12px");
     expect(decl(".up-table", "width")).toBe("100%");
   });
 

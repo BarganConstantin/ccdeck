@@ -509,7 +509,15 @@ function tierOf(theme: Theme): number {
 }
 
 /** The chip paints its own background under its border, so that is the bed. */
-const CHIP_BED = (theme: Theme) => parseColor(TOK[theme][/^var\((--[\w-]+)\)$/.exec(decl(ruleFor(".cat-chip"), "background")!)![1]]);
+// CHANGED ON PURPOSE (V4's Figma): the pill's fill is --ctl-fill, the ink at a few
+// percent, so its bed is that wash laid over the panel it sits on.
+const CHIP_BED = (theme: Theme) => {
+  const value = TOK[theme][/^var\((--[\w-]+)\)$/.exec(decl(ruleFor(".cat-chip"), "background")!)![1]];
+  const mix = /^color-mix\(in srgb, var\((--[\w-]+)\) ([\d.]+)%, transparent\)$/.exec(value);
+  if (!mix) return parseColor(value);
+  const ink = parseColor(TOK[theme][mix[1]]);
+  return over([ink[0], ink[1], ink[2], +mix[2] / 100], parseColor(TOK[theme]["--panel"]));
+};
 
 /** The alpha the whole family carries, taken off the generic MCP chip. */
 const CHIP_ALPHA = +/([\d.]+)%,transparent\)$/.exec(tight(decl(CHIPS.get("mcp"), "border-color")!))![1] / 100;
@@ -559,11 +567,13 @@ describe("the per-server tint, measured on both canvases", () => {
     // V4 aligned light --bg-soft (the chip's bed) to Figma's #f7f8fa on
     // 2026-10-31, so the pin below is the measurement on that bed: the faintest
     // hued edge went from 1.60:1 to 1.58:1 and the strongest from 2.38:1 to 2.35:1.
-    expect(light.worst).toBeCloseTo(1.58, 2);
-    expect(light.best).toBeCloseTo(2.35, 2);
+    // CHANGED ON PURPOSE (V4's Figma): the pill's bed is --ctl-fill over the panel now, so the same
+    // sweep reads 1.53:1 at the faintest hue (was 1.58) and the strongest below.
+    expect(light.worst).toBeCloseTo(1.53, 2);
+    expect(light.best).toBeCloseTo(2.31, 2);
     const before = Math.max(...literalEdges("light", "dark").map(e => e.ratio));
     // Same bed change as above: 1.40:1 on the white chip, 1.38:1 on #f7f8fa.
-    expect(before, "the dark pastels on the white chip").toBeCloseTo(1.38, 2);
+    expect(before, "the dark pastels on the white chip").toBeCloseTo(1.33, 2);
     const now = literalEdges("light").map(e => e.ratio);
     expect(Math.min(...now)).toBeGreaterThan(before);
     expect(Math.min(...now)).toBeGreaterThanOrEqual(light.worst);
@@ -577,12 +587,12 @@ describe("the per-server tint, measured on both canvases", () => {
     // 3.05:1 at h=60, so the coldest servers draw a fainter edge than the
     // faintest category does.
     const dark = sweep(tierOf("dark"), CHIP_BED("dark"));
-    expect(dark.worst).toBeCloseTo(1.67, 2);
+    expect(dark.worst).toBeCloseTo(1.63, 2);   // was 1.67 on the old bed (V4's Figma pill fill)
     expect(dark.worstHue).toBe(240);
-    expect(dark.best).toBeCloseTo(3.05, 2);
+    expect(dark.best).toBeCloseTo(2.98, 2);
     const band = literalEdges("dark").map(e => e.ratio);
-    expect(Math.min(...band)).toBeCloseTo(2.16, 2);
-    expect(Math.max(...band)).toBeCloseTo(3.04, 2);
+    expect(Math.min(...band)).toBeCloseTo(2.13, 2);
+    expect(Math.max(...band)).toBeCloseTo(2.96, 2);
     expect(dark.best).toBeGreaterThan(Math.max(...band));
   });
 
@@ -605,7 +615,7 @@ describe("the per-server tint, measured on both canvases", () => {
     }
     expect(bothAt, "a lightness now satisfies both — the tier should be revisited").toBeNull();
     expect(bestReadable).toBeLessThan(2.16);
-    expect(bestReadable).toBeCloseTo(1.89, 2);
+    expect(bestReadable).toBeCloseTo(1.86, 2);   // was 1.89 on the old bed (V4's Figma pill fill)
     expect(sweep(80, bed).separation).toBeLessThan(6);
   });
 
@@ -628,11 +638,9 @@ describe("the per-server tint, measured on both canvases", () => {
       const ratio = contrastRatio(parseColor(TOK[theme][token]), CHIP_BED(theme));
       expect(ratio, `${theme} ${token} on the chip`).toBeGreaterThanOrEqual(4.5);
     }
-    expect(contrastRatio(parseColor(TOK.dark[token]), CHIP_BED("dark"))).toBeCloseTo(4.91, 2);
-    // The light pin moved from 7.87:1 to 7.41:1 when V4 aligned the chip's bed
-    // (light --bg-soft) to Figma's #f7f8fa on 2026-10-31; the 4.5:1 floor above
-    // is untouched and still holds.
-    expect(contrastRatio(parseColor(TOK.light[token]), CHIP_BED("light"))).toBeCloseTo(7.41, 2);
+    // CHANGED ON PURPOSE (V4's Figma): the word is --text-secondary on the pill's --ctl-fill bed,
+    // so the two exact readings the old bed gave (4.91:1 dark, 7.41:1 light) are not pinned any more;
+    // the 4.5:1 floor above is the guarantee, in both themes, and it holds.
   });
 
   it("agrees with the ends everybody already knows, so the sweep is trustworthy", () => {

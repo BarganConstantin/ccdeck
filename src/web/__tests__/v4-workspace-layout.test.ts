@@ -119,8 +119,9 @@ describe("narrower windows", () => {
     expect(decl(detail, "right")).toBe("0");
     expect(decl(detail, "bottom")).toBe("var(--status-room)");
     expect(decl(ruleFor(sheet, 'body .app[data-view="workspace"]').body, "grid-template-columns")).toBe("minmax(0, 1fr)");
-    // Its Fold comes back there, to close the sheet.
-    expect(decl(ruleFor(sheet, '.app[data-view="workspace"] .detail .insp-fold').body, "display")).toBe("inline-flex");
+    // CHANGED ON PURPOSE (V4's Figma draws the Fold in the column too): nothing hides it in the
+    // column, so there is no rule to bring it back in the sheet; it is drawn at every width.
+    expect(css).not.toContain('.insp-fold');
   });
 
   it("make the list a sheet under 1100 too, and the pane the one column", () => {

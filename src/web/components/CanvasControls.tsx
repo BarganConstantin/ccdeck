@@ -7,7 +7,7 @@
 // themselves (the relayout, the clear confirmation, the pause gate, the
 // auto-fit switch) and this file only lays out the buttons that call them.
 import type { Dispatch, SetStateAction } from "react";
-import { Controls, ControlButton, useReactFlow, useStore, type ReactFlowState } from "reactflow";
+import { Controls, ControlButton, useStore, type ReactFlowState } from "reactflow";
 import type { ClearSource } from "../clear-confirm";
 import { withKey } from "../single-key-shortcuts";
 import { pauseLabel, pauseTitle } from "../status-pill";
@@ -24,10 +24,12 @@ const zoomAtMin = (s: ReactFlowState) => s.transform[2] <= s.minZoom;
 /** The level, as the string the bar prints: a new value only when the whole
  *  percent changes, so a pinch does not re-render the bar every frame. */
 const zoomLevel = (s: ReactFlowState) => zoomPercent(s.transform[2]);
+/** One press of + or −: the 1.2 React Flow's own buttons step by. */
+const ZOOM_STEP = 1.2;
 
 export default function CanvasControls({
   autoFitDisabled, enableAutoFitAndRefit, paused, pauseGate, togglePause,
-  handleRelayout, requestClear, setKeyHelpOpen, onTerminal,
+  handleRelayout, requestClear, setKeyHelpOpen, zoomBy, zoomReset, onTerminal,
 }: {
   autoFitDisabled: boolean;
   enableAutoFitAndRefit: () => void;
@@ -37,13 +39,15 @@ export default function CanvasControls({
   handleRelayout: () => void;
   requestClear: (source: ClearSource) => void;
   setKeyHelpOpen: Dispatch<SetStateAction<boolean>>;
+  /** The zoom steps: Fast, on the camera's own transition, from where it is (use-camera.ts). */
+  zoomBy: (factor: number) => void;
+  zoomReset: () => void;
   /** The terminal stage's way in from the canvas (use-stage.ts
    *  openFromButton), or absent — and with it the button — while the hidden
    *  terminal flag is off. */
   onTerminal?: (button: Element | null) => void;
 }) {
   const t = useT();
-  const rf = useReactFlow();
   // Whether the canvas's own zoom buttons can go any further, which is the
   // one fact they need from the store. Booleans, so this re-renders when a
   // limit is reached or left, not on every zoom frame.
@@ -62,16 +66,16 @@ export default function CanvasControls({
           limit, and a button disabled under focus drops that focus to the
           page (#1768, the rule #518/#620 set in panel-press.ts). */}
       <ControlButton
-        onClick={() => { if (!zoomMinned) rf.zoomOut(); }}
+        onClick={() => { if (!zoomMinned) zoomBy(1 / ZOOM_STEP); }}
         title={t("board.controls.zoomOut")}
         aria-label={t("board.controls.zoomOut")}
         aria-disabled={zoomMinned || undefined}
       >
         <KitIcon name="minus" />
       </ControlButton>
-      <ZoomLevel />
+      <ZoomLevel zoomReset={zoomReset} />
       <ControlButton
-        onClick={() => { if (!zoomMaxed) rf.zoomIn(); }}
+        onClick={() => { if (!zoomMaxed) zoomBy(ZOOM_STEP); }}
         title={t("board.controls.zoomIn")}
         aria-label={t("board.controls.zoomIn")}
         aria-disabled={zoomMaxed || undefined}
@@ -219,13 +223,12 @@ export default function CanvasControls({
  *  centre of the viewport and, like the two buttons beside it, takes no
  *  duration. Named for both halves, because a reader who hears only "100%"
  *  does not learn that it can be pressed. */
-function ZoomLevel() {
-  const rf = useReactFlow();
+function ZoomLevel({ zoomReset }: { zoomReset: () => void }) {
   const level = useStore(zoomLevel);
   return (
     <ControlButton
       data-zoom-level=""
-      onClick={() => { rf.zoomTo(1); }}
+      onClick={zoomReset}
       title="Reset the zoom to 100%"
       aria-label={`Zoom ${level}, reset to 100%`}
     >

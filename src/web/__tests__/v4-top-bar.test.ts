@@ -270,7 +270,9 @@ describe("no word Live on a session", () => {
   it("is not in the Inspector's hero: it wears the card's word", () => {
     const detail = sourceOf("components/Detail.tsx");
     const hero = detail.slice(detail.indexOf('<header className="detail-hero">'), detail.indexOf('<div className="hero-meta">'));
-    expect(hero).toContain("{cardState(agent).word}");
+    // CHANGED ON PURPOSE (V4's Figma): the state is a glyph now, named by the pane's sentence for a
+    // session and by the card's word otherwise; the word the card wears is still the fallback.
+    expect(hero).toContain("status?.phrase ?? cardState(agent).word");
     expect(hero).not.toMatch(/stateLabel|board\.state\.live|\bLIVE\b|"Live"/);
   });
   it("is not on the bar", () => {

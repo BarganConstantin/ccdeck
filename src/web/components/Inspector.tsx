@@ -12,7 +12,6 @@
 import { memo, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 
 import { agentAriaLabel } from "../agent-copy";
-import { useT } from "../i18n";
 import { agentTree, sessionCostLabel, subagentCount, type TreeRow } from "../inspector-tree";
 import {
   INSPECTOR_TAB_LABEL, INSPECTOR_TABS, loadInspectorTab, saveInspectorTab, type InspectorTab,
@@ -25,12 +24,12 @@ import { AgentCard } from "./AgentNode";
 import { ContextView } from "./ContextModal";
 import InspectorTime from "./InspectorTime";
 import { KitIcon } from "./kit-icons";
-import { CapacityGlyph, ClockGlyph, SessionListGlyph } from "./rail-glyphs";
 
+// The tabs' icons are the kit's Agents, Time and Context (V4's Figma).
 const TAB_GLYPH: Record<InspectorTab, () => ReactNode> = {
-  agents: SessionListGlyph,
-  time: ClockGlyph,
-  context: CapacityGlyph,
+  agents: () => <KitIcon name="agents" className="glyph" />,
+  time: () => <KitIcon name="time" className="glyph" />,
+  context: () => <KitIcon name="context" className="glyph" />,
 };
 
 export default function Inspector({ selected, agents, revision = 0, onSelectAgent, onClose, detail }: {
@@ -49,7 +48,6 @@ export default function Inspector({ selected, agents, revision = 0, onSelectAgen
   /** The detail panel's own sections (Detail.tsx), shown under the tree. */
   detail: ReactNode;
 }) {
-  const t = useT();
   const [tab, setTab] = useState<InspectorTab>(loadInspectorTab);
   const tabRefs = useRef<Partial<Record<InspectorTab, HTMLButtonElement | null>>>({});
   const choose = (next: InspectorTab) => { setTab(next); saveInspectorTab(next); };
@@ -89,8 +87,8 @@ export default function Inspector({ selected, agents, revision = 0, onSelectAgen
         <button
           type="button"
           className="glyph-btn insp-fold"
-          title={t("board.detailPanel.close")}
-          aria-label={t("board.detailPanel.closeLabel")}
+          title="Fold the Inspector"
+          aria-label="Fold the Inspector"
           onClick={onClose}
         >
           <KitIcon name="chevron-left" />

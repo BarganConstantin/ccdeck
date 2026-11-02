@@ -922,8 +922,6 @@ describe("what counts as an edge, which BORDER_PROPS decides (#655)", () => {
       // stays in the field — VIRTUAL_FOCUS again (SettingsSearch.tsx).
       '.settings-result[data-highlighted="true"]',
       ".uh-bar-col.sel .uh-bar",
-      // The period strip's segment: the ring is inset 4px, off its indicator.
-      ".up-period .uh-range-btn:focus-visible",
       ":focus-visible",
     ]);
   });
@@ -1258,6 +1256,11 @@ describe("every control that draws a boundary draws one that can be seen (1.4.11
       // has to be worth is measured — as a state rather than as an edge — by
       // usage-series-contrast.test.ts, which holds it to the same bar #583 set.
       ".up-period .uh-range-btn[aria-pressed=\"true\"]",
+      // CHANGED ON PURPOSE (V4's Figma): the Usage panel's period chips are pills
+      // with a 1px --line stroke at rest and an --accent stroke when chosen, each
+      // identified by the word written in it (today, month, all) — like the
+      // history modal's own range strip, which this one is the pills form of.
+      ".up-period .uh-range-btn",
       // A control whose own request is in flight. Same reason as the period
       // strip above and the same shape: the boundary is drawn at rest by
       // whatever control this is, and is measured there; `aria-busy` only

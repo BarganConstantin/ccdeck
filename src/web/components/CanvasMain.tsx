@@ -22,7 +22,7 @@ import BoardHeader from "./BoardHeader";
 import DragTrashZone from "./DragTrashZone";
 import SessionPeek, { hidePeek, showPeek } from "./SessionPeek";
 
-export default function CanvasMain({ canvasRef, bubbling, dragging, trash, zoom, viewport, stateRef, peek, stagePhase, head, headInset, children }: {
+export default function CanvasMain({ canvasRef, bubbling, dragging, trash, zoom, viewport, stateRef, peek, stagePhase, head, headInset, joins, closing, children }: {
   canvasRef: MutableRefObject<HTMLElement | null>;
   /** A session's bubbles are animating out, which the sheet softens the canvas for. */
   bubbling: boolean;
@@ -46,6 +46,10 @@ export default function CanvasMain({ canvasRef, bubbling, dragging, trash, zoom,
   /** The rail of floating panels' width, as the heroes take it: the strip would
    *  run under them otherwise, and its container query measures the content box. */
   headInset?: number;
+  /** The log has replayed and the cards have settled: a card that mounts from now on is a session joining and arrives with a fade (agent-node.css). Absent while the board is opening, when nothing arrives. */
+  joins?: boolean;
+  /** A card has just left: its neighbours close the gap after a hold (canvas-motion.css). */
+  closing?: boolean;
   children: ReactNode;
 }) {
   const { trashDragging, trashState, trashPhase, trashZoneRef, trashLabel } = trash;
@@ -73,8 +77,9 @@ export default function CanvasMain({ canvasRef, bubbling, dragging, trash, zoom,
     <main
       id="canvas"
       tabIndex={-1}
-      className={`canvas-wrap${bubbling ? " bubbling" : ""}${dragging ? " dragging-any" : ""}${trashDragging && trashState === "over" ? " trash-hover" : ""}`}
+      className={`canvas-wrap${bubbling ? " bubbling" : ""}${closing ? " closing" : ""}${dragging ? " dragging-any" : ""}${trashDragging && trashState === "over" ? " trash-hover" : ""}`}
       data-lod={lod}
+      data-live={joins ? "" : undefined}
       data-stage={stagePhase}
       data-board-head={head ? "" : undefined}
       ref={canvasRef}

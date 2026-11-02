@@ -286,6 +286,15 @@ const startedByAClassChange = stateRules.flatMap(({ rule, sel, base }) =>
     .filter(p => !(baseAnimations.get(base) ?? new Set()).has(p.name))
     .map(p => ({ sel, part: p, at: rule.at })));
 
+// V4's motion spec took the done flash, the error shake, the emoji wobble, the
+// spawn's blur and the exit's travel off the bubble: a bubble RISES (opacity and
+// 4px of y, Base), changes colour in Fast when its tool settles, and LEAVES with
+// its opacity in Exit. The sweeps below keep the three mechanisms the #354 defects
+// were about (a state's animation starting on the tool's clock, an entrance that
+// does not overshoot, a bubble and its connector leaving together) and read them
+// against the new shape; the flash and shake sweeps went with the flash and the
+// shake.
+
 describe("a tool bubble reports the tool, on the tool's clock", () => {
   it("gives no delay to an animation that starts when a class lands", () => {
     // The delay would be measured from the class change, and the class change
@@ -296,77 +305,55 @@ describe("a tool bubble reports the tool, on the tool's clock", () => {
     expect(late).toEqual([]);
   });
 
-  it("sees the flash and the shake in that sweep, so a pass means something", () => {
-    // If the status rules are ever restructured past the collector above, this
-    // collapses before the assertion it protects can quietly stop testing.
-    const names = new Set(startedByAClassChange.map(a => a.part.name));
-    expect([...names].sort()).toEqual(["bubble-done-flash", "bubble-err-shake"]);
-    // Both bubbles, both outcomes: primary done, primary err, sub done, sub err.
-    expect(startedByAClassChange.length).toBe(4);
-    expect(startedByAClassChange.filter(a => a.sel.includes(".sub")).length).toBe(2);
+  it("starts no animation at all when the tool settles: done and failed are colour changes", () => {
+    // The done flash and the error shake are gone (V4's motion spec, Tool bursts:
+    // a failure is a colour change in Fast; no shake, no box-shadow in motion).
+    expect(startedByAClassChange).toEqual([]);
+    expect(stateRules).toEqual([]);
+    const base = rules.find(r => !r.reduced && selectors(r).includes(".tool-burst") && decl(r.body, "transition") != null)!;
+    const timed = splitTop(decl(base.body, "transition")!).map(p => p.trim().split(/\s+/)[0]);
+    for (const p of ["border-color", "background-color"]) expect(timed, p).toContain(p);
+    expect(decl(base.body, "transition")).toMatch(/border-color var\(--dur-fast\)/);
+    for (const p of ["box-shadow", "filter", "transform"]) expect(timed, p).not.toContain(p);
   });
 
-  it("keeps the spawn out of it, because the spawn survives the class change", () => {
-    // Same name at the same list index on the base rule and on the status rule
-    // is what makes it one continuous animation, and the sub's spawn delay is
-    // measured from the bubble's birth, which is when it legitimately starts.
-    for (const { rule, base } of stateRules) {
-      const spawn = animationsOf(rule).find(p => p.name === "bubble-spawn");
-      expect(spawn, `${base} state rule must restate bubble-spawn`).toBeTruthy();
-      const baseSpawn = rules.find(r => !r.reduced && selectors(r).includes(base) && decl(r.body, "animation") != null)!;
-      const want = animationsOf(baseSpawn).find(p => p.name === "bubble-spawn")!;
-      expect(spawn!.duration, base).toBe(want.duration);
-      expect(spawn!.delay, base).toBe(want.delay);
-    }
-  });
-
-  it("lets the ✓ and the glow report the same instant", () => {
-    // `.tb-mark` is a freshly inserted element, so `mark-pop` has always run the
-    // moment the tool landed. The glow now has nothing holding it back either,
-    // and the sub's is no longer summed to trail the primary's.
-    const mark = animationsOf(rules.find(r => selectors(r).includes(".tool-burst .tb-mark"))!)[0];
-    expect(mark.name).toBe("mark-pop");
+  it("lets the ✓ come in on the same instant", () => {
+    // `.tb-mark` is a freshly inserted element, so its fade has always run the
+    // moment the tool landed.
+    const mark = animationsOf(rules.find(r => selectors(r).includes(".tool-burst .tb-mark") && !r.reduced)!)[0];
+    expect(mark.name).toBe("burst-fade-in");
     expect(ms(mark.delay)).toBe(0);
-    for (const a of startedByAClassChange) expect(ms(a.part.delay), a.sel).toBe(0);
   });
 });
 
-describe("what runs beside a filling animation composes with it", () => {
-  // `bubble-spawn` is declared on the base class with `both`, so it goes on
-  // applying its 100% keyframe for the bubble's whole life, and a filling
-  // animation outranks every author rule under it. Now that the flash and the
-  // shake carry no delay to hold them clear of it, they can run at the same
-  // time — and a second animation naming a property the first one pins does not
-  // compose with it, it replaces it for as long as it runs. A tool finishing
-  // inside its own spawn would have snapped.
-  const spawn = keyframes.get("bubble-spawn")!;
-  const terminal = spawn.filter(f => f.offsets.includes(1));
-  const pinned = new Set(terminal.flatMap(f => [...declared(f.body)]));
-
-  it("still fills a transform, which is the hazard being worked around", () => {
-    expect([...pinned]).toContain("transform");
-    const base = rules.find(r => selectors(r).includes(".tool-burst") && decl(r.body, "animation") != null)!;
-    expect(decl(base.body, "animation")).toMatch(/\bboth\b/);
-  });
-
-  it("keeps every concurrent animation off the properties the spawn pins", () => {
-    const clashes: string[] = [];
-    for (const a of startedByAClassChange) {
-      const props = new Set((keyframes.get(a.part.name) ?? []).flatMap(f => [...declared(f.body)]));
-      for (const prop of pinned) {
-        if (props.has(prop)) clashes.push(`${a.sel} — ${a.part.name} names ${prop}, which bubble-spawn fills`);
-      }
+describe("the entrance holds nothing after it ends", () => {
+  // `burst-rise` fills `backwards` only, so the bubble's opacity and transform
+  // are its own rules' once it has risen: .dim fades it, .fading takes it out,
+  // and the hover lift (translate, an independent property) composes with
+  // whatever is there. A `both` fill would pin the 100% keyframe against all of
+  // them, which is the hazard the old spawn needed three workarounds for.
+  it("fills backwards and not forwards, on the primary and the sub", () => {
+    for (const base of BASES) {
+      const rule = rules.find(r => !r.reduced && selectors(r).includes(base) && decl(r.body, "animation") != null)!;
+      const value = decl(rule.body, "animation")!;
+      expect(value, base).toMatch(/burst-rise/);
+      expect(value, base).toMatch(/\bbackwards\b/);
+      expect(value, base).not.toMatch(/\b(both|forwards)\b/);
     }
-    expect([...new Set(clashes)]).toEqual([]);
   });
 
-  it("uses the independent properties instead, as the hover lift already does", () => {
-    // #266 fixed the hover lift the same way and .tool-burst.clickable is the
-    // rule that documents it, so the two now read as one idea.
-    const flash = new Set((keyframes.get("bubble-done-flash") ?? []).flatMap(f => [...declared(f.body)]));
-    const shake = new Set((keyframes.get("bubble-err-shake") ?? []).flatMap(f => [...declared(f.body)]));
-    expect([...flash].sort()).toEqual(["box-shadow", "scale"]);
-    expect([...shake]).toEqual(["translate"]);
+  it("names only opacity and transform, and no blur, brightness, shadow or scale", () => {
+    const named = new Set<string>();
+    for (const name of ["burst-rise", "burst-fade-in"]) {
+      for (const f of keyframes.get(name) ?? []) for (const p of declared(f.body)) named.add(p);
+    }
+    expect([...named].sort()).toEqual(["opacity", "transform"]);
+    const rise = (keyframes.get("burst-rise") ?? []).map(f => decl(f.body, "transform") ?? "").join(" ");
+    expect(rise).toMatch(/translateY\(4px\)/);
+    expect(rise).not.toMatch(/scale/);
+  });
+
+  it("lifts under the pointer with the independent property, as before", () => {
     const lift = rules.find(r => selectors(r).includes(".tool-burst.clickable:hover"))!;
     expect(decl(lift.body, "translate")).toBeTruthy();
     expect(decl(lift.body, "transform")).toBeNull();
@@ -396,63 +383,47 @@ describe("an entrance lands without overshooting", () => {
     expect([...new Set(doubled)]).toEqual([]);
   });
 
-  it("sweeps the multi-segment entrance it was written for", () => {
-    // bubble-spawn is the one animation in the sheet built from more than two
-    // keyframes, so if this stops holding the sweep above has stopped seeing
-    // anything. Since #860 it does not overshoot on either segment.
-    const spawn = governed.filter(g => g.name === "bubble-spawn");
-    expect(spawn.length).toBeGreaterThan(0);
-    for (const g of spawn) {
-      expect(g.total, "bubble-spawn segment count").toBe(2);
-      expect(g.bouncing, "bubble-spawn overshooting segments").toBe(0);
-    }
+  it("sweeps the bubble's rise, so a pass means something", () => {
+    // burst-rise is one segment from a start to the element's own style.
+    const rise = governed.filter(g => g.name === "burst-rise");
+    expect(rise.length).toBeGreaterThan(0);
+    for (const g of rise) expect(g.bouncing, "burst-rise overshooting segments").toBe(0);
   });
 
-  it("runs both segments on the sheet's own ease-out", () => {
-    // #860 took the back-out curve off the arriving segment as well, so the
-    // keyframe no longer carries an easing of its own: the shorthand's is the
-    // one curve, and it cannot overshoot.
-    const primary = animationsOf(rules.find(r => !r.reduced && selectors(r).includes(".tool-burst"))!)
-      .find(p => p.name === "bubble-spawn")!;
-    const segs = segments("bubble-spawn", primary.easing);
-    expect(segs).toHaveLength(2);
-    for (const s of segs) expect(overshoots(s.easing), `segment from ${s.from}`).toBe(false);
-    // And it is the sheet's own ease-out, not a curve invented for this rule.
-    // Spelled var(--ease) since V4's motion rules: the token IS that curve.
+  it("runs on the sheet's own ease-out, as a token", () => {
+    // Spelled var(--ease): the token IS cubic-bezier(0.23, 1, 0.32, 1), which is
+    // monotone and cannot overshoot.
+    expect(css).toMatch(/burst-rise var\(--dur-base\) var\(--ease\) backwards/);
     const shared = [...css.matchAll(/var\(--ease\)/g)];
-    expect(css).toMatch(/bubble-spawn 220ms var\(--ease\) both/);
     expect(shared.length).toBeGreaterThan(5);
   });
 
   it("starts from something rather than from nothing", () => {
-    // The sheet states this rule beside .aa-done's own entrance in as many
-    // words, and that entrance is checked here so the convention has two
-    // holders rather than one.
+    // Nothing in the real world appears from nothing: the rise starts at 4px
+    // below its place, opaque from zero, and is never scaled (V4's rule: no scale
+    // from 0, and the bubble has no scale at all). The sheet states the same of
+    // .aa-done's own entrance, which is checked here too so the convention has
+    // two holders rather than one.
+    const first = (keyframes.get("burst-rise") ?? []).find(k => k.offsets.includes(0))!;
+    expect(decl(first.body, "opacity")).toBe("0");
+    expect(decl(first.body, "transform")).toBe("translateY(4px)");
     const scaleAt = (name: string, offset: number): number => {
       const f = (keyframes.get(name) ?? []).find(k => k.offsets.includes(offset))!;
       const t = decl(f.body, "transform") ?? "";
       return parseFloat(/scale\(([\d.]+)\)/.exec(t)![1]);
     };
-    expect(scaleAt("bubble-spawn", 0)).toBeGreaterThanOrEqual(0.9);
     expect(scaleAt("aa-done-in", 0)).toBeGreaterThanOrEqual(0.9);
   });
 
-  it("keeps the most repetitive element in the app inside the short band", () => {
-    // 460ms was the longest duration in the deck, on the element it draws most.
+  it("keeps the most repetitive element in the app on Base, and the sub a step behind", () => {
     for (const base of BASES) {
       const rule = rules.find(r => !r.reduced && selectors(r).includes(base) && decl(r.body, "animation") != null)!;
-      const spawn = animationsOf(rule).find(p => p.name === "bubble-spawn")!;
-      expect(ms(spawn.duration), `${base} spawn duration`).toBeGreaterThanOrEqual(150);
-      expect(ms(spawn.duration), `${base} spawn duration`).toBeLessThanOrEqual(250);
+      expect(decl(rule.body, "animation"), `${base} rise`).toMatch(/burst-rise var\(--dur-base\)/);
     }
-    // The sub still leaves while the primary is arriving rather than after it,
-    // which is what makes the pair read as one gesture.
-    const sub = animationsOf(rules.find(r => !r.reduced && selectors(r).includes(".tool-burst.sub"))!)
-      .find(p => p.name === "bubble-spawn")!;
-    const primary = animationsOf(rules.find(r => !r.reduced && selectors(r).includes(".tool-burst"))!)
-      .find(p => p.name === "bubble-spawn")!;
-    expect(ms(sub.delay)).toBeGreaterThan(0);
-    expect(ms(sub.delay)).toBeLessThan(ms(primary.duration));
+    // The sub rises one stagger step after its primary, so the pair still reads
+    // as one gesture; the step is the token, not a literal.
+    const sub = decl(rules.find(r => !r.reduced && selectors(r).includes(".tool-burst.sub"))!.body, "animation")!;
+    expect(sub).toMatch(/burst-rise var\(--dur-base\) var\(--ease\) var\(--delay-step\) backwards/);
   });
 });
 
@@ -488,63 +459,57 @@ describe("this sheet decelerates into rest", () => {
       if (!(x2 < 1)) arriving.push(`styles.css:${lineOf(m.index!)} ${m[0]}`);
     }
     expect(arriving).toEqual([]);
-    // The sheet spells its one curve var(--ease) now (tokens.css owns the
-    // cubic-bezier), so the curves it uses are those literals plus the token.
-    expect([...css.matchAll(/cubic-bezier\([^)]*\)|var\(--ease\)/g)].length).toBeGreaterThan(30);
+    // The sheet spells its curves var(--ease) and var(--ease-stage) now (tokens.css
+    // owns the cubic-bezier), so the curves it uses are those literals plus the tokens.
+    expect([...css.matchAll(/cubic-bezier\([^)]*\)|var\(--ease(-stage)?\)/g)].length).toBeGreaterThan(30);
   });
 });
 
 describe("a bubble and its leader line leave together", () => {
   const fadingRules = rules.filter(r => !r.reduced && selectors(r).some(s => /^\.tool-burst[.\w-]*\.fading$/.test(s)));
 
-  it("covers both the primary and the sub", () => {
-    expect(fadingRules.map(r => r.selector).sort()).toEqual([".tool-burst.fading", ".tool-burst.sub.fading"]);
+  it("covers both the primary and the sub with one rule", () => {
+    // The sub is a `.tool-burst` too, so `.tool-burst.fading` takes it out with
+    // its primary; there is no second rule to keep in step.
+    expect(fadingRules.map(r => r.selector)).toEqual([".tool-burst.fading"]);
   });
 
-  it("splits the movement from the fade, so one curve cannot rewrite the other", () => {
-    // .confetti-bit makes this argument in full in this sheet: a single timing
-    // function governs every property in a keyframe set, so a curve chosen for
-    // travel also races the opacity ramp.
-    for (const rule of fadingRules) {
-      const parts = animationsOf(rule);
-      expect(parts.length, rule.selector).toBe(2);
-      const named = (n: string) => new Set((keyframes.get(n) ?? []).flatMap(f => [...declared(f.body)]));
-      const fade = parts.filter(p => named(p.name).has("opacity"));
-      const move = parts.filter(p => !named(p.name).has("opacity"));
-      expect(fade.length, `${rule.selector} — exactly one half carries opacity`).toBe(1);
-      expect(move.length, rule.selector).toBe(1);
-      // The fade runs on the connector's clock, which has no curve at all.
-      expect(fade[0].easing, `${rule.selector} — the fade`).toBe("linear");
-      expect(overshoots(move[0].easing) || move[0].easing === "linear", rule.selector).toBe(false);
-      // Both on the same 600ms, because both ends are removed by one timer.
-      for (const p of parts) expect(ms(p.duration), `${rule.selector} — ${p.name}`).toBe(600);
-      expect(ms(fade[0].delay)).toBe(0);
-      expect(ms(move[0].delay)).toBe(0);
-      // And the movement half must not restate opacity, or it would be back to
-      // one clock with extra steps.
-      expect([...named(move[0].name)]).not.toContain("opacity");
-    }
+  it("leaves with opacity in Exit and nothing else, as a transition", () => {
+    // A transition and not an animation, so a bubble brought back mid-fade
+    // turns round from where it is (V4's rule 6); no scale, no travel, no blur
+    // (the old exit slid 18px and blurred).
+    const rule = fadingRules[0];
+    expect(animationsOf(rule)).toEqual([]);
+    expect(decl(rule.body, "animation")).toBeNull();
+    expect(decl(rule.body, "opacity")).toBe("0");
+    expect(decl(rule.body, "transition")).toMatch(/^opacity var\(--dur-exit\) var\(--ease\)$/);
+    for (const p of ["transform", "translate", "scale", "filter"]) expect(declared(rule.body).has(p), p).toBe(false);
   });
 
-  it("uses the same 600ms the component removes the element on", () => {
-    // The duration is a contract with ToolBursts and with the reduced-motion
-    // answer; only the curve was ever free to change.
-    expect(bursts).toMatch(/const FADE_MS = 600;/);
-    // The connector's opacity is a linear ramp over exactly that window, which
-    // is why the bubble's fade is linear too.
+  it("takes its connector with it, in the same Exit", () => {
+    const base = rules.find(r => !r.reduced && r.selector === ".tool-conn")!;
+    expect(decl(base.body, "transition")).toMatch(/opacity var\(--dur-base\) var\(--ease\)/);
+    const leaving = rules.find(r => !r.reduced && r.selector === ".tool-conn.fading")!;
+    expect(decl(leaving.body, "transition-duration")).toBe("var(--dur-exit)");
+  });
+
+  it("fades for Exit and is removed on the card's own timer", () => {
+    // FADE_MS is the Exit (--dur-exit, 150) the ramp below runs over; the
+    // element itself stays until the card's removal timer (EXIT_ANIM_MS,
+    // visibility.ts), long after it is invisible, so a coarse clock tick can
+    // never remove a bubble before its fade has been drawn.
+    expect(bursts).toMatch(/const FADE_MS = 150;/);
+    expect(bursts).toMatch(/now - a\.exitAt > EXIT_ANIM_MS/);
+    // The connector's opacity is still a linear ramp over that window.
     expect(bursts).toMatch(/Math\.max\(0, 1 - since \/ FADE_MS\)/);
     expect(bursts).toMatch(/const opacity = b\.fade\b/);
     expect(bursts).toMatch(/className=\{`tool-conn status-\$\{b\.status\}/);
   });
 
-  it("is still answered under reduced motion, with nothing stale left behind", () => {
-    // #357's contract. The exit keeps its 600ms there too — a bubble that
-    // vanished early would sit invisible while its connector was still drawn.
+  it("is answered under reduced motion by the same fade: there is nothing to take away", () => {
+    // Exit is opacity only, so `.tool-burst.fading` needs no reduced-motion rule.
     const answers = rules.filter(r => r.reduced && selectors(r).some(s => /\.tool-burst[.\w-]*\.fading$/.test(s)));
-    expect(answers.length).toBeGreaterThan(0);
-    for (const a of answers) {
-      for (const p of animationsOf(a)) expect(ms(p.duration), a.selector).toBe(600);
-    }
+    expect(answers).toEqual([]);
   });
 });
 
@@ -564,16 +529,20 @@ describe("the sheet names no animation it does not define, and defines none it d
 
   it("leaves no keyframe set behind that nothing runs", () => {
     // This is the assertion that would have caught a rename half-done: when
-    // `bubble-fade` became `bubble-fade-move` + `bubble-fade-out`, an orphaned
-    // `@keyframes bubble-fade` would have shown up right here.
+    // the bubble's spawn, flash, shake and exit became burst-rise and
+    // burst-fade-in, an orphaned `@keyframes bubble-spawn` would have shown up
+    // right here.
     const used = new Set<string>();
     for (const rule of rules) {
       for (const part of animationsOf(rule)) used.add(part.name);
+      for (const n of splitTop(decl(rule.body, "animation-name") ?? "").map(s => s.trim())) used.add(n);
     }
     const orphans = [...keyframes.keys()].filter(n => !used.has(n));
     expect(orphans).toEqual([]);
-    expect(keyframes.has("bubble-fade")).toBe(false);
-    expect(keyframes.has("bubble-fade-move")).toBe(true);
-    expect(keyframes.has("bubble-fade-out")).toBe(true);
+    for (const gone of ["bubble-fade", "bubble-fade-move", "bubble-fade-out", "bubble-spawn", "bubble-done-flash", "bubble-err-shake", "emoji-wobble", "mark-pop"]) {
+      expect(keyframes.has(gone), gone).toBe(false);
+    }
+    expect(keyframes.has("burst-rise")).toBe(true);
+    expect(keyframes.has("burst-fade-in")).toBe(true);
   });
 });

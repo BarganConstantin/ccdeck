@@ -185,12 +185,12 @@ describe("the type ladder is a closed set (#379 §3)", () => {
   it("still finds the rules the collapse moved, so a pass is not vacuous", () => {
     // The four rules the report singled out, at the values they landed on.
     expect(decl(".ap-alias", "font-size")).toBe("13px");            // was .ap-email at 10.5, #857's floor, then the row's name; V4's account row names at 13/20
-    expect(decl(".detail .row .v", "font-size")).toBe("11px");      // was 11.5
+    expect(decl(".detail .row .v", "font-size")).toBe("12px");      // was 11.5, then 11; V4's Figma sets the Inspector's values at 12
     expect(decl(".session-list .sl-label", "font-size")).toBe("13px"); // was 12.5, then 12; V4's rail row names at 13/20
     expect(decl(".uh-stat-label", "font-size")).toBe("9px");        // was 9.5
     expect(decl(".uh-bar-label", "font-size")).toBe("9px");         // was 8
     expect(decl(".modal-tool-name", "font-size")).toBe("14px");     // the context title's was 15; every dialog title's since 2026-10-23
-    expect(decl(".detail-hero .hero-title", "font-size")).toBe("18px"); // was 17
+    expect(decl(".detail-hero .hero-title", "font-size")).toBe("14px");   // was 17, then 18; V4's Figma: 14/20 600
     expect(FONT_SIZES.length).toBeGreaterThan(150);
   });
 
@@ -208,8 +208,9 @@ describe("the type ladder is a closed set (#379 §3)", () => {
     expect(12 / 11).toBeGreaterThan(RESOLVABLE);
     // And the three big money numbers stay three sizes apart, on three surfaces
     // of very different size.
-    expect(decl(".detail-hero .hero-cost-value", "font-size")).toBe("22px");
-    expect(decl(".up-total-value", "font-size")).toBe("26px");
+    // CHANGED ON PURPOSE (V4's Figma): the Inspector's spend is 18 and the Usage panel's hero 22 (were 22 and 26).
+    expect(decl(".detail-hero .hero-cost-value", "font-size")).toBe("18px");
+    expect(decl(".up-total-value", "font-size")).toBe("22px");
     expect(decl(".session-summary .ss-cost", "font-size")).toBe("34px");
   });
 });
@@ -324,8 +325,10 @@ describe("no font-size is declared where a shared rule outranks it (#379, #380)"
     // `.detail-hero .hero-action-btn` is (0,2,0) against `button.btn`'s (0,1,1),
     // so its 11px renders. It is not dead and must not be swept up with the
     // seven that were.
-    expect(decl(".detail-hero .hero-action-btn", "font-size")).toBe("11px");
-    expect(higher(specificity(".detail-hero .hero-action-btn"), specificity("button.btn"))).toBe(true);
+    // CHANGED ON PURPOSE (V4's Figma): it is `.detail .hero-action-btn` now, at 12px, and the
+    // relation is unchanged: (0,2,0) against `button.btn`'s (0,1,1).
+    expect(decl(".detail .hero-action-btn", "font-size")).toBe("12px");
+    expect(higher(specificity(".detail .hero-action-btn"), specificity("button.btn"))).toBe(true);
   });
 
   it("removed the seven font sizes without removing the rules around them", () => {
@@ -360,8 +363,9 @@ describe("no font-size is declared where a shared rule outranks it (#379, #380)"
     expect(decl(".uh-reload", "font-size")).toBeNull();
     expect(decl(".uh-reload", "padding")).toBe("0");
     expect(decl(".up-refresh-btn", "font-size")).toBeNull();
-    // 1px 8px since #887 put padding on the space ladder (7px is off it).
-    expect(decl(".up-refresh-btn", "padding")).toBe("1px 8px");
+    // CHANGED ON PURPOSE (V4's Figma): the refresh left the header for the body's foot as a quiet
+    // text button, `.up-quiet`, whose box is that rule's; `.up-refresh-btn` carries no padding.
+    expect(decl(".up-refresh-btn", "padding")).toBeNull();
   });
 });
 

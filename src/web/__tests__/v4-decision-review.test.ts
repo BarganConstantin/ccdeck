@@ -369,9 +369,10 @@ describe("layout: sizes the border is part of", () => {
     expect(44 + px("gap", row) + 34 + px("padding", row.replace("padding: 0 0 ", "padding: "))).toBe(104);
   });
 
-  it("the free input is 409 of the row's 460: the send word sits in the gutter beside it", () => {
-    expect(rule(".dc-field")).toContain("padding: 0 43px 0 8px;");
-    expect(460 - 8 - 43).toBe(409);
+  it("the free input is 409 of the row's 460, under the title; the send word sits inside it", () => {
+    // V4's Figma: the input starts at the title's x (36) and Send is inside its right end.
+    expect(rule(".dc-field")).toContain("padding: 0 15px 0 36px;");
+    expect(460 - 36 - 15).toBe(409);
     expect(rule(".dc-send")).toContain("position: absolute;");
   });
 });

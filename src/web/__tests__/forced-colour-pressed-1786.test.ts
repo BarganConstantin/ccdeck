@@ -68,17 +68,15 @@ describe("a pressed or chosen control under a Contrast theme (#1786)", () => {
     }
   });
 
-  it("marks the usage panel's chosen period with the highlight under its word", () => {
-    const mark = '.up-period .uh-range-btn[aria-pressed="true"]::after';
-    expect(drawn(mark)).toBe(true);
-    expect(decl(forcedBody(mark), "forced-color-adjust")).toBe("none");
-    expect(decl(forcedBody(mark), "background")).toBe("Highlight");
-    // The segment is the same chip, and it has no fill in any theme: the
-    // pressed chip's highlight is taken back off it, word and hover included,
-    // so the mark is the one thing that says which period is shown.
+  // CHANGED ON PURPOSE (V4's Figma): the chosen period is a pill with an accent wash and stroke
+  // (no mark under the word any more), so under a Contrast theme it is a Highlight fill with
+  // HighlightText, in the pressed state and under the pointer.
+  it("fills the usage panel's chosen period with the highlight, word included", () => {
     for (const seg of ['.up-period .uh-range-btn[aria-pressed="true"]', '.up-period .uh-range-btn[aria-pressed="true"]:hover']) {
-      expect(decl(forcedBody(seg), "forced-color-adjust"), seg).toBe("auto");
-      expect(decl(forcedBody(seg), "background"), seg).toBe("transparent");
+      if (!seg.endsWith(":hover")) expect(drawn(seg), seg).toBe(true);
+      expect(decl(forcedBody(seg), "forced-color-adjust"), seg).toBe("none");
+      expect(decl(forcedBody(seg), "background"), seg).toBe("Highlight");
+      expect(decl(forcedBody(seg), "color"), seg).toBe("HighlightText");
     }
   });
 

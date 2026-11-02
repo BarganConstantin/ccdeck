@@ -173,9 +173,10 @@ describe("the header", () => {
 });
 
 describe("the body and its head row", () => {
-  it("is padded 8 12 12 with a gap of 8, and scrolls instead of clipping", () => {
-    expect(decl(".insp-b", "padding")).toBe("8px 12px 12px");
-    expect(decl(".insp-b", "gap")).toBe("8px");
+  // CHANGED ON PURPOSE (V4's Figma): padding 12 and a gap of 12 (was 8 12 12 and 8).
+  it("is padded 12 with a gap of 12, and scrolls instead of clipping", () => {
+    expect(decl(".insp-b", "padding")).toBe("12px");
+    expect(decl(".insp-b", "gap")).toBe("12px");
     expect(decl(".insp-b", "overflow-y")).toBe("auto");
     expect(decl(".detail", "overflow")).toBe("hidden");
   });
@@ -244,9 +245,10 @@ describe("the tablist", () => {
     expect(to(0, "ArrowDown")).toEqual({ kind: "pass" });
     expect(readFileSync(join(WEB_DIR, "components/Inspector.tsx"), "utf8")).toMatch(/tabStripMove\(e, INSPECTOR_TABS\.indexOf\(tab\)/);
   });
-  it("keeps Fold's accessible name from the close it replaces", () => {
-    expect(out).toContain('aria-label="Close detail panel"');
-    expect(out).toContain('title="Close panel"');
+  // CHANGED ON PURPOSE (V4's Figma): the fold is named for what it does, "Fold the Inspector".
+  it("names Fold for what it does", () => {
+    expect(out).toContain('aria-label="Fold the Inspector"');
+    expect(out).toContain('title="Fold the Inspector"');
   });
 });
 
@@ -724,7 +726,9 @@ describe("the Time tab", () => {
       expect(out).toContain("<span role=\"columnheader\">Span</span>");
       expect(out).toMatch(/<span class="insp-time-ticks"[^>]*><span>0<\/span><span>[^<]+<\/span><span>[^<]+<\/span><span>[^<]+<\/span>/);
       // CHANGED ON PURPOSE: the argument ends in an ellipsis on a narrow panel, so it carries itself as a title.
-      expect(out).toContain('<span class="insp-time-op">Read</span><span class="insp-time-arg" title="Read arg">Read arg</span><span class="insp-time-took">0.3s</span>');
+      // CHANGED ON PURPOSE (V4's Figma): the duration sits in the lane, right of the bar, not in the name column.
+      expect(out).toContain('<span class="insp-time-op">Read</span><span class="insp-time-arg" title="Read arg">Read arg</span></span><span class="insp-time-lane"');
+      expect(out).toMatch(/<span class="insp-time-took"[^>]*>0\.3s<\/span>/);
       expect(out).toMatch(/aria-expanded="true" aria-label="Hide the calls of Explore"/);
       expect(out).toContain('<span class="insp-time-op">Glob</span>');
       expect(out).toMatch(/<span class="insp-time-wait"[^>]*>waiting on you · 18s<\/span>/);
@@ -732,8 +736,9 @@ describe("the Time tab", () => {
       expect(out.match(/insp-time-span/g)).toHaveLength(3);
     });
     it("draws the group's bar in --accent and every other bar in --text, from CSS", () => {
-      expect(decl(".insp-time-span", "background")).toBe("var(--text)");
-      expect(decl(".insp-time-span[data-group]", "background")).toBe("var(--accent)");
+      // CHANGED ON PURPOSE (V4's Figma): the ink at 16% and the accent at 14% with an inset 40% edge.
+      expect(decl(".insp-time-span", "background")).toBe("color-mix(in srgb, var(--text) 16%, transparent)");
+      expect(decl(".insp-time-span[data-group]", "background")).toBe("color-mix(in srgb, var(--accent) 14%, transparent)");
       expect(decl(".insp-time-span", "height")).toBe("10px");
       expect(decl(".insp-time-span", "min-width")).toBe("2px");
       expect(decl(".insp-time-wait", "color")).toBe("var(--warn)");
@@ -756,9 +761,11 @@ describe("the Time tab", () => {
       expect(decl(".insp-time-share", "color")).toBe("var(--text-secondary)");
     });
     it("uses the ring's lane colours for the bar, and animates nothing in the tab", () => {
-      expect(decl('.insp-time-bar i[data-lane="claude"]', "background")).toBe("var(--usage-purple)");
-      expect(decl('.insp-time-bar i[data-lane="machine"]', "background")).toBe("var(--usage-lime)");
-      expect(decl('.insp-time-bar i[data-lane="you"]', "background")).toBe("var(--usage-cyan)");
+      // CHANGED ON PURPOSE (V4's Figma): the lanes are --accent at 34% and 14% and --warn at 55%, in the
+      // same order, on a --text track at 6% (was the ring's solid purple, lime and cyan).
+      expect(decl('.insp-time-bar i[data-lane="claude"]', "background")).toBe("color-mix(in srgb, var(--accent) 34%, transparent)");
+      expect(decl('.insp-time-bar i[data-lane="machine"]', "background")).toBe("color-mix(in srgb, var(--accent) 14%, transparent)");
+      expect(decl('.insp-time-bar i[data-lane="you"]', "background")).toBe("color-mix(in srgb, var(--warn) 55%, transparent)");
       const own = rules.filter(r => r.selectors.some(s => /^\.insp-time/.test(s)));
       expect(own.length).toBeGreaterThan(15);
       for (const r of own) for (const p of Object.keys(r.decls)) expect(p, r.selectors.join(", ")).not.toMatch(/^(transition|animation)/);

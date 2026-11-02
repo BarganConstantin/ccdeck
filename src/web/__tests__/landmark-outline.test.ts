@@ -464,9 +464,12 @@ describe("promoting the headings changed no pixels (#381)", () => {
     // would still be doing that if the title were any size — so the assertion
     // below is that the title is a title, several steps clear of the 11px
     // caption, not that it is one particular number.
-    expect(decl(".detail > h2", "font-size")).toBe("11px");
-    expect(decl(".detail > h2", "text-transform")).toBe("uppercase");
-    expect(decl(".detail-hero .hero-title", "font-size")).toBe("18px");
+    // CHANGED ON PURPOSE (V4's Figma): the caption is 12px 600 in sentence case and the
+    // agent's name 14px 600 (was 11px uppercase and 18px); the relation is the same, the
+    // child combinator keeps the caption rule off the name, and the name is the larger.
+    expect(decl(".detail > h2", "font-size")).toBe("12px");
+    expect(decl(".detail > h2", "text-transform")).toBe("none");
+    expect(decl(".detail-hero .hero-title", "font-size")).toBe("14px");
     expect(css.replace(/\/\*[\s\S]*?\*\//g, "")).not.toMatch(/(^|[,\s])\.detail h2\b/);
   });
 

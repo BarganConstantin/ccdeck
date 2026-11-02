@@ -62,31 +62,18 @@
   border-radius: var(--r-cluster);
   border: 1px solid hsl(var(--session-hue, 200) 65% var(--session-rim-l) / 0.32);
   background: hsl(var(--session-hue, 200) 70% 50% / 0.04);
-  /* All four are kept, and all four are now worth keeping, because since #353
-     they are layout coordinates rather than screen coordinates: the camera is
-     applied once by .session-clusters above and never reaches these numbers, so
-     the only thing that can change one of them is the layout changing — a
-     session gaining a node, losing one, or being pushed aside by a neighbour
-     that grew. That is the move this easing was written for. It is also the one
-     move the box cannot make on its own account: SessionClusters reads each
-     node's FINAL position out of the React Flow store the frame the layout
-     changes, while the nodes themselves are still easing their transform over
-     the 320ms .react-flow__node gives them, so without a matching 320ms on the
-     same curve the box would snap to the new bounding box a third of a second
-     ahead of the cards inside it. Deleting these four would have cured a lag by
-     introducing a lead. The curve and the duration are .react-flow__node's, on
-     purpose — the box and its nodes are one movement or they are two.
-
-     The drag case is the exception and it is answered by
-     .canvas-wrap.dragging-any below, next to the identical answer the nodes
-     get, because a gesture that follows the cursor must not ease at all. */
-  /* The position rides the compositor since #864: SessionClusters writes it
-     as a translate in layout space, so the same 320ms move no longer runs
-     through left and top. The size stays width and height, which change only
-     when a session gains or loses a node. */
-  transition: opacity var(--dur-base) var(--ease), transform 320ms var(--ease),
-              width 320ms var(--ease),
-              height 320ms var(--ease);
+  /* THE BOX MOVES WITH ITS CARDS, AND ONLY MOVES (V4's motion rule 4: transform
+     and opacity). Since #353 the box's numbers are layout coordinates, and since
+     #864 its position is a translate in layout space, so a session pushed aside
+     or re-arranged carries its box on the same Slow, stage-curve transform its
+     cards take (react-flow.css), armed the same way, held the same way when a
+     neighbour has just left (canvas-motion.css). The size is width and height,
+     which are not animated: the box takes its new size at once, which is what
+     it does when a session gains or loses a card, and the cards glide to
+     their places inside it. It used to ease both over 320ms. */
+  --node-armed: 0;
+  transition: opacity var(--dur-base) var(--ease), transform calc(var(--node-armed) * var(--dur-slow)) var(--ease-stage);
+  animation: node-arm 1ms steps(1, end) 600ms forwards;
   overflow: visible;
   /* The wrapper itself is a drag handle — grab the background behind the nodes
      to move the whole session. Nodes sit above this layer, so clicking/dragging
@@ -141,8 +128,10 @@
   cursor: pointer;
   pointer-events: auto;
   user-select: none;
-  /* Don't transition transform — it's used inline for viewport scale. */
-  transition: box-shadow var(--dur-fast) var(--ease), filter var(--dur-fast) var(--ease);
+  /* No transition: the hover below changes a brightness and a ring, neither of
+     which is transform or opacity (V4's motion rule 4), so a pointer coming in
+     is answered at once, as a row's is. And never on transform — it is used
+     inline for the viewport scale. */
 }
 /* The session name, between the workspace and the short id inside the same
    pill. Same family, same size, same hue, same --session-label-l — this is

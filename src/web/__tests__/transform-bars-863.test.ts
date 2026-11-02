@@ -50,7 +50,9 @@ describe("the panel readouts move by transform (#863)", () => {
   });
 
   it("moves the pace marker on a rail as wide as the track", () => {
-    expect(decl(".qb-pace-rail", "inset")).toBe("0");
+    // CHANGED ON PURPOSE (V4's Figma): the rail is as wide as the track and 2px taller either way,
+    // so the tick stands clear of the 2px track.
+    expect(decl(".qb-pace-rail", "inset")).toBe("-2px 0");
     expect(decl(".qb-pace-rail", "transition")).toMatch(/^transform var\(--dur-slow\)/);
     expect(decl(".qb-pace-rail", "pointer-events")).toBe("none");
     expect(quotaBar).toMatch(/className="qb-pace-rail" style=\{\{ transform: `translateX\(\$\{pace\.expectedPct\}%\)` \}\}/);

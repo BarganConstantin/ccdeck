@@ -11,7 +11,7 @@ import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState, type 
 import { createPortal } from "react-dom";
 import { modalStack } from "../modal-dismiss";
 import type { CostTip } from "../card-cost";
-import { FIRST_HINT_DELAY_MS } from "./use-hint";
+import { FIRST_HINT_DELAY_MS, HINT_GRACE_MS, claimHint, hintSkipsWait, releaseHint } from "./use-hint";
 import { useT } from "../i18n";
 
 const EDGE = 8;
@@ -23,13 +23,30 @@ export function CostChipTip({ tip, className, children }: { tip: CostTip; classN
   const tipRef = useRef<HTMLDivElement>(null);
   const timer = useRef<number | undefined>(undefined);
   const [open, setOpen] = useState(false);
+  /** Opened on the heels of another tooltip: it comes at once, with no slide. */
+  const [instant, setInstant] = useState(false);
 
-  const hide = useCallback(() => { window.clearTimeout(timer.current); setOpen(false); }, []);
+  const hide = useCallback(() => {
+    window.clearTimeout(timer.current);
+    releaseHint(hide);
+    setOpen(false);
+  }, []);
+  const reveal = useCallback(() => {
+    setInstant(claimHint(hide));
+    setOpen(true);
+  }, [hide]);
+  // V4's tooltip: after the 450 wait, or at once under keyboard focus and
+  // when the reader is moving along from another tooltip.
   const show = useCallback((wait: number) => {
     window.clearTimeout(timer.current);
-    if (wait <= 0) setOpen(true);
-    else timer.current = window.setTimeout(() => setOpen(true), wait);
-  }, []);
+    if (wait <= 0 || hintSkipsWait()) reveal();
+    else timer.current = window.setTimeout(reveal, wait);
+  }, [reveal]);
+  // Leaving waits a 100ms grace, then it is gone at once.
+  const leave = useCallback(() => {
+    window.clearTimeout(timer.current);
+    timer.current = window.setTimeout(hide, HINT_GRACE_MS);
+  }, [hide]);
 
   useEffect(() => {
     if (!open) return;
@@ -38,7 +55,7 @@ export function CostChipTip({ tip, className, children }: { tip: CostTip; classN
     window.addEventListener("scroll", hide, true);
     return () => { off(); window.removeEventListener("resize", hide); window.removeEventListener("scroll", hide, true); };
   }, [open, hide]);
-  useEffect(() => () => window.clearTimeout(timer.current), []);
+  useEffect(() => () => { window.clearTimeout(timer.current); releaseHint(hide); }, [hide]);
 
   // Placed once it has a size: under the chip, flipped above when the window
   // ends first, and kept inside the window sideways.
@@ -64,7 +81,7 @@ export function CostChipTip({ tip, className, children }: { tip: CostTip; classN
         tabIndex={0}
         aria-describedby={open ? id : undefined}
         onPointerEnter={e => { if (e.pointerType === "mouse") show(FIRST_HINT_DELAY_MS); }}
-        onPointerLeave={hide}
+        onPointerLeave={leave}
         onPointerDown={hide}
         onFocus={e => { if (e.currentTarget.matches(":focus-visible")) show(0); }}
         onBlur={hide}
@@ -72,7 +89,7 @@ export function CostChipTip({ tip, className, children }: { tip: CostTip; classN
         {children}
       </span>
       {open && createPortal(
-        <div ref={tipRef} id={id} role="tooltip" className="cost-tip" style={{ left: 0, top: 0, visibility: "hidden" }}>
+        <div ref={tipRef} id={id} role="tooltip" className="cost-tip" data-instant={instant || undefined} style={{ left: 0, top: 0, visibility: "hidden" }}>
           <CostTipBody tip={tip} />
         </div>,
         document.body,

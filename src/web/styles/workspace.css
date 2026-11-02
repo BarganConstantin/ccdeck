@@ -125,8 +125,8 @@
 .ts-ws-open .kbd { background: var(--bg); }
 
 /* The Inspector with no session in focus: two centred lines. */
-.insp-none { align-items: center; justify-content: center; text-align: center; gap: 4px; }
-.insp-none-title { margin: 0; font-size: calc(14px + var(--ui-text-increase, 0px)); font-weight: 600; line-height: 20px; color: var(--text); }
+.insp-none { align-items: center; justify-content: center; text-align: center; gap: 4px; padding: 8px 12px 12px; }
+.insp-none-title { margin: 0; font-size: calc(13px + var(--ui-text-increase, 0px)); font-weight: 600; line-height: 20px; color: var(--text-secondary); }
 /* The empty Inspector's tabs are chips, not buttons: the chosen one is
    marked as the Inspector's chosen tab is (detail-panel.css). */
 .insp-tab[aria-current="true"] {
@@ -148,8 +148,9 @@
   .app[data-fade] .canvas-wrap { animation: view-fade var(--dur-fast) linear both; }
 }
 
-/* The Inspector's Fold has nothing to fold in a column; it is a sheet's close. */
-.app[data-view="workspace"] .detail .insp-fold { display: none; }
+/* The Inspector's Fold is drawn in the column too (V4's Figma). It folds the
+   Inspector alone (App.tsx): with no .detail the grid drops its track and the
+   pane takes the width; the list stays, which only Zoom folds. */
 
 /* ── NARROWER WINDOWS ─────────────────────────────────────────────────────── */
 /* Under 1320 the Inspector is today's detail sheet over the pane, opened by D
@@ -170,7 +171,6 @@
     width: min(var(--inspector-w), 100vw);
     z-index: 20;
   }
-  .app[data-view="workspace"] .detail .insp-fold { display: inline-flex; }
 }
 /* Under 1100 the list is a sheet too, from the panel bar's Sessions door: the
    pane is the one column. */

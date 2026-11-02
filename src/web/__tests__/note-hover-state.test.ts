@@ -157,7 +157,10 @@ describe("a full-size note under the pointer", () => {
   it("fades into the hover on what changes, and moves nothing", () => {
     const eased = (cascadeOn(note("dark", "detail", false), "transition", mouse) ?? "none");
     const props = splitTop(eased).map(p => p.split(/\s+/)[0]);
-    expect(props).toEqual(expect.arrayContaining(["background-color", "border-color", "box-shadow"]));
+    // A colour fades in Fast; a shadow lands at once (V4's motion rule 4: only
+    // transform and opacity animate, and colour on a small thing is fine).
+    expect(props).toEqual(expect.arrayContaining(["background-color", "border-color"]));
+    expect(props, "the shadow lands at once").not.toContain("box-shadow");
     for (const moving of ["all", "transform", "translate", "scale", "top", "left", "margin", "width", "height"])
       expect(props, `the hover would carry the note through ${moving}`).not.toContain(moving);
   });
