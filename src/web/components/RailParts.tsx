@@ -7,7 +7,7 @@ import type { Row } from "./SessionList";
 import { AlertMark, StateMark } from "./StateMark";
 import { stateLabel } from "../agent-copy";
 import { modelChipText, modelChipTitle } from "../model-label";
-import { RAIL_GROUP_LABELS, type RailGroup } from "../rail-model";
+import { RAIL_GROUP_LABEL_MSGS, type RailGroup } from "../rail-model";
 import { railGlyph, railLine, railTime, rowSpoken, rowTooltip, type RailGlyphKind } from "../rail-row-copy";
 import { fadeIn, tokenMs } from "../rail-motion";
 import type { UsageMeter } from "../rail-usage";
@@ -206,7 +206,8 @@ export function GroupHead({ group, count, spaced, fold }: {
   spaced: boolean;
   fold?: { open: boolean; motion: FoldMode; onToggle: (e: MouseEvent<HTMLButtonElement>) => void };
 }) {
-  const label = RAIL_GROUP_LABELS[group];
+  const t = useT();
+  const label = t(RAIL_GROUP_LABEL_MSGS[group]);
   return (
     <li className={`sl-group-head${spaced ? " spaced" : ""}`}>
       {fold

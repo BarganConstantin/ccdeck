@@ -17,8 +17,18 @@ vi.mock("react", async () => (await import("./fake-react")).react);
 const { mount } = await import("./fake-react");
 const {
   ARRIVAL_NOTE_MS, ASKS_CLEAR_MS, asksReducer, asksView, firstOpenAsk, initialAsks, nextAskId, nextDeadline,
-  NO_MORE_ASKS, useAsks,
+  NO_MORE_ASKS_MSG, useAsks,
 } = await import("../use-asks");
+const { en } = await import("../i18n/en");
+// CHANGED ON PURPOSE (the UI in every language): the sentence is a key, and
+// English maps it to the same words.
+const NO_MORE_ASKS = en[NO_MORE_ASKS_MSG];
+describe("the last ask's sentence", () => {
+  it("is a key that English maps to the same words", () => {
+    expect(NO_MORE_ASKS_MSG).toBe("board.asks.noMoreSaid");
+    expect(NO_MORE_ASKS).toBe("No more asks.");
+  });
+});
 type AsksState = import("../use-asks").AsksState;
 type AsksDeps = import("../use-asks").AsksDeps;
 type Asks = import("../use-asks").Asks;

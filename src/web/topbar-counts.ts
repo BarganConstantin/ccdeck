@@ -16,10 +16,10 @@ export interface SessionCounts {
   done: number;
 }
 
-/** English, the way the other V4 top bar words are held (QUICK_OPEN_PLACEHOLDER);
+/** The pills' words, as keys read with `t` where the pill is drawn;
  *  "waiting" is the catalog's own (board.queue.waiting). */
-export const WORKING_WORD = "working";
-export const DONE_WORD = "done";
+export const WORKING_WORD_MSG = "board.counts.working";
+export const DONE_WORD_MSG = "board.counts.done";
 
 export function sessionCounts(agents: Iterable<AgentNodeData>): SessionCounts {
   const counts: SessionCounts = { waiting: 0, working: 0, done: 0 };

@@ -63,6 +63,7 @@ import { copyText } from "./copy-text";
 import { leaveRepliesToTmux } from "./terminal-replies";
 import { isApplePlatform, platformName } from "./platform";
 import { prefersReducedMotion } from "./viewport-motion";
+import { t as tr } from "./i18n";
 import { showsFrame, type KeysOwner, type StagePhase } from "./components/terminal/stage-model";
 
 /** The stage's font size. 13.3px is where the deck's mono stack advances a
@@ -522,7 +523,7 @@ export interface SessionPlace {
 }
 
 /** A paste too big for one message: refused, and said, rather than lost. */
-export const PASTE_TOO_LARGE = "That paste is over 1 MB, too big to send to the session. Nothing was typed.";
+export const PASTE_TOO_LARGE_MSG = "board.session.pasteTooLarge";
 
 export interface TerminalSessionController {
   mount(host: HTMLElement, init: Omit<TerminalInit, "cols" | "rows">): void;
@@ -563,14 +564,15 @@ const sameProgress = (a?: TmuxProgress, b?: TmuxProgress) =>
   a?.stage === b?.stage
   && (a?.stage !== "downloading" || b?.stage !== "downloading" || (a.received === b.received && a.total === b.total));
 
-const STOPPED = "The Command Panel stopped. The session may still be running.";
-export const NO_RETURN = "The deck did not come back. The session is still running in tmux; try again once the deck is up.";
-export const ENGINE_NO_RETURN = "The Command Panel's engine did not come back. The session is still running in tmux; try again in a moment.";
+// Keys for the sentences the panel shows, read with `tr` where the line is made.
+const STOPPED_MSG = "board.stage.panelStopped";
+export const NO_RETURN_MSG = "board.session.noReturn";
+export const ENGINE_NO_RETURN_MSG = "board.session.engineNoReturn";
 /** The same two on Windows, where the panel's sessions run in its session host. */
-export const NO_RETURN_WINDOWS = "The deck did not come back. The session is still running in the session host; try again once the deck is up.";
-export const ENGINE_NO_RETURN_WINDOWS = "The Command Panel's engine did not come back. The session is still running in the session host; try again in a moment.";
-const NOT_REOPENABLE = "This session started without a name the deck can find it by yet. Open it from the board.";
-const TMUX_SETUP_SLOW = "The deck is still setting up tmux. Try again in a minute.";
+export const NO_RETURN_WINDOWS_MSG = "board.session.noReturnWindows";
+export const ENGINE_NO_RETURN_WINDOWS_MSG = "board.session.engineNoReturnWindows";
+const NOT_REOPENABLE_MSG = "board.session.notReopenable";
+const TMUX_SETUP_SLOW_MSG = "board.session.tmuxSetupSlow";
 
 /**
  * The stage's terminal and its one connection, as a state machine.
@@ -782,7 +784,7 @@ export function createTerminalSession(deps: SessionDeps, callbacks: SessionCallb
         // was ever revealed is the same thing seen from here.
         else if (reason === "ended") setPhase(atOpen || snap.phase.kind !== "live" ? { kind: "ended", atOpen: true } : { kind: "ended" });
         else if (reason === "detached") setPhase({ kind: "detached" });
-        else setPhase({ kind: "error", message: message || STOPPED });
+        else setPhase({ kind: "error", message: message || tr(STOPPED_MSG) });
       },
       onError: failure => {
         if (my !== gen) return;
@@ -826,7 +828,7 @@ export function createTerminalSession(deps: SessionDeps, callbacks: SessionCallb
       });
       return;
     }
-    if (deps.now() - since > TMUX_SETUP_GIVE_UP_MS) { setPhase({ kind: "error", message: TMUX_SETUP_SLOW }); return; }
+    if (deps.now() - since > TMUX_SETUP_GIVE_UP_MS) { setPhase({ kind: "error", message: tr(TMUX_SETUP_SLOW_MSG) }); return; }
     if (snap.phase.kind !== "tmux-installing" || !sameProgress(snap.phase.progress, tmux.progress)) {
       setPhase({ kind: "tmux-installing", ...(tmux.progress ? { progress: tmux.progress } : {}) });
     }
@@ -919,7 +921,7 @@ export function createTerminalSession(deps: SessionDeps, callbacks: SessionCallb
       return;
     }
     const ref = refOf();
-    if (!ref) { setPhase({ kind: "error", message: NOT_REOPENABLE }); return; }
+    if (!ref) { setPhase({ kind: "error", message: tr(NOT_REOPENABLE_MSG) }); return; }
     setPhase({ kind: "attaching", reconnect: reconnecting });
     void openFlow(ref, my, reconnecting);
   };
@@ -935,7 +937,7 @@ export function createTerminalSession(deps: SessionDeps, callbacks: SessionCallb
     if (now - reconnectStarted > RECONNECT_GIVE_UP_MS) {
       reconnectStarted = null;
       attempts = 0;
-      const message = engineLost ? (windows ? ENGINE_NO_RETURN_WINDOWS : ENGINE_NO_RETURN) : (windows ? NO_RETURN_WINDOWS : NO_RETURN);
+      const message = tr(engineLost ? (windows ? ENGINE_NO_RETURN_WINDOWS_MSG : ENGINE_NO_RETURN_MSG) : (windows ? NO_RETURN_WINDOWS_MSG : NO_RETURN_MSG));
       setPhase({ kind: "error", message });
       engineLost = false;
       return;
@@ -955,7 +957,7 @@ export function createTerminalSession(deps: SessionDeps, callbacks: SessionCallb
       gen += 1;
       const next = gen;
       const ref = refOf();
-      if (!ref) { setPhase({ kind: "error", message: NOT_REOPENABLE }); return; }
+      if (!ref) { setPhase({ kind: "error", message: tr(NOT_REOPENABLE_MSG) }); return; }
       void openFlow(ref, next, true);
     }, delay);
   };
@@ -986,7 +988,7 @@ export function createTerminalSession(deps: SessionDeps, callbacks: SessionCallb
     onPaste: text => {
       if (snap.phase.kind !== "live" || !conn) return;
       typed();
-      if (!conn.sendPaste(text) && pasteTooLarge(text)) callbacks.onNotice?.(PASTE_TOO_LARGE);
+      if (!conn.sendPaste(text) && pasteTooLarge(text)) callbacks.onNotice?.(tr(PASTE_TOO_LARGE_MSG));
     },
     // terminal-keys.ts decides; this only carries the decision out. The
     // release chord is kept from the session and acted on by the deck's own
@@ -1023,7 +1025,7 @@ export function createTerminalSession(deps: SessionDeps, callbacks: SessionCallb
         measure();
       }, () => {
         mounting = false;
-        if (!disposed) setPhase({ kind: "error", message: "The Command Panel could not be loaded. Reload the page to try again." });
+        if (!disposed) setPhase({ kind: "error", message: tr("board.session.loadFailed") });
       });
     },
 

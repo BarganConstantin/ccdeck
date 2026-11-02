@@ -6,7 +6,7 @@ import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import {
-  BOARD_HEAD_LABELS, BOARD_HEAD_NONE, boardHeadFigures, boardHeadShown, doneToday, startOfLocalDay,
+  BOARD_HEAD_LABEL_MSGS, BOARD_HEAD_NONE, boardHeadFigures, boardHeadShown, doneToday, startOfLocalDay,
 } from "../board-header";
 import { boardRect } from "../board-rect";
 import { heldReading } from "../use-canvas-size";
@@ -150,7 +150,10 @@ describe("what is moved under the strip, through one custom property", () => {
 
 describe("the labels", () => {
   it("are the five, in order; the last is the board's, not the day's", () => {
-    expect([...BOARD_HEAD_LABELS]).toEqual(["Waiting on you", "Working", "Done on this board", "Longest wait", "Spent on this board"]);
+    // CHANGED ON PURPOSE (the UI in every language): the labels are keys, and
+    // English maps them to the same five words.
+    expect([...BOARD_HEAD_LABEL_MSGS]).toEqual(["board.header.waiting", "board.header.working", "board.header.done", "board.header.longest", "board.header.spent"]);
+    expect(BOARD_HEAD_LABEL_MSGS.map(key => en[key])).toEqual(["Waiting on you", "Working", "Done on this board", "Longest wait", "Spent on this board"]);
   });
 });
 

@@ -8,6 +8,7 @@
 import type { AgentNodeData } from "./types";
 import { UNPRICED_LABEL, fmtCost } from "./pricing";
 import { costChip } from "./card-cost";
+import { t } from "./i18n";
 
 export interface TreeRow {
   agent: AgentNodeData;
@@ -77,7 +78,7 @@ export function agentTree(agents: ReadonlyMap<string, AgentNodeData>, sessionId:
  *  (every row but the root's), in words. */
 export function subagentCount(rows: readonly TreeRow[]): string {
   const n = rows.length - 1;
-  return n <= 0 ? "no subagents" : `${n} subagent${n === 1 ? "" : "s"}`;
+  return n <= 0 ? t("board.inspector.noSubagents") : t("board.inspector.subagents", { count: n });
 }
 
 /** The session's cost as the root's card prints it (card-cost.ts), or null when

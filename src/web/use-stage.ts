@@ -64,6 +64,7 @@ import { heldKeys, heldText, holdKey, isPaneInput, startTypeAhead, typesItself, 
 import { useAsks, type Asks } from "./use-asks";
 import type { StageShortcuts } from "./use-deck-shortcuts";
 import { useMirroredRef } from "./use-mirrored-ref";
+import { t } from "./i18n";
 import { readView, workspaceOffered, writeView, type View } from "./use-view";
 
 /** The lazy chunk's one door: the navigator, the stage and everything they
@@ -78,7 +79,7 @@ export const PREFS_WAIT_MS = 3000;
 
 /** What is said when the lazy chunk will not load — a tab left open across an
  *  upgrade asks for a file the new build no longer has. */
-export const SHELL_UNAVAILABLE = "The Command Panel could not be loaded. Reload the page to use it.";
+export const SHELL_UNAVAILABLE_MSG = "board.stage.shellUnavailable";
 
 const pageRect = (r: DOMRect | { left: number; top: number; width: number; height: number }): ShellRect =>
   ({ x: r.left, y: r.top, w: r.width, h: r.height });
@@ -636,7 +637,7 @@ export function useStage({ stateRef, canvasRef, detailOpen, detailShown, setDeta
 
   /** The lazy chunk would not load: nothing to show, so nothing stays. */
   const failed = useCallback(() => {
-    setSaid(SHELL_UNAVAILABLE);
+    setSaid(t(SHELL_UNAVAILABLE_MSG));
     // And Workspace, which is only a pane, is not on offer: the Board is drawn,
     // the switch and the chord go with it, and the stored view stays.
     setChunkFailed(true);

@@ -26,7 +26,7 @@
 // secrets, and the line says where.
 import { useEffect, useRef, useState } from "react";
 import type { AccountView } from "../account-bridge";
-import { UI_LABELS } from "../account-ui-fields";
+import { uiLabelOf } from "../account-ui-fields";
 import { selfPressAccepted, selfPressProps } from "../panel-press";
 import { accountActions, openableUrl, useAccountView } from "../use-account";
 import AccountSyncPreview, { shownValue } from "./AccountSyncPreview";
@@ -179,7 +179,7 @@ export function AccountPanel({ view, failed = false, vetoed, now = Date.now() }:
             <SettingRow as="div"
               name={sync.mode === "shared" ? "Shared with your other decks" : "This deck only"}
               note={sync.mode === "shared"
-                ? `Theme, text, panels and the rest follow your account; ${sync.overrides.map(k => UI_LABELS[k]?.toLowerCase() ?? k).join(", ") || "nothing"} stays on this deck. ${revisionsLine(view)}`
+                ? `Theme, text, panels and the rest follow your account; ${sync.overrides.map(k => uiLabelOf(t, k)?.toLowerCase() ?? k).join(", ") || "nothing"} stays on this deck. ${revisionsLine(view)}`
                 : `This deck keeps its own settings in your account. ${revisionsLine(view)}`}
               control={sync.mode === "shared"
                 ? <button type="button" className="btn" {...selfPressProps(busy)} onClick={() => run(() => accountActions.setMode({ mode: "independent" }))}>{t("settings.account.stopSharing")}</button>
@@ -191,7 +191,7 @@ export function AccountPanel({ view, failed = false, vetoed, now = Date.now() }:
             )}
             {sync.pending && !sync.conflict && (
               <SettingRow as="div" name="Pending"
-                note={`${sync.pending.keys.map(k => UI_LABELS[k] ?? k).join(", ")}. ${sync.saving === "offline" ? "Will save when back online." : sync.saving === "refused" ? "The account refused part of it." : "Saving…"}`} />
+                note={`${sync.pending.keys.map(k => uiLabelOf(t, k) ?? k).join(", ")}. ${sync.saving === "offline" ? "Will save when back online." : sync.saving === "refused" ? "The account refused part of it." : "Saving…"}`} />
             )}
             {sync.conflict && (
               <SettingRow as="div" className={reviewing ? "settings-row-wide" : undefined}
@@ -210,7 +210,7 @@ export function AccountPanel({ view, failed = false, vetoed, now = Date.now() }:
                       <tbody>
                         {Object.keys(sync.conflict.mine).map(k => (
                           <tr key={k}>
-                            <th scope="row">{UI_LABELS[k] ?? k}</th>
+                            <th scope="row">{uiLabelOf(t, k) ?? k}</th>
                             <td>{shownValue(k, sync.conflict!.mine[k])}</td>
                             <td>{shownValue(k, sync.conflict!.latest.values[k])}</td>
                           </tr>

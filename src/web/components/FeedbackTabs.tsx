@@ -16,8 +16,8 @@
 // that throws says the same, instead of taking the deck down to the crash pane.
 import { Component, Suspense, lazy, useRef, type ComponentType, type ErrorInfo, type ReactNode, type RefObject } from "react";
 import { tabStripMove } from "../tablist-keys";
-import { useT } from "../i18n";
-import { CONVERSATIONS_TAB, WRITE_TAB, type FeedbackTab } from "../feedback";
+import { t as translate, useT } from "../i18n";
+import { CONVERSATIONS_TAB_MSG, WRITE_TAB_MSG, type FeedbackTab } from "../feedback";
 import type { FeedbackAccount } from "../feedback-unread";
 
 const TABS: readonly FeedbackTab[] = ["write", "conversations"];
@@ -89,7 +89,7 @@ export function ConversationsPanel(props: ConversationsProps) {
 /** How the count on Your conversations reads to a screen reader: the badge
  *  itself is hidden, so the tab's name says it. */
 export function conversationsTabLabel(unread: number): string | undefined {
-  return unread > 0 ? `${CONVERSATIONS_TAB}, ${unread} unread` : undefined;
+  return unread > 0 ? translate("shell.feedback.tabConversationsUnread", { count: unread }) : undefined;
 }
 
 export default function FeedbackTabs({ tab, onTab, unread, conversationsTabRef, write, conversations }: {
@@ -122,12 +122,12 @@ export default function FeedbackTabs({ tab, onTab, unread, conversationsTabRef, 
         <button ref={writeRef} type="button" id="fc-tab-write" className="fc-tab" role="tab"
           aria-selected={tab === "write"} aria-controls="fc-panel-write" tabIndex={tab === "write" ? 0 : -1}
           onClick={() => onTab("write")}>
-          {WRITE_TAB}
+          {t(WRITE_TAB_MSG)}
         </button>
         <button ref={convRef} type="button" id="fc-tab-conversations" className="fc-tab" role="tab"
           aria-selected={tab === "conversations"} aria-controls="fc-panel-conversations" tabIndex={tab === "conversations" ? 0 : -1}
           aria-label={conversationsTabLabel(unread)} onClick={() => onTab("conversations")}>
-          {CONVERSATIONS_TAB}
+          {t(CONVERSATIONS_TAB_MSG)}
           {unread > 0 && <span className="fc-tab-count" aria-hidden="true">{unread}</span>}
         </button>
       </div>

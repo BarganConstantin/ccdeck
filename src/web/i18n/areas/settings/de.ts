@@ -606,6 +606,21 @@ const catalog: Catalog = {
   "settings.key.prevWaiting": "die vorherige wartende, auf dem Canvas",
   "settings.key.peek": "die ausgewählte Karte ansehen, ohne sie zu öffnen",
   "settings.key.workspace": "zwischen Canvas und Workspace wechseln — auch mit den Tasten im Terminal",
+  "settings.section.account.label": "Konto",
+  "settings.section.account.note": "Verbinde dieses ccdeck mit deinem ccdeck-Konto und halte seine Einstellungen mit deinen anderen Rechnern im Gleichklang.",
+  "settings.search.commandPanel": "Command Panel",
+  "settings.account.field.theme": "Design",
+  "settings.account.field.textSize": "Textgröße",
+  "settings.account.field.density": "Dichte",
+  "settings.account.field.sessionList": "Sitzungsliste geöffnet",
+  "settings.account.field.accounts": "Konten-Panel geöffnet",
+  "settings.account.field.detail": "Detail-Panel geöffnet",
+  "settings.account.field.usage": "Nutzungs-Panel geöffnet",
+  "settings.account.field.machine": "Rechner-Panel geöffnet",
+  "settings.account.field.singleKeys": "Einzeltasten-Kürzel",
+  "settings.account.field.hideFinished": "Beendete Sitzungen ausblenden nach",
+  "settings.account.field.character": "Figur",
+  "settings.account.field.sound": "Ton",
 };
 
 export default catalog;

@@ -180,41 +180,37 @@ export const whereItGoes = (): readonly string[] => [t("shell.feedback.where1"),
 // promises one). The anonymous path stays exactly as above, one tick away:
 // Send without my account.
 
-export const ACCOUNT_DIALOG_TITLE = "Feedback";
-export const WRITE_TAB = "Write";
-export const CONVERSATIONS_TAB = "Your conversations";
-export const SEND_WITHOUT_ACCOUNT = "Send without my account";
+// The words are keys, read with `t` where they are drawn.
+export const ACCOUNT_DIALOG_TITLE_MSG = "shell.feedback.accountTitle";
+export const WRITE_TAB_MSG = "shell.feedback.tabWrite";
+export const CONVERSATIONS_TAB_MSG = "shell.feedback.tabConversations";
+export const SEND_WITHOUT_ACCOUNT_MSG = "shell.feedback.sendWithout";
 
 /** Who it goes as, under the message, and where the replies come: the
  *  address once the deck has said; by email only while `mail`. */
 export function accountSentAs(email: string | null, mail = true): string {
-  const replies = mail ? "you'll get replies here and by email" : "you'll get replies here and on app.ccdeck.dev";
-  return email ? `Sent as ${email} — ${replies}` : `Sent from your ccdeck account — ${replies}`;
+  if (email) return t(mail ? "shell.feedback.sentAsMail" : "shell.feedback.sentAsNoMail", { email });
+  return t(mail ? "shell.feedback.sentAsAccountMail" : "shell.feedback.sentAsAccountNoMail");
 }
 
 /** WHERE_IT_GOES for a send as the account: no contact to keep off an issue,
  *  and the account's email never put on one. */
-export const WHERE_IT_GOES_ACCOUNT = [
-  "It goes to the people who make ccdeck from your account, with the version and system below. They reply here and by email.",
-  "Nothing becomes public by being sent. They may open a public GitHub issue from it, choosing its title and text; your email and screenshots are never put on one.",
-] as const;
+export const WHERE_IT_GOES_ACCOUNT_MSGS = ["shell.feedback.whereAccount1", "shell.feedback.whereAccount2"] as const;
 
-/** WHERE_IT_GOES_ACCOUNT while replies are not mailed. */
-export const WHERE_IT_GOES_ACCOUNT_NO_MAIL = [
-  "It goes to the people who make ccdeck from your account, with the version and system below. They reply here and on app.ccdeck.dev.",
-  WHERE_IT_GOES_ACCOUNT[1],
-] as const;
+/** WHERE_IT_GOES_ACCOUNT_MSGS while replies are not mailed. */
+export const WHERE_IT_GOES_ACCOUNT_NO_MAIL_MSGS = ["shell.feedback.whereAccount1NoMail", "shell.feedback.whereAccount2"] as const;
 
-export const whereItGoesAccount = (mail = true) => (mail ? WHERE_IT_GOES_ACCOUNT : WHERE_IT_GOES_ACCOUNT_NO_MAIL);
+export const whereItGoesAccount = (mail = true): readonly string[] =>
+  (mail ? WHERE_IT_GOES_ACCOUNT_MSGS : WHERE_IT_GOES_ACCOUNT_NO_MAIL_MSGS).map(key => t(key));
 
 /** The thanks once a conversation has started. */
-export const SENT_LINE_ACCOUNT = "Sent — replies will show in Your conversations and by email.";
-/** SENT_LINE_ACCOUNT while replies are not mailed. */
-export const SENT_LINE_ACCOUNT_NO_MAIL = "Sent — replies will show in Your conversations and on app.ccdeck.dev.";
+export const SENT_LINE_ACCOUNT_MSG = "shell.feedback.sentAccount";
+/** SENT_LINE_ACCOUNT_MSG while replies are not mailed. */
+export const SENT_LINE_ACCOUNT_NO_MAIL_MSG = "shell.feedback.sentAccountNoMail";
 
 /** The account's conversations could not be reached; the anonymous path is
  *  still there, and nothing typed was lost. */
-export const ACCOUNT_UNAVAILABLE = "Your account's conversations can't be reached right now. Try again, or tick Send without my account; your text is still here.";
+export const ACCOUNT_UNAVAILABLE_MSG = "shell.feedback.accountUnavailable";
 
 /** `HH:mm` in the reader's own clock. */
 export function clockTime(at: Date, timeZone?: string): string {
@@ -223,8 +219,7 @@ export function clockTime(at: Date, timeZone?: string): string {
 
 /** A daily limit reached: which, how many, and when it opens again. */
 export function limitLine(kind: "conversations" | "replies", limit: number, at: Date, timeZone?: string): string {
-  const what = kind === "conversations" ? "new conversations" : "replies";
-  return `You've reached today's limit of ${limit} ${what}. You can try again at ${clockTime(at, timeZone)}; your text is still here.`;
+  return t(kind === "conversations" ? "shell.feedback.limitConversations" : "shell.feedback.limitReplies", { limit, time: clockTime(at, timeZone) });
 }
 
 /** What a refusal from the account's routes (ccdeck-account-routes.mjs) means
@@ -240,7 +235,7 @@ export function accountFailure(
     return limitLine("conversations", answer!.limit as number, new Date(now + (answer!.retryAfterSec as number) * 1000));
   }
   if (reason === "invalid" || reason === "too_large") return feedbackFailure(status, reason, answer?.errors);
-  return ACCOUNT_UNAVAILABLE;
+  return t(ACCOUNT_UNAVAILABLE_MSG);
 }
 
 // ── the keyboard ─────────────────────────────────────────────────────────────
@@ -294,7 +289,7 @@ export type Outcome =
 /** What the dialog shows, and says, once a report has arrived. */
 /** The thanks for how it went: as the account (by email only while `mail`), or as before. */
 export const sentLine = (asAccount = false, mail = true): string =>
-  (asAccount ? (mail ? SENT_LINE_ACCOUNT : SENT_LINE_ACCOUNT_NO_MAIL) : t("shell.feedback.sent"));
+  (asAccount ? t(mail ? SENT_LINE_ACCOUNT_MSG : SENT_LINE_ACCOUNT_NO_MAIL_MSG) : t("shell.feedback.sent"));
 
 /** The deck's own sentence about an image it refused, in the language on show;
  *  anything else (the API's own words) as it came. The two sentences about a

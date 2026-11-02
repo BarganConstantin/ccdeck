@@ -27,6 +27,7 @@ import { waitingLabel } from "./agent-copy";
 import { faceSignal, type BranchSummary, type FaceSignal } from "./node-face";
 import type { ClusterNode } from "./cluster-bounds";
 import type { AgentNodeData, ToolCall, WaitingBlock } from "./types";
+import { t } from "./i18n";
 
 /** How much the navigator draws per session: a tile with its subagent rows, or
  *  the face alone in one column (a narrow window, or an expanded stage). The
@@ -360,5 +361,5 @@ export function navSignal(agent: NavAgent): FaceSignal | null {
 
 /** "1 session" / "7 sessions", for the navigator's header. */
 export function sessionCount(n: number): string {
-  return n === 0 ? "No sessions" : `${n} ${n === 1 ? "session" : "sessions"}`;
+  return n === 0 ? t("board.nav.none") : t("board.hosts.sessions", { count: n });
 }

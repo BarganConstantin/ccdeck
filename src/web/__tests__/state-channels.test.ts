@@ -548,7 +548,10 @@ describe("what a reader is told, now that the dot is decoration everywhere", () 
     // took off the canvas is bringing it back rather than focusing it.
     // The row's title is rowTooltip (rail-row-copy.ts), whose first line it is.
     expect(row).toMatch(/title=\{rowTooltip\(r, removed\)\}/);
-    expect(markup("rail-row-copy.ts")).toMatch(/removed \? `Bring \$\{r\.label\} back to the board` : `Focus \$\{r\.label\}`/);
+    // CHANGED ON PURPOSE (the UI in every language): both lines are keys, and
+    // English maps them to the same words.
+    expect(markup("rail-row-copy.ts")).toMatch(/removed \? t\("board\.row\.bringBack", \{ label: r\.label \}\) : t\("board\.row\.focus", \{ label: r\.label \}\)/);
+    expect([en["board.row.bringBack"], en["board.row.focus"]]).toEqual(["Bring {label} back to the board", "Focus {label}"]);
     const toolRow = /<button className="tool clickable"[^>]*>/.exec(app)![0];
     expect(toolRow).not.toMatch(/aria-label/);
   });

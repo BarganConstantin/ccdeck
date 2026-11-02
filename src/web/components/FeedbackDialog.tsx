@@ -73,7 +73,7 @@ import {
   holdsSomething, imagesLostLine,
 } from "../feedback-draft";
 import {
-  ACCOUNT_DIALOG_TITLE, BODY_MAX, SEND_WITHOUT_ACCOUNT, accountSentAs, factsUnknown, factsWith, messageMissing,
+  ACCOUNT_DIALOG_TITLE_MSG, BODY_MAX, SEND_WITHOUT_ACCOUNT_MSG, accountSentAs, factsUnknown, factsWith, messageMissing,
   factsLabel, hasMessage, isSendShortcut, isSymbolCap, kindCopy, outcomeAnnouncement, sendShortcutCaps, sentLine,
   type FeedbackPrefill, type FeedbackTab, type Kind,
 } from "../feedback";
@@ -302,7 +302,7 @@ export default function FeedbackDialog({ onClose, initialKind, initialBody, init
     >
         <header className="modal-head">
           <div className="modal-title">
-            <span id="feedback-title" className="modal-tool-name">{connected ? ACCOUNT_DIALOG_TITLE : t("shell.feedback.title")}</span>
+            <span id="feedback-title" className="modal-tool-name">{connected ? t(ACCOUNT_DIALOG_TITLE_MSG) : t("shell.feedback.title")}</span>
           </div>
           <div className="modal-actions">
             <button ref={closeRef} type="button" className="glyph-btn" onClick={onClose} aria-label={t("shell.closeEsc")} title={t("shell.closeEsc")}>×</button>
@@ -376,7 +376,7 @@ export default function FeedbackDialog({ onClose, initialKind, initialBody, init
                 <div className="fc-account">
                   <label className="fc-anon">
                     <Checkbox checked={anonymous} onChange={e => setAnonymous(e.target.checked)} />
-                    {SEND_WITHOUT_ACCOUNT}
+                    {t(SEND_WITHOUT_ACCOUNT_MSG)}
                   </label>
                   {!anonymous && <p className="fc-sent-as">{accountSentAs(account?.email ?? null, mail)}</p>}
                 </div>

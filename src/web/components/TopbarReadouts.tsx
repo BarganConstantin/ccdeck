@@ -14,7 +14,7 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type MutableRefObject, type ReactNode } from "react";
 import type { BlockedSession } from "../ambient-counts";
 import { MARK_SMALL_ON_LIGHT_SRC, MARK_SMALL_SRC, PRODUCT } from "../brand";
-import { DONE_WORD, WORKING_WORD, type SessionCounts } from "../topbar-counts";
+import { DONE_WORD_MSG, WORKING_WORD_MSG, type SessionCounts } from "../topbar-counts";
 import { statusPill } from "../status-pill";
 import type { useDesktopUpdate } from "../use-desktop-update";
 import type { useLiveAnnouncements } from "../use-live-announcements";
@@ -437,8 +437,8 @@ export function ReadoutGroup({
           stays, and only while something waits (topbar.css). */}
       <div className="counts">
         <WaitingStat waitingSessions={waitingSessions} waitingCursorRef={waitingCursorRef} focusSession={focusSession} now={now} />
-        <CountPill kind="working" count={counts.working} glyph={<StateMark kind="live" size={14} />} word={WORKING_WORD} />
-        <CountPill kind="done" count={counts.done} glyph={<StateMark kind="done" size={14} />} word={DONE_WORD} />
+        <CountPill kind="working" count={counts.working} glyph={<StateMark kind="live" size={14} />} word={t(WORKING_WORD_MSG)} />
+        <CountPill kind="done" count={counts.done} glyph={<StateMark kind="done" size={14} />} word={t(DONE_WORD_MSG)} />
       </div>
       {/* NOT a live region, and #372 is the issue that took the
           `role="status"` off it. Nothing in this strip is a status

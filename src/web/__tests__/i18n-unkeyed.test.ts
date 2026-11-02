@@ -57,6 +57,86 @@ describe.each([
   });
 });
 
+// ── V4's words outside src/web/components ───────────────────────────────────
+//
+// The same scan, in logic mode, over the V4 files outside the components
+// folder whose words were keyed: the board header, the top bar's counts and
+// search field, the rail's rows and meter, the terminal's errors and notices,
+// the feedback account's sentences and the Settings labels. Older English in
+// other files (listed in the follow-ups, not here) is not this test's yet.
+const OUTSIDE_COMPONENTS: readonly string[] = [
+  "board-header.ts", "topbar-counts.ts", "node-face.ts", "rail-items.tsx", "rail-model.ts", "rail-row-copy.ts", "rail-usage.ts",
+  "board-navigator.ts", "use-asks.ts", "tab-keys.ts", "terminal-api.ts", "terminal-protocol.ts", "terminal-keys.ts",
+  "use-terminal-session.ts", "use-stage.ts", "workspace-pane.ts", "status-hints.ts", "inspector-tree.ts", "inspector-tab.ts",
+  "account-ui-fields.ts", "settings.ts", "settings-search.ts", "feedback.ts", "feedback-conversations.ts",
+  "use-feedback-conversations.ts", "App.tsx", "quick-open-items.tsx", "detail-category.tsx",
+];
+
+/** Strings in those files that are not keyed, each with why. None today. */
+const EXCEPTIONS_OUTSIDE: readonly Exception[] = [];
+
+describe("English left in V4's files outside the components folder (--logic)", () => {
+  const { rows } = scanTree(OUTSIDE_COMPONENTS.map(f => join(root, "src/web", f)), { logic: true });
+  const hits = rows.flatMap(r => r.hits.map(h => ({ file: r.file, line: h.line, text: h.text })));
+
+  it("is none, outside the named exceptions", () => {
+    const left = hits.filter(h => !EXCEPTIONS_OUTSIDE.some(e => covers(e, h.file, h.text)));
+    expect(left.map(h => `${h.file}:${h.line}  ${h.text}`)).toEqual([]);
+  });
+
+  it("has no exception the scan no longer finds", () => {
+    const stale = EXCEPTIONS_OUTSIDE.filter(e => !hits.some(h => covers(e, h.file, h.text)));
+    expect(stale.map(e => `${e.file}  ${e.text ?? "(folder)"}`)).toEqual([]);
+  });
+});
+
+// The scan cannot see single words or exported constants. These hold each one
+// to the key it reads through, and the key to the English it has always shown.
+describe("the words the scan cannot see read through a key", () => {
+  it("the board header's five labels, the top bar's count pills and search field", async () => {
+    const { BOARD_HEAD_LABEL_MSGS } = await import("../board-header");
+    const { WORKING_WORD_MSG, DONE_WORD_MSG } = await import("../topbar-counts");
+    const { QUICK_OPEN_PLACEHOLDER_MSG } = await import("../rail-items");
+    const { en } = await import("../i18n/en");
+    expect(BOARD_HEAD_LABEL_MSGS.map(key => en[key])).toEqual(["Waiting on you", "Working", "Done on this board", "Longest wait", "Spent on this board"]);
+    expect([en[WORKING_WORD_MSG], en[DONE_WORD_MSG]]).toEqual(["working", "done"]);
+    expect(QUICK_OPEN_PLACEHOLDER_MSG).toBe("board.quick.placeholder");
+    expect(en[QUICK_OPEN_PLACEHOLDER_MSG]).toBe("Open a session or run a command");
+  });
+
+  it("the top bar's Board | Workspace switch", async () => {
+    const { VIEW_SWITCH_LABEL_MSG, BOARD_LABEL_MSG, WORKSPACE_LABEL_MSG } = await import("../components/ViewSwitch");
+    const { en } = await import("../i18n/en");
+    expect([VIEW_SWITCH_LABEL_MSG, BOARD_LABEL_MSG, WORKSPACE_LABEL_MSG].map(key => en[key])).toEqual(["View", "Board", "Workspace"]);
+  });
+
+  it("the card's state words and the rail's group labels", async () => {
+    const { cardState } = await import("../node-face");
+    const { RAIL_GROUP_LABEL_MSGS } = await import("../rail-model");
+    const { en } = await import("../i18n/en");
+    const base = { kind: "root", state: "active", stopFailure: undefined, waiting: undefined } as Parameters<typeof cardState>[0];
+    expect(cardState(base).word).toBe(en["board.card.stateWorking"]);
+    expect(cardState({ ...base, state: "done" }).word).toBe(en["board.card.stateDone"]);
+    expect(cardState({ ...base, state: "err" }).word).toBe(en["board.card.stateFailed"]);
+    expect(RAIL_GROUP_LABEL_MSGS.every(key => typeof en[key] === "string")).toBe(true);
+  });
+
+  it("every Settings account label and every exported message key is in the English catalog", async () => {
+    const { UI_LABEL_MSGS } = await import("../account-ui-fields");
+    const { en } = await import("../i18n/en");
+    const keys = [
+      ...Object.values(UI_LABEL_MSGS),
+      ...(await Promise.all([
+        import("../tab-keys"), import("../use-stage"), import("../use-asks"), import("../terminal-keys"), import("../workspace-pane"),
+        import("../feedback"), import("../feedback-conversations"),
+      ])).flatMap(mod => Object.entries(mod).filter(([name, value]) => /_MSGS?$/.test(name) && value !== undefined)
+        .flatMap(([, value]) => (Array.isArray(value) ? value : [value]))),
+    ];
+    expect(keys.length).toBeGreaterThan(30);
+    expect(keys.filter(key => typeof key !== "string" || typeof en[key] !== "string" || en[key] === "")).toEqual([]);
+  });
+});
+
 describe("the exception list", () => {
   it("stays short and every entry says why", () => {
     expect(EXCEPTIONS.length).toBeLessThanOrEqual(12);

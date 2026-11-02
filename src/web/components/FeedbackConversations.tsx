@@ -15,7 +15,7 @@
 import { useRef, useState } from "react";
 import { selfPressProps } from "../panel-press";
 import {
-  LOADING_CONVERSATIONS, MORE_CONVERSATIONS, NO_CONVERSATIONS, CONVERSATIONS_UNAVAILABLE, TRY_AGAIN,
+  LOADING_CONVERSATIONS_MSG, MORE_CONVERSATIONS_MSG, NO_CONVERSATIONS_MSG, CONVERSATIONS_UNAVAILABLE_MSG, TRY_AGAIN_MSG,
   listTime, previewLine, type ThreadSummary,
 } from "../feedback-conversations";
 import { useThreadList } from "../use-feedback-conversations";
@@ -53,14 +53,14 @@ export default function FeedbackConversations({ account, active, announce }: Con
 
   return (
     <div ref={listRef} className="fc-list-view">
-      {list.state === "loading" && list.threads.length === 0 && <p className="fc-note">{LOADING_CONVERSATIONS}</p>}
+      {list.state === "loading" && list.threads.length === 0 && <p className="fc-note">{tr(LOADING_CONVERSATIONS_MSG)}</p>}
       {list.state === "failed" && (
         <div className="fc-missing">
-          <p className="fc-note">{CONVERSATIONS_UNAVAILABLE}</p>
-          <button type="button" className="btn" onClick={() => void list.reload()}>{TRY_AGAIN}</button>
+          <p className="fc-note">{tr(CONVERSATIONS_UNAVAILABLE_MSG)}</p>
+          <button type="button" className="btn" onClick={() => void list.reload()}>{tr(TRY_AGAIN_MSG)}</button>
         </div>
       )}
-      {list.state === "ready" && list.threads.length === 0 && <p className="fc-note">{NO_CONVERSATIONS}</p>}
+      {list.state === "ready" && list.threads.length === 0 && <p className="fc-note">{tr(NO_CONVERSATIONS_MSG)}</p>}
       {list.threads.length > 0 && (
         <ul className="fc-list">
           {list.threads.map(thread => (
@@ -83,7 +83,7 @@ export default function FeedbackConversations({ account, active, announce }: Con
       )}
       {list.next && (
         <button type="button" className="btn fc-more" onClick={() => void list.more()} {...selfPressProps(list.loadingMore)}>
-          {MORE_CONVERSATIONS}
+          {tr(MORE_CONVERSATIONS_MSG)}
         </button>
       )}
     </div>

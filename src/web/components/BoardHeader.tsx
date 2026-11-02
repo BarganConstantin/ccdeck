@@ -13,7 +13,7 @@
 import { memo } from "react";
 import { useT } from "../i18n";
 
-import { BOARD_HEAD_CLASS, BOARD_HEAD_LABELS, BOARD_HEAD_NONE, type BoardHeadFigures } from "../board-header";
+import { BOARD_HEAD_CLASS, BOARD_HEAD_LABEL_MSGS, BOARD_HEAD_NONE, type BoardHeadFigures } from "../board-header";
 
 // The waiting trend (Figma: "Sessions waiting on you, last hour" over a small
 // bar graphic) is not drawn here. The deck keeps no per-minute history of the
@@ -40,7 +40,7 @@ function BoardHeader({ waiting, working, done, longestWait, spent, scopeTitle, s
   reservedRight?: number;
 }) {
   const t = useT();
-  const [lWaiting, lWorking, lDone, lLongest, lSpent] = BOARD_HEAD_LABELS;
+  const [lWaiting, lWorking, lDone, lLongest, lSpent] = BOARD_HEAD_LABEL_MSGS.map(key => t(key));
   return (
     <section className={BOARD_HEAD_CLASS} aria-label={t("board.header.summary")} style={{ paddingRight: `calc(24px + ${reservedRight}px)` }}>
       {/* A resting zero is not an alarm: --warn only above zero, the rule

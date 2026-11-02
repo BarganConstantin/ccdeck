@@ -4,7 +4,7 @@
 // one dialog at a time (settings.ts doorOut) — and only ever from this deck:
 // the console has no remote mode switch (the owner's decision).
 import { useEffect, useRef, useState } from "react";
-import { UI_LABELS } from "../account-ui-fields";
+import { uiLabelOf } from "../account-ui-fields";
 import { accountActions } from "../use-account";
 import { selfPressAccepted, selfPressProps } from "../panel-press";
 import { useT } from "../i18n";
@@ -97,7 +97,7 @@ export default function AccountSyncPreview({ onDone }: { onDone: () => void }) {
               <tbody>
                 {preview.differences.map(d => (
                   <tr key={d.key}>
-                    <th scope="row">{UI_LABELS[d.key] ?? d.key}</th>
+                    <th scope="row">{uiLabelOf(t, d.key) ?? d.key}</th>
                     <td>{shownValue(d.key, d.local)}</td>
                     <td>{shownValue(d.key, d.shared)}</td>
                   </tr>

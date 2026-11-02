@@ -41,7 +41,7 @@ import { t, type TFunction } from "./i18n";
 
 /** What the top bar's search field says before anything is typed (V4's Figma), and so its
  *  name: the words on screen are the name (WCAG 2.5.3). */
-export const QUICK_OPEN_PLACEHOLDER = "Open a session or run a command";
+export const QUICK_OPEN_PLACEHOLDER_MSG = "board.quick.placeholder";
 
 type Toggle = Dispatch<SetStateAction<boolean>>;
 
@@ -105,8 +105,8 @@ export function browserWatchDetail(watchOn: boolean | null, unread: number, tr: 
 export function feedbackUnreadDoor(unread: number, openConversations?: () => void): Partial<RailItem> {
   if (!(unread > 0)) return {};
   return {
-    ariaLabel: `Feedback, ${unread} unread ${unread === 1 ? "conversation" : "conversations"}`,
-    detail: `${unread} unread`,
+    ariaLabel: t("board.rail.feedbackUnread", { count: unread }),
+    detail: t("board.rail.unreadCount", { n: unread }),
     dot: true,
     ...(openConversations ? { onPress: openConversations } : {}),
   };
@@ -247,7 +247,7 @@ export function railItems({
     key: { cap: quickOpenChordLabel(apple), aria: apple ? "Meta+K" : "Control+K", single: false },
     ariaLabel: t("board.rail.search"), detail: t("board.rail.search.detail"),
     glyph: <SearchGlyph />, kind: "dialog", onPress: openQuickOpen,
-    barLook: "field", fieldText: QUICK_OPEN_PLACEHOLDER,
+    barLook: "field", fieldText: t(QUICK_OPEN_PLACEHOLDER_MSG),
   };
   const feedback: RailItem = {
     id: "feedback", label: t("board.rail.feedback"), short: t("board.rail.feedback"), menu: t("board.rail.feedback.menu"),

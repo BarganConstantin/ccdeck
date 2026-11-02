@@ -57,7 +57,7 @@ export const SETTINGS_SECTIONS: readonly SettingsSectionEntry[] = [
  *  and never in the list above, so no search, test or reader of the nav finds
  *  a section for a feature that is not released. */
 export const ACCOUNT_SECTION: SettingsSectionEntry = {
-  id: "account", label: "Account", note: "Connect this deck to your ccdeck account, and keep its settings in step with your other machines.",
+  id: "account", get label() { return t("settings.section.account.label"); }, get note() { return t("settings.section.account.note"); },
 };
 
 /** The nav this deck draws: the sections it draws (sectionsDrawn), and Account

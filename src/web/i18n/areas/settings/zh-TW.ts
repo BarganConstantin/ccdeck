@@ -606,6 +606,21 @@ const catalog: Catalog = {
   "settings.key.prevWaiting": "畫布上上一個等待中的",
   "settings.key.peek": "預覽選取的卡片而不開啟它",
   "settings.key.workspace": "在畫布與工作區之間切換——終端機中的按鍵也可以",
+  "settings.section.account.label": "帳號",
+  "settings.section.account.note": "將這台電腦連接到您的 ccdeck 帳號，並與您其他電腦上的設定保持同步。",
+  "settings.search.commandPanel": "指令面板",
+  "settings.account.field.theme": "佈景主題",
+  "settings.account.field.textSize": "文字大小",
+  "settings.account.field.density": "密度",
+  "settings.account.field.sessionList": "工作階段清單展開",
+  "settings.account.field.accounts": "帳號面板展開",
+  "settings.account.field.detail": "詳細資料面板展開",
+  "settings.account.field.usage": "使用量面板展開",
+  "settings.account.field.machine": "電腦面板展開",
+  "settings.account.field.singleKeys": "單鍵快速鍵",
+  "settings.account.field.hideFinished": "多久後隱藏已完成的工作階段",
+  "settings.account.field.character": "角色",
+  "settings.account.field.sound": "聲音",
 };
 
 export default catalog;

@@ -402,9 +402,14 @@ describe("the older session hosts (Windows)", () => {
 });
 
 describe("the module's footprint", () => {
-  it("imports nothing, and in particular nothing from xterm", () => {
+  it("imports nothing but the language module, and in particular nothing from xterm", () => {
+    // CHANGED ON PURPOSE (the UI in every language): its failure lines are
+    // keys read with `t`, so the language module is its one import; still
+    // nothing from xterm, nothing dynamic, and nothing else.
     const src = withoutComments(readFileSync(fileURLToPath(new URL("../terminal-api.ts", import.meta.url)), "utf8"));
-    expect(src).not.toMatch(/^\s*import\b/m);
+    expect([...src.matchAll(/^\s*import\b[^;]*?from\s+"([^"]+)"/gm)].map(m => m[1])).toEqual(["./i18n"]);
+    expect(src.match(/^\s*import\b/gm)).toHaveLength(1);
+    expect(src).not.toMatch(/xterm/);
     expect(src).not.toMatch(/\bimport\(/);
   });
 });

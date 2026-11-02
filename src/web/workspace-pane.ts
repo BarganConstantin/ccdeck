@@ -10,8 +10,8 @@
 /** The id the Workspace pane's element carries. */
 export const WORKSPACE_PANE_ID = "workspace-pane";
 
-/** What the skip link says. */
-export const SKIP_TO_PANE = "Skip to the pane";
+/** What the skip link says, as a key read with `t` where the link is drawn. */
+export const SKIP_TO_PANE_MSG = "board.stage.skipToPane";
 
 /**
  * Moves the focus to the pane. True when there was a pane to focus, so the

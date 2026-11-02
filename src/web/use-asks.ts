@@ -38,6 +38,7 @@ import { useCallback, useEffect, useState } from "react";
 
 import { nextAnnouncement } from "./block-announce";
 import { useMirroredRef } from "./use-mirrored-ref";
+import { t } from "./i18n";
 
 /** A waiting session, as the run needs it. BlockedSession is one. */
 export interface WaitingLike {
@@ -88,7 +89,7 @@ export const ARRIVAL_NOTE_MS = 8000;
 /** How long "✓ No more asks" stays before the track leaves the bar. */
 export const ASKS_CLEAR_MS = 3200;
 
-export const NO_MORE_ASKS = "No more asks.";
+export const NO_MORE_ASKS_MSG = "board.asks.noMoreSaid";
 
 export type AsksAction =
   /** A look at the waiting list, the stage, and the session on it. */
@@ -144,7 +145,7 @@ function observe(state: AsksState, { waiting, stageOpen, current, now }: Extract
     const r = run;
     // Answered: a session of the run that is no longer waiting on you.
     const answered = r.ids.filter(id => !r.done.includes(id) && !waitingNow.has(id));
-    for (const id of answered) news.push(`${r.labels[id] ?? id} resumed.`);
+    for (const id of answered) news.push(t("board.asks.resumedSaid", { name: r.labels[id] ?? id }));
     let done: readonly string[] = answered.length > 0 ? [...r.done, ...answered] : r.done;
     let runIds = r.ids;
     let fresh = r.fresh;
@@ -156,7 +157,7 @@ function observe(state: AsksState, { waiting, stageOpen, current, now }: Extract
       else if (!runIds.includes(w.id)) runIds = [...runIds, w.id];
       else continue;
       fresh = w.id;
-      news.push(`${w.label} is waiting on you.`);
+      news.push(t("board.asks.waitingSaid", { name: w.label }));
     }
     let labels = freshLabels(r.labels, runIds, waiting);
     for (const id of runIds) {
@@ -166,7 +167,7 @@ function observe(state: AsksState, { waiting, stageOpen, current, now }: Extract
     let endsAt = r.endsAt;
     if (allDone && endsAt === null) {
       endsAt = now + ASKS_CLEAR_MS;
-      news.push(NO_MORE_ASKS);
+      news.push(t(NO_MORE_ASKS_MSG));
     } else if (!allDone) {
       endsAt = null;
     }
@@ -177,7 +178,7 @@ function observe(state: AsksState, { waiting, stageOpen, current, now }: Extract
     // said once in the bar. Not for the session on the stage — that one is
     // in front of you already.
     const elsewhere = arrived.filter(w => w.id !== current);
-    for (const w of elsewhere) news.push(`${w.label} is waiting on you.`);
+    for (const w of elsewhere) news.push(t("board.asks.waitingSaid", { name: w.label }));
     const newest = elsewhere[elsewhere.length - 1];
     if (newest) arrival = { id: newest.id, label: newest.label, until: now + ARRIVAL_NOTE_MS };
   }

@@ -141,7 +141,7 @@ function buildIndex(): SettingsEntry[] {
       entryOf({ id: "accounts", section: "general", group: L("settings.search.group.elsewhere"), label: L("settings.search.accounts"), claudeOnly: true }),
       entryOf({ id: "local-network", section: "general", group: L("settings.search.group.elsewhere"), label: L("settings.search.localNetwork"), claudeOnly: true }),
       entryOf({ id: "browser-watch", section: "general", group: L("settings.search.group.elsewhere"), label: L("settings.search.browserWatch") }),
-      { id: "terminal", section: "general", get group() { return t("settings.experimental.group"); }, label: "Command Panel",
+      { id: "terminal", section: "general", get group() { return t("settings.experimental.group"); }, get label() { return t("settings.search.commandPanel"); },
         keywords: ["terminal", "tmux", "shell", "console", "command line", "cli", "pane", "attach", "type", "beta", "experimental", ...EXPERIMENTAL_WORDS] },
     ],
     appearance: [

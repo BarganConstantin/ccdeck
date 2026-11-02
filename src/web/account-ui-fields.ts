@@ -10,7 +10,8 @@
 //
 // Pure, and importing nothing, because storage.ts imports it to know which
 // writes to announce (the `ccdeck:stored` event), and the suite runs it in
-// bare node.
+// bare node. (The two imports below are types, gone at run time.)
+import type { MessageKey, TFunction } from "./i18n";
 
 export const UI_SCHEMA = 1;
 
@@ -131,17 +132,25 @@ export function cleanUiValues(raw: unknown): UiValues {
 }
 
 /** What a setting is called in Settings › Account's lists. */
-export const UI_LABELS: Record<string, string> = {
-  theme: "Theme",
-  textSize: "Text size",
-  density: "Density",
-  "panels.sessionList": "Session list open",
-  "panels.accounts": "Accounts panel open",
-  "panels.detail": "Detail panel open",
-  "panels.usage": "Usage panel open",
-  "panels.machine": "Machine panel open",
-  singleKeyShortcuts: "Single-key shortcuts",
-  hideFinishedAfter: "Hide finished sessions after",
-  character: "Character",
-  sound: "Sound",
+export const UI_LABEL_MSGS: Record<string, MessageKey> = {
+  theme: "settings.account.field.theme",
+  textSize: "settings.account.field.textSize",
+  density: "settings.account.field.density",
+  "panels.sessionList": "settings.account.field.sessionList",
+  "panels.accounts": "settings.account.field.accounts",
+  "panels.detail": "settings.account.field.detail",
+  "panels.usage": "settings.account.field.usage",
+  "panels.machine": "settings.account.field.machine",
+  singleKeyShortcuts: "settings.account.field.singleKeys",
+  hideFinishedAfter: "settings.account.field.hideFinished",
+  character: "settings.account.field.character",
+  sound: "settings.account.field.sound",
+};
+
+/** The setting's name through `tr`, in the language on show; undefined for a
+ *  key this deck does not name. Takes the translator rather than importing it:
+ *  this file imports nothing at run time (see the top). */
+export const uiLabelOf = (tr: TFunction, key: string): string | undefined => {
+  const msg = UI_LABEL_MSGS[key];
+  return msg ? tr(msg) : undefined;
 };

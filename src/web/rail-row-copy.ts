@@ -4,7 +4,8 @@
 import { isAlarming } from "./ambient-counts";
 import { blockedToolTooltip, waitingSentence } from "./agent-copy";
 import { fmtCost } from "./pricing";
-import { SESSION_SPEND_LABEL } from "./board-usage";
+import { sessionSpendLabel } from "./board-usage";
+import { t } from "./i18n";
 import { noteSource, noteTag } from "./session-note";
 import { planSpoken } from "./agent-plan";
 import { salientInput } from "./tool-input";
@@ -41,7 +42,7 @@ export function railLine(r: Row, group: RailGroup): RailLine | null {
   const note = r.recap?.text ?? r.status?.text ?? "";
   if (group === 0 && r.waiting) {
     const sentence = waitingSentence(r.waiting);
-    if (r.waiting.kind === "asked") return { kind: "mono", text: `Asks · ${sentence}` };
+    if (r.waiting.kind === "asked") return { kind: "mono", text: t("board.row.asks", { sentence }) };
     if (r.waiting.tool) return { kind: "tool", name: r.waiting.tool.name, rest: r.waiting.tool.preview };
     return { kind: "mono", text: sentence };
   }
@@ -51,11 +52,11 @@ export function railLine(r: Row, group: RailGroup): RailLine | null {
     // count it does not carry.
     if (r.state !== "active" && r.job) {
       const said = (r.job.state === "blocked" && r.job.needs) || r.job.detail;
-      return { kind: "sans", text: said ? `Turn ended · ${said}` : "Turn ended" };
+      return { kind: "sans", text: said ? t("board.row.turnEndedJob", { said }) : t("board.row.turnEnded") };
     }
     return note ? { kind: "mono", text: note } : null;
   }
-  if (r.neverPrompted) return { kind: "sans", text: "Ready for a first prompt" };
+  if (r.neverPrompted) return { kind: "sans", text: t("board.row.ready") };
   return note ? { kind: "mono", text: note } : null;
 }
 
@@ -64,31 +65,39 @@ export function railLine(r: Row, group: RailGroup): RailLine | null {
  *  turn ended; a session that never had a prompt has none. `spoken` is the
  *  word a screen reader hears first, since the number alone is not "waiting". */
 export function railTime(r: Row, group: RailGroup, now: number): { text: string; tone: "warn" | "quiet"; spoken: string } | null {
-  if (group === 0 && r.waiting) return { text: elapsedShort(r.waiting.since, undefined, now), tone: "warn", spoken: "waiting " };
-  if (group === 1) return { text: elapsedShort(r.turnStartedAt ?? r.startedAt, undefined, now), tone: "quiet", spoken: "running " };
+  if (group === 0 && r.waiting) return { text: elapsedShort(r.waiting.since, undefined, now), tone: "warn", spoken: t("board.row.spokenWaiting") };
+  if (group === 1) return { text: elapsedShort(r.turnStartedAt ?? r.startedAt, undefined, now), tone: "quiet", spoken: t("board.row.spokenRunning") };
   if (r.neverPrompted || r.turnEndedAt == null) return null;
-  return { text: `${elapsedShort(r.turnEndedAt, undefined, now)} ago`, tone: "quiet", spoken: r.waiting?.kind === "idle" ? "your turn, ended " : "ended " };
+  return {
+    text: t("board.row.ago", { time: elapsedShort(r.turnEndedAt, undefined, now) }),
+    tone: "quiet",
+    spoken: r.waiting?.kind === "idle" ? t("board.row.spokenYourTurnEnded") : t("board.row.spokenEnded"),
+  };
 }
 
 /** Everything the row no longer draws, whole, and who wrote the note: the
  *  tooltip is where a clamped line and the dropped figures stay readable. */
 export function rowTooltip(r: Row, removed: boolean): string {
-  const lines: string[] = [removed ? `Bring ${r.label} back to the board` : `Focus ${r.label}`];
+  const lines: string[] = [removed ? t("board.row.bringBack", { label: r.label }) : t("board.row.focus", { label: r.label })];
   if (r.waiting) {
     lines.push(
       waitingSentence(r.waiting),
       blockedToolTooltip(r.waiting, waitingSentence(r.waiting)) ?? "",
-      `${isAlarming(r.waiting) ? "Blocked" : "Your turn"} since ${new Date(r.waiting.since).toLocaleTimeString()} · started ${new Date(r.startedAt).toLocaleString()}`,
+      t(isAlarming(r.waiting) ? "board.row.blockedSince" : "board.row.yourTurnSince", {
+        time: new Date(r.waiting.since).toLocaleTimeString(),
+        started: new Date(r.startedAt).toLocaleString(),
+      }),
     );
   } else {
-    lines.push(`Started ${new Date(r.startedAt).toLocaleString()}`);
+    lines.push(t("board.row.started", { started: new Date(r.startedAt).toLocaleString() }));
   }
-  lines.push(`${r.toolCount} ${r.toolCount === 1 ? "tool" : "tools"}${r.cost > 0 ? ` · ${fmtCost(r.cost)} ${SESSION_SPEND_LABEL}` : ""}`);
+  const tools = t("board.toolCount", { count: r.toolCount });
+  lines.push(r.cost > 0 ? t("board.row.toolsSpend", { tools, cost: fmtCost(r.cost), label: sessionSpendLabel() }) : tools);
   if (r.plan) lines.push(r.planTitle);
   if (r.recap) lines.push(r.recap.text);
   if (r.status) {
     lines.push(r.status.text);
-    if (r.status.reply) lines.push(`Suggested reply: ${r.status.reply}`);
+    if (r.status.reply) lines.push(t("board.row.suggestedReply", { reply: r.status.reply }));
     lines.push(noteSource(r.status));
   }
   return lines.filter(Boolean).join("\n");
@@ -109,9 +118,9 @@ export function runningTool(call: { name: string; input?: unknown }): { name: st
 export function rowSpoken(r: Row): string {
   const parts: string[] = [];
   if (r.plan) parts.push(planSpoken(r.plan));
-  if (r.status) parts.push(`${noteTag(r.status.kind)}${r.status.reply ? `, suggested reply: ${r.status.reply}` : ""}`);
+  if (r.status) parts.push(`${noteTag(r.status.kind)}${r.status.reply ? t("board.row.spokenReply", { reply: r.status.reply }) : ""}`);
   else if (r.recap) parts.push(noteTag("recap"));
-  parts.push(`${r.toolCount} ${r.toolCount === 1 ? "tool" : "tools"}`);
-  if (r.cost > 0) parts.push(`${fmtCost(r.cost)} ${SESSION_SPEND_LABEL}`);
+  parts.push(t("board.toolCount", { count: r.toolCount }));
+  if (r.cost > 0) parts.push(t("board.row.spend", { cost: fmtCost(r.cost), label: sessionSpendLabel() }));
   return parts.join(". ");
 }

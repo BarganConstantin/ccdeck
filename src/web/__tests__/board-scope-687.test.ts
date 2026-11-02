@@ -458,7 +458,12 @@ describe("every surface that prints one of these figures prints the shared label
   it("labels the sidebar row and the end-of-session recap", () => {
     // The rail's row folded its cost into the row's tooltip (rail-row-copy.ts),
     // where it still wears the label.
-    expect(code(read("rail-row-copy.ts"))).toContain("fmtCost(r.cost)} ${SESSION_SPEND_LABEL}");
+    // CHANGED ON PURPOSE (the UI in every language): the label is the shared
+    // sessionSpendLabel() (the key, read when the line is made), in both lines.
+    const rowCopy = code(read("rail-row-copy.ts"));
+    expect(rowCopy).toContain("cost: fmtCost(r.cost), label: sessionSpendLabel()");
+    expect(rowCopy.match(/label: sessionSpendLabel\(\)/g)).toHaveLength(2);
+    expect(sessionSpendLabel()).toBe(SESSION_SPEND_LABEL);
     // CHANGED ON PURPOSE (V4's Figma): the recap's figure wears the word "spend" under
     // its value, and the shared label stays on the stat as its title.
     expect(sessionSummary).toContain('<Stat label={t("insights.summary.spend")} value={fmtCost(summary.cost.total)} title={sessionSpendLabel()} />');

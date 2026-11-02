@@ -606,6 +606,21 @@ const catalog: Catalog = {
   "settings.key.prevWaiting": "the previous one waiting, on the board",
   "settings.key.peek": "peek at the selected card without opening it",
   "settings.key.workspace": "switch between the Board and the Workspace — also with the keys in the terminal",
+  "settings.section.account.label": "Account",
+  "settings.section.account.note": "Connect this deck to your ccdeck account, and keep its settings in step with your other machines.",
+  "settings.search.commandPanel": "Command Panel",
+  "settings.account.field.theme": "Theme",
+  "settings.account.field.textSize": "Text size",
+  "settings.account.field.density": "Density",
+  "settings.account.field.sessionList": "Session list open",
+  "settings.account.field.accounts": "Accounts panel open",
+  "settings.account.field.detail": "Detail panel open",
+  "settings.account.field.usage": "Usage panel open",
+  "settings.account.field.machine": "Machine panel open",
+  "settings.account.field.singleKeys": "Single-key shortcuts",
+  "settings.account.field.hideFinished": "Hide finished sessions after",
+  "settings.account.field.character": "Character",
+  "settings.account.field.sound": "Sound",
 };
 
 export default catalog;

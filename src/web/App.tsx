@@ -119,7 +119,7 @@ import { StageDockSlot, StageNavigatorSlot } from "./components/StageSlots";
 import ViewSwitch from "./components/ViewSwitch";
 import { EmptyInspector } from "./components/Inspector";
 import { useView, type View } from "./use-view";
-import { SKIP_TO_PANE, WORKSPACE_PANE_ID, skipToPane } from "./workspace-pane";
+import { SKIP_TO_PANE_MSG, WORKSPACE_PANE_ID, skipToPane } from "./workspace-pane";
 import { createChimePlayer } from "./chime-player";
 import type { AccountSwitch } from "./components/SettingsModal";
 import type { Appliers } from "./account-bridge";
@@ -1113,7 +1113,7 @@ function Inner() {
           there, and landing on it puts the deck's own single-key shortcuts
           back in play (ownsKeystroke() leaves a <main> alone). */}
       {inWorkspace
-        ? <a className="skip-link" href={`#${WORKSPACE_PANE_ID}`} onClick={e => { if (skipToPane()) e.preventDefault(); }}>{SKIP_TO_PANE}</a>
+        ? <a className="skip-link" href={`#${WORKSPACE_PANE_ID}`} onClick={e => { if (skipToPane()) e.preventDefault(); }}>{t(SKIP_TO_PANE_MSG)}</a>
         : <a className="skip-link" href="#canvas">{t("shell.skipToCanvas")}</a>}
       <header className="topbar">
         <DesktopTitlebar />
