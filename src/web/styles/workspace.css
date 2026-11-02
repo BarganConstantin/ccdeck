@@ -110,14 +110,14 @@
 .ts-ws-wait { font: 500 13px/20px var(--font-mono); font-variant-numeric: tabular-nums; color: var(--warn); }
 .ts-ws-ask { margin: 0; font-size: 12px; line-height: 16px; color: var(--muted); }
 .ts-ws-ask code { font: 400 13px/16px var(--font-mono); color: var(--text); }
-/* One button, the kit's .btn (its edge and states are the swept ones): a key
-   chip, then "Open <name>". */
+/* One button, the kit's .btn (its edge and states are the swept ones):
+   "Open <name>", then its key chip, as V4 draws it. */
 .btn.ts-ws-open {
   display: inline-flex;
   align-items: center;
   gap: 8px;
   margin-top: 4px;
-  padding: 0 8px 0 4px;
+  padding: 0 4px 0 8px;
   font-size: 13px;
   font-weight: 500;
   line-height: 20px;
