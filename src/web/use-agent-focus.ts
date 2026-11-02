@@ -10,6 +10,7 @@
 import { useCallback, type MutableRefObject } from "react";
 import type { Node } from "reactflow";
 import { boardRect } from "./board-rect";
+import { landDelayMs, landOnCard } from "./card-land";
 import { sessionOfNode } from "./layout-geometry";
 import { laneMap, type FlowNodeData } from "./canvas-flow";
 import { stepTarget } from "./canvas-keys";
@@ -19,10 +20,11 @@ import { focusViewport, unionBox, type FlowBox } from "./focus-camera";
 import type { GraphState } from "./reducer";
 import { TOOL_LANE_ALLOWANCE, type useCamera } from "./use-camera";
 import type { useSelection } from "./use-selection";
+import { CAMERA_SLOW_MS } from "./viewport-motion";
 
-/** How long a focus takes to arrive (focusAgent): the fit's own pace, a little
- *  quicker, because the reader asked for this one and is waiting on it. */
-const FOCUS_MS = 450;
+/** How long a focus takes to arrive (focusAgent): the camera's Slow, the fit's
+ *  own pace (V4's Board camera: fit, recenter, jump, F and Z are one). */
+const FOCUS_MS = CAMERA_SLOW_MS;
 
 export function useAgentFocus({
   canvasRef, stateRef, measuredRef, nodesRef, railInsetRef, moveCamera, disableAutoFit,
@@ -148,6 +150,8 @@ export function useAgentFocus({
     onLand?.(sessionId);
     window.setTimeout(() => {
       try { focusAgent(sessionId); } catch {}
+      // The card takes the Land once the camera has brought it into view.
+      window.setTimeout(() => landOnCard(sessionId), landDelayMs(FOCUS_MS));
     }, 60);
   }, [selectAgent, focusAgent, onLand]);
 

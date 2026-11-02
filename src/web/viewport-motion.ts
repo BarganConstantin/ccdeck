@@ -87,6 +87,13 @@ export function shouldAnimateViewport(
   return Number.isFinite(durationMs) && durationMs > 0;
 }
 
+/** V4's motion spec for the camera: a fit, a recenter, a jump, F and Z take
+ *  Slow (--dur-slow) on the stage curve (--ease-stage); a zoom step takes Fast
+ *  (--dur-fast). v4-motion-tokens.test.ts holds the numbers to the sheet's
+ *  tokens; the curve is navigator-flip.ts's, which is --ease-stage. */
+export const CAMERA_SLOW_MS = 400;
+export const CAMERA_FAST_MS = 120;
+
 /** Whether the reader asked for less motion. False where there is no page to
  *  ask — the suite, a worker — so a missing API never stops an animation. */
 export function prefersReducedMotion(): boolean {

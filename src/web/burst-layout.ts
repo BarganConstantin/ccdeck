@@ -9,8 +9,12 @@
 import type { AgentNodeData, ToolCall } from "./types";
 import { categoryFor, type ToolCategory } from "./tool-taxonomy";
 import { cutSubLabel, primaryDisplayFor, skinFor } from "./tool-skin";
+import { EXIT_ANIM_MS } from "./visibility";
 
-const FADE_MS = 600;
+/** How long a retiring agent's bubbles take to go: Exit (--dur-exit), V4's
+ *  motion spec. They are gone from the screen by then and leave the DOM with
+ *  the card, on its own removal timer (EXIT_ANIM_MS, visibility.ts). */
+const FADE_MS = 150;
 const MAX_PER_AGENT = 4;
 const BUBBLE_VERT_GAP = 36;
 // Shared with the rendered pill height, so every connector meets its centre.
@@ -145,7 +149,7 @@ export function collectBursts(
     // bursts can never linger after their owning card has been filtered out
     // (the classic "orphan bursts floating with no agent card" bug).
     if (!visibleAgentIds.has(a.id)) continue;
-    if (a.exitAt != null && now - a.exitAt > FADE_MS) continue;
+    if (a.exitAt != null && now - a.exitAt > EXIT_ANIM_MS) continue;
     const pos = pinned.get(a.id) ?? positions.get(a.id);
     if (!pos) continue; // no position yet — agent not laid out
     // Always show the last MAX_PER_AGENT tools' bubbles as a persistent

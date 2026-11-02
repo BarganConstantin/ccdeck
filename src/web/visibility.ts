@@ -4,7 +4,7 @@
 import type { AgentNodeData } from "./types";
 import type { GraphState } from "./reducer";
 
-export const EXIT_ANIM_MS = 600;
+export const EXIT_ANIM_MS = 150; // = --dur-exit: a leaving card is removed when its fade ends
 
 /** Single source of truth for "is this agent allowed on the canvas right
  *  now". Used by snapshotToFlow (drives ReactFlow nodes) and ToolBursts

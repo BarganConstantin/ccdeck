@@ -27,7 +27,7 @@ describe("the session handle during a push (#865)", () => {
   it("still travels with its cards on the push every node gets", () => {
     const push = RULES.find(([sel]) => sel === ".canvas-wrap.bubbling .react-flow__node");
     expect(push, "the push rule is gone").toBeTruthy();
-    expect(push![1]).toMatch(/transition:\s*transform 420ms/);
+    expect(push![1]).toMatch(/transition:\s*transform var\(--dur-slow\) var\(--ease-stage\)/);
   });
 
   it("is a handle that paints nothing, which is why its size needs no easing", () => {

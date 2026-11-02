@@ -32,7 +32,7 @@ describe("the bar's items, left to right", () => {
   // DOM order and so the tab order.
   const order = [
     'aria-label={t("board.controls.zoomOut")}',
-    "<ZoomLevel />",
+    "<ZoomLevel zoomReset={zoomReset} />",
     'aria-label={t("board.controls.zoomIn")}',
     "react-flow__controls-divider",
     'aria-label={t("board.controls.recenter")}',
@@ -64,11 +64,11 @@ describe("the bar's items, left to right", () => {
   });
   it("names the level for both halves of what it does", () => {
     expect(component).toContain("aria-label={`Zoom ${level}, reset to 100%`}");
-    expect(component).toContain("rf.zoomTo(1)");
+    expect(component).toContain("onClick={zoomReset}");
   });
   it("reads the level from the store as a string, in its own component, so a zoom re-renders one button", () => {
     expect(component).toContain("const zoomLevel = (s: ReactFlowState) => zoomPercent(s.transform[2]);");
-    const own = component.slice(component.indexOf("function ZoomLevel()"));
+    const own = component.slice(component.indexOf("function ZoomLevel("));
     expect(own).toContain("useStore(zoomLevel)");
     expect(own).toContain("data-zoom-level");
     expect(component.match(/useStore\(zoomLevel\)/g)).toHaveLength(1);
