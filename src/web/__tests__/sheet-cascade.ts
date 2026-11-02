@@ -51,6 +51,13 @@ function closeOf(text: string, open: number): number {
   return text.length;
 }
 
+/** A block written inside another holds only where both conditions do: each
+ *  alternative of the outer query joined to each of the inner's. */
+function within(outer: string | null, inner: string): string {
+  if (outer == null) return inner;
+  return splitTop(outer).flatMap(a => splitTop(inner).map(b => `${a} and ${b}`)).join(", ");
+}
+
 function parse(text: string, media: string | null, out: SheetRule[]): SheetRule[] {
   let i = 0;
   while (i < text.length) {
@@ -59,9 +66,10 @@ function parse(text: string, media: string | null, out: SheetRule[]): SheetRule[
     const prelude = text.slice(i, open).replace(/^[\s;]+/, "").trim();
     const end = closeOf(text, open);
     const inner = text.slice(open + 1, end - 1);
-    // Nested media is not written in this sheet; @keyframes, @font-face and
+    // A hover written inside a forced-colours or reduced-motion block sits in
+    // the mouse query there too, so media nests; @keyframes, @font-face and
     // @supports hold nothing a layout or focus test resolves.
-    if (prelude.startsWith("@media")) parse(inner, prelude.slice(6).trim(), out);
+    if (prelude.startsWith("@media")) parse(inner, within(media, prelude.slice(6).trim()), out);
     else if (!prelude.startsWith("@")) out.push({ selectors: splitTop(prelude), body: inner, media, order: out.length });
     i = end;
   }
@@ -76,14 +84,21 @@ export function sheetRules(): readonly SheetRule[] {
   return rules;
 }
 
-/** A desktop screen `width` wide. Widths are what is asked; every other
- *  feature — reduced motion, forced colours, a coarse pointer — is off. */
-export function mediaApplies(query: string | null, width: number): boolean {
+/** A desktop screen `width` wide, driven by a mouse: `(hover: hover)` and
+ *  `(pointer: fine)` hold, and every hover rule sits under them (hover is for
+ *  mice, V4's motion rules). `"touch"` asks for a finger instead: no hover, a
+ *  coarse pointer. Every other feature — reduced motion, forced colours — is off. */
+export function mediaApplies(query: string | null, width: number, input: "mouse" | "touch" = "mouse"): boolean {
   if (query == null) return true;
   return splitTop(query).some(alt => alt.split(/\s+and\s+/).every(f => {
-    const m = /^\((max|min)-width:\s*([\d.]+)px\)$/.exec(f.trim());
-    if (!m) return false;
-    return m[1] === "max" ? width <= +m[2] : width >= +m[2];
+    const feature = f.trim();
+    const m = /^\((max|min)-width:\s*([\d.]+)px\)$/.exec(feature);
+    if (m) return m[1] === "max" ? width <= +m[2] : width >= +m[2];
+    const hover = /^\((?:any-)?hover:\s*(hover|none)\)$/.exec(feature);
+    if (hover) return (hover[1] === "hover") === (input === "mouse");
+    const pointer = /^\((?:any-)?pointer:\s*(fine|coarse)\)$/.exec(feature);
+    if (pointer) return (pointer[1] === "fine") === (input === "mouse");
+    return false;
   }));
 }
 

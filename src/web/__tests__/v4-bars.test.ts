@@ -34,7 +34,7 @@ function parse(text: string): { rules: Rule[]; frames: Record<string, string> } 
       const close = block(open);
       const inner = text.slice(open + 1, close);
       if (prelude.startsWith("@keyframes")) frames[prelude.slice("@keyframes".length).trim()] = inner;
-      else if (prelude.startsWith("@")) walk(open + 1, close, prelude.startsWith("@media") ? prelude.slice(6).trim() : media);
+      else if (prelude.startsWith("@")) walk(open + 1, close, prelude.startsWith("@media") ? (media ? `${media} and ${prelude.slice(6).trim()}` : prelude.slice(6).trim()) : media);
       else {
         const decls: Record<string, string> = {};
         for (const m of inner.matchAll(/([\w-]+)\s*:\s*([^;]+?)\s*(?:;|$)/g)) decls[m[1]] = m[2].replace(/\s+/g, " ");
@@ -189,7 +189,7 @@ describe("V4's chips: 24 tall, 12 on 16", () => {
     expect(decl(sel, "border-color")).toBe("transparent");
     expect(decl(sel, "color")).toBe("var(--text)");
     expect(decl(sel, "font-weight")).toBe("400");
-    expect(decl(`${sel}:hover`, "background")).toBe("color-mix(in srgb, var(--accent) 24%, transparent)");
+    expect(decl(`${sel}:hover`, "background", "(hover: hover) and (pointer: fine)")).toBe("color-mix(in srgb, var(--accent) 24%, transparent)");
   });
   it("has no amber: the chip's rules name no --warn, and its dot is the accent, unglowed", () => {
     const own = rules.filter(r => r.selectors.some(s => s.startsWith(ver)));

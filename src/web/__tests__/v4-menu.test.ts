@@ -3,15 +3,17 @@
 // --muted-dim when disabled. The rule is shared by the account row menu, the
 // dock's More menu, the forge scope menu and What's new's options.
 import { describe, it, expect } from "vitest";
-import { sheetParts, sheetText } from "./sheet-source";
+import { MOUSE_MEDIA, mouseFlat, sheetParts, sheetText } from "./sheet-source";
 import { cascade, el, selects } from "./sheet-cascade";
 
 const sheet = sheetText().replace(/\/\*[\s\S]*?\*\//g, "");
+/** The same sheet with the mouse query's rules unwrapped, in place: what a desktop pointer reads. */
+const flat = mouseFlat(sheet);
 
 /** The declaration block of the top-level rule whose selector list is exactly `selector`. */
 function body(selector: string): string {
   const esc = selector.replace(/[.*+?^${}()|[\]\\]/g, "\\$&").replace(/ /g, "\\s+");
-  const m = new RegExp(`(?:^|\\})\\s*${esc}\\s*\\{([^}]*)\\}`, "m").exec(sheet);
+  const m = new RegExp(`(?:^|\\})\\s*${esc}\\s*\\{([^}]*)\\}`, "m").exec(flat);
   if (!m) throw new Error(`no rule for ${selector}`);
   return m[1];
 }
@@ -33,8 +35,11 @@ describe("V4's menu item", () => {
     expect(decl(".ap-menu-item", "font-weight")).toBe("400");
   });
   it("fills with --selected under the pointer and the keyboard, with the ring inset", () => {
-    // One rule for both: its selector list is hover, then focus-visible.
-    expect(decl(".ap-menu-item:hover:not(:disabled), .ap-menu-item:focus-visible", "background")).toBe("var(--selected)");
+    // Two rules now: the keyboard's on its own, the pointer's under the mouse
+    // query (hover is for mice), both the same fill.
+    expect(decl(".ap-menu-item:hover:not(:disabled)", "background")).toBe("var(--selected)");
+    expect(decl(".ap-menu-item:focus-visible", "background")).toBe("var(--selected)");
+    expect(sheet).toContain(`@media ${MOUSE_MEDIA} {\n.ap-menu-item:hover:not(:disabled) {`);
     expect(sheet).toMatch(/\.ap-menu-item:focus-visible \{ outline-offset: -2px; \}/);
   });
   it("keeps a disabled row on the shared --dim-off opacity, not the kit's --muted-dim", () => {

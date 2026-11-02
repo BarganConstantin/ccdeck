@@ -161,7 +161,9 @@ describe("a selected row", () => {
   it("is not the hover: the panel's own fill answers the pointer only, the host's rule the selection", () => {
     // A list row is the integrations' shared row (ig-row in integrations.css),
     // whose selection is a fill of its own and whose words all go to --text.
-    expect(decls(topLevel(panel), ".fg-row:hover")).toMatch(/background: var\(--ctl-fill\)/);
+    expect(decls(topLevel(panel), ".fg-row:hover")).toBe("");
+    // The pointer's fill stands under the mouse query, and nowhere else.
+    expect(decls(blocks(panel, "@media (hover: hover) and (pointer: fine)").join("\n"), ".fg-row:hover")).toMatch(/background: var\(--ctl-fill\)/);
     expect(panel).not.toMatch(/\.fg-row\[data-selected\]\s*[,{][^}]*background/);
     expect(lists).not.toMatch(/\.fgl-branch\[data-selected\]\s*[,{][^}]*background/);
   });

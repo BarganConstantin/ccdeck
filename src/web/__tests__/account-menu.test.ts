@@ -13,7 +13,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { accountsSurface } from "./accounts-surface";
 import { clientText } from "./client-source";
-import { sheetText } from "./sheet-source";
+import { mouseFlat, sheetText } from "./sheet-source";
 
 const read = (rel: string) => readFileSync(fileURLToPath(new URL(rel, import.meta.url)), "utf8");
 /** Markup without its comments: they quote the shapes they replaced. */
@@ -28,8 +28,9 @@ const surface = strip(accountsSurface());
 const popover = strip(read("../components/AnchoredPopover.tsx"));
 const css = sheetText().replace(/\/\*[\s\S]*?\*\//g, "");
 
-/** Top-level rules only: a reduced-motion override is not the resting look. */
-const topLevel = css.replace(/@media[^{]*\{(?:[^{}]*\{[^{}]*\})*[^{}]*\}/g, "");
+/** Top-level rules only: a reduced-motion override is not the resting look.
+ *  The hover rules stand under the mouse media, which a desktop pointer meets. */
+const topLevel = mouseFlat(css).replace(/@media[^{]*\{(?:[^{}]*\{[^{}]*\})*[^{}]*\}/g, "");
 const RULES = [...topLevel.matchAll(/([^{}]+)\{([^{}]*)\}/g)].map(m => ({
   sels: m[1].split(",").map(s => s.trim().replace(/\s+/g, " ")),
   body: m[2],

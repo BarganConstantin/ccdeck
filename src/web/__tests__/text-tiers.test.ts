@@ -16,7 +16,7 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { sheetText } from "./sheet-source";
+import { mouseFlat, sheetText } from "./sheet-source";
 
 const SHEET = sheetText();
 
@@ -141,7 +141,8 @@ describe("the text ramp has three readable levels in both themes", () => {
 
 describe("what was migrated to the secondary tier", () => {
   /** The rules that read it, by selector, from the sheet itself. */
-  const users = [...SHEET.matchAll(/(^|\n)([^\n{}]+?)\{[^}]*?(?<![-\w])color:\s*var\(--text-secondary\)/g)]
+  // The mouse query's rules are read where they stand, not as a prelude that swallows the rule inside it.
+  const users = [...mouseFlat(SHEET).matchAll(/(^|\n)([^\n{}]+?)\{[^}]*?(?<![-\w])color:\s*var\(--text-secondary\)/g)]
     .map(m => m[2].trim());
 
   it("is prose a reader reads, not metadata they glance at", () => {
@@ -350,9 +351,11 @@ describe("what was migrated to the secondary tier", () => {
       // secondary tier the Figma file prints them in. The rail's old recap,
       // status and plan lines left with the row; their full text is its tooltip.
       ".session-list .sl-group-label",
-      // The last line of the rule that lifts the muted words a tier on a hovered
-      // or chosen row, where --muted is 4.05:1 in dark (#1789).
+      // The last line of each rule that lifts the muted words a tier on a hovered
+      // or chosen row, where --muted is 4.05:1 in dark (#1789). The hover half
+      // stands alone now, under the mouse query, so it ends a line of its own.
       ".session-list .sl-row.selected .sl-model",
+      ".session-list .sl-row:hover .sl-model",
       ".session-list .sl-time.quiet",
       ".session-list .sl-tool",
       // Rail / Usage: "5-hour limit" beside the account's name, the one

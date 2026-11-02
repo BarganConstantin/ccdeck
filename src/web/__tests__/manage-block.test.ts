@@ -35,7 +35,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { accountsSurface } from "./accounts-surface";
 import { clientText } from "./client-source";
-import { sheetText } from "./sheet-source";
+import { mouseFlat, sheetText } from "./sheet-source";
 
 const css = sheetText();
 const panel = readFileSync(fileURLToPath(new URL("../components/AccountsPanel.tsx", import.meta.url)), "utf8");
@@ -125,7 +125,8 @@ function topLevel(src: string): Array<{ selector: string; body: string }> {
 }
 
 const bare = css.replace(/\/\*[\s\S]*?\*\//g, "");
-const RULES = topLevel(bare);
+// The mouse query's rules are read where they stand: a desktop pointer meets them at the top level.
+const RULES = topLevel(mouseFlat(bare));
 
 const selectors = (list: string) => list.split(",").map(s => s.replace(/\s+/g, " ").trim());
 

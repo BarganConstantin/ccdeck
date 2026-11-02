@@ -360,7 +360,13 @@ describe("the sheet", () => {
   const css = sheetText();
   it("draws the controls quiet at rest and neutral under the pointer", () => {
     expect(css).toMatch(/\.ap-rest-sort select \{[^}]*border: 1px solid transparent;[^}]*color: var\(--muted\);/);
-    expect(css).toContain(".ap-rest-sort select:hover,\n.ap-rest-sort select:focus-visible { border-color: var(--ctl-edge); color: var(--text); background: var(--ctl-fill); }");
-    expect(css).toContain(".ap-rest-all:hover,\n.ap-rest-all:focus-visible { border-color: var(--ctl-edge); color: var(--text); background: var(--ctl-fill); }");
+    // The keyboard's rule on its own, the pointer's under the mouse query
+    // (hover is for mice), both the same neutral edge, text and fill.
+    const NEUTRAL = "{ border-color: var(--ctl-edge); color: var(--text); background: var(--ctl-fill); }";
+    const MOUSE = "@media (hover: hover) and (pointer: fine) {\n";
+    expect(css).toContain(`.ap-rest-sort select:focus-visible ${NEUTRAL}`);
+    expect(css).toContain(`${MOUSE}.ap-rest-sort select:hover ${NEUTRAL}\n}`);
+    expect(css).toContain(`.ap-rest-all:focus-visible ${NEUTRAL}`);
+    expect(css).toContain(`${MOUSE}.ap-rest-all:hover ${NEUTRAL}\n}`);
   });
 });
