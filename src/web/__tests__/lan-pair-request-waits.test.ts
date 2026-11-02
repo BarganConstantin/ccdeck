@@ -23,6 +23,12 @@ vi.mock("react", async () => (await import("./fake-react")).react);
 
 const { usePairRequestDialog } = await import("../components/LanPairRequestModal");
 const { modalStack } = await import("../modal-dismiss");
+const { finish, isDrawn, settle, startPresence } = await import("../dialog-presence");
+
+/** The dialog the hook hands to the page, drawn in place. */
+const dialogNode = (p: ReturnType<typeof props>) => usePairRequestDialog(p).node;
+/** The hook's whole return, left as it is. */
+const whole = (p: ReturnType<typeof props>) => usePairRequestDialog(p);
 
 const ask = (fp: string, name: string, at: number): LanStranger => ({ fp, name, addr: "192.168.1.9", port: 62259, at });
 const asking = ask("aa11", "stranger", 1_000);
@@ -52,25 +58,25 @@ const asked = (tree: unknown) => (tree && typeof tree === "object" ? String((tre
 describe("a pairing request that arrives while another dialog is open", () => {
   it("is not drawn under it, so it cannot take the keyboard from it", () => {
     openDialog();
-    const view = mount(usePairRequestDialog, props([asking]));
+    const view = mount(dialogNode, props([asking]));
     expect(asked(view.tree)).toBeNull();
   });
 
   it("is asked once that dialog has closed", () => {
     openDialog();
-    const view = mount(usePairRequestDialog, props([asking]));
+    const view = mount(dialogNode, props([asking]));
     opened.pop()!();
     view.rerender();
     expect(asked(view.tree)).toBe(asking.fp);
   });
 
   it("is asked at once when nothing else is open", () => {
-    const view = mount(usePairRequestDialog, props([asking]));
+    const view = mount(dialogNode, props([asking]));
     expect(asked(view.tree)).toBe(asking.fp);
   });
 
   it("stays once it is asked, whatever opens over it, and brings the next request with its answer", () => {
-    const view = mount(usePairRequestDialog, props([asking, next]));
+    const view = mount(dialogNode, props([asking, next]));
     expect(asked(view.tree)).toBe(asking.fp);
     // Its own dialog is on the stack while it is up, and something arrives
     // over it — neither takes it away.
@@ -81,5 +87,24 @@ describe("a pairing request that arrives while another dialog is open", () => {
     // Answered: the next deck in the queue is asked straight after.
     view.rerender(props([next]));
     expect(asked(view.tree)).toBe(next.fp);
+  });
+
+  it("leaves through the shared exit when the last request is answered, and the sign-in prompt does not wait for it", () => {
+    const view = mount(whole, props([asking]));
+    const up = view.tree as { node: { props: { when: unknown } }; pairing: boolean };
+    expect(up.pairing).toBe(true);
+    expect(up.node.props.when).not.toBeNull();
+    view.rerender(props([]));
+    const gone = view.tree as typeof up;
+    // The presence is still what the page draws, asked for nothing: it keeps the
+    // last dialog drawn, flagged closing, until the exit ends (the model below).
+    expect((gone.node as unknown as { type: { name: string } }).type.name).toBe("DialogPresence");
+    expect(gone.node.props.when).toBeNull();
+    expect(gone.pairing).toBe(false);
+    let p = settle(startPresence(true), false, { instant: false, hasContent: true });
+    expect(p).toEqual({ open: false, closing: true });
+    expect(isDrawn(p)).toBe(true);
+    p = finish(p);
+    expect(isDrawn(p)).toBe(false);
   });
 });

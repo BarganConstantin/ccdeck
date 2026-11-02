@@ -7,6 +7,7 @@ import BoardFlow from "./components/BoardFlow";
 import DesktopTitlebar from "./components/DesktopTitlebar";
 import SessionList, { buildRows } from "./components/SessionList";
 import QuickOpen from "./components/QuickOpen";
+import { DialogPresence } from "./components/Dialog";
 import { quickOpenItems } from "./quick-open-items";
 import type { QuickItem } from "./quick-open";
 import { indexFor } from "./settings-search";
@@ -1097,14 +1098,14 @@ function Inner() {
         onBoard={() => switchView("board", "key")}
       />
 
-      {toolAuditView && <ToolAuditModal view={toolAuditView} onClose={closeToolAudit} sessionLabel={toolAuditSessionLabel} onOpenSession={openToolAuditSession} />}
-      {capacityView && <AccountCapacityDialog view={capacityView} onClose={closeCapacity} />}
-      {integrationOpen && (
-        <IntegrationModal kind={integrationOpen} connections={kindOffered(integrations, integrationOpen) ? connectionsOf(integrations, integrationOpen) : []}
+      <DialogPresence when={toolAuditView}>{view => <ToolAuditModal view={view} onClose={closeToolAudit} sessionLabel={toolAuditSessionLabel} onOpenSession={openToolAuditSession} />}</DialogPresence>
+      <DialogPresence when={capacityView}>{view => <AccountCapacityDialog view={view} onClose={closeCapacity} />}</DialogPresence>
+      <DialogPresence when={integrationOpen}>{kind => (
+        <IntegrationModal kind={kind} connections={kindOffered(integrations, kind) ? connectionsOf(integrations, kind) : []}
           onClose={closeIntegration} onReconnect={reconnectIntegration} />
-      )}
-      {exploreIntegrationsOpen && <ExploreIntegrationsModal integrations={integrations} onClose={closeExploreIntegrations}
-        onOpen={setIntegrationOpen} onConnect={connectIntegration} onManage={manageIntegration} />}
+      )}</DialogPresence>
+      <DialogPresence when={exploreIntegrationsOpen}>{() => <ExploreIntegrationsModal integrations={integrations} onClose={closeExploreIntegrations}
+        onOpen={setIntegrationOpen} onConnect={connectIntegration} onManage={manageIntegration} />}</DialogPresence>
       {/* Built while it is open only, from the same doors, rows and presses
           the chrome draws, so it can never offer something the deck does not. */}
       {quickOpenOpen && (

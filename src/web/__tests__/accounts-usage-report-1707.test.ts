@@ -408,7 +408,7 @@ describe("where it opens from", () => {
     // behind a tab inside it; both moved to the stripe (rail-capacity-doors).
     expect(header()).not.toContain('aria-label="Account capacity"');
     expect(sourceOf("components/AccountsPanel.tsx")).not.toContain("AccountsUsageReport");
-    expect(sourceOf("App.tsx")).toContain("{capacityView && <AccountCapacityDialog view={capacityView} onClose={closeCapacity} />}");
+    expect(sourceOf("App.tsx")).toContain("<DialogPresence when={capacityView}>{view => <AccountCapacityDialog view={view} onClose={closeCapacity} />}</DialogPresence>");
   });
 
   it("opens one view, titled for itself, with no tabs between the two", () => {
@@ -435,9 +435,10 @@ describe("where it opens from", () => {
     const modal = sourceOf("components/AccountsUsageReport.tsx");
     expect(modal).toContain("const dialogRef = useModalDismiss(onClose, { focusRef: closeRef });");
     // Named by its title alone: the subtitle's count was the lead's (#1713).
-    expect(modal).toContain('role="dialog" aria-modal="true" aria-labelledby="ap-report-title"');
+    // role, aria-modal and the surface are the shared shell's (Dialog.tsx).
+    expect(modal).toContain('labelledBy="ap-report-title"');
     expect(modal).not.toContain("ap-proj-sub");
-    expect(modal).toMatch(/return createPortal\(\s*(?:\/\/[^\n]*\n\s*)*<div className="modal-backdrop"/);
+    expect(modal).toMatch(/return createPortal\(\s*(?:\/\/[^\n]*\n\s*)*<Dialog scrim=\{scrimPress\}/);
     expect(modal).toContain('<h2 id="ap-report-title">{t(VIEW_TITLE_KEY[view])}</h2>');
   });
 });

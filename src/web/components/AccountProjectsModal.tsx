@@ -16,6 +16,7 @@ import { ccCellsFrom, reconcile, type Counters } from "../account-projects-recon
 import { INITIAL_LOAD, loadProjects, projectsLoad, reportLoading } from "../account-projects-load";
 import { copyText } from "../copy-text";
 import { homeRelativePath, projectParentLabel } from "../account-project-paths";
+import { Dialog } from "./Dialog";
 import { useModalDismiss, useScrimDismiss } from "./use-modal-dismiss";
 import { emptyWindowSentence, projectCostText, showsDayChart, unpricedNoteText, unpricedTitleText, widerWindow, windowPhrase } from "../account-projects-window";
 import { currentLanguage, useLanguage, useT } from "../i18n";
@@ -263,9 +264,7 @@ export default function AccountProjectsModal({ num, name, onClose }: { num: numb
   // Portalled to <body>: the report is opened from inside AccountsPanel, and a
   // dialog left in the panel's subtree is laid out by it (panel-modal-portal).
   return createPortal(
-    <div className="modal-backdrop" {...scrimPress} role="presentation">
-      <div ref={dialogRef} className="modal ap-proj-modal" onClick={e => e.stopPropagation()}
-        role="dialog" aria-modal="true" aria-labelledby="ap-proj-title ap-proj-sub">
+    <Dialog scrim={scrimPress} dialogRef={dialogRef} className="ap-proj-modal" labelledBy="ap-proj-title ap-proj-sub">
         <header className="modal-head ap-proj-head">
           <div className="ap-proj-titlewrap">
             <div className="modal-tool-name" id="ap-proj-title">{t("accounts.menu.projects")}</div>
@@ -503,8 +502,7 @@ export default function AccountProjectsModal({ num, name, onClose }: { num: numb
             </div>
           )}
         </div>
-      </div>
-    </div>,
+    </Dialog>,
     document.body,
   );
 }

@@ -33,6 +33,7 @@
 // invite does not.
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { Dialog, DialogClose } from "./Dialog";
 import { useModalDismiss, useScrimDismiss } from "./use-modal-dismiss";
 import { focusDropped, pressAccepted, pressState } from "../panel-press";
 import LanReachNote from "./LanReachNote";
@@ -277,15 +278,13 @@ export default function LanAddDeckModal({ status, manual, startWith, onClose, on
   // Portalled like every dialog opened from inside the accounts panel: the
   // panel's layout rules are not a modal's to inherit — see AddAccountDialog.
   return createPortal(
-    <div className="modal-backdrop" {...scrimPress} role="presentation">
-      <div ref={dialogRef} className="modal lan-add" onClick={e => e.stopPropagation()}
-        role="dialog" aria-modal="true" aria-labelledby="lan-add-title">
+    <Dialog scrim={scrimPress} dialogRef={dialogRef} className="lan-add" labelledBy="lan-add-title">
         <header className="modal-head">
           <div className="modal-title">
             <span id="lan-add-title" className="modal-tool-name">{t("lan.add.title")}</span>
           </div>
           <div className="modal-actions">
-            <button className="glyph-btn" onClick={onClose} aria-label={t("lan.closeEsc")} title={t("lan.closeEsc")}>×</button>
+            <DialogClose onClick={onClose} label={t("lan.closeEsc")} />
           </div>
         </header>
 
@@ -462,8 +461,7 @@ export default function LanAddDeckModal({ status, manual, startWith, onClose, on
             )}
           </div>
         </section>
-      </div>
-    </div>,
+    </Dialog>,
     document.body,
   );
 }

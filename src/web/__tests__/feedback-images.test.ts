@@ -428,7 +428,7 @@ describe("the dialog takes an image three ways", () => {
   const between = (from: string, to: string) => flatDialog.slice(flatDialog.indexOf(from), flatDialog.indexOf(to, flatDialog.indexOf(from)));
 
   it("is a drop target as a whole, and shows it while a file is over it", () => {
-    const dialogTag = between('className="modal feedback-dialog"', 'role="dialog"');
+    const dialogTag = between('className="feedback-dialog"', 'labelledBy="feedback-title"');
     for (const handler of ["onDragEnter={dragEnter}", "onDragOver={dragOver}", "onDragLeave={dragLeave}", "onDrop={drop}", "onPaste={paste}"]) {
       expect(dialogTag, handler).toContain(handler);
     }
@@ -439,7 +439,8 @@ describe("the dialog takes an image three ways", () => {
   it("keeps a file dropped beside the dialog from opening in place of the deck", () => {
     // The browser's own answer to a file dropped on a page is to open it,
     // which would throw away everything typed.
-    expect(flatDialog).toMatch(/<div className="modal-backdrop" \{\.\.\.scrimPress\} role="presentation" onDragOver=\{refuseBesideDialog\} onDrop=\{dropBesideDialog\} data-leaving=\{leaving \|\| undefined\}>/);
+    // The scrim is the shared shell's (Dialog.tsx); the dialog hands it these.
+    expect(flatDialog).toContain('backdropProps={{ onDragOver: refuseBesideDialog, onDrop: dropBesideDialog, "data-leaving": leaving || undefined }}');
     expect(flatDialog).toMatch(/function refuseBesideDialog\(e: DragEvent\) \{ if \(e\.target !== e\.currentTarget \|\| !fileDrag\(e\)\) return; e\.preventDefault\(\); e\.dataTransfer\.dropEffect = "none"; \}/);
     expect(flatDialog).toMatch(/function dropBesideDialog\(e: DragEvent\) \{ if \(fileDrag\(e\)\) e\.preventDefault\(\); \}/);
   });

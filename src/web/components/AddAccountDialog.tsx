@@ -36,6 +36,7 @@ import { prefersReducedMotion } from "../viewport-motion";
 import { createLoginAnnouncer } from "../login-announce";
 import { arrivalCheck, explainFailure, loginErrorText } from "../admin-failure";
 import { tabStripMove } from "../tablist-keys";
+import { Dialog, DialogClose } from "./Dialog";
 import { useModalDismiss, useScrimDismiss } from "./use-modal-dismiss";
 import { selfPressAccepted, selfPressProps } from "../panel-press";
 import { type ImportResult, importRowKey, importSummary, outcomeWord, replaceImportRow } from "../share-bundle";
@@ -539,8 +540,7 @@ export default function AddAccountDialog({ onClose, onChanged, email = null, onS
   // panel alone, and the dialog squeezed into it at the left edge instead of
   // centred on the screen. At <body>, no panel rule can reach it.
   return createPortal(
-    <div className="modal-backdrop" {...scrimPress} role="presentation">
-      <div ref={dialogRef} className="modal aa-modal" onClick={e => e.stopPropagation()} role="dialog" aria-modal="true" aria-label={t("accounts.add.dialogLabel")}>
+    <Dialog scrim={scrimPress} dialogRef={dialogRef} className="aa-modal" aria-label={t("accounts.add.dialogLabel")}>
         <header className="modal-head">
           <div className="modal-title">
             {/* A real tablist, finally (#581). It announced one and delivered
@@ -578,7 +578,7 @@ export default function AddAccountDialog({ onClose, onChanged, email = null, onS
             </span>
           </div>
           <div className="modal-actions">
-            <button type="button" className="glyph-btn" onClick={close} aria-label={t("accounts.closeEsc")} title={t("accounts.closeEsc")}>×</button>
+            <DialogClose onClick={close} label={t("accounts.closeEsc")} />
           </div>
         </header>
 
@@ -829,8 +829,7 @@ export default function AddAccountDialog({ onClose, onChanged, email = null, onS
               one most screen readers never read. */}
           <p className="vis-hidden" role="status" aria-live="polite">{said}</p>
         </section>
-      </div>
-    </div>,
+    </Dialog>,
     document.body,
   );
 }

@@ -43,6 +43,7 @@ import type { LanAccount } from "../lan-types";
 import { useHoverPeek } from "../use-hover-peek";
 import { useLanSection } from "../use-lan-section";
 import { useRowUnpair } from "../use-row-unpair";
+import { DialogPresence } from "./Dialog";
 import FilmLink from "./FilmLink";
 import GuideModal from "./GuideModal";
 import { LAN_STEPS, LanIntroArt } from "./guide-art";
@@ -175,17 +176,20 @@ export default function LanSyncSection({
   // The dialogs this section owns, which outlive either presentation of it.
   const modals = (
     <>
-      {addOpen && status && (
-        <LanAddDeckModal
-          status={status}
-          manual={manual}
-          startWith={addOpen === "invite" ? "invite" : undefined}
-          onClose={() => setAddOpen(false)}
-          onChanged={() => { void load(); onChanged(); }}
-        />
-      )}
+      <DialogPresence when={addOpen && status ? { status, addOpen } : null}>
+        {({ status: s, addOpen: a }) => (
+          <LanAddDeckModal
+            status={s}
+            manual={manual}
+            startWith={a === "invite" ? "invite" : undefined}
+            onClose={() => setAddOpen(false)}
+            onChanged={() => { void load(); onChanged(); }}
+          />
+        )}
+      </DialogPresence>
 
-      {guideOpen && (
+      <DialogPresence when={guideOpen}>
+        {() => (
         <GuideModal
           title={t("lan.sync.guideTitle")}
           steps={LAN_STEPS}
@@ -195,19 +199,23 @@ export default function LanSyncSection({
           finish={on ? undefined : { label: t("lan.sync.turnOn"), act: () => { setGuideOpen(false); void toggle(); } }}
           onClose={() => setGuideOpen(false)}
         />
-      )}
+        )}
+      </DialogPresence>
 
-      {setupOpen && status && (
-        <LanSetupModal
-          status={{ ...status, manualRows: manual }}
-          accounts={accounts}
-          manual={manual}
-          onClose={() => setSetupOpen(false)}
-          onChanged={() => { void load(); onChanged(); }}
-        />
-      )}
+      <DialogPresence when={setupOpen && status ? status : null}>
+        {s => (
+          <LanSetupModal
+            status={{ ...s, manualRows: manual }}
+            accounts={accounts}
+            manual={manual}
+            onClose={() => setSetupOpen(false)}
+            onChanged={() => { void load(); onChanged(); }}
+          />
+        )}
+      </DialogPresence>
 
-      {mapOpen && (
+      <DialogPresence when={mapOpen}>
+        {() => (
         <LanNetworkMap
           status={status}
           rows={rows}
@@ -217,26 +225,28 @@ export default function LanSyncSection({
           onOpenDeck={setPeerOpen}
           onClose={() => setMapOpen(false)}
         />
-      )}
+        )}
+      </DialogPresence>
 
-      {openRow && status && (
+      <DialogPresence when={openRow && status ? { openRow, status } : null}>
+        {({ openRow: row, status: s }) => (
         <LanPeerModal
-          row={openRow}
-          source={rowSource(status, openRow)}
-          status={status}
+          row={row}
+          source={rowSource(s, row)}
+          status={s}
           accounts={accounts}
           now={now}
           busy={busy}
           onClose={() => setPeerOpen(null)}
-          onRename={name => rename(openRow.fp, name)}
-          onCheck={() => checkOne(openRow.fp)}
+          onRename={name => rename(row.fp, name)}
+          onCheck={() => checkOne(row.fp)}
           // The row's own verb, through the row's own call — see LanDeckList.
           onVerb={() => {
-            switch (openRow.kind) {
-              case "paired": return answer("unpair", openRow.fp, "unpair that deck");
-              case "nearby": return answer("accept", openRow.fp, "reach that deck");
-              case "declined": return answer("allow", openRow.fp, "let that deck ask again");
-              case "dialling": return dropAddress(openRow.fp);
+            switch (row.kind) {
+              case "paired": return answer("unpair", row.fp, "unpair that deck");
+              case "nearby": return answer("accept", row.fp, "reach that deck");
+              case "declined": return answer("allow", row.fp, "let that deck ask again");
+              case "dialling": return dropAddress(row.fp);
               default: return Promise.resolve(null);
             }
           }}
@@ -246,10 +256,11 @@ export default function LanSyncSection({
           // The same door for an invite-only deck's one way to pair a nearby
           // machine: out of this dialog and into the add dialog, invite made.
           onInvite={() => { setPeerOpen(null); setAddOpen("invite"); }}
-          twins={(openRow.twins ?? []).map(t => ({ row: t, peer: rowSource(status, t).peer ?? null }))}
+          twins={(row.twins ?? []).map(t => ({ row: t, peer: rowSource(s, t).peer ?? null }))}
           onUnpair={fp => answer("unpair", fp, "unpair that deck")}
         />
-      )}
+        )}
+      </DialogPresence>
     </>
   );
 

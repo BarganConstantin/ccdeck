@@ -25,6 +25,7 @@ import ReadActivity from "./ReadActivity";
 // for — the whole of what it would buy here is a path string.
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { Dialog, DialogClose } from "./Dialog";
 import { useModalDismiss, useScrimDismiss } from "./use-modal-dismiss";
 import { figureText, latencyFigure, rateFigure, type Figure } from "../net-format";
 import { currentLanguage, t as translate, useT, type TFunction } from "../i18n";
@@ -348,15 +349,7 @@ export default function SectionHistoryModal({ group, title, liveNote, onClose }:
   // covered nothing. The other ten render from DeckDialogs at the top of the
   // tree and never meet this.
   return createPortal(
-    <div className="modal-backdrop" {...scrimPress} role="presentation">
-      <div
-        ref={dialogRef}
-        className="modal hist-modal"
-        onClick={e => e.stopPropagation()}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="hist-modal-title"
-      >
+    <Dialog scrim={scrimPress} dialogRef={dialogRef} className="hist-modal" labelledBy="hist-modal-title">
         <div className="modal-head">
           <span className="modal-title" id="hist-modal-title">{title}</span>
           {/* Guarded on a real timestamp, not merely on having a response. A
@@ -367,7 +360,7 @@ export default function SectionHistoryModal({ group, title, liveNote, onClose }:
               {t("board.hist.since", { at: clock(oldest), span: spanLabel(oldest, newest || Date.now(), t) })}
             </span>
           )}
-          <button type="button" className="glyph-btn" onClick={onClose} aria-label={t("board.hist.closeEsc")} title={t("board.hist.closeEsc")}>×</button>
+          <DialogClose onClick={onClose} label={t("board.hist.closeEsc")} />
         </div>
 
         <div className="hist-body">
@@ -387,8 +380,7 @@ export default function SectionHistoryModal({ group, title, liveNote, onClose }:
             <strong>{liveNote}</strong>
           </p>}
         </div>
-      </div>
-    </div>,
+    </Dialog>,
     document.body,
   );
 }

@@ -26,6 +26,7 @@ import { isEscapeKey, modalStack } from "../modal-dismiss";
 import { forwardCaughtError, scrubReport } from "../report-errors";
 import { showTabIcon } from "../use-tab-ambient";
 import FeedbackDialog from "./FeedbackDialog";
+import { DialogPresence } from "./Dialog";
 import { readFeedbackAccount, type FeedbackAccount } from "../feedback-unread";
 import { t } from "../i18n";
 
@@ -128,14 +129,14 @@ export default class ErrorBoundary extends Component<Props, State> {
             </button>
           </div>
         </div>
-        {reportOpen && (
+        <DialogPresence when={reportOpen}>{() => (
           <FeedbackDialog
             initialKind="bug"
             initialBody={crashReportBody(error.message, componentStack)}
             account={account}
             onClose={() => this.setState({ reportOpen: false })}
           />
-        )}
+        )}</DialogPresence>
       </div>
     );
   }
