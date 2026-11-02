@@ -193,8 +193,10 @@ describe("a session joins, a card leaves", () => {
     expect(exiting).not.toMatch(/transform|filter|animation|scale/);
     expect(sheet).toMatch(/\.canvas-wrap\s*\{\s*--leave-hold:\s*100ms;\s*\}/);
     expect(sheet).toMatch(/\.canvas-wrap\.closing \.react-flow__node\s*\{\s*transition-delay:\s*var\(--leave-hold\), 0s;/);
-    // The removal timer is the one it was.
-    expect(read("visibility.ts")).toMatch(/EXIT_ANIM_MS = 600;/);
+    // The card is removed when its Exit fade ends, so the gap waits only the
+    // hold above, not an invisible card.
+    const exitMs = Number(/--dur-exit:\s*(\d+)ms/.exec(read("styles/tokens.css"))![1]);
+    expect(read("visibility.ts")).toMatch(new RegExp(`EXIT_ANIM_MS = ${exitMs};`));
   });
 
   it("says the gap is closing only when a card has gone", () => {

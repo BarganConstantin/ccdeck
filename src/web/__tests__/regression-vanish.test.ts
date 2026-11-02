@@ -95,7 +95,7 @@ describe("regression — nodes must not vanish from live incremental updates", (
     expect(sub2.tools.map(t => t.id)).toEqual(["tu-grep-1", "tu-cd-1", "tu-agent-1"]);
   });
 
-  it("retires prior-turn subagents 600ms after a live UserPromptSubmit", () => {
+  it("retires prior-turn subagents EXIT_ANIM_MS after a live UserPromptSubmit", () => {
     let state = feed(initialState(), liveTimeline());
 
     const promptAt = T(20_000);
@@ -110,7 +110,7 @@ describe("regression — nodes must not vanish from live incremental updates", (
     expect(state.agents.has(SUB2_ID)).toBe(true);
 
     // Mid-animation: subagents still visible (rf-exiting fade-out running).
-    const mid = promptAt + 200;
+    const mid = promptAt + EXIT_ANIM_MS / 2;
     const visMid = computeVisibleIds(state, mid);
     expect(visMid.has(SUB1_ID)).toBe(true);
     expect(visMid.has(SUB2_ID)).toBe(true);
