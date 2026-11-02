@@ -174,21 +174,27 @@ describe("reduced motion reaches the canvas, not just the panels", () => {
 
   it("sees the motion it is sweeping for, so a passing run means something", () => {
     // If a rename ever slips the canvas out of CANVAS, this collapses first.
-    expect(moving.length).toBeGreaterThan(20);
-    for (const sel of [".tool-burst", ".tool-burst.sub.status-err",
-                       ".react-flow__node", ".tool-conn.status-inflight", ".cluster-card"]) {
+    // The floor is 15, not 20: V4's motion spec took the done flash, the error
+    // shake, the emoji wobble, the nodeExit and the bubble exit keyframes, and
+    // their per-status rules, off the canvas.
+    expect(moving.length).toBeGreaterThan(15);
+    for (const sel of [".tool-burst", ".tool-burst.sub",
+                       ".react-flow__node", ".tool-conn.status-inflight", ".cluster-card", ".agent-node"]) {
       expect(moving.some(m => m.sel === sel), sel).toBe(true);
     }
   });
 
   it("keeps the canvas legible instead of switching it off wholesale", () => {
-    // A tool bubble still has to announce itself, and the exits still have to
-    // outlast the 600ms wall-clock timer that removes the element.
+    // A tool bubble still has to announce itself: its rise becomes the fade
+    // (the same keyframes name, the 4px of travel is what goes). Its exit is
+    // opacity only already, in Exit, so it needs no answer of its own.
     const rm = all.filter(r => r.reduced);
     const entering = rm.find(r => selectors(r).includes(".tool-burst"))!;
-    expect(decl(entering.body, "animation")).toMatch(/fadeIn 140ms/);
-    const leaving = rm.find(r => selectors(r).includes(".tool-burst.fading"))!;
-    expect(decl(leaving.body, "animation")).toMatch(/600ms/);
+    expect(decl(entering.body, "animation")).toMatch(/^burst-fade-in /);
+    expect(/@keyframes burst-fade-in\s*\{[^]*?\n\}/.exec(css)![0]).not.toMatch(/transform|translate|scale/);
+    const leaving = all.find(r => r.selector === ".tool-burst.fading")!;
+    expect(decl(leaving.body, "opacity")).toBe("0");
+    expect(transitioned(leaving.body).filter(p => MOVES.has(p))).toEqual([]);
     // The status colours are what "in flight" and "done" fall back to, so no
     // reduced-motion rule may take the classes that carry them away.
     for (const rule of rm) expect(rule.body).not.toMatch(/(^|;)\s*(background|border-color|color)\s*:/);
@@ -230,10 +236,16 @@ describe("the hover lift on a clickable bubble", () => {
   const hover = all.find(r => r.selector === ".tool-burst.clickable:hover")!;
   const base = all.find(r => r.selector === ".tool-burst.clickable")!;
 
-  it("still has a spawn animation filling a transform, which is why it must", () => {
-    // Remove the fill and the whole reason for `translate` goes with it.
-    expect(decl(all.find(r => r.selector === ".tool-burst")!.body, "animation")).toMatch(/\bboth\b/);
-    expect(/@keyframes bubble-spawn\s*\{[^]*?\n\}/.exec(css)![0]).toMatch(/transform\s*:/);
+  it("rises with a transform it no longer holds, and lifts with the property that composes anyway", () => {
+    // V4's motion spec: the rise is opacity and 4px of y, Base, and it does not
+    // fill after it ends (`backwards`, not `both`), so nothing pins the bubble's
+    // opacity or transform for its life. The lift stays on `translate`, which
+    // composes with any transform and cannot lose to one.
+    const rise = decl(all.find(r => r.selector === ".tool-burst")!.body, "animation")!;
+    expect(rise).toMatch(/burst-rise/);
+    expect(rise).toMatch(/\bbackwards\b/);
+    expect(rise).not.toMatch(/\b(both|forwards)\b/);
+    expect(/@keyframes burst-rise\s*\{[^]*?\n\}/.exec(css)![0]).toMatch(/transform\s*:/);
   });
 
   it("lifts with a property the keyframes do not own", () => {
@@ -241,10 +253,10 @@ describe("the hover lift on a clickable bubble", () => {
     expect(decl(hover.body, "translate")).toBe("0 -1px");
   });
 
-  it("eases the lift and the shadow, so neither of them snaps", () => {
+  it("eases the lift; the shadow lands at once, since only transform and opacity animate", () => {
     const eased = transitioned(base.body);
     expect(eased).toContain("translate");
-    expect(eased).toContain("box-shadow");
+    expect(eased).not.toContain("box-shadow");
   });
 });
 
@@ -366,6 +378,12 @@ const PRESSES: Press[] = [
   // An inactive account's one verb, a word on the control fill: a labelled
   // control, 0.97 like every other one.
   [".ap-switch:active:not(:disabled)", "0.97", "transform"],
+  // CHANGED ON PURPOSE (V4's Figma): the Auto-switch row's opener, its chips and
+  // options, and the Move list's rows are labelled controls too, 0.97 like the rest.
+  [".ap-auto-open:active:not(:disabled)", "0.97", "transform"],
+  [".ap-chip:active:not(:disabled)", "0.97", "transform"],
+  [".ap-auto-option:active:not(:disabled)", "0.97", "transform"],
+  [".ap-slot-row:active:not(:disabled)", "0.97", "transform"],
   [".ap-sign-in:active:not(:disabled)", "0.97", "transform"],
   // #856's two disclosures: a warning that opens its reason, a pace note that
   // opens its number. Text-weight, and still a thing being pressed — the
@@ -385,8 +403,9 @@ const PRESSES: Press[] = [
   [".uh-range-btn:active", "0.97", "transform"],
   [".uh-bar-col:active", "0.97", "transform"],
   [".session-list .sl-row:active", "0.97", "transform"],
-  // The rail's close button, a 24px icon: the icon tier.
-  [".session-list .sl-close:active", "0.94", "transform"],
+  // The rail's header icon buttons (Plus, and the phone's close), 24px icons: the icon tier.
+  // Renamed from .sl-close for V4's header, which has two such buttons.
+  [".session-list .sl-icon-btn:active", "0.94", "transform"],
   // The rail's usage meter, a labelled row that opens Usage: the rows' tier.
   [".session-list .sl-usage-btn:active", "0.97", "transform"],
   // Browser Watch's episode disclosure. Same tier and same number as the row

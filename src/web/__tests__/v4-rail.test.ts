@@ -96,14 +96,16 @@ describe("Rail / Header", () => {
     expect(decl(".session-list .sl-count", "color")).toBe("var(--muted)");
   });
 
-  it("keeps the close as the one control, a quiet 24x24 with radius 6 (no Group, no Plus)", () => {
-    expect(decl(".session-list .sl-close", "width")).toBe("24px");
-    expect(decl(".session-list .sl-close", "height")).toBe("24px");
-    expect(decl(".session-list .sl-close", "border-radius")).toBe("6px");
-    expect(decl(".session-list .sl-close", "background")).toBe("transparent");
+  // Changed for V4's Figma: the header ends in quiet 24x24 radius-6 buttons (Plus, and the
+  // phone's ×), no Group (a product decision), and the Plus is the existing new-session launch.
+  it("ends in quiet 24x24 icon buttons with radius 6: the Plus and the phone's close (no Group)", () => {
+    expect(decl(".session-list .sl-icon-btn", "width")).toBe("24px");
+    expect(decl(".session-list .sl-icon-btn", "height")).toBe("24px");
+    expect(decl(".session-list .sl-icon-btn", "border-radius")).toBe("6px");
+    expect(decl(".session-list .sl-icon-btn", "background")).toBe("transparent");
     const list = code("../components/SessionList.tsx");
-    expect((list.match(/<button type="button" className="sl-close"/g) ?? []).length).toBe(1);
-    expect(list).not.toMatch(/aria-label="(?:Group|Plus|New session)|sl-waiting-count|sl-live-count/);
+    expect((list.match(/<button type="button" className="sl-icon-btn sl-close"/g) ?? []).length).toBe(1);
+    expect(list).not.toMatch(/aria-label="Group|sl-waiting-count|sl-live-count/);
     expect(code("../components/RailParts.tsx")).toMatch(/<svg width="14" height="14"[^>]*>\s*<path d="M3\.5 3\.5l7 7M10\.5 3\.5l-7 7" \/>/);
   });
 });

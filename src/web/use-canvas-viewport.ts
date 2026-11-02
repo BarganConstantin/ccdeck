@@ -15,8 +15,10 @@ import { isUserViewportGesture } from "./viewport-intent";
 
 type Camera = ReturnType<typeof useCamera>;
 
-export function useCanvasViewport({ applyViewport, lastFitTimeRef, cameraEpochRef, disableAutoFit, markInteract, canvasRef, applyZoom }: {
+export function useCanvasViewport({ applyViewport, takeOver, lastFitTimeRef, cameraEpochRef, disableAutoFit, markInteract, canvasRef, applyZoom }: {
   applyViewport: Camera["applyViewport"];
+  /** The reader took the wheel or pressed the canvas: a fit still animating stops. */
+  takeOver: Camera["takeOver"];
   lastFitTimeRef: Camera["lastFitTimeRef"];
   cameraEpochRef: Camera["cameraEpochRef"];
   /** The user took the wheel: auto-fit stands down (use-auto-fit-switch.ts). */
@@ -60,7 +62,15 @@ export function useCanvasViewport({ applyViewport, lastFitTimeRef, cameraEpochRe
   // gesture starts with the user touching something, and no programmatic fit
   // does. See viewport-intent.ts for the rule that reads it.
   const lastCanvasInputRef = useRef(0);
-  const markCanvasInput = useCallback(() => { lastCanvasInputRef.current = Date.now(); }, []);
+  const markCanvasInput = useCallback((e?: { type?: string }) => {
+    // A press or a wheel takes the camera from a fit or a focus that is still
+    // animating (V4's Board camera: wheel, pinch and drag are 1:1 and cancel
+    // the tween at once, and what follows starts from where it stands). The
+    // release does not: a click's pointerup comes after the press that
+    // already took it, and before the click that may start the next one.
+    if (e?.type === "pointerdown" || e?.type === "wheel") takeOver();
+    lastCanvasInputRef.current = Date.now();
+  }, [takeOver]);
   /** Every input the rule in viewport-intent.ts needs, read at the moment a
    *  viewport change arrives. */
   const viewportMove = useCallback((sourceEvent: unknown) => ({

@@ -30,6 +30,7 @@
 // OVER 60 CLUSTERS the per-tile transforms stop being worth what they cost and
 // the fold becomes a plain cross-fade of the board and the navigator. Under
 // reduced motion the fold has no duration at all: one frame, the end state.
+import { cubicBezier } from "./motion-ease";
 import { prefersReducedMotion } from "./viewport-motion";
 
 export interface FlipRect { x: number; y: number; w: number; h: number }
@@ -70,43 +71,9 @@ export const FALLBACK_TICK_MS = 250;
 export const WORDS_IN_FROM = 0.45;
 export const BOARD_OUT_BY = 0.5;
 
-/**
- * A CSS cubic-bezier timing function, solved exactly.
- *
- * The curve is the one the sheet writes as `cubic-bezier(0.23, 1, 0.32, 1)`,
- * and the stage's clip-path and this fold have to land on the same frame; an
- * approximation (count-up.ts uses ease-out-quint for a number nobody lines up
- * against anything) would drift from it by a few percent mid-flight. Newton's
- * method on x(u), with bisection when the slope is too flat to trust — the
- * same solver browsers use.
- */
-export function cubicBezier(x1: number, y1: number, x2: number, y2: number): (t: number) => number {
-  const cx = 3 * x1, bx = 3 * (x2 - x1) - cx, ax = 1 - cx - bx;
-  const cy = 3 * y1, by = 3 * (y2 - y1) - cy, ay = 1 - cy - by;
-  const sampleX = (u: number) => ((ax * u + bx) * u + cx) * u;
-  const sampleY = (u: number) => ((ay * u + by) * u + cy) * u;
-  const slopeX = (u: number) => (3 * ax * u + 2 * bx) * u + cx;
-  const solve = (x: number): number => {
-    let u = x;
-    for (let i = 0; i < 8; i++) {
-      const err = sampleX(u) - x;
-      if (Math.abs(err) < 1e-7) return u;
-      const d = slopeX(u);
-      if (Math.abs(d) < 1e-6) break;
-      u -= err / d;
-    }
-    let lo = 0, hi = 1;
-    u = x;
-    for (let i = 0; i < 40; i++) {
-      const v = sampleX(u);
-      if (Math.abs(v - x) < 1e-7) break;
-      if (v < x) lo = u; else hi = u;
-      u = (lo + hi) / 2;
-    }
-    return u;
-  };
-  return t => (t <= 0 ? 0 : t >= 1 ? 1 : sampleY(solve(t)));
-}
+// The solver lives in motion-ease.ts, which the board's camera also needs and
+// which the main bundle may reach (this file is the terminal stage's, lazy).
+export { cubicBezier };
 
 export const easeOut = cubicBezier(...FLIP_EASE);
 

@@ -82,7 +82,7 @@ export function useReframe({
       const epoch = cameraEpochRef.current;
       const timer = window.setTimeout(() => {
         if (cameraEpochRef.current !== epoch) return;
-        if (!autoFitDisabledRef.current) fitLeft(500);
+        if (!autoFitDisabledRef.current) fitLeft();
         else if (focused && lastFocusRef.current?.id === focused) focusAgentRef.current(focused);
       }, 80);
       return () => window.clearTimeout(timer);
@@ -129,7 +129,7 @@ export function useReframe({
         }
         return;
       }
-      fitLeft(500);
+      fitLeft();
     }, 80);
     // `nodes` and `edges` are read, not watched: they are rebuilt four times a
     // second and this has to run when the FRAME moves, on whatever board was on

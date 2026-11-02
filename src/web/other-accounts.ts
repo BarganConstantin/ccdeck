@@ -124,12 +124,12 @@ export function restLine(peers: readonly Peer[], mode: {
   const free = mode.strained && !mode.armed ? bestFree(ready) : null;
   const clauses = [base];
   if (free != null) clauses.push(t("accounts.rest.free", { free }));
-  // THE TAIL IS ALWAYS THE POLICY, and it is here because the control moved
-  // behind this row. A toggle nobody can see is a toggle nobody can tell the
-  // state of, and `off` has to be as sayable as `on`: a row that only spoke
-  // when the policy was armed would leave a reader unable to tell a deck that
-  // will not switch from a row that does not mention switching. The threshold
-  // rides with `on` because it is the whole of what on MEANS here.
+  // THE TAIL IS THE POLICY, said in words: `auto 90%` or `auto off`. The fold's
+  // row prints only the count before it, because the policy has its own row
+  // under the roster, outside the fold, with its switch and its threshold; the
+  // tail stays in the line for a caller that has no such row to read the state
+  // from. `off` is as sayable as `on`, and the threshold rides with `on` because
+  // it is the whole of what on MEANS.
   clauses.push(mode.armed ? (mode.threshold ? t("accounts.rest.autoAt", { pct: mode.threshold }) : t("accounts.rest.autoOn")) : t("accounts.rest.autoOff"));
   return { text: clauses.join(" · "), tone, free };
 }
@@ -140,6 +140,35 @@ export function restLine(peers: readonly Peer[], mode: {
 function bestFree(peers: readonly Peer[]): number | null {
   const known = peers.map(p => p.headroom).filter((h): h is number => typeof h === "number");
   return known.length ? Math.round(Math.max(...known)) : null;
+}
+
+/** One line under the fold's summary while it is shut (V4's Figma): an account
+ *  and how much room it has, or the count of the ones not named. */
+export type FoldPreviewLine =
+  | { kind: "peer"; key: string; name: string; state: string }
+  | { kind: "more"; text: string };
+
+/** How many accounts the shut fold names before it counts the rest. */
+export const FOLD_PREVIEW = 2;
+
+/**
+ * THE SHUT FOLD'S THREE LINES: the accounts you could switch to with the most
+ * room first, in the peek's own order, two of them by name and then "and N more".
+ * With three or fewer behind the fold, all are named.
+ */
+export function foldPreview(peers: readonly Peer[], t: TFunction = tNow): FoldPreviewLine[] {
+  const { shown } = foldPeek(peers, t);
+  // `shown` is the peek's order cut at FOLD_NAMES, so past that many others the
+  // accounts it left out are not in it at all: the best-ready two are its head.
+  const named = peers.length <= FOLD_PREVIEW + 1 ? shown : shown.slice(0, FOLD_PREVIEW);
+  const lines: FoldPreviewLine[] = named.map(p => ({
+    kind: "peer" as const,
+    key: p.key,
+    name: p.name,
+    state: p.ready ? (p.headroom == null ? t("accounts.other.notReadYet") : t("accounts.other.free", { pct: Math.round(p.headroom) })) : p.why ?? "",
+  }));
+  if (named.length < peers.length) lines.push({ kind: "more", text: t("accounts.rest.more", { n: peers.length - named.length }) });
+  return lines;
 }
 
 /**

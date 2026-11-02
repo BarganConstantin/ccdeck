@@ -412,7 +412,7 @@
    reads as a flicker. Everything here, the fades included, is behind
    `(hover: hover)`, so a tap on a touch screen does not leave a note lit. */
 @media (hover: hover) and (pointer: fine) {
-  .recap-note { transition: background-color var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease), box-shadow var(--dur-fast) var(--ease); }
+  .recap-note { transition: background-color var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease); }
   .lod-face.recap-face { transition: background-color var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease); }
   .canvas-wrap[data-lod="detail"] .recap-note:hover {
     background: color-mix(in srgb, var(--text) 6%, var(--panel));

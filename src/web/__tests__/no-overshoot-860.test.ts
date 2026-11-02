@@ -38,26 +38,25 @@ describe("nothing on the canvas springs past its size (#860)", () => {
     expect(bouncing).toEqual([]);
   });
 
-  it("runs every bubble spawn on the sheet's ease-out", () => {
-    const spawns = [...css.matchAll(/bubble-spawn\s+\d+ms(?:\s+\d+ms)?\s+(cubic-bezier\([^)]*\)|var\(--ease\)|[\w-]+)/g)];
-    expect(spawns.length).toBeGreaterThanOrEqual(6);
-    // V4's motion rules: spelled var(--ease), the token that IS EASE_OUT (v4-tokens.test.ts holds them equal).
-    for (const m of spawns) expect(m[1]).toBe("var(--ease)");
+  it("runs every bubble rise on the sheet's ease-out", () => {
+    // V4's motion spec replaced the spawn with a rise: opacity and 4px of y.
+    const rises = [...css.matchAll(/burst-rise\s+(?:var\(--dur-base\)\s+)?(cubic-bezier\([^)]*\)|var\(--ease\)|[\w-]+)/g)];
+    expect(rises.length).toBeGreaterThanOrEqual(2);
+    // Spelled var(--ease), the token that IS EASE_OUT (v4-tokens.test.ts holds them equal).
+    for (const m of rises) expect(m[1]).toBe("var(--ease)");
   });
 
-  it("never scales a bubble above its own size on the way in", () => {
-    const frames = keyframes("bubble-spawn");
-    const scales = [...frames.matchAll(/scale\(([\d.]+)\)/g)].map(m => Number(m[1]));
-    expect(scales.length).toBeGreaterThan(0);
-    expect(Math.max(...scales)).toBe(1);
+  it("never scales a bubble on the way in", () => {
+    const frames = keyframes("burst-rise");
+    expect(frames).not.toMatch(/scale/);
+    expect(frames).toMatch(/translateY\(4px\)/);
     expect(frames).not.toMatch(/animation-timing-function/);
   });
 
-  it("brings the ✓ in from 0.6 with no spin, on the same ease-out", () => {
-    const frames = keyframes("mark-pop");
-    expect(frames).toMatch(/from\s*\{\s*opacity:\s*0;\s*transform:\s*scale\(0\.6\);\s*\}/);
-    expect(frames).toMatch(/to\s*\{\s*opacity:\s*1;\s*transform:\s*scale\(1\);\s*\}/);
-    expect(frames).not.toMatch(/rotate/);
-    expect(css).toMatch(new RegExp(`animation:\\s*mark-pop\\s+\\d+ms\\s+var\\(--ease\\)\\s+both;`));
+  it("brings the ✓ in with a plain fade: no scale from 0.6, no spin", () => {
+    const frames = keyframes("burst-fade-in");
+    expect(frames).toMatch(/from\s*\{\s*opacity:\s*0;\s*\}/);
+    expect(frames).not.toMatch(/rotate|scale/);
+    expect(css).toMatch(new RegExp(`animation:\\s*burst-fade-in\\s+var\\(--dur-base\\)\\s+var\\(--ease\\)\\s+backwards;`));
   });
 });

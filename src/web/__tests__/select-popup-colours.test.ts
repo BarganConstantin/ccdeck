@@ -88,13 +88,8 @@ const SELECTS: Record<string, Array<{ name: string; chain: El[] }>> = {
     name: "the other accounts' order",
     chain: [el("body"), el("aside", ["accounts-panel"]), el("div", ["ap-rest-tools"]), el("span", ["ap-rest-sort"]), el("select")],
   }],
-  "components/AutoSwitchPolicy.tsx": [{
-    name: "the auto-switch threshold",
-    chain: [el("body"), el("aside", ["accounts-panel"]), el("div", ["ap-policy-block"]), el("div", ["ap-policy", "ap-setting"]), el("span", ["ap-field"]), el("select")],
-  }, {
-    name: "how auto-switch picks the next account",
-    chain: [el("body"), el("aside", ["accounts-panel"]), el("div", ["ap-policy-block"]), el("div", ["ap-policy", "ap-setting", "ap-next"]), el("span", ["ap-field"]), el("select")],
-  }],
+  // CHANGED ON PURPOSE (V4's Figma): the Auto-switch settings are chips and
+  // options now, and the Move list is a list of rows; neither renders a select.
   "components/ClaudeCodeSettings.tsx": [{
     name: "a Claude Code setting's value",
     chain: [el("body"), el("div", ["modal", "settings-modal"]), el("div", ["settings-body"]), el("div", ["settings-pane"]), el("section", ["settings-group"]), el("div", ["settings-list"]), el("label", ["settings-row"]), el("span", ["settings-row-control"]), el("select", ["sm-select"])],
@@ -106,10 +101,6 @@ const SELECTS: Record<string, Array<{ name: string; chain: El[] }>> = {
   "components/JiraTransition.tsx": [{
     name: "the Jira workflow action",
     chain: [el("body"), el("div", ["modal-backdrop"]), el("div", ["modal", "ig-modal"]), el("div", ["ig-body"]), el("div", ["jr-panel"]), el("div", ["ig-split"]), el("div", ["ig-detail"]), el("article", ["jr-detail"]), el("header", ["jr-detail-head"]), el("p", ["jr-detail-state"]), el("span", ["jr-transition"]), el("span", ["jr-transition-controls"]), el("select")],
-  }],
-  "components/AccountMenuPopover.tsx": [{
-    name: "an account's slot",
-    chain: [el("body"), el("aside", ["accounts-panel"]), el("div", ["ap-pop"]), el("div", ["ap-pop-form"]), el("span", ["ap-field"]), el("select")],
   }],
 };
 

@@ -22,7 +22,7 @@ import type { CapacityView } from "./components/AccountsUsageReport";
 import CodexAccountsPanel from "./components/CodexAccountsPanel";
 import LeftColumn from "./components/LeftColumn";
 import { useDragTrash } from "./use-drag-trash";
-import { useBubbleAnimation } from "./use-bubble-animation";
+import { useBubbleAnimation, useClosingGap } from "./use-bubble-animation";
 import { useZoomLod } from "./use-zoom-lod";
 import { useEventStream } from "./use-event-stream";
 import { useSelection } from "./use-selection";
@@ -527,7 +527,7 @@ function Inner() {
   // The viewport: the one restored from storage, the one stored on every move,
   // and whether a move was the user's or the deck's — use-canvas-viewport.ts.
   const viewport = useCanvasViewport({
-    applyViewport, lastFitTimeRef, cameraEpochRef, disableAutoFit, markInteract, canvasRef, applyZoom,
+    applyViewport, takeOver: camera.takeOver, lastFitTimeRef, cameraEpochRef, disableAutoFit, markInteract, canvasRef, applyZoom,
   });
 
   // The selected agent. Declared this high because the rail measurement below
@@ -565,6 +565,8 @@ function Inner() {
     dragTick, dragPatchRef, dragMoveTick,
   });
   const { nodes, edges } = graph;
+  // A card has just left: its neighbours close the gap after a hold (canvas-motion.css).
+  const closing = useClosingGap(graph.visibleAgentIds);
 
   // Re-column when the frame changes enough to change the answer, keeping what
   // the reader was looking at — use-reframe.ts.
@@ -592,7 +594,7 @@ function Inner() {
   });
 
   // Same anchoring as relayout — F and the fit button land where it does.
-  const handleFit = useCallback(() => fitLeft(500), [fitLeft]);
+  const handleFit = useCallback(() => fitLeft(), [fitLeft]);
 
   // `nodes` is rebuilt by the snapshotToFlow memo on every 250ms tick, so a
   // callback that closes over it is a new function four times a second — and
@@ -1033,7 +1035,8 @@ function Inner() {
             <AccountsPanel leaving={isLeaving(accountsPanelOpen, accountsPhase)} onReport={dialogs.openFeedback}
               onRoster={attention.observe} onClose={closeAccounts}
               lanWanted={lanWanted} onLanShown={lanShown} switcher={accountsSwitch}
-              side={sideState("claude")} onNotice={accountSide.noteClaude} />
+              side={sideState("claude")} onNotice={accountSide.noteClaude}
+              planLabel={meterQuota.reading?.planLabel ?? null} />
           )}
           {accountsDrawn && (shownAccountProvider === "codex" || accountSide.bothMounted) && (
             <CodexAccountsPanel leaving={isLeaving(accountsPanelOpen, accountsPhase)}
@@ -1056,6 +1059,7 @@ function Inner() {
               activeAlias={attention.accounts?.find(a => a.active)?.alias ?? null}
               onOpenUsage={() => usageRail.set(o => !o)}
               onOpenKeys={inWorkspace ? openSessionWithKeys : undefined}
+              onNewSession={inWorkspace && stage.enabled ? stage.newSessionFrom : undefined}
             />
           )}
         </LeftColumn>
@@ -1071,6 +1075,7 @@ function Inner() {
         viewport={viewport} stateRef={stateRef} peek={peek}
         stagePhase={stage.enabled && stage.shell.phase !== "closed" ? stage.shell.phase : undefined}
         head={boardHead} headInset={railInsetRef.current}
+        joins={historyReplayed && settled} closing={closing}
       >
         {agentCount === 0 && (!live && tabCapped
           ? <TabCapHero reservedRight={railInsetRef.current} />
@@ -1098,6 +1103,7 @@ function Inner() {
           appearance={appearance} fm={fm} radioOpen={radioOpen} onRadioClose={closeRadio} autoFit={autoFit} pause={pause}
           stateRef={stateRef} measuredRef={measuredRef} hiddenCats={hiddenCats} now={now}
           openTool={openTool} focusAgent={focusAgent} requestClear={requestClear} setKeyHelpOpen={setKeyHelpOpen}
+          zoomBy={camera.zoomBy} zoomReset={camera.zoomReset}
           onTerminal={stage.enabled ? stage.openFromButton : undefined}
         />
         {/* The board's compact form while the stage is open, in the canvas's

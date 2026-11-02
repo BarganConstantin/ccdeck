@@ -58,18 +58,24 @@ const running = acct(3, [60, NOW + 3600], 10);
 describe("an account whose 5-hour window has reset since it was read", () => {
   it("is not shown at the old window's number on its shut row", () => {
     const html = shutRow(lapsed);
+    // CHANGED ON PURPOSE (V4's Figma): the first window is the row's one figure
+    // beside the name, so "reset" is said there, and the line under the name
+    // carries the other windows.
     const quick = /<p class="ap-quota"[^]*?<\/p>/.exec(html)?.[0] ?? "";
-    expect(text(quick)).not.toContain("95%");
-    expect(text(quick)).toContain("5h reset");
-    expect(quick).not.toContain('data-level="hi"');
-    expect(quick).toContain("5h has reset since this reading");
+    const figure = /<span class="ap-value ap-q-pct"[^]*?<\/span>/.exec(html)?.[0] ?? "";
+    expect(text(html)).not.toContain("95%");
+    expect(text(figure)).toBe("reset");
+    expect(html).not.toContain('data-level="hi"');
+    expect(figure).toContain("5h has reset since this reading");
     // Under "Most room" the number it was placed by is the window still running.
     expect(/<span class="ap-q" data-sort-key=""[^]*?<\/span><\/span>/.exec(quick)?.[0]).toContain("7d");
   });
 
   it("keeps a window still running as it was", () => {
-    const quick = /<p class="ap-quota"[^]*?<\/p>/.exec(shutRow(running))?.[0] ?? "";
-    expect(text(quick)).toContain("5h 60%");
+    const html = shutRow(running);
+    const figure = /<span class="ap-value ap-q-pct"[^]*?<\/span>/.exec(html)?.[0] ?? "";
+    expect(text(figure)).toBe("60%");
+    expect(text(/<p class="ap-quota"[^]*?<\/p>/.exec(html)?.[0] ?? "")).toContain("7d 10%");
   });
 
   it("is ordered as unread by that window, not as the fullest", () => {

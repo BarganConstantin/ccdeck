@@ -265,7 +265,7 @@ export function snapshotToFlow(
       const baseWidth = a.state === "active" ? 2 : 1.5;
       const selectedWidth = isSelectedEdge ? baseWidth + 1.5 : baseWidth;
       const effectiveOpacity = fading
-        ? 0.2
+        ? 0
         : spotlitOutEdge ? 0.12 : 1;
       // The class picks the tier, the tier picks the lightness. Which of the
       // two an edge wears is a state this loop owns; how bright that state has
@@ -282,7 +282,7 @@ export function snapshotToFlow(
         source: a.parentId,
         target: a.id,
         ariaLabel: t("board.edge.aria", { label: a.label }),
-        animated: (a.state === "active" || isSelectedEdge) && !fading,
+        animated: a.state === "active" && !fading,
         type: "smoothstep",
         // No edge label — the target node already displays the agent name.
         // The transition is named here and valued in the stylesheet. An inline
@@ -299,7 +299,9 @@ export function snapshotToFlow(
         // and grows as the canvas zooms out below it (styles.css, `data-lod`):
         // the ratio between a live, a settled and a selected edge is still
         // this loop's, and only the scale is the mode's.
-        style: { "--session-hue": hue, strokeWidth: `calc(${selectedWidth}px * var(--edge-k, 1))`, opacity: effectiveOpacity, transition: "var(--edge-transition)" } as React.CSSProperties,
+        style: { "--session-hue": hue, strokeWidth: `calc(${selectedWidth}px * var(--edge-k, 1))`, opacity: effectiveOpacity, transition: "var(--edge-transition)",
+          // An edge that leaves fades in Exit: the same custom property, set to the Exit fade on this one edge.
+          ...(fading ? { "--edge-transition": "opacity var(--dur-exit) var(--ease)" } : null) } as React.CSSProperties,
         className: cls,
       });
     }

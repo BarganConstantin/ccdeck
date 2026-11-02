@@ -182,9 +182,10 @@ describe("the layer draws what the room says", () => {
     expect(off.length).toBe(1);
     expect(off[0].body).toMatch(/visibility:\s*hidden/);
     expect(off[0].body).not.toMatch(/transition|animation/);
-    // And the pill's own rule still eases nothing but its hover.
+    // And the pill's own rule eases nothing: its hover is a brightness and a
+    // ring, neither transform nor opacity (V4's motion rule 4), so it lands at once.
     const own = rules(".cluster-label").filter(r => r.media == null).map(r => r.body).join("\n");
-    expect(own).toMatch(/transition:\s*box-shadow var\(--dur-fast\) var\(--ease\), filter var\(--dur-fast\) var\(--ease\);/);
+    expect(own).not.toMatch(/transition\s*:/);
   });
 });
 
