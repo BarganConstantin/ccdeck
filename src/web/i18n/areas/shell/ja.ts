@@ -206,7 +206,6 @@ const catalog: Catalog = {
   "shell.banner.cannotInstall": "ここからはインストールできない",
   "shell.banner.copyTitle": "クリップボードにコピー",
   "shell.banner.copiedHint": "コピー済み",
-  "shell.banner.copyHint": "コピー",
   "shell.banner.restartedTo": "再起動しました。現在 v{version} で動作しています。",
   "shell.banner.replayed": "キャンバスはイベントログから再生されました。",
   "shell.banner.autoOff": "自動再起動オフ",

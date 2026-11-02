@@ -53,19 +53,21 @@ describe("V4's banner frame", () => {
   });
 });
 
+// CHANGED ON PURPOSE (V4's Figma): the mark is a 14px kit icon in the tone's colour, not a 7px dot
+// with a glow (and no margin: the 8px gap puts it at x12, the text at x34).
 describe("V4's banner tone mark", () => {
-  it("is a 14px slot: a 7px dot with 3.5px either side, not shrinking", () => {
-    for (const d of [".conn-banner .conn-dot", ".ver-banner .ver-dot"]) {
-      expect(decl(d, "flex")).toBe("0 0 auto");
-      expect(decl(d, "margin")).toBe("0 3.5px");
-      expect(decl(d, "width")).toBe("7px");
-    }
+  const mark = ":is(.ver-banner, .conn-banner) .banner-mark";
+  it("is a 14px icon slot, not shrinking", () => {
+    expect(decl(mark, "flex")).toBe("0 0 auto");
+    expect(decl(mark, "width")).toBe("14px");
+    expect(decl(mark, "height")).toBe("14px");
+    expect(body(mark)).not.toMatch(/box-shadow|margin|border-radius/);
   });
   it("takes the tone's colour: Error --err, Waiting --warn, Done --ok, Info --muted", () => {
-    expect(decl(".conn-banner .conn-dot", "background")).toBe("var(--err)");
-    expect(decl(".ver-banner .ver-dot", "background")).toBe("var(--warn)");
-    expect(decl(".ver-banner.done .ver-dot", "background")).toBe("var(--ok)");
-    expect(decl(".ver-banner.note .ver-dot", "background")).toBe("var(--muted)");
+    expect(decl(`${mark}.err`, "color")).toBe("var(--err)");
+    expect(decl(`${mark}.warn`, "color")).toBe("var(--warn)");
+    expect(decl(`${mark}.ok`, "color")).toBe("var(--ok)");
+    expect(decl(`${mark}.info`, "color")).toBe("var(--muted)");
   });
 });
 

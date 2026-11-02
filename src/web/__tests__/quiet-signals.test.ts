@@ -327,7 +327,7 @@ describe("3. the chips that paint --line under a dim foreground (#368.3)", () =>
   it("finds the chips that do it, including the two #368 measured", () => {
     const names = bedded.map(r => r.selector);
     expect(names).toContain(".up-quota-hint code");
-    expect(names).toContain(".ver-banner .ver-cmd-hint");
+    // CHANGED ON PURPOSE (V4's Figma): the update banner's "copy" word chip is gone, the command box has an icon Copy, so .ver-cmd-hint no longer exists.
     expect(bedded.length).toBeGreaterThanOrEqual(4);
   });
 
