@@ -303,11 +303,11 @@ export function UnaskedPrompts({ lanPairs, attention }: {
   lanPairs: ReturnType<typeof useLanPairRequests>;
   attention: Attention;
 }) {
-  const pairRequest = usePairRequestDialog(lanPairs);
+  const { node, pairing } = usePairRequestDialog(lanPairs);
   return (
     <>
-      {pairRequest}
-      <AccountAttention {...attention} pairing={pairRequest != null} />
+      {node}
+      <AccountAttention {...attention} pairing={pairing} />
     </>
   );
 }

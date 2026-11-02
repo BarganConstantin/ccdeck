@@ -253,8 +253,9 @@ describe("the modals themselves", () => {
     expect(byName.get("RadioExperience.tsx")).toMatch(/<DialogScrim scrim=\{scrimPress\}/);
     expect(byName.get("RadioExperience.tsx")).toContain("useScrimDismiss(");
     expect(byName.get("RadioPanel.tsx")).toContain("useModalDismiss<");
-    // QuickOpen keeps a backdrop of its own on purpose (its own keyframes).
-    expect(byName.get("QuickOpen.tsx")).toMatch(/className=\{`modal-backdrop qo-backdrop[^`]*`\} \{\.\.\.scrimPress\}/);
+    // QuickOpen keeps a backdrop of its own on purpose: it has no motion, so
+    // it never takes the shell's leaving state.
+    expect(byName.get("QuickOpen.tsx")).toMatch(/className="modal-backdrop qo-backdrop" \{\.\.\.scrimPress\}/);
     expect(byName.get("QuickOpen.tsx")).toContain("useModalDismiss(");
   });
 });

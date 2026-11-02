@@ -40,26 +40,18 @@ describe("the modal's frame", () => {
 });
 
 describe("the modal's exit", () => {
-  it("puts focus back on its opener at once, before it leaves", () => {
+  it("puts focus back on its opener at once, and tells its owner at once", () => {
     const body = /const close = useCallback\(\(\) => \{([\s\S]*?)\}, \[/.exec(modal)?.[1] ?? "";
     const focus = body.indexOf(".focus({ preventScroll: true })");
     expect(focus).toBeGreaterThan(-1);
-    expect(focus).toBeLessThan(body.indexOf("setClosing(true)"));
-    // Reduced motion: no exit at all.
-    expect(body).toMatch(/if \(prefersReducedMotion\(\)\) finish\(\);\s*else setClosing\(true\);/);
+    expect(focus).toBeLessThan(body.indexOf("onCloseRef.current()"));
   });
 
-  it("is unmounted when its own animation ends, or after 200ms if that never comes", () => {
-    expect(modal).toMatch(/onAnimationEnd=\{event => \{ if \(closing && event\.target === event\.currentTarget\) finish\(\); \}\}/);
-    expect(modal).toMatch(/window\.setTimeout\(finish, 200\)/);
-    expect(modal).toMatch(/dialogRef\.current\.inert = closing/);
-  });
-
-  it("leaves in 120ms, to transparent and 2px down, with the scrim, and only fades under reduced motion", () => {
-    expect(rule(host, ".modal.ig-modal[data-closing]")).toMatch(/animation:\s*ig-modal-out var\(--dur-fast\) var\(--ease\) both/);
-    expect(keyframes("ig-modal-out")).toMatch(/to\s*\{\s*opacity:\s*0;\s*transform:\s*translateY\(2px\);\s*\}/);
-    expect(rule(host, ".modal-backdrop:has(> .ig-modal[data-closing])")).toMatch(/pointer-events:\s*none;\s*animation:\s*ig-fade-out var\(--dur-fast\)/);
-    expect(reduced).toMatch(/\.modal\.ig-modal\[data-closing\]\s*\{\s*animation:\s*ig-fade-out var\(--dur-fast\)/);
+  it("leaves through the shared dialog's exit, with no exit of its own", () => {
+    expect(modal).not.toMatch(/setClosing|data-closing|onAnimationEnd|prefersReducedMotion|\.inert =/);
+    expect(modal).not.toMatch(/setTimeout/);
+    expect(host).not.toMatch(/data-closing|ig-modal-out/);
+    expect(reduced).not.toMatch(/ig-modal/);
   });
 
   it("keeps the deck's own modal primitives as they were", () => {

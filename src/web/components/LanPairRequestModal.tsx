@@ -137,8 +137,8 @@ export default function LanPairRequestModal({ request, waiting, busy, now, onAcc
   );
 }
 
-/** What DeckDialogs draws: the request to ask about now, if there is one and
- *  it is its turn — see pairRequestFor — or null.
+/** What DeckDialogs draws: `node`, the request to ask about now if there is one
+ *  and it is its turn — see pairRequestFor — and `pairing`, whether one is up.
  *
  *  IT WAITS ITS TURN, by the rule the re-sign-in prompt waits by (promptShows).
  *  It arrives on a poll, whatever is open, and it is not portalled, while the
@@ -161,9 +161,12 @@ export function usePairRequestDialog(pairs: ReturnType<typeof useLanPairRequests
   const dialog = pairRequestFor(pairs);
   const shows = promptShows({ rows: dialog ? 1 : 0, ours: oursRef.current, dialogs: modalStack.dialogDepth() });
   oursRef.current = shows;
-  // Null stays null: DeckDialogs reads `pairRequest != null` as "a request is
-  // up", so the presence wraps only a dialog that exists.
-  return shows && dialog ? <DialogPresence when={dialog}>{d => d}</DialogPresence> : null;
+  const up = shows && dialog ? dialog : null;
+  // `node` is always the presence, so the last request leaves through the shared
+  // exit instead of vanishing; `pairing` is whether a request is up now, which
+  // is false from the moment the last one is answered, exit included: the
+  // sign-in prompt does not wait for the request to finish leaving.
+  return { node: <DialogPresence when={up}>{d => d}</DialogPresence>, pairing: up != null };
 }
 
 /** The request to ask about now, if any — the oldest not put off this session,

@@ -48,13 +48,6 @@
   font-size: calc(13px + var(--ui-text-increase, 0px));
 }
 .ig-modal ::selection { background: var(--accent-dim); color: var(--text); }
-/* Closing: focus has already gone back to the opener, and the modal leaves
-   faster than it came (popIn is 180ms): 120ms to transparent and 2px down,
-   the scrim fading with it, nothing under the pointer in the meantime. It is
-   unmounted when the animation ends. */
-.modal-backdrop:has(> .ig-modal[data-closing]) { pointer-events: none; animation: ig-fade-out var(--dur-fast) var(--ease) both; }
-.modal.ig-modal[data-closing] { animation: ig-modal-out var(--dur-fast) var(--ease) both; }
-@keyframes ig-modal-out { to { opacity: 0; transform: translateY(2px); } }
 @keyframes ig-fade-out { to { opacity: 0; } }
 .ig-head {
   min-height: 48px;
@@ -490,7 +483,6 @@ button.btn.ig-manage.primary:hover { border-color: var(--text); }
   .ig-search-input { min-height: 40px; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .modal.ig-modal[data-closing] { animation: ig-fade-out var(--dur-fast) var(--ease) both; }
   .ig-splitter::before { transition: none; }
   .ig-back:active { transform: none; }
   .ig-refresh[data-loading] svg { animation: none; }
