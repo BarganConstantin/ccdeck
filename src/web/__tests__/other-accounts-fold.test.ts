@@ -230,7 +230,9 @@ describe("the row, in Local network's idiom and with its timings", () => {
     // network's before either is pressed: that one leads away, this one opens
     // here. The turn beats the hover nudge — a `translateX` on a rotated box
     // would send it downward.
-    expect(css).toMatch(/\.ap-nav\[aria-expanded="true"\] \.ap-nav-chev,\s*\n\.ap-nav\[aria-expanded="true"\]:hover \.ap-nav-chev \{ transform: rotate\(90deg\); \}/);
+    // Two rules now: the turn at rest, and the same turn under the mouse query
+    // (hover is for mice), after the nudge's rule so it still wins.
+    expect(css).toMatch(/\.ap-nav\[aria-expanded="true"\] \.ap-nav-chev \{ transform: rotate\(90deg\); \}\s*\n@media \(hover: hover\) and \(pointer: fine\) \{\s*\n\.ap-nav\[aria-expanded="true"\]:hover \.ap-nav-chev \{ transform: rotate\(90deg\); \}\s*\n\}/);
     // The box it names is everything the press reveals, not just the list.
     expect(fold).toMatch(/aria-controls=\{open \? `ap-\$\{idPrefix\}rest-panel` : undefined\}/);
   });

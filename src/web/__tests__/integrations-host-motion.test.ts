@@ -56,10 +56,10 @@ describe("the modal's exit", () => {
   });
 
   it("leaves in 120ms, to transparent and 2px down, with the scrim, and only fades under reduced motion", () => {
-    expect(rule(host, ".modal.ig-modal[data-closing]")).toMatch(/animation:\s*ig-modal-out 120ms cubic-bezier\(0\.23, 1, 0\.32, 1\) both/);
+    expect(rule(host, ".modal.ig-modal[data-closing]")).toMatch(/animation:\s*ig-modal-out var\(--dur-fast\) var\(--ease\) both/);
     expect(keyframes("ig-modal-out")).toMatch(/to\s*\{\s*opacity:\s*0;\s*transform:\s*translateY\(2px\);\s*\}/);
-    expect(rule(host, ".modal-backdrop:has(> .ig-modal[data-closing])")).toMatch(/pointer-events:\s*none;\s*animation:\s*ig-fade-out 120ms/);
-    expect(reduced).toMatch(/\.modal\.ig-modal\[data-closing\]\s*\{\s*animation:\s*ig-fade-out 120ms/);
+    expect(rule(host, ".modal-backdrop:has(> .ig-modal[data-closing])")).toMatch(/pointer-events:\s*none;\s*animation:\s*ig-fade-out var\(--dur-fast\)/);
+    expect(reduced).toMatch(/\.modal\.ig-modal\[data-closing\]\s*\{\s*animation:\s*ig-fade-out var\(--dur-fast\)/);
   });
 
   it("keeps the deck's own modal primitives as they were", () => {
@@ -81,19 +81,19 @@ describe("the split between a list and its detail", () => {
   });
 
   it("fades a new thing in beside the list and never animates a width", () => {
-    expect(rule(host, '.ig-split:not([data-drill-in]) .ig-detail[data-flip="a"] > *')).toMatch(/animation:\s*ig-detail-in-a 120ms ease-out both/);
-    expect(rule(host, '.ig-split:not([data-drill-in]) .ig-detail[data-flip="b"] > *')).toMatch(/animation:\s*ig-detail-in-b 120ms ease-out both/);
+    expect(rule(host, '.ig-split:not([data-drill-in]) .ig-detail[data-flip="a"] > *')).toMatch(/animation:\s*ig-detail-in-a var\(--dur-fast\) var\(--ease\) both/);
+    expect(rule(host, '.ig-split:not([data-drill-in]) .ig-detail[data-flip="b"] > *')).toMatch(/animation:\s*ig-detail-in-b var\(--dur-fast\) var\(--ease\) both/);
     for (const name of ["ig-detail-in-a", "ig-detail-in-b"]) expect(keyframes(name)).toMatch(/from\s*\{\s*opacity:\s*0;\s*\}/);
     const splitRules = [...host.matchAll(/([^{}]*\.ig-(?:split|detail|list|splitter)[^{}]*)\{([^}]*)\}/g)].map(m => m[2]);
     for (const body of splitRules) expect(body).not.toMatch(/transition[^;]*(width|grid-template|--ig-detail-w|all)/);
   });
 
-  it("brings a phone's detail screen in from 8px over 160ms, and takes it out over the list in 120ms", () => {
-    expect(rule(host, '.ig-split[data-drill-in] .ig-detail[data-flip="a"]')).toMatch(/animation:\s*ig-drill-in-a 160ms cubic-bezier\(0\.23, 1, 0\.32, 1\) both/);
+  it("brings a phone's detail screen in from 8px over Base (200), and takes it out over the list on Fast (120)", () => {
+    expect(rule(host, '.ig-split[data-drill-in] .ig-detail[data-flip="a"]')).toMatch(/animation:\s*ig-drill-in-a var\(--dur-base\) var\(--ease\) both/);
     expect(keyframes("ig-drill-in-a")).toMatch(/from\s*\{\s*opacity:\s*0;\s*transform:\s*translateX\(8px\);\s*\}/);
     const leaving = rule(host, ".ig-split[data-drill-in] .ig-detail[data-leaving]");
     expect(leaving).toMatch(/position:\s*absolute;\s*inset:\s*0/);
-    expect(leaving).toMatch(/animation:\s*ig-drill-out 120ms/);
+    expect(leaving).toMatch(/animation:\s*ig-drill-out var\(--dur-fast\)/);
     expect(keyframes("ig-drill-out")).toMatch(/to\s*\{\s*opacity:\s*0;\s*transform:\s*translateX\(8px\);\s*\}/);
     // The leaving screen is the same mounted detail, inert, never a second copy.
     expect(split).toMatch(/setLeaving\(!open && drillIn && !prefersReducedMotion\(\) \? lastDetail\.current : null\)/);
@@ -102,8 +102,8 @@ describe("the split between a list and its detail", () => {
 
   it("answers every one of those under reduced motion", () => {
     expect(reduced).toMatch(/\.ig-split:not\(\[data-drill-in\]\) \.ig-detail\[data-flip="b"\] > \*\s*\{\s*animation:\s*none/);
-    expect(reduced).toMatch(/\.ig-split\[data-drill-in\] \.ig-detail\[data-flip="b"\]\s*\{\s*animation:\s*fadeIn 120ms ease-out/);
-    expect(reduced).toMatch(/\.ig-split\[data-drill-in\] \.ig-detail\[data-leaving\]\s*\{\s*animation:\s*ig-fade-out 120ms/);
+    expect(reduced).toMatch(/\.ig-split\[data-drill-in\] \.ig-detail\[data-flip="b"\]\s*\{\s*animation:\s*fadeIn var\(--dur-fast\) var\(--ease\)/);
+    expect(reduced).toMatch(/\.ig-split\[data-drill-in\] \.ig-detail\[data-leaving\]\s*\{\s*animation:\s*ig-fade-out var\(--dur-fast\)/);
   });
 });
 

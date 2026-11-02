@@ -66,19 +66,22 @@ describe("V4 dialog motion", () => {
   });
 });
 
-describe("Quick open on the motion tokens", () => {
+describe("Quick open never animates", () => {
   const qoSource = readFileSync(fileURLToPath(new URL("../components/QuickOpen.tsx", import.meta.url)), "utf8");
 
-  it("enters on Base and leaves on Exit, on the house ease", () => {
-    expect(decl(".qo", "animation")).toBe("qo-in var(--dur-base) var(--ease) both");
-    expect(decl(".qo.closing", "animation")).toBe("qo-out var(--dur-exit) var(--ease) forwards");
-    expect(decl(".qo-backdrop.closing", "animation")).toBe("qo-fade-out var(--dur-exit) var(--ease) forwards");
+  // V4's motion rules: it opens and closes at once, by key or by pointer.
+  // qo-in / qo-out / qo-fade-out, the .closing state and the data-motion
+  // opt-in that switched them off are gone; nothing is left to switch off.
+  it("has no entrance, no exit and no keyframes of its own", () => {
+    expect(css).not.toMatch(/@keyframes qo-/);
+    expect(decl(".qo", "animation")).toBeNull();
+    expect(decl(".qo-backdrop", "animation")).toBe("none");
+    expect(css).not.toMatch(/\.qo(-backdrop)?\.closing/);
   });
 
-  it("is off under data-motion=instant, and unmounts at once instead of waiting for animationend", () => {
-    expect(css).toMatch(/:root\[data-motion="instant"\] :is\(\.qo-backdrop, \.qo, [^)]*\)\s*\{\s*animation:\s*none;/);
-    expect(qoSource).toMatch(/dataset\.motion === "instant"\) finish\(\)/);
-    expect(qoSource).toMatch(/const EXIT_MS = 150;/);
+  it("unmounts at once instead of waiting for an animationend", () => {
+    expect(qoSource).not.toMatch(/animationend|onAnimationEnd|EXIT_MS|closing/i);
+    expect(qoSource).toMatch(/const leave = finish;/);
   });
 });
 

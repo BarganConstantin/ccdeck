@@ -308,7 +308,7 @@ describe("what the reader opens fades in, and nothing else does", () => {
   });
 
   it("fades for 120ms in opacity only, skips a list of more than 30 rows, and stays still under reduced motion", () => {
-    expect(sheet).toMatch(/\.jr-group-body\[data-fade\], \.jr-subrows\[data-fade\] \{ animation: jr-open 120ms ease-out; \}/);
+    expect(sheet).toMatch(/\.jr-group-body\[data-fade\], \.jr-subrows\[data-fade\] \{ animation: jr-open var\(--dur-fast\) var\(--ease\); \}/);
     expect(/@keyframes jr-open \{([^}]*)\}/.exec(sheet)?.[1].trim()).toBe("from { opacity: 0;");
     expect(source).toMatch(/const fades = \(rows: number\) => rows <= 30;/);
     const reduced = /@media \(prefers-reduced-motion: reduce\) \{([\s\S]*?)\n\}/.exec(sheet)?.[1] ?? "";

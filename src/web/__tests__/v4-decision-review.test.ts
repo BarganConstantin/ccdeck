@@ -274,7 +274,7 @@ describe("11 forced colours", () => {
   const forced = css.slice(css.indexOf("@media (forced-colors: active)"));
   it("gives the focused row a real outline and the checked and locked states a system-colour cue", () => {
     expect(css).toContain("@media (forced-colors: active)");
-    expect(forced).toMatch(/\.dc-opt\[data-focus\][^{]*\{[^}]*outline:\s*2px solid Highlight;/);
+    expect(forced).toMatch(/\.dc-opt\[data-focus\][^{]*\{[^}]*outline:\s*var\(--focus-w\) solid Highlight;/);
     expect(forced).toMatch(/\.dc-opt\[data-checked\][^{]*\{[^}]*border-color:\s*Highlight;/);
     expect(forced).toMatch(/\.dc-opt\[data-locked\]\s*\{[^}]*GrayText;/);
   });

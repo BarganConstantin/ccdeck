@@ -123,13 +123,16 @@
   display: flex; align-items: flex-start; gap: 8px; min-width: 0;
   padding: 10px; border: 1px solid var(--ctl-edge); border-radius: var(--r-ctl);
   cursor: pointer; background: transparent;
-  transition: transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
+  transition: transform var(--dur-fast) var(--ease);
 }
-.reading-choice:active { transform: scale(0.97); }
+.reading-choice:active { transform: scale(var(--press)); }
+@media (hover: hover) and (pointer: fine) {
 .reading-choice:hover { background: var(--ctl-fill); border-color: var(--text); }
+}
 .reading-choice:has(input:checked) { background: var(--ctl-fill); border-color: var(--accent); }
-.reading-choice:has(input:focus-visible) { outline: 2px solid var(--accent); outline-offset: 2px; }
 .reading-choice input { flex: none; margin: 3px 0 0; accent-color: var(--accent); }
+/* The radio inside is the focused thing, the card is its box: the one ring, inside. */
+.reading-choice:has(input:focus-visible) { outline: var(--focus-w) solid var(--accent); outline-offset: calc(-1 * var(--focus-w)); }
 .reading-choice strong { display: block; font-size: calc(12px + var(--ui-text-increase, 0px)); font-weight: 500; overflow-wrap: anywhere; }
 .reading-choice small { display: block; margin-top: 5px; font-size: calc(11px + var(--ui-text-increase, 0px)); color: var(--muted); }
 /* Both scales are one control each: the options in order, the familiar
@@ -137,12 +140,11 @@
    five steps; --reading-count and --reading-selected come from
    ReadingSection. Labels keep a readable floor when the deck is smaller. */
 .reading-segmented { position: relative; isolation: isolate; grid-template-columns: repeat(var(--reading-count, 5), minmax(0, 1fr)); gap: 0; border: 1px solid var(--ctl-edge); border-radius: var(--r-ctl); padding: 4px; }
-.reading-segmented::before { content: ""; position: absolute; z-index: -1; top: 4px; bottom: 4px; left: 4px; width: calc((100% - 8px) / var(--reading-count, 5)); box-sizing: border-box; border: 1px solid var(--ctl-edge); border-radius: var(--r-ctl); background: var(--ctl-fill); transform: translateX(calc(var(--reading-selected, 2) * 100%)); transition: transform 180ms cubic-bezier(0.23, 1, 0.32, 1); pointer-events: none; }
+.reading-segmented::before { content: ""; position: absolute; z-index: -1; top: 4px; bottom: 4px; left: 4px; width: calc((100% - 8px) / var(--reading-count, 5)); box-sizing: border-box; border: 1px solid var(--ctl-edge); border-radius: var(--r-ctl); background: var(--ctl-fill); transform: translateX(calc(var(--reading-selected, 2) * 100%)); transition: transform var(--dur-base) var(--ease); pointer-events: none; }
 .reading-segmented .reading-choice { position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; padding: 12px 4px; border-color: transparent; text-align: center; }
 .reading-segmented .reading-choice:has(input:checked) { border-color: transparent; background: transparent; }
-.reading-segmented .reading-choice { transition: color 120ms ease-out, background-color 120ms ease-out, transform 140ms cubic-bezier(0.23, 1, 0.32, 1); }
+.reading-segmented .reading-choice { transition: color var(--dur-fast) var(--ease), background-color var(--dur-fast) var(--ease), transform var(--dur-fast) var(--ease); }
 .reading-segmented .reading-choice input { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; opacity: 0; cursor: inherit; }
-.reading-segmented .reading-choice:has(input:focus-visible) { outline-offset: -2px; }
 .reading-type-sample { display: flex; align-items: center; justify-content: center; height: 28px; font-size: var(--reading-sample-size); font-weight: 500; color: var(--muted); pointer-events: none; }
 .reading-choice[data-size="smallest"] { --reading-sample-size: 17px; }
 .reading-choice[data-size="smaller"] { --reading-sample-size: 18px; }
@@ -151,7 +153,7 @@
 .reading-choice[data-size="largest"] { --reading-sample-size: 23px; }
 .reading-segmented strong { font-size: max(12px, calc(12px + var(--ui-text-increase, 0px))); overflow-wrap: normal; }
 .reading-segmented small { font-size: max(11px, calc(11px + var(--ui-text-increase, 0px))); font-variant-numeric: tabular-nums; }
-.reading-selected-mark { position: absolute; top: 5px; right: 5px; color: var(--accent); opacity: 0; transform: scale(0.7); transition: opacity 120ms ease-out, transform 140ms cubic-bezier(0.23, 1, 0.32, 1); pointer-events: none; }
+.reading-selected-mark { position: absolute; top: 5px; right: 5px; color: var(--accent); opacity: 0; transform: scale(0.7); transition: opacity var(--dur-fast) var(--ease), transform var(--dur-fast) var(--ease); pointer-events: none; }
 .reading-choice:has(input:checked) .reading-selected-mark { opacity: 1; transform: scale(1); }
 .reading-choice:has(input:checked) .reading-type-sample { color: var(--text); }
 /* The density sample is three rules at the option's spacing, in the same
@@ -184,7 +186,7 @@
 @media (prefers-reduced-motion: reduce) {
   .reading-choice:active { transform: none; }
   .reading-segmented::before { transition: none; }
-  .reading-selected-mark { transform: none; transition: opacity 80ms linear; }
+  .reading-selected-mark { transform: none; transition: opacity var(--dur-fast) var(--ease); }
   .reading-choice:has(input:checked) .reading-selected-mark { transform: none; }
   .reading-segmented .reading-choice { transition: none; }
 }

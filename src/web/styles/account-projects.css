@@ -27,7 +27,7 @@
 .ap-proj-seg,
 .ap-proj-fill,
 .ap-proj-colseg,
-.ap-proj-dot { transition: opacity 140ms ease; }
+.ap-proj-dot { transition: opacity var(--dur-fast) var(--ease); }
 .ap-proj-body.refreshing .ap-proj-seg,
 .ap-proj-body.refreshing .ap-proj-fill,
 .ap-proj-body.refreshing .ap-proj-colseg,
@@ -99,11 +99,12 @@
 .ap-proj-copy {
   border: 1px solid var(--ctl-edge); border-radius: 6px; background: var(--sm-fill); color: var(--text-secondary);
   font: inherit; font-size: calc(11px + var(--ui-text-increase, 0px)); padding: 3px 8px; cursor: pointer;
-  transition: color 120ms, transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
+  transition: color var(--dur-fast) var(--ease), transform var(--dur-fast) var(--ease);
 }
+@media (hover: hover) and (pointer: fine) {
 .ap-proj-copy:hover { color: var(--text); }
-.ap-proj-copy:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-.ap-proj-copy:active { transform: scale(0.97); }
+}
+.ap-proj-copy:active { transform: scale(var(--press)); }
 @media (prefers-reduced-motion: reduce) {
   .ap-proj-copy:active { transform: none; }
 }
@@ -170,7 +171,7 @@
 .ap-proj-day {
   flex: 1 1 0; min-width: 3px; max-width: 26px; height: 100%;
   display: flex; align-items: flex-end;
-  background: none; border: none; padding: 0; font: inherit; color: inherit; cursor: pointer;
+  background: none; border: none; padding: 0; border-radius: 3px; font: inherit; color: inherit; cursor: pointer;
 }
 .ap-proj-col { width: 100%; min-height: 1px; display: flex; flex-direction: column; border-radius: 2px; overflow: hidden; }
 .ap-proj-colseg { width: 100%; display: block; }
@@ -179,9 +180,10 @@
 
 /* Click a day column for its own breakdown; keyboard-focusable as a button.
    Hover brightens (not a ring); selection and focus draw the accent ring. */
+@media (hover: hover) and (pointer: fine) {
 .ap-proj-day:hover .ap-proj-col { filter: brightness(1.12); }
+}
 .ap-proj-day.selected .ap-proj-col { box-shadow: 0 0 0 2px var(--accent); }
-.ap-proj-day:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 3px; }
 .ap-proj-day-detail {
   margin-top: 10px;
   padding: 10px;
@@ -237,14 +239,16 @@
 .ap-reset-countdown strong { font: 600 22px/1.3 var(--font-mono); color: var(--accent); font-variant-numeric: tabular-nums; }
 .ap-reset-countdown > span { max-width: 88px; font-size: calc(11px + var(--ui-text-increase, 0px)); color: var(--report-meta); }
 .ap-reset-coverage { display: flex; flex-direction: column; gap: 2px; }
-.ap-reset-coverage-link { display: flex; align-items: center; gap: 12px; min-height: 40px; padding: 4px 8px; border: 0; border-radius: var(--r-ctl); background: transparent; color: var(--report-meta); font: inherit; text-align: left; cursor: pointer; transition: background 140ms ease, color 140ms ease; }
+.ap-reset-coverage-link { display: flex; align-items: center; gap: 12px; min-height: 40px; padding: 4px 8px; border: 0; border-radius: var(--r-ctl); background: transparent; color: var(--report-meta); font: inherit; text-align: left; cursor: pointer; transition: background var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease); }
 .ap-reset-coverage-link { --reset-category-ink: var(--text-secondary); border-left: 2px solid transparent; }
 .ap-reset-coverage-link[data-scope="upcoming"] { --reset-category-ink: var(--accent); }
 .ap-reset-coverage-link[data-attention] { --reset-category-ink: var(--reset-attention); }
 .ap-reset-coverage-link b { min-width: 20px; font: 600 16px var(--font-mono); color: var(--reset-category-ink); }
 .ap-reset-coverage-link > span { font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: 1.4; }
 .ap-reset-coverage-link > span > span { display: block; font-size: calc(11px + var(--ui-text-increase, 0px)); color: var(--report-meta); }
+@media (hover: hover) and (pointer: fine) {
 .ap-reset-coverage-link:hover { background: var(--ctl-fill); color: var(--text); }
+}
 .ap-reset-coverage-link[aria-pressed="true"] { background: var(--ctl-fill); border-left-color: var(--accent); color: var(--text); }
 .ap-reset-coverage-link:active { background: var(--reset-selection); }
 .ap-reset-navigation { min-width: 0; margin-top: 16px; }
@@ -258,13 +262,14 @@
 .ap-reset-intro p { margin: 0; font-size: calc(11px + var(--ui-text-increase, 0px)); color: var(--report-meta); overflow-wrap: anywhere; }
 .ap-reset-week { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; margin: 0; padding: 0; list-style: none; }
 .ap-reset-week li { min-width: 0; }
-.ap-reset-day-button { display: flex; flex-direction: column; align-items: center; gap: 5px; width: 100%; min-height: 64px; padding: 8px 4px; border: 0; border-bottom: 2px solid transparent; border-radius: var(--r-ctl); background: transparent; color: var(--report-meta); cursor: pointer; text-align: center; transition: background 140ms ease, color 140ms ease; }
+.ap-reset-day-button { display: flex; flex-direction: column; align-items: center; gap: 5px; width: 100%; min-height: 64px; padding: 8px 4px; border: 0; border-bottom: 2px solid transparent; border-radius: var(--r-ctl); background: transparent; color: var(--report-meta); cursor: pointer; text-align: center; transition: background var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease); }
 .ap-reset-day-button[data-active] { background: color-mix(in srgb, var(--accent) 5%, var(--panel)); }
+@media (hover: hover) and (pointer: fine) {
 .ap-reset-day-button:hover { background: var(--ctl-fill); }
+}
 .ap-reset-day-button[aria-pressed="true"] { background: var(--reset-selection); border-bottom-color: var(--accent); color: var(--text); }
 .ap-reset-day-button:active { background: var(--reset-selection); }
 .ap-reset-day-button[data-active][aria-pressed="true"] .ap-reset-date { color: var(--accent); }
-.ap-reset-day-button:focus-visible { outline-offset: 2px; }
 .ap-reset-week time { display: flex; flex-direction: column; gap: 3px; }
 .ap-reset-weekday { font-size: calc(11px + var(--ui-text-increase, 0px)); }
 .ap-reset-week li[data-today] .ap-reset-weekday { text-decoration: underline; text-underline-offset: 3px; color: var(--text); }
@@ -276,7 +281,6 @@
 .ap-reset-day-button[data-active] .ap-reset-count b::before { content: ""; display: inline-block; width: 4px; height: 4px; margin: 0 4px 2px 0; border-radius: 50%; background: currentColor; }
 .ap-reset-count > span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 .ap-reset-results { scrollbar-gutter: stable; min-height: 0; flex: 1; overflow-y: auto; padding: 16px 24px; }
-.ap-reset-results:focus-visible { outline-offset: -2px; }
 .ap-reset-time { font: calc(12px + var(--ui-text-increase, 0px)) var(--font-mono); font-variant-numeric: tabular-nums; color: var(--text); }
 .ap-reset-hint { margin: 0 0 12px; font-size: calc(11px + var(--ui-text-increase, 0px)); color: var(--report-meta); }
 .ap-reset-explain,
@@ -301,11 +305,13 @@
 .ap-reset-name .ap-report-current { color: color-mix(in srgb, var(--accent) 60%, var(--text)); }
 .ap-reset-name > span:first-child { min-width: 0; overflow-wrap: anywhere; }
 .ap-reset-account { min-width: 0; }
-.ap-reset-account > summary { transition: background 140ms ease, color 140ms ease; padding: 10px 8px; min-height: 48px; border-radius: var(--r-ctl); font-size: calc(13px + var(--ui-text-increase, 0px)); cursor: pointer; color: var(--report-meta); }
+.ap-reset-account > summary { transition: background var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease); padding: 10px 8px; min-height: 48px; border-radius: var(--r-ctl); font-size: calc(13px + var(--ui-text-increase, 0px)); cursor: pointer; color: var(--report-meta); }
 .ap-reset-account > summary .ap-reset-name { display: inline; }
 .ap-reset-account > summary .ap-report-current,
 .ap-reset-account > summary .ap-report-tag { margin-left: 6px; }
+@media (hover: hover) and (pointer: fine) {
 .ap-reset-account > summary:hover { color: var(--text); background: var(--ctl-fill); }
+}
 .ap-reset-summary-content { display: inline-grid; grid-template-columns: minmax(0, 1fr) 96px; gap: 12px; align-items: center; width: calc(100% - 16px); vertical-align: middle; }
 .ap-reset-summary-content .ap-reset-reading { padding-top: 0; }
 .ap-reset-entry[data-outdated] .ap-reset-summary-content { grid-template-columns: minmax(0, 1fr) 160px; }
@@ -377,11 +383,9 @@
 }
 /* The stuck names' own 8px above them is part of the gap in flow. */
 .ap-report-table-scroll { margin-top: -8px; overflow-x: auto; flex-shrink: 0; }
-.ap-report-table-scroll:focus-visible { outline-offset: -2px; }
 /* The body scrolls with enough accounts, and a scroller is a Tab stop in the
    browsers that make it one: the ring goes inside, where the dialog's own
    clipping cannot cut it off. */
-.ap-report-body:focus-visible { outline-offset: -2px; }
 .ap-report-held { margin: 0; font-size: calc(12px + var(--ui-text-increase, 0px)); color: var(--text-secondary); }
 
 /* The answer, and the one large number in the dialog: how many accounts can
@@ -433,7 +437,7 @@
      the same reason: a new reading is a compositor move, not a relayout. */
   transform: scaleX(var(--left, 1));
   transform-origin: left center;
-  transition: transform 400ms cubic-bezier(0.23, 1, 0.32, 1);
+  transition: transform var(--dur-slow) var(--ease);
 }
 /* Grown in from the left as the dialog opens, in the time its figures take to
    count up (count-up.ts's COUNT_MS is 420ms), so the bar and the number above
@@ -501,10 +505,12 @@
   text-transform: inherit;
   color: inherit;
   cursor: pointer;
-  transition: color 140ms ease, background 140ms ease, transform 140ms ease;
+  transition: color var(--dur-fast) var(--ease), background var(--dur-fast) var(--ease), transform var(--dur-fast) var(--ease);
 }
+@media (hover: hover) and (pointer: fine) {
 .ap-report-table .sd-sort:hover { background: var(--line-soft); color: var(--text); }
-.ap-report-table .sd-sort:active { transform: scale(0.97); }
+}
+.ap-report-table .sd-sort:active { transform: scale(var(--press)); }
 /* The column the rows are ordered by reads at full strength. Keyed on
    aria-sort, so the state cannot be true for the eye and absent for a screen
    reader. */
@@ -514,13 +520,11 @@
    into view, 30ms apart and never more than ten steps, so twenty-five accounts
    still land inside the time the figures above take. Once, when a row is
    first drawn — a poll re-renders a row, it does not re-insert it. */
-@keyframes ap-report-row-in {
-  from { opacity: 0; transform: translateY(4px); }
-}
 .ap-report-table tbody tr {
-  animation: ap-report-row-in 240ms cubic-bezier(0.23, 1, 0.32, 1) both;
-  animation-delay: calc(min(var(--row, 0), 10) * 30ms);
+  transition: opacity var(--dur-move) var(--ease), transform var(--dur-move) var(--ease);
+  transition-delay: calc(min(var(--row, 0), 10) * var(--delay-step));
 }
+@starting-style { .ap-report-table tbody tr { opacity: 0; transform: translateY(4px); } }
 .ap-report-acct-in { display: flex; align-items: baseline; gap: 6px; min-width: 0; }
 .ap-report-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ap-report-current,
@@ -590,8 +594,10 @@
   color: var(--report-meta);
 }
 .ap-report-how > summary::-webkit-details-marker { display: none; }
-.ap-report-how > summary:hover,
 .ap-report-how[open] > summary { color: var(--text); }
+@media (hover: hover) and (pointer: fine) {
+.ap-report-how > summary:hover { color: var(--text); }
+}
 .ap-report-how-mark { flex: none; }
 .ap-report-how-body {
   display: flex;
@@ -607,13 +613,11 @@
 /* Less motion, asked for: the figures appear (use-count-up.ts), the bars stand
    at their reading — with no transition, the starting style above draws
    nothing — and the rows only fade in: no movement, still an arrival. */
-@keyframes ap-report-row-fade {
-  from { opacity: 0; }
-}
 @media (prefers-reduced-motion: reduce) {
   .ap-report-meter i { transition: none; }
   .ap-report-table .sd-sort:active { transform: none; }
-  .ap-report-table tbody tr { animation: ap-report-row-fade 160ms ease both; animation-delay: 0ms; }
+  .ap-report-table tbody tr { transition: opacity var(--dur-base) var(--ease); transition-delay: 0ms; }
+  @starting-style { .ap-report-table tbody tr { opacity: 0; transform: none; } }
 }
 
 /* Narrow: tighten the frame, preserving all columns in the table scroller. */
@@ -687,7 +691,9 @@
 .ap-reset-next-account > summary { min-height: 44px; padding-block: 8px; cursor: pointer; border-radius: var(--r-ctl); color: var(--report-meta); }
 .ap-reset-next-account > summary .ap-reset-name { display: inline-block; width: calc(100% - 16px); vertical-align: middle; }
 .ap-reset-next-account > summary .ap-reset-name > span:first-child { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+@media (hover: hover) and (pointer: fine) {
 .ap-reset-next-account > summary:hover { background: var(--ctl-fill); }
+}
 .ap-reset-next-account .ap-reset-full-name { overflow-wrap: anywhere; font-family: var(--font-mono); }
 .ap-reset-body:has(.ap-reset-next-account[open]) { display: block; overflow-y: auto; }
 .ap-reset-body:has(.ap-reset-next-account[open]) .ap-reset-results { overflow: visible; }
@@ -707,16 +713,16 @@
 .ap-proj-loading strong { color: var(--text); font-size: calc(13px + var(--ui-text-increase, 0px)); font-weight: 600; }
 .ap-proj-loading > span { color: var(--text-secondary); font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: 1.5; }
 .ap-proj-loading-links { stroke: var(--line); }
-.ap-proj-loading-scan { stroke: var(--accent); animation: ap-project-read 1600ms cubic-bezier(0.4, 0, 0.2, 1) infinite; }
+.ap-proj-loading-scan { stroke: var(--accent); animation: ap-project-read 1600ms ease-in-out infinite; }
 .ap-proj-loading[data-paused] .ap-proj-loading-scan { animation-play-state: paused; }
-.ap-proj-ready { animation: ap-project-report-in 140ms var(--ease); }
+.ap-proj-ready { transition: opacity var(--dur-fast) var(--ease); }
+@starting-style { .ap-proj-ready { opacity: 0.65; } }
 @keyframes ap-project-read {
   0% { opacity: 0.3; transform: translateY(0); }
   50% { opacity: 1; }
   100% { opacity: 0.3; transform: translateY(12px); }
 }
-@keyframes ap-project-report-in { from { opacity: 0.65; } to { opacity: 1; } }
 @media (prefers-reduced-motion: reduce) {
   .ap-proj-loading-scan { animation: none; transform: translateY(6px); }
-  .ap-proj-ready { animation: none; }
+  .ap-proj-ready { transition: none; }
 }

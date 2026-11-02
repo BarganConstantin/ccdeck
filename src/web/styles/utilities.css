@@ -71,5 +71,4 @@
    question is asked after focus has landed — so App.tsx's releasePointerFocus
    takes the pointer's arrival away instead, and this declaration is left saying
    exactly what it said before. */
-.canvas-wrap:focus-visible { outline-offset: -3px; }
 

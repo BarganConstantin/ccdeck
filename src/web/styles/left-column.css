@@ -56,7 +56,7 @@
   border-right-color: transparent;
   transition:
     transform var(--dur-move) var(--ease-stage),
-    opacity 180ms cubic-bezier(0.23, 1, 0.32, 1) 40ms;
+    opacity var(--dur-base) var(--ease) var(--delay-step);
 }
 /* How a panel arrives: alone, it came with the column and slides in with the
    edge; beside another, the column was already open and it fades in where it
@@ -76,7 +76,7 @@
   opacity: 0;
   pointer-events: none;
   transition:
-    opacity 120ms cubic-bezier(0.23, 1, 0.32, 1),
+    opacity var(--dur-fast) var(--ease),
     transform var(--dur-move) var(--ease-stage);
 }
 .left-column.closing > .leaving {

@@ -30,7 +30,7 @@
 .react-flow__edge-path {
   stroke: var(--accent-dim);
   stroke-width: 1.5;
-  transition: stroke 200ms ease;
+  transition: stroke var(--dur-base) var(--ease);
 }
 .react-flow__edge.animated .react-flow__edge-path {
   stroke: var(--inflight);
@@ -140,7 +140,7 @@
   border-radius: var(--r-tag);
   background: transparent;
   color: var(--muted);
-  transition: background 120ms, color 120ms;
+  transition: background var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease);
 }
 /* The zoom level is a button that prints a figure, in the mono 11 on 14 the
    V4 bar sets numbers in. Never narrower than four figures ("100%"): the bar
@@ -163,21 +163,27 @@
   height: 14px;
   stroke-width: 1.17px;
 }
+@media (hover: hover) and (pointer: fine) {
 .react-flow__controls-button:hover { background: var(--ctl-fill); color: var(--text); }
+}
 .react-flow__controls-button:disabled { opacity: var(--dim-off); }
 /* Zoom in and out at their limits refuse with aria-disabled and keep their
    focus (#1768), so they are dimmed from the attribute. The pointer gets the
    look `disabled` gave them: no hand and no hover fill, since the press does
    nothing. */
 .react-flow__controls-button[aria-disabled="true"] { opacity: var(--dim-off); cursor: default; }
+@media (hover: hover) and (pointer: fine) {
 .react-flow__controls-button[aria-disabled="true"]:hover { background: transparent; color: var(--muted); }
+}
 /* Recenter while auto-fit is off: the press would do something, so the glyph
    steps up to the foreground, and the canvas's own "Auto-fit off · Resume"
    chip says why. Not the accent: this is a hint, not data or focus. */
 .react-flow__controls-button[data-nudge] { color: var(--text); }
 /* Clear asks before it destroys anything, so at rest it is as neutral as its
    neighbours and only the pointer warms it. */
+@media (hover: hover) and (pointer: fine) {
 .react-flow__controls-button[data-danger]:hover { color: var(--err); }
+}
 /* Pause, the one toggle in a stack of commands. Every other button here
    reports nothing between presses because there is nothing to report; Pause is
    a setting that stays on, so it needs a resting look for each state. Amber
@@ -196,8 +202,10 @@
   color: var(--warn);
 }
 /* A pressed Pause still answers the pointer: the tint deepens. */
+@media (hover: hover) and (pointer: fine) {
 .react-flow__controls-button[aria-pressed="true"]:hover {
   background: color-mix(in srgb, var(--warn) 24%, transparent);
+}
 }
 /* The minimap, on the control stack's surface and edge (see the top of this
    block). React Flow gives it a white slab; this replaces it, and replaces the
@@ -211,9 +219,11 @@
   border: 1px solid var(--chrome-edge);
   border-radius: var(--r-ctl);
   overflow: hidden;
-  transition: border-color 120ms;
+  transition: border-color var(--dur-fast) var(--ease);
 }
+@media (hover: hover) and (pointer: fine) {
 .react-flow__minimap:hover { border-color: var(--line); }
+}
 /* Over the control bar, not beside it (see its room at the top of this block),
    and right edge on right edge with it. Two classes, like the bar's own
    margin, to outrank the panel's 15px. */

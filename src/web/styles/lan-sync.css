@@ -35,7 +35,9 @@
   text-align: left;
   cursor: pointer;
 }
+@media (hover: hover) and (pointer: fine) {
 .ap-nav:hover { background: color-mix(in srgb, var(--text) 4%, transparent); }
+}
 /* Keep the two summary lines, with less empty space around the footer. */
 .ap-foot:has(> .ap-nav) { padding-top: 6px; padding-bottom: 8px; }
 .ap-foot > .ap-nav { margin-top: 0; }
@@ -56,8 +58,10 @@
   font-size: calc(11px + var(--ui-text-increase, 0px));
   color: var(--muted);
 }
+@media (hover: hover) and (pointer: fine) {
 .ap-nav:hover :is(.ap-nav-glyph, .ap-nav-state:is([data-tone="ok"], [data-tone="idle"])) {
   color: color-mix(in srgb, var(--muted) 65%, var(--text));
+}
 }
 /* ON, IN THE COLOUR THE MACHINES THEMSELVES ARE ALREADY DRAWN IN. `--ok`, not
    the accent: one press away, `.ap-lan-who .ap-pulse` paints every deck that is
@@ -88,9 +92,11 @@
 .ap-nav-chev {
   flex: none;
   color: var(--muted);
-  transition: transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
+  transition: transform var(--dur-fast) var(--ease);
 }
+@media (hover: hover) and (pointer: fine) {
 .ap-nav:hover .ap-nav-chev { color: var(--text); transform: translateX(1px); }
+}
 /* THE MAP, over the way-in row's right side, just short of its chevron — see
    LanEntryRow. The row is one button, so the glyph cannot sit in it: the foot
    lays the two in one grid cell instead, which centres the glyph on the row
@@ -101,7 +107,9 @@
 .ap-foot:has(> .ap-lan-map) { display: grid; }
 .ap-foot:has(> .ap-lan-map) > :is(.ap-nav, .ap-lan-map) { grid-area: 1 / 1; }
 .ap-foot:has(> .ap-lan-map) .ap-nav-text { padding-right: 32px; }
+@media (hover: hover) and (pointer: fine) {
 .ap-foot:has(> .ap-lan-map:hover) > .ap-nav { background: color-mix(in srgb, var(--text) 4%, transparent); }
+}
 .ap-lan-map {
   appearance: none;
   justify-self: end;
@@ -118,13 +126,14 @@
   background: none;
   color: var(--muted);
   cursor: pointer;
-  transition: border-color 120ms, color 120ms, background 120ms,
-              transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
+  transition: border-color var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease), background var(--dur-fast) var(--ease),
+              transform var(--dur-fast) var(--ease);
 }
-.ap-lan-map:hover,
 .ap-lan-map:focus-visible { border-color: var(--ctl-edge); color: var(--text); background: var(--ctl-fill); }
-.ap-lan-map:active { transform: scale(0.97); }
-.ap-lan-map:focus-visible { outline-offset: -2px; }
+@media (hover: hover) and (pointer: fine) {
+.ap-lan-map:hover { border-color: var(--ctl-edge); color: var(--text); background: var(--ctl-fill); }
+}
+.ap-lan-map:active { transform: scale(var(--press)); }
 @media (prefers-reduced-motion: reduce) {
   .ap-lan-map:active { transform: none; }
 }
@@ -133,8 +142,10 @@
    pressed: Local network goes somewhere, the fold opens here. The turn wins
    over the hover nudge — a chevron pointing down does not lean right, and
    `translateX` on a rotated box would send it there anyway. */
-.ap-nav[aria-expanded="true"] .ap-nav-chev,
+.ap-nav[aria-expanded="true"] .ap-nav-chev { transform: rotate(90deg); }
+@media (hover: hover) and (pointer: fine) {
 .ap-nav[aria-expanded="true"]:hover .ap-nav-chev { transform: rotate(90deg); }
+}
 
 /* THE FOLD, between the live account and the rest of the roster. `.ap-nav` is
    written for the foot, where the inset comes from `.ap-foot`; this row stands
@@ -192,12 +203,15 @@
   text-overflow: ellipsis;
   white-space: nowrap;
   cursor: pointer;
-  transition: border-color 120ms, color 120ms, background 120ms;
+  transition: border-color var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease), background var(--dur-fast) var(--ease);
 }
 .ap-rest-sort select[data-sorted] { color: var(--text); }
-.ap-rest-sort select:hover,
-.ap-rest-sort select:focus-visible { border-color: var(--ctl-edge); color: var(--text); background: var(--ctl-fill); }
-.ap-rest-sort select:focus-visible { outline-offset: -2px; }
+/* The keyboard lifts it the way the pointer does; its edge is the field's
+   accent (tokens.css), not the hover's neutral one. */
+.ap-rest-sort select:focus-visible { color: var(--text); background: var(--ctl-fill); }
+@media (hover: hover) and (pointer: fine) {
+.ap-rest-sort select:hover:not(:focus-visible) { border-color: var(--ctl-edge); color: var(--text); background: var(--ctl-fill); }
+}
 /* Held: the order the reader found, not the latest — dashed, as the deck
    draws everything it is showing as the last thing rather than the current
    one (the incident chip's stale edge, a stale card's). */
@@ -208,7 +222,9 @@
   color: var(--muted);
   pointer-events: none;
 }
+@media (hover: hover) and (pointer: fine) {
 .ap-rest-sort:hover svg { color: var(--text); }
+}
 .ap-rest-all {
   appearance: none;
   display: inline-flex;
@@ -222,13 +238,14 @@
   background: none;
   color: var(--muted);
   cursor: pointer;
-  transition: border-color 120ms, color 120ms, background 120ms,
-              transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
+  transition: border-color var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease), background var(--dur-fast) var(--ease),
+              transform var(--dur-fast) var(--ease);
 }
-.ap-rest-all:hover,
 .ap-rest-all:focus-visible { border-color: var(--ctl-edge); color: var(--text); background: var(--ctl-fill); }
-.ap-rest-all:active { transform: scale(0.97); }
-.ap-rest-all:focus-visible { outline-offset: -2px; }
+@media (hover: hover) and (pointer: fine) {
+.ap-rest-all:hover { border-color: var(--ctl-edge); color: var(--text); background: var(--ctl-fill); }
+}
+.ap-rest-all:active { transform: scale(var(--press)); }
 @media (prefers-reduced-motion: reduce) {
   .ap-rest-all:active { transform: none; }
 }
@@ -334,7 +351,7 @@
      looking; travel would make it a thing that happened rather than a thing
      that is there — which is also why there is no reduced-motion rule to write:
      a fade is what that rule leaves behind everywhere else in this sheet. */
-  animation: fadeIn 110ms ease-out;
+  animation: fadeIn var(--dur-fast) var(--ease);
 }
 /* V4 motion: a card opened by a key (P, a Tab onto a card) arrives at once; the
    last input decides (input-modality.ts), a pointer press brings the fade back. */
@@ -592,10 +609,12 @@
   cursor: pointer;
   font-size: calc(11px + var(--ui-text-increase, 0px));
   color: var(--text);
-  transition: background 120ms, transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
+  transition: background var(--dur-fast) var(--ease), transform var(--dur-fast) var(--ease);
 }
+@media (hover: hover) and (pointer: fine) {
 .ap-lan-pick:hover { background: color-mix(in srgb, var(--text) 6%, transparent); }
-.ap-lan-pick:active { transform: scale(0.97); }
+}
+.ap-lan-pick:active { transform: scale(var(--press)); }
 .ap-lan-pick input { accent-color: var(--accent); margin: 0; }
 .ap-lan-pick-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 /* Said on the row rather than left to be inferred from a missing tick: an
@@ -612,7 +631,9 @@
    away — `outline: none` is the one thing this sheet may not say, and two
    nested rings for one focus is worse than a small one in the right place. The
    row already answers the press it receives: `.ap-lan-pick:active` scales. */
+@media (hover: hover) and (pointer: fine) {
 .ap-lan-pick:hover .ap-lan-dead { color: color-mix(in srgb, var(--muted) 65%, var(--text)); }
+}
 .ap-lan-dead { flex: none; margin-left: auto; color: var(--muted); font-size: calc(9px + max(0px, var(--ui-text-increase, 0px))); }
 
 /* The machine a request is about, named in the sentence that asks about it. */
@@ -795,7 +816,9 @@
   background: transparent;
   pointer-events: none;
 }
+@media (hover: hover) and (pointer: fine) {
 .ap-lan-who:hover::before { background: color-mix(in srgb, var(--text) 4%, transparent); }
+}
 /* THE PRESS IS THE SAME TONE A STEP DEEPER, AND NOTHING MOVES. The row used to
    scale to 0.98 and ease back under the dialog it had just opened — a name
    sliding two pixels in a list whose job is to stand still. Not while the
@@ -808,8 +831,13 @@
    keyboard-focused row it is mixed toward the foreground, the rule
    `.ap-lan-pick` writes down for the same reason: 6.2:1 there, and still a
    step under the name. */
-.ap-lan-who:is([data-tone="idle"], [data-tone="ok"]):is(:hover, :has(:focus-visible)) .ap-lan-who-when {
+.ap-lan-who:is([data-tone="idle"], [data-tone="ok"]):has(:focus-visible) .ap-lan-who-when {
   color: color-mix(in srgb, var(--muted) 65%, var(--text));
+}
+@media (hover: hover) and (pointer: fine) {
+.ap-lan-who:is([data-tone="idle"], [data-tone="ok"]):hover .ap-lan-who-when {
+  color: color-mix(in srgb, var(--muted) 65%, var(--text));
+}
 }
 /* What it last did, under the name, in the panel's own freshness idiom.
    THE TONE IS THE ROW'S, and until now it painted nothing: `.ap-lan-bad` and
@@ -982,7 +1010,7 @@
      in the first fifth of the cycle, so the ring hits full scale at zero
      opacity almost immediately and the ping reads as a flicker. This keeps
      the travel legible for about a second, then rests. */
-  animation: ap-ping 2.6s cubic-bezier(0.22, 0.61, 0.36, 1) infinite;
+  animation: ap-ping 2.6s ease-in-out infinite;
 }
 @keyframes ap-ping {
   0%        { transform: scale(1);   opacity: 0.7; }
@@ -1055,23 +1083,26 @@
   line-height: 1.5;
   text-align: right;
   cursor: pointer;
-  transition: border-color 120ms, color 120ms,
-              transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
+  transition: border-color var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease),
+              transform var(--dur-fast) var(--ease);
 }
 /* --accent, not --accent-dim: #325 already had to override the dim edge inside
    the manage block, where it dropped the slot select from 3.98:1 to 1.58:1 on
    hover. The auto-switch select rests on the same edge now, so the override is
    the rule and the local copy is gone. */
-.ap-field select:hover:not(:disabled) { border-color: var(--text); color: var(--text); }
+@media (hover: hover) and (pointer: fine) {
+.ap-field select:hover:not(:disabled):not(:focus-visible) { border-color: var(--text); color: var(--text); }
+}
 /* The only native control in the convention. It is styled like everything else
    here — appearance:none, the sheet's own fill, edge and chevron — so a press
    that did nothing read as the one dead control in the panel. 0.97 rather than
    0.94 because the popup that opens on the same press is anchored to this box
    and the smaller step keeps the offset under a pixel. */
-.ap-field select:active:not(:disabled) { transform: scale(0.97); }
-.ap-field select:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.ap-field select:active:not(:disabled) { transform: scale(var(--press)); }
 .ap-field select:disabled { cursor: default; opacity: var(--dim-off); }
+@media (hover: hover) and (pointer: fine) {
 .ap-field:has(select:hover:not(:disabled))::after { color: var(--text); opacity: 1; }
+}
 
 /* The empty state's retry and a warning's words keep their look and get a 24px
    target drawn around them (#857, #884): a transparent pseudo-element, so the

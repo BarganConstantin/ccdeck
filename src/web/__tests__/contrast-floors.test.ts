@@ -25,7 +25,7 @@ import { readdirSync, readFileSync, statSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { join } from "node:path";
 import { gradientStops as readStops } from "./gradient-stops";
-import { defaultReadingSheetText as sheetText } from "./sheet-source";
+import { MOUSE_MEDIA, defaultReadingSheetText as sheetText } from "./sheet-source";
 
 const css = sheetText();
 const agentNode = readFileSync(fileURLToPath(new URL("../components/AgentNode.tsx", import.meta.url)), "utf8");
@@ -1035,20 +1035,24 @@ function sheetRules(src: string, at = ""): SheetRule[] {
       else if (src[end] === "}" && --depth === 0) break;
     }
     const inner = src.slice(open + 1, end);
-    if (prelude.startsWith("@")) out.push(...sheetRules(inner, prelude));
+    if (prelude.startsWith("@")) out.push(...sheetRules(inner, at ? `${at} ${prelude}` : prelude));
     else out.push({ selectors: prelude.split(",").map(s => s.trim()).filter(Boolean), body: inner, at });
     i = end + 1;
   }
   return out;
 }
 const SHEET = sheetRules(bare);
+/** A rule a desktop pointer meets at the top level: written outside any media,
+ *  or under the mouse query alone, where every :hover rule stands (hover is for
+ *  mice). A rule in any other media, or nested in one, is not the resting look. */
+const onDesktop = (r: { at: string }) => !r.at || r.at === `@media ${MOUSE_MEDIA}`;
 
 /** The last value `prop` is given by a top-level rule listing `selector`, which
  *  is the one the cascade keeps at equal specificity. */
 function declFor(selector: string, prop: string): string | null {
   let found: string | null = null;
   for (const r of SHEET) {
-    if (r.at || !r.selectors.includes(selector)) continue;
+    if (!onDesktop(r) || !r.selectors.includes(selector)) continue;
     const v = decl(r.body, prop);
     if (v !== null) found = v;
   }
@@ -1079,6 +1083,9 @@ describe("the scrollbar thumb, in every state it has (#1290)", () => {
   it("reads all four states out of the sheet, so the sweeps below measure something", () => {
     expect(THUMB.rest).toBe("transparent");
     for (const [state, value] of Object.entries(THUMB)) expect(value, state).not.toBeNull();
+    // The two hover reveals are the mouse's: they stand under the mouse query.
+    for (const sel of [":hover::-webkit-scrollbar-thumb", "*::-webkit-scrollbar-thumb:hover"])
+      expect(SHEET.find(r => r.selectors.includes(sel))?.at, sel).toBe(`@media ${MOUSE_MEDIA}`);
   });
 
   it("reproduces what the keyboard was shown — --line, at the ratios #1290 measured", () => {
@@ -1110,7 +1117,7 @@ describe("the scrollbar thumb, in every state it has (#1290)", () => {
     }
     // Equal specificity, so source order is what makes it win: it has to come
     // after both reveals.
-    const at = (sel: string) => SHEET.findIndex(r => !r.at && r.selectors.includes(sel));
+    const at = (sel: string) => SHEET.findIndex(r => onDesktop(r) && r.selectors.includes(sel));
     expect(at("*::-webkit-scrollbar-thumb:hover")).toBeGreaterThan(at(":focus-within::-webkit-scrollbar-thumb"));
     expect(at(":focus-within::-webkit-scrollbar-thumb")).toBeGreaterThan(at(":hover::-webkit-scrollbar-thumb"));
   });
@@ -1463,7 +1470,7 @@ describe("nothing at rest paints --inflight itself (#1649)", () => {
   });
 
   it("draws the empty canvas, which only shows when nothing runs, in neither theme's --inflight", () => {
-    const hero = SHEET.filter(r => !r.at).flatMap(r => r.selectors).filter(s => s.startsWith(".empty-hero"));
+    const hero = SHEET.filter(onDesktop).flatMap(r => r.selectors).filter(s => s.startsWith(".empty-hero"));
     // The static terminal symbol must be included in the palette sweep.
     for (const s of [".empty-hero .empty-symbol"]) expect(hero, s).toContain(s);
     for (const theme of themes) {
@@ -1585,7 +1592,7 @@ describe("words quietened with an opacity, measured as what they composite to (#
     // Every ink a rule of the report writes, since a group opacity takes all of
     // them down at once.
     const inks = new Set(SHEET
-      .filter(r => !r.at && r.selectors.some(s => s.startsWith(".ap-proj-")))
+      .filter(r => onDesktop(r) && r.selectors.some(s => s.startsWith(".ap-proj-")))
       .map(r => decl(r.body, "color"))
       .filter((v): v is string => v !== null && v.startsWith("var(")));
     expect([...inks], "the report's inks").toEqual(expect.arrayContaining(["var(--text)", "var(--muted)", "var(--text-dim)"]));
@@ -1602,7 +1609,7 @@ describe("words quietened with an opacity, measured as what they composite to (#
 
   it("fades only the report's marks while it reloads — the bar, the meters, the day columns and the dots", () => {
     const fading = SHEET
-      .filter(r => !r.at && decl(r.body, "opacity") !== null)
+      .filter(r => onDesktop(r) && decl(r.body, "opacity") !== null)
       .flatMap(r => r.selectors)
       .filter(s => s.startsWith(".ap-proj-body.refreshing"));
     for (const mark of [".ap-proj-seg", ".ap-proj-fill", ".ap-proj-colseg", ".ap-proj-dot"]) {

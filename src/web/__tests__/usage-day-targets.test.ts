@@ -291,14 +291,13 @@ describe("the chart is the box that scrolls, and only when it has to", () => {
     // `outline-offset: 1px` — would lose its top on every column and its outer
     // edge on the first and the last. `.canvas-wrap:focus-visible` inset its
     // ring for the same reason.
-    const offset = px(decl(".uh-bar-col:focus-visible", "outline-offset"));
-    expect(offset).toBeLessThan(0);
-    // The ring is the deck's one ring; only where it sits changes.
-    expect(declIn(bodyOf(".uh-bar-col:focus-visible"), "outline")).toBeNull();
-    expect(decl(":focus-visible", "outline")).toBe("2px solid var(--accent)");
-    // And the whole band still fits inside the narrowest column there can be.
-    const ring = px(/(-?[\d.]+)px/.exec(decl(":focus-visible", "outline")!)![0]);
-    expect(-offset + ring).toBeLessThan(columnFloor / 2);
+    // V4's Figma: the deck's one ring is inside every box (offset -1.5, width
+    // 1.5), so the column no longer needs an offset of its own.
+    expect(() => bodyOf(".uh-bar-col:focus-visible")).toThrow();
+    expect(decl(":focus-visible", "outline")).toBe("var(--focus-w) solid var(--accent)");
+    expect(decl(":focus-visible", "outline-offset")).toBe("calc(-1 * var(--focus-w))");
+    // And the whole band (1.5px) still fits inside the narrowest column there can be.
+    expect(1.5).toBeLessThan(columnFloor / 2);
   });
 
   it("opens the scroller on today rather than three months ago", () => {

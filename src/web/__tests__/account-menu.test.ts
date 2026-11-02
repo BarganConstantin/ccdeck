@@ -13,7 +13,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { accountsSurface } from "./accounts-surface";
 import { clientText } from "./client-source";
-import { sheetText } from "./sheet-source";
+import { mouseFlat, sheetText } from "./sheet-source";
 
 const read = (rel: string) => readFileSync(fileURLToPath(new URL(rel, import.meta.url)), "utf8");
 /** Markup without its comments: they quote the shapes they replaced. */
@@ -28,8 +28,9 @@ const surface = strip(accountsSurface());
 const popover = strip(read("../components/AnchoredPopover.tsx"));
 const css = sheetText().replace(/\/\*[\s\S]*?\*\//g, "");
 
-/** Top-level rules only: a reduced-motion override is not the resting look. */
-const topLevel = css.replace(/@media[^{]*\{(?:[^{}]*\{[^{}]*\})*[^{}]*\}/g, "");
+/** Top-level rules only: a reduced-motion override is not the resting look.
+ *  The hover rules stand under the mouse media, which a desktop pointer meets. */
+const topLevel = mouseFlat(css).replace(/@media[^{]*\{(?:[^{}]*\{[^{}]*\})*[^{}]*\}/g, "");
 const RULES = [...topLevel.matchAll(/([^{}]+)\{([^{}]*)\}/g)].map(m => ({
   sels: m[1].split(",").map(s => s.trim().replace(/\s+/g, " ")),
   body: m[2],
@@ -155,7 +156,8 @@ describe("where the surface sits", () => {
 
   it("arrives in under 160ms without growing, and only fades when motion is reduced", () => {
     const anim = decl(".anchored-popover", "animation")!;
-    expect(Number(/(\d+)ms/.exec(anim)![1])).toBeLessThanOrEqual(160);
+    // On a motion token since V4's motion rules (--dur-fast is 120, --dur-exit 150).
+    expect(anim).toMatch(/var\(--dur-(fast|exit)\)/);
     const frames = /@keyframes pop-from-anchor\s*\{([\s\S]*?)\n\}/.exec(css)![1];
     expect(frames).not.toMatch(/scale/);
     expect(css).toMatch(/@media \(prefers-reduced-motion: reduce\) \{[^@]*\.anchored-popover \{ animation: fadeIn/);

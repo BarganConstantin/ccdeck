@@ -63,7 +63,7 @@
   font-size: calc(16px + var(--ui-text-increase, 0px));
   line-height: 1;
   cursor: pointer;
-  transition: color 120ms, transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
+  transition: color var(--dur-fast) var(--ease), transform var(--dur-fast) var(--ease);
 }
 /* THE TARGET IS A RECTANGLE, NOT THE CIRCLE. The radius above does not only
    round the ring: browsers hit-test against the rounded border edge, so the
@@ -89,8 +89,9 @@
 /* The shared ring sits 2px out, which is right for a rectangle it has to clear
    the corners of. A circle has no corners to clear and 2px leaves a visible gap,
    so this one hugs. */
-.glyph-btn:focus-visible { outline-offset: 1px; }
+@media (hover: hover) and (pointer: fine) {
 .glyph-btn:hover { color: var(--text); }
+}
 /* 0.94, not the 0.97 a labelled button gets. The sheet's own rule is written at
    `.insp-fold`, the detail panel's close now — on a box this size three percent is under a pixel of travel
    and reads as nothing having happened — and three of the four bare closes that
@@ -101,7 +102,7 @@
    `.up-refresh-btn`, `.ap-refresh` and `.uh-reload` all go inert while the run
    they started is out. `button.btn:active` was guarded and they used to inherit
    that; the guard comes with them rather than being left behind. */
-.glyph-btn:active:not(:disabled) { transform: scale(0.94); }
+.glyph-btn:active:not(:disabled) { transform: scale(var(--press-small)); }
 
 /* Refresh keeps its arrow while it reads and turns it, one tempo of 900 ms
    (V4: "Stays, one tempo of 900"). The button says it is busy through

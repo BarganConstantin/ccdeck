@@ -84,7 +84,7 @@
      as a translate in layout space, so the same 320ms move no longer runs
      through left and top. The size stays width and height, which change only
      when a session gains or loses a node. */
-  transition: opacity 200ms ease, transform 320ms var(--ease),
+  transition: opacity var(--dur-base) var(--ease), transform 320ms var(--ease),
               width 320ms var(--ease),
               height 320ms var(--ease);
   overflow: visible;
@@ -142,7 +142,7 @@
   pointer-events: auto;
   user-select: none;
   /* Don't transition transform — it's used inline for viewport scale. */
-  transition: box-shadow 120ms ease, filter 120ms ease;
+  transition: box-shadow var(--dur-fast) var(--ease), filter var(--dur-fast) var(--ease);
 }
 /* The session name, between the workspace and the short id inside the same
    pill. Same family, same size, same hue, same --session-label-l — this is
@@ -236,9 +236,11 @@
   clip-path: inset(50%);
   white-space: nowrap;
 }
+@media (hover: hover) and (pointer: fine) {
 .cluster-label:hover {
   filter: brightness(1.25);
   box-shadow: 0 4px 14px rgba(0,0,0,0.45), 0 0 0 1px currentColor;
+}
 }
 /* `.cluster-label.dragging` used to sit here, and its light-theme twin below
    `:root[data-color-scheme="light"] .cluster-label:hover`. Both are gone with the grab
@@ -272,6 +274,7 @@
    would have dropped the only text in this layer under AA. Same gesture,
    mirrored: the pill deepens instead, and the ratio goes up rather than down.
    A hover that lowers a contrast is not a hover. */
+@media (hover: hover) and (pointer: fine) {
 :root[data-color-scheme="light"] .cluster-label:hover {
   filter: brightness(0.9);
   /* The ring had to come back with it. `:root[data-color-scheme="light"]
@@ -280,5 +283,6 @@
      the dark hover draws never appeared. Measured, light theme, hovered:
      `rgba(15,23,42,0.08) 0 1px 4px` — the resting value. */
   box-shadow: 0 4px 14px rgba(15,23,42,0.16), 0 0 0 1px currentColor;
+}
 }
 

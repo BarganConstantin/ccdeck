@@ -64,10 +64,11 @@
   background: transparent;
   color: var(--muted);
   cursor: pointer;
-  transition: background var(--dur-fast), transform 140ms var(--ease);
+  transition: background var(--dur-fast) var(--ease), transform var(--dur-fast) var(--ease);
 }
+@media (hover: hover) and (pointer: fine) {
 .session-list .sl-close:hover { background: var(--ctl-fill); color: var(--text); }
-.session-list .sl-close:focus-visible { border-radius: 6px; }
+}
 
 /* The list: padding 4, and the panel's scroller. The groups are headers and
    rows in one flat list, so a row that changes group is the same element. */
@@ -140,21 +141,24 @@
   text-align: left;
   color: var(--text);
   font: inherit;
-  transition: background var(--dur-fast), transform 140ms var(--ease);
+  transition: background var(--dur-fast) var(--ease), transform var(--dur-fast) var(--ease);
 }
+@media (hover: hover) and (pointer: fine) {
 .session-list .sl-row:hover { background: var(--ctl-fill); }
+}
 .session-list .sl-row.selected { background: var(--selected); }
 /* The muted words step up a tier on the fill: --muted on it is 4.05:1 in dark
    (#1789), the reason the Tool activity rows do the same. */
-.session-list .sl-row:hover .sl-line2,
-.session-list .sl-row:hover .sl-model,
 .session-list .sl-row.selected .sl-line2,
 .session-list .sl-row.selected .sl-model { color: var(--text-secondary); }
-.session-list .sl-row:focus-visible { outline-offset: -2px; border-radius: var(--r-panel); }
+@media (hover: hover) and (pointer: fine) {
+.session-list .sl-row:hover .sl-line2,
+.session-list .sl-row:hover .sl-model { color: var(--text-secondary); }
+}
 /* The most-clicked control in the app answers a press. Nothing interactive
    nests inside the row, so the scale is the row's alone. */
-.session-list .sl-row:active { transform: scale(0.97); }
-.session-list .sl-close:active { transform: scale(0.94); }
+.session-list .sl-row:active { transform: scale(var(--press)); }
+.session-list .sl-close:active { transform: scale(var(--press-small)); }
 /* A session "Remove from board" took off the canvas. Still listed, because the
    row is the way back; muted, because what it points at is not on the board. */
 .session-list .sl-row.removed .sl-label { color: var(--muted); }
@@ -298,9 +302,9 @@
   cursor: pointer;
   text-align: left;
 }
+@media (hover: hover) and (pointer: fine) {
 .session-list .sl-fold-btn:hover { background: var(--ctl-fill); }
-.session-list .sl-fold-btn:focus-visible,
-.session-list .sl-more:focus-visible { outline-offset: -2px; border-radius: var(--r-panel); }
+}
 .session-list .sl-fold-btn .sl-group-count { margin-left: auto; }
 .session-list .sl-chev { flex: none; transition: transform var(--dur-exit) var(--ease); }
 .session-list [aria-expanded="true"] > .sl-chev { transform: rotate(90deg); transition-duration: var(--dur-base); }
@@ -326,7 +330,9 @@
   text-align: left;
   cursor: pointer;
 }
+@media (hover: hover) and (pointer: fine) {
 .session-list .sl-more:hover { background: var(--ctl-fill); }
+}
 /* THE FOLD OPENS as its content fades in and its chevron turns: grid rows 0fr
    to 1fr, --dur-base on --ease, a little quicker (--dur-exit) to fold. By key
    it is at once (data-motion="instant"); over twenty rows inside, or under
@@ -414,11 +420,12 @@
   font: inherit;
   text-align: left;
   cursor: pointer;
-  transition: background var(--dur-fast), transform 140ms var(--ease);
+  transition: background var(--dur-fast) var(--ease), transform var(--dur-fast) var(--ease);
 }
+@media (hover: hover) and (pointer: fine) {
 .session-list .sl-usage-btn:hover { background: var(--ctl-fill); }
-.session-list .sl-usage-btn:focus-visible { outline-offset: -2px; border-radius: var(--r-panel); }
-.session-list .sl-usage-btn:active { transform: scale(0.97); }
+}
+.session-list .sl-usage-btn:active { transform: scale(var(--press)); }
 .session-list .sl-usage-line1,
 .session-list .sl-usage-line2 {
   display: flex;

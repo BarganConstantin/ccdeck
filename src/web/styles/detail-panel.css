@@ -59,7 +59,9 @@
   color: var(--text);
   font-weight: 600;
 }
+@media (hover: hover) and (pointer: fine) {
 .insp-tab:hover:not([aria-selected="true"]) { color: var(--text); }
+}
 /* Fold: one quiet 24x24 icon button, radius 6 (the rail's close, on the right). */
 .detail .insp-fold {
   display: inline-flex;
@@ -73,8 +75,9 @@
   border-radius: 6px;
   background: transparent;
 }
+@media (hover: hover) and (pointer: fine) {
 .detail .insp-fold:hover { background: var(--ctl-fill); }
-.detail .insp-fold:focus-visible { border-radius: 6px; }
+}
 /* The body: padding 8 12 12, a gap of 8, and the scroller. A tabpanel that is
    not the chosen one is `hidden`, which a `display` here would otherwise beat. */
 .insp-b {
@@ -304,8 +307,9 @@
   opacity: 0;
   pointer-events: none;
 }
-.insp-card:has(.insp-pick:focus-visible) .agent-node { outline: 2px solid var(--accent); outline-offset: 1px; }
 .insp-card[data-current] .agent-node { box-shadow: 0 0 0 2px var(--accent); }
+/* The focused thing is the hidden pick button, the card is its box: the one ring, inside. */
+.insp-card:has(.insp-pick:focus-visible) .agent-node { outline: var(--focus-w) solid var(--accent); outline-offset: calc(-1 * var(--focus-w)); }
 /* The card is the board's, drawn to the row's width instead of the board's 256. */
 .insp-card .agent-node {
   width: auto;
