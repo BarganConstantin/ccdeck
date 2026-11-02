@@ -130,8 +130,8 @@ export const KEY_HELP: readonly KeyHelpGroup[] = [
       // the other way, so the row binds the letter and the sheet says Shift
       // the way it does for Shift + Enter. With the Command Panel open both
       // are its "next ask" (terminal-keys.ts), as n was before 4.0.
-      { cap: "N", action: "the next one waiting on you — W does the same", binds: ["n", "N"] },
-      { cap: "Shift + N", action: "the previous one waiting, on the board", binds: ["N"] },
+      { cap: "N", get action() { return t("settings.key.nextWaiting"); }, binds: ["n", "N"] },
+      { cap: "Shift + N", get action() { return t("settings.key.prevWaiting"); }, binds: ["N"] },
     ],
   },
   {
@@ -140,7 +140,7 @@ export const KEY_HELP: readonly KeyHelpGroup[] = [
     rows: [
       { cap: "J", get action() { return t("settings.key.next"); }, binds: ["j", "J"] },
       { cap: "K", get action() { return t("settings.key.prev"); }, binds: ["k", "K"] },
-      { cap: "P", action: "peek at the selected card without opening it", binds: ["p", "P"] },
+      { cap: "P", get action() { return t("settings.key.peek"); }, binds: ["p", "P"] },
       { cap: "F", get action() { return t("settings.key.fit"); }, binds: ["f", "F"] },
       { cap: "Z", get action() { return t("settings.key.zoom"); }, binds: ["z", "Z"] },
       { cap: "Delete", get action() { return t("settings.key.delete"); }, binds: ["Delete"] },
@@ -188,7 +188,7 @@ export const KEY_HELP: readonly KeyHelpGroup[] = [
  *  single keys off; Control on a Mac too (Cmd + backtick is the OS's window switch). */
 export const WORKSPACE_KEY_ROW: KeyHelpRow = {
   cap: "Ctrl + `",
-  action: "switch between the Board and the Workspace — also with the keys in the terminal",
+  get action() { return t("settings.key.workspace"); },
   binds: ["`"],
   chord: true,
 };

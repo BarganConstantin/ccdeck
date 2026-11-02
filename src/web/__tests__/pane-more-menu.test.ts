@@ -4,8 +4,13 @@
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { CLOSE_LABEL, FULL_LABEL, menuLabel } from "../components/terminal/StageHeader";
+import { CLOSE_LABEL_MSG, FULL_LABEL_MSG, menuLabel } from "../components/terminal/StageHeader";
 import { en } from "../i18n/en";
+
+// CHANGED ON PURPOSE (the UI in every language): both labels are read through
+// their keys now, and the English catalog holds the words.
+const CLOSE_LABEL = en[CLOSE_LABEL_MSG];
+const FULL_LABEL = en[FULL_LABEL_MSG];
 
 const header = readFileSync(fileURLToPath(new URL("../components/terminal/StageHeader.tsx", import.meta.url)), "utf8");
 
@@ -13,6 +18,9 @@ describe("the labels in the ⋯ menu", () => {
   it("full screen shows the words before the shortcut hint, which stays on the desktop button's tooltip", () => {
     expect(FULL_LABEL).toContain(" — ");
     expect(menuLabel({ id: "expand", label: FULL_LABEL })).toBe("Full screen");
+    // CHANGED ON PURPOSE (the UI in every language): the short label has a key of its own,
+    // so a language may word it apart from the long one.
+    expect(en["board.stage.fullScreenShort"]).toBe("Full screen");
     expect(header).toContain("title={expandLabel}");
   });
 

@@ -19,12 +19,14 @@ import {
   listTime, previewLine, type ThreadSummary,
 } from "../feedback-conversations";
 import { useThreadList } from "../use-feedback-conversations";
+import { useT } from "../i18n";
 import type { ConversationsProps } from "./FeedbackTabs";
 import FeedbackThread, { StatusPill } from "./FeedbackThread";
 
 export default function FeedbackConversations({ account, active, announce }: ConversationsProps) {
   const [open, setOpen] = useState<ThreadSummary | null>(null);
   /** The row a thread was opened from, focused again on the way back. */
+  const tr = useT();
   const backTo = useRef<string | null>(null);
   const listRef = useRef<HTMLDivElement>(null);
   const list = useThreadList(active && open === null, account.latestAt);
@@ -72,7 +74,7 @@ export default function FeedbackConversations({ account, active, announce }: Con
                   <StatusPill status={thread.status} />
                   <span className="fc-row-preview">{previewLine(thread)}</span>
                   {thread.hasUnread && <span className="fc-dot" aria-hidden="true" />}
-                  {thread.hasUnread && <span className="vis-hidden">, unread</span>}
+                  {thread.hasUnread && <span className="vis-hidden">{tr("shell.feedback.unreadSuffix")}</span>}
                 </span>
               </button>
             </li>

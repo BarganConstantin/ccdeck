@@ -7,10 +7,14 @@ const catalog: Catalog = {
   "common.time.m": "{m}분",
   "common.details": "상세",
   "common.aboutBefore": " – ",
+  "common.aboutAfter": ".",
   "common.ago.now": "방금",
   "common.ago.m": "{n}분 전",
   "common.ago.h": "{n}시간 전",
   "common.ago.d": "{n}일 전",
+  "common.cancel": "취소",
+  "common.close": "닫기",
+  "common.notNow": "나중에",
 };
 
 export default catalog;

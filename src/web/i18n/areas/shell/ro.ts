@@ -13,6 +13,7 @@ const catalog: Catalog = {
   "shell.done": "Gata",
   "shell.back": "Înapoi",
   "shell.next": "Înainte",
+  "shell.skip": "Omite",
   "shell.skipToCanvas": "Sari la canvas",
   "shell.rail.left": "Conturi și sesiuni",
   "shell.rail.right": "Utilizare și activitate",
@@ -262,6 +263,7 @@ const catalog: Catalog = {
   "shell.chip.noticeUpgrade": "v{to} este disponibil pe npm",
   "shell.chip.noticeShow": "arată noutățile",
   "shell.chip.noticeShowBanner": "arată noutățile și anunțul",
+  "shell.chip.noticeLabel": "{to} este gata. Rulează v{from}; {what} — {does}",
   "shell.chip.runningRestart": "Rulează v{from}; v{to} este instalat pe disc. Repornește pentru a o prelua · clic pentru noutăți",
   "shell.chip.runningUpgrade": "Rulează v{from}; v{to} este pe npm · clic pentru noutăți",
 
@@ -446,6 +448,15 @@ const catalog: Catalog = {
   "shell.feedback.problem.count": "Cel mult {n} imagini.",
   "shell.feedback.problem.size": "Imaginea {n} depășește {mb} MB.",
   "shell.feedback.problem.format": "Imaginea {n} nu este PNG sau JPEG.",
+  "shell.feedback.didNotLoad": "Nu am putut încărca conversațiile tale. Reîncarcă ccdeck.",
+  "shell.feedback.tabs": "Feedback",
+  "shell.feedback.unreadSuffix": ", necitit",
+  "shell.feedback.teamSignature": "echipa ccdeck",
+  "shell.feedback.you": "Tu",
+  "shell.art.modelSec": "Sonnet 5 · 38 s",
+  "shell.banner.unreachableTitle": "Nu pot ajunge la computerul tău",
+  "shell.banner.unreachableSub": "Agenții pot rula în continuare, deci ce vezi poate fi vechi.",
+  "shell.banner.unreachableSubAt": "Agenții pot rula în continuare. Ultimele vești: {time}, deci ce vezi poate fi vechi.",
 };
 
 export default catalog;

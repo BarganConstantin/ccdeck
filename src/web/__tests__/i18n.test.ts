@@ -2,8 +2,8 @@
 // language detection, and the lookup's fallbacks.
 //
 // FAILS on: a key a catalog has that English does not (a typo or a stale key),
-// a {placeholder} set that differs from English's, or a registry entry that is
-// malformed. Only WARNS on a key a catalog lacks, because English fills it in.
+// a key English has that a catalog lacks, a {placeholder} set that differs from
+// English's, or a registry entry that is malformed.
 import { describe, expect, it } from "vitest";
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
@@ -94,6 +94,48 @@ describe("area files", () => {
     }
     expect(missing).toEqual([]);
   });
+
+  // CHANGED ON PURPOSE (the UI in every language): the check above sees only
+  // t("literal"). A key can also reach t() through tNow/tt/tr, a ternary, a
+  // *_MSG constant, a table of key names or a getter, so this reads every
+  // string in the sources that is shaped like a key of one of the catalog areas.
+  it("has English text for every string in the sources that is shaped like a key", () => {
+    const root = join(__dirname, "..");
+    const files: string[] = [];
+    const walk = (dir: string) => {
+      for (const name of readdirSync(dir)) {
+        if (name === "__tests__" || name === "i18n" || name === "node_modules") continue;
+        const path = join(dir, name);
+        if (statSync(path).isDirectory()) walk(path);
+        else if (/\.tsx?$/.test(name)) files.push(path);
+      }
+    };
+    walk(root);
+    const shaped = new RegExp(`(["'\`])((?:${AREAS.join("|")})\\.[A-Za-z][\\w.]*)\\1`, "g");
+    // A key, or the base of a plural key (its ".other" form is the one every
+    // plural has; ".one" comes with it where English tells one from many).
+    const isKey = (k: string) => k in en || `${k}.other` in en;
+    // A string shaped like a key that is not one (a file name, a storage key, a
+    // CSS name) is named here with what it is. Each must still be found.
+    const NOT_KEYS: Record<string, string> = {
+      "usage.json": "a field of the usage data, named in a source comment and never shown",
+      "usage.speed": "a field of the usage data, named in a source comment and never shown",
+      "usage.inputTokens": "a field of the usage data, named in a source comment and never shown",
+      "usage.bySpeed": "a field of the usage data, named in a source comment and never shown",
+    };
+    const found = new Set<string>();
+    const missing: string[] = [];
+    for (const file of files) {
+      for (const m of readFileSync(file, "utf8").matchAll(shaped)) {
+        if (isKey(m[2])) continue;
+        if (m[2] in NOT_KEYS) found.add(m[2]);
+        else missing.push(`${file.slice(root.length + 1)}: ${m[2]}`);
+      }
+    }
+    expect(missing).toEqual([]);
+    expect(Object.keys(NOT_KEYS).filter(k => !found.has(k)), "an exception the sources no longer hold").toEqual([]);
+    expect(Object.keys(NOT_KEYS).length).toBeLessThanOrEqual(6);
+  });
 });
 
 describe.each(LANGUAGES.filter(l => l.code !== "en"))("catalog $code", ({ code, catalog }) => {
@@ -113,9 +155,22 @@ describe.each(LANGUAGES.filter(l => l.code !== "en"))("catalog $code", ({ code, 
     expect(keys.filter(k => englishFor(k) === undefined)).toEqual([]);
   });
 
+  // CHANGED ON PURPOSE (the UI in every language): a plural form other than
+  // ".other" may use any placeholder its ".other" sibling uses, on top of the
+  // ones English's own text for it names. English writes "that session" for one,
+  // with no {count}, but Russian's "one" covers 21 and 31 as well, and its
+  // translator must be able to write the number. Every other key still has
+  // exactly English's placeholders.
   it("uses the same {placeholders} as English", () => {
-    const bad = keys.filter(k => englishFor(k) !== undefined).filter(k =>
-      placeholders(catalog[k]).join() !== placeholders(englishFor(k)!).join());
+    const bad = keys.filter(k => englishFor(k) !== undefined).filter(k => {
+      const have = placeholders(catalog[k]);
+      const want = placeholders(englishFor(k)!);
+      const plural = /^(.+)\.(zero|one|two|few|many)$/.exec(k);
+      const sibling = plural ? (en as Record<string, string>)[`${plural[1]}.other`] : undefined;
+      if (sibling === undefined) return have.join() !== want.join();
+      const room = new Set(placeholders(sibling));
+      return want.some(p => !have.includes(p)) || have.some(p => !room.has(p));
+    });
     expect(bad).toEqual([]);
   });
 
@@ -123,12 +178,14 @@ describe.each(LANGUAGES.filter(l => l.code !== "en"))("catalog $code", ({ code, 
     expect(keys.filter(k => catalog[k].trim() === "")).toEqual([]);
   });
 
-  it("reports what is missing (a warning, English fills it in)", () => {
+  // CHANGED ON PURPOSE (the UI in every language): this was a warning, since
+  // English fills a gap in; a gap is now a failure, so a new English key
+  // cannot ship without its translation in every language.
+  it("has every key English has", () => {
     const missing = enKeys.filter(k => !(k in catalog));
     const byArea = new Map<string, number>();
     for (const k of missing) byArea.set(k.split(".")[0], (byArea.get(k.split(".")[0]) ?? 0) + 1);
-    if (missing.length) console.warn(`[i18n] ${code}: ${missing.length} of ${enKeys.length} keys missing, falling back to English (${[...byArea].map(([a, n]) => `${a} ${n}`).join(", ")}):\n  ${missing.join("\n  ")}`);
-    expect(missing.length).toBeLessThanOrEqual(enKeys.length);
+    expect(missing, `${code}: ${missing.length} of ${enKeys.length} keys missing (${[...byArea].map(([a, n]) => `${a} ${n}`).join(", ")})`).toEqual([]);
   });
 });
 

@@ -13,6 +13,7 @@ const catalog: Catalog = {
   "shell.done": "完了",
   "shell.back": "戻る",
   "shell.next": "次へ",
+  "shell.skip": "スキップ",
   "shell.skipToCanvas": "キャンバスへスキップ",
   "shell.rail.left": "アカウントとセッション",
   "shell.rail.right": "使用量とアクティビティ",
@@ -122,6 +123,7 @@ const catalog: Catalog = {
   "shell.notes.restarting": "再起動中…",
   "shell.notes.check": "アップデートを確認",
   "shell.notes.restart": "ccdeck を再起動",
+  "shell.notes.more.one": "ほか{count}件の改善",
   "shell.notes.more.other": "ほか{count}件の改善",
   "shell.notes.moreDetails": "詳細を見る",
   "shell.notes.show": "詳細を表示",
@@ -132,6 +134,7 @@ const catalog: Catalog = {
   "shell.notes.restartWhy": "ccdeck を再起動します。セッション、設定、ペアリングはそのまま戻ります。",
   "shell.notes.statusUnavailable": "アップデートの状態を取得できません。",
   "shell.notes.intro.empty": "このビルドには、まだお知らせすることがありません。ほとんどのリリースはそうで、それが普通です。",
+  "shell.notes.intro.releases.one": "1件のリリース",
   "shell.notes.intro.releases.other": "{count}件のリリース",
   "shell.notes.intro.since": "前回確認したのは v{since} です。それ以降、{releases}で気づく変更がありました。上部バーのバージョンをクリックすると、またここに戻れます。",
   "shell.notes.intro.firstRun": "このブラウザーで ccdeck を実行するのは初めてなので、ここには手元の v{running} の変更を表示しています。それ以前のリリースは省略しています。上部バーのバージョンをクリックすればすべて見られます。",
@@ -215,6 +218,7 @@ const catalog: Catalog = {
   "shell.banner.restartAnyway": "それでも再起動",
   "shell.banner.clausePaused": "キャンバスが一時停止中のため、実行中のエージェントは見えません",
   "shell.banner.clauseIdle": "実行中のものはありません",
+  "shell.banner.clauseAgents.one": "エージェント{count}個が実行中です。再起動中のイベントは失われます",
   "shell.banner.clauseAgents.other": "エージェント{count}個が実行中です。再起動中のイベントは失われます",
   "shell.banner.fetchingNpx": "npx で新しいバージョンを取得中です。1分ほどかかることがあります…",
   "shell.banner.restartingProduct": "{product} を再起動中…",
@@ -251,6 +255,7 @@ const catalog: Catalog = {
   "shell.chip.noticeUpgrade": "npm に v{to} がある",
   "shell.chip.noticeShow": "新機能を表示",
   "shell.chip.noticeShowBanner": "新機能とお知らせを表示",
+  "shell.chip.noticeLabel": "{to} の準備ができました。v{from} で動作中。{what} — {does}",
   "shell.chip.runningRestart": "v{from} で動作中。v{to} はディスクにインストール済み。再起動で反映 · クリックで新機能を表示",
   "shell.chip.runningUpgrade": "v{from} で動作中。v{to} が npm にある · クリックで新機能を表示",
 
@@ -374,6 +379,7 @@ const catalog: Catalog = {
   "shell.feedback.replaceLabel": "画像{n}を置き換え：{name}{fit}",
   "shell.feedback.shotsCount": "{count}／{max}",
   "shell.feedback.shotsResized": "{of} · {resized}枚を縮小",
+  "shell.feedback.leftOut.one": "画像は最大3枚のため、1枚は追加されませんでした。",
   "shell.feedback.leftOut.other": "画像は最大3枚のため、{count}枚は追加されませんでした。",
   "shell.feedback.problem.type": "{file} は PNG でも JPEG でもないため追加されませんでした。GIF、WebP、HEIC は変換されません。先に PNG か JPEG で保存してください。",
   "shell.feedback.problem.noRoom": "{file} を入れる余裕がありません。画像は合計12 MBまでです。1枚外してから追加してください。",
@@ -384,8 +390,10 @@ const catalog: Catalog = {
   "shell.feedback.removeImage": "画像{n}を削除",
   "shell.feedback.imageRemoved": "画像を削除しました。{count}／{max}。",
   "shell.board.removed": "{label}をキャンバスから外しました。",
+  "shell.feedback.imagesAdded.one": "画像を追加しました。{total}／{max}。",
   "shell.feedback.imagesAdded.other": "画像を{count}枚追加しました。{total}／{max}。",
   "shell.feedback.imageReplaced": "画像{n}を置き換えました。{total}／{max}。",
+  "shell.feedback.lost.one": "ページの再読み込みで、スクリーンショットは保持されませんでした。送信するには追加し直してください。",
   "shell.feedback.lost.other": "ページの再読み込みで、スクリーンショット{count}枚は保持されませんでした。送信するには追加し直してください。",
   "shell.feedback.discard": "破棄",
   "shell.feedback.discardConfirm": "破棄を確定",
@@ -393,11 +401,13 @@ const catalog: Catalog = {
   "shell.feedback.discardArmed": "もう一度押すとこの下書きを消去します。元に戻せません。",
 
   // ── announcements ──
+  "shell.announce.watch.one": "Browser Watch に未読の検出が{count}件あります。",
   "shell.announce.watch.other": "Browser Watch に未読の検出が{count}件あります。",
   "shell.announce.watchNone": "Browser Watch に未読の検出はありません。",
   "shell.announce.allClear": "あなたを待っているセッションはありません。",
 
   // ── quota closes ──
+  "shell.closes.last.one": "先週は、使用{used}%、未使用{unused}%で終了",
   "shell.closes.last.other": "直近{count}週は、使用{used}%、未使用{unused}%で終了",
   "shell.closes.min": "{n}分",
   "shell.closes.hour": "{n}時間",
@@ -415,6 +425,15 @@ const catalog: Catalog = {
   "shell.feedback.problem.count": "画像は最大{n}枚までです。",
   "shell.feedback.problem.size": "{n}枚目の画像が {mb} MB を超えています。",
   "shell.feedback.problem.format": "{n}枚目の画像は PNG でも JPEG でもありません。",
+  "shell.feedback.didNotLoad": "会話を読み込めませんでした。ccdeck を再読み込みしてください。",
+  "shell.feedback.tabs": "フィードバック",
+  "shell.feedback.unreadSuffix": "、未読",
+  "shell.feedback.teamSignature": "ccdeck チーム",
+  "shell.feedback.you": "あなた",
+  "shell.art.modelSec": "Sonnet 5 · 38秒",
+  "shell.banner.unreachableTitle": "コンピューターに接続できません",
+  "shell.banner.unreachableSub": "エージェントはまだ動いている可能性があり、表示は古いかもしれません。",
+  "shell.banner.unreachableSubAt": "エージェントはまだ動いている可能性があります。最後の更新は{time}で、表示は古いかもしれません。",
 };
 
 export default catalog;

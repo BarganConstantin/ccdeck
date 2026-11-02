@@ -16,6 +16,7 @@ import { statusViewFor, type StatusHint } from "../status-hints";
 import { PANE_NAME_ATTR, paneNameOf, TERMINAL_PANEL_SELECTOR } from "../terminal-keys";
 import { useSingleKeyShortcuts } from "../use-single-key-shortcuts";
 import { Kbd } from "./Kbd";
+import { useT } from "../i18n";
 
 interface FocusPlace {
   /** The name of the pane focus is in, or null outside every pane. */
@@ -76,12 +77,13 @@ export default memo(function StatusBar({ stageOpen, zoomedOut, viewChord = null,
   /** Where Ctrl + backtick goes, when the deck claims it (status-hints.ts). */
   viewChord?: "workspace" | "board" | null;
 }) {
+  const t = useT();
   const singleKeys = useSingleKeyShortcuts();
   const { pane, onCard } = useFocusPlace(stageOpen);
   const standard = statusViewFor({ stageOpen, pane, onCard, zoomedOut, singleKeys, platform: platformName(), viewChord, waiting });
   const view = extra && pane == null ? extra : standard;
   return (
-    <footer className="statusbar" aria-label="Keys" data-layer={view.layer}>
+    <footer className="statusbar" aria-label={t("board.keys.statusBar")} data-layer={view.layer}>
       <span className="statusbar-who"><span className="statusbar-dot" aria-hidden />{view.label}</span>
       {view.hints.map(h => (
         <span className="statusbar-hint" key={h.word}>

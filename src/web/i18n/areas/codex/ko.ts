@@ -114,6 +114,7 @@ const catalog: Catalog = {
   "codex.add.copied": "복사됨",
   "codex.add.copy": "복사",
   "codex.add.waiting": "승인을 기다리는 중입니다.",
+  "codex.add.waitingMinutes.one": "승인을 기다리는 중입니다. 코드는 {count}분 더 유효합니다.",
   "codex.add.waitingMinutes.other": "승인을 기다리는 중입니다. 코드는 {count}분 더 유효합니다.",
   "codex.add.onlyIfYou": "직접 시작한 로그인일 때만 이 코드를 입력하세요.",
   "codex.add.checking": "로그인했습니다. 계정을 읽는 중…",

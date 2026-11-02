@@ -577,7 +577,9 @@ describe("where Remove lives and what follows it", () => {
     expect(app).toMatch(/const pickSession = useCallback\(\(sessionId: string\) => \{\s*if \(phone && stage\.enabled\) \{\s*if \(removedAgentIds\.has\(sessionId\)\) bringBack\(\[sessionId\]\);[\s\S]*?\}\s*(?:\/\/[^\n]*\s*)?openSession\(sessionId\);/);
     expect(app).toMatch(/if \(removedAgentIds\.has\(sessionId\)\) bringBack\(\[sessionId\]\);\s*focusSession\(sessionId\);/);
     // The row (components/RailParts.tsx since V4's Attention rail) says it in the model tag's own face.
-    expect(readFileSync(fileURLToPath(new URL("../components/RailParts.tsx", import.meta.url)), "utf8")).toMatch(/\{removed && <span className="sl-model">off the board<\/span>\}/);
+    expect(readFileSync(fileURLToPath(new URL("../components/RailParts.tsx", import.meta.url)), "utf8")).toMatch(/\{removed && <span className="sl-model">\{t\("board\.rail\.offBoard"\)\}<\/span>\}/);
+    // CHANGED ON PURPOSE (the UI in every language): the words are behind the key.
+    expect(en["board.rail.offBoard"]).toBe("off the board");
     expect(list).toMatch(/\{t\("board\.list\.bringBack", \{ count \}\)\}/);
     // The words behind the key are the ones V4 drew: Bring back N removed card(s).
     expect(en["board.list.bringBack.one"]).toBe("Bring back {count} removed card");

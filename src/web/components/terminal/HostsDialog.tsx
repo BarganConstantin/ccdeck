@@ -21,6 +21,7 @@ import { Dialog, DialogClose } from "../Dialog";
 import { useModalDismiss, useScrimDismiss } from "../use-modal-dismiss";
 import { endAllLabel, hostReason, hostsConsequences, type HostsView } from "./older-hosts";
 import { agentName, folderName } from "./stage-model";
+import { t, useT } from "../../i18n";
 
 export interface HostsReviewProps {
   view: HostsView;
@@ -51,19 +52,19 @@ export function HostsReview(p: HostsReviewProps) {
           {sessions.map(s => (
             <li key={s.id}>
               <b>{s.name}</b>
-              <span>{agentName(s.agent)} · {folderName(s.cwd)} · started {shortAgo(p.now - s.started)}</span>
+              <span>{t("board.hosts.row", { agent: agentName(s.agent), folder: folderName(s.cwd), ago: shortAgo(p.now - s.started) })}</span>
             </li>
           ))}
         </ul>
         <div className="oh-facts">
-          <p className="oh-ends">Ends: {afterLabel(ends)}</p>
-          <p className="oh-stays">Stays: {afterLabel(stays)}</p>
+          <p className="oh-ends">{t("board.hosts.endsLine", { text: afterLabel(ends) })}</p>
+          <p className="oh-stays">{t("board.hosts.staysLine", { text: afterLabel(stays) })}</p>
         </div>
         {p.view.launchesRefused && <p className="oh-last">{p.view.launchesRefused}</p>}
         {p.said && <p className="oh-last" role="status">{p.said}</p>}
       </section>
       <footer className="modal-foot">
-        <button type="button" ref={p.keepRef} className="btn" onClick={p.onKeep}>Keep them running</button>
+        <button type="button" ref={p.keepRef} className="btn" onClick={p.onKeep}>{t("board.hosts.keep")}</button>
         <button
           type="button"
           className="btn danger"
@@ -82,6 +83,7 @@ export interface HostsDialogProps extends Omit<HostsReviewProps, "keepRef"> {
 }
 
 export default function HostsDialog(p: HostsDialogProps) {
+  const tt = useT();
   const keepRef = useRef<HTMLButtonElement>(null);
   const dialogRef = useModalDismiss(p.onCancel, { focusRef: keepRef, layer: CONFIRM_LAYER });
   const scrimPress = useScrimDismiss(p.onCancel);
@@ -91,11 +93,11 @@ export default function HostsDialog(p: HostsDialogProps) {
         <header className="modal-head">
           <div className="modal-title">
             <span id="older-hosts-title" className="modal-tool-name">
-              {many ? "Sessions on older session hosts" : "Sessions on an older session host"}
+              {many ? tt("board.hosts.titleMany") : tt("board.hosts.titleOne")}
             </span>
           </div>
           <div className="modal-actions">
-            <DialogClose onClick={p.onCancel} label="Cancel (Esc)" />
+            <DialogClose onClick={p.onCancel} label={tt("board.hosts.cancelEsc")} />
           </div>
         </header>
         <HostsReview {...p} keepRef={keepRef} />

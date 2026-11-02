@@ -25,6 +25,7 @@ import { costChip } from "../card-cost";
 import { fmtCost } from "../pricing";
 import type { AgentNodeData, ToolCall, WaitingBlock } from "../types";
 import { sheetParts, sheetText } from "./sheet-source";
+import { en } from "../i18n/en";
 import { WEB_DIR } from "./client-source";
 import { withoutComments } from "./tsx-scan";
 
@@ -600,7 +601,9 @@ describe("the Time tab", () => {
     expect(source).toMatch(/addEventListener\("visibilitychange"/);
     expect(source).toMatch(/removeEventListener\("visibilitychange"/);
     // No "Reading this turn" for ever: a plain sentence when there never was a reading.
-    expect(source).toContain("This turn could not be read. Trying again.");
+    // CHANGED ON PURPOSE (the UI in every language): the sentence is read through its key.
+    expect(source).toContain('t("board.insTime.failed")');
+    expect(en["board.insTime.failed"]).toBe("This turn could not be read. Trying again.");
   });
   it("shows no other session's reading, and no table rebuilt by the clock", () => {
     const source = readFileSync(join(WEB_DIR, "components/InspectorTime.tsx"), "utf8");

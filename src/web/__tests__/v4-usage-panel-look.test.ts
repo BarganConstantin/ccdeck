@@ -7,6 +7,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { quotaMeterColor } from "../components/QuotaBar";
 import { sheetText } from "./sheet-source";
+import { en } from "../i18n/en";
 import { WEB_DIR } from "./client-source";
 
 interface Rule { media: string; selectors: string[]; decls: Record<string, string> }
@@ -87,8 +88,12 @@ describe("the header", () => {
     const foot = panel.slice(panel.indexOf('<div className="up-acts">'));
     expect(foot).toContain("onClick={refreshAll}");
     expect(foot).toContain("setQuotaHistoryOpen(");
-    expect(foot).toContain("Refresh");
-    expect(foot).toContain("Quota history");
+    // CHANGED ON PURPOSE (the UI in every language): both words are read through their keys.
+    // The visible label, not the button's title: the markup after the icon.
+    expect(foot).toMatch(/<KitIcon name="update" className="refresh-glyph" \/>\{t\("usage\.refreshWord"\)\}\s*<\/button>/);
+    expect(foot).toMatch(/<KitIcon name="history" \/>\{t\("usage\.history"\)\}\s*<\/button>/);
+    expect(en["usage.refreshWord"]).toBe("Refresh");
+    expect(en["usage.history"]).toBe("Quota history");
     expect(decl(".up-quiet", "height")).toBe("24px");
   });
 });

@@ -494,6 +494,10 @@ const catalog: Catalog = {
   "integrations.srv.moveDestinationLarge": "The destination is too large to determine the last issue. Refresh and try again.",
   "integrations.srv.moveAnchorGroup": "The rank anchor must be in the target group. Refresh the board.",
   "integrations.srv.serverOldUnknown": "This server runs Jira of an unknown version. Personal access tokens need Jira Server or Data Center 8.14 or newer, so the deck cannot connect to it.",
+  "integrations.token.cloud.path": "id.atlassian.com → Security → API tokens",
+  "integrations.token.server.profile": "Profile",
+  "integrations.token.server.pats": "Personal Access Tokens",
+  "integrations.token.server.create": "Create token",
 };
 
 export default catalog;

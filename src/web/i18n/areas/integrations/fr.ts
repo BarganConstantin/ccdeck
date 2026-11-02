@@ -171,6 +171,8 @@ const catalog: Catalog = {
   "integrations.settings.noLongerSaved": "Cette connexion n’est plus enregistrée.",
   "integrations.settings.reading": "Lecture des connexions…",
   "integrations.settings.notConnected": "Non connecté",
+  "integrations.settings.connectedGroup": "Connecté",
+  "integrations.settings.notConnectedGroup": "Non connecté",
   "integrations.settings.count.one": "{count} connexion enregistrée",
   "integrations.settings.count.other": "{count} connexions enregistrées",
   "integrations.settings.moreInstances": "+{n} autres instances",
@@ -194,10 +196,12 @@ const catalog: Catalog = {
   "integrations.explore.cap.jira": "Tableaux, sprints, backlog et tickets",
   "integrations.explore.cap.github": "Dépôts, pull requests et Actions",
   "integrations.explore.cap.gitlab": "Projets, demandes de fusion et pipelines",
+  "integrations.explore.access.jira": "Lecture et écriture",
   "integrations.explore.access.read": "Lecture seule",
   "integrations.explore.open": "Ouvrir",
   "integrations.explore.openAria": "Ouvrir {label}",
   "integrations.explore.notAvailable": "Indisponible",
+  "integrations.explore.footer": "Vous choisissez ce que chaque jeton peut faire. Les jetons restent sur cet ordinateur.",
   "integrations.explore.manageInSettings": "Gérer dans les paramètres",
   "integrations.modal.connection": "Connexion",
   "integrations.split.width": "Largeur du détail",
@@ -490,6 +494,10 @@ const catalog: Catalog = {
   "integrations.srv.moveDestinationLarge": "La destination est trop grande pour déterminer son dernier ticket. Actualisez et réessayez.",
   "integrations.srv.moveAnchorGroup": "L’ancre de rang doit être dans le groupe cible. Actualisez le tableau.",
   "integrations.srv.serverOldUnknown": "Ce serveur exécute une version inconnue de Jira. Les jetons d’accès personnels exigent Jira Server ou Data Center 8.14 ou ultérieur, donc ccdeck ne peut pas s’y connecter.",
+  "integrations.token.cloud.path": "id.atlassian.com → Security → API tokens",
+  "integrations.token.server.profile": "Profil",
+  "integrations.token.server.pats": "Jetons d’accès personnels",
+  "integrations.token.server.create": "Créer un jeton",
 };
 
 export default catalog;

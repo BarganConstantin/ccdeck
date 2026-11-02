@@ -12,6 +12,7 @@ import { railGlyph, railLine, railTime, rowSpoken, rowTooltip, type RailGlyphKin
 import { fadeIn, tokenMs } from "../rail-motion";
 import type { UsageMeter } from "../rail-usage";
 import { FadeFigure, useFillJump } from "./FadeFigure";
+import { useT } from "../i18n";
 
 /** The 14px status glyph. Working breathes on --pulse-live and nothing else
  *  moves on its own; Waiting is the alert triangle and holds still, because
@@ -107,6 +108,7 @@ export function openKeysOnEnter(
 }
 
 export function RailRow({ row: r, group, now, selected, removed, leaving, landNonce, onSelect, onOpenKeys }: RailRowProps) {
+  const t = useT();
   const line = railLine(r, group);
   const time = railTime(r, group, now);
   // The highlight is the row's own once it has been handed over, so it plays
@@ -142,7 +144,7 @@ export function RailRow({ row: r, group, now, selected, removed, leaving, landNo
                 <span className="sl-label">{r.label}</span>
                 {r.modelId && <span className="sl-model" title={modelChipTitle(r.modelId, r.effort)}>{modelChipText(r.modelId, r.effort)}</span>}
                 {/* Words, in the row's name: the press on this row does something different. */}
-                {removed && <span className="sl-model">off the board</span>}
+                {removed && <span className="sl-model">{t("board.rail.offBoard")}</span>}
               </span>
               {time && <span className={`sl-time ${time.tone}`}><span className="vis-hidden">{time.spoken}</span>{time.text}</span>}
             </span>
@@ -164,6 +166,7 @@ export function RailRow({ row: r, group, now, selected, removed, leaving, landNo
  *  button that opens the Usage panel (or closes it, as its stripe door does).
  *  Nothing at all without a reading (rail-usage.ts), not an empty box. */
 export function RailUsage({ meter, onPress }: { meter: UsageMeter | null; onPress: () => void }) {
+  const t = useT();
   const jump = useFillJump(meter?.fill ?? 0);
   if (!meter) return null;
   // A stale reading leads with its age and drops the 7-day figure from the line
@@ -175,7 +178,7 @@ export function RailUsage({ meter, onPress }: { meter: UsageMeter | null; onPres
       <button type="button" className="sl-usage-btn" onClick={onPress} data-stale={meter.stale || undefined} data-level={meter.level} aria-label={meter.spoken}>
         <span className="sl-usage-line1" aria-hidden>
           {meter.name && <span className="sl-usage-name" title={meter.name}>{meter.name}</span>}
-          <span className="sl-usage-what">5-hour limit</span>
+          <span className="sl-usage-what">{t("board.rail.fiveHour")}</span>
           <FadeFigure className="sl-usage-pct" text={meter.pctText} value={meter.fill} />
         </span>
         <span className="sl-usage-bar" aria-hidden>

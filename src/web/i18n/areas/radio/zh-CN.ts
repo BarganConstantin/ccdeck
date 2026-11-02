@@ -86,7 +86,9 @@ const catalog: Catalog = {
   "radio.empty.hint.discover": "搜索其他名称，或更改筛选条件。",
   "radio.clearFilters": "清除筛选",
   "radio.clearSearch": "清除搜索",
+  "radio.summary.streams.one": "{count} 个工作区直播流",
   "radio.summary.streams.other": "{count} 个工作区直播流",
+  "radio.summary.stations.one": "{count} 个广播电台",
   "radio.summary.stations.other": "{count} 个广播电台",
   "radio.summary.none": "没有匹配的结果",
   "radio.map.aria": "地理探索",
@@ -181,6 +183,7 @@ const catalog: Catalog = {
   "radio.rec.denied": "麦克风访问被拒绝或不可用。",
   "radio.rec.failed": "录音失败，请重试。",
   "radio.rec.format": "此浏览器无法录制受支持的音频格式。",
+  "radio.directory.source": "Radio Browser",
 };
 
 export default catalog;

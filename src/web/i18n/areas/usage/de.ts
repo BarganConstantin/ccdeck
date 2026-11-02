@@ -100,6 +100,7 @@ const catalog: Catalog = {
   "usage.sessionNote.over": "Zusammen ergibt das {sum}, mehr als die {total} oben: Was eine Sitzung kostet und was ein Tag kostet, sind zwei verschiedene Messungen und müssen nicht übereinstimmen.",
   "usage.quota.standardLimits": "Nur die Standard-Limits von Codex; zusätzliche Limits und Guthaben sind nicht enthalten.",
   "usage.quota.hint.codexProfileChanged": "Die Codex-Anmeldung hat sich gerade geändert – sie wird innerhalb einer Minute neu gelesen.",
+  "usage.refreshWord": "Aktualisieren",
 };
 
 export default catalog;

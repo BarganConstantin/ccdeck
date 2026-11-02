@@ -25,6 +25,7 @@ import { AgentCard } from "./AgentNode";
 import { ContextView } from "./ContextModal";
 import InspectorTime from "./InspectorTime";
 import { KitIcon } from "./kit-icons";
+import { useT } from "../i18n";
 
 // The tabs' icons are the kit's Agents, Time and Context (V4's Figma).
 const TAB_GLYPH: Record<InspectorTab, () => ReactNode> = {
@@ -49,6 +50,7 @@ export default function Inspector({ selected, agents, revision = 0, onSelectAgen
   /** The detail panel's own sections (Detail.tsx), shown under the tree. */
   detail: ReactNode;
 }) {
+  const tr = useT();
   const [tab, setTab] = useState<InspectorTab>(loadInspectorTab);
   const tabRefs = useRef<Partial<Record<InspectorTab, HTMLButtonElement | null>>>({});
   const choose = (next: InspectorTab) => { setTab(next); saveInspectorTab(next); };
@@ -66,7 +68,7 @@ export default function Inspector({ selected, agents, revision = 0, onSelectAgen
   return (
     <>
       <header className="insp-h">
-        <div className="insp-tabs" role="tablist" aria-label="Inspector" onKeyDown={onKeyDown}>
+        <div className="insp-tabs" role="tablist" aria-label={tr("board.inspector.label")} onKeyDown={onKeyDown}>
           {INSPECTOR_TABS.map(t => {
             const Glyph = TAB_GLYPH[t];
             return (
@@ -88,8 +90,8 @@ export default function Inspector({ selected, agents, revision = 0, onSelectAgen
         <button
           type="button"
           className="glyph-btn insp-fold"
-          title="Fold the Inspector"
-          aria-label="Fold the Inspector"
+          title={tr("board.inspector.fold")}
+          aria-label={tr("board.inspector.fold")}
           onClick={onClose}
         >
           <KitIcon name="chevron-left" />
@@ -117,12 +119,13 @@ export default function Inspector({ selected, agents, revision = 0, onSelectAgen
  *  (Figma, "Empty workspace"). The same header and tabs, none of them
  *  pressable, over two lines saying so. No Fold: the Inspector is a column
  *  here (workspace.css), not a panel to close. */
-export const EMPTY_INSPECTOR_TITLE = "No session in focus";
-export const EMPTY_INSPECTOR_LINE = "Open one from the list.";
+export const EMPTY_INSPECTOR_TITLE_MSG = "board.inspector.emptyTitle";
+export const EMPTY_INSPECTOR_LINE_MSG = "board.inspector.emptyLine";
 
 export function EmptyInspector() {
+  const tr = useT();
   return (
-    <aside className="detail" aria-label="Detail" data-empty="">
+    <aside className="detail" aria-label={tr("board.inspector.detail")} data-empty="">
       <SheetHandle />
       <header className="insp-h">
         {/* The tabs' look, with nothing to switch between: not a tablist. */}
@@ -138,8 +141,8 @@ export function EmptyInspector() {
         </div>
       </header>
       <div className="insp-b insp-none">
-        <p className="insp-none-title">{EMPTY_INSPECTOR_TITLE}</p>
-        <p className="insp-note">{EMPTY_INSPECTOR_LINE}</p>
+        <p className="insp-none-title">{tr(EMPTY_INSPECTOR_TITLE_MSG)}</p>
+        <p className="insp-note">{tr(EMPTY_INSPECTOR_LINE_MSG)}</p>
       </div>
     </aside>
   );
@@ -170,17 +173,18 @@ function AgentsTab({ selected, agents, revision, onSelectAgent, detail }: {
   // the same way).
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const rows = useMemo(() => agentTree(agents, selected.sessionId), [agents, selected.sessionId, revision]);
+  const tr = useT();
   return (
     <>
       <InspectorHead
-        title="Agents"
+        title={tr("board.inspector.agents")}
         qualifier={subagentCount(rows)}
         figure={rows.length > 0 ? sessionCostLabel(rows[0].agent) : null}
       />
       <ul className="insp-tree">
         {rows.map(row => <TreeItem key={row.agent.id} row={row} revision={revision} current={row.agent.id === selected.id} onSelectAgent={onSelectAgent} />)}
       </ul>
-      <p className="insp-note">Who started whom, read from the transcript. Each card shows its own model, cost and time.</p>
+      <p className="insp-note">{tr("board.inspector.agentsNote")}</p>
       <div className="insp-detail">{detail}</div>
     </>
   );
@@ -227,10 +231,11 @@ const TreeItem = memo(function TreeItem({ row, current, onSelectAgent }: { row: 
 function ContextTab({ agent }: { agent: AgentNodeData }) {
   // Whole k and a whole percent (V4's Figma), the Term header chip's figure.
   const { used, limit } = contextFill(agent);
+  const tr = useT();
   return (
     <>
       <InspectorHead
-        title="Context window"
+        title={tr("board.stage.contextWindow")}
         qualifier={agent.model ? modelChipText(agent.model) : null}
         figure={contextFigure(used, limit)}
       />

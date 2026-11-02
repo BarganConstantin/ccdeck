@@ -16,6 +16,7 @@
 // root carries data-snap while the widths ease back on --dur-move and
 // --ease-stage (stage-shell.css); dragging stays 1:1, and a key is at once.
 import { useRef, useState, type KeyboardEvent, type PointerEvent } from "react";
+import { useT } from "../../i18n";
 import { colsAtX, snapCols, stepCols, type ColsRange } from "../../stage-geometry";
 
 export interface DividerProps {
@@ -62,6 +63,7 @@ function snapBack(from: Element): void {
 }
 
 export default function Divider(p: DividerProps) {
+  const t = useT();
   const [held, setHeld] = useState(false);
   // Read by the handlers, which can fire twice for one release (pointerup,
   // then lostpointercapture) before the state above has re-rendered.
@@ -116,11 +118,11 @@ export default function Divider(p: DividerProps) {
         className="ts-divider"
         role="separator"
         aria-orientation="vertical"
-        aria-label="Command Panel width"
+        aria-label={t("board.stage.width")}
         aria-valuemin={p.range.min}
         aria-valuemax={p.range.max}
         aria-valuenow={p.cols}
-        aria-valuetext={`${p.cols} columns`}
+        aria-valuetext={t("board.stage.widthColumns", { cols: p.cols })}
         tabIndex={0}
         data-held={held || undefined}
         onPointerDown={onPointerDown}

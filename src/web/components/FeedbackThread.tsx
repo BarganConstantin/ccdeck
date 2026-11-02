@@ -29,6 +29,7 @@ import {
   type StatusView, type ThreadItem, type ThreadSummary,
 } from "../feedback-conversations";
 import { useThread } from "../use-feedback-conversations";
+import { useT } from "../i18n";
 import { openableUrl } from "../use-account";
 
 /** A status as its pill: the API's label, toned by its code. */
@@ -56,6 +57,7 @@ function ImagesOnWeb({ item, webUrl }: { item: ThreadItem; webUrl: string }) {
 
 /** The rows of a thread, as the timeline lays them out. */
 export function Timeline({ items, webUrl, now }: { items: readonly ThreadItem[]; webUrl: string; now: number }) {
+  const tr = useT();
   return (
     <>
       {timeline(items, now).map(row => {
@@ -72,8 +74,8 @@ export function Timeline({ items, webUrl, now }: { items: readonly ThreadItem[];
         return (
           <div key={row.key} className="fc-run" data-side={row.side}>
             {row.side === "team"
-              ? <p className="fc-signature">{row.signature ?? "ccdeck team"}</p>
-              : <p className="vis-hidden">You</p>}
+              ? <p className="fc-signature">{row.signature ?? tr("shell.feedback.teamSignature")}</p>
+              : <p className="vis-hidden">{tr("shell.feedback.you")}</p>}
             {row.messages.map(m => (
               <div key={m.seq} className="fc-message">
                 <p className="fc-bubble"><MessageText text={m.text} /></p>

@@ -21,6 +21,7 @@ import type { SizeOwner } from "../../terminal-protocol";
 import type { PanelUnavailable, TerminalProvider, TerminalTarget, TmuxProgress } from "../../terminal-api";
 import { shortAgo } from "../../relative-time";
 import { elapsed } from "../../duration";
+import { t } from "../../i18n";
 
 // ---------------------------------------------------------------------------
 // The stage's own phase — what the terminal under the header is doing.
@@ -182,47 +183,51 @@ export function waitedFor(ms: number): string {
 export function stageStatusFrom(facts: BoardFacts, now: number): StageStatus {
   if (facts.closedAt != null) {
     const ago = shortAgo(now - facts.closedAt);
-    return { state: "ended", phrase: ago === "just now" ? "ended just now" : `ended ${ago}` };
+    return { state: "ended", phrase: ago === t("common.ago.now") ? t("board.stage.phrase.endedJustNow") : t("board.stage.phrase.endedAgo", { ago }) };
   }
   if (facts.waiting) {
     return {
       state: "waiting",
-      phrase: "waiting",
+      phrase: t("board.queue.waiting"),
       emphasis: waitedFor(now - facts.waiting.since),
       ...(facts.waiting.tool ? { tool: facts.waiting.tool } : {}),
       ...(facts.waiting.detail ? { arg: facts.waiting.detail } : {}),
     };
   }
   if (facts.yourTurn && !facts.tool) {
-    if (facts.fresh) return { state: "ready", phrase: "ready", arg: "for a first prompt" };
+    if (facts.fresh) return { state: "ready", phrase: t("board.stage.phrase.ready"), arg: t("board.stage.phrase.firstPrompt") };
     const ago = facts.lastTurnEndAt != null ? shortAgo(now - facts.lastTurnEndAt) : null;
-    return { state: "idle", phrase: "your turn", ...(ago ? { arg: ago === "just now" ? "last turn just now" : `last turn ${ago}` } : {}) };
+    return { state: "idle", phrase: t("board.list.yourTurn"), ...(ago ? { arg: lastTurnWords(ago) } : {}) };
   }
   // A session that has been asked nothing waits for its first prompt, even
   // while it still reads active from its start: it is not working.
-  if (facts.fresh && !facts.tool && !facts.subagentsLive) return { state: "ready", phrase: "ready", arg: "for a first prompt" };
+  if (facts.fresh && !facts.tool && !facts.subagentsLive) return { state: "ready", phrase: t("board.stage.phrase.ready"), arg: t("board.stage.phrase.firstPrompt") };
   if (facts.active) {
-    const out: StageStatus = { state: "working", phrase: "working" };
+    const out: StageStatus = { state: "working", phrase: t("board.stage.phrase.working") };
     if (facts.tool) {
       out.tool = facts.tool.name;
       if (facts.tool.subject) out.arg = facts.tool.subject;
       if (facts.tool.startedAt != null) out.seconds = elapsed(facts.tool.startedAt, undefined, now);
     } else if (facts.subagentsLive) {
-      out.arg = `${facts.subagentsLive} ${facts.subagentsLive === 1 ? "subagent" : "subagents"} running`;
+      out.arg = t("board.stage.subagentsRunning", { count: facts.subagentsLive });
     }
     return out;
   }
-  if (facts.fresh) return { state: "ready", phrase: "ready", arg: "for a first prompt" };
+  if (facts.fresh) return { state: "ready", phrase: t("board.stage.phrase.ready"), arg: t("board.stage.phrase.firstPrompt") };
   if (facts.lastTurnEndAt != null) {
-    const ago = shortAgo(now - facts.lastTurnEndAt);
-    return { state: "idle", phrase: "idle", arg: ago === "just now" ? "last turn just now" : `last turn ${ago}` };
+    return { state: "idle", phrase: t("board.stage.phrase.idle"), arg: lastTurnWords(shortAgo(now - facts.lastTurnEndAt)) };
   }
-  return { state: "idle", phrase: "idle" };
+  return { state: "idle", phrase: t("board.stage.phrase.idle") };
+}
+
+/** "last turn 4m", or "last turn just now". */
+function lastTurnWords(ago: string): string {
+  return ago === t("common.ago.now") ? t("board.stage.phrase.lastTurnNow") : t("board.stage.phrase.lastTurn", { ago });
 }
 
 /** What a reconnecting pane adds to the header's "reconnecting…", and the
  *  keys bar's second half (V4's Figma). */
-export const RECONNECT_NOTE = "Nothing typed now is sent.";
+export const RECONNECT_NOTE_MSG = "board.stage.reconnectNote";
 
 /**
  * What the header says once the stage's own phase is taken into account. The
@@ -236,32 +241,32 @@ export function headerStatus(board: StageStatus | null, phase: StagePhase): Stag
     case "attaching":
       // A reconnect says what the frozen frame cannot: keys typed now go nowhere.
       return phase.reconnect
-        ? { state: "attaching", phrase: "reconnecting…", arg: RECONNECT_NOTE }
-        : { state: "attaching", phrase: "attaching…" };
+        ? { state: "attaching", phrase: t("board.stage.phrase.reconnecting"), arg: t(RECONNECT_NOTE_MSG) }
+        : { state: "attaching", phrase: t("board.stage.attaching") };
     case "starting":
-      return { state: "starting", phrase: "starting…", arg: phase.cwd };
+      return { state: "starting", phrase: t("board.stage.phrase.starting"), arg: phase.cwd };
     case "tmux-installing":
-      return { state: "starting", phrase: "setting up tmux…" };
+      return { state: "starting", phrase: t("board.stage.settingUpTmux") };
     case "tmux-missing":
-      return { state: "detached", phrase: "not attached" };
+      return { state: "detached", phrase: t("board.stage.phrase.notAttached") };
     case "error":
       // The engine is not here to attach anything: the board's "working" is
       // true of the session, but not of this panel.
-      return phase.code ? { state: "detached", phrase: "not attached" } : board ?? { state: "none", phrase: "" };
+      return phase.code ? { state: "detached", phrase: t("board.stage.phrase.notAttached") } : board ?? { state: "none", phrase: "" };
     case "not-attachable":
       // Started outside the deck and still running there: the board's own
       // tool and argument are still true, only the place is different.
       if (phase.target.kind === "C" && board && board.state !== "ended") {
         const { tool, arg } = board;
-        return { state: "elsewhere", phrase: "running elsewhere", ...(tool ? { tool } : {}), ...(arg ? { arg } : {}) };
+        return { state: "elsewhere", phrase: t("board.stage.phrase.elsewhere"), ...(tool ? { tool } : {}), ...(arg ? { arg } : {}) };
       }
-      return board ?? { state: "ended", phrase: "ended" };
+      return board ?? { state: "ended", phrase: t("board.stage.phrase.ended") };
     case "ended":
       // The socket said so before the board's sweep did. "Just now" only when
       // the stage watched it happen; a pane that was already dead when it was
       // opened ended some time ago, and the stage cannot say when.
       if (board?.state === "ended") return board;
-      return { state: "ended", phrase: phase.atOpen ? "ended" : "ended just now" };
+      return { state: "ended", phrase: phase.atOpen ? t("board.stage.phrase.ended") : t("board.stage.phrase.endedJustNow") };
     default:
       return board ?? { state: "none", phrase: "" };
   }
@@ -282,14 +287,12 @@ export function spineLive(status: StageStatus, phase: StagePhase, streaming: boo
  *  launch, or the deck's record says so — where the deck's "started outside
  *  the deck" would be untrue. It says why the deck may not reach it, and that
  *  it was not ended. */
-export const LAUNCHED_UNREACHABLE =
-  "This session was started from the Command Panel, but this deck cannot reach it: it may be running under another Windows sign-in, or its owner cannot be verified from here. It has not been ended.";
+export const LAUNCHED_UNREACHABLE_MSG = "board.stage.launchedUnreachable";
 
 /** Case C on Windows for a session the deck cannot say who started (the
  *  target's provenance is "unknown"): neither sentence above would be known
  *  to be true. */
-export const PROVENANCE_UNKNOWN =
-  "This deck cannot reach this session, and cannot tell whether it was started from the Command Panel: it may be running under another Windows sign-in or in a terminal outside the deck. It has not been ended.";
+export const PROVENANCE_UNKNOWN_MSG = "board.stage.provenanceUnknown";
 
 /** Whether a card with no pane is LAUNCHED_UNREACHABLE's: case C, on Windows,
  *  for a session this deck launched — this tab's launch, or the deck's record
@@ -313,19 +316,19 @@ export function provenanceUnknown(target: TerminalTarget, place: { windows?: boo
  *  say. The integrator hands it to the deck's announcement reducer. */
 export function stageAnnouncement(name: string, phase: StagePhase): string | null {
   switch (phase.kind) {
-    case "live": return `${name} is open in the Command Panel.`;
-    case "ended": return `${name} ended. The Command Panel shows its last frame.`;
-    case "detached": return `${name} was detached from the Command Panel. It keeps running.`;
-    case "not-attachable": return phase.stillRunning ? `${name} is still running in another terminal.` : `${name} has no pane to attach to.`;
-    case "tmux-installing": return "Setting up tmux for the Command Panel.";
-    case "tmux-missing": return "tmux is not installed, so the Command Panel cannot attach.";
+    case "live": return t("board.stage.announceLive", { name });
+    case "ended": return t("board.stage.announceEnded", { name });
+    case "detached": return t("board.stage.announceDetached", { name });
+    case "not-attachable": return phase.stillRunning ? t("board.stage.announceStillRunning", { name }) : t("board.stage.announceNoPane", { name });
+    case "tmux-installing": return t("board.stage.announceTmuxSetup");
+    case "tmux-missing": return t("board.stage.announceTmuxMissing");
     case "error": return errorWords(phase.message);
     default: return null;
   }
 }
 
 /** What the Error card says when the stage cannot say more. */
-export const PANEL_STOPPED = "The Command Panel stopped. The session may still be running.";
+export const PANEL_STOPPED_MSG = "board.stage.panelStopped";
 
 /** The engine's own refusals of a malformed question (terminal-target.mjs
  *  checkTargetQuery): the session has no id the deck can use, or no provider.
@@ -339,12 +342,12 @@ const SERVER_REFUSALS: ReadonlySet<string> = new Set([
 /** The words an error is shown with: the deck's own sentence as it is, a raw
  *  server refusal as the Error card's. */
 export function errorWords(message: string): string {
-  return SERVER_REFUSALS.has(message.trim()) ? PANEL_STOPPED : message;
+  return SERVER_REFUSALS.has(message.trim()) ? t(PANEL_STOPPED_MSG) : message;
 }
 
 /** What is said when the stage closes. Never "stopped": it did not stop. */
 export function closedAnnouncement(name: string | null): string {
-  return name ? `Command Panel closed. ${name} keeps running.` : "Command Panel closed.";
+  return name ? t("board.stage.closedNamed", { name }) : t("board.stage.closed");
 }
 
 // ---------------------------------------------------------------------------

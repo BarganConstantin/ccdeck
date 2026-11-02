@@ -434,6 +434,15 @@ const catalog: Catalog = {
   "shell.feedback.problem.count": "At most {n} images.",
   "shell.feedback.problem.size": "Image {n} is over {mb} MB.",
   "shell.feedback.problem.format": "Image {n} is not a PNG or a JPEG.",
+  "shell.feedback.didNotLoad": "Couldn't load your conversations. Reload the deck.",
+  "shell.feedback.tabs": "Feedback",
+  "shell.feedback.unreadSuffix": ", unread",
+  "shell.feedback.teamSignature": "ccdeck team",
+  "shell.feedback.you": "You",
+  "shell.art.modelSec": "Sonnet 5 · 38s",
+  "shell.banner.unreachableTitle": "Can’t reach your computer",
+  "shell.banner.unreachableSub": "Agents may still be running, so what you see may be old.",
+  "shell.banner.unreachableSubAt": "Agents may still be running. Last news {time}, so what you see may be old.",
 };
 
 export default catalog;

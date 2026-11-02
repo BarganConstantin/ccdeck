@@ -14,6 +14,7 @@ import { boardScopeTitle } from "../board-usage";
 import { MISSING_PRICE_NOTE } from "../reported-cost";
 import type { AgentNodeData, TokenUsage, WaitingBlock } from "../types";
 import { sheetText } from "./sheet-source";
+import { en } from "../i18n/en";
 
 const read = (rel: string) => readFileSync(fileURLToPath(new URL(rel, import.meta.url)), "utf8");
 const sheet = sheetText().replace(/\/\*[\s\S]*?\*\//g, "");
@@ -346,7 +347,9 @@ describe("the component", () => {
   const src = read("../components/BoardHeader.tsx");
   it("is memoised, named, and takes figures not the agents map", () => {
     expect(src).toContain("export default memo(BoardHeader)");
-    expect(src).toContain('aria-label="Board summary"');
+    // CHANGED ON PURPOSE (the UI in every language): named by its key.
+    expect(src).toContain('aria-label={t("board.header.summary")}');
+    expect(en["board.header.summary"]).toBe("Board summary");
     const code = src.replace(/\/\*[\s\S]*?\*\//g, "").split("\n").filter(l => !/^\s*(\/\/|\{\/\*)/.test(l)).join("\n");
     expect(code).not.toMatch(/agents|useState|useEffect|setInterval|fetch\(/);
   });

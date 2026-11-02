@@ -12,6 +12,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { join } from "node:path";
 import { sheetText } from "./sheet-source";
+import { en } from "../i18n/en";
 import { blockedSessions, nextWaiting, prevWaiting, type BlockedSession } from "../ambient-counts";
 import { KEY_HELP, documentedKeys } from "../key-help";
 import { BOARD_HINTS, DECK_HINTS, statusViewFor } from "../status-hints";
@@ -401,7 +402,9 @@ describe("the landmark, the focus listeners and the first-load graph", () => {
   const bar = read("components/StatusBar.tsx");
 
   it("is one footer named Keys, with no live region", () => {
-    expect(bar).toMatch(/<footer className="statusbar" aria-label="Keys"/);
+    // CHANGED ON PURPOSE (the UI in every language): the name is read through its key.
+    expect(bar).toMatch(/<footer className="statusbar" aria-label=\{t\("board\.keys\.statusBar"\)\}/);
+    expect(en["board.keys.statusBar"]).toBe("Keys");
     expect(bar).not.toMatch(/aria-live|role="status"|role="alert"/);
   });
 

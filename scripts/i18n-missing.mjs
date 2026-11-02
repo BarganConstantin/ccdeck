@@ -14,29 +14,27 @@
 // inside a JSX {expression}, that reads as English (letters and a space, or a
 // capitalised word) and is not already a t("key") call. What does not: product
 // and technical names (scripts/i18n-allowlist.json), CSS classes and ids,
-// import paths, anything that has no letters. It is a heuristic for an
-// area's to-do list, never a CI gate: it exits 0.
-import { readdirSync, readFileSync, statSync } from "node:fs";
-import { join, relative, resolve, extname } from "node:path";
+// import paths, anything that has no letters. It is a heuristic, and the CLI
+// exits 0; src/web/__tests__/i18n-unkeyed.test.ts runs the same scan
+// (scanTree, below) and fails on a string left in a component.
+import { readdirSync, readFileSync, realpathSync, statSync } from "node:fs";
+import { join, relative, resolve, extname, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createRequire } from "node:module";
 
 const require = createRequire(import.meta.url);
 const ts = require("typescript");
-const root = resolve(fileURLToPath(new URL("..", import.meta.url)));
+const here = fileURLToPath(import.meta.url);
+export const root = resolve(fileURLToPath(new URL("..", import.meta.url)));
 const allow = JSON.parse(readFileSync(join(root, "scripts/i18n-allowlist.json"), "utf8"));
 const WORDS = new Set(allow.words.map(w => w.toLowerCase()));
 const ATTRS = new Set(["title", "aria-label", "aria-description", "aria-roledescription", "placeholder", "alt", "label", "summary"]);
 
-const args = process.argv.slice(2);
-const flags = new Set(args.filter(a => a.startsWith("--")));
-const targets = args.filter(a => !a.startsWith("--"));
-
-function walk(path, out) {
+function walk(path, out, logic) {
   const st = statSync(path);
   if (st.isDirectory()) {
-    for (const name of readdirSync(path)) if (name !== "__tests__" && name !== "node_modules" && name !== "i18n") walk(join(path, name), out);
-  } else if (extname(path) === ".tsx" || (flags.has("--logic") && extname(path) === ".ts" && !path.endsWith(".d.ts") && !path.endsWith(".generated.ts"))) out.push(path);
+    for (const name of readdirSync(path)) if (name !== "__tests__" && name !== "node_modules" && name !== "i18n") walk(join(path, name), out, logic);
+  } else if (extname(path) === ".tsx" || (logic && extname(path) === ".ts" && !path.endsWith(".d.ts") && !path.endsWith(".generated.ts"))) out.push(path);
   return out;
 }
 
@@ -87,8 +85,10 @@ function scanLogic(file) {
   return found;
 }
 
-function scan(file) {
-  if (flags.has("--logic") && !file.endsWith("x")) return scanLogic(file);
+/** The strings in one file that a reader would see in English. `logic` also
+ *  reads the .ts files' sentences (scanLogic). */
+export function scan(file, logic = false) {
+  if (logic && !file.endsWith("x")) return scanLogic(file);
   const text = readFileSync(file, "utf8");
   const sf = ts.createSourceFile(file, text, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
   const found = [];
@@ -97,13 +97,17 @@ function scan(file) {
   const insideT = node => { for (let p = node.parent; p; p = p.parent) if (ts.isCallExpression(p) && /^(t|useT\(\))$/.test(p.expression.getText(sf))) return true; return false; };
 
   function inJsx(node) { for (let p = node.parent; p; p = p.parent) if (ts.isJsxElement(p) || ts.isJsxSelfClosingElement(p) || ts.isJsxFragment(p)) return true; return false; }
+  // Text directly inside <code> or <kbd> is a command, a key or a file: shown as it is in every language.
+  const inCode = node => ts.isJsxElement(node.parent) && /^(code|kbd)$/.test(node.parent.openingElement.tagName.getText(sf));
+  // A literal compared with === is a value the code tests, never a word the reader sees.
+  const compared = node => ts.isBinaryExpression(node.parent) && /^[=!]==?$/.test(node.parent.operatorToken.getText(sf));
 
   function visit(node) {
-    if (ts.isJsxText(node)) add(node, node.getText(sf), "text");
+    if (ts.isJsxText(node)) { if (!inCode(node)) add(node, node.getText(sf), "text"); }
     else if (ts.isJsxAttribute(node) && ATTRS.has(node.name.getText(sf)) && node.initializer) {
       const init = node.initializer;
       if (ts.isStringLiteral(init)) add(init, init.text, "attr " + node.name.getText(sf));
-    } else if ((ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node) || ts.isTemplateHead(node)) && inJsx(node) && !insideT(node)) {
+    } else if ((ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node) || ts.isTemplateHead(node)) && inJsx(node) && !insideT(node) && !compared(node) && !inCode(node)) {
       const p = node.parent;
       // attribute values were handled above; an import, a className and a key are not text
       if (ts.isJsxAttribute(p)) { /* handled */ }
@@ -119,15 +123,27 @@ function scan(file) {
   return found;
 }
 
-const files = (targets.length ? targets : ["src/web/components"]).flatMap(t => walk(resolve(t), []));
-const rows = files.map(f => ({ file: relative(root, f), hits: scan(f) })).filter(r => r.hits.length);
-rows.sort((a, b) => b.hits.length - a.hits.length);
+/** Every file under `targets` (paths, absolute or relative to the cwd) with the
+ *  strings it still writes in English, most first. */
+export function scanTree(targets, { logic = false } = {}) {
+  const files = targets.flatMap(t => walk(resolve(t), [], logic));
+  const rows = files.map(f => ({ file: relative(root, f).split(sep).join("/"), hits: scan(f, logic) })).filter(r => r.hits.length);
+  rows.sort((a, b) => b.hits.length - a.hits.length);
+  return { rows, files: files.length };
+}
 
-if (flags.has("--json")) console.log(JSON.stringify(rows.map(r => ({ file: r.file, count: r.hits.length, hits: r.hits })), null, 2));
-else {
-  for (const r of rows) {
-    console.log(`${String(r.hits.length).padStart(4)}  ${r.file}`);
-    if (flags.has("--list")) for (const h of r.hits) console.log(`        ${h.line}: [${h.kind}] ${h.text}`);
+if (process.argv[1] && realpathSync(process.argv[1]) === realpathSync(here)) {
+  const args = process.argv.slice(2);
+  const flags = new Set(args.filter(a => a.startsWith("--")));
+  const targets = args.filter(a => !a.startsWith("--"));
+  const { rows, files } = scanTree(targets.length ? targets : ["src/web/components"], { logic: flags.has("--logic") });
+
+  if (flags.has("--json")) console.log(JSON.stringify(rows.map(r => ({ file: r.file, count: r.hits.length, hits: r.hits })), null, 2));
+  else {
+    for (const r of rows) {
+      console.log(`${String(r.hits.length).padStart(4)}  ${r.file}`);
+      if (flags.has("--list")) for (const h of r.hits) console.log(`        ${h.line}: [${h.kind}] ${h.text}`);
+    }
+    console.log(`\n${rows.reduce((n, r) => n + r.hits.length, 0)} strings in ${rows.length} of ${files} files`);
   }
-  console.log(`\n${rows.reduce((n, r) => n + r.hits.length, 0)} strings in ${rows.length} of ${files.length} files`);
 }

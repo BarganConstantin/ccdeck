@@ -207,8 +207,8 @@ export default function CanvasControls({
       {onTerminal && (
         <ControlButton
           onClick={e => onTerminal(e.currentTarget)}
-          title="Open the Command Panel — the selected session, or the last one"
-          aria-label="Open the Command Panel"
+          title={t("board.controls.openPanelTip")}
+          aria-label={t("board.controls.openPanel")}
         >
           <KitIcon name="terminal" />
         </ControlButton>
@@ -224,13 +224,14 @@ export default function CanvasControls({
  *  duration. Named for both halves, because a reader who hears only "100%"
  *  does not learn that it can be pressed. */
 function ZoomLevel({ zoomReset }: { zoomReset: () => void }) {
+  const t = useT();
   const level = useStore(zoomLevel);
   return (
     <ControlButton
       data-zoom-level=""
       onClick={zoomReset}
-      title="Reset the zoom to 100%"
-      aria-label={`Zoom ${level}, reset to 100%`}
+      title={t("board.controls.zoomReset")}
+      aria-label={t("board.controls.zoomLabel", { level })}
     >
       {level}
     </ControlButton>

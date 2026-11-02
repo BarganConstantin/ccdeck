@@ -712,6 +712,7 @@ const catalog: Catalog = {
   "insights.srv.badSession": "Choose a Claude or Codex session and a supported pricing mode.",
   "insights.srv.busy": "Usage reports are already being read. Try again in a moment.",
   "insights.srv.invalidLookup": "Invalid session lookup.",
+  "insights.context.cacheReads": "Cache reads",
 };
 
 export default catalog;

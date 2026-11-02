@@ -7,6 +7,7 @@ import { useEffect, useRef, useState } from "react";
 import { UI_LABELS } from "../account-ui-fields";
 import { accountActions } from "../use-account";
 import { selfPressAccepted, selfPressProps } from "../panel-press";
+import { useT } from "../i18n";
 
 type Preview = Awaited<ReturnType<typeof accountActions.preview>>;
 
@@ -27,6 +28,7 @@ export const PREVIEW_COPY = {
 };
 
 export default function AccountSyncPreview({ onDone }: { onDone: () => void }) {
+  const t = useT();
   const [preview, setPreview] = useState<Preview | null>(null);
   const [failed, setFailed] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -59,9 +61,9 @@ export default function AccountSyncPreview({ onDone }: { onDone: () => void }) {
 
   if (failed) {
     return (
-      <div className="account-preview" role="group" aria-label="Share settings">
+      <div className="account-preview" role="group" aria-label={t("settings.account.shareLabel")}>
         <p className="settings-row-note">{PREVIEW_COPY.failed}</p>
-        <div className="account-actions"><button type="button" className="btn" onClick={onDone}>Close</button></div>
+        <div className="account-actions"><button type="button" className="btn" onClick={onDone}>{t("common.close")}</button></div>
       </div>
     );
   }
@@ -69,15 +71,15 @@ export default function AccountSyncPreview({ onDone }: { onDone: () => void }) {
 
   const shared = preview.shared;
   return (
-    <div className="account-preview" role="group" aria-label="Share settings">
+    <div className="account-preview" role="group" aria-label={t("settings.account.shareLabel")}>
       {note && <p className="settings-row-said" role="status">{note}</p>}
       {!shared ? (
         <>
           <p className="settings-row-note">{PREVIEW_COPY.none}</p>
           <div className="account-actions">
-            <button type="button" className="btn" onClick={onDone} {...selfPressProps(busy)}>Cancel</button>
+            <button type="button" className="btn" onClick={onDone} {...selfPressProps(busy)}>{t("common.cancel")}</button>
             <button type="button" className="btn primary" {...selfPressProps(busy)}
-              onClick={() => choose({ mode: "shared", join: "publish", previewRevision: 0 })}>Publish this deck's settings</button>
+              onClick={() => choose({ mode: "shared", join: "publish", previewRevision: 0 })}>{t("settings.account.publishDeck")}</button>
           </div>
         </>
       ) : (
@@ -87,9 +89,11 @@ export default function AccountSyncPreview({ onDone }: { onDone: () => void }) {
           ) : (
             <table className="account-diff">
               <caption className="settings-row-note">
-                {`Shared settings r${shared.revision}${shared.updatedBy?.name ? `, last changed on ${shared.updatedBy.name}` : ""}`}
+                {shared.updatedBy?.name
+                  ? t("settings.account.sharedRevisionBy", { revision: shared.revision, name: shared.updatedBy.name })
+                  : t("settings.account.sharedRevision", { revision: shared.revision })}
               </caption>
-              <thead><tr><th scope="col">Setting</th><th scope="col">This deck</th><th scope="col">Shared</th></tr></thead>
+              <thead><tr><th scope="col">{t("settings.account.colSetting")}</th><th scope="col">{t("settings.account.colThisDeck")}</th><th scope="col">{t("settings.account.colShared")}</th></tr></thead>
               <tbody>
                 {preview.differences.map(d => (
                   <tr key={d.key}>
@@ -102,11 +106,11 @@ export default function AccountSyncPreview({ onDone }: { onDone: () => void }) {
             </table>
           )}
           <div className="account-actions">
-            <button type="button" className="btn" onClick={onDone} {...selfPressProps(busy)}>Cancel</button>
+            <button type="button" className="btn" onClick={onDone} {...selfPressProps(busy)}>{t("common.cancel")}</button>
             <button type="button" className="btn" {...selfPressProps(busy)}
-              onClick={() => choose({ mode: "shared", join: "publish", previewRevision: shared.revision })}>Use this deck's settings for all</button>
+              onClick={() => choose({ mode: "shared", join: "publish", previewRevision: shared.revision })}>{t("settings.account.useDeckForAll")}</button>
             <button type="button" className="btn primary" {...selfPressProps(busy)}
-              onClick={() => choose({ mode: "shared", join: "use-shared" })}>Use shared settings</button>
+              onClick={() => choose({ mode: "shared", join: "use-shared" })}>{t("settings.account.useShared")}</button>
           </div>
         </>
       )}

@@ -31,10 +31,11 @@ import { useEffect, useLayoutEffect, useRef, useState, type MutableRefObject } f
 import { copyText } from "../../copy-text";
 import { CAUGHT_KEYS_ATTR } from "../../shortcuts";
 import type { TmuxProgress } from "../../terminal-api";
-import { LAUNCHED_UNREACHABLE, PROVENANCE_UNKNOWN, agentName, errorWords, frameRun, launchedUnreachable, provenanceUnknown, type FrameRun, type StagePhase } from "./stage-model";
+import { LAUNCHED_UNREACHABLE_MSG, PROVENANCE_UNKNOWN_MSG, agentName, errorWords, frameRun, launchedUnreachable, provenanceUnknown, type FrameRun, type StagePhase } from "./stage-model";
 import { CopyGlyph, StageGlyph } from "./stage-icons";
 import type { WaitingCard } from "./stage-board";
 import { Kbd } from "../Kbd";
+import { t as tNow, useT } from "../../i18n";
 import { useSingleKeyShortcuts } from "../../use-single-key-shortcuts";
 import { useWaitingLoader } from "../../use-waiting-loader";
 import { chatShown, ScreensSlot, useScreenFlags, type ScreensProps } from "../../use-screens";
@@ -43,8 +44,7 @@ import { chatShown, ScreensSlot, useScreenFlags, type ScreensProps } from "../..
  *  hang off it. */
 export const EMPTY_NEW_SESSION_ID = "ts-empty-new-session";
 
-export const STILL_RUNNING_NOTE =
-  "It is still running in that terminal. Reopening needs it stopped first: finish or quit it there, then check again.";
+export const STILL_RUNNING_NOTE_MSG = "board.stage.stillRunning";
 
 /** What the board knows that helps a card say where the session is. */
 export interface StageContext {
@@ -87,14 +87,14 @@ export interface StageBodyProps {
 }
 
 /** The empty Workspace pane's words, word for word from the frame. */
-export const WS_EMPTY_TITLE = "Nothing is waiting";
-export const WS_EMPTY_LINE = "Open a session from the list, or start a new one.";
+export const WS_EMPTY_TITLE_MSG = "board.stage.wsEmptyTitle";
+export const WS_EMPTY_LINE_MSG = "board.stage.wsEmptyLine";
 
 /** The first line of the tmux card: what is wrong with tmux, as a fact. */
 export function tmuxFact(reason: string): string {
-  if (reason === "too-old") return "tmux · older than 3.2 on this machine";
-  if (reason === "missing") return "tmux · not found on this machine";
-  return "tmux · not available here";
+  if (reason === "too-old") return tNow("board.stage.tmuxTooOld");
+  if (reason === "missing") return tNow("board.stage.tmuxMissing");
+  return tNow("board.stage.tmuxUnavailable");
 }
 
 /** Why the deck's own tmux is not there, when it tried to fetch it — said
@@ -110,22 +110,23 @@ export function setupShare(progress?: TmuxProgress): number | null {
 
 /** The words beside the bar. */
 export function setupLine(progress?: TmuxProgress): string {
-  if (!progress) return "Starting the download…";
-  if (progress.stage === "checking") return "Checking the build…";
+  if (!progress) return tNow("board.stage.setupStarting");
+  if (progress.stage === "checking") return tNow("board.stage.setupChecking");
   const mb = (n: number) => (n / 1_000_000).toFixed(1);
-  return progress.total ? `${mb(progress.received)} of ${mb(progress.total)} MB` : `${mb(progress.received)} MB`;
+  return progress.total
+    ? tNow("board.stage.setupProgress", { received: mb(progress.received), total: mb(progress.total) })
+    : tNow("board.stage.setupReceived", { received: mb(progress.received) });
 }
 
 export function downloadNote(reason: string): string {
-  if (reason === "download_failed") return "The deck could not download its own tmux. Check the connection, or install tmux yourself.";
-  if (reason === "checksum_mismatch" || reason === "too_large") {
-    return "The deck downloaded its own tmux, but it was not the build this deck trusts, so it was not used.";
-  }
-  if (reason === "extract_failed" || reason === "does_not_run") return "The deck's own tmux would not run on this machine.";
-  return "The deck could not set up its own tmux.";
+  if (reason === "download_failed") return tNow("board.stage.downloadFailed");
+  if (reason === "checksum_mismatch" || reason === "too_large") return tNow("board.stage.downloadUntrusted");
+  if (reason === "extract_failed" || reason === "does_not_run") return tNow("board.stage.downloadWontRun");
+  return tNow("board.stage.downloadOther");
 }
 
 function InstallPlate({ line }: { line: string }) {
+  const t = useT();
   const [copied, setCopied] = useState(false);
   return (
     <div className="ts-cmd">
@@ -133,8 +134,8 @@ function InstallPlate({ line }: { line: string }) {
       <button
         type="button"
         className="glyph-btn"
-        aria-label={copied ? "Copied" : "Copy the command"}
-        title={copied ? "Copied" : "Copy"}
+        aria-label={copied ? t("board.stage.copied") : t("board.stage.copyCommand")}
+        title={copied ? t("board.stage.copied") : t("board.stage.copy")}
         onClick={() => { void copyText(line).then(ok => setCopied(ok)); }}
       >
         <CopyGlyph />
@@ -151,6 +152,7 @@ export function WorkspaceEmpty({ waiting, onOpen, onNewSession }: {
   onOpen?(): void;
   onNewSession(anchorId: string): void;
 }) {
+  const t = useT();
   // The `n` on the button is N, a single key: not named with those turned off.
   const singleKeys = useSingleKeyShortcuts();
   if (waiting) {
@@ -158,7 +160,7 @@ export function WorkspaceEmpty({ waiting, onOpen, onNewSession }: {
       <div className="ts-card ts-ws-empty" data-waiting="">
         <StageGlyph kind="waiting" />
         <div className="ts-ws-head">
-          <span className="ts-ws-title">{waiting.name} is waiting on you</span>
+          <span className="ts-ws-title">{t("board.stage.waitingOnYou", { name: waiting.name })}</span>
           <span className="ts-ws-wait">{waiting.waited}</span>
         </div>
         <p className="ts-ws-ask">
@@ -166,7 +168,7 @@ export function WorkspaceEmpty({ waiting, onOpen, onNewSession }: {
           {waiting.command && <> <code>{waiting.command}</code></>}
         </p>
         <button type="button" className="btn ts-ws-open" data-stage-land onClick={onOpen}>
-          <span>Open {waiting.name}</span>
+          <span>{t("board.stage.open", { name: waiting.name })}</span>
           {singleKeys && <Kbd>n</Kbd>}
         </button>
       </div>
@@ -175,11 +177,11 @@ export function WorkspaceEmpty({ waiting, onOpen, onNewSession }: {
   return (
     <div className="ts-card">
       <div className="ts-empty-block">
-        <p className="ts-ws-title">{WS_EMPTY_TITLE}</p>
-        <p className="ts-text">{WS_EMPTY_LINE}</p>
+        <p className="ts-ws-title">{t(WS_EMPTY_TITLE_MSG)}</p>
+        <p className="ts-text">{t(WS_EMPTY_LINE_MSG)}</p>
         <div className="ts-acts">
           <button type="button" id={EMPTY_NEW_SESSION_ID} className="btn primary" aria-haspopup="dialog" data-stage-land onClick={() => onNewSession(EMPTY_NEW_SESSION_ID)}>
-            New session
+            {t("board.newSession.title")}
           </button>
         </div>
       </div>
@@ -191,16 +193,17 @@ export function WorkspaceEmpty({ waiting, onOpen, onNewSession }: {
  *  what the body shows. `held`: a switch is holding the last frame up.
  *  Exported so the suite can draw each one. */
 export function StateCard(p: Omit<StageBodyProps, "hostRef"> & { held?: boolean; timed?: "in" | "out" }) {
+  const t = useT();
   const { phase } = p;
   switch (phase.kind) {
     case "empty":
       if (p.workspace) return <WorkspaceEmpty waiting={p.waiting} onOpen={p.onOpenWaiting} onNewSession={p.onNewSession} />;
       return (
         <div className="ts-card">
-          <p className="ts-text">Click a session on the board to watch it here, or start a new one.</p>
+          <p className="ts-text">{t("board.stage.emptyBoard")}</p>
           <div className="ts-acts">
             <button type="button" id={EMPTY_NEW_SESSION_ID} className="btn primary" aria-haspopup="dialog" data-stage-land onClick={() => p.onNewSession(EMPTY_NEW_SESSION_ID)}>
-              New session
+              {t("board.newSession.title")}
             </button>
           </div>
         </div>
@@ -210,13 +213,13 @@ export function StateCard(p: Omit<StageBodyProps, "hostRef"> & { held?: boolean;
       if (phase.reconnect || p.held) return null;
       return (
         <div className="ts-card" data-timed={p.timed}>
-          <div className="ts-text ts-wait"><StageGlyph kind="working" /><span>attaching…</span></div>
+          <div className="ts-text ts-wait"><StageGlyph kind="working" /><span>{t("board.stage.attaching")}</span></div>
         </div>
       );
     case "starting":
       return (
         <div className="ts-card">
-          <div className="ts-text ts-wait"><StageGlyph kind="working" /><span>Starting {agentName(phase.agent)} in {phase.cwd}</span></div>
+          <div className="ts-text ts-wait"><StageGlyph kind="working" /><span>{t("board.stage.starting", { agent: agentName(phase.agent), cwd: phase.cwd })}</span></div>
         </div>
       );
     case "not-attachable": {
@@ -230,15 +233,15 @@ export function StateCard(p: Omit<StageBodyProps, "hostRef"> & { held?: boolean;
           {/* One paragraph: after a refused Reopen the deck says the session is
               still running, and that sentence is the whole body. */}
           {phase.stillRunning
-            ? <p className="ts-text" role="status">{STILL_RUNNING_NOTE}</p>
-            : <p className="ts-text">{ours ? LAUNCHED_UNREACHABLE : unsure ? PROVENANCE_UNKNOWN : target.label}</p>}
+            ? <p className="ts-text" role="status">{t(STILL_RUNNING_NOTE_MSG)}</p>
+            : <p className="ts-text">{ours ? t(LAUNCHED_UNREACHABLE_MSG) : unsure ? t(PROVENANCE_UNKNOWN_MSG) : target.label}</p>}
           <div className="ts-acts">
             {adoptable && (
               <button type="button" className={phase.stillRunning ? "btn" : "btn primary"} aria-busy={phase.busy || undefined} data-stage-land onClick={p.onAdopt}>
-                {phase.stillRunning ? "Check again" : "Reopen here"}
+                {phase.stillRunning ? t("board.stage.checkAgain") : t("board.stage.reopenHere")}
               </button>
             )}
-            <button type="button" className="btn" data-stage-land={adoptable ? undefined : true} onClick={p.onNotNow}>Not now</button>
+            <button type="button" className="btn" data-stage-land={adoptable ? undefined : true} onClick={p.onNotNow}>{t("common.notNow")}</button>
           </div>
         </div>
       );
@@ -248,14 +251,11 @@ export function StateCard(p: Omit<StageBodyProps, "hostRef"> & { held?: boolean;
       const line = setupLine(phase.progress);
       return (
         <div className="ts-card">
-          <div className="ts-title">tmux · setting up</div>
-          <p className="ts-text">
-            This machine has no tmux the Command Panel can use, so the deck is fetching its own: about a megabyte, once. It
-            stays in the deck's folder; nothing is installed on the system.
-          </p>
+          <div className="ts-title">{t("board.stage.tmuxSettingUp")}</div>
+          <p className="ts-text">{t("board.stage.tmuxFetching")}</p>
           <div className="ts-setup">
             <div
-              className="ts-setup-bar" role="progressbar" aria-label="Fetching tmux" aria-valuemin={0} aria-valuemax={100}
+              className="ts-setup-bar" role="progressbar" aria-label={t("board.stage.tmuxFetchingLabel")} aria-valuemin={0} aria-valuemax={100}
               aria-valuenow={share == null ? undefined : Math.round(share * 100)} aria-valuetext={line}
               data-unknown={share == null || undefined}
             >
@@ -264,7 +264,7 @@ export function StateCard(p: Omit<StageBodyProps, "hostRef"> & { held?: boolean;
             <span className="ts-setup-line">{line}</span>
           </div>
           <div className="ts-acts">
-            <button type="button" className="btn" onClick={p.onNotNow}>Not now</button>
+            <button type="button" className="btn" onClick={p.onNotNow}>{t("common.notNow")}</button>
           </div>
         </div>
       );
@@ -275,13 +275,12 @@ export function StateCard(p: Omit<StageBodyProps, "hostRef"> & { held?: boolean;
           <div className="ts-title">{tmuxFact(phase.reason)}</div>
           {phase.download && <p className="ts-note">{downloadNote(phase.download)}</p>}
           <p className="ts-text">
-            The Command Panel runs each session inside the deck's own tmux, which is what lets it keep running when you
-            close the panel or the deck restarts. {phase.reason === "too-old" ? "Update it" : "Install it"}, then check again.
+            {t("board.stage.twoSentences", { first: t("board.stage.tmuxWhy"), second: phase.reason === "too-old" ? t("board.stage.updateIt") : t("board.stage.installIt") })}
           </p>
           {phase.install && <InstallPlate line={phase.install} />}
           <div className="ts-acts">
             <button type="button" className="btn" aria-busy={phase.busy || undefined} data-stage-land onClick={p.onRetry}>
-              {phase.busy ? "Checking…" : "Check again"}
+              {phase.busy ? t("board.stage.checking") : t("board.stage.checkAgain")}
             </button>
           </div>
         </div>
@@ -298,10 +297,10 @@ export function StateCard(p: Omit<StageBodyProps, "hostRef"> & { held?: boolean;
           <div className="ts-acts">
             {again && (
               <button type="button" className="btn" aria-busy={phase.busy || undefined} data-stage-land onClick={p.onRetry}>
-                {check ? (phase.busy ? "Checking…" : "Check again") : "Try again"}
+                {check ? (phase.busy ? t("board.stage.checking") : t("board.stage.checkAgain")) : t("board.stage.tryAgain")}
               </button>
             )}
-            <button type="button" className="btn" data-stage-land={again ? undefined : true} onClick={p.onNotNow}>Not now</button>
+            <button type="button" className="btn" data-stage-land={again ? undefined : true} onClick={p.onNotNow}>{t("common.notNow")}</button>
           </div>
         </div>
       );

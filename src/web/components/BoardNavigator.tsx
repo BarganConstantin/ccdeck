@@ -19,6 +19,7 @@ import {
 } from "../navigator-flip";
 import { AlertMark, StateMark } from "./StateMark";
 import { agentName } from "./terminal/stage-model";
+import { useT } from "../i18n";
 
 /**
  * THE BOARD, GATHERED TO THE LEFT WHILE A SESSION HAS THE STAGE.
@@ -115,6 +116,7 @@ export const NavigatorView = memo(forwardRef<BoardNavigatorHandle, NavigatorView
   { clusters, sessions, width, density, attachedId, onOpen, onNewSession },
   ref,
 ) {
+  const tr = useT();
   const frame = useMemo(
     () => navigatorFrame(navigatorClusters(clusters, sessions), width, density),
     [clusters, sessions, width, density],
@@ -210,7 +212,7 @@ export const NavigatorView = memo(forwardRef<BoardNavigatorHandle, NavigatorView
       ref={rootRef}
       className="board-nav"
       role="group"
-      aria-label="Sessions"
+      aria-label={tr("board.nav.sessions")}
       data-density={density}
       onKeyDown={onKeyDown}
     >
@@ -221,14 +223,14 @@ export const NavigatorView = memo(forwardRef<BoardNavigatorHandle, NavigatorView
             id={NAV_NEW_SESSION_ID}
             className="btn nav-new"
             aria-haspopup="dialog"
-            aria-label="New session"
-            title="Start Claude or Codex in a project"
+            aria-label={tr("board.newSession.title")}
+            title={tr("board.newSession.hint")}
             onClick={e => onNewSession(e.currentTarget)}
           >
             <svg viewBox="0 0 14 14" width="14" height="14" aria-hidden="true" focusable="false">
               <path d="M7 2.5v9M2.5 7h9" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" fill="none" />
             </svg>
-            <span className="nav-new-word">New session</span>
+            <span className="nav-new-word">{tr("board.newSession.title")}</span>
           </button>
         )}
         <span className="nav-count">{sessionCount(frame.tiles.length)}</span>

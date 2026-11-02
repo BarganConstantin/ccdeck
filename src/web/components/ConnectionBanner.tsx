@@ -10,7 +10,7 @@ import { UnreachableGlyph } from "./action-glyphs";
 import BannerMark from "./BannerMark";
 import { outageSentence } from "../status-pill";
 import type { useAutoRestart } from "../use-auto-restart";
-import { currentLanguage, useT } from "../i18n";
+import { currentLanguage, t as tNow, useT } from "../i18n";
 
 type Restart = ReturnType<typeof useAutoRestart>;
 
@@ -18,8 +18,8 @@ type Restart = ReturnType<typeof useAutoRestart>;
  *  honest that the link dropped, not that the agents stopped. The apostrophe is
  *  the curly one the frame draws. The sentence names the last news when the
  *  page heard any (use-event-stream.ts), and says it plainly when it never did. */
-export const UNREACHABLE_TITLE = "Can\u2019t reach your computer";
-export const UNREACHABLE_SUB = "Agents may still be running, so what you see may be old.";
+export const UNREACHABLE_TITLE_MSG = "shell.banner.unreachableTitle";
+export const UNREACHABLE_SUB_MSG = "shell.banner.unreachableSub";
 
 /** The last news as a clock time, 24-hour like the frame's "14:02", in the
  *  language the deck is set to, and with the day in front when it was not
@@ -34,19 +34,20 @@ export function lastNewsTime(at: number, now: number = Date.now()): string {
 
 /** The card's second line: the last news named when there is one. */
 export function unreachableSub(lastNewsAt: number | null | undefined, now: number = Date.now()): string {
-  if (lastNewsAt == null) return UNREACHABLE_SUB;
-  return `Agents may still be running. Last news ${lastNewsTime(lastNewsAt, now)}, so what you see may be old.`;
+  if (lastNewsAt == null) return tNow(UNREACHABLE_SUB_MSG);
+  return tNow("shell.banner.unreachableSubAt", { time: lastNewsTime(lastNewsAt, now) });
 }
 
 /** The "Can't reach your computer" card: the phone's dropped connection. Inside
  *  the Sessions panel when it is up (SessionList's `offline`), else under the
  *  top bar (DeckBanner). */
 export function OfflineCard({ lastNewsAt }: { lastNewsAt?: number | null }) {
+  const t = useT();
   return (
     <div className="conn-banner conn-banner-phone" role="alert">
       <span className="conn-unreachable"><UnreachableGlyph /></span>
       <span className="conn-phone-text">
-        <span className="conn-phone-title">{UNREACHABLE_TITLE}</span>
+        <span className="conn-phone-title">{t(UNREACHABLE_TITLE_MSG)}</span>
         <span className="conn-phone-sub">{unreachableSub(lastNewsAt)}</span>
       </span>
     </div>

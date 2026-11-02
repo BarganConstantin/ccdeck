@@ -13,6 +13,7 @@ const catalog: Catalog = {
   "shell.done": "完成",
   "shell.back": "返回",
   "shell.next": "下一步",
+  "shell.skip": "跳过",
   "shell.skipToCanvas": "跳到画布",
   "shell.rail.left": "账号与会话",
   "shell.rail.right": "用量与活动",
@@ -123,6 +124,7 @@ const catalog: Catalog = {
   "shell.notes.restarting": "正在重新启动…",
   "shell.notes.check": "检查更新",
   "shell.notes.restart": "重新启动 ccdeck",
+  "shell.notes.more.one": "另有 {count} 项改进",
   "shell.notes.more.other": "另有 {count} 项改进",
   "shell.notes.moreDetails": "更多详情",
   "shell.notes.show": "显示详情",
@@ -133,6 +135,7 @@ const catalog: Catalog = {
   "shell.notes.restartWhy": "重新启动 ccdeck。会话、设置和配对都会保持原样。",
   "shell.notes.statusUnavailable": "无法获取更新状态。",
   "shell.notes.intro.empty": "此版本目前没有需要说明的内容。大多数版本都是如此，这正是我们的本意。",
+  "shell.notes.intro.releases.one": "1 个版本",
   "shell.notes.intro.releases.other": "{count} 个版本",
   "shell.notes.intro.since": "您上次看到的是 v{since}。此后有 {releases}带来了您会注意到的变化。点击顶栏中的版本号即可再次查看。",
   "shell.notes.intro.firstRun": "ccdeck 尚未在此浏览器中运行过，所以这里列出的是 v{running}（您当前使用的版本）的更改。更早的版本不在此重复；点击顶栏中的版本号即可查看全部。",
@@ -218,6 +221,7 @@ const catalog: Catalog = {
   "shell.banner.restartAnyway": "仍然重新启动",
   "shell.banner.clausePaused": "画布已暂停，看不到正在运行的代理",
   "shell.banner.clauseIdle": "当前没有正在运行的任务",
+  "shell.banner.clauseAgents.one": "有 {count} 个代理正在运行，重新启动期间它们的事件会丢失",
   "shell.banner.clauseAgents.other": "有 {count} 个代理正在运行，重新启动期间它们的事件会丢失",
   "shell.banner.fetchingNpx": "正在用 npx 获取新版本，可能需要一分钟…",
   "shell.banner.restartingProduct": "{product} 正在重新启动…",
@@ -255,6 +259,7 @@ const catalog: Catalog = {
   "shell.chip.noticeUpgrade": "npm 上有可用的 v{to}",
   "shell.chip.noticeShow": "显示新功能",
   "shell.chip.noticeShowBanner": "显示新功能和通知",
+  "shell.chip.noticeLabel": "{to} 已就绪。当前运行 v{from}；{what}——{does}",
   "shell.chip.runningRestart": "当前运行 v{from}；磁盘上已安装 v{to}。重新启动即可使用 · 点击查看新功能",
   "shell.chip.runningUpgrade": "当前运行 v{from}；npm 上有 v{to} · 点击查看新功能",
 
@@ -382,6 +387,7 @@ const catalog: Catalog = {
   "shell.feedback.replaceLabel": "替换第 {n} 张图片：{name}{fit}",
   "shell.feedback.shotsCount": "{count} / {max}",
   "shell.feedback.shotsResized": "{of} · {resized} 张已缩放",
+  "shell.feedback.leftOut.one": "最多三张图片，所以有一张未添加。",
   "shell.feedback.leftOut.other": "最多三张图片，所以有 {count} 张未添加。",
   "shell.feedback.problem.type": "{file} 不是 PNG 或 JPEG，所以没有添加。GIF、WebP 和 HEIC 不会转换；请先另存为 PNG 或 JPEG。",
   "shell.feedback.problem.noRoom": "已没有空间容纳 {file}：图片总共最多 12 MB。请先移除一张再添加。",
@@ -392,8 +398,10 @@ const catalog: Catalog = {
   "shell.feedback.removeImage": "移除第 {n} 张图片",
   "shell.feedback.imageRemoved": "已移除图片，当前 {count} / {max}。",
   "shell.board.removed": "已将 {label} 从画布移除。",
+  "shell.feedback.imagesAdded.one": "已添加图片，当前 {total} / {max}。",
   "shell.feedback.imagesAdded.other": "已添加 {count} 张图片，当前 {total} / {max}。",
   "shell.feedback.imageReplaced": "已替换第 {n} 张图片，当前 {total} / {max}。",
+  "shell.feedback.lost.one": "重新加载页面后，截图没有保留下来。请重新添加以便发送。",
   "shell.feedback.lost.other": "重新加载页面后，{count} 张截图没有保留下来。请重新添加以便发送。",
   "shell.feedback.discard": "丢弃",
   "shell.feedback.discardConfirm": "确认丢弃",
@@ -401,11 +409,13 @@ const catalog: Catalog = {
   "shell.feedback.discardArmed": "再按一次即可清除这份草稿，清除后无法恢复。",
 
   // ── announcements ──
+  "shell.announce.watch.one": "Browser Watch 有 {count} 条未读发现。",
   "shell.announce.watch.other": "Browser Watch 有 {count} 条未读发现。",
   "shell.announce.watchNone": "Browser Watch 没有未读发现。",
   "shell.announce.allClear": "没有会话在等您处理。",
 
   // ── quota closes ──
+  "shell.closes.last.one": "上周结束时已用 {used}%，未用 {unused}%",
   "shell.closes.last.other": "最近 {count} 周结束时已用 {used}%，未用 {unused}%",
   "shell.closes.min": "{n} 分钟",
   "shell.closes.hour": "{n} 小时",
@@ -423,6 +433,15 @@ const catalog: Catalog = {
   "shell.feedback.problem.count": "最多 {n} 张图片。",
   "shell.feedback.problem.size": "第 {n} 张图片超过 {mb} MB。",
   "shell.feedback.problem.format": "第 {n} 张图片不是 PNG 或 JPEG。",
+  "shell.feedback.didNotLoad": "无法加载您的对话。请重新加载 ccdeck。",
+  "shell.feedback.tabs": "反馈",
+  "shell.feedback.unreadSuffix": "，未读",
+  "shell.feedback.teamSignature": "ccdeck 团队",
+  "shell.feedback.you": "您",
+  "shell.art.modelSec": "Sonnet 5 · 38 秒",
+  "shell.banner.unreachableTitle": "无法连接到您的电脑",
+  "shell.banner.unreachableSub": "代理可能仍在运行，所以您看到的内容可能已过时。",
+  "shell.banner.unreachableSubAt": "代理可能仍在运行。最后一次收到消息是{time}，所以您看到的内容可能已过时。",
 };
 
 export default catalog;

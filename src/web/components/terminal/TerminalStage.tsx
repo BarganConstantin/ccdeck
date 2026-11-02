@@ -64,6 +64,7 @@ import KeysBar, { type ArrivalView, type AsksView, type EndView } from "./KeysBa
 import PhoneKeys from "./PhoneKeys";
 import Divider from "./Divider";
 import HostsDialog from "./HostsDialog";
+import { t as tNow, useT } from "../../i18n";
 import { DialogPresence } from "../Dialog";
 import type { HostsApi } from "./older-hosts";
 import { useOlderHosts } from "./use-older-hosts";
@@ -254,11 +255,11 @@ export function subjectOf(show: StageShow): StageSubject {
 
 /** The stage's name for itself: the session's, or the empty stage's title. */
 export function stageName(show: StageShow, workspace = false): string {
-  return show.kind === "session" ? show.session.name : show.kind === "launch" ? show.name : workspace ? EMPTY_PANE_NAME : "No session open";
+  return show.kind === "session" ? show.session.name : show.kind === "launch" ? show.name : tNow(workspace ? EMPTY_PANE_NAME_MSG : "board.stage.noSessionOpen");
 }
 
-/** The Workspace pane's title when it shows nothing (Figma, "Empty pane"). */
-export const EMPTY_PANE_NAME = "Empty pane";
+/** The catalog key of the Workspace pane's title when it shows nothing (Figma, "Empty pane"). */
+export const EMPTY_PANE_NAME_MSG = "board.stage.emptyPane";
 
 /**
  * The keys bar's sentence and action for a pane that takes no more keys, or
@@ -278,13 +279,13 @@ export function endView(
   if (phase.kind === "ended") {
     if (show.kind === "launch" && act.launchAgain) {
       const name = agentName(show.agent);
-      return { sentence: `${name} exited. This is its last frame.`, action: `Start ${name} again`, onAction: act.launchAgain };
+      return { sentence: tNow("board.stage.launchExited", { name }), action: tNow("board.stage.launchAgain", { name }), onAction: act.launchAgain };
     }
     const ago = show.kind === "session" ? show.session.endedAgo : null;
-    return { sentence: `The session ended${ago ? ` ${ago}` : ""}. This is its last frame.`, action: "Reopen here", onAction: act.reopen };
+    return { sentence: ago ? tNow("board.stage.sessionEndedAgo", { ago }) : tNow("board.stage.sessionEnded"), action: tNow("board.stage.reopenHere"), onAction: act.reopen };
   }
   if (phase.kind === "detached") {
-    return { sentence: "Another view took this pane over. The session keeps running.", action: "Attach again", onAction: act.attachAgain };
+    return { sentence: tNow("board.stage.tookOver"), action: tNow("board.stage.attachAgain"), onAction: act.attachAgain };
   }
   return null;
 }
@@ -319,6 +320,7 @@ function useDrawnHeight(rootRef: RefObject<HTMLElement>, selector: string, onHei
 }
 
 export default function TerminalStage(p: TerminalStageProps) {
+  const t = useT();
   const [held, setHeld] = useState(false);
   /** What the pane refused, said in the keys bar for a few seconds. */
   const [notice, setNotice] = useState<string | null>(null);
@@ -463,7 +465,7 @@ export default function TerminalStage(p: TerminalStageProps) {
       ref={rootRef}
       className="ts-stage"
       role="region"
-      aria-label={`Command Panel — ${name}`}
+      aria-label={t("board.stage.region", { name })}
       data-kind={phase.kind}
       data-empty={p.show.kind === "empty" || undefined}
       data-live={live || undefined}

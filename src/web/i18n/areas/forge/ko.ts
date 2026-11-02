@@ -97,6 +97,9 @@ const catalog: Catalog = {
   "forge.branches.active": "활성 브랜치",
   "forge.branches.stale": "오래된 브랜치",
   "forge.branches.staleNote": "90일간 커밋 없음",
+  "forge.branches.ahead": "{n}개 앞섬",
+  "forge.branches.behind": "{n}개 뒤처짐",
+  "forge.branches.both": "{ahead}개 앞섬 · {behind}개 뒤처짐",
   "forge.branches.allStale": "지금까지 불러온 브랜치가 모두 오래되었습니다.",
   "forge.branches.rowAria": "{name}, {change} {ref}",
   "forge.branches.badgeTitle": "{change} {ref}: {word}",
@@ -105,6 +108,7 @@ const catalog: Catalog = {
   "forge.badge.stale": "오래됨",
   "forge.createChange": "{change} 만들기",
   "forge.defaultBranch": "기본 브랜치",
+  "forge.diverge.one": "{target} 대비 {behind}개 커밋 뒤처짐, {ahead}개 앞서 있음",
   "forge.diverge.other": "{target} 대비 {behind}개 커밋 뒤처짐, {ahead}개 앞서 있음",
 
   // Changes tab
@@ -128,8 +132,11 @@ const catalog: Catalog = {
   "forge.sort.ariaUpdated": "마지막 업데이트 기준 최신순으로 정렬됨. 생성일순으로 정렬합니다.",
   "forge.reviewer.one": "리뷰어: ",
   "forge.reviewer.many": "리뷰어: ",
+  "forge.andMore.one": "외 {n}개",
   "forge.andMore.other": "외 {n}개",
+  "forge.comments.one": "댓글 {n}개",
   "forge.comments.other": "댓글 {n}개",
+  "forge.commentsWord.one": "댓글",
   "forge.commentsWord.other": "댓글",
 
   // Row lines and times
@@ -252,6 +259,7 @@ const catalog: Catalog = {
   "forge.section.checks": "검사",
   "forge.section.changes": "변경 사항",
   "forge.section.files": "변경된 파일",
+  "forge.commits.one": "커밋 {n}개",
   "forge.commits.other": "커밋 {n}개",
   "forge.commits.none": "커밋이 없습니다.",
   "forge.commits.more": "커밋 더 불러오기",
@@ -266,6 +274,7 @@ const catalog: Catalog = {
   "forge.threads.resolved": "해결된 스레드",
   "forge.threads.general": "일반 댓글",
   "forge.approvedBy": "{names}이(가) 승인함",
+  "forge.approvalsLeft.one": "승인 {n}개가 더 필요합니다",
   "forge.approvalsLeft.other": "승인 {n}개가 더 필요합니다",
   "forge.names.sep": ", ",
   "forge.names.and": "{list} 및 {last}",
@@ -292,7 +301,9 @@ const catalog: Catalog = {
   "forge.log.show": "로그 표시",
   "forge.log.full": "전체 로그",
   "forge.log.title": "로그",
+  "forge.log.last.one": "마지막 {n}줄",
   "forge.log.last.other": "마지막 {n}줄",
+  "forge.log.all.one": "전체 {n}줄",
   "forge.log.all.other": "전체 {n}줄",
   "forge.log.more": "줄 더 보기",
   "forge.log.loading": "로그 불러오는 중",
@@ -308,6 +319,7 @@ const catalog: Catalog = {
   "forge.issue.progress": "{total}개 중 {done}개 완료",
   "forge.comments.title": "댓글",
   "forge.comments.none": "댓글이 없습니다.",
+  "forge.comments.show.one": "댓글 {n}개 표시",
   "forge.comments.show.other": "댓글 {n}개 표시",
   "forge.comments.more": "댓글 더 불러오기",
 

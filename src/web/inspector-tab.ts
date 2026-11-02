@@ -7,13 +7,19 @@
 // session's turn from the server (inspector-time.ts), so it is only asked for
 // while it is the tab shown.
 import { readStored, writeStored } from "./storage";
+import { t } from "./i18n";
 
 export const INSPECTOR_TABS = ["agents", "time", "context"] as const;
 export type InspectorTab = typeof INSPECTOR_TABS[number];
 
 export const INSPECTOR_TAB_KEY = "agent-dag.inspector-tab";
 
-export const INSPECTOR_TAB_LABEL: Record<InspectorTab, string> = { agents: "Agents", time: "Time", context: "Context" };
+/** Each read gives the label in the language on show. */
+export const INSPECTOR_TAB_LABEL: Record<InspectorTab, string> = {
+  get agents() { return t("board.inspector.tabAgents"); },
+  get time() { return t("board.inspector.tabTime"); },
+  get context() { return t("board.inspector.tabContext"); },
+};
 
 /** The remembered tab, Agents when there is none or it is not one of ours. */
 export function loadInspectorTab(): InspectorTab {

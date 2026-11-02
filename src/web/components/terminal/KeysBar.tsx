@@ -33,9 +33,10 @@
 // have no keys to name; the bar is hidden, not removed, because the stage
 // measures it by element (TerminalStage's useDrawnHeight) and a new element
 // would never be measured.
-import { RELEASE_CHORD_SPOKEN } from "../../terminal-keys";
-import { RECONNECT_NOTE, type KeysOwner } from "./stage-model";
+import { RELEASE_CHORD_SPOKEN_MSG } from "../../terminal-keys";
+import { RECONNECT_NOTE_MSG, type KeysOwner } from "./stage-model";
 import { Kbd } from "../Kbd";
+import { t as tNow, useT } from "../../i18n";
 import { StageGlyph } from "./stage-icons";
 
 /** One run through the waiting sessions, as the integrator's use-asks has it. */
@@ -113,7 +114,7 @@ export interface KeysBarProps {
  *  does: the Board's closes the Command Panel, a Workspace pane's empties the
  *  pane. Neither ends the session. */
 export function firstRunClause(workspace: boolean): string {
-  return workspace ? "✕ empties the pane; the session keeps running." : "✕ closes the Command Panel; the session keeps running.";
+  return workspace ? tNow("board.keys.firstWorkspace") : tNow("board.keys.firstBoard");
 }
 
 /** Whether the asks' slot has anything to draw. */
@@ -125,11 +126,12 @@ export function asksSpeak(asks: AsksView | null | undefined): boolean {
  *  answered session and the next ask after it. (V4 draws no segment track: the
  *  count says it.) */
 export function AsksTrack({ asks, onNextAsk }: { asks: AsksView; onNextAsk?(): void }) {
+  const t = useT();
   if (asks.position) {
     return (
       <div className="ts-asks">
-        <span className="ts-asks-label">Asks</span>
-        <span className="ts-count">{asks.position.index + 1} of {asks.position.total}</span>
+        <span className="ts-asks-label">{t("board.keys.asks")}</span>
+        <span className="ts-count">{t("board.keys.position", { index: asks.position.index + 1, total: asks.position.total })}</span>
       </div>
     );
   }
@@ -137,48 +139,53 @@ export function AsksTrack({ asks, onNextAsk }: { asks: AsksView; onNextAsk?(): v
     const { next } = asks;
     return (
       <div className="ts-asks">
-        {asks.resumed && <span className="ts-resumed"><StageGlyph kind="done" />{asks.resumed} resumed</span>}
+        {asks.resumed && <span className="ts-resumed"><StageGlyph kind="done" />{t("board.keys.resumed", { name: asks.resumed })}</span>}
         <button
           type="button"
           className="btn ts-next ts-plain"
-          aria-label={`Next ask: ${next.name}, waiting ${next.waited}${next.tool ? ` on ${next.tool}` : ""}`}
+          aria-label={next.tool
+            ? t("board.keys.nextAskLabelTool", { name: next.name, waited: next.waited, tool: next.tool })
+            : t("board.keys.nextAskLabel", { name: next.name, waited: next.waited })}
           onClick={onNextAsk}
         >
-          Next ask <span className="ts-next-name">{next.name}</span> {next.waited}
+          {t("board.keys.nextAsk")} <span className="ts-next-name">{next.name}</span> {next.waited}
         </button>
       </div>
     );
   }
-  if (asks.clear) return <div className="ts-asks" data-clear><span className="ts-resumed"><StageGlyph kind="done" />No more asks</span></div>;
+  if (asks.clear) return <div className="ts-asks" data-clear><span className="ts-resumed"><StageGlyph kind="done" />{t("board.keys.noMoreAsks")}</span></div>;
   return null;
 }
 
 /** "1 session still runs on an older session host.  [Review]" */
 export function HostsNote({ hosts }: { hosts: HostsLineView }) {
+  const t = useT();
   return (
     <div className="ts-asks ts-hosts">
       <span className="ts-hosts-said" title={hosts.said}>{hosts.said}</span>
-      {hosts.onReview && <button type="button" className="btn" onClick={hosts.onReview}>Review</button>}
+      {hosts.onReview && <button type="button" className="btn" onClick={hosts.onReview}>{t("board.keys.review")}</button>}
     </div>
   );
 }
 
 /** "[waiting] paycore asks · Bash  [n] Answer" — said once, quietly, in the bar. */
 export function ArrivalNote({ arrival, onAnswer }: { arrival: ArrivalView; onAnswer?(): void }) {
+  const t = useT();
   return (
     <div className="ts-asks">
       <span className="ts-arrival">
         <StageGlyph kind="waiting" />
-        {`${arrival.name} asks${arrival.tool ? ` · ${arrival.tool}` : ""}`}
+        {arrival.tool ? t("board.keys.arrivalTool", { name: arrival.name, tool: arrival.tool }) : t("board.keys.arrival", { name: arrival.name })}
       </span>
-      <button type="button" className="btn ts-next ts-plain" aria-label={`Answer ${arrival.name}`} onClick={onAnswer}>
-        <Kbd>n</Kbd> Answer
+      <button type="button" className="btn ts-next ts-plain" aria-label={t("board.keys.answerLabel", { name: arrival.name })} onClick={onAnswer}>
+        <Kbd>n</Kbd> {t("board.keys.answer")}
       </button>
     </div>
   );
 }
 
 export default function KeysBar(p: KeysBarProps) {
+  const t = useT();
   let right = null;
   // With something on the right, the left keeps only who has the keys: the
   // other hints go (V4's Ask, Asks, Resumed, No more asks and hosts bars).
@@ -212,8 +219,8 @@ export default function KeysBar(p: KeysBarProps) {
     // header's control, stays.
     left = (
       <div className="ts-keys" data-owner={p.owner} data-split>
-        <span className="ts-first">Typing goes to the session<span className="ts-first-keys">, Esc included</span>. {firstRunClause(p.workspace === true)}</span>
-        <button type="button" className="btn" onClick={p.onFirstRunDone}>Got it</button>
+        <span className="ts-first">{t("board.keys.typingGoes")}<span className="ts-first-keys">{t("board.keys.escIncluded")}</span>. {firstRunClause(p.workspace === true)}</span>
+        <button type="button" className="btn" onClick={p.onFirstRunDone}>{t("board.keys.gotIt")}</button>
       </div>
     );
   } else if (p.owner === "pane" && p.reconnecting) {
@@ -222,34 +229,34 @@ export default function KeysBar(p: KeysBarProps) {
     // stage cannot keep. The whole sentence is the warning's colour.
     left = (
       <div className="ts-keys" data-owner="none">
-        <span className="ts-reconnecting" title={`Reconnecting to ${p.name}. ${RECONNECT_NOTE}`}>{`Reconnecting to ${p.name}. ${RECONNECT_NOTE}`}</span>
+        <span className="ts-reconnecting" title={t("board.keys.reconnecting", { name: p.name, note: t(RECONNECT_NOTE_MSG) })}>{t("board.keys.reconnecting", { name: p.name, note: t(RECONNECT_NOTE_MSG) })}</span>
       </div>
     );
   } else if (p.owner === "pane") {
     left = (
       <div className="ts-keys" data-owner="pane">
-        <span className="ts-label" data-strong>{`Typing into ${p.name}`}</span>
-        {!lean && <span className="ts-hint" data-optional><Kbd>Esc</Kbd> goes to the session</span>}
-        {!lean && <span className="ts-hint"><Kbd label={RELEASE_CHORD_SPOKEN}>{p.chordLabel}</Kbd> back to the board</span>}
+        <span className="ts-label" data-strong>{t("board.keys.typingInto", { name: p.name })}</span>
+        {!lean && <span className="ts-hint" data-optional><Kbd>Esc</Kbd> {t("board.keys.escGoes")}</span>}
+        {!lean && <span className="ts-hint"><Kbd label={t(RELEASE_CHORD_SPOKEN_MSG)}>{p.chordLabel}</Kbd> {t("board.keys.backToBoard")}</span>}
       </div>
     );
   } else {
     left = (
       <div className="ts-keys" data-owner="board">
-        <span className="ts-label">Keys on the board</span>
-        {!lean && !p.takeover && <span className="ts-hint"><Kbd>j k</Kbd> sessions</span>}
+        <span className="ts-label">{t("board.keys.onBoard")}</span>
+        {!lean && !p.takeover && <span className="ts-hint"><Kbd>j k</Kbd> {t("board.keys.sessions")}</span>}
         {!lean && p.canType && (
           <span className="ts-hint">
-            <Kbd label="Enter">↵</Kbd>
-            <button type="button" className="btn ts-plain" onClick={p.onTypeHere}>type here</button>
+            <Kbd label={t("board.keys.enterSpoken")}>↵</Kbd>
+            <button type="button" className="btn ts-plain" onClick={p.onTypeHere}>{t("board.keys.typeHere")}</button>
           </span>
         )}
-        {!lean && p.asksWaiting && <span className="ts-hint"><Kbd>n</Kbd> next ask</span>}
+        {!lean && p.asksWaiting && <span className="ts-hint"><Kbd>n</Kbd> {t("board.keys.nextAskHint")}</span>}
       </div>
     );
   }
   return (
-    <footer className="ts-bar" aria-label="Keyboard" hidden={(p.paneless && !p.hosts) || undefined}>
+    <footer className="ts-bar" aria-label={t("board.keys.bar")} hidden={(p.paneless && !p.hosts) || undefined}>
       {left}
       {right}
     </footer>

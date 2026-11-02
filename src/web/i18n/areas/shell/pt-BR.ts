@@ -13,6 +13,7 @@ const catalog: Catalog = {
   "shell.done": "Concluir",
   "shell.back": "Voltar",
   "shell.next": "Avançar",
+  "shell.skip": "Pular",
   "shell.skipToCanvas": "Ir para a tela",
   "shell.rail.left": "Contas e sessões",
   "shell.rail.right": "Uso e atividade",
@@ -259,6 +260,7 @@ const catalog: Catalog = {
   "shell.chip.noticeUpgrade": "a v{to} está disponível no npm",
   "shell.chip.noticeShow": "mostrar novidades",
   "shell.chip.noticeShowBanner": "mostrar novidades e o aviso",
+  "shell.chip.noticeLabel": "{to} está pronta. Rodando a v{from}; {what} — {does}",
   "shell.chip.runningRestart": "Rodando a v{from}; a v{to} está instalada no disco. Reinicie para usá-la · clique para ver as novidades",
   "shell.chip.runningUpgrade": "Rodando a v{from}; a v{to} está no npm · clique para ver as novidades",
 
@@ -432,6 +434,15 @@ const catalog: Catalog = {
   "shell.feedback.problem.count": "No máximo {n} imagens.",
   "shell.feedback.problem.size": "A imagem {n} passa de {mb} MB.",
   "shell.feedback.problem.format": "A imagem {n} não é PNG nem JPEG.",
+  "shell.feedback.didNotLoad": "Não foi possível carregar suas conversas. Recarregue o ccdeck.",
+  "shell.feedback.tabs": "Feedback",
+  "shell.feedback.unreadSuffix": ", não lido",
+  "shell.feedback.teamSignature": "equipe do ccdeck",
+  "shell.feedback.you": "Você",
+  "shell.art.modelSec": "Sonnet 5 · 38s",
+  "shell.banner.unreachableTitle": "Não foi possível acessar o seu computador",
+  "shell.banner.unreachableSub": "Os agentes ainda podem estar rodando, então o que você vê pode estar desatualizado.",
+  "shell.banner.unreachableSubAt": "Os agentes ainda podem estar rodando. Última notícia {time}, então o que você vê pode estar desatualizado.",
 };
 
 export default catalog;

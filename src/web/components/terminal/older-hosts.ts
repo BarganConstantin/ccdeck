@@ -27,6 +27,7 @@ import {
   type OlderHost,
   type TerminalProvider,
 } from "../../terminal-api";
+import { t } from "../../i18n";
 
 /** The two calls the flow makes, so the suite can answer them. */
 export interface HostsApi {
@@ -60,10 +61,10 @@ export function hostsFingerprint(view: HostsView | null): string {
   return view ? view.hosts.map(h => `${h.generation}:${h.sessions.map(s => s.id).join(",")}`).join(";") : "";
 }
 
-const count = (n: number) => (n === 1 ? "1 session" : `${n} sessions`);
+const count = (n: number) => t("board.hosts.sessions", { count: n });
 
 /** Appended to the line while the engine refuses new sessions. */
-export const REFUSED_UNTIL_THEY_END = "New sessions are refused until they end.";
+export const REFUSED_UNTIL_THEY_END_MSG = "board.hosts.refused";
 
 /**
  * The keys bar's line, or null when it has nothing to say. A host that closes
@@ -75,43 +76,48 @@ export function hostsLine(view: HostsView | null, kept: boolean): string | null 
   const listed = view.hosts.filter(h => h.state !== "draining");
   const n = listed.reduce((sum, h) => sum + h.sessions.length, 0);
   if (n === 0) return view.launchesRefused;
-  const where = listed.length === 1 ? "an older session host" : "older session hosts";
+  const one = listed.length === 1;
+  const refused = !!view.launchesRefused;
+  // The plain count is Figma's phrase, with no full stop of its own; with the
+  // refusal after it, it is a sentence, and its "…Stop" form carries the stop.
   const said = kept
-    ? `Kept running: the Command Panel cannot open ${n === 1 ? "that session" : `those ${n} sessions`} here.`
+    ? t("board.hosts.kept", { count: n })
     : listed.some(h => h.state === "security")
-      ? `A security update is waiting on ${count(n)} on ${where}.`
-      : `${count(n)} on ${listed.length === 1 ? "an older host" : "older hosts"}`;
-  // The plain count is Figma's phrase, with no full stop of its own; the refusal
-  // follows it as a sentence.
-  return view.launchesRefused ? `${said.endsWith(".") ? said : `${said}.`} ${REFUSED_UNTIL_THEY_END}` : said;
+      ? t(one ? "board.hosts.securityOne" : "board.hosts.securityMany", { sessions: count(n) })
+      : t(one ? (refused ? "board.hosts.plainOneStop" : "board.hosts.plainOne") : (refused ? "board.hosts.plainManyStop" : "board.hosts.plainMany"), { sessions: count(n) });
+  return refused ? t("board.stage.twoSentences", { first: said, second: t(REFUSED_UNTIL_THEY_END_MSG) }) : said;
 }
 
 /** The dialog's sentence for why a host is listed. */
 export function hostReason(host: OlderHost): string {
   switch (host.state) {
-    case "stranded": return "The Command Panel has moved to a newer session host and cannot open these here.";
-    case "security": return "A security update replaces this session host once these end.";
-    case "draining": return "This session host closes once these end.";
+    case "stranded": return t("board.hosts.reasonStranded");
+    case "security": return t("board.hosts.reasonSecurity");
+    case "draining": return t("board.hosts.reasonDraining");
   }
 }
 
 /** "Claude's", "Codex's", or both — whose history keeps the conversations. */
 function historyOwners(agents: ReadonlySet<TerminalProvider>): string {
-  const names = [agents.has("claude") ? "Claude's" : null, agents.has("codex") ? "Codex's" : null].filter(Boolean);
-  return names.join(" and ") || "the agent's";
+  const claude = agents.has("claude");
+  const codex = agents.has("codex");
+  if (claude && codex) return t("board.hosts.ownerBoth");
+  if (claude) return t("board.hosts.ownerClaude");
+  if (codex) return t("board.hosts.ownerCodex");
+  return t("board.hosts.ownerAgent");
 }
 
 /** What ending them costs, and what it leaves: the dialog's two lines. */
 export function hostsConsequences(view: HostsView): { ends: string; stays: string } {
   const agents = new Set(view.hosts.flatMap(h => h.sessions.map(s => s.agent)));
   return {
-    ends: "Those agents, at once. Work they have not saved is lost.",
-    stays: `Each conversation, in ${historyOwners(agents)} own history. On Windows the Command Panel cannot reopen it.`,
+    ends: t("board.hosts.ends"),
+    stays: t("board.hosts.stays", { owners: historyOwners(agents) }),
   };
 }
 
 /** The dialog's End button: it ends every listed session, so it counts them. */
-export const endAllLabel = (sessions: number) => `End ${count(sessions)}`;
+export const endAllLabel = (sessions: number) => t("board.hosts.endAll", { count: sessions });
 
 /** What an End press came to: the list read again (`view`, when it was),
  *  how many ended, and the sentence for the dialog. */

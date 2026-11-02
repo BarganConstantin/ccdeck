@@ -31,6 +31,7 @@ import { selfPressAccepted, selfPressProps } from "../panel-press";
 import { accountActions, openableUrl, useAccountView } from "../use-account";
 import AccountSyncPreview, { shownValue } from "./AccountSyncPreview";
 import { SettingRow, SettingsGroup } from "./SettingsParts";
+import { useT } from "../i18n";
 
 export const ACCOUNT_COPY = {
   vetoed: "Off on this machine: the deck was started with AGENTS_DECK_NO_ACCOUNT=1 or AGENTS_DECK_NO_INSTALL=1, which keep it away from any account.",
@@ -103,6 +104,7 @@ export interface AccountPanelProps {
 /** The section as drawn for one answer of /api/account — pure, so each state's
  *  copy can be checked without a deck behind it. */
 export function AccountPanel({ view, failed = false, vetoed, now = Date.now() }: AccountPanelProps) {
+  const t = useT();
   const [name, setName] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   // No control here disables itself while its press is out (#620): the
@@ -115,7 +117,7 @@ export function AccountPanel({ view, failed = false, vetoed, now = Date.now() }:
 
   if (vetoed) {
     return (
-      <SettingsGroup id="settings-account-caption" title="ccdeck account">
+      <SettingsGroup id="settings-account-caption" title={t("settings.account.title")}>
         <SettingRow as="div" name="Account" note={ACCOUNT_COPY.vetoed} />
       </SettingsGroup>
     );
@@ -143,16 +145,16 @@ export function AccountPanel({ view, failed = false, vetoed, now = Date.now() }:
   if (view.state === "connecting" && view.connect) {
     const c = view.connect;
     return (
-      <SettingsGroup id="settings-account-caption" title="Connecting">
+      <SettingsGroup id="settings-account-caption" title={t("settings.account.connecting")}>
         <SettingRow as="div" name="Code" note={ACCOUNT_COPY.connecting}
           control={<span className="account-code">{c.userCode}</span>} />
         <SettingRow as="div" name="Waiting for approval…" note={`The code expires in ${expiresIn(c.expiresAt, now)}.`}
           control={
             <span className="account-actions">
               {openableUrl(c.verificationUriComplete) && (
-                <a className="settings-link" href={c.verificationUriComplete} target="_blank" rel="noopener noreferrer">Open the page again</a>
+                <a className="settings-link" href={c.verificationUriComplete} target="_blank" rel="noopener noreferrer">{t("settings.account.openAgain")}</a>
               )}
-              <button type="button" className="btn" {...selfPressProps(busy)} onClick={() => run(accountActions.cancel)}>Cancel</button>
+              <button type="button" className="btn" {...selfPressProps(busy)} onClick={() => run(accountActions.cancel)}>{t("common.cancel")}</button>
             </span>
           } />
       </SettingsGroup>
@@ -164,24 +166,24 @@ export function AccountPanel({ view, failed = false, vetoed, now = Date.now() }:
     const email = view.account?.email ?? "your account";
     return (
       <>
-        <SettingsGroup id="settings-account-caption" title="ccdeck account">
+        <SettingsGroup id="settings-account-caption" title={t("settings.account.title")}>
           <SettingRow as="div" name={email} note={statusLine(view)}
             control={view.device.consoleUrl && openableUrl(view.device.consoleUrl)
-              ? <a className="settings-link" href={view.device.consoleUrl} target="_blank" rel="noopener noreferrer">Open in Machines</a>
+              ? <a className="settings-link" href={view.device.consoleUrl} target="_blank" rel="noopener noreferrer">{t("settings.account.openMachines")}</a>
               : undefined} />
           <SettingRow as="div" name={`This deck: ${view.device.name}`}
             note={problem ?? STORAGE_COPY[view.tokenStorage ?? ""] ?? ""} />
         </SettingsGroup>
         {sync && (
-          <SettingsGroup id="settings-account-sync-caption" title="Settings sync">
+          <SettingsGroup id="settings-account-sync-caption" title={t("settings.account.syncTitle")}>
             <SettingRow as="div"
               name={sync.mode === "shared" ? "Shared with your other decks" : "This deck only"}
               note={sync.mode === "shared"
                 ? `Theme, text, panels and the rest follow your account; ${sync.overrides.map(k => UI_LABELS[k]?.toLowerCase() ?? k).join(", ") || "nothing"} stays on this deck. ${revisionsLine(view)}`
                 : `This deck keeps its own settings in your account. ${revisionsLine(view)}`}
               control={sync.mode === "shared"
-                ? <button type="button" className="btn" {...selfPressProps(busy)} onClick={() => run(() => accountActions.setMode({ mode: "independent" }))}>Stop sharing</button>
-                : <button type="button" className="btn" {...selfPressProps(busy, joining)} onClick={() => setJoining(true)}>Share settings…</button>} />
+                ? <button type="button" className="btn" {...selfPressProps(busy)} onClick={() => run(() => accountActions.setMode({ mode: "independent" }))}>{t("settings.account.stopSharing")}</button>
+                : <button type="button" className="btn" {...selfPressProps(busy, joining)} onClick={() => setJoining(true)}>{t("settings.account.shareSettings")}</button>} />
             {joining && (
               <SettingRow as="div" className="settings-row-wide" name="Share settings with your other decks">
                 <AccountSyncPreview onDone={() => setJoining(false)} />
@@ -197,14 +199,14 @@ export function AccountPanel({ view, failed = false, vetoed, now = Date.now() }:
                 note={`Your account has r${sync.conflict.latest.revision}${sync.conflict.latest.updatedBy?.name ? ` from ${sync.conflict.latest.updatedBy.name}` : ""}; this deck has changes it has not saved.`}
                 control={reviewing ? undefined : (
                   <span className="account-actions">
-                    <button type="button" className="btn" {...selfPressProps(busy)} onClick={() => setReviewing(true)}>Review</button>
-                    <button type="button" className="btn primary" {...selfPressProps(busy)} onClick={() => run(() => accountActions.resolve("use-latest"))}>Use latest</button>
+                    <button type="button" className="btn" {...selfPressProps(busy)} onClick={() => setReviewing(true)}>{t("settings.account.review")}</button>
+                    <button type="button" className="btn primary" {...selfPressProps(busy)} onClick={() => run(() => accountActions.resolve("use-latest"))}>{t("settings.account.useLatest")}</button>
                   </span>
                 )}>
                 {reviewing && (
                   <div className="account-preview">
                     <table className="account-diff">
-                      <thead><tr><th scope="col">Setting</th><th scope="col">Yours</th><th scope="col">{`r${sync.conflict.latest.revision}`}</th></tr></thead>
+                      <thead><tr><th scope="col">{t("settings.account.colSetting")}</th><th scope="col">{t("settings.account.colYours")}</th><th scope="col">{`r${sync.conflict.latest.revision}`}</th></tr></thead>
                       <tbody>
                         {Object.keys(sync.conflict.mine).map(k => (
                           <tr key={k}>
@@ -216,10 +218,10 @@ export function AccountPanel({ view, failed = false, vetoed, now = Date.now() }:
                       </tbody>
                     </table>
                     <div className="account-actions">
-                      <button type="button" className="btn" {...selfPressProps(busy)} onClick={() => setReviewing(false)}>Back</button>
-                      <button type="button" className="btn" {...selfPressProps(busy)} onClick={() => run(() => accountActions.resolve("use-latest"))}>Use latest</button>
+                      <button type="button" className="btn" {...selfPressProps(busy)} onClick={() => setReviewing(false)}>{t("settings.account.back")}</button>
+                      <button type="button" className="btn" {...selfPressProps(busy)} onClick={() => run(() => accountActions.resolve("use-latest"))}>{t("settings.account.useLatest")}</button>
                       <button type="button" className="btn primary" {...selfPressProps(busy)}
-                        onClick={() => run(async () => { await accountActions.resolve("reapply"); setReviewing(false); })}>{`Save mine over r${sync.conflict.latest.revision}`}</button>
+                        onClick={() => run(async () => { await accountActions.resolve("reapply"); setReviewing(false); })}>{t("settings.account.saveMine", { revision: sync.conflict.latest.revision })}</button>
                     </div>
                   </div>
                 )}
@@ -236,16 +238,16 @@ export function AccountPanel({ view, failed = false, vetoed, now = Date.now() }:
             )}
           </SettingsGroup>
         )}
-        <SettingsGroup id="settings-account-leave-caption" title="Disconnect">
+        <SettingsGroup id="settings-account-leave-caption" title={t("settings.account.disconnectTitle")}>
           <SettingRow as="div" name="Disconnect this deck" note={ACCOUNT_COPY.disconnectNote}
             control={confirming ? (
               <span className="account-actions">
-                <button type="button" className="btn" {...selfPressProps(busy)} onClick={() => setConfirming(false)}>Cancel</button>
+                <button type="button" className="btn" {...selfPressProps(busy)} onClick={() => setConfirming(false)}>{t("common.cancel")}</button>
                 <button type="button" className="btn danger" {...selfPressProps(busy)}
-                  onClick={() => run(async () => { await accountActions.disconnect(); setConfirming(false); })}>Disconnect</button>
+                  onClick={() => run(async () => { await accountActions.disconnect(); setConfirming(false); })}>{t("settings.account.disconnect")}</button>
               </span>
             ) : (
-              <button type="button" className="btn" {...selfPressProps(busy)} onClick={() => setConfirming(true)}>Disconnect…</button>
+              <button type="button" className="btn" {...selfPressProps(busy)} onClick={() => setConfirming(true)}>{t("settings.account.disconnectAsk")}</button>
             )} />
         </SettingsGroup>
       </>
@@ -258,7 +260,7 @@ export function AccountPanel({ view, failed = false, vetoed, now = Date.now() }:
     ? (view.revokedReason === "account_gone" ? ACCOUNT_COPY.accountGone : ACCOUNT_COPY.revoked)
     : view.state === "error" ? ACCOUNT_COPY.tokenMissing : ACCOUNT_COPY.explain;
   return (
-    <SettingsGroup id="settings-account-caption" title="ccdeck account" note={lead}>
+    <SettingsGroup id="settings-account-caption" title={t("settings.account.title")} note={lead}>
       <SettingRow as="div" name="What is sent" note={ACCOUNT_COPY.sent} />
       <SettingRow name="This deck will appear as" nameId="settings-account-name-label"
         note={ACCOUNT_COPY.nameNote} noteId="settings-account-name-note"

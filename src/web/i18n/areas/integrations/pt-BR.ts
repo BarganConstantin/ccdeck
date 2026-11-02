@@ -171,6 +171,8 @@ const catalog: Catalog = {
   "integrations.settings.noLongerSaved": "Esta conexão não está mais salva.",
   "integrations.settings.reading": "Lendo conexões…",
   "integrations.settings.notConnected": "Não conectado",
+  "integrations.settings.connectedGroup": "Conectados",
+  "integrations.settings.notConnectedGroup": "Não conectados",
   "integrations.settings.count.one": "{count} conexão salva",
   "integrations.settings.count.other": "{count} conexões salvas",
   "integrations.settings.moreInstances": "mais {n}",
@@ -194,10 +196,12 @@ const catalog: Catalog = {
   "integrations.explore.cap.jira": "Quadros, sprints, backlog e issues",
   "integrations.explore.cap.github": "Repositórios, pull requests e Actions",
   "integrations.explore.cap.gitlab": "Projetos, merge requests e pipelines",
+  "integrations.explore.access.jira": "Leitura e escrita",
   "integrations.explore.access.read": "Somente leitura",
   "integrations.explore.open": "Abrir",
   "integrations.explore.openAria": "Abrir {label}",
   "integrations.explore.notAvailable": "Indisponível",
+  "integrations.explore.footer": "Você escolhe o que cada token pode fazer. Os tokens ficam nesta máquina.",
   "integrations.explore.manageInSettings": "Gerenciar em Configurações",
   "integrations.modal.connection": "Conexão",
   "integrations.split.width": "Largura do detalhe",
@@ -490,6 +494,10 @@ const catalog: Catalog = {
   "integrations.srv.moveDestinationLarge": "O destino é grande demais para determinar a última issue. Atualize e tente novamente.",
   "integrations.srv.moveAnchorGroup": "A âncora de posição deve estar no grupo de destino. Atualize o quadro.",
   "integrations.srv.serverOldUnknown": "Este servidor executa um Jira de versão desconhecida. Tokens de acesso pessoal exigem Jira Server ou Data Center 8.14 ou mais recente, então o ccdeck não consegue se conectar a ele.",
+  "integrations.token.cloud.path": "id.atlassian.com → Security → API tokens",
+  "integrations.token.server.profile": "Perfil",
+  "integrations.token.server.pats": "Tokens de acesso pessoal",
+  "integrations.token.server.create": "Criar token",
 };
 
 export default catalog;

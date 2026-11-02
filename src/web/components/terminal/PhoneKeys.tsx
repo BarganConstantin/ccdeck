@@ -8,23 +8,25 @@
 // screen, so the way out of a prompt (Esc, Ctrl+C) is never behind a keyboard;
 // it is dimmed and inert while the pane cannot take keys.
 import type { PointerEvent } from "react";
+import { useT } from "../../i18n";
 
-/** One key of the row: its cap, what a screen reader hears, and the bytes. */
+/** One key of the row: its cap, the catalog key of what a screen reader hears,
+ *  and the bytes. */
 export interface PhoneKey {
   id: string;
   cap: string;
-  name: string;
+  nameKey: string;
   bytes: string;
 }
 
 /** Left to right, as the phone frame draws the row. */
 export const PHONE_KEYS: readonly PhoneKey[] = [
-  { id: "esc", cap: "Esc", name: "Escape", bytes: "\x1b" },
-  { id: "tab", cap: "Tab", name: "Tab", bytes: "\t" },
-  { id: "up", cap: "↑", name: "Up arrow", bytes: "\x1b[A" },
-  { id: "down", cap: "↓", name: "Down arrow", bytes: "\x1b[B" },
-  { id: "ctrl-c", cap: "Ctrl+C", name: "Control C", bytes: "\x03" },
-  { id: "enter", cap: "⏎", name: "Enter", bytes: "\r" },
+  { id: "esc", cap: "Esc", nameKey: "board.keys.nameEscape", bytes: "\x1b" },
+  { id: "tab", cap: "Tab", nameKey: "board.keys.nameTab", bytes: "\t" },
+  { id: "up", cap: "↑", nameKey: "board.keys.nameUp", bytes: "\x1b[A" },
+  { id: "down", cap: "↓", nameKey: "board.keys.nameDown", bytes: "\x1b[B" },
+  { id: "ctrl-c", cap: "Ctrl+C", nameKey: "board.keys.nameCtrlC", bytes: "\x03" },
+  { id: "enter", cap: "⏎", nameKey: "board.keys.nameEnter", bytes: "\r" },
 ];
 
 /** A press must not move the focus off the terminal: the screen keyboard that
@@ -61,15 +63,16 @@ export default function PhoneKeys({ canType, paneless = false, onKey, holdsFocus
   /** Whether the terminal holds the focus now. */
   holdsFocus?(): boolean;
 }) {
+  const t = useT();
   return (
-    <div className="ts-keyrow" role="group" aria-label="Terminal keys" hidden={paneless || undefined}>
+    <div className="ts-keyrow" role="group" aria-label={t("board.keys.rowLabel")} hidden={paneless || undefined}>
       {PHONE_KEYS.map(key => (
         <button
           key={key.id}
           type="button"
           className="ts-key"
           data-key={key.id}
-          aria-label={key.name}
+          aria-label={t(key.nameKey)}
           disabled={!canType}
           onPointerDown={e => { pressBegins(holdsFocus); keepFocus(e); }}
           onKeyDown={e => { if (e.key === "Enter" || e.key === " ") pressBegins(holdsFocus); }}

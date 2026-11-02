@@ -12,6 +12,9 @@ const catalog: Catalog = {
   "common.ago.m": "{n} 分钟前",
   "common.ago.h": "{n} 小时前",
   "common.ago.d": "{n} 天前",
+  "common.cancel": "取消",
+  "common.close": "关闭",
+  "common.notNow": "暂不",
 };
 
 export default catalog;
