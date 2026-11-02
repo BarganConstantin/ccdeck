@@ -275,7 +275,7 @@ export function StateCard(p: Omit<StageBodyProps, "hostRef"> & { held?: boolean;
           <div className="ts-title">{tmuxFact(phase.reason)}</div>
           {phase.download && <p className="ts-note">{downloadNote(phase.download)}</p>}
           <p className="ts-text">
-            {t("board.stage.tmuxWhy")} {phase.reason === "too-old" ? t("board.stage.updateIt") : t("board.stage.installIt")}
+            {t("board.stage.twoSentences", { first: t("board.stage.tmuxWhy"), second: phase.reason === "too-old" ? t("board.stage.updateIt") : t("board.stage.installIt") })}
           </p>
           {phase.install && <InstallPlate line={phase.install} />}
           <div className="ts-acts">

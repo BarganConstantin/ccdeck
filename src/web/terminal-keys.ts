@@ -152,9 +152,9 @@ export function releaseChordLabel(platform: string): string {
   return isApplePlatform(platform) ? "⌃⇧X" : "Ctrl+Shift+X";
 }
 
-/** The chord in words, for a screen reader — "⌃⇧X" is read as symbols, or not
- *  at all. The same on every platform, as the chord is. */
-export const RELEASE_CHORD_SPOKEN_MSG = "board.keys.controlShiftX";
+/** The catalog key of the chord in words, for a screen reader — "⌃⇧X" is read
+ *  as symbols, or not at all. The same on every platform, as the chord is. */
+export const RELEASE_CHORD_SPOKEN_MSG = "board.keys.releaseChordSpoken";
 
 // ── 1. the pane ─────────────────────────────────────────────────────────────
 

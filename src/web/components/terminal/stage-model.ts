@@ -183,42 +183,46 @@ export function waitedFor(ms: number): string {
 export function stageStatusFrom(facts: BoardFacts, now: number): StageStatus {
   if (facts.closedAt != null) {
     const ago = shortAgo(now - facts.closedAt);
-    return { state: "ended", phrase: ago === "just now" ? "ended just now" : `ended ${ago}` };
+    return { state: "ended", phrase: ago === t("common.ago.now") ? t("board.stage.phrase.endedJustNow") : t("board.stage.phrase.endedAgo", { ago }) };
   }
   if (facts.waiting) {
     return {
       state: "waiting",
-      phrase: "waiting",
+      phrase: t("board.queue.waiting"),
       emphasis: waitedFor(now - facts.waiting.since),
       ...(facts.waiting.tool ? { tool: facts.waiting.tool } : {}),
       ...(facts.waiting.detail ? { arg: facts.waiting.detail } : {}),
     };
   }
   if (facts.yourTurn && !facts.tool) {
-    if (facts.fresh) return { state: "ready", phrase: "ready", arg: "for a first prompt" };
+    if (facts.fresh) return { state: "ready", phrase: t("board.stage.phrase.ready"), arg: t("board.stage.phrase.firstPrompt") };
     const ago = facts.lastTurnEndAt != null ? shortAgo(now - facts.lastTurnEndAt) : null;
-    return { state: "idle", phrase: "your turn", ...(ago ? { arg: ago === "just now" ? "last turn just now" : `last turn ${ago}` } : {}) };
+    return { state: "idle", phrase: t("board.list.yourTurn"), ...(ago ? { arg: lastTurnWords(ago) } : {}) };
   }
   // A session that has been asked nothing waits for its first prompt, even
   // while it still reads active from its start: it is not working.
-  if (facts.fresh && !facts.tool && !facts.subagentsLive) return { state: "ready", phrase: "ready", arg: "for a first prompt" };
+  if (facts.fresh && !facts.tool && !facts.subagentsLive) return { state: "ready", phrase: t("board.stage.phrase.ready"), arg: t("board.stage.phrase.firstPrompt") };
   if (facts.active) {
-    const out: StageStatus = { state: "working", phrase: "working" };
+    const out: StageStatus = { state: "working", phrase: t("board.stage.phrase.working") };
     if (facts.tool) {
       out.tool = facts.tool.name;
       if (facts.tool.subject) out.arg = facts.tool.subject;
       if (facts.tool.startedAt != null) out.seconds = elapsed(facts.tool.startedAt, undefined, now);
     } else if (facts.subagentsLive) {
-      out.arg = `${facts.subagentsLive} ${facts.subagentsLive === 1 ? "subagent" : "subagents"} running`;
+      out.arg = t("board.stage.subagentsRunning", { count: facts.subagentsLive });
     }
     return out;
   }
-  if (facts.fresh) return { state: "ready", phrase: "ready", arg: "for a first prompt" };
+  if (facts.fresh) return { state: "ready", phrase: t("board.stage.phrase.ready"), arg: t("board.stage.phrase.firstPrompt") };
   if (facts.lastTurnEndAt != null) {
-    const ago = shortAgo(now - facts.lastTurnEndAt);
-    return { state: "idle", phrase: "idle", arg: ago === "just now" ? "last turn just now" : `last turn ${ago}` };
+    return { state: "idle", phrase: t("board.stage.phrase.idle"), arg: lastTurnWords(shortAgo(now - facts.lastTurnEndAt)) };
   }
-  return { state: "idle", phrase: "idle" };
+  return { state: "idle", phrase: t("board.stage.phrase.idle") };
+}
+
+/** "last turn 4m", or "last turn just now". */
+function lastTurnWords(ago: string): string {
+  return ago === t("common.ago.now") ? t("board.stage.phrase.lastTurnNow") : t("board.stage.phrase.lastTurn", { ago });
 }
 
 /** What a reconnecting pane adds to the header's "reconnecting…", and the
@@ -237,32 +241,32 @@ export function headerStatus(board: StageStatus | null, phase: StagePhase): Stag
     case "attaching":
       // A reconnect says what the frozen frame cannot: keys typed now go nowhere.
       return phase.reconnect
-        ? { state: "attaching", phrase: "reconnecting…", arg: t(RECONNECT_NOTE_MSG) }
-        : { state: "attaching", phrase: "attaching…" };
+        ? { state: "attaching", phrase: t("board.stage.phrase.reconnecting"), arg: t(RECONNECT_NOTE_MSG) }
+        : { state: "attaching", phrase: t("board.stage.attaching") };
     case "starting":
-      return { state: "starting", phrase: "starting…", arg: phase.cwd };
+      return { state: "starting", phrase: t("board.stage.phrase.starting"), arg: phase.cwd };
     case "tmux-installing":
       return { state: "starting", phrase: t("board.stage.settingUpTmux") };
     case "tmux-missing":
-      return { state: "detached", phrase: "not attached" };
+      return { state: "detached", phrase: t("board.stage.phrase.notAttached") };
     case "error":
       // The engine is not here to attach anything: the board's "working" is
       // true of the session, but not of this panel.
-      return phase.code ? { state: "detached", phrase: "not attached" } : board ?? { state: "none", phrase: "" };
+      return phase.code ? { state: "detached", phrase: t("board.stage.phrase.notAttached") } : board ?? { state: "none", phrase: "" };
     case "not-attachable":
       // Started outside the deck and still running there: the board's own
       // tool and argument are still true, only the place is different.
       if (phase.target.kind === "C" && board && board.state !== "ended") {
         const { tool, arg } = board;
-        return { state: "elsewhere", phrase: "running elsewhere", ...(tool ? { tool } : {}), ...(arg ? { arg } : {}) };
+        return { state: "elsewhere", phrase: t("board.stage.phrase.elsewhere"), ...(tool ? { tool } : {}), ...(arg ? { arg } : {}) };
       }
-      return board ?? { state: "ended", phrase: "ended" };
+      return board ?? { state: "ended", phrase: t("board.stage.phrase.ended") };
     case "ended":
       // The socket said so before the board's sweep did. "Just now" only when
       // the stage watched it happen; a pane that was already dead when it was
       // opened ended some time ago, and the stage cannot say when.
       if (board?.state === "ended") return board;
-      return { state: "ended", phrase: phase.atOpen ? "ended" : "ended just now" };
+      return { state: "ended", phrase: phase.atOpen ? t("board.stage.phrase.ended") : t("board.stage.phrase.endedJustNow") };
     default:
       return board ?? { state: "none", phrase: "" };
   }

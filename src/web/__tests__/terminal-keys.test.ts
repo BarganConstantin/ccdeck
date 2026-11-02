@@ -79,7 +79,7 @@ describe("the release chord is Ctrl+Shift+X, and only that", () => {
     // And a screen reader is told it in words, not read the symbols.
     // CHANGED ON PURPOSE (the UI in every language): the spoken name is a key,
     // and English maps it to the same words.
-    expect(RELEASE_CHORD_SPOKEN_MSG).toBe("board.keys.controlShiftX");
+    expect(RELEASE_CHORD_SPOKEN_MSG).toBe("board.keys.releaseChordSpoken");
     expect(en[RELEASE_CHORD_SPOKEN_MSG]).toBe("Control Shift X");
     expect(RELEASE_CHORD).toMatchObject({ ctrlKey: true, shiftKey: true, altKey: false, metaKey: false });
   });

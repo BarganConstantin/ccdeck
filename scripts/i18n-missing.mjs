@@ -17,8 +17,8 @@
 // import paths, anything that has no letters. It is a heuristic, and the CLI
 // exits 0; src/web/__tests__/i18n-unkeyed.test.ts runs the same scan
 // (scanTree, below) and fails on a string left in a component.
-import { readdirSync, readFileSync, statSync } from "node:fs";
-import { join, relative, resolve, extname } from "node:path";
+import { readdirSync, readFileSync, realpathSync, statSync } from "node:fs";
+import { join, relative, resolve, extname, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createRequire } from "node:module";
 
@@ -97,8 +97,8 @@ export function scan(file, logic = false) {
   const insideT = node => { for (let p = node.parent; p; p = p.parent) if (ts.isCallExpression(p) && /^(t|useT\(\))$/.test(p.expression.getText(sf))) return true; return false; };
 
   function inJsx(node) { for (let p = node.parent; p; p = p.parent) if (ts.isJsxElement(p) || ts.isJsxSelfClosingElement(p) || ts.isJsxFragment(p)) return true; return false; }
-  // Text inside <code>, <pre> or <kbd> is a command, a key or a file: shown as it is in every language.
-  const inCode = node => { for (let p = node.parent; p; p = p.parent) if (ts.isJsxElement(p) && /^(code|pre|kbd)$/.test(p.openingElement.tagName.getText(sf))) return true; return false; };
+  // Text directly inside <code> or <kbd> is a command, a key or a file: shown as it is in every language.
+  const inCode = node => ts.isJsxElement(node.parent) && /^(code|kbd)$/.test(node.parent.openingElement.tagName.getText(sf));
   // A literal compared with === is a value the code tests, never a word the reader sees.
   const compared = node => ts.isBinaryExpression(node.parent) && /^[=!]==?$/.test(node.parent.operatorToken.getText(sf));
 
@@ -127,12 +127,12 @@ export function scan(file, logic = false) {
  *  strings it still writes in English, most first. */
 export function scanTree(targets, { logic = false } = {}) {
   const files = targets.flatMap(t => walk(resolve(t), [], logic));
-  const rows = files.map(f => ({ file: relative(root, f), hits: scan(f, logic) })).filter(r => r.hits.length);
+  const rows = files.map(f => ({ file: relative(root, f).split(sep).join("/"), hits: scan(f, logic) })).filter(r => r.hits.length);
   rows.sort((a, b) => b.hits.length - a.hits.length);
   return { rows, files: files.length };
 }
 
-if (process.argv[1] && resolve(process.argv[1]) === here) {
+if (process.argv[1] && realpathSync(process.argv[1]) === realpathSync(here)) {
   const args = process.argv.slice(2);
   const flags = new Set(args.filter(a => a.startsWith("--")));
   const targets = args.filter(a => !a.startsWith("--"));

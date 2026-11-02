@@ -146,8 +146,8 @@ export function stageShowFor(
   const lastPrompt = root.prompts.length ? root.prompts[root.prompts.length - 1].text : root.firstPrompt;
   const signal = faceSignal(root, undefined, FACE_WORDS);
   const fact = [
-    facts.subagentsLive ? `${facts.subagentsLive} ${facts.subagentsLive === 1 ? "subagent" : "subagents"} working` : null,
-    root.closedAt != null ? `ended ${shortAgo(now - root.closedAt)}` : null,
+    facts.subagentsLive ? t("board.stage.subagentsWorking", { count: facts.subagentsLive }) : null,
+    root.closedAt != null ? t("board.stage.phrase.endedAgo", { ago: shortAgo(now - root.closedAt) }) : null,
     `${agentName(provider)}${root.cwd ? ` · ${root.cwd}` : ""}`,
   ].filter(Boolean).join(" · ");
   return {

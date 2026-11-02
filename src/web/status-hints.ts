@@ -53,7 +53,8 @@ export interface StatusHint {
 export type StatusLayer = "board" | "deck" | "terminal";
 
 const cap = (text: string, spoken?: string): StatusCap => ({ text, spoken });
-const ENTER = cap("↵", "Enter");
+// A getter, so a screen reader hears the language on show when the bar is drawn.
+const ENTER: StatusCap = { text: "↵", get spoken() { return t("board.keys.enterSpoken"); } };
 
 /** The board's layer. Figma's last item here, Ctrl + backtick → workspace, is added
  *  by statusViewFor only where the chord works (the Command Panel is on): the

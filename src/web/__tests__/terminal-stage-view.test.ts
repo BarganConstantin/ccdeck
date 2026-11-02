@@ -713,7 +713,9 @@ describe("asking for the session again from the stage", () => {
     const stage = web("components/terminal/TerminalStage.tsx");
     expect(stage).toMatch(/const retry = \(\) => \{\s*if \(phase\.kind === "tmux-missing" && phase\.busy\) return;\s*session\.retry\(\);\s*p\.onWantKeys\?\.\(\);\s*\};/);
     expect(stage).toContain("onRetry={retry}");
-    expect(stage).toMatch(/action: "Attach again", onAction: act\.attachAgain \}/);
+    // CHANGED ON PURPOSE (the UI in every language): the button's words are a catalog key now.
+    expect(stage).toMatch(/action: tNow\("board\.stage\.attachAgain"\), onAction: act\.attachAgain \}/);
+    expect(en["board.stage.attachAgain"]).toBe("Attach again");
     expect(stage).toMatch(/endView\(phase, p\.show, \{[^}]*attachAgain: retry \}\)/);
     expect(stage).not.toContain("session.retry}");
     expect(web("components/terminal/StageShell.tsx")).toContain("onWantKeys={stage.focusPane}");
