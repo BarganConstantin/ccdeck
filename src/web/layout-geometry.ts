@@ -86,7 +86,7 @@ export const TOOL_LANE_W = 420;
  *  and about a card's height — and the gap it keeps to the left of its card:
  *  dagre's rank gap in layout.ts, so a note placed on arrival sits where R
  *  would put it. */
-export const RECAP_NOTE_W = 300;
+export const RECAP_NOTE_W = 240;
 export const RECAP_NOTE_H = 130;
 export const RECAP_NOTE_GAP = 160;
 

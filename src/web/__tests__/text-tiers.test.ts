@@ -213,7 +213,18 @@ describe("what was migrated to the secondary tier", () => {
       // not a sentence: a bar of categories that are all showing sits a tier
       // under the foreground so the canvas stays the loudest thing, and the
       // pointer lifts a chip to --text. Its floors are held in quiet-signals.
-      ".cat-filter",
+      ".cat-filter.off",
+      // CHANGED ON PURPOSE (V4's Figma): the off pill sits in --text-secondary,
+      // and the pills that show take --text (so `.cat-filter` left this list).
+      // The rest are V4's secondary-ink lines: the auto-fit chip and the
+      // re-arrange strip's status words, the drag trash's first line, the recap
+      // note's body and the cost tooltip's model line.
+      ".autofit-chip",
+      ".rearrange-undo",
+      ".drag-trash-zone",
+      ".drag-trash-text",
+      ".recap-note-text",
+      ".cost-tip-title",
       // CHANGED ON PURPOSE (V4 Inspector, V4's Figma): the Context body's section
       // captions, "Cumulative usage · whole session" and the two after it: titles a
       // reader reads to know which numbers follow, no longer 11px uppercase --muted.
