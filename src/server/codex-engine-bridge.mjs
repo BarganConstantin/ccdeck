@@ -8,7 +8,7 @@ export async function createCodexEngineBridge({ onMessage, onDisconnect = () => 
   const token = randomBytes(32).toString('hex');
   const expected = Buffer.from(`Bearer ${token}`);
   const server = createServer((_req, res) => { res.writeHead(404); res.end(); });
-  const wss = new WebSocketServer({ noServer: true, maxPayload: 16 * 1024 * 1024, perMessageDeflate: false });
+  const wss = new WebSocketServer({ noServer: true, maxPayload: 64 * 1024 * 1024, perMessageDeflate: false });
   let client = null, accepted = false;
   server.on('upgrade', (req, socket, head) => {
     const actual = Buffer.from(String(req.headers.authorization ?? ''));
@@ -34,7 +34,7 @@ export async function createCodexEngineBridge({ onMessage, onDisconnect = () => 
     url: `ws://127.0.0.1:${server.address().port}/`, token,
     send(message) {
       if (client?.readyState !== WebSocket.OPEN) return;
-      if (client.bufferedAmount > 16 * 1024 * 1024) { client.close(1009); return; }
+      if (client.bufferedAmount > 64 * 1024 * 1024) { client.close(1009); return; }
       client.send(JSON.stringify(message));
     },
     async close() {

@@ -7,6 +7,17 @@ import { spawn } from 'node:child_process';
 import { startEngineRpc } from '../../server/codex-engine-rpc.mjs';
 const roots: string[] = [];
 afterEach(async () => { for (const root of roots.splice(0)) await rm(root, { recursive: true, force: true }); });
+it('relays a large native plugin catalog without quadratic partial-frame scanning', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'ccdeck-rpc-large-')); roots.push(root);
+  const script = join(root, 'server.cjs');
+  await writeFile(script, `require('readline').createInterface({input:process.stdin}).on('line',s=>{const m=JSON.parse(s);console.log(JSON.stringify({id:m.id,result:{icon:'x'.repeat(18*1024*1024),name:'猫'}}));});`);
+  const rpc = startEngineRpc(process.execPath, [script], root, { deadlineMs: 4000 });
+  try {
+    const result = await rpc.request('plugin/list', {});
+    expect(result.icon).toHaveLength(18 * 1024 * 1024);
+    expect(result.name).toBe('猫');
+  } finally { await rpc.stop(); }
+});
 it('does not retry a timed-out submission or forward its late internal reply to the TUI', async () => {
   const root = await mkdtemp(join(tmpdir(), 'ccdeck-rpc-')); roots.push(root);
   const script = join(root, 'server.cjs'), counter = join(root, 'count');

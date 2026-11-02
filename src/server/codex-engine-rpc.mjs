@@ -2,11 +2,10 @@
 // messages are written to logs. Internal calls cannot collide with TUI ids.
 import { spawn } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
-import { StringDecoder } from 'node:string_decoder';
 import { spawnSpec } from './exec-spec.mjs';
 import { killTree } from './exec-children.mjs';
 
-export function startEngineRpc(executable, args, home, { env = process.env, onMessage = () => {}, onClose = () => {}, spawnChild = spawn, deadlineMs = 12_000 } = {}) {
+export function startEngineRpc(executable, args, home, { env = process.env, onMessage = () => {}, onClose = () => {}, onState = () => {}, spawnChild = spawn, deadlineMs = 12_000 } = {}) {
   const spec = spawnSpec(executable, args);
   const child = spawnChild(spec.file, spec.args, { ...spec.opts, detached: process.platform !== 'win32', stdio: ['pipe', 'pipe', 'ignore'], env: { ...env, CODEX_HOME: home } });
   const kill = signal => {
@@ -17,8 +16,7 @@ export function startEngineRpc(executable, args, home, { env = process.env, onMe
   };
   const pending = new Map();
   const prefix = `ccdeck-${randomUUID()}-`;
-  let serial = 0, text = '', closed = false, stopping, exitCode = null, forced = false;
-  const decoder = new StringDecoder('utf8');
+  let serial = 0, chunks = [], buffered = 0, invalid = false, closed = false, stopping, exitCode = null, forced = false;
   const ended = new Promise(resolve => {
     const finish = () => {
       if (closed) return;
@@ -30,15 +28,27 @@ export function startEngineRpc(executable, args, home, { env = process.env, onMe
     child.once('error', finish);
   });
   child.stdin.on('error', () => {});
+  function protocolError(reason) {
+    invalid = true; chunks = []; buffered = 0;
+    onState({ state: 'backend-protocol-error', reason }); kill('SIGTERM');
+  }
   child.stdout.on('data', chunk => {
-    text += decoder.write(chunk);
-    if (text.length > 16 * 1024 * 1024) { kill('SIGTERM'); return; }
-    let end;
-    while ((end = text.indexOf('\n')) >= 0) {
-      const line = text.slice(0, end); text = text.slice(end + 1);
+    if (invalid) return;
+    // Plugin catalogs can contain large inline icons. Scan each incoming byte
+    // once, instead of rescanning/copying an ever-growing partial JSON string.
+    let offset = 0;
+    while (offset < chunk.length) {
+      const end = chunk.indexOf(10, offset), stop = end < 0 ? chunk.length : end;
+      const part = chunk.subarray(offset, stop);
+      buffered += part.length;
+      if (buffered > 64 * 1024 * 1024) { protocolError('size'); return; }
+      chunks.push(part);
+      if (end < 0) return;
+      const line = Buffer.concat(chunks, buffered).toString('utf8');
+      chunks = []; buffered = 0; offset = end + 1;
       if (!line.trim()) continue;
       let message;
-      try { message = JSON.parse(line); } catch { kill('SIGTERM'); return; }
+      try { message = JSON.parse(line); } catch { protocolError('json'); return; }
       const call = pending.get(message.id);
       if (call && !message.method) {
         clearTimeout(call.timer); pending.delete(message.id);
@@ -50,7 +60,7 @@ export function startEngineRpc(executable, args, home, { env = process.env, onMe
   function send(message) {
     if (closed || child.stdin.destroyed) throw new Error('Codex connection is unavailable.');
     // Bound both RPC requests and writes from a misbehaving local client.
-    if (child.stdin.writableLength > 16 * 1024 * 1024) throw new Error('Codex request queue is full.');
+    if (child.stdin.writableLength > 64 * 1024 * 1024) throw new Error('Codex request queue is full.');
     child.stdin.write(JSON.stringify(message) + '\n');
   }
   return {
