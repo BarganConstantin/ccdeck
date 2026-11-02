@@ -13,7 +13,9 @@
      at Compact (--ui-space 0.7, Figma's frame), growing with the density:
      8 + (space - 0.7) * 20/3 gives 5.33 Tightest, 6.67 Tighter, 8 Compact,
      10 Default (what the card has always had), 12.67 Comfortable. 10px at the
-     sides. Solid --panel, no shadow at rest and no session stripe: hue stays on
+     sides. Figma draws the 1px edge inside those, so the padding is each less
+     1px and the card is V4's 70 (88 with an ask or a failure) with its edge.
+     Solid --panel, no shadow at rest and no session stripe: hue stays on
      the wires. The edge is --line, and --warn only while the card waits on you.
      The gradient fill is gone from the detail face (the LOD faces keep it). */
   display: flex;
@@ -22,7 +24,7 @@
   width: calc(256px + var(--ui-card-increase, 0px));
   min-width: calc(220px + var(--ui-card-increase, 0px));
   max-width: calc(256px + var(--ui-card-increase, 0px));
-  padding: calc(8px + (var(--ui-space, 1) - 0.7) * 20px / 3) 10px;
+  padding: calc(8px + (var(--ui-space, 1) - 0.7) * 20px / 3 - 1px) calc(10px - 1px);
   background: var(--panel);
   border: 1px solid var(--line);
   border-radius: var(--r-node);
