@@ -3,7 +3,9 @@
 // extra layers on the live one — for an animation that runs once: the 600ms
 // `nodeExit` when a finished subagent is retired. React Flow moves the node
 // wrapper, not the card, so nothing else ever transforms `.agent-node`. The
-// hint lives on the exiting rule now, for the length of the exit.
+// hint lives on the exiting rule now, for the length of the exit. (V4's motion
+// spec made that exit an opacity transition in Exit, with no scale, blur or
+// travel, so the hint names opacity and nothing else.)
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
@@ -23,13 +25,11 @@ describe("a card is its own layer only while it leaves (#881)", () => {
 
   it("promotes it for the exit, naming what the exit animates", () => {
     const exiting = body(".react-flow__node.rf-exiting .agent-node");
-    expect(exiting).toMatch(/animation:\s*nodeExit 600ms/);
+    expect(exiting).toMatch(/transition:\s*opacity var\(--dur-exit\) var\(--ease\)/);
+    expect(exiting).not.toMatch(/animation/);
     const hinted = /will-change:\s*([^;]+)/.exec(exiting)?.[1].split(",").map(s => s.trim()) ?? [];
-    const frames = /@keyframes nodeExit\s*\{([\s\S]*?)\n\}/.exec(css)?.[1] ?? "";
-    for (const prop of ["transform", "opacity", "filter"]) {
-      expect(frames, `nodeExit animates ${prop}`).toMatch(new RegExp(`\\b${prop}:`));
-      expect(hinted, `will-change names ${prop}`).toContain(prop);
-    }
+    expect(hinted).toEqual(["opacity"]);
+    expect(css).not.toMatch(/@keyframes nodeExit/);
   });
 
   it("leaves no other rule promoting every card", () => {

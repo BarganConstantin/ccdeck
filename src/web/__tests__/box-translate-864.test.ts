@@ -29,13 +29,13 @@ describe("the session box moves by translate (#864)", () => {
   });
 
   it("eases that translate on the nodes' own curve, and no longer left or top", () => {
-    // The nodes' curve is V4's one --ease now, the value the literal was within
-    // a few hundredths of.
-    expect(transition).toContain("transform 320ms var(--ease)");
+    // The nodes' curve is V4's stage curve now, in Slow, armed 600ms after the
+    // box mounts like the nodes (react-flow.css), so first paint is still.
+    expect(transition).toContain("transform calc(var(--node-armed) * var(--dur-slow)) var(--ease-stage)");
     expect(transition).not.toMatch(/\b(left|top) \d+ms/);
-    // The size still eases with it, and the fade is not travel.
-    expect(transition).toMatch(/width 320ms/);
-    expect(transition).toMatch(/height 320ms/);
+    // The size no longer eases (V4's motion rule 4: only transform and opacity
+    // animate), and the fade is not travel.
+    expect(transition).not.toMatch(/\b(width|height)\b/);
     expect(transition).toMatch(/opacity var\(--dur-base\)/); // --dur-base is 200
   });
 

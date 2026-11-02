@@ -24,7 +24,6 @@ import type { useClaudeFm } from "../use-claude-fm";
 import type { useNodeDrag } from "../use-node-drag";
 import type { useNodeMeasurements } from "../use-node-measurements";
 import type { PauseControls } from "../use-pause-gate";
-import { shouldAnimateViewport } from "../viewport-motion";
 import AgentNode from "./AgentNode";
 import AutoFitChip from "./AutoFitChip";
 import CanvasControls from "./CanvasControls";
@@ -45,13 +44,9 @@ const nodeTypes = { agent: AgentNode, sessionGroup: SessionGroupNode, recapNote:
  *  nodeTypes, since a new object each render makes React Flow warn and remount. */
 const edgeTypes = { recapTie: RecapTieEdge };
 
-/** How long React Flow's own opening fit takes, when there is anyone watching
- *  it. Named because the answer to "should this animate" is asked of it too. */
-const OPENING_FIT_MS = 400;
-
 export default function BoardFlow({
   graph, layout, viewport, clicks, drag, appearance, fm, radioOpen, onRadioClose, autoFit, pause,
-  stateRef, measuredRef, hiddenCats, now, openTool, focusAgent, requestClear, setKeyHelpOpen, onTerminal,
+  stateRef, measuredRef, hiddenCats, now, openTool, focusAgent, requestClear, setKeyHelpOpen, zoomBy, zoomReset, onTerminal,
 }: {
   /** What is drawn: the nodes with a drag patched over them, the edges, and
    *  the visibility and spotlight sets the bubbles gate on. */
@@ -76,6 +71,9 @@ export default function BoardFlow({
   focusAgent: (id: string) => void;
   requestClear: (source: ClearSource) => void;
   setKeyHelpOpen: Dispatch<SetStateAction<boolean>>;
+  /** The control bar's zoom steps (use-camera.ts): a step in Fast on the camera's own transition. */
+  zoomBy: (factor: number) => void;
+  zoomReset: () => void;
   /** The control stack's Terminal button, handed the button it was pressed
    *  on; absent with the terminal flag off, and so is the button. */
   onTerminal?: (button: Element | null) => void;
@@ -114,21 +112,12 @@ export default function BoardFlow({
       edgesFocusable={false}
       edgeTypes={edgeTypes}
       fitView={!restoredViewport}
-      /* The opening frame is React Flow's own, and it goes through the same
-         d3 transition every other viewport animation does — so a deck that
-         opened its tab behind whatever the user was already looking at drew
-         its graph and then left the pane at the identity transform, an
-         empty-looking canvas until the tab was brought forward. The library
-         re-reads this object into its store on every render and only fits
-         once, when the first nodes are measured, so asking for no animation
-         while the page is not being rendered takes the branch that applies
-         the transform outright. A visible tab still gets the 400ms. */
-      fitViewOptions={{
-        padding: 0.25,
-        duration: shouldAnimateViewport({ durationMs: OPENING_FIT_MS, documentHidden: document.hidden })
-          ? OPENING_FIT_MS
-          : 0,
-      }}
+      /* The opening frame is React Flow's own, and it is still (V4's motion
+         spec: first paint is still). No duration, so the library takes the
+         branch that applies the transform outright: the board opens already
+         fitted, in a visible tab and in one behind whatever the reader was
+         looking at alike. */
+      fitViewOptions={{ padding: 0.25 }}
       minZoom={CANVAS_MIN_ZOOM}
       maxZoom={CANVAS_MAX_ZOOM}
       panOnScroll
@@ -212,6 +201,7 @@ export default function BoardFlow({
         autoFitDisabled={autoFitDisabled} enableAutoFitAndRefit={enableAutoFitAndRefit}
         paused={paused} pauseGate={pauseGate} togglePause={togglePause}
         handleRelayout={handleRelayout} requestClear={requestClear} setKeyHelpOpen={setKeyHelpOpen}
+        zoomBy={zoomBy} zoomReset={zoomReset}
         onTerminal={onTerminal}
       />
       <MiniMap
