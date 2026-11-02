@@ -97,9 +97,11 @@ function declIn(body: string, prop: string): string | null {
   return all.length ? all[all.length - 1][1].replace(/\s+/g, " ").trim() : null;
 }
 
-/** Every rule naming this exact selector, concatenated in source order. */
-function decl(selector: string, prop: string): string | null {
+/** Every rule naming this exact selector, concatenated in source order; with
+ *  `base`, only the rules outside any at-rule (the size a desktop window draws). */
+function decl(selector: string, prop: string, base = false): string | null {
   const bodies = RULES
+    .filter(r => !(base && r.nested))
     .filter(r => r.selector.split(",").some(s => s.replace(/\s+/g, " ").trim() === selector))
     .map(r => r.body);
   return bodies.length ? declIn(bodies.join(";"), prop) : null;
@@ -188,7 +190,8 @@ describe("the type ladder is a closed set (#379 §3)", () => {
     // The four rules the report singled out, at the values they landed on.
     expect(decl(".ap-alias", "font-size")).toBe("13px");            // was .ap-email at 10.5, #857's floor, then the row's name; V4's account row names at 13/20
     expect(decl(".detail .row .v", "font-size")).toBe("12px");      // was 11.5, then 11; V4's Figma sets the Inspector's values at 12
-    expect(decl(".session-list .sl-label", "font-size")).toBe("13px"); // was 12.5, then 12; V4's rail row names at 13/20
+    // CHANGED ON PURPOSE (the phone row name): read outside @media, since a phone's row names at 14 (v4-phone-layout).
+    expect(decl(".session-list .sl-label", "font-size", true)).toBe("13px"); // was 12.5, then 12; V4's rail row names at 13/20
     expect(decl(".uh-stat-label", "font-size")).toBe("12px");       // was 9.5, then 9; V4's Figma: the history stats' labels at 12/16
     expect(decl(".uh-bar-label", "font-size")).toBe("11px");        // was 8, then 9; V4's Figma: a day's name under its bar at 11/14
     expect(decl(".modal-tool-name", "font-size")).toBe("14px");     // the context title's was 15; every dialog title's since 2026-10-23
