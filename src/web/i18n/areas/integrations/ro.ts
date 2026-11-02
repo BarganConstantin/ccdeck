@@ -171,6 +171,8 @@ const catalog: Catalog = {
   "integrations.settings.noLongerSaved": "Această conexiune nu mai este salvată.",
   "integrations.settings.reading": "Se citesc conexiunile…",
   "integrations.settings.notConnected": "Neconectat",
+  "integrations.settings.connectedGroup": "Conectate",
+  "integrations.settings.notConnectedGroup": "Neconectate",
   "integrations.settings.count.one": "{count} conexiune salvată",
   "integrations.settings.count.few": "{count} conexiuni salvate",
   "integrations.settings.count.other": "{count} de conexiuni salvate",
@@ -195,10 +197,12 @@ const catalog: Catalog = {
   "integrations.explore.cap.jira": "Table, sprinturi, backlog și probleme",
   "integrations.explore.cap.github": "Depozite, pull request-uri și Actions",
   "integrations.explore.cap.gitlab": "Proiecte, cereri de îmbinare și pipeline-uri",
+  "integrations.explore.access.jira": "Citire și scriere",
   "integrations.explore.access.read": "Doar citire",
   "integrations.explore.open": "Deschide",
   "integrations.explore.openAria": "Deschide {label}",
   "integrations.explore.notAvailable": "Indisponibil",
+  "integrations.explore.footer": "Tu alegi ce poate face fiecare token. Tokenurile rămân pe acest computer.",
   "integrations.explore.manageInSettings": "Gestionează în Setări",
   "integrations.modal.connection": "Conexiune",
   "integrations.split.width": "Lățimea detaliilor",
@@ -498,6 +502,10 @@ const catalog: Catalog = {
   "integrations.srv.moveDestinationLarge": "Destinația este prea mare pentru a determina ultima problemă. Reîmprospătează și încearcă din nou.",
   "integrations.srv.moveAnchorGroup": "Ancora de rang trebuie să fie în grupul țintă. Reîmprospătează tabla.",
   "integrations.srv.serverOldUnknown": "Acest server rulează o Jira de versiune necunoscută. Tokenurile de acces personal necesită Jira Server sau Data Center 8.14 sau mai nou, deci ccdeck nu se poate conecta la el.",
+  "integrations.token.cloud.path": "id.atlassian.com → Security → API tokens",
+  "integrations.token.server.profile": "Profil",
+  "integrations.token.server.pats": "Personal Access Tokens",
+  "integrations.token.server.create": "Creează token",
 };
 
 export default catalog;

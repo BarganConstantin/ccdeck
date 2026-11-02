@@ -16,9 +16,10 @@
 // terminal-keys.ts that the shortcuts handler already carries.
 import { isCharacterKey } from "./single-key-shortcuts";
 import { releaseChordLabel, RELEASE_CHORD_SPOKEN, VIEW_CHORD_LABEL } from "./terminal-keys";
+import { t } from "./i18n";
 
 /** The view chord in words, for a screen reader: a backtick is read as nothing. */
-const VIEW_CHORD_SPOKEN = "Control backtick";
+const viewChordSpoken = () => t("board.status.controlBacktick");
 
 /** One key cap: what is printed, and what a screen reader says for it when
  *  the print is a symbol or a chord. */
@@ -59,11 +60,11 @@ const ENTER = cap("↵", "Enter");
  *  bar names only keys that work. Space → pause is the keyboard sheet's, which
  *  the frame leaves out; it goes before the chord. */
 export const BOARD_HINTS: readonly StatusHint[] = [
-  { caps: [cap("j"), cap("k")], word: "cards", binds: ["j", "k"] },
-  { caps: [ENTER], word: "select", binds: ["Enter"], onCard: true },
-  { caps: [cap("p")], word: "peek", binds: ["p"], zoomedOut: true },
-  { caps: [cap("n")], word: "next waiting", binds: ["n"], waiting: true },
-  { caps: [cap("Space")], word: "pause", binds: [" "], offCard: true },
+  { caps: [cap("j"), cap("k")], get word() { return t("board.status.cards"); }, binds: ["j", "k"] },
+  { caps: [ENTER], get word() { return t("board.status.select"); }, binds: ["Enter"], onCard: true },
+  { caps: [cap("p")], get word() { return t("board.status.peek"); }, binds: ["p"], zoomedOut: true },
+  { caps: [cap("n")], get word() { return t("board.status.nextWaiting"); }, binds: ["n"], waiting: true },
+  { caps: [cap("Space")], get word() { return t("board.status.pause"); }, binds: [" "], offCard: true },
 ];
 
 /** The deck's layer (the stage open, the board around it with the keys). No
@@ -72,14 +73,10 @@ export const BOARD_HINTS: readonly StatusHint[] = [
  *  later phase); its Ctrl + backtick → board is added by statusViewFor, where
  *  the chord works. */
 export const DECK_HINTS: readonly StatusHint[] = [
-  { caps: [cap("j"), cap("k")], word: "sessions", binds: ["j", "k"] },
-  { caps: [ENTER], word: "open and type", binds: ["Enter"] },
-  { caps: [cap("n")], word: "next waiting", binds: ["n"], waiting: true },
+  { caps: [cap("j"), cap("k")], get word() { return t("board.status.sessions"); }, binds: ["j", "k"] },
+  { caps: [ENTER], get word() { return t("board.status.openAndType"); }, binds: ["Enter"] },
+  { caps: [cap("n")], get word() { return t("board.status.nextWaiting"); }, binds: ["n"], waiting: true },
 ];
-
-export const BOARD_LABEL = "Keys on the board";
-export const DECK_LABEL = "Keys on the deck";
-export const TERMINAL_WORD = "keys back to the deck";
 
 /** What the bar draws now. */
 export interface StatusView {
@@ -118,20 +115,22 @@ export function statusViewFor({ stageOpen, pane, onCard, zoomedOut, singleKeys, 
   // Ctrl + backtick, last, a chord: it stays with the single keys off. The
   // pane catches it too (terminal-keys.ts answers "view" before the session
   // sees it), so the terminal layer names it after the release chord.
-  const view: readonly StatusHint[] = viewChord ? [{ caps: [cap(VIEW_CHORD_LABEL, VIEW_CHORD_SPOKEN)], word: viewChord, binds: [] }] : [];
+  const view: readonly StatusHint[] = viewChord
+    ? [{ caps: [cap(VIEW_CHORD_LABEL, viewChordSpoken())], word: t(viewChord === "workspace" ? "board.status.viewWorkspace" : "board.status.viewBoard"), binds: [] }]
+    : [];
   if (pane != null) {
     return {
       layer: "terminal",
-      label: `Keys in ${pane || "the session"}`,
+      label: pane ? t("board.status.keysIn", { name: pane }) : t("board.status.keysInSession"),
       // A chord, so it stays with the single keys off.
-      hints: [{ caps: [cap(releaseChordLabel(platform), RELEASE_CHORD_SPOKEN)], word: TERMINAL_WORD, binds: [] }, ...view],
+      hints: [{ caps: [cap(releaseChordLabel(platform), RELEASE_CHORD_SPOKEN)], word: t("board.status.keysBack"), binds: [] }, ...view],
     };
   }
   const deck = stageOpen;
   const table = deck ? DECK_HINTS : BOARD_HINTS;
   return {
     layer: deck ? "deck" : "board",
-    label: deck ? DECK_LABEL : BOARD_LABEL,
+    label: deck ? t("board.status.deckLabel") : t("board.status.boardLabel"),
     hints: [
       ...table.filter(h => (singleKeys || !h.binds.some(isCharacterKey))
         && (onCard || !h.onCard) && (!onCard || !h.offCard)

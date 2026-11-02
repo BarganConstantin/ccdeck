@@ -11,7 +11,12 @@ import { fileURLToPath } from "node:url";
 import { createElement, type ReactElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
-import { OfflineCard, UNREACHABLE_SUB, lastNewsTime, unreachableSub } from "../components/ConnectionBanner";
+import { OfflineCard, UNREACHABLE_SUB_MSG, lastNewsTime, unreachableSub } from "../components/ConnectionBanner";
+import { en as englishCatalog } from "../i18n/en";
+
+// CHANGED ON PURPOSE (the UI in every language): the sentence is read through
+// its key now, and the English catalog holds the words.
+const UNREACHABLE_SUB = englishCatalog[UNREACHABLE_SUB_MSG];
 import PhoneKeys, { PHONE_KEYS, pressBegins, pressEnds } from "../components/terminal/PhoneKeys";
 import {
   CLOSE_SHARE, DRAG_SLOP_PX, FLICK_SPEED, GRAB_ZONE_PX, MIN_FLICK_PX, SHEET_NAMES,

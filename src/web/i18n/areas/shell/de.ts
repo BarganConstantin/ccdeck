@@ -13,6 +13,7 @@ const catalog: Catalog = {
   "shell.done": "Fertig",
   "shell.back": "Zurück",
   "shell.next": "Weiter",
+  "shell.skip": "Überspringen",
   "shell.skipToCanvas": "Zum Canvas springen",
   "shell.rail.left": "Konten und Sitzungen",
   "shell.rail.right": "Nutzung und Aktivität",
@@ -257,6 +258,7 @@ const catalog: Catalog = {
   "shell.chip.noticeUpgrade": "v{to} ist auf npm verfügbar",
   "shell.chip.noticeShow": "Neuigkeiten anzeigen",
   "shell.chip.noticeShowBanner": "Neuigkeiten und Hinweis anzeigen",
+  "shell.chip.noticeLabel": "{to} ist bereit. Läuft mit v{from}; {what} — {does}",
   "shell.chip.runningRestart": "Läuft mit v{from}; v{to} ist auf der Festplatte installiert. Zum Übernehmen neu starten · Klick zeigt die Neuigkeiten",
   "shell.chip.runningUpgrade": "Läuft mit v{from}; v{to} ist auf npm · Klick zeigt die Neuigkeiten",
 
@@ -429,6 +431,14 @@ const catalog: Catalog = {
   "shell.feedback.problem.count": "Höchstens {n} Bilder.",
   "shell.feedback.problem.size": "Bild {n} ist größer als {mb} MB.",
   "shell.feedback.problem.format": "Bild {n} ist weder PNG noch JPEG.",
+  "shell.feedback.tabs": "Feedback",
+  "shell.feedback.unreadSuffix": ", ungelesen",
+  "shell.feedback.teamSignature": "ccdeck-Team",
+  "shell.feedback.you": "Du",
+  "shell.art.modelSec": "Sonnet 5 · 38 s",
+  "shell.banner.unreachableTitle": "Dein Rechner ist nicht erreichbar",
+  "shell.banner.unreachableSub": "Agents laufen womöglich noch, deshalb kann das Angezeigte veraltet sein.",
+  "shell.banner.unreachableSubAt": "Agents laufen womöglich noch. Letzte Meldung {time}, deshalb kann das Angezeigte veraltet sein.",
 };
 
 export default catalog;

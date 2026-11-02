@@ -15,6 +15,7 @@ import type { AgentNodeData } from "../types";
 import { useNow } from "../use-now";
 import { KitIcon } from "./kit-icons";
 import { WaitingLoader } from "./Loader";
+import { useT } from "../i18n";
 
 interface Reading { session: string; turn: SessionTurn | null; readAt: number }
 
@@ -65,13 +66,15 @@ export default function InspectorTime({ selected, agents, revision }: {
   /** The graph's `revision`: the agents are mutated in place, so it is what says the calls may have changed. */
   revision: number;
 }) {
+  const t = useT();
   const root = sessionRoot(agents, selected.sessionId) ?? selected;
   // Codex rollouts name no prompt, so there is no turn to cut and nothing to ask for.
-  if (root.provider === "codex") return <p className="insp-note">Time is recorded for Claude Code sessions.</p>;
+  if (root.provider === "codex") return <p className="insp-note">{t("board.insTime.codexOnly")}</p>;
   return <TimeTab root={root} agents={agents} revision={revision} />;
 }
 
 function TimeTab({ root, agents, revision }: { root: AgentNodeData; agents: ReadonlyMap<string, AgentNodeData>; revision: number }) {
+  const t = useT();
   const working = root.state === "active";
   const stamp = `${root.prompts.length}:${root.endedAt ?? ""}`;
   const { reading, failed } = useSessionTurn(root.sessionId, stamp, working);
@@ -94,16 +97,17 @@ function TimeTab({ root, agents, revision }: { root: AgentNodeData; agents: Read
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [turn, agents, root.sessionId, revision, readAt]);
   if (turn === undefined) {
-    if (failed) return <p className="insp-note" role="status">This turn could not be read. Trying again.</p>;
-    return <p className="insp-note insp-time-load" role="status"><WaitingLoader busy size="s" /><span>Reading this turn…</span></p>;
+    if (failed) return <p className="insp-note" role="status">{t("board.insTime.failed")}</p>;
+    return <p className="insp-note insp-time-load" role="status"><WaitingLoader busy size="s" /><span>{t("board.insTime.reading")}</span></p>;
   }
-  if (turn === null || !table) return <p className="insp-note">No turn recorded yet.</p>;
+  if (turn === null || !table) return <p className="insp-note">{t("board.insTime.none")}</p>;
   return <TimeBody turn={turn} table={table} now={now} />;
 }
 
 /** The tab's body for a turn, drawn from what it is given and nothing else. */
 export function TimeBody({ turn, table, now }: { turn: SessionTurn; table: SpanTable; now: number }) {
-  const which = turn.open ? "this turn" : "last turn";
+  const t = useT();
+  const which = turn.open ? t("board.insTime.thisTurnLower") : t("board.insTime.lastTurnLower");
   const [folded, setFolded] = useState<ReadonlySet<string>>(new Set());
   const toggle = (key: string) => setFolded(current => {
     const next = new Set(current);
@@ -115,31 +119,31 @@ export function TimeBody({ turn, table, now }: { turn: SessionTurn; table: SpanT
   return (
     <>
       <div className="insp-head">
-        <span className="insp-title">Where the time went</span>
+        <span className="insp-title">{t("board.insTime.title")}</span>
         <span className="insp-qual">{which}</span>
       </div>
       <dl className="insp-time-stats">
-        <Stat label={turn.open ? "This turn" : "Last turn"} value={turnSpan(turn.totalMs)} />
-        <Stat label="Waiting on you" value={turnSpan(turn.youMs)} tone="warn" />
+        <Stat label={turn.open ? t("board.insTime.thisTurn") : t("board.insTime.lastTurn")} value={turnSpan(turn.totalMs)} />
+        <Stat label={t("board.insTime.waitingOnYou")} value={turnSpan(turn.youMs)} tone="warn" />
         <Stat label="Claude" value={turnSpan(turn.claudeMs)} />
-        <Stat label="This machine" value={turnSpan(turn.machineMs)} />
+        <Stat label={t("board.insTime.thisMachine")} value={turnSpan(turn.machineMs)} />
       </dl>
       <div className="insp-time-split">
-        <p className="insp-time-share"><b>{waitingShare(turn)}%</b> of {which} was waiting on you</p>
-        <div className="insp-time-bar" role="img" aria-label={`Waiting on you ${turnSpan(turn.youMs)}, Claude ${turnSpan(turn.claudeMs)}, this machine ${turnSpan(turn.machineMs)}`}>
+        <p className="insp-time-share"><b>{waitingShare(turn)}%</b> {t("board.insTime.shareOf", { which })}</p>
+        <div className="insp-time-bar" role="img" aria-label={t("board.insTime.barLabel", { you: turnSpan(turn.youMs), claude: turnSpan(turn.claudeMs), machine: turnSpan(turn.machineMs) })}>
           {pieces.map(piece => <i key={piece.lane} data-lane={piece.lane} style={{ flexGrow: piece.ms }} />)}
         </div>
       </div>
       {table.rows.length > 0 && (
-        <div className="insp-time-table" role="table" aria-label="Calls in this turn">
+        <div className="insp-time-table" role="table" aria-label={t("board.insTime.calls")}>
           <div className="insp-time-axis" role="row">
-            <span role="columnheader">Span</span>
+            <span role="columnheader">{t("board.insTime.span")}</span>
             <span className="insp-time-ticks" aria-hidden="true">{axisTicks(table).map((tick, i) => <span key={i}>{tick}</span>)}</span>
           </div>
           {shown.map(row => <SpanLine key={row.key} row={row} table={table} now={now} folded={folded.has(row.key)} onToggle={toggle} />)}
         </div>
       )}
-      <p className="insp-note">Waiting on you is part of the turn. It never counts as Claude or machine time.</p>
+      <p className="insp-note">{t("board.insTime.note")}</p>
     </>
   );
 }
@@ -156,6 +160,7 @@ function Stat({ label, value, tone }: { label: string; value: string; tone?: "wa
 function SpanLine({ row, table, now, folded, onToggle }: {
   row: SpanRow; table: SpanTable; now: number; folded: boolean; onToggle: (key: string) => void;
 }) {
+  const t = useT();
   const box = barBox(row, table, now);
   const took = row.to === null ? null : turnSpan(row.to - row.from);
   // The lane is 172 wide: a bar under 6px of it is a sliver, drawn with a 1px radius.
@@ -171,7 +176,7 @@ function SpanLine({ row, table, now, folded, onToggle }: {
             a row that folds (a subagent) has the chevron in it. */}
         <span className="insp-time-slot">
           {row.group ? (
-            <button type="button" className="insp-time-fold" aria-expanded={!folded} aria-label={`${folded ? "Show" : "Hide"} the calls of ${row.name}`} onClick={() => onToggle(row.key)}>
+            <button type="button" className="insp-time-fold" aria-expanded={!folded} aria-label={t(folded ? "board.insTime.show" : "board.insTime.hide", { name: row.name })} onClick={() => onToggle(row.key)}>
               <KitIcon name="chevron-down" />
             </button>
           ) : null}
@@ -182,7 +187,7 @@ function SpanLine({ row, table, now, folded, onToggle }: {
       </span>
       <span className="insp-time-lane" role="cell">
         {row.waitingSince !== null ? (
-          <span className="insp-time-wait" style={box.left > 40 ? { right: 0 } : { left: `${box.left}%` }}>waiting on you · {turnSpan(now - row.waitingSince)}</span>
+          <span className="insp-time-wait" style={box.left > 40 ? { right: 0 } : { left: `${box.left}%` }}>{t("board.insTime.waitingFor", { span: turnSpan(now - row.waitingSince) })}</span>
         ) : (
           <>
             <i className="insp-time-span" data-group={row.group || undefined} data-thin={thin || undefined} style={{ left: `${box.left}%`, width: `${box.width}%` }} />

@@ -3,8 +3,13 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { lastNewsTime, unreachableSub, UNREACHABLE_SUB } from "../components/ConnectionBanner";
+import { lastNewsTime, unreachableSub, UNREACHABLE_SUB_MSG } from "../components/ConnectionBanner";
+import { en } from "../i18n/en";
 import { setLanguage } from "../i18n";
+
+// CHANGED ON PURPOSE (the UI in every language): the sentence is read through
+// its key now, and the English catalog holds the words.
+const UNREACHABLE_SUB = en[UNREACHABLE_SUB_MSG];
 import { NEVER_OPEN, linkDropped, linkOpened } from "../last-news";
 
 const read = (path: string) => readFileSync(fileURLToPath(new URL(`../${path}`, import.meta.url)), "utf8");

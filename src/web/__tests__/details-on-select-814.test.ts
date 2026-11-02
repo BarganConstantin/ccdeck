@@ -90,7 +90,9 @@ describe("selecting an agent opens its details (#814)", () => {
     expect(appCode).toMatch(/onClose=\{inWorkspace && inspectorColumn \? foldInspector : sheetClose\("inspector", \(\) => \{ panelReturn\.detail\(\); setDetailOpen\(false\); \}\)\}/);
     expect(appCode).toMatch(/const foldInspector = useCallback\(\(\) => \{\s*setInspectorFolded\(true\);\s*setDetailOpen\(false\);/);
     // CHANGED ON PURPOSE (V4's Figma): the Inspector's fold is named "Fold the Inspector".
-    expect(appCode).toMatch(/aria-label="Fold the Inspector"\s+onClick=\{onClose\}/);
+    // CHANGED ON PURPOSE (the UI in every language): the name is read through its key.
+    expect(appCode).toMatch(/aria-label=\{tr\("board\.inspector\.fold"\)\}\s+onClick=\{onClose\}/);
+    expect(en["board.inspector.fold"]).toBe("Fold the Inspector");
     expect(en["board.detailPanel.closeLabel"]).toBe("Close detail panel");
     // D toggles whenever something is selected; with nothing selected it now
     // selects first (#845, d-without-selection-845.test.ts).

@@ -244,7 +244,7 @@ function InspectArt() {
 
       <Screen x={200} y={22} w={226} h={160} />
       <text x={214} y={46} className="ga-t ga-strong">tests</text>
-      <text x={412} y={46} className="ga-s" textAnchor="end">Sonnet 5 · 38s</text>
+      <text x={412} y={46} className="ga-s" textAnchor="end">{t("shell.art.modelSec")}</text>
       <line x1={200} y1={56} x2={426} y2={56} className="ga-line" />
       <text x={214} y={76} className="ga-cap">{t("shell.art.prompt")}</text>
       <text x={214} y={92} className="ga-t">{t("shell.art.promptText")}</text>

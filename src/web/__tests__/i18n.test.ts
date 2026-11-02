@@ -2,8 +2,8 @@
 // language detection, and the lookup's fallbacks.
 //
 // FAILS on: a key a catalog has that English does not (a typo or a stale key),
-// a {placeholder} set that differs from English's, or a registry entry that is
-// malformed. Only WARNS on a key a catalog lacks, because English fills it in.
+// a key English has that a catalog lacks, a {placeholder} set that differs from
+// English's, or a registry entry that is malformed.
 import { describe, expect, it } from "vitest";
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
@@ -123,12 +123,14 @@ describe.each(LANGUAGES.filter(l => l.code !== "en"))("catalog $code", ({ code, 
     expect(keys.filter(k => catalog[k].trim() === "")).toEqual([]);
   });
 
-  it("reports what is missing (a warning, English fills it in)", () => {
+  // CHANGED ON PURPOSE (the UI in every language): this was a warning, since
+  // English fills a gap in; a gap is now a failure, so a new English key
+  // cannot ship without its translation in every language.
+  it("has every key English has", () => {
     const missing = enKeys.filter(k => !(k in catalog));
     const byArea = new Map<string, number>();
     for (const k of missing) byArea.set(k.split(".")[0], (byArea.get(k.split(".")[0]) ?? 0) + 1);
-    if (missing.length) console.warn(`[i18n] ${code}: ${missing.length} of ${enKeys.length} keys missing, falling back to English (${[...byArea].map(([a, n]) => `${a} ${n}`).join(", ")}):\n  ${missing.join("\n  ")}`);
-    expect(missing.length).toBeLessThanOrEqual(enKeys.length);
+    expect(missing, `${code}: ${missing.length} of ${enKeys.length} keys missing (${[...byArea].map(([a, n]) => `${a} ${n}`).join(", ")})`).toEqual([]);
   });
 });
 

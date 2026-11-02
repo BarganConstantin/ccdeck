@@ -171,6 +171,8 @@ const catalog: Catalog = {
   "integrations.settings.noLongerSaved": "此连接已不再保存。",
   "integrations.settings.reading": "正在读取连接…",
   "integrations.settings.notConnected": "未连接",
+  "integrations.settings.connectedGroup": "已连接",
+  "integrations.settings.notConnectedGroup": "未连接",
   "integrations.settings.count.one": "已保存 {count} 个连接",
   "integrations.settings.count.other": "已保存 {count} 个连接",
   "integrations.settings.moreInstances": "另外 {n} 个实例",
@@ -194,10 +196,12 @@ const catalog: Catalog = {
   "integrations.explore.cap.jira": "看板、冲刺、待办事项和问题",
   "integrations.explore.cap.github": "仓库、拉取请求和 Actions",
   "integrations.explore.cap.gitlab": "项目、合并请求和流水线",
+  "integrations.explore.access.jira": "读取和写入",
   "integrations.explore.access.read": "只读",
   "integrations.explore.open": "打开",
   "integrations.explore.openAria": "打开 {label}",
   "integrations.explore.notAvailable": "不可用",
+  "integrations.explore.footer": "每个令牌能做什么由您决定。令牌只保存在这台电脑上。",
   "integrations.explore.manageInSettings": "在设置中管理",
   "integrations.modal.connection": "连接",
   "integrations.split.width": "详情宽度",
@@ -490,6 +494,10 @@ const catalog: Catalog = {
   "integrations.srv.moveDestinationLarge": "目标位置过大，无法确定最后一个问题。请刷新后重试。",
   "integrations.srv.moveAnchorGroup": "排序锚点必须位于目标分组中。请刷新看板。",
   "integrations.srv.serverOldUnknown": "此服务器运行的 Jira 版本未知。个人访问令牌需要 Jira Server 或 Data Center 8.14 及以上版本，因此 ccdeck 无法连接。",
+  "integrations.token.cloud.path": "id.atlassian.com → Security → API tokens",
+  "integrations.token.server.profile": "个人资料",
+  "integrations.token.server.pats": "Personal Access Tokens",
+  "integrations.token.server.create": "创建令牌",
 };
 
 export default catalog;

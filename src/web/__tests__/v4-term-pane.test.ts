@@ -17,7 +17,11 @@ import { fileURLToPath } from "node:url";
 
 import { all, one, textOf } from "./fake-react";
 import { withoutComments } from "./tsx-scan";
-import StageHeader, { CLOSE_LABEL, contextChipText, metaRest, type StageHeaderProps } from "../components/terminal/StageHeader";
+import StageHeader, { CLOSE_LABEL_MSG, contextChipText, metaRest, type StageHeaderProps } from "../components/terminal/StageHeader";
+import { en } from "../i18n/en";
+
+// CHANGED ON PURPOSE (the UI in every language): the label is read through its key, and the English catalog holds the words.
+const CLOSE_LABEL = en[CLOSE_LABEL_MSG];
 import StageBody, { StateCard, type StageBodyProps } from "../components/terminal/StageBody";
 import KeysBar, { type KeysBarProps } from "../components/terminal/KeysBar";
 import { glyphForState } from "../components/terminal/stage-icons";
@@ -397,7 +401,10 @@ describe("the state cards: centred in the pane", () => {
 
   it("takes Figma's colon in the still-running note where the code had a dash, and no other sentence", () => {
     const body = read("components/terminal/StageBody.tsx");
-    expect(body).toContain("Reopening needs it stopped first: finish or quit it there, then check again.");
+    // CHANGED ON PURPOSE (the UI in every language): the note is read through its key, and the key holds Figma's sentence.
+    expect(body).toContain('STILL_RUNNING_NOTE_MSG = "board.stage.stillRunning"');
+    expect(en["board.stage.stillRunning"]).toBe("It is still running in that terminal. Reopening needs it stopped first: finish or quit it there, then check again.");
+    expect(en["board.stage.stillRunning"]).toContain("Reopening needs it stopped first: finish or quit it there, then check again.");
     expect(body).not.toContain("stopped first —");
   });
 });

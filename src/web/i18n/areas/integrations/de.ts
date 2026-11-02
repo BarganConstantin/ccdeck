@@ -171,6 +171,8 @@ const catalog: Catalog = {
   "integrations.settings.noLongerSaved": "Diese Verbindung ist nicht mehr gespeichert.",
   "integrations.settings.reading": "Verbindungen werden gelesen …",
   "integrations.settings.notConnected": "Nicht verbunden",
+  "integrations.settings.connectedGroup": "Verbunden",
+  "integrations.settings.notConnectedGroup": "Nicht verbunden",
   "integrations.settings.count.one": "{count} gespeicherte Verbindung",
   "integrations.settings.count.other": "{count} gespeicherte Verbindungen",
   "integrations.settings.moreInstances": "+{n} weitere Instanzen",
@@ -194,10 +196,12 @@ const catalog: Catalog = {
   "integrations.explore.cap.jira": "Boards, Sprints, Backlog und Vorgänge",
   "integrations.explore.cap.github": "Repositories, Pull Requests und Actions",
   "integrations.explore.cap.gitlab": "Projekte, Merge Requests und Pipelines",
+  "integrations.explore.access.jira": "Lesen und Schreiben",
   "integrations.explore.access.read": "Nur lesen",
   "integrations.explore.open": "Öffnen",
   "integrations.explore.openAria": "{label} öffnen",
   "integrations.explore.notAvailable": "Nicht verfügbar",
+  "integrations.explore.footer": "Du bestimmst, was jedes Token darf. Tokens bleiben auf diesem Rechner.",
   "integrations.explore.manageInSettings": "In den Einstellungen verwalten",
   "integrations.modal.connection": "Verbindung",
   "integrations.split.width": "Breite der Details",
@@ -490,6 +494,10 @@ const catalog: Catalog = {
   "integrations.srv.moveDestinationLarge": "Das Ziel ist zu groß, um den letzten Vorgang zu ermitteln. Aktualisiere und versuche es erneut.",
   "integrations.srv.moveAnchorGroup": "Der Rang-Anker muss in der Zielgruppe sein. Aktualisiere das Board.",
   "integrations.srv.serverOldUnknown": "Dieser Server läuft mit einer unbekannten Jira-Version. Persönliche Zugriffstokens brauchen Jira Server oder Data Center 8.14 oder neuer, deshalb kann ccdeck sich nicht verbinden.",
+  "integrations.token.cloud.path": "id.atlassian.com → Security → API tokens",
+  "integrations.token.server.profile": "Profil",
+  "integrations.token.server.pats": "Persönliche Zugriffstokens",
+  "integrations.token.server.create": "Token erstellen",
 };
 
 export default catalog;

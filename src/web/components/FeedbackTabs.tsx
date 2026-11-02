@@ -16,6 +16,7 @@
 // that throws says the same, instead of taking the deck down to the crash pane.
 import { Component, Suspense, lazy, useRef, type ComponentType, type ErrorInfo, type ReactNode, type RefObject } from "react";
 import { tabStripMove } from "../tablist-keys";
+import { useT } from "../i18n";
 import { CONVERSATIONS_TAB, WRITE_TAB, type FeedbackTab } from "../feedback";
 import type { FeedbackAccount } from "../feedback-unread";
 
@@ -36,10 +37,11 @@ export const CONVERSATIONS_DID_NOT_LOAD = "Couldn't load your conversations. Rel
 /** The note a missing chunk or a thrown panel leaves, with the reload that
  *  fixes the first. */
 export function ConversationsDidNotLoad() {
+  const t = useT();
   return (
     <div className="fc-missing">
       <p className="fc-note">{CONVERSATIONS_DID_NOT_LOAD}</p>
-      <button type="button" className="btn" onClick={() => window.location.reload()}>Reload</button>
+      <button type="button" className="btn" onClick={() => window.location.reload()}>{t("shell.reload")}</button>
     </div>
   );
 }
@@ -102,13 +104,14 @@ export default function FeedbackTabs({ tab, onTab, unread, conversationsTabRef, 
 }) {
   const writeRef = useRef<HTMLButtonElement>(null);
   const ownConversationsRef = useRef<HTMLButtonElement>(null);
+  const t = useT();
   const convRef = conversationsTabRef ?? ownConversationsRef;
   const refs = [writeRef, convRef];
   return (
     <>
       {/* Written out rather than mapped, so each tab names its panel's id as
           the panel spells it. */}
-      <div className="fc-tabs" role="tablist" aria-label="Feedback"
+      <div className="fc-tabs" role="tablist" aria-label={t("shell.feedback.tabs")}
         onKeyDown={e => {
           const move = tabStripMove(e.nativeEvent, TABS.indexOf(tab), TABS.length);
           if (move.kind !== "select") return;

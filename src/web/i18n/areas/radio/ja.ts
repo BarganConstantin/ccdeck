@@ -86,7 +86,9 @@ const catalog: Catalog = {
   "radio.empty.hint.discover": "別の名前で検索するか、フィルターを変更してください。",
   "radio.clearFilters": "フィルターを解除",
   "radio.clearSearch": "検索をクリア",
+  "radio.summary.streams.one": "ワークスペースのストリーム{count}件",
   "radio.summary.streams.other": "ワークスペースのストリーム{count}件",
+  "radio.summary.stations.one": "ラジオ放送局{count}局",
   "radio.summary.stations.other": "ラジオ放送局{count}局",
   "radio.summary.none": "一致する結果はありません",
   "radio.map.aria": "地図で探す",
@@ -181,6 +183,7 @@ const catalog: Catalog = {
   "radio.rec.denied": "マイクへのアクセスが拒否されたか、利用できません。",
   "radio.rec.failed": "録音に失敗しました。もう一度お試しください。",
   "radio.rec.format": "このブラウザーでは対応する音声形式で録音できません。",
+  "radio.directory.source": "Radio Browser",
 };
 
 export default catalog;

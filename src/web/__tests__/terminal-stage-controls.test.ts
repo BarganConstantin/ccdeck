@@ -11,7 +11,13 @@ vi.mock("react", async () => (await import("./fake-react")).react);
 
 import { all, mount, one, textOf, type Drawn } from "./fake-react";
 import Divider, { dividerKey, type DividerProps } from "../components/terminal/Divider";
-import { MODE_CHOICES, NEW_SESSION_NOTE, NEW_SESSION_NOTE_WINDOWS, NewSessionForm, launchOptions, startLabel, startTarget, type NewSessionFormProps } from "../components/terminal/NewSessionPopover";
+import { MODE_CHOICES, NEW_SESSION_NOTE_MSG, NEW_SESSION_NOTE_WINDOWS_MSG, NewSessionForm, launchOptions, startLabel, startTarget, type NewSessionFormProps } from "../components/terminal/NewSessionPopover";
+import { en } from "../i18n/en";
+
+// CHANGED ON PURPOSE (the UI in every language): the notes are read through
+// their keys now, and the English catalog holds the words.
+const NEW_SESSION_NOTE = en[NEW_SESSION_NOTE_MSG];
+const NEW_SESSION_NOTE_WINDOWS = en[NEW_SESSION_NOTE_WINDOWS_MSG];
 import { colsRange, NAV_MIN, stageWidthFor } from "../stage-geometry";
 import type { ProjectChoice } from "../components/terminal/stage-model";
 

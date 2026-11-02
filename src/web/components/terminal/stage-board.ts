@@ -13,6 +13,7 @@
 // card's bubbles name it (FACE_WORDS), the name the face prints (the root's
 // label), the hue the cluster wears (sessionHue). Nothing here is worded twice.
 import { isAlarming, type BlockedSession } from "../../ambient-counts";
+import { t } from "../../i18n";
 import { SEP } from "../../cluster-header";
 import { distinctIdTail } from "../../session-id-tail";
 import { FACE_WORDS } from "../../board-navigator";
@@ -224,10 +225,10 @@ export interface WaitingCard {
 /** The sentence a block asks. The Bash tool is "this command"; another tool is
  *  named; a question or an idle prompt is said as what it is. */
 export function askSentence(w: BlockedSession["waiting"]): string {
-  if (w.kind === "asked") return "Asked you a question.";
-  if (w.kind === "idle") return "Waiting for your next instruction.";
-  if (!w.tool) return "Needs your permission.";
-  return w.tool.name === "Bash" ? "Allow this command?" : `Allow ${w.tool.name}?`;
+  if (w.kind === "asked") return t("board.stage.askAsked");
+  if (w.kind === "idle") return t("board.stage.askIdle");
+  if (!w.tool) return t("board.stage.askPermission");
+  return w.tool.name === "Bash" ? t("board.stage.askCommand") : t("board.stage.askTool", { tool: w.tool.name });
 }
 
 /** The waiting card for the oldest blocked session, or null when none waits. */

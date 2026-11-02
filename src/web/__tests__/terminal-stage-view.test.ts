@@ -18,13 +18,22 @@ import { all, one, textOf, type Drawn } from "./fake-react";
 import { withoutComments } from "./tsx-scan";
 import { sheetText } from "./sheet-source";
 import TerminalStage, { endView, stageName, subjectOf, type StageShow, type TerminalStageProps } from "../components/terminal/TerminalStage";
-import StageHeader, { BACK_EMPTY_LABEL, BACK_LABEL, CLOSE_EMPTY_LABEL, CLOSE_LABEL, FULL_LABEL, FULL_LEAVE_LABEL, type StageHeaderProps } from "../components/terminal/StageHeader";
-import StageBody, { EMPTY_NEW_SESSION_ID, STILL_RUNNING_NOTE, StateCard, downloadNote, setupLine, setupShare, tmuxFact, type StageBodyProps } from "../components/terminal/StageBody";
+import StageHeader, { BACK_EMPTY_LABEL_MSG, BACK_LABEL_MSG, CLOSE_EMPTY_LABEL_MSG, CLOSE_LABEL_MSG, FULL_LABEL_MSG, FULL_LEAVE_LABEL_MSG, type StageHeaderProps } from "../components/terminal/StageHeader";
+import StageBody, { EMPTY_NEW_SESSION_ID, STILL_RUNNING_NOTE_MSG, StateCard, downloadNote, setupLine, setupShare, tmuxFact, type StageBodyProps } from "../components/terminal/StageBody";
+import { en } from "../i18n/en";
 import KeysBar, { ArrivalNote, AsksTrack, type KeysBarProps } from "../components/terminal/KeysBar";
 import { ASSUMED_CELL, stageGeometry } from "../stage-geometry";
 import { POPOVER_MARGIN } from "../popover-place";
-import { LAUNCHED_UNREACHABLE, PROVENANCE_UNKNOWN, launchedUnreachable, provenanceUnknown, type StagePhase, type StageStatus } from "../components/terminal/stage-model";
+import { LAUNCHED_UNREACHABLE_MSG, PROVENANCE_UNKNOWN_MSG, launchedUnreachable, provenanceUnknown, type StagePhase, type StageStatus } from "../components/terminal/stage-model";
 import { subjectKey } from "../use-terminal-session";
+
+// CHANGED ON PURPOSE (the UI in every language): these words are read through
+// their keys now, and the English catalog holds them; each literal check below
+// still compares them with the sentence as it was written.
+const BACK_EMPTY_LABEL = en[BACK_EMPTY_LABEL_MSG], BACK_LABEL = en[BACK_LABEL_MSG], CLOSE_EMPTY_LABEL = en[CLOSE_EMPTY_LABEL_MSG];
+const CLOSE_LABEL = en[CLOSE_LABEL_MSG], FULL_LABEL = en[FULL_LABEL_MSG], FULL_LEAVE_LABEL = en[FULL_LEAVE_LABEL_MSG];
+const STILL_RUNNING_NOTE = en[STILL_RUNNING_NOTE_MSG];
+const LAUNCHED_UNREACHABLE = en[LAUNCHED_UNREACHABLE_MSG], PROVENANCE_UNKNOWN = en[PROVENANCE_UNKNOWN_MSG];
 
 const html = (el: ReactElement) => renderToStaticMarkup(el);
 const press = (el: Drawn | null, event: Record<string, unknown> = {}) => {

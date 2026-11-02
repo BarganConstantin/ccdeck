@@ -86,7 +86,9 @@ const catalog: Catalog = {
   "radio.empty.hint.discover": "搜尋其他名稱，或變更篩選條件。",
   "radio.clearFilters": "清除篩選",
   "radio.clearSearch": "清除搜尋",
+  "radio.summary.streams.one": "{count} 個工作區串流",
   "radio.summary.streams.other": "{count} 個工作區串流",
+  "radio.summary.stations.one": "{count} 個廣播電台",
   "radio.summary.stations.other": "{count} 個廣播電台",
   "radio.summary.none": "沒有符合的結果",
   "radio.map.aria": "地理探索",
@@ -181,6 +183,7 @@ const catalog: Catalog = {
   "radio.rec.denied": "麥克風存取遭拒或無法使用。",
   "radio.rec.failed": "錄音失敗，請再試一次。",
   "radio.rec.format": "此瀏覽器無法錄製支援的音訊格式。",
+  "radio.directory.source": "Radio Browser",
 };
 
 export default catalog;

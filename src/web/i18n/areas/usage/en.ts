@@ -100,6 +100,7 @@ const catalog: Catalog = {
   "usage.credits.codexTitle": "Redeem in the Codex CLI or ChatGPT — {product} only reports them",
   "usage.sessionNote": "Sessions with activity {noun}, and what ccusage puts against each one.",
   "usage.sessionNote.over": "They add up to {sum}, more than the {total} above: what a session cost and what a day cost are two different measurements, and they need not agree.",
+  "usage.refreshWord": "Refresh",
 };
 
 export default catalog;

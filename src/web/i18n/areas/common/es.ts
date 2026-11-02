@@ -7,10 +7,14 @@ const catalog: Catalog = {
   "common.time.m": "{m}m",
   "common.details": "Detalles",
   "common.aboutBefore": " sobre ",
+  "common.aboutAfter": ".",
   "common.ago.now": "justo ahora",
   "common.ago.m": "hace {n}m",
   "common.ago.h": "hace {n}h",
   "common.ago.d": "hace {n}d",
+  "common.cancel": "Cancelar",
+  "common.close": "Cerrar",
+  "common.notNow": "Ahora no",
 };
 
 export default catalog;

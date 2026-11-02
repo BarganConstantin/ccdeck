@@ -11,6 +11,7 @@
 // region of it. Each stat reads number first, label second ("2 Waiting on
 // you"), the order the eye takes.
 import { memo } from "react";
+import { useT } from "../i18n";
 
 import { BOARD_HEAD_CLASS, BOARD_HEAD_LABELS, BOARD_HEAD_NONE, type BoardHeadFigures } from "../board-header";
 
@@ -38,9 +39,10 @@ function BoardHeader({ waiting, working, done, longestWait, spent, scopeTitle, s
    *  container query sees only the room that is left. */
   reservedRight?: number;
 }) {
+  const t = useT();
   const [lWaiting, lWorking, lDone, lLongest, lSpent] = BOARD_HEAD_LABELS;
   return (
-    <section className={BOARD_HEAD_CLASS} aria-label="Board summary" style={{ paddingRight: `calc(24px + ${reservedRight}px)` }}>
+    <section className={BOARD_HEAD_CLASS} aria-label={t("board.header.summary")} style={{ paddingRight: `calc(24px + ${reservedRight}px)` }}>
       {/* A resting zero is not an alarm: --warn only above zero, the rule
           ambient.ts states for the tab title. */}
       <Stat value={String(waiting)} label={lWaiting} tone={waiting > 0 ? "warn" : undefined} />

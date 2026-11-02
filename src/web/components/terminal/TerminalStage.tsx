@@ -64,6 +64,7 @@ import KeysBar, { type ArrivalView, type AsksView, type EndView } from "./KeysBa
 import PhoneKeys from "./PhoneKeys";
 import Divider from "./Divider";
 import HostsDialog from "./HostsDialog";
+import { useT } from "../../i18n";
 import { DialogPresence } from "../Dialog";
 import type { HostsApi } from "./older-hosts";
 import { useOlderHosts } from "./use-older-hosts";
@@ -319,6 +320,7 @@ function useDrawnHeight(rootRef: RefObject<HTMLElement>, selector: string, onHei
 }
 
 export default function TerminalStage(p: TerminalStageProps) {
+  const t = useT();
   const [held, setHeld] = useState(false);
   /** What the pane refused, said in the keys bar for a few seconds. */
   const [notice, setNotice] = useState<string | null>(null);
@@ -463,7 +465,7 @@ export default function TerminalStage(p: TerminalStageProps) {
       ref={rootRef}
       className="ts-stage"
       role="region"
-      aria-label={`Command Panel — ${name}`}
+      aria-label={t("board.stage.region", { name })}
       data-kind={phase.kind}
       data-empty={p.show.kind === "empty" || undefined}
       data-live={live || undefined}

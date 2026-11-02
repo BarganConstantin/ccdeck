@@ -17,8 +17,9 @@ import { fileURLToPath } from "node:url";
 import { all, one, textOf, type Drawn } from "./fake-react";
 import { withoutComments } from "./tsx-scan";
 import type { ApiFailure, HostsAnswer, OlderHost } from "../terminal-api";
+import { en } from "../i18n/en";
 import {
-  REFUSED_UNTIL_THEY_END,
+  REFUSED_UNTIL_THEY_END_MSG,
   endHost,
   endAllLabel,
   hostReason,
@@ -32,6 +33,9 @@ import {
 import { HostsReview, type HostsReviewProps } from "../components/terminal/HostsDialog";
 import KeysBar, { HostsNote, type KeysBarProps } from "../components/terminal/KeysBar";
 
+// CHANGED ON PURPOSE (the UI in every language): the sentence is read through
+// its key now, and the English catalog holds the words.
+const REFUSED_UNTIL_THEY_END = en[REFUSED_UNTIL_THEY_END_MSG];
 const id = (n: number) => n.toString(16).padStart(32, "0");
 const NOW = 1_700_000_000_000;
 const session = (n: number, agent: "claude" | "codex" = "claude") =>
@@ -221,7 +225,9 @@ describe("the Review dialog", () => {
     expect(src).toMatch(/<Dialog [^>]*labelledBy="older-hosts-title"/);
     expect(src).toMatch(/useModalDismiss\(p\.onCancel, \{ focusRef: keepRef, layer: CONFIRM_LAYER \}\)/);
     expect(src).toMatch(/useScrimDismiss\(p\.onCancel\)/);
-    expect(src).toMatch(/<DialogClose onClick=\{p\.onCancel\} label="Cancel \(Esc\)" \/>/);
+    // CHANGED ON PURPOSE (the UI in every language): the name is read through its key.
+    expect(src).toMatch(/<DialogClose onClick=\{p\.onCancel\} label=\{tt\("board\.hosts\.cancelEsc"\)\} \/>/);
+    expect(en["board.hosts.cancelEsc"]).toBe("Cancel (Esc)");
     // The role and aria-modal are Dialog.tsx's, and the × it draws is labelled.
     const shell = withoutComments(readFileSync(fileURLToPath(new URL("../components/Dialog.tsx", import.meta.url)), "utf8"));
     expect(shell).toMatch(/role="dialog"\s+aria-modal="true"/);

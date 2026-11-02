@@ -9,6 +9,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { sheetText } from "./sheet-source";
+import { en } from "../i18n/en";
 import { fmtTokens } from "../token-format";
 import { dayValue, weekdayShort } from "../usage-history";
 import { dialogDuration } from "../duration";
@@ -491,7 +492,9 @@ describe("Context breakdown", () => {
     for (const key of ["inputTokens", "outputTokens", "cacheWrites", "total", "cost", "userMsgs", "assistantMsgs", "toolUses", "toolResults", "reminders"]) {
       expect(context, key).toContain(`insights.context.${key}`);
     }
-    expect(context).toContain('label="Cache reads"');
+    // CHANGED ON PURPOSE (the UI in every language): named by its key.
+    expect(context).toContain('label={t("insights.context.cacheReads")}');
+    expect(en["insights.context.cacheReads"]).toBe("Cache reads");
   });
 
   it("closes on Done in the shell's footer", () => {

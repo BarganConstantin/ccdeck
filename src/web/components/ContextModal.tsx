@@ -219,7 +219,7 @@ export function ContextView({ agent, meta = false }: {
         <div className="ctx-grid">
           <Row meta={meta} label={t("insights.context.inputTokens")}        n={usage.inputTokens} />
           <Row meta={meta} label={t("insights.context.outputTokens")}       n={usage.outputTokens} />
-          <Row meta={meta} label="Cache reads"         n={usage.cacheReadTokens} />
+          <Row meta={meta} label={t("insights.context.cacheReads")} n={usage.cacheReadTokens} />
           <Row meta={meta} label={t("insights.context.cacheWrites")}        n={usage.cacheCreateTokens} />
           <Row meta={meta} label={t("insights.context.total")}    n={cumulative} />
           <Row meta={meta} label={t("insights.context.cost")}      val={fmtCost(cost.total)} />

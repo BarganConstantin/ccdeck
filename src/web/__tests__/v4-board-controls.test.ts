@@ -41,7 +41,8 @@ describe("the bar's items, left to right", () => {
     'aria-label={t("board.controls.clearLabel")}',
     "react-flow__controls-divider",
     'aria-label={t("board.controls.keysLabel")}',
-    'aria-label="Open the Command Panel"',
+    // CHANGED ON PURPOSE (the UI in every language): named by its key; the words are asserted below.
+    'aria-label={t("board.controls.openPanel")}',
   ];
   it("says those names in the words V4 drew", () => {
     expect([
@@ -63,7 +64,12 @@ describe("the bar's items, left to right", () => {
     expect(dividers).toHaveLength(2);
   });
   it("names the level for both halves of what it does", () => {
-    expect(component).toContain("aria-label={`Zoom ${level}, reset to 100%`}");
+    // CHANGED ON PURPOSE (the UI in every language): both names are read through their keys.
+    expect(component).toContain('aria-label={t("board.controls.zoomLabel", { level })}');
+    expect(component).toContain('title={t("board.controls.zoomReset")}');
+    expect(en["board.controls.zoomLabel"]).toBe("Zoom {level}, reset to 100%");
+    expect(en["board.controls.zoomReset"]).toBe("Reset the zoom to 100%");
+    expect(en["board.controls.openPanel"]).toBe("Open the Command Panel");
     expect(component).toContain("onClick={zoomReset}");
   });
   it("reads the level from the store as a string, in its own component, so a zoom re-renders one button", () => {

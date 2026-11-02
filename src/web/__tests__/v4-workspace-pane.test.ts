@@ -9,10 +9,18 @@ import { sourceOf } from "./client-source";
 import { withoutComments } from "./tsx-scan";
 import { stageGeometry, ASSUMED_CELL, INSET_X, STAGE_COLS_KEY, type StageGeometryInput } from "../stage-geometry";
 import StageHeader, {
-  BACK_EMPTY_LABEL, CLOSE_LABEL, FULL_LABEL, FULL_LEAVE_LABEL, PANE_CLOSE_LABEL, ZOOM_LABEL, ZOOM_OFF_LABEL,
+  BACK_EMPTY_LABEL_MSG, CLOSE_LABEL_MSG, FULL_LABEL_MSG, FULL_LEAVE_LABEL_MSG, PANE_CLOSE_LABEL_MSG, ZOOM_LABEL_MSG, ZOOM_OFF_LABEL_MSG,
   expandLabelFor, zoomLabelFor, type StageHeaderProps,
 } from "../components/terminal/StageHeader";
-import { StateCard, WS_EMPTY_LINE, WS_EMPTY_TITLE, type StageBodyProps } from "../components/terminal/StageBody";
+import { StateCard, WS_EMPTY_LINE_MSG, WS_EMPTY_TITLE_MSG, type StageBodyProps } from "../components/terminal/StageBody";
+import { en } from "../i18n/en";
+
+// CHANGED ON PURPOSE (the UI in every language): these words are read through
+// their keys now, and the English catalog holds them.
+const BACK_EMPTY_LABEL = en[BACK_EMPTY_LABEL_MSG], CLOSE_LABEL = en[CLOSE_LABEL_MSG], FULL_LABEL = en[FULL_LABEL_MSG];
+const FULL_LEAVE_LABEL = en[FULL_LEAVE_LABEL_MSG], PANE_CLOSE_LABEL = en[PANE_CLOSE_LABEL_MSG];
+const ZOOM_LABEL = en[ZOOM_LABEL_MSG], ZOOM_OFF_LABEL = en[ZOOM_OFF_LABEL_MSG];
+const WS_EMPTY_LINE = en[WS_EMPTY_LINE_MSG], WS_EMPTY_TITLE = en[WS_EMPTY_TITLE_MSG];
 import { EMPTY_PANE_NAME, stageName } from "../components/terminal/TerminalStage";
 import { askSentence, waitedExact, waitingCardFor } from "../components/terminal/stage-board";
 import type { BlockedSession } from "../ambient-counts";

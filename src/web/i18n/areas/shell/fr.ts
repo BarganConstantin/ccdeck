@@ -13,6 +13,7 @@ const catalog: Catalog = {
   "shell.done": "Terminé",
   "shell.back": "Retour",
   "shell.next": "Suivant",
+  "shell.skip": "Passer",
   "shell.skipToCanvas": "Aller au canevas",
   "shell.rail.left": "Comptes et sessions",
   "shell.rail.right": "Utilisation et activité",
@@ -258,6 +259,7 @@ const catalog: Catalog = {
   "shell.chip.noticeUpgrade": "la v{to} est disponible sur npm",
   "shell.chip.noticeShow": "afficher les nouveautés",
   "shell.chip.noticeShowBanner": "afficher les nouveautés et l’avis",
+  "shell.chip.noticeLabel": "{to} est prête. Version v{from} en cours ; {what} — {does}",
   "shell.chip.runningRestart": "v{from} en cours ; la v{to} est installée sur le disque. Redémarrez pour la charger · cliquez pour les nouveautés",
   "shell.chip.runningUpgrade": "v{from} en cours ; la v{to} est sur npm · cliquez pour les nouveautés",
 
@@ -431,6 +433,14 @@ const catalog: Catalog = {
   "shell.feedback.problem.count": "{n} images au plus.",
   "shell.feedback.problem.size": "L’image {n} dépasse {mb} Mo.",
   "shell.feedback.problem.format": "L’image {n} n’est ni un PNG ni un JPEG.",
+  "shell.feedback.tabs": "Avis",
+  "shell.feedback.unreadSuffix": ", non lu",
+  "shell.feedback.teamSignature": "l’équipe ccdeck",
+  "shell.feedback.you": "Vous",
+  "shell.art.modelSec": "Sonnet 5 · 38 s",
+  "shell.banner.unreachableTitle": "Impossible de joindre votre ordinateur",
+  "shell.banner.unreachableSub": "Les agents tournent peut-être encore, ce que vous voyez est donc peut-être périmé.",
+  "shell.banner.unreachableSubAt": "Les agents tournent peut-être encore. Dernières nouvelles {time}, ce que vous voyez est donc peut-être périmé.",
 };
 
 export default catalog;

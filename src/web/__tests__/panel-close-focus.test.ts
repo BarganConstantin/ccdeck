@@ -161,7 +161,9 @@ describe("the wiring", () => {
     expect(app).toMatch(/onClose=\{inWorkspace && inspectorColumn \? foldInspector : sheetClose\("inspector", \(\) => \{ panelReturn\.detail\(\); setDetailOpen\(false\); \}\)\}/);
     expect(app).toMatch(/const foldInspector = useCallback\(\(\) => \{\s*setInspectorFolded\(true\);\s*setDetailOpen\(false\);/);
     // CHANGED ON PURPOSE (V4's Figma): the Inspector's fold is named "Fold the Inspector".
-    expect(detail).toMatch(/aria-label="Fold the Inspector"\s+onClick=\{onClose\}/);
+    // CHANGED ON PURPOSE (the UI in every language): the name is read through its key.
+    expect(detail).toMatch(/aria-label=\{tr\("board\.inspector\.fold"\)\}\s+onClick=\{onClose\}/);
+    expect(en["board.inspector.fold"]).toBe("Fold the Inspector");
     expect(en["board.detailPanel.closeLabel"]).toBe("Close detail panel");
   });
 

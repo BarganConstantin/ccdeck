@@ -12,6 +12,9 @@ const catalog: Catalog = {
   "common.ago.m": "{n}分前",
   "common.ago.h": "{n}時間前",
   "common.ago.d": "{n}日前",
+  "common.cancel": "キャンセル",
+  "common.close": "閉じる",
+  "common.notNow": "あとで",
 };
 
 export default catalog;

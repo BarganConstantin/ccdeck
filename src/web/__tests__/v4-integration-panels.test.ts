@@ -8,6 +8,7 @@
 // restyle may not add a control that writes.
 import { readdirSync, readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
+import { en } from "../i18n/en";
 
 const read = (path: string) => readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
 const strip = (css: string) => css.replace(/\/\*[\s\S]*?\*\//g, "");
@@ -281,7 +282,15 @@ describe("the New session popover", () => {
 
   it("keeps every field and what Start does, and adds no prompt field", () => {
     const src = read("components/terminal/NewSessionPopover.tsx");
-    for (const word of ["Agent", "Project", "Model", "Permissions", "In a new git worktree", "project-path"]) expect(src, word).toContain(word);
+    // CHANGED ON PURPOSE (the UI in every language): each field is named by its key, and the key holds the same words.
+    for (const [key, word] of [
+      ["board.newSession.agent", "Agent"], ["board.newSession.project", "Project"], ["board.newSession.model", "Model"],
+      ["board.newSession.permissions", "Permissions"], ["board.newSession.worktree", "In a new git worktree"],
+    ] as const) {
+      expect(src, key).toContain(`t("${key}")`);
+      expect(en[key], key).toBe(word);
+    }
+    expect(src).toContain("project-path");
     expect(src).toContain("onStart(agent, target.cwd, options)");
     expect(src).not.toMatch(/prompt/i);
   });

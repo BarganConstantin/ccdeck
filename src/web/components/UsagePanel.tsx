@@ -558,10 +558,10 @@ export default function UsagePanel({ state, now, providers, incidents = [], leav
             {...selfPressProps(anyLoading)}
             aria-label={refreshLabel}
             title={refreshLabel}
-          ><KitIcon name="update" className="refresh-glyph" />Refresh</button>
+          ><KitIcon name="update" className="refresh-glyph" />{t("usage.refreshWord")}</button>
           <button type="button" className="up-quiet" aria-label={t("usage.historyOpen")}
             title={t("usage.history")} onClick={event => setQuotaHistoryOpen(event.detail === 0 ? "keyboard" : "pointer")}>
-            <KitIcon name="history" />Quota history
+            <KitIcon name="history" />{t("usage.history")}
           </button>
         </div>
       )}

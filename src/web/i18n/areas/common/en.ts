@@ -12,6 +12,9 @@ const catalog: Catalog = {
   "common.ago.m": "{n}m ago",
   "common.ago.h": "{n}h ago",
   "common.ago.d": "{n}d ago",
+  "common.cancel": "Cancel",
+  "common.close": "Close",
+  "common.notNow": "Not now",
 };
 
 export default catalog;

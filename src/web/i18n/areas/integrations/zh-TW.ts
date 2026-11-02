@@ -171,6 +171,8 @@ const catalog: Catalog = {
   "integrations.settings.noLongerSaved": "此連線已不再儲存。",
   "integrations.settings.reading": "正在讀取連線…",
   "integrations.settings.notConnected": "未連線",
+  "integrations.settings.connectedGroup": "已連線",
+  "integrations.settings.notConnectedGroup": "未連線",
   "integrations.settings.count.one": "已儲存 {count} 個連線",
   "integrations.settings.count.other": "已儲存 {count} 個連線",
   "integrations.settings.moreInstances": "另外 {n} 個執行個體",
@@ -194,10 +196,12 @@ const catalog: Catalog = {
   "integrations.explore.cap.jira": "看板、衝刺、待辦清單與議題",
   "integrations.explore.cap.github": "儲存庫、提取要求與 Actions",
   "integrations.explore.cap.gitlab": "專案、合併請求與管線",
+  "integrations.explore.access.jira": "讀取與寫入",
   "integrations.explore.access.read": "唯讀",
   "integrations.explore.open": "開啟",
   "integrations.explore.openAria": "開啟 {label}",
   "integrations.explore.notAvailable": "無法使用",
+  "integrations.explore.footer": "每個權杖能做什麼由您決定。權杖只會留在這台電腦上。",
   "integrations.explore.manageInSettings": "在設定中管理",
   "integrations.modal.connection": "連線",
   "integrations.split.width": "詳細資料寬度",
@@ -490,6 +494,10 @@ const catalog: Catalog = {
   "integrations.srv.moveDestinationLarge": "目的地太大，無法判斷最後一個議題。請重新整理後再試。",
   "integrations.srv.moveAnchorGroup": "排序錨點必須位於目標群組中。請重新整理看板。",
   "integrations.srv.serverOldUnknown": "此伺服器執行的 Jira 版本不明。個人存取權杖需要 Jira Server 或 Data Center 8.14 以上版本，因此 ccdeck 無法連線。",
+  "integrations.token.cloud.path": "id.atlassian.com → 安全性 → API 權杖",
+  "integrations.token.server.profile": "個人資料",
+  "integrations.token.server.pats": "個人存取權杖",
+  "integrations.token.server.create": "建立權杖",
 };
 
 export default catalog;

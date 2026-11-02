@@ -13,6 +13,7 @@ const catalog: Catalog = {
   "shell.done": "Listo",
   "shell.back": "Atrás",
   "shell.next": "Siguiente",
+  "shell.skip": "Omitir",
   "shell.skipToCanvas": "Ir al lienzo",
   "shell.rail.left": "Cuentas y sesiones",
   "shell.rail.right": "Uso y actividad",
@@ -258,6 +259,7 @@ const catalog: Catalog = {
   "shell.chip.noticeUpgrade": "v{to} está disponible en npm",
   "shell.chip.noticeShow": "mostrar novedades",
   "shell.chip.noticeShowBanner": "mostrar novedades y el aviso",
+  "shell.chip.noticeLabel": "{to} está lista. Se ejecuta v{from}; {what} — {does}",
   "shell.chip.runningRestart": "Ejecutando v{from}; v{to} está instalada en disco. Reinicia para usarla · clic para ver las novedades",
   "shell.chip.runningUpgrade": "Ejecutando v{from}; v{to} está en npm · clic para ver las novedades",
 
@@ -430,6 +432,14 @@ const catalog: Catalog = {
   "shell.feedback.problem.count": "Como máximo {n} imágenes.",
   "shell.feedback.problem.size": "La imagen {n} supera los {mb} MB.",
   "shell.feedback.problem.format": "La imagen {n} no es un PNG ni un JPEG.",
+  "shell.feedback.tabs": "Comentarios",
+  "shell.feedback.unreadSuffix": ", sin leer",
+  "shell.feedback.teamSignature": "equipo de ccdeck",
+  "shell.feedback.you": "Tú",
+  "shell.art.modelSec": "Sonnet 5 · 38 s",
+  "shell.banner.unreachableTitle": "No se puede conectar con tu equipo",
+  "shell.banner.unreachableSub": "Puede que los agentes sigan en ejecución, así que lo que ves puede estar desactualizado.",
+  "shell.banner.unreachableSubAt": "Puede que los agentes sigan en ejecución. Últimas noticias {time}, así que lo que ves puede estar desactualizado.",
 };
 
 export default catalog;

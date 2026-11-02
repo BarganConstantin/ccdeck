@@ -21,6 +21,7 @@ import type { SizeOwner } from "../../terminal-protocol";
 import type { PanelUnavailable, TerminalProvider, TerminalTarget, TmuxProgress } from "../../terminal-api";
 import { shortAgo } from "../../relative-time";
 import { elapsed } from "../../duration";
+import { t } from "../../i18n";
 
 // ---------------------------------------------------------------------------
 // The stage's own phase — what the terminal under the header is doing.
@@ -222,7 +223,7 @@ export function stageStatusFrom(facts: BoardFacts, now: number): StageStatus {
 
 /** What a reconnecting pane adds to the header's "reconnecting…", and the
  *  keys bar's second half (V4's Figma). */
-export const RECONNECT_NOTE = "Nothing typed now is sent.";
+export const RECONNECT_NOTE_MSG = "board.stage.reconnectNote";
 
 /**
  * What the header says once the stage's own phase is taken into account. The
@@ -236,12 +237,12 @@ export function headerStatus(board: StageStatus | null, phase: StagePhase): Stag
     case "attaching":
       // A reconnect says what the frozen frame cannot: keys typed now go nowhere.
       return phase.reconnect
-        ? { state: "attaching", phrase: "reconnecting…", arg: RECONNECT_NOTE }
+        ? { state: "attaching", phrase: "reconnecting…", arg: t(RECONNECT_NOTE_MSG) }
         : { state: "attaching", phrase: "attaching…" };
     case "starting":
       return { state: "starting", phrase: "starting…", arg: phase.cwd };
     case "tmux-installing":
-      return { state: "starting", phrase: "setting up tmux…" };
+      return { state: "starting", phrase: t("board.stage.settingUpTmux") };
     case "tmux-missing":
       return { state: "detached", phrase: "not attached" };
     case "error":
@@ -282,14 +283,12 @@ export function spineLive(status: StageStatus, phase: StagePhase, streaming: boo
  *  launch, or the deck's record says so — where the deck's "started outside
  *  the deck" would be untrue. It says why the deck may not reach it, and that
  *  it was not ended. */
-export const LAUNCHED_UNREACHABLE =
-  "This session was started from the Command Panel, but this deck cannot reach it: it may be running under another Windows sign-in, or its owner cannot be verified from here. It has not been ended.";
+export const LAUNCHED_UNREACHABLE_MSG = "board.stage.launchedUnreachable";
 
 /** Case C on Windows for a session the deck cannot say who started (the
  *  target's provenance is "unknown"): neither sentence above would be known
  *  to be true. */
-export const PROVENANCE_UNKNOWN =
-  "This deck cannot reach this session, and cannot tell whether it was started from the Command Panel: it may be running under another Windows sign-in or in a terminal outside the deck. It has not been ended.";
+export const PROVENANCE_UNKNOWN_MSG = "board.stage.provenanceUnknown";
 
 /** Whether a card with no pane is LAUNCHED_UNREACHABLE's: case C, on Windows,
  *  for a session this deck launched — this tab's launch, or the deck's record
@@ -313,19 +312,19 @@ export function provenanceUnknown(target: TerminalTarget, place: { windows?: boo
  *  say. The integrator hands it to the deck's announcement reducer. */
 export function stageAnnouncement(name: string, phase: StagePhase): string | null {
   switch (phase.kind) {
-    case "live": return `${name} is open in the Command Panel.`;
-    case "ended": return `${name} ended. The Command Panel shows its last frame.`;
-    case "detached": return `${name} was detached from the Command Panel. It keeps running.`;
-    case "not-attachable": return phase.stillRunning ? `${name} is still running in another terminal.` : `${name} has no pane to attach to.`;
-    case "tmux-installing": return "Setting up tmux for the Command Panel.";
-    case "tmux-missing": return "tmux is not installed, so the Command Panel cannot attach.";
+    case "live": return t("board.stage.announceLive", { name });
+    case "ended": return t("board.stage.announceEnded", { name });
+    case "detached": return t("board.stage.announceDetached", { name });
+    case "not-attachable": return phase.stillRunning ? t("board.stage.announceStillRunning", { name }) : t("board.stage.announceNoPane", { name });
+    case "tmux-installing": return t("board.stage.announceTmuxSetup");
+    case "tmux-missing": return t("board.stage.announceTmuxMissing");
     case "error": return errorWords(phase.message);
     default: return null;
   }
 }
 
 /** What the Error card says when the stage cannot say more. */
-export const PANEL_STOPPED = "The Command Panel stopped. The session may still be running.";
+export const PANEL_STOPPED_MSG = "board.stage.panelStopped";
 
 /** The engine's own refusals of a malformed question (terminal-target.mjs
  *  checkTargetQuery): the session has no id the deck can use, or no provider.
@@ -339,12 +338,12 @@ const SERVER_REFUSALS: ReadonlySet<string> = new Set([
 /** The words an error is shown with: the deck's own sentence as it is, a raw
  *  server refusal as the Error card's. */
 export function errorWords(message: string): string {
-  return SERVER_REFUSALS.has(message.trim()) ? PANEL_STOPPED : message;
+  return SERVER_REFUSALS.has(message.trim()) ? t(PANEL_STOPPED_MSG) : message;
 }
 
 /** What is said when the stage closes. Never "stopped": it did not stop. */
 export function closedAnnouncement(name: string | null): string {
-  return name ? `Command Panel closed. ${name} keeps running.` : "Command Panel closed.";
+  return name ? t("board.stage.closedNamed", { name }) : t("board.stage.closed");
 }
 
 // ---------------------------------------------------------------------------

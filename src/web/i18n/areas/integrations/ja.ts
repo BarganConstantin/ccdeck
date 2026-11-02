@@ -171,6 +171,8 @@ const catalog: Catalog = {
   "integrations.settings.noLongerSaved": "この接続は保存されていません。",
   "integrations.settings.reading": "接続を読み込み中…",
   "integrations.settings.notConnected": "未接続",
+  "integrations.settings.connectedGroup": "接続済み",
+  "integrations.settings.notConnectedGroup": "未接続",
   "integrations.settings.count.one": "保存済みの接続{count}件",
   "integrations.settings.count.other": "保存済みの接続{count}件",
   "integrations.settings.moreInstances": "ほか{n}件のインスタンス",
@@ -194,10 +196,12 @@ const catalog: Catalog = {
   "integrations.explore.cap.jira": "ボード、スプリント、バックログ、作業項目",
   "integrations.explore.cap.github": "リポジトリ、プルリクエスト、Actions",
   "integrations.explore.cap.gitlab": "プロジェクト、マージリクエスト、パイプライン",
+  "integrations.explore.access.jira": "読み取りと書き込み",
   "integrations.explore.access.read": "読み取り専用",
   "integrations.explore.open": "開く",
   "integrations.explore.openAria": "{label} を開く",
   "integrations.explore.notAvailable": "利用不可",
+  "integrations.explore.footer": "各トークンに許可する操作は、あなたが選べます。トークンはこのマシンの外に出ません。",
   "integrations.explore.manageInSettings": "設定で管理",
   "integrations.modal.connection": "接続",
   "integrations.split.width": "詳細の幅",
@@ -490,6 +494,10 @@ const catalog: Catalog = {
   "integrations.srv.moveDestinationLarge": "移動先が大きすぎて、最後の作業項目を特定できません。更新してもう一度お試しください。",
   "integrations.srv.moveAnchorGroup": "順位の基準は移動先のグループにある必要があります。ボードを更新してください。",
   "integrations.srv.serverOldUnknown": "このサーバーは不明なバージョンの Jira で動作しています。パーソナルアクセストークンには Jira Server または Data Center 8.14 以降が必要なため、ccdeck は接続できません。",
+  "integrations.token.cloud.path": "id.atlassian.com → Security → API tokens",
+  "integrations.token.server.profile": "プロフィール",
+  "integrations.token.server.pats": "パーソナルアクセストークン",
+  "integrations.token.server.create": "トークンを作成",
 };
 
 export default catalog;

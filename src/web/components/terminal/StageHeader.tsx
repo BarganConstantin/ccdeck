@@ -45,7 +45,7 @@ import type { TerminalProvider } from "../../terminal-api";
 import { agentName, type KeysOwner, type StageStatus } from "./stage-model";
 import { useState } from "react";
 import AnchoredPopover from "../AnchoredPopover";
-import { useT } from "../../i18n";
+import { t as tNow, useT } from "../../i18n";
 import { BackGlyph, CloseGlyph, CollapseGlyph, ExpandGlyph, KeyboardGlyph, StageGlyph, glyphForState } from "./stage-icons";
 
 const PANE_MORE_ID = "ts-more";
@@ -57,6 +57,7 @@ const PANE_MORE_MENU_ID = "ts-more-menu";
  *  running" is the promise that closing stops nothing. */
 export function menuLabel(item: { id: string; label: string }): string {
   if (item.id === "close") return item.label;
+  if (item.label === tNow(FULL_LABEL_MSG)) return tNow("board.stage.fullScreenShort");
   const cut = item.label.indexOf(" — ");
   return cut > 0 ? item.label.slice(0, cut) : item.label;
 }
@@ -116,17 +117,17 @@ function PaneMore({ items }: { items: Array<{ id: string; label: string; run(): 
 }
 
 /** ✕'s name and tooltip, word for word (DESIGN.md: never "stop"/"end"/"quit"). */
-export const CLOSE_LABEL = "Close — the session keeps running";
+export const CLOSE_LABEL_MSG = "board.stage.closeLabel";
 /** ✕ and ‹ on a stage with no session on it, where there is nothing to keep. */
-export const CLOSE_EMPTY_LABEL = "Close the Command Panel";
-export const BACK_EMPTY_LABEL = "Back to the board";
-export const BACK_LABEL = "Back to the board — the session keeps running";
+export const CLOSE_EMPTY_LABEL_MSG = "board.stage.closeEmptyLabel";
+export const BACK_EMPTY_LABEL_MSG = "board.stage.backEmptyLabel";
+export const BACK_LABEL_MSG = "board.stage.backLabel";
 /** WORKSPACE: ⤢ is Zoom. Off, it folds the list and the Inspector; on, it
- *  brings them back. Where ⤢ goes full screen it still does (FULL_LABEL). */
-export const ZOOM_LABEL = "Zoom — fold the list and the Inspector";
-export const ZOOM_OFF_LABEL = "Bring the list and the Inspector back";
+ *  brings them back. Where ⤢ goes full screen it still does (FULL_LABEL_MSG). */
+export const ZOOM_LABEL_MSG = "board.stage.zoomLabel";
+export const ZOOM_OFF_LABEL_MSG = "board.stage.zoomOffLabel";
 /** WORKSPACE: ✕ on a pane whose session is not running, or never started. */
-export const PANE_CLOSE_LABEL = "Close the pane";
+export const PANE_CLOSE_LABEL_MSG = "board.stage.paneCloseLabel";
 
 export interface StageHeaderProps {
   /** Changes with the session on stage, so its identity arrives afresh —
@@ -176,20 +177,20 @@ export function metaRest(status: StageStatus): string | null {
 
 /** ⤢'s name: what a press will do. Full screen is named for what it is for. */
 export function expandLabelFor(expanded: boolean, canFull: boolean, full: boolean): string {
-  if (expanded) return full ? FULL_LEAVE_LABEL : "Give the board its room back";
-  return canFull ? FULL_LABEL : "Give the Command Panel the width";
+  if (expanded) return full ? tNow(FULL_LEAVE_LABEL_MSG) : tNow("board.stage.giveRoomBack");
+  return canFull ? tNow(FULL_LABEL_MSG) : tNow("board.stage.giveWidth");
 }
 
 /** WORKSPACE ⤢'s name: Zoom, or full screen where that is what it does. */
 export function zoomLabelFor(zoomed: boolean, canFull: boolean, full: boolean): string {
-  if (zoomed) return full ? FULL_LEAVE_LABEL : ZOOM_OFF_LABEL;
-  return canFull ? FULL_LABEL : ZOOM_LABEL;
+  if (zoomed) return full ? tNow(FULL_LEAVE_LABEL_MSG) : tNow(ZOOM_OFF_LABEL_MSG);
+  return canFull ? tNow(FULL_LABEL_MSG) : tNow(ZOOM_LABEL_MSG);
 }
 
-export const FULL_LABEL = "Full screen — Ctrl+W, Ctrl+T and Ctrl+N go to the session";
+export const FULL_LABEL_MSG = "board.stage.fullLabel";
 /** No Esc in it: held where the keyboard lock took, pressed where it did
  *  not, and the browser's own bubble says which. */
-export const FULL_LEAVE_LABEL = "Leave full screen";
+export const FULL_LEAVE_LABEL_MSG = "board.stage.fullLeaveLabel";
 
 /** The chip's figure, or null when there is none to say. */
 export function contextChipText(context: StageHeaderProps["context"]): string | null {
@@ -197,6 +198,7 @@ export function contextChipText(context: StageHeaderProps["context"]): string | 
 }
 
 export default function StageHeader(p: StageHeaderProps) {
+  const t = useT();
   const { status } = p;
   // One reading for the chip: its figure and its bar are the same percent.
   const used = p.context && p.context.used > 0 ? p.context : null;
@@ -207,14 +209,14 @@ export default function StageHeader(p: StageHeaderProps) {
   // One name with aria-pressed saying which way it is, rather than a name
   // that flips: a screen reader then hears "Type into the session, pressed".
   // The tooltip, for the pointer, says what a press will do.
-  const keysLabel = "Type into the session";
-  const keysTip = pane ? `Give the keys back to the board (${p.chordLabel})` : `${keysLabel} (↵)`;
+  const keysLabel = t("board.stage.typeInto");
+  const keysTip = pane ? t("board.stage.keysBack", { chord: p.chordLabel }) : t("board.stage.typeIntoTip", { label: keysLabel });
   const zoom = p.workspace === "pane";
   const expandLabel = zoom ? zoomLabelFor(p.expanded, p.canFull === true, p.full === true) : expandLabelFor(p.expanded, p.canFull === true, p.full === true);
-  const closeLabel = p.workspace === "empty" ? BACK_EMPTY_LABEL
-    : p.workspace === "pane" ? (p.nothingRunning ? PANE_CLOSE_LABEL : CLOSE_LABEL)
-      : p.nothingRunning ? CLOSE_EMPTY_LABEL : CLOSE_LABEL;
-  const backLabel = p.nothingRunning ? BACK_EMPTY_LABEL : BACK_LABEL;
+  const closeLabel = t(p.workspace === "empty" ? BACK_EMPTY_LABEL_MSG
+    : p.workspace === "pane" ? (p.nothingRunning ? PANE_CLOSE_LABEL_MSG : CLOSE_LABEL_MSG)
+      : p.nothingRunning ? CLOSE_EMPTY_LABEL_MSG : CLOSE_LABEL_MSG);
+  const backLabel = t(p.nothingRunning ? BACK_EMPTY_LABEL_MSG : BACK_LABEL_MSG);
   return (
     <header className="ts-head">
       {p.takeover && (
@@ -237,17 +239,17 @@ export default function StageHeader(p: StageHeaderProps) {
         )}
       </div>
       {parts && used && (
-        <span className="ts-ctxchip" title="Context window">
-          <span className="vis-hidden">Context </span>
+        <span className="ts-ctxchip" title={t("board.stage.contextWindow")}>
+          <span className="vis-hidden">{t("board.stage.context")} </span>
           {parts.pct == null ? parts.lead : <><span className="ts-ctxlead">{parts.lead}</span>{parts.pct}</>}
           <span className="ts-ctxbar" aria-hidden="true"><i style={{ width: `${contextPercent(used.used, used.window)}%` }} /></span>
         </span>
       )}
       {p.view && (
-        <div className="view-switch" role="group" aria-label="View">
+        <div className="view-switch" role="group" aria-label={t("board.stage.view")}>
           {(["chat", "term"] as const).map(v => (
             <button key={v} type="button" className="view-opt" aria-pressed={p.view!.current === v} onClick={() => p.view!.onChange(v)}>
-              {v === "chat" ? "Chat" : "Term"}
+              {v === "chat" ? t("board.stage.viewChat") : t("board.stage.viewTerm")}
             </button>
           ))}
         </div>

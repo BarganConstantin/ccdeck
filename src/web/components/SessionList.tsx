@@ -468,7 +468,7 @@ export default function SessionList({ state, now, selectedIds, onSelect, onClose
               where that launch exists. */}
           {onNewSession && (
             <button type="button" id={RAIL_NEW_SESSION_ID} className="sl-icon-btn" aria-haspopup="dialog"
-              onClick={e => onNewSession(e.currentTarget)} title="Start Claude or Codex in a project" aria-label="New session"><PlusGlyph /></button>
+              onClick={e => onNewSession(e.currentTarget)} title={t("board.newSession.hint")} aria-label={t("board.newSession.title")}><PlusGlyph /></button>
           )}
           {/* The way out at phone width, where the drawer covers the canvas; on
               a wider window L and the Sessions stripe door close the list, so

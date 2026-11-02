@@ -148,11 +148,25 @@ describe("the panel's states", () => {
 
   it("leaves no translation behind that says what the English no longer does", () => {
     // These two lines lost a sentence each in English; a translation of the old
-    // sentence would go on saying it, so they fall back to English until retranslated.
-    for (const code of ["de", "es", "fr", "ja", "ko", "pt-BR", "ro", "zh-CN", "zh-TW"]) {
+    // sentence would go on saying it. CHANGED ON PURPOSE (the UI in every
+    // language): they were left out until retranslated, and every catalog now
+    // has them, translated from today's English, so the test reads each one and
+    // fails on the dropped sentence instead of on the key. The old empty-store
+    // line named claude-swap and the + button; the old missing-tool line said
+    // that without claude-swap there is nothing to show, in these words.
+    const nothingToShow: Record<string, string> = {
+      de: "ohne das gibt es nichts anzuzeigen", es: "sin él no hay nada que mostrar", fr: "il n'y a rien à afficher",
+      ja: "がないと表示するものがありません", ko: "없으면 표시할 내용이 없습니다", "pt-BR": "sem ele não há nada a mostrar",
+      ro: "fără el nu e nimic de afișat", "zh-CN": "没有它就没有内容可显示", "zh-TW": "沒有它就沒有內容可顯示",
+    };
+    for (const [code, dropped] of Object.entries(nothingToShow)) {
       const src = readFileSync(fileURLToPath(new URL(`../i18n/areas/accounts/${code}.ts`, import.meta.url)), "utf8");
-      expect(src, code).not.toContain('"accounts.empty.noneHint"');
-      expect(src, code).not.toContain('"accounts.empty.noCswapHint"');
+      const line = (key: string) => src.split("\n").find(l => l.includes(`"${key}":`)) ?? "";
+      expect(line("accounts.empty.noneHint"), code).not.toBe("");
+      expect(line("accounts.empty.noneHint"), code).not.toContain("<b>+</b>");
+      expect(line("accounts.empty.noneHint"), code).not.toContain("claude-swap");
+      expect(line("accounts.empty.noCswapHint"), code).not.toBe("");
+      expect(line("accounts.empty.noCswapHint"), code).not.toContain(dropped);
     }
   });
 

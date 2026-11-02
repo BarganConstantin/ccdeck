@@ -39,6 +39,7 @@ import AnchoredPopover from "../AnchoredPopover";
 import type { LaunchOptions, TerminalProvider } from "../../terminal-api";
 import { elidePath, folderName, isAbsolutePath, type ProjectChoice } from "./stage-model";
 import { ProviderGlyph } from "./stage-icons";
+import { t as tNow, useT } from "../../i18n";
 
 export const NEW_SESSION_POPOVER_ID = "ns-pop";
 const TITLE_ID = "ns-title";
@@ -48,9 +49,9 @@ const optionId = (i: number) => `ns-opt-${i}`;
 
 /** The one sentence under the choices: where the session runs, and that
  *  closing the panel never stops it. */
-export const NEW_SESSION_NOTE = "It joins the board as its own cluster and opens here, inside the deck's tmux — closing the Command Panel never stops it.";
+export const NEW_SESSION_NOTE_MSG = "board.newSession.note";
 /** The same on Windows, which has no tmux: the panel's sessions run in its session host. */
-export const NEW_SESSION_NOTE_WINDOWS = "It joins the board as its own cluster and opens here, in the session host — closing the Command Panel never stops it.";
+export const NEW_SESSION_NOTE_WINDOWS_MSG = "board.newSession.noteWindows";
 
 export interface NewSessionFormProps {
   projects: ProjectChoice[];
@@ -61,18 +62,20 @@ export interface NewSessionFormProps {
   onCancel(): void;
 }
 
-export const MODEL_CHOICES: Array<{ value: LaunchOptions["model"] | null; label: string }> = [
-  { value: null, label: "Default" },
-  { value: "opus", label: "Opus" },
-  { value: "sonnet", label: "Sonnet" },
-  { value: "haiku", label: "Haiku" },
+/** `label` is a catalog key where the choice is a word (Default), the model's own name otherwise. */
+export const MODEL_CHOICES: Array<{ value: LaunchOptions["model"] | null; label: string; named?: true }> = [
+  { value: null, label: "board.newSession.default" },
+  { value: "opus", label: "Opus", named: true },
+  { value: "sonnet", label: "Sonnet", named: true },
+  { value: "haiku", label: "Haiku", named: true },
 ];
 
+/** `label` and `title` are catalog keys. */
 export const MODE_CHOICES: Array<{ value: LaunchOptions["permissionMode"] | null; label: string; title: string }> = [
-  { value: null, label: "Default", title: "As your Claude Code settings say" },
-  { value: "auto", label: "Auto", title: "Claude approves what it judges safe, and asks about the rest" },
-  { value: "acceptEdits", label: "Edits", title: "File edits go ahead; everything else asks" },
-  { value: "plan", label: "Plan", title: "Plans first, changes nothing until you approve" },
+  { value: null, label: "board.newSession.default", title: "board.newSession.modeDefaultTip" },
+  { value: "auto", label: "board.newSession.modeAuto", title: "board.newSession.modeAutoTip" },
+  { value: "acceptEdits", label: "board.newSession.modeEdits", title: "board.newSession.modeEditsTip" },
+  { value: "plan", label: "board.newSession.modePlan", title: "board.newSession.modePlanTip" },
 ];
 
 /** The options a start passes: only what was chosen, so Default is nothing. */
@@ -101,10 +104,11 @@ export function startTarget(projects: ProjectChoice[], chosen: number, typed: st
 /** The start button's words: what it will do, named. */
 export function startLabel(agent: TerminalProvider, target: { name: string } | null): string {
   const who = agent === "codex" ? "Codex" : "Claude";
-  return target ? `Start ${who} in ${target.name}` : `Start ${who}`;
+  return target ? tNow("board.newSession.startIn", { agent: who, project: target.name }) : tNow("board.newSession.start", { agent: who });
 }
 
 export function NewSessionForm({ projects, initialAgent = "claude", windows = false, onStart, onCancel }: NewSessionFormProps) {
+  const t = useT();
   const [agent, setAgent] = useState<TerminalProvider>(initialAgent);
   const [chosen, setChosen] = useState(0);
   const [typed, setTyped] = useState("");
@@ -136,8 +140,8 @@ export function NewSessionForm({ projects, initialAgent = "claude", windows = fa
 
   return (
     <div className="ns-form">
-      <h3 id={TITLE_ID} className="ns-title">New session</h3>
-      <span className="ns-label" id="ns-agent-label">Agent</span>
+      <h3 id={TITLE_ID} className="ns-title">{t("board.newSession.title")}</h3>
+      <span className="ns-label" id="ns-agent-label">{t("board.newSession.agent")}</span>
       <div className="uh-range ns-agents" role="group" aria-labelledby="ns-agent-label">
         {AGENTS.map(a => (
           <button
@@ -151,7 +155,7 @@ export function NewSessionForm({ projects, initialAgent = "claude", windows = fa
           </button>
         ))}
       </div>
-      <span className="ns-label" id="ns-project-label">Project</span>
+      <span className="ns-label" id="ns-project-label">{t("board.newSession.project")}</span>
       {projects.length > 0 && (
         <div className="appearance-source-list ns-list" id={LIST_ID} role="listbox" aria-labelledby="ns-project-label">
           {projects.map((q, i) => (
@@ -184,41 +188,41 @@ export function NewSessionForm({ projects, initialAgent = "claude", windows = fa
         aria-autocomplete="none"
         spellCheck={false}
         autoComplete="off"
-        placeholder="/absolute/path to another folder"
-        aria-label="Project, or another folder as a full path"
+        placeholder={t("board.newSession.pathPlaceholder")}
+        aria-label={t("board.newSession.pathLabel")}
         aria-invalid={!listing && !target ? true : undefined}
         value={typed}
         onChange={e => setTyped(e.target.value)}
         onKeyDown={onFieldKey}
       />
-      {!listing && !target && <p className="ns-note" role="status">A full path, starting with /.</p>}
+      {!listing && !target && <p className="ns-note" role="status">{t("board.newSession.pathHint")}</p>}
       {agent === "claude" && (
         <>
-          <span className="ns-label ns-label-gap" id="ns-model-label">Model</span>
+          <span className="ns-label ns-label-gap" id="ns-model-label">{t("board.newSession.model")}</span>
           <div className="uh-range ns-choices" role="group" aria-labelledby="ns-model-label">
             {MODEL_CHOICES.map(c => (
               <button key={c.label} type="button" className="uh-range-btn" aria-pressed={model === c.value} onClick={() => setModel(c.value)}>
-                {c.label}
+                {c.named ? c.label : t(c.label)}
               </button>
             ))}
           </div>
-          <span className="ns-label" id="ns-mode-label">Permissions</span>
+          <span className="ns-label" id="ns-mode-label">{t("board.newSession.permissions")}</span>
           <div className="uh-range ns-choices" role="group" aria-labelledby="ns-mode-label">
             {MODE_CHOICES.map(c => (
-              <button key={c.label} type="button" className="uh-range-btn" aria-pressed={mode === c.value} title={c.title} onClick={() => setMode(c.value)}>
-                {c.label}
+              <button key={c.label} type="button" className="uh-range-btn" aria-pressed={mode === c.value} title={t(c.title)} onClick={() => setMode(c.value)}>
+                {t(c.label)}
               </button>
             ))}
           </div>
           <label className="ns-worktree">
-            <span className="ns-worktree-label" id={WORKTREE_ID}>In a new git worktree</span>
+            <span className="ns-worktree-label" id={WORKTREE_ID}>{t("board.newSession.worktree")}</span>
             <button
               type="button"
               role="switch"
               aria-checked={worktree}
               aria-labelledby={WORKTREE_ID}
               className="switch"
-              title="Claude works on a branch of its own, in a folder of its own, beside the project"
+              title={t("board.newSession.worktreeTip")}
               onClick={() => setWorktree(w => !w)}
             >
               <span className="switch-knob" />
@@ -226,9 +230,9 @@ export function NewSessionForm({ projects, initialAgent = "claude", windows = fa
           </label>
         </>
       )}
-      <p className="ns-note">{windows ? NEW_SESSION_NOTE_WINDOWS : NEW_SESSION_NOTE}</p>
+      <p className="ns-note">{t(windows ? NEW_SESSION_NOTE_WINDOWS_MSG : NEW_SESSION_NOTE_MSG)}</p>
       <div className="ns-acts">
-        <button type="button" className="btn" onClick={onCancel}>Cancel</button>
+        <button type="button" className="btn" onClick={onCancel}>{t("common.cancel")}</button>
         <button type="button" className="btn primary" disabled={!target} onClick={start}>{startLabel(agent, target)}</button>
       </div>
     </div>

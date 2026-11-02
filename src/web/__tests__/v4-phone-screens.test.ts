@@ -14,7 +14,13 @@ import { fileURLToPath } from "node:url";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
-import ConnectionBanner, { UNREACHABLE_SUB, UNREACHABLE_TITLE } from "../components/ConnectionBanner";
+import ConnectionBanner, { UNREACHABLE_SUB_MSG, UNREACHABLE_TITLE_MSG } from "../components/ConnectionBanner";
+import { en as englishCatalog } from "../i18n/en";
+
+// CHANGED ON PURPOSE (the UI in every language): both sentences are read
+// through their keys now, and the English catalog holds the words.
+const UNREACHABLE_SUB = englishCatalog[UNREACHABLE_SUB_MSG];
+const UNREACHABLE_TITLE = englishCatalog[UNREACHABLE_TITLE_MSG];
 import { PHONE_QUERY } from "../components/EdgeRails";
 import { words } from "./screens-fixtures";
 
