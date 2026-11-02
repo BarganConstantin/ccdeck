@@ -58,7 +58,7 @@ export default function KeyboardSection({ singleKeys, onToggleSingleKeys, worksp
 
   return (
     <>
-      <SettingsGroup>
+      <SettingsGroup id="settings-shortcuts-caption" title={t("settings.keyboard.group")}>
         <SettingRow
           settingId="single-keys"
           name={t("settings.keyboard.singleKeys")}
@@ -81,10 +81,11 @@ export default function KeyboardSection({ singleKeys, onToggleSingleKeys, worksp
         />
       </SettingsGroup>
 
-      {/* Labelled by a visually hidden word rather than a placeholder alone:
-          a placeholder is gone the moment somebody types, and is not a name. */}
+      {/* Labelled by a word above the field (V4's Field) as well as by its
+          placeholder: a placeholder is gone the moment somebody types, and is
+          not a name. */}
       <div className="settings-filter">
-        <label className="vis-hidden" htmlFor={filterId}>{t("settings.keyboard.filter")}</label>
+        <label className="settings-filter-label" htmlFor={filterId}>{t("settings.keyboard.filter")}</label>
         <input
           id={filterId}
           type="search"

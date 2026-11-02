@@ -116,10 +116,12 @@ describe("the index holds every place a result can land", () => {
   it("names the Command Panel's switch as Experimental names it, and finds it by the words people use for one", () => {
     const entry = SETTINGS_INDEX.find(e => e.id === "terminal")!;
     expect(entry.label).toBe(TERMINAL_LABEL);
-    expect(entry.section).toBe("experimental");
-    expect(resultPlace(entry)).toBe("Experimental");
+    // CHANGED ON PURPOSE (V4's Figma): Experimental is a group in General, not a
+    // section of its own, so the result is General's and the group is named.
+    expect(entry.section).toBe("general");
+    expect(entry.group).toBe("Experimental");
     for (const q of ["command panel", "terminal", "tmux", "shell", "command line", "experimental", "beta"]) expect(ids(searchSettings(q)), q).toContain("terminal");
-    expect(ids(searchSettings("experimental"))[0], "the section first, its one row beside it").toBe("section:experimental");
+    expect(ids(searchSettings("experimental"))[0], "no section of that name now: the row first").toBe("terminal");
   });
 
   it("names every theme by its name, under Appearance › Theme", () => {
@@ -152,7 +154,10 @@ describe("searchSettings ranks what was typed", () => {
 
   it("ranks a section by its name like any other label", () => {
     const sound = labels(searchSettings("sound"));
-    expect(sound.slice(0, 3)).toEqual(["Sounds", "Play sounds", "Custom sounds"]);
+    // CHANGED ON PURPOSE (V4 Figma): the custom sounds group is captioned "Your own", and
+    // the result names the group the reader lands on ("custom sounds" still finds it).
+    expect(searchSettings("custom sounds")[0]?.id).toBe("custom-sounds");
+    expect(sound.slice(0, 3)).toEqual(["Sounds", "Play sounds", "Your own"]);
   });
 
   it("puts a keyword match before a setting found only by its section's name", () => {

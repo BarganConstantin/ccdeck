@@ -230,6 +230,7 @@ function ChangeRow({ kind, change: c, acrossRepos }: { kind: ForgeKind; change: 
         onClick={() => select(target)}
       >
         <span className="fg-row-title fgl-title">
+          <span className="fgl-state" data-tone={changeBadge(c).tone} aria-hidden="true"><StateGlyph name={changeBadge(c).mark} size={14} /></span>
           {c.draft && <Badge mark={DRAFT} />}
           <span className="fgl-title-text">{draftTitle(c.title, c.draft)}</span>
           <Labels labels={c.labels} />

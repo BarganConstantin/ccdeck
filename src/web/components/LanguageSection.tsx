@@ -7,6 +7,7 @@
 // (i18n/index.ts), and the whole page follows it at once.
 import { LANGUAGES, languageLabel, setLanguage, useLanguage, useT } from "../i18n";
 import { SettingRow, SettingsGroup } from "./SettingsParts";
+import SelectShell from "./SelectShell";
 
 export default function LanguageSection() {
   const t = useT();
@@ -20,19 +21,21 @@ export default function LanguageSection() {
         note={t("settings.language.note")}
         noteId="settings-language-note"
         control={
-          <select
-            className="sm-select"
-            value={language}
-            aria-labelledby="settings-language-label"
-            aria-describedby="settings-language-note"
-            onChange={event => setLanguage(event.target.value)}
-          >
-            {LANGUAGES.map(choice => (
-              // The language's own tag, so the browser picks the right font
-              // for each name (a Japanese name is not drawn with a Chinese face).
-              <option key={choice.code} value={choice.code} lang={choice.code} dir={choice.dir}>{languageLabel(choice)}</option>
-            ))}
-          </select>
+          <SelectShell>
+            <select
+              className="sm-select"
+              value={language}
+              aria-labelledby="settings-language-label"
+              aria-describedby="settings-language-note"
+              onChange={event => setLanguage(event.target.value)}
+            >
+              {LANGUAGES.map(choice => (
+                // The language's own tag, so the browser picks the right font
+                // for each name (a Japanese name is not drawn with a Chinese face).
+                <option key={choice.code} value={choice.code} lang={choice.code} dir={choice.dir}>{languageLabel(choice)}</option>
+              ))}
+            </select>
+          </SelectShell>
         }
       />
     </SettingsGroup>

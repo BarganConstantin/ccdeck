@@ -944,12 +944,14 @@ describe("the stage's sheet", () => {
     expect(css.split("@media (forced-colors: active) {").length - 1, "one block, as #871 holds").toBe(1);
   });
 
-  it("keeps New session inside a phone's width, and at its 368px wherever that fits", () => {
+  it("keeps New session inside a phone's width, and at its 480px wherever that fits", () => {
+    // CHANGED ON PURPOSE (V4's Figma): the popover is wider (480, not 368) to sit with the kit's
+    // 12px-radius box; it is still held to what the window leaves.
     // At 320px the popover kept its 368px and ran 56px past the screen's
     // edge (16px at 360): Codex, Haiku, Plan, the worktree switch and Start
     // were cut or out of reach. Placed with the window's margin on each side
     // (popover-place.ts), it takes no more than the window leaves.
-    expect(rule(".anchored-popover.ns-pop")).toContain(`width: min(368px, calc(100vw - ${2 * POPOVER_MARGIN}px));`);
+    expect(rule(".anchored-popover.ns-pop")).toContain(`width: min(480px, calc(100vw - ${2 * POPOVER_MARGIN}px));`);
   });
 
   it("opens the popover opaque from its first frame: it scales, it does not fade", () => {

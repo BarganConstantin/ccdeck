@@ -163,7 +163,7 @@ function CommentList({ selection }: { selection: Selection }) {
   if (!pages.data) {
     return pages.error
       ? <ReadFailure error={pages.error} onRetry={pages.reload} />
-      : <LoadingRows rows={3} label={t("forge.loadingNoun", { noun: t("forge.noun.comments") })} />;
+      : <LoadingRows variant="lines" rows={3} label={t("forge.loadingNoun", { noun: t("forge.noun.comments") })} />;
   }
   return (
     <>

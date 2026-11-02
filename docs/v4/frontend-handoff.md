@@ -66,7 +66,7 @@ It is off by default, and with it off the deck is exactly the deck without it:
 its routes answer the same 404 as a path that does not exist, its socket is
 refused, no engine is looked for and none of the stage's code is loaded.
 
-- In the app: **Settings › Experimental › Command Panel**.
+- In the app: **Settings › General › Experimental › Command Panel**.
 - By hand: `"terminal": true` in `prefs.json` in the deck's data folder
   (`CCDECK_HOME` when set). Only a real `true` counts.
 

@@ -118,8 +118,14 @@ describe("reading preferences before first paint", () => {
     const draw = (textSize: "default" | "largest") => renderToStaticMarkup(createElement(ReadingSection, props(textSize)));
     // Reset is drawn in the pane's head beside the section's name (#2176).
     const reset = (textSize: "default" | "largest", density?: Density) => renderToStaticMarkup(createElement(ReadingReset, props(textSize, density)));
-    expect(draw("default").match(/name="text-size"/g)).toHaveLength(5);
-    expect(draw("default").match(/name="density"/g)).toHaveLength(5);
+    // CHANGED ON PURPOSE (V4's Figma): each scale is one Select named by its
+    // scale, holding the same five steps as options, where it was five radios.
+    expect(draw("default").match(/<select[^>]*name="text-size"/g)).toHaveLength(1);
+    expect(draw("default").match(/<select[^>]*name="density"/g)).toHaveLength(1);
+    const options = (name: string) => new RegExp('<select[^>]*name="' + name + '"[^>]*>((?:<option[^>]*>[^<]*</option>)+)</select>').exec(draw("default"))?.[1].match(/<option /g);
+    expect(options("text-size")).toHaveLength(5);
+    expect(options("density")).toHaveLength(5);
+    expect(draw("largest")).toMatch(/<option value="largest" selected="">/);
     expect(reset("default")).toMatch(/disabled="">Reset to defaults/);
     expect(reset("largest")).not.toMatch(/disabled="">Reset to defaults/);
     // The step named Default is no longer the default density since V4.

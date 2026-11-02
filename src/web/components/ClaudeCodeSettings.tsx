@@ -24,6 +24,7 @@ import { CLAUDE_SETTING_GROUPS, CLAUDE_SETTINGS, type ClaudeSettingEntry, type C
 import { claudeReasonText, refreshClaudeSettings, setClaudeSetting, useClaudeSettings, type ClaudeSettingRow, type ClaudeSettingsState } from "../use-claude-settings";
 import ClaudeSettingsIndex from "./ClaudeSettingsIndex";
 import { SettingRow, SettingsGroup } from "./SettingsParts";
+import SelectShell from "./SelectShell";
 import { t as tNow, useT, type TFunction } from "../i18n";
 import { useOptimisticSwitch } from "../use-optimistic-switch";
 import { WriteState } from "./WriteState";
@@ -71,22 +72,24 @@ function Control({ entry, row, saving, nameId, noteId, flip }: {
       ? [...options, { value: current, label: claudeDaysLabel(Number(current), t) }].sort((a, b) => Number(a.value) - Number(b.value))
       : options;
     return (
-      <select
-        className="sm-select"
-        aria-labelledby={nameId}
-        aria-describedby={noteId}
-        aria-busy={busy}
-        disabled={disabled}
-        value={current}
-        onChange={event => {
-          if (!ready) return;
-          const next = event.target.value;
-          void setClaudeSetting(entry.id, entry.kind === "days" ? Number(next) : next === "" ? null : next);
-        }}
-      >
-        {row?.custom && <option value={CUSTOM} disabled>{t("settings.claude.customValue")}</option>}
-        {shown.map(o => <option key={o.value ?? ""} value={o.value ?? ""}>{o.label}</option>)}
-      </select>
+      <SelectShell>
+        <select
+          className="sm-select"
+          aria-labelledby={nameId}
+          aria-describedby={noteId}
+          aria-busy={busy}
+          disabled={disabled}
+          value={current}
+          onChange={event => {
+            if (!ready) return;
+            const next = event.target.value;
+            void setClaudeSetting(entry.id, entry.kind === "days" ? Number(next) : next === "" ? null : next);
+          }}
+        >
+          {row?.custom && <option value={CUSTOM} disabled>{t("settings.claude.customValue")}</option>}
+          {shown.map(o => <option key={o.value ?? ""} value={o.value ?? ""}>{o.label}</option>)}
+        </select>
+      </SelectShell>
     );
   }
   const on = flip.checked;

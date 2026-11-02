@@ -295,7 +295,8 @@ describe("segmented control (.ap-sides)", () => {
 describe("radio dot and checkbox", () => {
   it("grows the dot in from half size by a transition over Fast, only fades it out, and fades alone under reduced motion", () => {
     const dots: Array<[string, string]> = [
-      [".reading-selected-mark", ".reading-choice:has(input:checked) .reading-selected-mark"],
+      // CHANGED ON PURPOSE (V4 Figma): the sizes and spacings are Selects now, so the
+      // framed previews and their selected mark are gone; the companion check stays.
       [".character-check", '.character-choice[aria-checked="true"] .character-check'],
     ];
     for (const [off, on] of dots) {
@@ -315,8 +316,11 @@ describe("radio dot and checkbox", () => {
     }
   });
   it("moves the label colour in Fast on --ease", () => {
-    expect(decl(".reading-choice", "transition")).toContain("border-color var(--dur-fast) var(--ease)");
-    expect(decl(".character-choice", "transition")).toContain("border-color var(--dur-fast) var(--ease)");
+    // CHANGED ON PURPOSE (V4's Figma): a companion tile is a name under a framed
+    // preview, so the frame (the preview) moves its border in Fast and the name
+    // its colour in Fast, where the whole tile moved its border.
+    expect(decl(".character-preview", "transition")).toContain("border-color var(--dur-fast) var(--ease)");
+    expect(decl(".character-choice", "transition")).toContain("color var(--dur-fast) var(--ease)");
   });
   it("fills the box in Fast and draws the tick by its dash offset in Fast", () => {
     expect(decl(".cbx > input", "transition")).toBe("background-color var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease)");
