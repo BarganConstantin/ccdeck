@@ -1626,7 +1626,7 @@ describe("the two status hues, on the canvas as well as on the panels", () => {
       bedFloor(beds, theme);
       expect(decl(".topbar .status .pill", "background"), "the pill has a fill again").toBe("transparent");
       const word = resolve(decl(".topbar .status .pill", "color")!, theme);
-      // Live has no chip (V4 decision 19), so only the two drawn states owe an edge.
+      // V4 draws Live without a chip, so only the two drawn states owe an edge.
       for (const [state, token] of [["paused", "--warn"], ["dead", "--err"]] as const) {
         const edge = parseColor(TOK[theme][token]);
         expect(borderColour(`.topbar .status .pill.${state}`), state).toBe(`var(${token})`);

@@ -1,4 +1,4 @@
-// The stage's width in whole cells (DESIGN-UI decision 6, v3's stageGeometry).
+// The stage's width in whole cells (the stage's design, v3's stageGeometry).
 //
 // Run, not read: every case calls the function with a window the deck is
 // really opened in — 1440×900 and 1024×768, the two the v3 shots were taken

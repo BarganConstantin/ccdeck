@@ -39,7 +39,7 @@
 // jobs (bright black is the "dim" colour most CLIs print secondary text in).
 //
 // THE 256-COLOUR SLOTS CLAUDE CODE PAINTS WITH ARE TOKENS TOO (v1's map, the
-// graft DESIGN-UI takes from it). Claude Code draws nearly everything outside
+// graft the stage's design takes from it). Claude Code draws nearly everything outside
 // the sixteen: prose in 231, secondary text in 246, finished tools in 114, its
 // salmon spinner in 174/180/216, a Monokai-like syntax set in
 // 197/81/148/186/141/208, rules in 244, the permission box in 147, the user's

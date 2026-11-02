@@ -7,7 +7,7 @@
 // raises its closed-deck notifications, which reach this app over the tray
 // stream and are shown as ccdeck. Hiding instead would keep the page alive,
 // the deck would go on believing somebody was looking, and nothing would ever
-// be said (the choice made in #1160, decision 2).
+// be said (the choice made in #1160).
 //
 // The tray icon is the favicon of a closed tab: the same four states and the
 // same count, computed by the page's own reducer (src/web/tray-model.ts,

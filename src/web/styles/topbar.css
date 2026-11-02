@@ -176,8 +176,8 @@
    and it is here so the next person to want a control in this corner knows it
    has been tried. */
 /* The chip leads with a 14px icon slot (V4's Figma) holding its one dot, in the
-   accent (amber left the chip) and with no glow. It holds still (V4 decision
-   19: Paused, Lost and Version hold a still dot): a newer version waiting is a
+   accent (amber left the chip) and with no glow. It holds still (Paused,
+   Lost and Version all hold a still dot): a newer version waiting is a
    fact at rest, and a pulse on this bar would be the only thing moving while
    nothing happens. `--pulse-live` stays for the Working glyph and the loader. */
 .topbar button.v .v-icon {

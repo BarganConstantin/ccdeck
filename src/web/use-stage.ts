@@ -12,7 +12,7 @@
 // the widths. With the flag off `enabled` stays false, every entry point below
 // answers "not mine", no effect touches the page — beyond giving the board back
 // its `inert` if the switch went off under a stage — and the deck is the deck
-// it was (DESIGN-UI decision 9).
+// it was.
 //
 // THE STAGE SHARES THE CANVAS'S CELL. It is not a seventh grid template beside
 // the canvas: the canvas keeps its size, React Flow stays mounted under the
@@ -22,7 +22,7 @@
 // opening the stage never re-packs the board under it, and the close lands the
 // navigator's tiles back on exactly the clusters they flew out of.
 //
-// THE DETAIL PANEL AND THE STAGE EVICT EACH OTHER (DESIGN-UI decision 8). An
+// THE DETAIL PANEL AND THE STAGE EVICT EACH OTHER. An
 // open evicts the panel; the panel appearing — a double-click, Enter on a
 // card, D — closes the stage at once, with no morph, since the column it
 // opens is already changing the canvas under it.

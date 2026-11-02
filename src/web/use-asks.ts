@@ -3,7 +3,7 @@
 //
 // The topbar's "● N waiting" chip used to fly the camera to the oldest blocked
 // session and leave you there. With the terminal stage it starts a RUN instead
-// (DESIGN-UI, the v3 design): the stage opens on the oldest waiting session
+// (the v3 design): the stage opens on the oldest waiting session
 // with the keys in its pane, the keys bar under the TUI shows a track — one
 // segment per ask, "1 of 2" — and once the session you answered starts moving
 // again the bar says "✓ paycore resumed" and offers "Next ask ›" right below

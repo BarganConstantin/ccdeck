@@ -1,5 +1,5 @@
 // The edge between the navigator and the stage, which sets how many columns
-// the session gets (DESIGN-UI decision 6).
+// the session gets.
 //
 // IT MOVES IN COLUMNS. A pointer anywhere along a drag asks stage-geometry for
 // the whole-cell width it means, pulled onto 80, 100, 120 or 160 within three

@@ -56,7 +56,7 @@ export function useCanvasClicks({ clearSelection, selectAgent, detailOpen, setDe
     // WITH THE TERMINAL ON, the card's session goes on the stage instead —
     // or the stage moves to it — and the camera stays put: the card is what
     // the stage grows out of, and the board it sits on is about to be folded
-    // away, so there is no frame worth travelling to (DESIGN-UI decision 1).
+    // away, so there is no frame worth travelling to.
     // The stage evicts the detail panel itself. A held jump from an earlier
     // click is dropped with the camera it was for.
     if (stage?.onNodeClick(id, e.currentTarget as Element)) { focusHold.cancel(); return; }

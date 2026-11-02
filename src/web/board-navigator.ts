@@ -9,7 +9,7 @@
 // which is how people actually find a session on this board. The navigator
 // keeps both: the board's own columns in the board's own order, every name at
 // 1:1, each tile still showing its subagents. Geometry folds; words do not.
-// (DESIGN-UI decision 1, built from the v3 prototype's board.js.)
+// (The stage's design, built from the v3 prototype's board.js.)
 //
 // ORDER-PRESERVING, ALWAYS. A cluster never changes column or neighbour in the
 // fold, so nothing crosses anything while the board gathers to the left, and a

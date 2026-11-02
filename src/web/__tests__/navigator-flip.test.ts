@@ -1,5 +1,5 @@
 // The fold between the board and its navigator is a FLIP on one timer clock
-// (DESIGN-UI decision 1): each tile is laid out where it belongs and drawn, for
+// (the stage's design): each tile is laid out where it belongs and drawn, for
 // 280ms opening or 200ms closing on a soft-start deceleration, as if it started where
 // its cluster stood on the board. The prototype ran every frame off one clock
 // because its headless Chromium stalled animation promises, and the stage's

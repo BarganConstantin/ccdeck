@@ -1,7 +1,7 @@
 // The stage's words, decided in plain node (components/terminal/stage-model.ts).
 //
 // The header is the node's face at the size of a stage, so these pin the
-// face's vocabulary — "waiting 6m", never "blocked" (DESIGN-UI decision 3) —
+// face's vocabulary — "waiting 6m", never "blocked" (one word per state) —
 // and the few places where what the stage knows outranks what the board says.
 // The keys themselves — the release chord, Shift+Enter — are terminal-keys.ts's
 // and pinned in terminal-keys.test.ts.

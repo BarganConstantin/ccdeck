@@ -6,7 +6,7 @@
 // open, and what they do draw comes from components/terminal/StageShell.tsx
 // through use-stage.ts's loadStageShell — one dynamic import both slots share,
 // so the navigator and the stage are one chunk and arrive together. The flag
-// off, neither slot ever asks for it (DESIGN-UI decision 9; notices-bundle's
+// off, neither slot ever asks for it (the stage's design; notices-bundle's
 // dist case holds the entry chunk to having no xterm in it).
 //
 // A STALE TAB. After an upgrade, a page that was open across it asks for a

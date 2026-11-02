@@ -2,8 +2,8 @@
 // spreading back out when it closes, as one FLIP on one clock.
 //
 // WHY A FLIP AND NOT A TWEEN OF THE BOARD. The navigator is a DOM component at
-// 1:1 beside a React Flow board that stays mounted, hidden (DESIGN-UI decision
-// 1): the board keeps its camera and its state, and the navigator's words are
+// 1:1 beside a React Flow board that stays mounted, hidden (the stage's
+// design): the board keeps its camera and its state, and the navigator's words are
 // never scaled. So nothing moves the board. What moves is the navigator's own
 // tiles, each laid out where it belongs and drawn, for the length of the fold,
 // as if it started where its cluster stood on the board: First the board's
