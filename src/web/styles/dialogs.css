@@ -268,6 +268,8 @@
 /* THE TOOL CALL (V4): the Input and Response heads are 12/600 labels in the
    second text step; each payload sits in a code box on the sunken fill, 6 round,
    no edge, 8 and 10 of padding, mono 12/16, lines not wrapped. */
+/* V4 draws the tool call as the small dialog. */
+.modal.tool-modal { width: var(--dialog-s); }
 .tool-modal .modal-body { gap: 12px; }
 .tool-modal .modal-section h4, .session-summary .modal-section h4 {
   margin: 0;

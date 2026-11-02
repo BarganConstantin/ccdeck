@@ -9,7 +9,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { sheetText } from "./sheet-source";
-import { compactTokens } from "../token-format";
+import { fmtTokens } from "../token-format";
 import { dayValue, weekdayShort } from "../usage-history";
 import { dialogDuration } from "../duration";
 import type { ToolCall } from "../types";
@@ -137,11 +137,6 @@ describe("review follow-ups", () => {
     expect(css).not.toMatch(/\.state-pill/);
     expect(css).not.toMatch(/\.modal-title \.status-dot\.(inflight|done)/);
     expect(history).not.toMatch(/pageHidden|data-paused|uh-head|accent/);
-  });
-
-  it("splits the compact figure's units at the carry", () => {
-    expect(compactTokens(99_950)).toBe("100K");
-    expect(compactTokens(999_500_000)).toBe("1B");
   });
 });
 
@@ -400,9 +395,9 @@ describe("Session usage", () => {
     expect(session).toContain('t("shell.done")');
     for (const key of ["first", "last", "records", "reuse", "breakdown", "models", "used"]) expect(session).toContain(`insights.session.${key}`);
     expect(session).toContain("insights.session.note.auto");
-    // The counts are V4's compact figures (12.4K, 3.3M), the exact count on each title.
-    expect(session).toContain("compactTokens(detail.totalTokens)");
-    expect(session).toContain("title={count(n)}>{compactTokens(n)}");
+    // The counts are the deck's compact figures (12.4k, 3.30M), the exact count on each title.
+    expect(session).toContain("fmtTokens(detail.totalTokens)");
+    expect(session).toContain("title={count(n)}>{fmtTokens(n)}");
   });
 });
 
@@ -415,6 +410,10 @@ describe("Tool call", () => {
     expect(dialogDuration(call(842), "in-flight…")).toBe("842 ms");
     expect(dialogDuration(call(null), "in-flight…")).toBe("in-flight…");
     expect(toolModal).toContain('dialogDuration(tool, t("insights.tool.inflight"))');
+  });
+
+  it("is the small dialog (560), as V4 draws it", () => {
+    expect(decl(".modal.tool-modal", "width")).toBe("var(--dialog-s)");
   });
 
   it("sets each payload in a sunken code box: 6 round, no edge, 8 and 10 of padding, mono 12/16, not wrapped", () => {
@@ -470,18 +469,19 @@ describe("Context breakdown", () => {
     expect(decl('.ctx-modal .ctx-window-fill[data-level="high"]', "background")).toBe("var(--text)");
     expect(decl('.ctx-modal .ctx-window-fill[data-level="full"]', "background")).toBe("var(--err)");
     expect(context).toContain("{Math.round(pct)}%");
-    expect(context).toContain('t("insights.context.tokShort", { current: compactTokens(current), window: compactTokens(window) })');
+    expect(context).toContain('t("insights.context.tokShort", { current: fmtTokens(current), window: fmtTokens(window) })');
     expect(read("i18n/areas/insights/en.ts")).toContain('"insights.context.tokShort": "{current} / {window} tok"');
   });
 
-  it("writes counts as 124K, 12.4K, 96K and 3.2M, and keeps the exact count on the row's title", () => {
-    expect(compactTokens(124_000)).toBe("124K");
-    expect(compactTokens(12_400)).toBe("12.4K");
-    expect(compactTokens(96_000)).toBe("96K");
-    expect(compactTokens(3_200_000)).toBe("3.2M");
-    expect(compactTokens(200_000)).toBe("200K");
-    expect(compactTokens(999)).toBe("999");
-    expect(compactTokens(999_600)).toBe("1M");
+  it("writes counts in the deck's one spelling and keeps the exact count on the row's title", () => {
+    // Deviation from the drawing: V4 writes "12.4K" and "3.2M"; the deck's one formatter writes "12.4k"
+    // and "3.20M". One figure has one spelling, as token-format.ts says, so the context and session
+    // dialogs use fmtTokens, the same as Usage history.
+    expect(fmtTokens(12_400)).toBe("12.4k");
+    expect(fmtTokens(3_200_000)).toBe("3.20M");
+    expect(context).not.toContain("compactTokens");
+    expect(session).not.toContain("compactTokens");
+    expect(read("token-format.ts")).not.toContain("compactTokens");
     expect(context).toContain("title={meta && n !== undefined ? fmtN(n) : undefined}");
   });
 

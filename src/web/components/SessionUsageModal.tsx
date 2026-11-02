@@ -4,7 +4,7 @@ import { currentLanguage, useT } from "../i18n";
 import { shortModel } from "../model-label";
 import { agentLabel } from "../provider-copy";
 import { fmtCost } from "../pricing";
-import { compactTokens } from "../token-format";
+import { fmtTokens } from "../token-format";
 import { sessionFailure, type SessionReply, type SessionSelection, type SessionSpeed } from "../session-usage";
 import { Dialog } from "./Dialog";
 import { useModalDismiss, useScrimDismiss } from "./use-modal-dismiss";
@@ -89,7 +89,7 @@ export default function SessionUsageModal({ session, onClose }: { session: Sessi
               <div><dt>{speed === "auto" ? t("insights.session.estimated") : t("insights.session.scenario")}{missing.length > 0 ? ` · ${t("insights.session.partial")}` : ""}</dt>
                 <dd>{detail.totalCost > 0 ? fmtCost(detail.totalCost)
                   : detail.totalTokens > 0 ? t("insights.session.noCost") : "$0.00"}{missing.length > 0 && detail.totalCost > 0 ? "+" : ""}</dd></div>
-              <div><dt>{t("insights.session.totalTokens")}</dt><dd title={count(detail.totalTokens)}>{compactTokens(detail.totalTokens)}</dd></div>
+              <div><dt>{t("insights.session.totalTokens")}</dt><dd title={count(detail.totalTokens)}>{fmtTokens(detail.totalTokens)}</dd></div>
             </dl>
             <section aria-labelledby="session-tokens-title">
               <div className="su-section-head"><h3 id="session-tokens-title">{t("insights.session.breakdown")}</h3></div>
@@ -108,10 +108,10 @@ export default function SessionUsageModal({ session, onClose }: { session: Sessi
               <dl className="su-tokens">
                 {tokens.map(({ id, name, n, color }) => <div key={id}>
                   <dt><span className="su-key" style={{ background: color }} aria-hidden="true" />{name}</dt>
-                  <dd title={count(n)}>{compactTokens(n)}<span className="su-share">{tokenSum > 0 ? `${(n / tokenSum * 100).toLocaleString(currentLanguage(), { maximumFractionDigits: 1 })}%` : "—"}</span></dd>
+                  <dd title={count(n)}>{fmtTokens(n)}<span className="su-share">{tokenSum > 0 ? `${(n / tokenSum * 100).toLocaleString(currentLanguage(), { maximumFractionDigits: 1 })}%` : "—"}</span></dd>
                 </div>)}
               </dl>
-              {detail.reasoningOutputTokens > 0 && <p className="su-note su-reasoning">{t("insights.session.reasoning", { tokens: compactTokens(detail.reasoningOutputTokens) })}</p>}
+              {detail.reasoningOutputTokens > 0 && <p className="su-note su-reasoning">{t("insights.session.reasoning", { tokens: fmtTokens(detail.reasoningOutputTokens) })}</p>}
             </section>
             <section className="su-models" aria-labelledby="session-models-title">
               <div className="su-section-head"><h3 id="session-models-title">{t("insights.session.models")}</h3><span>{t("insights.session.used", { n: detail.models.length })}</span></div>
@@ -119,7 +119,7 @@ export default function SessionUsageModal({ session, onClose }: { session: Sessi
                 <thead><tr><th scope="col">{t("insights.usage.model")}</th><th scope="col">{t("insights.usage.tokensCol")}</th></tr></thead>
                 <tbody>{detail.models.map(model => <tr key={model.model}>
                   <th scope="row" title={model.model}>{shortModel(model.model)}{model.missingPricing && <span className="su-unpriced"> · {t("insights.cost.notPriced")}</span>}</th>
-                  <td title={count(model.totalTokens)}>{compactTokens(model.totalTokens)}</td>
+                  <td title={count(model.totalTokens)}>{fmtTokens(model.totalTokens)}</td>
                 </tr>)}</tbody>
               </table>
               {detail.models.length === 0 && <p className="su-note">{t("insights.session.noModels")}</p>}

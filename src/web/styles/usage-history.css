@@ -11,6 +11,8 @@
   color: var(--text);
 }
 /* The shared header (dialogs.css): the title and the ×, nothing else. */
+/* The loaded parts (stats, notes, split, chart, legend, a day) are 12 apart, like the body's blocks. */
+.uh-loaded { display: flex; flex-direction: column; gap: 12px; }
 .uh-body { display: flex; flex-direction: column; min-height: 0; gap: 12px; }
 /* V4's toolbar: the range chips on the left, the source of the figures and the
    re-run on the right. */

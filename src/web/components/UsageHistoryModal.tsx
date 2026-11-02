@@ -205,7 +205,7 @@ export default function UsageHistoryModal({ onClose, providers }: Props) {
           // but they are not the final word yet. What dims is the marks inside
           // it — bars, segments, swatches — and never the words (#1289); the
           // source line in the toolbar says what is running.
-          <div className={view.stale ? "uh-stale" : undefined} aria-busy={view.stale || undefined}>
+          <div className={view.stale ? "uh-loaded uh-stale" : "uh-loaded"} aria-busy={view.stale || undefined}>
             <div className="uh-totals">
               <Stat label={t("insights.usage.totalCost")}   val={reportedCost(totalCost, missingModels.size > 0)} />
               <Stat label={t("insights.usage.tokens")}       val={fmtTokens(totalTok)} />

@@ -18,7 +18,7 @@ import { fmtBytes } from "../byte-format";
 import { fmtCost } from "../pricing";
 import { effectiveContextWindow } from "../context-window";
 import { contextFill } from "../context-figure";
-import { compactTokens } from "../token-format";
+import { fmtTokens } from "../token-format";
 import { agentCost } from "../usage-models";
 import { Dialog } from "./Dialog";
 import { useModalDismiss, useScrimDismiss } from "./use-modal-dismiss";
@@ -204,10 +204,10 @@ export function ContextView({ agent, meta = false }: {
           </div>
           {/* The panel's head already prints the figure, so under the meter it
               says only what kind of number it is. The modal keeps the count
-              here, in V4's compact figures, with the exact ones on a title. */}
+              here, in the deck's compact figures, with the exact ones on a title. */}
           {meta ? (
             <div className="ctx-window-meta" title={t("insights.context.tok", { current: fmtN(current), window: fmtN(window), scope: copy.windowScope })}>
-              <span>{t("insights.context.tokShort", { current: compactTokens(current), window: compactTokens(window) })}</span>
+              <span>{t("insights.context.tokShort", { current: fmtTokens(current), window: fmtTokens(window) })}</span>
             </div>
           ) : (
             <p className="ctx-window-note">{copy.subtitle}</p>
@@ -277,10 +277,10 @@ export function ContextView({ agent, meta = false }: {
 }
 
 /** A row of the breakdown. In the modal (V4) the label is lower-case in English
- *  and a token count is compact ("12.4K") with the exact count on its title; the
+ *  and a token count is compact ("12.4k") with the exact count on its title; the
  *  Inspector's tab keeps its full numbers. */
 function Row({ label, val, n, meta = false }: { label: string; val?: string; n?: number; meta?: boolean }) {
-  const shown = n !== undefined ? (meta ? compactTokens(n) : fmtN(n)) : val;
+  const shown = n !== undefined ? (meta ? fmtTokens(n) : fmtN(n)) : val;
   return (
     <div className="ctx-row">
       <span className="ctx-row-label">{meta ? lowerEnglish(label) : label}</span>

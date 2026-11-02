@@ -496,7 +496,8 @@ describe("the Context tab", () => {
     // CHANGED ON PURPOSE (V4's Figma): the modal's line is the whole percent beside its
     // "Current turn" label, with the compact count under the meter.
     expect(modal).toContain('<span class="ctx-window-pct">100%</span>');
-    expect(modal).toContain("199K / 200K tok");
+    // One figure has one spelling, as token-format.ts says: the deck's lowercase k, not V4's capital.
+    expect(modal).toContain("199.2k / 200.0k tok");
   });
   it("sets the meter like Figma: the note directly under it, sentence-case rows, one column", () => {
     const out = withContext({ usage: SPENT });
