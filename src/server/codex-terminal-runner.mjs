@@ -43,6 +43,13 @@ export async function runSelectedCodex(file, executable, args, { env = process.e
   // existing path. Only supervised exec JSON sessions opt into continuation.
   if (home && !env.CODEX_HOME?.trim()) {
     const { createCodexEngineAdapter } = await import('./codex-engine-adapter.mjs');
+    if (process.stdin.isTTY && process.stdout.isTTY) {
+      const { codexInteractiveInvocation, supportsCodexInteractiveEngine, runInteractiveCodex } = await import('./codex-interactive-engine.mjs');
+      const policy = createCodexEngineAdapter(file, executable, ['exec', '--json'], home, { env });
+      if (codexInteractiveInvocation(args) && (await policy.settings()).enabled && await supportsCodexInteractiveEngine(executable, env)) {
+        return runInteractiveCodex(file, executable, args, home, { env });
+      }
+    }
     const adapter = createCodexEngineAdapter(file, executable, args, home, { env });
     if (adapter && (await adapter.settings()).enabled) {
       const { runAccountEngine } = await import('./account-engine.mjs');

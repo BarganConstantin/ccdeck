@@ -8,7 +8,13 @@ import { killTree } from './exec-children.mjs';
 
 export function startEngineRpc(executable, args, home, { env = process.env, onMessage = () => {}, onClose = () => {}, spawnChild = spawn, deadlineMs = 12_000 } = {}) {
   const spec = spawnSpec(executable, args);
-  const child = spawnChild(spec.file, spec.args, { ...spec.opts, stdio: ['pipe', 'pipe', 'ignore'], env: { ...env, CODEX_HOME: home } });
+  const child = spawnChild(spec.file, spec.args, { ...spec.opts, detached: process.platform !== 'win32', stdio: ['pipe', 'pipe', 'ignore'], env: { ...env, CODEX_HOME: home } });
+  const kill = signal => {
+    if (process.platform !== 'win32' && child.pid) {
+      try { process.kill(-child.pid, signal); return; } catch { /* already exited */ }
+    }
+    killTree(child, signal);
+  };
   const pending = new Map();
   const prefix = `ccdeck-${randomUUID()}-`;
   let serial = 0, text = '', closed = false, stopping, exitCode = null, forced = false;
@@ -26,13 +32,13 @@ export function startEngineRpc(executable, args, home, { env = process.env, onMe
   child.stdin.on('error', () => {});
   child.stdout.on('data', chunk => {
     text += decoder.write(chunk);
-    if (text.length > 16 * 1024 * 1024) { killTree(child, 'SIGTERM'); return; }
+    if (text.length > 16 * 1024 * 1024) { kill('SIGTERM'); return; }
     let end;
     while ((end = text.indexOf('\n')) >= 0) {
       const line = text.slice(0, end); text = text.slice(end + 1);
       if (!line.trim()) continue;
       let message;
-      try { message = JSON.parse(line); } catch { killTree(child, 'SIGTERM'); return; }
+      try { message = JSON.parse(line); } catch { kill('SIGTERM'); return; }
       const call = pending.get(message.id);
       if (call && !message.method) {
         clearTimeout(call.timer); pending.delete(message.id);
@@ -62,8 +68,8 @@ export function startEngineRpc(executable, args, home, { env = process.env, onMe
       if (stopping) return stopping;
       stopping = (async () => {
         child.stdin.end(); // EOF lets app-server flush the rollout before exit.
-        const term = setTimeout(() => { forced = true; killTree(child, 'SIGTERM'); }, 2000);
-        const force = setTimeout(() => killTree(child, 'SIGKILL'), 4000);
+        const term = setTimeout(() => { forced = true; kill('SIGTERM'); }, 2000);
+        const force = setTimeout(() => kill('SIGKILL'), 4000);
         try { await ended; return !forced && exitCode === 0; } finally { clearTimeout(term); clearTimeout(force); }
       })();
       return stopping;
