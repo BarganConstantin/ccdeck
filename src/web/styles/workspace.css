@@ -13,10 +13,11 @@
    it, hidden, so its camera and its layout survive (use-stage.ts). The one
    thing the grid is not told is a seventh template.
 
-   MOTION: Board <-> Workspace is an opacity fade, by pointer; by key it is
-   instant (input-modality.ts sets data-motion="instant" on the root, and App
-   sets data-fade only for a click). No clip, no travel. Reduced motion keeps
-   the fade: it moves nothing. */
+   MOTION: Board to Workspace is a crossfade on Fast, by pointer, between two
+   views that are each laid out at full size before it starts (view-switch.ts
+   draws it with the browser's view transition); by key it is one frame
+   (input-modality.ts sets data-motion="instant" on the root). No clip, no
+   travel. Reduced motion keeps the fade: it moves nothing. */
 
 /* ── the switch, in the topbar ───────────────────────────────────────────── */
 /* The Inspector's tabs pill (detail-panel.css), 24px buttons: a --bg-soft
@@ -95,6 +96,27 @@
    whichever of them is in force. */
 @media (min-width: 1320px) {
   body .app[data-view="workspace"] { --rail-r: 0px; }
+  /* V4's motion spec, where they sit: the Inspector's column, from under the
+     top bar to above the status bar, the right edge at the window, so neither
+     covers a pane button or the Inspector's tab strip. Both open share it,
+     Usage above and Machine below, each half the column less the gap
+     panel-place.ts keeps between them (fitStack lands on the same numbers). A
+     panel the reader has put somewhere keeps its place. */
+  .app[data-view="workspace"] {
+    --ws-col-h: calc(100vh - var(--topbar-h) - var(--status-room, 0px));
+  }
+  .app[data-view="workspace"] :is(.usage-panel, .sysdetail):not([data-place]) {
+    top: var(--topbar-h);
+    right: 0;
+    max-height: var(--ws-col-h);
+  }
+  .app[data-view="workspace"] .sysdetail.shifted:not([data-place]) {
+    top: calc(var(--topbar-h) + var(--ws-col-h) / 2);
+    max-height: calc(var(--ws-col-h) / 2);
+  }
+  .app[data-view="workspace"]:has(.sysdetail.shifted:not(.leaving):not([data-place])) .usage-panel:not([data-place]) {
+    max-height: calc(var(--ws-col-h) / 2 - 8px);
+  }
 }
 
 /* The pane's header, empty: its title is a description, not a session. */
@@ -102,6 +124,18 @@
 /* Zoom is a state: pressed is filled, as the kit's IconButton / Active. The
    ⌨ beside it keeps the accent it has (terminal-stage.css). */
 .ts-tools .glyph-btn[data-zoom][aria-pressed="true"] { background: var(--selected); color: var(--text); }
+
+/* ✕ on a pane (V4's motion spec): the header stays, the terminal host goes out
+   in 70 (terminal-stage.css), and the empty pane comes in on Fast. A
+   transition from @starting-style, so a pane emptied twice does it twice. By a
+   key it is at once; reduced motion keeps the fade, which moves nothing. */
+.ts-stage[data-fill][data-empty] .ts-card {
+  transition: opacity var(--dur-fast) var(--ease);
+}
+@starting-style {
+  .ts-stage[data-fill][data-empty] .ts-card { opacity: 0; }
+}
+:root[data-motion="instant"] .ts-stage[data-fill][data-empty] .ts-card { transition: none; }
 
 /* The empty pane's words (Figma, "Empty workspace"). */
 .ts-ws-empty { gap: 8px; }
@@ -136,16 +170,46 @@
   font-weight: 600;
 }
 
-/* ── the view switch's fade ───────────────────────────────────────────────── */
-@keyframes view-fade { from { opacity: 0; } }
-.app[data-fade] .stage-dock[data-fill],
-.app[data-fade] .canvas-wrap { animation: view-fade var(--dur-base) var(--ease) both; }
-:root[data-motion="instant"] .app[data-fade] .stage-dock[data-fill],
-:root[data-motion="instant"] .app[data-fade] .canvas-wrap { animation: none; }
-/* Reduced motion keeps the fade (it moves nothing), a beat shorter. */
-@media (prefers-reduced-motion: reduce) {
-  .app[data-fade] .stage-dock[data-fill],
-  .app[data-fade] .canvas-wrap { animation: view-fade var(--dur-fast) linear both; }
+/* ── the view switch ──────────────────────────────────────────────────────── */
+/* THE BOARD'S CANVAS IS HELD AT ITS BOX while Workspace is up (view-switch.ts
+   sets data-pin and the box on the root): it neither narrows to the cell the
+   pane has nor re-fits when the view comes back, and it keeps its camera. It is
+   out of sight and out of reach, as it was. The pane measures the probe in the
+   cell instead (use-stage.ts). */
+.ws-cell {
+  grid-column: 1;
+  grid-row: 3;
+  min-width: 0;
+  min-height: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+.app:has(.session-list) .ws-cell,
+.app:has(.accounts-panel) .ws-cell { grid-column: 2; }
+.app[data-view="workspace"][data-pin] .canvas-wrap {
+  position: fixed;
+  left: var(--board-l);
+  top: var(--board-t);
+  width: var(--board-w);
+  height: var(--board-h);
+  visibility: hidden;
+  pointer-events: none;
+}
+/* The crossfade is the browser's: the old view's picture under the new one,
+   fading in over it on Fast, on the deck's curve. Only while view-switch.ts
+   has the root marked. Reduced motion keeps it: it moves nothing. */
+:root[data-view-switch]::view-transition-group(root) { animation-duration: var(--dur-fast); }
+:root[data-view-switch]::view-transition-old(root),
+:root[data-view-switch]::view-transition-new(root) {
+  animation-duration: var(--dur-fast);
+  animation-timing-function: var(--ease);
+}
+/* Nothing else moves across the switch: the new view is drawn in its final
+   state, so the left column is at its width, not easing to it, and a panel
+   that arrives is already there. */
+:root[data-view-switch] .app :is(.left-column, .left-column > *, .detail, .stage-dock, .stage-in, .usage-panel, .sysdetail) {
+  transition: none;
+  animation: none;
 }
 
 /* The Inspector's Fold is drawn in the column too (V4's Figma). It folds the
@@ -171,13 +235,20 @@
     width: min(var(--inspector-w), 100vw);
     z-index: 20;
   }
+  /* Under 1320 there is no Inspector column for Usage and Machine to sit over,
+     and the Board's slot would put them on the pane's header: they start below
+     it instead. */
+  .app[data-view="workspace"] :is(.usage-panel, .sysdetail):not([data-place]) {
+    top: calc(var(--topbar-h) + var(--pane-head-h) + 8px + var(--rating-h, 0px));
+    max-height: calc(100vh - var(--topbar-h) - var(--pane-head-h) - 16px - var(--rating-h, 0px) - var(--status-room, 0px));
+  }
 }
 /* Under 1100 the list is a sheet too, from the panel bar's Sessions door: the
    pane is the one column. */
 @media (max-width: 1099px) {
   body .app[data-view="workspace"],
   body .app[data-view="workspace"]:has(.left-column) { grid-template-columns: minmax(0, 1fr); }
-  .app[data-view="workspace"] :is(.canvas-wrap, .stage-dock, .conn-banner, .ver-banner) { grid-column: 1; }
+  .app[data-view="workspace"] :is(.canvas-wrap, .ws-cell, .stage-dock, .conn-banner, .ver-banner) { grid-column: 1; }
   .app[data-view="workspace"] .left-column {
     position: fixed;
     top: var(--topbar-h);
@@ -192,9 +263,61 @@
 /* ── ZOOM folds the list and the Inspector ────────────────────────────────── */
 /* Last in the sheet, so it outranks the narrower windows' templates on source
    order. Kept mounted (scroll, filter text and the tab survive), not drawn;
-   the panel bar, the top bar and the status bar stay. One track. */
+   the panel bar, the top bar and the status bar stay. One track.
+
+   THE PANELS TAKE ONE PATH BOTH WAYS (V4's motion spec): fold 200, unfold Move,
+   both on the stage's curve, and Usage and Machine go with them. While Zoom is
+   on or moving they are overlays at the places the grid gave them, over a pane
+   that already has the whole cell (use-zoom-phase.ts holds data-zoom="unfold"
+   for the length of the slide in, and only then gives the grid its tracks
+   back), so the pane's box changes once and its terminal refits once. Nothing
+   scales: it is the panels that travel, the text never moves. Out of sight
+   they are visibility: hidden, after the slide, which is what display: none
+   was. A key is at once (input-modality.ts); reduced motion has no travel and
+   crossfades over --zoom-xfade. */
+.app[data-view="workspace"] { --zoom-xfade: 140ms; }
 body .app[data-view="workspace"][data-zoom],
 body .app[data-view="workspace"][data-zoom]:has(.left-column) { grid-template-columns: minmax(0, 1fr); }
-.app[data-view="workspace"][data-zoom] .left-column { display: none; }
-.app[data-view="workspace"][data-zoom] .detail { display: none; }
-.app[data-view="workspace"][data-zoom] :is(.canvas-wrap, .stage-dock, .conn-banner, .ver-banner) { grid-column: 1; }
+.app[data-view="workspace"][data-zoom] :is(.canvas-wrap, .ws-cell, .stage-dock, .conn-banner, .ver-banner) { grid-column: 1; }
+.app[data-view="workspace"][data-zoom] .left-column {
+  position: fixed;
+  top: var(--topbar-h);
+  bottom: var(--status-room, 0px);
+  left: var(--edge-w);
+  z-index: 21;
+}
+.app[data-view="workspace"][data-zoom] .detail {
+  position: fixed;
+  top: var(--topbar-h);
+  right: 0;
+  bottom: var(--status-room, 0px);
+  width: min(var(--inspector-w), 100vw);
+  z-index: 20;
+}
+.app[data-view="workspace"][data-zoom] :is(.left-column, .detail, .usage-panel, .sysdetail) {
+  transition:
+    transform var(--dur-stage-out) var(--ease-stage),
+    opacity var(--dur-stage-out) var(--ease-stage),
+    visibility 0s var(--ease) var(--dur-stage-out);
+}
+.app[data-view="workspace"][data-zoom="unfold"] :is(.left-column, .detail, .usage-panel, .sysdetail) {
+  transition:
+    transform var(--dur-move) var(--ease-stage),
+    opacity var(--dur-move) var(--ease-stage),
+    visibility 0s var(--ease);
+}
+.app[data-view="workspace"][data-zoom="fold"] .left-column { transform: translateX(-100%); opacity: 0; visibility: hidden; }
+.app[data-view="workspace"][data-zoom="fold"] :is(.detail, .usage-panel, .sysdetail) { transform: translateX(100%); opacity: 0; visibility: hidden; }
+:root[data-motion="instant"] .app[data-view="workspace"][data-zoom] :is(.left-column, .detail, .usage-panel, .sysdetail) { transition: none; }
+@media (prefers-reduced-motion: reduce) {
+  .app[data-view="workspace"][data-zoom] :is(.left-column, .detail, .usage-panel, .sysdetail),
+  .app[data-view="workspace"][data-zoom="fold"] :is(.left-column, .detail, .usage-panel, .sysdetail),
+  .app[data-view="workspace"][data-zoom="unfold"] :is(.left-column, .detail, .usage-panel, .sysdetail) {
+    transform: none;
+    transition: opacity var(--zoom-xfade) var(--ease), visibility 0s var(--ease) var(--zoom-xfade);
+  }
+  .app[data-view="workspace"][data-zoom="unfold"] :is(.left-column, .detail, .usage-panel, .sysdetail) {
+    transition: opacity var(--zoom-xfade) var(--ease), visibility 0s var(--ease);
+  }
+  :root[data-motion="instant"] .app[data-view="workspace"][data-zoom] :is(.left-column, .detail, .usage-panel, .sysdetail) { transition: none; }
+}

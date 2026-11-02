@@ -52,6 +52,18 @@ export const PLACE_KEYS = {
   machine: "agent-dag.machinePanelPlace",
 } as const;
 
+/** Where each panel keeps the height it settled at (see useRememberedHeight). */
+const HEIGHT_KEYS: Record<string, string> = {
+  [PLACE_KEYS.usage]: "agent-dag.usagePanelHeight",
+  [PLACE_KEYS.machine]: "agent-dag.machinePanelHeight",
+};
+/** How long an opened panel holds the height it last settled at: the time its
+ *  readings take to arrive, after which it is as tall as its content. */
+export const HEIGHT_HOLD_MS = 1500;
+/** A held height never takes more than this of the window, so a panel from a
+ *  taller window cannot open past the foot of this one. */
+const HEIGHT_SPARE = 140;
+
 /** The place a panel at `left`/`top` is kept as, from the edge its centre is
  *  nearer to. */
 export function placeOf(left: number, top: number, width: number, windowW: number): PanelPlace {
@@ -125,7 +137,12 @@ export function fitStack(): void {
   if (!usage || !machine || window.matchMedia(PHONE_QUERY).matches) return;
   const box = (el: HTMLElement): Box => ({ left: el.offsetLeft, top: el.offsetTop, width: el.offsetWidth });
   const fit = stackCap(box(usage), box(machine));
-  if (fit) (fit.upper === "a" ? usage : machine).style.maxHeight = `${fit.cap}px`;
+  if (fit) {
+    const upper = fit.upper === "a" ? usage : machine;
+    upper.style.maxHeight = `${fit.cap}px`;
+    // A held height (useRememberedHeight) never outgrows the cap.
+    if (parseFloat(upper.style.minHeight) > fit.cap) upper.style.minHeight = `${fit.cap}px`;
+  }
 }
 
 let fitFrame = 0;
@@ -153,6 +170,41 @@ type Drag = {
 };
 
 /**
+ * A panel opens at the height it settled at last time (V4's motion spec: it
+ * takes its final height on open, and does not grow in steps as its readings
+ * arrive). The height is held for HEIGHT_HOLD_MS, then the panel is as tall as
+ * its content again; whatever height it has when it closes is remembered. The
+ * first open on a machine has nothing to hold and still grows once.
+ */
+function useRememberedHeight(panelRef: { readonly current: HTMLElement | null }, key: string): void {
+  useLayoutEffect(() => {
+    const el = panelRef.current;
+    const heightKey = HEIGHT_KEYS[key];
+    if (!el || !heightKey || window.matchMedia(PHONE_QUERY).matches) return;
+    const saved = Number(readStored(heightKey));
+    if (Number.isFinite(saved) && saved > 0) {
+      el.style.minHeight = `${Math.min(saved, Math.max(0, window.innerHeight - HEIGHT_SPARE))}px`;
+      fitStack();
+    }
+    const release = window.setTimeout(() => {
+      el.style.removeProperty("min-height");
+    }, HEIGHT_HOLD_MS);
+    let latest = 0;
+    const watch = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(() => { latest = el.offsetHeight; });
+    watch?.observe(el);
+    const keep = () => { if (latest > 0) writeStored(heightKey, String(Math.round(latest))); };
+    window.addEventListener('pagehide', keep);
+    return () => {
+      window.clearTimeout(release);
+      watch?.disconnect();
+      window.removeEventListener('pagehide', keep);
+      keep();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+}
+
+/**
  * The place of one panel, and the props for the panel and its header.
  * `key` is one of PLACE_KEYS.
  */
@@ -163,6 +215,7 @@ export function usePanelPlace(key: string) {
   const drag = useRef<Drag | null>(null);
   const stopEscape = useRef<(() => void) | null>(null);
   useEffect(() => () => stopEscape.current?.(), []);
+  useRememberedHeight(panelRef, key);
 
   const keep = (next: PanelPlace | null) => {
     if (next) writeStored(key, JSON.stringify(next));

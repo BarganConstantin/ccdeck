@@ -73,7 +73,6 @@ const ALLOWLIST: Allowed[] = [
   { file: "styles/canvas-motion.css", needle: "fadeIn 140ms ease both", why: "reduced motion: the stage board's fade on open, 140 (spec'd)" },
   { file: "styles/left-column.css", needle: "opacity 140ms ease", why: "reduced motion: the side panels' crossfade, 140 (spec'd)" },
   { file: "styles/left-column.css", needle: "var(--side-exit) linear", why: "a side panel's exit crossfade: linear opacity beside the --ease-stage travel; --side-exit is set per panel in JS" },
-  { file: "styles/workspace.css", needle: "view-fade var(--dur-fast) linear", why: "Workspace reduced crossfade (v4-workspace-layout.test.ts pins it)" },
   // ---- Board PR (rules and the timers that mirror them) ----
   { file: "styles/search-and-banners.css", needle: "nodeExit", why: "Board PR: node exit, 600 (EXIT_ANIM_MS mirrors it)" },
   { file: "styles/search-and-banners.css", needle: "edgeExit", why: "Board PR: edge exit, 600 (EXIT_ANIM_MS mirrors it)" },
@@ -88,7 +87,6 @@ const ALLOWLIST: Allowed[] = [
   { file: "styles/canvas.css", needle: "rearrangeUndo", why: "Board PR: re-arrange undo strip (REARRANGE_UNDO_EXIT_MS mirrors it)" },
   { file: "styles/canvas.css", needle: "dragTrash", why: "Board PR: drag-to-trash target" },
   // ---- other holds ----
-  { file: "styles/machine-panel.css", needle: "rail-out", why: "rail-out belongs to the Usage panel / Workspace PR" },
   { file: "styles/integrations.css", needle: "var(--ease) 300ms", why: "the skeleton's hold-off: 300ms before it shows, so a quick read never flashes (integrations-skeleton.test.ts)" },
 ];
 

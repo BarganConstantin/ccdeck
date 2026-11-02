@@ -1480,3 +1480,53 @@ describe("the gate, the hook and j and k, run (beside the source pins of v4-work
     expect(board.now().stage.keysRef.current!.mode).toBeUndefined();
   });
 });
+
+describe("Workspace: the one-time gate hold (PREFS_WAIT_MS)", () => {
+  // A tab left in Workspace holds that layout while the deck has not said
+  // whether the Command Panel is on, so a reader whose gate is on never sees
+  // the Board flash. The hold is given up after PREFS_WAIT_MS, or released by
+  // the answer; nothing opens before the answer, and the answer opens the pane
+  // once.
+  it("pins the hold: Workspace is drawn before the answer, with nothing on the pane, for PREFS_WAIT_MS", () => {
+    const { now } = setup({ view: "workspace" });
+    expect(PREFS_WAIT_MS).toBe(3000);
+    expect(now().stage.enabled).toBe(false);
+    expect(now().stage.workspace, "held").toBe(true);
+    expect(now().stage.shell.phase, "nothing opens before the deck has answered").toBe("closed");
+    vi.advanceTimersByTime(PREFS_WAIT_MS - 1);
+    expect(now().stage.workspace, "still held a beat before the end").toBe(true);
+    vi.advanceTimersByTime(1);
+    expect(now().stage.workspace, "given up at PREFS_WAIT_MS").toBe(false);
+    expect(now().stage.shell.phase).toBe("closed");
+  });
+
+  it("releases it with the answer: the pane opens, and the wait running out afterwards changes nothing", () => {
+    const { now, turnOn } = setup({ view: "workspace" });
+    vi.advanceTimersByTime(PREFS_WAIT_MS - 100);
+    turnOn();
+    expect(now().stage.workspace).toBe(true);
+    const opened = now().stage.shell;
+    expect(opened.phase).not.toBe("closed");
+    expect(opened.target).toEqual({ kind: "empty" });
+    vi.advanceTimersByTime(PREFS_WAIT_MS * 2);
+    expect(now().stage.workspace, "the answer ended the hold for good").toBe(true);
+    expect(now().stage.shell.target).toEqual(opened.target);
+    expect(now().stage.shell.phase).toBe(opened.phase);
+  });
+
+  it("opens the pane once however many presses and answers come during the hold", () => {
+    const { now, turnOn } = setup({ view: "workspace" });
+    // Presses while the flag is not known to be on are not the stage's.
+    now().stage.openInPane("s1");
+    now().stage.openInPane("s1", { focusPane: true });
+    now().stage.emptyPane();
+    expect(now().stage.shell.phase).toBe("closed");
+    turnOn();
+    const first = now().stage.shell;
+    expect(first.phase).not.toBe("closed");
+    // The same answer again (two tabs, or a press that crossed the first): no second open.
+    now().stage.loadTerminalPrefs({ terminalOn: true });
+    now().stage.loadTerminalPrefs({ terminalOn: true, terminalSupported: true });
+    expect(now().stage.shell, "the same pane, not reopened").toBe(first);
+  });
+});

@@ -36,6 +36,7 @@ import { CopyGlyph, StageGlyph } from "./stage-icons";
 import type { WaitingCard } from "./stage-board";
 import { Kbd } from "../Kbd";
 import { useSingleKeyShortcuts } from "../../use-single-key-shortcuts";
+import { useWaitingLoader } from "../../use-waiting-loader";
 import { chatShown, ScreensSlot, useScreenFlags, type ScreensProps } from "../../use-screens";
 
 /** The id the empty card's New session button carries, so the popover can
@@ -189,7 +190,7 @@ export function WorkspaceEmpty({ waiting, onOpen, onNewSession }: {
 /** The card for a phase with no pane to show, or null when the frame is
  *  what the body shows. `held`: a switch is holding the last frame up.
  *  Exported so the suite can draw each one. */
-export function StateCard(p: Omit<StageBodyProps, "hostRef"> & { held?: boolean }) {
+export function StateCard(p: Omit<StageBodyProps, "hostRef"> & { held?: boolean; timed?: "in" | "out" }) {
   const { phase } = p;
   switch (phase.kind) {
     case "empty":
@@ -208,7 +209,7 @@ export function StateCard(p: Omit<StageBodyProps, "hostRef"> & { held?: boolean 
       // The last frame stays up while the next one attaches: no card over it.
       if (phase.reconnect || p.held) return null;
       return (
-        <div className="ts-card">
+        <div className="ts-card" data-timed={p.timed}>
           <div className="ts-text ts-wait"><StageGlyph kind="working" /><span>attaching…</span></div>
         </div>
       );
@@ -385,6 +386,13 @@ export default function StageBody(p: StageBodyProps) {
   const { hostRef, paneName: _paneName, screens, ...card } = p;
   const flags = useScreenFlags(p.workspace === true);
   const inChat = chatShown(flags, screens);
+  // The attaching card is a wait on data, so it follows the Waiting loader's
+  // rule (V4's motion spec): nothing for the first 150, a Fast fade in, at
+  // least 300 on screen, then a fade out, which is why a pane that is ready
+  // sooner is never preceded by a card it would replace at once.
+  const attaching = !inChat && p.phase.kind === "attaching" && !p.phase.reconnect && state !== "held";
+  const wait = useWaitingLoader(attaching);
+  const lingering = !attaching && !inChat && wait.draw && p.phase.kind === "live";
   // Out of the accessibility tree whenever a card speaks or a held frame is
   // only the last session's — but never over a focused textarea: Chrome
   // refuses aria-hidden on an element whose descendant keeps focus, and says
@@ -432,7 +440,10 @@ export default function StageBody(p: StageBodyProps) {
         data-held={state === "held" || undefined}
         data-after-hold={afterHold || undefined}
       />
-      {inChat ? null : <StateCard {...card} held={state === "held"} />}
+      {inChat ? null : attaching
+        ? (wait.draw ? <StateCard {...card} held={false} timed={wait.leaving ? "out" : "in"} /> : null)
+        : <StateCard {...card} held={state === "held"} />}
+      {lingering && <StateCard {...card} phase={{ kind: "attaching", reconnect: false }} held={false} timed={wait.leaving ? "out" : "in"} />}
       <ScreensSlot screens={screens} flags={flags} />
     </div>
   );

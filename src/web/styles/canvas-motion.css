@@ -131,11 +131,8 @@
   .tool-burst.sub.status-err { animation: fadeIn 140ms ease both; }
   .tool-burst.fading,
   .tool-burst.sub.fading { animation: canvas-fade-out 600ms linear forwards; }
-  /* The rail's two panels arrive without travelling. The fade is the arrival
-     and it stays; the 8px is the part that moves, and it is the part that
-     goes. Their exit is opacity only already, so it needs no answer here. */
-  .sysdetail,
-  .usage-panel { animation: fadeIn 140ms ease both; }
+  /* The rail's two panels are answered where they are written: transitions,
+     with the crossfade at the end of the rail's block (machine-panel.css). */
   /* The left column's two panels: answered with the column itself, at the
      end of styles/left-column.css. */
   .tool-burst .tb-spin,

@@ -58,7 +58,7 @@ describe("the sheet", () => {
   });
 
   it("matches nothing on the Board: every Workspace rule is keyed on data-view, the pane's data-fill, or a class only Workspace draws", () => {
-    const own = /\.view-switch|\.view-opt|\[data-view="workspace"\]|\[data-fill\]|\.ts-ws-|\.insp-none|\.insp-tab\[aria-current|\.app\[data-fade\]|:root\[data-motion="instant"\] \.app\[data-fade\]|\.ts-tools \.glyph-btn\[data-zoom\]|\.ts-stage\[data-fill\]/;
+    const own = /\.view-switch|\.view-opt|\[data-view="workspace"\]|\[data-fill\]|\.ts-ws-|\.insp-none|\.insp-tab\[aria-current|\.ws-cell|:root\[data-view-switch\]|:root\[data-motion="instant"\] \.app\[data-view="workspace"\]|\.ts-tools \.glyph-btn\[data-zoom\]|\.ts-stage\[data-fill\]/;
     const body = css.replace(/@media[^{]*\{/g, "").replace(/@keyframes[^{]*\{[^{}]*\{[^{}]*\}\s*\}/g, "");
     const stray: string[] = [];
     for (const m of body.matchAll(/([^{}]+)\{[^{}]*\}/g)) {
@@ -99,9 +99,38 @@ describe("Zoom", () => {
   it("folds the list and the Inspector without unmounting them, into one track", () => {
     expect(decl(ruleFor(css, 'body .app[data-view="workspace"][data-zoom]').body, "grid-template-columns")).toBe("minmax(0, 1fr)");
     expect(decl(ruleFor(css, 'body .app[data-view="workspace"][data-zoom]:has(.left-column)').body, "grid-template-columns")).toBe("minmax(0, 1fr)");
-    expect(decl(ruleFor(css, '.app[data-view="workspace"][data-zoom] .left-column').body, "display")).toBe("none");
-    expect(decl(ruleFor(css, '.app[data-view="workspace"][data-zoom] .detail').body, "display")).toBe("none");
-    expect(css).toContain('.app[data-view="workspace"][data-zoom] :is(.canvas-wrap, .stage-dock, .conn-banner, .ver-banner) { grid-column: 1; }');
+    expect(css).toContain('.app[data-view="workspace"][data-zoom] :is(.canvas-wrap, .ws-cell, .stage-dock, .conn-banner, .ver-banner) { grid-column: 1; }');
+  });
+
+  it("takes the panels out by sliding them, not by display: none, so the pane has the cell once and the terminal refits once", () => {
+    // CHANGED ON PURPOSE (V4's motion spec): the list and the Inspector (and
+    // Usage and Machine with them) are overlays while Zoom is on or moving, and
+    // out of sight by visibility after the slide; display: none had no motion.
+    expect(css).not.toMatch(/\[data-zoom\] \.(left-column|detail) \{ display: none/);
+    expect(decl(ruleFor(css, '.app[data-view="workspace"][data-zoom] .left-column').body, "position")).toBe("fixed");
+    expect(decl(ruleFor(css, '.app[data-view="workspace"][data-zoom] .detail').body, "position")).toBe("fixed");
+    const folded = ruleFor(css, '.app[data-view="workspace"][data-zoom="fold"] .left-column').body;
+    expect(decl(folded, "transform")).toBe("translateX(-100%)");
+    expect(decl(folded, "visibility")).toBe("hidden");
+    const right = ruleFor(css, '.app[data-view="workspace"][data-zoom="fold"] :is(.detail, .usage-panel, .sysdetail)').body;
+    expect(decl(right, "transform")).toBe("translateX(100%)");
+  });
+
+  it("folds on --dur-stage-out and unfolds on --dur-move, both --ease-stage; a key is at once; reduced motion crossfades over 140", () => {
+    const list = ".left-column, .detail, .usage-panel, .sysdetail";
+    const fold = decl(ruleFor(css, `.app[data-view="workspace"][data-zoom] :is(${list})`).body, "transition")!;
+    expect(fold).toContain("transform var(--dur-stage-out) var(--ease-stage)");
+    expect(fold).toContain("opacity var(--dur-stage-out) var(--ease-stage)");
+    // Hidden only once the slide is over.
+    expect(fold).toContain("visibility 0s var(--ease) var(--dur-stage-out)");
+    const unfold = decl(ruleFor(css, `.app[data-view="workspace"][data-zoom="unfold"] :is(${list})`).body, "transition")!;
+    expect(unfold).toContain("transform var(--dur-move) var(--ease-stage)");
+    expect(unfold).toContain("opacity var(--dur-move) var(--ease-stage)");
+    expect(decl(ruleFor(css, `:root[data-motion="instant"] .app[data-view="workspace"][data-zoom] :is(${list})`).body, "transition")).toBe("none");
+    expect(css).toContain("--zoom-xfade: 140ms;");
+    const reduced = block(css.slice(css.indexOf("[data-zoom=\"unfold\"] :is(")), "@media (prefers-reduced-motion: reduce)");
+    expect(decl(ruleFor(reduced, `.app[data-view="workspace"][data-zoom="fold"] :is(${list})`).body, "transform")).toBe("none");
+    expect(decl(ruleFor(reduced, `.app[data-view="workspace"][data-zoom="fold"] :is(${list})`).body, "transition")).toContain("opacity var(--zoom-xfade) var(--ease)");
   });
 
   it("is last in the sheet, so it outranks the narrower windows' templates", () => {
@@ -155,12 +184,26 @@ describe("tokens only", () => {
     expect(decl(ruleFor(css, '.view-opt[aria-pressed="true"]').body, "background")).toBe("var(--panel)");
   });
 
-  it("fades the middle with opacity alone, over --dur-base; reduced motion keeps the fade, shorter", () => {
-    expect(css).toMatch(/@keyframes view-fade \{ from \{ opacity: 0; \} \}/);
-    expect(decl(ruleFor(css, ".app[data-fade] .canvas-wrap").body, "animation")).toBe("view-fade var(--dur-base) var(--ease) both");
-    const reduced = block(css.slice(css.indexOf("@keyframes view-fade")), "@media (prefers-reduced-motion: reduce)");
-    expect(decl(ruleFor(reduced, ".app[data-fade] .canvas-wrap").body, "animation")).toBe("view-fade var(--dur-fast) linear both");
-    // By key it does not move at all.
-    expect(decl(ruleFor(css, ':root[data-motion="instant"] .app[data-fade] .canvas-wrap').body, "animation")).toBe("none");
+  it("crossfades the two views on Fast with the browser's view transition, and holds the Board's canvas at its box", () => {
+    // CHANGED ON PURPOSE (V4's motion spec): the switch is one crossfade on Fast
+    // between two views each laid out at full size, so the old view's fade-out
+    // keyframes are gone; view-switch.ts draws the picture, this sheet times it.
+    expect(css).not.toContain("@keyframes view-fade");
+    expect(css).not.toContain("[data-fade]");
+    const old = decl(ruleFor(css, ":root[data-view-switch]::view-transition-old(root)").body, "animation-duration");
+    expect(old).toBe("var(--dur-fast)");
+    expect(decl(ruleFor(css, ":root[data-view-switch]::view-transition-new(root)").body, "animation-timing-function")).toBe("var(--ease)");
+    expect(decl(ruleFor(css, ":root[data-view-switch]::view-transition-group(root)").body, "animation-duration")).toBe("var(--dur-fast)");
+    // The canvas keeps the box it had: fixed, hidden, out of reach.
+    const pin = ruleFor(css, '.app[data-view="workspace"][data-pin] .canvas-wrap').body;
+    expect(decl(pin, "position")).toBe("fixed");
+    expect(decl(pin, "width")).toBe("var(--board-w)");
+    expect(decl(pin, "visibility")).toBe("hidden");
+    // The pane measures its own cell, where the canvas would have been.
+    expect(decl(ruleFor(css, ".ws-cell").body, "visibility")).toBe("hidden");
+    // Nothing else moves across the switch.
+    const still = ruleFor(css, ":root[data-view-switch] .app :is(.left-column, .left-column > *, .detail, .stage-dock, .stage-in, .usage-panel, .sysdetail)").body;
+    expect(decl(still, "transition")).toBe("none");
+    expect(decl(still, "animation")).toBe("none");
   });
 });

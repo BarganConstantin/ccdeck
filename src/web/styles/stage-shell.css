@@ -155,6 +155,10 @@
    second press of a double-click goes through to the card it was aimed at. */
 .stage-dock[data-grace],
 .stage-nav[data-grace] { pointer-events: none; }
+/* But the header's buttons answer from the first frame (V4's motion spec): ✕
+   during the open closes it, turning the morph around. The second press of a
+   double click aims at a card, and no card sits under a header button. */
+.stage-dock[data-grace] .ts-head button { pointer-events: auto; }
 
 /* THE RIGHT-HAND RAILS STAND ASIDE while the stage is on screen. Usage and
    Machine float at the right edge (machine-panel.css's --rail-r), which is
@@ -190,3 +194,18 @@
 .canvas-wrap[data-stage="opening"] > .empty-hero,
 .canvas-wrap[data-stage="open"] > .empty-hero,
 .canvas-wrap[data-stage="closing"] > .empty-hero { visibility: hidden; }
+
+/* THE DIVIDER'S DOUBLE CLICK is a move: the widths come back to the default on
+   --dur-move and the stage's curve (V4's motion spec), and the navigator beside
+   them goes with them. Only while Divider.tsx holds data-snap: a drag is 1:1
+   and a key is at once, so neither ever carries a transition. The terminal is
+   told its size once, when it has rested (use-terminal-session.ts). Reduced
+   motion snaps. */
+.app[data-snap] .stage-dock,
+.app[data-snap] .stage-in,
+.app[data-snap] .stage-nav { transition: width var(--dur-move) var(--ease-stage); }
+@media (prefers-reduced-motion: reduce) {
+  .app[data-snap] .stage-dock,
+  .app[data-snap] .stage-in,
+  .app[data-snap] .stage-nav { transition: none; }
+}

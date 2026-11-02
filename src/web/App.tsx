@@ -120,6 +120,9 @@ import { SKIP_TO_PANE, WORKSPACE_PANE_ID, skipToPane } from "./workspace-pane";
 import { createChimePlayer } from "./chime-player";
 import type { AccountSwitch } from "./components/SettingsModal";
 import type { Appliers } from "./account-bridge";
+import { useZoomPhase } from "./use-zoom-phase";
+import { pinBoard, runSwitch, unpinBoard } from "./view-switch";
+import { lastInputWasKey } from "./input-modality";
 import { setSingleKeyShortcuts } from "./single-key-shortcuts";
 import { setHideFinishedAfter } from "./hide-finished";
 import type { Density, TextSize } from "./reading-preferences";
@@ -130,8 +133,11 @@ import type { Theme } from "./theme";
 const INSPECTOR_SHEET_QUERY = "(max-width: 1319px)";
 /** Under this width the Sessions list is a sheet in Workspace (workspace.css). */
 const WORKSPACE_LIST_SHEET_QUERY = "(max-width: 1099px)";
-/** How long the switch's crossfade holds its attribute: --dur-base and a beat. */
-const VIEW_FADE_MS = 260;
+/** How long Usage and Machine are held for their exit: --dur-fast, and the
+ *  crossfade's 140 under reduced motion (machine-panel.css). */
+const RAIL_EXIT_MS = 120;
+const RAIL_EXIT_REDUCED_MS = 140;
+const REDUCED_MOTION_QUERY = "(prefers-reduced-motion: reduce)";
 
 // The ccdeck account's settings sync in this tab — hidden, and its own chunk:
 // mounted, and so fetched, only while /api/prefs says the account is on.
@@ -197,11 +203,12 @@ function Inner() {
   /** Drawn, and leaving, from the render that flips the flag: the same render
    *  the column's width changes in (panel-exit.ts, isDrawn). */
   const sessionListDrawn = isDrawn(sessionListOpen, sessionListPhase);
-  /** The rail's two panels leave the same way — see --rail-exit in the sheet.
-   *  Faster than the accounts panel because they travel less: 8px and a fade,
-   *  against 288px of layout. */
-  const usagePhase = usePanelPresence(usagePanelOpen, 130);
-  const machinePhase = usePanelPresence(machinePanelOpen, 130);
+  /** The rail's two panels leave the same way, by a fade alone: held for its
+   *  length, --dur-fast, or --panel-xfade under reduced motion (the sheet,
+   *  machine-panel.css). */
+  const railExitMs = useMediaQuery(REDUCED_MOTION_QUERY) ? RAIL_EXIT_REDUCED_MS : RAIL_EXIT_MS;
+  const usagePhase = usePanelPresence(usagePanelOpen, railExitMs);
+  const machinePhase = usePanelPresence(machinePanelOpen, railExitMs);
 
   // ── the deck's own two tones (#704) ───────────────────────────────────────
   // Built lazily on the first gesture rather than here: an AudioContext
@@ -626,6 +633,9 @@ function Inner() {
     view: viewState.stored, phone, clearSelection,
   });
   const inWorkspace = stage.workspace;
+  // Zoom's fold and unfold: the panels slide, the grid follows at the end
+  // (use-zoom-phase.ts).
+  const zoomPhase = useZoomPhase(inWorkspace && stage.expanded);
   // Workspace puts the Sessions list in the left column when it is entered at
   // 1100px and wider, and gives the column back on leaving (use-left-column.ts).
   const wideWindow = !useMediaQuery(WORKSPACE_LIST_SHEET_QUERY);
@@ -644,19 +654,25 @@ function Inner() {
     // The keyboard goes to the pane, never the page (fold-focus.ts).
     requestAnimationFrame(() => { focusFirstTaking(document); });
   }, [setDetailOpen]);
-  // A click on the switch crossfades the middle of the deck; a key does not.
-  const [viewFade, setViewFade] = useState(false);
-  useEffect(() => {
-    if (!viewFade) return;
-    const t = window.setTimeout(() => setViewFade(false), VIEW_FADE_MS);
-    return () => window.clearTimeout(t);
-  }, [viewFade]);
+  // A click on the switch crossfades the two views on Fast; a key switches in
+  // one frame (view-switch.ts). The Board's canvas is held at its box while
+  // Workspace is up, so it neither narrows nor re-fits on the way in or out.
+  const appRef = useRef<HTMLDivElement>(null);
+  // Workspace ended some way other than the switch (a phone-sized window, the
+  // Command Panel turned off): the canvas goes back to the grid.
+  useEffect(() => { if (!inWorkspace) unpinBoard(appRef.current); }, [inWorkspace]);
   const { leaveWorkspace } = stage;
   const switchView = useCallback((next: View, how: "pointer" | "key") => {
-    // Leaving takes the stage down in this same update, with no morph.
-    if (next === "board") leaveWorkspace();
-    viewState.set(next);
-    setViewFade(how === "pointer");
+    runSwitch(how, () => {
+      if (next === "workspace") {
+        if (!workspaceRef.current) pinBoard(appRef.current, canvasRef.current);
+      } else {
+        // Leaving takes the stage down in this same update, with no morph.
+        unpinBoard(appRef.current);
+        leaveWorkspace();
+      }
+      viewState.set(next);
+    });
   }, [leaveWorkspace, viewState.set]);
   const switchViewRef = useMirroredRef(switchView);
   const workspaceRef = useMirroredRef(inWorkspace);
@@ -917,10 +933,9 @@ function Inner() {
 
   return (
     // data-view exists only in Workspace, so with the Command Panel off the
-    // root is the root it was; data-zoom folds the list and the Inspector,
-    // data-fade is a click on the switch crossfading the middle (workspace.css).
-    <div className="app" data-view={inWorkspace ? "workspace" : undefined} data-zoom={inWorkspace && stage.expanded ? "" : undefined}
-      data-fade={viewFade ? "" : undefined}>
+    // root is the root it was; data-zoom folds the list and the Inspector
+    // (workspace.css); the switch between the views is view-switch.ts.
+    <div ref={appRef} className="app" data-view={inWorkspace ? "workspace" : undefined} data-zoom={zoomPhase}>
       {/* The deck's regions, and why each one is the element it is (#381).
           Before this the whole page was <div>s apart from the topbar, so a
           screen reader's landmark rotor listed one entry — Banner — for an
@@ -1045,6 +1060,9 @@ function Inner() {
           )}
         </LeftColumn>
       )}
+      {/* WORKSPACE: the cell the canvas would have, measured for the pane while
+          the canvas itself is held at the Board's box (view-switch.ts). */}
+      {inWorkspace && <div className="ws-cell" aria-hidden="true" />}
       {/* <main>, the canvas: the listeners that have to sit on all of it, and
           the drag-to-remove zone and the peek drawn over it —
           components/CanvasMain.tsx. What is drawn on it is App's, below. */}
@@ -1095,7 +1113,7 @@ function Inner() {
       <StageDockSlot
         stage={stage} stateRef={stateRef} canvasRef={canvasRef} now={now} palette={palette}
         asks={asks} waitingSessions={waitingSessions}
-        onBoard={() => switchView("board", "key")}
+        onBoard={() => switchView("board", lastInputWasKey() ? "key" : "pointer")}
       />
 
       <DialogPresence when={toolAuditView}>{view => <ToolAuditModal view={view} onClose={closeToolAudit} sessionLabel={toolAuditSessionLabel} onOpenSession={openToolAuditSession} />}</DialogPresence>

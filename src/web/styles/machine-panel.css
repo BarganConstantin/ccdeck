@@ -30,7 +30,6 @@
   color: var(--text);
   text-align: left;
   cursor: default;
-  animation: rail-in var(--dur-base) var(--ease) both;
 }
 /* Where the right rail actually starts, which is NOT a constant: it clears the
    detail panel (its column, --inspector-w, plus the 8px gap) and drops to 8px when that panel is closed.
@@ -104,26 +103,48 @@
    the other simply appeared, which is not two designs but one design and an
    omission.
 
-   Eight pixels, and the number is the gap they actually cross: the toggles'
-   bottom edge measures at y=41 and the panels' top at y=60, so 19px is the
-   real distance from the button to the panel. Travelling all of it would be a
-   flight; four was a fifth of it and read as a twitch. Under half is enough to
-   say "it came from up there" and short enough to be over before it is
-   watched.
+   They come in from their edge (V4's motion spec): 12px in x, on Move, with
+   the opacity over 180 after a 40 beat, on the stage's curve. Out is a fade
+   alone, on Fast: an exit that retraces its entrance asks to be followed, and
+   nothing here needs following. It falls away where it stood.
 
-   Out is faster and does not travel back up: an exit that retraces its
-   entrance asks to be followed, and nothing here needs following. It falls
-   away where it stood. */
-:root { --rail-exit: 130ms; }
-@keyframes rail-in {
-  from { opacity: 0; transform: translateY(-8px); }
-  to   { opacity: 1; transform: none; }
+   TRANSITIONS, NOT KEYFRAMES, because a panel is opened and closed over and
+   over: a reopen inside the close turns around from the opacity on screen
+   (the keyframes restarted from nothing, and a panel reopened 80ms into its
+   exit jumped to a different opacity). The arrival is the @starting-style;
+   the exit is the .leaving class panel-exit.ts holds the panel for.
+   By a key it is at once (input-modality.ts); reduced motion has no travel and
+   crossfades over 140. The two lengths are written once, as properties, so
+   the exit hold in App.tsx can be pinned to them. */
+.usage-panel,
+.sysdetail {
+  --panel-fade: 180ms;
+  --panel-xfade: 140ms;
+  transition:
+    transform var(--dur-move) var(--ease-stage),
+    opacity var(--panel-fade) var(--ease-stage) var(--delay-step);
 }
-@keyframes rail-out {
-  to { opacity: 0; }
+@starting-style {
+  .usage-panel,
+  .sysdetail { opacity: 0; transform: translateX(12px); }
 }
 .sysdetail.leaving,
-.usage-panel.leaving { animation: rail-out var(--rail-exit) linear both; }
+.usage-panel.leaving {
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--dur-fast) var(--ease-stage);
+}
+@media (prefers-reduced-motion: reduce) {
+  .usage-panel,
+  .sysdetail,
+  .sysdetail.leaving,
+  .usage-panel.leaving { transition: opacity var(--panel-xfade) var(--ease); }
+  @starting-style {
+    .usage-panel,
+    .sysdetail { transform: none; }
+  }
+}
+:root[data-motion="instant"] :is(.usage-panel, .sysdetail) { transition: none; }
 
 /* THE HEAD DOES NOT SCROLL AWAY. The panel is 280px wide and as tall as the
    window allows; on a short viewport it scrolls, and the first thing to leave
@@ -641,7 +662,6 @@
 .sd-dim { color: var(--muted); font-weight: 400; }
 
 @media (prefers-reduced-motion: reduce) {
-  .sysdetail { animation: none; }
   .sysdetail .sd-core-fill,
   .sysdetail .sd-fill { transition: none; }
   :is(.sysdetail, .pl-body) .sd-sort:active { transform: none; }

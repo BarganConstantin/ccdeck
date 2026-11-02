@@ -110,6 +110,21 @@ export function cubicBezier(x1: number, y1: number, x2: number, y2: number): (t:
 
 export const easeOut = cubicBezier(...FLIP_EASE);
 
+/** The raw progress at which easeOut has reached `y` (0 → 1): the way back
+ *  from a frame on screen to the clock that draws it, found by bisection
+ *  (the curve rises monotonically). A close that turns an open around starts
+ *  where the open stood, so it begins on the frame the open drew last. */
+export function easeOutInverse(y: number): number {
+  if (!(y > 0)) return 0;
+  if (y >= 1) return 1;
+  let lo = 0, hi = 1;
+  for (let i = 0; i < 24; i++) {
+    const mid = (lo + hi) / 2;
+    if (easeOut(mid) < y) lo = mid; else hi = mid;
+  }
+  return (lo + hi) / 2;
+}
+
 /** 0 below `a`, 1 above `b`, a straight line between. */
 export function ramp(v: number, a: number, b: number): number {
   if (b <= a) return v >= b ? 1 : 0;
@@ -275,15 +290,19 @@ export interface Running {
  *
  * Two tweens started in one task stay in step: their frames come in one
  * batch, and a first frame late enough to be capped moves both by the cap.
+ *
+ * `from` (0 → 1) starts it part of the way along, for a motion that turns
+ * another around: the first call is already at that raw progress.
  */
-export function runTween(duration: number, onFrame: (raw: number, eased: number) => void, clock: FlipClock = frameClock): Running {
+export function runTween(duration: number, onFrame: (raw: number, eased: number) => void, clock: FlipClock = frameClock, from = 0): Running {
   let handle: unknown = null;
   let settle: (ran: boolean) => void = () => {};
   let over = false;
   const finished = new Promise<boolean>(resolve => { settle = resolve; });
   const start = clock.now();
   let last = start;
-  let elapsed = 0;
+  const offset = duration > 0 ? Math.min(1, Math.max(0, from)) * duration : 0;
+  let elapsed = offset;
   let painted0 = true;
   const tick = (painted: boolean) => {
     handle = null;
@@ -293,7 +312,7 @@ export function runTween(duration: number, onFrame: (raw: number, eased: number)
     last = now;
     const cap = painted0 ? FRAME_MS : MAX_FRAME_STEP_MS;
     if (painted) painted0 = false;
-    elapsed = Math.max(elapsed + (painted ? Math.min(step, cap) : step), now - start - duration);
+    elapsed = Math.max(elapsed + (painted ? Math.min(step, cap) : step), offset + (now - start) - duration);
     const raw = duration > 0 ? Math.min(1, elapsed / duration) : 1;
     onFrame(raw, easeOut(raw));
     if (raw >= 1) { over = true; settle(true); return; }
@@ -312,8 +331,8 @@ export function runTween(duration: number, onFrame: (raw: number, eased: number)
 }
 
 /** Runs `plan`, handing every frame to `onFrame`, frame 0 before it returns. */
-export function runFlip(plan: FlipPlan, onFrame: (frame: FlipFrame) => void, clock: FlipClock = frameClock): Running {
-  return runTween(plan.duration, raw => onFrame(flipFrame(plan, raw * plan.duration)), clock);
+export function runFlip(plan: FlipPlan, onFrame: (frame: FlipFrame) => void, clock: FlipClock = frameClock, from = 0): Running {
+  return runTween(plan.duration, raw => onFrame(flipFrame(plan, raw * plan.duration)), clock, from);
 }
 
 // ---------------------------------------------------------------------------

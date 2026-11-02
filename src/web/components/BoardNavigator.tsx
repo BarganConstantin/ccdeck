@@ -59,7 +59,7 @@ export interface BoardNavigatorHandle {
   fold(
     direction: FoldDirection,
     board: ReadonlyMap<string, FlipRect>,
-    opts?: { reduced?: boolean; onFrame?: (frame: FlipFrame) => void },
+    opts?: { reduced?: boolean; onFrame?: (frame: FlipFrame) => void; from?: number },
   ): Promise<boolean>;
   /** Puts the keyboard on a tile, as the arrows do. */
   focusTile(sessionId: string): void;
@@ -177,7 +177,7 @@ export const NavigatorView = memo(forwardRef<BoardNavigatorHandle, NavigatorView
       const run = runFlip(plan, f => {
         applyFlipFrame(f, root, parts);
         opts.onFrame?.(f);
-      });
+      }, undefined, opts.from);
       running.current = run;
       return run.finished.then(ran => {
         if (running.current !== run) return ran;

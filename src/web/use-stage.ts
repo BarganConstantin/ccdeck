@@ -264,24 +264,30 @@ export function useStage({ stateRef, canvasRef, detailOpen, detailShown, setDeta
   // density draws it at (36 at Compact, the default; 44 above), so the first
   // attach is fitted to the header it is drawn under and not resized after.
   const [headH, setHeadH] = useState(paneHeadH);
+  // The cell the stage shares. In Workspace the canvas is held at the Board's
+  // box (view-switch.ts) and the cell is the probe App draws in its place.
+  const cellElement = useCallback((): HTMLElement | null => {
+    const probe = workspaceRef.current && typeof document !== "undefined" ? document.querySelector<HTMLElement>(".ws-cell") : null;
+    return probe ?? canvasRef.current;
+  }, [canvasRef]);
   const measure = useCallback(() => {
-    const el = canvasRef.current;
+    const el = cellElement();
     if (!el) return;
     const r = el.getBoundingClientRect();
     const w = Math.floor(Math.min(el.clientWidth, r.width)), h = Math.floor(Math.min(el.clientHeight, r.height));
     const narrow = window.innerWidth < NARROW_BELOW;
     setBox(b => (b && b.w === w && b.h === h && b.narrow === narrow ? b : { w, h, narrow }));
-  }, [canvasRef]);
+  }, [cellElement]);
   useLayoutEffect(() => {
     if (!open) return;
     measure();
-    const el = canvasRef.current;
+    const el = cellElement();
     if (!el || typeof ResizeObserver === "undefined") return;
     const observer = new ResizeObserver(measure);
     observer.observe(el);
     window.addEventListener("resize", measure);
     return () => { observer.disconnect(); window.removeEventListener("resize", measure); };
-  }, [open, measure, canvasRef]);
+  }, [open, measure, cellElement, workspace]);
   const geometry: StageGeometry | null = box && open
     // `fill`: Workspace's pane is the whole cell, and the Board's stored width is not read.
     ? stageGeometry({ appW: box.w, bodyH: box.h, cellW: cell.w, cellH: cell.h, expanded, narrow: box.narrow, storedCols: cols, fill: workspace, barH, headH })
@@ -732,8 +738,10 @@ export function useStage({ stateRef, canvasRef, detailOpen, detailShown, setDeta
   // `leaveWorkspace` in the same update; this is for a Workspace that ends
   // some other way, a phone-sized window or the gate going off) and gives
   // Zoom back: it is not stored.
+  // A layout effect: the pane is opened in the commit that draws the view, so a
+  // switch is one frame (view-switch.ts) and not a view with no pane in it.
   const enteredRef = useRef(false);
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!workspace) {
       if (!enteredRef.current) return;
       enteredRef.current = false;

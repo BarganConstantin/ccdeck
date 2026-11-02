@@ -12,7 +12,9 @@
 // IT IS A SEPARATOR WITH A VALUE: focusable, ← and → step between detents
 // (← widens the stage, the way the edge moves), Home and End run to the ends,
 // Enter or a double click go back to the default width, and the value is read
-// out as "120 columns".
+// out as "120 columns". The double click's return is a move, not a jump: the
+// root carries data-snap while the widths ease back on --dur-move and
+// --ease-stage (stage-shell.css); dragging stays 1:1, and a key is at once.
 import { useRef, useState, type KeyboardEvent, type PointerEvent } from "react";
 import { colsAtX, snapCols, stepCols, type ColsRange } from "../../stage-geometry";
 
@@ -43,6 +45,20 @@ export function dividerKey(key: string): "wider" | "narrower" | "widest" | "narr
     case "Enter": return "reset";
     default: return null;
   }
+}
+
+/** How long the root keeps data-snap: --dur-move, and a beat for the frame
+ *  the widths start in. */
+export const SNAP_MS = 260;
+
+/** A double click goes back to the default width on Move. The attribute is on
+ *  the root because the navigator, the stage and the dock all take the new
+ *  width, and each of them eases under it. */
+function snapBack(from: Element): void {
+  const root = from.closest(".app");
+  if (!root) return;
+  root.setAttribute("data-snap", "");
+  window.setTimeout(() => root.removeAttribute("data-snap"), SNAP_MS);
 }
 
 export default function Divider(p: DividerProps) {
@@ -112,7 +128,7 @@ export default function Divider(p: DividerProps) {
         onPointerUp={letGo}
         onPointerCancel={letGo}
         onLostPointerCapture={letGo}
-        onDoubleClick={p.onReset}
+        onDoubleClick={e => { snapBack(e.currentTarget); p.onReset(); }}
         onKeyDown={onKeyDown}
       >
         <span className="ts-grip" />
