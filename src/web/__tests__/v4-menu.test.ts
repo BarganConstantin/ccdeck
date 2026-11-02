@@ -52,8 +52,9 @@ describe("V4's menu item", () => {
     expect(decl(".ap-menu-item:disabled", "cursor")).toBe("default");
     expect(decl(".ap-menu-item:disabled", "color")).toBeUndefined();
   });
-  it("keeps the popover 200px wide and the touch row at 40px", () => {
-    expect(decl(".ap-pop", "width")).toBe("200px");
+  it("keeps the popover 220px wide and the touch row at 40px", () => {
+    // CHANGED ON PURPOSE (V4's Figma): the row menu is 220 wide.
+    expect(decl(".ap-pop", "width")).toBe("220px");
     expect(sheet).toMatch(/@media \(pointer: coarse\) \{[^@]*\.ap-menu-item \{ min-height: 40px; \}/);
   });
   it("leaves What's new's options menu no gap of its own", () => {

@@ -251,7 +251,7 @@ describe("what the panel is allowed to offer", () => {
     // which is exactly when the live login is in no row.
     expect(panel).toMatch(/\{!activeAcct && data\.unlistedLogin && \(\s*<div className="ap-notice">[\s\S]*?<button type="button" className="ap-notice-fix" onClick=\{\(\) => setAddOpen\(true\)\}/);
     const openers = (accountsSurface().match(/setAddOpen\(true\)/g) ?? []).length;
-    expect(openers, "something opens the sign-in dialog outside the gated fixes and the header's +").toBe(5);
+    expect(openers, "something opens the sign-in dialog outside the gated fixes and the header's +").toBe(6); // CHANGED ON PURPOSE (V4's Figma): six — the "No accounts" state's Add account button is the header's + by another door
   });
 
   it("offers nothing for a silence it will not explain, and the fix when it will", () => {
