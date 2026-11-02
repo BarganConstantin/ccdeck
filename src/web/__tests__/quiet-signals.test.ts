@@ -221,7 +221,10 @@ describe("1. the tool-category chip you switched off (#368.1)", () => {
   it("shows there is no opacity that would have worked — 0.9 is still under AA in dark", () => {
     // The report proposed `opacity: 0.75` as the floor. It is 3.23:1.
     const bed = chipBar("dark");
-    const fg = resolve(declOf(".cat-filter.off", "color")!, "dark");
+    // CHANGED ON PURPOSE: the off label is --text-secondary now (V4's Figma), so
+    // the demonstration is pinned to the --muted label it was written about;
+    // it shows that fading a label cannot reach AA, whatever the label is.
+    const fg = resolve("var(--muted)", "dark");
     expect(contrastRatio(faded(fg, 0.75, bed), bed)).toBeLessThan(NON_TEXT + 0.3);
     expect(contrastRatio(faded(fg, 0.9, bed), bed)).toBeLessThan(BODY);
     expect(contrastRatio(fg, bed)).toBeGreaterThanOrEqual(BODY);
@@ -348,57 +351,10 @@ describe("3. the chips that paint --line under a dim foreground (#368.3)", () =>
   });
 });
 
-describe("4. the sparkline that prints its counts nowhere (#368.4)", () => {
-  /** Base rule plus the light override, merged the way the cascade merges them. */
-  function spark(cls: string, theme: Theme): { fill: Rgba; opacity: number } {
-    const base = rule(`.tool-spark-bar${cls}`);
-    const light = rule(`:root[data-color-scheme="light"] .tool-spark-bar${cls}`);
-    const pick = (p: string) => (theme === "light" ? decl(light, p) ?? decl(base, p) : decl(base, p));
-    return { fill: resolve(pick("fill")!, theme), opacity: +(pick("opacity") ?? 1) };
-  }
-
-  const ratio = (cls: string, theme: Theme) =>
-    Math.min(...nodeStops(theme).map(bed => contrastRatio(faded(spark(cls, theme).fill, spark(cls, theme).opacity, bed), bed)));
-
-  it("draws the idle bar at 3:1 against the node it is painted on, in both themes", () => {
-    // No adjacent number anywhere — the counts live in a title — so 1.4.11's
-    // redundancy exception does not cover this meter the way it covers .qb-pct.
-    for (const theme of themes) {
-      // The floor, outside the ratio it is the floor for (#648's shape, applied
-      // here by #665). `gradientStops` already refuses a --node-grad it cannot
-      // read; this is what still fails if that reader is ever softened back to
-      // a `?? []` and `Math.min()` starts answering Infinity again.
-      expect(nodeStops(theme).length, `${theme}: no node stops — the bar below would be measured against nothing`)
-        .toBeGreaterThanOrEqual(2);
-      expect(ratio("", theme), `${theme} idle spark bar`).toBeGreaterThanOrEqual(NON_TEXT);
-    }
-  });
-
-  it("keeps the three tiers pointing the right way — idle quietest, latest loudest", () => {
-    // This is why light is NOT lifted with dark. --muted there is 7.21:1 and
-    // would put "nothing ran" above both active and latest.
-    for (const theme of themes) {
-      // The same floor, on the file's other sweep over these stops.
-      expect(nodeStops(theme).length, `${theme}: no node stops — the three tiers below would all read Infinity`)
-        .toBeGreaterThanOrEqual(2);
-      const idle = ratio("", theme);
-      const active = ratio(".active", theme);
-      const latest = ratio(".latest", theme);
-      expect(idle, `${theme} idle < active`).toBeLessThan(active);
-      expect(active, `${theme} active < latest`).toBeLessThan(latest);
-    }
-  });
-
-  it("lifts the dark bar only, and leaves --muted-dim its decorative jobs", () => {
-    expect(declOf(".tool-spark-bar", "fill")).toBe("var(--muted)");
-    expect(declOf(':root[data-color-scheme="light"] .tool-spark-bar', "fill")).toBe("var(--muted-dim)");
-    // The two louder tiers each carry an extra class, so they out-specify the
-    // light idle override whatever the source order.
-    for (const cls of [".active", ".latest"]) {
-      expect(decl(rule(`:root[data-color-scheme="light"] .tool-spark-bar${cls}`), "fill"), cls).not.toBeNull();
-    }
-  });
-});
+// 4. (the sparkline that printed its counts nowhere, #368.4) is gone with the
+// chart: V4's Agent / Card draws tool-kind icons in the foot in its place, so
+// there are no bars left to hold to 3:1. The icons are a glyph beside the
+// cost and the clock, which print their own figures.
 
 describe("5. one focus language, and nothing quietly opting out of it", () => {
   // This began as the search field's own ring (#368.5): `outline: none` on a

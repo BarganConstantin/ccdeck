@@ -129,7 +129,10 @@ describe("a full-size note under the pointer", () => {
       expect(hovered).toBe(cascadeOn(cardFace(theme, "compact", true), "background", mouse));
     });
 
-    it(`lifts as the card lifts (${name})`, () => {
+    // CHANGED ON PURPOSE (V4's Figma, Agent / Card and Recap note): neither the
+    // card nor the note carries a shadow, at rest or under the pointer, so
+    // "lifts as the card lifts" now means both stay flat, together.
+    it(`stays flat as the card does (${name})`, () => {
       expect(cascadeOn(note(theme, "detail", false, kind), "box-shadow", mouse)).toBe(cascadeOn(card(theme, false), "box-shadow", mouse));
       expect(cascadeOn(note(theme, "detail", true, kind), "box-shadow", mouse)).toBe(cascadeOn(card(theme, true), "box-shadow", mouse));
     });
@@ -138,7 +141,10 @@ describe("a full-size note under the pointer", () => {
       const rest = cascadeOn(note(theme, "detail", false, kind), "border-color", mouse);
       const hovered = cascadeOn(note(theme, "detail", true, kind), "border-color", mouse);
       expect(hovered).not.toBe(rest);
-      expect(hovered).toMatch(/var\(--accent\)/);
+      // CHANGED ON PURPOSE (V4's Figma): the note's edge carries no hue; it
+      // steps from --line-soft to --line under the pointer.
+      expect(rest).toBe("var(--line-soft)");
+      expect(hovered).toBe("var(--line)");
       expect(hovered, "orange is kept for a session waiting on you").not.toMatch(/--warn/);
     });
 

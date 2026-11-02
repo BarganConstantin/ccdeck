@@ -82,7 +82,7 @@ const V4_AHEAD_OF_READERS = [
   "--row-tool", "--row-option",
   // V4's banner: --ctl-h-lg is read now (the banner strip's min-height).
   // V4's bars: --r-pill is read now (the top bar's chips).
-  "--ctl-h-sm",
+  // V4's category filter: --ctl-h-sm is read now (the pills' height).
   "--fs-hero", "--lh-hero", "--fs-title", "--lh-title", "--fs-card-title",
   "--fs-body", "--fs-small", "--lh-small", "--fs-code", "--lh-code", "--fs-meta", "--lh-meta",
   // V4's motion rules: --dur-stage-in, --dur-slow, --delay-step and --press-small are read now.
