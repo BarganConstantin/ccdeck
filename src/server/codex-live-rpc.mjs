@@ -10,6 +10,11 @@ import { pathLookup, spawnSpec } from './exec-spec.mjs';
 
 export const liveError = code => Object.assign(new Error(code), { code });
 const runFile = promisify(execFile);
+const unmaterializedHistory = /^thread [0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12} is not materialized yet; thread\/turns\/list is unavailable before first user message$/i;
+function rejection(method, error) {
+  if (method === 'thread/turns/list' && error?.code === -32600 && unmaterializedHistory.test(error.message ?? '')) return liveError('native_thread_not_materialized');
+  return liveError(error?.code === -32601 ? 'unsupported_protocol' : 'native_request_rejected');
+}
 export async function resolveCodexLiveEndpoint(home, options = {}) {
   if ((options.platform ?? process.platform) === 'win32') throw liveError('unsupported_platform');
   let canonical, advertised;
@@ -59,7 +64,7 @@ export async function connectCodexLiveRpc(endpoint, options = {}) {
     const p = !m.method && pending.get(m.id);
     if (p) {
       pending.delete(m.id); clearTimeout(p.timer);
-      if (m.error) p.reject(liveError(m.error.code === -32601 ? 'unsupported_protocol' : 'native_request_rejected'));
+      if (m.error) p.reject(rejection(p.method, m.error));
       else p.resolve(m.result);
     } else if (m.method && m.id !== undefined) {
       // Unrelated approval/tool requests must remain with their own client.
@@ -73,7 +78,7 @@ export async function connectCodexLiveRpc(endpoint, options = {}) {
       const id = prefix + (++serial);
       return new Promise((resolveCall, reject) => {
         const timer = setTimeout(() => { pending.delete(id); reject(liveError('native_request_timeout')); }, options.deadlineMs ?? 7000);
-        pending.set(id, { resolve: resolveCall, reject, timer });
+        pending.set(id, { method, resolve: resolveCall, reject, timer });
         try { send({ id, method, ...(params === undefined ? {} : { params }) }); }
         catch (e) { pending.delete(id); clearTimeout(timer); reject(e); }
       });

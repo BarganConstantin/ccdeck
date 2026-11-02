@@ -8,8 +8,9 @@ const terminal = new Set(['completed', 'failed', 'declined']);
 const tool = item => !passive.has(item.type);
 const safe = turn => turn?.itemsView === 'full' && Array.isArray(turn?.items)
   && turn.items.some(i => i.type === 'userMessage')
-  && turn.items.filter(i => i.type === 'userMessage').length <= 1
   && turn.items.every(i => passive.has(i.type) || terminal.has(i.status));
+const inputIds = turn => turn.items.filter(i => i.type === 'userMessage').map(i => i.id);
+const sameInputs = (a, b) => JSON.stringify(inputIds(a)) === JSON.stringify(inputIds(b));
 
 async function latest(rpc, threadId) {
   const page = await rpc.request('thread/turns/list', { threadId, limit: 1, sortDirection: 'desc', itemsView: 'full' });
@@ -40,7 +41,19 @@ async function snapshot(rpc) {
     const result = await rpc.request('thread/read', { threadId: id, includeTurns: false });
     const t = result?.thread;
     if (!t || t.id !== id || !['idle', 'systemError', 'active', 'notLoaded'].includes(t.status?.type)) throw liveError('native_activity_unknown');
-    const turn = t.status.type === 'active' ? await liveLatest(rpc, t) : await latest(rpc, id);
+    let turn;
+    try { turn = t.status.type === 'active' ? await liveLatest(rpc, t) : await latest(rpc, id); }
+    catch (error) {
+      // A newly opened blank native conversation has no stored turn page yet.
+      // Only this exact native error and a second idle observation establish
+      // that it has no work to hand off. Other rejected reads still fail closed.
+      if (t.status.type !== 'idle' || error.code !== 'native_thread_not_materialized') throw error;
+      const again = (await rpc.request('thread/read', { threadId: id, includeTurns: false }))?.thread;
+      if (again?.id !== id) throw liveError('native_activity_unknown');
+      if (again.status?.type === 'idle') continue;
+      threads.push({ id, active: false, turn: null });
+      continue;
+    }
     if (t.status.type === 'active' || turn?.status === 'inProgress' || turn?.items?.some(i => i.status === 'inProgress')) threads.push({ id,
       active: t.status.type === 'active',
       parent: t.parentThreadId, flags: t.status.activeFlags, turn });
@@ -62,8 +75,8 @@ export async function prepareCodexLiveHandoff(rpc, options = {}) {
       const now = (await rpc.request('thread/read', { threadId: observed.id, includeTurns: false }))?.thread;
       if (now?.status?.type !== 'active') continue;
       const turn = await liveLatest(rpc, now);
-      if (turn?.id !== observed.turn.id || now.status.activeFlags?.length || !safe(turn)) throw liveError('native_activity_changed');
-      const entry = { threadId: observed.id, turnId: turn.id, rootTurnId: turn.rootTurnId ?? turn.id, messageId: randomUUID() };
+      if (turn?.id !== observed.turn.id || now.status.activeFlags?.length || !safe(turn) || !sameInputs(observed.turn, turn)) throw liveError('native_activity_changed');
+      const entry = { threadId: observed.id, turnId: turn.id, rootTurnId: turn.rootTurnId ?? turn.id, messageId: randomUUID(), inputIds: inputIds(turn) };
       await options.beforeInterrupt?.(entry);
       // Native acknowledges terminal completion; verify whether it interrupted
       // or finished naturally. Never use an empty ID or change configuration.
@@ -71,6 +84,7 @@ export async function prepareCodexLiveHandoff(rpc, options = {}) {
       const after = await latest(rpc, observed.id);
       if (after?.id === turn.id && after.status === 'completed') { await options.afterInterrupt?.(entry, 'skipped'); continue; }
       if (after?.id !== turn.id || after.status !== 'interrupted') throw liveError('native_interrupt_unconfirmed');
+      if (!sameInputs(turn, after)) throw liveError('native_activity_changed');
       const previous = new Set(turn.items.map(i => i.id));
       if (after.items.some(i => tool(i) && !previous.has(i.id) && i.status !== 'completed')) throw liveError('native_tool_interrupted');
       paused.push(entry);
@@ -98,14 +112,15 @@ export async function continueCodexLiveHandoff(rpc, handoff, options = {}) {
     const t = (await rpc.request('thread/read', { threadId: entry.threadId, includeTurns: false }))?.thread;
     const turn = await latest(rpc, entry.threadId);
     // New input, natural completion, archival or a different turn wins over us.
-    if (t?.status?.type !== 'idle' || turn?.id !== entry.turnId || turn.status !== 'interrupted') {
+    if (t?.status?.type !== 'idle' || turn?.id !== entry.turnId || turn.status !== 'interrupted'
+      || JSON.stringify(inputIds(turn)) !== JSON.stringify(entry.inputIds)) {
       await options.onSkip?.(entry); continue;
     }
     await options.beforeSend?.(entry);
     entry.sent = true;
     const result = await rpc.request('turn/start', { threadId: entry.threadId,
       rootTurnId: entry.rootTurnId, clientUserMessageId: entry.messageId,
-      input: [{ type: 'text', text: 'Continue the interrupted task from the saved conversation. Do not repeat completed tools or actions.' }] });
+      input: [{ type: 'text', text: 'Continue the interrupted task, honoring the latest user instructions already in this conversation. Do not repeat completed tools or actions. If the user cancelled or asked to stop, remain stopped.' }] });
     if (!result?.turn?.id) throw liveError('native_continue_unconfirmed');
     resumed++;
     await options.afterSend?.(entry, result.turn.id);

@@ -17,6 +17,39 @@ function fixture() {
   return { turn, thread, rpc };
 }
 describe('native account handoff without network-permit revocation', () => {
+  it('ignores a confirmed idle thread whose history is not materialized before its first message', async () => {
+    const f = fixture(); const original = f.rpc.request.getMockImplementation()!;
+    f.rpc.request.mockImplementation(async (method, params) => {
+      if (method === 'thread/loaded/list') return { data: ['empty-thread', f.thread.id] };
+      if (params.threadId === 'empty-thread') {
+        if (method === 'thread/read') return { thread: { id: 'empty-thread', status: { type: 'idle' }, historyMode: 'paginated' } };
+        throw Object.assign(Error('not materialized'), { code: 'native_thread_not_materialized' });
+      }
+      return original(method, params);
+    });
+    const handoff = await prepareCodexLiveHandoff(f.rpc);
+    expect(handoff.waiting).toBe(false);
+    expect(handoff.paused).toMatchObject([{ threadId: f.thread.id }]);
+    expect(f.rpc.request.mock.calls.some(c => ['turn/interrupt', 'thread/resume'].includes(c[0]) && c[1].threadId === 'empty-thread')).toBe(false);
+  });
+  it('waits when an unmaterialized idle thread receives work between observations', async () => {
+    const f = fixture(); f.thread.status.type = 'idle'; let reads = 0; const original = f.rpc.request.getMockImplementation()!;
+    f.rpc.request.mockImplementation(async (method, params) => {
+      if (method === 'thread/read' && ++reads === 2) f.thread.status.type = 'active';
+      if (method === 'thread/turns/list') throw Object.assign(Error('not materialized'), { code: 'native_thread_not_materialized' });
+      return original(method, params);
+    });
+    expect((await prepareCodexLiveHandoff(f.rpc)).waiting).toBe(true);
+    expect(f.rpc.request.mock.calls.some(c => c[0] === 'turn/interrupt')).toBe(false);
+  });
+  it('does not hide other rejected history reads on an idle thread', async () => {
+    const f = fixture(); f.thread.status.type = 'idle'; const original = f.rpc.request.getMockImplementation()!;
+    f.rpc.request.mockImplementation(async (method, params) => {
+      if (method === 'thread/turns/list') throw Object.assign(Error('rejected'), { code: 'native_request_rejected' });
+      return original(method, params);
+    });
+    await expect(prepareCodexLiveHandoff(f.rpc)).rejects.toMatchObject({ code: 'native_request_rejected' });
+  });
   it('interrupts only an observed response, then continues the exact thread once without permission overrides', async () => {
     const { rpc } = fixture(); const journal = vi.fn(async () => {});
     const handoff = await prepareCodexLiveHandoff(rpc);
@@ -27,6 +60,27 @@ describe('native account handoff without network-permit revocation', () => {
     expect(starts[0][1]).toMatchObject({ threadId: 'thread-one', rootTurnId: 'root-turn' });
     expect(Object.keys(starts[0][1]).sort()).toEqual(['clientUserMessageId', 'input', 'rootTurnId', 'threadId']);
     expect(journal).toHaveBeenCalledOnce();
+  });
+  it('preserves follow-up messages already recorded in a working turn instead of waiting forever', async () => {
+    const f = fixture(); f.turn.items.push({ id: 'followup', type: 'userMessage' });
+    const h = await prepareCodexLiveHandoff(f.rpc);
+    expect(h.waiting).toBe(false); expect(h.paused[0].inputIds).toEqual(['input', 'followup']);
+    expect(await continueCodexLiveHandoff(f.rpc, h)).toEqual({ resumed: 1 });
+  });
+  it('does not interrupt if new input arrives after the initial snapshot in the same turn', async () => {
+    const f = fixture(); let reads = 0; const original = f.rpc.request.getMockImplementation()!;
+    f.rpc.request.mockImplementation(async (method, params) => {
+      if (method === 'thread/turns/list' && ++reads === 2) f.turn.items.push({ id: 'new-input', type: 'userMessage' });
+      return original(method, params);
+    });
+    await expect(prepareCodexLiveHandoff(f.rpc)).rejects.toMatchObject({ code: 'native_activity_changed' });
+    expect(f.rpc.request.mock.calls.some(c => c[0] === 'turn/interrupt')).toBe(false);
+  });
+  it('does not append Continue over input added to an interrupted turn', async () => {
+    const f = fixture(); const h = await prepareCodexLiveHandoff(f.rpc);
+    f.turn.items.push({ id: 'new-input', type: 'userMessage' });
+    expect(await continueCodexLiveHandoff(f.rpc, h)).toEqual({ resumed: 0 });
+    expect(f.rpc.request.mock.calls.some(c => c[0] === 'turn/start')).toBe(false);
   });
   it.each(['commandExecution', 'mcpToolCall', 'dynamicToolCall', 'fileChange', 'collabAgentToolCall'])('waits for an active %s without interrupting or sending input', async type => {
     const { rpc, turn } = fixture(); turn.items.push({ id: 'tool', type, status: 'inProgress' });
