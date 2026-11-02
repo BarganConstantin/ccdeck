@@ -1,5 +1,5 @@
 /* Usage histories share the existing report shell and measurement palette. */
-.modal.qh-modal { width: var(--dialog-m); color: var(--text); animation: radioOpen 200ms cubic-bezier(.22, 1, .36, 1); }
+.modal.qh-modal { width: var(--dialog-m); color: var(--text); animation: radioOpen var(--dur-base) var(--ease); }
 .modal.qh-modal[data-keyboard-interaction] { animation: none; }
 .qh-header-actions { display: flex; gap: 8px; margin-left: auto; }
 .qh-body { gap: 16px; font-size: calc(12px + var(--ui-text-increase, 0px)); }
@@ -8,7 +8,9 @@
 .qh-providers { display: flex; gap: 4px; }
 .qh-provider { font: inherit; color: var(--text-dim); background: transparent; border: 1px solid var(--ctl-edge); border-radius: var(--r-ctl); padding: 6px 10px; cursor: pointer; min-height: 28px; }
 .qh-provider[aria-pressed="true"] { color: var(--text); border-color: var(--accent); background: var(--ctl-fill); }
+@media (hover: hover) and (pointer: fine) {
 .qh-provider:hover { color: var(--text); background: var(--ctl-fill); }
+}
 .qh-window { display: grid; gap: 6px; min-width: 0; max-width: 100%; color: var(--text-dim); }
 .qh-window select { min-width: 0; max-width: 100%; font: inherit; color: var(--text); background: var(--ctl-fill); border: 1px solid var(--ctl-edge); border-radius: var(--r-ctl); padding: 6px 8px; }
 .qh-summary { display: flex; align-items: baseline; justify-content: space-between; gap: 8px 16px; flex-wrap: wrap; padding-top: 4px; }

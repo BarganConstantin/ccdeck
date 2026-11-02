@@ -312,15 +312,20 @@
   opacity: 1;
   transition: transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
 }
+@media (hover: hover) and (pointer: fine) {
 .fm-sprite:hover { opacity: 1; }
+}
 .fm-arms { transition: transform 160ms steps(2, end); }
-.fm-sprite:is(:hover, :focus-visible) .fm-arms { transform: translateY(-2px); }
+.fm-sprite:focus-visible .fm-arms { transform: translateY(-2px); }
+@media (hover: hover) and (pointer: fine) {
+.fm-sprite:hover .fm-arms { transform: translateY(-2px); }
+}
 .fm-sprite[data-playing] { opacity: 1; }
 /* The deck's one press convention, at the tier a control with no label wears.
    0.94 rather than the 0.97 a labelled button takes: the ink here IS the
    control, so the press has to move the character enough to be seen against a
    sprite that may also be dancing. */
-.fm-sprite:active { transform: scale(0.94); }
+.fm-sprite:active { transform: scale(var(--press-small)); }
 /* THE VIEWBOX IS THE CHARACTER'S OWN BOUNDS, WITH NOTHING SPARE, and an SVG
    clips to its viewport by default — so the moment a dance lifted the sprite,
    the top row went outside the box and was simply cut. What that looked like

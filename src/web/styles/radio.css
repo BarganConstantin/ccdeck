@@ -5,10 +5,9 @@
 .edge-rail-right .rail-group:has([data-rail-item="radio"]) { margin-top: auto; margin-bottom: 144px; }
 .radio-backdrop { padding: 24px; }
 .radio-panel, .radio-loading { background: var(--panel); color: var(--text); border: 1px solid var(--line); border-radius: var(--r-panel); box-shadow: var(--shadow-2); }
-.radio-panel { width: min(var(--dialog-l), 100%); height: var(--dialog-l-h); display: flex; flex-direction: column; overflow: hidden; font-size: calc(12px + var(--ui-text-increase, 0px)); animation: radioOpen 180ms cubic-bezier(.22, 1, .36, 1); }
+.radio-panel { width: min(var(--dialog-l), 100%); height: var(--dialog-l-h); display: flex; flex-direction: column; overflow: hidden; font-size: calc(12px + var(--ui-text-increase, 0px)); animation: radioOpen var(--dur-base) var(--ease); }
 .radio-loading { position: relative; width: min(400px, 100%); padding: 24px; }
 .radio-loading > .icon-btn { position: absolute; top: 12px; right: 12px; display: grid; place-items: center; width: 32px; height: 32px; padding: 0; border: 0; border-radius: var(--r-ctl); color: var(--text-secondary); background: none; cursor: pointer; }
-.radio-loading > .icon-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 /* The header is the one dialog header (dialogs.css): the name, its note beside
    it, the ×. */
 .radio-heading { display: flex; align-items: baseline; gap: 12px; min-width: 0; }
@@ -42,7 +41,7 @@
 .radio-player-actions { display: flex; align-items: center; gap: 8px; }
 .radio-transport { display: flex; align-items: center; gap: 4px; flex: none; }
 .radio-controls { display: flex; align-items: center; gap: 8px; min-width: 0; }
-.radio-controls > .radio-player-button { display: flex; align-items: center; justify-content: center; gap: 8px; white-space: nowrap; font-size: calc(11px + var(--ui-text-increase, 0px)); min-height: 34px; padding-inline: 10px; background: var(--ctl-fill); border-color: var(--ctl-edge); color: var(--text-secondary); transition: background 120ms ease, color 120ms ease; }
+.radio-controls > .radio-player-button { display: flex; align-items: center; justify-content: center; gap: 8px; white-space: nowrap; font-size: calc(11px + var(--ui-text-increase, 0px)); min-height: 34px; padding-inline: 10px; background: var(--ctl-fill); border-color: var(--ctl-edge); color: var(--text-secondary); transition: background var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease); }
 .radio-controls > .radio-player-button svg { width: 16px; height: 16px; flex: none; }
 .radio-controls > .radio-mute { width: 88px; flex: none; }
 .radio-controls .sm-row { display: flex; align-items: center; gap: 8px; flex: 1; min-width: 80px; margin: 0; }
@@ -68,7 +67,7 @@
 .radio-land { fill: color-mix(in srgb, var(--line) 70%, var(--bg)); stroke: color-mix(in srgb, var(--text-secondary) 26%, var(--line)); stroke-width: .65px; }
 .radio-pin { cursor: pointer; user-select: none; -webkit-user-select: none; outline: none; }
 .radio-pin-hit { fill: transparent; }
-.radio-pin-dot { fill: var(--accent); stroke: var(--bg); stroke-width: 1px; vector-effect: non-scaling-stroke; transition: fill 120ms; }
+.radio-pin-dot { fill: var(--accent); stroke: var(--bg); stroke-width: 1px; vector-effect: non-scaling-stroke; transition: fill var(--dur-fast) var(--ease); }
 .radio-pin.clustered .radio-pin-dot { fill: var(--panel); stroke: var(--accent); }
 .radio-pin text { fill: var(--accent); font-family: var(--font-mono); font-weight: 600; pointer-events: none; }
 .radio-pin.selected .radio-pin-dot { fill: var(--text); stroke: var(--accent); }
@@ -78,7 +77,7 @@
 .radio-map-tools { position: absolute; top: 12px; right: 0; display: flex; flex-direction: column; gap: 5px; }
 .radio-map-tools .radio-map-button { display: grid; place-items: center; width: 34px; height: 34px; padding: 0; background: var(--panel); border: 1px solid var(--ctl-edge); font-size: calc(18px + var(--ui-text-increase, 0px)); }
 .radio-map-help { font-size: calc(10px + max(-1px, var(--ui-text-increase, 0px))); color: var(--text-secondary); padding: 8px 0 12px; margin: 0; flex: none; }
-.radio-cluster-preview { position: absolute; top: 12px; left: 0; width: min(270px, calc(100% - 44px)); background: var(--panel); border: 1px solid var(--line); border-radius: var(--r-panel); box-shadow: var(--shadow-1); padding: 6px; animation: radioDetails 160ms cubic-bezier(.23, 1, .32, 1); }
+.radio-cluster-preview { position: absolute; top: 12px; left: 0; width: min(270px, calc(100% - 44px)); background: var(--panel); border: 1px solid var(--line); border-radius: var(--r-panel); box-shadow: var(--shadow-1); padding: 6px; animation: radioDetails var(--dur-base) var(--ease); }
 .radio-cluster-preview header { display: flex; align-items: center; justify-content: space-between; gap: 6px; padding-left: 6px; font-size: calc(11px + var(--ui-text-increase, 0px)); }
 .radio-cluster-preview > div { max-height: 160px; overflow: auto; overscroll-behavior: contain; }
 .radio-cluster-preview > div > .radio-cluster-station { display: flex; flex-direction: column; gap: 3px; border: 0; background: none; text-align: left; width: 100%; color: var(--text); padding: 8px 6px; font-size: calc(11px + var(--ui-text-increase, 0px)); border-radius: var(--r-ctl); cursor: pointer; }
@@ -89,10 +88,11 @@
 .radio-collections .radio-collection[aria-selected="true"] { background: var(--ctl-fill); color: var(--text); }
 .radio-search { display: flex; align-items: center; gap: 8px; padding: 6px 10px; min-height: 32px; border: 1px solid var(--ctl-edge); border-radius: var(--r-ctl); color: var(--text-secondary); flex: none; margin-bottom: 6px; background: var(--bg-soft); font-size: calc(12px + var(--ui-text-increase, 0px)); }
 .radio-search:focus-within { border-color: var(--accent); outline: none; }
-.radio-panel[data-keyboard-interaction] .radio-search:focus-within { outline: 2px solid var(--accent); outline-offset: 2px; }
 .radio-search input { flex: 1; min-width: 0; color: var(--text); border: 0; background: none; font: inherit; min-height: 24px; }
 .radio-search input:focus { outline: none; }
+@media (hover: hover) and (pointer: fine) {
 .radio-search:hover:not(:focus-within) { border-color: var(--text-secondary); }
+}
 .radio-search input::-webkit-search-cancel-button { -webkit-appearance: none; display: none; }
 .radio-search .icon-btn { width: 22px; min-width: 22px; height: 22px; }
 .radio-search input::placeholder { color: var(--text-secondary); opacity: 1; }
@@ -101,8 +101,9 @@
 .radio-filter-trigger > span { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 .radio-filter-trigger > svg { width: 12px; height: 12px; flex: none; transform: rotate(-90deg); }
 .radio-filter-trigger[data-filtered="true"] { color: var(--text); border-color: var(--accent); }
+@media (hover: hover) and (pointer: fine) {
 .radio-filter-trigger:hover { color: var(--text); border-color: var(--text-secondary); }
-.radio-filter-trigger:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+}
 /* This shared popover opens inside Radio's modal layer (100). */
 .radio-filter-popup { z-index: 101; width: min(280px, calc(100vw - 24px)); padding: 6px; display: flex; flex-direction: column; }
 .radio-filter-popup > .radio-filter-heading, .radio-filter-popup > .radio-filter-footer, .radio-filter-popup > .radio-filter-back, .radio-filter-popup > .radio-filter-search { flex: none; }
@@ -111,7 +112,6 @@
 .radio-filter-search svg { width: 14px; height: 14px; flex: none; }
 .radio-filter-search input { min-width: 0; width: 100%; min-height: 30px; background: var(--bg-soft); border: 1px solid var(--ctl-edge); border-radius: var(--r-ctl); padding: 4px 6px; color: var(--text); font: inherit; font-size: calc(12px + var(--ui-text-increase, 0px)); }
 .radio-filter-search input::placeholder { color: var(--text-secondary); opacity: 1; }
-.radio-filter-search input:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 .radio-filter-options { min-height: 0; max-height: min(240px, 40dvh); overflow-y: auto; overscroll-behavior: contain; margin-top: 4px; scrollbar-width: thin;  }
 .radio-filter-option { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 32px; width: 100%; border: 0; border-radius: var(--r-ctl); background: none; color: var(--text); padding: 6px 8px; text-align: left; font: inherit; font-size: calc(12px + var(--ui-text-increase, 0px)); cursor: pointer; }
 .radio-filter-option[data-active="true"] { background: var(--ctl-fill); }
@@ -176,12 +176,10 @@
 .radio-own-icon svg { width: 20px; height: 20px; }
 .radio-own-station[aria-current="true"] .radio-own-icon { color: var(--accent); }
 .radio-mobile-view { display: none; }
-.radio-map-canvas:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .radio-panel .radio-search input:focus-visible { outline: none; }
 /* Focusable SVGs also get a browser :focus outline during pointer interaction.
    Suppress only the map's pointer ring; keep an inset keyboard ring, including
    when keyboard interaction resumes after panning a focused map. */
-.radio-panel svg.radio-map-canvas:focus-visible { outline-offset: -2px; }
 .radio-panel .radio-map-canvas:focus:not(:focus-visible),
 .radio-panel .radio-map-canvas[data-pointer-focus]:focus { outline: none; }
 .radio-panel :is(input, select) { accent-color: var(--accent); caret-color: var(--accent); }
@@ -282,8 +280,8 @@
 
 /* Frequent controls react immediately; pointer-only press feedback keeps the
    keyboard path and hit targets stationary. No list or filter entrance motion. */
-.radio-panel :is(.icon-btn, .radio-play) { transition: transform 140ms cubic-bezier(.23, 1, .32, 1); }
-.radio-panel :is(.btn, .radio-daily, .radio-regions .radio-region, .radio-collections .radio-collection, .radio-mobile-view .radio-view) > svg { transition: transform 140ms cubic-bezier(.23, 1, .32, 1); }
+.radio-panel :is(.icon-btn, .radio-play) { transition: transform var(--dur-fast) var(--ease); }
+.radio-panel :is(.btn, .radio-daily, .radio-regions .radio-region, .radio-collections .radio-collection, .radio-mobile-view .radio-view) > svg { transition: transform var(--dur-fast) var(--ease); }
 .radio-panel[data-keyboard-interaction], .radio-panel[data-keyboard-interaction] .radio-cluster-preview { animation: none; }
 .radio-panel[data-keyboard-interaction] button, .radio-panel[data-keyboard-interaction] button > svg, .radio-panel[data-keyboard-interaction] .radio-pin-dot { transition: none; }
 @media (hover: hover) and (pointer: fine) {
@@ -301,8 +299,8 @@
   .radio-own-station:hover { background: var(--ctl-fill); }
 }
 @media (prefers-reduced-motion: no-preference) {
-  .radio-panel :is(.icon-btn, .radio-play):not(:disabled):active:not(:focus-visible) { transform: scale(.97); }
-  .radio-panel :is(.btn, .radio-daily, .radio-regions .radio-region, .radio-collections .radio-collection, .radio-mobile-view .radio-view):not(:disabled):active:not(:focus-visible) > svg { transform: scale(.97); }
+  .radio-panel :is(.icon-btn, .radio-play):not(:disabled):active:not(:focus-visible) { transform: scale(var(--press)); }
+  .radio-panel :is(.btn, .radio-daily, .radio-regions .radio-region, .radio-collections .radio-collection, .radio-mobile-view .radio-view):not(:disabled):active:not(:focus-visible) > svg { transform: scale(var(--press)); }
 }
 @media (prefers-reduced-motion: reduce) {
   .radio-panel.radio-panel button, .radio-panel.radio-panel button > svg { transition: none; }
@@ -322,7 +320,9 @@
 .radio-filter-toggle { display: flex; align-items: center; justify-content: center; gap: 6px; min-height: 36px; padding: 6px 10px; flex: none; border: 0; border-radius: var(--r-ctl); background: var(--ctl-fill); color: var(--text-secondary); font: inherit; cursor: pointer; }
 .radio-filter-toggle > svg { width: 16px; height: 16px; }
 .radio-filter-toggle[data-active="true"] { color: var(--accent); }
+@media (hover: hover) and (pointer: fine) {
 .radio-filter-toggle:hover, .radio-filter-chip:hover { background: var(--ctl-fill); color: var(--text); }
+}
 .radio-active-filters { display: flex; min-width: 0; align-items: flex-start; gap: 6px; }
 .radio-active-filter-list { display: flex; flex-wrap: wrap; gap: 6px; flex: 1; min-width: 0; }
 .radio-filter-chip { display: flex; align-items: center; gap: 6px; max-width: 100%; min-height: 28px; padding: 4px 8px; border: 0; border-radius: var(--r-ctl); background: var(--ctl-fill); color: var(--text); font: inherit; font-size: calc(11px + var(--ui-text-increase, 0px)); cursor: pointer; }
@@ -336,7 +336,9 @@
 .radio-filter-field > span:first-child { flex: none; width: 64px; font-weight: 500; }
 .radio-filter-field > span:nth-child(2) { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-secondary); font-size: calc(11px + var(--ui-text-increase, 0px)); }
 .radio-filter-field > svg { width: 12px; height: 12px; flex: none; transform: rotate(180deg); }
+@media (hover: hover) and (pointer: fine) {
 .radio-filter-field:hover, .radio-filter-back:hover, .radio-workspace-toggle:hover { background: var(--ctl-fill); }
+}
 .radio-filter-note { margin: 8px; color: var(--text-secondary); font-size: calc(11px + var(--ui-text-increase, 0px)); line-height: 1.5; }
 .radio-filter-footer { display: flex; align-items: center; justify-content: flex-end; gap: 12px; padding: 8px 6px 2px; border-top: 1px solid var(--line); }
 .radio-filter-footer .radio-reset { margin-right: auto; }
@@ -354,7 +356,6 @@
 .radio-workspace-toggle > svg:last-child { margin-left: auto; transform: rotate(-90deg); }
 .radio-workspace-toggle[aria-expanded="true"] > svg:last-child { transform: rotate(90deg); }
 .radio-workspace-toggle .radio-row-state { color: var(--accent); font-size: calc(11px + var(--ui-text-increase, 0px)); }
-.radio-filter-toggle:focus-visible, .radio-filter-chip:focus-visible, .radio-reset:focus-visible, .radio-collection:focus-visible, .radio-list:focus-visible, .radio-filter-field:focus-visible, .radio-filter-back:focus-visible, .radio-workspace-toggle:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 .radio-discovery .radio-station-pick { min-height: 48px; padding-block: 6px; }
 @media (max-width: 840px), (pointer: coarse) {
   .radio-collections .radio-collection, .radio-filter-toggle, .radio-filter-option, .radio-filter-back, .radio-filter-chip, .radio-reset, .radio-filter-footer .btn { min-height: 44px; }

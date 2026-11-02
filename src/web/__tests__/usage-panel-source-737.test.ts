@@ -569,7 +569,7 @@ describe("the period strip's indicator", () => {
     expect(rest).toMatch(/background:\s*transparent/);
     // And because the row is always there, the state can fade rather than
     // teleport — over the same 120ms the label's colour takes.
-    expect(rest).toMatch(/transition:\s*background-color 120ms/);
+    expect(rest).toMatch(/transition:\s*background-color var\(--dur-fast\)/);
   });
 
   it("does not let hover wear the selected colour", () => {
@@ -601,9 +601,11 @@ describe("the period strip's indicator", () => {
     // the indicator's own colour, so the selected tab, focused, showed no
     // indicator at all; and `border-radius: 0` on the segment had shadowed the
     // global ring's 4px, leaving the one hard-cornered ring in the deck.
-    const ring = block(".up-period .uh-range-btn:focus-visible");
-    expect(ring).toMatch(/outline-offset:\s*-4px/);
-    expect(ring).toMatch(/border-radius:\s*4px/);
+    // V4's Figma: the global ring is 1.5px accent INSIDE the box, offset 0. The
+    // inside ring would land on the indicator's pixels again, so the segment
+    // keeps its own offset (-4px) and radius (4px) with the global stroke.
+    expect(css).toMatch(/\.up-period \.uh-range-btn:focus-visible \{\s*outline: var\(--focus-w\) solid var\(--accent\);\s*outline-offset: -4px;\s*border-radius: 4px;\s*\}/);
+    expect(css).toMatch(/:focus-visible \{\s*outline: var\(--focus-w\) solid var\(--accent\);\s*outline-offset: calc\(-1 \* var\(--focus-w\)\);\s*\}/);
   });
 });
 

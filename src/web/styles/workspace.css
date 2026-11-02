@@ -54,7 +54,9 @@
   color: var(--text);
   font-weight: 600;
 }
+@media (hover: hover) and (pointer: fine) {
 .view-opt:hover:not([aria-pressed="true"]) { color: var(--text); }
+}
 @media (prefers-reduced-motion: reduce) {
   /* The chip jumps; only the colour fades, fast. */
   .view-opt { transition: color var(--dur-fast) var(--ease); }

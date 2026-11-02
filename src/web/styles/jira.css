@@ -23,7 +23,7 @@
 .jr-board-btn { gap: 8px; min-width: 0; max-width: min(420px, 100%); }
 .jr-board-btn-label { color: var(--muted); font-size: calc(11px + var(--ui-text-increase, 0px)); }
 .jr-board-btn-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
-.jr-chevron { flex: none; transition: transform 140ms cubic-bezier(0.23, 1, 0.32, 1); }
+.jr-chevron { flex: none; transition: transform var(--dur-fast) var(--ease); }
 .jr-chevron[data-open] { transform: rotate(90deg); }
 .jr-board-btn .jr-chevron { transform: rotate(90deg); color: var(--muted); }
 .jr-board-btn .jr-chevron[data-open] { transform: rotate(-90deg); }
@@ -59,12 +59,16 @@ button.btn.jr-chip[aria-pressed="true"] { background: var(--ig-sel-fill, var(--a
   text-decoration: underline;
   text-underline-offset: 2px;
   cursor: pointer;
-  transition: color 120ms, transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
+  transition: color var(--dur-fast) var(--ease), transform var(--dur-fast) var(--ease);
 }
+@media (hover: hover) and (pointer: fine) {
 .jr-link-btn:hover { color: var(--text); }
-.jr-link-btn:active { transform: scale(0.97); }
+}
+.jr-link-btn:active { transform: scale(var(--press)); }
 .jr-clear { flex: none; min-height: var(--ctl-h); margin-left: 4px; padding-inline: 6px; border-radius: var(--r-ctl); color: var(--text-secondary); }
+@media (hover: hover) and (pointer: fine) {
 .jr-clear:hover { color: var(--text); background: var(--ctl-fill); }
+}
 
 /* A link that reads as a button: Open in Jira. A link still, so it can be
    middle-clicked, copied and opened in a new window. */
@@ -89,9 +93,9 @@ button.btn.jr-chip[aria-pressed="true"] { background: var(--ig-sel-fill, var(--a
   font: inherit;
   text-align: left;
   cursor: pointer;
-  transition: background-color 120ms, transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
+  transition: background-color var(--dur-fast) var(--ease), transform var(--dur-fast) var(--ease);
 }
-.jr-board-item:active { transform: scale(0.97); }
+.jr-board-item:active { transform: scale(var(--press)); }
 .jr-board-item-name { font-size: calc(13px + var(--ui-text-increase, 0px)); font-weight: 500; overflow-wrap: anywhere; }
 .jr-board-item-meta { color: var(--muted); font-size: calc(11px + var(--ui-text-increase, 0px)); }
 .jr-board-pop-note { margin: 0; color: var(--muted); font-size: calc(12px + var(--ui-text-increase, 0px)); }
@@ -129,9 +133,9 @@ button.btn.jr-chip[aria-pressed="true"] { background: var(--ig-sel-fill, var(--a
   font: inherit;
   text-align: left;
   cursor: pointer;
-  transition: background-color 120ms, transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
+  transition: background-color var(--dur-fast) var(--ease), transform var(--dur-fast) var(--ease);
 }
-.jr-group-toggle:active { transform: scale(0.97); }
+.jr-group-toggle:active { transform: scale(var(--press)); }
 .jr-group-toggle > .jr-chevron { margin-top: 3px; }
 .jr-group-identity { flex: 1; min-width: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 2px 8px; }
 .jr-group-name { max-width: 100%; overflow-wrap: anywhere; }
@@ -171,7 +175,7 @@ button.btn.jr-chip[aria-pressed="true"] { background: var(--ig-sel-fill, var(--a
 /* A group or a row's sub-tasks the reader has just opened fade in, once, as
    they mount; nothing moves, and a long list (JiraBacklog: over 30 rows)
    appears at once. */
-.jr-group-body[data-fade], .jr-subrows[data-fade] { animation: jr-open 120ms ease-out; }
+.jr-group-body[data-fade], .jr-subrows[data-fade] { animation: jr-open var(--dur-fast) var(--ease); }
 @keyframes jr-open { from { opacity: 0; } }
 .jr-group-body[data-empty] { overflow: visible; border: 0; border-radius: 0; background: transparent; }
 .jr-group-body[data-empty] .jr-empty-group { padding: 6px 12px; }
@@ -187,7 +191,7 @@ button.btn.jr-chip[aria-pressed="true"] { background: var(--ig-sel-fill, var(--a
 .jr-item { min-width: 0; }
 .jr-item + .jr-item { border-top: 1px solid var(--line-soft); }
 .jr-subrows { border-top: 1px solid var(--line-soft); background: color-mix(in srgb, var(--bg) 35%, transparent); }
-.jr-row { display: flex; align-items: stretch; min-width: 0; min-height: 34px; }
+.jr-row { display: flex; align-items: stretch; min-width: 0; min-height: 34px; border-radius: var(--r-tag); }
 .jr-subrow { padding-left: 20px; }
 .jr-toggle, .jr-toggle-space { flex: none; width: 28px; }
 .jr-toggle {
@@ -199,10 +203,12 @@ button.btn.jr-chip[aria-pressed="true"] { background: var(--ig-sel-fill, var(--a
   background: transparent;
   color: var(--muted);
   cursor: pointer;
-  transition: color 120ms, transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
+  transition: color var(--dur-fast) var(--ease), transform var(--dur-fast) var(--ease);
 }
+@media (hover: hover) and (pointer: fine) {
 .jr-toggle:hover { color: var(--text); }
-.jr-toggle:active { transform: scale(0.94); }
+}
+.jr-toggle:active { transform: scale(var(--press-small)); }
 .jr-row-main {
   flex: 1;
   min-width: 0;
@@ -228,13 +234,13 @@ button.btn.jr-chip[aria-pressed="true"] { background: var(--ig-sel-fill, var(--a
 .jr-row-preview dd { margin: 0; min-width: 0; color: var(--text-secondary); white-space: normal; overflow-wrap: anywhere; }
 /* Selection and keyboard focus share the whole row boundary. The disclosure
    and Move controls retain their own focused hitbox. */
-.jr-row:has(> .jr-row-main:focus-visible) { outline: 2px solid var(--accent); outline-offset: -2px; border-radius: var(--r-tag); }
+.jr-row:has(> .jr-row-main:focus-visible) { outline: var(--focus-w) solid var(--accent); outline-offset: calc(-1 * var(--focus-w)); }
 .jr-row-main:focus-visible { outline: none; }
 .jr-row[draggable="true"] { cursor: grab; }
 .jr-row[data-dragging] { background: var(--ig-sel-fill, var(--accent-dim)); }
 .jr-row[data-drop="before"] { box-shadow: inset 0 2px var(--accent); }
 .jr-row[data-drop="after"] { box-shadow: inset 0 -2px var(--accent); }
-.jr-group[data-drop-group] > .jr-group-head { outline: 2px solid var(--accent); outline-offset: -2px; }
+.jr-group[data-drop-group] > .jr-group-head { outline: var(--focus-w) solid var(--accent); outline-offset: calc(-1 * var(--focus-w)); }
 .jr-move-button {
   flex: none;
   align-self: center;
@@ -250,14 +256,20 @@ button.btn.jr-chip[aria-pressed="true"] { background: var(--ig-sel-fill, var(--a
   background: transparent;
   color: var(--muted);
   cursor: pointer;
-  transition: color 120ms, background-color 120ms, transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
+  transition: color var(--dur-fast) var(--ease), background-color var(--dur-fast) var(--ease), transform var(--dur-fast) var(--ease);
 }
-.jr-move-button:hover:not(:disabled), .jr-move-button[aria-expanded="true"] { color: var(--text); background: var(--ctl-fill); }
-.jr-move-button:active:not(:disabled) { background: var(--accent-dim); transform: scale(0.94); }
+.jr-move-button[aria-expanded="true"] { color: var(--text); background: var(--ctl-fill); }
+@media (hover: hover) and (pointer: fine) {
+.jr-move-button:hover:not(:disabled) { color: var(--text); background: var(--ctl-fill); }
+}
+.jr-move-button:active:not(:disabled) { background: var(--accent-dim); transform: scale(var(--press-small)); }
 .jr-move-button:disabled { cursor: wait; }
 .jr-actions-pop { width: min(180px, calc(100vw - 24px)); box-sizing: border-box; padding: 4px; }
 .jr-action-item { display: flex; align-items: center; gap: 8px; width: 100%; box-sizing: border-box; padding: 8px 10px; border: 0; border-radius: var(--r-ctl); background: transparent; color: var(--text); font: inherit; font-size: calc(13px + var(--ui-text-increase, 0px)); text-align: left; cursor: pointer; }
-.jr-action-item:hover:not([aria-disabled="true"]), .jr-action-item:active:not([aria-disabled="true"]) { background: var(--ctl-fill); }
+.jr-action-item:active:not([aria-disabled="true"]) { background: var(--ctl-fill); }
+@media (hover: hover) and (pointer: fine) {
+.jr-action-item:hover:not([aria-disabled="true"]) { background: var(--ctl-fill); }
+}
 .jr-action-item[aria-disabled="true"] { color: var(--muted); cursor: default; }
 .jr-action-hint { display: block; margin: 0; padding: 8px 10px; color: var(--muted); font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: 1.45; overflow-wrap: anywhere; }
 .jr-move-pop { width: min(340px, calc(100vw - 24px)); }
@@ -403,9 +415,15 @@ button.btn.jr-chip[aria-pressed="true"] { background: var(--ig-sel-fill, var(--a
    lozenge); a pill on the neutral fill writes in --text under the pointer
    for the same reason. Statuses keep their opaque semantic beds and words
    through selection and hover, instead of becoming outlined metadata. */
+@media (hover: hover) and (pointer: fine) {
 .ig-row:hover :is(.jr-estimate, .jr-remaining, .jr-status, .jr-total) { color: var(--text); }
+}
+@media (hover: hover) and (pointer: fine) {
 .jr-group-toggle:hover, .jr-board-item:hover, .jr-detail-sub:hover { background: var(--ig-hover-fill, var(--ctl-fill)); --muted: var(--text-secondary); }
+}
+@media (hover: hover) and (pointer: fine) {
 .jr-group-toggle:hover :is(.jr-estimate, .jr-status, .jr-total), .jr-detail-sub:hover .jr-status { color: var(--text); }
+}
 .jr-board-item[aria-current="true"] { background: var(--ig-sel-fill, var(--accent-dim)); --muted: var(--text); }
 
 /* An issue type or a priority the panel draws itself, when Jira's icon is an
@@ -442,9 +460,11 @@ button.btn.jr-chip[aria-pressed="true"] { background: var(--ig-sel-fill, var(--a
 .jr-crumbs li { display: inline-flex; align-items: center; gap: 4px; min-width: 0; }
 .jr-crumbs li + li::before { content: "/"; color: var(--muted); }
 .jr-crumb, .jr-crumb-text { max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.jr-crumb { padding: 0; border: 0; background: none; color: var(--accent); font: inherit; cursor: pointer; transition: color 120ms, transform 140ms cubic-bezier(0.23, 1, 0.32, 1); }
+.jr-crumb { padding: 0; border: 0; background: none; color: var(--accent); font: inherit; cursor: pointer; transition: color var(--dur-fast) var(--ease), transform var(--dur-fast) var(--ease); }
+@media (hover: hover) and (pointer: fine) {
 .jr-crumb:hover { color: var(--text); text-decoration: underline; }
-.jr-crumb:active { transform: scale(0.97); }
+}
+.jr-crumb:active { transform: scale(var(--press)); }
 .jr-crumb-text { color: var(--muted); }
 .jr-detail-head { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
 .jr-detail-title { margin: 0; font-size: calc(16px + var(--ui-text-increase, 0px)); font-weight: 600; line-height: 1.35; overflow-wrap: anywhere; }
@@ -491,10 +511,9 @@ button.btn.jr-chip[aria-pressed="true"] { background: var(--ig-sel-fill, var(--a
   font-size: calc(12px + var(--ui-text-increase, 0px));
   text-align: left;
   cursor: pointer;
-  transition: background-color 120ms;
+  transition: background-color var(--dur-fast) var(--ease);
 }
 .jr-detail-subtasks .jr-detail-sub:active { background: color-mix(in srgb, var(--text) 10%, transparent); }
-.jr-detail-sub:focus-visible { outline-offset: -2px; }
 .jr-files { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 4px; font-size: calc(12px + var(--ui-text-increase, 0px)); }
 .jr-files li { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px; min-width: 0; }
 .jr-more-link { display: inline-flex; align-items: center; gap: 4px; color: var(--accent); }
@@ -594,9 +613,6 @@ button.btn.jr-chip[aria-pressed="true"] { background: var(--ig-sel-fill, var(--a
   .jr-row { min-height: 44px; }
   .jr-toggle, .jr-toggle-space { width: 40px; }
   .jr-group-toggle, .jr-board-item, .jr-detail-sub { min-height: 44px; }
-}
-@media (hover: none) {
-  .jr-board-item:hover:not([aria-current="true"]), .jr-detail-sub:hover, .jr-group-toggle:hover { background: transparent; }
 }
 @media (prefers-reduced-motion: reduce) {
   .jr-chevron { transition: none; }

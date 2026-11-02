@@ -38,7 +38,7 @@ describe("the panel readouts move by transform (#863)", () => {
       expect(decl(sel, "inset")).toBe("0");
       expect(decl(sel, "width")).toBeNull();
       expect(decl(sel, "transform-origin")).toBe("left center");
-      expect(decl(sel, "transition")).toMatch(/^transform 400ms/);
+      expect(decl(sel, "transition")).toMatch(/^transform var\(--dur-slow\)/);
     });
   }
 
@@ -51,7 +51,7 @@ describe("the panel readouts move by transform (#863)", () => {
 
   it("moves the pace marker on a rail as wide as the track", () => {
     expect(decl(".qb-pace-rail", "inset")).toBe("0");
-    expect(decl(".qb-pace-rail", "transition")).toMatch(/^transform 400ms/);
+    expect(decl(".qb-pace-rail", "transition")).toMatch(/^transform var\(--dur-slow\)/);
     expect(decl(".qb-pace-rail", "pointer-events")).toBe("none");
     expect(quotaBar).toMatch(/className="qb-pace-rail" style=\{\{ transform: `translateX\(\$\{pace\.expectedPct\}%\)` \}\}/);
     // The marker itself stands still inside it, at the rail's left edge.
@@ -66,7 +66,12 @@ describe("the panel readouts move by transform (#863)", () => {
   });
 
   it("keeps the history bars' height transition, for the reasons at the top", () => {
-    expect(decl(".uh-bar", "transition")).toMatch(/^height /);
-    expect(decl(".uh-bar", "animation")).toMatch(/uh-bar-rise/);
+    // The bar rests at its real height (its share of the column) with no
+    // transform. A changing range eases that height; the rise owns the
+    // transform, as a transition from @starting-style rather than a keyframe.
+    expect(decl(".uh-bar", "height")).toBe("calc(var(--uh-h, 1) * 100%)");
+    expect(decl(".uh-bar", "transform")).toBe("none");
+    expect(decl(".uh-bar", "transition")).toMatch(/^height var\(--dur-slow\) var\(--ease\), transform var\(--dur-slow\)/);
+    expect(decl(".uh-bar", "animation")).toBeNull();
   });
 });

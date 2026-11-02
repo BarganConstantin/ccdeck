@@ -360,7 +360,16 @@ describe("the sheet", () => {
   const css = sheetText();
   it("draws the controls quiet at rest and neutral under the pointer", () => {
     expect(css).toMatch(/\.ap-rest-sort select \{[^}]*border: 1px solid transparent;[^}]*color: var\(--muted\);/);
-    expect(css).toContain(".ap-rest-sort select:hover,\n.ap-rest-sort select:focus-visible { border-color: var(--ctl-edge); color: var(--text); background: var(--ctl-fill); }");
-    expect(css).toContain(".ap-rest-all:hover,\n.ap-rest-all:focus-visible { border-color: var(--ctl-edge); color: var(--text); background: var(--ctl-fill); }");
+    // The keyboard's rule on its own, the pointer's under the mouse query
+    // (hover is for mice), both the same neutral edge, text and fill.
+    const NEUTRAL = "{ border-color: var(--ctl-edge); color: var(--text); background: var(--ctl-fill); }";
+    const MOUSE = "@media (hover: hover) and (pointer: fine) {\n";
+    // The select is a field: the keyboard lifts its text and fill as the pointer
+    // does, and its edge turns --accent with no ring (V4's text field).
+    expect(css).toContain(".ap-rest-sort select:focus-visible { color: var(--text); background: var(--ctl-fill); }");
+    expect(css).toMatch(/\.ap-rest-sort select:focus-visible, \.bw-settings select:focus-visible \{\s*outline: none;\s*border-color: var\(--accent\);/);
+    expect(css).toContain(`${MOUSE}.ap-rest-sort select:hover:not(:focus-visible) ${NEUTRAL}\n}`);
+    expect(css).toContain(`.ap-rest-all:focus-visible ${NEUTRAL}`);
+    expect(css).toContain(`${MOUSE}.ap-rest-all:hover ${NEUTRAL}\n}`);
   });
 });

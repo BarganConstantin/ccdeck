@@ -76,7 +76,9 @@
 
 .chat-error { display: flex; align-items: center; gap: 12px; padding: 8px 12px; border: 1px solid var(--line); border-radius: var(--r-panel); background: var(--bg-soft); font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: 16px; color: var(--text); }
 .chat-retry { margin: 0 0 0 auto; padding: 0; background: none; border: 0; font: inherit; font-weight: 500; color: var(--accent); cursor: pointer; }
+@media (hover: hover) and (pointer: fine) {
 .chat-retry:hover { text-decoration: underline; }
+}
 
 /* With a question docked, the chat gives the dock its height. */
 .chat[data-docked] .chat-body { flex: 1 1 0; }

@@ -214,14 +214,17 @@ describe("the ring #381 put there is exactly what it was (#434)", () => {
   it("still draws, because a skip link that lands nowhere visible is the bug", () => {
     // The failure this ring exists to fix is landing somewhere with no sign you
     // landed. Deleting it would have closed this issue and re-opened that one.
-    expect(decl(":focus-visible", "outline")).toBe("2px solid var(--accent)");
-    expect(decl(".canvas-wrap:focus-visible", "outline-offset")).toBe("-3px");
+    // V4's Figma: the global ring is 1.5px accent INSIDE the box, so the canvas
+    // no longer needs an inset offset of its own (it runs to the window edge).
+    expect(decl(":focus-visible", "outline")).toBe("var(--focus-w) solid var(--accent)");
+    expect(decl(":focus-visible", "outline-offset")).toBe("calc(-1 * var(--focus-w))");
+    expect(decl(".canvas-wrap:focus-visible", "outline-offset")).toBeNull();
   });
 
-  it("is still the shared ring, drawn by the global rule and only inset here", () => {
-    // .canvas-wrap declares an offset and nothing else: one focus language for
-    // the whole deck, and this element's own reason — it runs to the window
-    // edge, so the shared outward offset would draw two sides off screen.
+  it("is still the shared ring, drawn by the global rule and nothing else", () => {
+    // .canvas-wrap declares nothing of its own: one focus language for the
+    // whole deck, and the shared ring is inside the box, so it never runs off
+    // the window edge.
     expect(decl(".canvas-wrap:focus-visible", "outline")).toBeNull();
   });
 
@@ -240,7 +243,10 @@ describe("the ring #381 put there is exactly what it was (#434)", () => {
     // (quick-open.css), as the Radio search's wrapper draws its own. And a
     // Jira issue's main button, whose ring the whole row draws, so the
     // disclosure and the actions button inside the row sit within it.
+    // And the text-field family (tokens.css): V4's Figma gives fields no ring
+    // at all, their 1px border turns --accent instead.
     expect(removers).toEqual([
+      ".settings-filter-field:focus-visible, .sm-select:focus-visible, .ap-manage-input:focus-visible,\n.aa-field input:focus-visible, .radio-filter-search input:focus-visible,\n.tr-input:focus-visible, .tr-select:focus-visible,\n.qh-window select:focus-visible, .jr-move-pop select:focus-visible, .jr-transition select:focus-visible,\n.jr-comment-compose textarea:focus-visible, .su-pricing select:focus-visible,\n.ap-field select:focus-visible, .ap-pop .ap-field select:focus-visible,\n.ap-rest-sort select:focus-visible, .bw-settings select:focus-visible",
       ".qo-input:focus-visible",
       ".radio-pin",
       ".radio-search:focus-within",
@@ -250,7 +256,8 @@ describe("the ring #381 put there is exactly what it was (#434)", () => {
       ".radio-panel:not([data-keyboard-interaction]) .radio-filter-popup :focus-visible",
       ".jr-row-main:focus-visible",
     ]);
-    expect(bareCss).toContain(".radio-map-canvas:focus-visible");
+    // V4's Figma: the map canvas takes the global ring (no rule of its own now).
+    expect(bareCss).not.toContain(".radio-map-canvas:focus-visible {");
   });
 
   it("gated the ring on no marker, because a marker could not have gated it", () => {

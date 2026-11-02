@@ -85,10 +85,10 @@ const V4_AHEAD_OF_READERS = [
   "--ctl-h-sm",
   "--fs-hero", "--lh-hero", "--fs-title", "--lh-title", "--fs-card-title",
   "--fs-body", "--fs-small", "--lh-small", "--fs-code", "--lh-code", "--fs-meta", "--lh-meta",
-  "--dur-stage-in", "--dur-stage-out", "--dur-slow",
+  // V4's motion rules: --dur-stage-in, --dur-slow, --delay-step and --press-small are read now.
+  "--dur-stage-out",
   // V4's Loader: --delay-loader, --loop-loader and --loop-loader-person are read by loader.css now.
-  "--delay-step", "--delay-tooltip",
-  "--press-small",
+  "--delay-tooltip",
 ];
 
 describe("custom properties have both a writer and a reader", () => {

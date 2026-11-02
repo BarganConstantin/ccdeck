@@ -60,22 +60,21 @@
   white-space: pre-line;
 }
 .hint:has(.hint-key) .hint-detail { padding-right: 6px; }
-/* 150ms from 4px off, towards the control's own side, the first time; at once
-   when the reader is already moving from one control to the next, where a
-   delay and a slide on every neighbour would be a hint chasing the pointer. */
-.hint-right { animation: hint-from-left 150ms cubic-bezier(0.23, 1, 0.32, 1) both; }
-.hint-left { animation: hint-from-right 150ms cubic-bezier(0.23, 1, 0.32, 1) both; }
-.hint-below { animation: hint-from-above 150ms cubic-bezier(0.23, 1, 0.32, 1) both; }
-.hint-above { animation: hint-from-below 150ms cubic-bezier(0.23, 1, 0.32, 1) both; }
-.hint[data-instant] { animation: none; }
-@keyframes hint-from-left { from { opacity: 0; transform: translateX(-4px); } }
-@keyframes hint-from-right { from { opacity: 0; transform: translateX(4px); } }
-@keyframes hint-from-above { from { opacity: 0; transform: translateY(-4px); } }
-@keyframes hint-from-below { from { opacity: 0; transform: translateY(4px); } }
+/* V4's motion rules: the tooltip, after its 450ms wait (use-hint.tsx), fades
+   and slides in from 4px off, towards the control's own side, on Fast. A
+   transition from @starting-style, not a keyframe: a hint a person can raise
+   twice turns round from where it is. At once when the reader is already
+   moving from one control to the next, where a delay and a slide on every
+   neighbour would be a hint chasing the pointer. */
+.hint { transition: opacity var(--dur-fast) var(--ease), transform var(--dur-fast) var(--ease); }
+@starting-style {
+  .hint-right { opacity: 0; transform: translateX(-4px); }
+  .hint-left { opacity: 0; transform: translateX(4px); }
+  .hint-below { opacity: 0; transform: translateY(-4px); }
+  .hint-above { opacity: 0; transform: translateY(4px); }
+}
+.hint[data-instant] { transition: none; }
 
 @media (prefers-reduced-motion: reduce) {
-  .hint-right,
-  .hint-left,
-  .hint-below,
-  .hint-above { animation: none; }
+  .hint { transition: none; }
 }

@@ -29,4 +29,6 @@
   background: transparent;
   color: var(--muted);
 }
+@media (hover: hover) and (pointer: fine) {
 .desktop-menu:hover { background: color-mix(in srgb, var(--text) 8%, transparent); color: var(--text); }
+}

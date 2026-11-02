@@ -21,7 +21,9 @@
 /* A link inside a title is told from the words around it by more than its
    colour, which is under 3:1 against them in some themes. */
 .fd-title a { color: var(--accent); text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 3px; }
+@media (hover: hover) and (pointer: fine) {
 .fd-title a:hover { text-decoration-thickness: 2px; }
+}
 .fd-title-mono code { font-size: calc(16px + var(--ui-text-increase, 0px)); font-weight: 600; overflow-wrap: anywhere; }
 .fd-title-mono .fg-copyable { align-items: flex-start; max-width: 100%; }
 /* A sentence, so it wraps like one: the chips in it are inline boxes. */
@@ -49,15 +51,19 @@
    fill reaches 8px past the text so the words line up with the column, and it
    may be those 8px wider than its column for the same reason. Its pieces never
    break inside; on a narrow pane they wrap onto a second line instead. */
-.fd-jump { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 0 8px; max-width: calc(100% + 8px); min-height: 28px; white-space: nowrap; box-sizing: border-box; margin-left: -8px; padding: 2px 8px; border: 0; border-radius: var(--r-ctl); background: transparent; color: var(--text); font: inherit; font-size: calc(12px + var(--ui-text-increase, 0px)); text-align: left; cursor: pointer; transition: background 120ms, transform 140ms cubic-bezier(0.23, 1, 0.32, 1); }
+.fd-jump { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 0 8px; max-width: calc(100% + 8px); min-height: 28px; white-space: nowrap; box-sizing: border-box; margin-left: -8px; padding: 2px 8px; border: 0; border-radius: var(--r-ctl); background: transparent; color: var(--text); font: inherit; font-size: calc(12px + var(--ui-text-increase, 0px)); text-align: left; cursor: pointer; transition: background var(--dur-fast) var(--ease), transform var(--dur-fast) var(--ease); }
+@media (hover: hover) and (pointer: fine) {
 .fd-jump:hover { background: var(--ctl-fill); }
+}
 /* The deck's press: a labelled control gives a little under the pointer. */
-.fd-jump:active { transform: scale(0.97); }
+.fd-jump:active { transform: scale(var(--press)); }
 .fd-jump code { font-size: calc(11px + var(--ui-text-increase, 0px)); }
 .fd-jump-meta { color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .fd-jump-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .fd-jump-arrow { color: var(--muted); font-size: calc(14px + var(--ui-text-increase, 0px)); line-height: 1; }
+@media (hover: hover) and (pointer: fine) {
 .fd-jump:hover .fd-jump-arrow { color: var(--text); }
+}
 
 /* The page and its side column. */
 .fd-layout { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; margin-top: 16px; }
@@ -77,7 +83,9 @@
 .fd-facts-page { margin-top: 16px; }
 .fd-none { color: var(--muted); font-size: calc(12px + var(--ui-text-increase, 0px)); }
 .fd-plain-link { color: var(--accent); text-decoration: none; overflow-wrap: anywhere; }
+@media (hover: hover) and (pointer: fine) {
 .fd-plain-link:hover { text-decoration: underline; }
+}
 .fd-people { list-style: none; display: grid; gap: 6px; margin: 0; padding: 0; }
 .fd-people > li { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 10px; min-width: 0; }
 .fd-review { font-size: calc(11px + var(--ui-text-increase, 0px)); }
@@ -102,8 +110,8 @@
 .fd-section-count { font-size: calc(11px + var(--ui-text-increase, 0px)); font-variant-numeric: tabular-nums; }
 .fd-section-label { min-width: 0; }
 .fd-section { margin-top: 14px; min-width: 0; }
-/* A section fades in as it is chosen, as the panel's tabs do. */
-.fd-section:not([hidden]) { animation: fadeIn 100ms ease-out; }
+/* A section is shown at once as it is chosen, as the panel's tabs are (tab
+   content never animates: V4's motion rules). */
 
 /* Blocks and headings on a page. */
 .fd-block { margin-top: 20px; }
@@ -132,7 +140,9 @@
 .fd-comment-head .ig-person-name { font-weight: 600; }
 .fd-comment-time { color: var(--muted); white-space: nowrap; }
 .fd-comment-link { display: inline-flex; align-items: center; justify-content: center; flex: none; width: 24px; height: 24px; margin-left: auto; border-radius: var(--r-ctl); color: var(--muted); text-decoration: none; }
+@media (hover: hover) and (pointer: fine) {
 .fd-comment-link:hover { background: var(--ctl-fill); color: var(--text); }
+}
 .fd-comment-body { margin: 4px 0 0 26px; }
 .fd-comment-body > :last-child { margin-bottom: 0; }
 
@@ -141,7 +151,9 @@
 .fd-item { display: grid; gap: 3px; min-width: 0; padding: 10px 14px; }
 .fd-item + .fd-item { border-top: 1px solid var(--line-soft); }
 .fd-item-title { color: var(--text); font-weight: 500; overflow-wrap: anywhere; text-decoration: none; }
+@media (hover: hover) and (pointer: fine) {
 .fd-out:hover { text-decoration: underline; }
+}
 .fd-out-mark { color: var(--muted); font-weight: 400; }
 .fd-item-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 10px; min-width: 0; color: var(--muted); font-size: calc(12px + var(--ui-text-increase, 0px)); }
 .fd-item-meta code { font-size: calc(11px + var(--ui-text-increase, 0px)); color: var(--text); }
@@ -161,7 +173,9 @@
 .fd-files { list-style: none; margin: 8px 0 0; padding: 0; border: 1px solid var(--line); border-radius: var(--r-panel); background: var(--panel); overflow: hidden; }
 .fd-files > li + li { border-top: 1px solid var(--line-soft); }
 .fd-file { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; min-height: 38px; box-sizing: border-box; padding: 8px 14px; color: var(--text); text-decoration: none; }
+@media (hover: hover) and (pointer: fine) {
 a.fd-file:hover { background: var(--ctl-fill); --muted: var(--text-secondary); }
+}
 .fd-file-path { flex: 1 1 240px; min-width: 0; font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: 1.5; overflow-wrap: anywhere; }
 .fd-file-path code { font-size: calc(12px + var(--ui-text-increase, 0px)); }
 .fd-file-old { color: var(--muted); }
@@ -175,7 +189,9 @@ a.fd-file:hover { background: var(--ctl-fill); --muted: var(--text-secondary); }
 .fd-add { color: var(--ok); }
 .fd-del { color: var(--err); }
 .fd-add[data-zero], .fd-del[data-zero] { color: var(--muted); }
+@media (hover: hover) and (pointer: fine) {
 a.fd-file:hover .fd-out-mark { color: var(--text); }
+}
 
 /* A pipeline's jobs, by stage. */
 .fd-stages { margin-top: 2px; }
@@ -262,5 +278,4 @@ button.btn.fd-show-comments { margin-top: 8px; }
 @media (prefers-reduced-motion: reduce) {
   .fd-jump { transition: none; }
   .fd-jump:active { transform: none; }
-  .fd-section:not([hidden]) { animation: none; }
 }

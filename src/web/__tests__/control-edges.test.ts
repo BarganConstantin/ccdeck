@@ -32,7 +32,7 @@ import { fileURLToPath } from "node:url";
 import { join } from "node:path";
 import { TAG_BUDGET, classesIn, openTags, withoutComments } from "./tsx-scan";
 import { gradientStops } from "./gradient-stops";
-import { sheetText } from "./sheet-source";
+import { mouseFlat, sheetText } from "./sheet-source";
 
 const web = fileURLToPath(new URL("..", import.meta.url));
 const css = sheetText();
@@ -104,7 +104,8 @@ function topLevel(src: string): Array<{ selector: string; body: string }> {
 }
 
 const bare = css.replace(/\/\*[\s\S]*?\*\//g, "");
-const RULES = topLevel(bare);
+// The mouse query's rules are read where they stand, in order: a desktop pointer meets them at the top level.
+const RULES = topLevel(mouseFlat(bare));
 // Hover-gated controls still owe the same contrast in their pointer state.
 const POINTER_RULES = [...bare.matchAll(/@media \(hover: hover\) and \(pointer: fine\)\s*\{/g)]
   .flatMap(m => topLevel(block(bare, m.index! + m[0].length - 1)[0]));
@@ -142,6 +143,8 @@ const decl = (selector: string, prop: string) => declIn(bodyOf(selector), prop);
  *  counted rather than matched lazily: `color-mix(in srgb, var(--x) 6%, …)`
  *  nests, and a `[^)]*` stops inside it. */
 function colourIn(value: string): string {
+  // V4's Figma: the focus width is a token, not a colour (--focus-w).
+  value = value.replace(/var\(--focus-w\)/g, "1.5px");
   const head = /(color-mix|var|rgba?)\(/i.exec(value);
   if (head) {
     const open = head.index + head[0].length - 1;
@@ -536,7 +539,7 @@ const CONTROLS: Control[] = [
   { at: '.radio-controls .radio-mute[aria-pressed="true"]', beds: ["--bg-soft"] },
   { at: ".radio-search", states: [".radio-search:hover:not(:focus-within)"], beds: ["--panel", "--bg-soft"] },
   { at: ".radio-filter-search input", states: [".radio-filter-search input:focus-visible"], beds: ["--panel"] },
-  { at: ".radio-filter-trigger", states: ['.radio-filter-trigger[data-filtered="true"]', ".radio-filter-trigger:focus-visible", ".radio-filter-trigger:hover"], beds: ["--panel", "--bg-soft"] },
+  { at: ".radio-filter-trigger", states: ['.radio-filter-trigger[data-filtered="true"]', ".radio-filter-trigger:hover"], beds: ["--panel", "--bg-soft"] },
   { at: ".radio-map-tools .radio-map-button", beds: ["--bg"] },
   { at: ".radio-play", states: [".radio-play:not(:disabled):hover"], beds: ["--bg-soft"] },
   { at: '.character-choice', beds: ["--panel"] },
@@ -551,8 +554,8 @@ const CONTROLS: Control[] = [
   { at: '.tr-message[aria-pressed="true"]', fillFrom: '.tr-message[aria-pressed="true"]', beds: ["--panel"] },
   { at: '.tr-tab[aria-selected="true"]', fillFrom: '.tr-tab[aria-selected="true"]', beds: ["--panel"] },
   { at: ".tr-body .btn.tr-quiet:hover:not(:disabled)", beds: ["--panel"] },
-  { at: ".tr-input:hover", beds: ["--panel"] },
-  { at: ".tr-select:hover", beds: ["--panel"] },
+  { at: ".tr-input:hover:not(:focus-visible)", beds: ["--panel"] },
+  { at: ".tr-select:hover:not(:focus-visible)", beds: ["--panel"] },
   // Continue at the end of a stopped background session's stop row (#2193),
   // edged in the row's own hue on the card's face, and in the text colour
   // under the pointer.
@@ -610,7 +613,7 @@ const CONTROLS: Control[] = [
   // the sweep rather than an exemption for the reason 1.4.11 gives: a `select`
   // is identified by nothing but the option text inside it, so the box IS the
   // control. Its bed is --panel, which is the popover's own surface.
-  { at: ".sm-select", states: [".sm-select:hover"], beds: ["--panel"] },
+  { at: ".sm-select", states: [".sm-select:hover:not(:focus-visible)"], beds: ["--panel"] },
   // The sound menu's two small buttons, softened off --ctl-edge onto --sm-edge
   // when they were made secondary. Swept here so the softer edge is MEASURED
   // against 1.4.11 rather than argued for in a comment.
@@ -683,18 +686,18 @@ const CONTROLS: Control[] = [
   { at: ".fb-shot-img", states: [".fb-shot-pick:hover .fb-shot-img", ".fb-shot-pick:focus-visible .fb-shot-img"], beds: ["--panel"] },
   // Settings › Keyboard's filter (#2176): framed at rest, as Tool activity's
   // search field is, and louder under the pointer.
-  { at: ".settings-filter-field", states: [".settings-filter-field:hover"], beds: ["--panel"] },
+  { at: ".settings-filter-field", states: [".settings-filter-field:hover:not(:focus-visible)"], beds: ["--panel"] },
   // The one switch whose on gives something away (#828): on, it fills with
   // --warn; waiting for its second press, its edge is --warn, hovered or not.
   // It lives in the LAN dialog, on the panel.
   { at: '.switch[data-tone="warn"][aria-checked="true"]', beds: ["--panel"] },
-  { at: ".ap-field select", states: [".ap-field select:hover:not(:disabled)"], beds: ACCOUNTS },
+  { at: ".ap-field select", states: [".ap-field select:hover:not(:disabled):not(:focus-visible)"], beds: ACCOUNTS },
   // The Local network intro card, while the section is off: a drawing and two
   // lines in one button, whose boundary is the same --ctl-edge on --ctl-fill
   // every labelled control wears. Its bed is the panel it sits at the foot of.
   { at: ".ap-lan-intro", states: [".ap-lan-intro:hover:not(:disabled)"], beds: ["--panel"] },
   // browser watch
-  { at: ".bw-settings select", states: [".bw-settings select:hover:not(:disabled)"], beds: ["--panel"] },
+  { at: ".bw-settings select", states: [".bw-settings select:hover:not(:disabled):not(:focus-visible)"], beds: ["--panel"] },
   // The overview's help disclosure — a 16px circle whose border IS the control,
   // so all three of its states are measured.
   { at: ".bw-help", states: [".bw-help:hover", '.bw-help[aria-expanded="true"]'], beds: ["--panel"] },
@@ -704,7 +707,7 @@ const CONTROLS: Control[] = [
   // threshold's custom field holding a value it refused does the same, beside
   // the words under its row that say why.
   { at: ".ap-manage-input", states: [
-    ".ap-manage-input:hover",
+    ".ap-manage-input:hover:not(:focus-visible)",
     '.ap-manage-input.fb-message[aria-invalid="true"]',
     '.ap-policy .ap-threshold-input[aria-invalid="true"]',
   ], beds: ACCOUNTS },
@@ -727,7 +730,7 @@ const CONTROLS: Control[] = [
   // The Other accounts list's two controls (#1579), on the same terms: no
   // boundary at rest — the order is its words and the other is named — and the
   // edge they draw under the pointer and the keyboard measured on the column.
-  { at: ".ap-rest-sort select:hover", fillFrom: ".ap-rest-sort select:hover",
+  { at: ".ap-rest-sort select:hover:not(:focus-visible)", fillFrom: ".ap-rest-sort select:hover:not(:focus-visible)",
     states: [".ap-rest-sort select:focus-visible", ".ap-rest-sort select[data-held]"], beds: ACCOUNTS },
   { at: ".ap-rest-all:hover", fillFrom: ".ap-rest-all:hover",
     states: [".ap-rest-all:focus-visible"], beds: ACCOUNTS },
@@ -886,19 +889,9 @@ describe("what counts as an edge, which BORDER_PROPS decides (#655)", () => {
     // (#869) makes eleven: React Flow strips the global ring from the node
     // wrapper, so the card draws its own and the ring is its keyboard boundary.
     expect(RING_RULES.flatMap(r => selectors(r.selector)).sort()).toEqual([
-      ".aa-field input:focus-visible",
-      ".ap-field select:focus-visible",
-      ".ap-lan-word:focus-visible",
-      ".ap-manage-input:focus-visible",
-      ".ap-proj-copy:focus-visible",
       // The Projects report's day column: its selection ring and its keyboard
       // focus ring are the whole of its boundary — the bar itself has no box.
       ".ap-proj-day.selected .ap-proj-col",
-      ".ap-proj-day:focus-visible",
-      ".appearance-theme:focus-visible",
-      ".cat-filter:focus-visible",
-      ".character-choice:focus-visible",
-      ".ctx-donut:focus-visible",
       // The feedback dialog's kinds (#1853): the focused thing is a 1px radio,
       // so the card it stands for draws the ring, as the import card does.
       ".fb-kind:has(input:focus-visible)",
@@ -915,30 +908,18 @@ describe("what counts as an edge, which BORDER_PROPS decides (#655)", () => {
       // Quick open's field: the input in it is borderless, so the row it
       // sits in draws the ring, as the feedback kinds' cards do.
       ".qo-field:has(.qo-input:focus-visible)",
-      ".radio-collection:focus-visible",
-      ".radio-filter-back:focus-visible",
-      ".radio-filter-chip:focus-visible",
-      ".radio-filter-field:focus-visible",
-      ".radio-filter-search input:focus-visible",
-      ".radio-filter-toggle:focus-visible",
-      ".radio-filter-trigger:focus-visible",
-      ".radio-list:focus-visible",
-      ".radio-loading > .icon-btn:focus-visible",
-      ".radio-map-canvas:focus-visible",
-      ".radio-reset:focus-visible",
-      ".radio-workspace-toggle:focus-visible",
-      ".react-flow__node:focus-visible .agent-node",
+      // (not on a selected card: there the selection ring is the one drawn)
       // And the same ring on the card's face at the compact and overview
       // distances, where the card's own is a hairline of layout units.
       ".react-flow__node:focus-visible .lod-face",
+      ".react-flow__node:focus-visible:not(.rf-selected) .agent-node",
       ".reading-choice:has(input:focus-visible)",
-      ".selected-ribbon:focus-visible",
       // Settings' search results: the highlight the arrows move while focus
       // stays in the field — VIRTUAL_FOCUS again (SettingsSearch.tsx).
       '.settings-result[data-highlighted="true"]',
-      ".switch:focus-visible",
-      '.tr-body :is(button, input, select, summary):focus-visible',
       ".uh-bar-col.sel .uh-bar",
+      // The period strip's segment: the ring is inset 4px, off its indicator.
+      ".up-period .uh-range-btn:focus-visible",
       ":focus-visible",
     ]);
   });
@@ -1298,6 +1279,16 @@ describe("every control that draws a boundary draws one that can be seen (1.4.11
       ".cluster-label[data-alarm]",
       // A labelled region button: its rim conveys selection, not identity.
       '.radio-regions .radio-region[aria-pressed="true"]',
+      // The text-field family's focus state (V4's Figma: no ring, the 1px border
+      // turns --accent, --err when invalid). A state recolour of an edge the
+      // sweep above measures at rest; its colours are held to 3:1 on every bed
+      // by "the text-field focus border" test below.
+      ".settings-filter-field:focus-visible", ".sm-select:focus-visible", ".ap-manage-input:focus-visible",
+      ".aa-field input:focus-visible", ".tr-input:focus-visible", ".tr-select:focus-visible",
+      ".qh-window select:focus-visible", ".jr-move-pop select:focus-visible", ".jr-transition select:focus-visible",
+      ".jr-comment-compose textarea:focus-visible", ".su-pricing select:focus-visible",
+      ".ap-field select:focus-visible", ".ap-pop .ap-field select:focus-visible", ".bw-settings select:focus-visible",
+      'input[aria-invalid="true"]:focus-visible', 'textarea[aria-invalid="true"]:focus-visible', 'select[aria-invalid="true"]:focus-visible',
     ]);
     const swept = new Set<string>();
     for (const c of CONTROLS) {
@@ -1382,6 +1373,21 @@ describe("the rings, which a border sweep cannot see (1.4.11, 2.4.11)", () => {
       // A state, never a resting appearance: `:hover`, `.dragging`, `.on`.
       expect(excused, `${excused} is a resting rule and may not be excused`)
         .toMatch(/:hover|\.dragging|:active/);
+    }
+  });
+});
+
+describe("the text-field focus border (V4's Figma: no ring, the border turns --accent)", () => {
+  it("the text-field focus border's colours clear 3:1 on every bed, both themes", () => {
+    for (const theme of themes) {
+      const beds = surfaces(theme);
+      bedFloor(beds, theme);
+      for (const token of ["var(--accent)", "var(--err)"]) {
+        const edge = resolve(token, theme);
+        for (const [bedName, bed] of Object.entries(beds)) {
+          expect(contrastRatio(over(edge, bed), bed), `${theme} ${token} on ${bedName}`).toBeGreaterThanOrEqual(NON_TEXT);
+        }
+      }
     }
   });
 });

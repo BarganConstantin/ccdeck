@@ -32,7 +32,7 @@ import {
 const MESSAGE_MISSING = messageMissing(), SENT_LINE = sentLine(), FACTS_UNKNOWN = factsUnknown(), ADD_DETAILS = addDetails();
 const CONTACT_LABEL = contactLabel(), CONTACT_PLACEHOLDER = contactPlaceholder(), CONTACT_HINT = contactHint(), WHERE_IT_GOES = whereItGoes();
 import { openTags, withoutComments } from "./tsx-scan";
-import { defaultReadingSheetText as sheetText } from "./sheet-source";
+import { mouseFlat, defaultReadingSheetText as sheetText } from "./sheet-source";
 
 const read = (rel: string) => withoutComments(readFileSync(fileURLToPath(new URL(rel, import.meta.url)), "utf8"));
 /** JSX text flows across lines; the words are what is pinned, not the wrap. */
@@ -49,21 +49,23 @@ const sheet = sheetText().replace(/\/\*[\s\S]*?\*\//g, "");
 
 /** The sheet's top-level rules as [selectors, body]. A @media body is another
  *  cascade — the reduced-motion and forced-colours answers are not how
- *  anything rests — so it is skipped whole. */
+ *  anything rests — so it is skipped whole. The mouse query is the exception:
+ *  a desktop pointer meets its :hover rules at the top level, so they are read in place. */
 const RULES: Array<[string[], string]> = (() => {
   const out: Array<[string[], string]> = [];
+  const src = mouseFlat(sheet);
   let i = 0;
-  while (i < sheet.length) {
-    const open = sheet.indexOf("{", i);
+  while (i < src.length) {
+    const open = src.indexOf("{", i);
     if (open < 0) break;
     let depth = 0;
     let end = open;
-    for (; end < sheet.length; end++) {
-      if (sheet[end] === "{") depth++;
-      else if (sheet[end] === "}" && --depth === 0) break;
+    for (; end < src.length; end++) {
+      if (src[end] === "{") depth++;
+      else if (src[end] === "}" && --depth === 0) break;
     }
-    const prelude = sheet.slice(i, open).replace(/\s+/g, " ").trim();
-    if (!prelude.startsWith("@")) out.push([prelude.split(",").map(s => s.trim()), sheet.slice(open + 1, end)]);
+    const prelude = src.slice(i, open).replace(/\s+/g, " ").trim();
+    if (!prelude.startsWith("@")) out.push([prelude.split(",").map(s => s.trim()), src.slice(open + 1, end)]);
     i = end + 1;
   }
   return out;
@@ -405,8 +407,8 @@ describe("Add details", () => {
   });
 
   it("unfolds a beat faster than it folds back, and only fades under reduced motion", () => {
-    expect(value(".fb-details", "transition")).toMatch(/grid-template-rows 160ms/);
-    expect(value(".fb-details[data-open]", "transition-duration")).toBe("220ms");
+    expect(value(".fb-details", "transition")).toMatch(/grid-template-rows var\(--dur-exit\)/); // 150 closing
+    expect(value(".fb-details[data-open]", "transition-duration")).toBe("var(--dur-base)"); // 200 opening
     const reduced = sheet.slice(sheet.lastIndexOf("@media (prefers-reduced-motion: reduce)", sheet.indexOf(".fb-details-body,\n  .fb-details[data-open] .fb-details-body { transform: none; }")));
     expect(reduced).toMatch(/\.fb-details,\s*\.fb-details\[data-open\] \{ transition: none; \}/);
   });
@@ -501,7 +503,8 @@ describe("once it is sent", () => {
     expect(flat(sendHook)).toMatch(/return \(\) => \{ window\.clearTimeout\(fade\); window\.clearTimeout\(close\); \};/);
     expect(dialog).toMatch(/const leaving = useCloseWhenSent\(sent, onClose\);/);
     expect(flatDialog).toMatch(/data-leaving=\{leaving \|\| undefined\}/);
-    expect(value(".modal-backdrop[data-leaving]", "transition")).toBe(`opacity ${SENT_EXIT_MS}ms ease-out`);
+    expect(value(".modal-backdrop[data-leaving]", "transition")).toBe("opacity var(--dur-exit) var(--ease)");
+    expect(SENT_EXIT_MS).toBe(150); // = --dur-exit, the timer mirrors the token
     expect(value(".modal-backdrop[data-leaving]", "opacity")).toBe("0");
   });
 

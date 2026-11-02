@@ -166,7 +166,9 @@
      the difference, since the row is full width already. */
   padding: 4px 0;
 }
+@media (hover: hover) and (pointer: fine) {
 .ap-lan-reach-fix > summary:hover { color: var(--text); }
+}
 /* A command is read before it is run, and one that wraps mid-flag is one
    nobody can check. It scrolls in its own box rather than widening the
    dialog. */
@@ -294,7 +296,9 @@ input, textarea { caret-color: var(--accent); }
    control across the header from the thing it changes is one somebody has to
    go looking for. Quiet until pointed at, like the section's three icons. */
 .lan-peer-rename { flex: none; color: var(--muted); }
+@media (hover: hover) and (pointer: fine) {
 .lan-peer-rename:hover:not(:disabled) { color: var(--text); }
+}
 .lan-peer-edit { display: flex; align-items: center; gap: 6px; min-width: 0; }
 .lan-peer-input { flex: 1 1 auto; min-width: 0; font-size: calc(13px + var(--ui-text-increase, 0px)); }
 .lan-peer-sub {
@@ -517,7 +521,7 @@ input, textarea { caret-color: var(--accent); }
   inset: 0;
   border-radius: 50%;
   border: 1px solid var(--accent);
-  animation: ap-ping 2.6s cubic-bezier(0.22, 0.61, 0.36, 1) infinite;
+  animation: ap-ping 2.6s ease-in-out infinite;
 }
 /* Less motion keeps the ring, still — the way `.ap-pulse` keeps its own. */
 @media (prefers-reduced-motion: reduce) {
@@ -656,17 +660,17 @@ input, textarea { caret-color: var(--accent); }
     animation: lan-draw-out 560ms var(--ease) calc(var(--i, 0) * 70ms + 80ms) both;
   }
   .lan-map[data-link="up"] .lan-lane .lan-glint[data-dir="out"] {
-    animation: lan-run-out 4.2s cubic-bezier(0.65, 0, 0.35, 1) calc(var(--i, 0) * 0.35s + 0.7s) infinite;
+    animation: lan-run-out 4.2s ease-in-out calc(var(--i, 0) * 0.35s + 0.7s) infinite;
   }
   .lan-map[data-link="up"] .lan-lane .lan-glint[data-dir="in"] {
-    animation: lan-run-in 4.2s cubic-bezier(0.65, 0, 0.35, 1) calc(var(--i, 0) * 0.35s + 2.8s) infinite;
+    animation: lan-run-in 4.2s ease-in-out calc(var(--i, 0) * 0.35s + 2.8s) infinite;
   }
   /* A check is a question and its answer: out along the network and back. */
   .lan-map[data-asking] .lan-link .lan-glint[data-dir="out"] {
-    animation: lan-run-out 1.3s cubic-bezier(0.65, 0, 0.35, 1) infinite;
+    animation: lan-run-out 1.3s ease-in-out infinite;
   }
   .lan-map[data-asking] .lan-link .lan-glint[data-dir="in"] {
-    animation: lan-run-in 1.3s cubic-bezier(0.65, 0, 0.35, 1) 0.65s infinite;
+    animation: lan-run-in 1.3s ease-in-out 0.65s infinite;
   }
 }
 /* Named again for less motion, where none of them can run — they exist only
@@ -849,10 +853,15 @@ input, textarea { caret-color: var(--accent); }
   border-color: transparent;
   color: var(--muted);
 }
-.lan-peer-foot .btn.danger:not(.armed):hover:not(:disabled),
 .lan-peer-foot .btn.danger:not(.armed):focus-visible {
   border-color: color-mix(in srgb, var(--err) 65%, transparent);
   color: var(--err);
+}
+@media (hover: hover) and (pointer: fine) {
+.lan-peer-foot .btn.danger:not(.armed):hover:not(:disabled) {
+  border-color: color-mix(in srgb, var(--err) 65%, transparent);
+  color: var(--err);
+}
 }
 /* Armed is the second press of the only irreversible act here, and it keeps
    the error colour without being pointed at — as the row's does. */
@@ -927,9 +936,11 @@ input, textarea { caret-color: var(--accent); }
 .ap-lan-who .ap-lan-do.danger {
   opacity: 0;
 }
-.ap-lan-who:hover .ap-lan-do.danger,
 .ap-lan-who:has(:focus-visible) .ap-lan-do.danger,
 .ap-lan-who .ap-lan-do.danger.armed { opacity: 1; }
+@media (hover: hover) and (pointer: fine) {
+.ap-lan-who:hover .ap-lan-do.danger { opacity: 1; }
+}
 .ap-lan-who .ap-manage-btn {
   color: var(--muted);
   border-color: transparent;
@@ -940,10 +951,14 @@ input, textarea { caret-color: var(--accent); }
 /* A lit row lifts the ground under its verbs as it does under its sentence,
    so they are mixed toward the foreground there too: a step under the name,
    which stays the brightest thing in the row, and clear of 4.5:1 on the tone. */
-.ap-lan-who:is(:hover, :has(:focus-visible)) .ap-manage-btn {
+.ap-lan-who:has(:focus-visible) .ap-manage-btn {
   color: color-mix(in srgb, var(--muted) 65%, var(--text));
 }
-.ap-lan-who .ap-manage-btn:hover:not(:disabled),
+@media (hover: hover) and (pointer: fine) {
+.ap-lan-who:hover .ap-manage-btn {
+  color: color-mix(in srgb, var(--muted) 65%, var(--text));
+}
+}
 .ap-lan-who .ap-manage-btn:focus-visible {
   color: var(--text);
   /* --ctl-edge, which is what a control's own boundary is made of here.
@@ -953,7 +968,17 @@ input, textarea { caret-color: var(--accent); }
   border-color: var(--ctl-edge);
   background: var(--ctl-fill);
 }
-.ap-lan-who .ap-manage-btn.danger:hover:not(:disabled),
+@media (hover: hover) and (pointer: fine) {
+.ap-lan-who .ap-manage-btn:hover:not(:disabled) {
+  color: var(--text);
+  /* --ctl-edge, which is what a control's own boundary is made of here.
+     --line is the token for a rule BETWEEN things and is deliberately fainter
+     than 3:1 — borrowing it for an edge would draw a boundary nobody with
+     ordinary eyes can find. */
+  border-color: var(--ctl-edge);
+  background: var(--ctl-fill);
+}
+}
 .ap-lan-who .ap-manage-btn.danger:focus-visible {
   color: var(--err);
   border-color: color-mix(in srgb, var(--err) 65%, transparent);
@@ -961,6 +986,16 @@ input, textarea { caret-color: var(--accent); }
      thing pointed at, and small enough that the row around it does not read
      as destructive. */
   background: none;
+}
+@media (hover: hover) and (pointer: fine) {
+.ap-lan-who .ap-manage-btn.danger:hover:not(:disabled) {
+  color: var(--err);
+  border-color: color-mix(in srgb, var(--err) 65%, transparent);
+  /* The word and a hairline, no fill: the verb's own answer when it is the
+     thing pointed at, and small enough that the row around it does not read
+     as destructive. */
+  background: none;
+}
 }
 /* Armed is the one state that keeps the colour without being pointed at: the
    press has already happened once and the next one is the irreversible half. */
@@ -978,7 +1013,9 @@ input, textarea { caret-color: var(--accent); }
    where its font's baseline puts it, and an SVG sits where the flex box centres
    it, which is the middle. */
 .ap-lan-check { color: var(--muted); }
+@media (hover: hover) and (pointer: fine) {
 .ap-lan-check:hover:not(:disabled) { color: var(--text); }
+}
 /* A ROUND IS A NETWORK ROUND, and it takes as long as the slowest deck. The
    only sign it had started was a word three lines below the glyph that was
    pressed, which is not where the eye is. It turns while it works, at the one
@@ -1024,13 +1061,16 @@ input, textarea { caret-color: var(--accent); }
   background: none;
   padding: 4px 0;
   min-height: 24px;
+  border-radius: var(--r-tag); /* the focus ring follows it */
   font: inherit;
   font-size: calc(10px + max(-1px, var(--ui-text-increase, 0px)));
   color: var(--muted);
   cursor: pointer;
-  transition: color 120ms ease, transform 120ms ease;
+  transition: color var(--dur-fast) var(--ease), transform var(--dur-fast) var(--ease);
 }
+@media (hover: hover) and (pointer: fine) {
 .ap-lan-word:hover:not(:disabled) { color: var(--text); }
+}
 /* THE THREE ARE ONE FAMILY, so what each rule carries is only its ink — and
    the ink is the same for all three.
    Each had a font-size before — 14 on the plus, 12 on the other two — and that
@@ -1046,12 +1086,16 @@ input, textarea { caret-color: var(--accent); }
    theme and an inverted one in the other is worse than none. The plus leads by
    being first and by being the only one of the three that opens something. */
 .ap-lan-plus { color: var(--muted); }
+@media (hover: hover) and (pointer: fine) {
 .ap-lan-plus:hover:not(:disabled) { color: var(--text); }
+}
 /* The cog, between the round and the switch. Quiet as the round is quiet — both
    are things you may press, against a switch that is a state you read — and a
    pixel smaller than the plus, which is a stroke where this is a shape. */
 .ap-lan-set { color: var(--muted); }
+@media (hover: hover) and (pointer: fine) {
 .ap-lan-set:hover:not(:disabled) { color: var(--text); }
+}
 
 /* The fold under the list: how many decks are not on, and whether any of them
    is a problem. It sits at the list's own left edge rather than at the foot's,
@@ -1067,7 +1111,7 @@ input, textarea { caret-color: var(--accent); }
    is the one moving thing in a section whose job is to be read. */
 .ap-lan-chev {
   display: inline-block;
-  transition: transform 150ms var(--ease);
+  transition: transform var(--dur-fast) var(--ease);
   transform: rotate(0deg);
   opacity: 0.7;
 }
@@ -1078,8 +1122,7 @@ input, textarea { caret-color: var(--accent); }
 .ap-lan-more-bad { color: var(--warn); }
 /* The same 0.97 every pressable thing in this app gives back. A word without a
    box still has to answer a press. */
-.ap-lan-word:active:not(:disabled) { transform: scale(0.97); }
-.ap-lan-word:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
+.ap-lan-word:active:not(:disabled) { transform: scale(var(--press)); }
 .ap-lan-word:disabled { cursor: default; opacity: var(--dim-off); }
 /* BOTH OF THESE ANSWER A RULE BELOW THEM IN THE SHEET, WHICH IS WHY THEY ARE
    HERE. The panel's reduced-motion block is 1700 lines further up, and both of

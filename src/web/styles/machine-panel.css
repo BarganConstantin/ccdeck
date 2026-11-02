@@ -30,7 +30,7 @@
   color: var(--text);
   text-align: left;
   cursor: default;
-  animation: rail-in 160ms var(--ease) both;
+  animation: rail-in var(--dur-base) var(--ease) both;
 }
 /* Where the right rail actually starts, which is NOT a constant: it clears the
    detail panel (its column, --inspector-w, plus the 8px gap) and drops to 8px when that panel is closed.
@@ -275,7 +275,7 @@
   background: var(--accent);
   border-radius: 2px;
   transform-origin: bottom;
-  transition: transform 320ms var(--ease);
+  transition: transform var(--dur-slow) var(--ease);
 }
 
 .sd-row + .sd-row { margin-top: calc(10px * var(--ui-space, 1)); }
@@ -321,7 +321,7 @@
   color: inherit;
   text-align: left;
   cursor: pointer;
-  transition: background 140ms ease, transform 140ms ease;
+  transition: background var(--dur-fast) var(--ease), transform var(--dur-fast) var(--ease);
 }
 /* A share of the text colour, not `--line`. --line is a boundary token and it
    is tuned for a hairline: at #1f2229 on a dark panel it is a whisper, at
@@ -387,7 +387,7 @@
   padding: 4px var(--pad-x);
   margin: -4px calc(var(--pad-x) * -1);
   cursor: pointer;
-  transition: background 140ms ease, transform 140ms ease;
+  transition: background var(--dur-fast) var(--ease), transform var(--dur-fast) var(--ease);
 }
 /* The heading button bleeds out of that box the way the whole section used to,
    so its band is the old band cut off under the heading. The 6px that
@@ -398,14 +398,20 @@
 .sysdetail .sd-reading > .sd-open { margin-bottom: 2px; }
 .sysdetail .sd-reading > .sd-open .sd-h { margin-bottom: 0; }
 .sysdetail .sd-reading > .sd-open + .sd-note { margin-top: 0; }
+@media (hover: hover) and (pointer: fine) {
 .sysdetail .sd-open:hover { background: color-mix(in srgb, var(--text) 6%, transparent); }
-.sysdetail .sd-open:active { transform: scale(0.97); }
+}
+.sysdetail .sd-open:active { transform: scale(var(--press)); }
+@media (hover: hover) and (pointer: fine) {
 .sysdetail .sd-reading:hover { background: color-mix(in srgb, var(--text) 6%, transparent); }
-.sysdetail .sd-reading:active { transform: scale(0.97); }
+}
+.sysdetail .sd-reading:active { transform: scale(var(--press)); }
 /* The heading inside a block that lights and presses already: its own band
    would lay 6% over the block's 6% on the one row under the pointer, and its
    own press would shrink the heading twice inside a block that is shrinking. */
+@media (hover: hover) and (pointer: fine) {
 .sysdetail .sd-reading > .sd-open:hover { background: none; }
+}
 .sysdetail .sd-reading > .sd-open:active { transform: none; }
 /* The chevron that says the section opens something. --text-dim, the only dim
    tier text may take (#262), so it reads as a hint rather than as a value, and
@@ -415,12 +421,14 @@
   font-style: normal;
   font-size: calc(11px + var(--ui-text-increase, 0px));
   color: var(--text-dim);
-  transition: color 140ms ease;
+  transition: color var(--dur-fast) var(--ease);
 }
+@media (hover: hover) and (pointer: fine) {
 .sysdetail .sd-open:hover .sd-h,
 .sysdetail .sd-open:hover .sd-row-more,
 .sysdetail .sd-reading:hover .sd-h,
 .sysdetail .sd-reading:hover .sd-row-more { color: var(--text); }
+}
 
 /* The headers need nothing here: `.sd-sort` already declares its own pointer
    and its own press, and the section's handler steps aside for them. */
@@ -445,7 +453,7 @@
   border-radius: 999px;
   background: var(--accent);
   transform-origin: left center;
-  transition: transform 420ms var(--ease), background 200ms ease;
+  transition: transform var(--dur-slow) var(--ease), background var(--dur-base) var(--ease);
 }
 .sd-fill.warn { background: var(--warn); }
 /* The third band, which only the thermal rows reach: past the temperature the
@@ -525,12 +533,16 @@
   color: var(--muted);
   text-align: left;
   cursor: pointer;
-  transition: background 140ms ease, color 140ms ease, transform 140ms ease;
+  transition: background var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease), transform var(--dur-fast) var(--ease);
 }
 .sd-detail .sd-row-more { margin-left: auto; }
+@media (hover: hover) and (pointer: fine) {
 .sysdetail .sd-detail:hover { background: color-mix(in srgb, var(--text) 6%, transparent); color: var(--text); }
+}
+@media (hover: hover) and (pointer: fine) {
 .sysdetail .sd-detail:hover .sd-row-more { color: var(--text); }
-.sysdetail .sd-detail:active { transform: scale(0.97); }
+}
+.sysdetail .sd-detail:active { transform: scale(var(--press)); }
 .sd-route-relay { color: var(--warn); }
 
 /* THE PATH ITSELF, hung off that control. 228px — wider than the panel's own
@@ -599,7 +611,7 @@
   line-height: 1;
   color: var(--muted);
   cursor: pointer;
-  transition: color 140ms ease, background 140ms ease, transform 140ms ease;
+  transition: color var(--dur-fast) var(--ease), background var(--dur-fast) var(--ease), transform var(--dur-fast) var(--ease);
 }
 /* Reversed, so the LABEL is the thing flush against the column's right edge and
    the arrow's reserved slot sits inboard of it. In DOM order the glyph follows
@@ -612,8 +624,10 @@
   justify-content: flex-start;
   padding-right: 8px;
 }
+@media (hover: hover) and (pointer: fine) {
 :is(.sysdetail, .pl-body) .sd-sort:hover { background: var(--line); color: var(--text); }
-:is(.sysdetail, .pl-body) .sd-sort:active { transform: scale(0.97); }
+}
+:is(.sysdetail, .pl-body) .sd-sort:active { transform: scale(var(--press)); }
 /* The column doing the sorting reads at full strength and the other two stay
    with the rest of the labels. Keyed on aria-sort rather than on a class of its
    own, so the state cannot be true for the eye and absent for a screen reader. */

@@ -107,7 +107,9 @@
 .dc-opt:focus { outline: none; }
 /* The ring: 1.5px of --accent, where the keys are. */
 .dc-opt[data-focus] { border-color: var(--accent); box-shadow: 0 0 0 0.5px var(--accent); }
+@media (hover: hover) and (pointer: fine) {
 .dc-opt:hover:not([data-focus]):not([aria-disabled="true"]) { border-color: var(--line); }
+}
 .dc-chip {
   flex: none;
   box-sizing: border-box;
@@ -229,7 +231,9 @@
   color: var(--accent);
   cursor: pointer;
 }
+@media (hover: hover) and (pointer: fine) {
 .dc-link:hover { text-decoration: underline; }
+}
 
 /* The phone frame: the card on a line of its own, the answers stacked below. */
 .dc-dock[data-size="phone"] .dc-decision { display: flex; flex-direction: column; gap: 8px; }
@@ -256,14 +260,14 @@
    drawn. */
 @media (forced-colors: active) {
   .dc-opt:focus-visible,
-  .dc-opt[data-focus] { outline: 2px solid Highlight; outline-offset: 2px; }
+  .dc-opt[data-focus] { outline: var(--focus-w) solid Highlight; outline-offset: calc(-1 * var(--focus-w)); }
   .dc-opt[data-checked],
   .dc-opt[role="checkbox"][data-checked] { border-color: Highlight; border-width: 2px; }
   .dc-box[data-on] { background: Highlight; border-color: Highlight; forced-color-adjust: none; }
   .dc-box[data-on]::after { border-color: HighlightText; }
   .dc-opt[data-locked] { border-style: dashed; border-color: GrayText; color: GrayText; }
   .dc-opt[data-locked] .dc-opt-label { color: GrayText; }
-  .dc-input:focus-visible { outline: 2px solid Highlight; }
+  .dc-input:focus-visible { outline: var(--focus-w) solid Highlight; outline-offset: calc(-1 * var(--focus-w)); }
 }
 
 /* Alone in the pane (a question under the terminal), the dock sits on its foot. */

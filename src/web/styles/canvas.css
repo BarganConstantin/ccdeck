@@ -41,8 +41,8 @@
   font-size: calc(12px + var(--ui-text-increase, 0px));
   pointer-events: none;
   animation: dragTrashIn 180ms var(--ease) both;
-  transition: border-color 140ms ease, background 140ms ease, color 140ms ease,
-    transform 180ms var(--ease), box-shadow 180ms ease;
+  transition: border-color var(--dur-fast) var(--ease), background var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease),
+    transform var(--dur-base) var(--ease), box-shadow var(--dur-base) var(--ease);
 }
 .drag-trash-zone.near {
   border-style: solid;
@@ -71,7 +71,7 @@
   stroke-width: 1.7;
   stroke-linecap: round;
   stroke-linejoin: round;
-  transition: transform 160ms var(--ease), background 140ms ease;
+  transition: transform var(--dur-base) var(--ease), background var(--dur-fast) var(--ease);
 }
 .drag-trash-zone.over .drag-trash-icon {
   background: color-mix(in srgb, var(--err) 20%, transparent);
@@ -86,8 +86,8 @@
 .drag-trash-zone.over .drag-trash-hint { color: var(--text-secondary); }
 .canvas-wrap.dragging-any .autofit-chip { visibility: hidden; }
 .react-flow__node.dragging .agent-node {
-  transition: border-color 200ms ease, box-shadow 200ms ease, transform 120ms var(--ease),
-    opacity 120ms ease;
+  transition: border-color var(--dur-base) var(--ease), box-shadow var(--dur-base) var(--ease), transform var(--dur-fast) var(--ease),
+    opacity var(--dur-fast) var(--ease);
 }
 .canvas-wrap.trash-hover .react-flow__node.dragging .agent-node {
   opacity: 0.55;
@@ -161,13 +161,15 @@
   font: inherit;
   font-weight: 600;
   cursor: pointer;
-  transition: background 120ms, transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
+  transition: background var(--dur-fast) var(--ease), transform var(--dur-fast) var(--ease);
 }
+@media (hover: hover) and (pointer: fine) {
 .autofit-resume:hover { background: var(--ctl-fill); }
+}
 /* The status stays one phrase, never broken across two lines of a strip this
    small. */
 .autofit-state { white-space: nowrap; }
-.autofit-resume:active { transform: scale(0.97); }
+.autofit-resume:active { transform: scale(var(--press)); }
 
 /* Re-arrange's way back (rearrange-undo.ts): for a few seconds after R the
    canvas offers the board it replaced. The auto-fit chip's strip, because it
@@ -192,8 +194,8 @@
   background: var(--chrome-bg);
   color: var(--muted);
   font-size: calc(11px + var(--ui-text-increase, 0px));
-  animation: rearrangeUndoIn 200ms cubic-bezier(0.23, 1, 0.32, 1) both;
-  transition: transform 200ms cubic-bezier(0.23, 1, 0.32, 1);
+  animation: rearrangeUndoIn 200ms var(--ease) both;
+  transition: transform var(--dur-base) var(--ease);
 }
 /* One measured floor obstacle, with both notices on the same baseline.
    Bottom left, in the control bar's row (react-flow.css) and on its edge,
@@ -243,7 +245,7 @@
 /* Out quicker than it came in, and deaf to a press on the way: the offer has
    already ended by the time this runs. */
 .rearrange-undo.leaving {
-  animation: rearrangeUndoOut 140ms cubic-bezier(0.23, 1, 0.32, 1) both;
+  animation: rearrangeUndoOut 140ms var(--ease) both;
   pointer-events: none;
 }
 .rearrange-undo-state { white-space: nowrap; }
@@ -264,21 +266,20 @@
   font-weight: 600;
   white-space: nowrap;
   cursor: pointer;
-  transition: background 120ms, transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
+  transition: background var(--dur-fast) var(--ease), transform var(--dur-fast) var(--ease);
 }
+@media (hover: hover) and (pointer: fine) {
 .rearrange-undo-act:hover { background: var(--ctl-fill); }
-.rearrange-undo-act:active { transform: scale(0.97); }
+}
+.rearrange-undo-act:active { transform: scale(var(--press)); }
 /* The chord, beside the word it presses, a step quieter than the word. The
    pointer lifts it to the foreground with the word, as it lifts a category
    chip: on the hover fill --muted comes to 4.23:1 in dark, and the weight
    still tells the key from the action. */
 .rearrange-undo-key { color: var(--muted); font-weight: 400; }
+@media (hover: hover) and (pointer: fine) {
 .rearrange-undo-act:hover .rearrange-undo-key { color: var(--text); }
-/* Both words sit flush in a strip whose edge is 2px away: the ring goes
-   inside the word's own box, as it does for the other controls set flush in
-   a container, instead of landing on the strip's edge as a second box. */
-.rearrange-undo-act:focus-visible,
-.autofit-resume:focus-visible { outline-offset: -2px; }
+}
 @keyframes rearrangeUndoIn {
   from { opacity: 0; translate: 0 6px; }
   to { opacity: 1; translate: 0 0; }
@@ -300,10 +301,10 @@
    without moving anything. */
 @media (prefers-reduced-motion: reduce) {
   .rearrange-undo {
-    animation: rearrangeUndoFadeIn 200ms cubic-bezier(0.23, 1, 0.32, 1) both;
+    animation: rearrangeUndoFadeIn 200ms var(--ease) both;
     transition: none;
   }
-  .rearrange-undo.leaving { animation: rearrangeUndoFadeOut 140ms cubic-bezier(0.23, 1, 0.32, 1) both; }
+  .rearrange-undo.leaving { animation: rearrangeUndoFadeOut 140ms var(--ease) both; }
 }
 
 /* Filter chips above the canvas — small toolbar lets you toggle entire
@@ -360,8 +361,8 @@
   font-family: var(--font-mono);
   letter-spacing: 0.02em;
   cursor: pointer;
-  transition: background 120ms, color 120ms,
-              transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
+  transition: background var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease),
+              transform var(--dur-fast) var(--ease);
 }
 /* A drawn glyph in the label's own colour (App.tsx's CatGlyph), so it follows
    every state the word does: quieter at rest, lit on hover, muted when off. */
@@ -372,12 +373,10 @@
    --ctl-fill is 7–8% of the foreground, which exists in both themes. The resting
    border stays transparent: the chip is named by its glyph and its word, which
    is the identification 1.4.11 accepts in place of a boundary. */
+@media (hover: hover) and (pointer: fine) {
 .cat-filter:hover { background: var(--ctl-fill); color: var(--text); }
-.cat-filter:active { transform: scale(0.97); }
-.cat-filter:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 1px;
 }
+.cat-filter:active { transform: scale(var(--press)); }
 /* "Off" is carried by the colour tier and the greyed emoji, never by opacity.
    `opacity: 0.38` faded the whole chip, its label included, to 1.72:1 in dark
    and 1.87:1 on white, and the hover that lifted it to 0.8 still only reached
@@ -394,7 +393,9 @@
 .cat-filter.off {
   color: var(--muted);
 }
+@media (hover: hover) and (pointer: fine) {
 .cat-filter.off:hover { color: var(--text); }
+}
 /* The redundant channel #368 deferred to #370. What was left after it dropped
    the opacity fade was a colour tier and a desaturated emoji, and both of those
    are colour: --text against --muted is 2.75:1 in dark and 2.40:1 in light, so

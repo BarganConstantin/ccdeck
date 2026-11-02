@@ -28,10 +28,12 @@
   color: var(--text);
   font-size: calc(12px + var(--ui-text-increase, 0px));
   box-shadow: var(--shadow-1);
-  transition: border-color 200ms ease, box-shadow 200ms ease;
+  transition: border-color var(--dur-base) var(--ease), box-shadow var(--dur-base) var(--ease);
   overflow: hidden;
 }
+@media (hover: hover) and (pointer: fine) {
 .agent-node:hover { box-shadow: var(--shadow-2); }
+}
 
 /* The rows Figma does not draw (waiting, stop, continued, approval, plan, spark)
    share ONE top spacing, on top of the column's 2px gap, so the card's rhythm is
@@ -102,10 +104,11 @@
    beating `:focus-visible` at (0,1,0) — and nothing selects a card on focus,
    so `.rf-selected` above never stands in for it. The ring goes on the card, like
    selection's, because the card is the box with the radius and the session's
-   own --accent. Focus without selection still reads apart: no lift. */
-.react-flow__node:focus-visible .agent-node {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
+   own --accent. Focus without selection still reads apart: no lift. A
+   selected card keeps its selection ring (same wrapper carries both). */
+.react-flow__node:focus-visible:not(.rf-selected) .agent-node {
+  outline: var(--focus-w) solid var(--accent);
+  outline-offset: calc(-1 * var(--focus-w));
 }
 
 /* React Flow still renders its stock keyboard instructions into the page
@@ -214,8 +217,10 @@
 :root[data-color-scheme="light"] .agent-node.state-err > .lod-face { --lod-edge: var(--err); }
 .lod-face[data-alarm] { --lod-alarm: var(--warn); padding-inline: 6px; }
 .agent-node.synthetic > .lod-face { border-style: dashed; }
+@media (hover: hover) and (pointer: fine) {
 .react-flow__node:hover .lod-face {
   background: color-mix(in srgb, var(--text) 6%, var(--panel));
+}
 }
 /* Selection and the keyboard's ring move to the face with the chrome — the
    card's own outline is 2px of layout, which at a distance is a hairline. No
@@ -226,8 +231,8 @@
   outline-offset: 2px;
 }
 .react-flow__node:focus-visible .lod-face {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
+  outline: var(--focus-w) solid var(--accent);
+  outline-offset: calc(-1 * var(--focus-w));
 }
 
 /* The lines. The name leads at the card's own 12px weight; the title and the
@@ -392,16 +397,14 @@
   cursor: pointer;
   line-height: 0;
   border-radius: 50%;
-  transition: filter 120ms ease, transform 120ms ease;
+  transition: filter var(--dur-fast) var(--ease), transform var(--dur-fast) var(--ease);
 }
+@media (hover: hover) and (pointer: fine) {
 .ctx-donut:hover { filter: brightness(1.2); transform: scale(1.08); }
+}
 /* After the hover, not before it: the two tie on specificity and a press is
    always a hover as well, so source order is the whole of what decides which
    scale the pointer sees. 26px of donut, so 0.94 like the other icon targets —
    0.97 of 26px is under a pixel. */
-.ctx-donut:active { transform: scale(0.94); }
-.ctx-donut:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
-}
+.ctx-donut:active { transform: scale(var(--press-small)); }
 

@@ -36,7 +36,7 @@
   font-size: calc(13px + var(--ui-text-increase, 0px));
   line-height: var(--lh-body);
   font-weight: 400;
-  animation: fadeIn 200ms ease;
+  animation: fadeIn var(--dur-base) var(--ease);
 }
 .conn-banner .conn-dot {
   flex: 0 0 auto;
@@ -102,7 +102,7 @@
   font-size: calc(13px + var(--ui-text-increase, 0px));
   line-height: var(--lh-body);
   font-weight: 400;
-  animation: fadeIn 200ms ease;
+  animation: fadeIn var(--dur-base) var(--ease);
 }
 /* STILL AT REST, and it pulses only while a restart is actually counting down.
    `pulse` is this deck's word for "running right now" — the live pill, the
@@ -143,11 +143,13 @@
   background: var(--ctl-fill);
   color: var(--text);
   cursor: pointer;
-  transition: border-color 130ms, background 130ms,
-              transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
+  transition: border-color var(--dur-fast) var(--ease), background var(--dur-fast) var(--ease),
+              transform var(--dur-fast) var(--ease);
 }
+@media (hover: hover) and (pointer: fine) {
 .ver-banner .ver-cmd:hover { border-color: var(--text); background: var(--panel); }
-.ver-banner .ver-cmd:active { transform: scale(0.97); }
+}
+.ver-banner .ver-cmd:active { transform: scale(var(--press)); }
 .ver-banner .ver-cmd code {
   font-family: var(--font-mono);
   font-size: calc(11px + var(--ui-text-increase, 0px));
@@ -199,13 +201,15 @@
   line-height: 16px;
   font-weight: 500;
   cursor: pointer;
-  transition: transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
+  transition: transform var(--dur-fast) var(--ease);
 }
+@media (hover: hover) and (pointer: fine) {
 .ver-banner .ver-act:hover:not(:disabled) { text-decoration: underline; }
+}
 /* The most consequential control in the deck — it restarts the process — sat in
    a banner where .ver-cmd, .ver-auto and .ver-close all answered a press and it
    alone did not. */
-.ver-banner .ver-act:active:not(:disabled) { transform: scale(0.97); }
+.ver-banner .ver-act:active:not(:disabled) { transform: scale(var(--press)); }
 .ver-banner .ver-act:disabled { opacity: var(--dim-off); cursor: default; }
 /* A failed install is not a warning, it is a failure, and the command beside it
    is now the only way forward — so it reads in the error colour. */
@@ -251,18 +255,22 @@
   font-size: calc(14px + var(--ui-text-increase, 0px));
   line-height: 1;
   cursor: pointer;
-  transition: background 120ms, color 120ms,
-              transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
+  transition: background var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease),
+              transform var(--dur-fast) var(--ease);
 }
+@media (hover: hover) and (pointer: fine) {
 .ver-banner .ver-close:hover { background: var(--line); color: var(--text); }
-.ver-banner .ver-close:active { transform: scale(0.94); }
+}
+.ver-banner .ver-close:active { transform: scale(var(--press-small)); }
 
 /* dim nodes that don't match search */
 
 /* Spotlight: when an agent is selected, non-lineage nodes fade further.
    Reinforces "follow the chain you clicked" attention. Restores on hover. */
-.react-flow__node.rf-spotlit-out { opacity: 0.16; filter: saturate(0.3) blur(0.3px); transition: opacity 200ms ease, filter 200ms ease; }
+.react-flow__node.rf-spotlit-out { opacity: 0.16; filter: saturate(0.3) blur(0.3px); transition: opacity var(--dur-base) var(--ease); /* opacity only (rule 4): the filter lands at once, the fade carries the change */ }
+@media (hover: hover) and (pointer: fine) {
 .react-flow__node.rf-spotlit-out:hover { opacity: 0.55; filter: saturate(0.7); }
+}
 
 /* Selected edge: thicker, with a flowing dash so the connection stands
    out even when the edge is far away on a busy canvas. */
@@ -277,7 +285,7 @@
    outer .react-flow__node element is not clobbered. */
 .react-flow__node.rf-exiting { pointer-events: none; }
 .react-flow__node.rf-exiting .agent-node {
-  animation: nodeExit 600ms cubic-bezier(0.55, 0, 0.55, 1) forwards;
+  animation: nodeExit 600ms var(--ease) forwards;
   /* Promoted for the exit only (#881). This was `will-change: transform` on
      every `.agent-node`, a compositor layer per card for the life of the board,
      and the only transform a card ever runs is this 600ms leaving — React Flow
@@ -290,7 +298,7 @@
   100% { opacity: 0; filter: blur(6px) saturate(0); transform: scale(0.85); }
 }
 .react-flow__edge.rf-edge-exiting .react-flow__edge-path {
-  animation: edgeExit 600ms ease forwards;
+  animation: edgeExit 600ms var(--ease) forwards;
 }
 @keyframes edgeExit {
   to { opacity: 0; stroke-dashoffset: 40; }

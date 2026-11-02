@@ -161,7 +161,9 @@ describe("a selected row", () => {
   it("is not the hover: the panel's own fill answers the pointer only, the host's rule the selection", () => {
     // A list row is the integrations' shared row (ig-row in integrations.css),
     // whose selection is a fill of its own and whose words all go to --text.
-    expect(decls(topLevel(panel), ".fg-row:hover")).toMatch(/background: var\(--ctl-fill\)/);
+    expect(decls(topLevel(panel), ".fg-row:hover")).toBe("");
+    // The pointer's fill stands under the mouse query, and nowhere else.
+    expect(decls(blocks(panel, "@media (hover: hover) and (pointer: fine)").join("\n"), ".fg-row:hover")).toMatch(/background: var\(--ctl-fill\)/);
     expect(panel).not.toMatch(/\.fg-row\[data-selected\]\s*[,{][^}]*background/);
     expect(lists).not.toMatch(/\.fgl-branch\[data-selected\]\s*[,{][^}]*background/);
   });
@@ -223,13 +225,18 @@ describe("words an item page draws on a filled bed", () => {
 describe("choosing a tab or a section", () => {
   const reduced = (src: string) => blocks(src, "@media (prefers-reduced-motion: reduce)").join("\n");
 
-  it("fades the chosen one's content in over 100ms, moving nothing", () => {
-    expect(decls(topLevel(panel), ".fg-tab-body:not([hidden])")).toBe("animation: fadeIn 100ms ease-out;");
-    expect(decls(topLevel(detail), ".fd-section:not([hidden])")).toBe("animation: fadeIn 100ms ease-out;");
+  // V4's motion rules: tab content never animates. It used to fade in over
+  // 100ms (fadeIn); it is shown at once now, so there is nothing for reduced
+  // motion to take away either.
+  it("shows the chosen one's content at once: tab content never animates", () => {
+    expect(decls(topLevel(panel), ".fg-tab-body:not([hidden])")).toBe("");
+    expect(decls(topLevel(detail), ".fd-section:not([hidden])")).toBe("");
+    expect(panel).not.toMatch(/\.fg-tab-body[^{]*\{[^}]*animation/);
+    expect(detail).not.toMatch(/\.fd-section[^{]*\{[^}]*animation/);
   });
 
-  it("does not fade at all under reduced motion", () => {
-    expect(decls(reduced(panel), ".fg-tab-body:not([hidden])")).toBe("animation: none;");
-    expect(decls(reduced(detail), ".fd-section:not([hidden])")).toBe("animation: none;");
+  it("has no reduced-motion answer to give for it", () => {
+    expect(decls(reduced(panel), ".fg-tab-body:not([hidden])")).toBe("");
+    expect(decls(reduced(detail), ".fd-section:not([hidden])")).toBe("");
   });
 });

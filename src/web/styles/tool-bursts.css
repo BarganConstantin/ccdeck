@@ -20,7 +20,7 @@
   stroke-width: 1.4;
   stroke-dasharray: none;
   stroke-linecap: round;
-  transition: opacity 300ms ease;
+  transition: opacity var(--dur-slow) var(--ease);
 }
 .tool-conn.status-inflight {
   stroke-dasharray: 5 5;
@@ -97,7 +97,7 @@
      spring back, a wobble on every tool call competing with the done flash and
      the error shake, which are the motions that carry meaning. It arrives on
      the sheet's ease-out and stops at its own size. */
-  animation: bubble-spawn 220ms cubic-bezier(0.23, 1, 0.32, 1) both;
+  animation: bubble-spawn 220ms var(--ease) both;
 }
 .tool-burst .tb-emoji {
   font-size: calc(13px + var(--ui-text-increase, 0px));
@@ -132,7 +132,7 @@
   font-size: calc(12px + var(--ui-text-increase, 0px));
   line-height: 1;
   margin-left: 2px;
-  animation: mark-pop 260ms cubic-bezier(0.23, 1, 0.32, 1) both;
+  animation: mark-pop 260ms var(--ease) both;
 }
 /* The ✓ is flat for the reason .tool-burst.status-done below gives up its ring
    and its glow (#861): success is the ordinary case, so the × is the only mark
@@ -189,7 +189,7 @@
      already makes for using `translate`. Overlap is now harmless, so the flash
      can fire on the frame the tool lands, beside the ✓. */
   animation:
-    bubble-spawn 220ms cubic-bezier(0.23, 1, 0.32, 1) both,
+    bubble-spawn 220ms var(--ease) both,
     bubble-done-flash 520ms ease-out;
 }
 .tool-burst.status-err {
@@ -200,7 +200,7 @@
      a failure announced 460ms after it happened — so it loses it for the same
      reason and by the same means: it shakes `translate`, not `transform`. */
   animation:
-    bubble-spawn 220ms cubic-bezier(0.23, 1, 0.32, 1) both,
+    bubble-spawn 220ms var(--ease) both,
     bubble-err-shake 380ms ease-in-out;
 }
 .tool-burst.fading {
@@ -226,7 +226,7 @@
      FADE_MS in ToolBursts.tsx gates the element's removal and the
      reduced-motion answer keeps it too. Only the curve was ever free. */
   animation:
-    bubble-fade-move 600ms cubic-bezier(0.22, 0.61, 0.36, 1) forwards,
+    bubble-fade-move 600ms var(--ease) forwards,
     bubble-fade-out 600ms linear forwards;
 }
 
@@ -267,9 +267,11 @@
 .tool-burst.dim {
   opacity: 0.22;
   filter: saturate(0.4);
-  transition: opacity 180ms ease, filter 180ms ease;
+  transition: opacity var(--dur-base) var(--ease), filter var(--dur-base) var(--ease);
 }
+@media (hover: hover) and (pointer: fine) {
 .tool-burst.dim:hover { opacity: 0.6; }
+}
 
 /* Shell sub-bubble — slightly compressed and a touch dimmer so the eye
    parses "primary → sub" instead of "two equal bubbles". Spawn is delayed so
@@ -295,18 +297,18 @@
   font-size: calc(10px + max(-1px, var(--ui-text-increase, 0px)));
   padding: 4px 10px 4px 12px;
   opacity: 0.94;
-  animation: bubble-spawn 220ms 110ms cubic-bezier(0.23, 1, 0.32, 1) both;
+  animation: bubble-spawn 220ms 110ms var(--ease) both;
 }
 .tool-burst.sub .tb-emoji { font-size: calc(12px + var(--ui-text-increase, 0px)); }
 .tool-burst.sub .tb-name { font-weight: 500; }
 .tool-burst.sub.status-done {
   animation:
-    bubble-spawn 220ms 110ms cubic-bezier(0.23, 1, 0.32, 1) both,
+    bubble-spawn 220ms 110ms var(--ease) both,
     bubble-done-flash 520ms ease-out;
 }
 .tool-burst.sub.status-err {
   animation:
-    bubble-spawn 220ms 110ms cubic-bezier(0.23, 1, 0.32, 1) both,
+    bubble-spawn 220ms 110ms var(--ease) both,
     bubble-err-shake 380ms ease-in-out;
 }
 /* Fade-out wins regardless — when the underlying tool fades, sub fades
@@ -314,7 +316,7 @@
    the primary's: the movement eases, the opacity does not. */
 .tool-burst.sub.fading {
   animation:
-    bubble-fade-move 600ms cubic-bezier(0.22, 0.61, 0.36, 1) forwards,
+    bubble-fade-move 600ms var(--ease) forwards,
     bubble-fade-out 600ms linear forwards;
 }
 
@@ -332,12 +334,14 @@
   /* The dim pair is restated, not inherited: .tool-burst.dim ties this rule on
      specificity and loses on source order, so a search-dimmed bubble would
      snap its fade the moment this transition existed. */
-  transition: translate 120ms ease, scale 140ms cubic-bezier(0.23, 1, 0.32, 1),
-              box-shadow 120ms ease, opacity 180ms ease, filter 180ms ease;
+  transition: translate var(--dur-fast) var(--ease), scale var(--dur-fast) var(--ease),
+              box-shadow var(--dur-fast) var(--ease), opacity var(--dur-base) var(--ease), filter var(--dur-base) var(--ease);
 }
+@media (hover: hover) and (pointer: fine) {
 .tool-burst.clickable:hover {
   translate: 0 -1px;
   box-shadow: 0 3px 8px rgba(0,0,0,0.26);
+}
 }
 /* The press is `scale`, for the reason the lift above is `translate`: transform
    is bubble-spawn's for the bubble's whole life. Same convention as every other
@@ -347,7 +351,7 @@
    and while it runs — 520ms, once, when the tool completes — it outranks this
    rule and the press does not show. A bubble that just finished is already
    announcing itself; a competing press would be the second thing to say. */
-.tool-burst.clickable:active { scale: 0.97; }
+.tool-burst.clickable:active { scale: var(--press); }
 /* A bubble has no :focus-visible rule because a bubble cannot be focused: the
    layer is aria-hidden decoration and the tools it draws are reached from the
    detail panel's list, which is real buttons. See ToolBursts.tsx. */
@@ -464,8 +468,10 @@
    too and is written EARLIER, so on the light theme the hover resolved to the
    resting shadow and `transition: box-shadow 120ms` animated a property that
    never changed. Dark's geometry, in slate at --shadow-2's own weight. */
+@media (hover: hover) and (pointer: fine) {
 :root[data-color-scheme="light"] .tool-burst.clickable:hover {
   box-shadow: 0 3px 8px rgba(15,23,42,0.14);
+}
 }
 :root[data-color-scheme="light"] .tool-conn.status-inflight {
   stroke: rgba(126,34,206,0.85);

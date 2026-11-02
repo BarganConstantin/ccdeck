@@ -259,6 +259,6 @@ describe("the block lights and presses as one", () => {
   });
 
   it("presses at the 0.97 every labelled control in the panel presses at", () => {
-    expect(rule(".sysdetail .sd-reading:active")).toMatch(/transform:\s*scale\(0\.97\)/);
+    expect(rule(".sysdetail .sd-reading:active")).toMatch(/transform:\s*scale\(var\(--press\)\)/); // --press is .97
   });
 });
