@@ -124,7 +124,6 @@
   .left-column.closing > .leaving { transform: none; transition: none; }
   /* The accounts panel closes on the same 140ms crossfade it opens on, with no
      travel. */
-  .left-column > .accounts-panel { transition: opacity 140ms ease; }
   .left-column > .accounts-panel.leaving { transform: none; transition: none; }
   .left-column.closing > .accounts-panel.leaving { transform: none; transition: opacity 140ms ease; }
   @starting-style {
