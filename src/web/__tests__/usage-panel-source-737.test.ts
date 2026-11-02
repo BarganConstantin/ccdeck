@@ -452,7 +452,7 @@ describe("markup, read as source", () => {
     expect(panel.indexOf("<UsagePeriodStrip")).toBeGreaterThan(-1);
     // CHANGED ON PURPOSE (V4's Figma): the gate follows the skeleton's own
     // branch, which also sits after the strip.
-    expect(panel.indexOf("<UsagePeriodStrip")).toBeLessThan(panel.indexOf("{fromRange && skeleton ? null : totalTokenSum > 0 ? ("));
+    expect(panel.indexOf("<UsagePeriodStrip")).toBeLessThan(panel.indexOf("{showSkeleton ? null : totalTokenSum > 0 ? ("));
     // Every period but `all`, which has no longer one to offer (#1806).
     expect(panel).toContain(`: <>{t("usage.empty.period", { period: periodWord })}<br />{t("usage.empty.longer")}</>`);
   });

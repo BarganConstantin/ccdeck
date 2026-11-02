@@ -599,8 +599,6 @@ const catalog: Catalog = {
   "insights.machine.thermal": "Térmico",
   "insights.machine.thermalHistory": "Historial térmico",
   "insights.machine.showThermal": "Ver el historial térmico",
-  "insights.machine.barTitle": "la barra va de 0 a {crit} °C · ámbar desde {warn} °C, roja a {crit} °C",
-  "insights.machine.trackLabel": "{c} °C en una barra que llega a {crit} °C, ámbar desde {warn} °C",
   "insights.machine.throttling": "Limitación térmica",
   "insights.machine.processesAria": "Procesos más activos: ver todos los procesos que vigila el deck",
   "insights.machine.processesSub": "todos los procesos, con su línea de comandos",

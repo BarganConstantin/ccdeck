@@ -599,8 +599,6 @@ const catalog: Catalog = {
   "insights.machine.thermal": "Thermique",
   "insights.machine.thermalHistory": "Historique thermique",
   "insights.machine.showThermal": "Afficher l’historique thermique",
-  "insights.machine.barTitle": "la barre va de 0 à {crit} °C · orange dès {warn} °C, rouge à {crit} °C",
-  "insights.machine.trackLabel": "{c} °C sur une barre qui va jusqu’à {crit} °C, orange dès {warn} °C",
   "insights.machine.throttling": "Bridage",
   "insights.machine.processesAria": "Processus les plus actifs : afficher tous les processus surveillés par ccdeck",
   "insights.machine.processesSub": "tous les processus, avec leur ligne de commande",

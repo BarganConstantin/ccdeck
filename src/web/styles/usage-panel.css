@@ -504,8 +504,8 @@
    is far from: 10.85 / 12.55 / 9.54 in dark and 5.93 / 5.43 / 6.47 in light
    against --accent / --warn / --err, and 9.54–12.89 against the marker itself
    in both themes, so the boundary reads in every state while the hue goes on
-   carrying deficit-vs-surplus. .qb-track clips the ring top and bottom
-   (overflow: hidden), which leaves exactly the two vertical edges that matter.
+   carrying deficit-vs-surplus. .qb-track clips the ring left and right
+   (overflow-x: clip), which leaves exactly the two vertical edges that matter.
    "Where should I be by now" is the one number in this panel printed nowhere
    on screen — it lives in a title — so the marker is all there is. */
 /* The rail the marker rides (#863). As wide as the track, so translateX's
@@ -632,10 +632,16 @@ button.qb-pace::after {
   line-height: 16px;
   color: var(--muted);
 }
+/* Label row, "Quota unavailable." and the hint sit 12 apart, as the frame
+   draws them: 12 under the label row here, and the 3 of the column's gap plus
+   9 between the sentence and its hint. */
+.up-section-title[data-down] { margin-bottom: 12px; }
+.up-quota-na > .up-quota-down + .up-quota-hint { margin-top: 9px; }
 .up-section-title[data-down] .up-section-age { margin-left: auto; }
 .up-section-title[data-down] .up-section-age::before { content: none; }
 /* A partial reading's note: a box on --ctl-fill, --r-panel, padding 6 8, 400
-   12/16 --text-secondary. */
+   12/16 --text-secondary. Only the partial-data note wears it; the Codex
+   "standard limits" footnote is a plain 12/16 --muted line. */
 .up-quota-sub.up-quota-note {
   box-sizing: border-box;
   padding: 6px 8px;

@@ -300,11 +300,11 @@ export function CodexQuotaSection({ codexQuota, codexLoading, nowSec, incident, 
           {codexQuota.promo && (
             <div className="up-quota-sub">{codexQuota.promo}</div>
           )}
-          {codexQuota.partial && (
-            <div className="up-quota-sub up-quota-note">
-              {codexQuota.coverage === 'standard_limits' ? t("usage.quota.standardLimits") : t("usage.quota.partial")}
-            </div>
-          )}
+          {codexQuota.partial && (codexQuota.coverage === 'standard_limits'
+            // The standard-limits footnote is a plain line; only the
+            // partial-data note is the box.
+            ? <div className="up-quota-sub">{t("usage.quota.standardLimits")}</div>
+            : <div className="up-quota-sub up-quota-note">{t("usage.quota.partial")}</div>)}
         </div>
       ) : codexQuota?.ok === false ? (
         <div className="up-quota-na">

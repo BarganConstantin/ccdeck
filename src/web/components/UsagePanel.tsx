@@ -33,6 +33,7 @@ import { selfPressProps } from "../panel-press";
 import { useCodexQuota, useQuota } from "../use-quota";
 import { useEndedWeeks } from "../quota-closes";
 import { useUsageRange } from "../use-usage-range";
+import { useSkeletonDelay } from "../use-skeleton-delay";
 import { useCountUp } from "../use-count-up";
 import { useBoardSpend } from "../use-board-spend";
 import { usePanelClock } from "../use-panel-clock";
@@ -162,7 +163,7 @@ export default function UsagePanel({ state, now, providers, incidents = [], leav
 
   // `loading` on its own is not a state this panel shows, and that has not
   // changed: a refresh of the range already on screen moves no figure the
-  // reader can act on, and dimming for it would make the panel flicker once a
+  // reader can act on, and a skeleton for it would make the panel flicker once a
   // minute on its own poll. What is read below is `loading AND stale` — a
   // fetch genuinely in flight FOR A PERIOD THAT IS NOT THE ONE SHOWN.
   /**
@@ -175,27 +176,26 @@ export default function UsagePanel({ state, now, providers, incidents = [], leav
    * transcript directory rather than the range asked of it — and every read of
    * a range already fetched is 10ms, from the server's own cache. So the wait is
    * uniform, it happens on the first press of each word, and after that the
-   * strip is instant for the rest of the session. Two and a half seconds of a
-   * panel that only dims is a panel that looks broken rather than busy.
+   * strip is instant for the rest of the session. Two and a half seconds of
+   * unchanged figures is a panel that looks broken rather than busy, so after a
+   * short delay (below) the skeleton says it is reading.
    *
    * `loading && stale` rather than `loading`, for the reason above it, and
    * rather than `stale` alone for a reason that matters more: a fetch that
    * FAILS leaves the figures stale for good, and an indicator keyed on staleness
    * would then say "reading" forever. `loading` clears in the fetch's own
-   * `finally`, so a failure stops the signal and leaves the figures dimmed —
-   * which is the truth: they are the previous period's, and nothing is coming.
+   * `finally`, so a failure stops the signal and the previous period's figures
+   * come back under their own noun — which is the truth: they are the previous
+   * period's, and nothing is coming.
    */
   const rangePending = rangeLoading && rangeStale;
   // The skeleton (V4's Figma) takes the stale figures' place, but only once the
   // wait is real: a range the server already holds answers in about 10ms, and a
   // skeleton flashing for that long is a flicker. So the previous period's
   // figures stay for the first SKELETON_AFTER_MS and the skeleton follows.
-  const [skeleton, setSkeleton] = useState(false);
-  useEffect(() => {
-    if (!rangePending) { setSkeleton(false); return; }
-    const id = window.setTimeout(() => setSkeleton(true), SKELETON_AFTER_MS);
-    return () => window.clearTimeout(id);
-  }, [rangePending]);
+  // The hook is false in the very render the answer lands (use-skeleton-delay.ts).
+  const skeleton = useSkeletonDelay(rangePending, SKELETON_AFTER_MS);
+  const showSkeleton = fromRange && skeleton;
 
   // The board's own names and states, by session id — the two halves of the
   // join between ccusage's session rows and the canvas. The folds are
@@ -226,7 +226,7 @@ export default function UsagePanel({ state, now, providers, incidents = [], leav
 
   // The word over the figures names the range the figures came from, not the
   // chip the reader just pressed. While a slower range loads, the panel reads
-  // "$4.20 today" with `all` pressed and dimmed — never "$4.20 all time".
+  // "$4.20 today" with `all` pressed — never "$4.20 all time".
   const periodNoun = nounFor(shownPeriod, period);
   // The same word in the reader's language, for the lines this panel draws
   // itself; the breakdown component below still takes the English one.
@@ -237,9 +237,9 @@ export default function UsagePanel({ state, now, providers, incidents = [], leav
   // pressable, and since #1289 not the figures either. They used to fade to
   // --dim-stale, and every one of them is a word: 0.45 took --text to 3.55:1 and
   // --muted to 1.95:1 on the dark panel, under AA for the numbers a reader is
-  // still using. The stale state is said in words instead, at full contrast —
-  // the headline's noun names the period the figures are FROM ("$4.20 today"
-  // with `all` pressed), the session heading says "active today", and the
+  // still using. For the first SKELETON_AFTER_MS the previous period's figures
+  // stay at full contrast, their noun naming the period they are FROM ("$4.20
+  // today" with `all` pressed); after that the skeleton replaces them. The
   // pressed chip pulses while its read is out.
 
   // WHAT HAS HAPPENED SINCE THE READING WAS TAKEN, from the canvas.
@@ -353,7 +353,7 @@ export default function UsagePanel({ state, now, providers, incidents = [], leav
               the same thing. */}
       {fromRange && <UsagePeriodStrip period={period} rangePending={rangePending} setPeriod={setPeriod} />}
 
-      {fromRange && skeleton ? (
+      {showSkeleton ? (
         <>
           {/* A READ FOR ANOTHER PERIOD IS OUT (V4's Figma): the words, then two
               skeleton rows where the figures will be. */}
@@ -454,7 +454,7 @@ export default function UsagePanel({ state, now, providers, incidents = [], leav
           incident={incidents.find(i => i.provider === "codex")} />
       )}
 
-      {fromRange && skeleton ? null : totalTokenSum > 0 ? (
+      {showSkeleton ? null : totalTokenSum > 0 ? (
         <>
 
           {/* NO BOARD FIGURE UNDER A ccusage HEADLINE.

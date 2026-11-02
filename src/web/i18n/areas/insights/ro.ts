@@ -618,8 +618,6 @@ const catalog: Catalog = {
   "insights.machine.thermal": "Termic",
   "insights.machine.thermalHistory": "Istoricul temperaturii",
   "insights.machine.showThermal": "Arată istoricul temperaturii",
-  "insights.machine.barTitle": "bara merge de la 0 la {crit} °C · chihlimbar de la {warn} °C, roșu la {crit} °C",
-  "insights.machine.trackLabel": "{c} °C pe o bară care merge până la {crit} °C, chihlimbar de la {warn} °C",
   "insights.machine.throttling": "Limitare termică",
   "insights.machine.processesAria": "Cele mai active procese: arată fiecare proces urmărit de ccdeck",
   "insights.machine.processesSub": "fiecare proces, cu linia lui de comandă",

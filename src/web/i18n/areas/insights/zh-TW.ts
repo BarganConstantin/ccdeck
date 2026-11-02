@@ -599,8 +599,6 @@ const catalog: Catalog = {
   "insights.machine.thermal": "溫度",
   "insights.machine.thermalHistory": "溫度紀錄",
   "insights.machine.showThermal": "顯示溫度紀錄",
-  "insights.machine.barTitle": "長條範圍為 0–{crit} °C · {warn} °C 起為琥珀色，{crit} °C 為紅色",
-  "insights.machine.trackLabel": "{c} °C，長條上限為 {crit} °C，{warn} °C 起為琥珀色",
   "insights.machine.throttling": "降頻",
   "insights.machine.processesAria": "最忙碌的程序：顯示 ccdeck 監看的所有程序",
   "insights.machine.processesSub": "所有程序及其指令列",

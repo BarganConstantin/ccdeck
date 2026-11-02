@@ -269,6 +269,6 @@ describe("the panel gives it a section of its own", () => {
   // A connection that cannot be asked is the one network state that is a fault
   // rather than a figure, so it never moves inside the disclosure.
   it("says an unreachable API in the panel itself", () => {
-    expect(panel).toContain('<div className="sd-note sd-note-warn">{t("insights.machine.cantReach")}</div>');
+    expect(panel).toContain('<div className="sd-note sd-note-err">{t("insights.machine.cantReach")}</div>');
   });
 });

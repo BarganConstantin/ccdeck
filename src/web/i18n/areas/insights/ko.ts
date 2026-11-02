@@ -580,8 +580,6 @@ const catalog: Catalog = {
   "insights.machine.thermal": "온도",
   "insights.machine.thermalHistory": "온도 기록",
   "insights.machine.showThermal": "온도 기록 보기",
-  "insights.machine.barTitle": "막대 범위 0–{crit} °C · {warn} °C부터 주황색, {crit} °C에서 빨간색",
-  "insights.machine.trackLabel": "{crit} °C까지인 막대에서 {c} °C, {warn} °C부터 주황색",
   "insights.machine.throttling": "스로틀링",
   "insights.machine.processesAria": "가장 바쁜 프로세스: ccdeck가 감시하는 모든 프로세스 보기",
   "insights.machine.processesSub": "모든 프로세스와 명령줄",

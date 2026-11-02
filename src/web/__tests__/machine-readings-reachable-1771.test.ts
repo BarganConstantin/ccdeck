@@ -112,13 +112,45 @@ describe("the whole panel, drawn from one snapshot", () => {
       `${fmtBytes(32 * GIB - 11.5 * GIB)} of ${fmtBytes(32 * GIB)}`, `${fmtBytes(11.5 * GIB)} available`, "Swap",
       // Network, and the one state of it that is a fault.
       "Download", "Upload", "Can’t reach Claude",
-      // Thermal: the sensor, the bar in words, and the throttle row.
+      // Thermal: the sensor, its critical point in words, and the throttle row.
       // CHANGED ON PURPOSE (V4's Figma): the sensor is a plain row, "58 °C",
-      // with no bar to put in words.
-      "Package id 0", "58 °C", "Throttling",
+      // and the bar is gone; the critical point is said on the row instead
+      // ("critical at 90 °C"), so no figure the reading carried is lost.
+      "Package id 0", "58 °C", "critical at 90 °C", "Throttling",
       "CPU held to 80% of full speed to cool down",
     ];
     for (const f of figures) expect(unreachable(html, f), f).toEqual([]);
+  });
+
+  it("describes the sensor's critical point to a reader, and on a tooltip", () => {
+    expect(html).toContain('title="critical at 90 °C"');
+    expect(html).toMatch(/aria-describedby="([^"]+)"[^>]*>(?:(?!<\/div>)[\s\S])*?<span id="\1" class="vis-hidden">critical at 90 °C<\/span>/);
+  });
+
+  it("keeps the throttle note on the row when nothing is throttled right now", () => {
+    // At 0% the note is where "it did happen, 25 minutes ago" lives; the row
+    // used to print it only while throttling was above zero.
+    snap.current = {
+      ...machine,
+      thermal: { ...machine.thermal!, throttle: { speedLimit: 100 }, heldBack: { peak: 9, lastMs: Date.now() - 25 * 60_000 } },
+    };
+    try {
+      const calm = renderToStaticMarkup(createElement(MachinePanel, { usageOpen: false, onClose: () => {} }));
+      expect(calm).toContain("0%");
+      expect(calm).toMatch(/class="sd-plain-note">at full speed · held to 91% /);
+    } finally {
+      snap.current = machine;
+    }
+  });
+
+  it("says so when it has never been held back", () => {
+    snap.current = { ...machine, thermal: { ...machine.thermal!, throttle: { speedLimit: 100 }, heldBack: null } };
+    try {
+      const calm = renderToStaticMarkup(createElement(MachinePanel, { usageOpen: false, onClose: () => {} }));
+      expect(calm).toContain('class="sd-plain-note">running at full speed, and never held back');
+    } finally {
+      snap.current = machine;
+    }
   });
 
   it("names every control with the words it shows", () => {

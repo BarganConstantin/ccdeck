@@ -5,7 +5,7 @@
 // of these three, and each says in its own comment why it is drawn the way it
 // is; which readings a section draws, and in what order, stays with the
 // section.
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useId, useRef, useState } from "react";
 
 import { KitIcon } from "./kit-icons";
 import SectionHistoryModal from "./SectionHistoryModal";
@@ -147,9 +147,13 @@ export function OpensHistory({ group, title, action, label, value, hint, liveNot
 /**
  * The colour a meter's fill takes (V4's Figma): under 70 `--muted`, 70 to 89
  * `--text`, 90 and up `--err`. Never amber — amber means an agent waits.
+ *
+ * `alarm: false` is for the readings that never alarm (the CPU and its cores,
+ * see the top of MachinePanel.tsx): they take `--muted` under 70 and `--text`
+ * from 70 up, and never `--err`.
  */
-export function meterLevel(pct: number): "muted" | "text" | "err" {
-  return pct >= 90 ? "err" : pct >= 70 ? "text" : "muted";
+export function meterLevel(pct: number, alarm = true): "muted" | "text" | "err" {
+  return pct >= 90 && alarm ? "err" : pct >= 70 ? "text" : "muted";
 }
 
 /**
@@ -157,13 +161,16 @@ export function meterLevel(pct: number): "muted" | "text" | "err" {
  *
  * A floor of 1%, so a reading that is present but tiny still draws a sliver
  * rather than reading as "no data" — but only ABOVE zero: zero draws nothing.
+ *
+ * The colour comes from the figure as it is printed (rounded), so a reading of
+ * 89.6 that says "90%" is also coloured as 90.
  */
-export function Meter({ pct, label }: { pct: number; label?: string }) {
+export function Meter({ pct, label, alarm = true }: { pct: number; label?: string; alarm?: boolean }) {
   return (
     <span className="sd-track" role={label ? "img" : undefined} aria-label={label}>
       <span
         className="sd-fill"
-        data-level={meterLevel(pct)}
+        data-level={meterLevel(Math.round(pct), alarm)}
         style={{ transform: `scaleX(${pct <= 0 ? 0 : Math.max(1, Math.min(100, pct)) / 100})` }}
       />
     </span>
@@ -177,20 +184,18 @@ export function Meter({ pct, label }: { pct: number; label?: string }) {
  * kinds of reading — "41 of 64 GB", "18%" — and the formatting belongs to the
  * section rather than to the component every section shares.
  */
-export function Row({ label, value, pct, note, title, trackLabel }: {
-  label: string; value: React.ReactNode; pct: number; note?: string; title?: string;
-  /** The meter said in words, for a reader who gets no tooltip. */
-  trackLabel?: string;
+export function Row({ label, value, pct, note }: {
+  label: string; value: React.ReactNode; pct: number; note?: string;
 }) {
   return (
-    <div className="sd-row" title={title}>
+    <div className="sd-row">
       <div className="sd-row-head">
         <span className="sd-row-label">{label}</span>
         {/* "How much of how much" — the question a percentage cannot answer and
             the reason this panel exists. */}
         <span className="sd-row-val">{value}</span>
       </div>
-      <Meter pct={pct} label={trackLabel} />
+      <Meter pct={pct} />
       {note && <div className="sd-note">{note}</div>}
     </div>
   );
@@ -201,12 +206,17 @@ export function Row({ label, value, pct, note, title, trackLabel }: {
  * right in mono. `err` is for a reading the deck already treats as an error
  * (a sensor past its own critical point, a clock held down hard); anything else
  * is --text, never amber. `note` is the sentence that explains it, under.
+ * `hint` is a fact about the reading that the frame has no room to draw (a
+ * sensor's critical point): it is the row's tooltip and, for a reader who
+ * cannot hover, a visually hidden description of the row.
  */
-export function PlainRow({ label, value, err, note }: { label: string; value: React.ReactNode; err?: boolean; note?: string }) {
+export function PlainRow({ label, value, err, note, hint }: { label: string; value: React.ReactNode; err?: boolean; note?: string; hint?: string }) {
+  const hintId = useId();
   return (
-    <div className="sd-plain">
+    <div className="sd-plain" title={hint} aria-describedby={hint ? hintId : undefined}>
       <span className="sd-plain-label">{label}</span>
       <span className="sd-plain-val" data-err={err ? "" : undefined}>{value}</span>
+      {hint && <span id={hintId} className="vis-hidden">{hint}</span>}
       {note && <span className="sd-plain-note">{note}</span>}
     </div>
   );

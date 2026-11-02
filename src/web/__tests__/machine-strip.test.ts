@@ -394,11 +394,10 @@ describe("the process section is one way in, and draws nothing", () => {
     expect(block).toContain('{t("insights.machine.processesSub")}');
     // CHANGED ON PURPOSE (V4's Figma): the kit's 14 chevron, not a typed ›.
     expect(block).toContain('<KitIcon name="chevron-right" className="sd-row-more" />');
-    // The name is in the reading colour, not the heading grey. The door is a
-    // row now, not a card inside the panel: no plate fill, no radius and no
-    // edge of its own (1.4.11 is satisfied by the label), set off by a
-    // hairline above the section instead.
-    // CHANGED ON PURPOSE (V4's Figma): the row's name is 500 12/16 --text-secondary.
+    // The door is a row now, not a card inside the panel: no plate fill, no
+    // radius and no edge of its own (1.4.11 is satisfied by the label).
+    // CHANGED ON PURPOSE (V4's Figma): the row's name is 500 12/16
+    // --text-secondary, the same colour as the section headings.
     expect(rule(".sd-door-name")).toContain("color: var(--text-secondary)");
     expect(rule(".sysdetail .sd-door .sd-door-plate")).not.toContain("background");
     expect(rule(".sysdetail .sd-door .sd-door-plate")).not.toContain("border-radius");

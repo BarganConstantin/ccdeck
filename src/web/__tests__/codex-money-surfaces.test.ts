@@ -261,7 +261,9 @@ describe("a model with no rate says so instead of vanishing", () => {
   it("shows the breakdown even when nothing in the deck could be priced at all", () => {
     // The two tables used to live inside `hasCost`, so an all-Codex deck on an
     // unpriced model got a two-number strip and no breakdown whatsoever.
-    expect(panel).toMatch(/\{totalTokenSum > 0 \? \(/);
+    // CHANGED ON PURPOSE (V4's Figma): the token gate follows the skeleton's own
+    // gate, `{showSkeleton ? null : totalTokenSum > 0 ? (`; the rule is the same.
+    expect(panel).toMatch(/\{showSkeleton \? null : totalTokenSum > 0 \? \(/);
     expect(panel).toMatch(/\{hasCost && \(/);
     expect(panelSurface).not.toMatch(/\{hasCost \? \(/);
   });
