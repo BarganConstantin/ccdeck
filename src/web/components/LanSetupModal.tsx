@@ -63,6 +63,7 @@
 // account's machines count, and how many are there — and that is a quiet line
 // under the switch's own label. The heading already says Tailscale, so the
 // labels do not say it again.
+import Checkbox from "./Checkbox";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Dialog, DialogClose } from "./Dialog";
@@ -316,8 +317,7 @@ export default function LanSetupModal({ status, accounts, onClose, onChanged }: 
                   : a.inUse
                     ? t("lan.setup.shareInUse")
                     : t("lan.setup.shareOffer")}>
-                  <input
-                    type="checkbox"
+                  <Checkbox
                     checked={shared.has(a.key)}
                     onChange={e => {
                       const next = nextShared(pending.current, status.shared ?? [], a.key, e.target.checked);

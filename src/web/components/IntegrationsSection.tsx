@@ -26,7 +26,7 @@ import { armedPress, CONFIRM_GAP_MS, focusDropped } from "../panel-press";
 import IntegrationConnectionForm from "./IntegrationConnectionForm";
 import IntegrationConnectionDetails, { connectionServer, verificationTime } from "./IntegrationConnectionDetails";
 import { SettingsGroup } from "./SettingsParts";
-import { Loader } from "./Loader";
+import { WaitingLoader } from "./Loader";
 
 type Editing = { mode: "add"; kind: IntegrationKind } | { mode: "edit"; id: string } | null;
 type Note = { id: string; tone: "ok" | "err"; text: string; scope?: "disconnect" };
@@ -383,7 +383,7 @@ export default function IntegrationsSection({ onBeforeLeaveChange }: {
         {listError && <div className="ig-list-error" role="alert">
           <p>{listError}</p><button type="button" className="btn" onClick={() => void refreshIntegrations()}>{t("integrations.retry")}</button>
         </div>}
-        {connections === null && !listError && <p className="loader-line" role="status"><Loader />{t("integrations.settings.reading")}</p>}
+        {connections === null && !listError && <p className="loader-line" role="status"><WaitingLoader busy />{t("integrations.settings.reading")}</p>}
         {overviewNotice && <p className="ig-note" role="status">{overviewNotice}</p>}
         <div className="ig-connection-list" data-setting="integrations-connections">
         {connections !== null && <div className="ig-providers" data-setting="integrations-add" id={reach === "all" ? "integrations-add-title" : undefined}>

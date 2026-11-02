@@ -201,7 +201,8 @@ describe("each section in the nav carries its glyph", () => {
   const tabs = [...html.matchAll(/<button([^>]*role="tab"[^>]*)>([\s\S]*?)<\/button>/g)]
     .map(m => ({ attrs: m[1], inner: m[2] }));
   const glyphOf = (section: SettingsSection) => renderToStaticMarkup(createElement(SettingsSectionGlyph, { section }));
-  const SPEC = '<svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">';
+  const KIT_SPEC = '<svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"';
+  const SPEC ='<svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">';
 
   it("draws no glyph in the nav: V4's nav item is its name alone (the glyph stays for quick open and the search results)", () => {
     expect(tabs).toHaveLength(SETTINGS_SECTIONS.length);
@@ -226,6 +227,11 @@ describe("each section in the nav carries its glyph", () => {
     // chosen, and the system's text colour under a Contrast theme.
     for (const { id } of SETTINGS_SECTIONS) {
       const glyph = glyphOf(id);
+      // Sections V4's kit has an icon for draw it (14px, 1.5; kit-icons.tsx).
+      if (glyph.startsWith(KIT_SPEC)) {
+        expect(glyph.match(/stroke="[^"]*"/g), id).toContain('stroke="currentColor"');
+        continue;
+      }
       expect(glyph.startsWith(SPEC), id).toBe(true);
       expect(glyph.match(/fill="[^"]*"/g), id).toEqual(['fill="none"']);
       expect(glyph.match(/stroke="[^"]*"/g), id).toEqual(['stroke="currentColor"']);

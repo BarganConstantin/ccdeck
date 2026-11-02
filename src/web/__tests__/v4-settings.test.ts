@@ -198,15 +198,15 @@ describe("V4's switch: 32 x 18 with a 14px knob", () => {
     expect(decl('.switch[data-tone="warn"][aria-checked="true"]', "background")).toBe("var(--warn)");
     expect(decl('.switch[data-tone="warn"][aria-checked="true"]', "border-color")).toBe("var(--warn)");
   });
-  it("has a round 14px knob, --muted off and --panel on, travelling 12px (2px of air at each end)", () => {
+  it("has a round 14px knob, --muted off and --panel on, travelling 14px (2px of air at each end from the outer edge)", () => {
     expect(decl(".switch-knob", "width")).toBe("14px");
     expect(decl(".switch-knob", "height")).toBe("14px");
-    expect(decl(".switch-knob", "left")).toBe("2px");
+    expect(decl(".switch-knob", "left")).toBe("1px");
     expect(decl(".switch-knob", "background")).toBe("var(--muted)");
     expect(decl('.switch[aria-checked="true"] .switch-knob', "background")).toBe("var(--panel)");
-    expect(decl('.switch[aria-checked="true"] .switch-knob', "transform")).toBe("translateY(-50%) translateX(12px)");
-    // 32 - 2 (border) = 30 inside; 30 - 2 - 14 - 2 = 12.
-    expect(30 - 2 - 14 - 2).toBe(12);
+    expect(decl('.switch[aria-checked="true"] .switch-knob', "transform")).toBe("translateY(-50%) translateX(14px)");
+    // 32 wide, 2px of padding either side (the 1px stroke inside it): 32 - 4 - 14 = 14.
+    expect(32 - 4 - 14).toBe(14);
   });
   it("moves the knob in Base and stretches it in Fast on a pointer press only, toward the left when on", () => {
     expect(decl(".switch-knob", "transition")).toBe(
@@ -215,7 +215,7 @@ describe("V4's switch: 32 x 18 with a 14px knob", () => {
     expect(decl(press, "width")).toBe("18px");
     expect(decl(press, "transition-duration")).toBe("var(--dur-fast)");
     expect(decl('.switch[aria-checked="true"]:active:not(:disabled):not(:focus-visible) .switch-knob', "transform"))
-      .toBe("translateY(-50%) translateX(8px)");
+      .toBe("translateY(-50%) translateX(10px)");
     expect(decl(".switch:focus-visible .switch-knob", "transition-duration")).toBe("var(--dur-fast)");
   });
   it("no longer scales the track on press, in either sheet", () => {
@@ -235,7 +235,7 @@ describe("V4's switch: 32 x 18 with a 14px knob", () => {
     const press = ".switch:active:not(:disabled):not(:focus-visible) .switch-knob";
     expect(decl(press, "width", REDUCED)).toBe("14px");
     expect(decl(`.switch[aria-checked="true"]${press.slice(".switch".length)}`, "transform", REDUCED))
-      .toBe("translateY(-50%) translateX(12px)");
+      .toBe("translateY(-50%) translateX(14px)");
   });
   it("keeps the 24px target", () => {
     expect(decl(".switch::after", "height")).toBe("24px");

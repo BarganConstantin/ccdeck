@@ -43,6 +43,13 @@
   25% { opacity: 1; transform: scale(1); }
 }
 @keyframes loader-in { from { opacity: 0; } }
+@keyframes loader-out { to { opacity: 0; } }
+/* A grid the app times itself (WaitingLoader): it is only mounted once the
+   150 ms have passed, so the entrance has no delay of its own, and it leaves
+   over --dur-exit instead of being removed at full opacity. */
+.loader[data-timed] { animation: loader-in var(--dur-fast) linear both; }
+.loader[data-timed][data-leaving] { animation: loader-out var(--dur-exit) var(--ease) both; }
+.loader[data-timed][data-idle] { animation: none; opacity: 0; }
 /* The hidden window stops it, the way .su-loading does. */
 .loader[data-paused], .loader[data-paused] i { animation-play-state: paused; }
 /* Reduced motion: no wave, the pixels hold at 0.6 and the whole grid pulses,
@@ -55,6 +62,17 @@
       pulse var(--pulse-live) calc(var(--delay-loader) + var(--dur-fast)) infinite;
   }
   .loader i { animation: none; opacity: 0.6; transform: none; }
+}
+/* The grid the app times itself keeps its pulse under reduced motion, as the
+   one above does, and still leaves over --dur-exit. */
+@media (prefers-reduced-motion: reduce) {
+  .loader[data-timed] {
+    animation:
+      loader-in var(--dur-fast) linear both,
+      pulse var(--pulse-live) var(--dur-fast) infinite;
+  }
+  .loader[data-timed][data-leaving] { animation: loader-out var(--dur-exit) var(--ease) both; }
+  .loader[data-timed][data-idle] { animation: none; opacity: 0; }
 }
 /* The grid and the words that say what it is waiting for. */
 .loader-line { display: flex; align-items: center; gap: 8px; }

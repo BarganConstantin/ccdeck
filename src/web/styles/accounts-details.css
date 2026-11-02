@@ -69,7 +69,8 @@
      `.ctx-modal-close`, `.uh-close` and the header closes that used to press as
      `button.btn` are all `.glyph-btn` now, and the press they share switches off
      with them. */
-  .glyph-btn:active:not(:disabled),
+  .glyph-btn:active:not(:disabled):not(:focus-visible),
+  .react-flow__controls-button:active:not(:disabled):not([aria-disabled="true"]):not(:focus-visible),
   .cat-filter:active, .uh-range-btn:active,
   .selected-ribbon .selected-close:active,
   .ver-banner .ver-cmd:active,

@@ -14,30 +14,17 @@
 // switches at once. A click's `detail` is its count, 0 for a key.
 import type { MouseEvent } from "react";
 import type { View } from "../use-view";
+import { KitIcon } from "./kit-icons";
 
 export const VIEW_SWITCH_LABEL = "View";
 export const BOARD_LABEL = "Board";
 export const WORKSPACE_LABEL = "Workspace";
 
-/** The Board: four cards. */
-const BoardGlyph = () => (
-  <svg className="glyph" width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor"
-    strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-    <rect x="2" y="2" width="4" height="4" rx="1" />
-    <rect x="8" y="2" width="4" height="4" rx="1" />
-    <rect x="2" y="8" width="4" height="4" rx="1" />
-    <rect x="8" y="8" width="4" height="4" rx="1" />
-  </svg>
-);
+/** The Board. */
+const BoardGlyph = () => <KitIcon name="board" className="glyph" />;
 
 /** The Workspace: the list, the pane and the Inspector side by side. */
-const WorkspaceGlyph = () => (
-  <svg className="glyph" width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor"
-    strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-    <rect x="1.7" y="2.2" width="10.6" height="9.6" rx="1.6" />
-    <path d="M5 2.4v9.2M9.6 2.4v9.2" />
-  </svg>
-);
+const WorkspaceGlyph = () => <KitIcon name="workspace" className="glyph" />;
 
 export interface ViewSwitchProps {
   view: View;

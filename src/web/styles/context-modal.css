@@ -300,22 +300,12 @@
 /* The ※ pin: the one mark a resting card carries when Claude Code has left it
    a recap. The glyph button's own hit area and focus ring, in the session's
    colour — a graphic, held to 3:1, which the card's --accent clears as text.
-   Held down while its note is open, so the card says which note is its own. */
+   While its note is open it wears the kit icon button's open state (--selected
+   on --r-ctl, panel-glyph.css), so the card says which note is its own. */
 .agent-node .recap-pin {
   flex: none;
   color: var(--accent);
 }
-.agent-node .recap-pin[aria-expanded="true"] {
-  border-radius: var(--r-ctl);
-  background: color-mix(in srgb, var(--accent) 18%, transparent);
-}
-
-/* The recap itself: a node of its own beside the session root, open by itself
-   once the session comes to rest (RecapNoteNode). A node like the cards — laid
-   out by the same pass, moved by the same drags, fitted by the same fit — so it
-   takes a card's depth and radius, with the panel's plate and a hairline of the
-   session's colour. It is not inside the card, so it rebuilds the card's
-   --accent from the hue it is handed.
    NO CURSOR OF ITS OWN. It said `cursor: grab`, which the node's wrapper
    already says (React Flow's sheet), and an element's own cursor beats the one
    it inherits: React Flow's `.dragging { cursor: grabbing }` landed on the

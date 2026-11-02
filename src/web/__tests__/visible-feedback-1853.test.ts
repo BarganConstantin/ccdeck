@@ -219,7 +219,7 @@ describe("the topbar's Feedback button", () => {
 
   it("draws its glyph on the chrome's one icon spec (#837), and says its word beside it at every desktop width", () => {
     expect(item).toMatch(/glyph: <FeedbackGlyph \/>/);
-    expect(read("../components/rail-glyphs.tsx")).toMatch(/export const FeedbackGlyph = \(\) => \(\s*<Glyph>/);
+    expect(read("../components/rail-glyphs.tsx")).toMatch(/export const FeedbackGlyph = \(\) => <KitIcon name="feedback" className="glyph" \/>;/);
     // It was a bare glyph beside the theme button, on the reasoning that the
     // bar's words were a set of seven, and at the toolbar's --muted the bubble
     // read as nothing at all; the owner could not find it. Then it said its

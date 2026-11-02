@@ -25,6 +25,8 @@ import { claudeReasonText, refreshClaudeSettings, setClaudeSetting, useClaudeSet
 import ClaudeSettingsIndex from "./ClaudeSettingsIndex";
 import { SettingRow, SettingsGroup } from "./SettingsParts";
 import { t as tNow, useT, type TFunction } from "../i18n";
+import { useOptimisticSwitch } from "../use-optimistic-switch";
+import { WriteState } from "./WriteState";
 
 export const CLAUDE_UNDONE = "Changed back after saving, most likely by a running Claude Code session. Set it again to keep it.";
 export const CLAUDE_NO_FILE = "There is no settings.json yet, so Claude Code uses its defaults. The first change here creates it.";
@@ -52,8 +54,9 @@ export function overrideLine(o: NonNullable<ClaudeSettingRow["override"]>, t: TF
 
 const CUSTOM = "\u0000custom";
 
-function Control({ entry, row, saving, nameId, noteId }: {
+function Control({ entry, row, saving, nameId, noteId, flip }: {
   entry: ClaudeSettingEntry; row: ClaudeSettingRow | undefined; saving: string | null; nameId: string; noteId: string;
+  flip: ReturnType<typeof useOptimisticSwitch>;
 }) {
   const t = useT();
   const ready = !!row && row.editable && !saving;
@@ -86,7 +89,7 @@ function Control({ entry, row, saving, nameId, noteId }: {
       </select>
     );
   }
-  const on = row?.value === true;
+  const on = flip.checked;
   return (
     <button
       type="button"
@@ -97,10 +100,33 @@ function Control({ entry, row, saving, nameId, noteId }: {
       aria-describedby={noteId}
       aria-busy={busy}
       disabled={disabled}
-      onClick={() => { if (ready) void setClaudeSetting(entry.id, !on); }}
+      onClick={() => { if (ready) void flip.flip(); }}
     >
       <span className="switch-knob" />
     </button>
+  );
+}
+
+/** One row. A switch flips on the press and the write runs behind it; a refused
+ *  write slides it back, and the row says Failed as Session recovery does. */
+export function ClaudeRow({ entry, row, saving, said }: {
+  entry: ClaudeSettingEntry; row: ClaudeSettingRow | undefined; saving: string | null; said: string;
+}) {
+  const t = useT();
+  const flip = useOptimisticSwitch(row ? row.value === true : null, next => setClaudeSetting(entry.id, next));
+  const nameId = `claude-${entry.id}-label`, noteId = `claude-${entry.id}-note`;
+  return (
+    <SettingRow
+      settingId={`claude-${entry.id}`}
+      name={claudeRowLabel(entry, t)}
+      nameId={nameId}
+      note={claudeRowNote(entry, t)}
+      noteId={noteId}
+      control={<Control entry={entry} row={row} saving={saving} nameId={nameId} noteId={noteId} flip={flip} />}
+    >
+      <span className="settings-row-said settings-row-said-quiet" role="status">{said}</span>
+      {flip.failed && <WriteState state="failed" role="alert" sentence={t("settings.recover.saveFail")} />}
+    </SettingRow>
   );
 }
 
@@ -144,23 +170,10 @@ export function ClaudeCodeSettingsView({ state }: { state: ClaudeSettingsState }
         <SettingsGroup key={group.id} id={`claude-group-${group.id}`} title={claudeGroupTitle(group.id, group.title, t)}>
           {CLAUDE_SETTINGS.filter(entry => entry.group === group.id).map(entry => {
             const row = reading?.settings.find(r => r.id === entry.id);
-            const nameId = `claude-${entry.id}-label`, noteId = `claude-${entry.id}-note`;
             const said = row && !row.editable && !common ? claudeReasonText(row.reason ?? "", t)
               : undone?.id === entry.id ? t("settings.claude.undone")
               : row?.override ? overrideLine(row.override, t) : "";
-            return (
-              <SettingRow
-                key={entry.id}
-                settingId={`claude-${entry.id}`}
-                name={claudeRowLabel(entry, t)}
-                nameId={nameId}
-                note={claudeRowNote(entry, t)}
-                noteId={noteId}
-                control={<Control entry={entry} row={row} saving={saving} nameId={nameId} noteId={noteId} />}
-              >
-                <span className="settings-row-said settings-row-said-quiet" role="status">{said}</span>
-              </SettingRow>
-            );
+            return <ClaudeRow key={entry.id} entry={entry} row={row} saving={saving} said={said} />;
           })}
         </SettingsGroup>
       ))}

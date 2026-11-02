@@ -96,8 +96,10 @@ function rowValue(reading: ClaudeSettingsReading | null, id: string) {
   return reading?.settings.find(row => row.id === id)?.value;
 }
 
-export async function setClaudeSetting(id: string, value: ClaudeSettingValue) {
-  if (snapshot.saving) return;
+/** Saves one setting; true when the write took (an optimistic switch slides
+ *  back on false). */
+export async function setClaudeSetting(id: string, value: ClaudeSettingValue): Promise<boolean> {
+  if (snapshot.saving) return false;
   revision++; request?.abort();
   if (recheck) { clearTimeout(recheck); recheck = null; }
   publish({ saving: id, error: "", undone: null });
@@ -120,8 +122,10 @@ export async function setClaudeSetting(id: string, value: ClaudeSettingValue) {
         publish({ reading, undone: rowValue(reading, id) === saved ? null : { id } });
       }).catch(() => {}).finally(() => clearTimeout(timeout));
     }, RECHECK_MS);
+    return true;
   } catch (error) {
     publish({ error: ownMessage(error, tNow("settings.claude.saveFail")) });
+    return false;
   } finally { clearTimeout(timeout); publish({ saving: null }); }
 }
 
