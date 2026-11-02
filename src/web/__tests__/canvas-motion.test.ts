@@ -422,12 +422,15 @@ const PRESSES: Press[] = [
   [".sa-session:active", "0.97", "transform"],
   ["button.tool.clickable:active", "0.97", "transform"],
   // (The selected ribbon and its × are gone, V4's top bar.)
-  [".ver-banner .ver-cmd:active", "0.97", "transform"],
+  // CHANGED ON PURPOSE (V4's Figma): the command is a box with an icon-only Copy at its end, so the press is the Copy button's (a 24px glyph button, the 0.94 the round glyphs take), not a pill's.
+  [".ver-banner .ver-copy:active", "0.94", "transform"],
   [".ver-banner .ver-act:active:not(:disabled)", "0.97", "transform"],
   [".ver-banner .ver-close:active", "0.94", "transform"],
   // A number on the one question's scale: a 24px square with a digit in it,
   // so the 0.94 the round glyphs take.
   [".rating-banner .rating-pick:active", "0.94", "transform"],
+  // "Not now": an outlined 28px button with a word in it, so 0.97 like every other labelled control.
+  [".rating-banner .rating-later:active", "0.97", "transform"],
   [".tool-burst.clickable:active", "0.97", "scale"],
   // "update anyway" on an import result row. A 10px word in a pill, so
   // 0.97 like every other labelled control rather than the 0.94 the round
@@ -538,6 +541,8 @@ const EXEMPT: string[] = [
   // The queue popover's rows (V4's top bar) are menu rows: they answer the
   // pointer and a press with the --selected fill, not a scale, like .ap-menu-item.
   ".queue-row",
+  // CHANGED ON PURPOSE (V4's Figma): the update banner's command box is pressable as a whole (the pill it replaced was), but a 1400px-wide box does not scale; its Copy button is the control that answers the press (`.ver-copy:active`, listed above).
+  ".ver-banner .ver-cmd",
   // V4's switch answers a pointer press with its KNOB (it stretches to 18px,
   // menus.css) and not with a scale of the whole track.
   ".switch",
@@ -824,8 +829,8 @@ const OTHER_PULSES: [selector: string, meaning: string][] = [
   // notice is only a notice, and pulses only once a restart is actually
   // counting down — which is the one thing in this banner that IS happening
   // right now, and so the one thing the live grammar is for.
-  [".ver-banner .ver-dot.armed", "--warn: the deck is about to restart itself"],
-  [".conn-banner .conn-dot", "--err: the event stream is down"],
+  // CHANGED ON PURPOSE (V4's Figma): a banner starts with a 14px kit icon, not a dot. The lost-connection icon is drawn still (the stream's state is also in the words and the top bar), so the --err pulse is gone; only the armed restart's mark moves.
+  [":is(.ver-banner, .conn-banner) .banner-mark.armed", "--warn: the deck is about to restart itself"],
 ];
 
 /** The two live pulses that live on the canvas, and so are switched off by the

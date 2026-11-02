@@ -421,8 +421,9 @@ describe("version-drift banner (#272)", () => {
   });
 
   it("leaves the accent where it is decoration — the dot still pulses in --warn", () => {
-    expect(decl(rule(".ver-banner .ver-dot"), "background")).toBe("var(--warn)");
-    expect(decl(rule(".ver-banner.done .ver-dot"), "background")).toBe("var(--ok)");
+    // CHANGED ON PURPOSE (V4's Figma): the tone is the colour of a 14px kit icon (currentColor), not the background of a dot.
+    expect(decl(rule(":is(.ver-banner, .conn-banner) .banner-mark.warn"), "color")).toBe("var(--warn)");
+    expect(decl(rule(":is(.ver-banner, .conn-banner) .banner-mark.ok"), "color")).toBe("var(--ok)");
   });
 });
 

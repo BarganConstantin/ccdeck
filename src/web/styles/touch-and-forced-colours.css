@@ -173,7 +173,6 @@
   .detail .plan-mark, .detail .plan-item[data-status="in_progress"] .plan-mark { forced-color-adjust: auto; border-color: transparent; background: none; }
   .topbar .status .pill.paused::before,
   .topbar .status .pill.dead::before,
-  .conn-banner .conn-dot,
   .waiting-dot,
   .ap-dot,
   .pi-dot { forced-color-adjust: none; background: CanvasText; }

@@ -284,10 +284,11 @@ describe("the banner", () => {
     phase: "asking" as const, score: null, onAnswer: () => {}, onLater: () => {}, onClose: () => {}, onFeedback: () => {},
   };
 
+  // CHANGED ON PURPOSE (V4's Figma): the 10 pill is 30 wide, so it carries a second class (`rating-pick ten`) and the pattern accepts it.
   it("offers eleven numbered buttons, each named for a screen reader, and a way to put it off", () => {
     const html = renderToStaticMarkup(createElement(RatingBanner, props));
     expect(html).toContain("How useful is ccdeck to you?");
-    const picks = [...html.matchAll(/<button[^>]*class="rating-pick"[^>]*aria-label="([^"]+)"[^>]*>(\d+)<\/button>/g)];
+    const picks = [...html.matchAll(/<button[^>]*class="rating-pick(?: ten)?"[^>]*aria-label="([^"]+)"[^>]*>(\d+)<\/button>/g)];
     expect(picks.map(m => m[2])).toEqual(["0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10"]);
     expect(picks[0][1]).toMatch(/^0 out of 10/);
     expect(picks[10][1]).toMatch(/^10 out of 10/);

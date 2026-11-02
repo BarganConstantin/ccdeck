@@ -212,7 +212,6 @@ const catalog: Catalog = {
   "shell.banner.cannotInstall": "não é possível instalar a partir daqui",
   "shell.banner.copyTitle": "Copiar para a área de transferência",
   "shell.banner.copiedHint": "copiado",
-  "shell.banner.copyHint": "copiar",
   "shell.banner.restartedTo": "Reiniciado — agora na v{version}.",
   "shell.banner.replayed": "A tela foi reproduzida a partir do log de eventos.",
   "shell.banner.autoOff": "reinício automático desativado",
