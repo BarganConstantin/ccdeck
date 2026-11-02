@@ -313,7 +313,9 @@ describe("the row marks the number it was placed by", () => {
 
   it("in the shut line and on the bars", () => {
     expect(marked(row(LIST[3], "7d"))).toEqual(["7d"]);
-    expect(marked(row(LIST[3], "7d", true))).toEqual(["7d"]);
+    // CHANGED ON PURPOSE (V4's Figma): the line under the name stays when a row
+    // opens, so the open row marks the number twice — in that line and on its bar.
+    expect(marked(row(LIST[3], "7d", true))).toEqual(["7d", "7d"]);
   });
 
   it("marks the tightest window under 'room', and nothing in slot order", () => {

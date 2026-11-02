@@ -10,6 +10,7 @@
 // turns a profile and its reading into what the shared components read.
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { allOpen, isOpen, orderChoices, orderKey, SLOT_ORDER, sortAccounts, toggleAll, toggleOne, validOrder, type Openness } from "../other-accounts-order";
+import { laneKey, toggleLane } from "../lane-open";
 import { loadOpenness, loadOrder, saveOpenness, saveOrder } from "../accounts-prefs";
 import { sentence } from "../account-issue";
 import { isAutoArmed, pastThreshold } from "../account-fold";
@@ -25,7 +26,7 @@ import { codexDefaultMoved } from "../use-quota";
 import { type Failure } from "../accounts-reload";
 import { focusDropped } from "../panel-press";
 import { usePanelClock } from "../use-panel-clock";
-import { useNextDraft } from "../use-next-draft";
+import { type Say, useSettingPost } from "../use-setting-post";
 import { useRequestSlot } from "../use-request-slot";
 import { useThresholdDraft } from "../use-threshold-draft";
 import AccountIssuePopover, { WarnGlyph } from "./AccountIssuePopover";
@@ -97,6 +98,9 @@ export default function CodexProfilesSection({ onClose, switcher, onNotice }: {
   /** Whose warning has its explanation open, and which control it hangs from. */
   const [issueOpen, setIssueOpen] = useState<{ id: string; anchor: string } | null>(null);
   const [openness, setOpenness] = useState<Openness>(() => loadOpenness(SCOPE));
+  /** The default account's own press, apart from "Expand all", which speaks for
+   *  the accounts behind the fold. */
+  const [liveOpen, setLiveOpen] = useState<string[]>([]);
   const [order, setOrder] = useState<string>(() => loadOrder(SCOPE));
   const [auto, setAuto] = useState<AutoStatus | null>(null);
 
@@ -122,29 +126,30 @@ export default function CodexProfilesSection({ onClose, switcher, onNotice }: {
   }, []);
 
   /** Every Auto-switch control's press. */
-  const post = useCallback(async (body: Record<string, unknown>, tag: string) => {
+  const post = useCallback(async (body: Record<string, unknown>, tag: string, say: Say = setFailure) => {
     if (!claim(tag)) return null;
-    setFailure(null);
+    say(null);
     try {
       const response = await fetch("/api/codex-auto", {
         method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
       });
       const out = await response.json().catch(() => null) as (AutoStatus & { reason?: string }) | null;
       if (out?.ok) setAuto(out);
-      else setFailure({ text: t("codex.panel.settingNotSaved") });
+      else say({ text: t("codex.panel.settingNotSaved") });
       return out;
     } catch {
-      setFailure({ text: t("codex.panel.unreachable") });
+      say({ text: t("codex.panel.unreachable") });
       return null;
     } finally { release(); }
   }, [claim, release, t]);
 
+  // What is pressed inside the Auto-switch popover says its refusal inside it.
+  const { settingFailure, settingPost, clearSettingFailure } = useSettingPost(post);
   const {
     threshold, thresholdPick, thresholdCtl, thresholdSaved, thresholdRef, thresholdSaveRef,
     thresholdCustom, thresholdRefusal, thresholdFieldRef,
     proposeThreshold, typeThreshold, cancelThreshold, leaveThreshold, doThreshold,
-  } = useThresholdDraft({ auto, post, load: loadAuto });
-  const { nextPick, nextCtl, nextSaved, nextRef, nextSaveRef, proposeNext, doNext } = useNextDraft({ auto, post, load: loadAuto });
+  } = useThresholdDraft({ auto, post: settingPost, load: loadAuto });
 
   async function refreshProfiles(signal = profileController.current?.signal): Promise<CodexProfile[] | undefined> {
     if (signal?.aborted) return undefined;
@@ -393,7 +398,8 @@ export default function CodexProfilesSection({ onClose, switcher, onNotice }: {
           readPlan: plan ? t("codex.row.readPlanNamed", { plan: sentence(plan), rest: voice.readPlan ?? "" }) : voice.readPlan,
           waiting: reads ? t("codex.row.reading") : undefined,
         }}
-        opened={isOpen(openness, a)} onToggleLanes={() => setOpenness(o => toggleOne(o, a))}
+        opened={a.active ? liveOpen.includes(laneKey(a)) : isOpen(openness, a)}
+        onToggleLanes={() => (a.active ? setLiveOpen(o => toggleLane(o, a)) : setOpenness(o => toggleOne(o, a)))}
         busy={busy} pressProps={pressProps} onSwitch={doSwitch}
         menuOpen={menu?.id === profile.id} onOpenMenu={(_, start) => openMenu(profile.id, start)} onCloseMenu={() => setMenu(null)}
         refusal={failure?.row === a.num ? failure : null} onDismissRefusal={() => setFailure(null)}
@@ -411,9 +417,9 @@ export default function CodexProfilesSection({ onClose, switcher, onNotice }: {
       thresholdCustom={thresholdCustom} thresholdRefusal={thresholdRefusal} thresholdFieldRef={thresholdFieldRef}
       proposeThreshold={proposeThreshold} typeThreshold={typeThreshold}
       cancelThreshold={cancelThreshold} leaveThreshold={leaveThreshold} doThreshold={doThreshold}
-      nextPick={nextPick} nextCtl={nextCtl} nextSaved={nextSaved} nextRef={nextRef} nextSaveRef={nextSaveRef}
-      proposeNext={proposeNext} doNext={doNext}
-      pressProps={pressProps} post={post} load={loadAuto} />
+      pressProps={pressProps} post={post} settingPost={settingPost}
+      settingFailure={settingFailure} clearSettingFailure={clearSettingFailure}
+      load={loadAuto} boundaryId="ap-codex-scroll" />
   ) : null;
 
   const menuRow = rowOf(menu?.id);
@@ -498,9 +504,12 @@ export default function CodexProfilesSection({ onClose, switcher, onNotice }: {
               {rest.length > 0 && restOpen && (
                 <div className="ap-rest-panel" id="ap-codex-rest-panel">
                   <ul className="ap-list ap-others" id="ap-codex-rest-list">{rest.map(accountRow)}</ul>
-                  {policyBlock}
                 </div>
               )}
+              {/* UNDER THE ROSTER IT IS ABOUT, fold open or shut, through the
+                  same component as Claude's: its state and its threshold are
+                  readable without opening anything. */}
+              {policyBlock}
               {failure && failure.row == null && (
                 <div className="ap-failure" role="alert">
                   <span className="ap-failure-text">{failure.text}</span>

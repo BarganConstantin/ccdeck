@@ -121,7 +121,7 @@
    under the ⋯ of a row with `switch` beside it that puts the popover's left
    edge on the row's own 14px inset — measured — so the menu's words start on
    the line the account's number and address start on. */
-.ap-pop { width: 200px; }
+.ap-pop { width: 220px; }
 /* A column, so each row stretches to the menu's width without being told a
    percentage. */
 .ap-pop[role="menu"] {
@@ -170,7 +170,7 @@
    distance — `remove` pushed 102px along its own row — and in a list the
    equivalent is a hairline, inset so it reads as a pause in the list rather
    than an edge of the surface. */
-.ap-menu-sep { height: 1px; margin: 4px 6px; background: var(--line); }
+.ap-menu-sep { height: 1px; margin: 4px 0; background: var(--line-soft); }
 /* The only item that carries the error colour, and at rest it carries it in
    the word alone. Pointed at, it takes the same 12% --err wash `.btn.danger`
    takes under the pointer. */
@@ -220,15 +220,43 @@
 .ap-pop-form {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 8px;
   padding: 12px;
 }
+/* V4's Rename and Move: 280 wide, a 13 semibold title, 12 in, 8 between. */
+.ap-pop:has(.ap-pop-form) { width: 280px; }
 .ap-pop-title {
   margin: 0;
-  font-size: calc(12px + var(--ui-text-increase, 0px));
-  font-weight: 500;
+  font-size: calc(13px + var(--ui-text-increase, 0px));
+  line-height: calc(20px + var(--ui-text-increase, 0px));
+  font-weight: 600;
   color: var(--text);
 }
+/* The slot list: rows 28 high with no gap, the name and then what picking it
+   does, the picked one on the selected fill. */
+.ap-slot-list { display: flex; flex-direction: column; }
+.ap-slot-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 28px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: var(--r-panel);
+  background: none;
+  font: inherit;
+  font-size: calc(12px + var(--ui-text-increase, 0px));
+  line-height: calc(16px + var(--ui-text-increase, 0px));
+  text-align: left;
+  color: var(--text);
+  cursor: pointer;
+}
+.ap-slot-row[data-selected] { background: var(--selected); }
+@media (hover: hover) and (pointer: fine) {
+.ap-slot-row:hover:not([data-selected]):not(:disabled) { background: var(--ctl-fill); }
+}
+.ap-slot-name { flex: none; }
+.ap-slot-cap { color: var(--muted); }
 .ap-pop-actions {
   display: flex;
   justify-content: flex-end;

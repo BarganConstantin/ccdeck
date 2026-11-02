@@ -11,6 +11,7 @@ import { RAIL_GROUP_LABELS, type RailGroup } from "../rail-model";
 import { railGlyph, railLine, railTime, rowSpoken, rowTooltip, type RailGlyphKind } from "../rail-row-copy";
 import { fadeIn, tokenMs } from "../rail-motion";
 import type { UsageMeter } from "../rail-usage";
+import { FadeFigure, useFillJump } from "./FadeFigure";
 
 /** The 14px status glyph. Working breathes on --pulse-live and nothing else
  *  moves on its own; Waiting is the alert triangle and holds still, because
@@ -55,6 +56,16 @@ export function CloseGlyph() {
     <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor"
       strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
       <path d="M3.5 3.5l7 7M10.5 3.5l-7 7" />
+    </svg>
+  );
+}
+
+/** The Plus's 14px mark, on the same spec as the close mark. */
+export function PlusGlyph() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor"
+      strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M7 3v8M3 7h8" />
     </svg>
   );
 }
@@ -153,6 +164,7 @@ export function RailRow({ row: r, group, now, selected, removed, leaving, landNo
  *  button that opens the Usage panel (or closes it, as its stripe door does).
  *  Nothing at all without a reading (rail-usage.ts), not an empty box. */
 export function RailUsage({ meter, onPress }: { meter: UsageMeter | null; onPress: () => void }) {
+  const jump = useFillJump(meter?.fill ?? 0);
   if (!meter) return null;
   // A stale reading leads with its age and drops the 7-day figure from the line
   // (the one line has room for two things; the spoken name still has it).
@@ -160,13 +172,18 @@ export function RailUsage({ meter, onPress }: { meter: UsageMeter | null; onPres
   const line2 = second.flatMap((part, i) => (part ? [i > 0 && second[0] ? "·" : null, part] : [])).filter(Boolean);
   return (
     <div className="sl-usage">
-      <button type="button" className="sl-usage-btn" onClick={onPress} data-stale={meter.stale || undefined} aria-label={meter.spoken}>
+      <button type="button" className="sl-usage-btn" onClick={onPress} data-stale={meter.stale || undefined} data-level={meter.level} aria-label={meter.spoken}>
         <span className="sl-usage-line1" aria-hidden>
           {meter.name && <span className="sl-usage-name" title={meter.name}>{meter.name}</span>}
           <span className="sl-usage-what">5-hour limit</span>
-          <span className="sl-usage-pct">{meter.pctText}</span>
+          <FadeFigure className="sl-usage-pct" text={meter.pctText} value={meter.fill} />
         </span>
-        <span className="sl-usage-bar" aria-hidden><span className="sl-usage-fill" style={{ width: `${meter.fill}%`, background: meter.color }} /></span>
+        <span className="sl-usage-bar" aria-hidden>
+          <span className="sl-usage-fill" data-jump={jump || undefined} style={{ width: `${meter.fill}%` }}>
+            {meter.segments.map(seg => <span key={seg.token} className="sl-usage-seg" style={{ flexGrow: seg.share, background: `var(${seg.token})` }} />)}
+          </span>
+          <span className="sl-usage-track" />
+        </span>
         {line2.length > 0 && (
           <span className="sl-usage-line2" aria-hidden>
             {line2.map((part, i) => <span key={i}>{part}</span>)}

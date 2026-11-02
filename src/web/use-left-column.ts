@@ -32,7 +32,8 @@ export const ACCOUNTS_PANEL_WIDTH = 288;
  *  at the density in force, and this is what it falls back to. */
 export const SESSION_LIST_WIDTH = ACCOUNTS_PANEL_WIDTH;
 
-/** The rail's width now, from --rail-w on the root. */
+/** The rail's width now, from --rail-w on the root. The accounts panel is drawn
+ *  at it too. */
 function railWidthPx(): number {
   const read = parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--rail-w"));
   return Number.isFinite(read) && read > 0 ? read : SESSION_LIST_WIDTH;
@@ -78,7 +79,9 @@ export function leftColumnPanel(sessionListOpen: boolean, accountsOpen: boolean,
  *  the last one: every frame of a switch is between the two panels' widths. */
 export function leftColumnWidth(panel: LeftPanel | null, railWidth: number = SESSION_LIST_WIDTH): number {
   if (panel === "session-list") return railWidth;
-  if (panel === "accounts") return ACCOUNTS_PANEL_WIDTH;
+  // The accounts panel is drawn at the rail's width (V4's Figma: 264 at
+  // Compact), so the column holds the same one for either.
+  if (panel === "accounts") return railWidth;
   return 0;
 }
 
