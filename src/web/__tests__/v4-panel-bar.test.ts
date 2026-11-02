@@ -132,7 +132,9 @@ describe("the bar's look", () => {
     expect(decl(".edge-rail", "width")).toBe("var(--edge-w)");
     expect(decl(".edge-rail", "background")).toBe("var(--panel)");
     expect(decl(".edge-rail", "justify-content")).toBe("space-between");
-    expect(decl(".edge-rail", "padding")).toBe("6px 0");
+    // 1 on the left for the 1px border on the right: the doors centre on the
+    // whole 40, 6 in, where V4 draws them with its edge inside the bar.
+    expect(decl(".edge-rail", "padding")).toBe("6px 0 6px 1px");
     expect(decl(".edge-rail-left", "border-right")).toBe("1px solid var(--line)");
     expect(decl(".edge-rail-left", "border-left")).toBeUndefined();
   });
@@ -175,11 +177,14 @@ describe("the bar's look", () => {
 });
 
 describe("V4's Tooltip", () => {
-  it("is one 24-high line: --r-ctl corners, --panel, a 1px --line edge, 4 8 padding, --shadow-overlay", () => {
+  it("is one 24-high line: --r-ctl corners, --panel, a 1px --line edge, 4 8 to its outer edge, --shadow-overlay", () => {
     expect(decl(".hint", "border-radius")).toBe("var(--r-ctl)");
     expect(decl(".hint", "background")).toBe("var(--panel)");
     expect(decl(".hint", "border")).toBe("1px solid var(--line)");
-    expect(decl(".hint", "padding")).toBe("4px 8px");
+    // V4's 4 8 counts its stroke, drawn inside: 3 7 plus the 1px edge, so a
+    // line of 16 makes 24, with or without a key.
+    expect(decl(".hint", "padding")).toBe("3px 7px");
+    expect(decl(".hint:has(.hint-key)", "padding-right")).toBeUndefined();
     expect(decl(".hint", "box-shadow")).toBe("var(--shadow-overlay)");
     expect(decl(".hint", "line-height")).toMatch(/^calc\(16px/);
     expect(decl(".hint-head", "gap")).toBe("6px");
@@ -193,6 +198,8 @@ describe("V4's Tooltip", () => {
 
   it("draws the key as the kit's Kbd: 16 high, radius 4, --bg-soft, 1px --line, mono 11/14 500 --muted", () => {
     expect(decl(".hint-key", "height")).toBe("16px");
+    // Its 5 across counts the 1px edge, as V4 draws it.
+    expect(decl(".hint-key", "padding")).toBe("0 4px");
     expect(decl(".hint-key", "border-radius")).toBe("4px");
     expect(decl(".hint-key", "background")).toBe("var(--bg-soft)");
     expect(decl(".hint-key", "border")).toBe("1px solid var(--line)");

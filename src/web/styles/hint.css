@@ -14,7 +14,9 @@
   gap: 4px;
   max-width: 280px;
   box-sizing: border-box;
-  padding: 4px 8px;
+  /* Figma's 4 8 is to the outer edge, its stroke drawn inside: 3 7 inside the
+     1px edge, so a one-line hint is 24 tall and its label starts 8 in. */
+  padding: 3px 7px;
   border: 1px solid var(--line);
   border-radius: var(--r-ctl);
   background: var(--panel);
@@ -26,7 +28,6 @@
 /* A hint for a control inside a dialog, one above .modal-backdrop like the
    add-account dialog's own overlay, or it would draw under the scrim. */
 .hint.hint-over-dialog { z-index: 101; }
-.hint:has(.hint-key) { padding-right: 8px; }
 .hint-head {
   display: inline-flex;
   align-items: center;
@@ -44,11 +45,12 @@
 .hint-right .hint-label { white-space: nowrap; }
 /* The keycap: V4's Kbd — 16 high, radius 4, --bg-soft with a 1px --line edge,
    padding 1 5 (Figma draws its stroke inside the padding, so the 1px edge is
-   the vertical 1), mono 11/14 weight 500 in --muted. */
+   the vertical 1 and the first of the 5 across), mono 11/14 weight 500 in
+   --muted. */
 .hint-key {
   display: inline-block;
   height: 16px;
-  padding: 0 5px;
+  padding: 0 4px;
   box-sizing: border-box;
   border: 1px solid var(--line);
   border-radius: 4px;
