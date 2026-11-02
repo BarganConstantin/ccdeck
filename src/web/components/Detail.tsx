@@ -10,7 +10,10 @@ import { useLanguage, useT } from "../i18n";
 
 import CostBar from "./CostBar";
 import { mcpChipIdentity } from "../tool-skin";
-import { DETAIL_CAT_EMOJI, detailCategoryFor, type DetailCategory } from "../detail-category";
+import { detailCategoryFor, type DetailCategory } from "../detail-category";
+import type { InspectorStatus } from "../inspector-state";
+import { callArg } from "../inspector-time";
+import { KitStateGlyph } from "./kit-icons";
 // The detail panel used to spell both of these out inline — an elapsed clock a
 // tier shorter than the agent card's, and a tool duration a decimal place
 // coarser than the dialog the same row opens (#374). See duration.ts.
@@ -36,7 +39,10 @@ export default function Detail({
   onExportSession,
   onRemove,
   singleKeys = true,
+  status,
 }: {
+  /** The state the title names (inspector-state.ts): the pane's own sentence. */
+  status?: InspectorStatus;
   agent: AgentNodeData;
   now: number;
   /** Opens the tool modal on one of this agent's calls, named by both (#1483). */
@@ -86,10 +92,14 @@ export default function Detail({
     <>
       <header className="detail-hero">
         <div className="hero-line">
-          <span className={`state-pill state-${agent.state}`}>
-            {/* The word the card wears (Working, Waiting, Done, Failed) — never
-                "Live" (V4's Figma): a session is either doing something or it is not. */}
-            {cardState(agent).word}
+          {/* The state is the kit's 14px glyph (V4's Figma), and its words are the
+              pane's own sentence for a session ("ready · for a first prompt"), from
+              inspector-state.ts, so the Inspector never says Working beside a
+              rail and a pane that say ready. Without a status given (a caller
+              with no board) it is the word the card wears. */}
+          <span className="hero-state" role="img" data-state={status?.glyph ?? "idle"}
+            aria-label={status?.phrase ?? cardState(agent).word} title={status?.phrase ?? cardState(agent).word}>
+            <KitStateGlyph name={status?.glyph ?? (agent.state === "active" ? "working" : agent.state === "err" ? "error" : "done")} />
           </span>
           <h2 className="hero-title" title={agent.cwd ?? agent.label}>{agent.label}</h2>
         </div>
@@ -134,39 +144,6 @@ export default function Detail({
             <CostBar cost={cost} />
           </div>
         )}
-        <div className="hero-actions">
-          {agent.kind === "root" && agent.state === "done" && onShowSummary && (
-            <button
-              type="button"
-              className="btn hero-action-btn"
-              onClick={() => onShowSummary(agent.sessionId)}
-              title={t("board.detail.recapTitle")}
-            >{t("board.detail.recap")}</button>
-          )}
-          {onExportSession && (
-            <button
-              type="button"
-              className="btn hero-action-btn"
-              onClick={() => onExportSession(agent.sessionId)}
-              title={t("board.detail.exportTitle")}
-            >{t("board.detail.export")}</button>
-          )}
-          {/* Here and not in the topbar, where it was (#1210): beside "zoom to
-              agent" it was one stray click from taking a session off the board,
-              and at 1440px it wrapped the bar onto a second line. In the panel
-              it sits with the other verbs about this one card. Not a danger
-              button either — the session list brings it back, and the red stays with Clear. */}
-          {onRemove && (
-            <button
-              type="button"
-              className="btn hero-action-btn"
-              onClick={onRemove}
-              title={agent.kind === "root"
-                ? t("board.detail.removeRoot", { list: withKey(t("board.detail.listLower"), "L", singleKeys) })
-                : t("board.detail.removeSub", { list: withKey(t("board.detail.listUpper"), "L", singleKeys) })}
-            >{t("board.detail.remove")}</button>
-          )}
-        </div>
       </header>
 
       {/* Continue a turn that stopped on an expired login or a usage limit
@@ -214,7 +191,9 @@ export default function Detail({
             <ol className="plan-list">
               {agent.plan.items.map((item, k) => (
                 <li key={item.id ?? `${k}:${item.text}`} className="plan-item" data-status={item.status}>
-                  <span className="plan-mark" aria-hidden />
+                  <span className="plan-mark" aria-hidden>
+                    <KitStateGlyph name={item.status === "completed" ? "done" : item.status === "in_progress" ? "working" : "idle"} />
+                  </span>
                   <span className="vis-hidden">{t(PLAN_WORD[item.status])}{t("board.detail.colon")}</span>
                   <span className="plan-text">{item.status === "in_progress" && item.active ? item.active : item.text}</span>
                   {item.status === "in_progress" && <span className="plan-now" aria-hidden>{t("board.detail.now")}</span>}
@@ -250,11 +229,10 @@ export default function Detail({
                     style={hue != null ? { "--mcp-hue": hue } as React.CSSProperties : undefined}
                     title={one ? t("board.detail.catAllTo", { calls, server: one.label }) : calls}
                   >
-                    {/* The category as a word at rest (#841): an emoji and a
-                        count said nothing without a hover, and a title never
-                        reaches a keyboard or touch reader. The word is the
-                        key, the count its value; the emoji is decoration now. */}
-                    <span className="cat-emoji" aria-hidden>{DETAIL_CAT_EMOJI[c]}</span>
+                    {/* The category as a word at rest (#841): a count said
+                        nothing without a hover, and a title never reaches a
+                        keyboard or touch reader. The word is the key, the
+                        count its value ("file 18"; V4's Figma draws no emoji). */}
                     <span className="cat-name">{categoryLabel(c, t)}</span>
                     <span className="cat-count">{n}</span>
                     {/* The words the tint cannot be trusted to carry alone. */}
@@ -331,6 +309,42 @@ export default function Detail({
           ))}
         </div>
       </section>
+
+      {/* The verbs about this one card. V4's Figma draws none of them, and the
+          deck has no menu for the card that holds Export or Remove, so they stay
+          at the foot of the body as quiet small buttons. */}
+      <div className="hero-actions">
+        {agent.kind === "root" && agent.state === "done" && onShowSummary && (
+          <button
+            type="button"
+            className="btn hero-action-btn"
+            onClick={() => onShowSummary(agent.sessionId)}
+            title={t("board.detail.recapTitle")}
+          >{t("board.detail.recap")}</button>
+        )}
+        {onExportSession && (
+          <button
+            type="button"
+            className="btn hero-action-btn"
+            onClick={() => onExportSession(agent.sessionId)}
+            title={t("board.detail.exportTitle")}
+          >{t("board.detail.export")}</button>
+        )}
+        {/* Here and not in the topbar, where it was (#1210): beside "zoom to
+            agent" it was one stray click from taking a session off the board.
+            Not a danger button either — the session list brings it back, and
+            the red stays with Clear. */}
+        {onRemove && (
+          <button
+            type="button"
+            className="btn hero-action-btn"
+            onClick={onRemove}
+            title={agent.kind === "root"
+              ? t("board.detail.removeRoot", { list: withKey(t("board.detail.listLower"), "L", singleKeys) })
+              : t("board.detail.removeSub", { list: withKey(t("board.detail.listUpper"), "L", singleKeys) })}
+          >{t("board.detail.remove")}</button>
+        )}
+      </div>
     </>
   );
 }
@@ -374,6 +388,8 @@ function ToolRow({ call, onClick }: { call: ToolCall; onClick: () => void }) {
   // "1.24s" one click later (#374). The sentinel is the only thing that still
   // differs, because a list cell has no room for the word the dialog writes.
   const durLabel = toolDuration(call, "…");
+  // What it ran on, never the JSON it was sent as (inspector-time.ts).
+  const arg = callArg(call);
   return (
     <button className="tool clickable" title={call.inputPreview || call.name} onClick={onClick}>
       <span className="name">
@@ -389,9 +405,10 @@ function ToolRow({ call, onClick }: { call: ToolCall; onClick: () => void }) {
             "error Bash 1.24s" is read in the order it is seen. */}
         <span className={`status-dot ${status}`} aria-hidden />
         <span className="vis-hidden">{t(TOOL_STATUS_LABEL[status])}</span>
-        {call.name}
+        <span className="tool-name">{call.name}</span>
+        {arg && <span className="tool-arg">{arg}</span>}
       </span>
-      <span style={{ color: "var(--muted)" }}>{durLabel}</span>
+      <span className="tool-dur">{durLabel}</span>
     </button>
   );
 }

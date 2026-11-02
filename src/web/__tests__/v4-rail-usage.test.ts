@@ -147,6 +147,9 @@ describe("one fill, in the Usage panel bar's data colours", () => {
     expect(css.match(/--err/g)).toHaveLength(1);
     expect(css).toMatch(/\[data-level="high"\] \.sl-usage-pct \{ color: var\(--err\)/);
     expect(css).not.toMatch(/--warn|--accent|#[0-9a-f]{3,8}\b|rgba?\(|hsla?\(/i);
+    // The Usage panel's bar keeps its own meter rule; neither meter shares a level colour now.
+    expect(code("../components/QuotaBar.tsx")).toContain("quotaMeterColor(capped, isErr)");
+    expect(code("../rail-usage.ts")).not.toMatch(/quota\w*Color/);
   });
 
   it("caps the width at 0 to 100", () => {

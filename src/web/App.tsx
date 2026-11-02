@@ -51,6 +51,7 @@ import DetailAside from "./components/DetailAside";
 import { EdgeDock, EdgeRail, PHONE_QUERY, UtilityRun } from "./components/EdgeRails";
 import { railItems } from "./rail-items";
 import { unreadOf, useFeedbackAccount } from "./feedback-unread";
+import { focusFirstTaking } from "./fold-focus";
 // The modal and its panels load on demand; this is the light wrapper that
 // fetches them (IntegrationModalOnDemand.tsx).
 import IntegrationModal, { preloadIntegrationModal } from "./components/IntegrationModalOnDemand";
@@ -632,6 +633,17 @@ function Inner() {
   // The Inspector is a column in Workspace down to 1320px, and the detail sheet
   // (D, the ribbon) under it: workspace.css says why.
   const inspectorColumn = !useMediaQuery(INSPECTOR_SHEET_QUERY);
+  // The Inspector's Fold folds the Inspector alone, at any width: the list and
+  // the pane stay (folding both is Zoom's). D, or choosing a session to
+  // inspect, opens it again; the grid drops its track while it is folded.
+  const [inspectorFolded, setInspectorFolded] = useState(false);
+  useEffect(() => { if (detailOpen) setInspectorFolded(false); }, [detailOpen]);
+  const foldInspector = useCallback(() => {
+    setInspectorFolded(true);
+    setDetailOpen(false);
+    // The keyboard goes to the pane, never the page (fold-focus.ts).
+    requestAnimationFrame(() => { focusFirstTaking(document); });
+  }, [setDetailOpen]);
   // A click on the switch crossfades the middle of the deck; a key does not.
   const [viewFade, setViewFade] = useState(false);
   useEffect(() => {
@@ -1145,22 +1157,24 @@ function Inner() {
       {/* WORKSPACE draws the Inspector as a column whether or not a session is in
           focus (an empty pane means none, and the column says so), down to 1320px;
           under that it is the detail sheet, opened as on the Board. */}
-      {inWorkspace && inspectorColumn && !(detailOpen && selected) ? (
+      {inWorkspace && inspectorColumn && !inspectorFolded && !(detailOpen && selected) ? (
         selected ? (
           <DetailAside
             selected={selected} now={now} openTool={openTool} setSummaryFor={setSummaryFor}
             stateRef={stateRef} removeSelectedNode={removeSelectedNode}
             onSelectAgent={selectInspected}
-            onClose={() => { panelReturn.detail(); setDetailOpen(false); }}
+            workspace
+            onClose={foldInspector}
           />
         ) : <EmptyInspector />
       ) : null}
       {detailOpen && selected ? (
         <DetailAside
+          workspace={inWorkspace}
           selected={selected} now={now} openTool={openTool} setSummaryFor={setSummaryFor}
           stateRef={stateRef} removeSelectedNode={removeSelectedNode}
           onSelectAgent={selectInspected}
-          onClose={() => { panelReturn.detail(); setDetailOpen(false); }}
+          onClose={inWorkspace && inspectorColumn ? foldInspector : () => { panelReturn.detail(); setDetailOpen(false); }}
         />
       ) : null}
 

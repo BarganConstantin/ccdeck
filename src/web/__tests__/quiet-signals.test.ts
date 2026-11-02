@@ -257,13 +257,15 @@ describe("1. the tool-category chip you switched off (#368.1)", () => {
 describe("2. the quota pace marker (#368.2)", () => {
   // The fill and the marker are coloured in the component, not the sheet, so
   // the token sets come from there — a new state added to either is caught.
-  const FILLS = [...(/export function quotaLevelColor[^{]*\{\s*return\s+([^;]+);/.exec(quotaBar)![1])
+  // CHANGED ON PURPOSE (V4's Figma): the fill wears the Usage panel's meter
+  // rule, --muted, --text from 70, --err from 90, never amber.
+  const FILLS = [...(/export function quotaMeterColor[^{]*\{\s*return\s+([^;]+);/.exec(quotaBar)![1])
     .matchAll(/var\((--[\w-]+)\)/g)].map(m => m[1]);
   const MARKERS = [...(/className="qb-pace-marker"[\s\S]*?\/>/.exec(quotaBar)![0])
     .matchAll(/var\((--[\w-]+)\)/g)].map(m => m[1]);
 
   it("still draws both ends from the tokens this test knows about", () => {
-    expect(new Set(FILLS)).toEqual(new Set(["--err", "--warn", "--accent"]));
+    expect(new Set(FILLS)).toEqual(new Set(["--err", "--text", "--muted"]));
     expect(new Set(MARKERS)).toEqual(new Set(["--err", "--ok"]));
   });
 
@@ -300,14 +302,18 @@ describe("2. the quota pace marker (#368.2)", () => {
       }
       // Surplus puts the marker outside the fill, on the bare track, where it
       // has to carry itself — the ring is near-invisible on --line by design.
-      const track = resolve(declOf(".qb-track", "background")!, theme);
+      // CHANGED ON PURPOSE (V4's Figma): the track is --ctl-fill, a wash of the ink, over the panel.
+      const track = over(resolve(TOK[theme][/^var\((--[\w-]+)\)$/.exec(declOf(".qb-track", "background")!)![1]], theme), tok("--panel", theme));
       expect(contrastRatio(tok("--ok", theme), track), `${theme} --ok marker on the track`)
         .toBeGreaterThanOrEqual(NON_TEXT);
     }
   });
 
-  it("keeps the track clipping the ring, which is what leaves only the two side edges", () => {
-    expect(declOf(".qb-track", "overflow")).toBe("hidden");
+  // CHANGED ON PURPOSE (V4's Figma): the track is 2 high, so it no longer clips; the tick stands
+  // 2px clear above and below it (the rail is inset -2px), and the ring is a spread on all sides.
+  it("lets the tick stand clear of the 2px track instead of clipping it", () => {
+    expect(declOf(".qb-track", "overflow")).toBeNull();
+    expect(declOf(".qb-pace-rail", "inset")).toBe("-2px 0");
   });
 });
 

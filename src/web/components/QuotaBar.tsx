@@ -4,7 +4,7 @@
 // Lifted out of UsagePanel.tsx unchanged, with the pace arithmetic it draws
 // (computePace). Every bar in the panel's two quota sections is this component
 // — Claude's windows and its top-up, Codex's lanes and its spend cap — so the
-// rules for when a bar turns amber or red, and what its pace note says, are
+// rules for when a bar turns red, and what its pace note says, are
 // written once. The one piece of state it holds is its own: whether that note
 // is open (#856).
 import { useId, useState } from "react";
@@ -37,9 +37,9 @@ export function computePace(pct: number, resetAtSec: number, windowSec: number, 
   // A window at its limit has nothing left to run out of (#1805). What is left
   // was measured as `100 - pct`, so a full one "ran out" in zero seconds and
   // the note under a full red bar read "runs out in 0m" — or "on pace", near
-  // the end of the window. Said before either, in the over-pace colours.
+  // the end of the window. Said before either, in the over-pace colour.
   if (limitReached || pct >= 100) {
-    return { label: "used up", kind: "usedUp", color: "var(--warn)", expectedPct, isDeficit: true };
+    return { label: "used up", kind: "usedUp", color: "var(--err)", expectedPct, isDeficit: true };
   }
 
   if (Math.abs(delta) < 3) {
@@ -53,8 +53,8 @@ export function computePace(pct: number, resetAtSec: number, windowSec: number, 
     const runsOutSec = ratePerSec > 0 ? remainPct / ratePerSec : Infinity;
     const info: PaceInfo = {
       // "over pace", not "ahead" (#823): ahead reads as winning, and this is
-      // the warning — the amber line was taken for good news.
-      label: `${Math.round(delta)}% over pace`, kind: "over", n: Math.round(delta), color: "var(--warn)",
+      // the warning. --err, the tick's own colour: usage wears no amber in V4.
+      label: `${Math.round(delta)}% over pace`, kind: "over", n: Math.round(delta), color: "var(--err)",
       expectedPct, isDeficit: true,
     };
     if (runsOutSec < remainSec && runsOutSec < 86400) {
@@ -93,11 +93,12 @@ export function quotaPctText(capped: number): string {
   return capped < 1 ? "< 1%" : `${Math.round(capped)}%`;
 }
 
-/** The colour a window's fill wears at a known, already-capped reading: --err
- *  at 90 and over (or at a reached limit), --warn from 70, else --accent. The
- *  bar and the rail's usage meter take it from here, so they cannot disagree. */
-export function quotaLevelColor(capped: number, isErr = capped >= 90): string {
-  return isErr || capped >= 90 ? "var(--err)" : capped >= 70 ? "var(--warn)" : "var(--accent)";
+/** The Usage panel's meter rule (V4's Figma): under 70 the fill is --muted, from
+ *  70 to 89 it is --text, from 90 (or at a reached limit) --err, never amber.
+ *  The rail's meter keeps its bar one colour and tones its figure instead
+ *  (figureLevel in rail-usage.ts). */
+export function quotaMeterColor(capped: number, isErr = capped >= 90): string {
+  return isErr || capped >= 90 ? "var(--err)" : capped >= 70 ? "var(--text)" : "var(--muted)";
 }
 
 // ── Quota bar ──────────────────────────────────────────────────────────────
@@ -129,7 +130,7 @@ export default function QuotaBar({ pct, label, reset, resetAt, windowSec, limitR
   const capped   = known ? Math.min(100, Math.max(0, pct)) : 0;
   const jump     = useFillJump(capped);
   const isErr    = limitReached || capped >= 90;
-  const color    = quotaLevelColor(capped, isErr);
+  const color    = quotaMeterColor(capped, isErr);
   // A whole percentage, the way Claude's readings already arrive (clampPct).
   // A Codex spend cap is `used / limit * 100` and printed $10 of $30 as
   // "33.33333333333333%" (#1804). Under 1% reads "< 1%" like a zero does:
@@ -153,7 +154,7 @@ export default function QuotaBar({ pct, label, reset, resetAt, windowSec, limitR
           {label}
           {limitReached && !rolled && <span className="qb-limit-badge" title={t("usage.quota.rateLimitReached")}>⛔</span>}
         </span>
-        <span className="qb-pct" style={{ color: known ? color : "var(--muted)" }}><FadeFigure text={pctLabel} value={capped} /></span>
+        <span className="qb-pct" data-known={known || undefined}><FadeFigure text={pctLabel} value={capped} /></span>
       </div>
       <div className="qb-track">
         {known && <div className="qb-fill" data-jump={jump || undefined} style={{ transform: `scaleX(${fillW / 100})`, background: color, opacity: underOne ? 0.4 : 1 }} />}
@@ -186,7 +187,9 @@ export default function QuotaBar({ pct, label, reset, resetAt, windowSec, limitR
           <button
             type="button"
             className="qb-pace"
-            style={{ color: pace.color }}
+            // A note on the pace is --muted (V4's Figma); one that is over
+            // pace or used up keeps the colour that says so.
+            style={pace.isDeficit ? { color: pace.color } : undefined}
             aria-expanded={why}
             aria-controls={why ? whyId : undefined}
             onClick={() => setWhy(w => !w)}
