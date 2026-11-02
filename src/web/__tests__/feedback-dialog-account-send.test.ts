@@ -13,7 +13,12 @@ import type { FeedbackDraft } from "../feedback";
 vi.mock("react", async () => (await import("./fake-react")).react);
 
 const { useFeedbackSend, ACCOUNT_THREADS_ROUTE } = await import("../use-feedback-send");
-const { ACCOUNT_UNAVAILABLE, SENT_LINE_ACCOUNT } = await import("../feedback");
+const { ACCOUNT_UNAVAILABLE_MSG, SENT_LINE_ACCOUNT_MSG } = await import("../feedback");
+const { en } = await import("../i18n/en");
+// CHANGED ON PURPOSE (the UI in every language): the sentences are keys in the
+// source; the tests read the English the catalog gives each key.
+const ACCOUNT_UNAVAILABLE = en[ACCOUNT_UNAVAILABLE_MSG];
+const SENT_LINE_ACCOUNT = en[SENT_LINE_ACCOUNT_MSG];
 
 const DRAFT: FeedbackDraft = { kind: "bug", body: "The usage chart is empty after a restart", contact: "me@example.com" };
 const PNG = new Blob([new Uint8Array([0x89, 0x50, 0x4e, 0x47])], { type: "image/png" });

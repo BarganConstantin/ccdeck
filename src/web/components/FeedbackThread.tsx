@@ -24,8 +24,8 @@ import { Fragment, useEffect, useLayoutEffect, useRef, type FormEvent, type Keyb
 import { selfPressProps } from "../panel-press";
 import { BODY_MAX, isSendShortcut } from "../feedback";
 import {
-  ALL_CONVERSATIONS, LINK_REL, LOADING_CONVERSATION, REPLY_LABEL, REPLY_PLACEHOLDER, REPLY_SEND, REPLY_SENDING, SHOW_EARLIER,
-  TRY_AGAIN, highestSeq, imagesOnWeb, linkify, startedLine, statusTone, timeline, trackedLabel,
+  ALL_CONVERSATIONS_MSG, LINK_REL, LOADING_CONVERSATION_MSG, REPLY_LABEL_MSG, REPLY_PLACEHOLDER_MSG, REPLY_SEND_MSG, REPLY_SENDING_MSG, SHOW_EARLIER_MSG,
+  TRY_AGAIN_MSG, highestSeq, imagesOnWeb, linkify, startedLine, statusTone, timeline, trackedLabel,
   type StatusView, type ThreadItem, type ThreadSummary,
 } from "../feedback-conversations";
 import { useThread } from "../use-feedback-conversations";
@@ -96,6 +96,7 @@ export default function FeedbackThread({ summary, latestAt, announce, onBack }: 
   announce: (words: string) => void;
   onBack: () => void;
 }) {
+  const tr = useT();
   const t = useThread(summary.id, latestAt, announce);
   const thread = t.view?.thread ?? summary;
   const composerRef = useRef<HTMLTextAreaElement>(null);
@@ -145,7 +146,7 @@ export default function FeedbackThread({ summary, latestAt, announce, onBack }: 
     <div className="fc-thread">
       <div className="fc-thread-head">
         <button type="button" className="fb-tool fc-back" onClick={onBack}>
-          <span aria-hidden="true">←</span> {ALL_CONVERSATIONS}
+          <span aria-hidden="true">←</span> {tr(ALL_CONVERSATIONS_MSG)}
         </button>
         <h3 className="fc-thread-title">{thread.title}</h3>
         <p className="fc-thread-meta">
@@ -159,20 +160,20 @@ export default function FeedbackThread({ summary, latestAt, announce, onBack }: 
       <div ref={timelineRef} className="fc-timeline">
         {t.view?.earlier != null && (
           <button type="button" className="btn fc-earlier" onClick={() => void t.earlier()} {...selfPressProps(t.loadingEarlier)}>
-            {SHOW_EARLIER}
+            {tr(SHOW_EARLIER_MSG)}
           </button>
         )}
-        {t.state === "loading" && <p className="fc-note">{LOADING_CONVERSATION}</p>}
+        {t.state === "loading" && <p className="fc-note">{tr(LOADING_CONVERSATION_MSG)}</p>}
         {t.problem && (
           <div className="fc-missing">
             <p className="fc-note">{t.problem}</p>
-            {t.state === "failed" && <button type="button" className="btn" onClick={() => void t.reload()}>{TRY_AGAIN}</button>}
+            {t.state === "failed" && <button type="button" className="btn" onClick={() => void t.reload()}>{tr(TRY_AGAIN_MSG)}</button>}
           </div>
         )}
         <Timeline items={t.items} webUrl={thread.webUrl} now={now} />
       </div>
       <form className="fc-composer" onSubmit={submit} noValidate>
-        <label className="vis-hidden" htmlFor="fc-reply">{REPLY_LABEL}</label>
+        <label className="vis-hidden" htmlFor="fc-reply">{tr(REPLY_LABEL_MSG)}</label>
         <textarea
           ref={composerRef}
           id="fc-reply"
@@ -180,15 +181,15 @@ export default function FeedbackThread({ summary, latestAt, announce, onBack }: 
           value={t.draft}
           maxLength={BODY_MAX}
           rows={1}
-          placeholder={REPLY_PLACEHOLDER}
+          placeholder={tr(REPLY_PLACEHOLDER_MSG)}
           onChange={e => t.setDraft(e.target.value)}
           onKeyDown={keys}
           aria-describedby={t.failure ? "fc-reply-error" : undefined}
         />
         <button type="submit" className="btn primary fc-send" aria-keyshortcuts="Meta+Enter Control+Enter" {...selfPressProps(t.sending)}>
           <span className="fb-send-label">
-            <span className="fb-send-idle">{REPLY_SEND}</span>
-            <span className="fb-send-busy">{REPLY_SENDING}</span>
+            <span className="fb-send-idle">{tr(REPLY_SEND_MSG)}</span>
+            <span className="fb-send-busy">{tr(REPLY_SENDING_MSG)}</span>
           </span>
         </button>
       </form>

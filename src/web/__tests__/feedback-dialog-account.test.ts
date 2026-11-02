@@ -23,10 +23,21 @@ import ErrorBoundary from "../components/ErrorBoundary";
 import { publishFeedbackAccount, type FeedbackAccount } from "../feedback-unread";
 import { draftKey, feedbackDrafts, feedbackSeed } from "../feedback-draft";
 import {
-  ACCOUNT_UNAVAILABLE, SEND_WITHOUT_ACCOUNT, SENT_LINE_ACCOUNT, SENT_LINE_ACCOUNT_NO_MAIL, WHERE_IT_GOES_ACCOUNT,
-  WHERE_IT_GOES_ACCOUNT_NO_MAIL, accountFailure, accountSentAs, contactLabel, outcomeAnnouncement, sentLine, whereItGoes, whereItGoesAccount,
+  ACCOUNT_UNAVAILABLE_MSG, SEND_WITHOUT_ACCOUNT_MSG, SENT_LINE_ACCOUNT_MSG, SENT_LINE_ACCOUNT_NO_MAIL_MSG, WHERE_IT_GOES_ACCOUNT_MSGS,
+  WHERE_IT_GOES_ACCOUNT_NO_MAIL_MSGS, accountFailure, accountSentAs, contactLabel, outcomeAnnouncement, sentLine, whereItGoes, whereItGoesAccount,
 } from "../feedback";
+import { en } from "../i18n/en";
 import { withoutComments } from "./tsx-scan";
+
+// CHANGED ON PURPOSE (the UI in every language): these sentences are keys in
+// the source; the tests read the English the catalog gives each key, so they
+// still pin the words.
+const ACCOUNT_UNAVAILABLE = en[ACCOUNT_UNAVAILABLE_MSG];
+const SEND_WITHOUT_ACCOUNT = en[SEND_WITHOUT_ACCOUNT_MSG];
+const SENT_LINE_ACCOUNT = en[SENT_LINE_ACCOUNT_MSG];
+const SENT_LINE_ACCOUNT_NO_MAIL = en[SENT_LINE_ACCOUNT_NO_MAIL_MSG];
+const WHERE_IT_GOES_ACCOUNT = WHERE_IT_GOES_ACCOUNT_MSGS.map(key => en[key]);
+const WHERE_IT_GOES_ACCOUNT_NO_MAIL = WHERE_IT_GOES_ACCOUNT_NO_MAIL_MSGS.map(key => en[key]);
 
 // The anonymous dialog's words now come from the catalog (feedback.ts); the same words as before.
 const CONTACT_LABEL = contactLabel(), SENT_LINE = sentLine(), WHERE_IT_GOES = whereItGoes();
@@ -90,8 +101,8 @@ describe("with an account connected", () => {
     expect(words(markup)).toContain("Sent as me@example.com — you'll get replies here and on app.ccdeck.dev");
     expect(accountSentAs(null, false)).toBe("Sent from your ccdeck account — you'll get replies here and on app.ccdeck.dev");
     for (const line of WHERE_IT_GOES_ACCOUNT_NO_MAIL) expect(words(markup)).toContain(line);
-    expect(whereItGoesAccount(false)).toBe(WHERE_IT_GOES_ACCOUNT_NO_MAIL);
-    expect(whereItGoesAccount(true)).toBe(WHERE_IT_GOES_ACCOUNT);
+    expect(whereItGoesAccount(false)).toEqual(WHERE_IT_GOES_ACCOUNT_NO_MAIL);
+    expect(whereItGoesAccount(true)).toEqual(WHERE_IT_GOES_ACCOUNT);
     expect(words(markup)).not.toMatch(/by email|emailed|mailed/i);
     // Published the same way the account's chunk publishes it, and back on with the flag.
     publishFeedbackAccount({ ...ACCOUNT, mail: false });

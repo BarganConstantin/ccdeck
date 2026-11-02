@@ -14,10 +14,11 @@ import { DOUBLE_CLICK_MS } from "../focus-hold";
 import type { GraphState } from "../reducer";
 import type { AgentNodeData } from "../types";
 import {
-  useRailPanel, useStage, useStageAsks, PREFS_WAIT_MS, RESTORE_FRESH_MS, RESTORE_WAIT_MS, SHELL_UNAVAILABLE, STAGE_RESTORE_KEY, TERMINAL_SWITCHED_KEY as STAGE_SWITCHED,
+  useRailPanel, useStage, useStageAsks, PREFS_WAIT_MS, RESTORE_FRESH_MS, RESTORE_WAIT_MS, SHELL_UNAVAILABLE_MSG, STAGE_RESTORE_KEY, TERMINAL_SWITCHED_KEY as STAGE_SWITCHED,
   type StageDeps,
 } from "../use-stage";
 import { TYPE_AHEAD_MS } from "../type-ahead";
+import { en } from "../i18n/en";
 import { mount } from "./fake-react";
 
 vi.mock("react", async () => (await import("./fake-react")).react);
@@ -730,7 +731,10 @@ describe("closing", () => {
     now().stage.switchTo("s1", { focusPane: false });
     now().stage.failed();
     expect(now().stage.shell.phase).toBe("closed");
-    expect(now().stage.said).toBe(SHELL_UNAVAILABLE);
+    // CHANGED ON PURPOSE (the UI in every language): the sentence is a key,
+    // and English maps it to the same words.
+    expect(now().stage.said).toBe(en[SHELL_UNAVAILABLE_MSG]);
+    expect(en[SHELL_UNAVAILABLE_MSG]).toBe("The Command Panel could not be loaded. Reload the page to use it.");
   });
 });
 

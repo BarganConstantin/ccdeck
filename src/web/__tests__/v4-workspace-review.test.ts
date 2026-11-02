@@ -10,7 +10,7 @@ import { withoutComments } from "./tsx-scan";
 import { landFocus, openWaiting } from "../components/terminal/TerminalStage";
 import { offersWorkspace, type TerminalSwitch } from "../components/TerminalSection";
 import { keyHelpFor, WORKSPACE_KEY_ROW } from "../key-help";
-import { SKIP_TO_PANE, WORKSPACE_PANE_ID, skipToPane } from "../workspace-pane";
+import { SKIP_TO_PANE_MSG, WORKSPACE_PANE_ID, skipToPane } from "../workspace-pane";
 import { en } from "../i18n/en";
 
 const read = (path: string) => readFileSync(fileURLToPath(new URL(`../${path}`, import.meta.url)), "utf8");
@@ -92,7 +92,10 @@ describe("the skip link in Workspace (review 8)", () => {
   });
 
   it("reads Skip to the pane there, and the Board's link is the link it was, byte for byte", () => {
-    expect(SKIP_TO_PANE).toBe("Skip to the pane");
+    // CHANGED ON PURPOSE (the UI in every language): the words are a key, and
+    // English maps it to the same words.
+    expect(SKIP_TO_PANE_MSG).toBe("board.stage.skipToPane");
+    expect(en[SKIP_TO_PANE_MSG]).toBe("Skip to the pane");
     const app = withoutComments(sourceOf("App.tsx"));
     expect(app).toContain('<a className="skip-link" href="#canvas">{t("shell.skipToCanvas")}</a>');
     expect(en["shell.skipToCanvas"]).toBe("Skip to the canvas");

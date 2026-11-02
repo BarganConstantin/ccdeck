@@ -18,6 +18,7 @@
 // API's FeedbackText.Parts held to the shared fixture feedback-links.json, and
 // drawn as React elements; dangerouslySetInnerHTML is never used.
 export { limitLine } from "./feedback";
+import { t } from "./i18n";
 
 // ── the API's shapes ─────────────────────────────────────────────────────────
 
@@ -222,18 +223,26 @@ function dayKey(ms: number, timeZone?: string): string {
   return new Intl.DateTimeFormat("en-CA", { year: "numeric", month: "2-digit", day: "2-digit", timeZone }).format(ms);
 }
 
-/** "Today", "Yesterday", "Oct 26" — and "Oct 26, 2025" in another year. */
-export function dayLabel(at: string, now: number, timeZone?: string): string {
-  const ms = Date.parse(at);
-  const day = dayKey(ms, timeZone);
-  if (day === dayKey(now, timeZone)) return "Today";
+/** Which day an instant falls on, against `now`: today, the day before, or a
+ *  date (whose words the caller works out). */
+function dayKind(at: string, now: number, timeZone?: string): "today" | "yesterday" | "date" {
+  const day = dayKey(Date.parse(at), timeZone);
+  if (day === dayKey(now, timeZone)) return "today";
   // Noon-anchored, so a 23- or 25-hour day across a clock change still lands
   // on the calendar day before.
   const today = dayKey(now, timeZone);
   const [y, m, d] = today.split("-").map(Number);
   const yesterday = dayKey(Date.UTC(y, m - 1, d - 1, 12), "UTC");
-  if (day === yesterday) return "Yesterday";
-  const sameYear = day.slice(0, 4) === today.slice(0, 4);
+  return day === yesterday ? "yesterday" : "date";
+}
+
+/** "Today", "Yesterday", "Oct 26" — and "Oct 26, 2025" in another year. */
+export function dayLabel(at: string, now: number, timeZone?: string): string {
+  const kind = dayKind(at, now, timeZone);
+  if (kind === "today") return t("insights.audit.today");
+  if (kind === "yesterday") return t("insights.audit.yesterday");
+  const ms = Date.parse(at);
+  const sameYear = dayKey(ms, timeZone).slice(0, 4) === dayKey(now, timeZone).slice(0, 4);
   return new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", ...(sameYear ? {} : { year: "numeric" }), timeZone }).format(ms);
 }
 
@@ -245,8 +254,7 @@ export function timeLabel(at: string, timeZone?: string): string {
 /** When a conversation was last active, as a list row says it: the time
  *  today, otherwise the day. */
 export function listTime(at: string, now: number, timeZone?: string): string {
-  const label = dayLabel(at, now, timeZone);
-  return label === "Today" ? timeLabel(at, timeZone) : label;
+  return dayKind(at, now, timeZone) === "today" ? timeLabel(at, timeZone) : dayLabel(at, now, timeZone);
 }
 
 /**
@@ -289,7 +297,7 @@ export function timeline(shown: readonly ThreadItem[], now: number, timeZone?: s
 
 /** The latest item, as a list row previews it: whose, and the words. */
 export function previewLine(thread: ThreadSummary): string {
-  return thread.preview.side === "user" ? `You: ${thread.preview.text}` : thread.preview.text;
+  return thread.preview.side === "user" ? t("shell.feedback.previewYou", { text: thread.preview.text }) : thread.preview.text;
 }
 
 /** The pill's tone, by the status code: a colour that agrees with its word. */
@@ -302,38 +310,39 @@ export function statusTone(code: string): "open" | "progress" | "done" | "closed
 
 // ── the words ────────────────────────────────────────────────────────────────
 
-export const ALL_CONVERSATIONS = "All conversations";
-export const NO_CONVERSATIONS = "No conversations yet. What you send from your account starts one here.";
-export const LOADING_CONVERSATIONS = "Loading your conversations…";
-export const LOADING_CONVERSATION = "Loading the conversation…";
-export const MORE_CONVERSATIONS = "More";
-export const SHOW_EARLIER = "Show earlier";
-export const TRY_AGAIN = "Try again";
-export const REPLY_PLACEHOLDER = "Write a reply…";
-export const REPLY_SEND = "Send reply";
-export const REPLY_SENDING = "Sending…";
-export const REPLY_LABEL = "Your reply";
-export const REPLY_SENT = "Reply sent.";
-export const NEW_REPLY = "New reply from the ccdeck team.";
-export const CONVERSATION_GONE = "This conversation is no longer available.";
+// Keys, read with `t` where each is drawn or announced.
+export const ALL_CONVERSATIONS_MSG = "shell.feedback.allConversations";
+export const NO_CONVERSATIONS_MSG = "shell.feedback.noConversations";
+export const LOADING_CONVERSATIONS_MSG = "shell.feedback.loadingConversations";
+export const LOADING_CONVERSATION_MSG = "shell.feedback.loadingConversation";
+export const MORE_CONVERSATIONS_MSG = "board.rail.more";
+export const SHOW_EARLIER_MSG = "shell.feedback.showEarlier";
+export const TRY_AGAIN_MSG = "board.stage.tryAgain";
+export const REPLY_PLACEHOLDER_MSG = "shell.feedback.replyPlaceholder";
+export const REPLY_SEND_MSG = "shell.feedback.replySend";
+export const REPLY_SENDING_MSG = "shell.feedback.sending";
+export const REPLY_LABEL_MSG = "shell.feedback.replyLabel";
+export const REPLY_SENT_MSG = "shell.feedback.replySent";
+export const NEW_REPLY_MSG = "shell.feedback.newReply";
+export const CONVERSATION_GONE_MSG = "shell.feedback.conversationGone";
 /** The list or a thread would not load: nothing to keep, so no tick to offer. */
-export const CONVERSATIONS_UNAVAILABLE = "Your account's conversations can't be reached right now.";
+export const CONVERSATIONS_UNAVAILABLE_MSG = "shell.feedback.conversationsUnavailable";
 /** A reply that did not go: the words stay in the box. */
-export const REPLY_UNAVAILABLE = "Your account's conversations can't be reached right now. Try again; your text is still here.";
-export const REPLY_REFUSED = "The server did not accept the reply. It is still here; check it and send again.";
+export const REPLY_UNAVAILABLE_MSG = "shell.feedback.replyUnavailable";
+export const REPLY_REFUSED_MSG = "shell.feedback.replyRefused";
 
 /** "Tracked publicly as #123". */
-export const trackedLabel = (issue: TrackedIssue) => `Tracked publicly as #${issue.number}`;
+export const trackedLabel = (issue: TrackedIssue) => t("shell.feedback.trackedPublicly", { number: issue.number });
 
 /** "2 images — view on the web". */
 export function imagesOnWeb(n: number): string {
-  return `${n} ${n === 1 ? "image" : "images"} — view on the web`;
+  return t("shell.feedback.imagesOnWeb", { count: n });
 }
 
 /** Where a conversation started: "Started Oct 28 from your deck". */
 export function startedLine(createdAt: string, via: string | undefined, now: number, timeZone?: string): string {
   const day = dayLabel(createdAt, now, timeZone);
-  const when = day === "Today" || day === "Yesterday" ? day.toLowerCase() : day;
-  const from = via === "web" ? " from the web" : via === "deck" ? " from your deck" : "";
-  return `Started ${when}${from}`;
+  const kind = dayKind(createdAt, now, timeZone);
+  const when = kind === "date" ? day : day.toLowerCase();
+  return t(via === "web" ? "shell.feedback.startedWeb" : via === "deck" ? "shell.feedback.startedDeck" : "shell.feedback.started", { when });
 }

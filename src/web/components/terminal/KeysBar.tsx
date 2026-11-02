@@ -33,7 +33,7 @@
 // have no keys to name; the bar is hidden, not removed, because the stage
 // measures it by element (TerminalStage's useDrawnHeight) and a new element
 // would never be measured.
-import { RELEASE_CHORD_SPOKEN } from "../../terminal-keys";
+import { RELEASE_CHORD_SPOKEN_MSG } from "../../terminal-keys";
 import { RECONNECT_NOTE_MSG, type KeysOwner } from "./stage-model";
 import { Kbd } from "../Kbd";
 import { t as tNow, useT } from "../../i18n";
@@ -237,7 +237,7 @@ export default function KeysBar(p: KeysBarProps) {
       <div className="ts-keys" data-owner="pane">
         <span className="ts-label" data-strong>{t("board.keys.typingInto", { name: p.name })}</span>
         {!lean && <span className="ts-hint" data-optional><Kbd>Esc</Kbd> {t("board.keys.escGoes")}</span>}
-        {!lean && <span className="ts-hint"><Kbd label={RELEASE_CHORD_SPOKEN}>{p.chordLabel}</Kbd> {t("board.keys.backToBoard")}</span>}
+        {!lean && <span className="ts-hint"><Kbd label={t(RELEASE_CHORD_SPOKEN_MSG)}>{p.chordLabel}</Kbd> {t("board.keys.backToBoard")}</span>}
       </div>
     );
   } else {

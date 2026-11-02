@@ -20,12 +20,13 @@ import { applyEvent, initialState, type GraphState } from "../reducer";
 import type { HookEnvelope, HookPayload } from "../types";
 import { isUnseen, markSeen, resetSessionsSeen, SEEN_CAP, turnEndedAt } from "../session-seen";
 import {
-  RAIL_FOLD_AT, RAIL_GROUP_LABELS, foldMotion, foldPlan, heldLine, holdOrder, joinMotion, measureGate, membershipChange,
+  RAIL_FOLD_AT, RAIL_GROUP_LABEL_MSGS, foldMotion, foldPlan, heldLine, holdOrder, joinMotion, measureGate, membershipChange,
   nobodyWaitingText, railHeld, releaseMotion,
   type Slot,
 } from "../rail-model";
 import { railGlyph, railLine, railTime, rowSpoken, rowTooltip, runningTool } from "../rail-row-copy";
 import { cancelFlights, durationMs } from "../rail-motion";
+import { en } from "../i18n/en";
 import { baselineSeen, mergeSeen, syncSeenFromStorage } from "../session-seen";
 import { sheetRules } from "./sheet-cascade";
 import { MOUSE_MEDIA } from "./sheet-source";
@@ -572,7 +573,10 @@ describe("the fold past 8", () => {
     expect(html).toContain("2 more");
     expect(html).toMatch(/<button type="button" class="sl-more" aria-expanded="false">2 more/);
     expect(html).toMatch(/<button type="button" class="sl-fold-btn" aria-expanded="false" data-motion="animate">[\s\S]*?<span class="sl-group-label">Idle<\/span><span class="sl-group-count">4<\/span>/);
-    expect(RAIL_GROUP_LABELS).toEqual(["Needs you", "Working", "Done · unseen", "Idle"]);
+    // CHANGED ON PURPOSE (the UI in every language): the labels are keys,
+    // and English maps them to the same four words.
+    expect([...RAIL_GROUP_LABEL_MSGS]).toEqual(["board.railGroup.needs", "board.railGroup.working", "board.railGroup.done", "board.railGroup.idle"]);
+    expect(RAIL_GROUP_LABEL_MSGS.map(key => en[key])).toEqual(["Needs you", "Working", "Done · unseen", "Idle"]);
   });
 });
 

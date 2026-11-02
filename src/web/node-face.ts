@@ -217,11 +217,11 @@ export interface CardState {
 
 export function cardState(data: Pick<AgentNodeData, "kind" | "state" | "stopFailure" | "waiting">): CardState {
   if (data.kind === "root" && isAlarming(data.waiting)) {
-    return { tone: "waiting", word: "Waiting", mark: "alert" };
+    return { tone: "waiting", word: t("board.card.stateWaiting"), mark: "alert" };
   }
   const shown = drawnState(data);
   const mark = stateMarkKind(shown);
-  return shown === "active" ? { tone: "active", word: "Working", mark }
-    : shown === "done" ? { tone: "done", word: "Done", mark }
-    : { tone: "err", word: "Failed", mark };
+  return shown === "active" ? { tone: "active", word: t("board.card.stateWorking"), mark }
+    : shown === "done" ? { tone: "done", word: t("board.card.stateDone"), mark }
+    : { tone: "err", word: t("board.card.stateFailed"), mark };
 }

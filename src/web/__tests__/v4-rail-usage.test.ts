@@ -293,7 +293,9 @@ describe("where the reading comes from, and what the button does", () => {
       expect(s, f).not.toMatch(/\blazy\(|import\(/);
     }
     const imports = [...code("../rail-usage.ts").matchAll(/from "([^"]+)"/g)].map(m => m[1]);
-    expect(imports.sort()).toEqual(["./components/QuotaBar", "./elapsed-short", "./relative-time", "./use-quota"]);
+    // CHANGED ON PURPOSE (the UI in every language): the language module is
+    // one import more, for the meter's words.
+    expect(imports.sort()).toEqual(["./components/QuotaBar", "./elapsed-short", "./i18n", "./relative-time", "./use-quota"]);
     // QuotaBar is reached from App.tsx's static UsagePanel import already.
     expect(code("../App.tsx")).toContain('import UsagePanel from "./components/UsagePanel";');
     expect(code("../App.tsx")).not.toMatch(/const UsagePanel = lazy/);

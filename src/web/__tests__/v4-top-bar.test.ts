@@ -21,6 +21,7 @@ import { IncidentChips } from "../components/ProviderIncidents";
 import { QUEUE_EXIT_MS, WaitingStat } from "../components/TopbarReadouts";
 import { CHIP_EXIT_MS } from "../components/ChipPresence";
 import { sessionCounts } from "../topbar-counts";
+import { en } from "../i18n/en";
 import { versionChipNeeded } from "../version-chip";
 import type { AgentNodeData } from "../types";
 
@@ -191,7 +192,11 @@ describe("Search: 264x28 with the key chip, and Feedback: a 28x28 icon with its 
     expect(decl(".rail-btn-bar.rail-btn-field", "gap")).toBe("8px");
     const rails = sourceOf("components/EdgeRails.tsx");
     expect(rails).toContain("{item.key && <Kbd>{item.key.cap}</Kbd>}");
-    expect(sourceOf("rail-items.tsx")).toContain('QUICK_OPEN_PLACEHOLDER = "Open a session or run a command"');
+    // CHANGED ON PURPOSE (the UI in every language): the source names the key,
+    // and English maps it to the same words.
+    expect(sourceOf("rail-items.tsx")).toContain('QUICK_OPEN_PLACEHOLDER_MSG = "board.quick.placeholder"');
+    expect(sourceOf("rail-items.tsx")).toContain("fieldText: t(QUICK_OPEN_PLACEHOLDER_MSG)");
+    expect(en["board.quick.placeholder"]).toBe("Open a session or run a command");
   });
   it("draws Feedback as a 28x28 icon, named and hinted by its word", () => {
     expect(decl(".rail-btn-bar.rail-btn-icon", "width")).toBe("28px");

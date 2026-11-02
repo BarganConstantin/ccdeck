@@ -26,11 +26,11 @@ import {
   ACK_EVERY_BYTES,
   CTRL_V,
   ECHO_WINDOW_MS,
-  ENGINE_NO_RETURN,
-  ENGINE_NO_RETURN_WINDOWS,
-  NO_RETURN,
-  NO_RETURN_WINDOWS,
-  PASTE_TOO_LARGE,
+  ENGINE_NO_RETURN_MSG,
+  ENGINE_NO_RETURN_WINDOWS_MSG,
+  NO_RETURN_MSG,
+  NO_RETURN_WINDOWS_MSG,
+  PASTE_TOO_LARGE_MSG,
   RECONNECT_DELAYS_MS,
   RECONNECT_GIVE_UP_MS,
   RESTART_FAST_MS,
@@ -54,6 +54,16 @@ import {
   type UseTerminalSessionOptions,
 } from "../use-terminal-session";
 import type { TerminalKey } from "../terminal-keys";
+import { en } from "../i18n/en";
+
+// CHANGED ON PURPOSE (the UI in every language): the sentences are keys in the
+// source; these read the English the catalog gives them, and the tests below
+// still pin the words.
+const ENGINE_NO_RETURN = en[ENGINE_NO_RETURN_MSG];
+const ENGINE_NO_RETURN_WINDOWS = en[ENGINE_NO_RETURN_WINDOWS_MSG];
+const NO_RETURN = en[NO_RETURN_MSG];
+const NO_RETURN_WINDOWS = en[NO_RETURN_WINDOWS_MSG];
+const PASTE_TOO_LARGE = en[PASTE_TOO_LARGE_MSG];
 
 // ---------------------------------------------------------------------------
 // The fakes.

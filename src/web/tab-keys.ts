@@ -22,6 +22,7 @@
 // the tab is the Mac's own grammar), not Android, and not the desktop app.
 import { inDesktopApp } from "./in-app";
 import { isApplePlatform, platformName } from "./platform";
+import { t } from "./i18n";
 
 interface KeyboardLock {
   lock(codes?: string[]): Promise<void>;
@@ -32,8 +33,8 @@ const keyboard = (): Partial<KeyboardLock> | undefined =>
   typeof navigator === "undefined" ? undefined : (navigator as Navigator & { keyboard?: Partial<KeyboardLock> }).keyboard;
 
 /** Said in the keys bar after a leave the reader called off. */
-export const KEPT_KEYS_FULL = "The browser keeps Ctrl+W, Ctrl+T and Ctrl+N in a tab — ⤢ full screen gives them to the session.";
-export const KEPT_KEYS_APP = "The browser keeps Ctrl+W, Ctrl+T and Ctrl+N in a tab — the desktop app gives them to the session.";
+export const KEPT_KEYS_FULL_MSG = "board.keys.keptFull";
+export const KEPT_KEYS_APP_MSG = "board.keys.keptApp";
 
 /** Whether ⤢ here means full screen, the browser's shortcuts the session's. */
 export function canFullStage(platform: string = platformName(), ua?: string): boolean {
@@ -49,13 +50,13 @@ export function canFullStage(platform: string = platformName(), ua?: string): bo
 export function keptKeysNotice(canFull: boolean, platform: string = platformName()): string | null {
   if (isApplePlatform(platform)) return null;
   if (typeof document !== "undefined" && document.fullscreenElement) return null;
-  return canFull ? KEPT_KEYS_FULL : KEPT_KEYS_APP;
+  return t(canFull ? KEPT_KEYS_FULL_MSG : KEPT_KEYS_APP_MSG);
 }
 
 /** Is `notice` the sentence above — which full screen makes untrue, so the
  *  stage takes it down the moment full screen arrives? */
 export function isKeptKeysNotice(notice: string | null): boolean {
-  return notice === KEPT_KEYS_FULL || notice === KEPT_KEYS_APP;
+  return notice === t(KEPT_KEYS_FULL_MSG) || notice === t(KEPT_KEYS_APP_MSG);
 }
 
 /** The whole deck in full screen, and Esc asked for the pane. False when

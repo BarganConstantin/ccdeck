@@ -16,10 +16,11 @@ import { join } from "node:path";
 
 import {
   CONTROL_SYMBOLS, controlSymbolInput, inTerminalPanel, isCopyChord, isReleaseChord, MAC_META_KEYS, macEditInput, macMetaLetter,
-  RELEASE_CHORD, RELEASE_CHORD_SPOKEN, releaseChordLabel,
+  RELEASE_CHORD, RELEASE_CHORD_SPOKEN_MSG, releaseChordLabel,
   SHIFT_ENTER_INPUT, STAGE_FLIP_REST_MS, stageKeyIntent, stepSession, TERMINAL_PANEL_SELECTOR, terminalKeyHandler, terminalKeyInput,
   terminalKeyOutcome, type TerminalKey,
 } from "../terminal-keys";
+import { en } from "../i18n/en";
 import { isSettingsChord } from "../settings";
 import { CAUGHT_KEYS_ATTR, isBrowserChord } from "../shortcuts";
 
@@ -76,7 +77,10 @@ describe("the release chord is Ctrl+Shift+X, and only that", () => {
     // Both spellings name the chord the rule answers.
     expect(RELEASE_CHORD.key.toUpperCase()).toBe("X");
     // And a screen reader is told it in words, not read the symbols.
-    expect(RELEASE_CHORD_SPOKEN).toBe("Control Shift X");
+    // CHANGED ON PURPOSE (the UI in every language): the spoken name is a key,
+    // and English maps it to the same words.
+    expect(RELEASE_CHORD_SPOKEN_MSG).toBe("board.keys.controlShiftX");
+    expect(en[RELEASE_CHORD_SPOKEN_MSG]).toBe("Control Shift X");
     expect(RELEASE_CHORD).toMatchObject({ ctrlKey: true, shiftKey: true, altKey: false, metaKey: false });
   });
 

@@ -22,17 +22,18 @@ import { anyUnpriced, worthALine } from "./usage-panel-rules";
  *  strip's height off the board it reports (use-canvas-size.ts). */
 export const BOARD_HEAD_CLASS = "board-head";
 
-/** The labels, in the order they are drawn. "Done on this board" and "Spent on
- *  this board" where Figma says "today": both figures are the board's, which
- *  forgets finished sessions a couple of minutes after they end
- *  (board-limits.ts DONE_SESSION_GRACE_MS, board-usage.ts BOARD_SPEND_LABEL),
- *  not the calendar day's, and the code's wording wins over the drawing's. */
-export const BOARD_HEAD_LABELS = [
-  "Waiting on you",
-  "Working",
-  "Done on this board",
-  "Longest wait",
-  "Spent on this board",
+/** The labels' keys, in the order they are drawn, each read with `t` where it
+ *  is drawn. "Done on this board" and "Spent on this board" where Figma says
+ *  "today": both figures are the board's, which forgets finished sessions a
+ *  couple of minutes after they end (board-limits.ts DONE_SESSION_GRACE_MS,
+ *  board-usage.ts BOARD_SPEND_LABEL), not the calendar day's, and the code's
+ *  wording wins over the drawing's. */
+export const BOARD_HEAD_LABEL_MSGS = [
+  "board.header.waiting",
+  "board.header.working",
+  "board.header.done",
+  "board.header.longest",
+  "board.header.spent",
 ] as const;
 
 /** The dash a figure with nothing to say prints, in --muted. The same dash

@@ -24,10 +24,11 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { selfPressAccepted } from "./panel-press";
 import {
-  CONVERSATION_GONE, CONVERSATIONS_UNAVAILABLE, NEW_REPLY, REPLY_REFUSED, REPLY_SENT, REPLY_UNAVAILABLE,
+  CONVERSATION_GONE_MSG, CONVERSATIONS_UNAVAILABLE_MSG, NEW_REPLY_MSG, REPLY_REFUSED_MSG, REPLY_SENT_MSG, REPLY_UNAVAILABLE_MSG,
   highestSeq, limitLine, mergeItems, parseReplyCreated, parseThreadList, parseThreadView,
   type ThreadItem, type ThreadSummary, type ThreadView,
 } from "./feedback-conversations";
+import { t } from "./i18n";
 
 export const THREADS_ROUTE = "/api/account/feedback/threads";
 const threadRoute = (id: string) => `${THREADS_ROUTE}/${encodeURIComponent(id)}`;
@@ -52,9 +53,9 @@ export function replyFailure(status: number, answer: { reason?: unknown; limit?:
   if (reason === "too_many" && Number.isInteger(answer?.limit) && Number.isInteger(answer?.retryAfterSec)) {
     return limitLine("replies", answer!.limit as number, new Date(now + (answer!.retryAfterSec as number) * 1000));
   }
-  if (reason === "not_found" || status === 404) return CONVERSATION_GONE;
-  if (reason === "invalid" || reason === "too_large" || reason === "bad_request") return REPLY_REFUSED;
-  return REPLY_UNAVAILABLE;
+  if (reason === "not_found" || status === 404) return t(CONVERSATION_GONE_MSG);
+  if (reason === "invalid" || reason === "too_large" || reason === "bad_request") return t(REPLY_REFUSED_MSG);
+  return t(REPLY_UNAVAILABLE_MSG);
 }
 
 export type ListState = "loading" | "ready" | "failed";
@@ -144,7 +145,7 @@ export function useThread(id: string, latestAt: string | null, announce: (words:
   useEffect(() => {
     if (!items) return;
     const team = items.reduce((n, i) => (i.side === "team" ? Math.max(n, i.seq) : n), -1);
-    if (lastTeam.current >= 0 && team > lastTeam.current) announceRef.current(NEW_REPLY);
+    if (lastTeam.current >= 0 && team > lastTeam.current) announceRef.current(t(NEW_REPLY_MSG));
     lastTeam.current = Math.max(lastTeam.current, team, 0);
   }, [items]);
 
@@ -199,7 +200,7 @@ export function useThread(id: string, latestAt: string | null, announce: (words:
     }
     setDraft("");
     setView(shown => (shown ? { ...shown, thread: made.thread, items: mergeItems(shown.items, [made.item]) } : shown));
-    announceRef.current(REPLY_SENT);
+    announceRef.current(t(REPLY_SENT_MSG));
     // A reply on Fixed or Won't do reopens it, as an item right after the
     // reply's: fetched, with the status it changed to.
     void load();
@@ -210,6 +211,6 @@ export function useThread(id: string, latestAt: string | null, announce: (words:
     view, state, items: items ?? ([] as ThreadItem[]), loadingEarlier, earlier, reload: load,
     draft, setDraft, sending, failure, reply,
     /** The words to show when the thread will not load. */
-    problem: state === "gone" ? CONVERSATION_GONE : state === "failed" ? CONVERSATIONS_UNAVAILABLE : "",
+    problem: state === "gone" ? t(CONVERSATION_GONE_MSG) : state === "failed" ? t(CONVERSATIONS_UNAVAILABLE_MSG) : "",
   };
 }

@@ -15,7 +15,7 @@
 // Pure, and first-load: no stage code is imported, only the helpers of
 // terminal-keys.ts that the shortcuts handler already carries.
 import { isCharacterKey } from "./single-key-shortcuts";
-import { releaseChordLabel, RELEASE_CHORD_SPOKEN, VIEW_CHORD_LABEL } from "./terminal-keys";
+import { releaseChordLabel, RELEASE_CHORD_SPOKEN_MSG, VIEW_CHORD_LABEL } from "./terminal-keys";
 import { t } from "./i18n";
 
 /** The view chord in words, for a screen reader: a backtick is read as nothing. */
@@ -123,7 +123,7 @@ export function statusViewFor({ stageOpen, pane, onCard, zoomedOut, singleKeys, 
       layer: "terminal",
       label: pane ? t("board.status.keysIn", { name: pane }) : t("board.status.keysInSession"),
       // A chord, so it stays with the single keys off.
-      hints: [{ caps: [cap(releaseChordLabel(platform), RELEASE_CHORD_SPOKEN)], word: t("board.status.keysBack"), binds: [] }, ...view],
+      hints: [{ caps: [cap(releaseChordLabel(platform), t(RELEASE_CHORD_SPOKEN_MSG))], word: t("board.status.keysBack"), binds: [] }, ...view],
     };
   }
   const deck = stageOpen;

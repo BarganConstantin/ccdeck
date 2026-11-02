@@ -8,7 +8,10 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { QUICK_OPEN_PLACEHOLDER, railItems } from "../rail-items";
+import { QUICK_OPEN_PLACEHOLDER_MSG, railItems } from "../rail-items";
+import { en } from "../i18n/en";
+
+const QUICK_OPEN_PLACEHOLDER = en[QUICK_OPEN_PLACEHOLDER_MSG];
 import { railHint, UtilityRun } from "../components/EdgeRails";
 import { WaitingStat } from "../components/TopbarReadouts";
 import VersionChip from "../components/VersionChip";
@@ -86,7 +89,10 @@ describe("the right group", () => {
   it("draws Search as a field: the sentence and the platform's chord, one button", () => {
     const search = buttonOf(group, "quick-open");
     expect(search).toContain("rail-btn-field");
+    // CHANGED ON PURPOSE (the UI in every language): the sentence is a key,
+    // and English maps it to the same words.
     expect(search).toContain(QUICK_OPEN_PLACEHOLDER);
+    expect(QUICK_OPEN_PLACEHOLDER_MSG).toBe("board.quick.placeholder");
     expect(QUICK_OPEN_PLACEHOLDER).toBe("Open a session or run a command");
     expect(search).toContain(`<kbd class="kbd">${rails.search.key!.cap}</kbd>`);
     // Named by the sentence it shows (WCAG 2.5.3, label in name).

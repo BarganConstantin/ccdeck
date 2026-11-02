@@ -154,7 +154,7 @@ export function releaseChordLabel(platform: string): string {
 
 /** The chord in words, for a screen reader — "⌃⇧X" is read as symbols, or not
  *  at all. The same on every platform, as the chord is. */
-export const RELEASE_CHORD_SPOKEN = "Control Shift X";
+export const RELEASE_CHORD_SPOKEN_MSG = "board.keys.controlShiftX";
 
 // ── 1. the pane ─────────────────────────────────────────────────────────────
 

@@ -5,9 +5,11 @@
 // The four groups are SessionList.tsx's rank(): 0 Needs you, 1 Working,
 // 2 Done · unseen, 3 Idle.
 
+import { t } from "./i18n";
+
 export type RailGroup = 0 | 1 | 2 | 3;
 export const RAIL_GROUPS: readonly RailGroup[] = [0, 1, 2, 3];
-export const RAIL_GROUP_LABELS = ["Needs you", "Working", "Done · unseen", "Idle"] as const;
+export const RAIL_GROUP_LABEL_MSGS = ["board.railGroup.needs", "board.railGroup.working", "board.railGroup.done", "board.railGroup.idle"] as const;
 
 /** Rows drawn before the rail folds. Needs you and Working are never part of
  *  the budget's cut: nobody waiting on you is ever hidden. */
@@ -75,12 +77,12 @@ export function holdOrder(held: readonly Slot[], fresh: readonly Slot[]): { orde
 
 /** The Order held line: what waits, in the words the card uses. */
 export function heldLine(moves: number): string {
-  return moves === 1 ? "1 move waits until you leave the list" : `${moves} moves wait until you leave the list`;
+  return t("board.rail.held", { count: moves });
 }
 
 /** The quiet line that takes the place of an empty Needs you. */
 export function nobodyWaitingText(working: number): string {
-  return working > 0 ? `Nobody’s waiting · ${working} working` : "Nobody’s waiting";
+  return working > 0 ? t("board.rail.nobodyWaitingWorking", { working }) : t("board.rail.nobodyWaiting");
 }
 
 /** What opening or folding a group does: the space and the chevron travelling

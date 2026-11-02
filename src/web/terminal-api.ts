@@ -51,6 +51,7 @@
 //
 // The fetch is injectable so the suite can answer these without a server; the
 // panel never passes one.
+import { t } from "./i18n";
 
 export const TERMINAL_ROUTES = {
   status: "/api/terminal/status",
@@ -268,11 +269,12 @@ export interface ApiOptions {
   fetchFn?: (input: string, init?: RequestInit) => Promise<Response>;
 }
 
-const UNREACHABLE = "The deck did not answer.";
-const CANCELLED = "The request was cancelled.";
-const SWITCHED_OFF = "The Command Panel is not switched on for this deck.";
-const REFUSED = "The deck refused the request from this page.";
-const UNREADABLE = "The deck answered in a form this page cannot read.";
+// Keys, read with `t` when the failure is made, so the line follows the language.
+const UNREACHABLE_MSG = "board.api.unreachable";
+const CANCELLED_MSG = "board.api.cancelled";
+const SWITCHED_OFF_MSG = "board.api.switchedOff";
+const REFUSED_MSG = "board.api.refused";
+const UNREADABLE_MSG = "board.api.unreadable";
 
 const isObject = (v: unknown): v is Record<string, unknown> => !!v && typeof v === "object" && !Array.isArray(v);
 
@@ -300,13 +302,13 @@ function failureFrom(status: number, body: unknown): ApiFailure {
   // "unauthenticated" and "cross-site request blocked" — and they are
   // diagnostics for a log, not sentences for the panel. The terminal routes
   // themselves never answer 401 or 403; only the gate in front of them does.
-  if (status === 404 && (!said || said === UNMATCHED_API)) return { ok: false, status, error: SWITCHED_OFF };
-  if (status === 401 || status === 403) return { ok: false, status, error: REFUSED };
+  if (status === 404 && (!said || said === UNMATCHED_API)) return { ok: false, status, error: t(SWITCHED_OFF_MSG) };
+  if (status === 401 || status === 403) return { ok: false, status, error: t(REFUSED_MSG) };
   // A launch the deck's tmux refused may say what to do about it.
   const hint = isObject(body) && typeof body.hint === "string" ? body.hint : "";
   const code = isObject(body) && typeof body.code === "string" && REFUSALS.has(body.code) ? body.code as PanelRefusal : null;
   if (said) return { ok: false, status, error: hint ? `${said} ${hint}` : said, ...(code ? { code } : {}) };
-  return { ok: false, status, error: UNREADABLE };
+  return { ok: false, status, error: t(UNREADABLE_MSG) };
 }
 
 /**
@@ -327,7 +329,7 @@ async function ask<T>(
   try {
     res = await fetchFn(path, options.signal ? { ...init, signal: options.signal } : init);
   } catch {
-    return { ok: false, status: null, error: options.signal?.aborted ? CANCELLED : UNREACHABLE };
+    return { ok: false, status: null, error: t(options.signal?.aborted ? CANCELLED_MSG : UNREACHABLE_MSG) };
   }
   const body: unknown = await res.json().catch(() => null);
   if (res.ok) {

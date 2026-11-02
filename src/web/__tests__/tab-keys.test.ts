@@ -166,7 +166,12 @@ describe("where ⤢ means full screen", () => {
 
   it("says after a called-off leave how to give the session those keys — nothing on a Mac or already in full screen", async () => {
     const page = stubPage();
-    const { KEPT_KEYS_APP, KEPT_KEYS_FULL, keptKeysNotice } = await import("../tab-keys");
+    // CHANGED ON PURPOSE (the UI in every language): the sentences are keys,
+    // and English maps them to the same words.
+    const { KEPT_KEYS_APP_MSG, KEPT_KEYS_FULL_MSG, keptKeysNotice } = await import("../tab-keys");
+    const { en } = await import("../i18n/en");
+    const KEPT_KEYS_FULL = en[KEPT_KEYS_FULL_MSG];
+    const KEPT_KEYS_APP = en[KEPT_KEYS_APP_MSG];
     expect(keptKeysNotice(true, "Linux x86_64")).toBe(KEPT_KEYS_FULL);
     expect(KEPT_KEYS_FULL).toMatch(/Ctrl\+W.*⤢ full screen/);
     expect(keptKeysNotice(false, "Win32")).toBe(KEPT_KEYS_APP);
@@ -177,7 +182,11 @@ describe("where ⤢ means full screen", () => {
   });
 
   it("knows its own sentences, which full screen arriving takes down, from the stage's other notices", async () => {
-    const { KEPT_KEYS_APP, KEPT_KEYS_FULL, isKeptKeysNotice } = await import("../tab-keys");
+    // CHANGED ON PURPOSE (the UI in every language): read through the keys.
+    const { KEPT_KEYS_APP_MSG, KEPT_KEYS_FULL_MSG, isKeptKeysNotice } = await import("../tab-keys");
+    const { en } = await import("../i18n/en");
+    const KEPT_KEYS_FULL = en[KEPT_KEYS_FULL_MSG];
+    const KEPT_KEYS_APP = en[KEPT_KEYS_APP_MSG];
     expect(isKeptKeysNotice(KEPT_KEYS_FULL)).toBe(true);
     expect(isKeptKeysNotice(KEPT_KEYS_APP)).toBe(true);
     expect(isKeptKeysNotice("Pasted 120 lines.")).toBe(false);

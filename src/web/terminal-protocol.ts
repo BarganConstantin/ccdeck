@@ -60,6 +60,7 @@
 // (`npm run typecheck` rejects an untyped module), so the attach path and the
 // message cap are written out here again. They are the two places this file
 // can drift from the deck, and they are exported so a test can hold them to it.
+import { t } from "./i18n";
 
 /** Where the deck answers the upgrade. Every other path is refused with a 404. */
 export const TERMINAL_ATTACH_PATH = "/api/terminal/attach";
@@ -331,8 +332,8 @@ export const pasteTooLarge = (text: string) =>
 
 /** What the panel is told when the socket ends without an `exit`. Plain
  *  sentences, because the panel may show them as they are. */
-const REFUSED = "The deck did not accept the Command Panel's connection.";
-const LOST = "The connection to the Command Panel was lost.";
+const REFUSED_MSG = "board.api.connectionRefused";
+const LOST_MSG = "board.api.connectionLost";
 
 /**
  * Open the panel's socket and speak the protocol above over it.
@@ -433,7 +434,7 @@ export function connectTerminal(options: ConnectOptions): TerminalConnection {
     finished = true;
     pendingReset = null;
     const code = typeof event?.code === "number" ? event.code : 1006;
-    onError?.(opened ? { kind: "lost", code, message: LOST } : { kind: "refused", code, message: REFUSED });
+    onError?.(opened ? { kind: "lost", code, message: t(LOST_MSG) } : { kind: "refused", code, message: t(REFUSED_MSG) });
   };
 
   return {
