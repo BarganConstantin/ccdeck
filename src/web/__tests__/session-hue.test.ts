@@ -25,7 +25,7 @@ import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { gradientStops } from "./gradient-stops";
-import { sheetText } from "./sheet-source";
+import { mouseFlat, sheetText } from "./sheet-source";
 
 const web = fileURLToPath(new URL("..", import.meta.url));
 const css = sheetText();
@@ -157,7 +157,8 @@ function topLevel(s: string): Array<{ selector: string; body: string }> {
   return out;
 }
 
-const RULES = topLevel(bare);
+// The mouse query's rules are read where they stand: a desktop pointer meets them at the top level.
+const RULES = topLevel(mouseFlat(bare));
 const selectors = (list: string) => list.split(",").map(s => s.replace(/\s+/g, " ").trim());
 
 /** The balanced contents of every `hsl(…)` in `body`. Parens are counted rather

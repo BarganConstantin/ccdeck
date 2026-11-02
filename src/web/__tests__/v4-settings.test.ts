@@ -10,7 +10,7 @@ interface Rule { media: string; selectors: string[]; decls: Record<string, strin
 const css = sheetText().replace(/\/\*[\s\S]*?\*\//g, "");
 
 /** The sheet as a flat list of rules in source order, each with the @media
- *  prelude it sits in ("" at the top level). */
+ *  prelude it sits in ("" at the top level; nested media are joined with and). */
 function parse(text: string): Rule[] {
   const rules: Rule[] = [];
   const block = (from: number): number => {
@@ -30,7 +30,7 @@ function parse(text: string): Rule[] {
       const close = block(open);
       const inner = text.slice(open + 1, close);
       if (prelude.startsWith("@keyframes")) { /* not read here */ }
-      else if (prelude.startsWith("@")) walk(open + 1, close, prelude.startsWith("@media") ? prelude.slice(6).trim() : media);
+      else if (prelude.startsWith("@")) walk(open + 1, close, prelude.startsWith("@media") ? (media ? `${media} and ${prelude.slice(6).trim()}` : prelude.slice(6).trim()) : media);
       else {
         const decls: Record<string, string> = {};
         for (const m of inner.matchAll(/([\w-]+)\s*:\s*([^;]+?)\s*(?:;|$)/g)) decls[m[1]] = m[2].replace(/\s+/g, " ");
@@ -91,8 +91,8 @@ describe("V4's nav item", () => {
     expect(decl(tab, "color")).toBe("var(--text-secondary)");
   });
   it("washes on hover and fills with --selected at 600 when chosen", () => {
-    expect(decl(`${tab}:hover`, "background")).toBe("var(--ctl-fill)");
-    expect(decl(`${tab}:hover`, "color")).toBe("var(--text)");
+    expect(decl(`${tab}:hover`, "background", POINTER)).toBe("var(--ctl-fill)");
+    expect(decl(`${tab}:hover`, "color", POINTER)).toBe("var(--text)");
     expect(decl(`${tab}[aria-selected="true"]`, "background")).toBe("var(--selected)");
     expect(decl(`${tab}[aria-selected="true"]`, "color")).toBe("var(--text)");
     expect(decl(`${tab}[aria-selected="true"]`, "font-weight")).toBe("600");

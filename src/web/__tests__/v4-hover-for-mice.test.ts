@@ -71,6 +71,47 @@ describe("hover is for mice", () => {
     expect(files.flatMap(bareHovers)).toEqual([]);
   });
 
+  it("never writes a hover where no mouse can reach it", () => {
+    // (hover: none) and the mouse query never hold together, so a hover in
+    // there is dead; a touch needs no reset now that the hover is for mice.
+    const dead: string[] = [];
+    for (const f of files) {
+      const css = readFileSync(f, "utf8").replace(/\/\*[\s\S]*?\*\//g, "");
+      for (const m of css.matchAll(/@media[^{]*\(hover:\s*none\)[^{]*\{/g)) {
+        let depth = 0, i = m.index! + m[0].length - 1;
+        for (; i < css.length; i++) { if (css[i] === "{") depth++; else if (css[i] === "}" && --depth === 0) break; }
+        if (/:hover\b/.test(css.slice(m.index!, i))) dead.push(`${relative(WEB, f)} ${m[0]}`);
+      }
+    }
+    expect(dead).toEqual([]);
+  });
+
+  it("a focus state never sits only under the mouse query", () => {
+    // `:is(:hover, :focus-visible)` wrapped whole in the mouse query takes the
+    // focus half away from touch and keyboard users: split it, the hover stays
+    // under the query and the focus half goes back outside it.
+    const bad: string[] = [];
+    for (const f of files) {
+      const css = readFileSync(f, "utf8").replace(/\/\*[\s\S]*?\*\//g, m => m.replace(/[^\n]/g, " "));
+      const stack: string[] = [];
+      let start = 0;
+      for (let i = 0; i < css.length; i++) {
+        const ch = css[i];
+        if (ch === "{") {
+          const header = css.slice(start, i).trim();
+          if (!header.startsWith("@") && stack.some(MICE)
+            && header.split(",").some(sel => /:focus(?:-visible|-within)?\b/.test(withoutNegations(sel)))) {
+            bad.push(`${relative(WEB, f)}:${css.slice(0, i).split("\n").length} ${header.replace(/\s+/g, " ").slice(0, 80)}`);
+          }
+          stack.push(header);
+          start = i + 1;
+        } else if (ch === "}") { stack.pop(); start = i + 1; }
+        else if (ch === ";") start = i + 1;
+      }
+    }
+    expect(bad).toEqual([]);
+  });
+
   it("says (pointer: fine) wherever it says (hover: hover)", () => {
     const half: string[] = [];
     for (const f of files) {

@@ -543,11 +543,12 @@ describe("the route past a hundred and sixty-six tab stops (#381)", () => {
   });
 
   it("shows the reader where they landed", () => {
-    // A programmatic focus target with no ring is a jump to nowhere. Inset,
-    // because .canvas-wrap runs to the window edge and the shared outward
-    // offset would draw two of its sides off screen.
-    expect(decl(":focus-visible", "outline")).toMatch(/2px solid var\(--accent\)/);
-    expect(decl(".canvas-wrap:focus-visible", "outline-offset")).toBe("-3px");
+    // A programmatic focus target with no ring is a jump to nowhere. V4's
+    // Figma: the one ring is inside the box (1.5px, negative offset), so
+    // .canvas-wrap, which runs to the window edge, needs no offset of its own.
+    expect(decl(":focus-visible", "outline")).toMatch(/var\(--focus-w\) solid var\(--accent\)/);
+    expect(decl(":focus-visible", "outline-offset")).toBe("calc(-1 * var(--focus-w))");
+    expect(decl(".canvas-wrap:focus-visible", "outline-offset")).toBeNull();
   });
 });
 
