@@ -27,7 +27,7 @@ describe("Codex accounts, in their own column", () => {
     const both = items({ claude: true, codex: true });
     expect(ids(both.left)).toEqual(["accounts", "session-list"]);
     expect(ids(both.codexDoor)).toEqual(["codex-accounts"]);
-    expect(ids(both.leftStripe.flat())).toEqual(["accounts", "session-list"]);
+    expect(ids(both.panelBar.flat()).slice(0, 2)).toEqual(["session-list", "accounts"]);
     expect(ids(items({ claude: true, codex: false }).left)).toEqual(["accounts", "session-list"]);
   });
 });

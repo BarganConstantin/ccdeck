@@ -376,7 +376,7 @@ describe("the open state, as the sheet draws it now", () => {
     // narrowing. Keep the scrollable left rail's indicator inside its viewport
     // so it does not create horizontal overflow.
     expect(decl(".edge-rail-left .rail-btn-stripe::before", "right")).toBe("-5px");
-    expect(decl(".edge-rail-right .rail-btn-stripe::before", "left")).toBe("-7px");
+    // V4's Figma: one bar on the left; there is no right bar to draw a line on.
     expect(decl(".rail-btn-stripe::before", "width")).toBe("2px");
     expect(declIn(mediaBodyOf(PHONE, ".rail-btn-dock::before"), "height")).toBe("2px");
     // And the open fill itself arrives at once.

@@ -214,7 +214,7 @@ describe("the topbar's Feedback button", () => {
     expect(rails).toMatch(/aria-haspopup=\{disclosure \? undefined : "dialog"\}/);
     // On the bar, in the utility run beside the gear, at every desktop width.
     expect(items).toMatch(/utilities: \[settings, feedback\]/);
-    expect(app).toMatch(/\{!phone && <div className="actions"><UtilityRun items=\{\[rails\.search, \.\.\.rails\.utilities\]\} \/><\/div>\}/);
+    expect(app).toMatch(/\{!phone && <div className="actions"><UtilityRun items=\{\[rails\.search, \.\.\.rails\.topUtilities\]\} \/><\/div>\}/);
   });
 
   it("draws its glyph on the chrome's one icon spec (#837), and says its word beside it at every desktop width", () => {

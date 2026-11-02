@@ -169,11 +169,11 @@ describe("the cost bar inside the usage panel", () => {
   const effectiveWidth = declIn(scoped, "width") ?? decl(".cost-bar", "width");
   const [ml, mr] = horizontalMargin(scoped);
 
-  it("is measured against a border-box, which is what makes 280px a 278px panel", () => {
+  it("is measured against a border-box, which is what makes 320px a 318px panel", () => {
     // Every number below assumes the declared width IS the border box. The
     // sheet says so once, globally, and the arithmetic is wrong without it.
     expect(bodyOf("*")).toMatch(/box-sizing\s*:\s*border-box/);
-    expect(contentWidth).toBe(278);
+    expect(contentWidth).toBe(318);
   });
 
   it("declares a scroll on one axis, which is why an overflow on the other one shows", () => {
@@ -201,13 +201,13 @@ describe("the cost bar inside the usage panel", () => {
     const overhang = margins + used - contentWidth;
     expect(overhang).toBeLessThanOrEqual(0);
     // The live numbers, kept as numbers: 28px of overhang before, none after,
-    // and a bar that now measures the same 250px as the rows above and below.
+    // and a bar that now measures the same 290px as the rows above and below.
     expect(overhang).toBe(0);
-    expect(used).toBe(250);
+    expect(used).toBe(290);
     expect(margins).toBe(28);
   });
 
-  it("lines up with the two rows it sits between, which is what 250px is", () => {
+  it("lines up with the two rows it sits between, which is what 290px is", () => {
     // `.qb-track` and `.up-table` fill `.up-section`'s 14px padding box and
     // measured 1775 → 2025 all along. The bar overhanging them by 14px was the
     // visible half of this defect before anything scrolled.

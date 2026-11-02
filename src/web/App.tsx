@@ -979,7 +979,7 @@ function Inner() {
             only where the Command Panel is on (use-view.ts), and never on a
             phone, where the Board is the whole of the deck. */}
         {!phone && stage.workspaceOffered && <ViewSwitch view={inWorkspace ? "workspace" : "board"} onChange={switchView} />}
-        {!phone && <div className="actions"><UtilityRun items={[rails.search, ...rails.utilities]} /></div>}
+        {!phone && <div className="actions"><UtilityRun items={[rails.search, ...rails.topUtilities]} /></div>}
       </header>
 
       {/* The left stripe, ahead of the column it opens so Tab reaches the
@@ -987,7 +987,7 @@ function Inner() {
           that stands in for both stripes and the utilities. */}
       {phone
         ? <EdgeDock items={[...rails.left, ...rails.right[0], rails.utilities[0]]} more={[rails.search, ...rails.capacity, ...rails.right.slice(1).flat(), ...rails.integrations, ...rails.explore, rails.utilities[1]]} />
-        : <EdgeRail side="left" label={t("shell.rail.left")} groups={[...rails.leftStripe, rails.integrations, rails.explore]} />}
+        : <EdgeRail label={t("board.rail.tools")} groups={rails.panelBar} foot={rails.panelFoot} />}
 
       {/* Mounted whether or not anything was removed, for the reason the
           topbar's alarm region is (#372): words that arrive with their region
@@ -1097,10 +1097,6 @@ function Inner() {
         asks={asks} waitingSessions={waitingSessions}
         onBoard={() => switchView("board", "key")}
       />
-
-      {/* The right stripe, ahead of the two panels it opens so Tab reaches the
-          control before the region it discloses. */}
-      {!phone && <EdgeRail side="right" label={t("shell.rail.right")} groups={rails.right} />}
 
       <DialogPresence when={toolAuditView}>{view => <ToolAuditModal view={view} onClose={closeToolAudit} sessionLabel={toolAuditSessionLabel} onOpenSession={openToolAuditSession} />}</DialogPresence>
       <DialogPresence when={capacityView}>{view => <AccountCapacityDialog view={view} onClose={closeCapacity} />}</DialogPresence>

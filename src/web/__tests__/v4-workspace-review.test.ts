@@ -202,7 +202,7 @@ describe("Usage and Machine over the Inspector (review 11)", () => {
 
   it("puts their right edge where the Board has no Inspector under them, from 1320 up, in Workspace only", () => {
     const wide = block(css, "@media (min-width: 1320px)");
-    expect(wide.replace(/\s+/g, " ")).toContain('body .app[data-view="workspace"] { --rail-r: calc(8px + var(--edge-w)); }');
+    expect(wide.replace(/\s+/g, " ")).toContain('body .app[data-view="workspace"] { --rail-r: 0px; }');
   });
 
   it("states it nowhere else: under 1320 the Board's place stands", () => {
@@ -211,18 +211,18 @@ describe("Usage and Machine over the Inspector (review 11)", () => {
     expect(rest).not.toContain("--rail-r");
   });
 
-  it("is a column of the Inspector's width: 280px plus the density's increase, inside 320", () => {
-    // The panels are 280 wide (+ --ui-panel-increase), the Inspector 320 at
-    // Compact and 360 at Default, and the right edge is 8px inside the stripe:
-    // the left edge is at least 32px inside the Inspector's, so never left of
-    // the pane's right edge.
-    const panel = /width:\s*calc\(280px \+ var\(--ui-panel-increase, 0px\)\)/;
+  it("is a column of the Inspector's width: 320px plus the density's increase", () => {
+    // The panels are 320 wide (+ --ui-panel-increase), the Inspector 320 at
+    // Compact and 360 at Default, and the right edge is the window's (V4's
+    // Figma: no right bar): the left edge is never left of the Inspector's, so
+    // never left of the pane's right edge.
+    const panel = /width:\s*calc\(320px \+ var\(--ui-panel-increase, 0px\)\)/;
     expect(machine).toMatch(panel);
     expect(strip(read("styles/tokens.css"))).toMatch(/--inspector-w:\s*360px/);
   });
 
   it("leaves the Board's own rules where they were", () => {
-    expect(machine).toContain(".app { --rail-r: calc(var(--inspector-w) + 8px + var(--edge-w)); }");
-    expect(machine).toContain(".app:not(:has(.detail)) { --rail-r: calc(8px + var(--edge-w)); }");
+    expect(machine).toContain(".app { --rail-r: calc(var(--inspector-w) + 8px); }");
+    expect(machine).toContain(".app:not(:has(.detail)) { --rail-r: 8px; }");
   });
 });

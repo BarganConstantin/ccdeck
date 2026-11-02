@@ -7,23 +7,21 @@
 // label cannot drift between them. The keys are the ones the deck has always
 // answered (use-deck-shortcuts.ts); moving a button moved none of them.
 //
-// ONE RULE FOR BOTH STRIPES (2026-10-23, after a user called the deck "not
-// organized"). Thirteen doors had grown in two runs grouped by two different
-// rules — the left by topic, the right by what opens — so where a button sat
-// said nothing about it. Now each stripe is groups that answer one question
-// each, three doors at most, between the same rules, and each group has a name
-// a screen reader says on the way in:
+// ONE PANEL BAR (V4's Figma). The two stripes became one bar on
+// the left: runs of doors that answer one question each, three doors at most,
+// between rules, each run a name a screen reader says on the way in, and a foot
+// of utilities pushed to the bottom:
 //
-//   left   Claude accounts   Accounts · Account capacity · Reset calendar
-//          Session list
-//          the connected trackers, then Explore integrations at the foot
-//   right  Usage and machine Usage · Machine
-//          Activity history  Usage history · Tool activity · Skill activity
-//          Watchers          Browser watch · Telemetry Radar
-//          Radio, by the character
+//   Sessions and accounts  Session list · Accounts (or Codex accounts)
+//   Claude accounts        Account capacity · Reset calendar
+//   Usage and machine      Usage · Machine
+//   Activity history       Usage history · Tool activity · Skill activity
+//   Watchers               Browser watch · Telemetry Radar
+//   the connected trackers (a run of their own, so Explore keeps its place)
+//   Explore integrations
+//   foot                   Radio · Settings
 //
-// Every door stayed, in the owner's order (2026-10-22): only the rules
-// between them moved.
+// Every door stayed: only the place moved. The phone keeps its dock.
 import { providerText } from "./integrations/provider-text";
 import type { Dispatch, SetStateAction } from "react";
 import type { Providers } from "./providers";
@@ -51,9 +49,16 @@ export interface RailItems {
   /** The left column's two, Accounts first: they share it, and opening one
    *  closes the other. */
   left: RailItem[];
-  /** The left stripe's groups, top to bottom: Accounts with the two doors into
-   *  its Account capacity report, then Session list. */
-  leftStripe: RailItem[][];
+  /** The Panel bar's doors, top to bottom, in V4's Figma order and its runs
+   *  (the rules fall between them): Sessions and Accounts, Account capacity and
+   *  Reset calendar, Usage and Machine, the three activity records, Browser
+   *  watch and Telemetry Radar, then the trackers and Explore integrations. */
+  panelBar: RailItem[][];
+  /** The Panel bar's foot, pushed down by the bar: Radio, Settings. */
+  panelFoot: RailItem[];
+  /** What the top bar keeps of the two utilities: Feedback. Settings moved to
+   *  the Panel bar's foot (its key is unchanged). */
+  topUtilities: RailItem[];
   /** Quick open's door straight to Codex's side, where the panel has two sides
    *  and the rail one button. Empty when Codex's button is in `left`. */
   codexDoor: RailItem[];
@@ -61,8 +66,8 @@ export interface RailItems {
    *  their only door. On a phone they are rows under More, so the dock keeps
    *  its five slots. Empty without Claude Code. */
   capacity: RailItem[];
-  /** The right stripe's groups: its two panels, the activity records, the
-   *  watchers, then Radio. */
+  /** The phone's grouping of the same doors: the two panels, the activity
+   *  records, the watchers, then Radio. The desktop draws `panelBar`. */
   right: RailItem[][];
   /** Settings and Feedback, in the topbar's corner. */
   utilities: RailItem[];
@@ -275,6 +280,17 @@ export function railItems({
     glyph: <RadioGlyph />, kind: "dialog",
     detail: t("board.rail.radio.detail"), onPress: () => setRadioOpen(true),
   }] : [];
+  const explore: RailItem[] = openExploreIntegrations ? [{
+    id: "explore-integrations", label: t("board.rail.explore"), short: t("board.rail.explore.short"),
+    ariaLabel: t("board.rail.explore"), glyph: <IntegrationsGlyph />, kind: "dialog", onPress: openExploreIntegrations,
+  }] : [];
+  // Each opens its large modal, so a dialog: aria-haspopup and no state.
+  const trackers: RailItem[] = integrations.map(({ provider, onPress }): RailItem => ({
+    id: `integration-${provider.kind}`, label: provider.label, short: provider.label,
+    ariaLabel: provider.label, detail: providerText(t, provider.detail),
+    key: provider.shortcut ? { cap: provider.shortcut.toUpperCase(), aria: provider.shortcut.toUpperCase(), single: true } : undefined,
+    glyph: <provider.Glyph />, kind: "dialog", onPress,
+  }));
   return {
     // Accounts first, at the top of the stripe and the start of the dock: the
     // owner's call (2026-10-08), the panel a first run opens and the one read
@@ -285,11 +301,19 @@ export function railItems({
     // calendar, Session list — the first three one group, since all three are
     // about the accounts. Codex has a button of its own only where it is all
     // this deck has; beside Claude it is a side of the same panel.
-    leftStripe: [
-      ...(providers.claude ? [named(providers.codex ? t("board.rail.accounts") : t("board.rail.group.accounts"), [accounts, ...capacity])] : []),
-      ...(providers.codex && !providers.claude ? [[codex]] : []),
-      [sessionList],
-    ],
+    // V4's Panel bar (Figma): Sessions first, then Accounts, and Codex's door
+    // beside Accounts where it is all this deck has; the rest in its runs.
+    panelBar: [
+      named(t("shell.rail.left"), [sessionList, ...(providers.claude ? [accounts] : providers.codex ? [codex] : [])]),
+      providers.claude ? named(t("board.rail.group.accounts"), capacity) : [],
+      named(t("board.rail.group.usage"), [usage, machine]),
+      named(t("board.rail.group.activity"), [history, ...activity]),
+      named(t("board.rail.group.watchers"), [browserWatch, ...radar]),
+      trackers,
+      explore,
+    ].filter(group => group.length > 0),
+    panelFoot: [...radio, settings],
+    topUtilities: [feedback],
     capacity: providers.claude ? capacity : [],
     right: [
       named(t("board.rail.group.usage"), [usage, machine]),
@@ -299,16 +323,7 @@ export function railItems({
     ].filter(group => group.length > 0),
     utilities: [settings, feedback],
     search,
-    explore: openExploreIntegrations ? [{
-      id: "explore-integrations", label: t("board.rail.explore"), short: t("board.rail.explore.short"),
-      ariaLabel: t("board.rail.explore"), glyph: <IntegrationsGlyph />, kind: "dialog", onPress: openExploreIntegrations,
-    }] : [],
-    // Each opens its large modal, so a dialog: aria-haspopup and no state.
-    integrations: integrations.map(({ provider, onPress }): RailItem => ({
-      id: `integration-${provider.kind}`, label: provider.label, short: provider.label,
-      ariaLabel: provider.label, detail: providerText(t, provider.detail),
-      key: provider.shortcut ? { cap: provider.shortcut.toUpperCase(), aria: provider.shortcut.toUpperCase(), single: true } : undefined,
-      glyph: <provider.Glyph />, kind: "dialog", onPress,
-    })),
+    explore,
+    integrations: trackers,
   };
 }

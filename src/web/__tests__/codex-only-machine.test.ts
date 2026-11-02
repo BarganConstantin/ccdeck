@@ -472,13 +472,16 @@ describe("which panels the UI draws for each machine", () => {
     // header picks the side); only quick open keeps a door to Codex's side.
     expect(appSrc).toContain("codexDoor: providers.claude && providers.codex ? [codex] : []");
     // Account capacity and Reset calendar open Claude's accounts report, so they
-    // are Claude's alone and follow its button off a Codex-only stripe.
-    expect(appSrc).toMatch(/leftStripe: \[\s*\.\.\.\(providers\.claude \? \[named\(providers\.codex \? t\("board\.rail\.accounts"\) : t\("board\.rail\.group\.accounts"\), \[accounts, \.\.\.capacity\]\)\] : \[\]\),\s*\.\.\.\(providers\.codex && !providers\.claude \? \[\[codex\]\] : \[\]\),\s*\[sessionList\],\s*\]/);
+    // are Claude's alone and follow its button off a Codex-only bar. V4's Panel
+    // bar: Sessions first, then Accounts (or Codex's button where it is all
+    // there is).
+    expect(appSrc).toContain('named(t("shell.rail.left"), [sessionList, ...(providers.claude ? [accounts] : providers.codex ? [codex] : [])])');
+    expect(appSrc).toContain('providers.claude ? named(t("board.rail.group.accounts"), capacity) : []');
     expect(appSrc).toMatch(/capacity: providers\.claude \? capacity : \[\]/);
-    // The connected trackers (#2178) are a group of their own after it, so
-    // they cannot stand in for the accounts button either.
-    expect(appSrc).toMatch(/<EdgeRail side="left" label=\{t\("shell.rail.left"\)\} groups=\{\[\.\.\.rails\.leftStripe, rails\.integrations, rails\.explore\]\}/);
-    // And nowhere else: the right stripe and the utilities never carry it.
+    // The connected trackers (#2178) are in the bar's last run, so they cannot
+    // stand in for the accounts button either.
+    expect(appSrc).toMatch(/<EdgeRail label=\{t\("board\.rail\.tools"\)\} groups=\{rails\.panelBar\} foot=\{rails\.panelFoot\} \/>/);
+    // And nowhere else: the phone's grouping and the utilities never carry it.
     expect(appSrc).toMatch(/right: \[\s*named\(t\("board\.rail\.group\.usage"\), \[usage, machine\]\),\s*named\(t\("board\.rail\.group\.activity"\), \[history, \.\.\.activity\]\),\s*named\(t\("board\.rail\.group\.watchers"\), \[browserWatch, \.\.\.radar\]\),\s*radio,\s*\]/);
     expect(appSrc).toMatch(/utilities: \[settings, feedback\]/);
   });
