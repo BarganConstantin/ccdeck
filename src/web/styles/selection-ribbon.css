@@ -48,7 +48,7 @@
      WORDS). */
   max-width: min(380px, 24vw);
   min-width: min-content;
-  transition: border-color var(--dur-fast), background var(--dur-fast),
+  transition: border-color var(--dur-fast) var(--ease), background var(--dur-fast) var(--ease),
               transform var(--dur-fast) var(--ease);
 }
 @media (hover: hover) and (pointer: fine) {
@@ -148,7 +148,7 @@
   font-size: calc(14px + var(--ui-text-increase, 0px));
   line-height: 1;
   cursor: pointer;
-  transition: background var(--dur-fast), color var(--dur-fast),
+  transition: background var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease),
               transform var(--dur-fast) var(--ease);
 }
 /* The target. 3px of reach on every side, which takes an 18px glyph to 24px and

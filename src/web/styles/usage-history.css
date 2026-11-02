@@ -30,7 +30,7 @@
   font-family: var(--font-mono);
   padding: 2px 10px; border: none; border-radius: 999px;
   color: var(--muted); background: transparent; cursor: pointer;
-  transition: background var(--dur-fast), color var(--dur-fast),
+  transition: background var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease),
               transform var(--dur-fast) var(--ease);
 }
 @media (hover: hover) and (pointer: fine) {
@@ -93,7 +93,7 @@
    whether each property their hover moves is one their own rule eases. Same
    values as `.glyph-btn`; that rule is still where the decision lives. */
 .uh-close {
-  transition: color var(--dur-fast), transform var(--dur-fast) var(--ease);
+  transition: color var(--dur-fast) var(--ease), transform var(--dur-fast) var(--ease);
 }
 @media (hover: hover) and (pointer: fine) {
 .uh-close:hover { color: var(--text); }
@@ -155,7 +155,7 @@
 .uh-stale .uh-bar-seg,
 .uh-stale .uh-agent-seg,
 .uh-stale .uh-model-bar-fill,
-.uh-stale .uh-legend-dot { opacity: var(--dim-stale); transition: opacity var(--dur-fast); }
+.uh-stale .uh-legend-dot { opacity: var(--dim-stale); transition: opacity var(--dur-fast) var(--ease); }
 
 .uh-totals {
   display: grid; grid-template-columns: repeat(4, 1fr);

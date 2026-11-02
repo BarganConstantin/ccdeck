@@ -50,7 +50,7 @@
 /* A group: a heading that folds, with its count. */
 .fg-group { margin-top: 16px; }
 .fg-group-head { display: flex; align-items: center; gap: 8px; margin: 0; font-size: calc(13px + var(--ui-text-increase, 0px)); font-weight: 600; }
-.fg-fold { display: inline-flex; align-items: center; gap: 8px; min-height: 32px; padding: 0 4px; border: 0; background: transparent; color: var(--text); font: inherit; cursor: pointer; border-radius: var(--r-ctl); transition: background var(--dur-fast), transform var(--dur-fast) var(--ease); }
+.fg-fold { display: inline-flex; align-items: center; gap: 8px; min-height: 32px; padding: 0 4px; border: 0; background: transparent; color: var(--text); font: inherit; cursor: pointer; border-radius: var(--r-ctl); transition: background var(--dur-fast) var(--ease), transform var(--dur-fast) var(--ease); }
 @media (hover: hover) and (pointer: fine) {
 .fg-fold:hover { background: var(--ctl-fill); }
 }
@@ -66,7 +66,7 @@
 .fg-rows { list-style: none; margin: 6px 0 0; padding: 0; border: 1px solid var(--line); border-radius: var(--r-panel); background: var(--panel); overflow: hidden; }
 .fg-rows > li { display: grid; }
 .fg-rows > li + li { border-top: 1px solid var(--line-soft); }
-.fg-row { display: grid; gap: 4px 16px; align-items: center; min-height: 48px; padding: 8px 14px; box-sizing: border-box; border: 0; background: transparent; color: var(--text); font: inherit; text-align: left; cursor: pointer; transition: background var(--dur-fast); }
+.fg-row { display: grid; gap: 4px 16px; align-items: center; min-height: 48px; padding: 8px 14px; box-sizing: border-box; border: 0; background: transparent; color: var(--text); font: inherit; text-align: left; cursor: pointer; transition: background var(--dur-fast) var(--ease); }
 @media (hover: hover) and (pointer: fine) {
 .fg-row:hover { background: var(--ctl-fill); }
 }

@@ -174,7 +174,7 @@
   font: inherit;
   text-align: left;
   cursor: pointer;
-  transition: border-color var(--dur-fast), transform var(--dur-fast) var(--ease);
+  transition: border-color var(--dur-fast) var(--ease), transform var(--dur-fast) var(--ease);
 }
 @media (hover: hover) and (pointer: fine) {
 .ap-lan-intro:hover:not(:disabled) { border-color: var(--accent); }

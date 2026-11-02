@@ -146,6 +146,24 @@ describe("V4's motion rules: durations, delays and curves are tokens", () => {
     expect(bad.map(x => `${x.d.file}: ${x.d.text}  <= ${x.found.join(", ")}`)).toEqual([]);
   });
 
+  it("every transition names its curve: one left out is the browser's `ease`, not --ease", () => {
+    const curve = /(?<![\w-])(ease|ease-in|ease-out|ease-in-out|linear|step-start|step-end)(?![\w-])|cubic-bezier\(|steps\(|var\(--ease/;
+    const items = (v: string) => {
+      const out: string[] = [];
+      let depth = 0, start = 0;
+      for (let i = 0; i < v.length; i++) {
+        if (v[i] === "(") depth++;
+        else if (v[i] === ")") depth--;
+        else if (v[i] === "," && depth === 0) { out.push(v.slice(start, i)); start = i + 1; }
+      }
+      return [...out, v.slice(start)].map(s => s.trim());
+    };
+    const bare = decls
+      .filter(d => d.prop === "transition" && !/^(none|inherit|initial|unset|var\(--[\w-]+\))$/.test(d.value))
+      .flatMap(d => items(d.value).filter(i => i && !curve.test(i)).map(i => `${d.file}: ${i}`));
+    expect(bare).toEqual([]);
+  });
+
   it("every allowlist entry still matches a declaration that needs it", () => {
     const stale = ALLOWLIST.filter(a => !decls.some(d => d.file === a.file && (a.needle === "*" || d.text.includes(a.needle))));
     expect(stale.map(a => `${a.file}: ${a.needle}`)).toEqual([]);

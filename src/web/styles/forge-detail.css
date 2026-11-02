@@ -51,7 +51,7 @@
    fill reaches 8px past the text so the words line up with the column, and it
    may be those 8px wider than its column for the same reason. Its pieces never
    break inside; on a narrow pane they wrap onto a second line instead. */
-.fd-jump { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 0 8px; max-width: calc(100% + 8px); min-height: 28px; white-space: nowrap; box-sizing: border-box; margin-left: -8px; padding: 2px 8px; border: 0; border-radius: var(--r-ctl); background: transparent; color: var(--text); font: inherit; font-size: calc(12px + var(--ui-text-increase, 0px)); text-align: left; cursor: pointer; transition: background var(--dur-fast), transform var(--dur-fast) var(--ease); }
+.fd-jump { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 0 8px; max-width: calc(100% + 8px); min-height: 28px; white-space: nowrap; box-sizing: border-box; margin-left: -8px; padding: 2px 8px; border: 0; border-radius: var(--r-ctl); background: transparent; color: var(--text); font: inherit; font-size: calc(12px + var(--ui-text-increase, 0px)); text-align: left; cursor: pointer; transition: background var(--dur-fast) var(--ease), transform var(--dur-fast) var(--ease); }
 @media (hover: hover) and (pointer: fine) {
 .fd-jump:hover { background: var(--ctl-fill); }
 }

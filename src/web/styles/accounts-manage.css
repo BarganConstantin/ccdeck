@@ -288,7 +288,7 @@
   font: inherit;
   font-size: calc(11px + var(--ui-text-increase, 0px));
   cursor: pointer;
-  transition: color var(--dur-fast), transform var(--dur-fast) var(--ease);
+  transition: color var(--dur-fast) var(--ease), transform var(--dur-fast) var(--ease);
 }
 @media (hover: hover) and (pointer: fine) {
 .ap-issue-report:hover { color: var(--text); text-decoration: underline; }
@@ -352,7 +352,7 @@
   font: inherit;
   font-size: calc(10px + max(-1px, var(--ui-text-increase, 0px)));
   cursor: pointer;
-  transition: border-color var(--dur-fast), color var(--dur-fast), background var(--dur-fast),
+  transition: border-color var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease), background var(--dur-fast) var(--ease),
               transform var(--dur-fast) var(--ease);
 }
 @media (hover: hover) and (pointer: fine) {

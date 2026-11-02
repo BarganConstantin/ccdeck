@@ -64,7 +64,7 @@
   background: transparent;
   color: var(--muted);
   cursor: pointer;
-  transition: background var(--dur-fast), transform var(--dur-fast) var(--ease);
+  transition: background var(--dur-fast) var(--ease), transform var(--dur-fast) var(--ease);
 }
 @media (hover: hover) and (pointer: fine) {
 .session-list .sl-close:hover { background: var(--ctl-fill); color: var(--text); }
@@ -141,7 +141,7 @@
   text-align: left;
   color: var(--text);
   font: inherit;
-  transition: background var(--dur-fast), transform var(--dur-fast) var(--ease);
+  transition: background var(--dur-fast) var(--ease), transform var(--dur-fast) var(--ease);
 }
 @media (hover: hover) and (pointer: fine) {
 .session-list .sl-row:hover { background: var(--ctl-fill); }
@@ -420,7 +420,7 @@
   font: inherit;
   text-align: left;
   cursor: pointer;
-  transition: background var(--dur-fast), transform var(--dur-fast) var(--ease);
+  transition: background var(--dur-fast) var(--ease), transform var(--dur-fast) var(--ease);
 }
 @media (hover: hover) and (pointer: fine) {
 .session-list .sl-usage-btn:hover { background: var(--ctl-fill); }

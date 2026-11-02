@@ -53,7 +53,7 @@
 .su-footer { border-top: 1px solid var(--line); padding-top: 12px; font-size: calc(11px + var(--ui-text-increase, 0px)); }
 .su-footer > .su-note { margin-bottom: 6px; }
 .su-assumptions .su-note { padding-block: 6px 12px; }
-.up-session-open { width: 100%; min-height: 28px; text-align: left; background: transparent; border: 0; color: inherit; font: inherit; cursor: pointer; border-radius: var(--r-ctl); transition: transform var(--dur-fast) var(--ease), background var(--dur-fast); }
+.up-session-open { width: 100%; min-height: 28px; text-align: left; background: transparent; border: 0; color: inherit; font: inherit; cursor: pointer; border-radius: var(--r-ctl); transition: transform var(--dur-fast) var(--ease), background var(--dur-fast) var(--ease); }
 @media (hover: hover) and (pointer: fine) {
 .up-session-open:hover { background: var(--bg-soft); }
 }

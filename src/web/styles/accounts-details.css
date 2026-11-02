@@ -2,7 +2,7 @@
 
 /* No opacity here: the button is visible at rest, so what moves is the colour
    it lifts to and the fill it takes, not whether it exists. */
-.ap-more { transition: color var(--dur-fast), background var(--dur-fast),
+.ap-more { transition: color var(--dur-fast) var(--ease), background var(--dur-fast) var(--ease),
                        transform var(--dur-fast) var(--ease); }
 .ap-more:active { transform: scale(var(--press-small)); }
 
@@ -143,7 +143,7 @@
   font: inherit;
   font-size: calc(11px + var(--ui-text-increase, 0px));
   cursor: pointer;
-  transition: background var(--dur-fast), border-color var(--dur-fast),
+  transition: background var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease),
               transform var(--dur-fast) var(--ease);
 }
 @media (hover: hover) and (pointer: fine) {

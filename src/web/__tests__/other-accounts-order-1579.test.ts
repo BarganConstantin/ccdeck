@@ -364,7 +364,10 @@ describe("the sheet", () => {
     // (hover is for mice), both the same neutral edge, text and fill.
     const NEUTRAL = "{ border-color: var(--ctl-edge); color: var(--text); background: var(--ctl-fill); }";
     const MOUSE = "@media (hover: hover) and (pointer: fine) {\n";
-    expect(css).toContain(`.ap-rest-sort select:focus-visible ${NEUTRAL}`);
+    // The select is a field: the keyboard lifts its text and fill as the pointer
+    // does, and its edge turns --accent with no ring (V4's text field, M1).
+    expect(css).toContain(".ap-rest-sort select:focus-visible { color: var(--text); background: var(--ctl-fill); }");
+    expect(css).toMatch(/\.ap-rest-sort select:focus-visible, \.bw-settings select:focus-visible \{\s*outline: none;\s*border-color: var\(--accent\);/);
     expect(css).toContain(`${MOUSE}.ap-rest-sort select:hover ${NEUTRAL}\n}`);
     expect(css).toContain(`.ap-rest-all:focus-visible ${NEUTRAL}`);
     expect(css).toContain(`${MOUSE}.ap-rest-all:hover ${NEUTRAL}\n}`);

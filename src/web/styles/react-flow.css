@@ -140,7 +140,7 @@
   border-radius: var(--r-tag);
   background: transparent;
   color: var(--muted);
-  transition: background var(--dur-fast), color var(--dur-fast);
+  transition: background var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease);
 }
 /* The zoom level is a button that prints a figure, in the mono 11 on 14 the
    V4 bar sets numbers in. Never narrower than four figures ("100%"): the bar
@@ -219,7 +219,7 @@
   border: 1px solid var(--chrome-edge);
   border-radius: var(--r-ctl);
   overflow: hidden;
-  transition: border-color var(--dur-fast);
+  transition: border-color var(--dur-fast) var(--ease);
 }
 @media (hover: hover) and (pointer: fine) {
 .react-flow__minimap:hover { border-color: var(--line); }

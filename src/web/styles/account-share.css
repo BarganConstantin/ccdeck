@@ -118,7 +118,7 @@
   font: inherit;
   font-size: calc(10px + max(-1px, var(--ui-text-increase, 0px)));
   cursor: pointer;
-  transition: color var(--dur-fast), border-color var(--dur-fast), transform var(--dur-fast) var(--ease);
+  transition: color var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease), transform var(--dur-fast) var(--ease);
 }
 @media (hover: hover) and (pointer: fine) {
 .aa-result-fix:hover { color: var(--text); border-color: var(--text); }

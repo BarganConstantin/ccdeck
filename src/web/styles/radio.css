@@ -67,7 +67,7 @@
 .radio-land { fill: color-mix(in srgb, var(--line) 70%, var(--bg)); stroke: color-mix(in srgb, var(--text-secondary) 26%, var(--line)); stroke-width: .65px; }
 .radio-pin { cursor: pointer; user-select: none; -webkit-user-select: none; outline: none; }
 .radio-pin-hit { fill: transparent; }
-.radio-pin-dot { fill: var(--accent); stroke: var(--bg); stroke-width: 1px; vector-effect: non-scaling-stroke; transition: fill var(--dur-fast); }
+.radio-pin-dot { fill: var(--accent); stroke: var(--bg); stroke-width: 1px; vector-effect: non-scaling-stroke; transition: fill var(--dur-fast) var(--ease); }
 .radio-pin.clustered .radio-pin-dot { fill: var(--panel); stroke: var(--accent); }
 .radio-pin text { fill: var(--accent); font-family: var(--font-mono); font-weight: 600; pointer-events: none; }
 .radio-pin.selected .radio-pin-dot { fill: var(--text); stroke: var(--accent); }

@@ -114,7 +114,7 @@
 .ig-list[hidden] { display: none; }
 .ig-detail { overflow-y: auto; scrollbar-gutter: stable; scrollbar-color: var(--ctl-edge) transparent; background: var(--panel); }
 .ig-splitter { position: relative; cursor: col-resize; touch-action: none; }
-.ig-splitter::before { content: ""; position: absolute; inset-block: 0; left: 3px; width: 1px; background: var(--line); transition: background var(--dur-fast); }
+.ig-splitter::before { content: ""; position: absolute; inset-block: 0; left: 3px; width: 1px; background: var(--line); transition: background var(--dur-fast) var(--ease); }
 .ig-splitter:focus-visible::before,
 .ig-split[data-resizing] .ig-splitter::before { left: 2px; width: 3px; background: var(--accent); }
 @media (hover: hover) and (pointer: fine) {
@@ -134,7 +134,7 @@
   font: inherit;
   font-size: calc(12px + var(--ui-text-increase, 0px));
   cursor: pointer;
-  transition: background-color var(--dur-fast), color var(--dur-fast), transform var(--dur-fast) var(--ease);
+  transition: background-color var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease), transform var(--dur-fast) var(--ease);
 }
 @media (hover: hover) and (pointer: fine) {
 .ig-back:hover { color: var(--text); background: var(--ctl-fill); }

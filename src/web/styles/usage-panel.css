@@ -708,7 +708,7 @@ button.qb-pace::after {
   font-size: calc(11px + var(--ui-text-increase, 0px));
   color: var(--muted);
   text-decoration: none;
-  transition: border-color var(--dur-fast), background var(--dur-fast);
+  transition: border-color var(--dur-fast) var(--ease), background var(--dur-fast) var(--ease);
 }
 .up-incident[data-state$="outage"] { border-color: color-mix(in srgb, var(--err) 65%, transparent); }
 @media (hover: hover) and (pointer: fine) {

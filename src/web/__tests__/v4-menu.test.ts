@@ -40,7 +40,9 @@ describe("V4's menu item", () => {
     expect(decl(".ap-menu-item:hover:not(:disabled)", "background")).toBe("var(--selected)");
     expect(decl(".ap-menu-item:focus-visible", "background")).toBe("var(--selected)");
     expect(sheet).toContain(`@media ${MOUSE_MEDIA} {\n.ap-menu-item:hover:not(:disabled) {`);
-    expect(sheet).toMatch(/\.ap-menu-item:focus-visible \{ outline-offset: -2px; \}/);
+    // The ring is the one inset ring (V4's Figma, M1): no offset of the row's own.
+    expect(decl(".ap-menu-item:focus-visible", "outline-offset")).toBeUndefined();
+    expect(sheet).toMatch(/\n:focus-visible \{\s*outline: var\(--focus-w\) solid var\(--accent\);\s*outline-offset: calc\(-1 \* var\(--focus-w\)\);/);
   });
   it("keeps a disabled row on the shared --dim-off opacity, not the kit's --muted-dim", () => {
     // The kit draws a disabled label in --muted-dim, but contrast-floors.test.ts

@@ -450,7 +450,7 @@
   visibility: visible;
   opacity: 1;
   transform: none;
-  transition: opacity var(--dur-base) var(--ease) var(--delay-step), transform var(--dur-base) var(--ease) var(--delay-step), visibility 0s;
+  transition: opacity var(--dur-base) var(--ease) var(--delay-step), transform var(--dur-base) var(--ease) var(--delay-step), visibility 0s var(--ease);
 }
 .fb-field { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
 .fb-field-label {
@@ -604,7 +604,7 @@
 .fb-drop[data-active] {
   opacity: 1;
   visibility: visible;
-  transition: opacity var(--dur-base) var(--ease), visibility 0s;
+  transition: opacity var(--dur-base) var(--ease), visibility 0s var(--ease);
 }
 .fb-drop-frame {
   display: flex;

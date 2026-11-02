@@ -63,7 +63,7 @@
   font-size: calc(16px + var(--ui-text-increase, 0px));
   line-height: 1;
   cursor: pointer;
-  transition: color var(--dur-fast), transform var(--dur-fast) var(--ease);
+  transition: color var(--dur-fast) var(--ease), transform var(--dur-fast) var(--ease);
 }
 /* THE TARGET IS A RECTANGLE, NOT THE CIRCLE. The radius above does not only
    round the ring: browsers hit-test against the rounded border edge, so the

@@ -126,7 +126,7 @@
   background: none;
   color: var(--muted);
   cursor: pointer;
-  transition: border-color var(--dur-fast), color var(--dur-fast), background var(--dur-fast),
+  transition: border-color var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease), background var(--dur-fast) var(--ease),
               transform var(--dur-fast) var(--ease);
 }
 .ap-lan-map:focus-visible { border-color: var(--ctl-edge); color: var(--text); background: var(--ctl-fill); }
@@ -203,9 +203,12 @@
   text-overflow: ellipsis;
   white-space: nowrap;
   cursor: pointer;
-  transition: border-color var(--dur-fast), color var(--dur-fast), background var(--dur-fast);
+  transition: border-color var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease), background var(--dur-fast) var(--ease);
 }
 .ap-rest-sort select[data-sorted] { color: var(--text); }
+/* The keyboard lifts it the way the pointer does; its edge is the field's
+   accent (tokens.css), not the hover's neutral one. */
+.ap-rest-sort select:focus-visible { color: var(--text); background: var(--ctl-fill); }
 @media (hover: hover) and (pointer: fine) {
 .ap-rest-sort select:hover { border-color: var(--ctl-edge); color: var(--text); background: var(--ctl-fill); }
 }
@@ -235,7 +238,7 @@
   background: none;
   color: var(--muted);
   cursor: pointer;
-  transition: border-color var(--dur-fast), color var(--dur-fast), background var(--dur-fast),
+  transition: border-color var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease), background var(--dur-fast) var(--ease),
               transform var(--dur-fast) var(--ease);
 }
 .ap-rest-all:focus-visible { border-color: var(--ctl-edge); color: var(--text); background: var(--ctl-fill); }
@@ -606,7 +609,7 @@
   cursor: pointer;
   font-size: calc(11px + var(--ui-text-increase, 0px));
   color: var(--text);
-  transition: background var(--dur-fast), transform var(--dur-fast) var(--ease);
+  transition: background var(--dur-fast) var(--ease), transform var(--dur-fast) var(--ease);
 }
 @media (hover: hover) and (pointer: fine) {
 .ap-lan-pick:hover { background: color-mix(in srgb, var(--text) 6%, transparent); }
@@ -1077,7 +1080,7 @@
   line-height: 1.5;
   text-align: right;
   cursor: pointer;
-  transition: border-color var(--dur-fast), color var(--dur-fast),
+  transition: border-color var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease),
               transform var(--dur-fast) var(--ease);
 }
 /* --accent, not --accent-dim: #325 already had to override the dim edge inside

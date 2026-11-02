@@ -171,7 +171,7 @@
   pointer-events: none;
 }
 .ts-stage[data-kind="attaching"] .ts-scan,
-.ts-stage[data-kind="starting"] .ts-scan { opacity: 1; transition: opacity var(--dur-fast) 300ms; }
+.ts-stage[data-kind="starting"] .ts-scan { opacity: 1; transition: opacity var(--dur-fast) 300ms var(--ease); }
 /* Only while it is shown, and by transform, for the reason the spine's light
    gives: hidden at opacity 0 it still ran, and kept the page producing frames
    for the life of the stage. */
@@ -478,7 +478,7 @@
   left: 5px;
   width: 1px;
   background: var(--line);
-  transition: background-color var(--dur-fast) calc(var(--delay-step) * 2);
+  transition: background-color var(--dur-fast) calc(var(--delay-step) * 2) var(--ease);
 }
 .ts-grip {
   position: absolute;
@@ -492,7 +492,7 @@
   border: 1px solid var(--ctl-edge);
   background: var(--panel);
   opacity: 0;
-  transition: opacity var(--dur-fast) calc(var(--delay-step) * 2);
+  transition: opacity var(--dur-fast) calc(var(--delay-step) * 2) var(--ease);
 }
 @media (hover: hover) and (pointer: fine) {
 .ts-divider:hover::before { width: 2px; background: var(--accent); }
@@ -505,7 +505,7 @@
 .ts-divider[data-held] .ts-grip,
 .ts-divider:focus-visible .ts-grip { opacity: 1; background: var(--accent); }
 /* While the edge is held the header recedes, so the plates read first. */
-.ts-stage[data-held] .ts-head > :not(.ts-scan) { opacity: 0.2; transition: opacity var(--dur-fast); }
+.ts-stage[data-held] .ts-head > :not(.ts-scan) { opacity: 0.2; transition: opacity var(--dur-fast) var(--ease); }
 .ts-detents { position: absolute; top: 0; bottom: 0; left: 0; z-index: 6; pointer-events: none; }
 .ts-detent {
   position: absolute;

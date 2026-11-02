@@ -151,7 +151,7 @@
   line-height: 16px;
   font-weight: 500;
   cursor: pointer;
-  transition: background var(--dur-fast), border-color var(--dur-fast), color var(--dur-fast),
+  transition: background var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease),
               transform var(--dur-fast) var(--ease);
 }
 .topbar .brand button.v:active { transform: scale(var(--press)); }

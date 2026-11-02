@@ -40,7 +40,7 @@
   font-weight: 600;
   font-variant-numeric: tabular-nums;
   cursor: pointer;
-  transition: background var(--dur-fast), border-color var(--dur-fast),
+  transition: background var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease),
               transform var(--dur-fast) var(--ease);
 }
 @media (hover: hover) and (pointer: fine) {

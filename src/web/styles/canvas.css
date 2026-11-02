@@ -161,7 +161,7 @@
   font: inherit;
   font-weight: 600;
   cursor: pointer;
-  transition: background var(--dur-fast), transform var(--dur-fast) var(--ease);
+  transition: background var(--dur-fast) var(--ease), transform var(--dur-fast) var(--ease);
 }
 @media (hover: hover) and (pointer: fine) {
 .autofit-resume:hover { background: var(--ctl-fill); }
@@ -266,7 +266,7 @@
   font-weight: 600;
   white-space: nowrap;
   cursor: pointer;
-  transition: background var(--dur-fast), transform var(--dur-fast) var(--ease);
+  transition: background var(--dur-fast) var(--ease), transform var(--dur-fast) var(--ease);
 }
 @media (hover: hover) and (pointer: fine) {
 .rearrange-undo-act:hover { background: var(--ctl-fill); }
@@ -361,7 +361,7 @@
   font-family: var(--font-mono);
   letter-spacing: 0.02em;
   cursor: pointer;
-  transition: background var(--dur-fast), color var(--dur-fast),
+  transition: background var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease),
               transform var(--dur-fast) var(--ease);
 }
 /* A drawn glyph in the label's own colour (App.tsx's CatGlyph), so it follows

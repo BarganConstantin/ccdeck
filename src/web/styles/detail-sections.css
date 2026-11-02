@@ -459,7 +459,7 @@ button.tool.clickable {
   gap: 8px;
   justify-content: space-between;
   border-radius: 4px;
-  transition: background var(--dur-fast), transform var(--dur-fast) var(--ease);
+  transition: background var(--dur-fast) var(--ease), transform var(--dur-fast) var(--ease);
 }
 button.tool.clickable { padding-left: 6px; padding-right: 6px; }
 @media (hover: hover) and (pointer: fine) {

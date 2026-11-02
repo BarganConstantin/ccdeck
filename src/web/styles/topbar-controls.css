@@ -195,7 +195,7 @@
   font-weight: 400;
   cursor: pointer;
   white-space: nowrap;
-  transition: border-color var(--dur-fast), background var(--dur-fast),
+  transition: border-color var(--dur-fast) var(--ease), background var(--dur-fast) var(--ease),
               transform var(--dur-fast) var(--ease), opacity var(--dur-base) var(--ease);
 }
 .topbar .waiting-stat b {
@@ -394,7 +394,7 @@
   line-height: 16px;
   text-decoration: none;
   white-space: nowrap;
-  transition: border-color var(--dur-fast), background var(--dur-fast),
+  transition: border-color var(--dur-fast) var(--ease), background var(--dur-fast) var(--ease),
               transform var(--dur-fast) var(--ease), opacity var(--dur-base) var(--ease);
 }
 .topbar .provider-incident[data-state="major_outage"] { border-color: var(--err); }
