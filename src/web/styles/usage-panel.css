@@ -186,8 +186,8 @@
 }
 .up-tok {
   display: flex;
-  align-items: baseline;
-  gap: 4px;
+  flex-direction: column;
+  gap: 0;
   color: var(--text);
   font-size: calc(12px + var(--ui-text-increase, 0px));
   line-height: 16px;
@@ -473,6 +473,11 @@
    and below, so it overflows rather than clips. */
 .qb-track {
   position: relative;
+  /* Clipped sideways only: the pace marker rides a rail as wide as the track
+     and moved by a transform, so the rail's empty box, parked at the marker's
+     position, was 60-190px of scrollable overflow to the right (a scrollbar in
+     the panel). Vertically it stays visible, for the marker's 2px of clearance. */
+  overflow-x: clip;
   height: 2px;
   border-radius: var(--r-tag);
   background: var(--ctl-fill);
@@ -613,6 +618,54 @@ button.qb-pace::after {
   color: var(--muted);
 }
 .up-quota-hint { color: var(--text-dim); }
+/* A quota that is down (V4's Figma): "Quota unavailable." 600 13/20 --text, the
+   deck's own reason under it 400 12/16 --muted. The age and "no newer reading"
+   ride at the right of the label row, in the same mono 11/14 --muted. */
+.up-quota-na > .up-quota-down {
+  font-size: calc(13px + var(--ui-text-increase, 0px));
+  line-height: 20px;
+  font-weight: 600;
+  color: var(--text);
+}
+.up-quota-na > .up-quota-hint {
+  font-size: calc(12px + var(--ui-text-increase, 0px));
+  line-height: 16px;
+  color: var(--muted);
+}
+.up-section-title[data-down] .up-section-age { margin-left: auto; }
+.up-section-title[data-down] .up-section-age::before { content: none; }
+/* A partial reading's note: a box on --ctl-fill, --r-panel, padding 6 8, 400
+   12/16 --text-secondary. */
+.up-quota-sub.up-quota-note {
+  box-sizing: border-box;
+  padding: 6px 8px;
+  border-radius: var(--r-panel);
+  background: var(--ctl-fill);
+  color: var(--text-secondary);
+}
+
+/* A read for another period is out (V4's Figma): the words 400 12/16 --muted,
+   then two 28-high skeleton rows 12 apart (a 40 pitch): a 14 dot, a 120 x 8
+   and a 48 x 8 bone on --ctl-fill, padding 0 8, gap 8. */
+.up-reading {
+  margin: 0;
+  font-size: calc(12px + var(--ui-text-increase, 0px));
+  line-height: 16px;
+  color: var(--muted);
+}
+.up-skels { display: flex; flex-direction: column; gap: 12px; }
+.up-skel {
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 28px;
+  padding: 0 8px;
+}
+.up-bone { display: block; flex: none; background: var(--ctl-fill); border-radius: var(--r-tag); }
+.up-bone-dot  { width: 14px; height: 14px; border-radius: 50%; }
+.up-bone-name { width: 120px; height: 8px; }
+.up-bone-cost { width: 48px; height: 8px; margin-left: auto; }
 /* A chip that paints --line under itself has to pay for it. This one inherits
    --text-dim — a foreground budgeted against --panel — and then lifts the bed
    to --line, which spends exactly the contrast the token was sized for:

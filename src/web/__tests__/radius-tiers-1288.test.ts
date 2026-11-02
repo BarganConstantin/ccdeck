@@ -54,6 +54,8 @@ describe("the canvas's radius tier is named beside the chrome's (#1288)", () => 
     // --r-node (10), so .explore-provider reads it too.
     // CHANGED ON PURPOSE (V4's Figma): the integrations' failure note and loading skeleton are
     // drawn as 10px notes (the kit's --r-node), so they read the token as the Usage panel does.
-    expect(readers.sort()).toEqual([...Object.keys(CANVAS), ".usage-panel", ".reading-preview", ".explore-provider", ".ig-failure", ".ig-skeleton"].sort());
+    // CHANGED ON PURPOSE (V4's Figma): the This machine panel is drawn at the
+    // Usage panel's box, so .sysdetail reads --r-node too.
+    expect(readers.sort()).toEqual([...Object.keys(CANVAS), ".usage-panel", ".sysdetail", ".reading-preview", ".explore-provider", ".ig-failure", ".ig-skeleton"].sort());
   });
 });

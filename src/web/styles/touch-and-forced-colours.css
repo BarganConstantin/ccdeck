@@ -313,6 +313,10 @@
 
   .sysdetail .sd-fill,
   .sysdetail .sd-core-fill,
+  .sysdetail .sd-fill[data-level="text"],
+  .sysdetail .sd-fill[data-level="err"],
+  .sysdetail .sd-core-fill[data-level="text"],
+  .sysdetail .sd-core-fill[data-level="err"],
   .ctx-window-fill,
   .session-summary .ss-tt-bar-fill { forced-color-adjust: none; background: Highlight; }
   /* The Inspector's Time tab: its bars are fills, so they keep a colour of their own. */
@@ -338,6 +342,8 @@
   .qb-track,
   .ap-lane-track,
   .sd-track,
+  .up-bone,
+  .up-quota-sub.up-quota-note,
   .sd-core,
   .session-summary .ss-tt-bar,
   .uh-model-bar,
@@ -355,10 +361,6 @@
      theme's colours to keep its ring. */
   .ap-proj-day { outline: 1px solid ButtonBorder; outline-offset: -1px; }
   .ap-proj-day.selected .ap-proj-col { outline: 2px solid Highlight; }
-  /* The notch in a thermal track is the panel's ground showing through, and a
-     Contrast theme repaints that ground: it takes Canvas so the gap stays a
-     gap, against a fill that is now Highlight and a track that is outlined. */
-  .sd-mark { forced-color-adjust: none; background: Canvas; }
 
   /* The track keeps its forced border either way; the knob is what moves, so
      it is what has to survive, and the track fills when the switch is on. */

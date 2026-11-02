@@ -41,12 +41,12 @@ import React, { useState } from "react";
 import { currentLanguage, useT } from "../i18n";
 import { attentionFlag, loadQueueNote, thermalTone, throttleRow, uptime } from "../machine-readings";
 import { fmtBytes } from "../byte-format";
-import { rich } from "../insights-rich";
 import type { Memory, Snapshot, Swap, Thermal } from "../machine-snapshot";
 import { useSystem } from "../use-system";
 import ProcessListModal from "./ProcessListModal";
 import { DialogPresence } from "./Dialog";
-import { Fig, OpensHistory, Row } from "./MachineReadout";
+import { Fig, Meter, meterLevel, OpensHistory, PlainRow, Row } from "./MachineReadout";
+import { KitIcon } from "./kit-icons";
 import NetworkSection from "./MachineNetwork";
 import MachineGpu from "./MachineGpu";
 import { PLACE_KEYS, usePanelPlace } from "../panel-place";
@@ -92,12 +92,16 @@ function Shell({ usageOpen, leaving, sub, flag, onClose, children }: {
       <div className="sd-top" {...place.grip}>
         <div className="sd-head">
           <h2 className="sd-title" id="sd-title">{t("insights.machine.title")}</h2>
-          {sub && <span className="sd-sub">{sub}</span>}
-          <button type="button" className="glyph-btn sd-close" onClick={onClose} aria-label={t("insights.usage.close")} title={t("insights.usage.close")}>×</button>
+          <button type="button" className="glyph-btn sd-close" onClick={onClose} aria-label={t("insights.usage.close")} title={t("insights.usage.close")}><KitIcon name="close" /></button>
         </div>
-        {flag && <p className="sd-flag">{flag}</p>}
       </div>
-      {children}
+      <div className="sd-body">
+        {/* The uptime and the core count open the body (V4's Figma), and the
+            one condition worth saying follows them. */}
+        {sub && <p className="sd-sub">{sub}</p>}
+        {flag && <p className="sd-flag">{flag}</p>}
+        {children}
+      </div>
     </aside>
   );
 }
@@ -162,9 +166,10 @@ export default function MachinePanel({ usageOpen, leaving, onClose }: {
     >
       <CpuSection cpu={cpu} perCore={perCore} loadavg={loadavg} cores={cores} />
       <MemorySection memory={memory} swap={swap} platform={platform} />
-      {network && <NetworkSection network={network} />}
-      <MachineGpu devices={sys.gpus ?? []} />
+      {/* The order V4's Figma draws: Memory, Thermal, GPU, Network. */}
       <ThermalSection thermal={thermal} />
+      <MachineGpu devices={sys.gpus ?? []} />
+      {network && <NetworkSection network={network} />}
       <Processes sys={sys} />
     </Shell>
   );
@@ -219,6 +224,10 @@ function CpuSection({ cpu, perCore, loadavg, cores }: {
               how many cores there are and how hard the busiest is working —
               without 64 nodes to step through. The chart behind the button has
               the rest. */}
+          {/* The CPU row's own meter (V4's Figma draws this one), and under it
+              one 2-high meter per core in the same look, wrapped into rows of
+              equal cells. */}
+          {cpu != null && <Meter pct={cpu} />}
           <div
             className="sd-cores"
             role="img"
@@ -233,7 +242,7 @@ function CpuSection({ cpu, perCore, loadavg, cores }: {
                     The 2% floor is unchanged and means the same thing it always
                     did: an idle core still draws a sliver, so an empty column
                     reads as "nothing running" rather than "no data". */}
-                <span className="sd-core-fill" style={{ transform: `scaleY(${Math.max(2, v) / 100})` }} />
+                <span className="sd-core-fill" data-level={meterLevel(v)} style={{ transform: `scaleX(${Math.max(2, v) / 100})` }} />
               </span>
             ))}
           </div>
@@ -302,17 +311,15 @@ function MemorySection({ memory, swap, platform }: {
       <OpensHistory group="memory" title={t("insights.machine.memoryHistory")} action={t("insights.machine.showMemory")} label={t("insights.machine.memory")}>
         <Row
           label={t("insights.machine.physical")}
-          value={rich(t("insights.machine.of", { total: fmtBytes(memory.total) }), { used: <b>{fmtBytes(used)}</b> })}
+          value={t("insights.machine.of", { used: fmtBytes(used), total: fmtBytes(memory.total) })}
           pct={memory.usedPct}
-          tone={memory.usedPct >= 90 ? "warn" : "calm"}
           note={t("insights.machine.available", { n: fmtBytes(memory.available) })}
         />
         {swap && swap.total > 0 && (
           <Row
             label={swapLabel}
-            value={rich(t("insights.machine.of", { total: fmtBytes(swap.total) }), { used: <b>{fmtBytes(swap.used)}</b> })}
+            value={t("insights.machine.of", { used: fmtBytes(swap.used), total: fmtBytes(swap.total) })}
             pct={swapPct}
-            tone={swapPct >= 90 ? "warn" : "calm"}
           />
         )}
       </OpensHistory>
@@ -357,26 +364,18 @@ function ThermalSection({ thermal }: { thermal: Thermal | null }) {
     <div className="sd-section" role="group" aria-label={t("insights.machine.thermal")}>
       <OpensHistory group="thermal" title={t("insights.machine.thermalHistory")} action={t("insights.machine.showThermal")} label={t("insights.machine.thermal")}>
         {thermal.celsius.map(r => (
-          <Row
-            key={r.label}
-            label={r.label}
-            value={<><b>{r.celsius}</b> °C</>}
-            pct={(r.celsius / r.critAt) * 100}
-            mark={(r.warnAt / r.critAt) * 100}
-            tone={thermalTone(r.celsius, r.warnAt, r.critAt)}
-            // WHAT THE BAR AND THE MARK ARE, in both the places a reader can
-            // ask. The scale is stated as this app's own rule — where the row
-            // turns amber, where it turns red — and never as a claim about the
-            // silicon: `critAt` is the chip's own `temp*_crit` where hwmon
-            // publishes one and the server's 90 where it does not, and nothing
-            // in the snapshot says which. A sentence that named the hardware
-            // would be right on one machine and wrong on the next.
-            title={t("insights.machine.barTitle", { crit: r.critAt, warn: r.warnAt })}
-            trackLabel={t("insights.machine.trackLabel", { c: r.celsius, crit: r.critAt, warn: r.warnAt })}
-          />
+          // A plain row (V4's Figma): the reading in mono at the right, in
+          // --text, and --err only past the sensor's own critical point. The
+          // bar this row drew against that point is gone with the amber.
+          <PlainRow key={r.label} label={r.label} value={`${r.celsius} °C`}
+            err={thermalTone(r.celsius, r.warnAt, r.critAt) === "hot"} />
         ))}
+        {/* No flag and no bar: a plain Thermal row, the clock share the machine
+            has lost, in --text and --err only at the third the deck already
+            calls hot. The sentence stays under it when there is something to
+            say. */}
         {held && (
-          <Row label={t("insights.machine.throttling")} value={<b>{held.value}</b>} pct={held.pct} tone={held.tone} note={held.note} />
+          <PlainRow label={t("insights.machine.throttling")} value={held.value} err={held.tone === "hot"} note={held.pct > 0 ? held.note : undefined} />
         )}
       </OpensHistory>
     </div>
@@ -439,7 +438,7 @@ function Processes({ sys }: {
         <span className="sd-door-plate">
           <span className="sd-door-name">
             {t("insights.proc.title")}
-            <i className="sd-row-more" aria-hidden>›</i>
+            <KitIcon name="chevron-right" className="sd-row-more" />
           </span>
           <span className="sd-door-sub">{t("insights.machine.processesSub")}</span>
         </span>

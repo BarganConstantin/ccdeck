@@ -401,6 +401,14 @@ describe("what was migrated to the secondary tier", () => {
       ".react-flow__controls-button[data-zoom-level]",
       ".radio-tuning-tower",
       ".sa-why",
+      // CHANGED ON PURPOSE (V4's Figma): the machine panel's headings, meter-row
+      // labels and process row are set in --text-secondary, and a quota's
+      // partial-data note is 12/16 --text-secondary on --ctl-fill.
+      ".sd-door-name",
+      ".sd-gpu-name",
+      ".sd-h",
+      ".sd-row-label",
+      ".up-quota-sub.up-quota-note",
       // V4's status bar: who has the keys, in the one weight-500 label of a
       // bar whose hints are --muted (V4's Figma prints it --text-secondary).
       ".statusbar-who",

@@ -12,7 +12,8 @@ import { pathText } from "../machine-readings";
 import type { NetRoute, Network } from "../machine-snapshot";
 import { figureText, latencyFigure, rateFigure } from "../net-format";
 import AnchoredPopover from "./AnchoredPopover";
-import { Fig, OpensHistory } from "./MachineReadout";
+import { OpensHistory, PlainRow } from "./MachineReadout";
+import { KitIcon } from "./kit-icons";
 
 /**
  * What the connection is moving, how far Claude is, and — behind one press —
@@ -47,13 +48,12 @@ export default function NetworkSection({ network }: { network: Network }) {
              the memory rows read in, label then figure. Written the other way
              round the caption had to carry both the unit and the name, and
              "KB/s down" puts the unit where the name belongs. */
-          <div className="sd-figs sd-figs-named">
-            {rates && ([["download", down!], ["upload", up!]] as const).map(([name, v]) => {
-              const f = rateFigure(v);
-              return <Fig key={name} value={f.value} unit={f.unit} cap={t(name === "download" ? "insights.machine.download" : "insights.machine.upload")} />;
-            })}
-            {latency && <Fig value={latency.value} unit={latency.unit} cap={t("insights.machine.claudeApi")} />}
-          </div>
+          <>
+            {rates && ([["download", down!], ["upload", up!]] as const).map(([name, v]) => (
+              <PlainRow key={name} label={t(name === "download" ? "insights.machine.download" : "insights.machine.upload")} value={figureText(rateFigure(v))} />
+            ))}
+            {latency && <PlainRow label={t("insights.machine.claudeApi")} value={figureText(latency)} />}
+          </>
         )}
         {/* The first rate needs two readings five seconds apart, and the two
             probes do not land together: a latency that has arrived is drawn
@@ -85,7 +85,7 @@ export default function NetworkSection({ network }: { network: Network }) {
           >
             {t("insights.machine.connDetails")}
             {route.relay && <span className="sd-route-relay"> · {t("insights.machine.relayed")}</span>}
-            <i className="sd-row-more" aria-hidden>›</i>
+            <KitIcon name="chevron-right" className="sd-row-more" />
           </button>
           {details && <ConnectionDetails route={route} api={api} onClose={() => setDetails(false)} />}
         </>

@@ -68,6 +68,10 @@ import { PLACE_KEYS, usePanelPlace } from "../panel-place";
 // whether the session list is open — are usage-prefs.ts's, with the reasons
 // each is kept and the default each falls back to.
 
+/** How long a pressed period may show the previous one's figures before the
+ *  skeleton replaces them. */
+const SKELETON_AFTER_MS = 150;
+
 interface Props {
   state: GraphState;
   now: number;
@@ -182,6 +186,16 @@ export default function UsagePanel({ state, now, providers, incidents = [], leav
    * which is the truth: they are the previous period's, and nothing is coming.
    */
   const rangePending = rangeLoading && rangeStale;
+  // The skeleton (V4's Figma) takes the stale figures' place, but only once the
+  // wait is real: a range the server already holds answers in about 10ms, and a
+  // skeleton flashing for that long is a flicker. So the previous period's
+  // figures stay for the first SKELETON_AFTER_MS and the skeleton follows.
+  const [skeleton, setSkeleton] = useState(false);
+  useEffect(() => {
+    if (!rangePending) { setSkeleton(false); return; }
+    const id = window.setTimeout(() => setSkeleton(true), SKELETON_AFTER_MS);
+    return () => window.clearTimeout(id);
+  }, [rangePending]);
 
   // The board's own names and states, by session id — the two halves of the
   // join between ccusage's session rows and the canvas. The folds are
@@ -339,7 +353,22 @@ export default function UsagePanel({ state, now, providers, incidents = [], leav
               the same thing. */}
       {fromRange && <UsagePeriodStrip period={period} rangePending={rangePending} setPeriod={setPeriod} />}
 
-      {totalTokenSum > 0 && (
+      {fromRange && skeleton ? (
+        <>
+          {/* A READ FOR ANOTHER PERIOD IS OUT (V4's Figma): the words, then two
+              skeleton rows where the figures will be. */}
+          <p className="up-reading">{t("usage.period.reading", { period: t(`usage.period.${period}.noun`) })}</p>
+          <div className="up-skels" aria-hidden="true">
+            {[0, 1].map(i => (
+              <div key={i} className="up-skel">
+                <span className="up-bone up-bone-dot" />
+                <span className="up-bone up-bone-name" />
+                <span className="up-bone up-bone-cost" />
+              </div>
+            ))}
+          </div>
+        </>
+      ) : totalTokenSum > 0 && (
         <>
           {/* The headline says whose spend it is (#687).
               It read "total spend", and it is not a total of anything: it walks
@@ -425,7 +454,7 @@ export default function UsagePanel({ state, now, providers, incidents = [], leav
           incident={incidents.find(i => i.provider === "codex")} />
       )}
 
-      {totalTokenSum > 0 ? (
+      {fromRange && skeleton ? null : totalTokenSum > 0 ? (
         <>
 
           {/* NO BOARD FIGURE UNDER A ccusage HEADLINE.

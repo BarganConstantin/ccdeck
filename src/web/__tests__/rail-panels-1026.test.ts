@@ -168,10 +168,12 @@ describe("the per-core strip keeps a column wide enough to be a bar (#1026)", ()
     // floor, and `auto-fit` is what lets a 16-thread machine collapse the
     // tracks it does not use and keep the full width.
     expect(decl(".sd-cores", "display")).toBe("grid");
-    expect(decl(".sd-cores", "grid-template-columns")).toBe("repeat(auto-fit, minmax(3px, 1fr))");
+    // CHANGED ON PURPOSE (V4's Figma): each core is a 2-high meter in a cell at
+    // least 20 wide (an `auto-fill` grid, 4 apart), not a 3px column 26 high.
+    // The floor is still there, and still the same on every row.
+    expect(decl(".sd-cores", "grid-template-columns")).toBe("repeat(auto-fill, minmax(32px, 1fr))");
     expect(decl(".sd-cores", "flex-wrap")).toBeNull();
-    expect(decl(".sd-cores .sd-core", "min-width")).toBe("3px");
-    expect(decl(".sd-cores .sd-core", "height")).toBe("26px");
+    expect(decl(".sd-core", "height")).toBe("2px");
   });
 
   it("stops counting its own columns through a custom property", () => {
