@@ -57,7 +57,7 @@ function headerProps(over: Partial<StageHeaderProps> = {}): StageHeaderProps {
 
 function bodyProps(phase: StagePhase, over: Partial<StageBodyProps> = {}): StageBodyProps {
   return {
-    hostRef: { current: null }, phase, ghostLine: "● Task(7 subagents running)",
+    hostRef: { current: null }, phase,
     context: { prompt: "Refactor mailbox controller", fact: "3 subagents working · running in another terminal since 08:12" },
     onAdopt: vi.fn(), onNotNow: vi.fn(), onRetry: vi.fn(), onNewSession: vi.fn(), ...over,
   };
@@ -186,8 +186,12 @@ describe("the body's state cards, each at the terminal's origin", () => {
     expect(html(createElement(StageBody, bodyProps({ kind: "attaching", reconnect: false })))).not.toContain("data-shown");
   });
 
-  it("shows the last known line while attaching, and nothing over a reconnect's frozen frame", () => {
-    expect(html(createElement(StateCard, bodyProps({ kind: "attaching", reconnect: false })))).toContain("● Task(7 subagents running)");
+  it("shows only the status line while attaching, and nothing over a reconnect's frozen frame", () => {
+    // CHANGED ON PURPOSE: V4's Attaching state draws the glyph and "attaching…"
+    // alone; the last line the board knew (the ghost prompt line) is gone.
+    const attaching = html(createElement(StateCard, bodyProps({ kind: "attaching", reconnect: false })));
+    expect(attaching).toContain("attaching…");
+    expect(attaching).not.toContain("ts-ctx");
     expect(html(createElement(StateCard, bodyProps({ kind: "attaching", reconnect: true })))).toBe("");
   });
 
@@ -196,16 +200,18 @@ describe("the body's state cards, each at the terminal's origin", () => {
       .toContain("Starting Claude Code in /home/u/personal/ccdeck");
   });
 
-  it("cuts a long fact with an ellipsis, in a box of its own, with the whole line as its title", () => {
+  it("prints no fact line on a card that cannot attach: the prompt, one paragraph, the actions", () => {
+    // CHANGED ON PURPOSE (replaces the test that held the fact line's
+    // ellipsis): V4's not-attachable states draw no such line, so the stage
+    // does not print the board's fact, long or short.
     const target = { kind: "C" as const, label: "Ended.", adoptable: true };
     const fact = "Claude Code · /home/u/scratch/layout/ws/data-pipeline-with-a-long-name";
-    const out = html(createElement(StateCard, bodyProps({ kind: "not-attachable", target, stillRunning: false, busy: false }, { context: { prompt: null, fact } })));
-    expect(out).toContain(`title="${fact}"`);
-    expect(out).toContain(`<span class="ts-fact-text">${fact}</span>`);
-    const css = sheetText().replace(/\/\*[\s\S]*?\*\//g, "");
-    const rule = /\.ts-fact-text\s*\{([^}]*)\}/.exec(css)?.[1] ?? "";
-    expect(rule, "a flex row's bare text never takes the row's ellipsis").toMatch(/min-width:\s*0/);
-    expect(rule).toMatch(/text-overflow:\s*ellipsis/);
+    const out = html(createElement(StateCard, bodyProps({ kind: "not-attachable", target, stillRunning: false, busy: false }, { context: { prompt: "Add rate limiting", fact } })));
+    expect(out).not.toContain(fact);
+    expect(out).not.toContain("ts-fact");
+    expect(out).toContain("Add rate limiting");
+    const css = sheetText();
+    expect(css).not.toMatch(/\.ts-fact/);
   });
 
   it("offers Reopen here for case C with the deck's own sentence, and answers its 409 in place", () => {
@@ -214,7 +220,9 @@ describe("the body's state cards, each at the terminal's origin", () => {
     const out = html(createElement(StateCard, props));
     expect(out).toContain(target.label);
     expect(out).toContain("Refactor mailbox controller");
-    expect(out).toContain("running in another terminal");
+    // CHANGED ON PURPOSE: no fact line ("... running in another terminal").
+    expect(out).not.toContain("running in another terminal");
+    expect(out).toContain('class="btn primary"');
     const tree = StateCard(props);
     press(button(tree, "Reopen here"));
     expect(props.onAdopt).toHaveBeenCalled();
@@ -223,6 +231,12 @@ describe("the body's state cards, each at the terminal's origin", () => {
 
     const refused = html(createElement(StateCard, bodyProps({ kind: "not-attachable", target, stillRunning: true, busy: false })));
     expect(refused).toContain(STILL_RUNNING_NOTE);
+    // CHANGED ON PURPOSE: one paragraph, not the case's label with a note
+    // stacked under it; and Check again is a Quiet button (only Reopen here and
+    // New session are Primary).
+    expect(refused).not.toContain(target.label);
+    expect(refused).not.toContain("ts-note");
+    expect(refused).not.toContain("btn primary");
     expect(refused).toContain("Check again");
     expect(refused).not.toContain("Reopen here");
     expect(html(createElement(StateCard, bodyProps({ kind: "not-attachable", target: { ...target, adoptable: false }, stillRunning: false, busy: false }))))
@@ -316,7 +330,10 @@ describe("the body's state cards, each at the terminal's origin", () => {
     const props = bodyProps({ kind: "tmux-missing", reason: "missing", install: "sudo apt install tmux", busy: false });
     const out = html(createElement(StateCard, props));
     expect(out).toContain("tmux · not found on this machine");
-    expect(out).toMatch(/<code><span class="ts-prompt">\$ <\/span>sudo apt install tmux<\/code>/);
+    // CHANGED ON PURPOSE: V4's command box has no "$ " in front of the line.
+    expect(out).toMatch(/<code title="sudo apt install tmux">sudo apt install tmux<\/code>/);
+    expect(out).not.toContain("ts-prompt");
+    expect(out).not.toContain("btn primary");
     expect(out).toContain('aria-label="Copy the command"');
     press(button(StateCard(props), "Check again"));
     expect(props.onRetry).toHaveBeenCalled();
@@ -497,8 +514,8 @@ describe("the keys bar", () => {
     // On a phone the coarse-pointer sheet drops the bar's key chips, and the
     // line read "Typing goes to the session, included. closes the Command
     // Panel…". The clause that names Esc is its own element, so it goes
-    // whole (the sheet's side is "the keys bar under a fingertip"), and ✕,
-    // the header's control rather than a key, is marked to stay.
+    // whole (the sheet's side is "the keys bar under a fingertip"); ✕, the
+    // header's control, is plain text in the sentence.
     // CHANGED ON PURPOSE: the line is V4's Figma (keys bar): ", Esc
     // included" with a comma where it had a dash.
     const out = html(createElement(KeysBar, barProps({ owner: "pane", firstRun: true })));
@@ -509,8 +526,8 @@ describe("the keys bar", () => {
     const keys = line!.match(/<span class="ts-first-keys">([\s\S]*?)<\/span>/)?.[0];
     expect(keys && words(keys)).toBe(", Esc included");
     expect(words(line!.replace(keys!, ""))).toBe("Typing goes to the session. ✕ closes the Command Panel; the session keeps running.");
-    expect(line).toContain('<kbd class="kbd" data-control="true">✕</kbd>');
-    expect(line).toContain('<kbd class="kbd">Esc</kbd>');
+    // CHANGED ON PURPOSE: V4's first-run line is one plain sentence, no key chips.
+    expect(line).not.toContain("<kbd");
     expect(out.indexOf(">Got it</button>"), "Got it follows the sentence").toBeGreaterThan(out.indexOf("keeps running."));
   });
 
@@ -748,13 +765,13 @@ describe("the keys bar under a fingertip", () => {
     expect(coarse).toContain(".ts-keys .kbd { display: none; }");
   });
 
-  it("drops the first-run line's Esc clause whole, and keeps ✕ there", () => {
+  it("drops the first-run line's Esc clause whole", () => {
     const css = sheetText().replace(/\/\*[\s\S]*?\*\//g, "");
     const coarse = [...css.matchAll(/@media \(pointer: coarse\) \{([\s\S]*?)\n\}/g)].map(m => m[1]).join("\n");
     expect(coarse).toContain(".ts-keys .ts-first-keys { display: none; }");
-    // Outranks the chips' own rule above: one attribute more.
-    const keep = coarse.indexOf(".ts-keys .kbd[data-control] { display: inline-flex; }");
-    expect(keep).toBeGreaterThan(coarse.indexOf(".ts-keys .kbd { display: none; }"));
+    // CHANGED ON PURPOSE: ✕ is plain text in the sentence now, so the rule
+    // that kept its chip (.kbd[data-control]) is gone.
+    expect(coarse).not.toContain("data-control");
   });
 
   it("wraps the first-run line on a narrow stage, so Got it is never pushed off the end", () => {
@@ -869,7 +886,9 @@ describe("the Command Panel under a fingertip (#884)", () => {
 
   it("leaves the panel as a mouse draws it", () => {
     expect(plain(".ts-keys .btn")).toContain("min-height: 28px");
-    expect(plain(".ts-asks .ts-next")).toContain("min-height: 28px");
+    // CHANGED ON PURPOSE: Next ask / Answer / type here read as the bar's text
+    // (16 high) beside a mouse; the 32px floor is the coarse pointer's.
+    expect(css).toMatch(/@media not \(pointer: coarse\) \{\s*\.ts-bar button\.btn\.ts-plain \{[^}]*min-height: 16px/);
     expect(plain(".ts-divider")).toMatch(/left: -6px;[\s\S]*width: 12px;/);
     // The floors above are the coarse pointer's alone: no rule a mouse reads
     // gives these a size of their own.
@@ -913,10 +932,11 @@ describe("the stage's sheet", () => {
   it("keeps the stage's marks under a Contrast theme, in the deck's one forced-colours block", () => {
     const forced = css.slice(css.indexOf("@media (forced-colors: active) {"));
     // The state glyphs draw in currentColor and need nothing here; the marks
-    // that are fills do (the card's fact mark, the context chip's bar).
+    // that are fills do (the context chip's bar).
     // CHANGED ON PURPOSE: the ended bar's square is gone (Figma V4 draws none),
-    // and the header's context bar is a fill that needs its own track and fill.
-    expect(forced).toMatch(/\.ts-fact-mark \{ background: CanvasText; \}/);
+    // the card's fact mark went with the fact line, and the header's context
+    // bar is a fill that needs its own track and fill.
+    expect(forced).not.toContain("ts-fact-mark");
     expect(forced).not.toContain("ts-end-mark");
     expect(forced).toMatch(/\.ts-ctxbar \{ background: Canvas; outline: 1px solid CanvasText; \}/);
     expect(forced).toMatch(/\.ts-ctxbar i \{ background: CanvasText; \}/);

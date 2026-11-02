@@ -188,8 +188,9 @@ export default function DecisionCard(p: DecisionCardProps) {
         </div>
         <div className="dc-tree" aria-hidden="true">
           <i className="dc-stub" />
-          <i className="dc-spine" />
-          {model.options.map((_, i) => <i className="dc-tick" key={i} />)}
+          {model.options.map((_, i) => (
+            <i className="dc-tick" key={i} data-typing={(state.mode === "free" && state.focus === i) || undefined} />
+          ))}
         </div>
         <div className="dc-opts" role={multi ? "group" : "radiogroup"} aria-labelledby={titleId}>
           {model.options.map((option, i) => (

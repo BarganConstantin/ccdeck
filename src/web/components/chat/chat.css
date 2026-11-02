@@ -19,12 +19,12 @@
   box-sizing: border-box;
   padding: 12px 20px;
 }
-/* The text column stops at 760 and centres in a wider pane (1920 and up). */
+/* The text column is 776 (a 816 pane less 20 each side) and centres in a wider pane. */
 .chat-col {
   display: flex;
   flex-direction: column;
   gap: 12px;
-  max-width: 760px;
+  max-width: 776px;
   margin: 0 auto;
   min-width: 0;
 }
@@ -64,6 +64,9 @@
   font: 400 12px/16px var(--font-mono);
   color: var(--muted);
 }
+/* A run of tool rows is one block: 0 between the rows (the column's 12 is taken
+   back), and the column's 12 after the run. */
+.chat-tool + .chat-tool { margin-top: -12px; }
 .chat-tool-chev,
 .chat-tool-mark { flex: none; display: inline-flex; color: var(--muted); }
 .chat-tool-name { flex: none; font-weight: 500; color: var(--text-secondary); }

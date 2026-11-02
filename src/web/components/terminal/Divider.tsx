@@ -3,8 +3,8 @@
 //
 // IT MOVES IN COLUMNS. A pointer anywhere along a drag asks stage-geometry for
 // the whole-cell width it means, pulled onto 80, 100, 120 or 160 within three
-// columns; plates for those detents stand over the edge while it is held, with
-// a "cols × rows" readout beside the pointer. The stage follows the drag live,
+// columns; while it is held the pane side says "cols × rows", bare, in the
+// middle of the stage (V4 draws no plate for the detents). The stage follows the drag live,
 // but the pane is told only once, after the drag ends and the width has
 // rested (use-terminal-session's RESIZE_SETTLE_MS) — a SIGWINCH per frame
 // would have the TUI redraw forty times for one gesture.
@@ -14,7 +14,7 @@
 // Enter or a double click go back to the default width, and the value is read
 // out as "120 columns".
 import { useRef, useState, type KeyboardEvent, type PointerEvent } from "react";
-import { colsAtX, snapCols, stageWidthFor, stepCols, type ColsRange } from "../../stage-geometry";
+import { colsAtX, snapCols, stepCols, type ColsRange } from "../../stage-geometry";
 
 export interface DividerProps {
   cols: number;
@@ -119,16 +119,6 @@ export default function Divider(p: DividerProps) {
       </div>
       {held && (
         <div className="ts-detents" aria-hidden="true">
-          {p.range.detents.map(d => (
-            <span
-              key={d}
-              className="ts-detent"
-              data-on={d === p.cols || undefined}
-              style={{ left: `${p.appW - stageWidthFor(d, p.cellW) - p.navW}px` }}
-            >
-              <span>{d} col</span>
-            </span>
-          ))}
           <span className="ts-readout">{p.cols} × {p.rows}</span>
         </div>
       )}

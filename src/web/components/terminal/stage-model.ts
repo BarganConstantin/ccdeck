@@ -319,9 +319,27 @@ export function stageAnnouncement(name: string, phase: StagePhase): string | nul
     case "not-attachable": return phase.stillRunning ? `${name} is still running in another terminal.` : `${name} has no pane to attach to.`;
     case "tmux-installing": return "Setting up tmux for the Command Panel.";
     case "tmux-missing": return "tmux is not installed, so the Command Panel cannot attach.";
-    case "error": return phase.message;
+    case "error": return errorWords(phase.message);
     default: return null;
   }
+}
+
+/** What the Error card says when the stage cannot say more. */
+export const PANEL_STOPPED = "The Command Panel stopped. The session may still be running.";
+
+/** The engine's own refusals of a malformed question (terminal-target.mjs
+ *  checkTargetQuery): the session has no id the deck can use, or no provider.
+ *  They are the server's words for its route, not for a person, and no state
+ *  of the pane fits them better than the Error card's. */
+const SERVER_REFUSALS: ReadonlySet<string> = new Set([
+  "That is not a session id.",
+  "The provider must be claude or codex.",
+]);
+
+/** The words an error is shown with: the deck's own sentence as it is, a raw
+ *  server refusal as the Error card's. */
+export function errorWords(message: string): string {
+  return SERVER_REFUSALS.has(message.trim()) ? PANEL_STOPPED : message;
 }
 
 /** What is said when the stage closes. Never "stopped": it did not stop. */
