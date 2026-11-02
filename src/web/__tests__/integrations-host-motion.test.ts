@@ -133,6 +133,7 @@ describe("the detail's width before the reader drags it", () => {
 describe("Settings › Integrations", () => {
   it("introduces the development tools section", () => {
     const note = SETTINGS_SECTIONS.find(s => s.id === "integrations")?.note ?? "";
-    expect(note).toBe("Manage connections to your developer tools.");
+    // CHANGED ON PURPOSE (V4's Figma): the page head says V4's line.
+    expect(note).toBe("Connect your project tools. Tokens stay on this machine.");
   });
 });

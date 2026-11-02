@@ -32,7 +32,9 @@ const raw = sheetText();
 const css = raw.replace(/\/\*[\s\S]*?\*\//g, m => m.replace(/[^\n]/g, " "));
 const lineOf = (at: number) => css.slice(0, at).split("\n").length;
 
-const SPACE_LADDER = [0, 1, 2, 3, 4, 5, 6, 8, 10, 12, 14, 16, 18, 20, 24, 32, 40];
+// CHANGED ON PURPOSE: 13 is V4's Figma gap between the theme cards and between
+// the companion tiles in Settings, four 128px tiles to a row (no token).
+const SPACE_LADDER = [0, 1, 2, 3, 4, 5, 6, 8, 10, 12, 13, 14, 16, 18, 20, 24, 32, 40];
 // 9 is V4's Figma literal for the rail's usage meter and the decision outcome box (no token).
 const RADIUS_LADDER = [0, 1, 2, 3, 4, 6, 8, 9, 10, 12, 16, 18];
 const RADIUS_SHAPES = ["999px", "50%", "inherit"];
