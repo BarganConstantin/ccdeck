@@ -69,7 +69,7 @@ describe("V4 dialog motion", () => {
 describe("Quick open never animates", () => {
   const qoSource = readFileSync(fileURLToPath(new URL("../components/QuickOpen.tsx", import.meta.url)), "utf8");
 
-  // V4's motion rules (D19): it opens and closes at once, by key or by pointer.
+  // V4's motion rules: it opens and closes at once, by key or by pointer.
   // qo-in / qo-out / qo-fade-out, the .closing state and the data-motion
   // opt-in that switched them off are gone; nothing is left to switch off.
   it("has no entrance, no exit and no keyframes of its own", () => {
