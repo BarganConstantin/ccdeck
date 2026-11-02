@@ -274,6 +274,8 @@ describe("reduced motion reaches the whole deck, not only the canvas", () => {
     // The five #357 found, by name: four layout eases and one modal entrance.
     // #863 then moved three of the four onto transforms, so they ease no layout
     // property now; the next case still stops all four under reduced motion.
+    // The fourth, .uh-bar, still eases its height for a range that changes
+    // under an open chart (#863); its rise alone is a transform.
     // The modal's entrance is found by its @starting-style, no longer by keyframes.
     expect(easesLayout.some(m => m.sel === ".uh-bar"), ".uh-bar").toBe(true);
     for (const sel of [".ctx-window-fill", ".qb-fill", ".qb-pace-rail"]) {

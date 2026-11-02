@@ -61,7 +61,7 @@ import { join } from "node:path";
 import { clientText } from "./client-source";
 import { en } from "../i18n/en";
 import { soundMenuSurface } from "./sound-menu-surface";
-import { sheetText } from "./sheet-source";
+import { mouseFlat, sheetText } from "./sheet-source";
 import { attr, buttons, createElement, draw, items } from "./edge-keys-rails";
 import { EdgeDock, EdgeRail } from "../components/EdgeRails";
 import { railHint } from "../components/EdgeRails";
@@ -161,7 +161,8 @@ function topLevel(src: string): Array<{ selector: string; body: string }> {
   return out;
 }
 
-const RULES = topLevel(css);
+// The mouse query's rules are read where they stand: a desktop pointer meets them at the top level.
+const RULES = topLevel(mouseFlat(css));
 const selectors = (list: string) => list.split(",").map(s => s.replace(/\s+/g, " ").trim());
 
 /** Every top-level rule naming this exact selector, in source order. */

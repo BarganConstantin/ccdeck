@@ -27,7 +27,8 @@ const css = sheetText()
 const reactFlowCss = readFileSync(
   fileURLToPath(new URL("../../../node_modules/reactflow/dist/style.css", import.meta.url)), "utf8");
 
-const FOCUSED_CARD = ".react-flow__node:focus-visible .agent-node";
+// Not on a selected card: the wrapper carries both, and the selection ring wins there.
+const FOCUSED_CARD = ".react-flow__node:focus-visible:not(.rf-selected) .agent-node";
 const SELECTED_CARD = ".react-flow__node.rf-selected .agent-node";
 
 function decl(selector: string, prop: string): string | null {
@@ -46,15 +47,18 @@ describe("a canvas card reached by keyboard shows a ring (#869)", () => {
   });
 
   it("draws the deck's ring on the card while its wrapper has keyboard focus", () => {
-    expect(decl(FOCUSED_CARD, "outline")).toBe("2px solid var(--accent)");
-    expect(decl(FOCUSED_CARD, "outline-offset")).toBe("2px");
+    // V4's Figma: 1.5px accent inside, offset 0 (--focus-w, negative offset).
+    expect(decl(FOCUSED_CARD, "outline")).toBe("var(--focus-w) solid var(--accent)");
+    expect(decl(FOCUSED_CARD, "outline-offset")).toBe("calc(-1 * var(--focus-w))");
   });
 
-  it("is the same ring selection draws, so the canvas has one focus language", () => {
+  it("is the accent ring selection draws (colour and style), so the canvas keeps one focus language", () => {
     // Focus without selection still reads apart: selection also lifts the
-    // card with --shadow-2, focus does not.
-    expect(decl(SELECTED_CARD, "outline")).toBe(decl(FOCUSED_CARD, "outline"));
-    expect(decl(SELECTED_CARD, "outline-offset")).toBe(decl(FOCUSED_CARD, "outline-offset"));
+    // card with --shadow-2, focus does not. V4's Figma moved only the focus
+    // ring to the one inside stroke; selection is not a focus state and keeps
+    // its own width and offset, so only the colour and style are compared.
+    expect(decl(SELECTED_CARD, "outline")).toMatch(/ solid var\(--accent\)$/);
+    expect(decl(FOCUSED_CARD, "outline")).toMatch(/ solid var\(--accent\)$/);
     expect(decl(FOCUSED_CARD, "box-shadow")).toBeNull();
   });
 });

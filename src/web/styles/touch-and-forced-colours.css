@@ -111,6 +111,21 @@
    answers, and this block comes last. */
 @media (forced-colors: active) {
 
+  /* The text-field family draws focus with its border colour alone (tokens.css),
+     and a Contrast theme replaces border colours: give it the ring back, in
+     Highlight, inside the box like every other ring. */
+  .settings-filter-field:focus-visible, .sm-select:focus-visible, .ap-manage-input:focus-visible,
+  .aa-field input:focus-visible, .radio-filter-search input:focus-visible,
+  .tr-input:focus-visible, .tr-select:focus-visible,
+  .qh-window select:focus-visible, .jr-move-pop select:focus-visible, .jr-transition select:focus-visible,
+  .jr-comment-compose textarea:focus-visible, .su-pricing select:focus-visible,
+  .ap-field select:focus-visible, .ap-pop .ap-field select:focus-visible,
+  .ap-rest-sort select:focus-visible, .bw-settings select:focus-visible {
+    outline: var(--focus-w) solid Highlight;
+    outline-offset: calc(-1 * var(--focus-w));
+  }
+  .radio-search:focus-within { outline: var(--focus-w) solid Highlight; outline-offset: calc(-1 * var(--focus-w)); }
+
   .modal.settings-modal,
   .settings-nav { background: Canvas; color: CanvasText; }
   .reading-segmented::before { border-color: Highlight; background: Canvas; }

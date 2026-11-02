@@ -39,9 +39,10 @@ describe("nothing on the canvas springs past its size (#860)", () => {
   });
 
   it("runs every bubble spawn on the sheet's ease-out", () => {
-    const spawns = [...css.matchAll(/bubble-spawn\s+\d+ms(?:\s+\d+ms)?\s+(cubic-bezier\([^)]*\)|[\w-]+)/g)];
+    const spawns = [...css.matchAll(/bubble-spawn\s+\d+ms(?:\s+\d+ms)?\s+(cubic-bezier\([^)]*\)|var\(--ease\)|[\w-]+)/g)];
     expect(spawns.length).toBeGreaterThanOrEqual(6);
-    for (const m of spawns) expect(m[1]).toBe(EASE_OUT);
+    // V4's motion rules: spelled var(--ease), the token that IS EASE_OUT (v4-tokens.test.ts holds them equal).
+    for (const m of spawns) expect(m[1]).toBe("var(--ease)");
   });
 
   it("never scales a bubble above its own size on the way in", () => {
@@ -57,6 +58,6 @@ describe("nothing on the canvas springs past its size (#860)", () => {
     expect(frames).toMatch(/from\s*\{\s*opacity:\s*0;\s*transform:\s*scale\(0\.6\);\s*\}/);
     expect(frames).toMatch(/to\s*\{\s*opacity:\s*1;\s*transform:\s*scale\(1\);\s*\}/);
     expect(frames).not.toMatch(/rotate/);
-    expect(css).toMatch(new RegExp(`animation:\\s*mark-pop\\s+\\d+ms\\s+${EASE_OUT.replace(/[()]/g, "\\$&")}\\s+both;`));
+    expect(css).toMatch(new RegExp(`animation:\\s*mark-pop\\s+\\d+ms\\s+var\\(--ease\\)\\s+both;`));
   });
 });

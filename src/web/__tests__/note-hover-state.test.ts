@@ -14,7 +14,7 @@
 // distance the card face's hover tint on the note's plate and the note's own
 // edge (the session's hue) drawn firmer. A shadow is next to invisible on the
 // dark canvas, so at the full size the tint is what says the note heard the
-// pointer. Behind `(hover: hover)`, so a tap on a touch screen does not leave
+// pointer. Behind `(hover: hover) and (pointer: fine)`, so a tap on a touch screen does not leave
 // it lit. The hand stays an open hand at rest and closes during a drag, and
 // nothing on the canvas promises a click with `cursor: pointer`, which this
 // sheet keeps for controls that press (canvas-motion.test.ts).
@@ -32,10 +32,10 @@ const THEMES: Theme[] = ["dark", "light"];
 const DISTANCES: Lod[] = ["compact", "overview"];
 const DESKTOP = 1440;
 
-/** A mouse: the width queries a desktop window matches, and `(hover: hover)`. */
-const mouse = (q: string | null) => q === "(hover: hover)" || mediaApplies(q, DESKTOP);
-/** A touch screen: the same window, and no hover. */
-const touch = (q: string | null) => mediaApplies(q, DESKTOP);
+/** A mouse: the width queries a desktop window matches, `(hover: hover)` and `(pointer: fine)`. */
+const mouse = (q: string | null) => mediaApplies(q, DESKTOP);
+/** A touch screen: the same window, no hover and a coarse pointer. */
+const touch = (q: string | null) => mediaApplies(q, DESKTOP, "touch");
 
 /** What the cascade gives `prop` on the chain's last element under `media`. */
 function cascadeOn(chain: readonly El[], prop: string, media: (q: string | null) => boolean): string | null {
