@@ -597,6 +597,13 @@ describe("the phone's top bar and empty states", () => {
     expect(list).toContain(".session-list.sl-rows{padding-inline:8px;}");
     expect(list).toContain(".session-list.sl-row{min-height:62px;}");
   });
+
+  it("a Sessions row names its session at 14/20 on a phone, 13/20 above it", () => {
+    const sheet = strip(read("styles/session-list.css"));
+    expect(squash(phoneOf(sheet))).toContain(".session-list.sl-label{font-size:calc(14px+var(--ui-text-increase,0px));}");
+    const base = squash(sheet.replace(/@media[^{]*\{(?:[^{}]*\{[^{}]*\})*[^{}]*\}/g, ""));
+    expect(base).toMatch(/\.session-list\.sl-label\{[^}]*font-size:calc\(13px\+var\(--ui-text-increase,0px\)\);[^}]*line-height:20px;/);
+  });
 });
 
 describe("the desktop layout is unchanged: no phone rule is outside the phone query", () => {
