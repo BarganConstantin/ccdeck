@@ -9,8 +9,8 @@ sessions launched through ccdeck's existing terminal integration. Both resume an
 exact saved conversation on another configured account after a terminal quota
 failure. The interactive adapter owns an app-server process and keeps the TUI
 connected to an authenticated, single-client loopback bridge during the handoff.
-Claude stays on its existing cswap path. Desktop/IDE and externally started
-sessions are outside this implementation.
+Claude stays on its existing cswap path. A separate shared-daemon adapter now
+covers supported already-open native application/IDE conversations; see below.
 
 ## Research
 
@@ -197,3 +197,56 @@ identities through `/status`, retained the same thread and permissions, and
 recalled a marker after switching. A status request during the handoff can render
 the previous account; an automated check five seconds after Switch passed. The
 visible demo remains separate from the independently launched Codex application.
+
+## Existing native app conversations — 2026-11-02
+
+`codex-live-engine.mjs` connects to an already-running Unix app-server rather
+than replacing that process or resuming/moving its threads. Discovery uses
+`codex app-server daemon version`; the control socket, parent ownership and
+socket generation are checked before authentication. A per-home lease prevents
+two ccdeck processes from driving the same daemon.
+
+The [official app-server protocol](https://learn.chatgpt.com/docs/app-server)
+describes WebSocket transport over Unix and experimental `chatgptAuthTokens`
+login, followed by host-owned renewal via `account/chatgptAuthTokens/refresh`.
+The credential reader asks its own native stdio process to inspect/renew a known
+profile, stops only that reader, then checks a private regular file and identity.
+Only access tokens enter shared-server memory; neither login files nor refresh
+tokens are copied. Login and renewal are serialized, near-expiry tokens renew
+before submission, and public errors omit provider payloads. Unknown account
+changes pause ownership. Native login timeout is not replayed automatically, including across restart:
+a newer unconfirmed request is adopted only when the native identity already
+matches. Otherwise the surviving saved account keeps renewal ownership and
+changing to the requested account requires a fresh manual selection.
+
+Upstream source at `rust-v0.166.0`, commit
+`6ff1e1ca3b30fc8b914720681fcf5fe62e95f856`, informs these boundaries:
+
+- `app-server/src/account_processor.rs` installs external auth in the shared
+  auth manager used by loaded threads.
+- `core/src/client.rs` invalidates connection/routing state on auth revision
+  change; the next request sends full context. An already-submitted stream is
+  not moved retroactively.
+- `core/tests/suite/client_websockets.rs`,
+  `responses_websocket_reconnects_after_account_switch`, covers replacement
+  within the same client session and a subsequent turn.
+- External-token renewal is broadcast to initialized clients and the first
+  response/error wins. Other hosts can race that callback. Proactive renewal
+  reduces callback dependence but this experimental native behavior remains
+  an interoperability limit; ccdeck cannot repair the daemon's own races.
+
+Acceptance with the actual CLI and two authenticated ChatGPT profiles used an
+isolated Unix daemon. A model response completed on each account in one thread,
+and the second recalled the first turn's marker. Both source auth files stayed
+byte-identical, no auth file appeared in the isolated daemon home, and closing
+ccdeck's control connection left that daemon/thread alive.
+
+The existing application daemon was then switched through the running dashboard
+API. `account/read` confirmed the selected second account and `thread/read`
+confirmed the original application conversation ID, without a daemon restart.
+The app stopped its active task with `application network permission was revoked`;
+the owner's subsequent Continue resumed that same conversation on the new account.
+This adapter therefore covers account switching in the current app, but does
+not promise uninterrupted work across account-bound host permission changes.
+Windows/Linux native acceptance remains outstanding. The adapter requires
+Codex 0.166.0 or newer and file-backed ChatGPT authentication.

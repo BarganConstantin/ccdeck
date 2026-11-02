@@ -42,12 +42,12 @@ const SCOPE = ".codex";
 const RETRY_MS = 15_000;
 const RETRIES = 6;
 
-async function postJson(path: string, body: unknown): Promise<{ ok: boolean; status: number; reason?: string; id?: string }> {
+async function postJson(path: string, body: unknown): Promise<{ ok: boolean; status: number; reason?: string; id?: string; live?: { state: string } }> {
   const response = await fetch(path, {
     method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
   });
-  const result = await response.json().catch(() => null) as { ok?: boolean; reason?: string; id?: string } | null;
-  return { ok: response.ok && result?.ok === true, status: response.status, reason: result?.reason, id: result?.id };
+  const result = await response.json().catch(() => null) as { ok?: boolean; reason?: string; id?: string; live?: { state: string } } | null;
+  return { ok: response.ok && result?.ok === true, status: response.status, reason: result?.reason, id: result?.id, live: result?.live };
 }
 
 export default function CodexProfilesSection({ onClose, switcher, onNotice }: {
@@ -80,7 +80,7 @@ export default function CodexProfilesSection({ onClose, switcher, onNotice }: {
   /** The refusal a press left: on its row when `row` is set, else at the foot. */
   const [failure, setFailure] = useState<Failure | null>(null);
   /** The account a switch from this panel just landed on, said on its row. */
-  const [switched, setSwitched] = useState<{ id: string; name: string } | null>(null);
+  const [switched, setSwitched] = useState<{ id: string; name: string; live: boolean } | null>(null);
   /** What a copied command said, at the foot. */
   const [message, setMessage] = useState("");
   /** Which profile's ⋯ is open, how the keyboard came in, and which form it is. */
@@ -286,7 +286,10 @@ export default function CodexProfilesSection({ onClose, switcher, onNotice }: {
     setMessage("");
     try {
       const out = await postJson("/api/codex-profile-select", { id: profile.id, expectedRevision: revision.current, operationId: crypto.randomUUID() });
-      if (out.ok) setSwitched({ id: profile.id, name });
+      if (out.ok) {
+        if (out.live?.state === 'failed') setFailure({ text: t("codex.panel.liveSwitchFailed"), row: num });
+        else setSwitched({ id: profile.id, name, live: out.live?.state === 'applied' });
+      }
       else {
         const conflict = ["selection_conflict", "operation_conflict", "selection_busy"].includes(out.reason ?? "");
         setFailure({ text: conflict ? t("codex.panel.switchConflict") : t("codex.panel.switchFailed"), row: num });
@@ -389,6 +392,7 @@ export default function CodexProfilesSection({ onClose, switcher, onNotice }: {
       <AccountRow key={profile.id} a={a} nowSec={nowSec} issueOverride={issue}
         voice={{
           ...voice,
+          switched: switched?.live ? t("codex.row.liveSwitched") : voice.switched,
           readPlan: plan ? t("codex.row.readPlanNamed", { plan: sentence(plan), rest: voice.readPlan ?? "" }) : voice.readPlan,
           waiting: reads ? t("codex.row.reading") : undefined,
         }}
