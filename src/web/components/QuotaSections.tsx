@@ -119,7 +119,7 @@ export function ClaudeQuotaSection({ quota, quotaLoading, nowSec, incident, week
   const claudeAge = ageLabel(t, quota?.fetchedAt, nowSec);
   return (
     <section className="up-section up-quota-section">
-      <h3 className="up-section-title">
+      <h3 className="up-section-title" data-down={quota?.ok === false ? "" : undefined}>
         {t("usage.quota.claude.title")}
         {quota?.ok && quota.planLabel && (
           <span className="up-plan-badge">{quota.planLabel}</span>
@@ -203,7 +203,7 @@ export function ClaudeQuotaSection({ quota, quotaLoading, nowSec, incident, week
         </div>
       ) : quota?.ok === false ? (
         <div className="up-quota-na">
-          <span>{quota.reason === "no_subscription" ? t("usage.quota.none") : t("usage.quota.unavailable")}</span>
+          <span className="up-quota-down">{quota.reason === "no_subscription" ? t("usage.quota.none") : t("usage.quota.unavailable")}</span>
           <span className="up-quota-hint">{claudeQuotaHint(t, quota.reason)}</span>
         </div>
       ) : (
@@ -229,7 +229,7 @@ export function CodexQuotaSection({ codexQuota, codexLoading, nowSec, incident, 
   const codexAge  = ageLabel(t, codexQuota?.fetchedAt, nowSec);
   return (
     <section className="up-section up-quota-section">
-      <h3 className="up-section-title">
+      <h3 className="up-section-title" data-down={codexQuota?.ok === false ? "" : undefined}>
         {t("usage.quota.codex.title")}
         {codexQuota?.ok && codexQuota.planLabel && (
           <span className="up-plan-badge">{codexQuota.planLabel}</span>
@@ -300,15 +300,15 @@ export function CodexQuotaSection({ codexQuota, codexLoading, nowSec, incident, 
           {codexQuota.promo && (
             <div className="up-quota-sub">{codexQuota.promo}</div>
           )}
-          {codexQuota.partial && (
-            <div className="up-quota-sub up-quota-hint">
-              {codexQuota.coverage === 'standard_limits' ? t("usage.quota.standardLimits") : t("usage.quota.partial")}
-            </div>
-          )}
+          {codexQuota.partial && (codexQuota.coverage === 'standard_limits'
+            // The standard-limits footnote is a plain line; only the
+            // partial-data note is the box.
+            ? <div className="up-quota-sub">{t("usage.quota.standardLimits")}</div>
+            : <div className="up-quota-sub up-quota-note">{t("usage.quota.partial")}</div>)}
         </div>
       ) : codexQuota?.ok === false ? (
         <div className="up-quota-na">
-          <span>{t("usage.quota.unavailable")}</span>
+          <span className="up-quota-down">{t("usage.quota.unavailable")}</span>
           <span className="up-quota-hint">{codexHint(t, codexQuota.reason)}</span>
         </div>
       ) : (

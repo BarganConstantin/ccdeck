@@ -242,12 +242,13 @@ describe("the panel gives it a section of its own", () => {
   // than captioned "KB/s down", which put the unit where the name belongs and
   // left three readings looking like one connection measured three ways.
   it("names each column for what it measures", () => {
-    expect(panel).toContain('<Fig key={name} value={f.value} unit={f.unit} cap={t(name === "download" ? "insights.machine.download" : "insights.machine.upload")} />');
-    expect(panel).toContain('<Fig value={latency.value} unit={latency.unit} cap={t("insights.machine.claudeApi")} />');
+    // CHANGED ON PURPOSE (V4's Figma): the three are plain rows now, the name
+    // at the left in --muted and the value with its unit in mono at the right.
+    expect(panel).toContain('<PlainRow key={name} label={t(name === "download" ? "insights.machine.download" : "insights.machine.upload")} value={figureText(rateFigure(v))} />');
+    expect(panel).toContain('<PlainRow label={t("insights.machine.claudeApi")} value={figureText(latency)} />');
     expect(panel).toContain('[["download", down!], ["upload", up!]]');
-    // The unit belongs to the figure, a tier down from it, and never to the
-    // label above.
-    expect(css).toMatch(/\.sd-fig-unit \{ color: var\(--muted\); font-size: 10px; \}/);
+    expect(css).toMatch(/\.sd-plain-label \{ color: var\(--muted\); \}/);
+    expect(css).toMatch(/\.sd-plain-val \{[^}]*font-family: var\(--font-mono\)/);
   });
 
   // The sentence — "Traffic to Claude goes through Tailscale exit node …" — was
@@ -260,12 +261,14 @@ describe("the panel gives it a section of its own", () => {
     expect(panel).toContain('anchorId="sd-conn"');
     expect(panel).toContain('boundaryId="system-panel"');
     expect(panel).toContain('<span className="sd-route-relay"> · {t("insights.machine.relayed")}</span>');
-    expect(css).toMatch(/\.sd-route-relay \{ color: var\(--warn\); \}/);
+    // CHANGED ON PURPOSE (V4's Figma): no amber on the machine panel; the relay
+    // word takes --text, and the surface still names it.
+    expect(css).toMatch(/\.sd-route-relay \{ color: var\(--text\); \}/);
   });
 
   // A connection that cannot be asked is the one network state that is a fault
   // rather than a figure, so it never moves inside the disclosure.
   it("says an unreachable API in the panel itself", () => {
-    expect(panel).toContain('<div className="sd-note sd-note-warn">{t("insights.machine.cantReach")}</div>');
+    expect(panel).toContain('<div className="sd-note sd-note-err">{t("insights.machine.cantReach")}</div>');
   });
 });

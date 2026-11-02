@@ -3,7 +3,7 @@
 //
 // Lifted out of MachinePanel.tsx unchanged. The panel draws it only once
 // anything about the network has been read; what it draws, and why the three
-// figures are set apart rather than in a row, is below.
+// figures are set apart from each other, is below.
 import { useState } from "react";
 
 import { useT } from "../i18n";
@@ -12,7 +12,8 @@ import { pathText } from "../machine-readings";
 import type { NetRoute, Network } from "../machine-snapshot";
 import { figureText, latencyFigure, rateFigure } from "../net-format";
 import AnchoredPopover from "./AnchoredPopover";
-import { Fig, OpensHistory } from "./MachineReadout";
+import { OpensHistory, PlainRow } from "./MachineReadout";
+import { KitIcon } from "./kit-icons";
 
 /**
  * What the connection is moving, how far Claude is, and — behind one press —
@@ -26,10 +27,9 @@ import { Fig, OpensHistory } from "./MachineReadout";
  * apart at the far edge with the host in its caption, and the disclosure under
  * them says both scopes in words.
  *
- * The figures are set exactly as the load average's are — the number in the
- * weight, its unit and direction in the caption under it — so the two read as
- * one kind of thing. Bytes rather than bits, like the memory above
- * (net-format.ts).
+ * Each figure is a plain row, as the thermal readings are: its name on the left
+ * in --muted and the value with its unit at the right in mono. Bytes rather
+ * than bits, like the memory above (net-format.ts).
  */
 export default function NetworkSection({ network }: { network: Network }) {
   const t = useT();
@@ -41,19 +41,16 @@ export default function NetworkSection({ network }: { network: Network }) {
     <div className="sd-section" role="group" aria-label={t("insights.machine.network")}>
       <OpensHistory group="network" title={t("insights.machine.networkHistory")} action={t("insights.machine.showNetwork")} label={t("insights.machine.network")}>
         {(rates || latency) && (
-          /* THE NAME ON TOP HERE, and under it the value with its unit beside
-             it. These three columns are three different measurements, so the
-             first thing each needs to say is which one it is — the same order
-             the memory rows read in, label then figure. Written the other way
-             round the caption had to carry both the unit and the name, and
-             "KB/s down" puts the unit where the name belongs. */
-          <div className="sd-figs sd-figs-named">
-            {rates && ([["download", down!], ["upload", up!]] as const).map(([name, v]) => {
-              const f = rateFigure(v);
-              return <Fig key={name} value={f.value} unit={f.unit} cap={t(name === "download" ? "insights.machine.download" : "insights.machine.upload")} />;
-            })}
-            {latency && <Fig value={latency.value} unit={latency.unit} cap={t("insights.machine.claudeApi")} />}
-          </div>
+          /* THE NAME FIRST, and the value with its unit at the other end of the
+             row. These are three different measurements, so the first thing
+             each needs to say is which one it is — the same order the memory
+             rows read in, label then figure. */
+          <>
+            {rates && ([["download", down!], ["upload", up!]] as const).map(([name, v]) => (
+              <PlainRow key={name} label={t(name === "download" ? "insights.machine.download" : "insights.machine.upload")} value={figureText(rateFigure(v))} />
+            ))}
+            {latency && <PlainRow label={t("insights.machine.claudeApi")} value={figureText(latency)} />}
+          </>
         )}
         {/* The first rate needs two readings five seconds apart, and the two
             probes do not land together: a latency that has arrived is drawn
@@ -63,7 +60,7 @@ export default function NetworkSection({ network }: { network: Network }) {
           // The one network state that is a fault rather than a figure stays in
           // the panel, never folded into the disclosure below: a connection
           // that cannot be asked is exactly what somebody opens this to find.
-          <div className="sd-note sd-note-warn">{t("insights.machine.cantReach")}</div>
+          <div className="sd-note sd-note-err">{t("insights.machine.cantReach")}</div>
         )}
       </OpensHistory>
       {route && (
@@ -73,8 +70,8 @@ export default function NetworkSection({ network }: { network: Network }) {
               exit node …, relayed via fra" — which is worth reading once and
               then occupies the panel forever. What stays outside is the part
               that changes what you should do: a relayed path is slower than the
-              same node reached directly, and it is named here in the warning
-              colour whether or not anybody opens the detail. */}
+              same node reached directly, and it is named here in --text
+              whether or not anybody opens the detail. */}
           <button
             type="button"
             className="sd-detail"
@@ -85,7 +82,7 @@ export default function NetworkSection({ network }: { network: Network }) {
           >
             {t("insights.machine.connDetails")}
             {route.relay && <span className="sd-route-relay"> · {t("insights.machine.relayed")}</span>}
-            <i className="sd-row-more" aria-hidden>›</i>
+            <KitIcon name="chevron-right" className="sd-row-more" />
           </button>
           {details && <ConnectionDetails route={route} api={api} onClose={() => setDetails(false)} />}
         </>

@@ -164,14 +164,16 @@ describe("the per-core strip keeps a column wide enough to be a bar (#1026)", ()
     // A grid rather than the wrapped flex row that first fixed this: flex
     // distributes each LINE's own leftover, so 64 threads came out as fifty
     // 3px columns above fourteen 14px ones — one reading drawn in two widths.
-    // Grid tracks are shared by every row, `minmax(3px, 1fr)` is the same
-    // floor, and `auto-fit` is what lets a 16-thread machine collapse the
-    // tracks it does not use and keep the full width.
+    // Grid tracks are shared by every row, the minimum is the same floor on
+    // each of them, and `auto-fit` is what lets a machine with few threads
+    // collapse the tracks it does not use and keep the full width.
     expect(decl(".sd-cores", "display")).toBe("grid");
-    expect(decl(".sd-cores", "grid-template-columns")).toBe("repeat(auto-fit, minmax(3px, 1fr))");
+    // CHANGED ON PURPOSE (V4's Figma): each core is a 2-high meter in a cell at
+    // least 32 wide (an `auto-fit` grid, 4 apart), not a 3px column 26 high.
+    // The floor is still there, and still the same on every row.
+    expect(decl(".sd-cores", "grid-template-columns")).toBe("repeat(auto-fit, minmax(32px, 1fr))");
     expect(decl(".sd-cores", "flex-wrap")).toBeNull();
-    expect(decl(".sd-cores .sd-core", "min-width")).toBe("3px");
-    expect(decl(".sd-cores .sd-core", "height")).toBe("26px");
+    expect(decl(".sd-core", "height")).toBe("2px");
   });
 
   it("stops counting its own columns through a custom property", () => {

@@ -129,7 +129,7 @@ export function uptime(sec: number): string {
  *
  *   1. the machine is being held below full speed — `pmset` reports the limit,
  *      the Linux kernel the time;
- *   2. physical memory is at the 90% the memory row already turns amber at;
+ *   2. physical memory is at the 90% the memory meter already turns --err at;
  *   3. the API host was asked and did not answer.
  *
  * One at a time, worst first. A stack of flags at the top of a 280px panel is

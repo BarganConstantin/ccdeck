@@ -442,21 +442,22 @@ describe("the machine panel's core fills are composited, not laid out (#505)", (
     expect(eased).not.toContain("height");
   });
 
-  it("scales a full-height column, which is the only way flex-end stays in place", () => {
-    // The half that makes this more than a find-and-replace. The track is
-    // `align-items: flex-end` with `overflow: hidden`, so a scaleY is the same
-    // picture as a height only if the box being scaled fills the track to begin
-    // with — `height: 100%` is what makes the alignment a no-op — and only if
-    // the origin is where flex-end used to put the fill.
+  it("scales a full-size bar from its start, so the picture is the same as a width", () => {
+    // CHANGED ON PURPOSE (V4's Figma): each core is a 2-high meter now, filled
+    // left to right like every other meter, not a column filled from the
+    // bottom. The same rule holds turned on its side: a scaleX is the same
+    // picture as a width only if the box being scaled fills the track to begin
+    // with, and only if the origin is the track's start. The fill never grows
+    // past its track (the scale is at most 1), so the track needs no clipping.
     expect(decl(FILL, "height")).toBe("100%");
-    expect(decl(FILL, "transform-origin")).toBe("bottom");
-    expect(decl(".sd-core", "align-items")).toBe("flex-end");
-    expect(decl(".sd-core", "overflow")).toBe("hidden");
+    expect(decl(FILL, "width")).toBe("100%");
+    expect(decl(FILL, "transform-origin")).toBe("left center");
   });
 
   it("is written as a transform by the component too, with the 2% floor intact", () => {
-    expect(systemMeter).toMatch(/className="sd-core-fill" style=\{\{ transform: `scaleY\(\$\{Math\.max\(2, v\) \/ 100\}\)` \}\}/);
-    expect(systemMeter).not.toMatch(/sd-core-fill[\s\S]{0,120}height:/);
+    // CHANGED ON PURPOSE (V4's Figma): scaleX for the horizontal meter.
+    expect(systemMeter).toMatch(/className="sd-core-fill"[^>]*style=\{\{ transform: `scaleX\(\$\{Math\.max\(2, v\) \/ 100\}\)` \}\}/);
+    expect(systemMeter).not.toMatch(/sd-core-fill[\s\S]{0,120}(?:height|width):/);
   });
 
   it("now agrees with the sibling it was supposed to have been converted with", () => {

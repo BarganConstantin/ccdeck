@@ -9,20 +9,24 @@
 // keeps returning to. It is a button in the icon run now, and everything the
 // meter said is one click away in here, where there is room to say it properly.
 //
-// FIVE SECTIONS, IN THE ORDER THE QUESTIONS ARRIVE. What is this machine doing
-// (CPU), what is it holding (memory), what is its line doing (network), is it
-// getting hot (thermal), and which process is responsible (the door at the
-// foot). Each is one control over one reading, and the detail that only matters
-// once — the path traffic takes — is behind the one disclosure in the panel
-// rather than printed under the figures forever.
+// THE SECTIONS, IN THE ORDER THE QUESTIONS ARRIVE. What is this machine doing
+// (CPU, with its load), what is it holding (memory), is it getting hot
+// (thermal), what is the graphics card doing (GPU), what is its line doing
+// (network), and which process is responsible (the door at the foot). Each is
+// one control over one reading, and the detail that only matters once — the
+// path traffic takes — is behind the one disclosure in the panel rather than
+// printed under the figures forever.
 //
-// NO COLOUR THRESHOLD ON CPU, deliberately, and it is the most load-bearing "no"
-// here. QuotaBar turns amber at 70 and red at 90 because a quota at 90% means
-// you are about to be cut off. A CPU at 90% means the machine is doing the work
-// you asked for. Colouring it would make this red through every build and every
-// parallel subagent run — precisely the sessions this deck exists to watch — and
-// an indicator that alarms during the normal case teaches you to stop reading
-// it. Memory and swap keep a warning, because near-exhaustion there is real.
+// NO ALARM COLOUR ON CPU, deliberately, and it is the most load-bearing "no"
+// here. A quota at 90% means you are about to be cut off. A CPU at 90% means
+// the machine is doing the work you asked for. Colouring it would make this red
+// through every build and every parallel subagent run — precisely the sessions
+// this deck exists to watch — and an indicator that alarms during the normal
+// case teaches you to stop reading it. So the CPU meter and every per-core
+// meter use only `--muted` (under 70) and `--text` (70 and up), never `--err`.
+// Memory, swap and the GPU's meters keep the full thresholds (under 70
+// `--muted`, 70 to 89 `--text`, 90 and up `--err`), because near-exhaustion
+// there is real.
 //
 // THE SAME "NO" NOW COVERS LOAD AVERAGE, which used to turn amber the moment
 // the 1-minute figure passed the core count. That is not a fault condition: a
@@ -41,12 +45,12 @@ import React, { useState } from "react";
 import { currentLanguage, useT } from "../i18n";
 import { attentionFlag, loadQueueNote, thermalTone, throttleRow, uptime } from "../machine-readings";
 import { fmtBytes } from "../byte-format";
-import { rich } from "../insights-rich";
 import type { Memory, Snapshot, Swap, Thermal } from "../machine-snapshot";
 import { useSystem } from "../use-system";
 import ProcessListModal from "./ProcessListModal";
 import { DialogPresence } from "./Dialog";
-import { Fig, OpensHistory, Row } from "./MachineReadout";
+import { Fig, Meter, meterLevel, OpensHistory, PlainRow, Row } from "./MachineReadout";
+import { KitIcon } from "./kit-icons";
 import NetworkSection from "./MachineNetwork";
 import MachineGpu from "./MachineGpu";
 import { PLACE_KEYS, usePanelPlace } from "../panel-place";
@@ -63,9 +67,9 @@ import { PLACE_KEYS, usePanelPlace } from "../panel-place";
  * THE HEAD STAYS PUT WHEN THE BODY SCROLLS. On a short window the panel is
  * taller than its slot, and everything that scrolled away first was the part
  * that says what you are looking at and how to close it. It is sticky against
- * the panel's own scrollport now, on the panel's own ground, and the flag rides
- * with it: a machine held below full speed should not be a fact you have to
- * scroll back up to find.
+ * the panel's own scrollport, on the panel's own ground. The flag is the first
+ * line of the body and sticks under the head the same way: a machine held below
+ * full speed should not be a fact you have to scroll back up to find.
  */
 function Shell({ usageOpen, leaving, sub, flag, onClose, children }: {
   usageOpen: boolean;
@@ -92,12 +96,16 @@ function Shell({ usageOpen, leaving, sub, flag, onClose, children }: {
       <div className="sd-top" {...place.grip}>
         <div className="sd-head">
           <h2 className="sd-title" id="sd-title">{t("insights.machine.title")}</h2>
-          {sub && <span className="sd-sub">{sub}</span>}
-          <button type="button" className="glyph-btn sd-close" onClick={onClose} aria-label={t("insights.usage.close")} title={t("insights.usage.close")}>×</button>
+          <button type="button" className="glyph-btn sd-close" onClick={onClose} aria-label={t("insights.usage.close")} title={t("insights.usage.close")}><KitIcon name="close" /></button>
         </div>
-        {flag && <p className="sd-flag">{flag}</p>}
       </div>
-      {children}
+      <div className="sd-body">
+        {/* The uptime and the core count open the body (V4's Figma), and the
+            one condition worth saying follows them. */}
+        {sub && <p className="sd-sub">{sub}</p>}
+        {flag && <p className="sd-flag">{flag}</p>}
+        {children}
+      </div>
     </aside>
   );
 }
@@ -162,9 +170,10 @@ export default function MachinePanel({ usageOpen, leaving, onClose }: {
     >
       <CpuSection cpu={cpu} perCore={perCore} loadavg={loadavg} cores={cores} />
       <MemorySection memory={memory} swap={swap} platform={platform} />
-      {network && <NetworkSection network={network} />}
-      <MachineGpu devices={sys.gpus ?? []} />
+      {/* The order V4's Figma draws: Memory, Thermal, GPU, Network. */}
       <ThermalSection thermal={thermal} />
+      <MachineGpu devices={sys.gpus ?? []} />
+      {network && <NetworkSection network={network} />}
       <Processes sys={sys} />
     </Shell>
   );
@@ -219,6 +228,10 @@ function CpuSection({ cpu, perCore, loadavg, cores }: {
               how many cores there are and how hard the busiest is working —
               without 64 nodes to step through. The chart behind the button has
               the rest. */}
+          {/* The CPU row's own meter (V4's Figma draws this one), and under it
+              one 2-high meter per core in the same look, wrapped into rows of
+              equal cells. */}
+          {cpu != null && <Meter pct={cpu} alarm={false} />}
           <div
             className="sd-cores"
             role="img"
@@ -233,7 +246,7 @@ function CpuSection({ cpu, perCore, loadavg, cores }: {
                     The 2% floor is unchanged and means the same thing it always
                     did: an idle core still draws a sliver, so an empty column
                     reads as "nothing running" rather than "no data". */}
-                <span className="sd-core-fill" style={{ transform: `scaleY(${Math.max(2, v) / 100})` }} />
+                <span className="sd-core-fill" data-level={meterLevel(Math.round(v), false)} style={{ transform: `scaleX(${Math.max(2, v) / 100})` }} />
               </span>
             ))}
           </div>
@@ -302,17 +315,15 @@ function MemorySection({ memory, swap, platform }: {
       <OpensHistory group="memory" title={t("insights.machine.memoryHistory")} action={t("insights.machine.showMemory")} label={t("insights.machine.memory")}>
         <Row
           label={t("insights.machine.physical")}
-          value={rich(t("insights.machine.of", { total: fmtBytes(memory.total) }), { used: <b>{fmtBytes(used)}</b> })}
+          value={t("insights.machine.of", { used: fmtBytes(used), total: fmtBytes(memory.total) })}
           pct={memory.usedPct}
-          tone={memory.usedPct >= 90 ? "warn" : "calm"}
           note={t("insights.machine.available", { n: fmtBytes(memory.available) })}
         />
         {swap && swap.total > 0 && (
           <Row
             label={swapLabel}
-            value={rich(t("insights.machine.of", { total: fmtBytes(swap.total) }), { used: <b>{fmtBytes(swap.used)}</b> })}
+            value={t("insights.machine.of", { used: fmtBytes(swap.used), total: fmtBytes(swap.total) })}
             pct={swapPct}
-            tone={swapPct >= 90 ? "warn" : "calm"}
           />
         )}
       </OpensHistory>
@@ -336,14 +347,11 @@ function MemorySection({ memory, swap, platform }: {
  * install. "Thermal" holds degrees where the machine has them and the
  * consequence where it does not, and every row still says what it measured.
  *
- * THE TRACK ENDS WHERE THE ROW TURNS RED. It was 0–100°C for every sensor,
- * which is a limit this app invented: it put a 63°C drive at two thirds of a
- * scale whose end means nothing, and on a chip whose own critical point is 100
- * it was a coincidence rather than a scale. Each row is drawn against its own
- * `critAt` — the chip's where hwmon publishes one, the 90 the server falls back
- * to otherwise — with a mark at the temperature the fill turns amber. So a full
- * bar is the one claim the reading supports: this row is at the point it is
- * called critical, whoever called it.
+ * EACH ROW KEEPS ITS OWN CRITICAL POINT. A fixed 0–100°C scale was a limit this
+ * app invented, so a reading turns `--err` only past its sensor's own `critAt`
+ * — the chip's where hwmon publishes one, the 90 the server falls back to
+ * otherwise. The row says that point in words ("critical at 100 °C") on its
+ * tooltip and to a screen reader, because colour alone is not a sign of it.
  *
  * Nothing is drawn when the machine publishes nothing. Not a zero, not a dash,
  * not an empty bar — the same refusal that keeps `cpu` null until two samples
@@ -357,26 +365,19 @@ function ThermalSection({ thermal }: { thermal: Thermal | null }) {
     <div className="sd-section" role="group" aria-label={t("insights.machine.thermal")}>
       <OpensHistory group="thermal" title={t("insights.machine.thermalHistory")} action={t("insights.machine.showThermal")} label={t("insights.machine.thermal")}>
         {thermal.celsius.map(r => (
-          <Row
-            key={r.label}
-            label={r.label}
-            value={<><b>{r.celsius}</b> °C</>}
-            pct={(r.celsius / r.critAt) * 100}
-            mark={(r.warnAt / r.critAt) * 100}
-            tone={thermalTone(r.celsius, r.warnAt, r.critAt)}
-            // WHAT THE BAR AND THE MARK ARE, in both the places a reader can
-            // ask. The scale is stated as this app's own rule — where the row
-            // turns amber, where it turns red — and never as a claim about the
-            // silicon: `critAt` is the chip's own `temp*_crit` where hwmon
-            // publishes one and the server's 90 where it does not, and nothing
-            // in the snapshot says which. A sentence that named the hardware
-            // would be right on one machine and wrong on the next.
-            title={t("insights.machine.barTitle", { crit: r.critAt, warn: r.warnAt })}
-            trackLabel={t("insights.machine.trackLabel", { c: r.celsius, crit: r.critAt, warn: r.warnAt })}
-          />
+          // A plain row (V4's Figma): the reading in mono at the right, in
+          // --text, and --err only past the sensor's own critical point, which
+          // the row also says in words when the sensor has one.
+          <PlainRow key={r.label} label={r.label} value={`${r.celsius} °C`}
+            err={thermalTone(r.celsius, r.warnAt, r.critAt) === "hot"}
+            hint={r.critAt != null ? t("insights.machine.critAt", { crit: r.critAt }) : undefined} />
         ))}
+        {/* No flag and no bar: a plain Thermal row, the clock share the machine
+            has lost, in --text and --err only at the third the deck already
+            calls hot. Its sentence is always there: at 0% it says when the
+            machine last was held back, or that it never has been. */}
         {held && (
-          <Row label={t("insights.machine.throttling")} value={<b>{held.value}</b>} pct={held.pct} tone={held.tone} note={held.note} />
+          <PlainRow label={t("insights.machine.throttling")} value={held.value} err={held.tone === "hot"} note={held.note} />
         )}
       </OpensHistory>
     </div>
@@ -439,7 +440,7 @@ function Processes({ sys }: {
         <span className="sd-door-plate">
           <span className="sd-door-name">
             {t("insights.proc.title")}
-            <i className="sd-row-more" aria-hidden>›</i>
+            <KitIcon name="chevron-right" className="sd-row-more" />
           </span>
           <span className="sd-door-sub">{t("insights.machine.processesSub")}</span>
         </span>

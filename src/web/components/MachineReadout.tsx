@@ -5,32 +5,19 @@
 // of these three, and each says in its own comment why it is drawn the way it
 // is; which readings a section draws, and in what order, stays with the
 // section.
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useId, useRef, useState } from "react";
 
-import type { Tone } from "../machine-readings";
+import { KitIcon } from "./kit-icons";
 import SectionHistoryModal from "./SectionHistoryModal";
 import { DialogPresence } from "./Dialog";
 import { useT } from "../i18n";
 
 /**
- * One figure: the number in the panel's reading weight, and what it is.
- *
- * Two orders, one component. Without a `unit` the caption goes under the number
- * — three samples of one reading, where the numbers are what you compare. With
- * one, the caption goes on top and the unit sits beside the number: three
- * different measurements, where the name is what you need first and the unit
- * belongs to the figure rather than to the label under it. The row's grid is
- * the same either way, so the columns line up down the panel.
+ * One figure: the number in the panel's reading weight, and what it is under
+ * it — three samples of one reading, where the numbers are what you compare.
+ * (The network's three are plain rows now, one measurement each.)
  */
-export function Fig({ value, unit, cap }: { value: string; unit?: string; cap: string }) {
-  if (unit) {
-    return (
-      <span className="sd-fig">
-        <span className="sd-fig-cap">{cap}</span>
-        <span className="sd-fig-read"><b>{value}</b> <span className="sd-fig-unit">{unit}</span></span>
-      </span>
-    );
-  }
+export function Fig({ value, cap }: { value: string; cap: string }) {
   return (
     <span className="sd-fig">
       <b>{value}</b>
@@ -133,7 +120,7 @@ export function OpensHistory({ group, title, action, label, value, hint, liveNot
   };
   return (
     <>
-      <div className="sd-reading" onClick={pressBlock}>
+      <div className="sd-reading" data-group={group} onClick={pressBlock}>
         <button
           ref={heading}
           type="button"
@@ -145,7 +132,7 @@ export function OpensHistory({ group, title, action, label, value, hint, liveNot
           aria-describedby={hint ? `sd-hint-${group}` : undefined}
         >
           <span className="sd-h" aria-hidden>
-            {label} <i className="sd-row-more">›</i>
+            {label} <KitIcon name="chevron-right" className="sd-row-more" />
             {value != null && <span className="sd-h-val">{value}</span>}
           </span>
         </button>
@@ -158,52 +145,79 @@ export function OpensHistory({ group, title, action, label, value, hint, liveNot
 }
 
 /**
- * A label, a reading, a track and an optional sentence.
+ * The colour a meter's fill takes (V4's Figma): under 70 `--muted`, 70 to 89
+ * `--text`, 90 and up `--err`. Never amber — amber means an agent waits.
  *
- * `value` is a node rather than a byte pair because this row draws three
- * different kinds of reading now — "20.5 GB of 32.0 GB", "58 °C", "0%" — and
- * the memory formatting belongs to the memory section rather than to the
- * component every section shares. `tone` for the same reason: `pct >= 90` is
- * the memory rule and it was never the thermal one.
- *
- * `mark` is where the fill changes colour, drawn as a notch in the track so the
- * bar is a scale with a point on it rather than a length with no units. Only
- * the temperature rows have one: memory's amber is at nine tenths of a bar that
- * is already full by then, and a mark there would sit under the fill's own end.
+ * `alarm: false` is for the readings that never alarm (the CPU and its cores,
+ * see the top of MachinePanel.tsx): they take `--muted` under 70 and `--text`
+ * from 70 up, and never `--err`.
  */
-export function Row({ label, value, pct, tone = "calm", note, mark, title, trackLabel }: {
-  label: string; value: React.ReactNode; pct: number; tone?: Tone; note?: string;
-  mark?: number; title?: string;
-  /** The bar said in words, for a reader who gets no tooltip. Only the rows
-   *  drawn against a threshold need one: a memory bar is the figure beside it,
-   *  a thermal bar is the figure against a scale that is not on screen. */
-  trackLabel?: string;
+export function meterLevel(pct: number, alarm = true): "muted" | "text" | "err" {
+  return pct >= 90 && alarm ? "err" : pct >= 70 ? "text" : "muted";
+}
+
+/**
+ * A meter 2 high on a --ctl-fill track, the fill scaled from the left.
+ *
+ * A floor of 1%, so a reading that is present but tiny still draws a sliver
+ * rather than reading as "no data" — but only ABOVE zero: zero draws nothing.
+ *
+ * The colour comes from the figure as it is printed (rounded), so a reading of
+ * 89.6 that says "90%" is also coloured as 90.
+ */
+export function Meter({ pct, label, alarm = true }: { pct: number; label?: string; alarm?: boolean }) {
+  return (
+    <span className="sd-track" role={label ? "img" : undefined} aria-label={label}>
+      <span
+        className="sd-fill"
+        data-level={meterLevel(Math.round(pct), alarm)}
+        style={{ transform: `scaleX(${pct <= 0 ? 0 : Math.max(1, Math.min(100, pct)) / 100})` }}
+      />
+    </span>
+  );
+}
+
+/**
+ * A label, a reading, a meter and an optional line under it.
+ *
+ * `value` is a node rather than a byte pair because this row draws different
+ * kinds of reading — "41 of 64 GB", "18%" — and the formatting belongs to the
+ * section rather than to the component every section shares.
+ */
+export function Row({ label, value, pct, note }: {
+  label: string; value: React.ReactNode; pct: number; note?: string;
 }) {
   return (
-    <div className="sd-row" title={title}>
+    <div className="sd-row">
       <div className="sd-row-head">
         <span className="sd-row-label">{label}</span>
         {/* "How much of how much" — the question a percentage cannot answer and
             the reason this panel exists. */}
         <span className="sd-row-val">{value}</span>
       </div>
-      <span className="sd-track" role={trackLabel ? "img" : undefined} aria-label={trackLabel}>
-        {/* A floor of 1%, so a reading that is present but tiny still draws a
-            sliver rather than reading as "no data" — but only ABOVE zero. Zero
-            draws nothing, because on the thermal rows an empty track is the
-            answer: "Throttling — 0%" beside a bar with a mark in it says two
-            different things, and the section's whole convention is that a bar
-            fills with the problem. Nothing is not a small amount of something.
-            Memory never reaches zero, so it is unaffected either way. */}
-        <span
-          className={`sd-fill${tone === "calm" ? "" : ` ${tone}`}`}
-          style={{ transform: `scaleX(${pct <= 0 ? 0 : Math.max(1, Math.min(100, pct)) / 100})` }}
-        />
-        {mark != null && mark > 0 && mark < 100 && (
-          <span className="sd-mark" style={{ left: `${mark}%` }} aria-hidden />
-        )}
-      </span>
+      <Meter pct={pct} />
       {note && <div className="sd-note">{note}</div>}
+    </div>
+  );
+}
+
+/**
+ * A plain reading, 24 high: the label on the left in --muted, the value on the
+ * right in mono. `err` is for a reading the deck already treats as an error
+ * (a sensor past its own critical point, a clock held down hard); anything else
+ * is --text, never amber. `note` is the sentence that explains it, under.
+ * `hint` is a fact about the reading that the frame has no room to draw (a
+ * sensor's critical point): it is the row's tooltip and, for a reader who
+ * cannot hover, a visually hidden description of the row.
+ */
+export function PlainRow({ label, value, err, note, hint }: { label: string; value: React.ReactNode; err?: boolean; note?: string; hint?: string }) {
+  const hintId = useId();
+  return (
+    <div className="sd-plain" title={hint} aria-describedby={hint ? hintId : undefined}>
+      <span className="sd-plain-label">{label}</span>
+      <span className="sd-plain-val" data-err={err ? "" : undefined}>{value}</span>
+      {hint && <span id={hintId} className="vis-hidden">{hint}</span>}
+      {note && <span className="sd-plain-note">{note}</span>}
     </div>
   );
 }

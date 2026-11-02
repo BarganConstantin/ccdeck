@@ -599,8 +599,6 @@ const catalog: Catalog = {
   "insights.machine.thermal": "温度",
   "insights.machine.thermalHistory": "温度の履歴",
   "insights.machine.showThermal": "温度の履歴を表示",
-  "insights.machine.barTitle": "バーの範囲は0–{crit} °C · {warn} °C から黄、{crit} °C で赤",
-  "insights.machine.trackLabel": "{c} °C（バーの上限は {crit} °C、{warn} °C から黄）",
   "insights.machine.throttling": "スロットリング",
   "insights.machine.processesAria": "負荷の高いプロセス：ccdeck が監視しているすべてのプロセスを表示",
   "insights.machine.processesSub": "すべてのプロセスとそのコマンドライン",

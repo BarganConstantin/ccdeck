@@ -861,9 +861,10 @@ describe("the machine panel's process door, on the bed it is actually drawn on (
     }
   });
 
-  it("sets the panel's sentences at 11px, not 10", () => {
-    expect(decl(sub, "font-size")).toBe("11px");
-    expect(decl(rule(".sd-note"), "font-size")).toBe("11px");
+  it("sets the panel's sentences at 12px, not 10", () => {
+    // CHANGED ON PURPOSE (V4's Figma): the panel's sentences are 12/16.
+    expect(decl(sub, "font-size")).toBe("12px");
+    expect(decl(rule(".sd-note"), "font-size")).toBe("12px");
   });
 });
 

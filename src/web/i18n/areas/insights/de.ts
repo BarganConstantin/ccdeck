@@ -599,8 +599,6 @@ const catalog: Catalog = {
   "insights.machine.thermal": "Temperatur",
   "insights.machine.thermalHistory": "Temperaturverlauf",
   "insights.machine.showThermal": "Temperaturverlauf anzeigen",
-  "insights.machine.barTitle": "Balken reicht von 0–{crit} °C · ab {warn} °C gelb, bei {crit} °C rot",
-  "insights.machine.trackLabel": "{c} °C auf einem Balken bis {crit} °C, ab {warn} °C gelb",
   "insights.machine.throttling": "Drosselung",
   "insights.machine.processesAria": "Aktivste Prozesse: alle Prozesse anzeigen, die ccdeck beobachtet",
   "insights.machine.processesSub": "alle Prozesse mit ihrer Befehlszeile",

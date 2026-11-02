@@ -24,7 +24,7 @@ const GIB = 1024 ** 3;
 const snap = vi.hoisted(() => ({ current: null as unknown }));
 vi.mock("../use-system", () => ({ useSystem: () => snap.current }));
 
-const { Fig, OpensHistory, Row } = await import("../components/MachineReadout");
+const { OpensHistory, PlainRow, Row } = await import("../components/MachineReadout");
 const { default: MachinePanel } = await import("../components/MachinePanel");
 const { fmtBytes } = await import("../byte-format");
 
@@ -70,10 +70,11 @@ describe("a section's readings", () => {
   it("are outside it for the network figures too", () => {
     const html = opens(
       { group: "network", title: "Network history", action: "Show network history", label: "Network" },
-      createElement(Fig, { value: "1.2", unit: "MB/s", cap: "Download" }),
+      // CHANGED ON PURPOSE (V4's Figma): the network's figures are plain rows.
+      createElement(PlainRow, { label: "Download", value: "1.2 MB/s" }),
     );
     expect(unreachable(html, "Download")).toEqual([]);
-    expect(unreachable(html, "MB/s")).toEqual([]);
+    expect(unreachable(html, "1.2 MB/s")).toEqual([]);
   });
 });
 
@@ -107,14 +108,49 @@ describe("the whole panel, drawn from one snapshot", () => {
       // Load average, and the sentence that only appears past the core count.
       "6.20", "3.10", "1.50", "1.6× more work queued than cores to run it",
       // Memory.
-      fmtBytes(32 * GIB - 11.5 * GIB), `of ${fmtBytes(32 * GIB)}`, `${fmtBytes(11.5 * GIB)} available`, "Swap",
+      // CHANGED ON PURPOSE (V4's Figma): "20.5 GB of 32.0 GB" is one value.
+      `${fmtBytes(32 * GIB - 11.5 * GIB)} of ${fmtBytes(32 * GIB)}`, `${fmtBytes(11.5 * GIB)} available`, "Swap",
       // Network, and the one state of it that is a fault.
       "Download", "Upload", "Can’t reach Claude",
-      // Thermal: the sensor, the bar in words, and the throttle row.
-      "Package id 0", "58 °C on a bar that runs to 90 °C, amber from 75 °C", "Throttling",
+      // Thermal: the sensor, its critical point in words, and the throttle row.
+      // CHANGED ON PURPOSE (V4's Figma): the sensor is a plain row, "58 °C",
+      // and the bar is gone; the critical point is said on the row instead
+      // ("critical at 90 °C"), so no figure the reading carried is lost.
+      "Package id 0", "58 °C", "critical at 90 °C", "Throttling",
       "CPU held to 80% of full speed to cool down",
     ];
     for (const f of figures) expect(unreachable(html, f), f).toEqual([]);
+  });
+
+  it("describes the sensor's critical point to a reader, and on a tooltip", () => {
+    expect(html).toContain('title="critical at 90 °C"');
+    expect(html).toMatch(/aria-describedby="([^"]+)"[^>]*>(?:(?!<\/div>)[\s\S])*?<span id="\1" class="vis-hidden">critical at 90 °C<\/span>/);
+  });
+
+  it("keeps the throttle note on the row when nothing is throttled right now", () => {
+    // At 0% the note is where "it did happen, 25 minutes ago" lives; the row
+    // used to print it only while throttling was above zero.
+    snap.current = {
+      ...machine,
+      thermal: { ...machine.thermal!, throttle: { speedLimit: 100 }, heldBack: { peak: 9, lastMs: Date.now() - 25 * 60_000 } },
+    };
+    try {
+      const calm = renderToStaticMarkup(createElement(MachinePanel, { usageOpen: false, onClose: () => {} }));
+      expect(calm).toContain("0%");
+      expect(calm).toMatch(/class="sd-plain-note">at full speed · held to 91% /);
+    } finally {
+      snap.current = machine;
+    }
+  });
+
+  it("says so when it has never been held back", () => {
+    snap.current = { ...machine, thermal: { ...machine.thermal!, throttle: { speedLimit: 100 }, heldBack: null } };
+    try {
+      const calm = renderToStaticMarkup(createElement(MachinePanel, { usageOpen: false, onClose: () => {} }));
+      expect(calm).toContain('class="sd-plain-note">running at full speed, and never held back');
+    } finally {
+      snap.current = machine;
+    }
   });
 
   it("names every control with the words it shows", () => {
@@ -126,7 +162,9 @@ describe("the whole panel, drawn from one snapshot", () => {
       return { visible, name: b.name };
     });
     // Six, so a sweep that found nothing cannot pass for one that found them all.
-    expect(seen.map(s => s.visible)).toEqual(["CPU", "Load average", "Memory", "Network", "Thermal", "Busiest processes"]);
+    // CHANGED ON PURPOSE (V4's Figma): the sections run Memory, Thermal, GPU,
+    // Network, so Thermal now comes before Network.
+    expect(seen.map(s => s.visible)).toEqual(["CPU", "Load average", "Memory", "Thermal", "Network", "Busiest processes"]);
     for (const { visible, name } of seen) {
       if (name == null) continue;
       expect(name.toLowerCase(), visible).toContain(visible.toLowerCase());
