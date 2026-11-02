@@ -35,7 +35,7 @@
   flex-direction: column;
   min-width: 0;
   min-height: 0;
-  border-right: 1px solid var(--line);
+  border-right: 1px solid var(--line-soft);
   background: var(--dock);
 }
 .settings-nav {
@@ -44,17 +44,21 @@
   flex-direction: column;
   gap: 2px;
   min-height: 0;
-  padding: 8px;
+  /* V4's nav is 176 wide inside its 8px pad: the column keeps its 200px and
+     the right side takes the 16px step less the divider's hairline (199px
+     inside the divider), so an item and the search field above it are 176
+     wide. */
+  padding: 8px calc(16px - 1px) 8px 8px;
   overflow-y: auto;
 }
-/* V4's nav item: text only, a table row tall (--row-table, 28 Compact and 36
-   Default), 13/20 in the secondary tier. Selection is the --selected fill and
+/* V4's nav item: text only, 176 wide and a control tall (28 at Compact, with
+   the nav's 2px gap a 30px pitch), 13/20 in the secondary tier. Selection is the --selected fill and
    600 weight; borders belong only to keyboard focus, never to a pointer hover
    or the selected section. */
 .settings-tab {
   display: flex;
   align-items: center;
-  min-height: var(--row-table);
+  min-height: var(--ctl-h);
   padding: 4px 8px;
   border: 0;
   border-radius: var(--r-ctl);
@@ -117,6 +121,8 @@
   align-items: flex-start;
   justify-content: space-between;
   gap: 16px;
+  /* 40 high on every page (V4's Page head): a 20px title, 4px, a 16px line. */
+  min-height: 40px;
 }
 .settings-pane-heading { min-width: 0; display: flex; flex-direction: column; gap: 4px; }
 .settings-pane-title {
@@ -128,7 +134,6 @@
 }
 .settings-pane-note {
   margin: 0;
-  max-width: 60ch;
   color: var(--muted);
   font-size: calc(12px + var(--ui-text-increase, 0px));
   line-height: calc(16px + var(--ui-text-increase, 0px));
@@ -263,7 +268,7 @@
 .settings-row-control { --dim-off: 0.45; }
 .settings-row:has(> .settings-row-control :is(:disabled, [aria-disabled="true"])) :is(.settings-row-name, .settings-row-note) { color: var(--muted); }
 .settings-row-control [aria-disabled="true"] { opacity: var(--dim-off); }
-.settings-row-control > .sm-select { flex: none; min-width: 120px; min-height: var(--ctl-h); }
+.settings-row-control > .v4-select { flex: none; }
 /* A row whose content spans it — the character choices, a confirmation. */
 .settings-row-wide { grid-template-columns: minmax(0, 1fr); }
 /* A value the row reports, in the data face, a figure that ticks. */
@@ -334,24 +339,34 @@
    on the right of every row of Settings › Keyboard. */
 .settings-key {
   font-family: var(--font-mono);
-  font-size: calc(10px + max(-1px, var(--ui-text-increase, 0px)));
-  font-weight: 600;
-  line-height: calc(12px + var(--ui-text-increase, 0px));
-  color: var(--text-dim);
+  font-size: calc(11px + max(-1px, var(--ui-text-increase, 0px)));
+  font-weight: 500;
+  line-height: calc(14px + var(--ui-text-increase, 0px));
+  color: var(--muted);
   background: var(--bg-soft);
   border: 1px solid var(--line);
-  border-bottom-width: 2px;
-  border-radius: 4px;
-  padding: 1px 5px;
+  border-radius: var(--r-tag);
+  /* 16 high with its edge: the 14px line, and the 1px border either side. */
+  display: inline-flex;
+  align-items: center;
+  box-sizing: border-box;
+  padding: 0 5px;
   white-space: nowrap;
 }
-/* Settings › Keyboard's shortcuts: a row is a sentence and a cap, so a
-   shorter row than a setting's (its own padding and no minimum height, only the pane's inset at the sides), and the cap in --text where a reader looks
-   for it. */
-.settings-keys .settings-row { min-height: 0; padding-block: calc(6px * var(--ui-space, 1)); }
-.settings-keys .settings-key { color: var(--text); }
-/* The field that narrows a list as it is typed into, the width of the pane. */
-.settings-filter { display: flex; }
+/* Settings › Keyboard's shortcuts: a row is a sentence and a cap, so 28 high
+   (V4 draws no padding on it), the sentence in 12/16 --text-secondary and the
+   cap flush right. */
+.settings-keys .settings-row { min-height: 28px; padding-block: 0; align-items: center; }
+.settings-keys .settings-row-name { font-size: calc(12px + var(--ui-text-increase, 0px)); font-weight: 400; line-height: calc(16px + var(--ui-text-increase, 0px)); color: var(--text-secondary); }
+/* The field that narrows a list as it is typed into, the width of the pane,
+   with its name over it (V4's Field: 12/16 in 500, 4px above the box). */
+.settings-filter { display: flex; flex-direction: column; gap: 4px; padding-top: 8px; }
+.settings-filter-label {
+  color: var(--text-secondary);
+  font-size: calc(12px + var(--ui-text-increase, 0px));
+  font-weight: 500;
+  line-height: calc(16px + var(--ui-text-increase, 0px));
+}
 .settings-filter-field {
   flex: 1;
   min-width: 0;
@@ -397,11 +412,12 @@
   display: flex;
   flex: none;
   align-items: center;
-  padding: 12px 8px 4px;
+  /* The nav's own inline pad, so the field lines up with the items. */
+  padding: 8px calc(16px - 1px) 4px 8px;
   color: var(--muted);
 }
 .settings-search-glyph { position: absolute; left: 18px; pointer-events: none; }
-.settings-search .settings-search-field { padding-left: 32px; }
+.settings-search .settings-search-field { padding-left: 32px; min-height: 30px; }
 /* While a query is in the field the results stand where the section was,
    which stays mounted and hidden under them. `[hidden]` alone loses to the
    pane's own `display: flex`. */
@@ -484,6 +500,17 @@
   .settings-pane [data-jumped] { outline: 2px solid var(--accent); outline-offset: -2px; }
   .settings-pane :is(.settings-group, .reading-options, .sm-custom)[data-jumped] { outline-offset: 6px; }
 }
+/* A note under a group (V4's Forms / Note): one line of --text-secondary on
+   the control wash, never amber. */
+.settings-note {
+  margin: 8px 0 0;
+  padding: 6px 8px;
+  border-radius: var(--r-panel);
+  background: var(--ctl-fill);
+  color: var(--text-secondary);
+  font-size: calc(12px + var(--ui-text-increase, 0px));
+  line-height: calc(16px + var(--ui-text-increase, 0px));
+}
 .settings-empty, .settings-foot {
   margin: 0;
   color: var(--text-dim);
@@ -510,7 +537,7 @@
   font-size: calc(13px + var(--ui-text-increase, 0px));
   font-weight: 500;
 }
-.settings-list > .sm-row > .sm-select { grid-column: 2 / -1; min-height: var(--ctl-h); }
+.settings-list > .sm-row > .v4-select { grid-column: 2 / -1; justify-self: end; }
 
 /* AT A PHONE'S WIDTH THE NAV GOES ON TOP (#849's breakpoint), as ONE ROW
    that scrolls sideways. It was a two-by-two grid, which held four sections
@@ -554,8 +581,8 @@
    as a phone's own settings keep a toggle on the name's line whatever the
    width. */
 @media (max-width: 420px) {
-  .settings-row:has(> .settings-row-control > :is(select, .settings-read:not(:only-child))) { grid-template-columns: minmax(0, 1fr); }
-  .settings-row:has(> .settings-row-control > :is(select, .settings-read:not(:only-child))) > .settings-row-control {
+  .settings-row:has(> .settings-row-control > :is(.v4-select, .settings-read:not(:only-child))) { grid-template-columns: minmax(0, 1fr); }
+  .settings-row:has(> .settings-row-control > :is(.v4-select, .settings-read:not(:only-child))) > .settings-row-control {
     grid-column: 1;
     grid-row: auto;
     justify-content: flex-start;
@@ -569,51 +596,51 @@
   .settings-link:active { transform: none; }
 }
 
-/* Each choice previews the deck in that theme,
-   so it is recognised before it is read. The -8px bleed is the plate's own
-   8px padding given back, so each choice has a plate to hover in while the
-   previews stand on the caption's text edge rather than 8px in from it.
+/* Each choice previews the deck in that theme, so it is recognised before it
+   is read (V4's Picker tile): a 128 × 62 preview, the name 6px under it, four
+   to a row at a 141px pitch (a 13px gap).
    THE CHOSEN ONE: its frame goes to the accent and doubles to 2px with a ring
-   rather than a wider border, so nothing shifts; a check stands at the end of
-   its name; the name comes up from --muted to --text; the plate takes an 8%
-   wash. The check and the doubled frame hold the state without the colour.
-   The focus ring is drawn round the whole plate, outside the frame.
-   HOVER lifts the plate and the name, never the frame, so a pointer resting on
-   the other theme cannot pass for choosing it. No press-scale: at 118px a
-   3% shrink is a lurch, not a click. */
+   rather than a wider border, so nothing shifts; the name comes up from
+   --text-secondary to --text in 600; a check stands at the end of the name.
+   The frame, the weight and the check hold the state without the colour.
+   HOVER lifts the name, never the frame, so a pointer resting on the other
+   theme cannot pass for choosing it. No press-scale: at 128px a 3% shrink is
+   a lurch, not a click. */
 .appearance-themes {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(118px, 1fr));
-  gap: 4px;
-  margin: 0 -8px;
+  grid-template-columns: repeat(auto-fill, 128px);
+  gap: 13px;
+  padding: 12px 0 4px;
 }
 .appearance-theme {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 6px;
   min-width: 0;
-  padding: 8px;
+  padding: 0;
   border: 0;
   border-radius: var(--r-panel);
   background: transparent;
-  color: var(--muted);
+  color: var(--text-secondary);
   font: inherit;
   font-size: calc(12px + var(--ui-text-increase, 0px));
-  font-weight: 500;
+  font-weight: 400;
   text-align: left;
   cursor: pointer;
-  transition: background-color var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease);
+  transition: color var(--dur-fast) var(--ease);
 }
 @media (hover: hover) and (pointer: fine) {
-.appearance-theme:hover { background: var(--ctl-fill); color: var(--text); }
+.appearance-theme:hover { color: var(--text); }
 }
-.appearance-theme[aria-checked="true"] { background: color-mix(in srgb, var(--accent) 8%, var(--panel)); }
-.appearance-theme[aria-checked="true"] { color: var(--text); }
+.appearance-theme[aria-checked="true"] { color: var(--text); font-weight: 600; }
 .appearance-preview {
   display: block;
+  height: 62px;
   overflow: hidden;
+  /* --ctl-edge and not V4's --line-soft: the frame is the choice's only
+     boundary, and --line-soft is under 3:1 on the panel (control-edges.test.ts). */
   border: 1px solid var(--ctl-edge);
-  border-radius: calc(var(--r-ctl) + 2px);
+  border-radius: var(--r-panel);
   transition: border-color var(--dur-fast) var(--ease), box-shadow var(--dur-fast) var(--ease);
 }
 .appearance-theme[aria-checked="true"] .appearance-preview {
@@ -623,14 +650,12 @@
 .appearance-preview svg {
   display: block;
   width: 100%;
-  height: auto;
-  aspect-ratio: 2 / 1;
+  height: 100%;
 }
 .appearance-theme-name {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 2px;
   line-height: calc(16px + var(--ui-text-increase, 0px));
 }
 .appearance-check {
@@ -1017,6 +1042,28 @@ button.btn.sm-hear {
 @media (hover: hover) and (pointer: fine) {
 .sm-select:hover:not(:focus-visible) { border-color: var(--text); }
 }
+/* THE SELECT (V4's Forms / Select, SelectShell.tsx): 28 high, the option's
+   name at 13/20 after a 12px inner pad, and a 12px chevron 8px from the edge.
+   The native element stays under it for the list and the keys, drawn without
+   the platform's arrow, so the box is as wide as its longest option needs and
+   no wider. The chevron is the shell's, in --muted, and does not take the
+   pointer. */
+.v4-select { position: relative; display: inline-flex; align-items: center; min-width: 0; max-width: 100%; color: var(--muted); }
+.v4-select > .sm-select {
+  flex: 1;
+  appearance: none;
+  -webkit-appearance: none;
+  min-height: var(--ctl-h);
+  /* A floor, so a list that fills in late (Claude Code's own value, a custom
+     tone) does not make the row reflow when it arrives. */
+  min-width: 90px;
+  max-width: 100%;
+  /* The right side holds the chevron: 8px before it, its 12px, 8px after. */
+  padding: 0 calc(8px + 12px + 8px) 0 12px;
+  text-overflow: ellipsis;
+}
+.v4-select:has(> .sm-select:disabled) > .v4-select-chevron { opacity: var(--dim-off); }
+.v4-select-chevron { position: absolute; right: 8px; top: 50%; margin-top: -6px; flex: none; pointer-events: none; }
 
 /* Custom sounds and voices (#1207), under the tones they can stand in for.
    Built from parts that already exist wherever one fits — the heading is a
@@ -1071,6 +1118,7 @@ button.btn.sm-hear {
 }
 .sm-voice-fields .ap-manage-input,
 .sm-voice-fields .sm-select { width: 100%; min-width: 0; }
+.sm-voice-fields .v4-select { display: flex; width: 100%; min-width: 0; }
 .sm-voice-pair { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 .sm-voice-pair label { grid-template-columns: auto minmax(0, 1fr); }
 /* Trimmed like `.sm-hear` and exactly as tall as every other button: the
@@ -1101,21 +1149,31 @@ button.btn.sm-custom-icon.armed { color: var(--bg); background: var(--err); }
    topbar speaker and its tooltip went (2026-10-07) is the only place it is
    said. */
 .sm-note { margin: 0; font-size: calc(11px + var(--ui-text-increase, 0px)); line-height: 1.45; color: var(--text-dim); }
-/* Character choices: the row under the switch, in its list (#2176). */
-.character-picker { display: flex; flex-wrap: wrap; gap: 8px; }
+/* Character choices: three picker tiles under the switch's row (V4's Picker
+   tile), 128 wide, the name 6px under a 128 × 80 preview on --bg with the
+   sprite centred, and the same frame as a theme's: 1px --line-soft, 2px
+   --accent for the chosen one. */
+.character-picker { display: flex; flex-wrap: wrap; gap: 13px; padding-top: 4px; }
 .character-choice {
-  display: flex; align-items: center; gap: 8px; flex: 1 1 150px; min-width: 0;
-  padding: 10px; border: 1px solid var(--ctl-edge); border-radius: 6px;
-  color: var(--text); background: var(--panel); font: inherit; text-align: left; cursor: pointer;
-  transition: background-color var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease);
+  position: relative; display: flex; flex-direction: column; gap: 6px; flex: none; width: 128px; min-width: 0;
+  padding: 0; border: 0; border-radius: var(--r-panel);
+  color: var(--text-secondary); background: transparent; font: inherit;
+  font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: calc(16px + var(--ui-text-increase, 0px));
+  text-align: left; cursor: pointer;
+  transition: color var(--dur-fast) var(--ease);
 }
 @media (hover: hover) and (pointer: fine) {
-.character-choice:hover { background: var(--ctl-fill); }
+.character-choice:hover { color: var(--text); }
 }
-.character-choice[aria-checked="true"] { border-color: var(--accent); }
-.character-preview { display: block; flex: 0 0 36px; width: 36px; height: 32px; }
-.character-preview svg { width: 36px; height: 28px; overflow: visible; }
-.character-check { flex: 0 0 16px; width: 16px; height: 16px; margin-left: auto; opacity: 0; transform: scale(0.5); transition: opacity var(--dur-fast) var(--ease), transform 0s var(--ease) var(--dur-fast); }
+.character-choice[aria-checked="true"] { color: var(--text); font-weight: 600; }
+.character-preview {
+  display: flex; align-items: center; justify-content: center; width: 128px; height: 80px;
+  box-sizing: border-box; border: 1px solid var(--ctl-edge); border-radius: var(--r-panel); background: var(--bg);
+  transition: border-color var(--dur-fast) var(--ease), box-shadow var(--dur-fast) var(--ease);
+}
+.character-choice[aria-checked="true"] .character-preview { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+.character-preview svg { width: 54px; height: 51px; overflow: visible; }
+.character-check { position: absolute; top: 6px; right: 6px; flex: none; width: 16px; height: 16px; color: var(--accent); opacity: 0; transform: scale(0.5); transition: opacity var(--dur-fast) var(--ease), transform 0s var(--ease) var(--dur-fast); }
 .character-choice[aria-checked="true"] .character-check { opacity: 1; transform: none; transition: opacity var(--dur-fast) var(--ease), transform var(--dur-fast) var(--ease); }
 @media (prefers-reduced-motion: reduce) {
   .character-check, .character-choice[aria-checked="true"] .character-check { transform: none; transition: opacity var(--dur-fast) var(--ease); }
@@ -1123,8 +1181,7 @@ button.btn.sm-custom-icon.armed { color: var(--bg); background: var(--err); }
 .character-preview :is(.fm-body, .fm-leg) { fill: var(--pixel-character-body, var(--accent)); }
 .character-preview .fm-eye { fill: var(--text); }
 @media (max-width: 420px) {
-  .character-picker { flex-direction: column; }
-  .character-choice { flex-basis: auto; }
+  .character-picker { gap: 8px; }
 }
 
 /* Settings › Account (hidden: drawn only on a deck with the ccdeck account on).

@@ -228,6 +228,9 @@ describe("what was migrated to the secondary tier", () => {
       // nobody types, so it wears the placeholder's ink beside it, and for the
       // same reason — --muted on --ctl-fill is 4.05:1 in dark.
       ".ap-threshold-unit",
+      // CHANGED ON PURPOSE (V4's Figma): a theme card's name is set in --text-secondary, and in
+      // --text once chosen. The provider line in Integrations left this tier: V4 sets it in --muted.
+      ".appearance-theme",
       ".bw-access dd",
       ".bw-empty-note",
       ".bw-key dd",
@@ -250,6 +253,8 @@ describe("what was migrated to the secondary tier", () => {
       // under the foreground so the canvas stays the loudest thing, and the
       // pointer lifts a chip to --text. Its floors are held in quiet-signals.
       ".cat-filter.off",
+      // CHANGED ON PURPOSE (V4's Figma): a companion tile's name is set in this tier, like a theme's.
+      ".character-choice",
       // CHANGED ON PURPOSE (V4's Figma): the off pill sits in --text-secondary,
       // and the pills that show take --text (so `.cat-filter` left this list).
       // The rest are V4's secondary-ink lines: the auto-fit chip and the
@@ -515,8 +520,12 @@ describe("what was migrated to the secondary tier", () => {
       ".ig-leave-confirm p",
       ".ig-managed-identity p",
       ".ig-overview-info",
-      ".ig-provider .ig-conn-line",
       ".ig-total",
+      // CHANGED ON PURPOSE (V4's Figma): Keyboard's field label, its key rows' sentences
+      // and the Note under a group are set in --text-secondary.
+      ".settings-filter-label",
+      ".settings-keys .settings-row-name",
+      ".settings-note",
       ".settings-row-details",
       // The terminal stage. Its keys bar says in a sentence who has the
       // keyboard — "Keys on the board", "Typing into paycore", the first-run

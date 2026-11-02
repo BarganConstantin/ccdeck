@@ -17,7 +17,7 @@ import { isApplePlatform } from "./platform";
 /** A section of Settings, in nav order. */
 export type SettingsSection =
   | "general" | "appearance" | "reading" | "keyboard" | "notifications" | "sounds" | "integrations" | "data" | "claude" | "radar"
-  | "experimental" | "account" | "about";
+  | "account" | "about";
 
 /** One section's nav entry: the word on its tab, and the line under its name
  *  at the head of the pane, saying what the section holds before anything in
@@ -49,7 +49,6 @@ export const SETTINGS_SECTIONS: readonly SettingsSectionEntry[] = [
   { id: "data", get label() { return t("settings.section.data.label"); }, get note() { return t("settings.section.data.note"); } },
   { id: "claude", get label() { return t("settings.section.claude.label"); }, get note() { return t("settings.section.claude.note"); } },
   { id: "radar", get label() { return t("settings.section.radar.label"); }, get note() { return t("settings.section.radar.note"); } },
-  { id: "experimental", label: "Experimental", note: "Features still being tested, each off until you turn it on." },
   { id: "about", get label() { return t("settings.section.about.label"); }, get note() { return t("settings.section.about.note"); } },
 ];
 

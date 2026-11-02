@@ -92,7 +92,7 @@ export interface SettingsModalProps {
   restart: ReturnType<typeof useAutoRestart>;
   /** Where About and General send the reader, each closing this first. */
   doors: SettingsDoors;
-  /** The Command Panel's switch (use-stage.ts); Experimental draws it when given. */
+  /** The Command Panel's switch (use-stage.ts); General's Experimental group draws it when given. */
   terminal?: TerminalSwitch;
   /** The ccdeck account's section, drawn only when this says so. */
   account?: AccountSwitch;
@@ -239,8 +239,6 @@ export default function SettingsModal({
         return <RadarSettings onOpen={doors.radar} />;
       case "claude":
         return <ClaudeCodeSettings />;
-      case "experimental":
-        return terminal ? <TerminalSection terminal={terminal} /> : null;
       case "appearance":
         return (
           <>
@@ -312,7 +310,8 @@ export default function SettingsModal({
       default:
         // General: how the board behaves, the sessions recovered at startup,
         // how the deck updates itself, and the preferences that live in a
-        // panel of their own (#2176).
+        // panel of their own (#2176), then Experimental, where the Command
+        // Panel's switch stands (V4 draws no tab for it).
         return (
           <>
             <LanguageSection />
@@ -321,6 +320,7 @@ export default function SettingsModal({
             {providers.claude && <SessionRecoverySettings provider="Claude" />}
             <UpdatesSection autoRestart={restart.autoRestart} onToggleAutoRestart={restart.toggleAutoRestart} version={versionCheck.version} />
             <ElsewhereSection claudeHere={providers.claude} codexHere={providers.codex} singleKeys={singleKeys} doors={doors} />
+            {terminal && <TerminalSection terminal={terminal} />}
           </>
         );
     }

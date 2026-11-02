@@ -10,6 +10,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { auditBytes, auditDate, type AuditStorage } from '../tool-audit';
 import { SettingRow, SettingsGroup } from './SettingsParts';
+import SelectShell from './SelectShell';
 import { useT } from '../i18n';
 
 export const TOOL_HISTORY_NOTE = 'Local statistics for Claude and Codex on this device. Commands are grouped by operation; raw arguments and outputs are not saved.';
@@ -49,11 +50,11 @@ export default function ToolAuditSettings() {
   </div>;
   return <SettingsGroup id="tool-history-settings-title" title={t('settings.tools.title')} note={t('settings.tools.note')} className="ta-settings">
     {storage ? <>
-      <SettingRow settingId="tool-history-retention" name={t('settings.tools.keep')} nameId="ta-keep-label" note={t('settings.tools.keepNote')} control={<select className="sm-select" aria-labelledby="ta-keep-label" value={storage.retentionDays} aria-busy={busy} onChange={e => {
+      <SettingRow settingId="tool-history-retention" name={t('settings.tools.keep')} nameId="ta-keep-label" note={t('settings.tools.keepNote')} control={<SelectShell><select className="sm-select" aria-labelledby="ta-keep-label" value={storage.retentionDays} aria-busy={busy} onChange={e => {
         if (busyRef.current) return;
         const days = Number(e.target.value) as 30 | 60 | 90;
         if (days < storage.retentionDays) setConfirm(days as 30 | 60); else void change('retention', days);
-      }}>{[30, 60, 90].map(days => <option key={days} value={days}>{t('settings.tools.days', { count: days })}</option>)}</select>} />
+      }}>{[30, 60, 90].map(days => <option key={days} value={days}>{t('settings.tools.days', { count: days })}</option>)}</select></SelectShell>} />
       {typeof confirm === 'number' && confirmation}
       <SettingRow as="div" settingId="tool-history-size" name={t('settings.tools.space')} note={t('settings.tools.since', { date: auditDate(storage.startedAt) })} control={<>
         <span className="settings-read">{auditBytes(storage.bytes)}</span>

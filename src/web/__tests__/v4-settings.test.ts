@@ -58,18 +58,23 @@ const REDUCED = "(prefers-reduced-motion: reduce)";
 const POINTER = "(hover: hover) and (pointer: fine)";
 
 describe("V4's Settings dialog body", () => {
-  it("has a 200px nav column on the dock's fill, over a --line edge", () => {
+  it("has a 200px nav column on the dock's fill, over a --line-soft edge", () => {
     expect(decl(".settings-body", "grid-template-columns")).toBe("200px minmax(0, 1fr)");
     expect(decl(".settings-side", "background")).toBe("var(--dock)");
-    expect(decl(".settings-side", "border-right")).toBe("1px solid var(--line)");
+    // CHANGED ON PURPOSE (V4's Figma): the divider between the nav and the page
+    // is --line-soft, not --line.
+    expect(decl(".settings-side", "border-right")).toBe("1px solid var(--line-soft)");
   });
-  it("pads the nav 8 all round, 2 between the items, and parts no group of them", () => {
-    expect(decl(".settings-nav", "padding")).toBe("8px");
+  it("pads the nav 8, with 15 on the right so an item is 176 wide, 2 between the items, and parts no group of them", () => {
+    // CHANGED ON PURPOSE (V4's Figma): 176 wide items in the 200px column.
+    expect(decl(".settings-nav", "padding")).toBe("8px calc(16px - 1px) 8px 8px");
     expect(decl(".settings-nav", "gap")).toBe("2px");
     expect(css).not.toMatch(/#settings-tab-(notifications|integrations|about)/);
   });
   it("keeps the field 12px off the first item (4 under it, 8 of nav padding)", () => {
-    expect(decl(".settings-search", "padding")).toBe("12px 8px 4px");
+    // CHANGED ON PURPOSE (V4's Figma): the field is 176 wide, like an item, so
+    // the right side takes the 15 the nav's does; the 8 above and 4 below keep.
+    expect(decl(".settings-search", "padding")).toBe("8px calc(16px - 1px) 4px 8px");
   });
   it("pads the pane 16 on all four sides, with the same scroll padding, and leaves no gap between groups", () => {
     expect(decl(".settings-pane", "padding")).toBe("16px");
@@ -80,8 +85,11 @@ describe("V4's Settings dialog body", () => {
 
 describe("V4's nav item", () => {
   const tab = ".settings-tab";
-  it("is a table row tall, 4 and 8 of padding, 13 on 20 at 400 in the secondary tier", () => {
-    expect(decl(tab, "min-height")).toBe("var(--row-table)");
+  it("is 28 tall at every density, 4 and 8 of padding, 13 on 20 at 400 in the secondary tier", () => {
+    // CHANGED ON PURPOSE (V4's Figma): the nav item is a control tall, which is
+    // the 28 V4 draws at Compact (a 30 pitch with the 2px gap), not --row-table,
+    // which is 36 at the Default density and would tower over the Select beside it.
+    expect(decl(tab, "min-height")).toBe("var(--ctl-h)");
     expect(decl(tab, "padding")).toBe("4px 8px");
     expect(decl(tab, "border-radius")).toBe("var(--r-ctl)");
     expect(decl(tab, "align-items")).toBe("center");
@@ -179,9 +187,11 @@ describe("V4's row", () => {
     expect(decl(".settings-list > .sm-row", "padding")).toBe("calc((var(--row-settings) - 36px) / 2) 0");
     expect(decl(".settings-row-details", "padding")).toMatch(/^0 0 /);
   });
-  it("keeps the key table's own compact padding, with no minimum height", () => {
-    expect(decl(".settings-keys .settings-row", "padding-block")).toBe("calc(6px * var(--ui-space, 1))");
-    expect(decl(".settings-keys .settings-row", "min-height")).toBe("0");
+  it("draws a key row 28 tall with no padding", () => {
+    // CHANGED ON PURPOSE (V4's Figma): a key row is 28 high, drawn without
+    // padding, where it was a 6px-padded row with no minimum.
+    expect(decl(".settings-keys .settings-row", "padding-block")).toBe("0");
+    expect(decl(".settings-keys .settings-row", "min-height")).toBe("28px");
   });
 });
 

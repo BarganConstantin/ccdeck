@@ -1,11 +1,11 @@
-// Settings › Experimental: the Command Panel's switch (use-stage.ts), off on
+// Settings › General › Experimental: the Command Panel's switch (use-stage.ts), off on
 // every deck until somebody turns it on. The panel lets a session be opened
 // beside the board and typed into.
 //
-// In the shared shape (SettingsParts.tsx, #2176), as Radar's master switch is:
-// one row in an untitled group, the section's name saying it is experimental
-// and the row's note saying so again in one line. The switch is the only way
-// on; no launch variable turns it on.
+// In the shared shape (SettingsParts.tsx, #2176): one row in a group called
+// Experimental, at the foot of Settings › General (V4 draws no tab of its own
+// for it), the row's note saying so again in one line. The switch is the only
+// way on; no launch variable turns it on.
 //
 // OFF CLOSES THE PANEL, NOT ITS SESSIONS. A session the panel started keeps
 // running with the switch off — in tmux on Linux and macOS, in the session
@@ -14,13 +14,14 @@
 // deciding about a window, not about their agents.
 //
 // The panel runs on Linux and macOS only for now. Elsewhere the switch is drawn
-// off and fixed, and says so — though never fixed on: a settings file carried
+// off and fixed, and a note under the row says so — though never fixed on: a settings file carried
 // over from a Linux or macOS machine can still be switched off. The deck says which
 // (`terminalSupported` in /api/prefs), not the browser, since the panel runs
 // where the deck does; until it has said, the switch is offered as usual.
 
 import { workspaceOffered } from "../use-view";
 import { SettingRow, SettingsGroup } from "./SettingsParts";
+import { useT } from "../i18n";
 
 export interface TerminalSwitch {
   /** The Command Panel is on now. */
@@ -57,30 +58,37 @@ export function terminalNote(supported: boolean | null, windows = false): string
 }
 
 export default function TerminalSection({ terminal }: { terminal: TerminalSwitch }) {
+  const t = useT();
   const fixed = terminal.supported === false && !terminal.on;
+  // Where the panel is not available the row keeps its own words and the
+  // platform's answer stands under it as a note, as V4 draws it.
+  const unsupported = terminal.supported === false;
   return (
-    <SettingsGroup>
-      <SettingRow
-        settingId="terminal"
-        name={TERMINAL_LABEL}
-        nameId="settings-terminal-label"
-        note={terminalNote(terminal.supported, terminal.windows)}
-        noteId="settings-terminal-note"
-        control={
-          <button
-            type="button"
-            className="switch"
-            role="switch"
-            aria-checked={terminal.on}
-            aria-labelledby="settings-terminal-label"
-            aria-describedby="settings-terminal-note"
-            disabled={fixed}
-            onClick={terminal.toggle}
-          >
-            <span className="switch-knob" />
-          </button>
-        }
-      />
+    <SettingsGroup id="settings-experimental-caption" title={t("settings.experimental.group")} list={false}>
+      <div className="settings-list">
+        <SettingRow
+          settingId="terminal"
+          name={TERMINAL_LABEL}
+          nameId="settings-terminal-label"
+          note={terminalNote(null, terminal.windows)}
+          noteId="settings-terminal-note"
+          control={
+            <button
+              type="button"
+              className="switch"
+              role="switch"
+              aria-checked={terminal.on}
+              aria-labelledby="settings-terminal-label"
+              aria-describedby={unsupported ? "settings-terminal-note settings-terminal-unavailable" : "settings-terminal-note"}
+              disabled={fixed}
+              onClick={terminal.toggle}
+            >
+              <span className="switch-knob" />
+            </button>
+          }
+        />
+      </div>
+      {unsupported && <p className="settings-note" id="settings-terminal-unavailable">{TERMINAL_UNSUPPORTED_NOTE}</p>}
     </SettingsGroup>
   );
 }

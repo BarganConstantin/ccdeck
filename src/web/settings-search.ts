@@ -112,13 +112,12 @@ function entryOf(spec: Spec): SettingsEntry {
   return Object.defineProperty(base, "group", { get: () => spec.group?.(), enumerable: true });
 }
 
-/** The words people type for the Experimental page (no catalog entry yet). */
+/** The words people type for the Experimental group (no catalog entry yet). */
 const EXPERIMENTAL_WORDS = ["beta", "labs", "preview", "early access"];
 
 function sectionEntry(section: SettingsSection): SettingsEntry {
   return entryOf({
     id: `${SECTION_PREFIX}${section}`, section, label: () => sectionLabel(section), kw: `section-${section}`,
-    ...(section === "experimental" ? { words: EXPERIMENTAL_WORDS } : {}),
     // Drawn only where Claude Code is (sectionsDrawn, settings.ts).
     ...(section === "claude" ? { claudeOnly: true as const } : {}),
   });
@@ -142,6 +141,8 @@ function buildIndex(): SettingsEntry[] {
       entryOf({ id: "accounts", section: "general", group: L("settings.search.group.elsewhere"), label: L("settings.search.accounts"), claudeOnly: true }),
       entryOf({ id: "local-network", section: "general", group: L("settings.search.group.elsewhere"), label: L("settings.search.localNetwork"), claudeOnly: true }),
       entryOf({ id: "browser-watch", section: "general", group: L("settings.search.group.elsewhere"), label: L("settings.search.browserWatch") }),
+      { id: "terminal", section: "general", get group() { return t("settings.experimental.group"); }, label: "Command Panel",
+        keywords: ["terminal", "tmux", "shell", "console", "command line", "cli", "pane", "attach", "type", "beta", "experimental", ...EXPERIMENTAL_WORDS] },
     ],
     appearance: [
       entryOf({ id: "theme", section: "appearance", label: L("settings.theme.title") }),
@@ -175,9 +176,9 @@ function buildIndex(): SettingsEntry[] {
       ...CHIME_ORDER.map((chime): SettingsEntry => entryOf({
         id: `tone-${chime}`, section: "sounds", label: L(chime === "done" ? "settings.sounds.tone.done" : "settings.sounds.tone.needsInput"),
       })),
-      entryOf({ id: "custom-sounds", section: "sounds", label: L("settings.sounds.custom.title") }),
-      entryOf({ id: "custom-import", section: "sounds", group: L("settings.sounds.custom.title"), label: L("settings.sounds.custom.import") }),
-      entryOf({ id: "custom-record", section: "sounds", group: L("settings.sounds.custom.title"), label: L("settings.sounds.custom.record") }),
+      entryOf({ id: "custom-sounds", section: "sounds", label: L("settings.sounds.custom.group") }),
+      entryOf({ id: "custom-import", section: "sounds", group: L("settings.sounds.custom.group"), label: L("settings.sounds.custom.import") }),
+      entryOf({ id: "custom-record", section: "sounds", group: L("settings.sounds.custom.group"), label: L("settings.sounds.custom.record") }),
     ],
     integrations: [
       // The names of the tools are the tools'.
@@ -205,15 +206,11 @@ function buildIndex(): SettingsEntry[] {
     radar: [
       entryOf({ id: "radar-open", section: "radar", label: L("settings.section.radar.label") }),
     ],
-    experimental: [
-      { id: "terminal", section: "experimental", label: "Command Panel",
-        keywords: ["terminal", "tmux", "shell", "console", "command line", "cli", "pane", "attach", "type", "beta", "experimental"] },
-    ],
     about: [
-      entryOf({ id: "version", section: "about", group: () => "ccdeck", label: L("settings.about.version") }),
-      entryOf({ id: "whats-new", section: "about", group: () => "ccdeck", label: L("settings.about.whatsNew") }),
-      entryOf({ id: "licence", section: "about", group: () => "ccdeck", label: L("settings.about.licence") }),
-      entryOf({ id: "sponsor", section: "about", group: () => "ccdeck", label: L("settings.about.sponsor") }),
+      entryOf({ id: "version", section: "about", group: L("settings.about.version"), label: L("settings.about.version") }),
+      entryOf({ id: "whats-new", section: "about", group: L("settings.about.version"), label: L("settings.about.whatsNew") }),
+      entryOf({ id: "licence", section: "about", group: L("settings.about.projectGroup"), label: L("settings.about.licence") }),
+      entryOf({ id: "sponsor", section: "about", group: L("settings.about.projectGroup"), label: L("settings.about.sponsor") }),
       entryOf({ id: "tour", section: "about", group: L("settings.about.helpGroup"), label: L("settings.about.tour") }),
       entryOf({ id: "feedback", section: "about", group: L("settings.about.helpGroup"), label: L("settings.about.feedback") }),
     ],

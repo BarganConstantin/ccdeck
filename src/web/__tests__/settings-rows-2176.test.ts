@@ -108,7 +108,10 @@ describe("Settings › Keyboard lists every key", () => {
 
   it("names its filter with a label, not with a placeholder alone", () => {
     const html = draw(createElement(KeyboardSection, { singleKeys: true, onToggleSingleKeys: noop }));
-    expect(html).toMatch(/<label class="vis-hidden" for="[^"]+">Filter shortcuts<\/label><input id="[^"]+" type="search"/);
+    // CHANGED ON PURPOSE (V4's Figma): the label is drawn above the field, as
+    // V4's Field draws it, instead of being visually hidden; it is still a
+    // <label> for the input.
+    expect(html).toMatch(/<label class="settings-filter-label" for="[^"]+">Filter shortcuts<\/label><input id="[^"]+" type="search"/);
   });
 });
 

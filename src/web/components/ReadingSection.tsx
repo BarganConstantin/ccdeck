@@ -1,4 +1,3 @@
-import type { CSSProperties } from "react";
 import {
   DEFAULT_DENSITY,
   DENSITIES,
@@ -6,7 +5,8 @@ import {
   type Density,
   type TextSize,
 } from "../reading-preferences";
-import { SettingsGroup } from "./SettingsParts";
+import { SettingRow, SettingsGroup } from "./SettingsParts";
+import SelectShell from "./SelectShell";
 import { useT } from "../i18n";
 
 interface Props {
@@ -32,27 +32,6 @@ const DENSITY_CHOICES = [
   ["default", "settings.reading.density.default", "100%"],
   ["comfortable", "settings.reading.density.comfortable", "140%"],
 ] as const;
-
-function SelectedMark() {
-  return (
-    <svg
-      className="reading-selected-mark"
-      viewBox="0 0 12 12"
-      width="12"
-      height="12"
-      aria-hidden="true"
-    >
-      <path
-        d="m2.5 6 2.2 2.2 4.8-4.4"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.5"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
-  );
-}
 
 /** Reset to defaults, which Settings draws in the pane's head beside the
  *  section's name and the line under it (SettingsModal.tsx, #2176), where it is
@@ -86,108 +65,75 @@ export default function ReadingSection({
   const t = useT();
   return (
     <>
-      <fieldset className="reading-group">
-        <legend>{t("settings.reading.sizeTitle")}</legend>
-        <p id="reading-size-help">
-          {t("settings.reading.sizeHelp")}
-        </p>
-        <div
-          className="reading-options reading-segmented"
-          aria-describedby="reading-size-help"
-          data-setting="text-size"
-          style={
-            {
-              "--reading-count": TEXT_SIZES.length,
-              "--reading-selected": TEXT_SIZES.indexOf(textSize),
-            } as CSSProperties
-          }
-        >
-          {SIZE_CHOICES.map(([value, labelKey, note]) => {
-            const label = t(labelKey);
-            return (
-            <label key={value} className="reading-choice" data-size={value}>
-              <input
-                type="radio"
+      {/* V4 draws each scale as a group of one row with a Select, in place of
+          the five framed previews: the same five steps, the same stored
+          value, in the kit's closed list. */}
+      <SettingsGroup id="reading-size-title" title={t("settings.reading.sizeTitle")}>
+        <SettingRow
+          settingId="text-size"
+          name={t("settings.reading.sizeTitle")}
+          nameId="reading-size-label"
+          note={t("settings.reading.sizeHelp")}
+          noteId="reading-size-help"
+          control={
+            <SelectShell>
+              <select
+                className="sm-select"
                 name="text-size"
-                aria-label={`${label} ${note}`}
-                value={value}
-                checked={textSize === value}
-                onChange={() => onTextSize(value)}
-              />
-              <span className="reading-type-sample" aria-hidden="true">
-                Aa
-              </span>
-              <span className="reading-label">
-                <strong>{label}</strong>
-                <small>{note}</small>
-              </span>
-              <SelectedMark />
-            </label>
-            );
-          })}
-        </div>
-      </fieldset>
-      <fieldset className="reading-group">
-        <legend>{t("settings.reading.densityTitle")}</legend>
-        <p id="reading-density-help">
-          {t("settings.reading.densityHelp")}
-        </p>
-        <div
-          className="reading-options reading-segmented"
-          aria-describedby="reading-density-help"
-          data-setting="density"
-          style={
-            {
-              "--reading-count": DENSITIES.length,
-              "--reading-selected": DENSITIES.indexOf(density),
-            } as CSSProperties
-          }
-        >
-          {DENSITY_CHOICES.map(([value, labelKey, note]) => {
-            const label = t(labelKey);
-            return (
-            <label key={value} className="reading-choice">
-              <input
-                type="radio"
-                name="density"
-                aria-label={t("settings.reading.spacing", { label, note })}
-                value={value}
-                checked={density === value}
-                onChange={() => onDensity(value)}
-              />
-              <span
-                className="reading-density-sample"
-                data-density={value}
-                aria-hidden="true"
+                aria-labelledby="reading-size-label"
+                aria-describedby="reading-size-help"
+                value={textSize}
+                onChange={event => onTextSize(TEXT_SIZES.find(size => size === event.target.value) ?? "default")}
               >
-                <i />
-                <i />
-                <i />
-              </span>
-              <span className="reading-label">
-                <strong>{label}</strong>
-                <small>{note}</small>
-              </span>
-              <SelectedMark />
-            </label>
-            );
-          })}
-        </div>
-      </fieldset>
-      <SettingsGroup id="reading-preview-title" title={t("settings.reading.preview")}>
-        <div className="reading-preview-row">
-          <div>
-            <strong>{t("settings.reading.sample1")}</strong>
-            <span>{t("settings.reading.sample1State")}</span>
+                {SIZE_CHOICES.map(([value, labelKey, note]) => (
+                  <option key={value} value={value}>{t(labelKey)} {note}</option>
+                ))}
+              </select>
+            </SelectShell>
+          }
+        />
+      </SettingsGroup>
+      <SettingsGroup id="reading-density-title" title={t("settings.reading.densityTitle")}>
+        <SettingRow
+          settingId="density"
+          name={t("settings.reading.densityTitle")}
+          nameId="reading-density-label"
+          note={t("settings.reading.densityHelp")}
+          noteId="reading-density-help"
+          control={
+            <SelectShell>
+              <select
+                className="sm-select"
+                name="density"
+                aria-labelledby="reading-density-label"
+                aria-describedby="reading-density-help"
+                value={density}
+                onChange={event => onDensity(DENSITIES.find(step => step === event.target.value) ?? DEFAULT_DENSITY)}
+              >
+                {DENSITY_CHOICES.map(([value, labelKey, note]) => (
+                  <option key={value} value={value}>{t(labelKey)} {note}</option>
+                ))}
+              </select>
+            </SelectShell>
+          }
+        />
+      </SettingsGroup>
+      <SettingsGroup id="reading-preview-title" title={t("settings.reading.preview")} list={false}>
+        <div className="reading-preview">
+          <div className="reading-preview-row">
+            <div>
+              <strong>{t("settings.reading.sample1")}</strong>
+              <span>{t("settings.reading.sample1State")}</span>
+            </div>
+            <span className="reading-preview-time">4m</span>
           </div>
-          <span className="reading-preview-time">4m</span>
-        </div>
-        <div className="reading-preview-row">
-          <div>
-            <strong>{t("settings.reading.sample2")}</strong>
-            <span>{t("settings.reading.sample2State")}</span>
+          <div className="reading-preview-row">
+            <div>
+              <strong>{t("settings.reading.sample2")}</strong>
+              <span>{t("settings.reading.sample2State")}</span>
+            </div>
+            <span className="reading-preview-time">12m</span>
           </div>
-          <span className="reading-preview-time">12m</span>
         </div>
       </SettingsGroup>
       <p className="settings-foot">
