@@ -10,6 +10,26 @@
   color: var(--muted);
   user-select: none;
 }
+/* The two notices ("never reached", "too many tabs"), as V4's Figma draws
+   them: a 360px block padded 16, a 24px icon, a 14/600 title and a 13px body
+   328 wide, 4px apart. 144 high for three lines of body; it hugs a longer one. */
+.empty-hero.empty-notice {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  box-sizing: border-box;
+  width: min(360px, calc(100% - 48px));
+  padding: 16px;
+}
+.empty-hero.empty-notice .empty-symbol { width: 24px; height: 24px; margin: 0; }
+.empty-hero.empty-notice h2 {
+  font-size: calc(14px + var(--ui-text-increase, 0px));
+  line-height: 20px;
+  margin: 0;
+  letter-spacing: 0;
+}
+.empty-hero.empty-notice p { line-height: 20px; }
 .empty-hero .empty-symbol {
   display: grid;
   place-items: center;
@@ -50,7 +70,7 @@
 .empty-hero .empty-help[open] { text-align: left; }
 .empty-hero .empty-help[open] summary { text-align: center; }
 @container (max-width: 260px) {
-  .empty-hero { display: none; }
+  .empty-hero, .empty-hero.empty-notice { display: none; }
 }
 @keyframes spin { to { transform: rotate(360deg); } }
 /* ---------------- the crash pane (#1853) ---------------- */

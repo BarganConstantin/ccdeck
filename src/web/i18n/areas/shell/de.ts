@@ -211,7 +211,6 @@ const catalog: Catalog = {
   "shell.banner.cannotInstall": "von hier aus nicht installierbar",
   "shell.banner.copyTitle": "In die Zwischenablage kopieren",
   "shell.banner.copiedHint": "kopiert",
-  "shell.banner.copyHint": "kopieren",
   "shell.banner.restartedTo": "Neu gestartet – läuft jetzt mit v{version}.",
   "shell.banner.replayed": "Der Canvas wurde aus dem Ereignisprotokoll neu aufgebaut.",
   "shell.banner.autoOff": "Auto-Neustart aus",

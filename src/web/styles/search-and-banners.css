@@ -25,7 +25,7 @@
   display: flex;
   align-items: center;
   /* V4's banner: one frame for every tone (V4's Figma). Panel fill, a
-     bottom --line rule and nothing else; the tone lives in the 14px dot slot.
+     bottom --line rule and nothing else; the tone lives in the 14px mark slot.
      The kit's 32 includes the rule, so the foot pads 3px: 4 + 24 + 3 + 1. */
   gap: 8px;
   min-height: var(--ctl-h-lg);
@@ -38,18 +38,33 @@
   font-weight: 400;
   animation: fadeIn var(--dur-base) var(--ease);
 }
-.conn-banner .conn-dot {
+/* The mark (BannerMark.tsx): V4's 14px kit icon in the tone's colour, where the
+   strip drew a 7px dot with an 8px glow. Pulsing is kept for the one moment
+   it carries information: a restart counting down. Info is --muted, Error
+   --err, Waiting --warn, Done --ok. */
+:is(.ver-banner, .conn-banner) .banner-mark {
   flex: 0 0 auto;
-  margin: 0 3.5px;
-  width: 7px; height: 7px; border-radius: 50%;
-  background: var(--err);
-  box-shadow: 0 0 8px var(--err);
-  animation: pulse 1.2s infinite;
+  display: inline-flex;
+  width: 14px; height: 14px;
+  color: var(--muted);
 }
+:is(.ver-banner, .conn-banner) .banner-mark svg { display: block; }
+:is(.ver-banner, .conn-banner) .banner-mark.err { color: var(--err); }
+:is(.ver-banner, .conn-banner) .banner-mark.warn { color: var(--warn); }
+:is(.ver-banner, .conn-banner) .banner-mark.ok { color: var(--ok); }
+:is(.ver-banner, .conn-banner) .banner-mark.info { color: var(--muted); }
+:is(.ver-banner, .conn-banner) .banner-mark.armed { animation: pulse 2.4s infinite; }
+
+/* THE STRIP SPANS THE WINDOW (V4's Figma): the dismiss sits at the window's
+   right edge, and nothing docked covers it. The rail is fixed rather than in
+   the grid, so rating.css moves it down by the strip's own height. Written at
+   the weight that beats the column the left panels and the workspace give a
+   banner. The phone's card is not a strip. */
+.app.app.app :is(.ver-banner, .conn-banner:has(> .banner-mark)) { grid-column: 1 / -1; }
 /* The sentence that used to be reachable only by hovering the status pill
    (#510), rendered here because this banner already announces and already
    stays. Drawn as the version banner draws its own second clause: the alarm
-   colour belongs to the dot and to the headline, and the explanation under it
+   colour belongs to the mark and to the headline, and the explanation under it
    is running text. --text rather than --muted for the same reason .ver-banner
    gives — this is the row that tells the user what to do about an outage, and
    it is the worst place in the deck to make somebody squint. Measured on the
@@ -85,14 +100,14 @@
 
 /* ---------------- version-drift banner ---------------- */
 /* Same slot and shape as .conn-banner, one step calmer: this is important but
-   it is not an outage, so it takes --warn and a slower pulse. */
+   it is not an outage, so it takes --warn. */
 .ver-banner {
   grid-column: 1;
   grid-row: 2;
   display: flex;
   align-items: center;
   /* V4's banner: the same frame as .conn-banner, no wash, no tint. The tone is
-     the dot's colour alone; the running text is --text. */
+     the mark's colour alone; the running text is --text. */
   gap: 8px;
   min-height: var(--ctl-h-lg);
   padding: 4px 4px 3px 12px;
@@ -104,26 +119,13 @@
   font-weight: 400;
   animation: fadeIn var(--dur-base) var(--ease);
 }
-/* STILL AT REST, and it pulses only while a restart is actually counting down.
-   `pulse` is this deck's word for "running right now" — the live pill, the
-   tools in flight, the outage dot — and a version notice is an inert fact that
-   can sit here for days. It was spending the chrome's one moving channel on the
-   one thing in the bar that will not change, and spending it identically
-   whether or not the deck was thirty seconds from killing itself. Armed, it
-   says the fuse is burning, which is a fact about right now and is the only
-   thing here that ever was. */
-.ver-banner .ver-dot {
-  flex: 0 0 auto;
-  margin: 0 3.5px; /* V4's banner: 7px dot + margins = the kit's 14px slot */
-  width: 7px; height: 7px; border-radius: 50%;
-  background: var(--warn);
-  box-shadow: 0 0 8px var(--warn);
-}
-.ver-banner .ver-dot.armed { animation: pulse 2.4s infinite; }
-.ver-banner strong { font-weight: 400; } /* V4's banner: the message is regular */
+/* V4's banner: the message is regular (the rule below sets it with the ellipsis) */
 /* The consequence, in the voice of the person who has to act on it. Dimmer
    than the headline so the two read in order rather than competing. */
 .ver-banner strong, .ver-banner .ver-sub { white-space: nowrap; }
+/* A long message (an npm error with a long path) shrinks to an ellipsis, its full
+   text in the title, rather than pushing the dismiss off the strip. */
+.ver-banner strong { font-weight: 400; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .ver-banner .ver-sub {
   /* --muted on the banner's flat --panel is 4.70:1 at its lowest (dark), so
      the consequence can step down from the headline again now the wash is gone. */
@@ -133,57 +135,68 @@
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.ver-banner .ver-cmd {
-  display: inline-flex;
+/* The two-row update (V4's Figma): the banner row, then a 40px row holding the
+   command in a box of its own. The rule sits under the first row only. */
+.ver-banner.ver-stack {
+  display: block;
+  min-height: 0;
+  padding: 0;
+  border-bottom: 0;
+}
+.ver-banner.ver-stack > .ver-row {
+  display: flex;
   align-items: center;
   gap: 8px;
-  padding: 3px 5px 3px 10px;
-  border: 1px solid var(--ctl-edge);
-  border-radius: 999px;
-  background: var(--ctl-fill);
-  color: var(--text);
+  min-height: var(--ctl-h-lg);
+  padding: 4px 4px 3px 12px;
+  border-bottom: 1px solid var(--line);
+}
+.ver-banner .ver-cmdrow { padding: 0 12px 8px; }
+.ver-banner .ver-cmd {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 32px;
+  padding: 3px 3px 3px 7px;
+  /* An edge only a Contrast theme or forced colours paints: --sunken alone would vanish there. */
+  border: 1px solid transparent;
   cursor: pointer;
-  transition: border-color var(--dur-fast) var(--ease), background var(--dur-fast) var(--ease),
-              transform var(--dur-fast) var(--ease);
+  background: var(--sunken);
+  border-radius: var(--r-ctl);
+  color: var(--text);
 }
-@media (hover: hover) and (pointer: fine) {
-.ver-banner .ver-cmd:hover { border-color: var(--text); background: var(--panel); }
-}
-.ver-banner .ver-cmd:active { transform: scale(var(--press)); }
 .ver-banner .ver-cmd code {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   font-family: var(--font-mono);
-  font-size: calc(11px + var(--ui-text-increase, 0px));
+  font-size: calc(12px + var(--ui-text-increase, 0px));
+  line-height: 16px;
   /* Stated, not assumed: if the copy button ever fails, selecting this by hand
      is the fallback, and it must survive any future user-select:none above. */
   user-select: text;
 }
-/* --text, not --muted, for the reason .up-quota-hint code is: a dim foreground
-   sized for --panel, re-bedded on --line, is 4.14:1 in dark — under AA at 10px
-   uppercase, which is the least forgiving type in this banner. 11.39:1 now. */
-.ver-banner .ver-cmd-hint {
-  font-size: calc(10px + max(-1px, var(--ui-text-increase, 0px)));
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  color: var(--text);
-  background: var(--line);
-  border-radius: 999px;
-  padding: 2px 8px;
+.ver-banner .ver-copy {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 24px; height: 24px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--r-ctl);
+  background: none;
+  color: var(--muted);
+  cursor: pointer;
+  transition: background var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease),
+              transform var(--dur-fast) var(--ease);
 }
-/* Sits directly after the message, not pinned to the far edge: the Usage panel
-   is position:fixed at z-index 20 and covers the right end of this row, so a
-   right-anchored × would be unclickable whenever that panel is open. */
-/* Restart landed. Same shape, --ok instead of --warn, and it removes itself
-   after a few seconds — a confirmation that outstayed its welcome would be
-   just another thing to dismiss. */
-/* V4's banner: Done has no rule of its own on the frame; only the dot is --ok. */
-.ver-banner.done .ver-dot { background: var(--ok); box-shadow: 0 0 8px var(--ok); animation: none; }
-
-/* A note about something the reader just did, not a warning. Remove from board
-   is undoable, so its row keeps the banner's shape and drops the amber the
-   restart rows use: the dot goes quiet and Undo is an ordinary control. */
-/* V4's banner: Info is the same frame; the dot goes --muted. */
-.ver-banner.note .ver-dot { background: var(--muted); box-shadow: none; }
-
+@media (hover: hover) and (pointer: fine) {
+.ver-banner .ver-copy:hover { background: var(--line); color: var(--text); }
+}
+.ver-banner .ver-copy:active { transform: scale(var(--press-small)); }
 /* The one action in the row. V4's banner: NOT a button — plain text in the
    accent, 12/16 weight 500, no fill, no border. The radius only shapes the
    focus ring. 24px tall is the target floor (SC 2.5.8). */
@@ -206,15 +219,17 @@
 @media (hover: hover) and (pointer: fine) {
 .ver-banner .ver-act:hover:not(:disabled) { text-decoration: underline; }
 }
+/* A phone's row is 390 wide: the message wraps to a second line (the dismiss
+   stays pinned, the action stays one line) instead of pushing the page sideways. */
+.ver-banner .ver-act { white-space: nowrap; }
+@media (max-width: 640px) {
+  .ver-banner strong { white-space: normal; min-width: 0; }
+}
 /* The most consequential control in the deck — it restarts the process — sat in
-   a banner where .ver-cmd, .ver-auto and .ver-close all answered a press and it
+   a banner where .ver-copy, .ver-auto and .ver-close all answered a press and it
    alone did not. */
 .ver-banner .ver-act:active:not(:disabled) { transform: scale(var(--press)); }
 .ver-banner .ver-act:disabled { opacity: var(--dim-off); cursor: default; }
-/* A failed install is not a warning, it is a failure, and the command beside it
-   is now the only way forward — so it reads in the error colour. */
-.ver-banner .ver-sub.fail { color: var(--err); }
-
 /* Reads as a sentence continuing the button: "Restart now · auto when idle".
    The switch is the shared one (#886), where this was a pill with a dot in it,
    and the word beside it still carries the state — `off` against `when idle` /
@@ -243,7 +258,7 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  margin-left: 2px;
+  margin-left: auto; /* pinned at the strip's right edge, not following the text */
   flex: none;
   width: 24px; height: 24px;
   padding: 0;
@@ -252,8 +267,6 @@
   background: none;
   color: var(--muted);
   font: inherit;
-  font-size: calc(14px + var(--ui-text-increase, 0px));
-  line-height: 1;
   cursor: pointer;
   transition: background var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease),
               transform var(--dur-fast) var(--ease);

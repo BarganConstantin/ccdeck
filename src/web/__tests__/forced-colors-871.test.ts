@@ -38,7 +38,7 @@ const opts = (sel: string) => /forced-color-adjust:\s*none/.test(bodyOf(sel));
 const RESTING_WORDED = [
   ".topbar .status .pill.paused::before",
   ".topbar .status .pill.dead::before",
-  ".conn-banner .conn-dot",
+  // CHANGED ON PURPOSE (V4's Figma): the lost-connection mark is a stroked kit icon in currentColor, which a Contrast theme repaints in the text colour by itself, so there is no dot rule left to redraw.
   ".waiting-dot",
   ".ap-dot",
 ];

@@ -78,8 +78,15 @@ describe("the version banner's dismiss control", () => {
     expect(px("height")).toBeGreaterThanOrEqual(24);
   });
 
-  it("keeps the x at the size it was drawn, so only the hit area grew", () => {
-    expect(px("font-size")).toBe(14);
+  // CHANGED ON PURPOSE (V4's Figma): the cross is the kit's 14px close icon, not a typed x, so the
+  // glyph's size is the icon's own and no font-size is left to hold.
+  it("keeps the cross at the size it was drawn, so only the hit area grew", () => {
+    expect(banner).toMatch(/className="ver-close"[^>]*><KitIcon name="close" \/><\/button>/);
+    expect(oldNameBanner).toMatch(/className="ver-close"[^>]*><KitIcon name="close" \/><\/button>/);
+    expect(rule![1]).not.toMatch(/font-size/);
+  });
+  it("pins the dismiss at the banner's right edge, not after the text", () => {
+    expect(rule![1]).toMatch(/margin-left:\s*auto/);
   });
 
   it("strips the chrome the element brings and the span did not", () => {

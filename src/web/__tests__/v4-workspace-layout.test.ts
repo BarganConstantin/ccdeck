@@ -114,7 +114,8 @@ describe("narrower windows", () => {
     const sheet = block(css, "@media (max-width: 1319px)");
     const detail = ruleFor(sheet, '.app[data-view="workspace"] .detail').body;
     expect(decl(detail, "position")).toBe("fixed");
-    expect(decl(detail, "top")).toBe("var(--topbar-h)");
+    // CHANGED ON PURPOSE (V4's Figma): the sheet starts under the banner strip as well as the top bar, so the strip's dismiss and Copy stay reachable.
+    expect(decl(detail, "top")).toBe("calc(var(--topbar-h) + var(--rating-h, 0px))");
     // V4's Figma: one bar on the left, none on the right.
     expect(decl(detail, "right")).toBe("0");
     expect(decl(detail, "bottom")).toBe("var(--status-room)");

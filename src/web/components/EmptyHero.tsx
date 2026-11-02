@@ -19,7 +19,7 @@ function coded(text: string, codes: readonly string[]) {
   return parts.map((part, i) => (codes.includes(part) ? <code key={i}>{part}</code> : part));
 }
 
-function TerminalSymbol({ active = false }: { active?: boolean }) {
+function TerminalSymbol({ active = false, size = 32 }: { active?: boolean; size?: number }) {
   const [visible, setVisible] = useState(() => typeof document === "undefined" || !document.hidden);
   useEffect(() => {
     const changed = () => setVisible(!document.hidden);
@@ -27,7 +27,7 @@ function TerminalSymbol({ active = false }: { active?: boolean }) {
     return () => document.removeEventListener("visibilitychange", changed);
   }, []);
   return <div className="empty-symbol" aria-hidden="true" data-active={active && visible}>
-    <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="m6 8 4 4-4 4" /><path className="empty-cursor" d="M13 16h5" /></svg>
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="m6 8 4 4-4 4" /><path className="empty-cursor" d="M13 16h5" /></svg>
   </div>;
 }
 
@@ -38,8 +38,8 @@ function TerminalSymbol({ active = false }: { active?: boolean }) {
 export function TabCapHero({ reservedRight = 0 }: { reservedRight?: number }) {
   const t = useT();
   return (
-    <div className="empty-stage" style={{ right: reservedRight }}><div className="empty-hero">
-      <TerminalSymbol />
+    <div className="empty-stage" style={{ right: reservedRight }}><div className="empty-hero empty-notice">
+      <TerminalSymbol size={24} />
       <h2>{t("board.hero.tabs", { product: PRODUCT })}</h2>
       <p>{coded(t("board.hero.tabsBody", { product: PRODUCT }), [PRODUCT])}</p>
     </div></div>
@@ -53,8 +53,8 @@ export function EmptyHero({ live, everConnected, providers, workspace, onTour, r
   const t = useT();
   const offline = !live;
   return (
-    <div className="empty-stage" style={{ right: reservedRight }}><div className="empty-hero">
-      <TerminalSymbol active={live} />
+    <div className="empty-stage" style={{ right: reservedRight }}><div className={offline ? "empty-hero empty-notice" : "empty-hero"}>
+      <TerminalSymbol active={live} size={offline ? 24 : 32} />
       {offline ? (
         <>
           <h2>{everConnected ? t("board.hero.disconnected") : t("board.hero.unreachable")}</h2>

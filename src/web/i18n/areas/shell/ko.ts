@@ -207,7 +207,6 @@ const catalog: Catalog = {
   "shell.banner.cannotInstall": "여기서는 설치할 수 없습니다",
   "shell.banner.copyTitle": "클립보드에 복사",
   "shell.banner.copiedHint": "복사됨",
-  "shell.banner.copyHint": "복사",
   "shell.banner.restartedTo": "다시 시작했습니다. 현재 v{version}을(를) 실행 중입니다.",
   "shell.banner.replayed": "캔버스를 이벤트 로그에서 다시 재생했습니다.",
   "shell.banner.autoOff": "자동 다시 시작 꺼짐",

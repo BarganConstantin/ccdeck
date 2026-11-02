@@ -11,10 +11,12 @@ import type { useDeckUpgrade } from "../use-deck-upgrade";
 import type { useOldNameNotice } from "../use-old-name-notice";
 import type { useRatingAsk } from "../use-rating-ask";
 import type { useVersionCheck } from "../use-version-check";
+import BannerMark from "./BannerMark";
 import ConnectionBanner from "./ConnectionBanner";
 import OldNameBanner from "./OldNameBanner";
 import RatingBanner, { ratingThanks } from "./RatingBanner";
 import { useT } from "../i18n";
+import { StripHeight } from "../use-strip-height";
 import VersionBanner from "./VersionBanner";
 
 export default function DeckBanner({
@@ -46,7 +48,7 @@ export default function DeckBanner({
       // Outranks both: it is the shortest-lived of the three and it answers
       // the question the other two just raised.
       <div className="ver-banner done" role="status">
-        <span className="ver-dot" />
+        <BannerMark glyph="done" tone="ok" />
         <strong>{t("shell.banner.restartedTo", { version: restartedTo })}</strong>
         <span className="ver-sub">{t("shell.banner.replayed")}</span>
       </div>
@@ -76,6 +78,8 @@ export default function DeckBanner({
   return (
     <>
       {row}
+      {/* Tells the rail how tall the row above is (use-strip-height.ts). */}
+      <StripHeight />
       {/* The thanks, said. Mounted whether or not there is anything to say,
           for the reason App.tsx's removal notice is (#372): words that arrive
           with their region are the ones screen readers drop, and the thanks

@@ -7,6 +7,7 @@
 // says.
 import { PRODUCT } from "../brand";
 import { UnreachableGlyph } from "./action-glyphs";
+import BannerMark from "./BannerMark";
 import { outageSentence } from "../status-pill";
 import type { useAutoRestart } from "../use-auto-restart";
 import { useT } from "../i18n";
@@ -45,7 +46,7 @@ export default function ConnectionBanner({ restarting, restartMode, live, paused
   }
   return (
     <div className="conn-banner" role="alert">
-      <span className="conn-dot" />
+      <BannerMark glyph="unreachable" tone="err" />
       {restarting
         ? restartMode === "npx"
           ? t("shell.banner.fetchingNpx")

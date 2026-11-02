@@ -1,11 +1,10 @@
 /* ---------------- the one question (RatingBanner.tsx) ----------------
-   "How useful is ccdeck to you?", in the banner slot under the topbar, in the
-   shape of the version banner's calm `note`: the row, the dot, the "Not now"
-   button and the × are .ver-banner's own (search-and-banners.css). What is
-   new is the scale — eleven numbered buttons, each a 24px square, the floor
-   SC 2.5.8 sets, laid edge to edge with 2px between them so the row reads as
-   one control rather than eleven. The row wraps rather than overflowing: at
-   390px the question takes a line and the scale the next. */
+   "How useful is ccdeck to you?", in the banner slot under the topbar (V4's
+   Figma, Rating ask): a 40px row with no mark, the question at 12/500, eleven
+   outlined pills, what the two ends mean, and an outlined "Not now" at the
+   right edge. The row and the thanks that follows it are .ver-banner's own
+   (search-and-banners.css). The row wraps rather than overflowing: at 390px
+   the question takes a line and the scale the next. */
 .ver-banner.rating-banner {
   flex-wrap: wrap;
   row-gap: 6px;
@@ -24,27 +23,40 @@
   gap: 2px;
   min-width: 0;
 }
+.ver-banner.rating-ask {
+  min-height: 40px;
+  padding: 6px 12px;
+  column-gap: 12px;
+  border-bottom: 0;
+}
+.rating-ask > strong { font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: 16px; font-weight: 500; }
 .rating-banner .rating-pick {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 24px;
+  box-sizing: border-box;
+  width: 23px;
   height: 24px;
   padding: 0;
   border: 1px solid var(--ctl-edge);
-  border-radius: 6px;
-  background: var(--ctl-fill);
-  color: var(--text);
+  border-radius: var(--r-pill);
+  background: none;
+  color: var(--text-secondary);
   font: inherit;
-  font-size: calc(11px + var(--ui-text-increase, 0px));
-  font-weight: 600;
+  font-size: calc(12px + var(--ui-text-increase, 0px));
+  line-height: 16px;
+  font-weight: 400;
   font-variant-numeric: tabular-nums;
   cursor: pointer;
   transition: background var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease),
               transform var(--dur-fast) var(--ease);
 }
+/* The outline is --ctl-edge rather than the --line V4 draws: --line on the
+   banner's --panel is about 1.2:1, and a control's boundary has to clear 3:1
+   (control-edges.test.ts). Same weight, radius and size. */
+.rating-banner .rating-pick.ten { width: 30px; }
 @media (hover: hover) and (pointer: fine) {
-.rating-banner .rating-pick:hover { border-color: var(--text); background: var(--panel); }
+.rating-banner .rating-pick:hover { border-color: var(--text); color: var(--text); }
 }
 .rating-banner .rating-pick:active { transform: scale(var(--press-small)); }
 /* Its press switches off under reduced motion with every other one, in the one
@@ -52,7 +64,30 @@
    the theme's own colour, so each number stays a separate target there too. */
 /* What the two ends mean, for the eye; each end's button says it to a screen
    reader in its own name. The first thing to go when the row is short of room. */
-.rating-banner .rating-ends { font-size: calc(11px + var(--ui-text-increase, 0px)); }
+.rating-banner .rating-ends { font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: 16px; }
+/* "Not now": an outlined button from the kit, 28 high, at the row's right edge. */
+.rating-banner .rating-later {
+  margin-left: auto;
+  flex: none;
+  box-sizing: border-box;
+  height: 28px;
+  padding: 4px 12px;
+  border: 1px solid var(--ctl-edge);
+  border-radius: 8px;
+  background: none;
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: calc(13px + var(--ui-text-increase, 0px));
+  line-height: 20px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: border-color var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease),
+              transform var(--dur-fast) var(--ease);
+}
+@media (hover: hover) and (pointer: fine) {
+.rating-banner .rating-later:hover { border-color: var(--text); color: var(--text); }
+}
+.rating-banner .rating-later:active { transform: scale(var(--press)); }
 
 /* THE ROW SPANS THE WINDOW, AND EVERYTHING DOCKED STARTS UNDER IT. The usage
    and machine panels are fixed over the right end of the strip, 280px each
@@ -70,9 +105,8 @@
    it is moved by the row's own height, which RatingBanner.tsx writes as
    --rating-h, and gives the same height back at its foot. Nothing covers the
    row at any width, and nothing it holds can widen the page. */
-.app .ver-banner.rating-banner { grid-column: 1 / -1; }
-.app:has(.rating-banner) :is(.left-column, .detail) { grid-row: 3 / -1; }
-.app:has(.rating-banner) :is(.usage-panel, .sysdetail) {
+.app:has(.banner-mark, .rating-banner) :is(.left-column, .detail) { grid-row: 3 / -1; }
+.app:has(.banner-mark, .rating-banner) :is(.usage-panel, .sysdetail) {
   top: calc(var(--topbar-h) + 8px + var(--rating-h, 0px));
   max-height: calc(100vh - var(--topbar-h) - 24px - var(--status-room, 0px) - var(--rating-h, 0px));
 }
@@ -89,25 +123,31 @@
    usage panel gives its height back so the pair stays stacked. The machine
    panel keeps the foot of the window. */
 @media (max-width: 640px) {
-  .ver-banner.rating-banner:has(> .rating-scale),
+  .ver-banner.rating-banner:has(> .rating-scale) {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+      "ask  end"
+      "next next";
+  }
   .ver-banner.rating-banner:has(> .ver-act + .ver-close) {
     display: grid;
-    grid-template-columns: 7px minmax(0, 1fr) auto;
+    grid-template-columns: 14px minmax(0, 1fr) auto;
     grid-template-areas:
-      "dot ask  end"
-      ".   next next";
+      "mark ask  end"
+      ".    next next";
   }
-  .rating-banner > .ver-dot { grid-area: dot; }
+  .rating-banner > .banner-mark { grid-area: mark; }
   .rating-banner > strong { grid-area: ask; }
-  .rating-banner > :is(.ver-act, .ver-close) { grid-area: end; }
+  .rating-banner > :is(.ver-act, .ver-close, .rating-later) { grid-area: end; }
   .rating-banner > .rating-scale { grid-area: next; }
   .rating-banner > .ver-act:has(+ .ver-close) { grid-area: next; justify-self: start; }
   .rating-banner .rating-ends { display: none; }
 
   /* Clear of the dock as well as the question (edge-rails.css). */
-  .app:has(.rating-banner) .usage-panel { max-height: calc(50vh - 38px - var(--dock-h) / 2 - var(--rating-h, 0px)); }
-  .app:has(.rating-banner) .sysdetail { top: auto; max-height: calc(50vh - 38px - var(--dock-h) / 2); }
-  .app:has(.rating-banner) .detail { top: calc(var(--topbar-h) + var(--rating-h, 0px)); }
+  .app:has(.banner-mark, .rating-banner) .usage-panel { max-height: calc(50vh - 38px - var(--dock-h) / 2 - var(--rating-h, 0px)); }
+  .app:has(.banner-mark, .rating-banner) .sysdetail { top: auto; max-height: calc(50vh - 38px - var(--dock-h) / 2); }
+  .app:has(.banner-mark, .rating-banner) .detail { top: calc(var(--topbar-h) + var(--rating-h, 0px)); }
 }
 
 /* A fingertip gets the 32px the rest of the deck's small targets grow to under
