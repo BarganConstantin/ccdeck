@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { mount, flush } from './fake-react';
+import { mount, flush, one } from './fake-react';
 import { openOthers, rowOf, rowText } from './codex-panel-helpers';
 vi.mock('react', async () => (await import('./fake-react')).react);
 const { default: CodexProfilesSection } = await import('../components/CodexProfilesSection');
@@ -7,6 +7,24 @@ let cleanup: (() => void) | undefined;
 afterEach(() => { cleanup?.(); vi.unstubAllGlobals(); });
 
 describe('Codex default selection controls', () => {
+  it('clears a failed native-switch warning when the server later confirms that same account', async () => {
+    let selected = false, recovered = false;
+    vi.stubGlobal('fetch', vi.fn(async (url: string) => {
+      const live = { state: recovered ? 'applied' : 'failed', profileId: recovered ? 'b' : 'a', requestedProfileId: 'b' };
+      if (url === '/api/codex-profile-select') { selected = true; return { ok: true, json: async () => ({ ok: true, live }) }; }
+      if (url.startsWith('/api/codex-profile-quota')) return { ok: false, json: async () => ({}) };
+      return { ok: true, json: async () => ({ profiles: [
+        { id: 'a', label: 'Personal', active: !selected, signedInFilePresent: true },
+        { id: 'b', label: 'Work', active: selected, signedInFilePresent: true },
+      ], ...(selected ? { live } : {}) }) };
+    }));
+    const view = mount(() => CodexProfilesSection()); cleanup = view.unmount; await flush(); openOthers(view);
+    (rowOf(view, 'Work')!.props.onSwitch as (n: number, name: string) => void)(2, 'Work'); await flush();
+    expect(rowText(rowOf(view, 'Work')!)).toContain('open Codex app could not switch');
+    recovered = true;
+    (one(view.tree, n => String(n.props.className).includes('ap-refresh'))!.props.onClick as () => void)(); await flush();
+    expect(rowText(rowOf(view, 'Work')!)).not.toContain('open Codex app could not switch');
+  });
   it.each([undefined, 'applied', 'failed', 'waiting', 'manual_required'])('guards duplicate activation and reports native switch state %s', async liveState => {
     let switched = false, writes = 0;
     let answer!: () => void;

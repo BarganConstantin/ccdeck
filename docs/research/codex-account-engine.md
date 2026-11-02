@@ -299,3 +299,26 @@ Strict preservation of simultaneous frontend cancellation needs frontend
 cooperation. The adapter checks observed changes and never claims exactly-once
 execution for unacknowledged requests. Initial snapshots may not establish every
 older background process; no process is killed or restarted by this adapter.
+
+### Shared daemon acceptance with an empty native conversation
+
+A later real-app test found a case absent from the isolated initial acceptance:
+an opened, idle conversation with no first message makes `thread/turns/list`
+reject with the native not-materialized error. The RPC adapter recognizes only
+that exact error on that read method. The coordinator rechecks that thread's
+idle state before ignoring the missing history; other errors and concurrent
+activity still block switching. A regression captured the original failure.
+
+Existing follow-up messages no longer make a working turn permanently unsafe.
+The coordinator retains their IDs and checks that the same inputs remain at
+handoff boundaries, including immediately before Continue. It does not copy
+message content into its journal. The continuation honors the latest recorded
+instructions and does not ask to repeat completed actions.
+
+Acceptance on the owner's actual shared daemon then switched the current
+application conversation and automatically began its continuation on the
+requested second account. Native reads confirmed the same thread, an interrupted
+prior turn, no new network-revocation error and unchanged source auth files.
+The empty native conversation stayed idle. The test preview was detached from
+the conversation's command lifecycle, since a permanently running preview
+command otherwise correctly prevents a tool-safe handoff.

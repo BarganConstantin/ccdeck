@@ -79,7 +79,7 @@ export default function CodexProfilesSection({ onClose, switcher, onNotice }: {
   const revision = useRef(0);
   const [reloading, setReloading] = useState(false);
   /** The refusal a press left: on its row when `row` is set, else at the foot. */
-  const [failure, setFailure] = useState<Failure | null>(null);
+  const [failure, setFailure] = useState<(Failure & { liveProfileId?: string }) | null>(null);
   /** The account a switch from this panel just landed on, said on its row. */
   const [switched, setSwitched] = useState<{ id: string; name: string; live: boolean } | null>(null);
   const [liveSelection, setLiveSelection] = useState<LiveSelection | null>(null);
@@ -159,7 +159,12 @@ export default function CodexProfilesSection({ onClose, switcher, onNotice }: {
       if (!Array.isArray(result.profiles)) throw new Error("Invalid Codex profiles response");
       if (signal?.aborted || request !== profileRequest.current) return undefined;
       setProfiles(result.profiles);
-      if (result.live) setLiveSelection(result.live);
+      if (result.live) {
+        setLiveSelection(result.live);
+        const recovered = result.live.state === 'applied' ? result.live.profileId
+          : result.live.state === 'waiting' ? result.live.requestedProfileId : null;
+        if (recovered) setFailure(previous => previous?.liveProfileId === recovered ? null : previous);
+      }
       revision.current = result.revision ?? 0;
       setError(false);
       return result.profiles;
@@ -301,7 +306,7 @@ export default function CodexProfilesSection({ onClose, switcher, onNotice }: {
       const out = await postJson("/api/codex-profile-select", { id: profile.id, expectedRevision: revision.current, operationId: crypto.randomUUID() });
       if (out.ok) {
         if (out.live) setLiveSelection(out.live);
-        if (out.live?.state === 'failed') setFailure({ text: t("codex.panel.liveSwitchFailed"), row: num });
+        if (out.live?.state === 'failed') setFailure({ text: t("codex.panel.liveSwitchFailed"), row: num, liveProfileId: profile.id });
         else setSwitched({ id: profile.id, name, live: out.live?.state === 'applied' });
       }
       else {
