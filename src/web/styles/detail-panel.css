@@ -27,12 +27,15 @@
   padding: 0 6px 0 8px;
   border-bottom: 1px solid var(--line-soft);
 }
-/* The tabs pill: a --bg-soft track, the chosen tab a --panel chip on it. */
+/* The tabs pill: a --bg-soft track, the chosen tab a --panel chip on it. 24
+   tall in all (V4's Figma): the 1px stroke sits INSIDE the frame's 2px
+   padding, so 1px of padding inside the 1px edge, not 2px outside it, which
+   measured 26. */
 .insp-tabs {
   display: flex;
   align-items: center;
   gap: 2px;
-  padding: 2px;
+  padding: 1px;
   background: var(--bg-soft);
   border: 1px solid var(--line-soft);
   border-radius: var(--r-panel);

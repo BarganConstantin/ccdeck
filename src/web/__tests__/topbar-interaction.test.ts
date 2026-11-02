@@ -332,10 +332,11 @@ describe("Pause is a canvas verb and lives on the canvas (#527's rule, applied l
     // Feedback, with Search (⌘K) ahead of both since quick open (2026-10-24).
     // Pause is in none of them, and no run is left holding nothing.
     expect(app).not.toMatch(/className="action-run/);
-    expect(app).toMatch(/<div className="actions"><UtilityRun items=\{\[rails\.search, \.\.\.rails\.utilities\]\} \/><\/div>/);
+    expect(app).toMatch(/<div className="actions"><UtilityRun items=\{\[rails\.search, \.\.\.rails\.topUtilities\]\} \/><\/div>/);
     expect(app).toMatch(/utilities: \[settings, feedback\]/);
     expect(app).toMatch(/ariaLabel: t\("board\.rail\.settings"\)/);
-    expect(app).toMatch(/<EdgeRail side="right" label=\{t\("shell\.rail\.right"\)\} groups=\{rails\.right\} \/>/);
+    // V4's Figma: the one bar holds every door, Radio and Settings at its foot.
+    expect(app).toMatch(/<EdgeRail label=\{t\("board\.rail\.tools"\)\} groups=\{rails\.panelBar\} foot=\{rails\.panelFoot\} \/>/);
     expect(app).toMatch(/ariaLabel: t\("board\.rail\.usage"\)/);
     expect(app).not.toMatch(/Sound settings/);
     expect(app, "Pause came back as a chrome control").not.toMatch(/id: "pause"|ariaLabel: "Pause/);

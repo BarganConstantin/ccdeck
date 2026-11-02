@@ -136,7 +136,8 @@ describe("the header", () => {
   it("holds the tabs in a --bg-soft pill: 1px --line-soft, padding 2, gap 2, --r-panel", () => {
     expect(decl(".insp-tabs", "background")).toBe("var(--bg-soft)");
     expect(decl(".insp-tabs", "border")).toBe("1px solid var(--line-soft)");
-    expect(decl(".insp-tabs", "padding")).toBe("2px");
+    // 1px inside the 1px edge = the frame's 2px padding with the stroke inside it.
+    expect(decl(".insp-tabs", "padding")).toBe("1px");
     expect(decl(".insp-tabs", "gap")).toBe("2px");
     expect(decl(".insp-tabs", "border-radius")).toBe("var(--r-panel)");
   });
@@ -301,7 +302,8 @@ describe("the column's width is written once", () => {
     expect(checked).toBeGreaterThanOrEqual(5);
   });
   it("--rail-r and the narrow band read the token, plus the gap and the stripe for the rail", () => {
-    expect(decl(".app", "--rail-r")).toBe("calc(var(--inspector-w) + 8px + var(--edge-w))");
+    // V4's Figma: no right bar, so the rail starts at the window's edge.
+    expect(decl(".app", "--rail-r")).toBe("calc(var(--inspector-w) + 8px)");
     expect(decl(".app:has(.left-column)", "grid-template-columns", "(max-width: 647px)")).toBe("auto 1fr minmax(0, var(--inspector-w))");
   });
   it("is 360px at Default and 320px at Compact", () => {

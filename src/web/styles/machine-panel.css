@@ -12,7 +12,7 @@
   top: calc(var(--topbar-h) + 8px);
   right: var(--rail-r);  /* the usage panel's slot, when usage is not using it */
   z-index: 20;
-  width: calc(280px + var(--ui-panel-increase, 0px));  /* the usage panel's width, so the rail reads as one system */
+  width: calc(320px + var(--ui-panel-increase, 0px));  /* the usage panel's width, so the rail reads as one system */
   max-height: calc(100vh - var(--topbar-h) - 24px - var(--status-room, 0px));
   overflow-y: auto;
   /* Named so the one thing inside that has to bleed PAST it can be derived
@@ -47,15 +47,16 @@
    own token instead of a number: the column is 320px at Compact and 360px at
    Default (reading.css, tokens.css), and the 368 this line wrote was the
    Default one, 40px too far at the density the app starts in.
-   Both offsets are measured from the window's edge, so both carry the right
-   stripe's width (edge-rails.css): the rail starts inside it. */
-.app { --rail-r: calc(var(--inspector-w) + 8px + var(--edge-w)); }
-.app:not(:has(.detail)) { --rail-r: calc(8px + var(--edge-w)); }
+   Both offsets are measured from the window's edge. There is no right bar
+   (edge-rails.css), so neither carries one's width: the rail starts at the
+   window's right edge. */
+.app { --rail-r: calc(var(--inspector-w) + 8px); }
+.app:not(:has(.detail)) { --rail-r: 8px; }
 
 /* One panel further left: the rail's own offset, plus usage's width, plus the
    gap. Eight was too tight to read as two things; twenty separates them
    without opening a corridor. */
-.sysdetail.shifted { right: calc(var(--rail-r) + 280px + var(--ui-panel-increase, 0px) + 20px); }
+.sysdetail.shifted { right: calc(var(--rail-r) + 320px + var(--ui-panel-increase, 0px) + 20px); }
 
 /* THE TWO RAIL PANELS STAY SIDE BY SIDE, over the canvas, as they were before
    #847: the owner chose that on 2026-09-14 after seeing them stacked in one

@@ -72,10 +72,9 @@
   .glyph-btn:active:not(:disabled):not(:focus-visible),
   .react-flow__controls-button:active:not(:disabled):not([aria-disabled="true"]):not(:focus-visible),
   .cat-filter:active, .uh-range-btn:active,
-  .selected-ribbon .selected-close:active,
   .ver-banner .ver-cmd:active,
   .ver-banner .ver-close:active,
-  .topbar .brand button.v:active,
+  .topbar button.v:active,
   .ver-banner .ver-act:active:not(:disabled),
   .rating-banner .rating-pick:active,
   .ctx-donut:active,
@@ -103,14 +102,8 @@
      the commands it runs in the detail panel (#2193). */
   .agent-node .stop-continue:active:not(:disabled), .detail-continue-how > summary:active,
   .bw-settings select:active:not(:disabled) { transform: none; }
-  /* Two that cannot join the list above, for two different reasons.
-     The ribbon's selector carries `:has()`, and one selector a browser cannot
-     parse invalidates the whole list it sits in — put it there and an engine
-     without `:has()` would lose reduced motion for every press in the app, not
-     just this one. On its own it fails exactly as far as the rule it answers.
-     The bubble's press is the independent `scale` property, so `transform:
-     none` never reaches it. */
-  .selected-ribbon:active:not(:has(.selected-close:active)) { transform: none; }
+  /* One that cannot join the list above: the bubble's press is the independent
+     `scale` property, so `transform: none` never reaches it. */
   .tool-burst.clickable:active { scale: none; }
   /* The chevron's rotation is a state, not an entrance: it still turns, it
      just stops travelling. `transform: none` would have frozen it pointing

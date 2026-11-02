@@ -26,6 +26,7 @@
 import { describe, expect, it } from "vitest";
 import { cascade, el, selects, type El } from "./sheet-cascade";
 import { sourceOf } from "./client-source";
+import { sheetText } from "./sheet-source";
 
 /** The kit's small mark, drawn 19px wide at its 16px height (TopbarReadouts.tsx). */
 const MARK_PX = 19;
@@ -62,7 +63,6 @@ function barAt(width: number) {
     inline: pad[1] + pad[3],
     gap: px(at([bar, readout], "gap", width)),
     word: at([bar, readout, el("button", ["waiting-stat"]), el("span", ["ws-word"])], "display", width) !== "none",
-    ribbon: at([el("div", ["app"]), bar, el("button", ["selected-ribbon"])], "display", width) !== "none",
   };
 }
 
@@ -84,19 +84,24 @@ describe("the topbar at a phone's width", () => {
       const count = WAITING_COUNT_PX + DIGIT_PX;
       expect(b.inline + MARK_PX + b.gap + PAUSED_PILL_PX + b.gap + count, `at ${w}px`).toBeLessThanOrEqual(w);
     });
-
-    it(`leaves no selection ribbon to take the count's room at ${w}px`, () => {
-      expect(barAt(w).ribbon).toBe(false);
-    });
   }
+
+  it("has no selection ribbon at any width to take the count's room", () => {
+    // The ribbon left the phone's bar at 640 (#1790) and then every bar (V4's
+    // Figma): the Inspector names the selected session.
+    expect(sourceOf("App.tsx")).not.toContain("SelectedRibbon");
+  });
 
   it("draws no control on the bar under 641px: the dock holds them all, and the queue's names stay off it", () => {
     // App.tsx mounts the topbar's utilities and the waiting queue's names only
     // above a phone's width, and the dock below it — the swap
     // edge-dock-phone.test.ts holds to the sheet's own breakpoint.
     const app = sourceOf("App.tsx");
-    expect(app).toMatch(/\{!phone && <div className="actions"><UtilityRun items=\{\[rails\.search, \.\.\.rails\.utilities\]\} \/><\/div>\}/);
-    expect(app).toMatch(/\{!phone && \(\s*<WaitingNames\b/);
+    expect(app).toMatch(/\{!phone && <div className="actions"><UtilityRun items=\{\[rails\.search, \.\.\.rails\.topUtilities\]\} \/><\/div>\}/);
+    expect(app).not.toContain("WaitingNames");
+    // The queue is the waiting pill's popover now; on a phone the working and
+    // done pills and the pill at 0 (the spans) stay off the bar.
+    expect(sheetText()).toMatch(/\.topbar \.counts span\.count-pill \{ display: none; \}/);
     expect(app).toMatch(/\{phone\s*\?\s*<EdgeDock\b/);
     expect(app).not.toMatch(/TopbarMore|tb-more|tb-fold/);
   });

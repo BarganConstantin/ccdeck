@@ -27,7 +27,6 @@
 @import "./styles/desktop-titlebar.css";
 @import "./styles/topbar.css";                   /* the topbar, the update-ready notice, the worded buttons */
 @import "./styles/menus.css";                    /* the sound and appearance menus, and the switch */
-@import "./styles/selection-ribbon.css";         /* the selected-agent ribbon */
 @import "./styles/topbar-status.css";            /* the topbar's status strip and the ribbon's caps */
 @import "./styles/machine-panel.css";            /* the machine panel */
 @import "./styles/traffic-radar.css";

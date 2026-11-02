@@ -418,6 +418,9 @@ describe("what was migrated to the secondary tier", () => {
       // highlight and evidence terms, the project context's heading, the prompt
       // filter, the JSON search and its placeholder on --ctl-fill, the JSON
       // tree's controls, and the history toolbar's line and buttons.
+      // The top bar's working and done counts (V4's Figma): the word after the
+      // figure is "text-secondary", 12/16 on --panel, the prose beside a number.
+      ".topbar .count-pill",
       ".tr-content-evidence dt",
       ".tr-highlights dt",
       ".tr-history-toolbar .btn",

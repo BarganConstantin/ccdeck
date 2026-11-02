@@ -423,7 +423,7 @@ describe("the keys bar", () => {
     // (Figma Keys bar), where it was 0 4px.
     expect(stage).not.toContain("ts-kbd");
     expect(stage).not.toContain(".ts-bar .kbd");
-    expect(read("styles/status-bar.css")).toMatch(/\.kbd \{[^}]*padding: 1px 5px/);
+    expect(read("styles/status-bar.css")).toMatch(/\.kbd \{[^}]*padding: 0 4px/);
   });
 
   it("leads no bar with a glyph: the label says who has the keys", () => {

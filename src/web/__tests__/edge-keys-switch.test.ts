@@ -87,14 +87,13 @@ describe("with the switch on", () => {
     }
   });
 
-  it("names W on the waiting count, and L on the queue's \"+N more\"", () => {
+  it("names W on the waiting count", () => {
     expect(attr(count(), "aria-keyshortcuts")).toBe("W");
-    // "+N more" is drawn only once the queue has measured what fits, which a
-    // static render cannot; its two halves are read from the source.
+    // V4's top bar: the queue's "+N more" is gone (the popover lists every
+    // waiting session), so only the pill's own hint names a key.
     const readouts = sourceOf("components/TopbarReadouts.tsx");
-    expect(readouts).toMatch(/className="wait-more"[\s\S]{0,200}?aria-keyshortcuts=\{singleKeys \? "L" : undefined\}/);
-    expect(readouts).toMatch(/label: t\("board\.queue\.openList"\),\s*keys: singleKeys \? "L" : undefined,/);
-    expect(readouts).toMatch(/label: t\("board\.queue\.longest"\),\s*keys: singleKeys \? "W" : undefined,/);
+    expect(readouts).not.toContain("wait-more");
+    expect(readouts).toMatch(/keys: singleKeys \? "W" : undefined/);
   });
 });
 

@@ -71,6 +71,17 @@ interface Shown {
   instant: boolean;
 }
 
+/** The box a hint is placed against: the control's, except for a door of the
+ *  Panel bar (V4's Figma), whose tooltip stands 8px off the BAR's right edge,
+ *  centred on its own door, so it never covers the door or the bar. */
+function anchorOf(side: HintSide, el: HTMLElement): DOMRect {
+  const box = el.getBoundingClientRect();
+  const bar = side === "right" ? el.closest?.(".edge-rail") : null;
+  if (!bar) return box;
+  const edge = bar.getBoundingClientRect();
+  return new DOMRect(box.left, box.top, edge.right - box.left, box.height);
+}
+
 /** Where the hint goes against its control, kept inside the window — and
  *  across, inside the dialog it belongs to, when it has one: a hint over the
  *  end of What's new's strip hung off the dialog onto the scrim. */
@@ -116,11 +127,11 @@ export function useHint(side: HintSide, layer: HintLayer = "chrome") {
       if (current && current !== hide) current();
       current = hide;
       const within = layer === "dialog" ? el.closest('[role="dialog"]')?.getBoundingClientRect() ?? null : null;
-      setShown({ spec, box: el.getBoundingClientRect(), within, instant });
+      setShown({ spec, box: anchorOf(side, el), within, instant });
     };
     if (now || instant) reveal();
     else showTimer.current = window.setTimeout(reveal, FIRST_HINT_DELAY_MS);
-  }, [hide, layer]);
+  }, [hide, layer, side]);
 
   const leave = useCallback(() => {
     window.clearTimeout(showTimer.current);

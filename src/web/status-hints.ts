@@ -38,9 +38,15 @@ export interface StatusHint {
    *  card's (canvas-keys.ts, "activate"), and with focus anywhere else no
    *  handler answers it. */
   onCard?: true;
+  /** Only while the keyboard is NOT on a card: on a card Space is the card's
+   *  own (canvas-keys.ts, "activate"), so it pauses nothing there. */
+  offCard?: true;
   /** Only while the board is zoomed out past the detail distance: a peek never
    *  opens where the card already says it all (SessionPeek), by key or hover. */
   zoomedOut?: true;
+  /** Only while a session waits on an answer: with an empty queue the key
+   *  goes nowhere (nextWaiting, and the stage's next ask, find nothing). */
+  waiting?: true;
 }
 
 export type StatusLayer = "board" | "deck" | "terminal";
@@ -50,12 +56,14 @@ const ENTER = cap("↵", "Enter");
 
 /** The board's layer. Figma's last item here, Ctrl + backtick → workspace, is added
  *  by statusViewFor only where the chord works (the Command Panel is on): the
- *  bar names only keys that work. */
+ *  bar names only keys that work. Space → pause is the keyboard sheet's, which
+ *  the frame leaves out; it goes before the chord. */
 export const BOARD_HINTS: readonly StatusHint[] = [
   { caps: [cap("j"), cap("k")], word: "cards", binds: ["j", "k"] },
   { caps: [ENTER], word: "select", binds: ["Enter"], onCard: true },
   { caps: [cap("p")], word: "peek", binds: ["p"], zoomedOut: true },
-  { caps: [cap("n")], word: "next waiting", binds: ["n"] },
+  { caps: [cap("n")], word: "next waiting", binds: ["n"], waiting: true },
+  { caps: [cap("Space")], word: "pause", binds: [" "], offCard: true },
 ];
 
 /** The deck's layer (the stage open, the board around it with the keys). No
@@ -66,7 +74,7 @@ export const BOARD_HINTS: readonly StatusHint[] = [
 export const DECK_HINTS: readonly StatusHint[] = [
   { caps: [cap("j"), cap("k")], word: "sessions", binds: ["j", "k"] },
   { caps: [ENTER], word: "open and type", binds: ["Enter"] },
-  { caps: [cap("n")], word: "next waiting", binds: ["n"] },
+  { caps: [cap("n")], word: "next waiting", binds: ["n"], waiting: true },
 ];
 
 export const BOARD_LABEL = "Keys on the board";
@@ -97,30 +105,37 @@ export interface StatusInput {
    *  from the Board, "board" from Workspace. Null or left out where the
    *  Command Panel is off (or on a phone), and the bar names no such key. */
   viewChord?: "workspace" | "board" | null;
+  /** A session waits on an answer (blockedSessions, the queue n walks). Left
+   *  out, the bar takes it that one does, as it did before it was told. */
+  waiting?: boolean;
 }
 
 /** The layer, its label and the hints that work with focus and the switch as
  *  they stand. Focus in a pane is the terminal's layer whatever the stage's
  *  phase: the handler gives a pane every key while it holds focus, closing
  *  included (use-deck-shortcuts.ts, inTerminalPanel). */
-export function statusViewFor({ stageOpen, pane, onCard, zoomedOut, singleKeys, platform, viewChord = null }: StatusInput): StatusView {
+export function statusViewFor({ stageOpen, pane, onCard, zoomedOut, singleKeys, platform, viewChord = null, waiting = true }: StatusInput): StatusView {
+  // Ctrl + backtick, last, a chord: it stays with the single keys off. The
+  // pane catches it too (terminal-keys.ts answers "view" before the session
+  // sees it), so the terminal layer names it after the release chord.
+  const view: readonly StatusHint[] = viewChord ? [{ caps: [cap(VIEW_CHORD_LABEL, VIEW_CHORD_SPOKEN)], word: viewChord, binds: [] }] : [];
   if (pane != null) {
     return {
       layer: "terminal",
       label: `Keys in ${pane || "the session"}`,
       // A chord, so it stays with the single keys off.
-      hints: [{ caps: [cap(releaseChordLabel(platform), RELEASE_CHORD_SPOKEN)], word: TERMINAL_WORD, binds: [] }],
+      hints: [{ caps: [cap(releaseChordLabel(platform), RELEASE_CHORD_SPOKEN)], word: TERMINAL_WORD, binds: [] }, ...view],
     };
   }
   const deck = stageOpen;
   const table = deck ? DECK_HINTS : BOARD_HINTS;
-  // Ctrl + backtick, last, a chord: it stays with the single keys off.
-  const view: readonly StatusHint[] = viewChord ? [{ caps: [cap(VIEW_CHORD_LABEL, VIEW_CHORD_SPOKEN)], word: viewChord, binds: [] }] : [];
   return {
     layer: deck ? "deck" : "board",
     label: deck ? DECK_LABEL : BOARD_LABEL,
     hints: [
-      ...table.filter(h => (singleKeys || !h.binds.some(isCharacterKey)) && (onCard || !h.onCard) && (zoomedOut || !h.zoomedOut)),
+      ...table.filter(h => (singleKeys || !h.binds.some(isCharacterKey))
+        && (onCard || !h.onCard) && (!onCard || !h.offCard)
+        && (zoomedOut || !h.zoomedOut) && (waiting || !h.waiting)),
       ...view,
     ],
   };

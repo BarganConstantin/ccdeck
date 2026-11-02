@@ -56,9 +56,9 @@ const rails = railItems({
   setUsageHistoryOpen: noop, watchOn: false, watchUnseen: 0, setBrowserWatchOpen: noop,
   openSettings: noop, onFeedback: noop, toggles: { sessionList: ref(), usage: ref(), accounts: ref(), machine: ref() },
 });
-const left = renderToStaticMarkup(createElement(EdgeRail, { side: "left", label: "Left column", groups: rails.leftStripe }));
-const right = renderToStaticMarkup(createElement(EdgeRail, { side: "right", label: "Right panels", groups: rails.right }));
-const corner = renderToStaticMarkup(createElement(UtilityRun, { items: rails.utilities }));
+// V4's Panel bar: one bar holds every door and Settings at its foot.
+const left = renderToStaticMarkup(createElement(EdgeRail, { label: "Panels and tools", groups: rails.panelBar, foot: rails.panelFoot }));
+const corner = renderToStaticMarkup(createElement(UtilityRun, { items: rails.topUtilities }));
 const dock = renderToStaticMarkup(createElement(EdgeDock, {
   items: [...rails.left, ...rails.right[0], rails.utilities[0]], more: [...rails.right.slice(1).flat(), rails.utilities[1]],
 }));
@@ -73,9 +73,9 @@ function buttons(html: string): Array<{ name: string; word: string }> {
 
 // Each word, and the accessible name it has to be found in (2.5.3).
 const WORDS: Array<[word: string, name: string]> = [
-  // Accounts first on the left stripe since 2026-10-08, the owner's order.
-  ["Accounts", "Accounts"],
+  // Sessions first on the Panel bar (V4's Figma), Settings at its foot.
   ["Session list", "Session list"],
+  ["Accounts", "Accounts"],
   ["Usage", "Usage"],
   ["Machine", "Machine"],
   ["Usage history", "Usage history"],
@@ -85,12 +85,14 @@ const WORDS: Array<[word: string, name: string]> = [
 ];
 
 describe("every control in the chrome says its name (#836)", () => {
-  const drawn = [...buttons(left), ...buttons(right), ...buttons(corner)];
+  const drawn = [...buttons(left), ...buttons(corner)];
 
   it("names every control and keeps visible words on the topbar", () => {
     expect(drawn.map(b => b.name)).toEqual(WORDS.map(([, name]) => name));
-    expect([...buttons(left), ...buttons(right)].every(b => b.word === "")).toBe(true);
-    expect(buttons(corner).map(b => b.word)).toEqual(["Settings", "Feedback"]);
+    expect(buttons(left).every(b => b.word === "")).toBe(true);
+    // V4's Figma draws Feedback as a bare 28x28 icon: its word is the hint's and
+    // the name's ("Send feedback"), not a visible one.
+    expect(buttons(corner).map(b => b.word)).toEqual([""]);
     for (const { word, name } of drawn) {
       // The word is part of the name, so voice control can say what the eye reads.
       expect(name.toLowerCase(), word).toContain(word.toLowerCase());
@@ -108,9 +110,9 @@ describe("every control in the chrome says its name (#836)", () => {
     expect(hiders.map(([sel]) => sel.trim())).toEqual([]);
     // Drawn on the stripes and in the corner whenever the window is not a
     // phone's — the dock takes over there, in the same breakpoint.
-    expect(app).toMatch(/\{!phone && <div className="actions"><UtilityRun items=\{\[rails\.search, \.\.\.rails\.utilities\]\} \/><\/div>\}/);
-    expect(app).toMatch(/: <EdgeRail side="left" label=\{t\("shell.rail.left"\)\} groups=\{\[\.\.\.rails\.leftStripe, rails\.integrations, rails\.explore\]\} \/>\}/);
-    expect(app).toMatch(/\{!phone && <EdgeRail side="right" label=\{t\("shell.rail.right"\)\} groups=\{rails\.right\} \/>\}/);
+    expect(app).toMatch(/\{!phone && <div className="actions"><UtilityRun items=\{\[rails\.search, \.\.\.rails\.topUtilities\]\} \/><\/div>\}/);
+    expect(app).toMatch(/: <EdgeRail label=\{t\("board\.rail\.tools"\)\} groups=\{rails\.panelBar\} foot=\{rails\.panelFoot\} \/>\}/);
+    expect(app).not.toContain("<EdgeRail side=");
   });
 
   it("says a short word under each glyph in the phone's dock, and the rest by name behind More", () => {
@@ -139,13 +141,13 @@ describe("every control in the chrome says its name (#836)", () => {
     // Since 2026-10-23 both stripes follow one rule: runs of doors that answer
     // one question (rail-items.tsx), so the records and the watchers are two
     // runs, and a run of two or more is a group named for a screen reader.
-    expect(buttons(left).map(b => b.name)).toEqual(["Accounts", "Session list"]);
-    expect(buttons(right).map(b => b.name)).toEqual(["Usage", "Machine", "Usage history", "Browser watch, not watching"]);
-    expect(right.match(/<div class="rail-group"/g)).toHaveLength(3);
-    expect(right).toContain('<div class="rail-group" role="group" aria-label="Usage and machine">');
-    expect(body(".edge-rail")).toMatch(/gap: 2px;/);
+    // V4's Figma: one bar, Sessions first, Settings at the foot.
+    expect(buttons(left).map(b => b.name)).toEqual(["Session list", "Accounts", "Usage", "Machine", "Usage history", "Browser watch, not watching", "Settings"]);
+    expect(left.match(/<div class="rail-group"/g)).toHaveLength(4);
+    expect(left).toContain('<div class="rail-group" role="group" aria-label="Usage and machine">');
+    expect(body(".rail-foot") /* shares the rule with .rail-doors */).toMatch(/gap: 2px;/);
     expect(body(".rail-group")).toMatch(/gap: 2px;/);
-    expect(body(".edge-rail .rail-group + .rail-group::before")).toMatch(/width: 16px;[^}]*height: 1px;[^}]*background: var\(--line-soft\);/);
+    expect(body(".rail-doors .rail-group + .rail-group::before")).toMatch(/width: 16px;[^}]*height: 1px;[^}]*background: var\(--line-soft\);/);
   });
 });
 
@@ -193,8 +195,8 @@ describe("the chrome is quiet: no edge at rest, a neutral look under the pointer
     // chrome is one since the speaker left (2026-10-07); `.icon-btn` and its
     // pressed look left with the bar's toggles. A disclosure says
     // aria-expanded, a dialog opener aria-haspopup="dialog".
-    for (const html of [left, right, corner, dock]) expect(html).not.toMatch(/aria-pressed/);
-    expect(right).toMatch(/aria-label="Usage history"[^>]*aria-haspopup="dialog"|aria-haspopup="dialog"[^>]*aria-label="Usage history"/);
+    for (const html of [left, corner, dock]) expect(html).not.toMatch(/aria-pressed/);
+    expect(left).toMatch(/aria-label="Usage history"[^>]*aria-haspopup="dialog"|aria-haspopup="dialog"[^>]*aria-label="Usage history"/);
     expect(left).toMatch(/aria-expanded="false"/);
   });
 
@@ -225,9 +227,10 @@ describe("the bar keeps amber for the alarm", () => {
   it("keeps the alarm when the readout gives, and draws no gap for an empty strip", () => {
     // The readout clips from the left, so the wordmark goes before the chip.
     expect(body(".topbar .readout")).toMatch(/justify-content: flex-end;/);
-    expect(css).toMatch(/\.topbar \.status:empty \{ display: none; \}/);
-    // The ribbon's usual share of the bar.
-    expect(body(".selected-ribbon")).toMatch(/max-width: min\(380px, 24vw\);/);
+    // The strip is the chip's slot (ChipPresence): no element once the pill is
+    // gone, so there is no empty box to hide; and the ribbon is gone.
+    expect(css).toMatch(/\.topbar \.chip-slot > \* \{ min-width: 0; overflow: hidden; \}/);
+    expect(css).not.toContain(".selected-ribbon");
   });
 
   it("draws a newer version and the app's ready update in the accent wash, and no amber at all", () => {
@@ -236,18 +239,19 @@ describe("the bar keeps amber for the alarm", () => {
     // count, a paused stream and an incident are the bar's only amber. A newer
     // version, a ready update and the press share the --accent-16 wash with no
     // edge and --text; the dot is the accent in every state, on the live pulse.
-    const chip = body(".topbar .brand button.v:is(.stale, .ready, .v-update)");
+    const chip = body(".topbar button.v:is(.stale, .ready, .v-update)");
     expect(chip).toMatch(/background: var\(--accent-16\);/);
-    expect(chip).toMatch(/border-color: transparent;/);
+    // No stroke at all now (V4's Figma): the base rule has border: 0.
+    expect(body(".topbar button.v")).toMatch(/border: 0;/);
     expect(chip).toMatch(/color: var\(--text\);/);
     expect(chip).not.toMatch(/--warn/);
-    expect(body(".topbar .brand button.v:is(.stale, .ready, .v-update):hover")).not.toMatch(/--warn/);
-    const dot = body(".topbar .brand button.v .v-dot");
+    expect(body(".topbar button.v:is(.stale, .ready, .v-update):hover")).not.toMatch(/--warn/);
+    const dot = body(".topbar button.v .v-dot");
     expect(dot).toMatch(/background: var\(--accent\);/);
     expect(dot).not.toMatch(/--warn/);
-    // And the up-to-date chip's quiet look does not reach it.
-    expect(css).toContain(".topbar .brand button.v:not(.stale):not(.ready) {");
-    expect(css).not.toMatch(/button\.v:not\(\.stale\)(?!:not\(\.ready\))/);
+    // And there is no up-to-date chip any more (V4's Figma: the version chip
+    // only when needed), so no rule dresses one.
+    expect(css).not.toMatch(/button\.v:not\(\.stale\)/);
   });
 
   it("gives the waiting chip the readout on a narrow screen, word and all", () => {
@@ -257,12 +261,13 @@ describe("the bar keeps amber for the alarm", () => {
     expect(narrow).not.toMatch(/\.topbar \.brand h1[^{]*\{[^}]*display: none/);
     // An up-to-date version chip goes; a stale one is a warning and stays, and
     // so does the app's ready update, the one way into it from the window.
-    expect(narrow).toMatch(/\.topbar \.brand button\.v:not\(\.stale\):not\(\.ready\) \{ display: none; \}/);
+    expect(narrow).not.toMatch(/button\.v:not\(\.stale\)/);
     // The chip says its number and its word on a phone too: with every control
     // in the dock, the bar has the room for "2 waiting" whole, and nothing
     // hides the word. Its name keeps the whole sentence.
     expect(css).not.toMatch(/ws-word/);
-    expect(readouts).toMatch(/<b>\{count\}<\/b> \{t\("board\.queue\.waiting"\)\}\s*<\/button>/);
-    expect(readouts).toMatch(/aria-label=\{t\("board\.queue\.waitingForYou", \{ count \}\)\}/);
+    expect(readouts).toMatch(/<b>\{count\}<\/b>\s*<span className="count-word">\{t\("board\.queue\.waiting"\)\}<\/span>\s*<\/button>/);
+    expect(readouts).toMatch(/const waitingLabel = t\("board\.queue\.waitingForYou", \{ count \}\);/);
+    expect(readouts).toMatch(/aria-label=\{waitingLabel\}/);
   });
 });

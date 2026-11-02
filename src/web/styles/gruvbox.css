@@ -38,7 +38,6 @@
 :root[data-theme^="gruvbox-"] .detail-hero .hero-cost-value {
   color: var(--text);
 }
-:root[data-theme^="gruvbox-"] .topbar .selected-cost,
 :root[data-theme^="gruvbox-"] .up-cost-val:not(.up-unpriced),
 :root[data-theme^="gruvbox-"] .up-session-cost:not(.up-unpriced),
 :root[data-theme^="gruvbox-"] .uh-stat-val.accent,
