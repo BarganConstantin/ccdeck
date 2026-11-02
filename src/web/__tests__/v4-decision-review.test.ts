@@ -387,12 +387,13 @@ describe("layout: the empty outcome takes no row", () => {
     expect(markup).toContain('class="dc-out-empty" role="status"');
   });
 
-  it("the outcome panel is 61 high (36 + 2 + 11.5 + 11.5) and keeps --r-panel, the frame's 9 being no token", () => {
+  // Changed for V4's Figma: the outcome corner is the frame's 9, as a literal (no token).
+  it("the outcome panel is 61 high (36 + 2 + 11.5 + 11.5) and has the frame's 9 corner", () => {
     const css = bare("components/decision/decision.css");
     const at = css.indexOf("\n.dc-out {");
     const rule = css.slice(at, css.indexOf("}", at));
     expect(rule).toContain("padding: 11.5px 12px;");
-    expect(rule).toContain("border-radius: var(--r-panel);");
+    expect(rule).toContain("border-radius: 9px;");
     expect(36 + 2 + 11.5 * 2).toBe(61);
   });
 });

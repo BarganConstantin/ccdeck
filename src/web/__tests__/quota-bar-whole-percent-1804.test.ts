@@ -14,8 +14,10 @@ import QuotaBar from "../components/QuotaBar";
 import { CodexQuotaSection } from "../components/QuotaSections";
 
 const bar = (pct: number) => renderToStaticMarkup(createElement(QuotaBar, { pct, label: "x", nowSec: 0 }));
-const label = (html: string) => /class="qb-pct"[^>]*>([^<]*)</.exec(html)?.[1];
-const fill = (html: string) => Number(/qb-fill" style="transform:scaleX\(([^)]+)\)/.exec(html)?.[1]);
+// The figure sits in a crossfading wrapper span now (FadeFigure), so the text is one span in.
+const label = (html: string) => /class="qb-pct"[^>]*>(?:<span[^>]*>)*([^<]*)</.exec(html)?.[1];
+// The fill may carry data-jump (a change under a point jumps) before its style.
+const fill = (html: string) => Number(/qb-fill"(?: data-jump="true")? style="transform:scaleX\(([^)]+)\)/.exec(html)?.[1]);
 
 describe("the quota bar's percentage (#1804)", () => {
   it.each([

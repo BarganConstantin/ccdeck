@@ -562,7 +562,7 @@ describe("what each of the four toggles announces", () => {
     // The close arms the keyboard's hand-off on the way (panel-close-focus.test.ts).
     expect(app).toMatch(/onClose=\{\(\) => \{ panelReturn\.sessionList\(\); closeSessionList\(\); \}\}/);
     expect(client).toMatch(/const closeSessionList = useCallback\(\(\) => setSessionListOpen\(false\), \[\]\);/);
-    expect(sessionList).toMatch(/className="sl-close" onClick=\{onClose\}/);
+    expect(sessionList).toMatch(/className="sl-icon-btn sl-close" onClick=\{onClose\}/);
     // Escape is not a third way out and never was: this is an <aside> beside
     // the canvas, not a modal, so it registers no dismisser with modalStack and
     // the key falls through to clearing the canvas selection. Pinned so the

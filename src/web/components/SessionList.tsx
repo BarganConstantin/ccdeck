@@ -29,7 +29,10 @@ import { leaveHoldMs, useRailFlip, useRailMembership } from "../rail-motion";
 import { prefersReducedMotion } from "../viewport-motion";
 import { runningTool } from "../rail-row-copy";
 import { PauseGlyph } from "./rail-glyphs";
-import { CloseGlyph, FoldBody, GroupHead, MoreLine, RailGlyph, RailRow, RailUsage, type FoldMode } from "./RailParts";
+import { CloseGlyph, FoldBody, GroupHead, MoreLine, PlusGlyph, RailGlyph, RailRow, RailUsage, type FoldMode } from "./RailParts";
+
+/** The id the rail's Plus carries, so the new-session popover can hang off it. */
+export const RAIL_NEW_SESSION_ID = "rail-new-session";
 import { usageMeter } from "../rail-usage";
 import type { MeterQuota } from "../use-quota";
 
@@ -229,13 +232,17 @@ interface Props {
   /** WORKSPACE: Enter on a row opens the session in the pane with the keys in
    *  it (a click leaves them here). Absent on the Board. */
   onOpenKeys?: (sessionId: string) => void;
+  /** New session, the Plus in the header: the Command Panel's own launch
+   *  (use-stage.ts newSessionFrom), given the button as the popover's anchor.
+   *  Absent where that launch does not exist, and the Plus with it. */
+  onNewSession?: (anchor: HTMLElement) => void;
 }
 
 /** A row that has left the list, kept drawn until its fade and its closing space are done. */
 interface Ghost { row: Row; group: RailGroup; after: string | null; until: number }
 interface Entry { id: string; row: Row; ghost: boolean }
 
-export default function SessionList({ state, now, selectedIds, onSelect, onClose, removedIds, onBringBackAll, leaving = false, landed = null, watching, quota, activeAlias = null, onOpenUsage, onOpenKeys }: Props) {
+export default function SessionList({ state, now, selectedIds, onSelect, onClose, removedIds, onBringBackAll, leaving = false, landed = null, watching, quota, activeAlias = null, onOpenUsage, onOpenKeys, onNewSession }: Props) {
   const t = useT();
   const singleKeys = useSingleKeyShortcuts();
   // `state.revision`, not `state.lastSeq`: the prop is `stateRef.current` and
@@ -447,7 +454,19 @@ export default function SessionList({ state, now, selectedIds, onSelect, onClose
             were given there; only its heading moved. The groups say what the
             waiting and live chips used to. */}
         <h2>{t("board.list.title")} <span className="sl-count">{rows.length}</span></h2>
-        <button type="button" className="sl-close" onClick={onClose} title={withKey(t("board.list.hideSidebar"), "L", singleKeys)} aria-label={t("board.list.hide")}><CloseGlyph /></button>
+        <div className="sl-header-end">
+          {/* New session, V4's Plus: the launch the Command Panel's navigator
+              already has (its popover hangs off this button's id). Drawn only
+              where that launch exists. */}
+          {onNewSession && (
+            <button type="button" id={RAIL_NEW_SESSION_ID} className="sl-icon-btn" aria-haspopup="dialog"
+              onClick={e => onNewSession(e.currentTarget)} title="Start Claude or Codex in a project" aria-label="New session"><PlusGlyph /></button>
+          )}
+          {/* The way out at phone width, where the drawer covers the canvas; on
+              a wider window L and the Sessions stripe door close the list, so
+              the frame draws no × (hidden there, not removed). */}
+          <button type="button" className="sl-icon-btn sl-close" onClick={onClose} title={withKey(t("board.list.hideSidebar"), "L", singleKeys)} aria-label={t("board.list.hide")}><CloseGlyph /></button>
+        </div>
       </div>
       <ul className="sl-rows" ref={list}>
         {nodes}

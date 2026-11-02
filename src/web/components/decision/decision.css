@@ -175,11 +175,11 @@
 }
 .dc-send { position: absolute; right: 6px; top: 50%; transform: translateY(-50%); pointer-events: none; font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: 16px; font-weight: 500; color: var(--accent); }
 
-/* Picked: the chosen row stays, the others dim and lock, at Fast. */
+/* Picked: the chosen row stays and the others stop answering. Their labels keep
+   --text, as V4's Figma has them; only an option that is really locked wears
+   the Locked look (its own state, not this one). */
 .dc-dock[data-outcome="checking"] .dc-opt[aria-checked="false"],
 .dc-dock[data-outcome="sent"] .dc-opt[aria-checked="false"] { pointer-events: none; }
-.dc-dock[data-outcome="checking"] .dc-opt[aria-checked="false"] .dc-opt-label,
-.dc-dock[data-outcome="sent"] .dc-opt[aria-checked="false"] .dc-opt-label { color: var(--muted); }
 .dc-dock[data-mode="readOnly"] .dc-opt { cursor: default; }
 
 /* What happened after a pick: a panel under the options, a live region. */
@@ -194,11 +194,11 @@
   align-items: center;
   gap: 8px;
   /* 61 high as drawn: 36 of text, 2 of border, 11.5 above and below. The frame's
-     corner is 9; no token is 9, so --r-panel (8) stays. */
+     corner is 9, V4's literal (no token is 9). */
   padding: 11.5px 12px;
   background: var(--panel);
   border: 1px solid var(--line-soft);
-  border-radius: var(--r-panel);
+  border-radius: 9px;
   box-shadow: var(--shadow-contact);
   animation: dc-swap var(--dur-fast) var(--ease);
 }

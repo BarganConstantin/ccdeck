@@ -541,6 +541,7 @@
   font-family: var(--font-mono);
   font-size: calc(11px + var(--ui-text-increase, 0px));
   font-weight: 600;
+  transition: color var(--dur-fast) var(--ease);
 }
 .qb-track {
   position: relative;
@@ -557,8 +558,9 @@
   inset: 0;
   border-radius: 3px;
   transform-origin: left center;
-  transition: transform var(--dur-slow) var(--ease);
+  transition: transform var(--dur-slow) var(--ease), background-color var(--dur-fast) var(--ease);
 }
+.qb-fill[data-jump] { transition: none; }
 /* Pace "green line" — vertical marker at the expected-usage position.
    Separated from the fill with the surface, not with black. Deficit means
    actual > expected, so the marker always lands INSIDE the fill, and its --err

@@ -355,8 +355,8 @@ describe("no font-size is declared where a shared rule outranks it (#379, #380)"
     expect(decl(".ap-add", "margin-right")).toBe("6px");
     expect(decl(".up-close", "font-size")).toBeNull();
     expect(decl(".up-close", "color")).toBe("var(--muted)");
-    expect(decl(".session-list .sl-close", "font-size")).toBeNull();
-    expect(decl(".session-list .sl-close", "width")).toBe("24px"); // was 26; V4's rail header button is 24x24
+    expect(decl(".session-list .sl-icon-btn", "font-size")).toBeNull();
+    expect(decl(".session-list .sl-icon-btn", "width")).toBe("24px"); // was 26; V4's rail header button is 24x24
     expect(decl(".uh-reload", "font-size")).toBeNull();
     expect(decl(".uh-reload", "padding")).toBe("0");
     expect(decl(".up-refresh-btn", "font-size")).toBeNull();

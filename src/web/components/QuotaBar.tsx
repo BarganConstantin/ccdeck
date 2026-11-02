@@ -10,6 +10,7 @@
 import { useId, useState } from "react";
 import { useT } from "../i18n";
 import { durationLabel, formatNumber } from "../i18n/format";
+import { FadeFigure, useFillJump } from "./FadeFigure";
 
 // ── Pace helpers ───────────────────────────────────────────────────────────
 
@@ -126,6 +127,7 @@ export default function QuotaBar({ pct, label, reset, resetAt, windowSec, limitR
   // is a statement about a number, and there is none (#1627).
   const known    = pct != null && !rolled;
   const capped   = known ? Math.min(100, Math.max(0, pct)) : 0;
+  const jump     = useFillJump(capped);
   const isErr    = limitReached || capped >= 90;
   const color    = quotaLevelColor(capped, isErr);
   // A whole percentage, the way Claude's readings already arrive (clampPct).
@@ -151,10 +153,10 @@ export default function QuotaBar({ pct, label, reset, resetAt, windowSec, limitR
           {label}
           {limitReached && !rolled && <span className="qb-limit-badge" title={t("usage.quota.rateLimitReached")}>⛔</span>}
         </span>
-        <span className="qb-pct" style={{ color: known ? color : "var(--muted)" }}>{pctLabel}</span>
+        <span className="qb-pct" style={{ color: known ? color : "var(--muted)" }}><FadeFigure text={pctLabel} value={capped} /></span>
       </div>
       <div className="qb-track">
-        {known && <div className="qb-fill" style={{ transform: `scaleX(${fillW / 100})`, background: color, opacity: underOne ? 0.4 : 1 }} />}
+        {known && <div className="qb-fill" data-jump={jump || undefined} style={{ transform: `scaleX(${fillW / 100})`, background: color, opacity: underOne ? 0.4 : 1 }} />}
         {/* Pace marker ("green line"): where usage should be now to last until
             reset. Green when under or on pace, red when over it. Its legend is
             the note under the bar (#850), so the tick itself is not announced. */}
