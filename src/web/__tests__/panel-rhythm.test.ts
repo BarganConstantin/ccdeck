@@ -206,16 +206,9 @@ describe("the distance a panel prints its content at", () => {
     // The session list's header left this list with V4's rail: its header is
     // Figma's Rail / Header (12 left, 6 right), held to the rows below it by
     // the session list's own case in section 2, not to the panel inset.
-    [".up-header", "padding"],
-    // The period strip prints its edge as a margin rather than a padding, and
-    // nothing held it to the token until the strip went full width — up to
-    // then it was centred and intrinsic, so its inset was whatever was left
-    // over. It is a panel edge now like any other.
-    [".uh-range.up-period", "margin"],
-    [".up-total", "padding"],
-    [".up-tokens-row", "padding"],
-    [".up-section", "padding"],
-    [".usage-panel .cost-bar", "margin"],
+    // CHANGED ON PURPOSE (V4's Figma): the Usage panel left this list. Its header is 12 in and
+    // 4 out and its body pads 12 (v4-usage-panel-r3.test.ts), so its content edge is the
+    // body's 12, not --panel-inset's 14.
   ];
 
   it("is the same distance on both sides of every panel", () => {
@@ -243,8 +236,10 @@ describe("the distance a panel prints its content at", () => {
     // two as numbers — `px("var(--panel-inset)")` is NaN there — so they hold
     // their 14 in the source. This is the assertion that stops the pair from
     // drifting apart in either direction.
-    expect(decl(".up-section", "padding")).toBe("0 14px");
-    expect(horizontal(".usage-panel .cost-bar", "margin")).toEqual([14, 14]);
+    // CHANGED ON PURPOSE (V4's Figma): the Usage panel's inset is its body's 12 and its bar has
+    // no margin, so the pair that had to stay literal is gone; the token is still 14.
+    expect(decl(".up-section", "padding")).toBe("0");
+    expect(horizontal(".usage-panel .cost-bar", "margin")).toEqual([0, 0]);
     expect(px(TOKENS["--panel-inset"])).toBe(14);
   });
 
