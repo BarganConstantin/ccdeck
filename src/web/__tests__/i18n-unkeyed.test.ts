@@ -104,6 +104,12 @@ describe("the words the scan cannot see read through a key", () => {
     expect(en[QUICK_OPEN_PLACEHOLDER_MSG]).toBe("Open a session or run a command");
   });
 
+  it("the top bar's Board | Workspace switch", async () => {
+    const { VIEW_SWITCH_LABEL_MSG, BOARD_LABEL_MSG, WORKSPACE_LABEL_MSG } = await import("../components/ViewSwitch");
+    const { en } = await import("../i18n/en");
+    expect([VIEW_SWITCH_LABEL_MSG, BOARD_LABEL_MSG, WORKSPACE_LABEL_MSG].map(key => en[key])).toEqual(["View", "Board", "Workspace"]);
+  });
+
   it("the card's state words and the rail's group labels", async () => {
     const { cardState } = await import("../node-face");
     const { RAIL_GROUP_LABEL_MSGS } = await import("../rail-model");

@@ -606,6 +606,21 @@ const catalog: Catalog = {
   "settings.key.prevWaiting": "la précédente en attente, sur le tableau",
   "settings.key.peek": "jeter un œil à la carte sélectionnée sans l’ouvrir",
   "settings.key.workspace": "basculer entre le tableau et le Workspace — aussi avec les touches dans le terminal",
+  "settings.section.account.label": "Compte",
+  "settings.section.account.note": "Connectez ce ccdeck à votre compte ccdeck et gardez ses réglages alignés avec vos autres machines.",
+  "settings.search.commandPanel": "Command Panel",
+  "settings.account.field.theme": "Thème",
+  "settings.account.field.textSize": "Taille du texte",
+  "settings.account.field.density": "Densité",
+  "settings.account.field.sessionList": "Liste des sessions ouverte",
+  "settings.account.field.accounts": "Panneau des comptes ouvert",
+  "settings.account.field.detail": "Panneau de détails ouvert",
+  "settings.account.field.usage": "Panneau d’utilisation ouvert",
+  "settings.account.field.machine": "Panneau de la machine ouvert",
+  "settings.account.field.singleKeys": "Raccourcis à une touche",
+  "settings.account.field.hideFinished": "Masquer les sessions terminées après",
+  "settings.account.field.character": "Personnage",
+  "settings.account.field.sound": "Son",
 };
 
 export default catalog;

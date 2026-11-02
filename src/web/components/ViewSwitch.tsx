@@ -14,11 +14,13 @@
 // switches at once. A click's `detail` is its count, 0 for a key.
 import type { MouseEvent } from "react";
 import type { View } from "../use-view";
+import { useT } from "../i18n";
 import { KitIcon } from "./kit-icons";
 
-export const VIEW_SWITCH_LABEL = "View";
-export const BOARD_LABEL = "Board";
-export const WORKSPACE_LABEL = "Workspace";
+// Keys, read with `t` where they are drawn.
+export const VIEW_SWITCH_LABEL_MSG = "board.view.group";
+export const BOARD_LABEL_MSG = "board.view.board";
+export const WORKSPACE_LABEL_MSG = "board.view.workspace";
 
 /** The Board. */
 const BoardGlyph = () => <KitIcon name="board" className="glyph" />;
@@ -33,16 +35,17 @@ export interface ViewSwitchProps {
 }
 
 export default function ViewSwitch({ view, onChange }: ViewSwitchProps) {
+  const t = useT();
   const press = (next: View) => (e: MouseEvent) => {
     if (next !== view) onChange(next, e.detail === 0 ? "key" : "pointer");
   };
   return (
-    <div className="view-switch" role="group" aria-label={VIEW_SWITCH_LABEL}>
+    <div className="view-switch" role="group" aria-label={t(VIEW_SWITCH_LABEL_MSG)}>
       <button type="button" className="view-opt" aria-pressed={view === "board"} onClick={press("board")}>
-        <BoardGlyph />{BOARD_LABEL}
+        <BoardGlyph />{t(BOARD_LABEL_MSG)}
       </button>
       <button type="button" className="view-opt" aria-pressed={view === "workspace"} onClick={press("workspace")}>
-        <WorkspaceGlyph />{WORKSPACE_LABEL}
+        <WorkspaceGlyph />{t(WORKSPACE_LABEL_MSG)}
       </button>
     </div>
   );

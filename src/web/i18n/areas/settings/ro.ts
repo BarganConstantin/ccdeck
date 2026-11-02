@@ -616,6 +616,21 @@ const catalog: Catalog = {
   "settings.key.prevWaiting": "cel anterior care așteaptă, pe tablă",
   "settings.key.peek": "aruncă o privire la cardul selectat fără să-l deschizi",
   "settings.key.workspace": "comută între Tablă și Workspace — și cu tastele din terminal",
+  "settings.section.account.label": "Cont",
+  "settings.section.account.note": "Conectează acest ccdeck la contul tău ccdeck și păstrează setările sincronizate cu celelalte computere ale tale.",
+  "settings.search.commandPanel": "Panoul de comenzi",
+  "settings.account.field.theme": "Temă",
+  "settings.account.field.textSize": "Dimensiunea textului",
+  "settings.account.field.density": "Densitate",
+  "settings.account.field.sessionList": "Lista de sesiuni deschisă",
+  "settings.account.field.accounts": "Panoul de conturi deschis",
+  "settings.account.field.detail": "Panoul de detalii deschis",
+  "settings.account.field.usage": "Panoul de utilizare deschis",
+  "settings.account.field.machine": "Panoul computerului deschis",
+  "settings.account.field.singleKeys": "Comenzi cu o singură tastă",
+  "settings.account.field.hideFinished": "Ascunde sesiunile încheiate după",
+  "settings.account.field.character": "Personaj",
+  "settings.account.field.sound": "Sunet",
 };
 
 export default catalog;

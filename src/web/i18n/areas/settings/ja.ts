@@ -606,6 +606,21 @@ const catalog: Catalog = {
   "settings.key.prevWaiting": "ボード上で待っている前のセッション",
   "settings.key.peek": "選択したカードを開かずにのぞく",
   "settings.key.workspace": "ボードとワークスペースを切り替え — ターミナル内のキーでも可",
+  "settings.section.account.label": "アカウント",
+  "settings.section.account.note": "このマシンを ccdeck アカウントに接続し、他のマシンと設定を同期します。",
+  "settings.search.commandPanel": "コマンドパネル",
+  "settings.account.field.theme": "テーマ",
+  "settings.account.field.textSize": "文字サイズ",
+  "settings.account.field.density": "密度",
+  "settings.account.field.sessionList": "セッション一覧を開く",
+  "settings.account.field.accounts": "アカウントパネルを開く",
+  "settings.account.field.detail": "詳細パネルを開く",
+  "settings.account.field.usage": "使用量パネルを開く",
+  "settings.account.field.machine": "マシンパネルを開く",
+  "settings.account.field.singleKeys": "シングルキーショートカット",
+  "settings.account.field.hideFinished": "完了したセッションを隠すまでの時間",
+  "settings.account.field.character": "キャラクター",
+  "settings.account.field.sound": "サウンド",
 };
 
 export default catalog;

@@ -606,6 +606,21 @@ const catalog: Catalog = {
   "settings.account.sharedRevisionBy": "Configurações compartilhadas r{revision}, alteradas por último em {name}",
   "settings.account.useDeckForAll": "Usar as configurações deste ccdeck para todos",
   "settings.account.useShared": "Usar as configurações compartilhadas",
+  "settings.section.account.label": "Conta",
+  "settings.section.account.note": "Conecte este ccdeck à sua conta do ccdeck e mantenha as configurações em sincronia com suas outras máquinas.",
+  "settings.search.commandPanel": "Painel de Comando",
+  "settings.account.field.theme": "Tema",
+  "settings.account.field.textSize": "Tamanho do texto",
+  "settings.account.field.density": "Densidade",
+  "settings.account.field.sessionList": "Lista de sessões aberta",
+  "settings.account.field.accounts": "Painel de contas aberto",
+  "settings.account.field.detail": "Painel de detalhe aberto",
+  "settings.account.field.usage": "Painel de uso aberto",
+  "settings.account.field.machine": "Painel do computador aberto",
+  "settings.account.field.singleKeys": "Atalhos de uma tecla",
+  "settings.account.field.hideFinished": "Ocultar sessões concluídas após",
+  "settings.account.field.character": "Personagem",
+  "settings.account.field.sound": "Som",
 };
 
 export default catalog;

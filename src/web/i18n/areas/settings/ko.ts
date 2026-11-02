@@ -607,6 +607,21 @@ const catalog: Catalog = {
   "settings.key.prevWaiting": "보드에서 기다리는 이전 세션",
   "settings.key.peek": "선택한 카드를 열지 않고 미리 보기",
   "settings.key.workspace": "보드와 작업 공간 전환 — 터미널의 키로도 가능",
+  "settings.section.account.label": "계정",
+  "settings.section.account.note": "이 ccdeck을 ccdeck 계정에 연결하고, 다른 컴퓨터와 설정을 동기화합니다.",
+  "settings.search.commandPanel": "명령 패널",
+  "settings.account.field.theme": "테마",
+  "settings.account.field.textSize": "글자 크기",
+  "settings.account.field.density": "밀도",
+  "settings.account.field.sessionList": "세션 목록 열림",
+  "settings.account.field.accounts": "계정 패널 열림",
+  "settings.account.field.detail": "상세 패널 열림",
+  "settings.account.field.usage": "사용량 패널 열림",
+  "settings.account.field.machine": "컴퓨터 패널 열림",
+  "settings.account.field.singleKeys": "한 키 단축키",
+  "settings.account.field.hideFinished": "완료된 세션 숨기기",
+  "settings.account.field.character": "캐릭터",
+  "settings.account.field.sound": "소리",
 };
 
 export default catalog;

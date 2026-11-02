@@ -606,6 +606,21 @@ const catalog: Catalog = {
   "settings.key.prevWaiting": "la anterior en espera, en el tablero",
   "settings.key.peek": "ver la tarjeta seleccionada sin abrirla",
   "settings.key.workspace": "alternar entre el tablero y el Workspace; también con las teclas en la terminal",
+  "settings.section.account.label": "Cuenta",
+  "settings.section.account.note": "Conecta este ccdeck a tu cuenta de ccdeck y mantén sus ajustes sincronizados con tus otros equipos.",
+  "settings.search.commandPanel": "Command Panel",
+  "settings.account.field.theme": "Tema",
+  "settings.account.field.textSize": "Tamaño del texto",
+  "settings.account.field.density": "Densidad",
+  "settings.account.field.sessionList": "Lista de sesiones abierta",
+  "settings.account.field.accounts": "Panel de cuentas abierto",
+  "settings.account.field.detail": "Panel de detalles abierto",
+  "settings.account.field.usage": "Panel de uso abierto",
+  "settings.account.field.machine": "Panel del equipo abierto",
+  "settings.account.field.singleKeys": "Atajos de una tecla",
+  "settings.account.field.hideFinished": "Ocultar sesiones terminadas después de",
+  "settings.account.field.character": "Personaje",
+  "settings.account.field.sound": "Sonido",
 };
 
 export default catalog;
