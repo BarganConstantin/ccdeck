@@ -92,10 +92,11 @@ describe("the failure note on screen", () => {
     expect(alert).not.toMatch(/<button/);
   });
 
-  it("is a quieter status with the warning mark over rows that are the last answer", () => {
+  // CHANGED ON PURPOSE (V4's Figma): the note draws no mark, warning or error; the tone is the shorter, quieter note.
+  it("is a quieter status without a mark over rows that are the last answer", () => {
     const html = render({ kind: "upstream", message: "GitHub answered 500.", detail: "Server is busy" }, { stale: true });
     expect(html).toMatch(/<div class="ig-failure" data-kind="upstream" data-stale="true"><div class="ig-failure-text" role="status">/);
-    expect(html).toMatch(/<path d="M7 1.9 12.9 12H1.1Z">/);
+    expect(html).not.toContain("<svg");
     expect(html).not.toContain("Server is busy");
   });
 
@@ -105,10 +106,16 @@ describe("the failure note on screen", () => {
     expect(html).toContain("Choose another board.");
   });
 
-  it("carries its tone on the edge and the mark, and no wash behind the words", () => {
+  // CHANGED ON PURPOSE (V4's Figma): the note is a panel-filled box on a --line-soft edge at --r-node,
+  // 12px inside, with no coloured edge and no mark; the heading, the sentence and the provider's own
+  // words carry the difference, so there is still no wash behind the words.
+  it("is a panel-filled note on a quiet edge, with no tone colour on the edge", () => {
     const rule = /\.ig-failure\s*\{([^}]*)\}/.exec(css)?.[1] ?? "";
-    expect(rule).toMatch(/border:\s*1px solid color-mix\(in srgb, var\(--err\)/);
+    expect(rule).toMatch(/border:\s*1px solid var\(--line-soft\)/);
+    expect(rule).toMatch(/border-radius:\s*var\(--r-node\)/);
+    expect(rule).toMatch(/padding:\s*12px/);
     expect(rule).toMatch(/background:\s*var\(--panel\)/);
-    expect(css).toMatch(/\.ig-failure\[data-stale\]\s*\{[^}]*border-color:\s*color-mix\(in srgb, var\(--warn\)/);
+    expect(rule).not.toMatch(/--err|--warn/);
+    expect(css).not.toMatch(/\.ig-failure\[data-stale\]\s*\{[^}]*--warn/);
   });
 });

@@ -140,8 +140,9 @@ export default function JiraIssueDetail({ conn, api, assetUrl, trail, estimation
                 status again), its priority, and the flag when it has one. */}
             <p className="jr-detail-state">
               <span className="jr-with-icon"><TypeIcon type={issue.type} />{issue.type.name}</span>
-              <StatusLozenge status={issue.status} />
-              {onStatusChanged && <JiraTransition key={issue.key} api={api} connectionId={conn.id} issueKey={issue.key} onChanged={onStatusChanged} />}
+              {onStatusChanged
+                ? <JiraTransition key={issue.key} api={api} connectionId={conn.id} issueKey={issue.key} onChanged={onStatusChanged} status={issue.status.name} />
+                : <StatusLozenge status={issue.status} />}
               {resolution && <span className="jr-dim">{resolution}</span>}
               {issue.priority && <span className="jr-with-icon"><PriorityIcon priority={issue.priority} />{issue.priority.name}</span>}
               {issue.flagged && <span className="jr-flagged"><FlagGlyph /> {t("integrations.flagged")}</span>}

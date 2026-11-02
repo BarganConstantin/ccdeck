@@ -292,7 +292,9 @@ describe("what was migrated to the secondary tier", () => {
       // under a failed read's heading, what to do about it, and the
       // provider's own words below it, which then step down to --muted. And
       // (V4's field: the shared search field's placeholder left for --muted.)
-      ".ig-failure-body, .ig-failure-said",
+      // CHANGED ON PURPOSE (V4's Figma): the failure note's provider line is mono --muted now, so
+      // only its sentence is at the secondary tier.
+      ".ig-failure-body",
       // CHANGED ON PURPOSE (V4 Inspector, V4's Figma): the Time tab's
       // line over the turn's bar, "93% of this turn was waiting on you": the one sentence
       // that says what the bar is, read to understand it.
@@ -305,7 +307,7 @@ describe("what was migrated to the secondary tier", () => {
       // And around the backlog: how many issues are picked, the Move form's
       // field labels, a reading preview's version and epic, and Clear filters,
       // a worded action that steps up to --text under the pointer.
-      ".jr-selection", ".jr-move-pop label", ".jr-row-preview dd", ".jr-clear",
+      ".jr-selection .btn", ".jr-selection-note", ".jr-move-pop label", ".jr-row-preview dd", ".jr-clear",
       // The explanation below an unsuccessful Jira comment.
       '.jr-comment-compose [role="alert"]',
       // Jira's labels and sprint totals: words on a --ctl-fill pill, kept
@@ -329,8 +331,18 @@ describe("what was migrated to the secondary tier", () => {
       // label, a branch's behind | ahead, and a project's group, there and in
       // the picker's button. (Its search field is the integrations' shared
       // one now, .ig-search-input.)
-      ".fg-badge", ".fg-mark-word", ".fg-meta", ".fgl-label", ".fgl-diverge", ".fgl-repo-group",
+      ".fg-badge", ".fg-mark-word", ".fgl-label", ".fgl-repo-group",
       ".fgl-repo-option-group",
+      // CHANGED ON PURPOSE (V4's Figma): the integrations' controls and chips are written in
+      // --text-secondary on their --line edge or soft fills (a branch's chips and change, the
+      // repository trigger, the tabs and detail tabs, Jira's board button, filter chips, status
+      // control, group heads, the compose label and the status words), and a row's meta line and
+      // a branch's ahead and behind went to --muted, the tier the Figma draws them in.
+      ".fd-sections .uh-range-btn", ".fg-tabs .uh-range-btn", ".fgl-branch-change", ".fgl-branch-name .fg-badge",
+      "button.btn.fgl-repo-trigger", ".jr-board-btn", ".jr-comment-compose label",
+      ".jr-group-title", ".jr-group-toggle", ".jr-status, .jr-panel .jr-status.ig-chip",
+      "button.btn.jr-chip", "button.btn.jr-status-btn",
+      ".ns-form .uh-range-btn[aria-pressed=\"false\"]", ".ns-title",
       // The network map's next step: the one sentence that says what to do
       // about the network, or about the deck pointed at. Read, not glanced.
       ".nm-next",
