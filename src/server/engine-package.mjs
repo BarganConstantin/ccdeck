@@ -50,8 +50,8 @@
 // scope, as it is for the engine folder itself.
 //
 // WINDOWS stays off until the engine side ships: ENGINE_ON_WINDOWS below is the
-// one switch, and flipping it also needs an ACL reader handed to the installer
-// (pro-engine-install.mjs), which the deck does not build yet.
+// one switch. The installer builds its own ACL reader (windows-acl.mjs) when a
+// caller gives none, and nothing asks it while the switch is off.
 import { constants, promises as fs } from "node:fs";
 import { randomBytes, createHash } from "node:crypto";
 import { dirname, join, basename } from "node:path";
