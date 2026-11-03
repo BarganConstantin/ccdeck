@@ -16,6 +16,7 @@
 // renewal can happen while the deck is not running.
 import { lstat, mkdir, readFile, unlink } from "node:fs/promises";
 import { dirname, join } from "node:path";
+import { createTemp, renameWithRetry } from "./atomic-write.mjs";
 import { nextLineage } from "./lan-codex.mjs";
 import { codexLoginOf } from "./codex-lan-identity.mjs";
 
@@ -64,7 +65,6 @@ export function createCodexLan(options = {}) {
   const saveLineage = () => {
     const text = JSON.stringify(lineage) + "\n";
     writing = writing.then(async () => {
-      const { createTemp, renameWithRetry } = await import("./atomic-write.mjs");
       const target = await lineageFile();
       // The deck's data folder, which nothing may have made yet on a deck that
       // never took a Codex lock.
