@@ -18,7 +18,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { rmTempDir } from "./rm-temp-dir";
 import {
-  DECK_SOCKET, MIN_TMUX_VERSION, SCOPE_ARGS, cgroupPath, findTmux, paneArgv, parseTmuxVersion, resetServerScope,
+  DECK_SOCKET, LEGACY_SCOPE_ARGS, MIN_TMUX_VERSION, SCOPE_ARGS, cgroupPath, findTmux, paneArgv, parseTmuxVersion, resetServerScope,
   resetTmuxCache, runTmux, serverScope, tmuxArg, tmuxCandidates, tmuxCommand, tmuxEnv, tmuxFormatLiteral,
   tmuxHasNoServer, tmuxInstallLine, tmuxSequence,
 } from "../../server/tmux.mjs";
@@ -368,9 +368,33 @@ describe("a server that outlives the deck's systemd service", () => {
     const probe = async (bin: string) => { probed.push(bin); return true; };
     const got = await serverScope({ platform: "linux", env: { PATH: "/usr/bin" }, readCgroup: () => SERVICE, exists: onPath, probe });
     expect(got).toEqual(["/usr/bin/systemd-run", ...SCOPE_ARGS]);
-    expect(SCOPE_ARGS).toEqual(["--user", "--scope", "--collect", "--quiet", "--description=ccdeck terminal sessions", "--"]);
+    // CHANGED ON PURPOSE: --expand-environment=no joined the list. systemd 259's
+    // systemd-run expands $NAME in a scope's command, which rewrote a `$` in
+    // the command the deck hands tmux; this keeps it literal.
+    expect(SCOPE_ARGS).toEqual(["--user", "--scope", "--collect", "--quiet", "--expand-environment=no", "--description=ccdeck terminal sessions", "--"]);
+    expect(LEGACY_SCOPE_ARGS).toEqual(["--user", "--scope", "--collect", "--quiet", "--description=ccdeck terminal sessions", "--"]);
     await serverScope({ platform: "linux", env: { PATH: "/usr/bin" }, readCgroup: () => SERVICE, exists: onPath, probe });
     expect(probed, "asked once").toEqual(["/usr/bin/systemd-run"]);
+  });
+
+  it("falls back to the arguments an older systemd-run accepts, and remembers which ones worked", async () => {
+    const asked: string[][] = [];
+    // A systemd-run older than 254 refuses --expand-environment and starts the rest.
+    const probe = async (_bin: string, _env: unknown, args: readonly string[]) => {
+      asked.push([...args]);
+      return !args.includes("--expand-environment=no");
+    };
+    const got = await serverScope({ platform: "linux", env: { PATH: "/usr/bin" }, readCgroup: () => SERVICE, exists: onPath, probe });
+    expect(got).toEqual(["/usr/bin/systemd-run", ...LEGACY_SCOPE_ARGS]);
+    expect(asked, "the literal form first").toEqual([[...SCOPE_ARGS], [...LEGACY_SCOPE_ARGS]]);
+    expect(await serverScope({ platform: "linux", env: { PATH: "/usr/bin" }, readCgroup: () => SERVICE, exists: onPath, probe }))
+      .toEqual(["/usr/bin/systemd-run", ...LEGACY_SCOPE_ARGS]);
+    expect(asked, "asked once per form").toHaveLength(2);
+  });
+
+  it("is null, not a rejection, when asking systemd-run throws", async () => {
+    const probe = () => { throw new Error("spawn failed"); };
+    expect(await serverScope({ platform: "linux", env: { PATH: "/usr/bin" }, readCgroup: () => SERVICE, exists: onPath, probe })).toBeNull();
   });
 
   it("finds systemd-run where distributions put it when a service's PATH is bare", async () => {
