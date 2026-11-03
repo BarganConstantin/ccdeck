@@ -267,6 +267,87 @@ export async function runTui(flags, out, deps = {}) {
     await readAuto();
   }
 
+  // ── an account's actions, through the deck's own routes ─────────────────
+  //
+  // The ones the Accounts panel's menu posts (use-account-menu.ts,
+  // AccountsPanel.tsx): home and rotation are Auto-switch's, the alias, the
+  // slot and the removal are claude-swap's, behind the deck's store lock. A
+  // refusal keeps the menu up, the reason under its items; what worked closes
+  // it and says so.
+
+  /** Why the deck would not, when it said so by name and gave no sentence. */
+  const ACTION_REFUSED = {
+    bad_value: "claude-swap takes letters, digits, spaces and . _ - only",
+    bad_slot: "a slot is a number from 1 to 999",
+    bad_account: "the deck does not know that slot any more",
+    not_confirmed: "claude-swap did not remove it",
+  };
+
+  async function act(text, body, path, timeoutMs = 60_000) {
+    set({ busy: { text, since: clock() }, notice: null });
+    render();
+    const r = await src.ask(deck, { method: "POST", path, body, timeoutMs });
+    set({ busy: null });
+    if (r.ok && r.body?.ok !== false) return { ok: true, body: r.body };
+    if (r.status === 0) lost();
+    const b = r.body && typeof r.body === "object" ? r.body : {};
+    const why = b.detail ?? ACTION_REFUSED[b.reason] ?? b.error ?? b.reason ?? deckTrouble(deck ?? { port: "?" }, r);
+    return { ok: false, why: String(why) };
+  }
+
+  /** What worked: the menu closed and a notice. What did not: the menu up, saying why. */
+  function settle(result, said, tone = "ok") {
+    if (result.ok) {
+      set({ menu: null });
+      tell(tone, said);
+    } else if (state.menu) set({ menu: { ...state.menu, error: result.why } });
+    else tell("err", result.why);
+  }
+
+  async function doHome(row, home) {
+    if (!deck) return;
+    const name = accountName(row);
+    const r = await act(home ? `making ${name} home` : `taking home away from ${name}`, { action: "home", account: home ? row.num : null }, "/api/cswap-auto");
+    settle(r, home ? `${name} is home ${g.dash} Auto-switch comes back to it once its 5-hour window resets` : `${name} is no longer home`);
+    last.auto = 0;
+    await readAuto();
+  }
+
+  async function doHold(row, out) {
+    if (!deck) return;
+    const name = accountName(row);
+    const r = await act(out ? `holding ${name} out` : `putting ${name} back`, { action: "account", account: row.num, enabled: !out }, "/api/cswap-auto");
+    settle(r, out ? `${name} is held out of rotation ${g.dash} o puts it back` : `${name} is back in rotation`);
+    last.auto = 0;
+    await Promise.all([readRoster(true), readAuto()]);
+  }
+
+  async function doAlias(row, alias) {
+    if (!deck) return;
+    const r = await act(`renaming #${row.num}`, { action: "alias", account: row.num, alias }, ADMIN);
+    settle(r, alias ? `#${row.num} is ${alias}` : `#${row.num} has no alias now`);
+    await readRoster(true);
+  }
+
+  async function doMove(row, slot) {
+    if (!deck) return;
+    const name = accountName(row);
+    const r = await act(`moving ${name} to slot ${slot}`, { action: "move", account: row.num, slot }, ADMIN);
+    const to = r.body?.to ?? null;
+    settle(r, r.body?.swapped ? `${name} is in slot ${slot} ${g.dash} the account there took slot ${row.num}` : `${name} is in slot ${to ?? slot}`);
+    await readRoster(true);
+    // The selection follows the account to its new slot.
+    if (r.ok) state = view.selectSlot(state, Number(to ?? slot));
+  }
+
+  async function doRemove(row) {
+    if (!deck) return;
+    const name = accountName(row);
+    const r = await act(`removing ${name}`, { action: "remove", account: row.num }, ADMIN);
+    settle(r, `removed ${name}`);
+    await readRoster(true);
+  }
+
   // ── adding an account, through the deck's sign-in ───────────────────────
 
   const ADMIN = "/api/claude-accounts/admin";
@@ -396,6 +477,11 @@ export async function runTui(flags, out, deps = {}) {
     auto: (e) => doAuto(e.enabled),
     refresh: () => readAll(true),
     history: () => readHistory(),
+    home: (e) => doHome(e.account, e.set),
+    hold: (e) => doHold(e.account, e.out),
+    alias: (e) => doAlias(e.account, e.alias),
+    move: (e) => doMove(e.account, e.slot),
+    remove: (e) => doRemove(e.account),
     start: () => doStart(),
     "signin-start": () => doSigninStart(),
     "signin-code": (e) => doSigninCode(e.code),

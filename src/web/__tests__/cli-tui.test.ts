@@ -166,9 +166,9 @@ describe("the frame", () => {
   it("points at the selected account, and marks the live one and the home one", () => {
     const lines = text(frame(deckState({ at: 1 })).lines);
     const bob = inside(lines.find(l => l.includes("bob@home.example") && !l.includes("#2"))!);
-    expect(bob).toMatch(/^› {3}2 ⌂ home {2}bob@home\.example/);
+    expect(bob).toMatch(/^› {3}2 ⌂ {3}home {2}bob@home\.example/);
     const alice = inside(lines.find(l => l.includes("alice@corp.example") && !l.includes("#1"))!);
-    expect(alice).toMatch(/^ {2}● 1 {3}work {2}alice@corp\.example/);
+    expect(alice).toMatch(/^ {2}● 1 {5}work {2}alice@corp\.example/);
     // The detail is the selected account's, with every lane.
     expect(lines.some(l => /^╭─ #2 bob@home\.example \(home\) ─+ home · read 1m ago ─╮$/.test(l))).toBe(true);
     expect(lines.some(l => /^│ 5h {2}[━╸─]+ +20% {3}resets in 1h/.test(l))).toBe(true);
@@ -180,7 +180,16 @@ describe("the frame", () => {
     const lines = text(frame(deckState({ at: 2 })).lines);
     expect(lines.some(l => inside(l).startsWith("sign-in needed — its login has expired"))).toBe(true);
     const off = text(frame(deckState({ at: 3 })).lines);
-    expect(off.some(l => inside(l).startsWith("disabled — kept out of Auto-switch's rotation"))).toBe(true);
+    expect(off.some(l => inside(l).startsWith("held out of rotation — Auto-switch passes over it"))).toBe(true);
+    expect(off.some(l => /^╭─ #4 dan@x\.example ─+ held out · read 1m ago ─╮$/.test(l))).toBe(true);
+  });
+
+  it("marks the account held out, its usage still beside it", () => {
+    const dan = inside(text(frame(deckState()).lines).find(l => l.includes("dan@x.example"))!);
+    expect(dan).toContain("‖");
+    expect(dan).toMatch(/5h .*7d/);
+    expect(dan).not.toContain("disabled");
+    expect(text(frame(deckState(), 80, 24, false, "none").lines).find(l => l.includes("dan@x.example"))).toMatch(/= +dan@x\.example/);
   });
 
   it("lights the selected row across the panel, as far as the terminal's colours reach", () => {
@@ -235,9 +244,9 @@ describe("the frame", () => {
     const bottom = lines.findIndex(l => l.includes("any key closes ─╯"));
     expect(top).toBeGreaterThan(0);
     expect(bottom).toBeGreaterThan(top);
-    expect(lines.slice(top, bottom).some(l => l.includes("enter  s   switch to the selected account"))).toBe(true);
-    expect(lines.some(l => l.includes("⌂          Auto-switch's home account"))).toBe(true);
-    expect(lines[top].indexOf("╭")).toBe(lines[bottom].indexOf("╰"));
+    expect(lines.slice(top, bottom).some(l => l.includes("enter  s   switch to it, or sign it in again"))).toBe(true);
+    expect(lines.some(l => l.includes("●  in use    ⌂  Auto-switch's home    ‖  held out of rotation"))).toBe(true);
+    expect(lines[bottom][lines[top].indexOf("╭─ Keys")]).toBe("╰");
     // The screen around it is still there, faded.
     expect(lines[0]).toContain("ccdeck  Claude accounts");
     expect(f[0].startsWith("\x1b[38;2;92;95;102m")).toBe(true);
@@ -388,6 +397,114 @@ describe("the keys", () => {
     expect(text(view.tuiFrame(ok, { columns: 80, rows: 24, tone, g: U, now: NOW + view.NOTICE_MS + 1 }).lines)[22]).toBe("");
     const err = deckState({ notice: view.note("err", "could not", NOW) });
     expect(text(view.tuiFrame(err, { columns: 80, rows: 24, tone, g: U, now: NOW + 60 * 60_000 }).lines)[22]).toContain("could not");
+  });
+});
+
+describe("an account's actions", () => {
+  const key = (s: State, str: string | undefined, k: Row = {}) => view.tuiKey(s, str, { name: str, ...k }, { now: NOW, g: U });
+  const ids = (s: State, r: Row) => view.menuItems(s, r).map((i: Row) => i.id);
+  const enter = (s: State) => key(s, "\r", { name: "return" });
+  const shows = (s: State, want: string) => text(frame(s, 100, 30).lines).some(l => l.includes(want));
+
+  it("offers the deck's menu items, by the deck's rules", () => {
+    const s = deckState();
+    expect(ids(s, ROWS[1])).toEqual(["switch", "rename", "move", "hold", "home", "remove"]);
+    // The account in use: nothing to switch to, and it is not held out.
+    expect(ids(s, ROWS[0])).toEqual(["rename", "move", "home", "remove"]);
+    // An expired login offers its sign-in where the switch would be.
+    expect(view.menuItems(s, ROWS[2])[0].label).toBe("Sign in again");
+    // Home and rotation say which way they go.
+    expect(view.menuItems(s, ROWS[1]).find((i: Row) => i.id === "home").label).toBe("Remove home");
+    expect(view.menuItems(s, ROWS[0]).find((i: Row) => i.id === "home").label).toBe("Set as home");
+    expect(view.menuItems(s, ROWS[3]).find((i: Row) => i.id === "hold").label).toBe("Put back in rotation");
+  });
+
+  it("m opens it over the screen, the arrows walk it, esc and q close it without quitting", () => {
+    let s = key(deckState({ at: 1 }), "m").state;
+    expect(s.menu).toMatchObject({ num: 2, view: "menu", at: 0 });
+    const lines = text(frame(s).lines);
+    expect(lines.some(l => l.includes("╭─ #2 bob@home.example (home) ─"))).toBe(true);
+    expect(lines.some(l => /│ › Switch to this account +enter │/.test(l))).toBe(true);
+    expect(lines.some(l => /│ {3}Remove… +x │/.test(l))).toBe(true);
+    s = key(s, undefined, { name: "down" }).state;
+    expect(s.menu.at).toBe(1);
+    expect(key(s, undefined, { name: "escape" }).state.menu).toBeNull();
+    const q = key(s, "q");
+    expect(q.state.menu).toBeNull();
+    expect(q.effect).toBeNull();
+    // Enter on an item is the item: the switch, here.
+    expect(enter({ ...s, menu: { ...s.menu, at: 0 } }).effect).toEqual({ type: "switch", account: ROWS[1] });
+  });
+
+  it("reaches home and rotation straight from the list, through the deck only", () => {
+    expect(key(deckState({ at: 1 }), "h").effect).toEqual({ type: "home", account: ROWS[1], set: false });
+    expect(key(deckState({ at: 3 }), "h").effect).toEqual({ type: "home", account: ROWS[3], set: true });
+    expect(key(deckState({ at: 1 }), "o").effect).toEqual({ type: "hold", account: ROWS[1], out: true });
+    expect(key(deckState({ at: 3 }), "o").effect).toEqual({ type: "hold", account: ROWS[3], out: false });
+    const inUse = key(deckState({ at: 0 }), "o");
+    expect(inUse.effect).toBeNull();
+    expect(inUse.state.notice.text).toBe("#1 alice@corp.example (work) is in use — hold another account out, or switch first");
+    const noDeck = key(deckState({ deck: null, at: 1 }), "h");
+    expect(noDeck.effect).toBeNull();
+    expect(noDeck.state.notice.text).toBe("the account's actions go through the deck — d starts one");
+  });
+
+  it("x asks before removing, and only y removes", () => {
+    const s = key(deckState({ at: 1 }), "x").state;
+    expect(s.menu).toMatchObject({ num: 2, view: "remove" });
+    expect(shows(s, "Remove #2 bob@home.example (home)?")).toBe(true);
+    expect(shows(s, "deletes this account's stored login")).toBe(true);
+    expect(key(s, "y").effect).toEqual({ type: "remove", account: ROWS[1] });
+    const kept = key(s, "n");
+    expect(kept.effect).toBeNull();
+    expect(kept.state.menu.view).toBe("menu");
+    expect(key(deckState({ at: 1 }), undefined, { name: "delete" }).state.menu.view).toBe("remove");
+    // The account in use is said to stay signed in until the next switch.
+    expect(shows(key(deckState({ at: 0 }), "x").state, "It is the account in use")).toBe(true);
+  });
+
+  it("renames in a field: typed, checked as claude-swap checks it, empty takes the alias away", () => {
+    let s = key(deckState({ at: 1 }), "n").state;
+    expect(s.menu).toMatchObject({ view: "rename", draft: "home" });
+    s = key(s, undefined, { name: "u", ctrl: true }).state;
+    for (const c of "side job") s = key(s, c).state;
+    expect(shows(s, "› side job▏")).toBe(true);
+    expect(enter(s).effect).toEqual({ type: "alias", account: ROWS[1], alias: "side job" });
+    const bad = enter({ ...s, menu: { ...s.menu, draft: "-x" } });
+    expect(bad.effect).toBeNull();
+    expect(bad.state.menu.error).toContain("not starting with -");
+    expect(shows(bad.state, "starting with -")).toBe(true);
+    expect(enter({ ...s, menu: { ...s.menu, draft: "" } }).effect).toEqual({ type: "alias", account: ROWS[1], alias: "" });
+    // The alias it already has closes the field without asking anything.
+    const same = enter({ ...s, menu: { ...s.menu, draft: "home" } });
+    expect(same.effect).toBeNull();
+    expect(same.state.menu).toBeNull();
+    // q is a letter here, not a way out; esc goes back to the menu.
+    expect(key(s, "q").state.menu.draft).toBe("side jobq");
+    expect(key(s, undefined, { name: "escape" }).state.menu.view).toBe("menu");
+  });
+
+  it("moves to a slot, saying who is there before it asks", () => {
+    let s = key(deckState({ at: 1 }), "v").state;
+    s = key(s, "a").state;
+    expect(s.menu.draft).toBe("");
+    s = key(s, "3").state;
+    expect(shows(s, "slot 3 holds #3 carol@side.example")).toBe(true);
+    expect(enter(s).effect).toEqual({ type: "move", account: ROWS[1], slot: 3 });
+    s = key(key(s, undefined, { name: "backspace" }).state, "7").state;
+    expect(shows(s, "slot 7 is free")).toBe(true);
+    const here = enter({ ...s, menu: { ...s.menu, draft: "2" } });
+    expect(here.effect).toBeNull();
+    expect(here.state.notice.text).toBe("#2 bob@home.example (home) is already in slot 2");
+    expect(enter({ ...s, menu: { ...s.menu, draft: "0" } }).state.menu.error).toBe("a slot is a number from 1 to 999");
+  });
+
+  it("waits while the deck works, and closes when its account is gone", () => {
+    const s = key(deckState({ at: 1 }), "m").state;
+    const busy = { ...s, busy: { text: "removing", since: NOW } };
+    expect(key(busy, "x")).toEqual({ state: busy, effect: null });
+    const gone = view.withRoster(s, { ok: true, accounts: ROWS.filter(r => r.num !== 2) });
+    expect(key(gone, undefined, { name: "down" }).state.menu).toBeNull();
   });
 });
 
@@ -813,6 +930,94 @@ describe("the loop", () => {
     await until(() => deck.calls.some(c => c.method === "POST"));
     expect(deck.calls.find(c => c.method === "POST")).toEqual({ method: "POST", path: "/api/cswap-auto", body: { action: "enable", enabled: false } });
     term.input.write("\x03");        // Ctrl+C quits
+    expect(await done).toBe(0);
+  });
+
+  it("o holds an account out with the deck's own POST, and reads the list again", async () => {
+    const term = fakeTerminal();
+    const deck = fakeDeck();
+    const { out } = quietOut();
+    const done = runTui({}, out, { input: term.input, output: term.output, source: deck.source, tickMs: 20, ...LOOK });
+    await until(() => term.screenText().includes("bob@home.example"));
+    term.input.write("\x1b[B");      // down, onto #2
+    term.input.write("o");
+    await until(() => term.screenText().includes("#2 bob@home.example (home) is held out of rotation — o puts it back"));
+    expect(deck.calls.filter(c => c.method === "POST")).toEqual([
+      { method: "POST", path: "/api/cswap-auto", body: { action: "account", account: 2, enabled: false } },
+    ]);
+    expect(deck.calls.filter(c => c.path === "/api/claude-accounts?refresh=1").length).toBeGreaterThanOrEqual(2);
+    term.input.write("q");
+    expect(await done).toBe(0);
+  });
+
+  it("removes only after y, through the deck's admin route", async () => {
+    const term = fakeTerminal();
+    const deck = fakeDeck();
+    const { out } = quietOut();
+    const done = runTui({}, out, { input: term.input, output: term.output, source: deck.source, tickMs: 20, ...LOOK });
+    await until(() => term.screenText().includes("bob@home.example"));
+    term.input.write("\x1b[B");
+    term.input.write("x");
+    await until(() => term.screenText().includes("Remove #2 bob@home.example (home)?"));
+    expect(deck.calls.some(c => c.method === "POST")).toBe(false);
+    term.input.write("y");
+    await until(() => term.screenText().includes("removed #2 bob@home.example (home)"));
+    expect(deck.calls.find(c => c.method === "POST")).toEqual({ method: "POST", path: "/api/claude-accounts/admin", body: { action: "remove", account: 2 } });
+    term.input.write("q");
+    expect(await done).toBe(0);
+  });
+
+  it("keeps the menu up with the deck's reason when it refuses, and esc then closes it", async () => {
+    const term = fakeTerminal();
+    const deck = fakeDeck();
+    const ask = deck.source.ask;
+    deck.source.ask = async (d: unknown, o: { method?: string; path: string; body?: unknown }) =>
+      (o.method === "POST" && o.path === "/api/claude-accounts/admin"
+        ? (deck.calls.push({ method: "POST", path: o.path, body: o.body }), { ok: false, status: 500, body: { ok: false, reason: "alias_failed", detail: "claude-swap: account 2 is locked" } })
+        : ask(d, o));
+    const { out } = quietOut();
+    const done = runTui({}, out, { input: term.input, output: term.output, source: deck.source, tickMs: 20, ...LOOK });
+    await until(() => term.screenText().includes("bob@home.example"));
+    term.input.write("\x1b[B");
+    term.input.write("n");
+    await until(() => term.screenText().includes("Rename #2 bob@home.example (home)"));
+    term.input.write("\x15");        // Ctrl+U empties the field
+    term.input.write("side");
+    term.input.write("\r");
+    await until(() => term.screenText().includes("claude-swap: account 2 is locked"));
+    expect(deck.calls.find(c => c.method === "POST")?.body).toEqual({ action: "alias", account: 2, alias: "side" });
+    term.input.write("\x1b");        // esc, back to the menu
+    await until(() => term.screenText().includes("Switch to this account"));
+    term.input.write("q");           // closes the menu, it does not quit
+    term.input.write("q");
+    expect(await done).toBe(0);
+  });
+
+  it("moves an account to another slot and the selection follows it", async () => {
+    const term = fakeTerminal();
+    let accounts = ROWS.map(r => ({ ...r }));
+    const deck = fakeDeck();
+    const ask = deck.source.ask;
+    deck.source.ask = async (d: unknown, o: { method?: string; path: string; body?: unknown }) => {
+      if (o.method === "POST" && o.path === "/api/claude-accounts/admin") {
+        deck.calls.push({ method: "POST", path: o.path, body: o.body });
+        accounts = accounts.map(a => (a.num === 2 ? { ...a, num: 7 } : a));
+        return { ok: true, status: 200, body: { ok: true, from: 2, to: 7, swapped: false } };
+      }
+      if (o.path.startsWith("/api/claude-accounts")) return { ok: true, status: 200, body: { ok: true, accounts } };
+      return ask(d, o);
+    };
+    const { out } = quietOut();
+    const done = runTui({}, out, { input: term.input, output: term.output, source: deck.source, tickMs: 20, ...LOOK });
+    await until(() => term.screenText().includes("bob@home.example"));
+    term.input.write("\x1b[B");
+    term.input.write("v");
+    term.input.write("7");
+    term.input.write("\r");
+    await until(() => term.screenText().includes("#2 bob@home.example (home) is in slot 7"));
+    expect(deck.calls.find(c => c.method === "POST")?.body).toEqual({ action: "move", account: 2, slot: 7 });
+    await until(() => term.screenText().includes("#7 bob@home.example (home)"));
+    term.input.write("q");
     expect(await done).toBe(0);
   });
 

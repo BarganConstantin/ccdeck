@@ -61,6 +61,7 @@ export function initialState() {
     busy: null,         // { text, since } while a switch or a start is under way
     starting: false,
     signin: null,       // the sign-in page while it is up (openSignin)
+    menu: null,         // an account's menu while it is up: { num, view, at, draft, error }
   };
 }
 
@@ -115,6 +116,12 @@ export function withRoster(state, roster, trouble = null) {
  *   { type: "signin-code", code }       hand it the code the page showed
  *   { type: "signin-cancel", quiet }    let go of the deck's sign-in
  *   { type: "signin-done", account }    the page closed on a sign-in that took
+ *   { type: "history" }                 read the deck's machine history (t)
+ *   { type: "home", account, set }      make it Auto-switch's home, or stop
+ *   { type: "hold", account, out }      hold it out of rotation, or put it back
+ *   { type: "alias", account, alias }   rename it ("" takes the alias away)
+ *   { type: "move", account, slot }
+ *   { type: "remove", account }
  *
  * The refusals a switch can be told before it is asked for — the account in
  * use, a deck that is running and not answering — are answered here, in the
@@ -129,6 +136,7 @@ export function tuiKey(state, str, key = {}, { now = 0, g } = {}) {
   // Help is a page over the view: any key puts the view back, and the key is
   // spent doing it — q there closes the page, it does not quit.
   if (state.help) return { state: { ...state, help: false }, effect: null };
+  if (state.menu) return menuKey(state, str, key, { now, g });
   if (str === "q" || name === "escape") return { state, effect: { type: "quit" } };
   if (str === "?") return { state: { ...state, help: true }, effect: null };
 
@@ -153,6 +161,11 @@ export function tuiKey(state, str, key = {}, { now = 0, g } = {}) {
   }
   if (str === "a") return autoKey(s, { now, g });
   if (str === "+") return addKey(s, { now, g });
+  // The account's own actions: the menu, or one of them straight from the list.
+  const row = rows[state.at];
+  if (row && (str === "m" || str === ".")) return menuOpen(s, row, "menu", { now, g });
+  if (row && ACTION_KEYS[str] && !key.ctrl && !key.meta) return menuAct(s, row, ACTION_KEYS[str], { now, g });
+  if (row && name === "delete") return menuAct(s, row, "remove", { now, g });
   if (str === "r") return { state: s, effect: { type: "refresh" } };
   if (str === "t") {
     if (!state.deck) return { state: s, effect: null };
@@ -206,6 +219,130 @@ function addKey(state, { now, g }) {
     return told("err", String([].concat(state.trouble ?? "could not read the accounts")[0]));
   }
   return { state: { ...state, signin: openSignin() }, effect: null };
+}
+
+// ── an account's actions ────────────────────────────────────────────────────
+//
+// The deck's ⋯ menu on an account row (AccountMenuPopover.tsx), item for item
+// and by the same rules: hold out is offered on every account but the one in
+// use, putting one back whenever it is out; home whenever the account has an
+// address or already is home; remove asks first. Share and Projects stay in
+// the deck: one hands over a login as text, the other is a chart. Each item
+// has a key that works from the list too, so the menu is where they are
+// learnt, not the only way to them.
+
+/** The keys that reach an item straight from the list. */
+const ACTION_KEYS = Object.freeze({ n: "rename", v: "move", o: "hold", h: "home", x: "remove" });
+
+/** What claude-swap takes as an alias (cswap-admin.mjs ALIAS_OK). */
+const ALIAS_OK = /^(?!-)[A-Za-z0-9 ._-]{1,64}$/;
+
+/** The menu's items for `row`, in the deck's order. */
+export function menuItems(state, row) {
+  const home = homeSlot(state) === row.num;
+  const dead = !switchable(row) && !row.disabled;
+  return [
+    !row.active || dead ? { id: "switch", key: "enter", label: dead ? "Sign in again" : "Switch to this account" } : null,
+    { id: "rename", key: "n", label: "Rename…" },
+    { id: "move", key: "v", label: "Move to slot…" },
+    !row.active || row.disabled ? { id: "hold", key: "o", label: row.disabled ? "Put back in rotation" : "Hold out of rotation" } : null,
+    home || row.email ? { id: "home", key: "h", label: home ? "Remove home" : "Set as home" } : null,
+    { id: "remove", key: "x", label: "Remove…", danger: true },
+  ].filter(Boolean);
+}
+
+function menuOpen(state, row, view, { now, g }) {
+  if (!state.deck) {
+    return { state: { ...state, notice: note("info", `the account's actions go through the deck ${g.dash} d starts one`, now) }, effect: null };
+  }
+  if (state.busy) return { state: { ...state, notice: note("info", `${state.busy.text} ${g.dash} one thing at a time`, now) }, effect: null };
+  const draft = view === "rename" ? oneLine(row.alias) : "";
+  return { state: { ...state, menu: { num: row.num, view, at: 0, draft, error: null } }, effect: null };
+}
+
+/** An item chosen, from the menu or from the list. */
+function menuAct(state, row, id, { now, g }) {
+  if (id === "switch") return switchKey({ ...state, menu: null }, row, { now, g });
+  if (!state.deck || state.busy) return menuOpen(state, row, "menu", { now, g });
+  if (id === "rename" || id === "move" || id === "remove") {
+    const open = menuOpen(state, row, id, { now, g });
+    // Back from a form lands on the item it came from.
+    const at = menuItems(state, row).findIndex(i => i.id === id);
+    return { ...open, state: { ...open.state, menu: { ...open.state.menu, at: Math.max(0, at) } } };
+  }
+  if (id === "hold") {
+    if (row.active && !row.disabled) {
+      return { state: { ...state, notice: note("info", `${accountName(row)} is in use ${g.dash} hold another account out, or switch first`, now) }, effect: null };
+    }
+    return { state, effect: { type: "hold", account: row, out: !row.disabled } };
+  }
+  if (id === "home") {
+    const home = homeSlot(state) === row.num;
+    if (!home && !row.email) return { state, effect: null };
+    return { state, effect: { type: "home", account: row, set: !home } };
+  }
+  return { state, effect: null };
+}
+
+function menuKey(state, str, key, { now, g }) {
+  const name = key.name ?? "";
+  const m = state.menu;
+  const row = accountsOf(state).find(a => a.num === m.num);
+  // The account went — removed, or moved by somebody else — and the menu with it.
+  if (!row) return { state: { ...state, menu: null }, effect: null };
+  // While the deck works on what was asked, the menu waits for its answer.
+  if (state.busy) return { state, effect: null };
+  const set = (patch) => ({ state: { ...state, menu: { ...m, ...patch } }, effect: null });
+  const enter = name === "return" || name === "enter";
+  const typed = typeof str === "string" && str.length > 0 && !key.ctrl && !key.meta && !/[\x00-\x1f\x7f]/.test(str);
+
+  if (m.view === "menu") {
+    const items = menuItems(state, row);
+    if (name === "escape" || str === "q" || str === "m" || str === ".") return { state: { ...state, menu: null }, effect: null };
+    if (name === "up" || str === "k") return set({ at: (m.at - 1 + items.length) % items.length, error: null });
+    if (name === "down" || str === "j" || name === "tab") return set({ at: (m.at + 1) % items.length, error: null });
+    if (enter) return menuAct({ ...state, menu: { ...m, error: null } }, row, items[m.at]?.id ?? "", { now, g });
+    const hot = name === "delete" ? items.find(i => i.id === "remove") : items.find(i => i.key === str);
+    if (hot) {
+      const at = items.indexOf(hot);
+      return menuAct({ ...state, menu: { ...m, at, error: null } }, row, hot.id, { now, g });
+    }
+    return { state, effect: null };
+  }
+
+  const back = () => set({ view: "menu", draft: "", error: null });
+  if (m.view === "remove") {
+    if (str === "y" || str === "Y") return { state, effect: { type: "remove", account: row } };
+    return back();
+  }
+
+  // The two fields: an alias, a slot.
+  if (name === "escape") return back();
+  if (name === "backspace") return set({ draft: [...m.draft].slice(0, -1).join(""), error: null });
+  if (key.ctrl && name === "u") return set({ draft: "", error: null });
+  if (m.view === "rename") {
+    if (enter) {
+      const alias = m.draft.trim();
+      if (alias && !ALIAS_OK.test(alias)) {
+        return set({ error: "letters, digits, spaces and . _ - only, up to 64, not starting with -" });
+      }
+      if (alias === oneLine(row.alias)) return { state: { ...state, menu: null }, effect: null };
+      return { state, effect: { type: "alias", account: row, alias } };
+    }
+    if (typed) return set({ draft: (m.draft + str).slice(0, 64), error: null });
+    return { state, effect: null };
+  }
+  if (m.view === "move") {
+    if (enter) {
+      const slot = Number(m.draft);
+      if (!Number.isInteger(slot) || slot < 1 || slot > 999) return set({ error: "a slot is a number from 1 to 999" });
+      if (slot === row.num) return { state: { ...state, menu: null, notice: note("ok", `${accountName(row)} is already in slot ${slot}`, now) }, effect: null };
+      return { state, effect: { type: "move", account: row, slot } };
+    }
+    if (typed && /^\d+$/.test(str)) return set({ draft: (m.draft + str).slice(0, 3), error: null });
+    return { state, effect: null };
+  }
+  return { state, effect: null };
 }
 
 
@@ -273,7 +410,8 @@ export function tuiFrame(state, { columns = 80, rows = 24, tone, g, unicode = tr
   }
   const body = bodyLines(state, rows - 3, width, look);
   const lines = [titleBar(state, width, look), ...body.lines, noticeLine(state, look), footerLine(state, width, look)];
-  return { lines: fill(state.help ? withHelp(lines, width, look) : lines), top: body.top, run: null };
+  const over = state.help ? withHelp(lines, width, look) : state.menu ? withMenu(lines, state, width, look) : lines;
+  return { lines: fill(over), top: body.top, run: null };
 }
 
 // ── the look ────────────────────────────────────────────────────────────────
@@ -419,6 +557,7 @@ function footerLine(state, width, { tone, unicode, skin }) {
   const keys = state.signin ? signinKeys(state.signin) : [
     [unicode ? "↑↓" : "up/down", "move"],
     ["enter", "switch"],
+    ["m", "actions"],
     ["b", "best"],
     state.deck ? ["a", "auto-switch"] : ["d", "start the deck"],
     ["+", "add"],
@@ -431,7 +570,7 @@ function footerLine(state, width, { tone, unicode, skin }) {
   const list = keys.slice();
   // r goes first, then the moves, then b: the screen says what they do, and ?
   // and q are how to find out and how to leave.
-  for (const drop of ["r", unicode ? "↑↓" : "up/down", "b", "+", "a", "d", "enter"]) {
+  for (const drop of ["r", unicode ? "↑↓" : "up/down", "b", "+", "a", "d", "m", "enter"]) {
     if (textWidth(draw(list)) <= width) break;
     const i = list.findIndex(([k]) => k === drop);
     if (i !== -1) list.splice(i, 1);
@@ -573,6 +712,9 @@ function bodyLines(state, room, width, look) {
 
 const LANE_IDS = ["five_hour", "seven_day"];
 
+/** The held-out mark: ASCII's, and Unicode's pause-like double bar. */
+const HELD_MARK = ["=", "‖"];
+
 /** A lane's columns: its label, the meter and the percentage, and the reset —
  *  all of it (A), without the reset (B), or the percentage alone (C). */
 const laneWidth = (kind, bar, labelW) => (kind === "A" ? labelW + bar + 17 : kind === "B" ? labelW + bar + 6 : labelW + 5);
@@ -593,10 +735,11 @@ function accountRows(rows, { home, at, width }, look) {
   const emailOf = (a) => oneLine(a.email) || "(no email)";
   const numW = Math.max(...rows.map(a => String(a.num).length));
   const showHome = home != null && rows.some(a => a.num === home);
+  const showHeld = rows.some(a => a.disabled);
   const labelW = Math.max(2, ...rows.flatMap(a => (a.lanes ?? []).filter(l => LANE_IDS.includes(l.id)).map(l => textWidth(oneLine(l.label)))));
   const longest = Math.max(...rows.map(a => textWidth(emailOf(a))));
   const aliasW = Math.min(14, Math.max(0, ...rows.map(a => textWidth(aliasOf(a)))));
-  const lead = (alias) => 2 + 2 + numW + 1 + (showHome ? 2 : 0) + (alias ? aliasW + 2 : 0);
+  const lead = (alias) => 2 + 2 + numW + 1 + (showHome ? 2 : 0) + (showHeld ? 2 : 0) + (alias ? aliasW + 2 : 0);
   const lanesW = ({ kind, bar }) => 2 * laneWidth(kind, bar, labelW) + 3;
   const want = Math.min(longest, 20);
   const tries = [["A", 10], ["A", 8], ["A", 6], ["B", 10], ["B", 8], ["B", 6], ["B", 4], ["C", 0]];
@@ -617,11 +760,14 @@ function accountRows(rows, { home, at, width }, look) {
     const mark = a.active ? `${tone.ok}${g.pulse}${tone.reset}` : " ";
     const num = `${a.active ? tone.bold : ""}${padStart(String(a.num), numW)}${tone.reset}`;
     const house = !showHome ? "" : a.num === home ? `${tone.accent}${unicode ? "⌂" : "H"}${tone.reset} ` : "  ";
+    // Held out of rotation: a mark of its own, the usage still beside it —
+    // it is still an account to switch to, and the room it has still counts.
+    const held = !showHeld ? "" : a.disabled ? `${tone.warn}${HELD_MARK[unicode ? 1 : 0]}${tone.reset} ` : "  ";
     const alias = pick.alias ? `${tone.accent}${padEnd(clip(aliasOf(a), aliasW, g.ellipsis), aliasW)}${tone.reset}  ` : "";
     const email = `${a.disabled ? tone.muted : ""}${padEnd(clip(emailOf(a), emailW, g.ellipsis), emailW)}${tone.reset}`;
-    const trouble = accountTrouble(a);
+    const trouble = accountTrouble({ ...a, disabled: false });
     const status = trouble ? `${tone[trouble.tone]}${trouble.word}${tone.reset}` : laneCells(a, pick, labelW, look);
-    return `${pointer} ${mark} ${num} ${house}${alias}${email}  ${status}`;
+    return `${pointer} ${mark} ${num} ${house}${held}${alias}${email}  ${status}`;
   });
 }
 
@@ -643,9 +789,11 @@ function laneCells(a, { kind, bar }, labelW, look) {
 /** What the trouble on an account means for a switch to it. */
 const TROUBLE_SAYS = {
   "sign-in needed": "its login has expired; enter signs it in again, keeping its slot, alias and history",
-  disabled: "kept out of Auto-switch's rotation; enter still switches to it",
   "not collecting usage": "nothing has been read for it in half a day, so these are its last numbers",
 };
+
+/** What holding an account out means, the deck's own word for it. */
+const HELD_SAYS = "held out of rotation — Auto-switch passes over it; enter still switches to it, o puts it back";
 
 /** The selected account at length: what it is, what is wrong, every lane. */
 function detailPanel(a, home, width, look) {
@@ -654,14 +802,16 @@ function detailPanel(a, home, width, look) {
   const tags = [
     a.active ? `${tone.ok}in use${tone.reset}` : "",
     a.num === home ? `${tone.accent}home${tone.reset}` : "",
+    a.disabled ? `${tone.warn}held out${tone.reset}` : "",
   ].filter(Boolean);
   const read = a.fetchedAt != null ? `${a.stale ? tone.warn : tone.muted}read ${sinceLabel(now - a.fetchedAt)} ago${tone.reset}` : "";
   const note = [[...tags, read].filter(Boolean).join(sep), tags.join(sep)];
   const title = `${tone.bold}${accountName(a)}${tone.reset}`;
-  const trouble = accountTrouble(a);
-  const said = trouble
-    ? wrap(`${trouble.word} ${g.dash} ${TROUBLE_SAYS[trouble.word] ?? ""}`, width).map(l => `${tone[trouble.tone]}${l}${tone.reset}`)
-    : [];
+  const trouble = accountTrouble({ ...a, disabled: false });
+  const said = [
+    ...(trouble ? wrap(`${trouble.word} ${g.dash} ${TROUBLE_SAYS[trouble.word] ?? ""}`, width).map(l => `${tone[trouble.tone]}${l}${tone.reset}`) : []),
+    ...(a.disabled ? wrap(HELD_SAYS.replace("—", g.dash), width).map(l => `${tone.muted}${l}${tone.reset}`) : []),
+  ];
   const lanes = a.lanes ?? [];
   if (!lanes.length) {
     return { title, note, lines: [...said, `${tone.muted}${a.fetchedAt == null ? "not read yet" : "no usage reading"}${tone.reset}`] };
@@ -1065,43 +1215,125 @@ function withHelp(base, width, look) {
   const keys = [
     [unicode ? "↑ ↓  j k" : "up down  j k", "move"],
     ["1-9", "the account in that slot"],
-    ["enter  s", "switch to the selected account, or sign it in again"],
+    ["enter  s", "switch to it, or sign it in again"],
+    ["m", "its actions, as in the deck's account menu"],
+    ["h  o", `set as home  ${g.bullet}  hold out of rotation, or put back`],
+    ["n  v  x", `rename  ${g.bullet}  move to another slot  ${g.bullet}  remove`],
     ["b", "select the account Auto-switch would pick"],
     ["a", "turn Auto-switch on or off"],
     ["+", "add a Claude account, signed in from any browser"],
     ["r", "read the usage again"],
-    ["t", "the machine's charts: live, or the last hours by the minute"],
+    ["t", "the machine: live, or the last hours by the minute"],
     ["d", "start the deck, when none is running"],
     ["ctrl+l", "draw the screen again"],
     ["q  esc", "quit"],
   ];
   const marks = [
-    [g.pulse, "the account in use"],
-    [unicode ? "⌂" : "H", "Auto-switch's home account"],
+    [g.pulse, "in use"],
+    [unicode ? "⌂" : "H", "Auto-switch's home"],
+    [HELD_MARK[unicode ? 1 : 0], "held out of rotation"],
   ];
   const boxW = Math.min(width - 2, 66);
   const inner = boxW - 4;
   const keyW = Math.max(...keys.map(([k]) => textWidth(k))) + 3;
   const entry = ([k, what]) => wrap(what, Math.max(8, inner - keyW))
     .map((part, i) => `${tone.bold}${padEnd(i ? "" : k, keyW)}${tone.reset}${tone.muted}${part}${tone.reset}`);
+  // The marks read as one legend line while it fits, one per line when it does not.
+  const legend = marks.map(([k, what]) => `${k}  ${what}`).join("    ");
   const lines = [
     ...keys.flatMap(entry),
     "",
-    ...marks.flatMap(entry),
+    ...(textWidth(legend) <= inner
+      ? [marks.map(([k, what]) => `${tone.bold}${k}${tone.reset}  ${tone.muted}${what}${tone.reset}`).join("    ")]
+      : marks.flatMap(entry)),
     "",
     ...wrap("A switch moves the live Claude login. Every running Claude session uses the new account from its next message.", inner)
       .map(l => `${tone.muted}${l}${tone.reset}`),
   ];
   const height = Math.min(base.length - 2, lines.length + 2);
   const box = panel(boxW, height, { title: `${tone.bold}Keys${tone.reset}`, footRight: `${tone.muted}any key closes${tone.reset}`, lines }, look);
+  return overlay(base, box, boxW, width, look);
+}
+
+/** `box`, `boxW` wide, in the middle of the screen, the screen under it faded. */
+function overlay(base, box, boxW, width, { tone, skin }) {
   const x = Math.floor((width - boxW) / 2);
-  const y = Math.max(1, Math.floor((base.length - height) / 2));
+  const y = Math.max(1, Math.floor((base.length - box.length) / 2));
   const faded = (s) => (s && skin.faded ? `${skin.faded}${s}${tone.reset}` : s);
   return base.map((line, i) => {
     const plain = stripAnsi(line);
-    if (i < y || i >= y + height) return faded(plain);
+    if (i < y || i >= y + box.length) return faded(plain);
     return `${faded(sliceCells(plain, 0, x))}${onBg(box[i - y], skin.raised)}${faded(sliceCells(plain, x + boxW, width))}`;
   });
+}
+
+// ── an account's menu, drawn ────────────────────────────────────────────────
+
+/** The menu, or the one form an item turned it into, in a box over the screen. */
+function withMenu(base, state, width, look) {
+  const { tone, g, unicode } = look;
+  const m = state.menu;
+  const row = accountsOf(state).find(a => a.num === m.num);
+  if (!row) return base;
+  const boxW = Math.min(width - 2, 60);
+  const inner = boxW - 4;
+  const say = (text, code = tone.muted) => wrap(text, inner).map(l => `${code}${l}${tone.reset}`);
+  const refused = m.error ? wrap(m.error, inner - 3).map((l, i) => `${tone.err}${i ? "   " : `${g.fail}  `}${l}${tone.reset}`) : [];
+  const caret = `${tone.accent}${unicode ? "▏" : "_"}${tone.reset}`;
+  const field = (text) => `${tone.accent}${unicode ? "›" : ">"}${tone.reset} ${text}${caret}`;
+  const name = accountName(row);
+  let spec;
+  if (m.view === "menu") {
+    const items = menuItems(state, row);
+    const keyW = Math.max(...items.map(i => textWidth(i.key)));
+    const lines = [];
+    let selected = -1;
+    items.forEach((item, i) => {
+      if (item.danger) lines.push(`${tone.muted}${(unicode ? "─" : "-").repeat(inner)}${tone.reset}`);
+      if (i === m.at) selected = lines.length;
+      const pointer = i === m.at ? `${tone.accent}${tone.bold}${unicode ? "›" : ">"}${tone.reset}` : " ";
+      const room = inner - 2 - keyW - 2;
+      const shown = padEnd(clip(item.label, room, g.ellipsis), room);
+      lines.push(`${pointer} ${item.danger ? tone.err : ""}${shown}${tone.reset}  ${tone.muted}${padStart(item.key, keyW)}${tone.reset}`);
+    });
+    spec = {
+      title: `${tone.bold}${name}${tone.reset}`,
+      footRight: [`${tone.muted}enter chooses ${g.bullet} esc closes${tone.reset}`, `${tone.muted}esc closes${tone.reset}`],
+      lines: [...lines, ...refused], selected,
+    };
+  } else if (m.view === "rename") {
+    spec = {
+      title: `${tone.bold}Rename ${name}${tone.reset}`,
+      footRight: [`${tone.muted}enter saves ${g.bullet} esc back${tone.reset}`, `${tone.muted}esc back${tone.reset}`],
+      lines: [...say("A short name the list shows beside the address. Empty takes it away."), "", field(m.draft), ...refused],
+    };
+  } else if (m.view === "move") {
+    const slot = Number(m.draft);
+    const holder = m.draft ? accountsOf(state).find(a => a.num === slot) : null;
+    const hint = !m.draft ? `the slot numbers are the list's ${g.dash} 1 to 9 select them there`
+      : holder && holder.num === row.num ? `it is already in slot ${slot}`
+      : holder ? `slot ${slot} holds ${accountName(holder)} ${g.dash} the two trade places`
+      : `slot ${slot} is free`;
+    spec = {
+      title: `${tone.bold}Move ${name}${tone.reset}`,
+      footRight: [`${tone.muted}enter moves ${g.bullet} esc back${tone.reset}`, `${tone.muted}esc back${tone.reset}`],
+      lines: [...say("To slot:", ""), field(m.draft), ...say(hint), ...refused],
+    };
+  } else {
+    spec = {
+      title: `${tone.err}${tone.bold}Remove ${name}?${tone.reset}`,
+      footRight: `${tone.muted}any other key keeps it${tone.reset}`,
+      lines: [
+        ...say("claude-swap deletes this account's stored login. This cannot be undone.", ""),
+        ...(row.active ? say("It is the account in use: Claude Code stays signed in to it until the next switch.") : []),
+        "",
+        `${tone.bold}y${tone.reset} ${tone.muted}removes it${tone.reset}`,
+        ...refused,
+      ],
+    };
+  }
+  const height = Math.min(base.length - 2, spec.lines.length + 2);
+  return overlay(base, panel(boxW, height, spec, look), boxW, width, look);
 }
 
 function wrap(text, width) {
