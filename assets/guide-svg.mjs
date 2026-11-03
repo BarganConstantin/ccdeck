@@ -11,11 +11,32 @@
 //   node assets/guide-svg.mjs
 //
 import { build } from "esbuild";
-import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { mkdtempSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { dirname, join } from "node:path";
 import { pathToFileURL } from "node:url";
 
 const ROOT = new URL("..", import.meta.url);
+
+// The string catalogs are collected with vite's import.meta.glob
+// (src/web/i18n/catalogs.ts), which esbuild does not know. This writes that one
+// glob out as the imports vite would make of it, so the steps read their lines
+// from the same files the app does.
+const catalogGlob = {
+  name: "catalog-glob",
+  setup(b) {
+    b.onLoad({ filter: /[\\/]src[\\/]web[\\/]i18n[\\/]catalogs\.ts$/ }, args => {
+      const src = readFileSync(args.path, "utf8");
+      const areas = join(dirname(args.path), "areas");
+      const files = readdirSync(areas, { withFileTypes: true }).filter(d => d.isDirectory())
+        .flatMap(d => readdirSync(join(areas, d.name)).filter(f => f.endsWith(".ts")).map(f => `./areas/${d.name}/${f}`));
+      const out = src.replace(/import\.meta\.glob(?:<[^>]*>)?\(\s*"\.\/areas\/\*\/\*\.ts"\s*,\s*\{\s*eager:\s*true\s*\}\s*\)/,
+        `{${files.map((f, i) => `${JSON.stringify(f)}: __area${i}`).join(", ")}}`);
+      if (out === src) throw new Error("catalogs.ts no longer has the glob this script writes out");
+      const imports = files.map((f, i) => `import * as __area${i} from ${JSON.stringify(f)};`).join("\n");
+      return { contents: `${imports}\n${out}`, loader: "ts", resolveDir: dirname(args.path) };
+    });
+  },
+};
 const OUT = new URL("./guide/", import.meta.url);
 // The sheet is a list of parts (src/web/styles.css). Read in the order it
 // imports them, they are the one file the two slices below were cut from.
@@ -49,6 +70,7 @@ try {
     bundle: true, format: "esm", platform: "node", jsx: "automatic",
     outfile: join(tmp, "guide-art.mjs"), logLevel: "silent",
     external: ["react", "react/jsx-runtime"],
+    plugins: [catalogGlob],
   });
   const { renderToStaticMarkup } = await import("react-dom/server");
   const { WELCOME_STEPS, LAN_STEPS } = await import(pathToFileURL(join(tmp, "guide-art.mjs")).href);
