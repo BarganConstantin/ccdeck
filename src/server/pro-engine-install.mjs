@@ -13,13 +13,15 @@
 // WINDOWS: the ownership and mode bits mean nothing there, so the same
 // questions are put to an ACL reader the caller hands in (`windowsAcl`): who
 // owns it, who may write it, whether it is a reparse point or has a second hard
-// link, and whether this process is elevated. No reader is built into the deck
-// and none is passed by anything it ships, so Windows is refused here unless a
-// caller gives one; the rules below are written against a reader's answers and
-// have only been run against a test double. NOT TESTED on a real Windows.
+// link, and whether this process is elevated. A caller may hand one in; without
+// one the gate builds the deck's own (windows-acl.mjs). Windows stays closed
+// by ENGINE_ON_WINDOWS (engine-package.mjs), so nothing reaches either yet. The
+// rules below are written against a reader's answers and have been run against
+// a test double and, in CI only, the real reader.
 import { constants, promises as fs } from 'node:fs';
 import path from 'node:path';
 import { createHash, createPublicKey, verify } from 'node:crypto';
+import { createWindowsAcl } from './windows-acl.mjs';
 
 export const ENGINE_PROTOCOL = 1;
 export const ENGINE_MAX_FRAME = 2 * 1024 * 1024;
@@ -51,7 +53,8 @@ const invalid = () => new Error('The installed terminal engine could not be veri
  */
 export async function trustGate({ platform = process.platform, windowsAcl, allowRoot = false, allowGroupWrite = false, uid } = {}) {
   if (platform === 'win32') {
-    if (!windowsAcl || typeof windowsAcl.identity !== 'function' || typeof windowsAcl.inspect !== 'function') throw invalid();
+    windowsAcl ??= createWindowsAcl();
+    if (typeof windowsAcl.identity !== 'function' || typeof windowsAcl.inspect !== 'function') throw invalid();
     const me = await windowsAcl.identity();
     if (!me || me.elevated !== false || typeof me.user !== 'string' || !me.user) throw invalid();
     const check = async (target, stat, isFile) => {
