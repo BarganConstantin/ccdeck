@@ -9,7 +9,7 @@
 // codex-accounts.ts
 // turns a profile and its reading into what the shared components read.
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { codexLanAccounts } from "../account-lan";
+import { codexLanAccounts, type SharedMark } from "../account-lan";
 import type { LanAccount } from "../lan-types";
 import { allOpen, isOpen, orderChoices, orderKey, SLOT_ORDER, sortAccounts, toggleAll, toggleOne, validOrder, type Openness } from "../other-accounts-order";
 import { loadOpenness, loadOrder, saveOpenness, saveOrder } from "../accounts-prefs";
@@ -54,7 +54,7 @@ async function postJson(path: string, body: unknown): Promise<{ ok: boolean; sta
   return { ok: response.ok && result?.ok === true, status: response.status, reason: result?.reason, id: result?.id, live: result?.live };
 }
 
-export default function CodexProfilesSection({ onClose, switcher, onNotice, away = false, onLanAccounts }: {
+export default function CodexProfilesSection({ onClose, switcher, onNotice, away = false, onLanAccounts, shared }: {
   onClose?: () => void;
   /** With both CLIs on this deck: the Claude/Codex switch, which stands where
    *  the title stands. The title stays for a reader, out of sight. */
@@ -67,6 +67,9 @@ export default function CodexProfilesSection({ onClose, switcher, onNotice, away
   /** This deck's Codex logins as Local network lists them, each time the
    *  roster changes them — for the share dialog both sides open. */
   onLanAccounts?: (accounts: LanAccount[]) => void;
+  /** The Codex logins Local network offers, by their key, for the share mark
+   *  a Claude row carries too (#2170). */
+  shared?: ReadonlyMap<string, SharedMark>;
 } = {}) {
   const t = useT();
   const { busy, claim, release, pressProps } = useRequestSlot();
@@ -431,8 +434,12 @@ export default function CodexProfilesSection({ onClose, switcher, onNotice, away
   const accountRow = ({ profile, reading, account: a, issue }: Row) => {
     const plan = shownReading(reading)?.plan;
     const reads = quotas[profile.id] === null || reading?.reason === "profile_changed";
+    // Two profiles signed in to one account are one login on the network, and
+    // both rows say it is offered.
+    const mark = profile.lan ? shared?.get(profile.lan.key) : undefined;
     return (
       <AccountRow key={profile.id} a={a} nowSec={nowSec} issueOverride={issue}
+        lan={mark ? { sharedTo: mark.to, sharedInUse: mark.inUse } : undefined}
         voice={{
           ...voice,
           switched: liveNote ?? (switched?.live && !liveSelection ? t("codex.row.liveSwitched") : voice.switched),
