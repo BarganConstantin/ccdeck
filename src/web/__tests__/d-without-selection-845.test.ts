@@ -42,9 +42,20 @@ describe("D with nothing selected picks something first (#845)", () => {
     expect(block).toMatch(/if \(primarySelectedIdRef\.current\) setDetailOpen\(o => !o\);/);
   });
 
+  // CHANGED ON PURPOSE (V4's Figma): the pick moved into pickSessionForInspector, which D and
+  // the folded Inspector's tab both run; the key still calls it with nothing selected.
+  const pick = (): string => {
+    const at = appCode.indexOf("export function pickSessionForInspector(");
+    if (at < 0) throw new Error("pickSessionForInspector is gone");
+    return appCode.slice(at, appCode.indexOf("\n}\n", at));
+  };
+  it("asks for the pick when nothing is selected", () => {
+    expect(block).toContain("else pickSessionForInspector(stateRef.current, focusSession, stepAgent);");
+  });
+
   it("goes to the session that has waited longest, as the waiting button does", () => {
-    expect(block).toMatch(/blockedSessions\(stateRef\.current\.agents\.values\(\)\)/);
-    expect(block).toMatch(/focusSession\(waiting\[0\]\.id\)/);
+    expect(pick()).toMatch(/blockedSessions\(state\.agents\.values\(\)\)/);
+    expect(pick()).toMatch(/focusSession\(waiting\[0\]\.id\)/);
     // The button's click is a block since #825, which has it tell W where it
     // went; where it goes is unchanged.
     // V4's top bar: the pill opens the queue popover, whose first row is
@@ -53,7 +64,7 @@ describe("D with nothing selected picks something first (#845)", () => {
   });
 
   it("otherwise lands where j would", () => {
-    expect(block).toMatch(/else stepAgent\(1\);/);
+    expect(pick()).toMatch(/else stepAgent\(1\);/);
   });
 
   it("re-registers the key handler when focusSession changes", () => {

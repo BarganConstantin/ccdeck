@@ -245,9 +245,12 @@ describe("the resets", () => {
     const html = renderToStaticMarkup(createElement(UsageReportBody, {
       accounts: [acct(1, 10, 10, {}, [NOW + 2 * HOUR + 1800]), acct(2, 10, 10, {}, [NOW + 45 * 60])], nowSec: NOW, held: null,
     }));
-    expect(html).toContain('<span class="vis-hidden">reported reset in </span>2h 30m</time>');
-    expect(html).toContain('<span class="vis-hidden">reported reset in </span>45m</time>');
-    expect(html.match(/class="ap-report-reset-cell"/g)).toHaveLength(4);
+    // CHANGED ON PURPOSE (V4's Figma): each account's reset is the second line of
+    // its window's cell, in the words of the accounts panel, where it was a
+    // column of its own.
+    expect(html).toContain("Resets in 2h 30m</time>");
+    expect(html).toContain("Resets in 45m</time>");
+    expect(html.match(/class="ap-report-win-sub" data-sub=""/g)).toHaveLength(4);
   });
 });
 
@@ -289,32 +292,38 @@ describe("the report, drawn", () => {
     // "Resets in 25m" under 88% remaining read as the whole window coming back.
     const out = html([acct(1, 12, 10, { alias: "work" }, [NOW + HOUR]), acct(2, 10, 10, {}, [NOW + 3 * HOUR])]);
     expect(out).toContain('<p class="ap-report-reset" title="First: work (12% used)"><span>Next reported reset in <span class="ap-report-num">1h 0m</span></span><span aria-hidden="true">·</span><span class="ap-report-who">work</span><span class="vis-hidden">. First: work (12% used)</span></p>');
-    expect(out).not.toMatch(/>Resets in /);
+    // CHANGED ON PURPOSE (V4's Figma): the rows' second lines now say "Resets
+    // in", so the cards above the table are what this checks.
+    expect(out.slice(0, out.indexOf("<table"))).not.toMatch(/>Resets in /);
     const two = html([acct(1, 12, 10, { alias: "a" }, [NOW + HOUR]), acct(2, 10, 10, { alias: "b" }, [NOW + HOUR + 20])]);
     expect(two).toContain('<span class="ap-report-who">a</span><span class="ap-report-more">+1</span>');
   });
 
-  it("labels the rows' numbers as used, beside a state for each", () => {
+  it("names the rows' four columns, with a state for each account and when it was updated under it", () => {
     const out = html([acct(1, 10, 10)]);
     // Each column name is the button that orders the rows by it (SortHead).
-    for (const label of ["Account", "5h used", "7d used", "Status"]) {
+    // CHANGED ON PURPOSE (V4's Figma): Account, State, 5-hour window and 7-day
+    // window, in that order; "used", "reset" and "Updated" are no longer
+    // columns, they are the figure and the lines under it.
+    for (const label of ["Account", "State", "5-hour window", "7-day window"]) {
       expect(out).toContain(`<th scope="col" aria-sort="none"><button type="button" class="sd-sort" title="Sort by ${label}">${label}<span class="sd-sort-dir" aria-hidden="true"></span></button></th>`);
     }
-    expect(out).toContain('<th scope="col" aria-sort="none" class="ap-report-upd-h"><button type="button" class="sd-sort" title="Sort by Updated">Updated<span');
-    expect(out).toContain('<td class="ap-report-upd">now</td>');
+    expect(out).toContain('<span class="ap-report-win-sub">Updated now</span>');
   });
 
   it("dims a left-out reading's last number, and says once, in its state, why", () => {
     const out = html([acct(1, 33, 40, { stale: true, fetchedAt: (NOW - HOUR) * 1000 })]);
     // Counted at that number since #1713, and said so (accounts-report-cell-said).
-    expect(out).toContain('data-uncounted=""><span class="ap-report-pct">33%</span><span class="vis-hidden">, last reading, counted as is</span>');
+    // CHANGED ON PURPOSE (V4's Figma): the figure is a bar and its percentage,
+    // and the state is its word alone with how old the numbers are under it.
+    expect(out).toContain('<span class="ap-report-pct">33%</span></span><span class="vis-hidden">, last reading, counted as is</span>');
     // Judged on its last numbers — one word, one line — and how old they are
-    // said once, in the Updated column (#1713).
-    expect(out).toContain('<td class="ap-report-state" data-status="ready"><span class="ap-report-state-word"><i aria-hidden="true"></i>Ready</span></td><td class="ap-report-upd" data-old="">1h ago</td>');
-    // No number at all: a dash for the eye, words for a screen reader.
+    // said once, on the line under it (#1713).
+    expect(out).toContain('<td class="ap-report-state" data-status="ready"><span class="ap-report-state-word">Ready</span><span class="ap-report-win-sub" data-old="">Updated 1h ago</span></td>');
+    // No number at all: a dash for the eye, words for a screen reader, no bar.
     const none = html([acct(1, 20, null)]);
     expect(none).toContain('<span class="ap-report-pct"><span aria-hidden="true">—</span><span class="vis-hidden">no reading</span></span>');
-    expect(none).toContain('<td class="ap-report-upd" data-old="">No 7d reading</td>');
+    expect(none).toContain('<span class="ap-report-win-sub" data-old="">No 7d reading</span>');
     // And a real zero is a reading, drawn as one.
     expect(html([acct(1, 0, 0)])).toContain(">0%<");
   });
@@ -322,15 +331,17 @@ describe("the report, drawn", () => {
   it("says a login that blocks both windows once, as the row's reason", () => {
     const out = html([acct(1, 10, 10, { error: "invalid_grant", alive: false })]);
     expect(out).toContain('data-status="stale"');
-    expect(out.match(/class="ap-report-upd"/g)).toHaveLength(1);
-    expect(out).toMatch(/<td class="ap-report-upd" data-old="">[^<]*login expired/i);
+    // CHANGED ON PURPOSE (V4's Figma): the reason is the line under the state.
+    expect(out.match(/data-old=/g)).toHaveLength(1);
+    expect(out).toMatch(/<span class="ap-report-win-sub" data-old="">[^<]*login expired/i);
   });
 
   it("names a spent window Limited and two Exhausted, and warns without a state for one near its limit", () => {
     const out = html([acct(1, 12, 100), acct(2, 100, 100), acct(3, 95, 30)]);
-    expect(out).toMatch(/data-status="limited"><span class="ap-report-state-word"><i aria-hidden="true"><\/i>Limited</);
-    expect(out).toMatch(/data-status="exhausted"><span class="ap-report-state-word"><i aria-hidden="true"><\/i>Exhausted</);
-    expect(out).toMatch(/data-status="ready"><span class="ap-report-state-word"><i aria-hidden="true"><\/i>Ready</);
+    // CHANGED ON PURPOSE (V4's Figma): the state is its word alone, with no mark.
+    expect(out).toMatch(/data-status="limited"><span class="ap-report-state-word">Limited</);
+    expect(out).toMatch(/data-status="exhausted"><span class="ap-report-state-word">Exhausted</);
+    expect(out).toMatch(/data-status="ready"><span class="ap-report-state-word">Ready</);
     expect(out).toContain('<span class="ap-report-pct" data-level="hi">95%</span>');
     expect(out).toContain("<b>1</b> of 3 Claude accounts ready");
   });
@@ -447,8 +458,11 @@ describe("the sheet", () => {
   const css = sheetText();
   it("registers the account marks for contrast themes", () => {
     expect(css).toMatch(/\.ap-lane-fill,\s*\.ap-report-meter i,/);
-    // The state marks are borders, which a Contrast theme repaints on its own.
-    expect(css).toMatch(/\.ap-report-state-word i \{[^}]*border: 3px solid currentColor;/);
+    // CHANGED ON PURPOSE (V4's Figma): the state has no mark any more, only its
+    // word. What a Contrast theme repaints is the row's bar, which gets an edge
+    // outside its two pixels.
+    expect(css).not.toContain(".ap-report-state-word i");
+    expect(css).toMatch(/\.ap-report-fig \.ap-report-meter \{ outline-offset: 1px; \}/);
   });
 
   it("keeps the column names in view while the rows scroll", () => {
