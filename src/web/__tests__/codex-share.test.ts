@@ -268,7 +268,7 @@ describe('manual Codex credential sharing', () => {
     const execFile = vi.fn().mockResolvedValue({ stdout: JSON.stringify({ path: 'C:\\fictional\\new-profile' }) });
     await secureCodexImportHome('C:\\fictional\\new-profile', { platform: 'win32', execFile });
     expect(execFile).toHaveBeenCalledWith(expect.stringMatching(/powershell\.exe$/), expect.arrayContaining(['-NoProfile', '-NonInteractive', '-File', '-Operation', 'ensure']), expect.objectContaining({
-      shell: false, timeout: 7000,
+      shell: false, timeout: 10000,
     }));
     execFile.mockRejectedValue(new Error('fictional secret stderr'));
     await expect(secureCodexImportHome('C:\\fictional\\new-profile', { platform: 'win32', execFile })).rejects.toMatchObject({ code: 'windows_permissions_failed', message: 'windows_permissions_failed' });
