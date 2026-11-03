@@ -416,10 +416,10 @@ export async function importCodexProfiles({ entries, expectedRevision }, prepare
       if (made.length) { state.revision++; await persist(state, options); }
       return { revision: state.revision, results };
     } catch (error) {
-      for (const guard of guards) guard.release();
+      for (const guard of guards) await guard.release();
       // None of these homes was registered if preparation or commit failed.
       await Promise.all(made.map(home => rm(home, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 })));
       throw error;
-    } finally { for (const guard of guards) guard.release(); }
+    } finally { for (const guard of guards) await guard.release(); }
   });
 }

@@ -112,7 +112,7 @@ async function readFileAuth(home, options) {
   } catch (error) {
     if (['file_auth_required', 'unsupported_auth'].includes(error.code)) throw error;
     fail('file_auth_required');
-  } finally { try { await handle?.close(); } finally { guard?.release(); } }
+  } finally { try { await handle?.close(); } finally { await guard?.release(); } }
 }
 
 /** Called only by explicit POST export, against opaque registered profile IDs. */
@@ -183,7 +183,7 @@ export async function importCodexShare({ blob, expectedRevision } = {}, options 
       // Keep the Windows directory pinned until the registry commit completes.
       return guard;
     } catch (error) {
-      guard?.release();
+      await guard?.release();
       if (tmp) await unlink(tmp).catch(() => {});
       if (error.code === 'windows_permissions_failed' || error.code === 'windows_private_path_unsafe') fail('windows_permissions_failed');
       fail('import_write_failed');
