@@ -640,6 +640,7 @@ const catalog: Catalog = {
   "board.hosts.cancelEsc": "取消（Esc）",
   "board.inspector.label": "檢查器",
   "board.inspector.fold": "收合檢查器",
+  "board.inspector.show": "顯示檢查器",
   "board.inspector.detail": "詳細資料",
   "board.inspector.agents": "代理",
   "board.inspector.agentsNote": "誰啟動了誰，依對話紀錄讀取。每張卡片顯示自己的模型、花費與時間。",

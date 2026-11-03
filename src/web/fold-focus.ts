@@ -33,3 +33,18 @@ export function focusFirstTaking(
   }
   return null;
 }
+
+/** Where the keyboard goes when the folded Inspector's tab is all there is to
+ *  take it: the tab's one button. */
+export const INSPECTOR_TAB_BUTTON = ".insp-corner button";
+
+/** After a fold: the pane (above), or else the tab's button, so the keyboard
+ *  is never left on nothing. */
+export function focusAfterFold(root: FocusRoot): HTMLElement | null {
+  const pane = focusFirstTaking(root);
+  if (pane) return pane;
+  const tab = root.querySelector(INSPECTOR_TAB_BUTTON) as HTMLElement | null;
+  if (!tab) return null;
+  tab.focus();
+  return root.activeElement === tab ? tab : null;
+}

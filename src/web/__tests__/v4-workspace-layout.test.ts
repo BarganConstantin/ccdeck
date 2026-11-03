@@ -58,7 +58,8 @@ describe("the sheet", () => {
   });
 
   it("matches nothing on the Board: every Workspace rule is keyed on data-view, the pane's data-fill, or a class only Workspace draws", () => {
-    const own = /\.view-switch|\.view-opt|\[data-view="workspace"\]|\[data-fill\]|\.ts-ws-|\.insp-none|\.insp-tab\[aria-current|\.ws-cell|:root\[data-view-switch\]|:root\[data-motion="instant"\] \.app\[data-view="workspace"\]|\.ts-tools \.glyph-btn\[data-zoom\]|\.ts-stage\[data-fill\]/;
+    // CHANGED ON PURPOSE (V4's Figma): the folded Inspector's tab is a class only Workspace draws (`.insp-corner`).
+    const own = /\.insp-corner|\.view-switch|\.view-opt|\[data-view="workspace"\]|\[data-fill\]|\.ts-ws-|\.insp-none|\.insp-tab\[aria-current|\.ws-cell|:root\[data-view-switch\]|:root\[data-motion="instant"\] \.app\[data-view="workspace"\]|\.ts-tools \.glyph-btn\[data-zoom\]|\.ts-stage\[data-fill\]/;
     const body = css.replace(/@media[^{]*\{/g, "").replace(/@keyframes[^{]*\{[^{}]*\{[^{}]*\}\s*\}/g, "");
     const stray: string[] = [];
     for (const m of body.matchAll(/([^{}]+)\{[^{}]*\}/g)) {

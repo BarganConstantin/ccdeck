@@ -4,7 +4,7 @@
 // Moved out of App.tsx's markup unchanged, with exportSessionJson, the one
 // thing only this panel does with the graph. App.tsx mounts it while an agent
 // is selected and the panel is open.
-import type { MutableRefObject } from "react";
+import { useLayoutEffect, useRef, useState, type MutableRefObject } from "react";
 
 import { useFeatureUse } from "../feature-use";
 import type { GraphState } from "../reducer";
@@ -38,11 +38,15 @@ function exportSessionJson(state: GraphState, sessionId: string): void {
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
-export default function DetailAside({ selected, now, openTool, setSummaryFor, onClose, onSelectAgent, stateRef, removeSelectedNode, workspace = false, leaving = false }: {
+export default function DetailAside({ selected, now, openTool, setSummaryFor, onClose, onSelectAgent, stateRef, removeSelectedNode, workspace = false, leaving = false, sheet = false }: {
   /** The Workspace is drawn: the title takes the pane's sentence for the state. */
   workspace?: boolean;
   /** A phone's sheet on its way down the bottom edge, the flag already dropped. */
   leaving?: boolean;
+  /** Workspace's sheet width (1100 to 1319): the sheet comes in from the right
+   *  edge and leaves the same way, on transitions (workspace.css), so a reopen
+   *  during the close turns around. `leaving` is then the sheet on its way out. */
+  sheet?: boolean;
   /** The primary selection, which is what the panel is about. */
   selected: AgentNodeData;
   now: number;
@@ -63,6 +67,17 @@ export default function DetailAside({ selected, now, openTool, setSummaryFor, on
   useFeatureUse("detail-panel");
   const singleKeys = useSingleKeyShortcuts();
   const status = useInspectorStatus(selected, stateRef.current.agents, now, workspace);
+  // The sheet is drawn off the right edge first and moved in on the next
+  // style flush (a style read in between makes the browser take the start as
+  // computed), so the entry is a transition and not a pop.
+  const asideRef = useRef<HTMLElement>(null);
+  const [entered, setEntered] = useState(!sheet);
+  useLayoutEffect(() => {
+    if (!sheet) return;
+    void asideRef.current?.offsetWidth;
+    setEntered(true);
+  }, [sheet]);
+  const sheetState = !sheet ? undefined : leaving ? "out" : entered ? "in" : "pre";
   return (
     // Already the right element and still an unnamed one: the rotor listed
     // it as a bare "complementary" beside the session list's "Sessions",
@@ -71,7 +86,7 @@ export default function DetailAside({ selected, now, openTool, setSummaryFor, on
     // identity when nothing is selected, and a landmark whose name changes
     // under the reader is a landmark they cannot come back to. The agent's
     // name is the panel's <h2>, which is where a changing title belongs.
-    <aside className={leaving ? "detail leaving" : "detail"} aria-label={t("board.detailPanel.title")}>
+    <aside ref={asideRef} className={leaving ? "detail leaving" : "detail"} data-sheet={sheetState} aria-label={t("board.detailPanel.title")}>
       <SheetHandle />
       <Inspector
         selected={selected}

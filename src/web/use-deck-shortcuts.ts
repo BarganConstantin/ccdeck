@@ -136,6 +136,22 @@ export interface DeckShortcuts {
   /** The board's zoom tier (use-zoom-lod.ts). P's peek keeps the hover's rule:
    *  never at the detail distance, where the card already says it all. */
   lodRef?: Read<LodMode | null>;
+  /** Workspace's Inspector sheet (1100 to 1319), while it is open: what folds
+   *  it. Null otherwise. Escape with the keys inside the sheet folds it; Escape
+   *  in the pane never gets here (the terminal's is the agent's). */
+  inspectorSheetFoldRef?: Read<(() => void) | null>;
+}
+
+/** With nothing selected, what D (and the Inspector's tab) picks for the
+ *  panel to be about: the session that has waited longest, else the card j
+ *  would land on. Selecting opens the panel by itself. */
+export function pickSessionForInspector(
+  state: GraphState,
+  focusSession: (sessionId: string) => void,
+  stepAgent: (direction: 1 | -1) => void,
+): void {
+  const waiting = blockedSessions(state.agents.values());
+  if (waiting.length > 0) focusSession(waiting[0].id); else stepAgent(1);
 }
 
 export function useDeckShortcuts({
@@ -144,7 +160,7 @@ export function useDeckShortcuts({
   clearSelection, selectAgent, focusAgent, stepAgent, focusSession, requestClear,
   handleRelayout, undoRearrange, handleFit, togglePause, toggleSessionList, toggleAccountsPanel,
   setDetailOpen, setUsageHistoryOpen, setUsagePanelOpen, setMachinePanelOpen,
-  setBrowserWatchOpen, setKeyHelpOpen, setTheme, openSettings, openIntegrationRef, openQuickOpen, stageRef, viewRef, lodRef,
+  setBrowserWatchOpen, setKeyHelpOpen, setTheme, openSettings, openIntegrationRef, openQuickOpen, stageRef, viewRef, lodRef, inspectorSheetFoldRef,
 }: DeckShortcuts): void {
   // keyboard shortcuts
   useEffect(() => {
@@ -277,7 +293,14 @@ export function useDeckShortcuts({
         const outcome = escapeOutcome({ overlayOpen: modalStack.depth() > 0, typing: isTypingTarget(target) });
         if (outcome === "dismiss") modalStack.dismissTop();
         else if (outcome === "blur") el?.blur();
-        else {
+        else if (inspectorSheetFoldRef?.current && el?.closest?.(".detail")) {
+          // The Inspector's sheet is a fold, not a selection: the keys inside it
+          // fold it, and the session stays selected.
+          inspectorSheetFoldRef.current();
+        } else if (inspectorSheetFoldRef?.current && el?.closest?.(".stage-dock")) {
+          // The pane's Escape is the agent's: with the sheet open over it, it
+          // never closes the sheet (nor clears the selection the sheet is about).
+        } else {
           // And the branch that gave the keyboard its way back. Every control
           // on this deck is a <button> or a role="button", so the gate below
           // — which is right to leave a focused control its own keys — killed
@@ -508,10 +531,7 @@ export function useDeckShortcuts({
       // else the card j would land on. Selecting opens the panel by itself.
       if (e.key === "d" || e.key === "D") {
         if (primarySelectedIdRef.current) setDetailOpen(o => !o);
-        else {
-          const waiting = blockedSessions(stateRef.current.agents.values());
-          if (waiting.length > 0) focusSession(waiting[0].id); else stepAgent(1);
-        }
+        else pickSessionForInspector(stateRef.current, focusSession, stepAgent);
       }
       if (e.key === "h" || e.key === "H") setUsageHistoryOpen(o => !o);
       if (e.key === "u" || e.key === "U") setUsagePanelOpen(o => !o);

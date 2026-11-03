@@ -640,6 +640,7 @@ const catalog: Catalog = {
   "board.hosts.cancelEsc": "취소 (Esc)",
   "board.inspector.label": "인스펙터",
   "board.inspector.fold": "인스펙터 접기",
+  "board.inspector.show": "인스펙터 표시",
   "board.inspector.detail": "상세",
   "board.inspector.agents": "에이전트",
   "board.inspector.agentsNote": "트랜스크립트에서 읽은, 누가 누구를 시작했는지입니다. 각 카드에 자체 모델, 비용, 시간이 표시됩니다.",

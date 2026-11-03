@@ -76,7 +76,15 @@ function saveMachinePanelOpen(open: boolean): void {
 export function useRightPanels(leftColumnW = 0) {
   /** Right detail panel visibility — persisted across refresh. */
   const [detailOpen, setDetailOpen] = useState<boolean>(loadDetailOpen);
-  useEffect(() => { saveDetailOpen(detailOpen); }, [detailOpen]);
+  /** Shut for now, not by the reader: Workspace's sheet width (1100 to 1319)
+   *  starts with the Inspector folded, and the Board's stored choice stays as it
+   *  was. Never written as a close; the reader's own open ends it. */
+  const detailHeldRef = useRef(false);
+  useEffect(() => {
+    if (detailOpen) detailHeldRef.current = false;
+    else if (detailHeldRef.current) return;
+    saveDetailOpen(detailOpen);
+  }, [detailOpen]);
   /** Usage panel visibility — persisted across refresh. */
   // A phone opens on Sessions with no panel open: Usage waits for its door, as
   // a sheet over the list, and the stored flag is not touched by the wait.
@@ -124,6 +132,7 @@ export function useRightPanels(leftColumnW = 0) {
    *  ends the hold. Widening does not reopen them (the hold only ends on an
    *  open), and their stored flags are as they were. */
   const hold = {
+    detail: () => { detailHeldRef.current = true; setDetailOpen(false); },
     usage: () => { usageHeldRef.current = true; setUsagePanelOpen(false); },
     machine: () => { machineHeldRef.current = true; setMachinePanelOpen(false); },
   };

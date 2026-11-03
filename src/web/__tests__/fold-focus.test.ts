@@ -61,6 +61,8 @@ describe("the Fold's focus", () => {
     const app = readFileSync(fileURLToPath(new URL("../App.tsx", import.meta.url)), "utf8");
     const at = app.indexOf("const foldInspector = useCallback(");
     const body = app.slice(at, app.indexOf("}, [setDetailOpen]);", at));
-    expect(body).toMatch(/requestAnimationFrame\(\(\) => \{ focusFirstTaking\(document\); \}\);/);
+    // CHANGED ON PURPOSE (V4's Figma): when the pane takes no focus the keyboard goes to the
+    // folded Inspector's tab (focusAfterFold), never onto nothing.
+    expect(body).toMatch(/requestAnimationFrame\(\(\) => \{ focusAfterFold\(document\); \}\);/);
   });
 });

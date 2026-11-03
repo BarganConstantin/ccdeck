@@ -666,6 +666,7 @@ const catalog: Catalog = {
   "board.hosts.cancelEsc": "Anulează (Esc)",
   "board.inspector.label": "Inspector",
   "board.inspector.fold": "Strânge Inspectorul",
+  "board.inspector.show": "Arată Inspectorul",
   "board.inspector.detail": "Detalii",
   "board.inspector.agents": "Agenți",
   "board.inspector.agentsNote": "Cine pe cine a pornit, citit din transcriere. Fiecare card arată propriul model, cost și timp.",
