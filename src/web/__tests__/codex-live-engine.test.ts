@@ -57,6 +57,37 @@ async function fixture({ saved = null as any, actual = A, readCredential = null 
     externalLogin: (id: string) => { account = { ...account, email: email(id) }; callbacks.onNotification({ method: 'account/updated' }); } };
 }
 describe('existing Codex session account engine', () => {
+  it('switches authentication only after pausing a waiting parent and its child, then continues the child first', async () => {
+    const f = await fixture({ active: true }); const original = f.rpc.request.getMockImplementation()!;
+    const child = { id: 'child-thread', parentThreadId: f.thread.id, canAcceptDirectInput: true,
+      status: { type: 'active', activeFlags: [] } };
+    const childTurn = { id: 'child-turn', rootTurnId: 'root-turn', status: 'inProgress', itemsView: 'full',
+      items: [{ id: 'child-input', type: 'userMessage' }] };
+    f.turn.items.push({ id: 'wait', type: 'collabAgentToolCall', tool: 'wait', status: 'inProgress',
+      senderThreadId: f.thread.id, receiverThreadIds: [child.id] });
+    f.rpc.request.mockImplementation(async (method, params) => {
+      if (method === 'thread/loaded/list') return { data: [child.id, f.thread.id] };
+      if (params?.threadId === child.id) {
+        f.calls.push({ method, params });
+        if (method === 'thread/read') return { thread: structuredClone(child) };
+        if (method === 'thread/turns/list') return { data: [structuredClone(childTurn)] };
+        if (method === 'turn/interrupt') { child.status.type = 'idle'; childTurn.status = 'interrupted'; return {}; }
+        if (method === 'turn/start') { child.status.type = 'active'; return { turn: { id: 'child-continued' } }; }
+      }
+      if (method === 'turn/interrupt') f.turn.items[1].status = 'completed';
+      return original(method, params);
+    });
+    expect(await f.c.request({ id: B, revision: 1 })).toMatchObject({ state: 'applied', profileId: B, continuation: 'automatic' });
+    expect(f.calls.filter(c => ['turn/interrupt', 'account/login/start', 'turn/start'].includes(c.method))
+      .map(c => [c.method, c.params.threadId ?? null])).toEqual([
+      ['turn/interrupt', f.thread.id], ['turn/interrupt', child.id], ['account/login/start', null],
+      ['turn/start', child.id], ['turn/start', f.thread.id],
+    ]);
+    expect(f.journals.at(-1)).toMatchObject({ phase: 'finished', entries: [
+      { threadId: f.thread.id, phase: 'continued' }, { threadId: child.id, parentThreadId: f.thread.id, phase: 'continued' },
+    ] });
+    expect(JSON.stringify(f.journals)).not.toContain('fictional-access');
+  });
   it('waits for an existing tool, switches after a clean interrupt and automatically continues once', async () => {
     const f = await fixture({ active: true }); f.turn.items.push({ id: 'command', type: 'commandExecution', status: 'inProgress' });
     expect(await f.c.request({ id: B, revision: 1 })).toMatchObject({ state: 'waiting', continuation: 'waiting' });

@@ -79,6 +79,20 @@ describe('native account handoff without network-permit revocation', () => {
     await expect(continueCodexLiveHandoff(f.rpc, h)).rejects.toMatchObject({ code: 'native_activity_changed' });
     expect(f.rpc.request.mock.calls.some(c => c[0] === 'turn/start')).toBe(false);
   });
+  it('leaves a closed child unloaded while still continuing its parent', async () => {
+    const f = familyFixture(); const h = await prepareCodexLiveHandoff(f.rpc);
+    f.threads[1].status.type = 'notLoaded'; f.threads[1].canAcceptDirectInput = null as any;
+    f.rpc.request.mockClear(); const skipped = vi.fn();
+    expect(await continueCodexLiveHandoff(f.rpc, h, { onSkip: skipped })).toEqual({ resumed: 1 });
+    expect(skipped).toHaveBeenCalledWith(expect.objectContaining({ threadId: 'child' }));
+    expect(f.rpc.request.mock.calls.filter(c => c[1]?.threadId === 'child').map(c => c[0])).toEqual(['thread/read']);
+    expect(f.rpc.request.mock.calls.filter(c => c[0] === 'turn/start').map(c => c[1].threadId)).toEqual(['parent']);
+  });
+  it.each(['missing', 'child'])('refuses missing or cyclic family ancestry before interrupting: %s', async parent => {
+    const f = familyFixture(); f.threads[0].parentThreadId = parent;
+    await expect(prepareCodexLiveHandoff(f.rpc)).rejects.toMatchObject({ code: 'native_activity_unknown' });
+    expect(f.rpc.request.mock.calls.some(c => c[0] === 'turn/interrupt')).toBe(false);
+  });
   it('does not request unsupported stored history from an idle ephemeral conversation', async () => {
     const f = fixture(); const original = f.rpc.request.getMockImplementation()!;
     f.rpc.request.mockImplementation(async (method, params) => {

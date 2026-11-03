@@ -146,11 +146,14 @@ export async function continueCodexLiveHandoff(rpc, handoff, options = {}) {
     if (entry.sent) continue;
     if (options.isCurrent && !options.isCurrent()) throw liveError('native_switch_superseded');
     const t = (await rpc.request('thread/read', { threadId: entry.threadId, includeTurns: false }))?.thread;
+    // A closed/unloaded child has no direct-input capability. Leave it alone
+    // before inspecting history, and allow the remaining family to continue.
+    if (t?.status?.type !== 'idle') { await options.onSkip?.(entry); continue; }
     if (t?.canAcceptDirectInput === false || entry.parentThreadId
       && (t?.canAcceptDirectInput !== true || t.parentThreadId !== entry.parentThreadId)) throw liveError('native_activity_changed');
     const turn = await latest(rpc, entry.threadId);
     // New input, natural completion, archival or a different turn wins over us.
-    if (t?.status?.type !== 'idle' || turn?.id !== entry.turnId || turn.status !== 'interrupted'
+    if (turn?.id !== entry.turnId || turn.status !== 'interrupted'
       || JSON.stringify(inputIds(turn)) !== JSON.stringify(entry.inputIds)) {
       await options.onSkip?.(entry); continue;
     }
