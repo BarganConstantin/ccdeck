@@ -10,7 +10,8 @@ import { readCodexAuto } from './codex-auto.mjs';
 import { resolveCodexLiveEndpoint, connectCodexLiveRpc, liveError } from './codex-live-rpc.mjs';
 import { acquireCodexLiveLease } from './codex-live-lease.mjs';
 import { readLiveCodexCredential } from './codex-live-credentials.mjs';
-import { prepareCodexLiveHandoff, assertCodexLiveQuiet, continueCodexLiveHandoff, confirmCodexLiveChildren } from './codex-live-handoff.mjs';
+import { prepareCodexLiveHandoff, assertCodexLiveQuiet, continueCodexLiveHandoff, confirmCodexLiveChildren, readCodexLiveTurn } from './codex-live-handoff.mjs';
+import { requestCodexLiveCheckpoints, inspectCodexLiveCheckpoints } from './codex-live-checkpoint.mjs';
 
 const idPattern = /^[a-f0-9]{20}$/;
 const publicReason = e => /^[a-z_]{1,64}$/.test(e?.code ?? '') ? e.code : 'live_switch_failed';
@@ -34,7 +35,12 @@ export function createCodexLiveAccountController(input = {}) {
   let restorePending = null, restoreRetryAt = 0;
   let deferred = null;
   let childContinuation = null;
+  let checkpointWork = null;
   let recoveryNeeded = false;
+  let recoveryJournal = null;
+  const defer = (intent, refresh, automatic) => {
+    if (!refresh || !deferred || deferred.refresh) deferred = { intent: { ...intent }, refresh, automatic };
+  };
   const status = () => ({ ...state, scope: 'shared_native_server' });
   const update = patch => { state = { ...state, ...patch }; options.onState?.(status()); };
   const enqueue = fn => { const next = chain.then(fn, fn); chain = next.catch(() => {}); return next; };
@@ -64,8 +70,12 @@ export function createCodexLiveAccountController(input = {}) {
     if (!owned || closed) return;
     owned = false; credential = null; deferred = null;
     update({ state: 'external_change', profileId: null, reason: 'account_changed_outside_deck',
-      ...(childContinuation ? { continuation: 'manual_required' } : {}) });
+      ...(childContinuation || checkpointWork ? { continuation: 'manual_required' } : {}) });
+    if (childContinuation || checkpointWork) {
+      recoveryNeeded = true; recoveryJournal = childContinuation?.journal ?? checkpointWork?.journal;
+    }
     childContinuation = null;
+    checkpointWork = null;
     await save().catch(() => {});
     await disconnect();
   }
@@ -124,19 +134,24 @@ export function createCodexLiveAccountController(input = {}) {
     if (next.profileId !== id) throw liveError('profile_changed');
     return next;
   }
-  async function apply(intent, refresh = false, automatic = false) {
+  async function applyCore(intent, refresh = false, automatic = false, checkpoint = null) {
     const currentIntent = () => refresh ? appliedIntent : desired;
     if (closed || currentIntent()?.revision !== intent.revision || currentIntent().id !== intent.id) return status();
-    if (childContinuation) {
-      deferred = { intent: { ...intent }, refresh, automatic };
-      update({ state: 'waiting', requestedProfileId: intent.id, reason: 'native_tools_active', continuation: 'waiting' }); return status();
+    if (recoveryNeeded) {
+      update({ state: 'failed', requestedProfileId: intent.id, continuation: 'manual_required', reason: 'native_continue_unconfirmed' }); return status();
+    }
+    if (childContinuation || checkpointWork) {
+      defer(intent, refresh, automatic);
+      update({ state: 'waiting', requestedProfileId: intent.id,
+        reason: childContinuation?.expired ? 'native_continue_unconfirmed' : 'native_tools_active',
+        continuation: childContinuation?.expired ? 'manual_required' : 'waiting' }); return status();
     }
     if (automatic && !(await (options.readAuto ?? (() => readCodexAuto({ ...options, store })))()).enabled) {
       update({ state: owned ? 'applied' : 'idle', reason: 'auto_switch_disabled', continuation: 'none' }); return status();
     }
     update({ state: 'switching', requestedProfileId: intent.id, reason: null, continuation: 'none' });
     let maybeApplied = false, handoff = null, resumeIdentity = null;
-    const journal = { version: 1, phase: 'paused', profileId: intent.id, revision: intent.revision, entries: [] };
+    const journal = checkpoint?.journal ?? { version: 1, phase: 'paused', profileId: intent.id, revision: intent.revision, entries: [] };
     const record = async (entry, phase, turnId) => {
       if (!journal.entries.some(e => e.messageId === entry.messageId)) journal.entries.push(entry);
       Object.assign(entry, { phase, ...(turnId ? { continuedTurnId: turnId } : {}) });
@@ -144,6 +159,11 @@ export function createCodexLiveAccountController(input = {}) {
       await saveHandoff(journal);
     };
     const owner = () => !closed && currentIntent()?.revision === intent.revision && currentIntent()?.id === intent.id;
+    const verifyOwnership = async () => {
+      if (!await lease?.valid()) throw liveError('native_control_lost');
+      const actual = await rpc.request('account/read', { refreshToken: false });
+      if (actual.account?.email !== resumeIdentity?.email || actual.account?.type !== resumeIdentity?.type) throw liveError('account_changed_outside_deck');
+    };
     const resume = async () => continueCodexLiveHandoff(rpc, handoff, {
       isCurrent: () => !closed && !!rpc,
       beforeSend: async entry => {
@@ -167,10 +187,23 @@ export function createCodexLiveAccountController(input = {}) {
       resumeIdentity = before.account;
       handoff = await prepareCodexLiveHandoff(rpc, { isCurrent: owner,
         beforeInterrupt: entry => record(entry, 'interrupt_sent'), afterInterrupt: (entry, phase) => record(entry, phase) });
-      if (handoff.waiting) {
-        deferred = { intent: { ...intent }, refresh, automatic };
+      if (handoff.checkpoint) {
+        if (checkpoint) handoff.checkpoint.unshift(...checkpoint.handoff.paused);
+        checkpointWork = { rpc, entries: handoff.checkpoint, intent: { ...intent }, refresh, automatic, journal, record,
+          identity: resumeIdentity, deadline: Date.now() + (options.checkpointTimeoutMs ?? 120_000), current: owner };
+        try { await requestCodexLiveCheckpoints(rpc, handoff.checkpoint, { record, beforeSend: verifyOwnership }); }
+        catch (error) { checkpointWork = null; recoveryNeeded = true; recoveryJournal = journal; throw error; }
         update({ state: 'waiting', reason: 'native_tools_active', continuation: 'waiting' }); return status();
       }
+      if (handoff.waiting) {
+        if (checkpoint) {
+          checkpointWork = checkpoint.work;
+          update({ state: 'waiting', reason: 'native_tools_active', continuation: 'waiting' }); return status();
+        }
+        defer(intent, refresh, automatic);
+        update({ state: 'waiting', reason: 'native_tools_active', continuation: 'waiting' }); return status();
+      }
+      if (checkpoint) handoff.paused.push(...checkpoint.handoff.paused);
       deferred = null;
       if (!owner()) throw liveError('native_switch_superseded');
       await assertCodexLiveQuiet(rpc);
@@ -197,7 +230,7 @@ export function createCodexLiveAccountController(input = {}) {
           const result = await resume();
           if (result.delegated?.length) {
             childContinuation = { rpc, entries: result.delegated, deadline: Date.now() + (options.delegationTimeoutMs ?? 60_000),
-              record, identity: resumeIdentity };
+              record, journal, identity: resumeIdentity };
           }
           update({ continuation: result.delegated?.length ? 'waiting' : result.resumed ? 'automatic' : 'none' });
         }
@@ -216,7 +249,25 @@ export function createCodexLiveAccountController(input = {}) {
       update({ state: ['native_not_running', 'cli_unavailable'].includes(reason) ? 'unavailable' : 'failed',
         ...(maybeApplied ? { profileId: null } : {}), reason });
       if (!owned) await disconnect();
-    } finally { applying = false; }
+    } finally {
+      applying = false;
+      if (journal.entries.length && journal.phase !== 'finished' && !childContinuation && !checkpointWork) {
+        recoveryNeeded = true; recoveryJournal = journal;
+        update({ continuation: 'manual_required', reason: 'native_continue_unconfirmed' });
+      }
+    }
+    return status();
+  }
+  async function apply(intent, refresh = false, automatic = false, checkpoint = null) {
+    try { await applyCore(intent, refresh, automatic, checkpoint); }
+    finally {
+      // A checkpoint is already real work, even if admission exits early (for
+      // example Auto-switch was disabled). Never drop its recovery protection.
+      if (checkpoint?.journal.entries.length && checkpoint.journal.phase !== 'finished' && !checkpointWork && !childContinuation) {
+        recoveryNeeded = true; recoveryJournal = checkpoint.journal;
+        update({ continuation: 'manual_required', reason: 'native_continue_unconfirmed' });
+      }
+    }
     return status();
   }
   async function request(intent, automatic = false) {
@@ -304,6 +355,7 @@ export function createCodexLiveAccountController(input = {}) {
     try {
       const savedHandoff = options.loadHandoff ? await options.loadHandoff() : await readFile(join(store, 'codex-live-handoff.json'), 'utf8').then(JSON.parse).catch(() => null);
       recoveryNeeded = savedHandoff?.version === 1 && savedHandoff.phase !== 'finished' && savedHandoff.entries?.some(e => !['continued', 'skipped'].includes(e.phase)) === true;
+      if (recoveryNeeded) recoveryJournal = savedHandoff;
       const s = await selection(); lastManual = s.runningSelection?.revision ?? 0; lastSelected = s.profileId;
       restorePending = options.loadState ? await options.loadState() : JSON.parse(await readFile(metadata, 'utf8'));
       if (restorePending) await enqueue(() => restore(restorePending));
@@ -322,11 +374,49 @@ export function createCodexLiveAccountController(input = {}) {
       });
       work.entries = result.pending;
       if (!work.entries.length) {
-        childContinuation = null; update({ continuation: 'automatic', reason: null });
+        childContinuation = null; update({ continuation: work.expired ? 'none' : 'automatic', reason: null });
       } else if (Date.now() >= work.deadline) throw liveError('native_continue_unconfirmed');
     } catch {
-      childContinuation = null; update({ continuation: 'manual_required', reason: 'native_continue_unconfirmed' });
+      work.expired = true; update({ continuation: 'manual_required', reason: 'native_continue_unconfirmed' });
     }
+  }
+  async function prepareCheckpoint() {
+    const work = checkpointWork;
+    if (!work) return;
+    try {
+      if (!work.current() || work.rpc !== rpc || !await lease?.valid()) throw liveError('native_control_lost');
+      const account = (await rpc.request('account/read', { refreshToken: false })).account;
+      if (account?.email !== work.identity?.email || account?.type !== work.identity?.type) throw liveError('account_changed_outside_deck');
+      const handoff = await inspectCodexLiveCheckpoints(rpc, work.entries, { record: work.record });
+      if (!handoff) {
+        if (Date.now() >= work.deadline) throw liveError('native_continue_unconfirmed');
+        return;
+      }
+      checkpointWork = null;
+      await apply(work.intent, work.refresh, work.automatic, { handoff, journal: work.journal, work });
+    } catch {
+      checkpointWork = null; recoveryNeeded = true; recoveryJournal = work.journal;
+      update({ state: 'failed', continuation: 'manual_required', reason: 'native_continue_unconfirmed' });
+    }
+  }
+  async function reconcileRecovery() {
+    if (!recoveryNeeded || !recoveryJournal) return;
+    try {
+      const s = await selection(); await ensureRpc(s.originalHome);
+      for (const entry of recoveryJournal.entries) {
+        if (['continued', 'skipped'].includes(entry.phase)) continue;
+        const t = (await rpc.request('thread/read', { threadId: entry.threadId, includeTurns: false }))?.thread;
+        if (!t || t.status?.type === 'notLoaded') return;
+        const turn = await readCodexLiveTurn(rpc, t);
+        if (!turn || !['inProgress', 'completed'].includes(turn.status)) return;
+        if (turn.id === entry.turnId && (entry.phase !== 'interrupt_sent' || turn.status !== 'completed' || entry.checkpointReady)) return;
+        // New work is an observed owner action, never permission to replay us.
+        entry.phase = 'skipped';
+      }
+      recoveryJournal.phase = 'finished'; await saveHandoff(recoveryJournal);
+      recoveryNeeded = false; recoveryJournal = null;
+      update({ continuation: 'none', reason: null });
+    } catch { /* Keep the durable recovery intent until its outcome is known. */ }
   }
   async function reconnect() {
     const generation = endpoint?.generation;
@@ -342,7 +432,9 @@ export function createCodexLiveAccountController(input = {}) {
     ticking = true;
     try {
       await ready;
+      if (recoveryNeeded) await enqueue(reconcileRecovery);
       if (childContinuation) await enqueue(confirmChildren);
+      if (checkpointWork) await enqueue(prepareCheckpoint);
       const s = await selection();
       if (s.runningSelection && s.runningSelection.revision > lastManual) {
         lastManual = s.runningSelection.revision; await request(s.runningSelection);
@@ -352,7 +444,7 @@ export function createCodexLiveAccountController(input = {}) {
       }
       lastSelected = s.profileId;
       if (restorePending && Date.now() >= restoreRetryAt) await enqueue(() => restore(restorePending));
-      if (deferred) { const retry = deferred; deferred = null; await enqueue(() => apply(retry.intent, retry.refresh, retry.automatic)); }
+      if (deferred && !childContinuation && !checkpointWork && !recoveryNeeded) { const retry = deferred; deferred = null; await enqueue(() => apply(retry.intent, retry.refresh, retry.automatic)); }
       if (owned && !rpc && appliedIntent) await enqueue(reconnect);
       if (owned && credential && appliedIntent && Date.now() - lastRefresh > 60_000 && credential.expiresAt - Date.now() < 10 * 60_000) {
         lastRefresh = Date.now(); await enqueue(() => apply(appliedIntent, true));

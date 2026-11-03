@@ -59,13 +59,15 @@ async function fixture({ saved = null as any, actual = A, readCredential = null 
     externalLogin: (id: string) => { account = { ...account, email: email(id) }; callbacks.onNotification({ method: 'account/updated' }); } };
 }
 describe('existing Codex session account engine', () => {
-  async function v2({ timeout = undefined as number | undefined } = {}) {
-    const f = await fixture({ active: true, delegationTimeoutMs: timeout }), original = f.rpc.request.getMockImplementation()!;
+  async function v2({ timeout = undefined as number | undefined, nearExpiry = false, auto = false } = {}) {
+    const credential = nearExpiry ? async (id: string) => ({ profileId: id, accessToken: 'fictional-access', accountId: id === A ? 'first' : 'second',
+      email: id === A ? 'first@example.test' : 'second@example.test', planType: 'plus', expiresAt: Date.now() + 300_000 }) : null;
+    const f = await fixture({ active: true, delegationTimeoutMs: timeout, readCredential: credential, auto }), original = f.rpc.request.getMockImplementation()!;
     Object.assign(f.thread, { canAcceptDirectInput: true });
     const child = { id: 'v2-child', parentThreadId: f.thread.id, canAcceptDirectInput: false,
       source: { subAgent: { thread_spawn: { parent_thread_id: f.thread.id, agent_path: '/root/report' } } },
       status: { type: 'active', activeFlags: [] } };
-    const turn = { id: 'v2-turn', rootTurnId: 'root-turn', status: 'inProgress', itemsView: 'full', items: [] };
+    const turn = { id: 'v2-turn', rootTurnId: 'root-turn', status: 'inProgress', itemsView: 'full', items: [] as any[] };
     f.turn.items.push({ id: 'wait', type: 'collabAgentToolCall', tool: 'wait', status: 'inProgress', senderThreadId: f.thread.id, receiverThreadIds: [] });
     f.rpc.request.mockImplementation(async (method, params) => {
       if (method === 'thread/loaded/list') return { data: [f.thread.id, child.id] };
@@ -76,14 +78,28 @@ describe('existing Codex session account engine', () => {
         if (method === 'turn/interrupt') { child.status.type = 'idle'; turn.status = 'interrupted'; return {}; }
         throw Error('Direct V2 input is forbidden');
       }
+      if (method === 'turn/steer') {
+        f.calls.push({ method, params });
+        f.turn.items.push({ id: 'checkpoint-input', type: 'userMessage', clientId: params.clientUserMessageId }); return {};
+      }
       if (method === 'turn/interrupt') f.turn.items[1].status = 'completed';
       return original(method, params);
     });
-    return { ...f, child, childTurn: turn };
+    const checkpoint = async () => {
+      const id = f.journals.at(-1).entries[0].checkpointId;
+      f.thread.status.type = 'idle'; f.turn.status = 'completed'; f.turn.items[1].status = 'completed';
+      child.status.type = 'idle'; turn.status = 'completed';
+      f.turn.items.push({ id: 'parent-checkpoint', type: 'agentMessage', text: 'CCDECK_CHECKPOINT_' + id });
+      turn.items.push({ id: 'child-checkpoint', type: 'agentMessage', text: 'CCDECK_CHECKPOINT_' + id });
+      await f.c.tick();
+    };
+    return { ...f, child, childTurn: turn, checkpoint };
   }
   it('reports waiting until the parent really resumes its V2 child and records confirmation without another prompt', async () => {
     const f = await v2();
-    expect(await f.c.request({ id: B, revision: 1 })).toMatchObject({ state: 'applied', continuation: 'waiting' });
+    expect(await f.c.request({ id: B, revision: 1 })).toMatchObject({ state: 'waiting', continuation: 'waiting' });
+    expect(f.calls.some(c => ['turn/interrupt', 'account/login/start'].includes(c.method))).toBe(false);
+    await f.checkpoint(); expect(f.c.status()).toMatchObject({ state: 'applied', continuation: 'waiting' });
     expect(f.journals.at(-1)).toMatchObject({ phase: 'pending' });
     await f.c.tick(); expect(f.c.status().continuation).toBe('waiting');
     f.child.status.type = 'active'; f.childTurn.id = 'parent-followup'; f.childTurn.status = 'inProgress';
@@ -92,17 +108,53 @@ describe('existing Codex session account engine', () => {
     expect(f.calls.filter(c => c.method === 'turn/start').map(c => c.params.threadId)).toEqual([f.thread.id]);
   });
   it('leaves an unconfirmed V2 continuation manual after its deadline or a restart without replaying input', async () => {
-    const f = await v2({ timeout: 0 }); await f.c.request({ id: B, revision: 1 }); await f.c.tick(); await f.c.tick();
+    const f = await v2({ timeout: 0 }); await f.c.request({ id: B, revision: 1 }); await f.checkpoint(); await f.c.tick();
     expect(f.c.status()).toMatchObject({ continuation: 'manual_required', reason: 'native_continue_unconfirmed' });
     const restored = await fixture({ savedHandoff: f.journals.at(-1) });
     expect(restored.c.status().continuation).toBe('manual_required');
     expect(restored.calls.some(c => c.method === 'turn/start')).toBe(false);
     expect(f.calls.filter(c => c.method === 'turn/start')).toHaveLength(1);
+    await f.c.request({ id: A, revision: 2 }); await f.c.tick();
+    expect(f.journals.at(-1).phase).toBe('pending');
+    expect(f.calls.filter(c => c.method === 'account/login/start')).toHaveLength(1);
+    await restored.c.request({ id: B, revision: 1 });
+    expect(restored.calls.some(c => c.method === 'account/login/start')).toBe(false);
   });
   it('honors an outside login during V2 continuation instead of sending a retry', async () => {
-    const f = await v2(); await f.c.request({ id: B, revision: 1 }); f.externalLogin(A); await f.c.tick();
+    const f = await v2(); await f.c.request({ id: B, revision: 1 }); await f.checkpoint(); f.externalLogin(A); await f.c.tick();
     expect(f.c.status()).toMatchObject({ state: 'external_change', continuation: 'manual_required' });
     expect(f.calls.filter(c => c.method === 'turn/start')).toHaveLength(1);
+  });
+  it('keeps a pending manual selection ahead of renewal while V2 resumption is unresolved', async () => {
+    const f = await v2({ nearExpiry: true }); await f.c.request({ id: B, revision: 1 }); await f.checkpoint();
+    await f.c.request({ id: A, revision: 2 });
+    const now = Date.now(); vi.spyOn(Date, 'now').mockReturnValue(now + 61_000);
+    await f.c.tick();
+    f.child.status.type = 'active'; f.childTurn.id = 'late-followup'; f.childTurn.status = 'inProgress';
+    await f.c.tick();
+    expect(f.c.status().requestedProfileId).toBe(A);
+    expect(f.journals.at(-1).profileId).toBe(A);
+    expect(f.journals.some(j => j.profileId === B && j.phase === 'finished')).toBe(true);
+  });
+  it('guards unfinished checkpoint delegation if the parent continuation response is lost', async () => {
+    const f = await v2(), original = f.rpc.request.getMockImplementation()!;
+    f.rpc.request.mockImplementation(async (method, params) => {
+      if (method === 'turn/start') { f.calls.push({ method, params }); throw Error('timeout'); }
+      return original(method, params);
+    });
+    await f.c.request({ id: B, revision: 1 }); await f.checkpoint();
+    expect(f.c.status().continuation).toBe('manual_required');
+    await f.c.request({ id: A, revision: 2 }); await f.c.tick();
+    expect(f.calls.filter(c => c.method === 'account/login/start')).toHaveLength(1);
+    expect(f.journals.at(-1).phase).toBe('pending');
+  });
+  it('retains checkpoint recovery if automatic switching is disabled before authentication', async () => {
+    const f = await v2({ auto: true }); await f.c.request({ id: B, revision: 1 }, true);
+    f.autoSettings.enabled = false; await f.checkpoint();
+    expect(f.c.status().continuation).toBe('manual_required');
+    await f.c.request({ id: A, revision: 2 }); await f.c.tick();
+    expect(f.calls.some(c => c.method === 'account/login/start')).toBe(false);
+    expect(f.journals.at(-1).phase).toBe('pending');
   });
   it('switches authentication only after pausing a waiting parent and its child, then continues the child first', async () => {
     const f = await fixture({ active: true }); const original = f.rpc.request.getMockImplementation()!;

@@ -7,6 +7,16 @@ let cleanup: (() => void) | undefined;
 afterEach(() => { cleanup?.(); vi.unstubAllGlobals(); });
 
 describe('Codex default selection controls', () => {
+  it('shows pending child continuation when the panel opens after the account already switched', async () => {
+    vi.stubGlobal('fetch', vi.fn(async (url: string) => {
+      if (url.startsWith('/api/codex-profile-quota')) return { ok: false, json: async () => ({}) };
+      return { ok: true, json: async () => ({ profiles: [{ id: 'a', label: 'Personal', active: true, signedInFilePresent: true }],
+        live: { state: 'applied', profileId: 'a', continuation: 'waiting' } }) };
+    }));
+    const view = mount(() => CodexProfilesSection()); cleanup = view.unmount; await flush();
+    expect(rowText(rowOf(view, 'Personal')!)).toContain('Account switched. Waiting for subagents to resume.');
+    expect(rowText(rowOf(view, 'Personal')!)).not.toContain('Interrupted tasks resume automatically');
+  });
   it('clears a failed native-switch warning when the server later confirms that same account', async () => {
     let selected = false, recovered = false;
     vi.stubGlobal('fetch', vi.fn(async (url: string) => {

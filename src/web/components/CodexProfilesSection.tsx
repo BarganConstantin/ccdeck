@@ -426,7 +426,7 @@ export default function CodexProfilesSection({ onClose, switcher, onNotice }: {
           ? { text: t("codex.panel.liveSwitchFailed"), row: a.num } : null} onDismissRefusal={() => { setFailure(null); setDismissedLiveFailure(true); }}
         onSignIn={() => signIn(profile)}
         switchedHere={liveSelection?.state !== 'failed' && (switched?.id === profile.id || (liveSelection?.state === 'waiting' && liveSelection.requestedProfileId === profile.id)
-          || (liveSelection?.continuation === 'manual_required' && profile.active === true))} swapped={null} displaced={undefined}
+          || (['manual_required', 'waiting'].includes(liveSelection?.continuation ?? '') && profile.active === true))} swapped={null} displaced={undefined}
         issueExpanded={issueOpen?.anchor === `ap-codex-issue-${a.num}`} onOpenIssue={(_, anchor) => openIssue(profile.id, anchor)}
         sortKey={a.active ? null : orderKey(shownOrder)} />
     );

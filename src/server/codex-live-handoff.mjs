@@ -53,6 +53,7 @@ async function liveLatest(rpc, thread) {
     await rpc.request('thread/unsubscribe', { threadId: thread.id }).catch(() => {});
   }
 }
+export const readCodexLiveTurn = (rpc, thread) => thread.status?.type === 'active' ? liveLatest(rpc, thread) : latest(rpc, thread.id);
 async function snapshot(rpc) {
   const page = await rpc.request('thread/loaded/list', { limit: 65 });
   if (!Array.isArray(page?.data) || page.data.length > 64 || page.nextCursor) throw liveError('native_activity_unknown');
@@ -105,14 +106,37 @@ export async function prepareCodexLiveHandoff(rpc, options = {}) {
       .find(p => p?.thread.canAcceptDirectInput === true);
     if (owner && (owner.turn?.rootTurnId ?? owner.turn?.id) === (t.turn?.rootTurnId ?? t.turn?.id)) routes.set(t.id, owner.id);
   }
+  for (const t of known.values()) {
+    if (!v2Child(t)) continue;
+    const owner = ancestors(t, known).find(id => initial.some(p => p.id === id && p.thread?.canAcceptDirectInput === true));
+    // Even an idle V2 child identifies a parent whose current internal send or
+    // followup may be absent from the item feed. Wait for inspectable active
+    // child work (then checkpoint it), or for the parent to finish naturally.
+    if (owner && ![...routes.values()].includes(owner)) return { waiting: true, paused };
+  }
+  const cooperative = new Set([...routes.keys(), ...routes.values()]);
   if (initial.some(t => !t.active || t.thread?.canAcceptDirectInput === false && !routes.has(t.id)
     || t.thread?.parentThreadId && t.thread.canAcceptDirectInput !== true && !routes.has(t.id)
-    || !Array.isArray(t.flags) || t.flags.length || t.turn?.status !== 'inProgress' || !safe(t.turn, t.thread, known))) {
+    || !Array.isArray(t.flags) || t.flags.length || t.turn?.status !== 'inProgress'
+    || (cooperative.has(t.id) ? t.turn.itemsView !== 'full' || !Array.isArray(t.turn.items)
+      || !routes.has(t.id) && !t.turn.items.some(i => i.type === 'userMessage') : !safe(t.turn, t.thread, known)))) {
     return { waiting: true, paused };
   }
   // Stop parents first so a child's interruption cannot complete a live wait
   // and let its parent launch more work. Resume in the opposite order below.
   initial.sort((a, b) => ancestors(a.thread, known).length - ancestors(b.thread, known).length);
+  if (routes.size) {
+    // V2's send/followup handlers do not expose every tool-start item. Never
+    // interrupt that family based on an empty snapshot: ask its owner to drain
+    // tools and collect terminal checkpoints through normal agent messaging.
+    const owners = new Set(routes.values()), markers = new Map([...owners].map(id => [id, randomUUID()]));
+    return { waiting: true, paused, checkpoint: initial.filter(t => routes.has(t.id) || owners.has(t.id)).map(t => ({
+      threadId: t.id, turnId: t.turn.id, rootTurnId: t.turn.rootTurnId ?? t.turn.id, inputIds: inputIds(t.turn), messageId: randomUUID(),
+      checkpointId: markers.get(routes.get(t.id) ?? t.id),
+      ...(t.thread.parentThreadId ? { parentThreadId: t.thread.parentThreadId } : {}),
+      ...(routes.has(t.id) ? { resumeViaThreadId: routes.get(t.id) } : {}),
+    })) };
+  }
   try {
     for (const observed of initial) {
       if (!isCurrent()) throw liveError('native_switch_superseded');
@@ -163,13 +187,18 @@ export async function continueCodexLiveHandoff(rpc, handoff, options = {}) {
     const t = (await rpc.request('thread/read', { threadId: entry.threadId, includeTurns: false }))?.thread;
     // A closed/unloaded child has no direct-input capability. Leave it alone
     // before inspecting history, and allow the remaining family to continue.
-    if (t?.status?.type !== 'idle') { await options.onSkip?.(entry); continue; }
+    if (t?.status?.type !== 'idle') {
+      if (entry.resumeViaThreadId && t?.status?.type === 'notLoaded') throw liveError('native_continue_unconfirmed');
+      await options.onSkip?.(entry); continue;
+    }
     if (entry.resumeViaThreadId ? !v2Child(t) || t.parentThreadId !== entry.parentThreadId
       : t?.canAcceptDirectInput === false || entry.parentThreadId
         && (t?.canAcceptDirectInput !== true || t.parentThreadId !== entry.parentThreadId)) throw liveError('native_activity_changed');
     const turn = await latest(rpc, entry.threadId);
     // New input, natural completion, archival or a different turn wins over us.
-    if (turn?.id !== entry.turnId || turn.status !== 'interrupted'
+    const checkpoint = entry.checkpointReady && turn?.status === 'completed'
+      && turn.items?.some(i => i.type === 'agentMessage' && i.text?.includes('CCDECK_CHECKPOINT_' + entry.checkpointId));
+    if (turn?.id !== entry.turnId || (!checkpoint && turn.status !== 'interrupted')
       || JSON.stringify(inputIds(turn)) !== JSON.stringify(entry.inputIds)) {
       await options.onSkip?.(entry); continue;
     }
@@ -181,12 +210,16 @@ export async function continueCodexLiveHandoff(rpc, handoff, options = {}) {
     entry.sent = true;
     const children = delegated.filter(e => e.resumeViaThreadId === entry.threadId);
     const continuation = 'Continue the interrupted task, honoring the latest user instructions already in this conversation. Do not repeat completed tools or actions. If the user cancelled or asked to stop, remain stopped.';
-    const text = children.length ? continuation + '\n\nThe account handoff paused these existing subagents (deepest first): '
+    const resumeTask = entry.checkpointReady ? 'The ccdeck account change is complete. Resume the original assignment from the checkpoint; the temporary checkpoint request is finished. ' + continuation : continuation;
+    const text = children.length ? resumeTask + '\n\nThe account handoff paused these existing subagents (deepest first): '
       + JSON.stringify(children.map(e => e.threadId)) + '. Before continuing your own work, inspect their current status with list_agents. '
-      + 'For each listed agent that is still interrupted, use the native followup_task tool exactly once, targeting that SAME existing agent ID, '
-      + 'with this message: ' + JSON.stringify(continuation) + '. Resume in the listed order. Keep their existing assignments, history and parent relationships. '
-      + 'Do not spawn replacements, reopen closed agents, repeat completed work, or send followups to agents already running or completed. '
-      + 'Then continue the original task and wait for the same agents as needed.' : continuation;
+      + (entry.checkpointReady ? 'These listed agents ended temporary checkpoints; their original assignments are unfinished. Their native status may be completed: that checkpoint still needs continuation. For each that has not already resumed or been closed, '
+        : 'For each listed agent that is still interrupted, ')
+      + 'use the native followup_task tool exactly once, targeting that SAME existing agent ID, '
+      + 'with this message: ' + JSON.stringify(resumeTask) + '. Resume in the listed order. Keep their existing assignments, history and parent relationships. '
+      + 'Do not spawn replacements, reopen closed agents, repeat completed work, or send followups to agents already running. '
+      + (entry.checkpointReady ? 'A completed temporary checkpoint is not a finished original assignment. ' : 'Do not restart completed agents. ')
+      + 'Then continue the original task and wait for the same agents as needed.' : resumeTask;
     const result = await rpc.request('turn/start', { threadId: entry.threadId,
       rootTurnId: entry.rootTurnId, clientUserMessageId: entry.messageId,
       input: [{ type: 'text', text }] });
@@ -209,7 +242,8 @@ export async function confirmCodexLiveChildren(rpc, entries, options = {}) {
     // can distinguish them; do not claim that an unobserved child resumed.
     if (t.status?.type === 'notLoaded') { pending.push(entry); continue; }
     const turn = t.status?.type === 'active' ? await liveLatest(rpc, t) : await latest(rpc, entry.threadId);
-    if (turn?.id === entry.turnId && turn.status === 'interrupted') { pending.push(entry); continue; }
+    if (turn?.id === entry.turnId && (turn.status === 'interrupted' || entry.checkpointReady && turn.status === 'completed'
+      && turn.items?.some(i => i.type === 'agentMessage' && i.text?.includes('CCDECK_CHECKPOINT_' + entry.checkpointId)))) { pending.push(entry); continue; }
     if (turn?.id !== entry.turnId && turn.rootTurnId === entry.rootTurnId && ['inProgress', 'completed'].includes(turn.status)) {
       await options.onConfirmed?.(entry, turn.id); continue;
     }
