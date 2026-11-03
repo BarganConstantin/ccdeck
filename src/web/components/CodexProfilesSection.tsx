@@ -589,6 +589,9 @@ export default function CodexProfilesSection({ onClose, switcher, onNotice, away
                   {policyBlock}
                 </div>
               )}
+              {/* Nothing to fold, so nothing to hide it behind: the policy stands
+                  under the roster it is about, as Claude's does (AccountsPanel). */}
+              {rest.length === 0 && policyBlock}
               {failure && failure.row == null && (
                 <div className="ap-failure" role="alert">
                   <span className="ap-failure-text">{failure.text}</span>
