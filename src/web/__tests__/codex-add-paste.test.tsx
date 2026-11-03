@@ -39,8 +39,11 @@ describe('Add a Codex account: Sign in or Paste a share', () => {
     expect(tab(view, 'Sign in').props['aria-selected']).toBe(true);
     expect(one(view.tree, el => el.type === 'button' && textOf(el) === 'Sign in with ChatGPT')).toBeTruthy();
     expect(one(view.tree, el => el.type === CodexImportPane)).toBeNull();
-    // The dialog is named by its title, which the strip stands in place of.
-    expect(one(view.tree, el => el.props?.role === 'dialog')!.props['aria-label']).toBe('Add a Codex account');
+    // The dialog is named by its title, kept out of sight where the strip stands.
+    expect(one(view.tree, el => el.props?.role === 'dialog')!.props['aria-labelledby']).toBe('aa-codex-title');
+    const title = one(view.tree, el => el.props?.id === 'aa-codex-title')!;
+    expect(textOf(title)).toBe('Add a Codex account');
+    expect(title.props.className).toBe('vis-hidden');
   });
 
   it('swaps in the paste, against the roster it was opened on, and starts nothing', () => {
