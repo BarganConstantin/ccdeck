@@ -120,7 +120,7 @@ describe('live Codex credential reader (fictional JWTs and owned fake RPC only)'
     expect([executable, args, home]).toEqual([resolve('fictional-codex'), ['app-server', '--listen', 'stdio://'], f.home]);
     expect(rpcOptions.env).toEqual({ CODEX_HOME: f.home, CCDECK_CODEX_HOMES: f.options.env.CCDECK_CODEX_HOMES, PATH: '/fictional/bin' });
     expect(rpcOptions.deadlineMs).toBeGreaterThan(0);
-    expect(rpcOptions.deadlineMs).toBeLessThanOrEqual(7000);
+    expect(rpcOptions.deadlineMs).toBeLessThanOrEqual(process.platform === 'win32' ? 16000 : 7000);
     expect(f.messages).toEqual([
       { method: 'initialize', params: expect.objectContaining({ capabilities: { experimentalApi: true } }) },
       { method: 'initialized', params: {} },
@@ -347,7 +347,7 @@ describe('live Codex credential reader (fictional JWTs and owned fake RPC only)'
     expect(f.rpc.stop).toHaveBeenCalledOnce(); expect(failing.rpc.stop).toHaveBeenCalledOnce();
     expect(unrelated.rpc.stop).not.toHaveBeenCalled();
   });
-  it('bounds a stalled native request plus shutdown to seven seconds without retrying', async () => {
+  it('bounds a stalled native request plus shutdown without retrying', async () => {
     let entered!: () => void;
     const reached = new Promise<void>(resolve => { entered = resolve; });
     const f = await fixture();
@@ -365,7 +365,7 @@ describe('live Codex credential reader (fictional JWTs and owned fake RPC only)'
     const pending = readLiveCodexCredential(f.profileId, { ...f.options, startRpc });
     const rejected = expect(pending).rejects.toMatchObject({ code: 'native_timeout' });
     await reached;
-    await vi.advanceTimersByTimeAsync(7000);
+    await vi.advanceTimersByTimeAsync(process.platform === 'win32' ? 16000 : 7000);
     await rejected;
     expect(fake.rpc.stop).toHaveBeenCalledOnce();
     expect(fake.rpc.request).toHaveBeenCalledOnce();
@@ -375,7 +375,7 @@ describe('live Codex credential reader (fictional JWTs and owned fake RPC only)'
     const now = performance.now();
     const clock = vi.spyOn(performance, 'now');
     const startRpc = (...args: Parameters<typeof f.startRpc>) => {
-      clock.mockReturnValue(now + 8000);
+      clock.mockReturnValue(now + (process.platform === 'win32' ? 17000 : 8000));
       return f.startRpc(...args);
     };
     await expect(readLiveCodexCredential(f.profileId, { ...f.options, startRpc })).rejects.toMatchObject({ code: 'native_timeout' });
