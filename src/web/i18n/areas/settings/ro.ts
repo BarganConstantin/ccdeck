@@ -206,7 +206,7 @@ const catalog: Catalog = {
   "settings.key.sessions": "lista de sesiuni",
   "settings.key.detail": "panoul de detalii",
   "settings.key.history": "istoricul utilizării",
-  "settings.key.accounts": "conturile Claude, unde e instalat Claude Code",
+  "settings.key.accounts": "conturile Claude și Codex, pentru cel care e instalat",
   "settings.key.machine": "acest computer — nuclee, memorie, temperatură",
   "settings.key.bw": "Browser Watch",
   "settings.key.jira": "Jira, după ce e conectat în Setări › Integrări",

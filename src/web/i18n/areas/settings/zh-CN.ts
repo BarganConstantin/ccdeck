@@ -197,7 +197,7 @@ const catalog: Catalog = {
   "settings.key.sessions": "会话列表",
   "settings.key.detail": "详情面板",
   "settings.key.history": "用量历史",
-  "settings.key.accounts": "Claude 账号（需已安装 Claude Code）",
+  "settings.key.accounts": "Claude 和 Codex 账号（取决于已安装的工具）",
   "settings.key.machine": "这台电脑——核心、内存、温度",
   "settings.key.bw": "Browser Watch",
   "settings.key.jira": "Jira（需先在“设置 › 集成”中连接）",

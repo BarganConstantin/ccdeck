@@ -198,7 +198,7 @@ const catalog: Catalog = {
   "settings.key.sessions": "lista de sessões",
   "settings.key.detail": "painel de detalhes",
   "settings.key.history": "histórico de uso",
-  "settings.key.accounts": "contas do Claude, onde o Claude Code está instalado",
+  "settings.key.accounts": "contas do Claude e do Codex, conforme o que estiver instalado",
   "settings.key.machine": "esta máquina — núcleos, memória, temperatura",
   "settings.key.bw": "Browser Watch",
   "settings.key.jira": "Jira, depois de conectado em Configurações › Integrações",
