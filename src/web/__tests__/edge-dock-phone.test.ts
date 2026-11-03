@@ -248,11 +248,13 @@ describe("the page around the dock", () => {
     expect(cascade(s => selects(s, root), "--edge-w", 641)).toBe("40px");
   });
 
-  it("marks the open door by its word alone: --text against --muted, no pill, no bar, no fill, and no line on the top edge", () => {
+  it("marks the open door by its word in --text against --muted and a 2 × 24 --text line over the top border, with no pill or fill", () => {
     // CHANGED ON PURPOSE (V4's Figma phone frame): the active item's label is
-    // --text and the other four --muted; "there is no pill, bar or fill". The
-    // line on the dock's top edge and the --selected fill the stripes draw are
-    // not the dock's any more.
+    // --text and the other four --muted; "there is no pill or fill". CHANGED
+    // ON PURPOSE again (the frame's open door, redrawn): colour alone is not
+    // enough to carry the state, so the open door, and only it, has a 2 × 24
+    // line in --text, radius 1, over the dock's top border, centred on its
+    // glyph. The --selected fill the stripes draw is still not the dock's.
     const btn = [el("div", ["edge-dock"]), el("button", ["rail-btn", "rail-btn-dock"])];
     const open = [el("div", ["edge-dock"]), el("button", ["rail-btn", "rail-btn-dock"], { attrs: { "aria-expanded": "true" } })];
     const own = (chain: typeof btn, prop: string) => cascade(s => selects(s, chain), prop, 390);
@@ -261,7 +263,15 @@ describe("the page around the dock", () => {
       return m ? selects(s.slice(0, m.index), chain) : null;
     }, prop, 390);
     expect(before(btn, "opacity")).toBeNull();
-    expect(before(open, "background")).toBeNull();
+    expect(before(btn, "content"), "a closed door draws no line").toBeNull();
+    expect(before(open, "content")).toBe('""');
+    expect(before(open, "background")).toBe("var(--text)");
+    expect(before(open, "width")).toBe("24px");
+    expect(before(open, "height")).toBe("2px");
+    expect(before(open, "border-radius")).toBe("1px");
+    expect(before(open, "top"), "over the dock's 1px top border").toBe("-1px");
+    expect(before(open, "left"), "centred on the glyph, which is centred in the cell").toBe("calc(50% - 12px)");
+    expect(before(open, "transition"), "the line moves at once").toBeNull();
     expect(own(btn, "color")).toBe("var(--muted)");
     expect(own(open, "color")).toBe("var(--text)");
     expect(own(open, "background")).toBe("transparent");

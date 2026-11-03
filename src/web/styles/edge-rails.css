@@ -317,7 +317,7 @@
   /* The phone frame's dock: five cells of an equal share, the 14px glyph 13
      below the dock's top edge (12 under its border) and the 11/14 label 2
      under the glyph (the frame's 2.5, rounded to the spacing ladder). Every cell is the dock's whole height, well over 44. The
-     word is --muted; the door that is up has --text, with no pill, bar or fill. */
+     word is --muted; the door that is up has --text and the line below, with no pill or fill. */
   .rail-btn-dock {
     flex: 1 1 0;
     min-width: 0;
@@ -331,6 +331,22 @@
   }
   .rail-btn-dock .glyph { width: 14px; height: 14px; }
   .rail-btn-dock[aria-expanded="true"] { background: transparent; }
+  /* The open door's line: the stripe's open-door line, turned to lie on the
+     seam that faces the panel the door opened. 2 × 24 in --text, radius 1, over
+     the dock's top border and centred on the glyph. The word's --text against
+     --muted is a difference of colour alone, and the state is held to 3:1
+     (#370), so the line carries it. At once, like the desktop door. */
+  .rail-btn-dock[aria-expanded="true"]::before {
+    content: "";
+    position: absolute;
+    top: -1px;
+    left: calc(50% - 12px);
+    width: 24px;
+    height: 2px;
+    border-radius: 1px;
+    background: var(--text);
+    pointer-events: none;
+  }
   .rail-btn-dock .rail-word {
     max-width: 100%;
     /* Its own line box: at the button's line-height of 1 the clip below cut
