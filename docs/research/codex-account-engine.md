@@ -322,3 +322,29 @@ prior turn, no new network-revocation error and unchanged source auth files.
 The empty native conversation stayed idle. The test preview was detached from
 the conversation's command lifecycle, since a permanently running preview
 command otherwise correctly prevents a tool-safe handoff.
+
+### Ephemeral jobs and completed web searches — 2026-11-03
+
+The reverse real-app switch uncovered idle ephemeral native jobs alongside
+ordinary conversations. Codex rejects stored turn-history reads for those jobs.
+The coordinator now recognizes the ephemeral metadata, confirms idle twice,
+and leaves that job alone. An active or uncertain ephemeral job keeps the
+handoff waiting. It does not require unsupported history calls or issue an
+interrupt against the ephemeral job.
+
+Native `webSearch` items can report completion solely through `completedAtMs`,
+without a status field. A positive finite completion timestamp now counts as
+finished unless the item explicitly remains `inProgress`. Missing timestamps,
+unknown lifecycles and contradictory activity still block the handoff.
+
+Acceptance used an actual shared-daemon root conversation searching for ten
+recent Moldova news items. Seven completed search operations preceded the
+account changes; the same conversation switched second account → first account
+→ second account while writing its report. Each switch had a verified native
+account, an interrupted prior turn and an automatically started continuation.
+The completed report contained about 2,500 words and the requested completion
+marker. No search was repeated after the handoffs, and the stored turns had no
+network-permission revocation error. The running monitor timed out before the
+long report finished; a later native-history read established its completed
+state without rerunning the task. Existing original-profile auth files had
+modification times predating the test thread.
