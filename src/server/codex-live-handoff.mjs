@@ -6,9 +6,11 @@ import { liveError } from './codex-live-rpc.mjs';
 const passive = new Set(['userMessage', 'hookPrompt', 'agentMessage', 'functionCallOutput', 'plan', 'reasoning']);
 const terminal = new Set(['completed', 'failed', 'declined']);
 const tool = item => !passive.has(item.type);
+const completed = item => item.status !== 'inProgress' && (terminal.has(item.status)
+  || Number.isFinite(item.completedAtMs) && item.completedAtMs > 0);
 const safe = turn => turn?.itemsView === 'full' && Array.isArray(turn?.items)
   && turn.items.some(i => i.type === 'userMessage')
-  && turn.items.every(i => passive.has(i.type) || terminal.has(i.status));
+  && turn.items.every(i => passive.has(i.type) || completed(i));
 const inputIds = turn => turn.items.filter(i => i.type === 'userMessage').map(i => i.id);
 const sameInputs = (a, b) => JSON.stringify(inputIds(a)) === JSON.stringify(inputIds(b));
 
@@ -41,6 +43,16 @@ async function snapshot(rpc) {
     const result = await rpc.request('thread/read', { threadId: id, includeTurns: false });
     const t = result?.thread;
     if (!t || t.id !== id || !['idle', 'systemError', 'active', 'notLoaded'].includes(t.status?.type)) throw liveError('native_activity_unknown');
+    // Ephemeral native jobs have no stored turn-history API. Never interrupt
+    // them or attempt to reconstruct their history; wait until twice idle.
+    if (t.ephemeral === true) {
+      if (t.status.type === 'idle') {
+        const again = (await rpc.request('thread/read', { threadId: id, includeTurns: false }))?.thread;
+        if (again?.id !== id) throw liveError('native_activity_unknown');
+        if (again.ephemeral === true && again.status?.type === 'idle') continue;
+      }
+      threads.push({ id, active: false, turn: null }); continue;
+    }
     let turn;
     try { turn = t.status.type === 'active' ? await liveLatest(rpc, t) : await latest(rpc, id); }
     catch (error) {
@@ -86,7 +98,7 @@ export async function prepareCodexLiveHandoff(rpc, options = {}) {
       if (after?.id !== turn.id || after.status !== 'interrupted') throw liveError('native_interrupt_unconfirmed');
       if (!sameInputs(turn, after)) throw liveError('native_activity_changed');
       const previous = new Set(turn.items.map(i => i.id));
-      if (after.items.some(i => tool(i) && !previous.has(i.id) && i.status !== 'completed')) throw liveError('native_tool_interrupted');
+      if (after.items.some(i => tool(i) && !previous.has(i.id) && !completed(i))) throw liveError('native_tool_interrupted');
       paused.push(entry);
       await options.afterInterrupt?.(entry, 'paused');
     }

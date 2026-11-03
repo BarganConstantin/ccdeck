@@ -17,6 +17,51 @@ function fixture() {
   return { turn, thread, rpc };
 }
 describe('native account handoff without network-permit revocation', () => {
+  it('does not request unsupported stored history from an idle ephemeral conversation', async () => {
+    const f = fixture(); const original = f.rpc.request.getMockImplementation()!;
+    f.rpc.request.mockImplementation(async (method, params) => {
+      if (method === 'thread/loaded/list') return { data: ['ephemeral-idle', f.thread.id] };
+      if (params.threadId === 'ephemeral-idle') {
+        if (method === 'thread/read') return { thread: { id: 'ephemeral-idle', ephemeral: true, historyMode: 'paginated', status: { type: 'idle' } } };
+        throw Object.assign(Error('ephemeral threads do not support thread/turns/list'), { code: 'native_request_rejected' });
+      }
+      return original(method, params);
+    });
+    const h = await prepareCodexLiveHandoff(f.rpc);
+    expect(h.waiting).toBe(false); expect(h.paused).toHaveLength(1);
+    expect(f.rpc.request.mock.calls.filter(c => c[1]?.threadId === 'ephemeral-idle').map(c => c[0])).toEqual(['thread/read', 'thread/read', 'thread/read', 'thread/read']);
+  });
+  it.each(['active', 'systemError', 'notLoaded'])('waits for an ephemeral conversation with state %s without attempting history or interrupt', async type => {
+    const f = fixture(); const original = f.rpc.request.getMockImplementation()!;
+    f.rpc.request.mockImplementation(async (method, params) => {
+      if (method === 'thread/read') return { thread: { ...f.thread, ephemeral: true, status: { type, activeFlags: [] } } };
+      return original(method, params);
+    });
+    expect((await prepareCodexLiveHandoff(f.rpc)).waiting).toBe(true);
+    expect(f.rpc.request.mock.calls.map(c => c[0])).toEqual(['thread/loaded/list', 'thread/read']);
+  });
+  it('does not ignore an ephemeral conversation that becomes active on the confirmation read', async () => {
+    const f = fixture(); let reads = 0; const original = f.rpc.request.getMockImplementation()!;
+    f.rpc.request.mockImplementation(async (method, params) => {
+      if (method === 'thread/read') return { thread: { ...f.thread, ephemeral: true, status: { type: ++reads === 1 ? 'idle' : 'active', activeFlags: [] } } };
+      return original(method, params);
+    });
+    expect((await prepareCodexLiveHandoff(f.rpc)).waiting).toBe(true);
+    expect(f.rpc.request.mock.calls.some(c => ['thread/turns/list', 'turn/interrupt'].includes(c[0]))).toBe(false);
+  });
+  it('recognizes a finished native web search through its completion timestamp', async () => {
+    const f = fixture(); f.turn.items.push({ id: 'search', type: 'webSearch', startedAtMs: 100, completedAtMs: 200 });
+    const h = await prepareCodexLiveHandoff(f.rpc);
+    expect(h.waiting).toBe(false); expect(h.paused).toHaveLength(1);
+  });
+  it.each([null, undefined, 0, NaN])('waits for native web search without a valid completion timestamp: %s', async end => {
+    const f = fixture(); f.turn.items.push({ id: 'search', type: 'webSearch', startedAtMs: 100, completedAtMs: end });
+    expect((await prepareCodexLiveHandoff(f.rpc)).waiting).toBe(true);
+  });
+  it('does not treat an explicitly running tool as finished because of a stale timestamp', async () => {
+    const f = fixture(); f.turn.items.push({ id: 'search', type: 'webSearch', status: 'inProgress', completedAtMs: 200 });
+    expect((await prepareCodexLiveHandoff(f.rpc)).waiting).toBe(true);
+  });
   it('ignores a confirmed idle thread whose history is not materialized before its first message', async () => {
     const f = fixture(); const original = f.rpc.request.getMockImplementation()!;
     f.rpc.request.mockImplementation(async (method, params) => {
