@@ -8,7 +8,9 @@ import { win32 } from 'node:path';
 const runFile = promisify(execFile);
 const helper = fileURLToPath(new URL('./codex-windows-private.ps1', import.meta.url));
 const unsafe = () => Object.assign(new Error('windows_private_path_unsafe'), { code: 'windows_private_path_unsafe' });
-const deadline = options => Math.max(1, Math.min(10000, options.timeoutMs ?? 7000));
+// The first Windows PowerShell invocation compiles the fixed Win32 helper.
+// Keep the same ten-second ceiling for cold starts and subsequent checks.
+const deadline = options => Math.max(1, Math.min(10000, options.timeoutMs ?? 10000));
 function command(path, operation, options) {
   if ((options.platform ?? process.platform) !== 'win32' || typeof path !== 'string'
     || !/^(?:[a-z]:\\|\\\\\?\\[a-z]:\\)/i.test(path) || /[\x00-\x1f"<>|]/.test(path)
