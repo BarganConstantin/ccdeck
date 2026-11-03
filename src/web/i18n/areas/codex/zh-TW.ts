@@ -2,6 +2,8 @@
 import type { Catalog } from "../../catalogs";
 
 const catalog: Catalog = {
+  "codex.panel.liveControlPaused": "登入變更或連線中斷後，Codex 帳戶控制已暫停。重新連線前請檢查 /status。",
+  "codex.panel.reconnectSelected": "重新連線所選帳戶",
   // The row's voice (codex-accounts.ts CODEX_VOICE)
   "codex.row.liveTitle": "新工作階段的預設帳號",
   "codex.row.liveSpoken": "預設帳號：",

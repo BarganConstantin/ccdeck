@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { mount, flush, one } from './fake-react';
+import { mount, flush, one, textOf } from './fake-react';
 import { openOthers, rowOf, rowText } from './codex-panel-helpers';
 vi.mock('react', async () => (await import('./fake-react')).react);
 const { default: CodexProfilesSection } = await import('../components/CodexProfilesSection');
@@ -7,6 +7,24 @@ let cleanup: (() => void) | undefined;
 afterEach(() => { cleanup?.(); vi.unstubAllGlobals(); });
 
 describe('Codex default selection controls', () => {
+  it('offers an explicit reconnect for the already-selected account after native ownership is lost', async () => {
+    let writes = 0, reconnected = false;
+    const fetch = vi.fn(async (url: string) => {
+      if (url === '/api/codex-profile-select') { writes++; reconnected = true; return { ok: true, json: async () => ({ ok: true, live: { state: 'applied', profileId: 'a' } }) }; }
+      if (url.startsWith('/api/codex-profile-quota')) return { ok: false, json: async () => ({}) };
+      return { ok: true, json: async () => ({ profiles: [{ id: 'a', label: 'Personal', active: true, signedInFilePresent: true }],
+        live: { state: reconnected ? 'applied' : 'external_change', profileId: reconnected ? 'a' : null, reason: 'native_identity_unattested' } }) };
+    });
+    vi.stubGlobal('fetch', fetch);
+    const view = mount(() => CodexProfilesSection()); cleanup = view.unmount; await flush();
+    expect(writes).toBe(0);
+    expect(textOf(view.tree)).toContain('Check /status before reconnecting');
+    (one(view.tree, n => n.type === 'button' && textOf(n) === 'Reconnect selected account')!.props.onClick as () => void)();
+    await flush();
+    expect(writes).toBe(1);
+    expect(textOf(view.tree)).not.toContain('Check /status before reconnecting');
+  });
+
   it('shows pending child continuation when the panel opens after the account already switched', async () => {
     vi.stubGlobal('fetch', vi.fn(async (url: string) => {
       if (url.startsWith('/api/codex-profile-quota')) return { ok: false, json: async () => ({}) };

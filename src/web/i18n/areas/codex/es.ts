@@ -2,6 +2,8 @@
 import type { Catalog } from "../../catalogs";
 
 const catalog: Catalog = {
+  "codex.panel.liveControlPaused": "El control de la cuenta de Codex está pausado tras un cambio de sesión o una desconexión. Revisa /status antes de reconectar.",
+  "codex.panel.reconnectSelected": "Reconectar la cuenta seleccionada",
   "codex.row.liveTitle": "Cuenta predeterminada para las sesiones nuevas",
   "codex.row.liveSpoken": "Cuenta predeterminada:",
   "codex.row.readBy": "Cuándo leyó ccdeck por última vez el uso de esta cuenta",

@@ -2,6 +2,8 @@
 import type { Catalog } from "../../catalogs";
 
 const catalog: Catalog = {
+  "codex.panel.liveControlPaused": "Codex account control is paused after a login change or lost connection. Check /status before reconnecting.",
+  "codex.panel.reconnectSelected": "Reconnect selected account",
   "codex.share.title": "Share Codex accounts",
   "codex.share.importTitle": "Import Codex accounts",
   "codex.share.warning": "The share code contains live sign-in credentials. Anyone with it can use these accounts. Send it only through a private channel you trust.",
