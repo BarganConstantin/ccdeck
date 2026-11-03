@@ -273,10 +273,25 @@ describe.skipIf(!['darwin', 'linux'].includes(process.platform))("bringing the e
     expect(await readdir(w.home)).toEqual([]);
     await chmod(join(w.source, w.engineFile), 0o757);
     expect(await run(w)).toEqual({ status: "refused", reason: "unverified" });
-    await chmod(join(w.source, w.engineFile), 0o755); await chmod(w.source, 0o775);
+    await chmod(join(w.source, w.engineFile), 0o755); await chmod(w.source, 0o777);
     expect(await run(w)).toEqual({ status: "refused", reason: "unverified" });
-    await chmod(w.source, 0o755);
+    await chmod(w.source, 0o755); await chmod(join(w.source, "manifest.json"), 0o646);
+    expect(await run(w)).toEqual({ status: "refused", reason: "unverified" });
+    await chmod(join(w.source, "manifest.json"), 0o644);
     expect(await run(w)).toMatchObject({ status: "imported" });
+  });
+
+  it("imports a package npm wrote under umask 002 (files 664, folder 775), and installs it owner-only", async () => {
+    const w = await world();
+    await chmod(w.source, 0o775);
+    await chmod(join(w.source, w.engineFile), 0o775);
+    await chmod(join(w.source, "manifest.json"), 0o664);
+    await chmod(join(w.source, "package.json"), 0o664);
+    expect(await run(w)).toMatchObject({ status: "imported" });
+    expect((await lstat(w.dest)).mode & 0o777).toBe(0o700);
+    expect((await lstat(join(w.dest, w.engineFile))).mode & 0o777).toBe(0o700);
+    expect((await lstat(join(w.dest, "manifest.json"))).mode & 0o777).toBe(0o600);
+    await expect(verified(w)).resolves.toMatchObject({ version: "1.0.0" });
   });
 
   it("leaves the previous installation untouched when an import is refused", async () => {

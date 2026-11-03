@@ -22,7 +22,8 @@
 //
 // WHAT IS CHECKED BEFORE A BYTE IS COPIED, on the bytes read once through
 // O_NOFOLLOW (a link anywhere in the source is refused) from files owned by
-// the user or root and writable by nobody else:
+// the user or root and writable by nobody outside their group (npm writes the
+// package under the user's umask, often 002; the installed copy is owner-only):
 //   - the manifest's Ed25519 signature, by one of the deck's keys, and its six
 //     signed fields for this machine's target;
 //   - the executable's size and SHA-256 against the manifest;
@@ -192,8 +193,9 @@ export async function importEngine({
     const floor = await readFloor(dataDir, gateOptions);
     if (!source) return { status: "absent", ...(floor === undefined ? {} : { minimumVersion: floor }) };
 
-    // The package, checked as read: files owned by the user or root, no links.
-    const gate = await trustGate({ ...gateOptions, allowRoot: true });
+    // The package, checked as read: files owned by the user or root, no links,
+    // nobody but the owner and its group able to write (npm's usual umask).
+    const gate = await trustGate({ ...gateOptions, allowRoot: true, allowGroupWrite: true });
     const sourceStat = await fs.lstat(source);
     if (!sourceStat.isDirectory()) throw new Error("source");
     await gate.directory(source, sourceStat);

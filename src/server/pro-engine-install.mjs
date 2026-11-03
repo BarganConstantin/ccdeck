@@ -43,9 +43,13 @@ const invalid = () => new Error('The installed terminal engine could not be veri
  *   `inspect(path)`   -> `{ owner, writers: [names or SIDs that may write], reparsePoint, links }`.
  * Resolves to `{ directory(path, stat), file(path, stat, executable) }`, each
  * throwing when the answer is no. `allowRoot` also accepts root as the owner
- * of a Unix package source.
+ * of a Unix package source, and `allowGroupWrite` its group's write bit:
+ * npm writes a package under the user's umask, and the usual 002 leaves files
+ * 664 and folders 775. That is safe for a source only, because what is
+ * installed is the bytes read once and checked against the signed manifest,
+ * never the file as it stands later. Write by others is refused either way.
  */
-export async function trustGate({ platform = process.platform, windowsAcl, allowRoot = false, uid } = {}) {
+export async function trustGate({ platform = process.platform, windowsAcl, allowRoot = false, allowGroupWrite = false, uid } = {}) {
   if (platform === 'win32') {
     if (!windowsAcl || typeof windowsAcl.identity !== 'function' || typeof windowsAcl.inspect !== 'function') throw invalid();
     const me = await windowsAcl.identity();
@@ -61,7 +65,8 @@ export async function trustGate({ platform = process.platform, windowsAcl, allow
   const me = uid ?? (typeof process.getuid === 'function' ? process.getuid() : undefined);
   if (me === undefined || me === 0) throw invalid();
   const owners = allowRoot ? [me, 0] : [me];
-  const owned = (stat, executable) => owners.includes(stat.uid) && !(stat.mode & 0o022) && (!executable || !!(stat.mode & 0o100));
+  const writers = allowGroupWrite ? 0o002 : 0o022;
+  const owned = (stat, executable) => owners.includes(stat.uid) && !(stat.mode & writers) && (!executable || !!(stat.mode & 0o100));
   return {
     directory: async (_target, stat) => { if (!owned(stat, false)) throw invalid(); },
     file: async (_target, stat, executable) => { if (!owned(stat, executable)) throw invalid(); },

@@ -225,7 +225,7 @@ export const GATES = [
   // The step that brings the engine in from its npm package, on real files and
   // symlinks, and the Windows rules against a mocked ACL reader, which write
   // the same fixtures to disk: three blocks, on the same two platforms.
-  { file: "engine-package.test.ts", gate: "describe.skipIf", condition: "!['darwin', 'linux'].includes(process.platform)", sites: 3, cases: 25 },
+  { file: "engine-package.test.ts", gate: "describe.skipIf", condition: "!['darwin', 'linux'].includes(process.platform)", sites: 3, cases: 26 },
   { file: "pro-engine-client.test.ts", gate: "describe.skipIf", condition: "!['darwin', 'linux'].includes(process.platform)", sites: 1, cases: 21 },
   // The panel's routes answered by the same signed double started as the
   // engine, on a real deck, on the same two platforms. What a deck with no
