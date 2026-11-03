@@ -156,6 +156,24 @@ export async function handleCodexProfileQuota(req, res) {
   send(res, 200, await readCodexProfileQuota(id, { enableNative: true }));
 }
 
+/** One Codex profile's Projects report (codex-projects.mjs): the Claude report's
+ *  shape, for the same dialog. `days` is clamped as handleAccountProjects clamps
+ *  it. The id is validated here and resolved to a home only against the trusted
+ *  roster; the answer carries no home path and no account id. */
+export async function handleCodexProfileProjects(req, res) {
+  const url = new URL(req.url, 'http://localhost');
+  const id = url.searchParams.get('id');
+  // A missing `days` is 7, not 0: Number(null) is 0, which would read as "all".
+  const raw = url.searchParams.get('days');
+  const d = raw === null || raw === '' ? NaN : Number(raw);
+  const days = d === 1 ? 1 : d === 30 ? 30 : d === 0 ? 0 : 7;
+  const { idPattern } = await import('./codex-selection.mjs');
+  if (typeof id !== 'string' || !idPattern.test(id)) return send(res, 400, { ok: false, reason: 'bad_profile' });
+  const { codexProjectsReport } = await import('./codex-projects.mjs');
+  const report = await codexProjectsReport({ id, days });
+  send(res, report.ok ? 200 : 404, report);
+}
+
 export async function handleCodexProfileLaunch(req, res) {
   const { codexProfileLaunchCommand } = await import('./codex-profiles.mjs');
   const id = new URL(req.url, 'http://localhost').searchParams.get('id');

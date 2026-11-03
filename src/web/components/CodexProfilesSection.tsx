@@ -31,6 +31,7 @@ import { useNextDraft } from "../use-next-draft";
 import { useRequestSlot } from "../use-request-slot";
 import { useThresholdDraft } from "../use-threshold-draft";
 import AccountIssuePopover, { WarnGlyph } from "./AccountIssuePopover";
+import AccountProjectsModal from "./AccountProjectsModal";
 import AccountRow from "./AccountRow";
 import AddCodexAccountDialog from "./AddCodexAccountDialog";
 import AnchoredPopover from "./AnchoredPopover";
@@ -111,6 +112,7 @@ export default function CodexProfilesSection({ onClose, switcher, onNotice, away
   const [menuError, setMenuError] = useState<string | null>(null);
   /** The Add / Sign in dialog: a new account, or one signed in again. */
   const [transfer, setTransfer] = useState<null | "export" | "import">(null);
+  const [projectsFor, setProjectsFor] = useState<null | { id: string; name: string; from: string }>(null);
   const [dialog, setDialog] = useState<null | { id?: string; label?: string; account?: string | null }>(null);
   /** The account whose Remove has been pressed once and is waiting for the second. */
   const [confirmRemove, setConfirmRemove] = useState<string | null>(null);
@@ -612,6 +614,12 @@ export default function CodexProfilesSection({ onClose, switcher, onNotice, away
                 <button type="button" role="menuitem" className="ap-menu-item"
                   title={t("codex.menu.copyLaunchTitle")}
                   onClick={choose(() => void copyCommand(`/api/codex-profile-launch?id=${encodeURIComponent(profile.id)}`, t("codex.panel.launchCopied")))}>{t("codex.menu.copyLaunch")}</button>
+                {/* Where this account worked, per project: Claude's report,
+                    read from Codex's own logs in this account's folder. A
+                    full dialog, so the menu closes behind it. */}
+                <button type="button" role="menuitem" className="ap-menu-item" aria-haspopup="dialog"
+                  title={t("accounts.menu.projectsTip")}
+                  onClick={choose(() => setProjectsFor({ id: profile.id, name: a.alias ?? a.email ?? t("codex.peer.account", { n: a.num }), from: `ap-codex-more-${a.num}` }))}>{t("accounts.menu.projects")}</button>
                 {(!a.active || a.disabled) && (
                   <button type="button" role="menuitem" className="ap-menu-item"
                     {...pressProps(`rot-${a.num}`)}
@@ -671,6 +679,18 @@ export default function CodexProfilesSection({ onClose, switcher, onNotice, away
           fetchedAt={issueRow.account.fetchedAt} nowSec={nowSec}
           onClose={closeIssue} onSignIn={() => signIn(issueRow.profile)} />
       )}
+      {/* Under the name the row has now; an account gone from a roster that
+          was read takes its report with it, as Claude's does. */}
+      {projectsFor && (() => {
+        const row = rowOf(projectsFor.id);
+        if (profiles && !row) return null;
+        return (
+          <AccountProjectsModal codexId={projectsFor.id}
+            name={row ? row.account.alias ?? row.account.email ?? t("codex.peer.account", { n: row.account.num }) : projectsFor.name}
+            returnFocusTo={() => document.getElementById(projectsFor.from)}
+            onClose={() => setProjectsFor(null)} />
+        );
+      })()}
       {transfer && <CodexShareDialog mode={transfer} profiles={profiles ?? []} revision={revision.current}
         onImported={() => { void refreshProfiles().catch(() => setError(true)); }} onClose={() => setTransfer(null)} />}
       {dialog && (

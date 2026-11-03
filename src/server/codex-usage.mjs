@@ -251,6 +251,75 @@ async function readCompressedTokenSeries(filePath) {
   finally { source?.destroy(); }
 }
 
+/**
+ * Hand every line of a rollout to `onLine`, plain or compressed, a chunk at a
+ * time — the line reader codex-projects.mjs folds a whole rollout with.
+ *
+ * It is the same read the two series readers above do (a bounded chunk, a
+ * StringDecoder for a UTF-8 sequence that straddles a boundary, a final line with
+ * no newline, the compressed source held and destroyed), kept apart from them
+ * because they build a token series out of each line and this one builds
+ * whatever its caller asks. Resolves true when the file was read to its end and
+ * false when it could not be (missing, unreadable, a torn archive, or a Node
+ * that cannot decompress), so a caller never memoises half a file.
+ */
+export async function forEachRolloutLine(filePath, onLine) {
+  if (filePath.endsWith(COMPRESSED)) {
+    if (!createZstdDecompress) {
+      if (!warnedNoZstd) {
+        warnedNoZstd = true;
+        console.error(
+          `${PRODUCT} codex-usage: this Node (${process.version}) cannot read Codex's compressed `
+          + "rollouts; sessions older than about a week are being left out. Node 22.15 or newer reads them.",
+        );
+      }
+      return false;
+    }
+    let source = null;
+    try {
+      const decoder = new StringDecoder("utf8");
+      let pending = "";
+      source = createReadStream(filePath);
+      const stream = source.pipe(createZstdDecompress());
+      source.on("error", err => { stream.destroy(err); });
+      for await (const chunk of stream) {
+        pending += decoder.write(chunk);
+        let from = 0;
+        let nl;
+        while ((nl = pending.indexOf("\n", from)) >= 0) { onLine(pending.slice(from, nl)); from = nl + 1; }
+        if (from > 0) pending = pending.slice(from);
+      }
+      pending += decoder.end();
+      if (pending) onLine(pending);
+      return true;
+    } catch { return false; }
+    finally { source?.destroy(); }
+  }
+  let fd;
+  try {
+    fd = await open(filePath, "r");
+    const { size } = await fd.stat();
+    const buf = Buffer.allocUnsafe(READ_CHUNK_BYTES);
+    const decoder = new StringDecoder("utf8");
+    let pending = "";
+    let pos = 0;
+    while (pos < size) {
+      const { bytesRead } = await fd.read(buf, 0, READ_CHUNK_BYTES, pos);
+      if (bytesRead <= 0) break;
+      pos += bytesRead;
+      pending += decoder.write(buf.subarray(0, bytesRead));
+      let from = 0;
+      let nl;
+      while ((nl = pending.indexOf("\n", from)) >= 0) { onLine(pending.slice(from, nl)); from = nl + 1; }
+      if (from > 0) pending = pending.slice(from);
+    }
+    pending += decoder.end();
+    if (pending) onLine(pending);
+    return true;
+  } catch { return false; }
+  finally { await fd?.close().catch(() => {}); }
+}
+
 /** The reader, exported under a test-only name. The compressed path cannot be
  *  reached through `fetchCodexUsage` without a Codex home full of week-old
  *  sessions, and the thing worth checking is that both spellings produce the

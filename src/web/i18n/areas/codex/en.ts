@@ -110,6 +110,8 @@ const catalog: Catalog = {
   "codex.menu.signInAgain": "Sign in again",
   "codex.menu.copyLaunch": "Copy launch command",
   "codex.menu.copyLaunchTitle": "Copies a command that starts Codex on this account",
+  "codex.projects.foot": "API-equivalent estimate · from Codex’s session logs",
+  "codex.projects.unNote": "Work in this account’s folder by a different sign-in, or with no project folder.",
   "codex.menu.putBackTitle": "Return this account to auto-rotation",
   "codex.menu.holdOutTitle": "Hold this account out of auto-rotation",
   "codex.menu.putBack": "Put back in rotation",

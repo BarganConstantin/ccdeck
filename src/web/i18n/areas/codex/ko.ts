@@ -81,6 +81,8 @@ const catalog: Catalog = {
   "codex.menu.signInAgain": "다시 로그인",
   "codex.menu.copyLaunch": "실행 명령 복사",
   "codex.menu.copyLaunchTitle": "이 계정으로 Codex를 시작하는 명령을 복사합니다",
+  "codex.projects.foot": "API 기준 추정치 · Codex 세션 기록 기준",
+  "codex.projects.unNote": "이 계정 폴더에서 다른 로그인으로 한 작업, 또는 프로젝트 폴더가 없는 작업입니다.",
   "codex.menu.putBackTitle": "이 계정을 자동 순환에 되돌립니다",
   "codex.menu.holdOutTitle": "이 계정을 자동 순환에서 제외합니다",
   "codex.menu.putBack": "순환에 되돌리기",

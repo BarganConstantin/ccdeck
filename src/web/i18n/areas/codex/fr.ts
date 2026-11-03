@@ -85,6 +85,8 @@ const catalog: Catalog = {
   "codex.menu.signInAgain": "Se reconnecter",
   "codex.menu.copyLaunch": "Copier la commande de lancement",
   "codex.menu.copyLaunchTitle": "Copie une commande qui lance Codex sur ce compte",
+  "codex.projects.foot": "Estimation au tarif de l'API · d'après les journaux de session de Codex",
+  "codex.projects.unNote": "Travail dans le dossier de ce compte sous une autre connexion, ou sans dossier de projet.",
   "codex.menu.putBackTitle": "Remettre ce compte dans la rotation automatique",
   "codex.menu.holdOutTitle": "Exclure ce compte de la rotation automatique",
   "codex.menu.putBack": "Remettre dans la rotation",

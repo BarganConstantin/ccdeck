@@ -86,6 +86,8 @@ const catalog: Catalog = {
   "codex.menu.signInAgain": "Entrar de novo",
   "codex.menu.copyLaunch": "Copiar comando de início",
   "codex.menu.copyLaunchTitle": "Copia um comando que inicia o Codex nesta conta",
+  "codex.projects.foot": "Estimativa equivalente à API · dos registros de sessão do Codex",
+  "codex.projects.unNote": "Trabalho na pasta desta conta feito por outro login, ou sem pasta de projeto.",
   "codex.menu.putBackTitle": "Devolver esta conta ao rodízio automático",
   "codex.menu.holdOutTitle": "Manter esta conta fora do rodízio automático",
   "codex.menu.putBack": "Devolver ao rodízio",

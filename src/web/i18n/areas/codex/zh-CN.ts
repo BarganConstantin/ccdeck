@@ -82,6 +82,8 @@ const catalog: Catalog = {
   "codex.menu.signInAgain": "重新登录",
   "codex.menu.copyLaunch": "复制启动命令",
   "codex.menu.copyLaunchTitle": "复制一条用此账号启动 Codex 的命令",
+  "codex.projects.foot": "按 API 计价估算 · 来自 Codex 的会话记录",
+  "codex.projects.unNote": "此账号文件夹中由其他登录完成的工作，或没有项目文件夹的工作。",
   "codex.menu.putBackTitle": "让此账号回到自动轮换",
   "codex.menu.holdOutTitle": "将此账号排除在自动轮换之外",
   "codex.menu.putBack": "放回轮换",

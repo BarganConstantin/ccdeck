@@ -110,6 +110,8 @@ const catalog: Catalog = {
   "codex.menu.signInAgain": "Autentifică-te din nou",
   "codex.menu.copyLaunch": "Copiază comanda de pornire",
   "codex.menu.copyLaunchTitle": "Copiază o comandă care pornește Codex cu acest cont",
+  "codex.projects.foot": "Estimare echivalentă API · din jurnalele de sesiune Codex",
+  "codex.projects.unNote": "Lucru în folderul acestui cont făcut de altă autentificare sau fără folder de proiect.",
   "codex.menu.putBackTitle": "Readu acest cont în rotația automată",
   "codex.menu.holdOutTitle": "Scoate acest cont din rotația automată",
   "codex.menu.putBack": "Pune înapoi în rotație",
