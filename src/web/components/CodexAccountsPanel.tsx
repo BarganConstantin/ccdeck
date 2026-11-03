@@ -3,6 +3,8 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import type { SharedMark } from "../account-lan";
 import { useT } from "../i18n";
 import type { LanAccount } from "../lan-types";
+import { withKey } from "../single-key-shortcuts";
+import { useSingleKeyShortcuts } from "../use-single-key-shortcuts";
 import CodexProfilesSection from "./CodexProfilesSection";
 import LanSyncSection from "./LanSyncSection";
 
@@ -32,6 +34,7 @@ export default function CodexAccountsPanel({
   onLanShown?: () => void;
 }) {
   const t = useT();
+  const singleKeys = useSingleKeyShortcuts();
   const [view, setView] = useState<"accounts" | "lan">("accounts");
   // Which Codex logins this deck offers, and to whom, for the share mark on
   // their rows — from the status Local network's own section polls, as on
@@ -54,7 +57,7 @@ export default function CodexAccountsPanel({
     onLanShown?.();
   }, [lanWanted, lanReady, shown]); // eslint-disable-line react-hooks/exhaustive-deps
   const closeBtn = (
-    <button type="button" className="glyph-btn" aria-label={t("codex.panel.close")} onClick={onClose}>
+    <button type="button" className="glyph-btn" aria-label={t("codex.panel.close")} title={withKey(t("accounts.close"), "A", singleKeys)} onClick={onClose}>
       <svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" aria-hidden>
         <path d="M3.4 3.4l7.2 7.2M10.6 3.4l-7.2 7.2" />
       </svg>

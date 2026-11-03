@@ -25,7 +25,9 @@ import {
 } from "../codex-accounts";
 import { copyText } from "../copy-text";
 import { useT } from "../i18n";
+import { withKey } from "../single-key-shortcuts";
 import { codexDefaultMoved } from "../use-quota";
+import { useSingleKeyShortcuts } from "../use-single-key-shortcuts";
 import { type Failure } from "../accounts-reload";
 import { focusDropped } from "../panel-press";
 import { usePanelClock } from "../use-panel-clock";
@@ -74,6 +76,7 @@ export default function CodexProfilesSection({ onClose, switcher, onNotice, away
   shared?: ReadonlyMap<string, SharedMark>;
 } = {}) {
   const t = useT();
+  const singleKeys = useSingleKeyShortcuts();
   const { busy, claim, release, pressProps } = useRequestSlot();
   const nowSec = usePanelClock();
   const [profiles, setProfiles] = useState<CodexProfile[] | null>(null);
@@ -111,10 +114,10 @@ export default function CodexProfilesSection({ onClose, switcher, onNotice, away
   const [menu, setMenu] = useState<null | { id: string; start: "first" | "last"; view: "menu" | "rename" }>(null);
   const [aliasDraft, setAliasDraft] = useState("");
   const [menuError, setMenuError] = useState<string | null>(null);
+  /** The share dialog, and for one opened from a row's ⋯, the row it starts
+   *  with ticked and that ⋯, for focus to come back to. */
+  const [transfer, setTransfer] = useState<null | { pick?: string; from?: string }>(null);
   /** The Add / Sign in dialog: a new account, or one signed in again. */
-  /** The share or import dialog, and for a share opened from a row's ⋯, the
-   *  row it starts with ticked and that ⋯, for focus to come back to. */
-  const [transfer, setTransfer] = useState<null | { mode: "export" | "import"; pick?: string; from?: string }>(null);
   const [dialog, setDialog] = useState<null | { id?: string; label?: string; account?: string | null }>(null);
   /** The account whose Remove has been pressed once and is waiting for the second. */
   const [confirmRemove, setConfirmRemove] = useState<string | null>(null);
@@ -485,25 +488,26 @@ export default function CodexProfilesSection({ onClose, switcher, onNotice, away
       <div className="ap-header">
         <h2 className={switcher ? "vis-hidden" : undefined}>{t("codex.panel.title")}</h2>
         {switcher}
+        {/* Claude's four, in Claude's order (AccountsHeader.tsx): + to add or
+            paste one shared, ↗ to share several, reload, close. Import was an
+            icon of its own here; it is the + dialog's Paste a share tab now, as
+            on Claude's side, and ↗ is drawn only when there is a login to send. */}
         <div className="ap-header-right">
-          <button type="button" className="glyph-btn" aria-label={t("codex.share.title")} title={t("codex.share.title")}
-            aria-haspopup="dialog" onClick={() => setTransfer({ mode: "export" })}>
-            <svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-              <path d="M7 9V1.5m-2.5 2.5L7 1.5 9.5 4M3 7v5h8V7" />
-            </svg>
-          </button>
-          <button type="button" className="glyph-btn" aria-label={t("codex.share.importTitle")} title={t("codex.share.importTitle")}
-            aria-haspopup="dialog" onClick={() => setTransfer({ mode: "import" })}>
-            <svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-              <path d="M7 1.5V9m-2.5-2.5L7 9l2.5-2.5M3 10v2h8v-2" />
-            </svg>
-          </button>
           <button type="button" className="glyph-btn ap-add" aria-label={t("codex.panel.add")} title={t("codex.panel.addTitle")}
             aria-haspopup="dialog" onClick={() => setDialog({})}>
             <svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" aria-hidden>
               <path d="M7 2.2v9.6M2.2 7h9.6" />
             </svg>
           </button>
+          {rows.some(row => !signedOut(row.profile)) && (
+            <button type="button" className="glyph-btn" aria-label={t("codex.share.title")} title={t("accounts.header.shareTip", { product: PRODUCT })}
+              aria-haspopup="dialog" onClick={() => setTransfer({})}>
+              <svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                <path d="M3.3 10.7L10.7 3.3" />
+                <path d="M5.5 3.3h5.2v5.2" />
+              </svg>
+            </button>
+          )}
           <button type="button" className="glyph-btn ap-refresh" aria-label={t("codex.panel.reload")} title={t("codex.panel.reloadTitle")}
             {...pressProps("reload", reloading)} onClick={() => void reload()}>
             <svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
@@ -512,7 +516,7 @@ export default function CodexProfilesSection({ onClose, switcher, onNotice, away
             </svg>
           </button>
           {onClose && (
-            <button type="button" className="glyph-btn" aria-label={t("codex.panel.close")} onClick={onClose}>
+            <button type="button" className="glyph-btn" aria-label={t("codex.panel.close")} title={withKey(t("accounts.close"), "A", singleKeys)} onClick={onClose}>
               <svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" aria-hidden>
                 <path d="M3.4 3.4l7.2 7.2M10.6 3.4l-7.2 7.2" />
               </svg>
@@ -622,7 +626,7 @@ export default function CodexProfilesSection({ onClose, switcher, onNotice, away
                 {!signedOut(profile) && (
                   <button type="button" role="menuitem" className="ap-menu-item" aria-haspopup="dialog"
                     title={t("codex.menu.shareTip", { product: PRODUCT })}
-                    onClick={choose(() => setTransfer({ mode: "export", pick: profile.id, from: `ap-codex-more-${a.num}` }))}>{t("accounts.menu.share")}</button>
+                    onClick={choose(() => setTransfer({ pick: profile.id, from: `ap-codex-more-${a.num}` }))}>{t("accounts.menu.share")}</button>
                 )}
                 {(!a.active || a.disabled) && (
                   <button type="button" role="menuitem" className="ap-menu-item"
@@ -694,10 +698,9 @@ export default function CodexProfilesSection({ onClose, switcher, onNotice, away
           fetchedAt={issueRow.account.fetchedAt} nowSec={nowSec}
           onClose={closeIssue} onSignIn={() => signIn(issueRow.profile)} />
       )}
-      {transfer && <CodexShareDialog mode={transfer.mode} initial={transfer.pick ? [transfer.pick] : undefined}
+      {transfer && <CodexShareDialog initial={transfer.pick ? [transfer.pick] : undefined}
         returnFocusTo={transfer.from ? () => document.getElementById(transfer.from!) : undefined}
-        profiles={profiles ?? []} revision={revision.current}
-        onImported={() => { void refreshProfiles().catch(() => setError(true)); }} onClose={() => setTransfer(null)} />}
+        profiles={profiles ?? []} onClose={() => setTransfer(null)} />}
       {dialog && (
         <AddCodexAccountDialog
           profile={dialog.id && dialog.label ? { id: dialog.id, label: dialog.label, account: dialog.account } : undefined}
@@ -713,6 +716,8 @@ export default function CodexProfilesSection({ onClose, switcher, onNotice, away
           }}
           onReplace={replaceLogin}
           onDiscard={removeProfile}
+          revision={revision.current}
+          onImported={() => { void refreshProfiles().catch(() => setError(true)); }}
           onClose={() => { setDialog(null); void refreshProfiles().catch(() => setError(true)); }}
         />
       )}

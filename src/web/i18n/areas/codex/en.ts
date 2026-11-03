@@ -73,7 +73,7 @@ const catalog: Catalog = {
   "codex.panel.title": "Codex accounts",
   "codex.panel.profiles": "Codex profiles",
   "codex.panel.add": "Add a Codex account",
-  "codex.panel.addTitle": "Sign in to another Codex account",
+  "codex.panel.addTitle": "Sign in to another Codex account, or paste one shared from another deck",
   "codex.panel.reload": "Reload Codex accounts",
   "codex.panel.reloadTitle": "Read the accounts and their numbers again",
   "codex.panel.close": "Close Codex accounts",

@@ -342,7 +342,10 @@ describe("the deck's ten overlays", () => {
       // Add Codex account names its name field for a new account, and its sign-in
       // button for one that exists: the one thing each is opened to do.
       "AddCodexAccountDialog.tsx",
-      "ClearConfirm.tsx", "CodexShareDialog.tsx", "ContextModal.tsx",
+      // The Codex share dialog named its paste field, and only when it imported.
+      // The paste is Add a Codex account's second tab now, and the share that
+      // is left takes the hook's default, as it always did.
+      "ClearConfirm.tsx", "ContextModal.tsx",
       // Feedback names its message field: it was opened to write in, the
       // row of kinds above it already holds a sensible answer, and the message
       // is the one thing it asks for — the title under it is optional (#1853).

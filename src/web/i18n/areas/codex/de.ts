@@ -46,7 +46,7 @@ const catalog: Catalog = {
   "codex.panel.title": "Codex-Konten",
   "codex.panel.profiles": "Codex-Profile",
   "codex.panel.add": "Codex-Konto hinzufügen",
-  "codex.panel.addTitle": "Bei einem weiteren Codex-Konto anmelden",
+  "codex.panel.addTitle": "Bei einem weiteren Codex-Konto anmelden oder eine von einem anderen ccdeck erhaltene Freigabe einfügen",
   "codex.panel.reload": "Codex-Konten neu laden",
   "codex.panel.reloadTitle": "Konten und ihre Zahlen neu lesen",
   "codex.panel.close": "Codex-Konten schließen",

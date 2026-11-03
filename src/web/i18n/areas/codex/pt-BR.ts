@@ -49,7 +49,7 @@ const catalog: Catalog = {
   "codex.panel.title": "Contas do Codex",
   "codex.panel.profiles": "Perfis do Codex",
   "codex.panel.add": "Adicionar uma conta do Codex",
-  "codex.panel.addTitle": "Entrar em outra conta do Codex",
+  "codex.panel.addTitle": "Entrar em outra conta do Codex, ou colar uma compartilhada por outro ccdeck",
   "codex.panel.reload": "Recarregar as contas do Codex",
   "codex.panel.reloadTitle": "Ler as contas e seus números de novo",
   "codex.panel.close": "Fechar contas do Codex",

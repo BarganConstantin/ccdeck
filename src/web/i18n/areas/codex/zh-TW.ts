@@ -48,7 +48,7 @@ const catalog: Catalog = {
   "codex.panel.title": "Codex 帳號",
   "codex.panel.profiles": "Codex 設定檔",
   "codex.panel.add": "新增 Codex 帳號",
-  "codex.panel.addTitle": "登入另一個 Codex 帳號",
+  "codex.panel.addTitle": "登入另一個 Codex 帳號，或貼上從另一台 ccdeck 分享的帳號",
   "codex.panel.reload": "重新載入 Codex 帳號",
   "codex.panel.reloadTitle": "重新讀取帳號及其數字",
   "codex.panel.close": "關閉 Codex 帳號",

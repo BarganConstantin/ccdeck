@@ -7,15 +7,22 @@ vi.mock('react-dom', () => ({ createPortal: (node: unknown) => node }));
 vi.mock('../components/use-modal-dismiss', () => ({ useModalDismiss: () => ({ current: null }), useScrimDismiss: () => ({}) }));
 vi.mock('../copy-text', () => ({ copyText: vi.fn(async () => true) }));
 const { default: CodexShareDialog } = await import('../components/CodexShareDialog');
+const { default: CodexImportPane } = await import('../components/CodexImportPane');
 const { default: CodexProfilesSection } = await import('../components/CodexProfilesSection');
+const { default: AddCodexAccountDialog } = await import('../components/AddCodexAccountDialog');
 const profiles = [{ id: 'a'.repeat(20), label: 'Fictional account', active: true, signedInFilePresent: true, identityVersion: 'fixture' }];
 let cleanup: (() => void) | undefined;
 afterEach(() => { cleanup?.(); cleanup = undefined; vi.unstubAllGlobals(); vi.useRealTimers(); });
 const press = (view: { tree: unknown }, label: string) => (one(view.tree, el => el.type === 'button' && textOf(el) === label)!.props.onClick as () => void)();
 
-function dialog(mode: 'export' | 'import', onImported = vi.fn()) {
+function dialog() {
   vi.stubGlobal('document', { body: null });
-  const view = mount(CodexShareDialog, { mode, profiles, revision: 7, onImported, onClose: vi.fn() });
+  const view = mount(CodexShareDialog, { profiles, onClose: vi.fn() });
+  cleanup = view.unmount;
+  return view;
+}
+function pane(onImported = vi.fn(), onDone = vi.fn()) {
+  const view = mount(CodexImportPane, { revision: 7, onImported, onDone });
   cleanup = view.unmount;
   return view;
 }
@@ -23,7 +30,7 @@ describe('Codex share dialog', () => {
   it('does not read credentials on open; warns clearly and exports exactly the selection after explicit generation', async () => {
     const fetch = vi.fn(async () => ({ ok: true, json: async () => ({ ok: true, blob: 'ccdeck-codex-v1.fictional', count: 1 }) }));
     vi.stubGlobal('fetch', fetch);
-    const view = dialog('export');
+    const view = dialog();
     expect(fetch).not.toHaveBeenCalled();
     expect(textOf(view.tree)).toContain('live sign-in credentials');
     expect(textOf(view.tree)).toContain('may invalidate the other copy');
@@ -41,7 +48,7 @@ describe('Codex share dialog', () => {
     let resolve!: (value: unknown) => void;
     const fetch = vi.fn(() => new Promise(r => { resolve = r; }));
     vi.stubGlobal('fetch', fetch);
-    const view = dialog('export');
+    const view = dialog();
     (one(view.tree, el => el.type === 'input')!.props.onChange as () => void)();
     press(view, 'Generate share code');
     const input = one(view.tree, el => el.type === 'input')!;
@@ -58,7 +65,7 @@ describe('Codex share dialog', () => {
   it('imports only on press, uses CAS, clears credentials on success and reports dedup results', async () => {
     const fetch = vi.fn(async () => ({ ok: true, json: async () => ({ ok: true, revision: 8, results: [{ id: 'b'.repeat(20), status: 'imported' }, { id: 'c'.repeat(20), status: 'already_imported' }] }) }));
     vi.stubGlobal('fetch', fetch);
-    const imported = vi.fn(), view = dialog('import', imported);
+    const imported = vi.fn(), done = vi.fn(), view = pane(imported, done);
     (one(view.tree, el => el.type === 'textarea')!.props.onChange as (e: unknown) => void)({ target: { value: ' ccdeck-codex-v1.fictional ' } });
     expect(fetch).not.toHaveBeenCalled();
     press(view, 'Import accounts');
@@ -67,12 +74,14 @@ describe('Codex share dialog', () => {
     expect(imported).toHaveBeenCalledOnce();
     expect(textOf(view.tree)).toContain('Added: 1. Already imported: 1.');
     expect(one(view.tree, el => el.type === 'textarea')).toBeNull();
+    press(view, 'Done');
+    expect(done).toHaveBeenCalledOnce();
   });
 
   it('ignores repeated presses while pending, keeps errors credential-free and preserves paste for retry', async () => {
     let resolve!: (value: unknown) => void;
     const fetch = vi.fn(() => new Promise(r => { resolve = r; })); vi.stubGlobal('fetch', fetch);
-    const view = dialog('import');
+    const view = pane();
     (one(view.tree, el => el.type === 'textarea')!.props.onChange as (e: unknown) => void)({ target: { value: 'ccdeck-codex-v1.fictional' } });
     press(view, 'Import accounts'); press(view, 'Working…');
     expect(fetch).toHaveBeenCalledOnce();
@@ -85,27 +94,47 @@ describe('Codex share dialog', () => {
 
   it('does not echo an unsuccessful server response as a share', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => ({ ok: false, json: async () => ({ ok: false, reason: 'file_auth_required', blob: 'not-a-success' }) })));
-    const view = dialog('export');
+    const view = dialog();
     (one(view.tree, el => el.type === 'input')!.props.onChange as () => void)(); press(view, 'Generate share code'); await flush();
     expect(textOf(view.tree)).toContain('uses a keyring');
     expect(one(view.tree, el => el.type === 'textarea')).toBeNull();
   });
 
-  it('provides both manual actions in the Codex header without starting auth operations', async () => {
+  // Claude's header is +, ↗, reload, close (AccountsHeader.tsx). Codex's had an
+  // Import icon of its own; the paste is the + dialog's second tab now.
+  it("draws Claude's header: + opens Add with the paste, ↗ shares, and nothing starts", async () => {
     vi.useFakeTimers();
     vi.stubGlobal('window', { setInterval, clearInterval, setTimeout, clearTimeout, addEventListener: () => {}, removeEventListener: () => {} });
     const fetch = vi.fn(async () => ({ ok: true, json: async () => ({ profiles, revision: 7 }) }));
     vi.stubGlobal('fetch', fetch);
-    const view = mount(() => CodexProfilesSection()); cleanup = view.unmount; await flush();
-    for (const [label, mode] of [['Share Codex accounts', 'export'], ['Import Codex accounts', 'import']]) {
-      (one(view.tree, el => el.type === 'button' && el.props['aria-label'] === label)!.props.onClick as () => void)();
-      const opened = one(view.tree, el => el.type === CodexShareDialog)!;
-      expect(opened.props.mode).toBe(mode);
-      expect(opened.props.revision).toBe(7);
-      (opened.props.onClose as () => void)();
-    }
-    expect(all(view.tree, el => el.type === CodexShareDialog)).toHaveLength(0);
+    const view = mount(() => CodexProfilesSection({ onClose: vi.fn() })); cleanup = view.unmount; await flush();
+    const right = one(view.tree, el => el.props?.className === 'ap-header-right')!;
+    expect(all(right, el => el.type === 'button').map(el => el.props['aria-label']))
+      .toEqual(['Add a Codex account', 'Share Codex accounts', 'Reload Codex accounts', 'Close Codex accounts']);
+    const byLabel = (label: string) => one(right, el => el.type === 'button' && el.props['aria-label'] === label)!;
+    expect(byLabel('Share Codex accounts').props.title).toContain('treat it as those passwords');
+    expect(byLabel('Add a Codex account').props.title).toContain('paste one shared from another deck');
+    expect(byLabel('Close Codex accounts').props.title).toMatch(/^Close/);
+    (byLabel('Share Codex accounts').props.onClick as () => void)();
+    const shared = one(view.tree, el => el.type === CodexShareDialog)!;
+    expect(shared.props.initial).toBeUndefined();
+    (shared.props.onClose as () => void)();
+    (byLabel('Add a Codex account').props.onClick as () => void)();
+    const added = one(view.tree, el => el.type === AddCodexAccountDialog)!;
+    expect(added.props.profile).toBeUndefined();
+    expect(added.props.revision).toBe(7);
+    expect(typeof added.props.onImported).toBe('function');
     expect(fetch.mock.calls.every(call => !String(call[0]).includes('share') && !String(call[0]).includes('import'))).toBe(true);
+  });
+
+  it('draws no ↗ while no account has a login to send', async () => {
+    vi.useFakeTimers();
+    vi.stubGlobal('window', { setInterval, clearInterval, setTimeout, clearTimeout, addEventListener: () => {}, removeEventListener: () => {} });
+    const out = [{ id: 'b'.repeat(20), label: 'Signed out', active: true, signedInFilePresent: false, identityVersion: 'none' }];
+    vi.stubGlobal('fetch', vi.fn(async () => ({ ok: true, json: async () => ({ profiles: out, revision: 7 }) })));
+    const view = mount(() => CodexProfilesSection()); cleanup = view.unmount; await flush();
+    expect(one(view.tree, el => el.type === 'button' && el.props['aria-label'] === 'Share Codex accounts')).toBeNull();
+    expect(one(view.tree, el => el.type === 'button' && el.props['aria-label'] === 'Add a Codex account')).toBeTruthy();
   });
 
   // Claude's ⋯ has Share for one account; the Codex one opens the same dialog
@@ -125,7 +154,7 @@ describe('Codex share dialog', () => {
     expect(shareItem()!.props.title).toContain('treat it as the password');
     (shareItem()!.props.onClick as () => void)();
     const opened = one(view.tree, el => el.type === CodexShareDialog)!;
-    expect(opened.props).toMatchObject({ mode: 'export', initial: [profiles[0].id] });
+    expect(opened.props).toMatchObject({ initial: [profiles[0].id] });
     // The menu closed as the dialog opened, so focus goes back to the row's ⋯.
     vi.stubGlobal('document', { getElementById: (id: string) => ({ id }) });
     expect((opened.props.returnFocusTo as () => { id: string })().id).toMatch(/^ap-codex-more-/);
@@ -140,7 +169,7 @@ describe('Codex share dialog', () => {
     const fetch = vi.fn(async () => ({ ok: true, json: async () => ({ ok: true, blob: 'ccdeck-codex-v1.fictional', count: 1 }) }));
     vi.stubGlobal('fetch', fetch);
     vi.stubGlobal('document', { body: null });
-    const view = mount(CodexShareDialog, { mode: 'export', initial: [profiles[0].id], profiles, revision: 7, onImported: vi.fn(), onClose: vi.fn() });
+    const view = mount(CodexShareDialog, { initial: [profiles[0].id], profiles, onClose: vi.fn() });
     cleanup = view.unmount;
     expect(one(view.tree, el => el.type === 'input')!.props.checked).toBe(true);
     press(view, 'Generate share code');

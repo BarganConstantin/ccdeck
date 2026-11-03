@@ -24,13 +24,19 @@
 // tab only inside the press that asked for it, and the link arrives after a
 // request, so the press opens an empty tab at once and the dialog sends it to
 // the link when the link is known. A blocked tab leaves the button below it.
-import { useCallback, useEffect, useRef, useState } from "react";
+//
+// A new account has a second way in, as Claude's does: Paste a share, the code
+// another deck's ↗ made (CodexImportPane). Signing an existing row in again
+// has only the first, so it draws no tabs.
+import { useCallback, useEffect, useRef, useState, type KeyboardEvent } from "react";
 import { createPortal } from "react-dom";
+import CodexImportPane from "./CodexImportPane";
 import Confetti from "./Confetti";
 import SuccessMark from "./SuccessMark";
 import { copyText } from "../copy-text";
 import { useT, type TFunction } from "../i18n";
 import { celebrates, doneTitle } from "../signin-stages";
+import { tabStripMove } from "../tablist-keys";
 import { useModalDismiss, useScrimDismiss } from "./use-modal-dismiss";
 import { prefersReducedMotion } from "../viewport-motion";
 
@@ -66,10 +72,23 @@ interface Props {
   onReplace: (id: string, into: string) => Promise<boolean>;
   /** Take back an account made here that repeats one already listed. */
   onDiscard: (id: string) => Promise<boolean>;
+  /** The roster revision a pasted share is checked against. */
+  revision: number;
+  /** A pasted share landed: the roster is read again. */
+  onImported: () => void;
   onClose: () => void;
 }
 
 const POLL_MS = 1500;
+
+/** The two ways in, in the order the strip draws them and the arrows walk. */
+const TABS = [
+  { id: "login", key: "accounts.row.signIn" },
+  { id: "paste", key: "accounts.add.pasteShare" },
+] as const;
+type TabId = (typeof TABS)[number]["id"];
+const PANEL_ID = "aa-codex-panel";
+const tabDomId = (id: TabId) => `aa-codex-tab-${id}`;
 
 /** A sentence with the account's name in bold, wherever its language puts it. */
 function withName(template: string, name: string) {
@@ -84,8 +103,14 @@ function reasonText(reason: string | null | undefined, t: TFunction): string {
   return t("codex.add.reason.other");
 }
 
-export default function AddCodexAccountDialog({ profile, onCreate, onCopyCommand, onSignedIn, onReplace, onDiscard, onClose }: Props) {
+export default function AddCodexAccountDialog({ profile, onCreate, onCopyCommand, onSignedIn, onReplace, onDiscard, revision, onImported, onClose }: Props) {
   const t = useT();
+  const tabbed = !profile;
+  const [tab, setTab] = useState<TabId>("login");
+  const tabRefs = useRef<(HTMLButtonElement | null)[]>([]);
+  const pasteField = useRef<HTMLTextAreaElement | null>(null);
+  /** The tab was reached by an arrow key, so focus stays on the strip. */
+  const arrowed = useRef(false);
   const [stage, setStage] = useState<Stage>("ready");
   const [id, setId] = useState<string | null>(profile?.id ?? null);
   const [login, setLogin] = useState<LoginAnswer | null>(null);
@@ -141,6 +166,20 @@ export default function AddCodexAccountDialog({ profile, onCreate, onCopyCommand
   }, []);
   // The step that held focus has gone, so it lands on what ends the dialog.
   useEffect(() => { if (stage === "done" || stage === "repeat") primaryRef.current?.focus(); }, [stage]);
+  // A press on Paste a share goes on to the field; an arrow leaves focus on the
+  // strip, which is what lets the next arrow come back (Claude's rule).
+  useEffect(() => {
+    if (tab === "paste" && !arrowed.current) pasteField.current?.focus();
+    arrowed.current = false;
+  }, [tab]);
+  const onTabKeys = (event: KeyboardEvent<HTMLSpanElement>) => {
+    const move = tabStripMove(event, TABS.findIndex(item => item.id === tab), TABS.length);
+    if (move.kind === "pass") return;
+    event.preventDefault();
+    arrowed.current = true;
+    setTab(TABS[move.index].id);
+    tabRefs.current[move.index]?.focus();
+  };
 
   /** Open the tab inside the press. Returns nothing: a blocked tab is not an error. */
   function openTab() {
@@ -244,14 +283,31 @@ export default function AddCodexAccountDialog({ profile, onCreate, onCopyCommand
 
   return createPortal(
     <div className="modal-backdrop" {...scrimPress} role="presentation">
-      <div ref={dialogRef} className="modal aa-modal" onClick={event => event.stopPropagation()} role="dialog" aria-modal="true" aria-labelledby="aa-codex-title">
+      <div ref={dialogRef} className="modal aa-modal" onClick={event => event.stopPropagation()} role="dialog" aria-modal="true"
+        aria-labelledby={tabbed ? undefined : "aa-codex-title"} aria-label={tabbed ? title : undefined}>
         <header className="modal-head">
-          <div className="modal-title"><span id="aa-codex-title">{title}</span></div>
+          <div className="modal-title">
+            {tabbed ? (
+              <span className="aa-tabs" role="tablist" aria-label={t("accounts.add.tabsLabel")} onKeyDown={onTabKeys}>
+                {TABS.map((item, i) => (
+                  <button key={item.id} type="button" role="tab" id={tabDomId(item.id)}
+                    ref={el => { tabRefs.current[i] = el; }}
+                    aria-selected={tab === item.id} aria-controls={PANEL_ID} tabIndex={tab === item.id ? 0 : -1}
+                    className={`aa-tab${tab === item.id ? " on" : ""}`}
+                    onClick={() => { arrowed.current = false; setTab(item.id); }}>{t(item.key)}</button>
+                ))}
+              </span>
+            ) : <span id="aa-codex-title">{title}</span>}
+          </div>
           <div className="modal-actions">
             <button type="button" className="glyph-btn" onClick={close} aria-label={t("codex.add.close")} title={t("codex.add.close")}>×</button>
           </div>
         </header>
-        <section className="modal-body aa-body">
+        <section className="modal-body aa-body" id={tabbed ? PANEL_ID : undefined}
+          role={tabbed ? "tabpanel" : undefined} aria-labelledby={tabbed ? tabDomId(tab) : undefined}>
+          {tabbed && tab === "paste" ? (
+            <CodexImportPane revision={revision} onImported={onImported} onDone={close} fieldRef={pasteField} />
+          ) : <>
           {stage === "ready" && (
             <div className="aa-step aa-primer">
               <p className="aa-note">
@@ -368,6 +424,7 @@ export default function AddCodexAccountDialog({ profile, onCreate, onCopyCommand
               </div>
             </div>
           )}
+          </>}
         </section>
       </div>
     </div>,

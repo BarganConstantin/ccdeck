@@ -45,7 +45,7 @@ const catalog: Catalog = {
   "codex.panel.title": "Codex 계정",
   "codex.panel.profiles": "Codex 프로필",
   "codex.panel.add": "Codex 계정 추가",
-  "codex.panel.addTitle": "다른 Codex 계정에 로그인",
+  "codex.panel.addTitle": "다른 Codex 계정에 로그인하거나, 다른 ccdeck에서 공유한 계정을 붙여넣습니다",
   "codex.panel.reload": "Codex 계정 다시 불러오기",
   "codex.panel.reloadTitle": "계정과 수치를 다시 읽습니다",
   "codex.panel.close": "Codex 계정 닫기",

@@ -73,7 +73,7 @@ const catalog: Catalog = {
   "codex.panel.title": "Conturi Codex",
   "codex.panel.profiles": "Profiluri Codex",
   "codex.panel.add": "Adaugă un cont Codex",
-  "codex.panel.addTitle": "Autentifică-te într-un alt cont Codex",
+  "codex.panel.addTitle": "Autentifică-te într-un alt cont Codex sau lipește unul partajat de pe alt ccdeck",
   "codex.panel.reload": "Reîncarcă conturile Codex",
   "codex.panel.reloadTitle": "Citește din nou conturile și cifrele lor",
   "codex.panel.close": "Închide conturile Codex",
