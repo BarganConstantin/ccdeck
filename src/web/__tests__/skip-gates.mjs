@@ -155,7 +155,7 @@ export const GATES = [
   {"file": "codex-engine-rpc.test.ts", "gate": "it.skipIf", "condition": "process.platform === 'win32'", "sites": 1, "cases": 1},
   {"file": "codex-live-credentials.test.ts", "gate": "it.skipIf", "condition": "process.platform !== 'win32'", "sites": 2, "cases": 2},
   {"file": "codex-live-credentials.test.ts", "gate": "it.skipIf", "condition": "process.platform === 'win32'", "sites": 6, "cases": 6},
-  {"file": "codex-live-rpc.test.ts", "gate": "describe.skipIf", "condition": "process.platform === 'win32'", "sites": 1, "cases": 4},
+  {"file": "codex-live-rpc.test.ts", "gate": "describe.skipIf", "condition": "process.platform === 'win32'", "sites": 1, "cases": 21},
   {"file": "codex-windows-private.test.ts", "gate": "describe.skipIf", "condition": "process.platform !== 'win32'", "sites": 1, "cases": 3},
   {"file": "codex-windows-rpc.test.ts", "gate": "describe.skipIf", "condition": "process.platform !== 'win32'", "sites": 1, "cases": 1},
 
@@ -417,13 +417,36 @@ const balanced = (src, open) => {
  * suite does, and if it ever appears the count here moves and the inventory
  * test says so rather than staying quiet.
  */
+// Count literal rows without evaluating test source. A variable/table builder
+// needs an explicit scanner extension, rather than silently counting as one.
+const eachRows = argument => {
+  const value = argument.trim();
+  if (!value.startsWith('[') || !value.endsWith(']')) throw new Error('gated each requires a literal table');
+  let depth = 0, quote = '', escaped = false, rows = 0, content = false;
+  for (const ch of value.slice(1, -1)) {
+    if (quote) {
+      content = true;
+      if (escaped) escaped = false;
+      else if (ch === '\\') escaped = true;
+      else if (ch === quote) quote = '';
+    } else if (ch === "'" || ch === '"' || ch === '`') { quote = ch; content = true; }
+    else if ('[({'.includes(ch)) { depth++; content = true; }
+    else if (']})'.includes(ch)) depth--;
+    else if (ch === ',' && depth === 0) { if (content) rows++; content = false; }
+    else if (!/\s/.test(ch)) content = true;
+  }
+  if (quote || depth) throw new Error('unbalanced gated each table');
+  return rows + Number(content);
+};
 const casesInBlock = (src, from) => {
   const rest = src.slice(from);
   const end = rest.slice(1).search(/\n(?:describe|it|test)[.(]/);
   const block = end === -1 ? rest : rest.slice(0, end + 1);
-  // Anchored to the start of a line so the word "it" in a comment sentence
-  // cannot be counted as a case.
-  return [...block.matchAll(/^[ \t]*(?:it|test)(?:\.\w+)*\s*\(/gm)].length;
+  return [...block.matchAll(/^[ \t]*(?:it|test)((?:\.\w+)*)\s*\(/gm)].reduce((count, match) => {
+    if (!match[1].split('.').includes('each')) return count + 1;
+    const open = match.index + match[0].length - 1;
+    return count + eachRows(balanced(block, open));
+  }, 0);
 };
 
 /**

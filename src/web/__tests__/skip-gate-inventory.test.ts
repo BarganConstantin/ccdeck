@@ -154,7 +154,7 @@ describe("the register of conditionally-skipped cases", () => {
     expect(expectedSkips("darwin")).toEqual(expected);
   });
 
-  it("expects the eighty-one platform-gated cases to skip on Windows, file by file", () => {
+  it("expects the ninety-eight platform-gated cases to skip on Windows, file by file", () => {
     // Fifty-six behind `process.platform === "win32"`, eight behind the posix
     // runIf family, and the three read-only-directory cases — sound-hook-park's,
     // the swap script's in desktop-updater and the macOS updater's in
@@ -164,7 +164,7 @@ describe("the register of conditionally-skipped cases", () => {
     // than as a total, so a change that moves a case from one gate to another is
     // a mismatch rather than an arithmetic coincidence.
     expect(expectedSkips("win32")).toEqual({
-      total: 81,
+      total: 98,
       byFile: {
         "append-deadline.test.ts": 1,
         "backup-root-shared.test.ts": 1,
@@ -172,7 +172,7 @@ describe("the register of conditionally-skipped cases", () => {
         "codex-engine-adapter.test.ts": 1,
         "codex-engine-rpc.test.ts": 1,
         "codex-live-credentials.test.ts": 6,
-        "codex-live-rpc.test.ts": 4,
+        "codex-live-rpc.test.ts": 21,
         "codex-auth-temp-collision.test.ts": 3,
         "codex-terminal-selection.test.ts": 1,
         "desktop-appimage-relaunch-1630.test.ts": 2,
@@ -250,6 +250,18 @@ describe("the register of conditionally-skipped cases", () => {
 });
 
 describe("the scanner the register is checked against", () => {
+  it("counts literal each rows inside a gated describe without running its source", () => {
+    const src = [
+      `${gate("describe.skipIf", 'process.platform === "win32"')}("block", () => {`,
+      '  it.each([0o777, 0o600])("modes", () => {});',
+      '  it.each([["a,b", 1], ["c", 2],])("tuples", () => {});',
+      '  it("ordinary", () => {});',
+      '});',
+    ].join("\n");
+    expect(scanSource("fake.test.ts", src)[0].cases).toBe(5);
+    expect(() => scanSource("fake.test.ts", src.replace('[0o777, 0o600]', 'uninspectedRows()'))).toThrow('literal table');
+  });
+
   it("reads the condition out of a gate however it is spread across lines", () => {
     const src = [
       `${gate("it.skipIf", 'process.platform === "win32"')}("a", () => {});`,
