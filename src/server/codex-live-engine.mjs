@@ -10,7 +10,7 @@ import { readCodexAuto } from './codex-auto.mjs';
 import { resolveCodexLiveEndpoint, connectCodexLiveRpc, liveError } from './codex-live-rpc.mjs';
 import { acquireCodexLiveLease } from './codex-live-lease.mjs';
 import { readLiveCodexCredential } from './codex-live-credentials.mjs';
-import { prepareCodexLiveHandoff, assertCodexLiveQuiet, continueCodexLiveHandoff, confirmCodexLiveChildren, readCodexLiveTurn } from './codex-live-handoff.mjs';
+import { prepareCodexLiveHandoff, assertCodexLiveQuiet, continueCodexLiveHandoff, confirmCodexLiveChildren, readCodexLiveTurn, retainCodexLiveHandoff } from './codex-live-handoff.mjs';
 import { requestCodexLiveCheckpoints, inspectCodexLiveCheckpoints } from './codex-live-checkpoint.mjs';
 
 const idPattern = /^[a-f0-9]{20}$/;
@@ -36,6 +36,7 @@ export function createCodexLiveAccountController(input = {}) {
   let deferred = null;
   let childContinuation = null;
   let checkpointWork = null;
+  let releaseSubscriptions = null;
   let recoveryNeeded = false;
   let recoveryJournal = null;
   const defer = (intent, refresh, automatic) => {
@@ -58,7 +59,11 @@ export function createCodexLiveAccountController(input = {}) {
     const file = join(store, 'codex-live-handoff.json');
     await writeFileAtomic(file, JSON.stringify(data) + '\n'); await chmod(file, 0o600);
   };
+  async function releaseHandoff() {
+    const release = releaseSubscriptions; releaseSubscriptions = null; await release?.();
+  }
   async function disconnect() {
+    await releaseHandoff();
     rpc?.close(); rpc = null; await lease?.release(); lease = null;
   }
   async function verifyAccount() {
@@ -189,6 +194,9 @@ export function createCodexLiveAccountController(input = {}) {
         beforeInterrupt: entry => record(entry, 'interrupt_sent'), afterInterrupt: (entry, phase) => record(entry, phase) });
       if (handoff.checkpoint) {
         if (checkpoint) handoff.checkpoint.unshift(...checkpoint.handoff.paused);
+        const previousRelease = releaseSubscriptions;
+        const release = await retainCodexLiveHandoff(rpc, handoff.checkpoint);
+        releaseSubscriptions = async () => { await release(); await previousRelease?.(); };
         checkpointWork = { rpc, entries: handoff.checkpoint, intent: { ...intent }, refresh, automatic, journal, record,
           identity: resumeIdentity, deadline: Date.now() + (options.checkpointTimeoutMs ?? 120_000), current: owner };
         try { await requestCodexLiveCheckpoints(rpc, handoff.checkpoint, { record, beforeSend: verifyOwnership }); }
@@ -267,6 +275,7 @@ export function createCodexLiveAccountController(input = {}) {
         recoveryNeeded = true; recoveryJournal = checkpoint.journal;
         update({ continuation: 'manual_required', reason: 'native_continue_unconfirmed' });
       }
+      if (!checkpointWork && !childContinuation) await releaseHandoff();
     }
     return status();
   }
@@ -374,13 +383,14 @@ export function createCodexLiveAccountController(input = {}) {
       });
       work.entries = result.pending;
       if (!work.entries.length) {
-        childContinuation = null; update({ continuation: work.expired ? 'none' : 'automatic', reason: null });
+        childContinuation = null; await releaseHandoff(); update({ continuation: work.expired ? 'none' : 'automatic', reason: null });
       } else if (Date.now() >= work.deadline) throw liveError('native_continue_unconfirmed');
     } catch (error) {
       // These are observations only. A slow daemon does not authorize replaying
       // input, but may be observed again within the existing bounded window.
       if (error.code === 'native_request_timeout' && Date.now() < work.deadline) return;
       work.expired = true; update({ continuation: 'manual_required', reason: 'native_continue_unconfirmed' });
+      await releaseHandoff();
     }
   }
   async function prepareCheckpoint() {
@@ -400,6 +410,7 @@ export function createCodexLiveAccountController(input = {}) {
     } catch (error) {
       if (error.code === 'native_request_timeout' && Date.now() < work.deadline) return;
       checkpointWork = null; recoveryNeeded = true; recoveryJournal = work.journal;
+      await releaseHandoff();
       update({ state: 'failed', continuation: 'manual_required', reason: 'native_continue_unconfirmed' });
     }
   }

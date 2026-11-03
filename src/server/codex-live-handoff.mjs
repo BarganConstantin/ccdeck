@@ -32,6 +32,38 @@ const safe = (turn, thread, known) => turn?.itemsView === 'full' && Array.isArra
   && turn.items.every(i => passive.has(i.type) || completed(i) || childWait(i, thread, known));
 const inputIds = turn => turn.items.filter(i => i.type === 'userMessage').map(i => i.id);
 const sameInputs = (a, b) => JSON.stringify(inputIds(a)) === JSON.stringify(inputIds(b));
+const retained = new WeakMap();
+
+/** Keep this connection's observations attached until a cooperative handoff
+ * finishes. Native idle unloading otherwise loses direct-input capabilities
+ * between a completed checkpoint and its continuation. Never starts a turn.
+ */
+export async function retainCodexLiveHandoff(rpc, entries) {
+  const counts = retained.get(rpc) ?? new Map(); retained.set(rpc, counts);
+  const held = [];
+  let released = false;
+  const release = async () => {
+    if (released) return;
+    released = true;
+    for (const id of held.reverse()) {
+      const count = (counts.get(id) ?? 1) - 1;
+      if (count) counts.set(id, count);
+      else { counts.delete(id); await rpc.request('thread/unsubscribe', { threadId: id }).catch(() => {}); }
+    }
+    if (!counts.size) retained.delete(rpc);
+  };
+  try {
+    for (const entry of entries) {
+      const valid = t => t?.id === entry.threadId && (t.parentThreadId ?? null) === (entry.parentThreadId ?? null)
+        && ['active', 'idle'].includes(t.status?.type);
+      if (!valid((await rpc.request('thread/read', { threadId: entry.threadId, includeTurns: false }))?.thread)) throw liveError('native_activity_changed');
+      held.push(entry.threadId); counts.set(entry.threadId, (counts.get(entry.threadId) ?? 0) + 1);
+      const t = (await rpc.request('thread/resume', { threadId: entry.threadId, excludeTurns: true }))?.thread;
+      if (!valid(t)) throw liveError('native_activity_changed');
+    }
+    return release;
+  } catch (error) { await release(); throw error; }
+}
 
 async function latest(rpc, threadId) {
   const page = await rpc.request('thread/turns/list', { threadId, limit: 1, sortDirection: 'desc', itemsView: 'full' });
@@ -50,7 +82,7 @@ async function liveLatest(rpc, thread) {
     if (!Array.isArray(page?.data)) throw liveError('native_activity_unknown');
     return page.data[0] ?? null;
   } finally {
-    await rpc.request('thread/unsubscribe', { threadId: thread.id }).catch(() => {});
+    if (!retained.get(rpc)?.has(thread.id)) await rpc.request('thread/unsubscribe', { threadId: thread.id }).catch(() => {});
   }
 }
 export const readCodexLiveTurn = (rpc, thread) => thread.status?.type === 'active' ? liveLatest(rpc, thread) : latest(rpc, thread.id);

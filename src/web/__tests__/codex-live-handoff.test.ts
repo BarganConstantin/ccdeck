@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 // @ts-expect-error server module
-import { prepareCodexLiveHandoff, continueCodexLiveHandoff, confirmCodexLiveChildren } from '../../server/codex-live-handoff.mjs';
+import { prepareCodexLiveHandoff, continueCodexLiveHandoff, confirmCodexLiveChildren, retainCodexLiveHandoff, readCodexLiveTurn } from '../../server/codex-live-handoff.mjs';
 // @ts-expect-error server module
 import { inspectCodexLiveCheckpoints, requestCodexLiveCheckpoints } from '../../server/codex-live-checkpoint.mjs';
 function fixture() {
@@ -65,6 +65,32 @@ async function checkpointHandoff(f: ReturnType<typeof familyFixture>) {
   return inspectCodexLiveCheckpoints(f.rpc, entries, { record: async (e: any, phase: string) => { e.phase = phase; } });
 }
 describe('native account handoff without network-permit revocation', () => {
+  it('keeps only the handoff observations subscribed until release and then restores transient reads', async () => {
+    const f = v2Fixture(); f.threads.forEach(t => { t.historyMode = 'paginated'; });
+    const entries = (await prepareCodexLiveHandoff(f.rpc)).checkpoint;
+    const release = await retainCodexLiveHandoff(f.rpc, entries);
+    const overlapping = await retainCodexLiveHandoff(f.rpc, entries);
+    f.rpc.request.mockClear();
+    await prepareCodexLiveHandoff(f.rpc);
+    expect(f.rpc.request.mock.calls.some(c => c[0] === 'thread/unsubscribe')).toBe(false);
+    const other = fixture(); other.thread.historyMode = 'paginated';
+    await readCodexLiveTurn(other.rpc, other.thread);
+    expect(other.rpc.request.mock.calls.some(c => c[0] === 'thread/unsubscribe')).toBe(true);
+    await release(); await release();
+    expect(f.rpc.request.mock.calls.filter(c => c[0] === 'thread/unsubscribe')).toHaveLength(0);
+    await overlapping(); await overlapping();
+    expect(f.rpc.request.mock.calls.filter(c => c[0] === 'thread/unsubscribe').map(c => c[1].threadId).sort()).toEqual(['child', 'parent']);
+    f.rpc.request.mockClear(); await prepareCodexLiveHandoff(f.rpc);
+    expect(f.rpc.request.mock.calls.filter(c => c[0] === 'thread/unsubscribe')).toHaveLength(2);
+    expect(f.rpc.request.mock.calls.some(c => c[0].startsWith('turn/'))).toBe(false);
+  });
+  it('releases partial retention and never loads a child that was closed before admission', async () => {
+    const f = v2Fixture(), entries = (await prepareCodexLiveHandoff(f.rpc)).checkpoint;
+    f.threads[1].status.type = 'notLoaded'; f.rpc.request.mockClear();
+    await expect(retainCodexLiveHandoff(f.rpc, entries)).rejects.toMatchObject({ code: 'native_activity_changed' });
+    expect(f.rpc.request.mock.calls.filter(c => c[0] === 'thread/resume').map(c => c[1].threadId)).toEqual(['parent']);
+    expect(f.rpc.request.mock.calls.filter(c => c[0] === 'thread/unsubscribe').map(c => c[1].threadId)).toEqual(['parent']);
+  });
   it('never interrupts a V2 owner while all known children are idle and an internal followup could be hidden', async () => {
     const f = v2Fixture(); f.threads[1].status.type = 'idle'; f.turns[1].status = 'completed'; f.turns[0].items.pop();
     expect((await prepareCodexLiveHandoff(f.rpc)).waiting).toBe(true);

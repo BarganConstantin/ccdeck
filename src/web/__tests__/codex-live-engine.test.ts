@@ -22,6 +22,8 @@ async function fixture({ saved = null as any, actual = A, readCredential = null 
       calls.push({ method, params });
       if (method === 'thread/loaded/list') return { data: active ? [thread.id] : [] } as any;
       if (method === 'thread/read') return { thread } as any;
+      if (method === 'thread/resume') return { thread } as any;
+      if (method === 'thread/unsubscribe') return {} as any;
       if (method === 'thread/turns/list') return { data: [{ ...turn, items: [...turn.items] }] } as any;
       if (method === 'turn/interrupt') { thread.status.type = 'idle'; turn.status = 'interrupted'; return {} as any; }
       if (method === 'turn/start') { thread.status.type = 'active'; turn.id = 'continued-turn'; turn.status = 'inProgress'; return { turn: { id: turn.id } } as any; }
@@ -74,6 +76,8 @@ describe('existing Codex session account engine', () => {
       if (params?.threadId === child.id) {
         f.calls.push({ method, params });
         if (method === 'thread/read') return { thread: structuredClone(child) };
+        if (method === 'thread/resume') return { thread: structuredClone(child) };
+        if (method === 'thread/unsubscribe') return {};
         if (method === 'thread/turns/list') return { data: [structuredClone(turn)] };
         if (method === 'turn/interrupt') { child.status.type = 'idle'; turn.status = 'interrupted'; return {}; }
         throw Error('Direct V2 input is forbidden');
@@ -106,6 +110,18 @@ describe('existing Codex session account engine', () => {
     await f.c.tick(); expect(f.c.status()).toMatchObject({ state: 'applied', continuation: 'automatic' });
     expect(f.journals.at(-1)).toMatchObject({ phase: 'finished' });
     expect(f.calls.filter(c => c.method === 'turn/start').map(c => c.params.threadId)).toEqual([f.thread.id]);
+  });
+  it('retains checkpoint subscriptions through child confirmation and releases them on completion or shutdown', async () => {
+    const f = await v2(); await f.c.request({ id: B, revision: 1 });
+    expect(f.calls.filter(c => c.method === 'thread/resume').map(c => c.params.threadId).sort()).toEqual(['active-thread', 'v2-child']);
+    await f.checkpoint();
+    expect(f.calls.filter(c => c.method === 'thread/unsubscribe')).toHaveLength(0);
+    f.child.status.type = 'active'; f.childTurn.id = 'parent-followup'; f.childTurn.status = 'inProgress';
+    await f.c.tick();
+    expect(f.c.status().continuation).toBe('automatic');
+    expect(f.calls.filter(c => c.method === 'thread/unsubscribe').map(c => c.params.threadId).sort()).toEqual(['active-thread', 'v2-child']);
+    const pending = await v2(); await pending.c.request({ id: B, revision: 1 }); await pending.c.close();
+    expect(pending.calls.filter(c => c.method === 'thread/unsubscribe')).toHaveLength(2);
   });
   it('leaves an unconfirmed V2 continuation manual after its deadline or a restart without replaying input', async () => {
     const f = await v2({ timeout: 0 }); await f.c.request({ id: B, revision: 1 }); await f.checkpoint(); await f.c.tick();
