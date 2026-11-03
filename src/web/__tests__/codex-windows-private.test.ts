@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { mkdtemp, mkdir, readFile, rm, symlink, writeFile } from 'node:fs/promises';
+import { mkdtemp, mkdir, readFile, realpath, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, win32 } from 'node:path';
 import { execFile } from 'node:child_process';
@@ -44,9 +44,9 @@ describe.skipIf(process.platform !== 'win32')('Windows token DACL and pinned han
   }
   it('creates a private directory, validates inherited private file ACLs and holds it against replacement', async () => {
     const { dir } = await fixture();
-    expect(await assertWindowsPrivatePath(dir)).toBe(win32.toNamespacedPath(dir));
+    expect(await assertWindowsPrivatePath(dir)).toBe(win32.toNamespacedPath(await realpath(dir)));
     const file = join(dir, 'synthetic.json'); await writeFile(file, '{"fictional":true}');
-    expect(await assertWindowsPrivatePath(file, { kind: 'file' })).toBe(win32.toNamespacedPath(file));
+    expect(await assertWindowsPrivatePath(file, { kind: 'file' })).toBe(win32.toNamespacedPath(await realpath(file)));
     const guard = await holdWindowsPrivatePath(file, { kind: 'file' });
     try {
       expect(guard.valid()).toBe(true);
