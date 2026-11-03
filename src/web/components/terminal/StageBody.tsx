@@ -82,7 +82,8 @@ export interface StageBodyProps {
   /** Open the waiting session, with the keys in its pane: N's answer. */
   onOpenWaiting?(): void;
   /** CHAT AND DECISION: what the pane is handed to draw, behind two flags that
-   *  are off (use-screens.ts). The deck hands none: it has no transcript. */
+   *  are off (use-screens.ts). The stage hands them for a Claude session in
+   *  Workspace, with the conversation read from its transcript. */
   screens?: ScreensProps;
 }
 
@@ -383,7 +384,9 @@ export default function StageBody(p: StageBodyProps) {
   const { state, afterHold } = run;
   useEffect(() => { last.current = run; });
   const { hostRef, paneName: _paneName, screens, ...card } = p;
-  const flags = useScreenFlags(p.workspace === true);
+  // `workspace` is the EMPTY Workspace pane; a pane handed `screens` is a
+  // session's in Workspace (the stage hands them only there).
+  const flags = useScreenFlags(p.workspace === true || screens !== undefined);
   const inChat = chatShown(flags, screens);
   // The attaching card is a wait on data, so it follows the Waiting loader's
   // rule (V4's motion spec): nothing for the first 150, a Fast fade in, at

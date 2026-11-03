@@ -18,9 +18,12 @@ const dist = join(repo, "dist", "web", "index.html");
 const assets = join(repo, "dist", "web", "assets");
 
 /** Strings only the screens put in the output: a class, a sentence, a flag key. Each
- *  survives a minifier because it is a literal. */
+ *  survives a minifier because it is a literal.
+ *  CHANGED ON PURPOSE: Chat's sentences ("Since you looked", "Reading the
+ *  conversation") now live in the board catalog, which every visit loads, so they
+ *  no longer say where Chat is; its class names ("chat-since", "chat-tool") do. */
 const FINGERPRINTS = [
-  "Since you looked", "Checking the prompt is still on screen", "Reading the conversation",
+  "chat-since", "Checking the prompt is still on screen",
   "Sent only when you pick", "pick and send", "agent-dag.chat", "agent-dag.decision",
   ".dc-dock", ".dc-dq", ".chat-col", ".chat-body", "dc-tick", "chat-tool",
 ];
@@ -45,7 +48,7 @@ describe.skipIf(!existsSync(dist))("what the build emitted for the screens", () 
     const own = readdirSync(assets).filter(f => f.endsWith(".js") && !firstLoad.includes(`assets/${f}`));
     const holding = own.filter(f => readFileSync(join(assets, f), "utf8").includes("Checking the prompt is still on screen"));
     expect(holding.length, "no chunk holds the Decision card").toBeGreaterThan(0);
-    const chat = own.filter(f => readFileSync(join(assets, f), "utf8").includes("Since you looked"));
+    const chat = own.filter(f => readFileSync(join(assets, f), "utf8").includes("chat-since"));
     expect(chat.length, "no chunk holds Chat").toBeGreaterThan(0);
   });
 

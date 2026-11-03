@@ -161,6 +161,7 @@ export function stageShowFor(
       status: stageStatusFrom(facts, now),
       // The Inspector's Context tab reads the same two numbers (contextFill).
       contextUse: contextUseOf(root),
+      promptCount: root.prompts.length,
       // While the pane attaches: what the face says the session is doing, or
       // failing that, what it was last asked.
       ghostLine: signal?.long ?? promptLine(lastPrompt),

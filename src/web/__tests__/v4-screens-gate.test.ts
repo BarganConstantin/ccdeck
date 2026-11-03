@@ -177,10 +177,22 @@ describe("what is drawn with the flags off", () => {
     expect(chatShown({ chat: true, decision: false }, undefined)).toBe(false);
   });
 
-  it("the deck hands the pane no screens: no caller outside the tests passes any", () => {
-    for (const path of ["components/terminal/StageShell.tsx", "components/terminal/TerminalStage.tsx", "components/StageSlots.tsx", "App.tsx"]) {
+  it("no caller but the stage hands the pane any screens", () => {
+    for (const path of ["components/terminal/StageShell.tsx", "components/StageSlots.tsx", "App.tsx"]) {
       expect(code(path), path).not.toMatch(/screens=\{|ScreensProps|view=\{\{/);
     }
+  });
+
+  // CHANGED ON PURPOSE: the stage now reads a Claude session's conversation from the
+  // deck's transcript route, so it hands Chat to the pane (it used to hand nothing).
+  // What stays true is that it does so only for a Claude session, only with the
+  // chat flag effective, and never hands the Decision card, which has no way to answer.
+  it("the stage hands Chat only for a Claude session with the flag effective, and no Decision card", () => {
+    const stage = code("components/terminal/TerminalStage.tsx");
+    expect(stage).toContain('chatSessionFor(screenFlags.chat, p.show.kind === "session" ? p.show.session.ref : null)');
+    expect(stage).toContain("screens={chatSession !== null ? { view, source: chatSource } : undefined}");
+    expect(stage).toContain("view={chatSession !== null ? { current: view, onChange: setView } : undefined}");
+    expect(stage).not.toMatch(/decision[:=]|DecisionCard/);
   });
 });
 

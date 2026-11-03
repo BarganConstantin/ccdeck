@@ -65,6 +65,8 @@ import PhoneKeys from "./PhoneKeys";
 import Divider from "./Divider";
 import HostsDialog from "./HostsDialog";
 import { t as tNow, useT } from "../../i18n";
+import { useScreenFlags } from "../../use-screens";
+import { chatSessionFor, useSessionTranscript } from "../../use-session-transcript";
 import { DialogPresence } from "../Dialog";
 import type { HostsApi } from "./older-hosts";
 import { useOlderHosts } from "./use-older-hosts";
@@ -164,6 +166,8 @@ export interface StageSessionInfo {
   endedAgo?: string | null;
   /** This deck launched it from the Command Panel (panel-launch.ts). */
   launched?: boolean;
+  /** How many prompts the board has for it: Chat reads its conversation again when this changes. */
+  promptCount?: number;
 }
 
 /** What the stage is asked to show. */
@@ -328,6 +332,23 @@ export default function TerminalStage(p: TerminalStageProps) {
   const key = subjectKey(subject);
   const workspace = p.geometry.fill === true;
   const name = stageName(p.show, workspace);
+
+  // CHAT. Offered only with its flag effective here and for a Claude session
+  // whose id the deck knows: the conversation is read from that session's own
+  // transcript, which a Codex session does not have in the deck. "Term" is
+  // where every pane starts, and where one goes back to when Chat is not on offer.
+  const screenFlags = useScreenFlags(workspace);
+  const chatSession = chatSessionFor(screenFlags.chat, p.show.kind === "session" ? p.show.session.ref : null);
+  const [view, setView] = useState<"chat" | "term">("term");
+  const chatOn = chatSession !== null && view === "chat";
+  const chatSource = useSessionTranscript({
+    session: chatSession,
+    shown: chatOn,
+    working: p.show.kind === "session" && p.show.session.status.state === "working",
+    ended: p.show.kind === "session" && p.show.session.status.state === "ended",
+    change: p.show.kind === "session" ? `${p.show.session.promptCount ?? 0}:${p.show.session.status.state}` : "",
+  });
+  useEffect(() => { if (chatSession === null) setView("term"); }, [chatSession]);
   const theme = useMemo(() => terminalTheme(p.readToken), [p.readToken]);
   const fontFamily = useMemo(() => p.readToken(TERMINAL_FONT_TOKEN).trim() || "monospace", [p.readToken]);
   const chordLabel = useMemo(() => releaseChordLabel(platformName()), []);
@@ -506,6 +527,7 @@ export default function TerminalStage(p: TerminalStageProps) {
         takeover={p.geometry.takeover}
         workspace={workspace ? (p.show.kind === "empty" ? "empty" : "pane") : undefined}
         context={p.show.kind === "session" ? p.show.session.contextUse : null}
+        view={chatSession !== null ? { current: view, onChange: setView } : undefined}
         nothingRunning={p.show.kind === "empty" || phase.kind === "ended"
           || (subject.kind === "launch" && (phase.kind === "error" || phase.kind === "tmux-missing" || phase.kind === "tmux-installing"))}
         onKeys={() => {
@@ -529,6 +551,7 @@ export default function TerminalStage(p: TerminalStageProps) {
         workspace={workspace && p.show.kind === "empty"}
         waiting={workspace ? p.waiting ?? null : null}
         onOpenWaiting={openWaiting(p.waiting, p.onOpenWaiting)}
+        screens={chatSession !== null ? { view, source: chatSource } : undefined}
       />
       <KeysBar
         owner={session.keysOwner}

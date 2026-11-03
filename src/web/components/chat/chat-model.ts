@@ -1,7 +1,7 @@
-// What Chat draws, as props. Types only: nothing in the deck builds a value of
-// them, because the deck has no transcript to read. A harness or a test hands
-// ChatView a stand-in; every line below is transcript text, so none of it is
-// held in src/.
+// What Chat draws, as props. Types only: the turns are built on the server from
+// the session's transcript (src/server/transcript-turns.mjs) and read through
+// use-session-transcript.ts. A test hands ChatView a stand-in; every line below
+// is transcript text, so none of it is held in src/.
 
 /** One line of the conversation. */
 export type ChatTurn =

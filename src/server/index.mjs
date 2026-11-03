@@ -179,6 +179,7 @@ import { handleBestOfNostalgia, handleCafeMusicBgm, handleClaudeFm, handleFmStat
 // The usage panel's quota and history reads — see usage-routes.mjs.
 import { startToolAudit } from "./tool-audit.mjs";
 import { handleToolAudit } from "./tool-audit-routes.mjs";
+import { handleSessionTranscript, SESSION_TRANSCRIPT_ROUTE } from "./session-transcript-routes.mjs";
 import { startQuotaHistory } from "./quota-history.mjs";
 import { startQuotaCloses } from "./quota-closes.mjs";
 import { startQuotaCloseWatch } from "./quota-close-watch.mjs";
@@ -408,6 +409,7 @@ export async function startServer({ port = 4317, host = "127.0.0.1", persist = n
     if (req.method === "POST" && url.pathname === "/api/presence")    return guard(handlePresence(req, res), res);
     if (req.method === "POST" && url.pathname === "/api/shutdown")    return guard(handleStop(req, res), res);
     if (["GET", "POST"].includes(req.method) && ["/api/tool-audit", "/api/tool-audit/storage"].includes(url.pathname)) return guard(handleToolAudit(req, res), res);
+    if (url.pathname === SESSION_TRANSCRIPT_ROUTE) return guard(handleSessionTranscript(req, res), res);
     if (req.method === "GET" && url.pathname === "/api/quota/history") return guard(handleQuotaHistory(req, res), res);
     if (req.method === "GET" && url.pathname === "/api/quota/closes") return guard(handleQuotaCloses(req, res), res);
     if (req.method === "GET"  && url.pathname === "/api/quota")       return guard(handleQuota(req, res), res);

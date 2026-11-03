@@ -153,8 +153,8 @@ describe("the register of conditionally-skipped cases", () => {
     expect(expectedSkips("darwin")).toEqual({ total: 0, byFile: {} });
   });
 
-  it("expects the one hundred and thirty platform-gated cases to skip on Windows, file by file", () => {
-    // Eighty-eight behind `process.platform === "win32"`, thirty-one behind
+  it("expects the one hundred and thirty-six platform-gated cases to skip on Windows, file by file", () => {
+    // Ninety-four behind `process.platform === "win32"`, thirty-one behind
     // the optional engine's macOS-and-Linux gate, eight behind the posix
     // runIf family, and the three read-only-directory cases — sound-hook-park's,
     // the swap script's in desktop-updater and the macOS updater's in
@@ -164,7 +164,7 @@ describe("the register of conditionally-skipped cases", () => {
     // than as a total, so a change that moves a case from one gate to another is
     // a mismatch rather than an arithmetic coincidence.
     expect(expectedSkips("win32")).toEqual({
-      total: 130,
+      total: 136,
       byFile: {
         "append-deadline.test.ts": 1,
         "backup-root-shared.test.ts": 1,
@@ -189,6 +189,7 @@ describe("the register of conditionally-skipped cases", () => {
         "pro-engine-routes.test.ts": 10,
         "pro-engine-terminal.test.ts": 27,
         "relay-guard.test.ts": 6,
+        "session-transcript-route.test.ts": 6,
         "settings-atomic-write.test.ts": 1,
         "settings-symlink-target.test.ts": 7,
         "sound-hook-park.test.ts": 1,
@@ -390,7 +391,7 @@ describe("the workflow the register is enforced from", () => {
     const win32Sites = gates()
       .filter((g) => g.condition === 'process.platform === "win32"')
       .reduce((n, g) => n + g.sites, 0);
-    expect(win32Sites).toBe(38);
+    expect(win32Sites).toBe(39);
 
     const stated = publishYml().match(/the (\d+) sites gated `skipIf\(process\.platform === "win32"\)`/);
     expect(stated, "publish.yml no longer states the win32 gate count in the form this reads").not.toBeNull();

@@ -436,6 +436,7 @@ export function isAuthorizedDataRead(req) {
  *  carries Sec-Fetch-Site: same-origin. */
 export const GUARDED_READS = new Set([
   "/api/tool-audit",
+  "/api/session/transcript",
   "/api/tool-audit/storage",
   "/api/system/traffic-radar",
   "/api/system/traffic-radar/capture",

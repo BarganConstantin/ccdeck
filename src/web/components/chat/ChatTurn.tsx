@@ -7,6 +7,7 @@
 import {
   ChevronRightGlyph, FileGlyph, SearchGlyph, ToolTerminalGlyph,
 } from "./chat-icons";
+import { t as tNow, useT, type TFunction } from "../../i18n";
 import type { ChatSince, ChatTurn as Turn } from "./chat-model";
 
 export function YourMessage({ text }: { text: string }) {
@@ -39,16 +40,16 @@ export function RecordLine({ text }: { text: string }) {
 }
 
 /** "Since you looked · 4 tool calls · now asking". */
-export function sinceText(since: ChatSince): string {
-  const calls = `${since.toolCalls} tool ${since.toolCalls === 1 ? "call" : "calls"}`;
-  return `Since you looked · ${calls} · ${since.label}`;
+export function sinceText(since: ChatSince, t: TFunction = tNow): string {
+  return t("board.chat.since", { count: since.toolCalls, label: since.label });
 }
 
 export function SinceDivider({ since }: { since: ChatSince }) {
+  const text = sinceText(since, useT());
   return (
-    <div className="chat-since" role="separator" aria-label={sinceText(since)}>
+    <div className="chat-since" role="separator" aria-label={text}>
       <span className="chat-since-line" aria-hidden="true" />
-      <span className="chat-since-text" aria-hidden="true">{sinceText(since)}</span>
+      <span className="chat-since-text" aria-hidden="true">{text}</span>
       <span className="chat-since-line" aria-hidden="true" />
     </div>
   );

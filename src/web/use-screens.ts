@@ -8,10 +8,12 @@
 //
 // NOTHING IS FETCHED UNTIL A SCREEN IS DRAWN. The chunk is not preloaded: the
 // slot renders a lazy component only when a flag is on, the view is Workspace
-// and the caller handed it a source or a question, which the deck never does
-// (it has no transcript). So a deck with a flag set by hand makes no request,
-// shows no switch and logs no error. A stale tab after an upgrade, asking for a
-// chunk the new build no longer has, draws nothing.
+// and the caller handed it a source: the stage does that for a Claude session,
+// reading its conversation from the deck's transcript route
+// (use-session-transcript.ts, asked only while Chat is on screen). So a deck
+// with a flag set by hand and Term showing makes no request, and logs no
+// error. A stale tab after an upgrade, asking for a chunk the new build no
+// longer has, draws nothing.
 import { createElement, lazy, Suspense, useMemo, useState, type ComponentType } from "react";
 import type { ChatSource } from "./components/chat/chat-model";
 import type { DecisionCardProps } from "./components/decision/DecisionCard";
@@ -30,7 +32,7 @@ const LazyDecisionCard = lazy(() => loadScreens().then(
   () => ({ default: Unavailable as ComponentType<DecisionCardProps> }),
 ));
 
-/** What the pane is handed to draw. Left out entirely in the deck. */
+/** What the pane is handed to draw. Left out for a pane with no conversation to show. */
 export interface ScreensProps {
   /** Which of the two the header's switch has on screen. */
   view: "chat" | "term";
