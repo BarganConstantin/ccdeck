@@ -7,7 +7,7 @@
 // directly would rate-limit the user's actual account. That has a visible
 // consequence here — numbers can be minutes old, and saying so is part of the
 // display rather than a caveat to hide.
-import { useCallback, useEffect, useRef, useState, type FocusEvent, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type FocusEvent, type ReactNode } from "react";
 import AccountProjectsModal from "./AccountProjectsModal";
 import { withKey } from "../single-key-shortcuts";
 import { useSingleKeyShortcuts } from "../use-single-key-shortcuts";
@@ -24,6 +24,7 @@ import OtherAccounts from "./OtherAccounts";
 import ShareAccountsDialog from "./ShareAccountsDialog";
 import { isAutoArmed, pastThreshold, peersOf, reachable } from "../account-fold";
 import { lanAccounts, type SharedMark } from "../account-lan";
+import type { LanAccount } from "../lan-types";
 import { laneKey } from "../lane-open";
 import {
   allOpen, holdOrder, isOpen, orderChoices, orderKey, sortAccounts, toggleAll, toggleOne, trimOpenness, validOrder,
@@ -68,6 +69,10 @@ interface Props {
    *  `onLanShown` says the ask has been answered. */
   lanWanted?: boolean;
   onLanShown?: () => void;
+  /** The accounts Local network offers from this deck, handed up whenever
+   *  they change: Codex's side draws the same Local network (#2472), and its
+   *  share list names these accounts too. */
+  onLanAccounts?: (accounts: LanAccount[]) => void;
   /** With both CLIs on this deck: the Claude/Codex switch for the header, this
    *  side's place in it, and whether its current account needs attention. */
   switcher?: ReactNode;
@@ -75,7 +80,7 @@ interface Props {
   onNotice?: (needs: boolean) => void;
 }
 
-export default function AccountsPanel({ onClose, leaving, onReport, onRoster, lanWanted = false, onLanShown, switcher, side, onNotice }: Props) {
+export default function AccountsPanel({ onClose, leaving, onReport, onRoster, lanWanted = false, onLanShown, onLanAccounts, switcher, side, onNotice }: Props) {
   // Opened: one of the features the usage reports name (feature-use.ts).
   useFeatureUse("accounts-panel", side !== "hidden");
   const t = useT();
@@ -396,15 +401,23 @@ export default function AccountsPanel({ onClose, leaving, onReport, onRoster, la
     });
   }, [view]);
   useEffect(() => { if (data?.ok) setLanReady(true); }, [data?.ok]);
+  // What Local network offers from this deck, the list this side's section is
+  // drawn from — and Codex's (#2472), which is handed it through the app. As a
+  // string, so a poll that read the same roster hands nothing up.
+  const lanList = useMemo(() => lanAccounts(data?.accounts ?? []), [data?.accounts]);
+  const lanListKey = JSON.stringify(lanList);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { if (lanReady) onLanAccounts?.(lanList); }, [lanReady, lanListKey, onLanAccounts]);
   // Settings' door to Local network (#2176), answered by the panel's own way
   // in, so nothing hangs over the view on the way and focus lands on Back as
   // it does after a press of the row. Not before the section is mounted: a
-  // view switched to with nothing to draw would be an empty column.
+  // view switched to with nothing to draw would be an empty column. Only by
+  // the side on screen: both draw Local network now (#2472).
   useEffect(() => {
-    if (!lanWanted || !lanReady) return;
+    if (!lanWanted || !lanReady || side === "hidden") return;
     openLan();
     onLanShown?.();
-  }, [lanWanted, lanReady]);
+  }, [lanWanted, lanReady, side]);
 
   // A popover left standing as the panel slides out would float over the
   // canvas where the panel used to be; one whose account has left the store
@@ -754,7 +767,8 @@ export default function AccountsPanel({ onClose, leaving, onReport, onRoster, la
         <LanSyncSection
           // Named by the identity every deck agrees on, never by slot — see
           // account-lan.ts.
-          accounts={lanAccounts(data?.accounts ?? [])}
+          accounts={lanList}
+          active={side !== "hidden"}
           onChanged={() => load(true)}
           onNoCopy={takeNoCopy}
           onShared={setShared}

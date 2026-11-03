@@ -52,13 +52,16 @@ async function postJson(path: string, body: unknown): Promise<{ ok: boolean; sta
   return { ok: response.ok && result?.ok === true, status: response.status, reason: result?.reason, id: result?.id, live: result?.live };
 }
 
-export default function CodexProfilesSection({ onClose, switcher, onNotice }: {
+export default function CodexProfilesSection({ onClose, switcher, onNotice, away = false }: {
   onClose?: () => void;
   /** With both CLIs on this deck: the Claude/Codex switch, which stands where
    *  the title stands. The title stays for a reader, out of sight. */
   switcher?: ReactNode;
   /** Whether the default account needs attention, for the switch's dot. */
   onNotice?: (needs: boolean) => void;
+  /** Local network has the column (#2472): the header and the accounts step
+   *  aside, still mounted, the way Claude's do for the same view. */
+  away?: boolean;
 } = {}) {
   const t = useT();
   const { busy, claim, release, pressProps } = useRequestSlot();
@@ -100,6 +103,9 @@ export default function CodexProfilesSection({ onClose, switcher, onNotice }: {
   const [restOpen, setRestOpen] = useState(false);
   /** Whose warning has its explanation open, and which control it hangs from. */
   const [issueOpen, setIssueOpen] = useState<{ id: string; anchor: string } | null>(null);
+  // Local network took the column (#2472): a menu or a warning left open
+  // would hang from a row that is no longer drawn.
+  useEffect(() => { if (away) { setMenu(null); setIssueOpen(null); } }, [away]);
   const [openness, setOpenness] = useState<Openness>(() => loadOpenness(SCOPE));
   const [order, setOrder] = useState<string>(() => loadOrder(SCOPE));
   const [auto, setAuto] = useState<AutoStatus | null>(null);
@@ -451,6 +457,7 @@ export default function CodexProfilesSection({ onClose, switcher, onNotice }: {
   const issueRow = rowOf(issueOpen?.id);
   return (
     <>
+      {!away && (<>
       <div className="ap-header">
         <h2 className={switcher ? "vis-hidden" : undefined}>{t("codex.panel.title")}</h2>
         {switcher}
@@ -563,6 +570,7 @@ export default function CodexProfilesSection({ onClose, switcher, onNotice }: {
           )}
         </section>
       </div>
+      </>)}
       <div className="vis-hidden" role="status" aria-atomic="true">
         {switched ? t("codex.panel.nowActive", { name: switched.name }) : ""}
       </div>
