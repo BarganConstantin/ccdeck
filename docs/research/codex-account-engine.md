@@ -444,13 +444,32 @@ Node 22.23.3. The existing global Codex 0.149.1 and ccdeck 3.53.0 were preserved
 An SSH token is elevated on that host; native QA therefore used a temporary
 interactive task with a normal user token. A separate foreground native server
 was used because Task Scheduler's job prevents managed-daemon breakaway.
-Real connection, account inspection, model listing, one-controller leases,
-account changes and Continue submission worked. The source account used for
-inference returned `usage_limit_exceeded`; completion and live V2 subagents on
-Windows remain unconfirmed. A synthetic credential-reader case also still
-failed during private-directory startup on this host; the Windows suite is
-not fully green. The successful earlier macOS V2 acceptance does
-not establish that Windows result.
+Initial connection, account inspection, model listing, controller leases and
+account changes worked, but inference initially returned a usage-limit error.
+After the natural quota reset, real Windows inference and continuation passed.
+A parent and two native V2 children finished an account switch with unfinished
+work: each child completed its 90-second command, checkpointed, then resumed
+its second command and guide in a new turn on the other account. The same
+conversation IDs and parent links were preserved, each command ran once, and
+no network-permission revocation, authentication-file change or native server
+restart occurred. No free reset grant was redeemed by the agent.
+
+Keep cooperative handoff subscriptions until child continuation is confirmed.
+Transient observation reads otherwise unsubscribe and can leave checkpoint
+conversations unloaded while the family waits. Retention is limited to the
+participating family and released on completion, failure or shutdown; existing
+closed-agent and changed-input guards remain intact. This follows the official
+[app-server subscription lifecycle](https://learn.chatgpt.com/docs/app-server).
+
+Windows QA tasks must use normal scheduling priority as well as a normal user
+token. Task Scheduler's default priority 7 gave the test helpers reduced CPU,
+I/O and memory priority; explicit priority 4 corrected the test environment.
+The five completed Windows reports passed 92 tests with six POSIX-only skips;
+the final subscription change passed 114 engine/handoff/checkpoint cases on
+Windows. Mac verification passed 1,094 Codex/account tests, typecheck and build.
+All temporary share blobs, imported credential homes and native QA processes
+were removed. Native Windows/Linux TUI interface acceptance remains separate
+from the verified shared-server engine.
 
 Manual Share/Import transfers file-backed ChatGPT grants as an explicitly
 selected code. Imports create private, separate homes and deduplicate exact
