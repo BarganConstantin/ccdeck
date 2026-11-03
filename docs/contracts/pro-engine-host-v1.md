@@ -63,7 +63,28 @@ fields: `file`, `protocol` (1), `target` (Rust triple), `sha256`, `size`, `versi
 Only flat filenames, matching platform, non-symlink regular files, verified
 ownership, safe Unix permissions, and matching hash/size may launch. Writable
 non-sticky ancestor directories are refused. No user-facing download is added.
-Windows installation ACL validation remains disabled pending native validation.
+Windows installation ACL validation remains disabled pending native validation:
+the installer asks an injected ACL reader (owner, who may write, reparse point,
+link count, elevation) and refuses when none is given, and the panel stays
+`unsupported` there (`ENGINE_ON_WINDOWS` in `engine-package.mjs`).
+
+Host configuration may also give `minimumVersion`, the lowest engine version it
+accepts. A manifest `version` below it in SemVer precedence (build metadata
+ignored) is refused before launch, so an older engine, however validly signed,
+cannot take the place of a newer one; a `minimumVersion` that is not a version
+refuses every engine.
+
+The engine arrives in an npm package per platform that sits beside the deck
+(`engine-package.mjs`; names in `ENGINE_PACKAGE_NAMES`), holding the executable
+and its `manifest.json`. With keys and the switch on, the first question that
+finds the folder missing or older imports it: the package is found from the
+deck's own folder only, its manifest signature, size, digest and executable
+header (ELF, Mach-O or PE for this OS and arch) are checked on the bytes read
+once without following links, a version below the installed one or the kept
+floor is refused, and the bytes are written to a new owner-only folder in the
+deck's data folder, verified by the installer, then renamed to `engine`. A
+failed import leaves the previous installation as it was; a source whose signed
+digest and version match a verifying installation is not copied again.
 
 The Windows preview is a test-only exception for one Windows VM, never a
 production feature. On Windows the deck offers the Command Panel's switch

@@ -365,7 +365,7 @@ describe("the Command Panel's engine, made by the deck", () => {
       clients.push(c);
       return c;
     });
-    const e = cpe.commandPanelEngine({ platform: "linux", env: {}, keys: ["K"], lstat: async () => ({}), createClient });
+    const e = cpe.commandPanelEngine({ platform: "linux", env: {}, keys: ["K"], lstat: async () => ({}), importPackage: async () => ({ status: "absent" }), createClient });
     await e.route("status", null);
     e.switchedOff();
     await pass(cpe.STOP_GRACE_MS);
@@ -464,7 +464,7 @@ describe("the engine's environment and keys", () => {
   });
 
   it("reaches no network from any module the panel's engine is made of", () => {
-    for (const file of ["command-panel-engine.mjs", "pro-engine-client.mjs", "pro-engine-install.mjs", "pro-engine-terminal.mjs"]) {
+    for (const file of ["command-panel-engine.mjs", "engine-package.mjs", "pro-engine-client.mjs", "pro-engine-install.mjs", "pro-engine-terminal.mjs"]) {
       const source = readFileSync(new URL(`../../server/${file}`, import.meta.url), "utf8");
       expect(source.match(/from ["']node:(?:net|http|https|http2|dns|tls|dgram)["']/g), file).toBeNull();
       expect(source.match(/\bfetch\(|\bimport\(/g), file).toBeNull();

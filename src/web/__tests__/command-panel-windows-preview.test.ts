@@ -320,7 +320,8 @@ describe("the published package and the desktop app", () => {
       const text = readFileSync(join(REPO, p), "latin1");
       return /x86_64-pc-windows-msvc|aarch64-pc-windows-msvc|verifyWindowsPreviewInstallation|createWindowsPreviewClient/.test(text);
     });
-    expect(windowsWords, "no packed file knows a Windows engine target").toEqual([]);
+    // Only the installer's own table of targets, behind the panel's closed Windows gate (ENGINE_ON_WINDOWS).
+    expect(windowsWords, "no packed file but the installer's target table knows a Windows engine target").toEqual(["src/server/pro-engine-install.mjs"]);
     // The desktop app copies the deck's folders one by one; preview is not one.
     const config = createRequire(import.meta.url)(join(REPO, "desktop", "electron-builder.config.cjs"));
     const copied = [...config.extraResources.map((r: { from: string }) => r.from), ...config.files];
