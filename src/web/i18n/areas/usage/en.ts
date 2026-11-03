@@ -50,8 +50,6 @@ const catalog: Catalog = {
   "usage.quota.creditsUnlimited": "credits: unlimited",
   "usage.quota.overage": "overage limit reached",
   "usage.quota.partial": "Partial data — OpenAI returned limits this build doesn't recognise.",
-  "usage.quota.standardLimits": "Standard Codex limits only; additional limits and credits are not included.",
-  "usage.quota.standardLimitsWithResets": "Standard Codex limits and available resets; additional limits and credit balances are not included.",
   "usage.quota.none": "No quota to show.",
   "usage.quota.unavailable": "Quota unavailable.",
   "usage.quota.checking": "Checking…",

@@ -3,9 +3,13 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { CodexQuotaSection } from '../components/QuotaSections';
 
 describe('native Codex quota coverage', () => {
-  it('explains omitted coverage without claiming a mapping error', () => {
+  // The line under the bars saying only the standard limits are counted took
+  // three lines of a narrow panel for something nobody acts on (owner,
+  // 2026-11-03): native limits draw their bars and nothing more.
+  it('adds no line under native standard limits, and no mapping error either', () => {
     const html = renderToStaticMarkup(<CodexQuotaSection codexQuota={{ ok: true, partial: true, coverage: 'standard_limits', windows: [] }} codexLoading={false} codexUsage={null} nowSec={0} />);
-    expect(html).toContain('additional limits and credits are not included');
+    expect(html).not.toContain('up-quota-hint');
+    expect(html).not.toContain('Standard Codex limits');
     expect(html).not.toContain("returned limits this build");
   });
   it('retains the mapping warning for unrecognized direct endpoint data', () => {
@@ -18,7 +22,6 @@ describe('native Codex quota coverage', () => {
     expect(html).toContain(`${count} rate-limit reset`);
     expect(html).toContain('available');
     expect(html).toContain('expires');
-    expect(html).toContain('available resets; additional limits and credit balances');
-    expect(html).not.toContain('additional limits and credits are not included');
+    expect(html).not.toContain('Standard Codex limits');
   });
 });
