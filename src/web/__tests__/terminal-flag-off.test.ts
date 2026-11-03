@@ -163,7 +163,8 @@ describe("the terminal routes on a deck with the panel switched off", () => {
     // file still holds a deck with the panel off.
     const on = JSON.parse((await ask("POST", "/api/prefs", { terminal: true })).body);
     expect(on.terminalOn).toBe(true);
-    expect(on.terminalSupported).toBe(process.platform === "linux" || process.platform === "darwin");
+    // CHANGED ON PURPOSE (the engine ships on Windows, so a Windows deck has the panel): Windows joins Linux and macOS.
+    expect(on.terminalSupported).toBe(process.platform === "linux" || process.platform === "darwin" || process.platform === "win32");
     const off = JSON.parse((await ask("POST", "/api/prefs", { terminal: false })).body);
     expect(off.terminalOn).toBe(false);
     expect((await ask("GET", "/api/terminal/status")).status).toBe(404);

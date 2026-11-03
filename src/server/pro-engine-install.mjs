@@ -14,9 +14,8 @@
 // questions are put to an ACL reader the caller hands in (`windowsAcl`): who
 // owns it, who may write it, whether it is a reparse point or has a second hard
 // link, and whether this process is elevated. A caller may hand one in; without
-// one the gate builds the deck's own (windows-acl.mjs). Windows stays closed
-// by ENGINE_ON_WINDOWS (engine-package.mjs), so nothing reaches either yet. The
-// rules below are written against a reader's answers and have been run against
+// one the gate builds the deck's own (windows-acl.mjs); Windows is offered by
+// ENGINE_ON_WINDOWS (engine-package.mjs). The rules below are written against a reader's answers and have been run against
 // a test double and, in CI only, the real reader.
 import { constants, promises as fs } from 'node:fs';
 import path from 'node:path';

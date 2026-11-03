@@ -281,9 +281,9 @@ export async function startServer({ port = 4317, host = "127.0.0.1", persist = n
   armLifecycle({ onRestart, onStop, persist, onSelfUpdate: () => reporter.noteSelfUpdate() });
   // Which tree and which CLIs, normalised once — see setDeckScope.
   setDeckScope({ workspace, claude, codex });
-  // Whether the Command Panel's switch is offered here, asked once: off Windows
-  // the platform's answer, nothing loaded; on Windows `unsupported`, but for
-  // the test-only preview (command-panel-platform.mjs).
+  // Whether the Command Panel's switch is offered here, asked once: the
+  // platform's answer, nothing loaded, unless a test-only preview option is
+  // handed on Windows (command-panel-platform.mjs).
   const panelPlatform = await commandPanelPlatform(terminal);
   // A boot is the one moment the file, and not the engine, is the authority on
   // the key, the pairings and the port. See lanApplyFields.

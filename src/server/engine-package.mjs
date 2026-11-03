@@ -49,9 +49,9 @@
 // from a request or a setting reaches it. Same-user tampering with it is out of
 // scope, as it is for the engine folder itself.
 //
-// WINDOWS stays off until the engine side ships: ENGINE_ON_WINDOWS below is the
-// one switch. The installer builds its own ACL reader (windows-acl.mjs) when a
-// caller gives none, and nothing asks it while the switch is off.
+// WINDOWS ships like the other platforms: ENGINE_ON_WINDOWS below is the one
+// switch. The installer builds its own ACL reader (windows-acl.mjs) when a
+// caller gives none, and asks it about the package and the engine folder.
 import { constants, promises as fs } from "node:fs";
 import { randomBytes, createHash } from "node:crypto";
 import { dirname, join, basename } from "node:path";
@@ -72,9 +72,10 @@ export const ENGINE_PACKAGE_NAMES = Object.freeze({
   "win32-x64": "@ccdeck/engine-win32-x64",
 });
 
-/** Whether the Command Panel is offered on Windows. False until the engine
- *  side ships there, so no Windows user is shown a path that half works. */
-export const ENGINE_ON_WINDOWS = false;
+/** Whether the Command Panel is offered on Windows: the engine ships there, so
+ *  the panel is offered like on Linux and macOS (its sessions live in the
+ *  per-user session host). */
+export const ENGINE_ON_WINDOWS = true;
 
 /** The lowest engine version the deck has kept, beside the engine folder. */
 export const MINIMUM_VERSION_FILE = "engine-minimum-version";

@@ -1,13 +1,12 @@
 // The Windows Command Panel preview: TEST-ONLY, never a production feature.
 //
-// On Windows the Command Panel is unsupported, and stays so for everything
-// this package ships: the deck's own engine answers every route `unsupported`
-// without looking, its installation check knows no Windows target, and
-// Settings does not offer the switch. The one exception is a local test
-// configuration for one Windows VM, and these cases pin what it takes and what
-// it can never reach:
+// On Windows the deck offers the Command Panel through its own engine path
+// (the engine from its npm package, checked by the installer's Windows ACL
+// reader), with no preview involved. This file pins the preview that remains:
+// a local test configuration for one Windows VM, with its own engine and its
+// own test-only module, and what it takes and what it can never reach:
 //
-//   - the gate (command-panel-platform.mjs) turns the switch on only on win32,
+//   - the gate (command-panel-platform.mjs) turns the preview on only on win32,
 //     only for a startServer caller that passes `terminal.windowsPreview ===
 //     true` WITH an explicit engine, and only when it can load the test-only
 //     module preview/command-panel-windows.mjs. Off Windows it is the
@@ -17,8 +16,8 @@
 //     call they make passes no `terminal` at all;
 //   - the published package and the desktop app leave the module out, so on
 //     an install the gate refuses whatever it is asked;
-//   - the deck's own verifier still refuses a Windows engine, with its own
-//     (empty) keys, with a fresh key, and with the key that signed it;
+//   - the deck's own verifier still refuses a Windows engine signed by a key it
+//     does not hold, with its own (empty) keys, with a fresh key, and with the key that signed it;
 //   - the preview's verifier, run here with the platform injected, accepts a
 //     signed Windows installation and refuses everything else, and its client
 //     is the deck's own client with that check in place of the deck's.
@@ -150,7 +149,7 @@ describe("the Command Panel's platform gate", () => {
     for (const platform of NOT_WIN32) {
       for (const handed of [undefined, {}, { windowsPreview: true }, { windowsPreview: true, engine: stubEngine() }]) {
         const answer = await gate.commandPanelPlatform(handed, { platform, load: async () => { loads += 1; return { WINDOWS_PREVIEW: true }; }, log: (l: string) => lines.push(l) });
-        expect(answer, `${platform} ${JSON.stringify(handed)}`).toEqual({ supported: commandPanelSupported(platform), windowsPreview: false });
+        expect(answer, `${platform} ${JSON.stringify(handed)}`).toEqual({ supported: commandPanelSupported(platform), windowsPreview: false, sessionHost: false });
         expect(Object.isFrozen(answer)).toBe(true);
       }
     }
@@ -158,14 +157,24 @@ describe("the Command Panel's platform gate", () => {
     expect([loads, lines]).toEqual([0, []]);
   });
 
-  it("on Windows, without `windowsPreview === true`, is unsupported, and loads and logs nothing", async () => {
+  // CHANGED ON PURPOSE (V4 ships the panel on Windows through the engine): this
+  // case pinned "Windows without the preview option is unsupported"; the deck's
+  // own engine path now answers supported there, with its sessions in the
+  // session host, and still loads and logs nothing.
+  it("on Windows, without `windowsPreview === true`, is the deck's own answer (supported, in the session host), and loads and logs nothing", async () => {
     let loads = 0;
     const lines: string[] = [];
     for (const handed of [undefined, null, {}, { engine: stubEngine() }, { windowsPreview: "true", engine: stubEngine() }, { windowsPreview: 1, engine: stubEngine() }, { windowsPreview: {}, engine: stubEngine() }]) {
       const answer = await gate.commandPanelPlatform(handed, { platform: "win32", load: async () => { loads += 1; return { WINDOWS_PREVIEW: true }; }, log: (l: string) => lines.push(l) });
-      expect(answer, JSON.stringify(handed)).toEqual({ supported: false, windowsPreview: false });
+      expect(answer, JSON.stringify(handed)).toEqual({ supported: true, windowsPreview: false, sessionHost: true });
     }
     expect([loads, lines]).toEqual([0, []]);
+  });
+
+  it("on Windows, the deck's own answer follows commandPanelSupported", async () => {
+    const answer = await gate.commandPanelPlatform(undefined, { platform: "win32" });
+    expect(answer.supported).toBe(commandPanelSupported("win32"));
+    expect(answer).toEqual({ supported: true, windowsPreview: false, sessionHost: true });
   });
 
   it("on Windows, asked without an explicit engine, refuses before loading anything and says so once per ask", async () => {
@@ -174,7 +183,7 @@ describe("the Command Panel's platform gate", () => {
     const engines = [undefined, null, "engine", {}, { route: () => null }, { attach: () => null }, { route: 1, attach: () => null }];
     for (const engine of engines) {
       const answer = await gate.commandPanelPlatform({ windowsPreview: true, engine }, { platform: "win32", load: async () => { loads += 1; return { WINDOWS_PREVIEW: true }; }, log: (l: string) => lines.push(l) });
-      expect(answer).toEqual({ supported: false, windowsPreview: false });
+      expect(answer).toEqual({ supported: false, windowsPreview: false, sessionHost: false });
     }
     expect(loads).toBe(0);
     expect(lines).toEqual(engines.map(() => gate.WINDOWS_PREVIEW_REFUSED["no-engine"]));
@@ -182,11 +191,11 @@ describe("the Command Panel's platform gate", () => {
 
   it("on Windows, asked with an engine, is supported only when the test-only module loads and is the preview", async () => {
     const cases: Array<[string, () => Promise<unknown>, object, string | null]> = [
-      ["absent", async () => { throw Object.assign(new Error("Cannot find module"), { code: "ERR_MODULE_NOT_FOUND" }); }, { supported: false, windowsPreview: false }, gate.WINDOWS_PREVIEW_REFUSED.absent],
-      ["empty", async () => ({}), { supported: false, windowsPreview: false }, gate.WINDOWS_PREVIEW_REFUSED["not-preview"]],
-      ["string", async () => ({ WINDOWS_PREVIEW: "true" }), { supported: false, windowsPreview: false }, gate.WINDOWS_PREVIEW_REFUSED["not-preview"]],
-      ["nothing", async () => undefined, { supported: false, windowsPreview: false }, gate.WINDOWS_PREVIEW_REFUSED["not-preview"]],
-      ["preview", async () => ({ WINDOWS_PREVIEW: true }), { supported: true, windowsPreview: true }, null],
+      ["absent", async () => { throw Object.assign(new Error("Cannot find module"), { code: "ERR_MODULE_NOT_FOUND" }); }, { supported: false, windowsPreview: false, sessionHost: false }, gate.WINDOWS_PREVIEW_REFUSED.absent],
+      ["empty", async () => ({}), { supported: false, windowsPreview: false, sessionHost: false }, gate.WINDOWS_PREVIEW_REFUSED["not-preview"]],
+      ["string", async () => ({ WINDOWS_PREVIEW: "true" }), { supported: false, windowsPreview: false, sessionHost: false }, gate.WINDOWS_PREVIEW_REFUSED["not-preview"]],
+      ["nothing", async () => undefined, { supported: false, windowsPreview: false, sessionHost: false }, gate.WINDOWS_PREVIEW_REFUSED["not-preview"]],
+      ["preview", async () => ({ WINDOWS_PREVIEW: true }), { supported: true, windowsPreview: true, sessionHost: true }, null],
     ];
     for (const [name, load, expected, line] of cases) {
       const urls: string[] = [];
@@ -207,7 +216,7 @@ describe("the Command Panel's platform gate", () => {
     expect(preview.WINDOWS_PREVIEW).toBe(true);
     // The deck's own import, not an injected one: in this checkout the module is there.
     const lines: string[] = [];
-    expect(await gate.commandPanelPlatform({ windowsPreview: true, engine: stubEngine() }, { platform: "win32", log: (l: string) => lines.push(l) })).toEqual({ supported: true, windowsPreview: true });
+    expect(await gate.commandPanelPlatform({ windowsPreview: true, engine: stubEngine() }, { platform: "win32", log: (l: string) => lines.push(l) })).toEqual({ supported: true, windowsPreview: true, sessionHost: true });
     expect(lines).toEqual([]);
     for (const line of Object.values(gate.WINDOWS_PREVIEW_REFUSED) as string[]) {
       expect(line).toMatch(/^the Windows Command Panel preview was asked for/);
@@ -224,7 +233,7 @@ describe("a deck handed the preview option", () => {
     const onWindows = process.platform === "win32";
     // In a checkout on Windows the module is there, so the preview holds; on
     // every other platform the option is ignored and the platform answers.
-    expect(asked[0].answer).toEqual(onWindows ? { supported: true, windowsPreview: true } : { supported: commandPanelSupported(), windowsPreview: false });
+    expect(asked[0].answer).toEqual(onWindows ? { supported: true, windowsPreview: true, sessionHost: true } : { supported: commandPanelSupported(), windowsPreview: false, sessionHost: false });
     const prefs = await get("/api/prefs");
     expect(prefs.status).toBe(200);
     expect(prefs.body.terminalSupported).toBe(onWindows ? true : commandPanelSupported());
@@ -244,7 +253,7 @@ describe("a deck handed the preview option", () => {
     expect(read(undefined)).toBe(commandPanelSupported());
   });
 
-  it("tells the page its sessions run in the Windows session host only with the preview on", () => {
+  it("tells the page its sessions run in the Windows session host on Windows when the panel is supported, and nowhere else", () => {
     const windowsOf = (panel: unknown) => {
       let body = "";
       const res = { headersSent: false, writeHead: () => {}, end: (b: string) => { body = b; } };
@@ -254,7 +263,12 @@ describe("a deck handed the preview option", () => {
     expect(windowsOf({ supported: true, windowsPreview: true })).toBe(true);
     expect(windowsOf({ supported: true, windowsPreview: false })).toBe(false);
     expect(windowsOf({ supported: true, windowsPreview: "yes" })).toBe(false);
-    expect(windowsOf(undefined)).toBe(false);
+    expect(windowsOf({ supported: true, windowsPreview: false, sessionHost: true })).toBe(true);
+    expect(windowsOf({ supported: false, windowsPreview: false, sessionHost: false })).toBe(false);
+    expect(windowsOf(undefined)).toBe(process.platform === "win32" && commandPanelSupported());
+    expect(gate.panelInSessionHost(undefined, "win32")).toBe(true);
+    expect(gate.panelInSessionHost(undefined, "linux")).toBe(false);
+    expect(gate.panelInSessionHost(undefined, "darwin")).toBe(false);
   });
 });
 
@@ -320,7 +334,7 @@ describe("the published package and the desktop app", () => {
       const text = readFileSync(join(REPO, p), "latin1");
       return /x86_64-pc-windows-msvc|aarch64-pc-windows-msvc|verifyWindowsPreviewInstallation|createWindowsPreviewClient/.test(text);
     });
-    // Only the installer's own table of targets, behind the panel's closed Windows gate (ENGINE_ON_WINDOWS).
+    // Only the installer's own table of targets, the one place a Windows target is named.
     expect(windowsWords, "no packed file but the installer's target table knows a Windows engine target").toEqual(["src/server/pro-engine-install.mjs"]);
     // The desktop app copies the deck's folders one by one; preview is not one.
     const config = createRequire(import.meta.url)(join(REPO, "desktop", "electron-builder.config.cjs"));

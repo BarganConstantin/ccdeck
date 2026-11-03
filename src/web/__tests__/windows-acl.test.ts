@@ -2,7 +2,7 @@
 // stand-in for the tool calls, then the real trust gate over that reader. The
 // real machine is windows-acl-real.test.ts; nothing here starts a tool.
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 // @ts-expect-error plain server module
@@ -188,12 +188,29 @@ describe("wiring", () => {
     }
   });
 
-  it("never reaches the reader while Windows is switched off", async () => {
-    const importPackage = vi.fn();
-    const engine = commandPanelEngine({ platform: "win32", env: { CCDECK_HOME: "/x" }, keys: ["key"], importPackage });
-    expect((await engine.route("status", null)).body.code).toBe("unsupported");
-    expect(importPackage).not.toHaveBeenCalled();
-    expect(pkg.ENGINE_ON_WINDOWS).toBe(false);
+  // CHANGED ON PURPOSE (V4 ships the panel on Windows through the engine): this
+  // pinned "never reaches the reader while Windows is switched off"; Windows is
+  // on, so the engine's import now reaches the reader, and what the reader
+  // refuses is `not-verified`, never a started engine.
+  it("reaches the reader on Windows, and a package it refuses is not-verified", async () => {
+    expect(pkg.ENGINE_ON_WINDOWS).toBe(true);
+    const root = await mkdtemp(join(tmpdir(), "ccdeck-windows-engine-"));
+    roots.push(root);
+    const folder = join(root, "node_modules", "@ccdeck", "engine-win32-x64");
+    await mkdir(folder, { recursive: true });
+    await writeFile(join(folder, "package.json"), JSON.stringify({ name: "@ccdeck/engine-win32-x64" }));
+    const identity = vi.fn(async () => ({ user: ME, elevated: true }));
+    const inspect = vi.fn(async () => ({ owner: ME, writers: [ME], reparsePoint: false, links: 1 }));
+    const createClient = vi.fn();
+    const enoent = async () => { throw Object.assign(new Error("ENOENT"), { code: "ENOENT" }); };
+    const engine = commandPanelEngine({
+      platform: "win32", env: { CCDECK_HOME: root }, keys: ["key"], lstat: enoent, createClient,
+      importPackage: (options: Record<string, unknown>) => pkg.importEngine({ ...options, arch: "x64", from: root, dataFolder: join(root, "data"), windowsAcl: { identity, inspect } }),
+    });
+    expect((await engine.route("status", null)).body.code).toBe("not-verified");
+    expect(identity).toHaveBeenCalled();
+    expect(inspect).not.toHaveBeenCalled();
+    expect(createClient).not.toHaveBeenCalled();
   });
 });
 

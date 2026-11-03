@@ -237,7 +237,8 @@ describe("POST /api/prefs and the terminal's switch", () => {
       const { out } = await post({ terminal: false });
       expect(out.terminalOn).toBe(false);
       expect(out).not.toHaveProperty("terminalForced");
-      expect(out.terminalSupported, "whether this platform has the panel").toBe(process.platform === "linux" || process.platform === "darwin");
+      // CHANGED ON PURPOSE (the engine ships on Windows, so a Windows deck has the panel): Windows joins Linux and macOS.
+      expect(out.terminalSupported, "whether this platform has the panel").toBe(["linux", "darwin", "win32"].includes(process.platform));
     } finally {
       delete process.env.CCDECK_TERMINAL;
     }
