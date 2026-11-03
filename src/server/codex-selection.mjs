@@ -27,7 +27,7 @@ export function codexSelectionError(code) {
 const fail = code => { throw codexSelectionError(code); };
 const idPattern = /^[a-f0-9]{20}$/;
 const operationPattern = /^[A-Za-z0-9_-]{1,128}$/;
-const safeCodes = new Set(['not_removable', 'login_not_movable', 'selection_conflict', 'operation_conflict', 'selection_busy', 'unknown_profile', 'profile_unavailable', 'registry_corrupt', 'registry_write_failed', 'invalid_operation', 'invalid_revision', 'invalid_label']);
+const safeCodes = new Set(['not_removable', 'login_not_movable', 'selection_conflict', 'operation_conflict', 'selection_busy', 'unknown_profile', 'profile_unavailable', 'registry_corrupt', 'registry_write_failed', 'invalid_operation', 'invalid_revision', 'invalid_label', 'import_write_failed', 'windows_permissions_failed']);
 const storeDir = options => resolve(options.store ?? deckDataDir(options.platform, options.env, options.home));
 export const codexSelectionPath = (options = {}) => join(storeDir(options), 'codex-accounts.json');
 
@@ -48,6 +48,7 @@ async function validate(state, options) {
   const ids = new Set();
   for (const p of state.profiles) {
     if (!p || typeof p.id !== 'string' || !idPattern.test(p.id) || ids.has(p.id) || typeof p.home !== 'string' || !path.isAbsolute(p.home)
+      || (p.importFingerprint !== undefined && (!p.managed || !/^[a-f0-9]{64}$/.test(p.importFingerprint)))
       || typeof p.managed !== 'boolean' || !(p.label === null || validLabel(p.label))) fail('registry_corrupt');
     ids.add(p.id);
     if (p.managed) {
@@ -373,5 +374,52 @@ export async function moveCodexLogin({ id, into, expectedRevision } = {}, option
     // login that is no longer there to move again.
     try { await settleMovedLogin(target.home); } catch { /* the next read settles it */ }
     return { ...await dropProfile(state, profile, options), status: 'replaced' };
+  });
+}
+
+/** Register a prepared batch under the same lock as account selection. The
+ * callback creates and writes only fresh, empty managed homes. No existing home is
+ * passed to it, including on retries. Only credential fingerprints persist in
+ * metadata; the registry never receives auth contents. */
+export async function importCodexProfiles({ entries, expectedRevision }, prepareHome, options = {}) {
+  if (!Number.isSafeInteger(expectedRevision) || expectedRevision < 0) fail('invalid_revision');
+  if (!Array.isArray(entries) || entries.length < 1 || entries.length > 20
+    || entries.some(e => !e || !/^[a-f0-9]{64}$/.test(e.fingerprint) || !(e.label === null || validLabel(e.label)))) fail('invalid_operation');
+  return locked(options, async () => {
+    const state = await initial(options);
+    const existing = fingerprint => state.profiles.find(p => p.importFingerprint === fingerprint);
+    // A fully repeated import is safe even if the caller lost the reply or
+    // another operation has since changed the selection revision.
+    if (entries.some(e => !existing(e.fingerprint)) && state.revision !== expectedRevision) fail('selection_conflict');
+    const made = [], results = [], guards = [];
+    try {
+      for (let index = 0; index < entries.length; index++) {
+        const entry = entries[index], previous = existing(entry.fingerprint);
+        if (previous) {
+          if (!await directoryExists(previous.home)) fail('profile_unavailable');
+          results.push({ id: previous.id, status: 'already_imported' }); continue;
+        }
+        const root = join(storeDir(options), 'codex-profiles');
+        await mkdir(root, { recursive: true, mode: 0o700 });
+        if (!(await lstat(root)).isDirectory()) fail('registry_corrupt');
+        const home = join(root, randomBytes(16).toString('hex'));
+        // The preparer creates the home: on Windows it needs an atomic
+        // protected DACL at creation, which mkdir(mode) cannot provide.
+        made.push(home);
+        const guard = await prepareHome(home, index);
+        if (guard) guards.push(guard);
+        const id = await codexProfileId(home);
+        state.profiles.push({ id, home, label: entry.label, managed: true, importFingerprint: entry.fingerprint });
+        results.push({ id, status: 'imported' });
+      }
+      if (guards.some(guard => !guard.valid())) fail('windows_permissions_failed');
+      if (made.length) { state.revision++; await persist(state, options); }
+      return { revision: state.revision, results };
+    } catch (error) {
+      for (const guard of guards) guard.release();
+      // None of these homes was registered if preparation or commit failed.
+      await Promise.all(made.map(home => rm(home, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 })));
+      throw error;
+    } finally { for (const guard of guards) guard.release(); }
   });
 }

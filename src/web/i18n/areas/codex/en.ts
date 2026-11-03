@@ -2,6 +2,30 @@
 import type { Catalog } from "../../catalogs";
 
 const catalog: Catalog = {
+  "codex.share.title": "Share Codex accounts",
+  "codex.share.importTitle": "Import Codex accounts",
+  "codex.share.warning": "The share code contains live sign-in credentials. Anyone with it can use these accounts. Send it only through a private channel you trust.",
+  "codex.share.renewal": "Both copies share an OAuth renewal token. Renewing the login on one machine may invalidate the other copy and require signing in again.",
+  "codex.share.choose": "Choose up to 20 accounts. Only ChatGPT logins stored in auth.json can be shared.",
+  "codex.share.empty": "No Codex accounts to share.",
+  "codex.share.generate": "Generate share code",
+  "codex.share.import": "Import accounts",
+  "codex.share.copy": "Copy share code",
+  "codex.share.copyHint": "Copy the entire code into Import Codex accounts on the other machine.",
+  "codex.share.pasteHint": "Paste the complete ccdeck-codex-v1. code. Claude codes and raw auth.json are not accepted.",
+  "codex.share.noExpiry": "This code is encoded, not encrypted. It has no automatic expiry or ccdeck revocation. Delete clipboard and message copies after use.",
+  "codex.share.isolated": "Each imported login gets a new isolated profile, without copied settings or history. Existing logins and the active account are kept. Repeat imports are skipped.",
+  "codex.share.imported": "Added: {added}. Already imported: {skipped}.",
+  "codex.share.working": "Working…",
+  "codex.share.fileOnly": "A selected account has no exportable file login, or uses a keyring. Nothing was shared. Use a file-backed ChatGPT login.",
+  "codex.share.chatgptOnly": "Only complete ChatGPT file logins are supported. API keys and unknown auth formats cannot be transferred.",
+  "codex.share.invalid": "Invalid share code. Paste the entire ccdeck-codex-v1. code, with no extra text.",
+  "codex.share.conflict": "The account list changed. Close this dialog, reload the accounts and try again.",
+  "codex.share.permissions": "Windows could not protect the new profile with a private ACL. No accounts were imported. Check folder permissions and try again.",
+  "codex.share.tooLarge": "The selected logins exceed the share-code limit. Select fewer accounts and try again.",
+  "codex.share.failed": "The transfer could not finish. Reload the accounts and try again.",
+  "codex.share.copyFailed": "Clipboard unavailable. Select and copy the entire code above.",
+
   // The row's voice (codex-accounts.ts CODEX_VOICE)
   "codex.row.liveTitle": "Default account for new sessions",
   "codex.row.liveSpoken": "Default account:",

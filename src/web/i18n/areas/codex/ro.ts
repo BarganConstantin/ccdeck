@@ -2,6 +2,30 @@
 import type { Catalog } from "../../catalogs";
 
 const catalog: Catalog = {
+  "codex.share.title": "Partajează conturi Codex",
+  "codex.share.importTitle": "Importă conturi Codex",
+  "codex.share.warning": "Codul conține credențiale active de autentificare. Oricine îl are poate folosi aceste conturi. Trimite-l doar printr-un canal privat de încredere.",
+  "codex.share.renewal": "Ambele copii folosesc același token de reînnoire OAuth. Reînnoirea autentificării pe un calculator poate invalida cealaltă copie și cere o nouă autentificare.",
+  "codex.share.choose": "Alege cel mult 20 de conturi. Pot fi partajate doar autentificările ChatGPT stocate în auth.json.",
+  "codex.share.empty": "Nu există conturi Codex de partajat.",
+  "codex.share.generate": "Generează codul de partajare",
+  "codex.share.import": "Importă conturile",
+  "codex.share.copy": "Copiază codul",
+  "codex.share.copyHint": "Copiază codul complet în Importă conturi Codex pe celălalt calculator.",
+  "codex.share.pasteHint": "Lipește codul complet ccdeck-codex-v1. Codurile Claude și fișierele auth.json nu sunt acceptate.",
+  "codex.share.noExpiry": "Codul este codificat, nu criptat. Nu expiră automat și nu poate fi revocat din ccdeck. Șterge copiile din clipboard și mesaje după utilizare.",
+  "codex.share.isolated": "Fiecare autentificare importată primește un profil nou, izolat, fără setări sau istoric copiat. Autentificările existente și contul activ sunt păstrate. Importurile repetate sunt omise.",
+  "codex.share.imported": "Adăugate: {added}. Deja importate: {skipped}.",
+  "codex.share.working": "Se procesează…",
+  "codex.share.fileOnly": "Un cont selectat nu are autentificare exportabilă în fișier sau folosește keyring. Nu s-a partajat nimic. Folosește o autentificare ChatGPT stocată în fișier.",
+  "codex.share.chatgptOnly": "Sunt acceptate doar autentificări ChatGPT complete în fișier. Cheile API și formatele necunoscute nu pot fi transferate.",
+  "codex.share.invalid": "Cod invalid. Lipește codul complet ccdeck-codex-v1., fără text suplimentar.",
+  "codex.share.conflict": "Lista conturilor s-a schimbat. Închide dialogul, reîncarcă conturile și încearcă din nou.",
+  "codex.share.permissions": "Windows nu a putut proteja profilul nou cu un ACL privat. Nu s-a importat niciun cont. Verifică permisiunile dosarului și încearcă din nou.",
+  "codex.share.tooLarge": "Autentificările selectate depășesc limita codului. Selectează mai puține conturi și încearcă din nou.",
+  "codex.share.failed": "Transferul nu s-a încheiat. Reîncarcă conturile și încearcă din nou.",
+  "codex.share.copyFailed": "Clipboard indisponibil. Selectează și copiază codul complet de mai sus.",
+
   // The row's voice (codex-accounts.ts CODEX_VOICE)
   "codex.row.liveTitle": "Contul implicit pentru sesiunile noi",
   "codex.row.liveSpoken": "Cont implicit:",

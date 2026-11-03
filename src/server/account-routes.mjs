@@ -47,6 +47,28 @@ export async function handleCodexProfiles(_req, res) {
   send(res, 200, { profiles: await discoverCodexProfiles({ selection, enableNative: true }), revision: selection.revision, live: codexLiveAccountStatus() });
 }
 
+/** Manual credential transfer is POST-only and behind the global mutation
+ * gate. All failures are fixed codes: no auth, blob, native stderr or paths
+ * can reach the generic request logger/reporting path. */
+export async function handleCodexAccountShare(req, res, action) {
+  try {
+    const { createCodexShare, importCodexShare, CODEX_SHARE_MAX_LENGTH } = await import('./codex-share.mjs');
+    const raw = await readBody(req, res, CODEX_SHARE_MAX_LENGTH + 4096).catch(() => null);
+    let body;
+    try { body = JSON.parse(raw ?? ''); } catch { return send(res, 400, { ok: false, reason: 'bad_request' }); }
+    const allowed = action === 'export' ? ['ids'] : ['blob', 'expectedRevision'];
+    if (!body || typeof body !== 'object' || Array.isArray(body) || Object.keys(body).some(key => !allowed.includes(key))) {
+      return send(res, 400, { ok: false, reason: 'bad_request' });
+    }
+    const result = await (action === 'export' ? createCodexShare(body) : importCodexShare(body));
+    send(res, 200, result);
+  } catch (error) {
+    const safe = new Set(['invalid_profiles', 'unknown_profile', 'file_auth_required', 'unsupported_auth', 'share_too_large', 'invalid_share', 'invalid_revision', 'selection_conflict', 'selection_busy', 'registry_corrupt', 'registry_write_failed', 'profile_unavailable', 'import_write_failed', 'windows_permissions_failed']);
+    const reason = safe.has(error?.code) ? error.code : 'share_failed';
+    send(res, ['selection_conflict', 'selection_busy'].includes(reason) ? 409 : reason === 'unknown_profile' ? 404 : 400, { ok: false, reason });
+  }
+}
+
 export async function handleCodexProfileMutation(req, res, action) {
   const raw = await readBody(req, res, 4096).catch(() => null);
   let body;

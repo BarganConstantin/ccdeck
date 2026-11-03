@@ -164,7 +164,7 @@ export { sendInternalError };
 // The accounts surface's routes — see account-routes.mjs. The boot wires the
 // stale-copy repair and starts auto-switch through the same module.
 import { handleStopContinue, handleStopContinueRead } from "./stop-continue.mjs";
-import { cswapAutoModule, getProjectRollup, handleAccountLoginState, handleAccountProjects, handleClaudeAccountAdmin, handleClaudeAccountSwitch, handleClaudeAccounts, handleCodexProfiles, handleCodexProfileQuota, handleCodexProfileLaunch, handleCodexProfileMutation, handleCodexProfileLogin, handleCodexProfileLoginFlow, handleCodexTerminalCommand, handleCodexAuto, handleCodexAutoAction, handleCswapAuto, handleCswapAutoAction, wireAccountOrigins, wireStaleCopyRepair } from "./account-routes.mjs";
+import { cswapAutoModule, getProjectRollup, handleAccountLoginState, handleAccountProjects, handleClaudeAccountAdmin, handleClaudeAccountSwitch, handleClaudeAccounts, handleCodexProfiles, handleCodexAccountShare, handleCodexProfileQuota, handleCodexProfileLaunch, handleCodexProfileMutation, handleCodexProfileLogin, handleCodexProfileLoginFlow, handleCodexTerminalCommand, handleCodexAuto, handleCodexAutoAction, handleCswapAuto, handleCswapAutoAction, wireAccountOrigins, wireStaleCopyRepair } from "./account-routes.mjs";
 // Browser Watch's three routes — see browser-watch-routes.mjs.
 import { handleBrowserWatch, handleBrowserWatchDismiss, handleBrowserWatchSettings } from "./browser-watch-routes.mjs";
 // The music routes, every one behind AGENTS_DECK_NO_MUSIC — see music-routes.mjs.
@@ -407,6 +407,8 @@ export async function startServer({ port = 4317, host = "127.0.0.1", persist = n
     if (req.method === "GET"  && url.pathname === "/api/codex-profile-launch") return guard(handleCodexProfileLaunch(req, res), res);
     if (req.method === "GET"  && url.pathname === "/api/codex-auto") return guard(handleCodexAuto(req, res), res);
     if (req.method === "POST" && url.pathname === "/api/codex-auto") return guard(handleCodexAutoAction(req, res), res);
+    if (req.method === "POST" && url.pathname === "/api/codex-accounts-share") return guard(handleCodexAccountShare(req, res, "export"), res);
+    if (req.method === "POST" && url.pathname === "/api/codex-accounts-import") return guard(handleCodexAccountShare(req, res, "import"), res);
     if (req.method === "POST" && url.pathname === "/api/codex-profile-select") return guard(handleCodexProfileMutation(req, res, "select"), res);
     if (req.method === "POST" && url.pathname === "/api/codex-profile-add") return guard(handleCodexProfileMutation(req, res, "add"), res);
     if (req.method === "POST" && url.pathname === "/api/codex-profile-remove") return guard(handleCodexProfileMutation(req, res, "remove"), res);

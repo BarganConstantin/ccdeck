@@ -5,8 +5,8 @@
 // The two columns stay separate (CodexAccountsPanel.tsx) but are one design.
 //
 // What differs is what a Codex account is. It is a CODEX_HOME folder rather than
-// a slot, so nothing here moves or shares a login: a login is a single-use
-// rotating token, and a copy of it would burn the original. codex-accounts.ts
+// a slot. Manual sharing explicitly warns about OAuth renewal across copies.
+// codex-accounts.ts
 // turns a profile and its reading into what the shared components read.
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { allOpen, isOpen, orderChoices, orderKey, SLOT_ORDER, sortAccounts, toggleAll, toggleOne, validOrder, type Openness } from "../other-accounts-order";
@@ -34,6 +34,7 @@ import AddCodexAccountDialog from "./AddCodexAccountDialog";
 import AnchoredPopover from "./AnchoredPopover";
 import AutoSwitchPolicy from "./AutoSwitchPolicy";
 import OtherAccounts from "./OtherAccounts";
+import CodexShareDialog from "./CodexShareDialog";
 
 /** Keeps this column's order and open rows apart from Claude's. */
 const SCOPE = ".codex";
@@ -91,6 +92,7 @@ export default function CodexProfilesSection({ onClose, switcher, onNotice }: {
   const [aliasDraft, setAliasDraft] = useState("");
   const [menuError, setMenuError] = useState<string | null>(null);
   /** The Add / Sign in dialog: a new account, or one signed in again. */
+  const [transfer, setTransfer] = useState<null | "export" | "import">(null);
   const [dialog, setDialog] = useState<null | { id?: string; label?: string; account?: string | null }>(null);
   /** The account whose Remove has been pressed once and is waiting for the second. */
   const [confirmRemove, setConfirmRemove] = useState<string | null>(null);
@@ -452,6 +454,18 @@ export default function CodexProfilesSection({ onClose, switcher, onNotice }: {
         <h2 className={switcher ? "vis-hidden" : undefined}>{t("codex.panel.title")}</h2>
         {switcher}
         <div className="ap-header-right">
+          <button type="button" className="glyph-btn" aria-label={t("codex.share.title")} title={t("codex.share.title")}
+            aria-haspopup="dialog" onClick={() => setTransfer("export")}>
+            <svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+              <path d="M7 9V1.5m-2.5 2.5L7 1.5 9.5 4M3 7v5h8V7" />
+            </svg>
+          </button>
+          <button type="button" className="glyph-btn" aria-label={t("codex.share.importTitle")} title={t("codex.share.importTitle")}
+            aria-haspopup="dialog" onClick={() => setTransfer("import")}>
+            <svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+              <path d="M7 1.5V9m-2.5-2.5L7 9l2.5-2.5M3 10v2h8v-2" />
+            </svg>
+          </button>
           <button type="button" className="glyph-btn ap-add" aria-label={t("codex.panel.add")} title={t("codex.panel.addTitle")}
             aria-haspopup="dialog" onClick={() => setDialog({})}>
             <svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" aria-hidden>
@@ -622,6 +636,8 @@ export default function CodexProfilesSection({ onClose, switcher, onNotice }: {
           fetchedAt={issueRow.account.fetchedAt} nowSec={nowSec}
           onClose={closeIssue} onSignIn={() => signIn(issueRow.profile)} />
       )}
+      {transfer && <CodexShareDialog mode={transfer} profiles={profiles ?? []} revision={revision.current}
+        onImported={() => { void refreshProfiles().catch(() => setError(true)); }} onClose={() => setTransfer(null)} />}
       {dialog && (
         <AddCodexAccountDialog
           profile={dialog.id && dialog.label ? { id: dialog.id, label: dialog.label, account: dialog.account } : undefined}
