@@ -5,7 +5,7 @@
 import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { mkdirSync, mkdtempSync, utimesSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import { rmTempDir } from "./rm-temp-dir";
 
 // The route reaches the report through import(); the route tests below replace it
@@ -28,6 +28,10 @@ const { GUARDED_READS } = await import("../../server/request-gates.mjs");
 
 const DIR = mkdtempSync(join(tmpdir(), "ccdeck-codex-projects-"));
 afterAll(() => rmTempDir(DIR));
+
+/** A project folder as the report names it: resolved, so a Windows runner
+ *  reads `/work/alpha` as `D:\work\alpha`, as canonicalCwd does. */
+const at = (path: string) => resolve(path);
 
 const ACCOUNT = "acct-a-SECRET";
 const OTHER = "acct-b-SECRET";
@@ -90,14 +94,14 @@ describe("codexProjectsReport", () => {
     expect(r.ok).toBe(true);
     expect(r.trackedSince).toBeNull();
     expect(r.days).toBe(0);
-    expect(r.projects.map((p: any) => [p.path, p.name])).toEqual([["/work/alpha", "alpha"], ["/work/beta", "beta"]]);
+    expect(r.projects.map((p: any) => [p.path, p.name])).toEqual([[at("/work/alpha"), "alpha"], [at("/work/beta"), "beta"]]);
     expect(r.projects[0].models["gpt-5.5"]).toMatchObject({ i: 250, o: 30 });
     expect(r.projects[1].models["gpt-5.5"]).toMatchObject({ i: 40, o: 4 });
     expect(r.unattributed).toBeNull();
     expect(r.daily.map((d: any) => d.day)).toEqual(["2026-06-14", "2026-06-15"]);
     const [d14, d15] = r.daily;
-    expect(d14.projects).toEqual([{ path: "/work/alpha", models: { "gpt-5.5": expect.objectContaining({ i: 100, o: 10 }) } }]);
-    expect(d15.projects.map((p: any) => [p.path, p.models["gpt-5.5"].i])).toEqual([["/work/alpha", 150], ["/work/beta", 40]]);
+    expect(d14.projects).toEqual([{ path: at("/work/alpha"), models: { "gpt-5.5": expect.objectContaining({ i: 100, o: 10 }) } }]);
+    expect(d15.projects.map((p: any) => [p.path, p.models["gpt-5.5"].i])).toEqual([[at("/work/alpha"), 150], [at("/work/beta"), 40]]);
     expect(d14.unattributed).toBeNull();
   });
 
@@ -226,10 +230,10 @@ describe("codexProjectsReport", () => {
       tok(iso(2026, 5, 2, 10), { input_tokens: 999 }),
     ], new Date(2026, 4, 2, 10).getTime());
     const week = await codexProjectsReport({ id, days: 7 }, opts(selection));
-    expect(week.projects.map((p: any) => p.path)).toEqual(["/work/alpha"]);
+    expect(week.projects.map((p: any) => p.path)).toEqual([at("/work/alpha")]);
     expect(week.projects[0].models["gpt-5.5"].i).toBe(60);
     const all = await codexProjectsReport({ id, days: 0 }, opts(selection));
-    expect(all.projects.map((p: any) => p.path)).toEqual(["/work/alpha", "/work/old"]);
+    expect(all.projects.map((p: any) => p.path)).toEqual([at("/work/alpha"), at("/work/old")]);
   });
 
   it("reads a compressed rollout, selected by the start its name carries", async () => {
@@ -245,7 +249,7 @@ describe("codexProjectsReport", () => {
     writeFileSync(zst, (zlib as any).zstdCompressSync(Buffer.from(lines.join("\n") + "\n")));
     utimesSync(path, 0, 0);
     const r = await codexProjectsReport({ id, days: 7 }, opts(selection));
-    expect(r.projects.map((p: any) => [p.path, p.models["gpt-5.5"].i])).toEqual([["/work/cold", 77]]);
+    expect(r.projects.map((p: any) => [p.path, p.models["gpt-5.5"].i])).toEqual([[at("/work/cold"), 77]]);
   });
 
   it("answers an unknown or malformed id with unknown_profile", async () => {
