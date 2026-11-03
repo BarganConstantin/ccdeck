@@ -18,6 +18,26 @@ function fixture(extra = {}) {
   return { adapter, runs };
 }
 describe('account engine', () => {
+  it.each(['disabled', 'held-out', 'cancelled', 'settings-error'])('restores the stopped source when %s prevents launching a prepared account', async change => {
+    let prepared = false;
+    const controller = new AbortController(), restoreSource = vi.fn(async () => {});
+    const { adapter, runs } = fixture({
+      prepare: async ({ id, threadId }: { id: string; threadId: string }) => {
+        prepared = true;
+        if (change === 'cancelled') controller.abort();
+        return { id, threadId, restoreSource };
+      },
+      settings: async () => {
+        if (prepared && change === 'settings-error') throw Error('settings unavailable');
+        return { enabled: !(prepared && change === 'disabled'), heldOut: prepared && change === 'held-out' ? [B] : [] };
+      },
+    });
+    const result = await runAccountEngine(adapter, { id: A }, { signal: controller.signal });
+    expect(result.reason).toBe(change === 'cancelled' ? 'cancelled' : change === 'settings-error' ? 'handoff_failed' : 'disabled');
+    expect(restoreSource).toHaveBeenCalledOnce();
+    expect(runs).toEqual([A]);
+  });
+
   it('continues the exact conversation on the eligible account with most room', async () => {
     const { adapter, runs } = fixture(); const switched = vi.fn();
     expect(await runAccountEngine(adapter, { id: A }, { onSwitch: switched })).toMatchObject({ code: 0 });

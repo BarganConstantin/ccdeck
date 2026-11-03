@@ -55,6 +55,29 @@ describe('Codex continuation adapter', () => {
     const f = await fixture(); await writeFile(f.rollout, JSON.stringify({ type: 'session_meta', payload: { id: 'other' } }) + '\n');
     await expect(transferCodexThread(f.source, f.target, id)).rejects.toThrow('identity');
   });
+  it('restores an unlaunched moved source once, preserving its receipt and every auth file', async () => {
+    const f = await fixture();
+    // The sidecar path is owned by the transfer module, rather than inferred here.
+    // @ts-expect-error server ES module
+    const { codexHandoffPath } = await import('../../server/codex-handoff.mjs');
+    await writeFile(codexHandoffPath(f.rollout), JSON.stringify({ version: 1, threadId: id, copiedBytes: f.text.length }));
+    let restore!: () => Promise<void>;
+    const out = await transferCodexThread(f.source, f.target, id, { moveSource: true, onSourceMoved: (fn: () => Promise<void>) => { restore = fn; } });
+    await expect(readFile(f.rollout)).rejects.toThrow();
+    await restore(); await restore();
+    expect(await readFile(f.rollout, 'utf8')).toBe(f.text);
+    expect(await readFile(out, 'utf8')).toBe(f.text);
+    expect(await codexHandoffOffset(f.rollout, id, f.text.length)).toBe(f.text.length);
+    expect(await readFile(join(f.source, 'auth.json'), 'utf8')).toBe('source secret');
+    expect(await readFile(join(f.target, 'auth.json'), 'utf8')).toBe('target secret');
+  });
+  it('refuses to overwrite a source recreated after preparation', async () => {
+    const f = await fixture(); let restore!: () => Promise<void>;
+    await transferCodexThread(f.source, f.target, id, { moveSource: true, onSourceMoved: (fn: () => Promise<void>) => { restore = fn; } });
+    await writeFile(f.rollout, 'new work');
+    await expect(restore()).rejects.toThrow();
+    expect(await readFile(f.rollout, 'utf8')).toBe('new work');
+  });
   it('keeps a private source backup when moving an owned conversation', async () => {
     const f = await fixture();
     await transferCodexThread(f.source, f.target, id, { moveSource: true });
