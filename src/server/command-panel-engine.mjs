@@ -17,12 +17,19 @@
 //
 // ONE FOLDER, AND ONLY KEYS SHIPPED IN THIS FILE. The engine is looked for in
 // `<deck data folder>/engine` (CCDECK_HOME when set; deck-home.mjs) and
-// nowhere else: not on PATH, not beside the package, never downloaded or
-// installed by the deck. Its manifest must be signed by one of
-// ENGINE_PUBLIC_KEYS, which is empty in this release — so a folder that is
-// there answers `not-verified` without the deck reading the executable, and
-// one that is not answers `not-installed`. A deck that is handed an engine by
-// its caller instead (startServer's `terminal.engine`) never uses this.
+// nowhere else: not on PATH, never downloaded by the deck. Its manifest must
+// be signed by one of ENGINE_PUBLIC_KEYS, which is empty in this release — so
+// a folder that is there answers `not-verified` without the deck reading the
+// executable, and one that is not answers `not-installed`, without looking
+// for a package either. A deck that is handed an engine by its caller instead
+// (startServer's `terminal.engine`) never uses this.
+//
+// WHERE THE FOLDER COMES FROM. Given keys, the first question that finds the
+// folder missing or older first tries to bring the engine in from the npm
+// package that came with the deck for this machine (engine-package.mjs):
+// verified, never downgrading, copied whole or not at all. A package that is
+// not there, or an import that is refused, leaves whatever is installed as it
+// was. Still only on a question, still only with the switch on.
 //
 // THE ENGINE IS TOLD IT MAY SERVE THE PANEL, and only this one. The client
 // made here is the only one constructed with `terminal: true`, which is what
@@ -48,6 +55,7 @@
 import { promises as fsp } from "node:fs";
 import { posix as posixPath, win32 as winPath } from "node:path";
 import { deckDataDir } from "./deck-home.mjs";
+import { ENGINE_ON_WINDOWS, importEngine } from "./engine-package.mjs";
 import { createProEngineClient } from "./pro-engine-client.mjs";
 import { engineRefusal, engineTerminals } from "./pro-engine-terminal.mjs";
 import { RUNNING_VERSION } from "./running-version.mjs";
@@ -71,10 +79,11 @@ export const STOP_GRACE_MS = 1_500;
 export const EXIT_WAIT_MS = 5_000;
 
 /** Whether `platform` has the Command Panel: Linux and macOS, in this
- *  release; never Windows. Only where the engine's hello also advertises a
- *  terminal backend does a route reach it (`no-terminal` otherwise). */
+ *  release; Windows only once ENGINE_ON_WINDOWS (engine-package.mjs) is set.
+ *  Only where the engine's hello also advertises a terminal backend does a
+ *  route reach it (`no-terminal` otherwise). */
 export function commandPanelSupported(platform = process.platform) {
-  return platform === "linux" || platform === "darwin";
+  return platform === "linux" || platform === "darwin" || (platform === "win32" && ENGINE_ON_WINDOWS);
 }
 
 /** The one folder the Command Panel's engine is installed in. Joined with
@@ -100,8 +109,8 @@ function settlesWithin(promise, ms) {
  * engineTerminals gives, with `route` answering a refusal of its own while
  * there is no client), plus `switchedOff()`, `switchedOn()` and `stop()`.
  *
- * `platform`, `env`, `keys`, `lstat`, `createClient`, `graceMs` and
- * `exitWaitMs` are there for tests; the deck uses the defaults
+ * `platform`, `env`, `keys`, `lstat`, `importPackage`, `createClient`,
+ * `graceMs` and `exitWaitMs` are there for tests; the deck uses the defaults
  * (`commandPanel`, below).
  */
 export function commandPanelEngine({
@@ -109,6 +118,7 @@ export function commandPanelEngine({
   env = process.env,
   keys = ENGINE_PUBLIC_KEYS,
   lstat = (path) => fsp.lstat(path),
+  importPackage = importEngine,
   createClient = createProEngineClient,
   graceMs = STOP_GRACE_MS,
   exitWaitMs = EXIT_WAIT_MS,
@@ -137,10 +147,13 @@ export function commandPanelEngine({
       const at = stops;
       // Never one beside another: the one stopped last is let go first.
       if (exiting && !(await settlesWithin(exiting, exitWaitMs))) return { refusal: "restarting" };
+      // With keys to verify against, bring the engine in from its package first.
+      const brought = keys.length > 0 ? await importPackage({ platform, env, keys: [...keys] }) : null;
       try {
         await lstat(directory);
       } catch (error) {
-        return { refusal: error?.code === "ENOENT" || error?.code === "ENOTDIR" ? "not-installed" : "not-verified" };
+        if (error?.code !== "ENOENT" && error?.code !== "ENOTDIR") return { refusal: "not-verified" };
+        return { refusal: brought?.status === "refused" ? "not-verified" : "not-installed" };
       }
       // Nothing to verify a manifest against: the executable is never read.
       if (keys.length === 0) return { refusal: "not-verified" };
@@ -149,6 +162,7 @@ export function commandPanelEngine({
         enabled: true,
         directory,
         publicKey: [...keys],
+        ...(brought?.minimumVersion === undefined ? {} : { minimumVersion: brought.minimumVersion }),
         hostVersion: RUNNING_VERSION ?? "0.0.0",
         terminal: true,
       });

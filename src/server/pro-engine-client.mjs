@@ -76,8 +76,8 @@ export class ProEngineClient extends EventEmitter {
    *  the package does not ship): the deck builds its clients through createProEngineClient,
    *  which takes one argument, so every client of the deck verifies with
    *  verifyEngineInstallation and the keys it was given. */
-  constructor({ enabled = false, directory, publicKey, hostVersion = '0.0.0', timeoutMs = 10_000, heartbeatMs = 15_000, terminal = false } = {}, { verifyInstallation = verifyEngineInstallation } = {}) {
-    super(); this.options = Object.freeze({ enabled, directory, publicKey, hostVersion, timeoutMs, heartbeatMs, terminal: terminal === true });
+  constructor({ enabled = false, directory, publicKey, minimumVersion, hostVersion = '0.0.0', timeoutMs = 10_000, heartbeatMs = 15_000, terminal = false } = {}, { verifyInstallation = verifyEngineInstallation } = {}) {
+    super(); this.options = Object.freeze({ enabled, directory, publicKey, minimumVersion, hostVersion, timeoutMs, heartbeatMs, terminal: terminal === true });
     this.#verify = verifyInstallation;
   }
   get enabled() { return this.options.enabled === true; }

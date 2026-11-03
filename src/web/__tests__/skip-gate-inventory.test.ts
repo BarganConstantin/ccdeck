@@ -153,8 +153,8 @@ describe("the register of conditionally-skipped cases", () => {
     expect(expectedSkips("darwin")).toEqual({ total: 0, byFile: {} });
   });
 
-  it("expects the one hundred and thirty-six platform-gated cases to skip on Windows, file by file", () => {
-    // Ninety-four behind `process.platform === "win32"`, thirty-one behind
+  it("expects the one hundred and sixty-two platform-gated cases to skip on Windows, file by file", () => {
+    // Ninety-four behind `process.platform === "win32"`, fifty-seven behind
     // the optional engine's macOS-and-Linux gate, eight behind the posix
     // runIf family, and the three read-only-directory cases — sound-hook-park's,
     // the swap script's in desktop-updater and the macOS updater's in
@@ -164,7 +164,7 @@ describe("the register of conditionally-skipped cases", () => {
     // than as a total, so a change that moves a case from one gate to another is
     // a mismatch rather than an arithmetic coincidence.
     expect(expectedSkips("win32")).toEqual({
-      total: 136,
+      total: 162,
       byFile: {
         "append-deadline.test.ts": 1,
         "backup-root-shared.test.ts": 1,
@@ -181,6 +181,7 @@ describe("the register of conditionally-skipped cases", () => {
         "exec-shim-callers.test.ts": 5,
         "exec-timeout.test.ts": 2,
         "exec-windows.test.ts": 3,
+        "engine-package.test.ts": 26,
         "hangup-shuts-down.test.ts": 5,
         "hook-command-node-fallback.test.ts": 3,
         "no-shell-hook-commands.test.ts": 2,
