@@ -1,12 +1,16 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { chmod, lstat, mkdir, mkdtemp, readFile, realpath, rename, rm, symlink, writeFile } from 'node:fs/promises';
-import { join, resolve } from 'node:path';
+import { join, resolve, win32 } from 'node:path';
+import { execFile } from 'node:child_process';
+import { promisify } from 'node:util';
 import { tmpdir } from 'node:os';
 import { performance } from 'node:perf_hooks';
 // @ts-expect-error server ES module
 import { readLiveCodexCredential } from '../../server/codex-live-credentials.mjs';
 // @ts-expect-error server ES module
 import { addCodexProfile, codexProfileId, codexSelectionPath, readCodexSelection, removeCodexProfile, selectCodexProfile } from '../../server/codex-selection.mjs';
+// @ts-expect-error server ES module
+import { ensureWindowsPrivateDirectory } from '../../server/codex-windows-private.mjs';
 
 // No case can accidentally start an installed CLI, even if it omits startRpc.
 vi.mock('../../server/codex-engine-rpc.mjs', () => ({
@@ -87,7 +91,9 @@ function fakeRpc(settings: FakeOptions = {}) {
 async function fixture(settings: FakeOptions = {}) {
   const root = await realpath(await mkdtemp(join(tmpdir(), 'ccdeck-live-credential-'))); roots.push(root);
   const home = join(root, 'home'), other = join(root, 'other'), store = join(root, 'deck');
-  await mkdir(home, { mode: 0o700 }); await mkdir(other, { mode: 0o700 });
+  if (process.platform === 'win32') {
+    await ensureWindowsPrivateDirectory(home); await ensureWindowsPrivateDirectory(other);
+  } else { await mkdir(home, { mode: 0o700 }); await mkdir(other, { mode: 0o700 }); }
   const file = join(home, 'auth.json'), config = join(home, 'config.toml');
   const credential = auth();
   await writeFile(file, JSON.stringify(credential), { mode: 0o600 });
@@ -100,7 +106,7 @@ async function fixture(settings: FakeOptions = {}) {
 }
 const stableStat = (s: Awaited<ReturnType<typeof lstat>>) => ({ dev: s.dev, ino: s.ino, size: s.size, mode: s.mode, mtimeMs: s.mtimeMs, ctimeMs: s.ctimeMs });
 
-describe('live Codex credential reader (fictional JWTs and owned fake RPC only)', () => {
+describe('live Codex credential reader (fictional JWTs and owned fake RPC only)', { timeout: process.platform === 'win32' ? 30000 : 5000 }, () => {
   it.each([undefined, null, 'file'])('reads a private unchanged credential with storage %s and strips ambient API keys', async storeMode => {
     const f = await fixture({ storeMode });
     const before = { auth: await readFile(f.file), config: await readFile(f.config), stat: stableStat(await lstat(f.file)) };
@@ -210,7 +216,7 @@ describe('live Codex credential reader (fictional JWTs and owned fake RPC only)'
     await expect(readLiveCodexCredential(f.profileId, f.options)).rejects.toMatchObject({ code });
   });
 
-  it('rejects unsafe permissions, special files, oversized auth and a foreign UID', async () => {
+  it.skipIf(process.platform === 'win32')('rejects unsafe POSIX permissions, special files, oversized auth and a foreign UID', async () => {
     const f = await fixture();
     await chmod(f.file, 0o644);
     await expect(readLiveCodexCredential(f.profileId, f.options)).rejects.toMatchObject({ code: 'credential_file_unsafe' });
@@ -224,7 +230,23 @@ describe('live Codex credential reader (fictional JWTs and owned fake RPC only)'
     vi.spyOn(process, 'getuid').mockReturnValue(Number((await lstat(f.file)).uid) + 1);
     await expect(readLiveCodexCredential(f.profileId, f.options)).rejects.toMatchObject({ code: 'credential_file_unsafe' });
   });
-  it('refuses an auth symlink and a path replaced with a symlink after opening', async () => {
+  it.skipIf(process.platform !== 'win32')('rejects oversized or nonregular Windows auth files and a file with public read access', async () => {
+    const f = await fixture();
+    await writeFile(f.file, ' '.repeat(1024 * 1024 + 1));
+    await expect(readLiveCodexCredential(f.profileId, f.options)).rejects.toMatchObject({ code: 'credential_file_unsafe' });
+    await rm(f.file); await mkdir(f.file);
+    await expect(readLiveCodexCredential(f.profileId, f.options)).rejects.toMatchObject({ code: 'credential_file_unsafe' });
+    await rm(f.file, { recursive: true }); await writeFile(f.file, JSON.stringify(f.credential));
+    await promisify(execFile)(win32.join(process.env.SystemRoot!, 'System32', 'icacls.exe'), [f.file, '/grant', '*S-1-1-0:R'], { timeout: 5000, windowsHide: true });
+    await expect(readLiveCodexCredential(f.profileId, f.options)).rejects.toMatchObject({ code: 'credential_file_unsafe' });
+  });
+  it.skipIf(process.platform !== 'win32')('refuses a Windows profile junction before starting native credential work', async () => {
+    const f = await fixture(), alias = join(f.root, 'junction');
+    await symlink(f.home, alias, 'junction');
+    await expect(readLiveCodexCredential(f.profileId, { ...f.options, env: { ...f.options.env, CODEX_HOME: alias } })).rejects.toMatchObject({ code: 'credential_file_unsafe' });
+    expect(f.startRpc).not.toHaveBeenCalled();
+  });
+  it.skipIf(process.platform === 'win32')('refuses an auth symlink and a path replaced with a symlink after opening', async () => {
     const f = await fixture();
     const other = join(f.other, 'auth.json');
     await rename(f.file, other); await symlink(other, f.file);
@@ -233,7 +255,7 @@ describe('live Codex credential reader (fictional JWTs and owned fake RPC only)'
     hooks.afterOpen = async () => { await rename(f.file, other); await symlink(other, f.file); };
     await expect(readLiveCodexCredential(f.profileId, f.options)).rejects.toMatchObject({ code: 'credential_file_changed' });
   });
-  it('refuses an in-place rewrite or atomic replacement during the read', async () => {
+  it.skipIf(process.platform === 'win32')('refuses an in-place rewrite or atomic replacement during the read', async () => {
     for (const replace of [false, true]) {
       const f = await fixture();
       hooks.afterRead = async () => {
@@ -258,7 +280,7 @@ describe('live Codex credential reader (fictional JWTs and owned fake RPC only)'
       expect(fake.rpc.stop).toHaveBeenCalledOnce();
     }
   });
-  it('revalidates registry membership after reading the file', async () => {
+  it.skipIf(process.platform === 'win32')('revalidates registry membership after reading the file', async () => {
     const f = await fixture();
     const added = await addCodexProfile({ operationId: 'temporary-profile' }, f.options);
     const state = await readCodexSelection(f.options);
@@ -267,7 +289,7 @@ describe('live Codex credential reader (fictional JWTs and owned fake RPC only)'
     hooks.afterRead = async () => { await removeCodexProfile({ id: added.id, expectedRevision: state.revision }, f.options); };
     await expect(readLiveCodexCredential(added.id, f.options)).rejects.toMatchObject({ code: 'profile_changed' });
   });
-  it('refuses a different directory substituted at the same registered path', async () => {
+  it.skipIf(process.platform === 'win32')('refuses a different directory substituted at the same registered path', async () => {
     const f = await fixture();
     hooks.afterRead = async () => {
       await rename(f.home, join(f.root, 'old-home'));
@@ -276,7 +298,7 @@ describe('live Codex credential reader (fictional JWTs and owned fake RPC only)'
     };
     await expect(readLiveCodexCredential(f.profileId, f.options)).rejects.toMatchObject({ code: 'profile_changed' });
   });
-  it('refuses a home symlink redirected during native work or after file read', async () => {
+  it.skipIf(process.platform === 'win32')('refuses a home symlink redirected during native work or after file read', async () => {
     for (const afterRead of [false, true]) {
       const f = await fixture();
       const alias = join(f.root, 'alias');

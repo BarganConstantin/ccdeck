@@ -28,6 +28,9 @@ public static class CodexPrivatePath {
   static extern bool CreateDirectoryW(string p, ref SecurityAttributes sa);
   [DllImport("kernel32.dll", SetLastError=true)]
   static extern bool GetFileInformationByHandle(SafeFileHandle h, out FileInfo info);
+  [StructLayout(LayoutKind.Sequential)] struct AttributeTagInfo { public uint Attributes, Tag; }
+  [DllImport("kernel32.dll", SetLastError=true)]
+  static extern bool GetFileInformationByHandleEx(SafeFileHandle h, int type, out AttributeTagInfo info, uint size);
   [DllImport("kernel32.dll", CharSet=CharSet.Unicode, SetLastError=true)]
   static extern uint GetFinalPathNameByHandleW(SafeFileHandle h, StringBuilder b, uint size, uint flags);
   [DllImport("advapi32.dll", SetLastError=true)]
@@ -80,6 +83,18 @@ public static class CodexPrivatePath {
       Require(userAccess);
     } finally { if (descriptor != IntPtr.Zero) LocalFree(descriptor); }
   }
+  public static string SocketGeneration(string path) {
+    // Node/libuv lstat returns EACCES on Windows AF_UNIX entries. Open only
+    // reparse metadata, never follow a symlink/junction or read socket bytes.
+    using (var h = CreateFileW(path, 0x80u, 3, IntPtr.Zero, 3, 0x00200000u | 0x02000000u, IntPtr.Zero)) {
+      Require(!h.IsInvalid);
+      AttributeTagInfo tag; FileInfo info;
+      Require(GetFileInformationByHandleEx(h, 9, out tag, (uint)Marshal.SizeOf(typeof(AttributeTagInfo))));
+      Require((tag.Attributes & 0x400u) != 0 && tag.Tag == 0x80000023u && (tag.Attributes & 0x10u) == 0);
+      Require(GetFileInformationByHandle(h, out info));
+      return info.Volume + ":" + info.IndexHigh + ":" + info.IndexLow + ":" + (uint)info.Created.dwHighDateTime + ":" + (uint)info.Created.dwLowDateTime;
+    }
+  }
   public static void Ensure(string path) {
     // The security descriptor is supplied to creation, never applied afterwards.
     var user = WindowsIdentity.GetCurrent().User;
@@ -113,12 +128,12 @@ public static class CodexPrivatePath {
         $guards.Add($guard)
         $canonical = [CodexPrivatePath]::Canonical($guard)
       } else {
-        # AF_UNIX rendezvous entries are not POSIX sockets in Windows metadata.
-        # Its private pinned directory is the trust boundary, as in codex_uds.
-        if (![IO.File]::Exists($canonical)) { throw 'unsafe' }
+        $generation = [CodexPrivatePath]::SocketGeneration($canonical)
       }
     }
-    [Console]::Out.WriteLine((@{ path = $canonical } | Microsoft.PowerShell.Utility\ConvertTo-Json -Compress))
+    $result = @{ path = $canonical }
+    if ($Kind -eq 'socket') { $result.generation = $generation }
+    [Console]::Out.WriteLine(($result | Microsoft.PowerShell.Utility\ConvertTo-Json -Compress))
     [Console]::Out.Flush()
     if ($Operation -eq 'hold') { $null = [Console]::In.ReadLine() }
   } finally { foreach ($guard in $guards) { $guard.Dispose() } }

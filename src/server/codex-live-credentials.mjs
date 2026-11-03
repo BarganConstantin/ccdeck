@@ -9,6 +9,7 @@ import { performance } from 'node:perf_hooks';
 import { readCodexSelection } from './codex-selection.mjs';
 import { startEngineRpc } from './codex-engine-rpc.mjs';
 import { pathLookup } from './exec-spec.mjs';
+import { holdWindowsPrivatePath } from './codex-windows-private.mjs';
 
 const MAX_AUTH_BYTES = 1024 * 1024;
 const NATIVE_DEADLINE_MS = 7000;
@@ -103,9 +104,10 @@ async function nativeAccount(home, env, executable, startRpc, refresh) {
   return account.account;
 }
 
-function privateFile(info) {
-  if (!info.isFile() || typeof process.getuid !== 'function' || info.uid !== BigInt(process.getuid())
-    || (info.mode & 0o7777n & ~0o600n) !== 0n || info.size > BigInt(MAX_AUTH_BYTES)) fail('credential_file_unsafe');
+function privateFile(info, windows) {
+  if (!info.isFile() || info.size > BigInt(MAX_AUTH_BYTES)
+    || !windows && (typeof process.getuid !== 'function' || info.uid !== BigInt(process.getuid())
+      || (info.mode & 0o7777n & ~0o600n) !== 0n)) fail('credential_file_unsafe');
 }
 function jwtClaims(token) {
   if (typeof token !== 'string' || !/^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/.test(token)) fail('invalid_credentials');
@@ -140,21 +142,27 @@ function credentialFrom(auth, account, profileId) {
 
 /** Server-owned options only. profileId is a roster ID, never a home/path.
  * expiresAt is Unix milliseconds. Native Codex owns any requested refresh.
- * Platforms without POSIX UID/private-mode validation fail closed.
+ * POSIX uses UID/private modes and O_NOFOLLOW; Windows uses pinned private
+ * DACL-validated directory/file handles as its no-follow substitute.
  */
 export async function readLiveCodexCredential(profileId, options = {}) {
-  let phase = 'profile_unavailable';
+  let phase = 'profile_unavailable', profileGuard;
   try {
+    const platform = options.platform ?? process.platform, windows = platform === 'win32';
     if (typeof profileId !== 'string' || !/^[a-f0-9]{20}$/.test(profileId)) fail('unknown_profile');
     const env = { ...(options.env ?? process.env) };
     const selectionOptions = { store: options.store, env };
     const selection = await readCodexSelection(selectionOptions);
     const profile = profileFrom(selection, profileId);
+    if (windows) {
+      try { profileGuard = await holdWindowsPrivatePath(profile.home, { ...options.windowsPrivate, kind: 'directory' }); }
+      catch { fail('credential_file_unsafe'); }
+    }
     const captured = await captureProfile(profile);
     const childEnv = { ...env, CODEX_HOME: captured.canonical };
     for (const key of Object.keys(childEnv)) if (/^(OPENAI_API_KEY|CODEX_API_KEY)$/i.test(key)) delete childEnv[key];
     phase = 'native_unavailable';
-    const executable = options.executable ?? pathLookup('codex', process.platform, { pathEnv: childEnv.PATH ?? childEnv.Path ?? '' });
+    const executable = options.executable ?? pathLookup('codex', platform, { pathEnv: childEnv.PATH ?? childEnv.Path ?? '' });
     if (typeof executable !== 'string' || !executable || executable.includes('\0')) fail('native_unavailable');
     phase = 'native_error';
     // Resolve before entering the profile directory so a relative PATH entry
@@ -165,14 +173,18 @@ export async function readLiveCodexCredential(profileId, options = {}) {
     await revalidateProfile(profile, captured, selection.revision, selectionOptions);
     phase = 'credential_unavailable';
     const file = join(captured.canonical, 'auth.json');
-    const initial = await lstat(file, { bigint: true });
-    privateFile(initial);
-    if (typeof constants.O_NOFOLLOW !== 'number') fail('credential_file_unsafe');
-    let handle;
+    let handle, fileGuard;
     try {
-      handle = await open(file, constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK);
+      if (windows) {
+        try { fileGuard = await holdWindowsPrivatePath(file, { ...options.windowsPrivate, kind: 'file' }); }
+        catch { fail('credential_file_unsafe'); }
+      }
+      const initial = await lstat(file, { bigint: true });
+      privateFile(initial, windows);
+      if (!windows && typeof constants.O_NOFOLLOW !== 'number') fail('credential_file_unsafe');
+      handle = await open(file, constants.O_RDONLY | (windows ? 0 : constants.O_NOFOLLOW | constants.O_NONBLOCK));
       const opened = await handle.stat({ bigint: true });
-      privateFile(opened);
+      privateFile(opened, windows);
       if (!sameFile(initial, opened)) fail('credential_file_changed');
       const bytes = Buffer.alloc(MAX_AUTH_BYTES + 1);
       let length = 0;
@@ -188,8 +200,10 @@ export async function readLiveCodexCredential(profileId, options = {}) {
       const credential = credentialFrom(auth, account, profileId);
       await revalidateProfile(profile, captured, selection.revision, selectionOptions);
       if (!sameFile(opened, await handle.stat({ bigint: true })) || !sameFile(opened, await lstat(file, { bigint: true }))) fail('credential_file_changed');
+      if (windows && (!profileGuard.valid() || !fileGuard.valid())) fail('credential_file_changed');
       if (credential.expiresAt <= Date.now()) fail('credential_expired');
       return credential;
-    } finally { await handle?.close(); }
+    } finally { await handle?.close(); await fileGuard?.release(); }
   } catch (error) { throw sanitized(error, phase); }
+  finally { await profileGuard?.release(); }
 }

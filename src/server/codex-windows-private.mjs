@@ -24,7 +24,7 @@ function command(path, operation, options) {
 function result(stdout) {
   const value = JSON.parse(stdout.replace(/^\uFEFF/, '').trim());
   if (typeof value.path !== 'string' || !value.path || value.path.includes('\0')) throw unsafe();
-  return value.path;
+  return value;
 }
 async function check(path, operation, options) {
   try {
@@ -38,8 +38,13 @@ async function check(path, operation, options) {
  * directories must already be private; their permissions are never repaired.
  * execFile is an async (file, args, options) => { stdout } test seam.
  */
-export const ensureWindowsPrivateDirectory = (path, options = {}) => check(path, 'ensure', { ...options, kind: 'directory' });
-export const assertWindowsPrivatePath = (path, options = {}) => check(path, 'check', options);
+export const ensureWindowsPrivateDirectory = async (path, options = {}) => (await check(path, 'ensure', { ...options, kind: 'directory' })).path;
+export const assertWindowsPrivatePath = async (path, options = {}) => (await check(path, 'check', options)).path;
+export async function inspectWindowsPrivateSocket(path, options = {}) {
+  const value = await check(path, 'check', { ...options, kind: 'socket' });
+  if (typeof value.generation !== 'string' || !/^\d+(?::\d+){4}$/.test(value.generation)) throw unsafe();
+  return value;
+}
 
 /** Pin the checked directory (and a regular file, when requested) until release.
  * The helper holds handles without FILE_SHARE_DELETE; file guards also exclude
@@ -50,7 +55,11 @@ export async function holdWindowsPrivatePath(path, options = {}) {
   try {
     const spec = command(path, 'hold', options);
     child = (options.spawnChild ?? spawn)(spec.file, spec.args, { windowsHide: true, shell: false, stdio: ['pipe', 'pipe', 'ignore'] });
-    const canonical = await new Promise((ready, reject) => {
+    let alive = true;
+    child.on('exit', () => { alive = false; });
+    child.on('error', () => { alive = false; });
+    child.stdin.on('error', () => {});
+    const captured = await new Promise((ready, reject) => {
       let output = '';
       const timer = setTimeout(() => reject(unsafe()), deadline(options));
       const finish = fn => value => { clearTimeout(timer); fn(value); };
@@ -64,14 +73,20 @@ export async function holdWindowsPrivatePath(path, options = {}) {
         }
       });
     });
-    let released = false, expired = false;
+    let released = false, expired = false, releasing;
     const release = () => {
-      if (released) return;
+      if (released) return releasing;
       released = true; clearTimeout(lifetime);
-      child.stdin.destroy(); child.kill();
+      releasing = new Promise(resolve => {
+        if (child.exitCode !== null || child.signalCode !== null) { resolve(); return; }
+        const timer = setTimeout(resolve, 2000);
+        child.once('exit', () => { clearTimeout(timer); resolve(); });
+        child.stdin.destroy(); child.kill();
+      });
+      return releasing;
     };
     const lifetime = setTimeout(() => { expired = true; release(); }, 30000); lifetime.unref();
-    return { path: canonical, valid: () => !released && !expired && child.exitCode === null && child.signalCode === null,
+    return { path: captured.path, generation: captured.generation, valid: () => alive && !released && !expired && child.exitCode === null && child.signalCode === null,
       release };
   } catch { child?.stdin?.destroy(); child?.kill(); throw unsafe(); }
 }

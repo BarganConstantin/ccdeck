@@ -53,7 +53,7 @@ describe.skipIf(process.platform !== 'win32')('Windows token DACL and pinned han
       expect(await readFile(file, 'utf8')).toContain('fictional');
       await expect(rm(file)).rejects.toThrow();
       await expect(writeFile(file, 'replacement')).rejects.toThrow();
-    } finally { guard.release(); }
+    } finally { await guard.release(); }
   }, 30000);
   it('rejects an unsafe existing directory without repairing its ACL, and rejects junctions', async () => {
     const { root, dir } = await fixture();
@@ -63,10 +63,8 @@ describe.skipIf(process.platform !== 'win32')('Windows token DACL and pinned han
     await expect(assertWindowsPrivatePath(alias)).rejects.toMatchObject({ code: 'windows_private_path_unsafe' });
   }, 30000);
   it('rejects an ACL that grants Everyone access', async () => {
-    const { root, dir } = await fixture();
-    const script = join(root, 'grant.ps1');
-    await writeFile(script, `param([string]$TargetPath)\n$ErrorActionPreference='Stop'\n$acl=Get-Acl -LiteralPath $TargetPath\n$sid=New-Object Security.Principal.SecurityIdentifier('S-1-1-0')\n$rule=New-Object Security.AccessControl.FileSystemAccessRule($sid,'ReadAndExecute','ContainerInherit,ObjectInherit','None','Allow')\n$acl.AddAccessRule($rule)\nSet-Acl -LiteralPath $TargetPath -AclObject $acl\n`);
-    await runFile(win32.join(process.env.SystemRoot!, 'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe'), ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', script, '-TargetPath', dir]);
+    const { dir } = await fixture();
+    await runFile(win32.join(process.env.SystemRoot!, 'System32', 'icacls.exe'), [dir, '/grant', '*S-1-1-0:(OI)(CI)RX'], { windowsHide: true, timeout: 5000 });
     await expect(assertWindowsPrivatePath(dir)).rejects.toMatchObject({ code: 'windows_private_path_unsafe' });
   }, 30000);
 });

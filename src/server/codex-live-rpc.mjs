@@ -3,10 +3,12 @@
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { lstat, realpath, stat } from 'node:fs/promises';
-import { dirname, isAbsolute, join, resolve } from 'node:path';
+import { dirname, isAbsolute, join, resolve, win32 } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import WebSocket from 'ws';
 import { pathLookup, spawnSpec } from './exec-spec.mjs';
+import { inspectWindowsPrivateSocket, holdWindowsPrivatePath } from './codex-windows-private.mjs';
+import { createCodexWindowsProxy } from './codex-windows-proxy.mjs';
 
 export const liveError = code => Object.assign(new Error(code), { code });
 const runFile = promisify(execFile);
@@ -16,25 +18,32 @@ function rejection(method, error) {
   return liveError(error?.code === -32601 ? 'unsupported_protocol' : 'native_request_rejected');
 }
 export async function resolveCodexLiveEndpoint(home, options = {}) {
-  if ((options.platform ?? process.platform) === 'win32') throw liveError('unsupported_platform');
+  const platform = options.platform ?? process.platform, windows = platform === 'win32';
   let canonical, advertised;
-  try { canonical = await realpath(home); advertised = join(canonical, 'app-server-control', 'app-server-control.sock'); await lstat(advertised); }
+  try { canonical = await realpath(home); advertised = join(canonical, 'app-server-control', 'app-server-control.sock'); if (!windows) await lstat(advertised); }
   catch { throw liveError('native_not_running'); }
-  const executable = options.executable ?? pathLookup('codex', process.platform, { pathEnv: (options.env ?? process.env).PATH ?? '' });
+  const executable = options.executable ?? pathLookup('codex', platform, { pathEnv: (options.env ?? process.env).PATH ?? (options.env ?? process.env).Path ?? '' });
   if (!executable) throw liveError('cli_unavailable');
   const env = { ...(options.env ?? process.env), CODEX_HOME: canonical };
-  delete env.OPENAI_API_KEY; delete env.CODEX_API_KEY;
+  for (const key of Object.keys(env)) if (/^(OPENAI_API_KEY|CODEX_API_KEY)$/i.test(key)) delete env[key];
   let result;
   try {
-    const spec = spawnSpec(executable, ['app-server', 'daemon', 'version']);
+    const spec = spawnSpec(executable, ['app-server', 'daemon', 'version'], platform);
     const output = await (options.execFile ?? runFile)(spec.file, spec.args, { ...spec.opts, env, timeout: 5000, maxBuffer: 256 * 1024, windowsHide: true });
     result = JSON.parse(output.stdout);
   } catch { throw liveError('native_unavailable'); }
-  if (result.status !== 'running' || !isAbsolute(result.socketPath ?? '') || resolve(result.socketPath) !== advertised) throw liveError('native_not_running');
+  const equalPath = windows ? (a, b) => win32.toNamespacedPath(a).toLowerCase() === win32.toNamespacedPath(b).toLowerCase() : (a, b) => resolve(a) === b;
+  if (result.status !== 'running' || !(windows ? win32.isAbsolute : isAbsolute)(result.socketPath ?? '') || !equalPath(result.socketPath, advertised)) throw liveError('native_not_running');
   const version = String(result.appServerVersion ?? result.managedCodexVersion ?? '');
   const v = version.match(/^(\d+)\.(\d+)\.(\d+)(?:$|[-+])/);
   if (!v || Number(v[1]) === 0 && Number(v[2]) < 166) throw liveError('unsupported_version');
   let socketPath, info, parent;
+  if (windows) {
+    try {
+      const captured = await inspectWindowsPrivateSocket(advertised, { ...options.windowsPrivate, platform });
+      return { home: canonical, socketPath: captured.path, version, generation: captured.generation, executable, transport: 'windows-proxy' };
+    } catch { throw liveError('untrusted_native_socket'); }
+  }
   try { socketPath = await realpath(advertised); info = await lstat(socketPath); parent = await stat(dirname(socketPath)); }
   catch { throw liveError('native_not_running'); }
   const uid = options.uid ?? process.getuid?.();
@@ -43,7 +52,22 @@ export async function resolveCodexLiveEndpoint(home, options = {}) {
 }
 
 export async function connectCodexLiveRpc(endpoint, options = {}) {
-  const ws = new WebSocket(`ws+unix://${endpoint.socketPath}:/`, { handshakeTimeout: 5000, maxPayload: 64 * 1024 * 1024, perMessageDeflate: false });
+  const windows = endpoint.transport === 'windows-proxy';
+  let guard, proxy;
+  if (windows) {
+    try {
+      guard = await holdWindowsPrivatePath(endpoint.socketPath, { ...options.windowsPrivate, kind: 'socket' });
+      if (win32.toNamespacedPath(guard.path).toLowerCase() !== win32.toNamespacedPath(endpoint.socketPath).toLowerCase()) throw liveError('untrusted_native_socket');
+      if (guard.generation !== endpoint.generation) throw liveError('native_endpoint_changed');
+    } catch (error) { await guard?.release(); throw error.code === 'native_endpoint_changed' ? error : liveError('untrusted_native_socket'); }
+  }
+  let ws;
+  try {
+    ws = new WebSocket(windows ? 'ws://localhost/' : `ws+unix://${endpoint.socketPath}:/`, {
+      handshakeTimeout: 5000, maxPayload: 64 * 1024 * 1024, perMessageDeflate: false,
+      ...(windows ? { createConnection: () => { proxy = createCodexWindowsProxy(endpoint, options); return proxy; } } : {}),
+    });
+  } catch { await guard?.release(); proxy?.destroy(); throw liveError('native_connection_failed'); }
   const pending = new Map(), prefix = `ccdeck-live-${randomUUID()}-`;
   let serial = 0, closing = false;
   const rejectPending = () => {
@@ -83,14 +107,16 @@ export async function connectCodexLiveRpc(endpoint, options = {}) {
         catch (e) { pending.delete(id); clearTimeout(timer); reject(e); }
       });
     },
-    close() { closing = true; rejectPending(); ws.close(); const timer = setTimeout(() => ws.terminate(), 500); timer.unref(); },
+    close() { closing = true; rejectPending(); ws.close(); const timer = setTimeout(() => { ws.terminate(); proxy?.destroy(); }, 500); timer.unref(); },
   };
   try {
     await new Promise((ready, reject) => { ws.once('open', ready); ws.once('error', () => reject(liveError('native_connection_failed'))); });
-    const after = await lstat(endpoint.socketPath);
-    if (`${after.dev}:${after.ino}:${after.ctimeMs}` !== endpoint.generation) throw liveError('native_endpoint_changed');
+    const after = windows ? await inspectWindowsPrivateSocket(endpoint.socketPath, options.windowsPrivate) : await lstat(endpoint.socketPath);
+    if ((windows ? after.generation : `${after.dev}:${after.ino}:${after.ctimeMs}`) !== endpoint.generation) throw liveError('native_endpoint_changed');
+    if (guard && !guard.valid()) throw liveError('untrusted_native_socket');
     await rpc.request('initialize', { clientInfo: { name: 'ccdeck', title: 'ccdeck', version: '3.53.1' }, capabilities: { experimentalApi: true } });
     send({ method: 'initialized', params: {} });
     return rpc;
   } catch (error) { rpc.close(); throw error; }
+  finally { await guard?.release(); }
 }
