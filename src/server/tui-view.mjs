@@ -24,6 +24,9 @@ import {
 } from "./cli-lines.mjs";
 import { accountKey } from "./lan-copies.mjs";
 import { fg, link, sinceLabel, spinnerFrames, stripAnsi } from "./term.mjs";
+import {
+  CODEX_LOGIN_FAILED, codexMenuItems, codexNameTrouble, codexRows, hasCodex,
+} from "./tui-codex.mjs";
 import { machinePanel } from "./tui-machine.mjs";
 
 /** Text from elsewhere — the deck's own sentences, an alias — on a console
@@ -61,7 +64,13 @@ export function initialState() {
     busy: null,         // { text, since } while a switch or a start is under way
     starting: false,
     signin: null,       // the sign-in page while it is up (openSignin)
-    menu: null,         // an account's menu while it is up: { num, view, at, draft, error }
+    menu: null,         // an account's menu while it is up: { num, id, view, at, draft, error }
+    side: "claude",     // "claude" | "codex": whose accounts the list shows
+    codex: null,        // GET /api/codex-profiles, or null: no Codex side to show
+    codexQuota: {},     // each Codex account's GET /api/codex-profile-quota answer, by id
+    codexAuto: null,    // GET /api/codex-auto, or null
+    codexAt: null,      // the selected Codex account, by index; null until the side is first shown
+    codexSignin: null,  // the Codex sign-in page while it is up: { id, name, adding, started, login }
   };
 }
 
@@ -70,20 +79,60 @@ export function note(tone, text, now) {
   return { tone, text, until: tone === "err" || tone === "warn" ? null : now + NOTICE_MS };
 }
 
-const accountsOf = (state) => (state.roster?.ok && Array.isArray(state.roster.accounts) ? state.roster.accounts : []);
+const claudeRowsOf = (state) => (state.roster?.ok && Array.isArray(state.roster.accounts) ? state.roster.accounts : []);
 
-/** Auto-switch's home account, by slot, or null. */
+/** Whether the list shows the Codex accounts. */
+export const onCodex = (state) => state.side === "codex";
+
+/** The rows of the side on screen. `now` only ages the Codex readings. */
+const accountsOf = (state, now = null) => (onCodex(state) ? codexRows(state, now) : claudeRowsOf(state));
+
+/** The selected row's index on the side on screen. */
+const atOf = (state) => (onCodex(state) ? state.codexAt ?? 0 : state.at);
+
+/** The selection moved to index `i` on the side on screen. */
+const withAt = (state, i) => (onCodex(state) ? { ...state, codexAt: i } : { ...state, at: i });
+
+/** The row an open menu is about: a Codex account by its id, which keeps
+ *  when the list's order does not; a Claude one by its slot. */
+const menuRow = (state, m) => accountsOf(state).find(a => (m.id != null ? a.id === m.id : a.num === m.num)) ?? null;
+
+/** Auto-switch's home account, by slot, or null. Codex has no home. */
 export function homeSlot(state) {
+  if (onCodex(state)) return null;
   const home = state.auto?.choice?.home;
   if (!home || typeof home.email !== "string") return null;
   const key = accountKey(home.email, home.orgUuid);
-  return accountsOf(state).find(a => accountKey(a.email, a.orgUuid) === key)?.num ?? null;
+  return claudeRowsOf(state).find(a => accountKey(a.email, a.orgUuid) === key)?.num ?? null;
 }
 
-/** The selection moved onto the account in slot `num`, if there is one. */
+/** The selection moved onto the Claude account in slot `num`, if there is one. */
 export function selectSlot(state, num) {
-  const i = accountsOf(state).findIndex(a => a.num === num);
+  const i = claudeRowsOf(state).findIndex(a => a.num === num);
   return i === -1 ? state : { ...state, at: i };
+}
+
+/** The selection moved onto the Codex account `id`, if there is one. */
+export function selectCodex(state, id) {
+  const i = codexRows(state).findIndex(a => a.id === id);
+  return i === -1 ? state : { ...state, codexAt: i };
+}
+
+/**
+ * The deck's Codex accounts in place of the old answer, the selection kept on
+ * the account it was on, or — until the side has been shown — put on the
+ * default. An answer with no accounts leaves the side; a side left showing
+ * goes back to Claude's.
+ */
+export function withCodex(state, codex) {
+  const before = state.codexAt == null ? null : codexRows(state)[state.codexAt]?.id ?? null;
+  const next = { ...state, codex };
+  const rows = codexRows(next);
+  if (!rows.length) return { ...next, codexAt: null, side: onCodex(state) && !codex ? "claude" : state.side };
+  const kept = before == null ? -1 : rows.findIndex(a => a.id === before);
+  if (kept !== -1) return { ...next, codexAt: kept };
+  if (state.codexAt == null) return { ...next, codexAt: null };
+  return { ...next, codexAt: Math.max(0, Math.min(state.codexAt, rows.length - 1)) };
 }
 
 /**
@@ -92,9 +141,9 @@ export function selectSlot(state, num) {
  * on the first read, put on the account in use.
  */
 export function withRoster(state, roster, trouble = null) {
-  const before = accountsOf(state)[state.at]?.num;
+  const before = claudeRowsOf(state)[state.at]?.num;
   const next = { ...state, roster, trouble };
-  const rows = accountsOf(next);
+  const rows = claudeRowsOf(next);
   const kept = before == null ? -1 : rows.findIndex(a => a.num === before);
   const at = kept !== -1 ? kept : Math.max(0, rows.findIndex(a => a.active));
   return { ...next, at: Math.min(at, Math.max(0, rows.length - 1)) };
@@ -133,6 +182,7 @@ export function tuiKey(state, str, key = {}, { now = 0, g } = {}) {
   if (key.ctrl && name === "c") return { state, effect: { type: "quit" } };
   if (key.ctrl && name === "l") return { state, effect: { type: "redraw" } };
   if (state.signin) return signinKey(state, str, key, { now, g });
+  if (state.codexSignin) return codexSigninKey(state, str, key, { now, g });
   // Help is a page over the view: any key puts the view back, and the key is
   // spent doing it — q there closes the page, it does not quit.
   if (state.help) return { state: { ...state, help: false }, effect: null };
@@ -141,31 +191,37 @@ export function tuiKey(state, str, key = {}, { now = 0, g } = {}) {
   if (str === "?") return { state: { ...state, help: true }, effect: null };
 
   const rows = accountsOf(state);
+  const at = atOf(state);
   const s = { ...state, notice: null };
-  const go = (at) => ({ state: { ...s, at }, effect: null });
+  const go = (i) => ({ state: withAt(s, i), effect: null });
   const last = Math.max(0, rows.length - 1);
-  if (name === "up" || str === "k") return go(rows.length ? (state.at - 1 + rows.length) % rows.length : 0);
-  if (name === "down" || str === "j" || (name === "tab" && !key.shift)) return go(rows.length ? (state.at + 1) % rows.length : 0);
+  if (name === "up" || str === "k") return go(rows.length ? (at - 1 + rows.length) % rows.length : 0);
+  if (name === "down" || str === "j" || (name === "tab" && !key.shift)) return go(rows.length ? (at + 1) % rows.length : 0);
   if (name === "home" || str === "g") return go(0);
   if (name === "end" || str === "G") return go(last);
-  if (name === "pageup") return go(Math.max(0, state.at - 5));
-  if (name === "pagedown") return go(Math.min(last, state.at + 5));
+  if (name === "pageup") return go(Math.max(0, at - 5));
+  if (name === "pagedown") return go(Math.min(last, at + 5));
   if (/^[1-9]$/.test(str ?? "")) {
     const i = rows.findIndex(a => a.num === Number(str));
     return i === -1 ? { state: s, effect: null } : go(i);
   }
-  if (name === "return" || name === "enter" || str === "s") return switchKey(s, rows[state.at], { now, g });
+  // Claude's accounts or Codex's: c turns the list over, the arrows pick a side.
+  if (str === "c" || name === "left" || name === "right") return sideKey(s, str === "c" ? null : name === "right" ? "codex" : "claude", { now, g });
+  if (name === "return" || name === "enter" || str === "s") {
+    return onCodex(state) ? codexSwitchKey(s, rows[at], { now, g }) : switchKey(s, rows[at], { now, g });
+  }
   if (str === "b") {
     if (!rows.length) return { state: s, effect: null };
-    return { state: s, effect: { type: "best" } };
+    return onCodex(state) ? codexBestKey(s, rows, { now, g }) : { state: s, effect: { type: "best" } };
   }
   if (str === "a") return autoKey(s, { now, g });
-  if (str === "+") return addKey(s, { now, g });
+  if (str === "+") return onCodex(state) ? codexAddKey(s, { now, g }) : addKey(s, { now, g });
   // The account's own actions: the menu, or one of them straight from the list.
-  const row = rows[state.at];
+  const row = rows[at];
   if (row && (str === "m" || str === ".")) return menuOpen(s, row, "menu", { now, g });
   if (row && ACTION_KEYS[str] && !key.ctrl && !key.meta) return menuAct(s, row, ACTION_KEYS[str], { now, g });
   if (row && name === "delete") return menuAct(s, row, "remove", { now, g });
+  if (row?.codex && str === "i") return menuAct(s, row, "signin", { now, g });
   if (str === "r") return { state: s, effect: { type: "refresh" } };
   if (str === "t") {
     if (!state.deck) return { state: s, effect: null };
@@ -203,10 +259,90 @@ function switchKey(state, row, { now, g }) {
 
 function autoKey(state, { now, g }) {
   const told = (tone, text) => ({ state: { ...state, notice: note(tone, text, now) }, effect: null });
-  if (!state.deck) return told("info", `Auto-switch runs inside the deck ${g.dash} d starts one`);
+  const codex = onCodex(state);
+  const what = codex ? "Codex Auto-switch" : "Auto-switch";
+  const auto = codex ? state.codexAuto : state.auto;
+  if (!state.deck) return told("info", `${what} runs inside the deck ${g.dash} d starts one`);
   if (state.busy) return told("info", `${state.busy.text} ${g.dash} one thing at a time`);
-  if (!state.auto) return told("info", `the deck has not said whether Auto-switch is on yet`);
-  return { state, effect: { type: "auto", enabled: state.auto.enabled !== true } };
+  if (!auto) return told("info", `the deck has not said whether ${what} is on yet`);
+  return { state, effect: { type: "auto", enabled: auto.enabled !== true, codex } };
+}
+
+// ── the Codex side ──────────────────────────────────────────────────────────
+
+/** The list turned to `side`, or over when `side` is null. The arrows reach
+ *  the Codex side once the deck has a Codex account; c, asked for by name,
+ *  once the deck answers for Codex at all — to add the first one. */
+function sideKey(state, side, { now, g }) {
+  const to = side ?? (onCodex(state) ? "claude" : "codex");
+  if (to === state.side) return { state, effect: null };
+  if (to === "codex" && !(side ? hasCodex(state) : state.deck && state.codex)) {
+    if (side) return { state, effect: null };
+    const why = state.deck ? `this deck does not serve Codex accounts ${g.dash} an update of ccdeck brings them` : `the Codex accounts are the deck's ${g.dash} d starts one`;
+    return { state: { ...state, notice: note("info", why, now) }, effect: null };
+  }
+  const next = { ...state, side: to, top: 0 };
+  // The first look at the Codex side lands on the account Codex runs on.
+  if (to === "codex" && state.codexAt == null) next.codexAt = Math.max(0, codexRows(state).findIndex(a => a.active));
+  return { state: next, effect: null };
+}
+
+/** Enter on a Codex account: make it the default, or sign in an account that
+ *  has no login to switch to. */
+function codexSwitchKey(state, row, { now, g }) {
+  if (!row) return { state, effect: null };
+  const told = (tone, text) => ({ state: { ...state, notice: note(tone, text, now) }, effect: null });
+  if (state.busy) return told("info", `${state.busy.text} ${g.dash} one thing at a time`);
+  if (!state.deck) return told("info", `Codex accounts switch through the deck ${g.dash} d starts one`);
+  if (row.issue?.blocks) {
+    if (row.issue.fix) return codexSigninOpen(state, row);
+    return told("err", `${accountName(row)}: ${row.issue.word} ${g.dash} ${row.issue.hint}`);
+  }
+  if (row.active) return told("ok", `Codex already runs on ${accountName(row)}`);
+  return { state, effect: { type: "switch", account: row } };
+}
+
+/** b on the Codex side: the account with the most room left, the deck's own
+ *  "next" for Codex Auto-switch — selected, for enter to switch. */
+function codexBestKey(state, rows, { now, g }) {
+  const can = rows.filter(r => !r.issue?.blocks && !r.disabled && r.headroom != null);
+  if (!can.length) return { state: { ...state, notice: note("err", `no Codex account has a reading of its room ${g.dash} every one is held out, signed out or unread`, now) }, effect: null };
+  const best = can.reduce((a, b) => (b.headroom > a.headroom || (b.headroom === a.headroom && b.active) ? b : a));
+  const at = rows.indexOf(best);
+  if (best.active) return { state: { ...state, codexAt: at, notice: note("ok", `Codex already runs on the most room: ${accountName(best)}`, now) }, effect: null };
+  return { state: { ...state, codexAt: at, notice: note("info", `enter switches Codex to ${accountName(best)} ${g.dash} the most room`, now) }, effect: null };
+}
+
+function codexAddKey(state, { now, g }) {
+  const told = (tone, text) => ({ state: { ...state, notice: note(tone, text, now) }, effect: null });
+  if (!state.deck) return told("info", `Codex accounts are added through the deck ${g.dash} d starts one`);
+  if (state.busy) return told("info", `${state.busy.text} ${g.dash} one thing at a time`);
+  return codexSigninOpen(state, null);
+}
+
+/** The Codex sign-in page, for `row` in place or for a new account. */
+function codexSigninOpen(state, row) {
+  return { state: { ...state, menu: null, codexSignin: { id: row?.id ?? null, name: row ? accountName(row) : null, adding: !row, started: false, login: null } }, effect: null };
+}
+
+/** The keys while the Codex sign-in page is up. Nothing is typed here: the
+ *  code goes into the browser's page. */
+function codexSigninKey(state, str, key, { now, g }) {
+  const si = state.codexSignin;
+  const name = key.name ?? "";
+  const enter = name === "return" || name === "enter";
+  const back = name === "escape" || str === "q";
+  const stay = { state, effect: null };
+  const close = (effect = null) => ({ state: { ...state, codexSignin: null }, effect });
+  const login = si.login?.state;
+  if (!si.started || login === "failed" || login === "expired" || login === "cancelled") {
+    if (enter) return { state: { ...state, codexSignin: { ...si, started: true, login: null } }, effect: { type: "codex-signin-start" } };
+    return back ? close() : stay;
+  }
+  if (login === "done") return enter || back ? close({ type: "codex-signin-done" }) : stay;
+  // Leaving while it runs lets the deck's codex login go: no process stays behind.
+  if (back) return close(si.id ? { type: "codex-signin-cancel", id: si.id } : null);
+  return stay;
 }
 
 function addKey(state, { now, g }) {
@@ -237,8 +373,10 @@ const ACTION_KEYS = Object.freeze({ n: "rename", v: "move", o: "hold", h: "home"
 /** What claude-swap takes as an alias (cswap-admin.mjs ALIAS_OK). */
 const ALIAS_OK = /^(?!-)[A-Za-z0-9 ._-]{1,64}$/;
 
-/** The menu's items for `row`, in the deck's order. */
+/** The menu's items for `row`, in the deck's order — the Codex panel's, for
+ *  a Codex account. */
 export function menuItems(state, row) {
+  if (row.codex) return codexMenuItems(row);
   const home = homeSlot(state) === row.num;
   const dead = !switchable(row) && !row.disabled;
   return [
@@ -257,13 +395,22 @@ function menuOpen(state, row, view, { now, g }) {
   }
   if (state.busy) return { state: { ...state, notice: note("info", `${state.busy.text} ${g.dash} one thing at a time`, now) }, effect: null };
   const draft = view === "rename" ? oneLine(row.alias) : "";
-  return { state: { ...state, menu: { num: row.num, view, at: 0, draft, error: null } }, effect: null };
+  return { state: { ...state, menu: { num: row.num, id: row.codex ? row.id : null, view, at: 0, draft, error: null } }, effect: null };
 }
 
 /** An item chosen, from the menu or from the list. */
 function menuAct(state, row, id, { now, g }) {
-  if (id === "switch") return switchKey({ ...state, menu: null }, row, { now, g });
+  if (row.codex) {
+    if (id === "switch") return codexSwitchKey({ ...state, menu: null }, row, { now, g });
+    // Codex has no slots and no home: the keys say so rather than nothing.
+    if (id === "move") return { state: { ...state, notice: note("info", `Codex accounts have no slots ${g.dash} the list is the deck's order`, now) }, effect: null };
+    if (id === "home") return { state: { ...state, notice: note("info", `Codex Auto-switch has no home account`, now) }, effect: null };
+    if (id === "remove" && !row.managed) {
+      return { state: { ...state, notice: note("info", `${accountName(row)} is Codex's own login ${g.dash} only accounts added in the deck can be removed`, now) }, effect: null };
+    }
+  } else if (id === "switch") return switchKey({ ...state, menu: null }, row, { now, g });
   if (!state.deck || state.busy) return menuOpen(state, row, "menu", { now, g });
+  if (id === "signin" && row.codex) return codexSigninOpen(state, row);
   if (id === "rename" || id === "move" || id === "remove") {
     const open = menuOpen(state, row, id, { now, g });
     // Back from a form lands on the item it came from.
@@ -287,7 +434,7 @@ function menuAct(state, row, id, { now, g }) {
 function menuKey(state, str, key, { now, g }) {
   const name = key.name ?? "";
   const m = state.menu;
-  const row = accountsOf(state).find(a => a.num === m.num);
+  const row = menuRow(state, m);
   // The account went — removed, or moved by somebody else — and the menu with it.
   if (!row) return { state: { ...state, menu: null }, effect: null };
   // While the deck works on what was asked, the menu waits for its answer.
@@ -323,13 +470,13 @@ function menuKey(state, str, key, { now, g }) {
   if (m.view === "rename") {
     if (enter) {
       const alias = m.draft.trim();
-      if (alias && !ALIAS_OK.test(alias)) {
-        return set({ error: "letters, digits, spaces and . _ - only, up to 64, not starting with -" });
-      }
+      const trouble = row.codex ? codexNameTrouble(alias)
+        : alias && !ALIAS_OK.test(alias) ? "letters, digits, spaces and . _ - only, up to 64, not starting with -" : null;
+      if (trouble) return set({ error: trouble });
       if (alias === oneLine(row.alias)) return { state: { ...state, menu: null }, effect: null };
       return { state, effect: { type: "alias", account: row, alias } };
     }
-    if (typed) return set({ draft: (m.draft + str).slice(0, 64), error: null });
+    if (typed) return set({ draft: (m.draft + str).slice(0, row.codex ? 80 : 64), error: null });
     return { state, effect: null };
   }
   if (m.view === "move") {
@@ -402,8 +549,8 @@ export function tuiFrame(state, { columns = 80, rows = 24, tone, g, unicode = tr
     return { lines: fill([`${tone.muted}too small ${g.dash} ${MIN_COLUMNS}${times}${MIN_ROWS} at least${tone.reset}`]), top: state.top, run: null };
   }
   const look = { tone, g, unicode, now, links, skin: skinOf(profile ?? (tone.reset ? "ansi16" : "none")) };
-  if (state.signin) {
-    const page = signinLines(state, rows - 3, width, columns, look);
+  if (state.signin || state.codexSignin) {
+    const page = state.signin ? signinLines(state, rows - 3, width, columns, look) : codexSigninLines(state, rows - 3, width, columns, look);
     const run = page.run ? { ...page.run, row: page.run.row + 1 } : null;
     const lines = [titleBar(state, width, look), ...page.lines, noticeLine(state, look), footerLine(state, width, look)];
     return { lines: fill(lines, run), top: state.top, run };
@@ -521,7 +668,14 @@ function gauge(pct, width, { tone, unicode, skin }) {
 const LIVE_MS = 10_000;
 
 function titleBar(state, width, { tone, g, unicode, now, skin }) {
-  const left = `  ${tone.accent}${tone.bold}ccdeck${tone.reset}  ${tone.bold}Claude accounts${tone.reset}`;
+  // Claude | Codex, the side shown lit, once the deck has a Codex side: a
+  // tab where the colours draw one, brackets where they do not.
+  const tab = (label, lit) => (lit
+    ? skin.select ? onBg(`${tone.bold} ${label} `, skin.select) : `${tone.bold}[${label}]${tone.reset}`
+    : `${tone.muted} ${label} ${tone.reset}`);
+  const sides = hasCodex(state) || onCodex(state);
+  const what = sides ? `${tab("Claude", !onCodex(state))}${tab("Codex", onCodex(state))}` : `${tone.bold}Claude accounts${tone.reset}`;
+  const left = `  ${tone.accent}${tone.bold}ccdeck${tone.reset}  ${what}`;
   let right = "";
   if (state.deck) {
     const ago = state.readAt == null ? null : now - state.readAt;
@@ -554,10 +708,11 @@ function noticeLine(state, { tone, g, unicode, now }) {
 /** The keys, as many as fit, the ones that leave and explain kept to the last.
  *  Each key is a cap where the terminal can draw one. */
 function footerLine(state, width, { tone, unicode, skin }) {
-  const keys = state.signin ? signinKeys(state.signin) : [
+  const keys = state.signin ? signinKeys(state.signin) : state.codexSignin ? codexSigninKeys(state.codexSignin) : [
     [unicode ? "↑↓" : "up/down", "move"],
     ["enter", "switch"],
     ["m", "actions"],
+    ...(hasCodex(state) || onCodex(state) ? [["c", onCodex(state) ? "Claude" : "Codex"]] : []),
     ["b", "best"],
     state.deck ? ["a", "auto-switch"] : ["d", "start the deck"],
     ["+", "add"],
@@ -570,7 +725,7 @@ function footerLine(state, width, { tone, unicode, skin }) {
   const list = keys.slice();
   // r goes first, then the moves, then b: the screen says what they do, and ?
   // and q are how to find out and how to leave.
-  for (const drop of ["r", unicode ? "↑↓" : "up/down", "b", "+", "a", "d", "m", "enter"]) {
+  for (const drop of ["r", unicode ? "↑↓" : "up/down", "b", "+", "a", "d", "m", "c", "enter"]) {
     if (textWidth(draw(list)) <= width) break;
     const i = list.findIndex(([k]) => k === drop);
     if (i !== -1) list.splice(i, 1);
@@ -582,13 +737,19 @@ function footerLine(state, width, { tone, unicode, skin }) {
 
 function bodyLines(state, room, width, look) {
   const { tone, g, unicode } = look;
-  const rows = accountsOf(state);
+  const rows = accountsOf(state, look.now);
   const home = homeSlot(state);
-  const selected = rows[state.at] ?? null;
+  const at = atOf(state);
+  const selected = rows[at] ?? null;
   const inner = width - 4;
 
   let accounts;
-  if (!state.roster) accounts = [`${tone.muted}reading the accounts${g.ellipsis}${tone.reset}`];
+  if (onCodex(state)) {
+    accounts = !state.deck ? [`${tone.muted}the Codex accounts are the deck's ${g.dash} d starts one${tone.reset}`]
+      : !state.codex ? [`${tone.muted}reading the Codex accounts${g.ellipsis}${tone.reset}`]
+      : !rows.length ? [`${tone.muted}no Codex accounts yet ${g.dash} + signs one in${tone.reset}`]
+      : accountRows(rows, { home: null, at, width: inner }, look);
+  } else if (!state.roster) accounts = [`${tone.muted}reading the accounts${g.ellipsis}${tone.reset}`];
   else if (!state.roster.ok && state.roster.reason === "no_accounts" && state.deck) {
     accounts = [`${tone.muted}no Claude accounts yet ${g.dash} + signs one in${tone.reset}`];
   } else if (!state.roster.ok) {
@@ -596,8 +757,8 @@ function bodyLines(state, room, width, look) {
     accounts = [].concat(state.trouble ?? "could not read the accounts")
       .flatMap((l, i) => wrap(String(l), inner).map(part => `${i ? tone.muted : tone.warn}${part}${tone.reset}`));
   } else if (!rows.length) accounts = [`${tone.muted}no Claude accounts yet${tone.reset}`];
-  else accounts = accountRows(rows, { home, at: state.at, width: inner }, look);
-  const listed = rows.length > 0 && Boolean(state.roster?.ok);
+  else accounts = accountRows(rows, { home, at, width: inner }, look);
+  const listed = rows.length > 0 && (onCodex(state) || Boolean(state.roster?.ok));
   const auto = autoSummary(state, look);
   const waiting = waitingOf(state);
 
@@ -608,12 +769,12 @@ function bodyLines(state, room, width, look) {
     let shown = accounts;
     let where = "";
     if (shownRows < accounts.length) {
-      top = listed ? Math.min(Math.max(0, state.top, state.at - shownRows + 1), state.at, accounts.length - shownRows) : 0;
+      top = listed ? Math.min(Math.max(0, state.top, at - shownRows + 1), at, accounts.length - shownRows) : 0;
       shown = accounts.slice(top, top + shownRows);
       if (listed) where = `${tone.muted}${top + 1}${unicode ? "–" : "-"}${top + shown.length} of ${accounts.length}${tone.reset}`;
     }
     const lines = panel(width, height, {
-      title: `${tone.bold}Accounts${tone.reset}`, footLeft: where, footRight: auto, lines: shown, selected: listed ? state.at - top : -1,
+      title: `${tone.bold}Accounts${tone.reset}`, footLeft: where, footRight: auto, lines: shown, selected: listed ? at - top : -1,
     }, look);
     return { lines, top };
   };
@@ -765,7 +926,7 @@ function accountRows(rows, { home, at, width }, look) {
     const held = !showHeld ? "" : a.disabled ? `${tone.warn}${HELD_MARK[unicode ? 1 : 0]}${tone.reset} ` : "  ";
     const alias = pick.alias ? `${tone.accent}${padEnd(clip(aliasOf(a), aliasW, g.ellipsis), aliasW)}${tone.reset}  ` : "";
     const email = `${a.disabled ? tone.muted : ""}${padEnd(clip(emailOf(a), emailW, g.ellipsis), emailW)}${tone.reset}`;
-    const trouble = accountTrouble({ ...a, disabled: false });
+    const trouble = troubleOf(a);
     const status = trouble ? `${tone[trouble.tone]}${trouble.word}${tone.reset}` : laneCells(a, pick, labelW, look);
     return `${pointer} ${mark} ${num} ${house}${held}${alias}${email}  ${status}`;
   });
@@ -792,6 +953,16 @@ const TROUBLE_SAYS = {
   "not collecting usage": "nothing has been read for it in half a day, so these are its last numbers",
 };
 
+/** What is wrong with a row, for the list and the detail: a Codex account's
+ *  issue, or what a Claude account's trouble is called. */
+const troubleOf = (a) => (a.codex ? (a.issue ? { word: a.issue.word, tone: a.issue.tone } : null) : accountTrouble({ ...a, disabled: false }));
+
+/** The deck's hint, run on after a dash: its first letter small. */
+const sentenceLower = (s) => (s ? s[0].toLowerCase() + s.slice(1) : "");
+
+/** A Codex plan as its name reads: Plus, Pro, Team. */
+const planWord = (plan) => oneLine(plan).replace(/^./, c => c.toUpperCase());
+
 /** What holding an account out means, the deck's own word for it. */
 const HELD_SAYS = "held out of rotation — Auto-switch passes over it; enter still switches to it, o puts it back";
 
@@ -803,13 +974,14 @@ function detailPanel(a, home, width, look) {
     a.active ? `${tone.ok}in use${tone.reset}` : "",
     a.num === home ? `${tone.accent}home${tone.reset}` : "",
     a.disabled ? `${tone.warn}held out${tone.reset}` : "",
+    a.plan ? `${tone.muted}${planWord(a.plan)}${tone.reset}` : "",
   ].filter(Boolean);
   const read = a.fetchedAt != null ? `${a.stale ? tone.warn : tone.muted}read ${sinceLabel(now - a.fetchedAt)} ago${tone.reset}` : "";
   const note = [[...tags, read].filter(Boolean).join(sep), tags.join(sep)];
   const title = `${tone.bold}${accountName(a)}${tone.reset}`;
-  const trouble = accountTrouble({ ...a, disabled: false });
+  const trouble = troubleOf(a);
   const said = [
-    ...(trouble ? wrap(`${trouble.word} ${g.dash} ${TROUBLE_SAYS[trouble.word] ?? ""}`, width).map(l => `${tone[trouble.tone]}${l}${tone.reset}`) : []),
+    ...(trouble ? wrap(`${trouble.word} ${g.dash} ${a.codex ? sentenceLower(a.issue.hint) : TROUBLE_SAYS[trouble.word] ?? ""}`, width).map(l => `${tone[trouble.tone]}${l}${tone.reset}`) : []),
     ...(a.disabled ? wrap(HELD_SAYS.replace("—", g.dash), width).map(l => `${tone.muted}${l}${tone.reset}`) : []),
   ];
   const lanes = a.lanes ?? [];
@@ -842,7 +1014,7 @@ const NEXT_WORDS = { room: "most room", weekly: "soonest weekly reset" };
 
 /** Auto-switch in the list's bottom border, longest first. */
 function autoSummary(state, { tone, g }) {
-  const auto = state.deck ? state.auto : null;
+  const auto = !state.deck ? null : onCodex(state) ? state.codexAuto : state.auto;
   if (!auto || auto.ok === false) return "";
   const sep = ` ${g.bullet} `;
   const external = auto.external ? `${sep}${tone.warn}your own cswap auto is running${tone.reset}` : "";
@@ -1207,6 +1379,94 @@ function signinLines(state, room, width, columns, look) {
   return out(lines, run && run.row + run.rows <= room ? run : null);
 }
 
+// ── the Codex sign-in ───────────────────────────────────────────────────────
+
+/** The footer's keys while the Codex sign-in page is up. */
+function codexSigninKeys(si) {
+  const login = si.login?.state;
+  if (!si.started) return [["enter", "get the code"], ["esc", "back"]];
+  if (login === "done") return [["enter", "done"]];
+  if (login === "failed" || login === "expired" || login === "cancelled") return [["enter", "try again"], ["esc", "back"]];
+  return [["esc", "cancel"]];
+}
+
+/**
+ * The Codex sign-in, a page of its own: what it does before it starts, then
+ * the link — edge to edge, so the terminal makes it one link — and the code
+ * to type on the page it opens, until codex says the sign-in is done.
+ */
+function codexSigninLines(state, room, width, columns, look) {
+  const { tone, g, unicode, now, links } = look;
+  const si = state.codexSignin;
+  const inner = width - 4;
+  const title = `${tone.bold}${si.adding ? "Add a Codex account" : `Sign in: ${oneLine(si.name)}`}${tone.reset}`;
+  const quiet = (l) => `${tone.muted}${l}${tone.reset}`;
+  const say = (text, t = tone.muted) => wrap(text, width - 2).map(l => `  ${t}${l}${tone.reset}`);
+  const out = (lines, run = null) => ({ lines: [...lines, ...pad(room - lines.length)].slice(0, room), run });
+  const box = (lines, note = "") => panel(width, Math.min(room, lines.length + 2), { title, note, lines }, look);
+  const login = si.login ?? {};
+
+  if (!si.started) {
+    return out(box([
+      ...wrap(`codex on this machine makes a sign-in link and a one-time code. Open the link in any browser ${g.dash} a phone works ${g.dash} and type the code there. It finishes by itself.`, inner),
+      "",
+      ...wrap(si.adding
+        ? "The deck adds a new account for it. Codex keeps running on the account it runs on now."
+        : "Signing in replaces this account's login in place: it keeps its name, settings and history.", inner),
+    ].map(quiet)));
+  }
+  const frames = spinnerFrames(unicode);
+  const spin = frames[Math.floor(now / 100) % frames.length];
+  if (login.state === "done") {
+    const who = oneLine(si.account);
+    return out(box([
+      `${tone.ok}${g.ok}${tone.reset}  ${tone.bold}Signed in${tone.reset}${who ? quiet(` as ${who}`) : ""}`,
+      ...wrap(si.adding ? "The account is in the list. Codex keeps running on the account it ran on." : "Its login is replaced; the account keeps its name, settings and history.", inner - 3).map(l => quiet(`   ${l}`)),
+    ]));
+  }
+  if (login.state === "failed" || login.state === "expired" || login.state === "cancelled") {
+    const why = CODEX_LOGIN_FAILED[login.reason] ?? (login.state === "cancelled" ? "the sign-in was cancelled" : oneLine(login.reason) || "the deck gave no reason");
+    return out(box(wrap(sentence(why), inner - 3).map((l, i) => `${tone.err}${i ? "   " : `${g.fail}  `}${l}${tone.reset}`)));
+  }
+  const url = safeLink(login.url);
+  const code = oneLine(login.code);
+  if (login.state !== "waiting" || !code) {
+    return out(box([`${tone.accent}${spin}${tone.reset}  ${quiet(`asking codex on this machine for a sign-in code${g.ellipsis}`)}`]));
+  }
+
+  const left = typeof login.expiresAt === "number" ? Math.ceil((login.expiresAt - (now + (state.skew ?? 0))) / 60_000) : null;
+  const clock = left >= 1 ? quiet(`${left} min left`) : "";
+  const pieces = [];
+  if (url) for (let i = 0; i < url.length; i += columns) pieces.push(url.slice(i, i + columns));
+  const blocks = {
+    box: [...box([`${tone.accent}${spin}${tone.reset}  waiting for the code to be entered`], clock), ""],
+    open: say("Open this link in any browser:", ""),
+    link: url ? pieces : say(`the deck's sign-in link could not be shown ${g.dash} sign in from its Accounts panel`, tone.warn),
+    gap: [""],
+    enter: say("and type this code on its page:", ""),
+    code: [`    ${tone.accent}${tone.bold}${code}${tone.reset}`],
+    after: ["", ...say("It finishes by itself once the page takes the code. Nothing is typed here.")],
+  };
+  const order = ["box", "open", "link", "gap", "enter", "code", "after"];
+  const shownBlocks = new Set(order);
+  const height = () => order.filter(b => shownBlocks.has(b)).reduce((n, b) => n + blocks[b].length, 0);
+  for (const drop of ["after", "gap", "box"]) {
+    if (height() <= room) break;
+    shownBlocks.delete(drop);
+  }
+  if (height() > room) blocks.link = say(`make the window taller to see the sign-in link ${g.dash} it needs ${pieces.length} rows`, tone.warn);
+  const lines = [];
+  let run = null;
+  for (const b of order) {
+    if (!shownBlocks.has(b)) continue;
+    if (b === "link" && url && blocks.link === pieces) {
+      run = { row: lines.length, rows: pieces.length, full: url.length % columns === 0, text: `${tone.accent}${link(url, url, links)}${tone.reset}` };
+    }
+    lines.push(...blocks[b]);
+  }
+  return out(lines, run && run.row + run.rows <= room ? run : null);
+}
+
 // ── help ────────────────────────────────────────────────────────────────────
 
 /** The keys, in a box over the screen, the screen under it faded. */
@@ -1223,6 +1483,7 @@ function withHelp(base, width, look) {
     ["a", "turn Auto-switch on or off"],
     ["+", "add a Claude account, signed in from any browser"],
     ["r", "read the usage again"],
+    [unicode ? "c  ← →" : "c  left right", "the Claude or the Codex accounts"],
     ["t", "the machine: live, or the last hours by the minute"],
     ["d", "start the deck, when none is running"],
     ["ctrl+l", "draw the screen again"],
@@ -1273,7 +1534,7 @@ function overlay(base, box, boxW, width, { tone, skin }) {
 function withMenu(base, state, width, look) {
   const { tone, g, unicode } = look;
   const m = state.menu;
-  const row = accountsOf(state).find(a => a.num === m.num);
+  const row = menuRow(state, m);
   if (!row) return base;
   const boxW = Math.min(width - 2, 60);
   const inner = boxW - 4;
@@ -1305,7 +1566,7 @@ function withMenu(base, state, width, look) {
     spec = {
       title: `${tone.bold}Rename ${name}${tone.reset}`,
       footRight: [`${tone.muted}enter saves ${g.bullet} esc back${tone.reset}`, `${tone.muted}esc back${tone.reset}`],
-      lines: [...say("A short name the list shows beside the address. Empty takes it away."), "", field(m.draft), ...refused],
+      lines: [...say(row.codex ? "A short name to show instead of the email. Empty takes it away." : "A short name the list shows beside the address. Empty takes it away."), "", field(m.draft), ...refused],
     };
   } else if (m.view === "move") {
     const slot = Number(m.draft);
@@ -1324,8 +1585,10 @@ function withMenu(base, state, width, look) {
       title: `${tone.err}${tone.bold}Remove ${name}?${tone.reset}`,
       footRight: `${tone.muted}any other key keeps it${tone.reset}`,
       lines: [
-        ...say("claude-swap deletes this account's stored login. This cannot be undone.", ""),
-        ...(row.active ? say("It is the account in use: Claude Code stays signed in to it until the next switch.") : []),
+        ...(row.codex
+          ? say("The deck takes this account out. Its sign-in and history are kept aside in the deck's data folder, not deleted.", "")
+          : say("claude-swap deletes this account's stored login. This cannot be undone.", "")),
+        ...(row.active && !row.codex ? say("It is the account in use: Claude Code stays signed in to it until the next switch.") : []),
         "",
         `${tone.bold}y${tone.reset} ${tone.muted}removes it${tone.reset}`,
         ...refused,
