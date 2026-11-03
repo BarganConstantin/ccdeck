@@ -93,9 +93,9 @@ const fs=require("node:fs"),cp=require("node:child_process");fs.writeFileSync("p
   if($check -ne 0){throw 'test owner preflight failed'}
   $user=[Security.Principal.WindowsIdentity]::GetCurrent().User
   foreach($name in @('parent.txt','child.txt')) {
-    $owner=(Get-Acl -LiteralPath (Join-Path $probe $name)).GetOwner([Security.Principal.SecurityIdentifier])
+    $owner=[IO.File]::GetAccessControl((Join-Path $probe $name)).GetOwner([Security.Principal.SecurityIdentifier])
     if($owner -ne $user){throw 'test child did not inherit user ownership'}
   }
   if([Security.Principal.WindowsIdentity]::GetCurrent().Owner.Value -ne $originalOwner){throw 'launcher token was modified'}
-} finally {Remove-Item -LiteralPath $probe -Recurse -Force}
+} finally {[IO.Directory]::Delete($probe,$true)}
 exit [UserOwnedTestProcess]::Run($NodePath,$nodeArgs,$WorkingDirectory,$ForceTokenFallback.IsPresent)
