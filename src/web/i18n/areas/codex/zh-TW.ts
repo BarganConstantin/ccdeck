@@ -107,6 +107,8 @@ const catalog: Catalog = {
   "codex.menu.copyLaunch": "複製啟動指令",
   "codex.menu.copyLaunchTitle": "複製以此帳號啟動 Codex 的指令",
   "codex.menu.shareTip": "將此帳號複製到另一個 {product}。任何拿到這段文字的人都能使用該帳號，請像對待密碼一樣對待它。",
+  "codex.projects.foot": "以 API 計價估算 · 來自 Codex 的工作階段紀錄",
+  "codex.projects.unNote": "此帳號資料夾中由其他登入完成的工作，或沒有專案資料夾的工作。",
   "codex.menu.putBackTitle": "讓此帳號回到自動輪替",
   "codex.menu.holdOutTitle": "將此帳號排除在自動輪替之外",
   "codex.menu.putBack": "放回輪替",
