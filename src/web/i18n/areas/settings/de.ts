@@ -253,7 +253,7 @@ const catalog: Catalog = {
   "settings.notify.accountsNote": "Für die Claude- und Codex-Konten, mit denen du arbeitest — ob ccdeck offen ist oder nicht.",
   "settings.notify.accountsVeto": "Auch für diesen Lauf ausgesetzt.",
   "settings.notify.swap.label": "Konto automatisch gewechselt",
-  "settings.notify.swap.title": "Wenn der automatische Wechsel Claude Code auf ein anderes Konto umstellt",
+  "settings.notify.swap.title": "Wenn der automatische Wechsel Claude Code oder Codex auf ein anderes Konto umstellt",
   "settings.notify.quota.label": "Kontingent bei 90 % und 100 %",
   "settings.notify.quota.title": "Wenn ein Kontingentfenster des aktuellen Kontos 90 % erreicht, und noch einmal bei 100 %",
   "settings.notify.reset.label": "Kontingent zurückgesetzt",

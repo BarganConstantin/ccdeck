@@ -253,7 +253,7 @@ const catalog: Catalog = {
   "settings.notify.accountsNote": "Para as contas do Claude e do Codex que você usa, com o ccdeck aberto ou não.",
   "settings.notify.accountsVeto": "Suspenso nesta execução também.",
   "settings.notify.swap.label": "Conta trocada automaticamente",
-  "settings.notify.swap.title": "Quando a troca automática move o Claude Code para outra conta",
+  "settings.notify.swap.title": "Quando a troca automática move o Claude Code ou o Codex para outra conta",
   "settings.notify.quota.label": "Cota em 90% e 100%",
   "settings.notify.quota.title": "Quando uma janela de cota da conta que você usa chega a 90%, e de novo a 100%",
   "settings.notify.reset.label": "Redefinição da cota",

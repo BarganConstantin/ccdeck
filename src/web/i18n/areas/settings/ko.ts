@@ -245,7 +245,7 @@ const catalog: Catalog = {
   "settings.notify.accountsNote": "ccdeck가 열려 있는지와 관계없이, 사용 중인 Claude 및 Codex 계정에 대한 알림.",
   "settings.notify.accountsVeto": "이번 실행에서도 보류됨.",
   "settings.notify.swap.label": "계정 자동 전환됨",
-  "settings.notify.swap.title": "자동 전환이 Claude Code를 다른 계정으로 옮길 때",
+  "settings.notify.swap.title": "자동 전환이 Claude Code 또는 Codex를 다른 계정으로 옮길 때",
   "settings.notify.quota.label": "할당량 90% 및 100%",
   "settings.notify.quota.title": "사용 중인 계정의 할당량 구간이 90%에 도달할 때와 100%에 도달할 때",
   "settings.notify.reset.label": "할당량 초기화",

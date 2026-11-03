@@ -252,7 +252,7 @@ const catalog: Catalog = {
   "settings.notify.accountsNote": "针对您当前使用的 Claude 和 Codex 账号，无论 ccdeck 是否打开都会通知。",
   "settings.notify.accountsVeto": "本次运行同样已停用。",
   "settings.notify.swap.label": "账号已自动切换",
-  "settings.notify.swap.title": "自动切换将 Claude Code 换到另一个账号时",
+  "settings.notify.swap.title": "自动切换将 Claude Code 或 Codex 换到另一个账号时",
   "settings.notify.quota.label": "额度达 90% 和 100%",
   "settings.notify.quota.title": "当前账号的额度窗口达到 90% 时，以及达到 100% 时",
   "settings.notify.reset.label": "额度重置",

@@ -253,7 +253,7 @@ const catalog: Catalog = {
   "settings.notify.accountsNote": "For the Claude and Codex accounts you're on, whether or not the deck is open.",
   "settings.notify.accountsVeto": "Held off for this run too.",
   "settings.notify.swap.label": "Account auto-switched",
-  "settings.notify.swap.title": "When auto-switch moves Claude Code to another account",
+  "settings.notify.swap.title": "When auto-switch moves Claude Code or Codex to another account",
   "settings.notify.quota.label": "Quota at 90% and 100%",
   "settings.notify.quota.title": "When a quota window of the account you're on reaches 90%, and again at 100%",
   "settings.notify.reset.label": "Quota reset",

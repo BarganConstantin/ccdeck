@@ -261,7 +261,7 @@ const catalog: Catalog = {
   "settings.notify.accountsNote": "Pentru conturile Claude și Codex pe care le folosești, indiferent dacă ccdeck e deschis.",
   "settings.notify.accountsVeto": "Suspendat și pentru această rulare.",
   "settings.notify.swap.label": "Cont schimbat automat",
-  "settings.notify.swap.title": "Când comutarea automată mută Claude Code pe alt cont",
+  "settings.notify.swap.title": "Când comutarea automată mută Claude Code sau Codex pe alt cont",
   "settings.notify.quota.label": "Cota la 90% și 100%",
   "settings.notify.quota.title": "Când o fereastră de cotă a contului folosit ajunge la 90%, și din nou la 100%",
   "settings.notify.reset.label": "Resetarea cotei",
