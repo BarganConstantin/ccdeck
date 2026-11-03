@@ -82,6 +82,7 @@ const catalog: Catalog = {
   "codex.menu.signInAgain": "重新登录",
   "codex.menu.copyLaunch": "复制启动命令",
   "codex.menu.copyLaunchTitle": "复制一条用此账号启动 Codex 的命令",
+  "codex.menu.shareTip": "将此账号复制到另一个 {product}。任何拿到这段文本的人都能使用该账号，请像对待密码一样对待它。",
   "codex.menu.putBackTitle": "让此账号回到自动轮换",
   "codex.menu.holdOutTitle": "将此账号排除在自动轮换之外",
   "codex.menu.putBack": "放回轮换",

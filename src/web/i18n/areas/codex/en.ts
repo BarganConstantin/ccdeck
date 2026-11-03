@@ -110,6 +110,7 @@ const catalog: Catalog = {
   "codex.menu.signInAgain": "Sign in again",
   "codex.menu.copyLaunch": "Copy launch command",
   "codex.menu.copyLaunchTitle": "Copies a command that starts Codex on this account",
+  "codex.menu.shareTip": "Copy this account to another {product}. Anyone who has the text can use the account — treat it as the password.",
   "codex.menu.putBackTitle": "Return this account to auto-rotation",
   "codex.menu.holdOutTitle": "Hold this account out of auto-rotation",
   "codex.menu.putBack": "Put back in rotation",

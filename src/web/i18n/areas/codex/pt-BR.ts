@@ -86,6 +86,7 @@ const catalog: Catalog = {
   "codex.menu.signInAgain": "Entrar de novo",
   "codex.menu.copyLaunch": "Copiar comando de início",
   "codex.menu.copyLaunchTitle": "Copia um comando que inicia o Codex nesta conta",
+  "codex.menu.shareTip": "Copia esta conta para outro {product}. Qualquer pessoa com o texto pode usar a conta — trate-o como a senha.",
   "codex.menu.putBackTitle": "Devolver esta conta ao rodízio automático",
   "codex.menu.holdOutTitle": "Manter esta conta fora do rodízio automático",
   "codex.menu.putBack": "Devolver ao rodízio",
