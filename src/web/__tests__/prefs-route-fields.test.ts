@@ -218,11 +218,12 @@ describe("POST /api/prefs and the terminal's switch", () => {
     expect(closeOpenTerminals).toHaveBeenCalledWith("error", TERMINAL_TURNED_OFF);
   });
 
-  it("closes them for any value that turns the switch off, not only false", async () => {
+  it("takes only a real false as the switch going off: any other value is no choice, and the default (on) stands", async () => {
+    // CHANGED ON PURPOSE: the panel is on by default, so null no longer reads as off.
     await post({ terminal: true });
     const { out } = await post({ terminal: null });
-    expect(out.terminalOn).toBe(false);
-    expect(closeOpenTerminals).toHaveBeenCalledTimes(1);
+    expect(out.terminalOn).toBe(true);
+    expect(closeOpenTerminals).not.toHaveBeenCalled();
   });
 
   it("leaves them open for a write about anything else", async () => {

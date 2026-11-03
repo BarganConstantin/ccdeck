@@ -42,6 +42,7 @@ import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { clearCopy, readClearPlan } from "../clear-confirm";
+import { seedPanelOff } from "./seed-panel-off";
 
 // Sandbox first, module import second: the server resolves its config dir, its
 // Codex home and its discovery directory at import time. HOME and USERPROFILE
@@ -62,6 +63,9 @@ process.env.XDG_CONFIG_HOME = join(SANDBOX, "xdg");
 mkdirSync(join(CONFIG, "agent-dag"), { recursive: true });
 mkdirSync(CODEX, { recursive: true });
 mkdirSync(TREE, { recursive: true });
+
+// The panel is on by default; these decks are about something else, so the switch is stored off.
+seedPanelOff();
 
 // @ts-expect-error — .mjs server module, no types
 const { startServer, hookToken, logSharing } = await import("../../server/index.mjs");

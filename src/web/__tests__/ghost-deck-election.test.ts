@@ -30,6 +30,7 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { endStdin } from "./child-stdin";
+import { seedPanelOff } from "./seed-panel-off";
 
 // The home the server thinks it has, the config dir the override points at, and
 // the Codex home it tails — all temporary, all set before the server module is
@@ -51,6 +52,9 @@ process.env.USERPROFILE = FAKE_HOME;
 process.env.CLAUDE_CONFIG_DIR = FAKE_CONFIG;
 process.env.CODEX_HOME = FAKE_CODEX;
 process.env.XDG_CONFIG_HOME = join(FAKE_HOME, ".config");
+
+// The panel is on by default; these decks are about something else, so the switch is stored off.
+seedPanelOff();
 
 // @ts-expect-error — .mjs server module, no types
 const { startServer, scanCodexNow, eventsSince, hookToken, challengeProof } = await import("../../server/index.mjs");
