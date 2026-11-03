@@ -47,8 +47,16 @@ const fiveCell = (a: Account) =>
     renderToStaticMarkup(createElement(UsageReportBody, { accounts: [a], nowSec: NOW, held: null })),
   )?.[0] ?? "";
 
-/** What a screen reader hears of a cell: everything but what is hidden from it. */
+/** What a screen reader hears of a cell's figure: everything but what is hidden
+ *  from it.
+ *
+ *  CHANGED ON PURPOSE (V4's Figma): a window's cell now ends with a second line,
+ *  when the window resets, where the reset used to be a column of its own. This
+ *  helper reads the figure's own words, as it always did, and leaves that line
+ *  to its own tests (accounts-report-window-lines). */
 const heard = (cell: string) => cell
+  .replace(/<span class="ap-report-win-sub"[^]*$/, "")
+  .replace(/<span class="vis-hidden" data-sub="">[^<]*<\/span>/g, "")
   .replace(/<span[^>]*aria-hidden="true"[^>]*>[^<]*<\/span>/g, "")
   .replace(/<[^>]+>/g, "").trim();
 

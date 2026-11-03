@@ -235,6 +235,78 @@
     z-index: 20;
   }
 }
+/* THE SHEET, 1100 TO 1319 (V4's Figma and motion spec): it starts folded, the
+   tab (below) is what shows, and the sheet opens over the pane's right 320 px
+   without a scrim; the pane keeps its width, so Term keeps its columns. It
+   comes in from the right edge on the unfold timing (Move) and leaves the same
+   way on the fold timing, on the panels' curve. Transitions, not keyframes, so
+   a reopen during the close turns around. App.tsx puts data-sheet on it:
+   "pre" is the first frame, off the edge. By a key, or with reduced motion, it
+   is at once: no travel. Zoom has its own rules (further down). */
+@media (min-width: 1100px) and (max-width: 1319px) {
+  .app[data-view="workspace"]:not([data-zoom]) .detail[data-sheet] {
+    box-shadow: var(--shadow-overlay);
+    transform: translateX(0);
+    transition:
+      transform var(--dur-stage-out) var(--ease-stage),
+      box-shadow var(--dur-stage-out) var(--ease-stage);
+  }
+  .app[data-view="workspace"]:not([data-zoom]) .detail[data-sheet="in"] {
+    transition:
+      transform var(--dur-move) var(--ease-stage),
+      box-shadow var(--dur-move) var(--ease-stage);
+  }
+  .app[data-view="workspace"]:not([data-zoom]) .detail:is([data-sheet="pre"], [data-sheet="out"]) {
+    transform: translateX(100%);
+    box-shadow: none;
+  }
+  :root[data-motion="instant"] .app[data-view="workspace"]:not([data-zoom]) .detail[data-sheet] { transition: none; }
+}
+@media (min-width: 1100px) and (max-width: 1319px) and (prefers-reduced-motion: reduce) {
+  .app[data-view="workspace"]:not([data-zoom]) .detail[data-sheet],
+  .app[data-view="workspace"]:not([data-zoom]) .detail[data-sheet="in"] { transition: none; }
+  .app[data-view="workspace"]:not([data-zoom]) .detail:is([data-sheet="pre"], [data-sheet="out"]) { transform: none; }
+}
+/* THE FOLDED INSPECTOR'S TAB (V4's Figma): a 36-wide corner in the pane
+   header's band, flush with the window's right edge and directly under the top
+   bar (and any banner strip, as the sheet's top is), on the Inspector's surface
+   with its left and bottom lines and no radius. One 24 x 24 button, the pane
+   header's own icon button, centred in what the lines leave. Under the sheet's
+   z-index so a sheet leaving passes over it. The lines are real borders, which a
+   forced-colours theme keeps. */
+.insp-corner {
+  position: fixed;
+  top: calc(var(--topbar-h) + var(--rating-h, 0px));
+  right: 0;
+  z-index: 19;
+  box-sizing: border-box;
+  width: 36px;
+  height: var(--pane-head-h);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--panel);
+  border-left: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+  border-radius: 0;
+}
+.insp-corner .insp-show {
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  margin: 0;
+  border: 0;
+  border-radius: var(--r-ctl);
+  background: transparent;
+}
+/* While the tab shows, the pane's header ends 36 earlier: today's 6 and the
+   tab's 36, so its last control ends 6 left of the tab and never sits under it. */
+.app[data-view="workspace"][data-insp-tab] .stage-dock .ts-head { padding-right: calc(6px + 36px); }
+
 /* Under 1100 the list is a sheet too, from the panel bar's Sessions door: the
    pane is the one column. */
 @media (max-width: 1099px) {

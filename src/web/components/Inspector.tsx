@@ -94,7 +94,7 @@ export default function Inspector({ selected, agents, revision = 0, onSelectAgen
           aria-label={tr("board.inspector.fold")}
           onClick={onClose}
         >
-          <KitIcon name="chevron-left" />
+          <KitIcon name="chevron-right" />
         </button>
       </header>
       {INSPECTOR_TABS.map(t => (

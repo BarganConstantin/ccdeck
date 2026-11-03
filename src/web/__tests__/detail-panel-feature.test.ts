@@ -60,7 +60,9 @@ const hooks = vi.hoisted(() => {
       unmount: () => { for (const e of inst.effects) if (typeof e?.cleanup === "function") e.cleanup(); },
     };
   }
-  return { react, mount };
+  // CHANGED ON PURPOSE (V4's motion spec): DetailAside's sheet entry reads a style
+  // in a layout effect; in this stand-in React it runs like any other effect.
+  return { react: { ...react, useLayoutEffect: react.useEffect }, mount };
 });
 
 vi.mock("react", async (importOriginal) => ({ ...(await importOriginal<object>()), ...hooks.react }));
