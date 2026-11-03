@@ -81,6 +81,25 @@ describe('the Codex report loader', () => {
   });
 });
 
+describe('the tokens a Codex report counts', () => {
+  // Codex's input already holds its cached tokens. The report added input,
+  // output, cache read and cache write as it does for Claude, so a Codex day
+  // printed 37.6k tokens where Codex itself counted 24.5k.
+  it('counts each token once: input and output for Codex, all four for Claude', async () => {
+    const { reconcile, ccCellsFrom } = await import('../account-projects-reconcile');
+    const { billedTokens } = await import('../pricing');
+    const rec = (model: string) => reconcile([{ day, projects: [{ path: '/p', models: { [model]: tokens } }], unattributed: null }],
+      { [model]: tokens }, ccCellsFrom(null), Date.now());
+    const codex = rec(MODEL);
+    expect(codex.totalTokens).toBe(tokens.i + tokens.o);
+    expect(codex.unattributed?.tokens).toBe(tokens.i + tokens.o);
+    expect(rec('claude-opus-5').totalTokens).toBe(tokens.i + tokens.o + tokens.cr + tokens.cc);
+    const usage = { inputTokens: 10, outputTokens: 2, cacheReadTokens: 7, cacheCreateTokens: 1, cacheCreate1hTokens: 0, cacheCreate5mTokens: 0 };
+    expect(billedTokens(usage, 'gpt-5.5')).toBe(12);
+    expect(billedTokens(usage, 'claude-opus-5')).toBe(20);
+  });
+});
+
 describe('the report, opened for a Codex account', () => {
   function opened(json: unknown) {
     vi.stubGlobal('document', { body: null });
