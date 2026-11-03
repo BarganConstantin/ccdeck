@@ -65,6 +65,21 @@ async function checkpointHandoff(f: ReturnType<typeof familyFixture>) {
   return inspectCodexLiveCheckpoints(f.rpc, entries, { record: async (e: any, phase: string) => { e.phase = phase; } });
 }
 describe('native account handoff without network-permit revocation', () => {
+  it('does not continue after ownership is invalidated during the final history read', async () => {
+    const f = fixture(), handoff = await prepareCodexLiveHandoff(f.rpc);
+    const read = f.rpc.request.getMockImplementation()!;
+    let current = true, checkingSend = false;
+    f.rpc.request.mockImplementation(async (method: string, params: any) => {
+      const result = await read(method, params);
+      if (checkingSend && method === 'thread/turns/list') current = false;
+      return result;
+    });
+    await expect(continueCodexLiveHandoff(f.rpc, handoff, {
+      beforeSend: async () => { checkingSend = true; }, isCurrent: () => current,
+    })).rejects.toMatchObject({ code: 'native_switch_superseded' });
+    expect(f.rpc.request.mock.calls.some(c => c[0] === 'turn/start')).toBe(false);
+  });
+
   it.each(['closed', 'running', 'new-input', 'completed'])('does not continue when %s wins during the durable-send callback', async change => {
     const f = fixture(), handoff = await prepareCodexLiveHandoff(f.rpc), skipped = vi.fn();
     const beforeSend = async () => {

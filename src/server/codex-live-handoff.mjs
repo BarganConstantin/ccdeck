@@ -253,6 +253,7 @@ export async function continueCodexLiveHandoff(rpc, handoff, options = {}) {
       || JSON.stringify(inputIds(finalTurn)) !== JSON.stringify(entry.inputIds)) {
       await options.onSkip?.(entry); continue;
     }
+    if (options.isCurrent && !options.isCurrent()) throw liveError('native_switch_superseded');
     entry.sent = true;
     const children = delegated.filter(e => e.resumeViaThreadId === entry.threadId);
     const continuation = 'Continue the interrupted task, honoring the latest user instructions already in this conversation. Do not repeat completed tools or actions. If the user cancelled or asked to stop, remain stopped.';
