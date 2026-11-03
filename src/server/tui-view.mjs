@@ -24,6 +24,7 @@ import {
 } from "./cli-lines.mjs";
 import { accountKey } from "./lan-copies.mjs";
 import { fg, link, sinceLabel, spinnerFrames, stripAnsi } from "./term.mjs";
+import { machinePanel } from "./tui-machine.mjs";
 
 /** Text from elsewhere — the deck's own sentences, an alias — on a console
  *  that draws ASCII alone: its punctuation in ASCII's, anything else a "?". */
@@ -49,6 +50,9 @@ export function initialState() {
     trouble: null,      // why the roster has no rows, as lines, when it has none
     auto: null,         // GET /api/cswap-auto, or null
     sessions: null,     // GET /api/sessions' rows, or null
+    machine: null,      // the deck's machine readings, kept (tui-machine.mjs withReading)
+    machineView: "live", // "live" | "hours": what the Machine panel's charts reach back over
+    history: null,      // the deck's minute history, while the hours are shown (historyMachine)
     skew: 0,            // the deck's clock minus this one, for the sessions' ages
     at: 0,              // the selected account, by index
     top: 0,             // the first account row on screen
@@ -150,6 +154,11 @@ export function tuiKey(state, str, key = {}, { now = 0, g } = {}) {
   if (str === "a") return autoKey(s, { now, g });
   if (str === "+") return addKey(s, { now, g });
   if (str === "r") return { state: s, effect: { type: "refresh" } };
+  if (str === "t") {
+    if (!state.deck) return { state: s, effect: null };
+    const view = state.machineView === "hours" ? "live" : "hours";
+    return { state: { ...s, machineView: view }, effect: view === "hours" ? { type: "history" } : null };
+  }
   if (str === "d") {
     if (state.deck) return { state: { ...s, notice: note("info", `the deck is already running on ${state.deck.port}`, now) }, effect: null };
     if (state.starting) return { state: s, effect: null };
@@ -470,20 +479,43 @@ function bodyLines(state, room, width, look) {
     return { lines, top };
   };
 
+  // The waiting sessions have a panel only while somebody waits: the rest of
+  // the time the room is the machine's, and the count of the sessions at work
+  // is on its foot.
+  const someoneWaits = waiting.list.length > 0;
+  const working = waiting.read && !someoneWaits ? waiting.working : 0;
+  const machineFor = (panelW, height) => panel(panelW, height, machinePanel(state.machine, {
+    width: panelW - 4, height: height - 2, look, working, deck: Boolean(state.deck), starting: state.starting,
+    view: state.machineView, history: state.history,
+  }), look);
+  // What the charts ask for before the panels above them give way; before the
+  // first reading the panel has one line to say so, and asks for no more.
+  const chartsWant = state.machine?.count > 0 ? 6 : 1;
+
   const stacked = () => {
     const detail = selected ? detailPanel(selected, home, inner, look) : null;
     let accountRoom = accounts.length;
     let showDetail = Boolean(detail);
     let max = waiting.list.length;
     let asks = true;
-    let showWaiting = true;
+    let showWaiting = someoneWaits || !state.deck;
+    let machineMin = chartsWant;
+    let showMachine = Boolean(state.deck);
     const sessions = () => sessionsPanel(state, waiting, { max, asks, width: inner }, look);
-    const need = () => 2 + accountRoom + (showDetail ? 2 + detail.lines.length : 0) + (showWaiting ? 2 + sessions().lines.length : 0);
+    const need = () => 2 + accountRoom + (showDetail ? 2 + detail.lines.length : 0)
+      + (showWaiting ? 2 + sessions().lines.length : 0) + (showMachine ? 2 + machineMin : 0);
     const giveWay = [
       () => max > 1 && (max--, true),
       () => showDetail && !(showDetail = false),
-      () => asks && waiting.list.length > 0 && !(asks = false),
+      () => asks && someoneWaits && !(asks = false),
+      () => showMachine && machineMin > 3 && (machineMin--, true),
       () => accountRoom > 3 && (accountRoom--, true),
+      () => showMachine && machineMin > 1 && (machineMin--, true),
+      // Somebody waiting on you is the one thing here that is somebody's
+      // work stopped: the charts go first.
+      () => showMachine && someoneWaits && !(showMachine = false),
+      () => showWaiting && showMachine && !(showWaiting = false),
+      () => showMachine && !(showMachine = false),
       () => showWaiting && !(showWaiting = false),
       () => accountRoom > 1 && (accountRoom--, true),
     ];
@@ -492,16 +524,19 @@ function bodyLines(state, room, width, look) {
     while (showWaiting && max < waiting.list.length && (max++, need() > room ? (max--, false) : true));
     // The last panel takes the rows left over.
     const spare = Math.max(0, room - need());
-    const list = accountsPanel(accountRoom, 2 + accountRoom + (showDetail || showWaiting ? 0 : spare));
+    const list = accountsPanel(accountRoom, 2 + accountRoom + (showDetail || showWaiting || showMachine ? 0 : spare));
     const out = [...list.lines];
-    if (showDetail) out.push(...panel(width, 2 + detail.lines.length + (showWaiting ? 0 : spare), detail, look));
+    if (showDetail) out.push(...panel(width, 2 + detail.lines.length + (showWaiting || showMachine ? 0 : spare), detail, look));
     if (showWaiting) {
       const s = sessions();
-      out.push(...panel(width, 2 + s.lines.length + spare, s, look));
+      out.push(...panel(width, 2 + s.lines.length + (showMachine ? 0 : spare), s, look));
     }
+    if (showMachine) out.push(...machineFor(width, 2 + machineMin + spare));
     return { lines: out, top: list.top };
   };
 
+  // From WIDE_COLUMNS, while somebody waits: the detail and the waiting side by
+  // side under the list, and the machine under both.
   const sideBySide = () => {
     const leftW = Math.floor((width - 1) / 2);
     const rightW = width - 1 - leftW;
@@ -509,23 +544,30 @@ function bodyLines(state, room, width, look) {
     let accountRoom = accounts.length;
     let max = waiting.list.length;
     let asks = true;
+    let machineMin = chartsWant;
+    let showMachine = Boolean(state.deck);
     const sessions = () => sessionsPanel(state, waiting, { max, asks, width: rightW - 4 }, look);
-    const need = () => 2 + accountRoom + 2 + Math.max(detail.lines.length, sessions().lines.length);
+    const pair = () => 2 + Math.max(detail.lines.length, sessions().lines.length);
+    const need = () => 2 + accountRoom + pair() + (showMachine ? 2 + machineMin : 0);
     const giveWay = [
       () => max > 1 && (max--, true),
+      () => showMachine && machineMin > 3 && (machineMin--, true),
       () => accountRoom > 3 && (accountRoom--, true),
-      () => asks && waiting.list.length > 0 && !(asks = false),
+      () => asks && !(asks = false),
+      () => showMachine && machineMin > 1 && (machineMin--, true),
     ];
     while (need() > room && giveWay.some(step => step()));
     if (need() > room) return null;
     const list = accountsPanel(accountRoom, 2 + accountRoom);
-    const height = room - list.lines.length;
+    const height = showMachine ? pair() : room - list.lines.length;
     const left = panel(leftW, height, detail, look);
     const right = panel(rightW, height, sessions(), look);
-    return { lines: [...list.lines, ...left.map((l, i) => `${l} ${right[i]}`)], top: list.top };
+    const out = [...list.lines, ...left.map((l, i) => `${l} ${right[i]}`)];
+    if (showMachine) out.push(...machineFor(width, room - out.length));
+    return { lines: out, top: list.top };
   };
 
-  const laid = (width >= WIDE_COLUMNS - 1 && selected && sideBySide()) || stacked();
+  const laid = (width >= WIDE_COLUMNS - 1 && selected && someoneWaits && sideBySide()) || stacked();
   return { lines: [...laid.lines, ...pad(room - laid.lines.length)].slice(0, room), top: laid.top };
 }
 
@@ -1028,6 +1070,7 @@ function withHelp(base, width, look) {
     ["a", "turn Auto-switch on or off"],
     ["+", "add a Claude account, signed in from any browser"],
     ["r", "read the usage again"],
+    ["t", "the machine's charts: live, or the last hours by the minute"],
     ["d", "start the deck, when none is running"],
     ["ctrl+l", "draw the screen again"],
     ["q  esc", "quit"],

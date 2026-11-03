@@ -254,20 +254,23 @@ describe("the frame", () => {
     expect(inside(lines[title + 4]).trim()).toBe("Claude needs your permission to use Bash");
   });
 
-  it("says nobody is waiting when nobody is", () => {
+  it("gives the machine the room while nobody is waiting, the sessions at work on its foot", () => {
     const lines = text(frame(deckState({ sessions: [SESSIONS[2]] })).lines);
-    expect(lines.some(l => /^╭─ Sessions ─+ 1 working ─╮$/.test(l))).toBe(true);
-    expect(lines.some(l => inside(l) === "nobody is waiting on you")).toBe(true);
+    expect(lines.some(l => l.includes("Waiting on you") || l.includes("╭─ Sessions"))).toBe(false);
+    expect(lines.some(l => /^╭─ Machine ─+╮$/.test(l))).toBe(true);
+    expect(lines.some(l => /^╰─ 1 session working ─+╯$/.test(l))).toBe(true);
+    expect(lines.some(l => inside(l) === "reading the machine…")).toBe(true);
   });
 
   it("gives way on a short screen: the waiting count and the selection stay", () => {
     const many = Array.from({ length: 6 }, (_, i) => ({ ...SESSIONS[0], id: `w${i}`, name: `job-${i}`, since: NOW - i * 1000 }));
     const lines = text(frame(deckState({ sessions: many }), 80, 16).lines);
     expect(lines.some(l => l.includes("Waiting on you · 6"))).toBe(true);
-    // The detail went before the accounts did, and its rows went to the waiting.
+    // The detail went before the accounts did, and the waiting kept its question.
     expect(lines.some(l => l.includes("read 1m ago"))).toBe(false);
     expect(lines.filter(l => /@/.test(l))).toHaveLength(4);
-    expect(lines.some(l => /^╰─ 4 more — ccdeck sessions ─+╯$/.test(l))).toBe(true);
+    expect(lines.some(l => /^╰─ 5 more — ccdeck sessions ─+╯$/.test(l))).toBe(true);
+    expect(lines.some(l => inside(l).trim() === "Claude needs your permission to use Bash (Bash)" || inside(l).includes("permission"))).toBe(true);
   });
 
   it("scrolls a long list so the selection is on it, its border saying which rows show", () => {

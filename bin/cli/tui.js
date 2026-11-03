@@ -33,7 +33,7 @@ import { G, LINKS, P, PROFILE, UNICODE } from "./screen.js";
 /** How often each reading is taken while the screen is up. The sessions are
  *  the ones a person is waiting to see change; the roster is the deck's own
  *  cached read, which its panel polls about as often. */
-export const POLL_MS = Object.freeze({ sessions: 3_000, auto: 10_000, roster: 15_000, find: 5_000 });
+export const POLL_MS = Object.freeze({ sessions: 3_000, system: 3_000, auto: 10_000, roster: 15_000, find: 5_000, history: 60_000 });
 
 /** How long a deck started from here is waited for before saying it did not
  *  come up. A first run installs hooks and claude-swap before it listens. */
@@ -61,6 +61,7 @@ export async function runTui(flags, out, deps = {}) {
   const view = await load("src/server/tui-view.mjs");
   const { createScreen } = await load("src/server/tui-screen.mjs");
   const { accountName, bestAccount } = await load("src/server/account-pick.mjs");
+  const { HISTORY_GROUPS, historyMachine, withReading } = await load("src/server/tui-machine.mjs");
   const port = flags.port != null ? Number(flags.port) : null;
   const src = deps.source ?? deckSource(port);
   const look = {
@@ -77,7 +78,7 @@ export async function runTui(flags, out, deps = {}) {
   }
 
   let state = { ...view.initialState(), deck: deck ? { port: deck.port, version: deck.version ?? null } : null };
-  const last = { roster: 0, auto: 0, sessions: 0, signin: 0, find: clock() };
+  const last = { roster: 0, auto: 0, sessions: 0, system: 0, history: 0, signin: 0, find: clock() };
   const inflight = new Set();
   const screen = createScreen(s => output.write(s));
   let done = null;
@@ -155,6 +156,25 @@ export async function runTui(flags, out, deps = {}) {
     } else if (r.status === 0) lost();
   });
 
+  // The machine, as the deck samples it: one answer a reading, kept. An answer
+  // that did not come is a gap in the charts, not a zero.
+  const readSystem = once("system", async () => {
+    if (!deck) return;
+    const r = await src.ask(deck, { path: "/api/system", timeoutMs: 3_000 });
+    if (r.ok && r.body && typeof r.body === "object") set({ machine: withReading(state.machine, r.body, clock()) });
+    else if (r.status === 0) lost();
+  });
+
+  // The deck's minutes, while the hours are on screen: a day at the most, one
+  // section a request, the way its history charts ask.
+  const readHistory = once("history", async () => {
+    if (!deck || state.machineView !== "hours") return;
+    const answers = await Promise.all(HISTORY_GROUPS.map(group => src.ask(deck, { path: `/api/system/history?group=${group}`, timeoutMs: 5_000 })));
+    if (answers.some(r => r.status === 0)) return lost();
+    const history = historyMachine(answers.map(r => (r.ok ? r.body : null)), state.machine, clock());
+    if (state.machineView === "hours") set({ history });
+  });
+
   // Where the deck's sign-in is, while the page is up and the deck has one —
   // never before the start was answered, when "idle" would only mean "not yet".
   const readSignin = once("signin", async () => {
@@ -165,7 +185,7 @@ export async function runTui(flags, out, deps = {}) {
     } else if (r.status === 0) lost();
   });
 
-  const readAll = (force) => Promise.all([readRoster(force), readAuto(), readSessions()]);
+  const readAll = (force) => Promise.all([readRoster(force), readAuto(), readSessions(), readSystem()]);
 
   const lookForDeck = once("find", async () => {
     const found = await src.find();
@@ -375,6 +395,7 @@ export async function runTui(flags, out, deps = {}) {
     best: () => doBest(),
     auto: (e) => doAuto(e.enabled),
     refresh: () => readAll(true),
+    history: () => readHistory(),
     start: () => doStart(),
     "signin-start": () => doSigninStart(),
     "signin-code": (e) => doSigninCode(e.code),
@@ -453,6 +474,8 @@ export async function runTui(flags, out, deps = {}) {
         if (now - last.roster >= POLL_MS.roster * 2) readRoster(false);
       } else {
         if (now - last.sessions >= POLL_MS.sessions) readSessions();
+        if (now - last.system >= POLL_MS.system) readSystem();
+        if (state.machineView === "hours" && now - last.history >= POLL_MS.history) readHistory();
         if (now - last.auto >= POLL_MS.auto) readAuto();
         if (now - last.roster >= POLL_MS.roster) readRoster(false);
         if (view.signinRunning(state.signin) && now - last.signin >= view.signinPollMs(state.signin)) readSignin();
