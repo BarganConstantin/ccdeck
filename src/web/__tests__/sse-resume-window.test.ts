@@ -21,6 +21,7 @@ import { request, type IncomingMessage, type Server } from "node:http";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { rmTempDir } from "./rm-temp-dir";
+import { seedPanelOff } from "./seed-panel-off";
 
 const DIR = mkdtempSync(join(tmpdir(), "ccdeck-sse-resume-window-"));
 process.env.HOME = DIR;
@@ -29,6 +30,9 @@ process.env.CLAUDE_CONFIG_DIR = join(DIR, "claude");
 process.env.CODEX_HOME = join(DIR, "codex");
 process.env.XDG_CONFIG_HOME = join(DIR, "config");
 if (!resolve(process.env.CLAUDE_CONFIG_DIR).startsWith(resolve(DIR))) throw new Error("sandbox escaped");
+
+// The panel is on by default; these decks are about something else, so the switch is stored off.
+seedPanelOff();
 
 const mod = await import("../../server/index.mjs");
 const token = (): string => mod.hookToken();

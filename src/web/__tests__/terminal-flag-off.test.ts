@@ -1,7 +1,8 @@
 // A deck with the terminal panel switched off is a deck without one.
 //
-// The panel ships off: off unless the switch in Settings › Experimental, or
-// the settings file it writes, says otherwise. Off has to mean ABSENT, not
+// The panel is on by default, and this file is about the deck whose person
+// switched it off: a settings file holding a real `terminal: false`, which is
+// what the switch in Settings › Experimental writes. Off has to mean ABSENT, not
 // "present and refusing": every /api/terminal/* path answers exactly what an
 // /api path with no route answers, a request offering an upgrade — the
 // socket's, or curl's h2c — is answered as if it offered none, the page is
@@ -14,10 +15,10 @@
 // a session listing, a control client — runs that script first, and the
 // script's log staying empty is the proof that none of them did.
 import { describe, it, expect, afterAll, beforeAll } from "vitest";
-import { existsSync, mkdtempSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { request, type Server } from "node:http";
 import { tmpdir } from "node:os";
-import { join, resolve } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { rmTempDir } from "./rm-temp-dir";
 
@@ -43,9 +44,12 @@ writeFileSync(TMUX_STUB, ["#!/bin/sh", `echo "$*" >> "${TMUX_LOG}"`, "echo 'tmux
 process.env.CCDECK_TMUX = TMUX_STUB;
 
 // @ts-expect-error — plain .mjs server module, no types
-const mod = await import("../../server/index.mjs");
-// @ts-expect-error — plain .mjs server module, no types
 const prefs = await import("../../server/deck-prefs.mjs");
+// The person's own switch, stored: the deck below boots with the panel off.
+mkdirSync(dirname(prefs.prefsPath()), { recursive: true });
+writeFileSync(prefs.prefsPath(), JSON.stringify({ terminal: false }));
+// @ts-expect-error — plain .mjs server module, no types
+const mod = await import("../../server/index.mjs");
 // @ts-expect-error — plain .mjs server module, no types
 const { GUARDED_READS } = await import("../../server/request-gates.mjs");
 // @ts-expect-error — plain .mjs server module, no types
@@ -174,11 +178,27 @@ describe("the terminal routes on a deck with the panel switched off", () => {
 describe("terminalOn", () => {
   const { terminalOn, DEFAULTS, PAGE_FIELDS, normalise } = prefs;
 
-  it("is off by default", () => {
-    expect(DEFAULTS.terminal).toBe(false);
-    expect(normalise({}).terminal).toBe(false);
-    expect(terminalOn({})).toBe(false);
-    expect(terminalOn(undefined)).toBe(false);
+  it("is on by default", () => {
+    // CHANGED ON PURPOSE: the engine ships on three platforms, so the panel starts on.
+    expect(DEFAULTS.terminal).toBe(true);
+    expect(normalise({}).terminal).toBe(true);
+    expect(terminalOn({})).toBe(true);
+    expect(terminalOn(undefined)).toBe(true);
+  });
+
+  it("reads a settings file with no terminal key as on, and one holding a real false as off", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "ccdeck-terminal-file-"));
+    try {
+      writeFileSync(prefs.prefsPath(dir), JSON.stringify({ tourSeen: true }));
+      expect(terminalOn((await prefs.readPrefs(dir))), "never chose").toBe(true);
+      writeFileSync(prefs.prefsPath(dir), JSON.stringify({ tourSeen: true, terminal: false }));
+      expect(terminalOn((await prefs.readPrefs(dir))), "switched off").toBe(false);
+      // A write of something else keeps the choice: off stays off, on stays on.
+      await prefs.writePrefs({ tourSeen: false }, dir);
+      expect(terminalOn((await prefs.readPrefs(dir)))).toBe(false);
+    } finally {
+      rmTempDir(dir);
+    }
   });
 
   it("is the switch alone: no launch variable turns it on", () => {
@@ -188,11 +208,13 @@ describe("terminalOn", () => {
     expect(prefs).not.toHaveProperty("terminalForced");
   });
 
-  it("is on with the stored switch, and only a real true counts", () => {
+  it("is off with the stored switch off, and only a real boolean counts", () => {
     expect(terminalOn({ terminal: true })).toBe(true);
-    expect(terminalOn({ terminal: "true" })).toBe(false);
     expect(normalise({ terminal: true }).terminal, "kept across a write").toBe(true);
-    expect(normalise({ terminal: 1 }).terminal).toBe(false);
+    expect(normalise({ terminal: false }).terminal, "kept across a write").toBe(false);
+    // Anything that is not a real boolean is no choice, so the default stands.
+    expect(normalise({ terminal: "false" }).terminal).toBe(true);
+    expect(normalise({ terminal: 0 }).terminal).toBe(true);
   });
 
   it("is a field a page may write: Settings › Experimental's Command Panel switch", () => {

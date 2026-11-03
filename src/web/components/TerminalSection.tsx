@@ -1,11 +1,13 @@
-// Settings › General › Experimental: the Command Panel's switch (use-stage.ts), off on
-// every deck until somebody turns it on. The panel lets a session be opened
-// beside the board and typed into.
+// Settings › General › Experimental: the Command Panel's switch (use-stage.ts), on
+// until somebody turns it off. The panel lets a session be opened beside the
+// board and typed into. Its words are in the settings catalogs, in every
+// language: the name is the one Settings search already carries
+// (settings.search.commandPanel), the notes are settings.terminal.*.
 //
 // In the shared shape (SettingsParts.tsx, #2176): one row in a group called
 // Experimental, at the foot of Settings › General (V4 draws no tab of its own
 // for it), the row's note saying so again in one line. The switch is the only
-// way on; no launch variable turns it on.
+// way off; no launch variable turns it on or off.
 //
 // OFF CLOSES THE PANEL, NOT ITS SESSIONS. A session the panel started keeps
 // running with the switch off — in tmux on Linux and macOS, in the session
@@ -13,15 +15,16 @@
 // says that much in plain words: the reader deciding whether to turn it off is
 // deciding about a window, not about their agents.
 //
-// The panel runs on Linux and macOS only for now. Elsewhere the switch is drawn
-// off and fixed, and a note under the row says so — though never fixed on: a settings file carried
-// over from a Linux or macOS machine can still be switched off. The deck says which
-// (`terminalSupported` in /api/prefs), not the browser, since the panel runs
-// where the deck does; until it has said, the switch is offered as usual.
+// The panel runs on Linux, macOS and Windows. Where a deck's platform has none
+// the switch is drawn off and fixed, and a note under the row says so — though
+// never fixed on: a settings file carried over from another machine can still
+// be switched off. The deck says which (`terminalSupported` in /api/prefs), not
+// the browser, since the panel runs where the deck does; until it has said, the
+// switch is offered as usual.
 
 import { workspaceOffered } from "../use-view";
 import { SettingRow, SettingsGroup } from "./SettingsParts";
-import { useT } from "../i18n";
+import { useT, type TFunction } from "../i18n";
 
 export interface TerminalSwitch {
   /** The Command Panel is on now. */
@@ -45,16 +48,11 @@ export function offersWorkspace(terminal: TerminalSwitch | undefined): boolean {
   return terminal != null && workspaceOffered({ enabled: terminal.on, supported: terminal.supported }, terminal.phone === true) && terminal.failed !== true;
 }
 
-export const TERMINAL_LABEL = "Command Panel";
-export const TERMINAL_NOTE =
-  "Experimental: open sessions beside the board and type into them. Turning it off closes the panel, not its sessions: they keep running and are back when you turn it on again.";
-export const TERMINAL_WINDOWS_NOTE =
-  "Experimental: open sessions beside the board and type into them. Turning it off closes the panel, not its sessions: they keep running in the session host and are back when you turn it on again.";
-export const TERMINAL_UNSUPPORTED_NOTE = "Not yet available on this platform.";
-
-export function terminalNote(supported: boolean | null, windows = false): string {
-  if (supported === false) return TERMINAL_UNSUPPORTED_NOTE;
-  return windows ? TERMINAL_WINDOWS_NOTE : TERMINAL_NOTE;
+/** The note under the row's name, in the reader's language: the platform's
+ *  answer when it has no panel, else where the sessions keep running. */
+export function terminalNote(t: TFunction, supported: boolean | null, windows = false): string {
+  if (supported === false) return t("settings.terminal.unsupported");
+  return t(windows ? "settings.terminal.noteWindows" : "settings.terminal.note");
 }
 
 export default function TerminalSection({ terminal }: { terminal: TerminalSwitch }) {
@@ -68,9 +66,9 @@ export default function TerminalSection({ terminal }: { terminal: TerminalSwitch
       <div className="settings-list">
         <SettingRow
           settingId="terminal"
-          name={TERMINAL_LABEL}
+          name={t("settings.search.commandPanel")}
           nameId="settings-terminal-label"
-          note={terminalNote(null, terminal.windows)}
+          note={terminalNote(t, null, terminal.windows)}
           noteId="settings-terminal-note"
           control={
             <button
@@ -88,7 +86,7 @@ export default function TerminalSection({ terminal }: { terminal: TerminalSwitch
           }
         />
       </div>
-      {unsupported && <p className="settings-note" id="settings-terminal-unavailable">{TERMINAL_UNSUPPORTED_NOTE}</p>}
+      {unsupported && <p className="settings-note" id="settings-terminal-unavailable">{t("settings.terminal.unsupported")}</p>}
     </SettingsGroup>
   );
 }
