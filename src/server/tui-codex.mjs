@@ -134,7 +134,9 @@ export function codexRows(state, now = null) {
       managed: p.managed === true,
       lanes,
       fetchedAt,
-      stale: quota?.ok === false || good?.stale === true || (now != null && fetchedAt != null && now - fetchedAt > CODEX_STALE_MS),
+      // As the panel has it: read too long ago, or the last reading failed —
+      // not the deck's own `stale`, which says only that it served a held reading.
+      stale: fetchedAt != null && (quota?.ok === false || (now != null && now - fetchedAt > CODEX_STALE_MS)),
       plan: typeof good?.plan === "string" ? good.plan : null,
       issue: codexIssue(p, quota, profiles),
       headroom: lanes.length ? 100 - Math.max(...lanes.map(l => l.pct)) : null,

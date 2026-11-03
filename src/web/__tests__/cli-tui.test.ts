@@ -604,6 +604,13 @@ describe("the Codex side", () => {
     expect(inside(lines(s).find(l => l.includes("ann@openai.example") && !l.includes("#1"))!)).toMatch(/not read yet$/);
   });
 
+  it("calls a reading stale as the panel does: too old, or the last one failed — not by the deck's own flag", () => {
+    const at = (q: Row, now = NOW) => codexRows({ ...codexState(), codexQuota: { [CXA]: q } }, now)[0].stale;
+    expect(at({ ...CQUOTA[CXA], stale: true })).toBe(false);
+    expect(at(CQUOTA[CXA], NOW + 20 * 60_000)).toBe(true);
+    expect(at({ ok: false, reason: "http_429", lastGood: CQUOTA[CXA] })).toBe(true);
+  });
+
   it("keeps the last good reading, stale, when a reading fails", () => {
     const s = onCodex({ codexQuota: { ...CQUOTA, [CXA]: { ok: false, reason: "http_429", lastGood: CQUOTA[CXA] } } });
     const shown = lines(s);
