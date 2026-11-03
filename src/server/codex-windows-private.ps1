@@ -6,7 +6,7 @@ param(
 $ErrorActionPreference = 'Stop'
 try {
   # Fixed source only. Paths arrive via -File arguments, never interpolation.
-  Add-Type -TypeDefinition @'
+  Microsoft.PowerShell.Utility\Add-Type -TypeDefinition @'
 using System;
 using System.IO;
 using System.Runtime.InteropServices;
@@ -93,7 +93,7 @@ public static class CodexPrivatePath {
   }
 }
 '@
-  $guards = New-Object 'System.Collections.Generic.List[System.IDisposable]'
+  $guards = [System.Collections.Generic.List[System.IDisposable]]::new()
   try {
     $path = [IO.Path]::GetFullPath($TargetPath)
     if ($Operation -eq 'ensure') {
@@ -118,7 +118,7 @@ public static class CodexPrivatePath {
         if (![IO.File]::Exists($canonical)) { throw 'unsafe' }
       }
     }
-    [Console]::Out.WriteLine((@{ path = $canonical } | ConvertTo-Json -Compress))
+    [Console]::Out.WriteLine((@{ path = $canonical } | Microsoft.PowerShell.Utility\ConvertTo-Json -Compress))
     [Console]::Out.Flush()
     if ($Operation -eq 'hold') { $null = [Console]::In.ReadLine() }
   } finally { foreach ($guard in $guards) { $guard.Dispose() } }
