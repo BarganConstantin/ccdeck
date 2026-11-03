@@ -179,6 +179,10 @@ export async function replaceCodexLoginFromShare({ blob, id, stillDead } = {}, o
     if (!current || !stillDead(current)) fail('login_changed');
     let tmp, guard;
     try {
+      // ON WINDOWS ONLY INTO A PRIVATE FOLDER, by the rule secureCodexImportHome
+      // states: a profile that arrived over the network has one, while a folder
+      // made by a plain mkdir (a sign-in profile, or ~/.codex) does not and is
+      // refused here rather than repaired — its permissions are never changed.
       if ((options.platform ?? process.platform) === 'win32') guard = await holdWindowsPrivatePath(home, { ...options, kind: 'directory' });
       const staged = await createTemp(target, { mode: 0o600 });
       tmp = staged.tmp;

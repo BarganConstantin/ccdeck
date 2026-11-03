@@ -20,7 +20,7 @@ import { codexLoginOf, createCodexLan } from "../../server/lan-codex-store.mjs";
 // @ts-expect-error — plain .mjs server module, no types
 import { CODEX_SHARE_PREFIX, createCodexShare, readCodexShare } from "../../server/codex-share.mjs";
 // @ts-expect-error — plain .mjs server module, no types
-import { addCodexProfile, readCodexSelection } from "../../server/codex-selection.mjs";
+import { readCodexSelection } from "../../server/codex-selection.mjs";
 // @ts-expect-error — plain .mjs server module, no types
 import { ensureWindowsPrivateDirectory } from "../../server/codex-windows-private.mjs";
 
@@ -328,11 +328,13 @@ describe("this deck's Codex store, as Local network reads and writes it", () => 
   });
 
   it("heals a dead copy in place, and never overwrites a login that changed since it was proven dead", async () => {
+    // Ana arrived over the network, as the copy a paired deck renews past
+    // does: in a profile folder made private, which a heal on Windows needs.
     const m = await machine(login("me@example.net", 1));
-    const added = await addCodexProfile({ label: "Ana", operationId: "fictional-ana-profile" }, m.options);
-    const anaHome = added.profiles.find((p: { id: string }) => p.id === added.id).home;
-    await writeFile(join(anaHome, "auth.json"), JSON.stringify(login("ana@example.net", 1)), { mode: 0o600 });
+    expect(await m.lan.importAccount(share([{ label: "Ana", auth: login("ana@example.net", 1) }]), { key: CK("ana@example.net"), action: "add" }, null))
+      .toEqual({ ok: true });
     const mine = (await m.lan.readAccounts()).find((r: CodexRow) => r.email === "ana@example.net");
+    const anaHome = (await readCodexSelection(m.options)).profiles.find((p: { id: string }) => p.id === mine.num).home;
     const step = { key: CK("ana@example.net"), action: "heal" };
     const renewed = share([{ label: null, auth: login("ana@example.net", 2) }]);
 
