@@ -65,6 +65,19 @@ async function checkpointHandoff(f: ReturnType<typeof familyFixture>) {
   return inspectCodexLiveCheckpoints(f.rpc, entries, { record: async (e: any, phase: string) => { e.phase = phase; } });
 }
 describe('native account handoff without network-permit revocation', () => {
+  it.each(['closed', 'running', 'new-input', 'completed'])('does not continue when %s wins during the durable-send callback', async change => {
+    const f = fixture(), handoff = await prepareCodexLiveHandoff(f.rpc), skipped = vi.fn();
+    const beforeSend = async () => {
+      if (change === 'closed') f.thread.status.type = 'notLoaded';
+      if (change === 'running') f.thread.status.type = 'active';
+      if (change === 'new-input') f.turn.items.push({ id: 'new-user-input', type: 'userMessage' });
+      if (change === 'completed') f.turn.status = 'completed';
+    };
+    expect(await continueCodexLiveHandoff(f.rpc, handoff, { beforeSend, onSkip: skipped })).toEqual({ resumed: 0 });
+    expect(skipped).toHaveBeenCalledOnce();
+    expect(f.rpc.request.mock.calls.some(c => c[0] === 'turn/start')).toBe(false);
+  });
+
   it('keeps only the handoff observations subscribed until release and then restores transient reads', async () => {
     const f = v2Fixture(); f.threads.forEach(t => { t.historyMode = 'paginated'; });
     const entries = (await prepareCodexLiveHandoff(f.rpc)).checkpoint;

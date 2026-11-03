@@ -239,6 +239,20 @@ export async function continueCodexLiveHandoff(rpc, handoff, options = {}) {
       entry.sent = true; delegated.push(entry); continue;
     }
     await options.beforeSend?.(entry);
+    // Journal/authentication callbacks may wait on disk or native RPC. A user
+    // can close the conversation or submit new work during that wait.
+    if (options.isCurrent && !options.isCurrent()) throw liveError('native_switch_superseded');
+    const current = (await rpc.request('thread/read', { threadId: entry.threadId, includeTurns: false }))?.thread;
+    if (current?.status?.type !== 'idle') { await options.onSkip?.(entry); continue; }
+    if (current.id !== entry.threadId || current.canAcceptDirectInput === false
+      || (current.parentThreadId ?? null) !== (t.parentThreadId ?? null)) throw liveError('native_activity_changed');
+    const finalTurn = await latest(rpc, entry.threadId);
+    const finalCheckpoint = entry.checkpointReady && finalTurn?.status === 'completed'
+      && finalTurn.items?.some(i => i.type === 'agentMessage' && i.text?.includes('CCDECK_CHECKPOINT_' + entry.checkpointId));
+    if (finalTurn?.id !== entry.turnId || (!finalCheckpoint && finalTurn.status !== 'interrupted')
+      || JSON.stringify(inputIds(finalTurn)) !== JSON.stringify(entry.inputIds)) {
+      await options.onSkip?.(entry); continue;
+    }
     entry.sent = true;
     const children = delegated.filter(e => e.resumeViaThreadId === entry.threadId);
     const continuation = 'Continue the interrupted task, honoring the latest user instructions already in this conversation. Do not repeat completed tools or actions. If the user cancelled or asked to stop, remain stopped.';
