@@ -43,7 +43,7 @@ function handTimers() {
 }
 
 describe("the watch", () => {
-  it("restarts once, for the first CLI that appears", () => {
+  it("restarts once, for the first CLI that appears", async () => {
     const timers = handTimers();
     let claude = false;
     const arrived: string[] = [];
@@ -55,12 +55,12 @@ describe("the watch", () => {
       onArrive: (name: string) => arrived.push(name),
       timers,
     });
-    timers.beat();
-    timers.beat();
+    await timers.beat();
+    await timers.beat();
     expect(arrived).toEqual([]);
     claude = true;
-    timers.beat();
-    timers.beat();
+    await timers.beat();
+    await timers.beat();
     expect(arrived).toEqual(["Claude Code"]);
     expect(timers.cleared).toBe(1);
   });
@@ -78,7 +78,7 @@ describe("the watch", () => {
     expect(timers.started).toBe(0);
   });
 
-  it("leaves a CLI switched off with --no-claude alone, however installed it becomes", () => {
+  it("leaves a CLI switched off with --no-claude alone, however installed it becomes", async () => {
     const timers = handTimers();
     const arrived: string[] = [];
     watchForClis({
@@ -89,11 +89,11 @@ describe("the watch", () => {
       onArrive: (name: string) => arrived.push(name),
       timers,
     });
-    timers.beat();
+    await timers.beat();
     expect(arrived).toEqual([]);
   });
 
-  it("reads a presence check that throws as a no, and keeps watching", () => {
+  it("reads a presence check that throws as a no, and keeps watching", async () => {
     const timers = handTimers();
     let calls = 0;
     const arrived: string[] = [];
@@ -102,10 +102,29 @@ describe("the watch", () => {
       onArrive: (name: string) => arrived.push(name),
       timers,
     });
-    timers.beat();
+    await timers.beat();
     expect(arrived).toEqual([]);
-    timers.beat();
+    await timers.beat();
     expect(arrived).toEqual(["Codex"]);
+  });
+
+  it("waits for a presence check that answers later: a promise is not a yes", async () => {
+    const timers = handTimers();
+    let codex = false;
+    const arrived: string[] = [];
+    watchForClis({
+      clis: [{ name: "Codex", want: false, off: false, installed: async () => codex }],
+      onArrive: (name: string) => arrived.push(name),
+      timers,
+    });
+    await timers.beat();
+    await timers.beat();
+    expect(arrived).toEqual([]);
+    codex = true;
+    await timers.beat();
+    await timers.beat();
+    expect(arrived).toEqual(["Codex"]);
+    expect(timers.cleared).toBe(1);
   });
 
   it("looks every fifteen seconds unless a test asks for less", () => {
@@ -190,11 +209,11 @@ afterEach(async () => {
 
 /** Start the worker the way the supervisor does, with an IPC channel, and
  *  resolve once it says it has booted. `exited` settles with its exit code. */
-function startDeck(env: Record<string, string | undefined>) {
+function startDeck(env: Record<string, string | undefined>, args: string[] = ["--no-codex"]) {
   let out = "";
   let exited!: Promise<number | null>;
   const booted = new Promise<string>((done, fail) => {
-    const c = spawn(process.execPath, [DECK, "--no-open", "--port", "0", "--no-persist", "--no-codex"], {
+    const c = spawn(process.execPath, [DECK, "--no-open", "--port", "0", "--no-persist", ...args], {
       stdio: ["ignore", "pipe", "pipe", "ipc"],
       env: { ...CHILD_ENV, ...env },
       cwd: SANDBOX,
@@ -230,6 +249,20 @@ describe("a deck that booted without Claude Code", () => {
     ]);
     expect(code, deck.output()).toBe(RESTART_CODE);
     expect(deck.output()).toMatch(/Claude Code found/);
+  }, 45_000);
+});
+
+describe("a deck on a machine without Codex", () => {
+  it("stays up and keeps watching, beat after beat", async () => {
+    const deck = startDeck({}, []);
+    await deck.booted;
+    // Ten beats of the 200 ms watch: long enough to restart several times over.
+    const code = await Promise.race([
+      deck.exited(),
+      new Promise(r => setTimeout(() => r("still running"), 2_000)),
+    ]);
+    expect(code, deck.output()).toBe("still running");
+    expect(deck.output()).not.toMatch(/Codex found/);
   }, 45_000);
 });
 
