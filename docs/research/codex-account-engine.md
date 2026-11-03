@@ -292,6 +292,35 @@ second account, no revocation occurred, and both source auth files stayed
 byte-identical. The native server was not replaced. The owner's current task
 was not used for a second disruptive switch during this acceptance.
 
+### Active subagent families — 2026-11-03
+
+The installed native protocol reports `canAcceptDirectInput` on loaded threads.
+Codex 0.166.0 explicitly rejects direct input to internal multi-agent v2 children
+in `request_processors/thread_input.rs`; no public agent-control RPC bypasses
+that restriction. Their active work still keeps a handoff waiting. V1 children
+that explicitly accept direct input can now pause and continue in place.
+
+The coordinator retains the loaded ancestry, rejects missing/cyclic ancestry,
+and pauses parent turns before child turns. An in-progress `collabAgentToolCall`
+is interruptible only when it is a `wait` sent by that parent for known
+descendants; spawn, input, close and all other active tool calls still block the
+whole handoff. Continuation reverses the order, verifies the child's unchanged
+parent and input capability, and preserves each turn's root attribution. The
+private journal records the child-parent IDs alongside the existing send phases.
+Finished turns and new client input still win over automatic continuation.
+
+Real shared-daemon acceptance switched a native V1 child and this parent in both
+directions while the child wrote a long report. A second round trip observed
+the parent's actual native wait before switching. Each handoff retained the
+same child ID, parent link and root-turn attribution and resumed both threads
+automatically on the confirmed target account. Separate isolated native tests
+exposed V2 children that reject direct input; those stayed running while the
+coordinator returned waiting, without applying the account change.
+The V1 child then completed its report and delivered its normal completion
+notification to the same parent. Native stored turns confirmed the final
+marker, no new network-revocation error and byte-identical source authentication
+files. The selected original account was restored after both round trips.
+
 Protocol boundaries remain: there is no atomic model-only interrupt or
 expected-idle precondition on `turn/start`, and concurrent independent clients
 can race between checks. Native completion does not identify who requested Stop.
