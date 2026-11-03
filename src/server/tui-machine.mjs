@@ -66,7 +66,13 @@ export function readingsOf(snap) {
       warnAt: num(r.warnAt), critAt: num(r.critAt),
     });
   }
-  add(`thermal:${THROTTLING}`, THROTTLING, "%", num(snap.thermal?.throttle?.timeHeld), { restsAtZero: true });
+  // Linux and Windows say how long the CPU was held back; a Mac says how much
+  // speed it still allows. One number either way, the deck's own (heldShare in
+  // machine-live.ts): the share held back.
+  const throttle = snap.thermal?.throttle;
+  const speed = num(throttle?.speedLimit);
+  const held = num(throttle?.timeHeld) ?? (speed != null ? 100 - speed : null);
+  add(`thermal:${THROTTLING}`, THROTTLING, "%", held != null ? Math.max(0, Math.min(100, held)) : null, { restsAtZero: true });
   return out;
 }
 
@@ -426,8 +432,11 @@ export function machinePanel(live, { width, height, look, working = 0, deck = tr
       const peak = s.peak ? newest(live?.series?.["cpu:busiest"]?.points ?? s.peak) : null;
       const said = peak != null ? `  ${g.bullet} busiest ${valueText(s, peak, unicode)}` : "";
       const head = textWidth(label) + textWidth(said) + 1 + textWidth(values[i]) <= plan.colW ? said : "";
-      const gap = Math.max(1, plan.colW - textWidth(label) - textWidth(head) - textWidth(values[i]));
-      return [`${tone.muted}${label}${tone.reset}${tone.muted}${head}${tone.reset}${" ".repeat(gap)}${value}`, ...rows];
+      // A sensor's name can be longer than its column: the name gives way, the
+      // value never does.
+      const name = fitPainted(label, Math.max(1, plan.colW - textWidth(head) - 1 - textWidth(values[i])), g.ellipsis);
+      const gap = Math.max(1, plan.colW - textWidth(name) - textWidth(head) - textWidth(values[i]));
+      return [`${tone.muted}${name}${tone.reset}${tone.muted}${head}${tone.reset}${" ".repeat(gap)}${value}`, ...rows];
     }
     const chartW = Math.max(1, plan.colW - labelW - valueW - 2);
     const rows = chartRows(s, s.points, { width: chartW, height: chartH, top, unicode, tone });
