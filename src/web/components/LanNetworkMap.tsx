@@ -734,7 +734,11 @@ function DeckDetails({ row, status, accounts, now, entrance, onOpen, onBack }: {
               {lanes.map((l, k) => (
                 <li key={l.key} className="nm-lane" data-tone={l.tone} style={{ "--k": k } as CSSProperties}>
                   <i className="nm-lane-dot" aria-hidden />
-                  <span className="nm-lane-email" aria-hidden>{l.email}{l.provider === "codex" && <LanKind />}</span>
+                  <span className="nm-lane-email" aria-hidden>{l.email}</span>
+                  {/* Beside the email, not inside it: a long address gives way
+                      to its ellipsis, and the word that tells a Codex login
+                      from a Claude one of the same address never does. */}
+                  {l.provider === "codex" && <LanKind />}
                   {/* A mark and a word, on the email's own line: which end is
                       wrong or what comes next, in the lane's own caption. */}
                   {laneWords(l) && <span className="nm-lane-said" aria-hidden>{laneWords(l)}</span>}
