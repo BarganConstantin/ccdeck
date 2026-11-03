@@ -1,7 +1,8 @@
 // Four notifications about the accounts the deck is on, and the rules for when
 // each is said.
 //
-//   SWAP       the deck's own auto-switch tick moved the live Claude account.
+//   SWAP       the deck's own auto-switch tick moved the live Claude account,
+//              or Codex's moved the default Codex account (codex-auto.mjs).
 //              Said once per switch, with the reason the tick itself carries,
 //              and never for a switch somebody pressed: those do not come
 //              through a tick at all.
@@ -30,6 +31,14 @@
 // from that account drops it, anything else lets it go. A crossing the deck
 // never saw because the tick saw it first is written down from the tick, so the
 // account does not announce it later when it is live again.
+//
+// Codex's loop, by the same rule and its own tick (`codexTick`): a threshold
+// notice for the live Codex account is held while Codex's Auto-switch and the
+// swap switch are on, and a Codex tick answers only for Codex notices, as a
+// Claude tick only for Claude's. A Codex tick reads its two windows without
+// their names, so a crossing only the tick saw is said by the swap and not
+// written down; a later reading of that account in the same window, on it
+// again by hand, says it once.
 //
 // ONE INCIDENT, ONE NOTIFICATION, by the same rule. A login that dies makes the
 // deck run a tick at once (cswap-auto-loop.mjs `tickSoon`), so while the loop
@@ -274,6 +283,8 @@ export function resetNotice({ provider, accountName, window }) {
 
 /** The title the OS helper shows, which has no app name above it. */
 export const SWAP_WHO = "Claude auto-switch";
+/** The same, for a move Codex's Auto-switch made. */
+export const CODEX_SWAP_WHO = "Codex auto-switch";
 
 /**
  * What the switch away from `from` was about, from the tick's own poll: the
@@ -304,25 +315,25 @@ export function usedBefore(result, fromNumber) {
  * sooner. A switch for any other reason — the account's usage could not be
  * read — says where it went and from where, and nothing about why.
  */
-export function swapNotice({ toName, fromName, used, threshold, trigger = null, resetAt = null, now = Date.now() }) {
+export function swapNotice({ toName, fromName, used, threshold, trigger = null, resetAt = null, now = Date.now(), who = SWAP_WHO }) {
   const to = toName ? cut(toName, NAME_MAX) : "another account";
   const verb = trigger === "home" ? "Back on" : "Switched to";
-  if (!fromName) return { who: SWAP_WHO, body: `${verb} ${to}` };
+  if (!fromName) return { who, body: `${verb} ${to}` };
   const from = cut(fromName, NAME_MAX);
   // The deck's own failover (autoswitch-failover.mjs) moved for one reason
   // only, and it is the one the user has to act on: sign in again.
   if (trigger === "login-expired") {
-    return { who: SWAP_WHO, body: `Switched to ${to} · ${from}'s login expired, sign in again to use it` };
+    return { who, body: `Switched to ${to} · ${from}'s login expired, sign in again to use it` };
   }
-  if (used != null && used >= 100) return { who: SWAP_WHO, body: `${verb} ${to} · ${from} reached 100%` };
+  if (used != null && used >= 100) return { who, body: `${verb} ${to} · ${from} reached 100%` };
   if (used != null && typeof threshold === "number" && used >= threshold) {
-    return { who: SWAP_WHO, body: `${verb} ${to} · ${from} reached ${pctLabel(threshold)}%` };
+    return { who, body: `${verb} ${to} · ${from} reached ${pctLabel(threshold)}%` };
   }
-  if (trigger === "home") return { who: SWAP_WHO, body: `Back on ${to} · your home account` };
+  if (trigger === "home") return { who, body: `Back on ${to} · your home account` };
   if (trigger === "weekly-reset" && typeof resetAt === "number" && resetAt * 1000 > now) {
-    return { who: SWAP_WHO, body: `Switched to ${to} · weekly limit resets in ${inDuration(resetAt, now)}` };
+    return { who, body: `Switched to ${to} · weekly limit resets in ${inDuration(resetAt, now)}` };
   }
-  return { who: SWAP_WHO, body: `Switched to ${to} from ${from}` };
+  return { who, body: `Switched to ${to} from ${from}` };
 }
 
 /** How long a stop gathers the rest of its incident before it is said, when no
@@ -457,8 +468,13 @@ export function createAccountNotifier({
    *  ran with — together, whether a tick may yet carry a crossing. */
   let autoOn = false;
   let policy = null;
+  /** The same two for Codex's loop, which ticks on its own. */
+  let codexAutoOn = false;
+  let codexPolicy = null;
   /** Threshold notices held for a tick, by record key. */
   const held = new Map();
+  /** The held notices one provider's tick answers for. */
+  const heldOf = provider => [...held.values()].filter(e => e.provider === provider);
   let holdTimer = null;
   let saving = Promise.resolve();
   /** The stop incident being gathered or held, or the one already said while
@@ -571,9 +587,12 @@ export function createAccountNotifier({
   const incidentFor = startedAt =>
     incident && !incident.said && incident.held && (startedAt == null || startedAt >= incident.firstAt) ? incident : null;
 
-  /** Should a threshold notice for this window wait for the next tick? */
-  const holdFor = (provider, level) =>
-    provider === "claude" && autoOn && settings().swap && (policy == null || level >= policy);
+  /** Should a threshold notice for this window wait for the next tick? Only
+   *  while that provider's loop is on, and only at the level it moves at. */
+  const holdFor = (provider, level) => {
+    const [on, at] = provider === "claude" ? [autoOn, policy] : provider === "codex" ? [codexAutoOn, codexPolicy] : [false, null];
+    return on && settings().swap && (at == null || level >= at);
+  };
 
   async function observe(provider, account, windows) {
     try {
@@ -645,7 +664,7 @@ export function createAccountNotifier({
       if (!result.switched) {
         // A cooldown is the one answer that says a switch is still coming.
         if (result.event === "no-switch" && result.reason === "cooldown") return;
-        release([...held.values()]);
+        release(heldOf("claude"));
         if (sayStuck) {
           stuckSaid.set(stuckKey, now());
           const notice = stuckNotice({ fromName: stuckFrom?.name ?? null });
@@ -671,13 +690,13 @@ export function createAccountNotifier({
       // Only the live account's notices are ever held, and the live account
       // is the one a switch leaves — so when the store could not name it, every
       // held Claude notice is still that account's.
-      const carried = [...held.values()].filter(e => e.provider === "claude" && (!from?.key || e.accountKey === from.key));
+      const carried = heldOf("claude").filter(e => !from?.key || e.accountKey === from.key);
       for (const entry of carried) {
         held.delete(entry.key);
         if (s.swap) markSaid(entry, entry.levels); else sayThreshold(entry);
       }
       if (from?.key) carryFromPoll(result, from, at, !s.swap);
-      release([...held.values()]);
+      release(heldOf("claude"));
       if (s.swap) {
         const notice = swapNotice({
           toName: to?.name ?? null, fromName: from?.name ?? null,
@@ -699,6 +718,46 @@ export function createAccountNotifier({
         say(telemetry ? { ...told, body: `${told.body}\n${telemetry}` } : told);
       }
       await persist();
+    } catch (err) {
+      onError?.(err);
+    }
+  }
+
+  /**
+   * One finished tick of Codex's Auto-switch (codex-auto.mjs).
+   *
+   * `t` is what the tick did: `{ enabled }` when the loop is off, else also
+   * `threshold` and `switched`, with `reason: "cooldown"` for a tick that
+   * waited out the last move, and for a move `from` and `to` (`{ id, name }`),
+   * the `used` share of the account it left and the `trigger` — "proactive" for
+   * one that reached the threshold, "home" for a move to the home account.
+   */
+  async function codexTick(t) {
+    try {
+      await ready;
+      if (!t || typeof t !== "object") return;
+      codexAutoOn = t.enabled === true;
+      if (!codexAutoOn) { release(heldOf("codex")); return; }
+      if (typeof t.threshold === "number" && Number.isFinite(t.threshold)) codexPolicy = t.threshold;
+      if (!t.switched) {
+        if (t.reason !== "cooldown") release(heldOf("codex"));
+        return;
+      }
+      const s = settings();
+      // Only the live account's notices are held, and a move leaves the live
+      // account, so every held Codex notice is the crossing this move carries.
+      const carried = heldOf("codex");
+      for (const entry of carried) {
+        held.delete(entry.key);
+        if (s.swap) markSaid(entry, entry.levels); else sayThreshold(entry);
+      }
+      if (s.swap) {
+        say(swapNotice({
+          who: CODEX_SWAP_WHO, toName: t.to?.name ?? null, fromName: t.from?.name ?? null,
+          used: typeof t.used === "number" ? t.used : null, threshold: t.threshold, trigger: t.trigger ?? null, now: now(),
+        }));
+      }
+      if (carried.length > 0) await persist();
     } catch (err) {
       onError?.(err);
     }
@@ -735,14 +794,20 @@ export function createAccountNotifier({
     ready,
     observe,
     tick,
+    codexTick,
     stopped,
     /** The loop was switched on or off. Off, nothing will carry what is held. */
     autoSwitch(on) {
       autoOn = on === true;
       if (!autoOn) {
-        release([...held.values()]);
+        release(heldOf("claude"));
         if (incident?.held && !incident.said) sayIncident();
       }
+    },
+    /** Codex's loop, as the last tick found it, for a notifier made after it. */
+    codexAutoSwitch(on) {
+      codexAutoOn = on === true;
+      if (!codexAutoOn) release(heldOf("codex"));
     },
     /** For the suite: the records as they stand, what is held, and the stop
      *  incident. */

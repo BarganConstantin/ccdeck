@@ -8,6 +8,11 @@ import { useModalDismiss, useScrimDismiss } from './use-modal-dismiss';
 interface Answer { ok: boolean; blob?: string; reason?: string; results?: { id: string; status: string }[] }
 interface Props {
   mode: 'export' | 'import';
+  /** The accounts a share starts with ticked: the row whose ⋯ opened it. */
+  initial?: readonly string[];
+  /** Where focus goes back to when the control that opened this is gone — a
+   *  row's ⋯, whose menu closed as it opened the dialog. */
+  returnFocusTo?: () => HTMLElement | null;
   profiles: CodexProfile[];
   revision: number;
   onImported: () => void;
@@ -25,9 +30,9 @@ function failure(reason: string | undefined, t: TFunction) {
 
 /** Credentials live only in this mount's memory. Nothing is exported until
  * Generate is pressed, and nothing is imported until Import is pressed. */
-export default function CodexShareDialog({ mode, profiles, revision, onImported, onClose }: Props) {
+export default function CodexShareDialog({ mode, initial, returnFocusTo, profiles, revision, onImported, onClose }: Props) {
   const t = useT();
-  const [picked, setPicked] = useState<string[]>([]);
+  const [picked, setPicked] = useState<string[]>(() => [...(initial ?? [])]);
   const [blob, setBlob] = useState('');
   const [answer, setAnswer] = useState<Answer | null>(null);
   const [error, setError] = useState('');
@@ -37,7 +42,7 @@ export default function CodexShareDialog({ mode, profiles, revision, onImported,
   const alive = useRef(true);
   const field = useRef<HTMLTextAreaElement | null>(null);
   const primary = useRef<HTMLButtonElement | null>(null);
-  const dialogRef = useModalDismiss(onClose, { focusRef: mode === 'import' ? field : undefined });
+  const dialogRef = useModalDismiss(onClose, { focusRef: mode === 'import' ? field : undefined, restoreFocusFallback: returnFocusTo });
   const scrim = useScrimDismiss(onClose);
   const exported = mode === 'export' && !!answer?.blob;
   const imported = mode === 'import' && answer?.ok === true;

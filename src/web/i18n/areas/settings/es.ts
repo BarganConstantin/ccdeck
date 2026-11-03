@@ -253,7 +253,7 @@ const catalog: Catalog = {
   "settings.notify.accountsNote": "Para las cuentas de Claude y Codex que estás usando, con el deck abierto o no.",
   "settings.notify.accountsVeto": "También en espera durante esta ejecución.",
   "settings.notify.swap.label": "Cuenta cambiada automáticamente",
-  "settings.notify.swap.title": "Cuando el cambio automático pasa Claude Code a otra cuenta",
+  "settings.notify.swap.title": "Cuando el cambio automático pasa Claude Code o Codex a otra cuenta",
   "settings.notify.quota.label": "Cuota al 90 % y al 100 %",
   "settings.notify.quota.title": "Cuando una ventana de cuota de la cuenta que estás usando llega al 90 %, y otra vez al 100 %",
   "settings.notify.reset.label": "Restablecimiento de cuota",
