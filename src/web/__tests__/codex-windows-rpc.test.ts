@@ -39,6 +39,10 @@ async function fixture() {
   wss.on('connection', ws => ws.on('message', raw => {
     const m = JSON.parse(raw.toString()); requests.push(m);
     if (m.method === 'never-reply') return;
+    if (m.method === 'slow-reply') {
+      const timer = setTimeout(() => { if (ws.readyState === 1) ws.send(JSON.stringify({ id: m.id, result: { ok: true } })); }, 7500);
+      timer.unref(); return;
+    }
     if (m.method === 'binary') { ws.send(Buffer.from('invalid')); return; }
     if (m.method === 'bad-json') { ws.send('{'); return; }
     if (m.id !== undefined) ws.send(JSON.stringify({ id: m.id, result: { ok: true } }));
@@ -87,6 +91,14 @@ describe('Windows raw proxy WebSocket bridge (simulated ACL, real byte relay)', 
       expect(f.requests.filter(m => m.method === 'never-reply')).toHaveLength(32);
     } finally { rpc.close(); }
   });
+  it('accepts a slow Windows daemon response beyond the POSIX deadline without replaying the request', async () => {
+    const f = await fixture();
+    const rpc = await connectCodexLiveRpc(f.endpoint, { platform: 'linux', windowsPrivate: f.options, spawnChild: f.spawnChild });
+    try {
+      expect(await rpc.request('slow-reply')).toEqual({ ok: true });
+      expect(f.requests.filter(m => m.method === 'slow-reply')).toHaveLength(1);
+    } finally { rpc.close(); }
+  }, 15000);
   it.each(['binary', 'bad-json'])('rejects %s frames and pending requests on disconnect', async method => {
     const f = await fixture();
     const rpc = await connectCodexLiveRpc(f.endpoint, { platform: 'linux', windowsPrivate: f.options, spawnChild: f.spawnChild });

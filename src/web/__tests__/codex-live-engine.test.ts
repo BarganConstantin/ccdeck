@@ -120,6 +120,30 @@ describe('existing Codex session account engine', () => {
     await restored.c.request({ id: B, revision: 1 });
     expect(restored.calls.some(c => c.method === 'account/login/start')).toBe(false);
   });
+  it('observes a delayed checkpoint again without replaying the steer or logging in before it is ready', async () => {
+    const f = await v2(); await f.c.request({ id: B, revision: 1 });
+    f.rpc.request.mockRejectedValueOnce(Object.assign(Error('timeout'), { code: 'native_request_timeout' }));
+    await f.c.tick();
+    expect(f.c.status()).toMatchObject({ state: 'waiting', continuation: 'waiting' });
+    expect(f.calls.filter(c => c.method === 'turn/steer')).toHaveLength(1);
+    expect(f.calls.filter(c => c.method === 'account/login/start')).toHaveLength(0);
+    await f.checkpoint();
+    expect(f.c.status()).toMatchObject({ state: 'applied', continuation: 'waiting' });
+    expect(f.calls.filter(c => c.method === 'turn/steer')).toHaveLength(1);
+    expect(f.calls.filter(c => c.method === 'account/login/start')).toHaveLength(1);
+  });
+  it('observes delayed child continuation again only until its original deadline', async () => {
+    const f = await v2(); await f.c.request({ id: B, revision: 1 }); await f.checkpoint();
+    f.rpc.request.mockRejectedValueOnce(Object.assign(Error('timeout'), { code: 'native_request_timeout' }));
+    await f.c.tick(); expect(f.c.status().continuation).toBe('waiting');
+    f.child.status.type = 'active'; f.childTurn.id = 'parent-followup'; f.childTurn.status = 'inProgress';
+    await f.c.tick(); expect(f.c.status().continuation).toBe('automatic');
+    expect(f.calls.filter(c => c.method === 'turn/start')).toHaveLength(1);
+    const expired = await v2({ timeout: 0 }); await expired.c.request({ id: B, revision: 1 }); await expired.checkpoint();
+    expired.rpc.request.mockRejectedValueOnce(Object.assign(Error('timeout'), { code: 'native_request_timeout' }));
+    await expired.c.tick(); expect(expired.c.status().continuation).toBe('manual_required');
+    expect(expired.calls.filter(c => c.method === 'turn/start')).toHaveLength(1);
+  });
   it('honors an outside login during V2 continuation instead of sending a retry', async () => {
     const f = await v2(); await f.c.request({ id: B, revision: 1 }); await f.checkpoint(); f.externalLogin(A); await f.c.tick();
     expect(f.c.status()).toMatchObject({ state: 'external_change', continuation: 'manual_required' });

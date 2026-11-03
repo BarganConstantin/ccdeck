@@ -376,7 +376,10 @@ export function createCodexLiveAccountController(input = {}) {
       if (!work.entries.length) {
         childContinuation = null; update({ continuation: work.expired ? 'none' : 'automatic', reason: null });
       } else if (Date.now() >= work.deadline) throw liveError('native_continue_unconfirmed');
-    } catch {
+    } catch (error) {
+      // These are observations only. A slow daemon does not authorize replaying
+      // input, but may be observed again within the existing bounded window.
+      if (error.code === 'native_request_timeout' && Date.now() < work.deadline) return;
       work.expired = true; update({ continuation: 'manual_required', reason: 'native_continue_unconfirmed' });
     }
   }
@@ -394,7 +397,8 @@ export function createCodexLiveAccountController(input = {}) {
       }
       checkpointWork = null;
       await apply(work.intent, work.refresh, work.automatic, { handoff, journal: work.journal, work });
-    } catch {
+    } catch (error) {
+      if (error.code === 'native_request_timeout' && Date.now() < work.deadline) return;
       checkpointWork = null; recoveryNeeded = true; recoveryJournal = work.journal;
       update({ state: 'failed', continuation: 'manual_required', reason: 'native_continue_unconfirmed' });
     }

@@ -101,7 +101,9 @@ export async function connectCodexLiveRpc(endpoint, options = {}) {
       if (pending.size >= 32) return Promise.reject(liveError('native_busy'));
       const id = prefix + (++serial);
       return new Promise((resolveCall, reject) => {
-        const timer = setTimeout(() => { pending.delete(id); reject(liveError('native_request_timeout')); }, options.deadlineMs ?? 7000);
+        // The Windows raw proxy and a busy native daemon can exceed seven
+        // seconds even for a history read. Keep a bounded wait, without replay.
+        const timer = setTimeout(() => { pending.delete(id); reject(liveError('native_request_timeout')); }, options.deadlineMs ?? (windows ? 30000 : 7000));
         pending.set(id, { method, resolve: resolveCall, reject, timer });
         try { send({ id, method, ...(params === undefined ? {} : { params }) }); }
         catch (e) { pending.delete(id); clearTimeout(timer); reject(e); }
