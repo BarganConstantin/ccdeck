@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { chmod, mkdtemp, mkdir, realpath, rename, rm, symlink } from 'node:fs/promises';
-import { chmodSync } from 'node:fs';
+import { chmodSync, readFileSync } from 'node:fs';
 import { createServer } from 'node:http';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -138,6 +138,9 @@ describe.skipIf(process.platform === 'win32')('existing native daemon connection
     rpc.close();
     expect(f.server.listening).toBe(true);
     expect(f.requests.map(r => r.method)).toContain('initialized');
+    // It introduces itself as the deck that is running, not a fixed release.
+    const version = JSON.parse(readFileSync(new URL('../../../package.json', import.meta.url), 'utf8')).version;
+    expect(f.requests.find(r => r.method === 'initialize')?.params.clientInfo).toEqual({ name: 'ccdeck', title: 'ccdeck', version });
   });
   it('rejects untrusted endpoints and unsupported native versions before connecting', async () => {
     const f = await fixture();
