@@ -93,7 +93,7 @@ export async function configureCodexTerminal(action, options = {}) {
     await chmod(manifest, 0o600);
     for (const name of ['codex-terminal-runner.mjs', 'exec-spec.mjs', 'account-engine.mjs', 'codex-engine-adapter.mjs', 'codex-handoff.mjs',
       'codex-interactive-engine.mjs', 'codex-engine-config.mjs', 'codex-engine-rpc.mjs', 'codex-engine-bridge.mjs',
-      'codex-auto.mjs', 'codex-selection.mjs', 'codex-profiles.mjs', 'codex-native-account.mjs',
+      'codex-auto.mjs', 'codex-selection.mjs', 'codex-profiles.mjs', 'codex-lan-identity.mjs', 'codex-native-account.mjs',
       'codex-auth.mjs', 'codex-dir.mjs', 'deck-home.mjs', 'claude-dir.mjs', 'atomic-write.mjs', 'brand.mjs', 'exec-children.mjs']) {
       await writeFileAtomic(join(directory, name), await readFile(new URL(`./${name}`, import.meta.url), 'utf8'));
       await chmod(join(directory, name), 0o600);

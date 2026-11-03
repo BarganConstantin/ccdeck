@@ -8,7 +8,9 @@
 // a slot. Manual sharing explicitly warns about OAuth renewal across copies.
 // codex-accounts.ts
 // turns a profile and its reading into what the shared components read.
-import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { codexLanAccounts } from "../account-lan";
+import type { LanAccount } from "../lan-types";
 import { allOpen, isOpen, orderChoices, orderKey, SLOT_ORDER, sortAccounts, toggleAll, toggleOne, validOrder, type Openness } from "../other-accounts-order";
 import { loadOpenness, loadOrder, saveOpenness, saveOrder } from "../accounts-prefs";
 import { sentence } from "../account-issue";
@@ -52,7 +54,7 @@ async function postJson(path: string, body: unknown): Promise<{ ok: boolean; sta
   return { ok: response.ok && result?.ok === true, status: response.status, reason: result?.reason, id: result?.id, live: result?.live };
 }
 
-export default function CodexProfilesSection({ onClose, switcher, onNotice, away = false }: {
+export default function CodexProfilesSection({ onClose, switcher, onNotice, away = false, onLanAccounts }: {
   onClose?: () => void;
   /** With both CLIs on this deck: the Claude/Codex switch, which stands where
    *  the title stands. The title stays for a reader, out of sight. */
@@ -62,6 +64,9 @@ export default function CodexProfilesSection({ onClose, switcher, onNotice, away
   /** Local network has the column (#2472): the header and the accounts step
    *  aside, still mounted, the way Claude's do for the same view. */
   away?: boolean;
+  /** This deck's Codex logins as Local network lists them, each time the
+   *  roster changes them — for the share dialog both sides open. */
+  onLanAccounts?: (accounts: LanAccount[]) => void;
 } = {}) {
   const t = useT();
   const { busy, claim, release, pressProps } = useRequestSlot();
@@ -69,6 +74,13 @@ export default function CodexProfilesSection({ onClose, switcher, onNotice, away
   const [profiles, setProfiles] = useState<CodexProfile[] | null>(null);
   const profilesRef = useRef(profiles);
   profilesRef.current = profiles;
+  // Told only when what Local network would list changed, not on every poll
+  // that hands back the same roster.
+  const lanList = useMemo(() => codexLanAccounts(profiles ?? []), [profiles]);
+  const lanListKey = JSON.stringify(lanList);
+  const lanRead = profiles != null;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { if (lanRead) onLanAccounts?.(lanList); }, [lanRead, lanListKey, onLanAccounts]);
   const profileRequest = useRef(0);
   const profileRefreshes = useRef(0);
   const profileController = useRef<AbortController | null>(null);

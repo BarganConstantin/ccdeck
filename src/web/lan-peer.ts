@@ -165,7 +165,9 @@ export function peerView({ row, source, status, accounts, now }: {
   // ticked here for a deck the accept switch paired — see notOffered.
   const offering = (status.shared ?? []).filter(key => !peer?.notOffered?.includes(key));
   const lanes = paired
-    ? exchangeLanes(offers?.accounts ?? null, accounts, offering, theirKey)
+    // Its Codex logins after its Claude ones, on lanes of their own: one
+    // address can be both, and they are two logins.
+    ? exchangeLanes(offers ? [...offers.accounts, ...(offers.codex ?? [])] : null, accounts, offering, theirKey)
     : [];
   // A login this deck advertises and cannot honour, with nothing coming the
   // other way to repair it: every paired deck is promised something that
@@ -185,8 +187,11 @@ export function peerView({ row, source, status, accounts, now }: {
   const givenTo = lanes.some(l => l.out != null && withheld.has(l.key)) ? t("lan.peer.givenTo.chosen") : t("lan.peer.givenTo.all");
   // What the last round moved, on the lane it moved along. Anything it moved
   // that is not a lane any more is listed under the network instead.
-  const told = new Map(done.map(d => [d.email, d]));
-  const unplaced = done.filter(d => !lanes.some(l => l.email === d.email));
+  // By key where the round said one, which every deck since the first does: the
+  // same address as a Claude and a Codex login is two rows, and by email the
+  // second one's news landed on the first one's lane.
+  const told = new Map(done.map(d => [d.key ?? d.email, d]));
+  const unplaced = done.filter(d => !lanes.some(l => (d.key ? l.key === d.key : l.email === d.email)));
   // WHY THAT DECK'S HALF IS MISSING, when it is. This deck's half is drawn
   // either way — it is this deck's own list, and it is known.
   const unknown = !paired ? null
@@ -198,7 +203,7 @@ export function peerView({ row, source, status, accounts, now }: {
         : peer?.last?.error
           ? t("lan.peer.unknown.failed")
           : t("lan.peer.unknown.notAsked"))
-      : offers.accounts.length === 0 ? t("lan.peer.unknown.nothing")
+      : offers.accounts.length === 0 && !offers.codex?.length ? t("lan.peer.unknown.nothing")
       : null;
   // WHEN IT LAST TOLD US, and only when that is not already answered under
   // the network. A round sets `offersBy` and `lastRound` microseconds apart,

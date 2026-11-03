@@ -34,6 +34,7 @@ import { Fill } from "./LanAsks";
 import { rowSource, type DeckRow } from "../lan-roster";
 import type { LanAccount, LanStatus } from "../lan-types";
 import { Machine } from "./LanPeerMap";
+import LanKind from "./LanKind";
 import { useModalDismiss, useScrimDismiss } from "./use-modal-dismiss";
 
 /** The disc a deck is drawn as, and this deck's own at the centre — the
@@ -734,11 +735,15 @@ function DeckDetails({ row, status, accounts, now, entrance, onOpen, onBack }: {
                 <li key={l.key} className="nm-lane" data-tone={l.tone} style={{ "--k": k } as CSSProperties}>
                   <i className="nm-lane-dot" aria-hidden />
                   <span className="nm-lane-email" aria-hidden>{l.email}</span>
+                  {/* Beside the email, not inside it: a long address gives way
+                      to its ellipsis, and the word that tells a Codex login
+                      from a Claude one of the same address never does. */}
+                  {l.provider === "codex" && <LanKind />}
                   {/* A mark and a word, on the email's own line: which end is
                       wrong or what comes next, in the lane's own caption. */}
                   {laneWords(l) && <span className="nm-lane-said" aria-hidden>{laneWords(l)}</span>}
                   {l.usedThere && <span className="nm-lane-used" aria-hidden>{t("lan.there.inUse")}</span>}
-                  <span className="vis-hidden">{l.email}: {laneSaid(l)}</span>
+                  <span className="vis-hidden">{l.email}{l.provider === "codex" && " (Codex)"}: {laneSaid(l)}</span>
                 </li>
               ))}
             </ul>
