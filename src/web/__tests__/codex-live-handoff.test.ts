@@ -16,7 +16,69 @@ function fixture() {
   }) };
   return { turn, thread, rpc };
 }
+function familyFixture(nested = false) {
+  const ids = nested ? ['parent', 'child', 'grandchild'] : ['parent', 'child'];
+  const threads = ids.map((id, i) => ({ id, parentThreadId: i ? ids[i - 1] : null,
+    canAcceptDirectInput: true, historyMode: 'legacy', status: { type: 'active', activeFlags: [] as string[] } }));
+  const turns = ids.map(id => ({ id: id + '-turn', rootTurnId: 'family-root', status: 'inProgress', itemsView: 'full',
+    items: [{ id: id + '-input', type: 'userMessage' }] as any[] }));
+  const rpc = { request: vi.fn(async (method: string, params: any) => {
+    if (method === 'thread/loaded/list') return { data: [...ids].reverse() };
+    const i = ids.indexOf(params.threadId), thread = threads[i], turn = turns[i];
+    if (method === 'thread/read') return { thread: structuredClone(thread) };
+    if (method === 'thread/turns/list') return { data: [structuredClone(turn)] };
+    if (method === 'turn/interrupt') {
+      expect(params.turnId).toBe(turn.id); thread.status.type = 'idle'; turn.status = 'interrupted';
+      for (const item of turn.items) if (item.type === 'collabAgentToolCall' && item.tool === 'wait') item.status = 'completed';
+      return {};
+    }
+    if (method === 'turn/start') { thread.status.type = 'active'; return { turn: { id: params.threadId + '-continued' } }; }
+    throw Error('Unexpected method');
+  }) };
+  const wait = (sender: number, receiver: number) => turns[sender].items.push({ id: 'wait-' + sender, type: 'collabAgentToolCall',
+    status: 'inProgress', tool: 'wait', senderThreadId: ids[sender], receiverThreadIds: [ids[receiver]] });
+  return { threads, turns, rpc, wait };
+}
 describe('native account handoff without network-permit revocation', () => {
+  it('pauses parents before children and resumes children before their parents in the same threads', async () => {
+    const f = familyFixture(true); f.wait(0, 1); f.wait(1, 2);
+    const h = await prepareCodexLiveHandoff(f.rpc);
+    expect(h.waiting).toBe(false);
+    expect(f.rpc.request.mock.calls.filter(c => c[0] === 'turn/interrupt').map(c => c[1].threadId)).toEqual(['parent', 'child', 'grandchild']);
+    expect(h.paused).toMatchObject([{ threadId: 'parent' }, { threadId: 'child', parentThreadId: 'parent' }, { threadId: 'grandchild', parentThreadId: 'child' }]);
+    expect(await continueCodexLiveHandoff(f.rpc, h)).toEqual({ resumed: 3 });
+    const starts = f.rpc.request.mock.calls.filter(c => c[0] === 'turn/start');
+    expect(starts.map(c => c[1].threadId)).toEqual(['grandchild', 'child', 'parent']);
+    expect(starts.every(c => c[1].rootTurnId === 'family-root')).toBe(true);
+    await continueCodexLiveHandoff(f.rpc, h);
+    expect(f.rpc.request.mock.calls.filter(c => c[0] === 'turn/start')).toHaveLength(3);
+  });
+  it('still waits for an actual child command while the parent waits for that child', async () => {
+    const f = familyFixture(); f.wait(0, 1);
+    f.turns[1].items.push({ id: 'shell', type: 'commandExecution', status: 'inProgress' });
+    expect(await prepareCodexLiveHandoff(f.rpc)).toEqual({ waiting: true, paused: [] });
+    expect(f.rpc.request.mock.calls.some(c => c[0] === 'turn/interrupt')).toBe(false);
+  });
+  it.each([false, undefined])('leaves a child without confirmed direct-input support untouched: %s', async supported => {
+    const f = familyFixture(); f.threads[1].canAcceptDirectInput = supported as any;
+    expect((await prepareCodexLiveHandoff(f.rpc)).waiting).toBe(true);
+    expect(f.rpc.request.mock.calls.some(c => c[0] === 'turn/interrupt')).toBe(false);
+  });
+  it.each(['missing', 'parent'])('does not treat a wait on %s as a safe child wait', async target => {
+    const f = familyFixture(); f.wait(0, 1); f.turns[0].items[1].receiverThreadIds = [target];
+    expect((await prepareCodexLiveHandoff(f.rpc)).waiting).toBe(true);
+    expect(f.rpc.request.mock.calls.some(c => c[0] === 'turn/interrupt')).toBe(false);
+  });
+  it.each(['spawnAgent', 'sendInput', 'closeAgent'])('does not interrupt an active %s operation in a family', async tool => {
+    const f = familyFixture(); f.wait(0, 1); f.turns[0].items[1].tool = tool;
+    expect((await prepareCodexLiveHandoff(f.rpc)).waiting).toBe(true);
+  });
+  it('does not resume a paused child that loses direct-input support', async () => {
+    const f = familyFixture(); const h = await prepareCodexLiveHandoff(f.rpc);
+    expect(h.paused).toHaveLength(2); f.threads[1].canAcceptDirectInput = false;
+    await expect(continueCodexLiveHandoff(f.rpc, h)).rejects.toMatchObject({ code: 'native_activity_changed' });
+    expect(f.rpc.request.mock.calls.some(c => c[0] === 'turn/start')).toBe(false);
+  });
   it('does not request unsupported stored history from an idle ephemeral conversation', async () => {
     const f = fixture(); const original = f.rpc.request.getMockImplementation()!;
     f.rpc.request.mockImplementation(async (method, params) => {
