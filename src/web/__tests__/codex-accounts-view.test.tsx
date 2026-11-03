@@ -207,11 +207,16 @@ describe('the panel, on the moments that matter', () => {
     expect(one(view.tree, el => el.type === 'form')).toBeFalsy();
   });
 
-  it('draws Auto-switch behind the fold, and only once there is another account to go to', async () => {
+  // Claude's column draws its policy under the roster when there is no fold to
+  // hide it behind (AccountsPanel `rest.length === 0 && policyBlock`); the owner
+  // asked for Codex's to do the same (2026-11-03), where it used to wait for a
+  // second account.
+  it('draws Auto-switch under a lone account, and behind the fold once there are others', async () => {
     const status = { ok: true, enabled: true, external: false, lastTick: null, settings: { 'autoswitch.threshold': { value: '85', isDefault: false } }, choice: { next: 'room', home: null }, heldOut: ['o'] };
     const answer = (url: string) => url === '/api/codex-auto' ? status : null;
     const alone = await deck(() => [profile({ id: 'd', active: true })], () => reading(), answer);
-    expect(one(alone.view.tree, el => typeof el.type === 'function' && 'thresholdPick' in el.props)).toBeFalsy();
+    expect(one(alone.view.tree, el => typeof el.type === 'function' && 'thresholdPick' in el.props)?.props.threshold).toBe('85');
+    expect(one(alone.view.tree, el => el.props?.id === 'ap-codex-rest-panel')).toBeFalsy();
     alone.view.unmount();
     const { view } = await deck(() => [profile({ id: 'd', active: true, account: 'd', label: 'd' }), profile({ id: 'o', account: 'o', label: 'o' })], () => reading(), answer);
     openOthers(view);
