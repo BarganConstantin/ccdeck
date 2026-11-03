@@ -151,13 +151,16 @@ export function codexRows(state, now = null) {
  * account but the default unless it is already out, and remove on the
  * accounts the deck made.
  */
-export function codexMenuItems(row) {
+export function codexMenuItems(row, { home = false, homeable = false } = {}) {
   const blocked = row.issue?.blocks === true;
   return [
     !row.active && !blocked ? { id: "switch", key: "enter", label: "Switch to this account" } : null,
     { id: "signin", key: "i", label: row.issue?.fix ?? (signedInWord(row) ? "Sign in again" : "Sign in") },
     { id: "rename", key: "n", label: "Rename…" },
     !row.active || row.disabled ? { id: "hold", key: "o", label: row.disabled ? "Put back in rotation" : "Hold out of rotation" } : null,
+    // Home, as the deck's Codex menu has it: once Codex Auto-switch is read,
+    // set with the switch on or off, and removable whenever it is there.
+    homeable || home ? { id: "home", key: "h", label: home ? "Remove home" : "Set as home" } : null,
     row.managed ? { id: "remove", key: "x", label: "Remove…", danger: true } : null,
   ].filter(Boolean);
 }

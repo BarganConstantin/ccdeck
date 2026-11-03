@@ -41,6 +41,10 @@ export const POLL_MS = Object.freeze({
   // on the running Codex; the default's quota every minute, the others' every
   // five; the sign-in every second and a half.
   codex: 15_000, codexWaiting: 2_000, codexQuota: 15_000, quotaDefault: 60_000, quotaOther: 300_000, codexSignin: 1_500,
+  // The Local network as its section reads it while on screen (every 5 s,
+  // use-lan-section.ts); off its tab often enough that a deck asking to pair
+  // is said within half a minute.
+  lan: 5_000, lanAway: 30_000,
 });
 
 /** How long a deck started from here is waited for before saying it did not
@@ -71,6 +75,7 @@ export async function runTui(flags, out, deps = {}) {
   const { accountName, bestAccount } = await load("src/server/account-pick.mjs");
   const { HISTORY_GROUPS, historyMachine, withReading } = await load("src/server/tui-machine.mjs");
   const { CODEX_REFUSED, codexLiveSaid, codexSigninRunning } = await load("src/server/tui-codex.mjs");
+  const { LAN_REFUSED } = await load("src/server/tui-network.mjs");
   const port = flags.port != null ? Number(flags.port) : null;
   const src = deps.source ?? deckSource(port);
   const look = {
@@ -87,7 +92,7 @@ export async function runTui(flags, out, deps = {}) {
   }
 
   let state = { ...view.initialState(), deck: deck ? { port: deck.port, version: deck.version ?? null } : null };
-  const last = { roster: 0, auto: 0, sessions: 0, system: 0, history: 0, signin: 0, codex: 0, codexQuota: 0, codexSignin: 0, find: clock() };
+  const last = { roster: 0, auto: 0, sessions: 0, system: 0, history: 0, signin: 0, codex: 0, codexQuota: 0, codexSignin: 0, lan: 0, find: clock() };
   const inflight = new Set();
   const screen = createScreen(s => output.write(s));
   let done = null;
@@ -124,7 +129,8 @@ export async function runTui(flags, out, deps = {}) {
    *  in the meantime. */
   const lost = () => {
     deck = null;
-    set({ deck: null, auto: null, sessions: null, codexAuto: null });
+    set({ deck: null, auto: null, sessions: null, codexAuto: null, lanPrefs: null });
+    state = view.withLan(state, null);
     state = view.withCodex(state, null);
     if (codexSigninRunning(state.codexSignin)) {
       set({ codexSignin: { ...state.codexSignin, login: { state: "failed", reason: "the deck stopped answering, and the sign-in ended with it" } } });
@@ -267,7 +273,7 @@ export async function runTui(flags, out, deps = {}) {
     }
   });
 
-  const readAll = (force) => Promise.all([readRoster(force), readAuto(), readSessions(), readSystem(), readCodex()]);
+  const readAll = (force) => Promise.all([readRoster(force), readAuto(), readSessions(), readSystem(), readCodex(), readLan()]);
 
   const lookForDeck = once("find", async () => {
     const found = await src.find();
@@ -586,6 +592,14 @@ export async function runTui(flags, out, deps = {}) {
     await readCodex();
   }
 
+  async function doCodexHome(row, home) {
+    if (!deck) return;
+    const name = accountName(row);
+    const r = await act(home ? `making ${name} home` : `taking home away from ${name}`, { action: "home", id: home ? row.id : null }, "/api/codex-auto");
+    settle(r, home ? `${name} is home ${g.dash} Codex Auto-switch comes back to it once it has room again` : `${name} is no longer home`);
+    await readCodex();
+  }
+
   async function doCodexRename(row, label) {
     if (!deck) return;
     const r = await act(`renaming #${row.num}`, { id: row.id, label: label || null, expectedRevision: state.codex?.revision }, "/api/codex-profile-rename");
@@ -642,13 +656,126 @@ export async function runTui(flags, out, deps = {}) {
     tell("ok", "signed in to Codex");
   }
 
+  // ── the Local network ────────────────────────────────────────────────────
+
+  /** The decks that asked to pair, so each one is said once. */
+  const askedBefore = new Set();
+
+  /** A Local network status in, as every write of it answers with one too:
+   *  drawn, and a deck newly asking to pair said while the list is elsewhere. */
+  const landLan = (body) => {
+    const status = { ...body };
+    for (const k of ["ok", "added", "done", "peer", "tried"]) delete status[k];
+    state = view.withLan(state, status);
+    for (const p of status.enabled ? status.pending ?? [] : []) {
+      if (!p?.fp || askedBefore.has(p.fp)) continue;
+      askedBefore.add(p.fp);
+      if (!view.onLan(state)) tell("warn", `${p.name || p.addr || "a deck"} wants to pair ${g.dash} l answers it`);
+    }
+  };
+
+  // The status, and on its tab the settings it does not carry — the addresses
+  // this deck calls. A deck from before Local network answers 404.
+  const readLan = once("lan", async () => {
+    if (!deck) return;
+    const tab = view.onLan(state);
+    const [r, p] = await Promise.all([
+      src.ask(deck, { path: "/api/lan" }),
+      tab ? src.ask(deck, { path: "/api/prefs" }) : null,
+    ]);
+    if (r.status === 0) return lost();
+    if (r.status === 404) { state = view.withLan(state, null, { missing: true }); return; }
+    if (!r.ok || !r.body || typeof r.body !== "object") return;
+    landLan(r.body);
+    const prefs = p?.ok ? p.body?.prefs?.lan : null;
+    if (prefs && typeof prefs === "object") set({ lanPrefs: prefs });
+  });
+
+  /** One Local network write, its refusal in the deck's words. */
+  async function lanAct(doing, path, body) {
+    set({ busy: { text: doing, since: clock() }, notice: null });
+    render();
+    const r = await src.ask(deck, { method: "POST", path, body, timeoutMs: 30_000 });
+    set({ busy: null });
+    if (r.status === 0) { lost(); return { ok: false, why: "the deck stopped answering" }; }
+    const b = r.body && typeof r.body === "object" ? r.body : {};
+    if (r.ok && b.ok !== false) return { ok: true, body: b };
+    const why = LAN_REFUSED[b.reason] ?? (b.reason ? `the deck refused it (${b.reason})` : b.error ?? deckTrouble(deck ?? { port: "?" }, r));
+    return { ok: false, why: String(why), body: b };
+  }
+
+  function lanSettle(result, said) {
+    if (result.ok) {
+      if (state.lanForm && state.lanForm.view !== "invite") set({ lanForm: null });
+      if (said) tell("ok", said);
+    } else if (state.lanForm) {
+      set({ lanForm: { ...state.lanForm, error: result.why, ...(Array.isArray(result.body?.tried) ? { tried: result.body.tried } : {}) } });
+    } else tell("err", result.why);
+  }
+
+  /** What a settings write changes in the status, drawn before the next read
+   *  confirms it. */
+  const PREF_IN_STATUS = { tailscale: ["tailscale", "on"], tailscaleAsk: ["tailscale", "ask"], tailscaleAccept: ["tailscale", "accept"] };
+
+  async function doLanPrefs(e) {
+    if (!deck) return;
+    const r = await lanAct(e.doing, "/api/prefs", { lan: e.patch });
+    if (r.ok && state.lan) {
+      let lan = { ...state.lan };
+      for (const [k, v] of Object.entries(e.patch)) {
+        const [obj, field] = PREF_IN_STATUS[k] ?? [];
+        if (obj) lan = { ...lan, [obj]: { ...lan[obj], [field]: v } };
+        else if (k !== "manual") lan[k] = v;
+      }
+      state = view.withLan(state, lan);
+      if (e.patch.manual) set({ lanPrefs: { ...state.lanPrefs, manual: e.patch.manual } });
+    }
+    lanSettle(r, e.said);
+    last.lan = 0;
+  }
+
+  async function doLanPeer(e) {
+    if (!deck) return;
+    const r = await lanAct(e.doing, "/api/lan/peer", { action: e.action, fp: e.fp, ...(e.name != null ? { name: e.name } : {}) });
+    if (r.ok) landLan(r.body);
+    lanSettle(r, e.said);
+    last.lan = 0;
+  }
+
+  async function doLanInvite(e) {
+    if (!deck) return;
+    const r = await lanAct(e.doing, "/api/lan/invite", { action: e.action, ...(e.token ? { token: e.token } : {}) });
+    if (r.body && typeof r.body.enabled === "boolean") landLan(r.body);
+    if (e.action === "join") {
+      if (r.ok) {
+        set({ lanForm: null });
+        tell("ok", `paired with ${r.body.peer?.name || "that deck"} ${g.dash} logins go between the two from the next round`);
+      } else lanSettle(r);
+    } else if (e.action === "make") {
+      if (!r.ok) lanSettle(r);
+    } else lanSettle(r, e.said);
+    last.lan = 0;
+  }
+
+  async function doLanSync(e) {
+    if (!deck) return;
+    const r = await lanAct(e.doing, "/api/lan/sync", e.fp ? { fp: e.fp } : {});
+    if (r.ok) landLan(r.body);
+    lanSettle(r, e.said);
+    last.lan = 0;
+  }
+
   const effects = {
+    "lan-prefs": (e) => doLanPrefs(e),
+    "lan-peer": (e) => doLanPeer(e),
+    "lan-invite": (e) => doLanInvite(e),
+    "lan-sync": (e) => doLanSync(e),
     switch: (e) => (e.account?.codex ? doCodexSelect(e.account) : doSwitch(e.account)),
     best: () => doBest(),
     auto: (e) => (e.codex ? doCodexAuto(e.enabled) : doAuto(e.enabled)),
     refresh: () => { quotaAt.clear(); return readAll(true); },
     history: () => readHistory(),
-    home: (e) => doHome(e.account, e.set),
+    home: (e) => (e.account?.codex ? doCodexHome(e.account, e.set) : doHome(e.account, e.set)),
     hold: (e) => (e.account?.codex ? doCodexHold(e.account, e.out) : doHold(e.account, e.out)),
     alias: (e) => (e.account?.codex ? doCodexRename(e.account, e.alias) : doAlias(e.account, e.alias)),
     move: (e) => doMove(e.account, e.slot),
@@ -720,7 +847,10 @@ export async function runTui(flags, out, deps = {}) {
     function onKey(str, key) {
       if (done || leaving) return;
       const { state: next, effect } = view.tuiKey(state, str, key ?? {}, { now: clock(), g });
+      // The Local network's tab opened: read it now, with the settings it needs.
+      const opened = view.onLan(next) && !view.onLan(state);
       state = next;
+      if (opened) readLan();
       if (effect?.type === "quit") return leave(EXIT.OK);
       if (effect?.type === "redraw") screen.invalidate();
       else if (effect && effects[effect.type]) {
@@ -747,6 +877,7 @@ export async function runTui(flags, out, deps = {}) {
         if (now - last.codex >= (codexWaiting() ? POLL_MS.codexWaiting : POLL_MS.codex)) readCodex();
         if (state.codex && now - last.codexQuota >= POLL_MS.codexQuota) readCodexQuotas();
         if (state.codexSignin?.login && codexSigninRunning(state.codexSignin) && now - last.codexSignin >= POLL_MS.codexSignin) readCodexSignin();
+        if (now - last.lan >= (view.onLan(state) ? POLL_MS.lan : POLL_MS.lanAway)) readLan();
       }
       render();
     };
@@ -779,7 +910,7 @@ const KEPT = Object.freeze({
 
 /** What each reading is called when it fails; looking for a deck that is not
  *  there is not a failure. */
-const READINGS = Object.freeze({ roster: "the accounts", auto: "Auto-switch", sessions: "the sessions" });
+const READINGS = Object.freeze({ roster: "the accounts", auto: "Auto-switch", sessions: "the sessions", lan: "the Local network" });
 
 // SIGHUP is a closed SSH connection, and on Windows a closed console window;
 // SIGBREAK is Windows' Ctrl+Break.
