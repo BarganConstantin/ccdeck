@@ -19,7 +19,7 @@ interface Props {
   /** Done after the import: the dialog closes. */
   onDone: () => void;
   /** The field, for the dialog to focus when the tab is picked by a press. */
-  fieldRef?: RefObject<HTMLTextAreaElement>;
+  fieldRef?: RefObject<HTMLInputElement>;
 }
 
 export default function CodexImportPane({ revision, onImported, onDone, fieldRef }: Props) {
@@ -30,7 +30,7 @@ export default function CodexImportPane({ revision, onImported, onDone, fieldRef
   const [busy, setBusy] = useState(false);
   const pending = useRef(false);
   const alive = useRef(true);
-  const ownField = useRef<HTMLTextAreaElement>(null);
+  const ownField = useRef<HTMLInputElement>(null);
   const field = fieldRef ?? ownField;
   const done = useRef<HTMLButtonElement | null>(null);
   const imported = answer?.ok === true;
@@ -62,26 +62,26 @@ export default function CodexImportPane({ revision, onImported, onDone, fieldRef
           added: answer.results?.filter(result => result.status === 'imported').length ?? 0,
           skipped: answer.results?.filter(result => result.status === 'already_imported').length ?? 0,
         })}</p>
-        <p className="aa-note">{t('codex.share.isolated')}</p>
         <div className="aa-actions"><button type="button" className="btn primary" ref={done} onClick={onDone}>{t('codex.add.done')}</button></div>
       </div>
     );
   }
+  // Claude's paste tab, line for line: its title, one field with Import beside
+  // it, and one note under them saying what an import does.
   return (
     <div className="aa-step">
       <h4>{t('accounts.add.pasteTitle')}</h4>
-      <label className="aa-note" htmlFor="codex-import-code">{t('codex.share.pasteHint')}</label>
-      <textarea id="codex-import-code" ref={field} className="ap-share-blob" rows={4} value={blob}
-        maxLength={512000} spellCheck={false} autoComplete="off" autoCapitalize="off"
-        style={{ width: '100%', boxSizing: 'border-box', resize: 'vertical', whiteSpace: 'pre-wrap', overflow: 'auto', userSelect: 'text', color: 'var(--text)', fontSize: 'calc(12px + var(--ui-text-increase, 0px))' }}
-        onChange={event => { if (!pending.current) { setBlob(event.target.value); setError(''); } }} />
-      {error && <p className="aa-err" role="alert">{error}</p>}
-      <div className="aa-actions">
+      <div className="aa-field">
+        <input id="codex-import-code" ref={field} type="text" value={blob} placeholder="ccdeck-codex-v1.…"
+          maxLength={512000} spellCheck={false} autoComplete="off" autoCapitalize="off"
+          aria-label={t('accounts.add.sharedLabel')} aria-describedby="codex-import-note"
+          onChange={event => { if (!pending.current) { setBlob(event.target.value); setError(''); } }}
+          onKeyDown={event => { if (event.key === 'Enter') void submit(); }} />
         <button type="button" className="btn primary" aria-busy={busy || undefined} disabled={!blob.trim()}
-          onClick={() => void submit()}>{t(busy ? 'codex.share.working' : 'codex.share.import')}</button>
+          onClick={() => void submit()}>{t(busy ? 'accounts.add.importing2' : 'accounts.add.import')}</button>
       </div>
-      <p className="aa-note">{t('codex.share.isolated')}</p>
-      <p className="aa-note">{t('codex.share.renewal')}</p>
+      {error && <p className="aa-err" role="alert">{error}</p>}
+      <p className="aa-note" id="codex-import-note">{t('codex.share.isolated')}</p>
     </div>
   );
 }

@@ -66,14 +66,15 @@ describe('Codex share dialog', () => {
     const fetch = vi.fn(async () => ({ ok: true, json: async () => ({ ok: true, revision: 8, results: [{ id: 'b'.repeat(20), status: 'imported' }, { id: 'c'.repeat(20), status: 'already_imported' }] }) }));
     vi.stubGlobal('fetch', fetch);
     const imported = vi.fn(), done = vi.fn(), view = pane(imported, done);
-    (one(view.tree, el => el.type === 'textarea')!.props.onChange as (e: unknown) => void)({ target: { value: ' ccdeck-codex-v1.fictional ' } });
+    (one(view.tree, el => el.type === 'input')!.props.onChange as (e: unknown) => void)({ target: { value: ' ccdeck-codex-v1.fictional ' } });
     expect(fetch).not.toHaveBeenCalled();
-    press(view, 'Import accounts');
+    // Enter in the field is the same press, as on Claude's tab.
+    (one(view.tree, el => el.type === 'input')!.props.onKeyDown as (e: unknown) => void)({ key: 'Enter' });
     await flush();
     expect(fetch.mock.calls[0]).toMatchObject(['/api/codex-accounts-import', { method: 'POST', body: JSON.stringify({ blob: 'ccdeck-codex-v1.fictional', expectedRevision: 7 }) }]);
     expect(imported).toHaveBeenCalledOnce();
     expect(textOf(view.tree)).toContain('Added: 1. Already imported: 1.');
-    expect(one(view.tree, el => el.type === 'textarea')).toBeNull();
+    expect(one(view.tree, el => el.type === 'input')).toBeNull();
     press(view, 'Done');
     expect(done).toHaveBeenCalledOnce();
   });
@@ -82,13 +83,13 @@ describe('Codex share dialog', () => {
     let resolve!: (value: unknown) => void;
     const fetch = vi.fn(() => new Promise(r => { resolve = r; })); vi.stubGlobal('fetch', fetch);
     const view = pane();
-    (one(view.tree, el => el.type === 'textarea')!.props.onChange as (e: unknown) => void)({ target: { value: 'ccdeck-codex-v1.fictional' } });
-    press(view, 'Import accounts'); press(view, 'Working…');
+    (one(view.tree, el => el.type === 'input')!.props.onChange as (e: unknown) => void)({ target: { value: 'ccdeck-codex-v1.fictional' } });
+    press(view, 'Import'); press(view, 'importing…');
     expect(fetch).toHaveBeenCalledOnce();
     resolve({ ok: false, json: async () => ({ ok: false, reason: 'fictional-secret-error' }) }); await flush();
     expect(textOf(view.tree)).toContain('The transfer could not finish');
     expect(textOf(view.tree)).not.toContain('fictional-secret-error');
-    expect(one(view.tree, el => el.type === 'textarea')!.props.value).toBe('ccdeck-codex-v1.fictional');
+    expect(one(view.tree, el => el.type === 'input')!.props.value).toBe('ccdeck-codex-v1.fictional');
     expect(one(view.tree, el => el.props.role === 'alert')).toBeTruthy();
   });
 

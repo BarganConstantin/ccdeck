@@ -108,7 +108,7 @@ export default function AddCodexAccountDialog({ profile, onCreate, onCopyCommand
   const tabbed = !profile;
   const [tab, setTab] = useState<TabId>("login");
   const tabRefs = useRef<(HTMLButtonElement | null)[]>([]);
-  const pasteField = useRef<HTMLTextAreaElement | null>(null);
+  const pasteField = useRef<HTMLInputElement | null>(null);
   /** The tab was reached by an arrow key, so focus stays on the strip. */
   const arrowed = useRef(false);
   const [stage, setStage] = useState<Stage>("ready");
