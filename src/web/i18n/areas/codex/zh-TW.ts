@@ -12,6 +12,7 @@ const catalog: Catalog = {
   "codex.row.switched": "預設帳號已變更。使用終端機帳號選擇的工作階段將使用此帳號。",
   "codex.row.liveSwitched": "已連線的 Codex 對話現在使用此帳號。中斷的任務會自動恢復。",
   "codex.row.switchWaiting": "正在等待執行中的工具完成或必要的輸入，然後切換帳號。",
+  "codex.row.childrenResuming": "帳號已切換，正在等待子代理恢復。",
   "codex.row.continueUnconfirmed": "無法確認是否已自動繼續。繼續之前請檢查對話。",
   "codex.row.reading": "正在讀取用量…",
   "codex.lane.limit": "額度",

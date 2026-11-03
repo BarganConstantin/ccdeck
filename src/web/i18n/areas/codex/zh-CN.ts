@@ -11,6 +11,7 @@ const catalog: Catalog = {
   "codex.row.switched": "默认账号已更改。使用终端账号选择的会话将使用此账号。",
   "codex.row.liveSwitched": "已连接的 Codex 对话现在使用此账号。中断的任务会自动恢复。",
   "codex.row.switchWaiting": "正在等待运行中的工具完成或必要的输入，然后切换账号。",
+  "codex.row.childrenResuming": "账号已切换，正在等待子代理恢复。",
   "codex.row.continueUnconfirmed": "无法确认是否已自动继续。继续之前请检查对话。",
   "codex.row.reading": "正在读取用量…",
   "codex.lane.limit": "限额",

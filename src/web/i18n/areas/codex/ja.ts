@@ -12,6 +12,7 @@ const catalog: Catalog = {
   "codex.row.switched": "既定のアカウントを変更しました。ターミナルでアカウントを選択するセッションはこのアカウントを使用します。",
   "codex.row.liveSwitched": "接続中の Codex の会話はこのアカウントを使用します。中断されたタスクは自動的に再開されます。",
   "codex.row.switchWaiting": "アカウントを切り替える前に、実行中のツールや必要な入力を待っています。",
+  "codex.row.childrenResuming": "アカウントを切り替えました。サブエージェントの再開を待っています。",
   "codex.row.continueUnconfirmed": "自動再開を確認できませんでした。続行する前に会話を確認してください。",
   "codex.row.reading": "使用量を読み取り中…",
   "codex.lane.limit": "上限",

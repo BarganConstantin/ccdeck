@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 // @ts-expect-error server module
-import { prepareCodexLiveHandoff, continueCodexLiveHandoff } from '../../server/codex-live-handoff.mjs';
+import { prepareCodexLiveHandoff, continueCodexLiveHandoff, confirmCodexLiveChildren } from '../../server/codex-live-handoff.mjs';
 function fixture() {
   const turn = { id: 'turn-one', rootTurnId: 'root-turn', status: 'inProgress', itemsView: 'full', items: [{ id: 'input', type: 'userMessage' }, { id: 'reason', type: 'reasoning' }] as any[] };
   const thread = { id: 'thread-one', parentThreadId: null as string | null, historyMode: 'legacy', status: { type: 'active', activeFlags: [] as string[] } };
@@ -27,6 +27,8 @@ function familyFixture(nested = false) {
     const i = ids.indexOf(params.threadId), thread = threads[i], turn = turns[i];
     if (method === 'thread/read') return { thread: structuredClone(thread) };
     if (method === 'thread/turns/list') return { data: [structuredClone(turn)] };
+    if (method === 'thread/resume') return { thread: structuredClone(thread), initialTurnsPage: { data: [structuredClone(turn)] } };
+    if (method === 'thread/unsubscribe') return {};
     if (method === 'turn/interrupt') {
       expect(params.turnId).toBe(turn.id); thread.status.type = 'idle'; turn.status = 'interrupted';
       for (const item of turn.items) if (item.type === 'collabAgentToolCall' && item.tool === 'wait') item.status = 'completed';
@@ -39,7 +41,75 @@ function familyFixture(nested = false) {
     status: 'inProgress', tool: 'wait', senderThreadId: ids[sender], receiverThreadIds: [ids[receiver]] });
   return { threads, turns, rpc, wait };
 }
+function v2Fixture() {
+  const f = familyFixture(); f.threads[1].canAcceptDirectInput = false;
+  Object.assign(f.threads[1], { source: { subAgent: { thread_spawn: { parent_thread_id: 'parent', agent_path: '/root/report' } } } });
+  f.turns[1].items = []; // Native V2 input is inter-agent mail, not a userMessage item.
+  f.wait(0, 1); f.turns[0].items[1].receiverThreadIds = []; // V2 waits on its mailbox.
+  return f;
+}
 describe('native account handoff without network-permit revocation', () => {
+  it('resumes a V2 child through its paused owner without sending direct child input, then confirms its new turn', async () => {
+    const f = v2Fixture(), delegated = vi.fn(); const h = await prepareCodexLiveHandoff(f.rpc);
+    expect(h.waiting).toBe(false);
+    expect(h.paused).toMatchObject([{ threadId: 'parent' }, { threadId: 'child', resumeViaThreadId: 'parent' }]);
+    const result = await continueCodexLiveHandoff(f.rpc, h, { onDelegate: delegated });
+    expect(result.resumed).toBe(1); expect(result.delegated).toMatchObject([{ threadId: 'child' }]);
+    const starts = f.rpc.request.mock.calls.filter(c => c[0] === 'turn/start');
+    expect(starts.map(c => c[1].threadId)).toEqual(['parent']);
+    expect(starts[0][1].input[0].text).toContain('followup_task');
+    expect(starts[0][1].input[0].text).toContain('child'); expect(delegated).toHaveBeenCalledOnce();
+    expect(await confirmCodexLiveChildren(f.rpc, result.delegated)).toMatchObject({ pending: [{ threadId: 'child' }] });
+    f.turns[1].id = 'resumed-child'; f.turns[1].status = 'inProgress'; f.threads[1].status.type = 'active';
+    const confirmed = vi.fn();
+    expect(await confirmCodexLiveChildren(f.rpc, result.delegated, { onConfirmed: confirmed })).toEqual({ pending: [] });
+    expect(confirmed).toHaveBeenCalledWith(expect.objectContaining({ threadId: 'child' }), 'resumed-child');
+    await continueCodexLiveHandoff(f.rpc, h);
+    expect(f.rpc.request.mock.calls.filter(c => c[0] === 'turn/start')).toHaveLength(1);
+  });
+  it.each(['idle-owner', 'command', 'missing-source', 'summary'])('keeps V2 %s waiting without interrupts or input', async condition => {
+    const f = v2Fixture();
+    if (condition === 'idle-owner') { f.threads[0].status.type = 'idle'; f.turns[0].status = 'completed'; f.turns[0].items.pop(); }
+    if (condition === 'command') f.turns[1].items.push({ id: 'shell', type: 'commandExecution', status: 'inProgress' });
+    if (condition === 'missing-source') Object.assign(f.threads[1], { source: null });
+    if (condition === 'summary') f.turns[1].itemsView = 'summary';
+    expect((await prepareCodexLiveHandoff(f.rpc)).waiting).toBe(true);
+    expect(f.rpc.request.mock.calls.some(c => c[0].startsWith('turn/'))).toBe(false);
+  });
+  it('does not wake an idle owner over new user input to recover a V2 child', async () => {
+    const f = v2Fixture(); const h = await prepareCodexLiveHandoff(f.rpc);
+    f.turns[0].items.push({ id: 'owner-new-input', type: 'userMessage' });
+    await expect(continueCodexLiveHandoff(f.rpc, h)).rejects.toMatchObject({ code: 'native_continue_unconfirmed' });
+    expect(f.rpc.request.mock.calls.some(c => c[0] === 'turn/start')).toBe(false);
+  });
+  it('does not ask the owner to reopen a V2 child closed after interruption', async () => {
+    const f = v2Fixture(); const h = await prepareCodexLiveHandoff(f.rpc); f.threads[1].status.type = 'notLoaded';
+    const skipped = vi.fn(); expect(await continueCodexLiveHandoff(f.rpc, h, { onSkip: skipped })).toEqual({ resumed: 1 });
+    expect(f.rpc.request.mock.calls.find(c => c[0] === 'turn/start')?.[1].input[0].text).not.toContain('followup_task');
+    expect(skipped).toHaveBeenCalledWith(expect.objectContaining({ threadId: 'child' }));
+  });
+  it('never mistakes a different child parent or root for confirmed continuation', async () => {
+    const f = v2Fixture(); const h = await prepareCodexLiveHandoff(f.rpc);
+    const result = await continueCodexLiveHandoff(f.rpc, h);
+    f.turns[1].id = 'other-work'; f.turns[1].rootTurnId = 'other-root'; f.threads[1].status.type = 'active';
+    await expect(confirmCodexLiveChildren(f.rpc, result.delegated)).rejects.toMatchObject({ code: 'native_activity_changed' });
+  });
+  it('does not claim that an unloaded V2 child resumed after delegation', async () => {
+    const f = v2Fixture(); const h = await prepareCodexLiveHandoff(f.rpc);
+    const result = await continueCodexLiveHandoff(f.rpc, h); f.threads[1].status.type = 'notLoaded';
+    const confirmed = vi.fn();
+    expect(await confirmCodexLiveChildren(f.rpc, result.delegated, { onConfirmed: confirmed })).toMatchObject({ pending: [{ threadId: 'child' }] });
+    expect(confirmed).not.toHaveBeenCalled();
+  });
+  it('confirms a resumed paginated child from live state when stored history still shows its interrupted turn', async () => {
+    const f = v2Fixture(); f.threads[1].historyMode = 'paginated';
+    const h = await prepareCodexLiveHandoff(f.rpc), result = await continueCodexLiveHandoff(f.rpc, h);
+    const stored = structuredClone(f.turns[1]), original = f.rpc.request.getMockImplementation()!;
+    f.turns[1].id = 'live-continuation'; f.turns[1].status = 'inProgress'; f.threads[1].status.type = 'active';
+    f.rpc.request.mockImplementation(async (method, params) => method === 'thread/turns/list' && params.threadId === 'child'
+      ? { data: [stored] } : original(method, params));
+    expect(await confirmCodexLiveChildren(f.rpc, result.delegated)).toEqual({ pending: [] });
+  });
   it('pauses parents before children and resumes children before their parents in the same threads', async () => {
     const f = familyFixture(true); f.wait(0, 1); f.wait(1, 2);
     const h = await prepareCodexLiveHandoff(f.rpc);

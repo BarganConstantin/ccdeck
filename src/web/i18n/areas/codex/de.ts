@@ -11,6 +11,7 @@ const catalog: Catalog = {
   "codex.row.switched": "Standardkonto geändert. Sitzungen mit Terminalauswahl folgen diesem Konto.",
   "codex.row.liveSwitched": "Verbundene Codex-Unterhaltungen verwenden jetzt dieses Konto. Unterbrochene Aufgaben werden automatisch fortgesetzt.",
   "codex.row.switchWaiting": "Vor dem Kontowechsel warten wir auf laufende Tools oder erforderliche Eingaben.",
+  "codex.row.childrenResuming": "Konto gewechselt. Wir warten, bis die Unteragenten fortfahren.",
   "codex.row.continueUnconfirmed": "Die automatische Fortsetzung wurde nicht bestätigt. Prüfe die Unterhaltung, bevor du fortfährst.",
   "codex.row.reading": "Nutzung wird gelesen …",
   "codex.lane.limit": "Limit",

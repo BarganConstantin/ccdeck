@@ -10,7 +10,7 @@ import { readCodexAuto } from './codex-auto.mjs';
 import { resolveCodexLiveEndpoint, connectCodexLiveRpc, liveError } from './codex-live-rpc.mjs';
 import { acquireCodexLiveLease } from './codex-live-lease.mjs';
 import { readLiveCodexCredential } from './codex-live-credentials.mjs';
-import { prepareCodexLiveHandoff, assertCodexLiveQuiet, continueCodexLiveHandoff } from './codex-live-handoff.mjs';
+import { prepareCodexLiveHandoff, assertCodexLiveQuiet, continueCodexLiveHandoff, confirmCodexLiveChildren } from './codex-live-handoff.mjs';
 
 const idPattern = /^[a-f0-9]{20}$/;
 const publicReason = e => /^[a-z_]{1,64}$/.test(e?.code ?? '') ? e.code : 'live_switch_failed';
@@ -33,6 +33,7 @@ export function createCodexLiveAccountController(input = {}) {
   let chain = Promise.resolve(), pendingKey = '', pendingSwitch = null;
   let restorePending = null, restoreRetryAt = 0;
   let deferred = null;
+  let childContinuation = null;
   let recoveryNeeded = false;
   const status = () => ({ ...state, scope: 'shared_native_server' });
   const update = patch => { state = { ...state, ...patch }; options.onState?.(status()); };
@@ -62,7 +63,9 @@ export function createCodexLiveAccountController(input = {}) {
   async function externalChange() {
     if (!owned || closed) return;
     owned = false; credential = null; deferred = null;
-    update({ state: 'external_change', profileId: null, reason: 'account_changed_outside_deck' });
+    update({ state: 'external_change', profileId: null, reason: 'account_changed_outside_deck',
+      ...(childContinuation ? { continuation: 'manual_required' } : {}) });
+    childContinuation = null;
     await save().catch(() => {});
     await disconnect();
   }
@@ -124,6 +127,10 @@ export function createCodexLiveAccountController(input = {}) {
   async function apply(intent, refresh = false, automatic = false) {
     const currentIntent = () => refresh ? appliedIntent : desired;
     if (closed || currentIntent()?.revision !== intent.revision || currentIntent().id !== intent.id) return status();
+    if (childContinuation) {
+      deferred = { intent: { ...intent }, refresh, automatic };
+      update({ state: 'waiting', requestedProfileId: intent.id, reason: 'native_tools_active', continuation: 'waiting' }); return status();
+    }
     if (automatic && !(await (options.readAuto ?? (() => readCodexAuto({ ...options, store })))()).enabled) {
       update({ state: owned ? 'applied' : 'idle', reason: 'auto_switch_disabled', continuation: 'none' }); return status();
     }
@@ -147,6 +154,7 @@ export function createCodexLiveAccountController(input = {}) {
       },
       afterSend: (entry, turnId) => record(entry, 'continued', turnId),
       onSkip: entry => record(entry, 'skipped'),
+      onDelegate: entry => record(entry, 'delegated'),
     });
     try {
       const s = await selection();
@@ -185,7 +193,14 @@ export function createCodexLiveAccountController(input = {}) {
       // if local metadata cannot be saved; losing it would strand live auth.
       await save().catch(() => update({ reason: 'ownership_not_saved' }));
       if (handoff.paused.length) {
-        try { const result = await resume(); update({ continuation: result.resumed ? 'automatic' : 'none' }); }
+        try {
+          const result = await resume();
+          if (result.delegated?.length) {
+            childContinuation = { rpc, entries: result.delegated, deadline: Date.now() + (options.delegationTimeoutMs ?? 60_000),
+              record, identity: resumeIdentity };
+          }
+          update({ continuation: result.delegated?.length ? 'waiting' : result.resumed ? 'automatic' : 'none' });
+        }
         catch { update({ reason: 'native_continue_unconfirmed', continuation: 'manual_required' }); }
       }
     } catch (error) {
@@ -295,6 +310,24 @@ export function createCodexLiveAccountController(input = {}) {
     } catch { /* No prior ownership means no native authentication mutation. */ }
     finally { if (recoveryNeeded) update({ continuation: 'manual_required', reason: 'native_continue_unconfirmed' }); }
   })();
+  async function confirmChildren() {
+    const work = childContinuation;
+    if (!work) return;
+    try {
+      if (work.rpc !== rpc || !owned || !await lease?.valid()) throw liveError('native_control_lost');
+      const actual = (await rpc.request('account/read', { refreshToken: false })).account;
+      if (actual?.email !== work.identity?.email || actual?.type !== work.identity?.type) throw liveError('account_changed_outside_deck');
+      const result = await confirmCodexLiveChildren(rpc, work.entries, {
+        onConfirmed: (entry, id) => work.record(entry, 'continued', id), onSkip: entry => work.record(entry, 'skipped'),
+      });
+      work.entries = result.pending;
+      if (!work.entries.length) {
+        childContinuation = null; update({ continuation: 'automatic', reason: null });
+      } else if (Date.now() >= work.deadline) throw liveError('native_continue_unconfirmed');
+    } catch {
+      childContinuation = null; update({ continuation: 'manual_required', reason: 'native_continue_unconfirmed' });
+    }
+  }
   async function reconnect() {
     const generation = endpoint?.generation;
     const s = await selection(); await ensureRpc(s.originalHome);
@@ -309,6 +342,7 @@ export function createCodexLiveAccountController(input = {}) {
     ticking = true;
     try {
       await ready;
+      if (childContinuation) await enqueue(confirmChildren);
       const s = await selection();
       if (s.runningSelection && s.runningSelection.revision > lastManual) {
         lastManual = s.runningSelection.revision; await request(s.runningSelection);

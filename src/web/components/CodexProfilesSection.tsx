@@ -172,12 +172,12 @@ export default function CodexProfilesSection({ onClose, switcher, onNotice }: {
   }
 
   useEffect(() => {
-    if (liveSelection?.state !== 'waiting') return;
+    if (liveSelection?.state !== 'waiting' && liveSelection?.continuation !== 'waiting') return;
     const timer = setInterval(() => {
       if (profileRefreshes.current === 0) void refreshProfiles().catch(() => {});
     }, 2000);
     return () => clearInterval(timer);
-  }, [liveSelection?.state]);
+  }, [liveSelection?.state, liveSelection?.continuation]);
 
   /** Read one profile's numbers. `auto` is the first read of a login and shows
    *  that it is reading; `poll` keeps what is on screen until the new one lands.
@@ -406,6 +406,7 @@ export default function CodexProfilesSection({ onClose, switcher, onNotice }: {
   const voice = codexVoice(t);
   const liveNote = liveSelection?.continuation === 'manual_required' ? t("codex.row.continueUnconfirmed")
     : liveSelection?.state === 'waiting' ? t("codex.row.switchWaiting")
+    : liveSelection?.continuation === 'waiting' ? t("codex.row.childrenResuming")
     : liveSelection?.state === 'applied' ? t("codex.row.liveSwitched") : null;
   const accountRow = ({ profile, reading, account: a, issue }: Row) => {
     const plan = shownReading(reading)?.plan;

@@ -8,6 +8,10 @@ const terminal = new Set(['completed', 'failed', 'declined']);
 const tool = item => !passive.has(item.type);
 const completed = item => item.status !== 'inProgress' && (terminal.has(item.status)
   || Number.isFinite(item.completedAtMs) && item.completedAtMs > 0);
+const v2Child = thread => thread.canAcceptDirectInput === false && !!thread.parentThreadId
+  && thread.source?.subAgent?.thread_spawn?.parent_thread_id === thread.parentThreadId
+  && typeof thread.source.subAgent.thread_spawn.agent_path === 'string'
+  && thread.source.subAgent.thread_spawn.agent_path.startsWith('/root/');
 function ancestors(thread, known) {
   const seen = new Set([thread.id]), parents = [];
   for (let id = thread.parentThreadId; id; id = known.get(id)?.parentThreadId) {
@@ -20,10 +24,11 @@ function ancestors(thread, known) {
 // every real tool must finish before we pause any member of the family.
 const childWait = (item, thread, known) => item.type === 'collabAgentToolCall'
   && item.tool === 'wait' && item.status === 'inProgress' && item.senderThreadId === thread.id
-  && Array.isArray(item.receiverThreadIds) && item.receiverThreadIds.length > 0
-  && item.receiverThreadIds.every(id => known.has(id) && ancestors(known.get(id), known).includes(thread.id));
+  && Array.isArray(item.receiverThreadIds) && (item.receiverThreadIds.length > 0
+    ? item.receiverThreadIds.every(id => known.has(id) && ancestors(known.get(id), known).includes(thread.id))
+    : [...known.values()].some(t => v2Child(t) && ancestors(t, known).includes(thread.id)));
 const safe = (turn, thread, known) => turn?.itemsView === 'full' && Array.isArray(turn?.items)
-  && turn.items.some(i => i.type === 'userMessage')
+  && (turn.items.some(i => i.type === 'userMessage') || v2Child(thread))
   && turn.items.every(i => passive.has(i.type) || completed(i) || childWait(i, thread, known));
 const inputIds = turn => turn.items.filter(i => i.type === 'userMessage').map(i => i.id);
 const sameInputs = (a, b) => JSON.stringify(inputIds(a)) === JSON.stringify(inputIds(b));
@@ -93,8 +98,15 @@ export async function prepareCodexLiveHandoff(rpc, options = {}) {
   const isCurrent = options.isCurrent ?? (() => true);
   const paused = [];
   const { threads: initial, known } = await snapshot(rpc);
-  if (initial.some(t => !t.active || t.thread?.canAcceptDirectInput === false
-    || t.thread?.parentThreadId && t.thread.canAcceptDirectInput !== true
+  const routes = new Map();
+  for (const t of initial) {
+    if (!t.thread || !v2Child(t.thread)) continue;
+    const owner = ancestors(t.thread, known).map(id => initial.find(p => p.id === id))
+      .find(p => p?.thread.canAcceptDirectInput === true);
+    if (owner && (owner.turn?.rootTurnId ?? owner.turn?.id) === (t.turn?.rootTurnId ?? t.turn?.id)) routes.set(t.id, owner.id);
+  }
+  if (initial.some(t => !t.active || t.thread?.canAcceptDirectInput === false && !routes.has(t.id)
+    || t.thread?.parentThreadId && t.thread.canAcceptDirectInput !== true && !routes.has(t.id)
     || !Array.isArray(t.flags) || t.flags.length || t.turn?.status !== 'inProgress' || !safe(t.turn, t.thread, known))) {
     return { waiting: true, paused };
   }
@@ -107,12 +119,14 @@ export async function prepareCodexLiveHandoff(rpc, options = {}) {
       const now = (await rpc.request('thread/read', { threadId: observed.id, includeTurns: false }))?.thread;
       if (now?.status?.type !== 'active') continue;
       const turn = await liveLatest(rpc, now);
-      if (turn?.id !== observed.turn.id || now.status.activeFlags?.length || now.canAcceptDirectInput === false
+      if (turn?.id !== observed.turn.id || now.status.activeFlags?.length || now.canAcceptDirectInput === false && !routes.has(observed.id)
         || (now.parentThreadId ?? null) !== (observed.thread.parentThreadId ?? null)
-        || now.parentThreadId && now.canAcceptDirectInput !== true
+        || now.parentThreadId && now.canAcceptDirectInput !== true && !routes.has(observed.id)
+        || routes.has(observed.id) && !v2Child(now)
         || !safe(turn, now, known) || !sameInputs(observed.turn, turn)) throw liveError('native_activity_changed');
       const entry = { threadId: observed.id, turnId: turn.id, rootTurnId: turn.rootTurnId ?? turn.id, messageId: randomUUID(), inputIds: inputIds(turn),
-        ...(now.parentThreadId ? { parentThreadId: now.parentThreadId } : {}) };
+        ...(now.parentThreadId ? { parentThreadId: now.parentThreadId } : {}),
+        ...(routes.has(observed.id) ? { resumeViaThreadId: routes.get(observed.id) } : {}) };
       await options.beforeInterrupt?.(entry);
       // Native acknowledges terminal completion; verify whether it interrupted
       // or finished naturally. Never use an empty ID or change configuration.
@@ -142,6 +156,7 @@ export async function assertCodexLiveQuiet(rpc) {
 /** Mark a send durably before submitting. An uncertain send is never replayed. */
 export async function continueCodexLiveHandoff(rpc, handoff, options = {}) {
   let resumed = 0;
+  const delegated = [], owners = new Set();
   for (const entry of [...handoff?.paused ?? []].reverse()) {
     if (entry.sent) continue;
     if (options.isCurrent && !options.isCurrent()) throw liveError('native_switch_superseded');
@@ -149,22 +164,56 @@ export async function continueCodexLiveHandoff(rpc, handoff, options = {}) {
     // A closed/unloaded child has no direct-input capability. Leave it alone
     // before inspecting history, and allow the remaining family to continue.
     if (t?.status?.type !== 'idle') { await options.onSkip?.(entry); continue; }
-    if (t?.canAcceptDirectInput === false || entry.parentThreadId
-      && (t?.canAcceptDirectInput !== true || t.parentThreadId !== entry.parentThreadId)) throw liveError('native_activity_changed');
+    if (entry.resumeViaThreadId ? !v2Child(t) || t.parentThreadId !== entry.parentThreadId
+      : t?.canAcceptDirectInput === false || entry.parentThreadId
+        && (t?.canAcceptDirectInput !== true || t.parentThreadId !== entry.parentThreadId)) throw liveError('native_activity_changed');
     const turn = await latest(rpc, entry.threadId);
     // New input, natural completion, archival or a different turn wins over us.
     if (turn?.id !== entry.turnId || turn.status !== 'interrupted'
       || JSON.stringify(inputIds(turn)) !== JSON.stringify(entry.inputIds)) {
       await options.onSkip?.(entry); continue;
     }
+    if (entry.resumeViaThreadId) {
+      await options.onDelegate?.(entry);
+      entry.sent = true; delegated.push(entry); continue;
+    }
     await options.beforeSend?.(entry);
     entry.sent = true;
+    const children = delegated.filter(e => e.resumeViaThreadId === entry.threadId);
+    const continuation = 'Continue the interrupted task, honoring the latest user instructions already in this conversation. Do not repeat completed tools or actions. If the user cancelled or asked to stop, remain stopped.';
+    const text = children.length ? continuation + '\n\nThe account handoff paused these existing subagents (deepest first): '
+      + JSON.stringify(children.map(e => e.threadId)) + '. Before continuing your own work, inspect their current status with list_agents. '
+      + 'For each listed agent that is still interrupted, use the native followup_task tool exactly once, targeting that SAME existing agent ID, '
+      + 'with this message: ' + JSON.stringify(continuation) + '. Resume in the listed order. Keep their existing assignments, history and parent relationships. '
+      + 'Do not spawn replacements, reopen closed agents, repeat completed work, or send followups to agents already running or completed. '
+      + 'Then continue the original task and wait for the same agents as needed.' : continuation;
     const result = await rpc.request('turn/start', { threadId: entry.threadId,
       rootTurnId: entry.rootTurnId, clientUserMessageId: entry.messageId,
-      input: [{ type: 'text', text: 'Continue the interrupted task, honoring the latest user instructions already in this conversation. Do not repeat completed tools or actions. If the user cancelled or asked to stop, remain stopped.' }] });
+      input: [{ type: 'text', text }] });
     if (!result?.turn?.id) throw liveError('native_continue_unconfirmed');
     resumed++;
     await options.afterSend?.(entry, result.turn.id);
+    owners.add(entry.threadId);
   }
-  return { resumed };
+  if (delegated.some(e => !owners.has(e.resumeViaThreadId))) throw liveError('native_continue_unconfirmed');
+  return { resumed, ...(delegated.length ? { delegated } : {}) };
+}
+
+/** Observe the parent's native followups; never submit or retry child input. */
+export async function confirmCodexLiveChildren(rpc, entries, options = {}) {
+  const pending = [];
+  for (const entry of entries) {
+    const t = (await rpc.request('thread/read', { threadId: entry.threadId, includeTurns: false }))?.thread;
+    if (!t || t.parentThreadId !== entry.parentThreadId) throw liveError('native_activity_changed');
+    // Eviction and closure both appear unloaded here. Only the owning parent
+    // can distinguish them; do not claim that an unobserved child resumed.
+    if (t.status?.type === 'notLoaded') { pending.push(entry); continue; }
+    const turn = t.status?.type === 'active' ? await liveLatest(rpc, t) : await latest(rpc, entry.threadId);
+    if (turn?.id === entry.turnId && turn.status === 'interrupted') { pending.push(entry); continue; }
+    if (turn?.id !== entry.turnId && turn.rootTurnId === entry.rootTurnId && ['inProgress', 'completed'].includes(turn.status)) {
+      await options.onConfirmed?.(entry, turn.id); continue;
+    }
+    throw liveError('native_activity_changed');
+  }
+  return { pending };
 }

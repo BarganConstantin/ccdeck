@@ -12,6 +12,7 @@ const catalog: Catalog = {
   "codex.row.switched": "Conta padrão alterada. As sessões com seleção no terminal seguirão esta conta.",
   "codex.row.liveSwitched": "As conversas do Codex conectadas usam esta conta agora. As tarefas interrompidas são retomadas automaticamente.",
   "codex.row.switchWaiting": "Aguardando ferramentas em execução ou a entrada necessária antes de trocar de conta.",
+  "codex.row.childrenResuming": "Conta alterada. Aguardando a retomada dos subagentes.",
   "codex.row.continueUnconfirmed": "A continuação automática não pôde ser confirmada; confira a conversa antes de continuar.",
   "codex.row.reading": "Lendo o uso…",
   "codex.lane.limit": "limite",

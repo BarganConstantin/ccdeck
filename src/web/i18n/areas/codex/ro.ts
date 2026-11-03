@@ -12,6 +12,7 @@ const catalog: Catalog = {
   "codex.row.switched": "Contul implicit a fost schimbat. Sesiunile cu selecția din terminal vor urma acest cont.",
   "codex.row.liveSwitched": "Conversațiile Codex conectate folosesc acum acest cont. Sarcinile întrerupte se reiau automat.",
   "codex.row.switchWaiting": "Așteptăm uneltele în desfășurare sau răspunsul necesar înainte de schimbarea contului.",
+  "codex.row.childrenResuming": "Contul a fost schimbat. Așteptăm reluarea subagenților.",
   "codex.row.continueUnconfirmed": "Reluarea automată nu a putut fi confirmată; verifică conversația înainte să continui.",
   "codex.row.reading": "Se citește utilizarea…",
   "codex.lane.limit": "limită",

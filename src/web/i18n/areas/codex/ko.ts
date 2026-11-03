@@ -11,6 +11,7 @@ const catalog: Catalog = {
   "codex.row.switched": "기본 계정이 변경되었습니다. 터미널 선택을 사용하는 세션은 이 계정을 따릅니다.",
   "codex.row.liveSwitched": "연결된 Codex 대화가 이제 이 계정을 사용합니다. 중단된 작업은 자동으로 재개됩니다.",
   "codex.row.switchWaiting": "계정을 전환하기 전에 실행 중인 도구나 필요한 입력을 기다리고 있습니다.",
+  "codex.row.childrenResuming": "계정이 전환되었습니다. 하위 에이전트가 재개되기를 기다리고 있습니다.",
   "codex.row.continueUnconfirmed": "자동 재개를 확인하지 못했습니다. 계속하기 전에 대화를 확인하세요.",
   "codex.row.reading": "사용량 읽는 중…",
   "codex.lane.limit": "한도",

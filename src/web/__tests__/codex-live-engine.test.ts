@@ -6,7 +6,8 @@ const A = 'a'.repeat(20), B = 'b'.repeat(20);
 const controllers: { close(): Promise<void> }[] = [];
 afterEach(async () => { for (const c of controllers.splice(0)) await c.close(); vi.restoreAllMocks(); });
 async function fixture({ saved = null as any, actual = A, readCredential = null as any, auto = false, persistError = false,
-  initial = null as any, resolveEndpoint = null as any, active = false, savedHandoff = null as any } = {}) {
+  initial = null as any, resolveEndpoint = null as any, active = false, savedHandoff = null as any,
+  delegationTimeoutMs = undefined as number | undefined } = {}) {
   const selection = { originalHome: '/native-home', profileId: A, revision: 0, runningSelection: null as any,
     profiles: [{ id: A, available: true }, { id: B, available: true }] };
   const email = (id: string) => id === A ? 'first@example.test' : 'second@example.test';
@@ -41,6 +42,7 @@ async function fixture({ saved = null as any, actual = A, readCredential = null 
   if (initial) Object.assign(selection, initial);
   const c = createCodexLiveAccountController({
     store: '/unused-fixture-store', pollMs: 1000_000, restoreRetryMs: 0,
+    delegationTimeoutMs,
     readSelection: async () => ({ ...selection }), readAuto: async () => autoSettings,
     loadState: async () => saved, persistState: async (m: any) => { if (persistError) throw Error('private disk detail'); persisted.push(m); },
     loadHandoff: async () => savedHandoff,
@@ -57,6 +59,51 @@ async function fixture({ saved = null as any, actual = A, readCredential = null 
     externalLogin: (id: string) => { account = { ...account, email: email(id) }; callbacks.onNotification({ method: 'account/updated' }); } };
 }
 describe('existing Codex session account engine', () => {
+  async function v2({ timeout = undefined as number | undefined } = {}) {
+    const f = await fixture({ active: true, delegationTimeoutMs: timeout }), original = f.rpc.request.getMockImplementation()!;
+    Object.assign(f.thread, { canAcceptDirectInput: true });
+    const child = { id: 'v2-child', parentThreadId: f.thread.id, canAcceptDirectInput: false,
+      source: { subAgent: { thread_spawn: { parent_thread_id: f.thread.id, agent_path: '/root/report' } } },
+      status: { type: 'active', activeFlags: [] } };
+    const turn = { id: 'v2-turn', rootTurnId: 'root-turn', status: 'inProgress', itemsView: 'full', items: [] };
+    f.turn.items.push({ id: 'wait', type: 'collabAgentToolCall', tool: 'wait', status: 'inProgress', senderThreadId: f.thread.id, receiverThreadIds: [] });
+    f.rpc.request.mockImplementation(async (method, params) => {
+      if (method === 'thread/loaded/list') return { data: [f.thread.id, child.id] };
+      if (params?.threadId === child.id) {
+        f.calls.push({ method, params });
+        if (method === 'thread/read') return { thread: structuredClone(child) };
+        if (method === 'thread/turns/list') return { data: [structuredClone(turn)] };
+        if (method === 'turn/interrupt') { child.status.type = 'idle'; turn.status = 'interrupted'; return {}; }
+        throw Error('Direct V2 input is forbidden');
+      }
+      if (method === 'turn/interrupt') f.turn.items[1].status = 'completed';
+      return original(method, params);
+    });
+    return { ...f, child, childTurn: turn };
+  }
+  it('reports waiting until the parent really resumes its V2 child and records confirmation without another prompt', async () => {
+    const f = await v2();
+    expect(await f.c.request({ id: B, revision: 1 })).toMatchObject({ state: 'applied', continuation: 'waiting' });
+    expect(f.journals.at(-1)).toMatchObject({ phase: 'pending' });
+    await f.c.tick(); expect(f.c.status().continuation).toBe('waiting');
+    f.child.status.type = 'active'; f.childTurn.id = 'parent-followup'; f.childTurn.status = 'inProgress';
+    await f.c.tick(); expect(f.c.status()).toMatchObject({ state: 'applied', continuation: 'automatic' });
+    expect(f.journals.at(-1)).toMatchObject({ phase: 'finished' });
+    expect(f.calls.filter(c => c.method === 'turn/start').map(c => c.params.threadId)).toEqual([f.thread.id]);
+  });
+  it('leaves an unconfirmed V2 continuation manual after its deadline or a restart without replaying input', async () => {
+    const f = await v2({ timeout: 0 }); await f.c.request({ id: B, revision: 1 }); await f.c.tick(); await f.c.tick();
+    expect(f.c.status()).toMatchObject({ continuation: 'manual_required', reason: 'native_continue_unconfirmed' });
+    const restored = await fixture({ savedHandoff: f.journals.at(-1) });
+    expect(restored.c.status().continuation).toBe('manual_required');
+    expect(restored.calls.some(c => c.method === 'turn/start')).toBe(false);
+    expect(f.calls.filter(c => c.method === 'turn/start')).toHaveLength(1);
+  });
+  it('honors an outside login during V2 continuation instead of sending a retry', async () => {
+    const f = await v2(); await f.c.request({ id: B, revision: 1 }); f.externalLogin(A); await f.c.tick();
+    expect(f.c.status()).toMatchObject({ state: 'external_change', continuation: 'manual_required' });
+    expect(f.calls.filter(c => c.method === 'turn/start')).toHaveLength(1);
+  });
   it('switches authentication only after pausing a waiting parent and its child, then continues the child first', async () => {
     const f = await fixture({ active: true }); const original = f.rpc.request.getMockImplementation()!;
     const child = { id: 'child-thread', parentThreadId: f.thread.id, canAcceptDirectInput: true,

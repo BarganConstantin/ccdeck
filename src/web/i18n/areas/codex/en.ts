@@ -12,6 +12,7 @@ const catalog: Catalog = {
   "codex.row.switched": "Default changed. Sessions using terminal selection will follow this account.",
   "codex.row.liveSwitched": "Connected Codex conversations now use this account. Interrupted tasks resume automatically.",
   "codex.row.switchWaiting": "Waiting for running tools or pending input before switching accounts.",
+  "codex.row.childrenResuming": "Account switched. Waiting for subagents to resume.",
   "codex.row.continueUnconfirmed": "Automatic continuation could not be confirmed; check the conversation before continuing.",
   "codex.row.reading": "Reading usage…",
   "codex.lane.limit": "limit",
