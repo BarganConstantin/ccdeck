@@ -86,6 +86,8 @@ const catalog: Catalog = {
   "codex.menu.holdOutTitle": "将此账号排除在自动轮换之外",
   "codex.menu.putBack": "放回轮换",
   "codex.menu.holdOut": "排除轮换",
+  "codex.menu.setHomeTip": "自动切换会带您到此账号，并在此账号再次有余量时回到这里",
+  "codex.auto.home.on": "主账号 · 此账号再次有余量时自动切换会回到这里",
   "codex.menu.enableTerminalTitle": "复制一次性设置，让直接运行的 codex 命令跟随默认账号",
   "codex.menu.enableTerminal": "开启终端选择",
   "codex.menu.removeTerminal": "关闭终端选择",

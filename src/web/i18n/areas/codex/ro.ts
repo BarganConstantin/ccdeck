@@ -114,6 +114,8 @@ const catalog: Catalog = {
   "codex.menu.holdOutTitle": "Scoate acest cont din rotația automată",
   "codex.menu.putBack": "Pune înapoi în rotație",
   "codex.menu.holdOut": "Scoate din rotație",
+  "codex.menu.setHomeTip": "Comutarea automată te duce aici și revine când acest cont are din nou loc",
+  "codex.auto.home.on": "Acasă · Comutarea automată revine aici când contul are din nou loc",
   "codex.menu.enableTerminalTitle": "Copiază o configurare unică prin care simpla comandă codex urmează contul implicit",
   "codex.menu.enableTerminal": "Activează selecția în terminal",
   "codex.menu.removeTerminal": "Elimină selecția în terminal",

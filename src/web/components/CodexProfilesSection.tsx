@@ -15,6 +15,7 @@ import { allOpen, isOpen, orderChoices, orderKey, SLOT_ORDER, sortAccounts, togg
 import { loadOpenness, loadOrder, saveOpenness, saveOrder } from "../accounts-prefs";
 import { sentence } from "../account-issue";
 import { isAutoArmed, pastThreshold } from "../account-fold";
+import { codexHomeTitle } from "../auto-choice";
 import { ALIAS_MAX_LENGTH } from "../alias-save";
 import { type AutoStatus } from "../claude-accounts";
 import {
@@ -440,6 +441,7 @@ export default function CodexProfilesSection({ onClose, switcher, onNotice, away
     return (
       <AccountRow key={profile.id} a={a} nowSec={nowSec} issueOverride={issue}
         lan={mark ? { sharedTo: mark.to, sharedInUse: mark.inUse } : undefined}
+        home={auto?.homeId === profile.id ? codexHomeTitle(a, !signedOut(profile), !!auto.enabled, t) : null}
         voice={{
           ...voice,
           switched: liveNote ?? (switched?.live && !liveSelection ? t("codex.row.liveSwitched") : voice.switched),
@@ -618,6 +620,17 @@ export default function CodexProfilesSection({ onClose, switcher, onNotice, away
                     title={a.disabled ? t("codex.menu.putBackTitle") : t("codex.menu.holdOutTitle")}
                     onClick={() => void post({ action: "account", id: profile.id, enabled: a.disabled }, `rot-${a.num}`).then(out => { if (out?.ok) setMenu(null); })}
                   >{a.disabled ? t("codex.menu.putBack") : t("codex.menu.holdOut")}</button>
+                )}
+                {/* Home, as Claude's ⋯ has it: set with Auto-switch on or off —
+                    a tick reads it only while the switch is on — and removed
+                    whenever there is one, the one way to undo the row's ⌂. */}
+                {auto?.ok && (
+                  <button type="button" role="menuitem" className="ap-menu-item"
+                    {...pressProps(`home-${a.num}`)}
+                    title={auto.homeId === profile.id ? t("accounts.menu.removeHomeTip") : t("codex.menu.setHomeTip")}
+                    onClick={() => void post({ action: "home", id: auto.homeId === profile.id ? null : profile.id }, `home-${a.num}`)
+                      .then(out => { if (out?.ok) setMenu(null); })}
+                  >{auto.homeId === profile.id ? t("accounts.menu.removeHome") : t("accounts.menu.setHome")}</button>
                 )}
                 {a.active && (
                   <>

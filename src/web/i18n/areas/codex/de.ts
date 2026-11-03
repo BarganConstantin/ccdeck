@@ -86,6 +86,8 @@ const catalog: Catalog = {
   "codex.menu.holdOutTitle": "Dieses Konto aus der automatischen Rotation nehmen",
   "codex.menu.putBack": "Wieder in Rotation",
   "codex.menu.holdOut": "Aus Rotation nehmen",
+  "codex.menu.setHomeTip": "Der Auto-Wechsel bringt dich hierher und kehrt zurück, sobald dieses Konto wieder Luft hat",
+  "codex.auto.home.on": "Heimkonto · Der Auto-Wechsel kehrt hierher zurück, sobald es wieder Luft hat",
   "codex.menu.enableTerminalTitle": "Kopiert eine einmalige Einrichtung, damit der normale Befehl codex dem Standardkonto folgt",
   "codex.menu.enableTerminal": "Terminal-Auswahl aktivieren",
   "codex.menu.removeTerminal": "Terminal-Auswahl entfernen",

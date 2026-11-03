@@ -89,6 +89,8 @@ const catalog: Catalog = {
   "codex.menu.holdOutTitle": "將此帳號排除在自動輪替之外",
   "codex.menu.putBack": "放回輪替",
   "codex.menu.holdOut": "排除輪替",
+  "codex.menu.setHomeTip": "自動切換會帶您到此帳號，並在此帳號再次有餘量時回到這裡",
+  "codex.auto.home.on": "主帳號 · 此帳號再次有餘量時自動切換會回到這裡",
   "codex.menu.enableTerminalTitle": "複製一次性設定，讓一般的 codex 指令跟隨預設帳號",
   "codex.menu.enableTerminal": "啟用終端機選擇",
   "codex.menu.removeTerminal": "移除終端機選擇",

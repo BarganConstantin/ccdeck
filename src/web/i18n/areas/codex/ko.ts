@@ -85,6 +85,8 @@ const catalog: Catalog = {
   "codex.menu.holdOutTitle": "이 계정을 자동 순환에서 제외합니다",
   "codex.menu.putBack": "순환에 되돌리기",
   "codex.menu.holdOut": "순환에서 제외",
+  "codex.menu.setHomeTip": "자동 전환이 여기로 이동시키고, 이 계정에 다시 여유가 생기면 돌아옵니다",
+  "codex.auto.home.on": "홈 · 다시 여유가 생기면 자동 전환이 여기로 돌아옵니다",
   "codex.menu.enableTerminalTitle": "터미널의 codex 명령이 기본 계정을 따르도록 하는 일회성 설정을 복사합니다",
   "codex.menu.enableTerminal": "터미널 선택 켜기",
   "codex.menu.removeTerminal": "터미널 선택 끄기",

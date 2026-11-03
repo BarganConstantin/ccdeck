@@ -41,7 +41,7 @@ describe("settings", () => {
     expect(await readCodexAuto({ store })).toEqual({
       ok: true, enabled: false, external: false, lastTick: null,
       settings: { "autoswitch.threshold": { value: "90", isDefault: true } },
-      choice: { next: "room", home: null }, heldOut: [],
+      choice: { next: "room", home: null }, homeId: null, heldOut: [],
     });
   });
 
@@ -228,6 +228,107 @@ describe("tick", () => {
     for (const key of ["readSelection", "discover", "readQuota", "select"]) {
       await expect(codexAutoTick({ ...options, [key]: boom })).resolves.toBeUndefined();
     }
+  });
+});
+
+// A home account, by Claude's rules (account-choice.mjs), kept by profile id.
+describe("home", () => {
+  const state = (s: Row) => writeFile(join(store, "codex-auto.json"), JSON.stringify({ enabled: true, ...s }));
+  const saved = async () => JSON.parse(await readFile(join(store, "codex-auto.json"), "utf8"));
+  const on = (profileId: string, rows: Row[], quotas: Record<string, unknown>, now = () => NOW) => {
+    const r = rig(rows, quotas, { now });
+    r.options.readSelection = async () => ({ profileId, revision: 7 });
+    return r;
+  };
+
+  it("is set and removed by profile, with Auto-switch on or off, and a bad id is refused", async () => {
+    expect((await applyCodexAuto({ action: "home", id: B }, { store })).homeId).toBe(B);
+    expect((await readCodexAuto({ store })).homeId).toBe(B);
+    expect(await applyCodexAuto({ action: "home", id: "nope" }, { store })).toEqual({ ok: false, reason: "bad_request" });
+    expect(await applyCodexAuto({ action: "home" }, { store })).toEqual({ ok: false, reason: "bad_request" });
+    expect((await applyCodexAuto({ action: "home", id: null }, { store })).homeId).toBeNull();
+  });
+
+  it("is the first place a full account goes, ahead of one with more room", async () => {
+    await state({ home: B, lastActive: A });
+    const { options, select } = on(A, roster(), { [A]: q(95), [B]: q(30), [C]: q(5) });
+    await codexAutoTick(options);
+    expect(picked(select).id).toBe(B);
+    expect((await readCodexAuto({ store })).lastTick).toMatchObject({ event: "switched", to: B, trigger: "home" });
+  });
+
+  it("is passed over when it has no room, is held out, or was not read just now", async () => {
+    for (const [s, homeQuota] of [
+      [{}, q(88)], // 88 is under 90 but not comfortably: it would fill again at once
+      [{ heldOut: [B] }, q(10)],
+      [{}, { ...q(10), stale: true }],
+      [{}, { ...q(10), fetchedAt: NOW - 20 * 60_000 }],
+    ] as const) {
+      await state({ home: B, lastActive: A, ...s });
+      const { options, select } = on(A, roster(), { [A]: q(95), [B]: homeQuota, [C]: q(5) });
+      await codexAutoTick(options);
+      expect(picked(select).id).toBe(C);
+      await rm(store, { recursive: true, force: true });
+      store = await mkdtemp(join(tmpdir(), "codex-auto-")); // a fresh cooldown
+    }
+  });
+
+  it("takes the default there on the next tick when it was just set elsewhere, then stops asking", async () => {
+    await state({ lastActive: A });
+    await applyCodexAuto({ action: "home", id: B }, { store });
+    const { options, select } = on(A, roster(), { [A]: q(20), [B]: q(10) });
+    await codexAutoTick(options);
+    expect(picked(select).id).toBe(B);
+    expect(await saved()).toMatchObject({ home: B, goHome: false, manual: false, lastActive: B });
+  });
+
+  it("comes back from an account Auto-switch moved to, once that move has settled", async () => {
+    await state({ home: B, lastActive: A, movedAt: NOW - 10 * 60_000 });
+    let r = on(A, roster(), { [A]: q(20), [B]: q(10) });
+    await codexAutoTick(r.options);
+    expect(r.select).not.toHaveBeenCalled();
+
+    await rm(store, { recursive: true, force: true });
+    store = await mkdtemp(join(tmpdir(), "codex-auto-"));
+    await state({ home: B, lastActive: A, movedAt: NOW - 31 * 60_000 });
+    r = on(A, roster(), { [A]: q(20), [B]: q(10) });
+    await codexAutoTick(r.options);
+    expect(picked(r.select).id).toBe(B);
+  });
+
+  it("leaves a default picked by hand alone until it fills", async () => {
+    // The last tick saw C; somebody has since picked A.
+    await state({ home: B, lastActive: C });
+    let r = on(A, roster(), { [A]: q(20), [B]: q(10) });
+    await codexAutoTick(r.options);
+    expect(r.select).not.toHaveBeenCalled();
+    expect(await saved()).toMatchObject({ manual: true, lastActive: A });
+    // Still by hand on the next tick, and home once it fills.
+    r = on(A, roster(), { [A]: q(20), [B]: q(10) });
+    await codexAutoTick(r.options);
+    expect(r.select).not.toHaveBeenCalled();
+    r = on(A, roster(), { [A]: q(95), [B]: q(10), [C]: q(5) });
+    await codexAutoTick(r.options);
+    expect(picked(r.select).id).toBe(B);
+  });
+
+  it("is never left from under the threshold, and a profile of the same account is home too", async () => {
+    await state({ home: A, lastActive: A, next: "weekly" });
+    let r = on(A, roster(), { [A]: q(80), [B]: q(0, { seconds: 7 * DAY, resetAt: sec + DAY }) });
+    await codexAutoTick(r.options);
+    expect(r.select).not.toHaveBeenCalled();
+    await state({ home: B, lastActive: A });
+    r = on(A, [row(A, { active: true, sameAccountAs: B }), row(B), row(C)], { [A]: q(20), [B]: q(10) });
+    await codexAutoTick(r.options);
+    expect(r.select).not.toHaveBeenCalled();
+  });
+
+  it("does nothing new while no home is set", async () => {
+    await state({ lastActive: A });
+    const r = on(A, roster(), { [A]: q(20), [B]: q(0) });
+    await codexAutoTick(r.options);
+    expect(r.select).not.toHaveBeenCalled();
+    expect(r.reads).toEqual([A]);
   });
 });
 

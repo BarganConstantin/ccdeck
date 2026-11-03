@@ -114,6 +114,8 @@ const catalog: Catalog = {
   "codex.menu.holdOutTitle": "Hold this account out of auto-rotation",
   "codex.menu.putBack": "Put back in rotation",
   "codex.menu.holdOut": "Hold out of rotation",
+  "codex.menu.setHomeTip": "Auto-switch takes you here, and comes back once this account has room again",
+  "codex.auto.home.on": "Home · Auto-switch comes back here once it has room again",
   "codex.menu.enableTerminalTitle": "Copies a one-time setup so the plain codex command follows the default",
   "codex.menu.enableTerminal": "Enable terminal selection",
   "codex.menu.removeTerminal": "Remove terminal selection",

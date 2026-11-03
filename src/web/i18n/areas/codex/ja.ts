@@ -90,6 +90,8 @@ const catalog: Catalog = {
   "codex.menu.holdOutTitle": "このアカウントを自動ローテーションから外す",
   "codex.menu.putBack": "ローテーションに戻す",
   "codex.menu.holdOut": "ローテーションから外す",
+  "codex.menu.setHomeTip": "自動切り替えでこのアカウントに移り、このアカウントに再び余裕ができたらここに戻ります",
+  "codex.auto.home.on": "ホーム · 再び余裕ができたら、自動切り替えがここに戻ります",
   "codex.menu.enableTerminalTitle": "通常の codex コマンドが既定のアカウントに従うようにする、一度だけの設定をコピーします",
   "codex.menu.enableTerminal": "ターミナル選択をオンにする",
   "codex.menu.removeTerminal": "ターミナル選択をオフにする",

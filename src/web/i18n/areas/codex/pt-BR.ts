@@ -90,6 +90,8 @@ const catalog: Catalog = {
   "codex.menu.holdOutTitle": "Manter esta conta fora do rodízio automático",
   "codex.menu.putBack": "Devolver ao rodízio",
   "codex.menu.holdOut": "Manter fora do rodízio",
+  "codex.menu.setHomeTip": "A troca automática leva você para cá e volta quando esta conta tiver espaço de novo",
+  "codex.auto.home.on": "Principal · A troca automática volta para cá quando houver espaço de novo",
   "codex.menu.enableTerminalTitle": "Copia uma configuração única para que o comando codex simples siga a conta padrão",
   "codex.menu.enableTerminal": "Ativar seleção no terminal",
   "codex.menu.removeTerminal": "Remover seleção no terminal",

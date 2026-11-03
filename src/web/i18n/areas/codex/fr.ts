@@ -89,6 +89,8 @@ const catalog: Catalog = {
   "codex.menu.holdOutTitle": "Exclure ce compte de la rotation automatique",
   "codex.menu.putBack": "Remettre dans la rotation",
   "codex.menu.holdOut": "Exclure de la rotation",
+  "codex.menu.setHomeTip": "Le changement auto vous amène ici, et revient dès que ce compte a de nouveau de la marge",
+  "codex.auto.home.on": "Compte principal · Le changement auto revient ici dès qu'il a de nouveau de la marge",
   "codex.menu.enableTerminalTitle": "Copie une configuration à faire une seule fois pour que la commande codex simple suive le compte par défaut",
   "codex.menu.enableTerminal": "Activer la sélection du terminal",
   "codex.menu.removeTerminal": "Retirer la sélection du terminal",
