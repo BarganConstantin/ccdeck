@@ -1,4 +1,4 @@
-param([Parameter(Mandatory=$true)][string]$NodePath,[Parameter(Mandatory=$true)][string]$ArgumentsBase64,[Parameter(Mandatory=$true)][string]$WorkingDirectory)
+param([Parameter(Mandatory=$true)][string]$NodePath,[Parameter(Mandatory=$true)][string]$ArgumentsBase64,[Parameter(Mandatory=$true)][string]$WorkingDirectory,[switch]$ForceTokenFallback)
 # An elevated CI token can default new files to Administrators ownership.
 # Change only a duplicated child token's default owner. The calling process,
 # elevation, groups, privileges and production credential checks stay intact.
@@ -42,16 +42,16 @@ public static class UserOwnedTestProcess {
     if(handle==IntPtr.Zero || handle==new IntPtr(-1)) return IntPtr.Zero;
     Require(DuplicateHandle(GetCurrentProcess(),handle,GetCurrentProcess(),out copy,0,true,2)); return copy;
   }
-  public static int Run(string node,string[] args,string cwd) {
+  public static int Run(string node,string[] args,string cwd,bool forceFallback) {
     using(var identity=WindowsIdentity.GetCurrent()) {
-      if(identity.Owner==identity.User) {
+      if(identity.Owner==identity.User && !forceFallback) {
         var arguments=new StringBuilder();
         foreach(string arg in args) { if(arguments.Length>0)arguments.Append(' '); arguments.Append(Quote(arg)); }
         var start=new System.Diagnostics.ProcessStartInfo(node,arguments.ToString()) { UseShellExecute=false, WorkingDirectory=cwd };
         using(var process=System.Diagnostics.Process.Start(start)) { process.WaitForExit(); return process.ExitCode; }
       }
     }
-    IntPtr token=IntPtr.Zero; var info=new ProcessInfo(); var startup=new Startup();
+    IntPtr token=IntPtr.Zero,environment=IntPtr.Zero; var info=new ProcessInfo(); var startup=new Startup();
     try {
       using(var identity=WindowsIdentity.GetCurrent()) {
         Require(DuplicateTokenEx(identity.Token,0xF01FF,IntPtr.Zero,2,1,out token));
@@ -63,12 +63,18 @@ public static class UserOwnedTestProcess {
       startup.Size=Marshal.SizeOf(typeof(Startup)); startup.Flags=0x100;
       startup.Input=Standard(-10); startup.Output=Standard(-11); startup.Error=Standard(-12);
       var command=new StringBuilder(Quote(node)); foreach(string arg in args)command.Append(' ').Append(Quote(arg));
-      if(!CreateProcessAsUserW(token,node,command,IntPtr.Zero,IntPtr.Zero,true,0x400,IntPtr.Zero,cwd,ref startup,out info)) {
-        int error=Marshal.GetLastWin32Error(); if(error!=1314)throw new Win32Exception(error);
-        Require(CreateProcessWithTokenW(token,0,node,command,0x400,IntPtr.Zero,cwd,ref startup,out info));
+      var entries=Environment.GetEnvironmentVariables();
+      var keys=new System.Collections.Generic.List<string>(); foreach(string key in entries.Keys)keys.Add(key);
+      keys.Sort(StringComparer.OrdinalIgnoreCase);
+      var block=new StringBuilder(); foreach(string key in keys)block.Append(key).Append('=').Append(entries[key]).Append('\0');
+      block.Append('\0'); environment=Marshal.StringToHGlobalUni(block.ToString());
+      if(forceFallback || !CreateProcessAsUserW(token,node,new StringBuilder(command.ToString()),IntPtr.Zero,IntPtr.Zero,true,0x400,environment,cwd,ref startup,out info)) {
+        int error=forceFallback ? 1314 : Marshal.GetLastWin32Error(); if(error!=1314)throw new Win32Exception(error);
+        Require(CreateProcessWithTokenW(token,0,node,new StringBuilder(command.ToString()),0x400,environment,cwd,ref startup,out info));
       }
       Require(WaitForSingleObject(info.Process,0xffffffff)==0); uint code; Require(GetExitCodeProcess(info.Process,out code)); return unchecked((int)code);
     } finally {
+      if(environment!=IntPtr.Zero)Marshal.FreeHGlobal(environment);
       foreach(var h in new[]{info.Thread,info.Process,token,startup.Input,startup.Output,startup.Error})if(h!=IntPtr.Zero)CloseHandle(h);
     }
   }
@@ -83,7 +89,7 @@ try {
   $code=@'
 const fs=require("node:fs"),cp=require("node:child_process");fs.writeFileSync("parent.txt","fictional");const child=cp.spawnSync(process.execPath,["-e",'require("node:fs").writeFileSync("child.txt","fictional")'],{stdio:"inherit"});process.exitCode=child.status??1
 '@
-  $check=[UserOwnedTestProcess]::Run($NodePath,[string[]]@('-e',$code),$probe)
+  $check=[UserOwnedTestProcess]::Run($NodePath,[string[]]@('-e',$code),$probe,$ForceTokenFallback.IsPresent)
   if($check -ne 0){throw 'test owner preflight failed'}
   $user=[Security.Principal.WindowsIdentity]::GetCurrent().User
   foreach($name in @('parent.txt','child.txt')) {
@@ -92,4 +98,4 @@ const fs=require("node:fs"),cp=require("node:child_process");fs.writeFileSync("p
   }
   if([Security.Principal.WindowsIdentity]::GetCurrent().Owner.Value -ne $originalOwner){throw 'launcher token was modified'}
 } finally {Remove-Item -LiteralPath $probe -Recurse -Force}
-exit [UserOwnedTestProcess]::Run($NodePath,$nodeArgs,$WorkingDirectory)
+exit [UserOwnedTestProcess]::Run($NodePath,$nodeArgs,$WorkingDirectory,$ForceTokenFallback.IsPresent)
