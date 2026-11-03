@@ -257,6 +257,11 @@ export const GATES = [
   // directory junction — a reparse point Windows creates without a privilege —
   // and it carries the assertion that would catch a revert on that leg.
   { file: "settings-symlink-target.test.ts", gate: "describe.skipIf", condition: 'process.platform === "win32"', sites: 1, cases: 7 },
+  // The conversation route's refusals of a symlinked file, a symlinked folder, a
+  // `..` through a link and a FIFO, and its read through a linked config folder:
+  // Windows cannot make a file symlink without a privilege and has no mkfifo. The
+  // route's other refusals, the path-in-the-id cases among them, run on all three legs.
+  { file: "session-transcript-route.test.ts", gate: "describe.skipIf", condition: 'process.platform === "win32"', sites: 1, cases: 6 },
   { file: "supervisor-exit.test.ts", gate: "describe.skipIf", condition: 'process.platform === "win32"', sites: 1, cases: 3 },
   { file: "uv-bootstrap-atomic.test.ts", gate: "it.skipIf", condition: 'process.platform === "win32"', sites: 1, cases: 1 },
 

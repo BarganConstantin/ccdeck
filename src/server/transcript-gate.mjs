@@ -60,7 +60,7 @@ import { foldsCase } from "./log-election.mjs";
 // costs nothing (it is a directory only this user writes either way) and
 // removes half of that failure mode. The other half is why the refusal is
 // logged rather than silent.
-function claudeTranscriptRoots() {
+export function claudeTranscriptRoots() {
   // Resolved per call, like every other claudeConfigDir() reader in src/server,
   // so nothing captures the answer from an environment that has moved.
   const roots = [resolve(claudeConfigDir(), "projects")];

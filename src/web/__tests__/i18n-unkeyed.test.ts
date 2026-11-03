@@ -25,7 +25,6 @@ const SCREENS_NOT_BUNDLED =
 
 const EXCEPTIONS: readonly Exception[] = [
   { file: "src/web/components/decision/", why: SCREENS_NOT_BUNDLED },
-  { file: "src/web/components/chat/", why: SCREENS_NOT_BUNDLED },
   { file: "src/web/components/terminal/stage-model.ts", text: "That is not a session id.", why: "The engine's own refusal, matched as it arrives to be replaced by the panel's sentence; never shown." },
   { file: "src/web/components/terminal/stage-model.ts", text: "The provider must be claude or codex.", why: "The engine's own refusal, matched as it arrives to be replaced by the panel's sentence; never shown." },
   { file: "src/web/components/guide-art.tsx", text: "Bash(npm test)", why: "A line of Claude Code's own terminal, drawn as it prints it." },

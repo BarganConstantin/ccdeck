@@ -143,6 +143,9 @@ export function createOutputWatch(io = {}) {
 
   function forget(sid) { seen.delete(sid); }
 
+  /** Where a session's transcript is, as `note` last heard it, or undefined. */
+  function pathOf(sid) { return seen.get(sid)?.path; }
+
   /** For the suite, and for the one place the server clears everything. */
   function clear() { seen.clear(); }
   function size() { return seen.size; }
@@ -270,5 +273,5 @@ export function createOutputWatch(io = {}) {
     }
   }
 
-  return { note, forget, clear, size, poll };
+  return { note, forget, clear, size, pathOf, poll };
 }
