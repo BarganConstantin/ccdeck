@@ -32,6 +32,9 @@ export interface CodexProfile {
   account?: string | null;
   /** Another row signed in to this same ChatGPT account. */
   sameAccountAs?: string;
+  /** How Local network names its login: the key ticks are kept under and the
+   *  email it is offered as. Absent with no ChatGPT login on file. */
+  lan?: { key: string; email: string };
 }
 
 export interface ProfileQuota {

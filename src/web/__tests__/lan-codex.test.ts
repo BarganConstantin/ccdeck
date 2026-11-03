@@ -349,6 +349,49 @@ describe("this deck's Codex store, as Local network reads and writes it", () => 
     expect((await readCodexSelection(m.options)).profiles.length).toBe(before);
   });
 
+  it("moves, renews and heals a real Codex login between two real decks, and never touches a separate sign-in", async () => {
+    // Two decks, two Codex registries on disk, the real store adapter on each
+    // and a real socket between them. Ana is the other deck's own login.
+    const here = await machine(login("me@example.net", 1));
+    const there = await machine(login("ana@example.net", 1));
+    const real = (m: Awaited<ReturnType<typeof machine>>) => ({ adapter: m.lan, imported: [], exported: [], rows: [] }) as unknown as ReturnType<typeof codexStore>;
+    const a = await deck("Deck-A", { codex: real(here) });
+    const b = await deck("Deck-B", { codex: real(there), shared: [CK("ana@example.net")], settings: { sendInUse: true } });
+    await pair(a, b);
+    const anaHere = async () => (await here.lan.readAccounts()).find((r: CodexRow) => r.email === "ana@example.net");
+    const fileOf = async (id: string) => {
+      const home = (await readCodexSelection(here.options)).profiles.find((p: { id: string }) => p.id === id).home;
+      return JSON.parse(await readFile(join(home, "auth.json"), "utf8")).tokens.refresh_token;
+    };
+
+    // 1. It arrives as a profile of its own.
+    expect((await a.e.round()).map((d: { action: string; ok: boolean }) => [d.action, d.ok])).toEqual([["add", true]]);
+    const added = await anaHere();
+    expect(added).toMatchObject({ rt: H(1) });
+    expect(await fileOf(added.num)).toBe("fictional-refresh-1");
+
+    // 2. The other deck renews it, which kills this copy; the next round
+    //    proves that and heals it in the same profile.
+    await writeFile(join(there.home, "auth.json"), JSON.stringify(login("ana@example.net", 2)), { mode: 0o600 });
+    await b.e.round();
+    expect((await a.e.round()).map((d: { action: string; ok: boolean }) => [d.action, d.ok])).toEqual([["heal", true]]);
+    expect(await fileOf(added.num)).toBe("fictional-refresh-2");
+    expect((await anaHere()).num).toBe(added.num);
+    expect((await here.lan.readAccounts())).toHaveLength(2);
+
+    // 3. Both copies the same now: nothing to do.
+    expect(await a.e.round()).toEqual([]);
+
+    // 4. Somebody signs in to Ana here on their own: a token the other deck
+    //    never held. Its renewals never reach this login.
+    const home = (await readCodexSelection(here.options)).profiles.find((p: { id: string }) => p.id === added.num).home;
+    await writeFile(join(home, "auth.json"), JSON.stringify(login("ana@example.net", 9)), { mode: 0o600 });
+    await writeFile(join(there.home, "auth.json"), JSON.stringify(login("ana@example.net", 3)), { mode: 0o600 });
+    await b.e.round();
+    expect(await a.e.round()).toEqual([]);
+    expect(await fileOf(added.num)).toBe("fictional-refresh-9");
+  }, 30_000);
+
   it("builds the share it gives with the registry's own export, so file-store rules still hold", async () => {
     const m = await machine(login("ana@example.net", 1));
     const { profileId } = await readCodexSelection(m.options);

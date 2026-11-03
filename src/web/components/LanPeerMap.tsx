@@ -12,6 +12,7 @@ import { laneSaid } from "../lan-peer";
 import { useT } from "../i18n";
 import { isSeenNow, justNowTail } from "../lan-round";
 import { Fill } from "./LanAsks";
+import LanKind from "./LanKind";
 import { roundWhy } from "../lan-round";
 import type { DeckRow } from "../lan-roster";
 import type { LanStatus } from "../lan-types";
@@ -118,8 +119,8 @@ export default function LanPeerMap({ view, row, status, asking, drawn, onSetting
             {unplaced.map(d => {
               const why = roundWhy(d);
               return (
-                <li key={`${d.email}:${d.action}`} data-ok={d.ok && !why}>
-                  {d.email} <span className="lan-done-what">{d.ok ? t("lan.pm.arrived") : t("lan.pm.notArrived")}{why && ` — ${why.long}`}</span>
+                <li key={`${d.key ?? d.email}:${d.action}`} data-ok={d.ok && !why}>
+                  {d.email}{d.provider === "codex" && <LanKind />} <span className="lan-done-what">{d.ok ? t("lan.pm.arrived") : t("lan.pm.notArrived")}{why && ` — ${why.long}`}</span>
                 </li>
               );
             })}
@@ -137,7 +138,7 @@ export default function LanPeerMap({ view, row, status, asking, drawn, onSetting
       {lanes.length > 0 && (
         <ul key={drawn} className="lan-lanes" role="list" aria-label={t("lan.pm.lanesAria", { name: row.name })}>
           {lanes.map((l, i) => {
-            const d = told.get(l.email);
+            const d = told.get(l.key) ?? told.get(l.email);
             // An arrival with a problem is not drawn as a clean one.
             const why = d ? roundWhy(d) : null;
             const flows = l.out === "live" || (l.in != null && l.in !== "cut");
@@ -154,7 +155,7 @@ export default function LanPeerMap({ view, row, status, asking, drawn, onSetting
                   </span>
                   {l.in && l.in !== "cut" && <Chevron dir="in" />}
                   {l.out === "live" && <Chevron dir="out" />}
-                  <span className="lan-lane-email">{l.email}</span>
+                  <span className="lan-lane-email">{l.email}{l.provider === "codex" && <LanKind />}</span>
                 </span>
                 <i className="lan-pip" data-end="there" data-state={l.there} aria-hidden />
                 <span className="vis-hidden">{laneSaid(l)}</span>

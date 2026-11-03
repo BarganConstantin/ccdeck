@@ -11,15 +11,17 @@ import LanSyncSection from "./LanSyncSection";
  *  network row (#2472): that row is about this deck and the decks paired with
  *  it, not about one CLI, so both sides draw it and open the same view. */
 export default function CodexAccountsPanel({
-  onClose, leaving, switcher, side, onNotice, lanAccounts = [], lanReady = true, lanWanted = false, onLanShown,
+  onClose, leaving, switcher, side, onNotice, lanAccounts = [], lanReady = true, lanWanted = false, onLanShown, onLanAccounts,
 }: {
   onClose: () => void;
   leaving?: boolean;
   switcher?: ReactNode;
   side?: "shown" | "hidden";
   onNotice?: (needs: boolean) => void;
-  /** What Local network offers from this deck, read by Claude's side. */
+  /** What Local network offers from this deck: Claude's logins, read by
+   *  Claude's side, then Codex's, read here and handed up by onLanAccounts. */
   lanAccounts?: LanAccount[];
+  onLanAccounts?: (accounts: LanAccount[]) => void;
   /** Whether that list has been read. Until then Local network waits, as it
    *  does on Claude's side until its roster arrives: the share dialog it opens
    *  would otherwise list nothing. */
@@ -56,12 +58,12 @@ export default function CodexAccountsPanel({
   return (
     <aside className={`accounts-panel codex-accounts-panel${leaving ? " leaving" : ""}`} id="codex-accounts-panel" aria-label={t("codex.panel.title")}
       hidden={side === "hidden"} data-side={side}>
-      <CodexProfilesSection onClose={onClose} switcher={switcher} onNotice={onNotice} away={view === "lan"} />
+      <CodexProfilesSection onClose={onClose} switcher={switcher} onNotice={onNotice} away={view === "lan"} onLanAccounts={onLanAccounts} />
       {lanReady && (
         <LanSyncSection
           accounts={lanAccounts}
-          // The Claude roster this list comes from reads itself again on its
-          // own poll; nothing on this side changed with a Local network write.
+          // Both rosters this list comes from read themselves again on their
+          // own polls; a Local network write changes neither.
           onChanged={() => {}}
           view={view === "lan"}
           onOpen={() => setView("lan")}

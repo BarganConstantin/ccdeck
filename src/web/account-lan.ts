@@ -7,6 +7,7 @@
 // the key and the export preflight — and a pure function is what lets a test
 // hold the two copies to each other.
 import { type Account } from "./claude-accounts";
+import { type CodexProfile } from "./codex-accounts";
 import { isOnline, pairedDeckName } from "./lan-roster";
 import { type LanAccount, type LanStatus } from "./lan-types";
 import { listNames } from "./accounts-time";
@@ -30,6 +31,42 @@ export function lanAccounts(accounts: readonly Account[]): LanAccount[] {
     // owner said to — see offeredHere.
     ...(a.active ? { active: true } : {}),
   }));
+}
+
+/** A Local network key that names a Codex login (see lan-codex.mjs). */
+export const isCodexLanKey = (key: string) => key.startsWith("codex:");
+
+/**
+ * This deck's Codex logins as Local network lists them, one row per account:
+ * two profiles signed in to one account are one login to offer, and the one
+ * Codex runs on here is the one marked. Only a profile with a ChatGPT login on
+ * file has a `lan` name — the server's, so a tick is the key the manifest uses.
+ */
+export function codexLanAccounts(profiles: readonly CodexProfile[]): LanAccount[] {
+  const rows = new Map<string, LanAccount>();
+  for (const p of profiles) {
+    if (!p.lan || p.available === false) continue;
+    const had = rows.get(p.lan.key);
+    if (had && (had.active || !p.active)) continue;
+    rows.set(p.lan.key, {
+      key: p.lan.key, email: p.lan.email, alive: true, shareable: true, provider: "codex",
+      ...(p.active ? { active: true } : {}),
+    });
+  }
+  return [...rows.values()];
+}
+
+/**
+ * The name to draw above each row of the share list, or null: "Claude" above
+ * the first Claude login and "Codex" above the first Codex one, only on a deck
+ * that has both. One address can be an account of each, and two ticks beside
+ * one email have to say which is which; a deck with one kind says nothing, as
+ * the list always did.
+ */
+export function lanKindHeads(accounts: readonly LanAccount[]): Array<"Claude" | "Codex" | null> {
+  const kind = (a: LanAccount) => (a.provider === "codex" ? "Codex" : "Claude");
+  const mixed = new Set(accounts.map(kind)).size > 1;
+  return accounts.map((a, i) => (mixed && (i === 0 || kind(accounts[i - 1]) !== kind(a)) ? kind(a) : null));
 }
 
 /**

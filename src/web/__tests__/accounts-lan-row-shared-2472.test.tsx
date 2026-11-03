@@ -37,10 +37,11 @@ describe("Local network row, common to both sides of the Accounts panel (#2472)"
     expect(hook).toMatch(/if \(alive\.current && active\) timer = window\.setTimeout\(tick, every\.current\);/);
   });
 
-  it("lists Claude's accounts in the share dialog opened from the Codex side", () => {
+  it("lists Claude's accounts and Codex's in the share dialog, from either side", () => {
     const app = read("../App.tsx");
-    expect(app).toContain("onLanAccounts={setClaudeLan}");
-    expect(app).toContain("lanAccounts={claudeLan ?? []}");
-    expect(app).toContain("lanReady={!providers.claude || claudeLan != null}");
+    expect(app).toContain("onLanAccounts={setClaudeLan} codexLanAccounts={codexLan}");
+    expect(app).toContain("const lanOffered = useMemo(() => [...(claudeLan ?? []), ...codexLan], [claudeLan, codexLan]);");
+    expect(app).toContain("lanAccounts={lanOffered} lanReady={!providers.claude || claudeLan != null}");
+    expect(app).toContain("onLanShown={lanShown} onLanAccounts={setCodexLan}");
   });
 });

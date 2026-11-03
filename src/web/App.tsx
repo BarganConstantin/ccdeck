@@ -276,6 +276,10 @@ function Inner() {
   // What Local network offers from this deck, read by Claude's side and drawn
   // by Codex's too (#2472). Null until Claude's side has read its roster.
   const [claudeLan, setClaudeLan] = useState<LanAccount[] | null>(null);
+  // And its Codex logins, read by Codex's side: both sides share them from the
+  // same dialog, after Claude's.
+  const [codexLan, setCodexLan] = useState<LanAccount[]>([]);
+  const lanOffered = useMemo(() => [...(claudeLan ?? []), ...codexLan], [claudeLan, codexLan]);
   useEffect(() => { if (!accountsPanelOpen) setLanWanted(false); }, [accountsPanelOpen]);
   const lanShown = useCallback(() => setLanWanted(false), []);
 
@@ -813,15 +817,15 @@ function Inner() {
           {accountsDrawn && (shownAccountProvider === "claude" || accountSide.bothMounted) && (
             <AccountsPanel leaving={isLeaving(accountsPanelOpen, accountsPhase)} onReport={dialogs.openFeedback}
               onRoster={attention.observe} onClose={closeAccounts}
-              lanWanted={lanWanted} onLanShown={lanShown} onLanAccounts={setClaudeLan} switcher={accountsSwitch}
+              lanWanted={lanWanted} onLanShown={lanShown} onLanAccounts={setClaudeLan} codexLanAccounts={codexLan} switcher={accountsSwitch}
               side={sideState("claude")} onNotice={accountSide.noteClaude} />
           )}
           {accountsDrawn && (shownAccountProvider === "codex" || accountSide.bothMounted) && (
             <CodexAccountsPanel leaving={isLeaving(accountsPanelOpen, accountsPhase)}
               onClose={closeAccounts} switcher={accountsSwitch}
               side={sideState("codex")} onNotice={accountSide.noteCodex}
-              lanAccounts={claudeLan ?? []} lanReady={!providers.claude || claudeLan != null}
-              lanWanted={lanWanted} onLanShown={lanShown} />
+              lanAccounts={lanOffered} lanReady={!providers.claude || claudeLan != null}
+              lanWanted={lanWanted} onLanShown={lanShown} onLanAccounts={setCodexLan} />
           )}
           {sessionListDrawn && (
             <SessionList

@@ -73,6 +73,9 @@ interface Props {
    *  they change: Codex's side draws the same Local network (#2472), and its
    *  share list names these accounts too. */
   onLanAccounts?: (accounts: LanAccount[]) => void;
+  /** This deck's Codex logins as Local network lists them, read by Codex's
+   *  side: they are shared from the same dialog, after these. */
+  codexLanAccounts?: LanAccount[];
   /** With both CLIs on this deck: the Claude/Codex switch for the header, this
    *  side's place in it, and whether its current account needs attention. */
   switcher?: ReactNode;
@@ -80,7 +83,7 @@ interface Props {
   onNotice?: (needs: boolean) => void;
 }
 
-export default function AccountsPanel({ onClose, leaving, onReport, onRoster, lanWanted = false, onLanShown, onLanAccounts, switcher, side, onNotice }: Props) {
+export default function AccountsPanel({ onClose, leaving, onReport, onRoster, lanWanted = false, onLanShown, onLanAccounts, codexLanAccounts, switcher, side, onNotice }: Props) {
   // Opened: one of the features the usage reports name (feature-use.ts).
   useFeatureUse("accounts-panel", side !== "hidden");
   const t = useT();
@@ -408,6 +411,11 @@ export default function AccountsPanel({ onClose, leaving, onReport, onRoster, la
   const lanListKey = JSON.stringify(lanList);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { if (lanReady) onLanAccounts?.(lanList); }, [lanReady, lanListKey, onLanAccounts]);
+  // And the Codex logins after them, which are shared from the same dialog.
+  const lanOffered = useMemo(
+    () => (codexLanAccounts?.length ? [...lanList, ...codexLanAccounts] : lanList),
+    [lanList, codexLanAccounts],
+  );
   // Settings' door to Local network (#2176), answered by the panel's own way
   // in, so nothing hangs over the view on the way and focus lands on Back as
   // it does after a press of the row. Not before the section is mounted: a
@@ -767,7 +775,7 @@ export default function AccountsPanel({ onClose, leaving, onReport, onRoster, la
         <LanSyncSection
           // Named by the identity every deck agrees on, never by slot — see
           // account-lan.ts.
-          accounts={lanList}
+          accounts={lanOffered}
           active={side !== "hidden"}
           onChanged={() => load(true)}
           onNoCopy={takeNoCopy}
