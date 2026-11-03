@@ -321,6 +321,51 @@ notification to the same parent. Native stored turns confirmed the final
 marker, no new network-revocation error and byte-identical source authentication
 files. The selected original account was restored after both round trips.
 
+### Web research and cooperative V2 continuation — 2026-11-03
+
+The inspected alternatives do not provide a drop-in native control endpoint for
+parent-owned V2 children. [Codex's ownership change](https://github.com/openai/codex/pull/40464)
+deliberately keeps direct input with the parent while allowing interruption.
+[The direct-input issue](https://github.com/openai/codex/issues/33885) describes
+a fork that changes Codex itself. [codex-switch](https://github.com/joshp123/codex-switch)
+routes inference through a local proxy and pins each task to an account;
+[cxswap](https://github.com/PavloPopravkin/codex-swap) documents selection for
+new processes. Neither approach was installed or ported. The selected path uses
+the installed Codex and its [native parent follow-up tool](https://github.com/openai/codex/blob/rust-v0.166.0/codex-rs/core/src/tools/handlers/multi_agents_v2/followup_task.rs).
+
+A direct interrupt prototype established that the same V2 child can resume
+through its parent. Review then found a reason not to ship interruption as the
+V2 preparation mechanism: native send/followup operations do not publish every
+tool-start item. An empty V2 snapshot does not establish model-only execution.
+
+The final implementation instead queues an expected-turn parent steer with a
+durable client message ID. The parent asks its existing agents to finish current
+tools and end with a unique checkpoint marker, retaining unfinished work in
+their conversations. Authentication waits for terminal checkpoint replies and
+global quiescence. It revalidates cached checkpoint turns and owner input before
+acting. Known V2 parents with only idle children wait rather than being natively
+interrupted. Unexpected new work keeps the handoff waiting or requires recovery.
+
+After the account changes, the same parent calls native `followup_task` for the
+checkpointed agents. A completed temporary checkpoint is explicitly distinguished
+from a finished assignment. Child identity, parent link and root attribution are
+checked from live snapshots; stored paginated history can still show the previous
+terminal turn. The row remains pending until those new child turns are observed.
+
+An uncertain send is never retried. Checkpoint preparation has a two-minute
+deadline and child resumption a one-minute deadline. Expired delegation remains
+tracked, and unresolved journals survive restart and block replacement by later
+handoffs. Manual selection takes priority over deferred credential renewal.
+Observed new owner work can reconcile recovery without sending more input.
+
+Real final acceptance used two native V2 children and a parent in an isolated
+authenticated daemon. Each child completed a 35-second command once, checkpointed
+its remaining second stage, resumed on the second account and finished its guide.
+Both children and the parent completed. No V2 native interrupt or direct child
+input was sent, no network revocation occurred, the daemon was not restarted,
+source authentication files stayed byte-identical, and no auth file appeared in
+the test home. Earlier prototypes and regressions are not the final acceptance.
+
 Protocol boundaries remain: there is no atomic model-only interrupt or
 expected-idle precondition on `turn/start`, and concurrent independent clients
 can race between checks. Native completion does not identify who requested Stop.
