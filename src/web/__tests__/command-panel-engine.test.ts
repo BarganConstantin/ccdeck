@@ -634,9 +634,11 @@ describe("a deck's Command Panel engine, by its switch", () => {
     expect(made.clients).toEqual([]);
   });
 
-  it("on, with no engine installed: not-installed on Linux and macOS, unsupported elsewhere, and no client", async () => {
+  // CHANGED ON PURPOSE (the engine ships on Windows, so a Windows deck has the panel): Windows answers
+  // not-installed with Linux and macOS instead of unsupported.
+  it("on, with no engine installed: not-installed on Linux, macOS and Windows, unsupported elsewhere, and no client", async () => {
     on = true;
-    const supported = process.platform === "linux" || process.platform === "darwin";
+    const supported = ["linux", "darwin", "win32"].includes(process.platform);
     const seen = await reads(join(DIR, "deck"), async () => {
       for (const [method, path, body] of ROUTES) {
         const got = await ask(method, path, body);
