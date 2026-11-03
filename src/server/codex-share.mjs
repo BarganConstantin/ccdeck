@@ -19,16 +19,37 @@ const keys = (value, allowed) => object(value) && Object.keys(value).every(key =
 const token = value => typeof value === 'string' && value.length > 0 && value.length <= 16_000 && /^[\x21-\x7e]+$/.test(value);
 const safeLabel = value => value === null || (typeof value === 'string' && value.length > 0 && value.length <= 80 && value === value.trim() && !/[\x00-\x1f\x7f/\\]/.test(value));
 
+function oauthProvenance(value) {
+  if (value === undefined || value === null) return true;
+  if (!keys(value, ['issuer', 'client_id']) || !token(value.issuer) || value.issuer.length > 2048
+    || !token(value.client_id) || value.client_id.length > 512) return false;
+  // Codex uses this issuer as the refresh destination, not just display data.
+  // Transfer only HTTPS OpenAI authorities; never infer one from JWT claims.
+  try {
+    const issuer = new URL(value.issuer);
+    return issuer.protocol === 'https:' && !issuer.username && !issuer.password && !issuer.port
+      && !/[?#\\]/.test(value.issuer)
+      && ['openai.com', 'chatgpt.com'].some(host => issuer.hostname === host || issuer.hostname.endsWith(`.${host}`));
+  } catch { return false; }
+}
+
 /** Whitelist the on-disk ChatGPT schema, never source paths/config/extra keys.
  * Token strings stay opaque; a decoded JWT is never proof of identity. */
 function chatgptAuth(raw) {
   if (!keys(raw, ['auth_mode', 'OPENAI_API_KEY', 'tokens', 'last_refresh'])
     || (raw.auth_mode !== undefined && raw.auth_mode !== 'chatgpt')
     || (raw.OPENAI_API_KEY !== undefined && raw.OPENAI_API_KEY !== null)
-    || !keys(raw.tokens, ['access_token', 'refresh_token', 'id_token', 'account_id'])
+    || !keys(raw.tokens, ['access_token', 'refresh_token', 'id_token', 'account_id', 'oauth_provenance', 'login_owner_id'])
     || !['access_token', 'refresh_token', 'id_token'].every(key => token(raw.tokens[key]))
+    || !oauthProvenance(raw.tokens.oauth_provenance)
+    || (raw.tokens.login_owner_id != null && (typeof raw.tokens.login_owner_id !== 'string' || !/^[A-Za-z0-9_-]{1,512}$/.test(raw.tokens.login_owner_id)))
     || (raw.tokens.account_id !== undefined && (!token(raw.tokens.account_id) || raw.tokens.account_id.length > 512))
     || (raw.last_refresh !== undefined && (typeof raw.last_refresh !== 'string' || raw.last_refresh.length > 40 || !Number.isFinite(Date.parse(raw.last_refresh))))) fail('unsupported_auth');
+  // Codex 0.166 TokenData preserves these optional fields across refreshes.
+  // login_owner_id identifies a completed login, not a machine: preserve it
+  // with its grant rather than generating a new login or dropping provenance.
+  // Schema/semantics: openai/codex rust-v0.166.0 (6ff1e1ca), login/src/token_data.rs,
+  // server.rs and auth/{account_grant,manager}.rs. Legacy fields stay absent.
   const auth = { auth_mode: 'chatgpt', OPENAI_API_KEY: null, tokens: { ...raw.tokens }, ...(raw.last_refresh !== undefined ? { last_refresh: raw.last_refresh } : {}) };
   if (Buffer.byteLength(JSON.stringify(auth)) > AUTH_MAX_BYTES) fail('unsupported_auth');
   return auth;

@@ -15,6 +15,10 @@ vi.mock('node:fs/promises', async original => {
 const auth = (n = 1) => ({ auth_mode: 'chatgpt', OPENAI_API_KEY: null, tokens: {
   id_token: `fictional.id-token-${n}.unsigned`, access_token: `fictional-access-${n}`, refresh_token: `fictional-refresh-${n}`, account_id: `fictional-account-${n}`,
 }, last_refresh: '2026-01-01T00:00:00.000Z' });
+const modernAuth = (n = 1) => ({ ...auth(n), tokens: { ...auth(n).tokens,
+  oauth_provenance: { issuer: 'https://auth.openai.com', client_id: 'fictional-codex-client' },
+  login_owner_id: 'fictional-completed-login-'.padEnd(43, 'x'),
+} });
 const encode = (accounts: unknown[], extra = {}) => CODEX_SHARE_PREFIX + Buffer.from(JSON.stringify({ version: 1, provider: 'codex', accounts, ...extra })).toString('base64url');
 const roots: string[] = [];
 async function fixture() {
@@ -30,6 +34,73 @@ async function fixture() {
 afterEach(async () => { vi.restoreAllMocks(); await Promise.all(roots.splice(0).map(root => rm(root, { recursive: true, force: true }))); });
 
 describe('manual Codex credential sharing', () => {
+  it('round trips legacy and Codex 0.166 logins together without dropping OAuth authority or changing login ownership', async () => {
+    const source = await fixture(), target = await fixture();
+    const modern = await addCodexProfile({ label: 'Fictional modern', operationId: 'modern-profile' }, source.options);
+    const modernHome = modern.profiles.find((p: { id: string }) => p.id === modern.id)!.home;
+    if (process.platform === 'win32') {
+      await rm(modernHome, { recursive: true });
+      await ensureWindowsPrivateDirectory(modernHome);
+    }
+    await writeFile(join(modernHome, 'auth.json'), JSON.stringify(modernAuth(2)), { mode: 0o600 });
+    const before = await readFile(join(modernHome, 'auth.json'));
+    const shared = await createCodexShare({ ids: [source.selection.profileId, modern.id] }, source.options);
+    expect(shared.count).toBe(2);
+    const payload = JSON.parse(Buffer.from(shared.blob.slice(CODEX_SHARE_PREFIX.length), 'base64url').toString());
+    expect(payload.accounts.map((a: { auth: unknown }) => a.auth)).toEqual([auth(), modernAuth(2)]);
+    const imported = await importCodexShare({ blob: shared.blob, expectedRevision: 0 }, target.options);
+    const selection = await readCodexSelection(target.options);
+    expect(selection.profileId).toBe(target.selection.profileId);
+    for (const [index, entry] of imported.results.entries()) {
+      const home = selection.profiles.find((p: { id: string }) => p.id === entry.id)!.home;
+      expect(JSON.parse(await readFile(join(home, 'auth.json'), 'utf8'))).toEqual(index === 0 ? auth() : modernAuth(2));
+    }
+    expect(await readFile(join(modernHome, 'auth.json'))).toEqual(before);
+    const registry = await readFile(join(target.store, 'codex-accounts.json'), 'utf8');
+    expect(registry).not.toContain(modernAuth().tokens.login_owner_id);
+    expect(registry).not.toContain('fictional-codex-client');
+    expect(await importCodexShare({ blob: shared.blob, expectedRevision: 0 }, target.options)).toMatchObject({
+      revision: imported.revision, results: [{ status: 'already_imported' }, { status: 'already_imported' }],
+    });
+  });
+
+  it.each([
+    { oauth_provenance: null, login_owner_id: null },
+    { oauth_provenance: modernAuth().tokens.oauth_provenance },
+    { login_owner_id: modernAuth().tokens.login_owner_id },
+  ])('preserves optional metadata as stored without inferring missing fields %#', async metadata => {
+    const source = await fixture(), target = await fixture();
+    const stored = { ...auth(), tokens: { ...auth().tokens, ...metadata } };
+    await writeFile(join(source.home, 'auth.json'), JSON.stringify(stored), { mode: 0o600 });
+    const shared = await createCodexShare({ ids: [source.selection.profileId] }, source.options);
+    const imported = await importCodexShare({ blob: shared.blob, expectedRevision: 0 }, target.options);
+    const selection = await readCodexSelection(target.options);
+    const home = selection.profiles.find((p: { id: string }) => p.id === imported.results[0].id)!.home;
+    expect(JSON.parse(await readFile(join(home, 'auth.json'), 'utf8'))).toEqual(stored);
+  });
+
+  it.each([
+    { oauth_provenance: [] },
+    { oauth_provenance: { issuer: 'https://auth.openai.com' } },
+    { oauth_provenance: { ...modernAuth().tokens.oauth_provenance, home: '../escape' } },
+    { oauth_provenance: { issuer: 'http://auth.openai.com', client_id: 'fictional-client' } },
+    { oauth_provenance: { issuer: 'https://untrusted.example', client_id: 'fictional-client' } },
+    { oauth_provenance: { issuer: 'https://auth.openai.com.evil.example', client_id: 'fictional-client' } },
+    { oauth_provenance: { issuer: 'https://fictional:password@auth.openai.com', client_id: 'fictional-client' } },
+    { oauth_provenance: { issuer: 'https://auth.openai.com?redirect=fictional', client_id: 'fictional-client' } },
+    { oauth_provenance: { issuer: 'https://auth.openai.com:444', client_id: 'fictional-client' } },
+    { oauth_provenance: { issuer: 'https://auth.openai.com', client_id: {} } },
+    { oauth_provenance: { issuer: 'https://auth.openai.com', client_id: 'x'.repeat(513) } },
+    { login_owner_id: {} }, { login_owner_id: '' }, { login_owner_id: '../escape' }, { login_owner_id: 'x'.repeat(513) },
+    { unknown_metadata: 'fictional' },
+  ])('rejects malformed or unsafe new token metadata on export and import %#', async metadata => {
+    const f = await fixture(), stored = { ...auth(), tokens: { ...auth().tokens, ...metadata } };
+    await writeFile(join(f.home, 'auth.json'), JSON.stringify(stored), { mode: 0o600 });
+    await expect(createCodexShare({ ids: [f.selection.profileId] }, f.options)).rejects.toMatchObject({ code: 'unsupported_auth', message: 'unsupported_auth' });
+    await expect(importCodexShare({ blob: encode([{ label: null, auth: stored }]), expectedRevision: 0 }, f.options)).rejects.toMatchObject({ code: 'unsupported_auth', message: 'unsupported_auth' });
+    expect((await readCodexSelection(f.options)).revision).toBe(0);
+  });
+
   it('exports only selected registered file auth; no paths, config, history, expiry or network calls', async () => {
     const f = await fixture();
     const fetch = vi.spyOn(globalThis, 'fetch').mockRejectedValue(new Error('must not contact provider'));
