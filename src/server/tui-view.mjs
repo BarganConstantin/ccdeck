@@ -28,6 +28,11 @@ import {
   CODEX_LOGIN_FAILED, codexMenuItems, codexNameTrouble, codexRows, hasCodex,
 } from "./tui-codex.mjs";
 import { machinePanel } from "./tui-machine.mjs";
+import {
+  hasLan, lanAsking, lanFooterKeys, lanFormSpec, lanInviteKeys, lanInviteLines, lanInvitePage, lanKey, lanLines, onLan,
+} from "./tui-network.mjs";
+
+export { hasLan, onLan };
 
 /** Text from elsewhere — the deck's own sentences, an alias — on a console
  *  that draws ASCII alone: its punctuation in ASCII's, anything else a "?". */
@@ -65,7 +70,13 @@ export function initialState() {
     starting: false,
     signin: null,       // the sign-in page while it is up (openSignin)
     menu: null,         // an account's menu while it is up: { num, id, view, at, draft, error }
-    side: "claude",     // "claude" | "codex": whose accounts the list shows
+    side: "claude",     // "claude" | "codex" | "lan": whose accounts the list shows, or the Local network
+    lan: null,          // GET /api/lan, or null: not read, or no Local network to show
+    lanMissing: false,  // the deck answered 404: it has no Local network
+    lanPrefs: null,     // GET /api/prefs' `lan`, for the addresses it calls
+    lanSel: null,       // the selected Network row, by its id
+    lanForm: null,      // a Network form while it is up (tui-network.mjs lanFormKey)
+    lanFrom: "claude",  // the side l came from, which l goes back to
     codex: null,        // GET /api/codex-profiles, or null: no Codex side to show
     codexQuota: {},     // each Codex account's GET /api/codex-profile-quota answer, by id
     codexAuto: null,    // GET /api/codex-auto, or null
@@ -190,8 +201,21 @@ export function tuiKey(state, str, key = {}, { now = 0, g } = {}) {
   // spent doing it — q there closes the page, it does not quit.
   if (state.help) return { state: { ...state, help: false }, effect: null };
   if (state.menu) return menuKey(state, str, key, { now, g });
+  if (state.lanForm) return lanKey(state, str, key, { now, g, note });
   if (str === "q" || name === "escape") return { state, effect: { type: "quit" } };
   if (str === "?") return { state: { ...state, help: true }, effect: null };
+
+  // The sides: c turns Claude's list over to Codex's, l opens the Local
+  // network and closes it again, the arrows walk along the tabs.
+  if (str === "c") return sideKey({ ...state, notice: null }, null, { now, g });
+  if (str === "l") return lanSideKey({ ...state, notice: null }, { now, g });
+  if (name === "left" || name === "right") return stepSide({ ...state, notice: null }, name === "right" ? 1 : -1);
+  if (onLan(state)) {
+    const done = lanKey({ ...state, notice: null }, str, key, { now, g, note });
+    if (done) return done;
+    // The machine's keys and the deck's are everybody's; an account's are not.
+    if (str !== "t" && str !== "d") return { state, effect: null };
+  }
 
   const rows = accountsOf(state);
   const at = atOf(state);
@@ -208,8 +232,6 @@ export function tuiKey(state, str, key = {}, { now = 0, g } = {}) {
     const i = rows.findIndex(a => a.num === Number(str));
     return i === -1 ? { state: s, effect: null } : go(i);
   }
-  // Claude's accounts or Codex's: c turns the list over, the arrows pick a side.
-  if (str === "c" || name === "left" || name === "right") return sideKey(s, str === "c" ? null : name === "right" ? "codex" : "claude", { now, g });
   if (name === "return" || name === "enter" || str === "s") {
     return onCodex(state) ? codexSwitchKey(s, rows[at], { now, g }) : switchKey(s, rows[at], { now, g });
   }
@@ -277,17 +299,51 @@ function autoKey(state, { now, g }) {
  *  the Codex side once the deck has a Codex account; c, asked for by name,
  *  once the deck answers for Codex at all — to add the first one. */
 function sideKey(state, side, { now, g }) {
-  const to = side ?? (onCodex(state) ? "claude" : "codex");
+  // From the Local network, c goes back to the accounts, Claude's first.
+  const to = side ?? (onCodex(state) || onLan(state) ? "claude" : "codex");
   if (to === state.side) return { state, effect: null };
   if (to === "codex" && !(side ? hasCodex(state) : state.deck && state.codex)) {
     if (side) return { state, effect: null };
     const why = state.deck ? `this deck does not serve Codex accounts ${g.dash} an update of ccdeck brings them` : `the Codex accounts are the deck's ${g.dash} d starts one`;
     return { state: { ...state, notice: note("info", why, now) }, effect: null };
   }
+  return { state: toSide(state, to), effect: null };
+}
+
+/** The screen turned to `to`, its list from the top. */
+function toSide(state, to) {
   const next = { ...state, side: to, top: 0 };
   // The first look at the Codex side lands on the account Codex runs on.
   if (to === "codex" && state.codexAt == null) next.codexAt = Math.max(0, codexRows(state).findIndex(a => a.active));
-  return { state: next, effect: null };
+  if (to === "lan" && !onLan(state)) next.lanFrom = state.side;
+  return next;
+}
+
+/** The tabs there are: Claude's always, Codex's and the Local network once
+ *  the deck serves them. */
+const sidesOf = (state) => [
+  "claude",
+  ...(hasCodex(state) || onCodex(state) ? ["codex"] : []),
+  ...(hasLan(state) || onLan(state) ? ["lan"] : []),
+];
+
+/** The arrows: one tab along, stopping at either end. */
+function stepSide(state, by) {
+  const list = sidesOf(state);
+  const to = list[Math.max(0, Math.min(list.length - 1, list.indexOf(state.side) + by))];
+  return to === state.side ? { state, effect: null } : { state: toSide(state, to), effect: null };
+}
+
+/** l: the Local network, and back to the accounts it was opened from. */
+function lanSideKey(state, { now, g }) {
+  if (onLan(state)) return { state: toSide(state, state.lanFrom === "codex" && hasCodex(state) ? "codex" : "claude"), effect: null };
+  if (!hasLan(state)) {
+    const why = !state.deck ? `Local network is the deck's ${g.dash} d starts one`
+      : state.lanMissing ? `this deck has no Local network ${g.dash} an update of ccdeck brings it`
+      : `reading the Local network${g.ellipsis}`;
+    return { state: { ...state, notice: note("info", why, now) }, effect: null };
+  }
+  return { state: toSide(state, "lan"), effect: null };
 }
 
 /** Enter on a Codex account: make it the default, or sign in an account that
@@ -553,16 +609,21 @@ export function tuiFrame(state, { columns = 80, rows = 24, tone, g, unicode = tr
     const times = unicode ? "×" : "x";
     return { lines: fill([`${tone.muted}too small ${g.dash} ${MIN_COLUMNS}${times}${MIN_ROWS} at least${tone.reset}`]), top: state.top, run: null };
   }
-  const look = { tone, g, unicode, now, links, skin: skinOf(profile ?? (tone.reset ? "ansi16" : "none")) };
-  if (state.signin || state.codexSignin) {
-    const page = state.signin ? signinLines(state, rows - 3, width, columns, look) : codexSigninLines(state, rows - 3, width, columns, look);
+  // `plain` is for text from elsewhere that is measured inside a panel: in
+  // ASCII it has to be ASCII before it is cut, or "…" grows past the border.
+  const look = { tone, g, unicode, now, links, plain, skin: skinOf(profile ?? (tone.reset ? "ansi16" : "none")) };
+  if (state.signin || state.codexSignin || lanInvitePage(state)) {
+    const page = state.signin ? signinLines(state, rows - 3, width, columns, look)
+      : state.codexSignin ? codexSigninLines(state, rows - 3, width, columns, look)
+      : lanInviteLines(state, rows - 3, width, columns, look);
     const run = page.run ? { ...page.run, row: page.run.row + 1 } : null;
     const lines = [titleBar(state, width, look), ...page.lines, noticeLine(state, look), footerLine(state, width, look)];
     return { lines: fill(lines, run), top: state.top, run };
   }
   const body = bodyLines(state, rows - 3, width, look);
   const lines = [titleBar(state, width, look), ...body.lines, noticeLine(state, look), footerLine(state, width, look)];
-  const over = state.help ? withHelp(lines, width, look) : state.menu ? withMenu(lines, state, width, look) : lines;
+  const over = state.help ? withHelp(lines, width, look) : state.menu ? withMenu(lines, state, width, look)
+    : state.lanForm ? withLanForm(lines, state, width, look) : lines;
   return { lines: fill(over), top: body.top, run: null };
 }
 
@@ -678,8 +739,15 @@ function titleBar(state, width, { tone, g, unicode, now, skin }) {
   const tab = (label, lit) => (lit
     ? skin.select ? onBg(`${tone.bold} ${label} `, skin.select) : `${tone.bold}[${label}]${tone.reset}`
     : `${tone.muted} ${label} ${tone.reset}`);
-  const sides = hasCodex(state) || onCodex(state);
-  const what = sides ? `${tab("Claude", !onCodex(state))}${tab("Codex", onCodex(state))}` : `${tone.bold}Claude accounts${tone.reset}`;
+  const sides = sidesOf(state);
+  // The Local network's tab counts the decks waiting for an answer here.
+  const asking = lanAsking(state);
+  const lanTab = (lit) => (!asking ? tab("Network", lit)
+    : lit ? tab(`Network ${asking}`, true)
+    : `${tone.muted} Network ${tone.reset}${tone.warn}${asking}${tone.reset} `);
+  const what = sides.length > 1
+    ? sides.map(side => (side === "claude" ? tab("Claude", state.side === "claude") : side === "codex" ? tab("Codex", onCodex(state)) : lanTab(onLan(state)))).join("")
+    : `${tone.bold}Claude accounts${tone.reset}`;
   const left = `  ${tone.accent}${tone.bold}ccdeck${tone.reset}  ${what}`;
   let right = "";
   if (state.deck) {
@@ -712,12 +780,20 @@ function noticeLine(state, { tone, g, unicode, now }) {
 
 /** The keys, as many as fit, the ones that leave and explain kept to the last.
  *  Each key is a cap where the terminal can draw one. */
-function footerLine(state, width, { tone, unicode, skin }) {
-  const keys = state.signin ? signinKeys(state.signin) : state.codexSignin ? codexSigninKeys(state.codexSignin) : [
+function footerLine(state, width, look) {
+  const { tone, unicode, skin } = look;
+  const keys = state.signin ? signinKeys(state.signin) : state.codexSignin ? codexSigninKeys(state.codexSignin)
+    : lanInvitePage(state) ? lanInviteKeys() : onLan(state) ? [
+    ...lanFooterKeys(state, { now: look.now, unicode }),
+    ["l", "accounts"],
+    ["?", "keys"],
+    ["q", "quit"],
+  ] : [
     [unicode ? "↑↓" : "up/down", "move"],
     ["enter", "switch"],
     ["m", "actions"],
     ...(hasCodex(state) || onCodex(state) ? [["c", onCodex(state) ? "Claude" : "Codex"]] : []),
+    ...(hasLan(state) ? [["l", "network"]] : []),
     ["b", "best"],
     state.deck ? ["a", "auto-switch"] : ["d", "start the deck"],
     ["+", "add"],
@@ -730,7 +806,7 @@ function footerLine(state, width, { tone, unicode, skin }) {
   const list = keys.slice();
   // r goes first, then the moves, then b: the screen says what they do, and ?
   // and q are how to find out and how to leave.
-  for (const drop of ["r", unicode ? "↑↓" : "up/down", "b", "+", "a", "d", "m", "c", "enter"]) {
+  for (const drop of ["r", unicode ? "↑↓" : "up/down", "b", "+", "a", "d", "m", "c", "l", "n", "x", "space", "enter"]) {
     if (textWidth(draw(list)) <= width) break;
     const i = list.findIndex(([k]) => k === drop);
     if (i !== -1) list.splice(i, 1);
@@ -741,6 +817,7 @@ function footerLine(state, width, { tone, unicode, skin }) {
 // ── the panels ──────────────────────────────────────────────────────────────
 
 function bodyLines(state, room, width, look) {
+  if (onLan(state)) return lanBody(state, room, width, look);
   const { tone, g, unicode } = look;
   const rows = accountsOf(state, look.now);
   const home = homeSlot(state);
@@ -874,6 +951,61 @@ function bodyLines(state, room, width, look) {
 
   const laid = (width >= WIDE_COLUMNS - 1 && selected && someoneWaits && sideBySide()) || stacked();
   return { lines: [...laid.lines, ...pad(room - laid.lines.length)].slice(0, room), top: laid.top };
+}
+
+/**
+ * The Local network in one panel: the list, scrolled so the selection is on
+ * it, its bottom border saying which rows show and when the deck last checked
+ * its paired decks. The machine keeps whatever room the list leaves it.
+ */
+function lanBody(state, room, width, look) {
+  const { tone, g, unicode } = look;
+  const content = state.lan ? lanLines(state, width - 4, look)
+    : { lines: [`${tone.muted}${state.deck ? `reading the Local network${g.ellipsis}` : `Local network is the deck's ${g.dash} d starts one`}${tone.reset}`], selected: -1, foot: "" };
+  const total = content.lines.length;
+  const chartsWant = state.machine?.count > 0 ? 6 : 1;
+  const showMachine = Boolean(state.deck) && room - (2 + total) >= 2 + chartsWant;
+  const listRows = showMachine ? total : Math.max(1, room - 2);
+  let top = 0;
+  let shown = content.lines;
+  let where = "";
+  if (listRows < total) {
+    const at = Math.max(0, content.selected);
+    top = Math.max(0, Math.min(Math.max(state.top, at - listRows + 1), at, total - listRows));
+    shown = content.lines.slice(top, top + listRows);
+    where = `${tone.muted}${top + 1}${unicode ? "–" : "-"}${top + shown.length} of ${total}${tone.reset}`;
+  }
+  const out = panel(width, 2 + listRows, {
+    title: `${tone.bold}Local network${tone.reset}`,
+    footLeft: where,
+    footRight: content.foot ? `${tone.muted}${content.foot}${tone.reset}` : "",
+    lines: shown,
+    selected: content.selected >= 0 ? content.selected - top : -1,
+  }, look);
+  if (showMachine) {
+    const waiting = waitingOf(state);
+    const height = room - out.length;
+    out.push(...panel(width, height, machinePanel(state.machine, {
+      width: width - 4, height: height - 2, look, working: waiting.read && !waiting.list.length ? waiting.working : 0,
+      deck: true, starting: state.starting, view: state.machineView, history: state.history,
+    }), look));
+  }
+  return { lines: [...out, ...pad(room - out.length)].slice(0, room), top };
+}
+
+/** Local network's form, in a box over the screen as an account's menu is. */
+function withLanForm(base, state, width, look) {
+  const boxW = Math.min(width - 2, 64);
+  const spec = lanFormSpec(state, boxW - 4, look);
+  const height = Math.min(base.length - 2, spec.lines.length + 2);
+  return overlay(base, panel(boxW, height, spec, look), boxW, width, look);
+}
+
+/** The Local network as read, or none: the screen leaves its tab when it goes. */
+export function withLan(state, lan, { missing = false } = {}) {
+  const next = { ...state, lan, lanMissing: missing };
+  if (!lan && onLan(state)) return { ...next, side: state.lanFrom === "codex" && hasCodex(state) ? "codex" : "claude", top: 0, lanForm: null };
+  return next;
 }
 
 const LANE_IDS = ["five_hour", "seven_day"];
@@ -1488,7 +1620,7 @@ function withHelp(base, width, look) {
     ["a", "turn Auto-switch on or off"],
     ["+", "add an account, signed in from any browser"],
     ["r", "read the usage again"],
-    [unicode ? "c  ← →" : "c", "the Claude or the Codex accounts"],
+    [unicode ? "c  l  ← →" : "c  l", `Claude's or Codex's accounts  ${g.bullet}  Local network`],
     ["t", "the machine: live, or the last hours"],
     ["d", "start the deck, when none is running"],
     ["ctrl+l", "draw the screen again"],

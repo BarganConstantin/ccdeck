@@ -134,6 +134,32 @@ function codexState(over: State = {}): State {
 }
 const CODE_PAGE = { ok: true, state: "waiting", url: "https://auth.openai.com/codex/device", code: "ABCD-EFGH", expiresAt: NOW + 14 * 60_000, reason: null };
 
+// The deck's Local network, as GET /api/lan serves it: a deck asking to pair,
+// one paired and online, one that only calls in, an address being tried, a
+// deck nearby and one declined; alice shared, with a key from another deck
+// kept beside her.
+const LAN = {
+  ok: true, enabled: true, running: true, stalled: null, deaf: null, lanTunneled: false, checkedAt: NOW - 40_000,
+  name: "desk", fp: "0d2-03d-106-ece", port: 54340, addrs: ["192.168.1.39"], about: null, aliases: {},
+  autoAsk: true, autoAccept: true, pairingMode: "automatic", shareActive: true, sendInUse: true,
+  tailscale: null, inboundAt: null, listeningSince: NOW - 3_600_000, reach: null,
+  shared: ["someone@gone.example@@org-x", "alice@corp.example@@org-1"],
+  invite: null, trusted: [{ fp: "peer-1", name: "studio-mac" }, { fp: "peer-2", name: "laptop" }],
+  pending: [{ fp: "pend-1", name: "kitchen-pc", addr: "192.168.1.44", at: NOW - 60_000, via: "lan" }],
+  strangers: [{ fp: "str-1", name: "nas-box", addr: "192.168.1.60", port: 54340, at: NOW - 20_000, via: "lan" }],
+  declined: [{ fp: "dec-1", name: "guest-laptop", addr: "192.168.1.70", at: NOW - 86_400_000 }],
+  peers: [
+    { fp: "peer-1", name: "studio-mac", addr: "192.168.1.20", port: 54340, via: "lan", paired: true, met: true, lastSeen: NOW - 5_000, last: { at: NOW - 30_000, error: null, done: [] } },
+    { fp: "peer-2", name: "laptop", paired: true, met: true, waiting: true, lastSeen: NOW - 10_000, last: null },
+    { fp: "192.168.1.50:54340", name: "192.168.1.50", addr: "192.168.1.50", port: 54340, manual: true, paired: false, met: false, last: null },
+  ],
+};
+const LAN_PREFS = { manual: ["192.168.1.50:54340"] };
+const INVITE = { token: `ccdeck1.${"x".repeat(150)}`, expiresAt: NOW + 9 * 60_000 };
+function lanState(over: State = {}, lan: Row = {}): State {
+  return { ...view.withLan(deckState(), { ...LAN, ...lan }), lanPrefs: LAN_PREFS, side: "lan", ...over };
+}
+
 describe("the frame", () => {
   const states: [string, State][] = [
     ["a deck", deckState()],
@@ -154,6 +180,20 @@ describe("the frame", () => {
     ["the Codex sign-in's first page", codexState({ side: "codex", codexSignin: { id: null, name: null, adding: true, started: false, login: null } })],
     ["the Codex sign-in showing its code", codexState({ side: "codex", codexSignin: { id: CXC, name: "#3 cal@openai.example", adding: false, started: true, login: CODE_PAGE } })],
     ["a Codex sign-in that failed", codexState({ side: "codex", codexSignin: { id: CXC, name: "#3", adding: false, started: true, login: { state: "failed", reason: "z".repeat(300) } } })],
+    ["the Local network", lanState()],
+    ["the Local network, a deck far down selected", lanState({ lanSel: "inviteOnly" })],
+    ["the Local network off", lanState({}, { enabled: false })],
+    ["the Local network blocked, over Tailscale", lanState({}, {
+      reach: { blocked: true, text: "Other decks cannot reach this one: the firewall drops what comes in.", steps: ["sudo ufw allow 54340/tcp", "sudo ufw allow 45317/udp"] },
+      lanTunneled: true, tailscale: { found: true, running: true, on: true, ask: true, accept: false, login: "me@ts.example", devices: 3, exitNode: true },
+      pairingMode: "invite",
+    })],
+    ["the Local network before it is read", { ...deckState(), side: "lan" }],
+    ["adding a deck", lanState({ lanForm: { view: "add", at: 0, error: null } })],
+    ["an address refused", lanState({ lanForm: { view: "address", draft: "fe80::1", error: "Too many colons to split. Use that deck's IPv4 address or its name, like 192.168.1.5:54340." } })],
+    ["an invite pasted", lanState({ lanForm: { view: "join", draft: `ccdeck1.${"y".repeat(300)}`, error: null, tried: [{ addr: "192.168.1.20:54340", why: "no answer" }] } })],
+    ["unpairing", lanState({ lanForm: { view: "unpair", fp: "peer-1", name: "studio-mac", twins: 1 } })],
+    ["the invite to send", lanState({ lanForm: { view: "invite", error: null } }, { invite: INVITE })],
   ];
   for (const [what, s] of states) {
     for (const [columns, rows] of [[40, 12], [64, 16], [80, 24], [104, 30], [120, 32], [160, 50]]) {
@@ -718,6 +758,189 @@ describe("the Codex side", () => {
     const failed = { ...s, codexSignin: { ...s.codexSignin, login: { state: "expired", reason: "code_expired" } } };
     expect(lines(failed).some(l => l.includes("The code expired before it was entered"))).toBe(true);
     expect(enter(failed).effect).toEqual({ type: "codex-signin-start" });
+  });
+});
+
+describe("the Local network", () => {
+  const key = (s: State, str: string | undefined, k: Row = {}) => view.tuiKey(s, str, { name: str, ...k }, { now: NOW, g: U });
+  const enter = (s: State) => key(s, "\r", { name: "return" });
+  const space = (s: State) => key(s, " ", { name: "space" });
+  const lines = (s: State, cols = 100, rows = 40, unicode = true, profile?: string) => text(frame(s, cols, rows, unicode, profile).lines);
+  /** The Network list with `id` selected. */
+  const at = (id: string, over: State = {}, lan: Row = {}) => lanState({ lanSel: id, ...over }, lan);
+
+  it("is a tab of its own once the deck serves it: l opens it, and l goes back where it came from", () => {
+    const s = view.withLan(deckState(), LAN);
+    expect(lines(s, 100, 30, false, "none")[0]).toMatch(/^ {2}ccdeck {2}\[Claude\] Network 1 /);
+    const open = key(s, "l").state;
+    expect(open.side).toBe("lan");
+    expect(lines(open, 100, 30, false, "none")[0]).toMatch(/\[Network 1\]/);
+    expect(key(open, "l").state.side).toBe("claude");
+    // From Codex's list, l comes back to Codex's.
+    const codex = { ...view.withLan(codexState(), LAN), side: "codex", codexAt: 0 };
+    const fromCodex = key(codex, "l").state;
+    expect(key(fromCodex, "l").state.side).toBe("codex");
+    // The arrows walk the tabs and stop at either end; c goes back to the accounts.
+    expect(key(codex, undefined, { name: "right" }).state.side).toBe("lan");
+    expect(key(fromCodex, undefined, { name: "right" }).state.side).toBe("lan");
+    expect(key(fromCodex, undefined, { name: "left" }).state.side).toBe("codex");
+    expect(key(fromCodex, "c").state.side).toBe("claude");
+    // A deck without it, and none at all, say so.
+    expect(key({ ...deckState(), lanMissing: true }, "l").state.notice.text).toBe("this deck has no Local network — an update of ccdeck brings it");
+    expect(key(deckState({ deck: null }), "l").state.notice.text).toBe("Local network is the deck's — d starts one");
+  });
+
+  it("lists the switch, this deck, the decks — the one asking first — what it shares and how it pairs", () => {
+    const shown = lines(lanState());
+    const order = ["Sync with paired decks", "This deck  desk", "Decks ─", "kitchen-pc  wants to pair", "laptop",
+      "studio-mac  online", "192.168.1.50:54340  trying", "nas-box  not paired yet", "guest-laptop  you said no",
+      "Share these accounts ─", "[✓] alice@corp.example", "[ ] bob@home.example", "Show paired decks which",
+      "Send the login this deck", "Pairing ─", "[ ] Pair new decks only by invite", "Automatic pairing", "[✓] Ask every deck", "[✓] Say yes to every deck"];
+    const where = order.map(t => shown.findIndex(l => l.includes(t)));
+    expect(where.every(i => i > 0)).toBe(true);
+    expect(where).toEqual([...where].sort((a, b) => a - b));
+    expect(lines(lanState(), 100, 40, true, "none")[0]).toMatch(/\[Network 1\]/);
+    expect(shown.find(l => l.includes("Sync with paired decks"))).toContain("1 deck is waiting for your answer");
+    expect(shown.find(l => l.includes("This deck"))).toContain("192.168.1.39:54340");
+    // Off, the decks go: nothing reaches them. What it shares can still be set.
+    const off = lines(lanState({}, { enabled: false }));
+    expect(off.find(l => l.includes("Sync with paired decks"))).toMatch(/\[ \] Sync with paired decks +Off/);
+    expect(off.some(l => l.includes("kitchen-pc"))).toBe(false);
+    expect(off.some(l => l.includes("[✓] alice@corp.example"))).toBe(true);
+  });
+
+  it("moves over the rows that do something, and the footer says what keys do on each", () => {
+    const foot = (s: State) => lines(s).at(-1);
+    let s = lanState();
+    expect(foot(s)).toContain("space  turn off");
+    s = key(s, "j").state;
+    expect(s.lanSel).toBe("self");
+    expect(foot(s)).toContain("n  rename this deck");
+    s = key(s, undefined, { name: "down" }).state;
+    expect(s.lanSel).toBe("deck:pend-1");
+    expect(foot(s)).toMatch(/enter +accept +x +decline/);
+    expect(key(s, undefined, { name: "up" }).state.lanSel).toBe("self");
+    expect(key(lanState(), "G").state.lanSel).toBe("autoAccept");
+    // The accounts' keys do nothing here.
+    for (const k of ["a", "b", "1", "m", "h", "o", "v"]) expect(key(at("deck:peer-1"), k).effect).toBeNull();
+  });
+
+  it("turns the switch and each setting through the deck's settings, as the setup dialog does", () => {
+    expect(space(lanState()).effect).toMatchObject({ type: "lan-prefs", patch: { enabled: false } });
+    expect(enter(lanState({}, { enabled: false })).effect).toMatchObject({ type: "lan-prefs", patch: { enabled: true } });
+    expect(space(at("shareActive")).effect).toMatchObject({ patch: { shareActive: false } });
+    expect(space(at("sendInUse")).effect).toMatchObject({ patch: { sendInUse: false } });
+    expect(space(at("inviteOnly")).effect).toMatchObject({ patch: { pairingMode: "invite" } });
+    expect(space(at("inviteOnly", {}, { pairingMode: "invite" })).effect).toMatchObject({ patch: { pairingMode: "automatic" } });
+    expect(space(at("autoAsk")).effect).toMatchObject({ patch: { autoAsk: false } });
+    // Invite-only pauses the automatic ones, as the dialog does.
+    const paused = space(at("autoAccept", {}, { pairingMode: "invite" }));
+    expect(paused.effect).toBeNull();
+    expect(paused.state.notice.text).toBe("Paused while this deck pairs only by invite. Turn that off above to use it.");
+    const ts = { tailscale: { found: true, running: true, on: true, ask: false, accept: true, login: null, devices: 2 } };
+    expect(lines(lanState({}, ts)).some(l => /\[✓\] Look for my devices +2 online · your Tailscale account/.test(l))).toBe(true);
+    expect(space(at("tailscale", {}, ts)).effect).toMatchObject({ patch: { tailscale: false } });
+    expect(space(at("tailscaleAsk", {}, ts)).effect).toMatchObject({ patch: { tailscaleAsk: true } });
+  });
+
+  it("ticks an account to share, sending the whole list with the keys of other decks kept", () => {
+    const share = space(at("share:bob@home.example@@org-2")).effect;
+    expect(share).toMatchObject({ type: "lan-prefs", patch: { shared: ["someone@gone.example@@org-x", "alice@corp.example@@org-1", "bob@home.example@@org-2"] } });
+    const unshare = space(at("share:alice@corp.example@@org-1")).effect;
+    expect(unshare.patch).toEqual({ shared: ["someone@gone.example@@org-x"] });
+    expect(unshare.said).toBe("alice@corp.example is no longer offered — a copy a deck already has stays there");
+  });
+
+  it("answers a deck's request, checks, names and unpairs a paired one, asks a nearby one, lets a declined one ask again", () => {
+    expect(enter(at("deck:pend-1")).effect).toMatchObject({ type: "lan-peer", action: "accept", fp: "pend-1", said: "paired with kitchen-pc" });
+    expect(key(at("deck:pend-1"), "x").effect).toMatchObject({ type: "lan-peer", action: "dismiss", fp: "pend-1" });
+    expect(enter(at("deck:peer-1")).effect).toMatchObject({ type: "lan-sync", fp: "peer-1" });
+    // One that only calls in has no address to call.
+    expect(enter(at("deck:peer-2")).state.notice.text).toMatch(/^There is no address here to call it on/);
+    const unpair = key(at("deck:peer-1"), "x").state;
+    expect(unpair.lanForm).toMatchObject({ view: "unpair", fp: "peer-1", name: "studio-mac" });
+    expect(lines(unpair).some(l => l.includes("Unpair studio-mac?"))).toBe(true);
+    expect(key(unpair, "n").state.lanForm).toBeNull();
+    expect(key(unpair, "y").effect).toMatchObject({ type: "lan-peer", action: "unpair", fp: "peer-1" });
+    let alias = key(at("deck:peer-1"), "n").state;
+    expect(alias.lanForm).toMatchObject({ view: "alias", fp: "peer-1", draft: "" });
+    for (const c of "studio") alias = key(alias, c).state;
+    expect(enter(alias).effect).toMatchObject({ type: "lan-peer", action: "alias", fp: "peer-1", name: "studio" });
+    expect(enter(at("deck:str-1")).effect).toMatchObject({ type: "lan-peer", action: "accept", fp: "str-1" });
+    // Invite-only: a nearby deck takes an invite instead.
+    const invite = enter(at("deck:str-1", {}, { pairingMode: "invite" }));
+    expect(invite.effect).toMatchObject({ type: "lan-invite", action: "make" });
+    expect(invite.state.lanForm).toMatchObject({ view: "invite" });
+    expect(enter(at("deck:dec-1")).effect).toMatchObject({ type: "lan-peer", action: "allow", fp: "dec-1" });
+    // An address being tried: x stops it, the others' addresses kept.
+    expect(key(at("deck:192.168.1.50:54340", { lanPrefs: { manual: ["10.0.0.9:54340", "192.168.1.50:54340"] } }), "x").effect)
+      .toMatchObject({ type: "lan-prefs", patch: { manual: ["10.0.0.9:54340"] } });
+    expect(key(at("deck:peer-1"), "r").effect).toMatchObject({ type: "lan-sync" });
+    expect(key(at("deck:peer-1"), "r").effect.fp).toBeUndefined();
+  });
+
+  it("names this deck, empty taking the name back to the machine's", () => {
+    let s = key(at("self"), "n").state;
+    expect(s.lanForm).toEqual({ view: "name", draft: "desk", error: null });
+    for (let i = 0; i < 4; i++) s = key(s, undefined, { name: "backspace" }).state;
+    expect(enter(s).effect).toMatchObject({ type: "lan-prefs", patch: { name: "" }, said: "other decks see this one by its machine's name" });
+  });
+
+  it("adds a deck by its address, refusing what it cannot dial, or pairs with an invite", () => {
+    const add = key(lanState(), "+").state;
+    expect(add.lanForm).toEqual({ view: "add", at: 0, error: null });
+    expect(lines(add).some(l => l.includes("They type this deck's own address into the same field"))).toBe(true);
+    let s = key(add, "a").state;
+    expect(s.lanForm.view).toBe("address");
+    const type = (st: State, t: string) => [...t].reduce((x, c) => key(x, c).state, st);
+    expect(enter(type(s, "fe80::1")).state.lanForm.error).toBe("Too many colons to split. Use that deck's IPv4 address or its name, like 192.168.1.5:54340.");
+    expect(enter(type(s, "studio")).state.lanForm.error).toBe("Add the port too, like studio:54340.");
+    expect(enter(type(s, "192.168.1.50:54340")).state.lanForm.error).toBe("This deck already calls that address.");
+    expect(enter(type(s, "192.168.1.20:54340")).state.lanForm.error).toBe("Already paired with studio-mac at that address.");
+    expect(enter(type(s, " 10.0.0.7:5000 ")).effect).toMatchObject({ type: "lan-prefs", patch: { manual: ["192.168.1.50:54340", "10.0.0.7:5000"] } });
+    // Esc goes back to the three ways, then closes.
+    s = key(s, undefined, { name: "escape" }).state;
+    expect(s.lanForm.view).toBe("add");
+    expect(key(s, undefined, { name: "escape" }).state.lanForm).toBeNull();
+    // Paste an invite.
+    s = key(add, "p").state;
+    expect(enter(type(s, "hello")).state.lanForm.error).toBe("That is not an invite — paste the whole line they sent you.");
+    expect(enter(type(s, INVITE.token)).effect).toEqual({ type: "lan-invite", action: "join", token: INVITE.token, doing: "joining with the invite" });
+    // Invite-only: no address.
+    const only = key(lanState({}, { pairingMode: "invite" }), "+").state;
+    expect(only.lanForm.at).toBe(1);
+    expect(key(only, "a").state.lanForm.error).toBe("Adding by address is off while this deck pairs only by invite.");
+  });
+
+  it("shows an invite to send as a page, its text one run edge to edge, and x cancels it", () => {
+    const made = key(lanState(), "+").state;
+    const make = key(made, "i");
+    expect(make.effect).toMatchObject({ type: "lan-invite", action: "make" });
+    const page = { ...make.state, lan: { ...make.state.lan, invite: INVITE } };
+    const f = frame(page, 80, 24);
+    expect(f.run).not.toBeNull();
+    expect(stripAnsi(f.run.text)).toBe(INVITE.token);
+    expect(text(f.lines).some(l => l.includes("Send this to them  · 9:00 left"))).toBe(true);
+    expect(text(f.lines).at(-1)).toMatch(/x +cancel it +esc +close/);
+    expect(key(page, "x").effect).toMatchObject({ type: "lan-invite", action: "withdraw" });
+    expect(key(page, undefined, { name: "escape" }).state.lanForm).toBeNull();
+  });
+
+  it("says what stops other decks finding this one, with the commands that open the way", () => {
+    const shown = lines(lanState({}, {
+      reach: { blocked: true, text: "Other decks cannot reach this one: the firewall drops what comes in.", steps: ["sudo ufw allow 54340/tcp"] },
+      lanTunneled: true, tailscale: { found: false, exitNode: false },
+    }), 120, 40);
+    expect(shown.some(l => l.includes("! Other decks cannot reach this one: the firewall drops what comes in."))).toBe(true);
+    expect(shown.some(l => l.includes("$ sudo ufw allow 54340/tcp"))).toBe(true);
+    expect(shown.some(l => l.includes("This machine sends its local network through a VPN"))).toBe(true);
+  });
+
+  it("leaves the tab when the deck goes, and keys that need the deck say so", () => {
+    const s = lanState();
+    expect(view.withLan(s, null).side).toBe("claude");
+    expect(space({ ...s, deck: null }).state.notice.text).toBe("Local network is the deck's — d starts one");
+    expect(space({ ...s, busy: { text: "sharing x", since: NOW } }).state.notice.text).toBe("sharing x — one thing at a time");
   });
 });
 
@@ -1596,5 +1819,106 @@ describe("the loop", () => {
     } finally {
       rmTempDir(home);
     }
+  });
+
+  /** The fake deck with a Local network: its status in `box.lan`, the
+   *  settings it keeps, a write refused while `prefsFail`, and what a join
+   *  answers in `join`. */
+  function lanDeck() {
+    const deck = fakeDeck();
+    const ask = deck.source.ask;
+    const now = Date.now();
+    const box = {
+      lan: {
+        ...LAN, checkedAt: now - 40_000,
+        pending: [{ ...LAN.pending[0], at: now - 60_000 }],
+        peers: [{ ...LAN.peers[0], lastSeen: now - 5_000, last: { at: now - 30_000, error: null, done: [] } }],
+        strangers: [], declined: [],
+      } as Row,
+      prefsFail: false,
+      join: null as Row | null,
+    };
+    deck.source.ask = async (d: unknown, o: { method?: string; path: string; body?: unknown }) => {
+      const { method = "GET", path, body } = o;
+      const reply = (b: unknown, status = 200) => { deck.calls.push({ method, path, body }); return { ok: status < 400, status, body: b }; };
+      if (path === "/api/lan") return reply(box.lan);
+      if (path === "/api/prefs" && method === "GET") return reply({ ok: true, prefs: { lan: { ...LAN_PREFS } } });
+      if (path === "/api/prefs") {
+        if (box.prefsFail) return reply({ ok: false, reason: "prefs_not_writable" }, 500);
+        box.lan = { ...box.lan, ...((body as Row).lan as Row) };
+        return reply({ ok: true });
+      }
+      if (path === "/api/lan/peer") {
+        const b = body as Row;
+        if (b.action === "accept") {
+          box.lan = { ...box.lan, pending: [], peers: [...(box.lan.peers as Row[]), { fp: b.fp, name: "kitchen-pc", addr: "192.168.1.44", port: 54340, paired: true, met: true, lastSeen: Date.now(), last: null }] };
+        }
+        return reply({ ok: true, ...box.lan });
+      }
+      if (path === "/api/lan/invite") return reply(box.join ?? { ok: true, ...box.lan });
+      return ask(d, o);
+    };
+    return { ...deck, box };
+  }
+
+  it("says a deck asking to pair from the accounts, and l then enter accepts it through the deck", async () => {
+    const term = fakeTerminal();
+    const deck = lanDeck();
+    const { out } = quietOut();
+    const done = runTui({}, out, { input: term.input, output: term.output, source: deck.source, tickMs: 20, ...LOOK });
+    await until(() => term.screenText().includes("kitchen-pc wants to pair — l answers it"));
+    expect(term.screenText()).toContain(" Network ");
+    term.input.write("l");
+    await until(() => term.screenText().includes("╭─ Local network"));
+    await until(() => deck.calls.some(c => c.path === "/api/prefs"));
+    term.input.write("j");
+    term.input.write("j");
+    await until(() => /enter +accept/.test(term.screenText()));
+    term.input.write("\r");
+    await until(() => term.screenText().includes("paired with kitchen-pc"));
+    expect(posts(deck.calls, "/api/lan/peer").map(c => c.body)).toEqual([{ action: "accept", fp: "pend-1" }]);
+    term.input.write("q");
+    expect(await done).toBe(0);
+  });
+
+  it("space turns Local network off with the deck's settings POST, and a write it refuses says why", async () => {
+    const term = fakeTerminal();
+    const deck = lanDeck();
+    const { out } = quietOut();
+    const done = runTui({}, out, { input: term.input, output: term.output, source: deck.source, tickMs: 20, ...LOOK });
+    await until(() => term.screenText().includes(" Network "));
+    term.input.write("l");
+    await until(() => term.screenText().includes("[✓] Sync with paired decks"));
+    term.input.write(" ");
+    await until(() => term.screenText().includes("Local network off — nothing goes out or comes in"));
+    expect(posts(deck.calls, "/api/prefs").map(c => c.body)).toEqual([{ lan: { enabled: false } }]);
+    expect(term.screenText()).toContain("[ ] Sync with paired decks");
+    deck.box.prefsFail = true;
+    term.input.write(" ");
+    await until(() => term.screenText().includes("this deck is not allowed to save its settings"));
+    term.input.write("q");
+    expect(await done).toBe(0);
+  });
+
+  it("joins with a pasted invite, and one nothing answers says where it tried", async () => {
+    const term = fakeTerminal();
+    const deck = lanDeck();
+    const { out } = quietOut();
+    const done = runTui({}, out, { input: term.input, output: term.output, source: deck.source, tickMs: 20, ...LOOK });
+    await until(() => term.screenText().includes(" Network "));
+    term.input.write("l");
+    await until(() => term.screenText().includes("╭─ Local network"));
+    term.input.write("+");
+    term.input.write("p");
+    await until(() => term.screenText().includes("Paste an invite"));
+    deck.box.join = { ...deck.box.lan, ok: false, reason: "unreachable", tried: [{ addr: "192.168.1.20:54340", why: "no answer" }] };
+    term.input.write(INVITE.token);
+    term.input.write("\r");
+    await until(() => term.screenText().includes("Nothing answered at any address"));
+    expect(term.screenText()).toContain("192.168.1.20:54340: no answer");
+    expect(posts(deck.calls, "/api/lan/invite").map(c => c.body)).toEqual([{ action: "join", token: INVITE.token }]);
+    // Ctrl+C leaves from inside a form too.
+    term.input.write("\x03");
+    expect(await done).toBe(0);
   });
 });
