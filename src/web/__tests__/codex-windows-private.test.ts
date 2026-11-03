@@ -19,7 +19,7 @@ describe('Windows private path command boundary', () => {
     expect(args).toContain('-File'); expect(args).not.toContain('-Command');
     expect(args[args.indexOf('-TargetPath') + 1]).toBe(path);
     expect(args.filter(a => a.includes(path))).toEqual([path]);
-    expect(options).toMatchObject({ shell: false, windowsHide: true, timeout: 10000, maxBuffer: 16384 });
+    expect(options).toMatchObject({ shell: false, windowsHide: true, timeout: 30000, maxBuffer: 16384 });
   });
   it.each(['relative', '\\\\server\\share\\private', 'C:\\safe:stream', 'C:\\bad\0path'])('rejects ambiguous path %s before spawning', async path => {
     const run = vi.fn();
