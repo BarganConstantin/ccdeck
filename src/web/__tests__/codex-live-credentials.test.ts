@@ -108,7 +108,7 @@ const stableStat = (s: Awaited<ReturnType<typeof lstat>>) => ({ dev: s.dev, ino:
 
 // Grouped failure cases start several real ACL helpers on Windows; the native
 // timeout probes also advance a 34-second virtual clock inside this test.
-describe('live Codex credential reader (fictional JWTs and owned fake RPC only)', { timeout: process.platform === 'win32' ? 120000 : 5000 }, () => {
+describe('live Codex credential reader (fictional JWTs and owned fake RPC only)', process.platform === 'win32' ? { timeout: 120000 } : { timeout: 5000 }, () => {
   it.each([undefined, null, 'file'])('reads a private unchanged credential with storage %s and strips ambient API keys', async storeMode => {
     const f = await fixture({ storeMode });
     const before = { auth: await readFile(f.file), config: await readFile(f.config), stat: stableStat(await lstat(f.file)) };

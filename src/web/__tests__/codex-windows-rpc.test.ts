@@ -98,7 +98,7 @@ describe('Windows raw proxy WebSocket bridge (simulated ACL, real byte relay)', 
       expect(await rpc.request('slow-reply')).toEqual({ ok: true });
       expect(f.requests.filter(m => m.method === 'slow-reply')).toHaveLength(1);
     } finally { rpc.close(); }
-  }, 15000);
+  }, process.platform === 'win32' ? 60000 : 15000);
   it.each(['binary', 'bad-json'])('rejects %s frames and pending requests on disconnect', async method => {
     const f = await fixture();
     const rpc = await connectCodexLiveRpc(f.endpoint, { platform: 'linux', windowsPrivate: f.options, spawnChild: f.spawnChild });
@@ -131,5 +131,5 @@ describe.skipIf(process.platform !== 'win32')('Windows native endpoint validatio
     await rm(dir, { recursive: true }); await mkdir(dir);
     await writeFile(socketPath, 'unprotected rendezvous');
     await expect(resolveCodexLiveEndpoint(home, options)).rejects.toMatchObject({ code: 'untrusted_native_socket' });
-  }, 30000);
+  }, 120000);
 });

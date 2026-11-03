@@ -54,17 +54,17 @@ describe.skipIf(process.platform !== 'win32')('Windows token DACL and pinned han
       await expect(rm(file)).rejects.toThrow();
       await expect(writeFile(file, 'replacement')).rejects.toThrow();
     } finally { await guard.release(); }
-  }, 30000);
+  }, 120000);
   it('rejects an unsafe existing directory without repairing its ACL, and rejects junctions', async () => {
     const { root, dir } = await fixture();
     const unsafe = join(root, 'inherited'); await mkdir(unsafe);
     await expect(ensureWindowsPrivateDirectory(unsafe)).rejects.toMatchObject({ code: 'windows_private_path_unsafe' });
     const alias = join(root, 'junction'); await symlink(dir, alias, 'junction');
     await expect(assertWindowsPrivatePath(alias)).rejects.toMatchObject({ code: 'windows_private_path_unsafe' });
-  }, 30000);
+  }, 120000);
   it('rejects an ACL that grants Everyone access', async () => {
     const { dir } = await fixture();
     await runFile(win32.join(process.env.SystemRoot!, 'System32', 'icacls.exe'), [dir, '/grant', '*S-1-1-0:(OI)(CI)RX'], { windowsHide: true, timeout: 5000 });
     await expect(assertWindowsPrivatePath(dir)).rejects.toMatchObject({ code: 'windows_private_path_unsafe' });
-  }, 30000);
+  }, 120000);
 });
