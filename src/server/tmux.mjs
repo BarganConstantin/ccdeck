@@ -451,29 +451,53 @@ export function cgroupPath(text) {
   return unified ? unified.slice(3).trim() : "";
 }
 
-/** systemd-run's arguments before the command it starts in a new scope. */
-export const SCOPE_ARGS = Object.freeze(["--user", "--scope", "--collect", "--quiet", "--description=ccdeck terminal sessions", "--"]);
+/** systemd-run's arguments before the command it starts in a new scope.
+ *  `--expand-environment=no` keeps that command as the deck wrote it: the
+ *  systemd-run on Ubuntu 26.04 (systemd 259) expands `$NAME` and `${NAME}` in
+ *  a scope's command line, as ExecStart= does, from systemd-run's own
+ *  environment — a name it does not have, or one that is not a valid name,
+ *  becomes an empty string — so a `$` in an agent's arguments or in a
+ *  folder's name reached tmux rewritten. Ubuntu 24.04's (255) left a scope's
+ *  command alone. */
+export const SCOPE_ARGS = Object.freeze(["--user", "--scope", "--collect", "--quiet", "--expand-environment=no", "--description=ccdeck terminal sessions", "--"]);
+
+/** The same without `--expand-environment=no`, for a systemd-run older than
+ *  254, which refuses the option and does not expand a scope's command. */
+export const LEGACY_SCOPE_ARGS = Object.freeze(SCOPE_ARGS.filter(a => a !== "--expand-environment=no"));
 
 const scopeProbes = new Map();
 
-/** Whether systemd-run can start a scope here at all — a service under the
- *  SYSTEM manager has no user bus to ask, and a minimal container has no
- *  systemd behind its systemd-run. Asked once per binary, with `true`. */
-function probeScope(bin, env) {
+/** Whether systemd-run starts a scope here with `args` — a service under the
+ *  SYSTEM manager has no user bus to ask, a minimal container has no systemd
+ *  behind its systemd-run, and one older than 254 refuses SCOPE_ARGS. Asked
+ *  with `true`. */
+function probeScope(bin, env, args) {
   return new Promise((resolve) => {
     try {
-      execFile(bin, [...SCOPE_ARGS, "true"], { env: tmuxEnv(env), timeout: 5000, windowsHide: true }, (err) => resolve(!err));
+      execFile(bin, [...args, "true"], { env: tmuxEnv(env), timeout: 5000, windowsHide: true }, (err) => resolve(!err));
     } catch {
       resolve(false);
     }
   });
 }
 
+/** The first of SCOPE_ARGS and LEGACY_SCOPE_ARGS this systemd-run starts a
+ *  scope with, or null when it starts none. */
+async function scopeArgsFor(bin, env, probe) {
+  for (const args of [SCOPE_ARGS, LEGACY_SCOPE_ARGS]) {
+    let ok = false;
+    try { ok = await probe(bin, env, args); } catch { ok = false; }
+    if (ok) return args;
+  }
+  return null;
+}
+
 /**
  * The prefix that starts a tmux server outside the deck's systemd service —
- * `[systemd-run, ...SCOPE_ARGS]` — or null where none is needed or none
- * works: not Linux, not in a `.service` cgroup, no systemd-run, or one that
- * cannot start a scope. Never rejects; null means "run tmux as it is".
+ * `[systemd-run, ...SCOPE_ARGS]`, or LEGACY_SCOPE_ARGS for an older
+ * systemd-run — or null where none is needed or none works: not Linux, not
+ * in a `.service` cgroup, no systemd-run, or one that cannot start a scope.
+ * Asked once per binary. Never rejects; null means "run tmux as it is".
  */
 export async function serverScope({
   platform = process.platform, env = process.env,
@@ -487,8 +511,9 @@ export async function serverScope({
   const bin = pathLookup("systemd-run", platform, { pathEnv: env.PATH ?? "", exists })
     ?? ["/usr/bin/systemd-run", "/bin/systemd-run"].find(p => exists(p)) ?? null;
   if (!bin) return null;
-  if (!scopeProbes.has(bin)) scopeProbes.set(bin, Promise.resolve(probe(bin, env)).catch(() => false));
-  return (await scopeProbes.get(bin)) ? [bin, ...SCOPE_ARGS] : null;
+  if (!scopeProbes.has(bin)) scopeProbes.set(bin, scopeArgsFor(bin, env, probe));
+  const args = await scopeProbes.get(bin);
+  return args ? [bin, ...args] : null;
 }
 
 /** For tests: forget what systemd-run answered. */
