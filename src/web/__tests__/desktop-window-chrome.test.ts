@@ -22,6 +22,7 @@ import { EventEmitter } from "node:events";
 import { readFileSync } from "node:fs";
 import { runInNewContext } from "node:vm";
 import { join } from "node:path";
+import { WINDOW_MIN, windowPlaceToOpen } from "../../../desktop/window-place.mjs";
 
 it("keeps the desktop modal blocker full size while painting below native chrome", () => {
   const css = readFileSync(join(__dirname, "../styles/dialogs.css"), "utf8");
@@ -65,6 +66,7 @@ it("keeps an older deck usable in a visible native window", async () => {
     process: { platform: "linux" }, app: { getVersion: () => "test", focus: () => {} },
     deckOrigin: (port: number) => `http://127.0.0.1:${port}`,
     setRegular: () => {}, trace: () => {}, offerReadyUpdate: () => {},
+    desktopState: { read: () => ({}) }, screen: { getAllDisplays: () => [] }, windowPlaceToOpen, WINDOW_MIN,
   };
   runInNewContext(`${body}\nopenWindow(false);`, context);
   await windows[0].listeners("ready-to-show")[0]();
