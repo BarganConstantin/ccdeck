@@ -9,6 +9,7 @@ import WebSocket from 'ws';
 import { pathLookup, spawnSpec } from './exec-spec.mjs';
 import { inspectWindowsPrivateSocket, holdWindowsPrivatePath } from './codex-windows-private.mjs';
 import { createCodexWindowsProxy } from './codex-windows-proxy.mjs';
+import { RUNNING_VERSION } from './running-version.mjs';
 
 export const liveError = code => Object.assign(new Error(code), { code });
 const runFile = promisify(execFile);
@@ -147,7 +148,9 @@ export async function connectCodexLiveRpc(endpoint, options = {}) {
     const after = windows ? await inspectWindowsPrivateSocket(endpoint.socketPath, options.windowsPrivate) : await inspectPosixSocket(endpoint.socketPath);
     if (after.generation !== endpoint.generation) throw liveError('native_endpoint_changed');
     if (guard && !guard.valid()) throw liveError('untrusted_native_socket');
-    await rpc.request('initialize', { clientInfo: { name: 'ccdeck', title: 'ccdeck', version: '3.53.1' }, capabilities: { experimentalApi: true } });
+    // The version this deck runs, not the one this line was written in: the
+    // daemon logs it, and a fixed number told it 3.53.1 long after.
+    await rpc.request('initialize', { clientInfo: { name: 'ccdeck', title: 'ccdeck', version: RUNNING_VERSION ?? '0.0.0' }, capabilities: { experimentalApi: true } });
     send({ method: 'initialized', params: {} });
     return rpc;
   } catch (error) { rpc.close(); throw error; }
