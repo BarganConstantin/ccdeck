@@ -69,7 +69,7 @@ const times = (needle: string) => readme.split(needle).length - 1;
 
 /** The two paragraphs, exactly as they read before they were moved. */
 const WRITES =
-  "It never steers an agent or edits your code, but it is not read-only either — besides the hook entry and its own event log, it manages the two tools it leans on, and it refreshes the Codex token it reads quota with, rewriting `~/.codex/auth.json` the way `codex` itself does.";
+  "Account switching changes the login used by supported Codex sessions, and managed terminal continuation can submit Continue. The deck also writes the hook entry and its own event log; it manages the two tools it leans on, and it refreshes the Codex token it reads quota with, rewriting `~/.codex/auth.json` the way `codex` itself does.";
 const NETWORK =
   "What does go out is short and ordinary: a ~20-byte version check against the npm registry";
 
