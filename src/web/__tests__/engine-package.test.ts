@@ -126,9 +126,12 @@ describe("the engine's package names and header check", () => {
     for (const bad of ["latest", "", "1.0", "v1.0.0", undefined]) expect(() => install.compareVersions("1.0.0", bad)).toThrow();
   });
 
-  it("is unsupported on Windows until the one constant says otherwise", () => {
-    expect(pkg.ENGINE_ON_WINDOWS).toBe(false);
-    expect(commandPanelSupported("win32")).toBe(false);
+  // CHANGED ON PURPOSE (V4 ships the panel on Windows through the engine): this
+  // pinned "unsupported on Windows while ENGINE_ON_WINDOWS is false"; the engine
+  // now ships there and the panel is offered like on Linux and macOS.
+  it("is supported on Windows, as the one constant says", () => {
+    expect(pkg.ENGINE_ON_WINDOWS).toBe(true);
+    expect(commandPanelSupported("win32")).toBe(true);
     expect(commandPanelSupported("linux")).toBe(true);
   });
 });
@@ -339,13 +342,17 @@ describe.skipIf(!['darwin', 'linux'].includes(process.platform))("the Command Pa
     expect(calls.flatMap((c) => c.mock.calls)).toEqual([]);
   });
 
-  it("on Windows, answers unsupported without looking for a package", async () => {
-    const importPackage = vi.fn();
-    const calls = spied();
-    const e = commandPanelEngine({ platform: "win32", env: { CCDECK_HOME: "/x" }, keys: [key], importPackage });
-    expect((await e.route("status", null)).body.code).toBe("unsupported");
-    expect(importPackage).not.toHaveBeenCalled();
-    expect(calls.flatMap((c) => c.mock.calls)).toEqual([]);
+  // CHANGED ON PURPOSE (V4 ships the panel on Windows through the engine): this
+  // pinned "on Windows, answers unsupported without looking for a package"; a
+  // Windows deck now asks for the import like the other platforms do, and with
+  // no folder after it answers not-installed.
+  it("on Windows, asks for the package like any platform and, with no folder, is not-installed", async () => {
+    const importPackage = vi.fn(async () => ({ status: "absent" }));
+    const enoent = async () => { throw Object.assign(new Error("ENOENT"), { code: "ENOENT" }); };
+    const e = commandPanelEngine({ platform: "win32", env: { CCDECK_HOME: "/x" }, keys: [key], importPackage, lstat: enoent });
+    expect((await e.route("status", null)).body.code).toBe("not-installed");
+    expect(importPackage).toHaveBeenCalledTimes(1);
+    expect(importPackage).toHaveBeenCalledWith({ platform: "win32", env: { CCDECK_HOME: "/x" }, keys: [key] });
   });
 
   it("with no key, never looks for a package, and says what it always said", async () => {

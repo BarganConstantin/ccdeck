@@ -50,15 +50,14 @@ function prefsPayload(panel) {
     // makes at boot — and a route of its own would have to exist with the
     // switch off, which is the state it reports.
     terminalOn: terminalOn(prefs),
-    // Whether this deck's platform has the panel at all (Linux and macOS, for now), so
+    // Whether this deck's platform has the panel at all (Linux, macOS and Windows), so
     // Settings can say so rather than offer a switch that leads nowhere. The
     // deck's platform, not the browser's: the panel runs where the deck does.
     // `panel` is startServer's one answer for this deck
-    // (command-panel-platform.mjs: on Windows false, but for the test-only
-    // preview); a caller with none asks the platform, as this always did.
+    // (command-panel-platform.mjs); a caller with none asks the platform, as this always did.
     terminalSupported: panel ? panel.supported === true : commandPanelSupported(),
     // Whether the panel's sessions run in the Windows session host rather than
-    // tmux — only ever in the test-only Windows preview — so the page's words
+    // tmux — on Windows, whenever the panel is supported — so the page's words
     // name the place they keep running in.
     terminalWindows: panelInSessionHost(panel),
     // The ccdeck account, on the read every page already makes at boot: the

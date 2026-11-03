@@ -1,9 +1,9 @@
 // Where the deck makes the Command Panel's engine, and when it stops it
 // (command-panel-engine.mjs).
 //
-// Off — the switch's default — and off Linux and macOS (Windows), the deck does
+// Off — the switch's default — and on a platform without the panel, the deck does
 // nothing for the panel at all: no look at the install folder, no client, no
-// process, no network. On Linux or macOS with the switch on, it looks in one
+// process, no network. On Linux, macOS or Windows with the switch on, it looks in one
 // folder, reaches the engine only when its hello advertises a terminal backend, and trusts only
 // the keys shipped in the file, which are none in this release: a missing
 // folder is `not-installed`, a present one `not-verified`, and the executable
@@ -122,17 +122,22 @@ describe("the Command Panel's engine, made by the deck", () => {
     expect(cpe.engineInstallDir()).toBe(ENGINE_DIR);
   });
 
-  it("is supported on Linux and macOS only, and never on Windows", () => {
+  // CHANGED ON PURPOSE (V4 ships the panel on Windows through the engine): this
+  // pinned "supported on Linux and macOS only, never on Windows"; Windows joins them.
+  it("is supported on Linux, macOS and Windows only", () => {
     expect(cpe.commandPanelSupported("linux")).toBe(true);
     expect(cpe.commandPanelSupported("darwin")).toBe(true);
-    for (const platform of ["win32", "freebsd", "openbsd", "sunos", "aix", "android", "cygwin", "Darwin", "darwin ", ""]) {
+    expect(cpe.commandPanelSupported("win32")).toBe(true);
+    for (const platform of ["freebsd", "openbsd", "sunos", "aix", "android", "cygwin", "Darwin", "darwin ", "Win32", "windows", ""]) {
       expect(cpe.commandPanelSupported(platform), platform).toBe(false);
     }
-    expect(cpe.commandPanelSupported()).toBe(process.platform === "linux" || process.platform === "darwin");
+    expect(cpe.commandPanelSupported()).toBe(["linux", "darwin", "win32"].includes(process.platform));
   });
 
-  it("is unsupported off Linux and macOS (Windows included), without looking at anything or making anything", async () => {
-    for (const platform of ["win32", "freebsd"]) {
+  // CHANGED ON PURPOSE (same reason): "off Linux and macOS (Windows included)"
+  // is now "off Linux, macOS and Windows"; freebsd keeps the refusal.
+  it("is unsupported off Linux, macOS and Windows, without looking at anything or making anything", async () => {
+    for (const platform of ["freebsd", "sunos"]) {
       const lstat = vi.fn(), createClient = vi.fn();
       const e = cpe.commandPanelEngine({ platform, keys: ["k"], lstat, createClient });
       for (const [method, body] of [["status", null], ["target", { sessionId: "s" }], ["launch", { agent: "claude" }], ["open", { sessionId: "s" }]] as const) {
