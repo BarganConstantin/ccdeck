@@ -34,6 +34,8 @@ const { parseArgs, isOneShot } = await import("../../server/args.mjs");
 // @ts-expect-error — plain .mjs module, no types
 const view = await import("../../server/tui-view.mjs");
 // @ts-expect-error — plain .mjs module, no types
+const { codexRows } = await import("../../server/tui-codex.mjs");
+// @ts-expect-error — plain .mjs module, no types
 const { createScreen, framesHeld, ALT_SCREEN_ON, ALT_SCREEN_OFF, SYNC_ON, WRAP_ON, WRAP_OFF } = await import("../../server/tui-screen.mjs");
 // @ts-expect-error — plain .mjs module, no types
 const { fitPainted, sliceCells, textWidth } = await import("../../server/cli-lines.mjs");
@@ -102,6 +104,36 @@ const text = (lines: string[]) => lines.map((l: string) => stripAnsi(l));
 /** A panel row's inside: the borders and the padding off. */
 const inside = (l: string) => l.replace(/^[│|] /, "").replace(/ *[│|]$/, "");
 
+// The deck's Codex side: the account Codex runs on, one the deck added and
+// holds out of rotation, and one signed out.
+const CXA = "a".repeat(20);
+const CXB = "b".repeat(20);
+const CXC = "c".repeat(20);
+function cx(id: string, email: string, over: Row = {}): Row {
+  return {
+    id, identityVersion: `v-${id.slice(0, 1)}`, label: email, account: email, active: false, available: true,
+    signedIn: true, authSource: "native", metadataUnavailable: false, metadataReason: null, signedInFilePresent: true, ...over,
+  };
+}
+const CODEX = {
+  profiles: [cx(CXA, "ann@openai.example", { active: true }), cx(CXB, "ben@openai.example", { managed: true, managedLabel: "side" }), cx(CXC, "cal@openai.example", { managed: true, signedIn: false })],
+  revision: 7,
+  live: { state: "idle", profileId: null, requestedProfileId: null, reason: null, continuation: "none", scope: "shared_native_server" },
+};
+const CQUOTA = {
+  [CXA]: { ok: true, identityVersion: "v-a", fetchedAt: NOW - 30_000, plan: "plus", windows: [{ usedPercent: 63, seconds: 604_800, resetAt: NOW / 1000 + 86_400 }] },
+  [CXB]: {
+    ok: true, identityVersion: "v-b", fetchedAt: NOW - 120_000, plan: "pro",
+    windows: [{ usedPercent: 12, seconds: 18_000, resetAt: NOW / 1000 + 7_200 }, { usedPercent: 40, seconds: 604_800, resetAt: NOW / 1000 + 259_200 }],
+  },
+};
+const CAUTO = { ok: true, enabled: false, external: false, lastTick: null, settings: { "autoswitch.threshold": { value: "90", isDefault: true } }, choice: { next: "room", home: null }, heldOut: [CXB] };
+/** A deck with a Codex side, the list still on Claude's unless `over` says. */
+function codexState(over: State = {}): State {
+  return { ...view.withCodex(deckState(), CODEX), codexQuota: CQUOTA, codexAuto: CAUTO, ...over };
+}
+const CODE_PAGE = { ok: true, state: "waiting", url: "https://auth.openai.com/codex/device", code: "ABCD-EFGH", expiresAt: NOW + 14 * 60_000, reason: null };
+
 describe("the frame", () => {
   const states: [string, State][] = [
     ["a deck", deckState()],
@@ -116,6 +148,12 @@ describe("the frame", () => {
     ["the sign-in saving", signingIn({ ...WAITING_CODE, state: "registering", step: "save" })],
     ["a sign-in that failed", signingIn({ ...WAITING_CODE, state: "failed", error: "y".repeat(300) })],
     ["a sign-in done", signingIn({ state: "done", account: { num: 5, email: "eve@new.example", added: true }, restored: false, activeAccount: { num: 3, email: "carol@side.example" } })],
+    ["the Codex side", codexState({ side: "codex", codexAt: 1 })],
+    ["a Codex account's menu", codexState({ side: "codex", codexAt: 1, menu: { num: 2, id: CXB, view: "menu", at: 0, draft: "", error: null } })],
+    ["the Codex side before it is read", { ...deckState(), side: "codex", codex: { profiles: [], revision: 0, live: null } }],
+    ["the Codex sign-in's first page", codexState({ side: "codex", codexSignin: { id: null, name: null, adding: true, started: false, login: null } })],
+    ["the Codex sign-in showing its code", codexState({ side: "codex", codexSignin: { id: CXC, name: "#3 cal@openai.example", adding: false, started: true, login: CODE_PAGE } })],
+    ["a Codex sign-in that failed", codexState({ side: "codex", codexSignin: { id: CXC, name: "#3", adding: false, started: true, login: { state: "failed", reason: "z".repeat(300) } } })],
   ];
   for (const [what, s] of states) {
     for (const [columns, rows] of [[40, 12], [64, 16], [80, 24], [104, 30], [120, 32], [160, 50]]) {
@@ -166,9 +204,9 @@ describe("the frame", () => {
   it("points at the selected account, and marks the live one and the home one", () => {
     const lines = text(frame(deckState({ at: 1 })).lines);
     const bob = inside(lines.find(l => l.includes("bob@home.example") && !l.includes("#2"))!);
-    expect(bob).toMatch(/^› {3}2 ⌂ home {2}bob@home\.example/);
+    expect(bob).toMatch(/^› {3}2 ⌂ {3}home {2}bob@home\.example/);
     const alice = inside(lines.find(l => l.includes("alice@corp.example") && !l.includes("#1"))!);
-    expect(alice).toMatch(/^ {2}● 1 {3}work {2}alice@corp\.example/);
+    expect(alice).toMatch(/^ {2}● 1 {5}work {2}alice@corp\.example/);
     // The detail is the selected account's, with every lane.
     expect(lines.some(l => /^╭─ #2 bob@home\.example \(home\) ─+ home · read 1m ago ─╮$/.test(l))).toBe(true);
     expect(lines.some(l => /^│ 5h {2}[━╸─]+ +20% {3}resets in 1h/.test(l))).toBe(true);
@@ -180,7 +218,16 @@ describe("the frame", () => {
     const lines = text(frame(deckState({ at: 2 })).lines);
     expect(lines.some(l => inside(l).startsWith("sign-in needed — its login has expired"))).toBe(true);
     const off = text(frame(deckState({ at: 3 })).lines);
-    expect(off.some(l => inside(l).startsWith("disabled — kept out of Auto-switch's rotation"))).toBe(true);
+    expect(off.some(l => inside(l).startsWith("held out of rotation — Auto-switch passes over it"))).toBe(true);
+    expect(off.some(l => /^╭─ #4 dan@x\.example ─+ held out · read 1m ago ─╮$/.test(l))).toBe(true);
+  });
+
+  it("marks the account held out, its usage still beside it", () => {
+    const dan = inside(text(frame(deckState()).lines).find(l => l.includes("dan@x.example"))!);
+    expect(dan).toContain("‖");
+    expect(dan).toMatch(/5h .*7d/);
+    expect(dan).not.toContain("disabled");
+    expect(text(frame(deckState(), 80, 24, false, "none").lines).find(l => l.includes("dan@x.example"))).toMatch(/= +dan@x\.example/);
   });
 
   it("lights the selected row across the panel, as far as the terminal's colours reach", () => {
@@ -235,9 +282,9 @@ describe("the frame", () => {
     const bottom = lines.findIndex(l => l.includes("any key closes ─╯"));
     expect(top).toBeGreaterThan(0);
     expect(bottom).toBeGreaterThan(top);
-    expect(lines.slice(top, bottom).some(l => l.includes("enter  s   switch to the selected account"))).toBe(true);
-    expect(lines.some(l => l.includes("⌂          Auto-switch's home account"))).toBe(true);
-    expect(lines[top].indexOf("╭")).toBe(lines[bottom].indexOf("╰"));
+    expect(lines.slice(top, bottom).some(l => l.includes("enter  s   switch to it, or sign it in again"))).toBe(true);
+    expect(lines.some(l => l.includes("●  in use    ⌂  Auto-switch's home    ‖  held out of rotation"))).toBe(true);
+    expect(lines[bottom][lines[top].indexOf("╭─ Keys")]).toBe("╰");
     // The screen around it is still there, faded.
     expect(lines[0]).toContain("ccdeck  Claude accounts");
     expect(f[0].startsWith("\x1b[38;2;92;95;102m")).toBe(true);
@@ -254,20 +301,23 @@ describe("the frame", () => {
     expect(inside(lines[title + 4]).trim()).toBe("Claude needs your permission to use Bash");
   });
 
-  it("says nobody is waiting when nobody is", () => {
+  it("gives the machine the room while nobody is waiting, the sessions at work on its foot", () => {
     const lines = text(frame(deckState({ sessions: [SESSIONS[2]] })).lines);
-    expect(lines.some(l => /^╭─ Sessions ─+ 1 working ─╮$/.test(l))).toBe(true);
-    expect(lines.some(l => inside(l) === "nobody is waiting on you")).toBe(true);
+    expect(lines.some(l => l.includes("Waiting on you") || l.includes("╭─ Sessions"))).toBe(false);
+    expect(lines.some(l => /^╭─ Machine ─+╮$/.test(l))).toBe(true);
+    expect(lines.some(l => /^╰─ 1 session working ─+╯$/.test(l))).toBe(true);
+    expect(lines.some(l => inside(l) === "reading the machine…")).toBe(true);
   });
 
   it("gives way on a short screen: the waiting count and the selection stay", () => {
     const many = Array.from({ length: 6 }, (_, i) => ({ ...SESSIONS[0], id: `w${i}`, name: `job-${i}`, since: NOW - i * 1000 }));
     const lines = text(frame(deckState({ sessions: many }), 80, 16).lines);
     expect(lines.some(l => l.includes("Waiting on you · 6"))).toBe(true);
-    // The detail went before the accounts did, and its rows went to the waiting.
+    // The detail went before the accounts did, and the waiting kept its question.
     expect(lines.some(l => l.includes("read 1m ago"))).toBe(false);
     expect(lines.filter(l => /@/.test(l))).toHaveLength(4);
-    expect(lines.some(l => /^╰─ 4 more — ccdeck sessions ─+╯$/.test(l))).toBe(true);
+    expect(lines.some(l => /^╰─ 5 more — ccdeck sessions ─+╯$/.test(l))).toBe(true);
+    expect(lines.some(l => inside(l).trim() === "Claude needs your permission to use Bash (Bash)" || inside(l).includes("permission"))).toBe(true);
   });
 
   it("scrolls a long list so the selection is on it, its border saying which rows show", () => {
@@ -344,8 +394,8 @@ describe("the keys", () => {
   });
 
   it("a turns Auto-switch the other way, through the deck only", () => {
-    expect(key(deckState(), "a").effect).toEqual({ type: "auto", enabled: false });
-    expect(key(deckState({ auto: { ...AUTO, enabled: false } }), "a").effect).toEqual({ type: "auto", enabled: true });
+    expect(key(deckState(), "a").effect).toEqual({ type: "auto", enabled: false, codex: false });
+    expect(key(deckState({ auto: { ...AUTO, enabled: false } }), "a").effect).toEqual({ type: "auto", enabled: true, codex: false });
     const none = key(deckState({ deck: null }), "a");
     expect(none.effect).toBeNull();
     expect(none.state.notice.text).toContain("Auto-switch runs inside the deck");
@@ -385,6 +435,273 @@ describe("the keys", () => {
     expect(text(view.tuiFrame(ok, { columns: 80, rows: 24, tone, g: U, now: NOW + view.NOTICE_MS + 1 }).lines)[22]).toBe("");
     const err = deckState({ notice: view.note("err", "could not", NOW) });
     expect(text(view.tuiFrame(err, { columns: 80, rows: 24, tone, g: U, now: NOW + 60 * 60_000 }).lines)[22]).toContain("could not");
+  });
+});
+
+describe("an account's actions", () => {
+  const key = (s: State, str: string | undefined, k: Row = {}) => view.tuiKey(s, str, { name: str, ...k }, { now: NOW, g: U });
+  const ids = (s: State, r: Row) => view.menuItems(s, r).map((i: Row) => i.id);
+  const enter = (s: State) => key(s, "\r", { name: "return" });
+  const shows = (s: State, want: string) => text(frame(s, 100, 30).lines).some(l => l.includes(want));
+
+  it("offers the deck's menu items, by the deck's rules", () => {
+    const s = deckState();
+    expect(ids(s, ROWS[1])).toEqual(["switch", "rename", "move", "hold", "home", "remove"]);
+    // The account in use: nothing to switch to, and it is not held out.
+    expect(ids(s, ROWS[0])).toEqual(["rename", "move", "home", "remove"]);
+    // An expired login offers its sign-in where the switch would be.
+    expect(view.menuItems(s, ROWS[2])[0].label).toBe("Sign in again");
+    // Home and rotation say which way they go.
+    expect(view.menuItems(s, ROWS[1]).find((i: Row) => i.id === "home").label).toBe("Remove home");
+    expect(view.menuItems(s, ROWS[0]).find((i: Row) => i.id === "home").label).toBe("Set as home");
+    expect(view.menuItems(s, ROWS[3]).find((i: Row) => i.id === "hold").label).toBe("Put back in rotation");
+  });
+
+  it("m opens it over the screen, the arrows walk it, esc and q close it without quitting", () => {
+    let s = key(deckState({ at: 1 }), "m").state;
+    expect(s.menu).toMatchObject({ num: 2, view: "menu", at: 0 });
+    const lines = text(frame(s).lines);
+    expect(lines.some(l => l.includes("╭─ #2 bob@home.example (home) ─"))).toBe(true);
+    expect(lines.some(l => /│ › Switch to this account +enter │/.test(l))).toBe(true);
+    expect(lines.some(l => /│ {3}Remove… +x │/.test(l))).toBe(true);
+    s = key(s, undefined, { name: "down" }).state;
+    expect(s.menu.at).toBe(1);
+    expect(key(s, undefined, { name: "escape" }).state.menu).toBeNull();
+    const q = key(s, "q");
+    expect(q.state.menu).toBeNull();
+    expect(q.effect).toBeNull();
+    // Enter on an item is the item: the switch, here.
+    expect(enter({ ...s, menu: { ...s.menu, at: 0 } }).effect).toEqual({ type: "switch", account: ROWS[1] });
+  });
+
+  it("reaches home and rotation straight from the list, through the deck only", () => {
+    expect(key(deckState({ at: 1 }), "h").effect).toEqual({ type: "home", account: ROWS[1], set: false });
+    expect(key(deckState({ at: 3 }), "h").effect).toEqual({ type: "home", account: ROWS[3], set: true });
+    expect(key(deckState({ at: 1 }), "o").effect).toEqual({ type: "hold", account: ROWS[1], out: true });
+    expect(key(deckState({ at: 3 }), "o").effect).toEqual({ type: "hold", account: ROWS[3], out: false });
+    const inUse = key(deckState({ at: 0 }), "o");
+    expect(inUse.effect).toBeNull();
+    expect(inUse.state.notice.text).toBe("#1 alice@corp.example (work) is in use — hold another account out, or switch first");
+    const noDeck = key(deckState({ deck: null, at: 1 }), "h");
+    expect(noDeck.effect).toBeNull();
+    expect(noDeck.state.notice.text).toBe("the account's actions go through the deck — d starts one");
+  });
+
+  it("x asks before removing, and only y removes", () => {
+    const s = key(deckState({ at: 1 }), "x").state;
+    expect(s.menu).toMatchObject({ num: 2, view: "remove" });
+    expect(shows(s, "Remove #2 bob@home.example (home)?")).toBe(true);
+    expect(shows(s, "deletes this account's stored login")).toBe(true);
+    expect(key(s, "y").effect).toEqual({ type: "remove", account: ROWS[1] });
+    const kept = key(s, "n");
+    expect(kept.effect).toBeNull();
+    expect(kept.state.menu.view).toBe("menu");
+    expect(key(deckState({ at: 1 }), undefined, { name: "delete" }).state.menu.view).toBe("remove");
+    // The account in use is said to stay signed in until the next switch.
+    expect(shows(key(deckState({ at: 0 }), "x").state, "It is the account in use")).toBe(true);
+  });
+
+  it("renames in a field: typed, checked as claude-swap checks it, empty takes the alias away", () => {
+    let s = key(deckState({ at: 1 }), "n").state;
+    expect(s.menu).toMatchObject({ view: "rename", draft: "home" });
+    s = key(s, undefined, { name: "u", ctrl: true }).state;
+    for (const c of "side job") s = key(s, c).state;
+    expect(shows(s, "› side job▏")).toBe(true);
+    expect(enter(s).effect).toEqual({ type: "alias", account: ROWS[1], alias: "side job" });
+    const bad = enter({ ...s, menu: { ...s.menu, draft: "-x" } });
+    expect(bad.effect).toBeNull();
+    expect(bad.state.menu.error).toContain("not starting with -");
+    expect(shows(bad.state, "starting with -")).toBe(true);
+    expect(enter({ ...s, menu: { ...s.menu, draft: "" } }).effect).toEqual({ type: "alias", account: ROWS[1], alias: "" });
+    // The alias it already has closes the field without asking anything.
+    const same = enter({ ...s, menu: { ...s.menu, draft: "home" } });
+    expect(same.effect).toBeNull();
+    expect(same.state.menu).toBeNull();
+    // q is a letter here, not a way out; esc goes back to the menu.
+    expect(key(s, "q").state.menu.draft).toBe("side jobq");
+    expect(key(s, undefined, { name: "escape" }).state.menu.view).toBe("menu");
+  });
+
+  it("moves to a slot, saying who is there before it asks", () => {
+    let s = key(deckState({ at: 1 }), "v").state;
+    s = key(s, "a").state;
+    expect(s.menu.draft).toBe("");
+    s = key(s, "3").state;
+    expect(shows(s, "slot 3 holds #3 carol@side.example")).toBe(true);
+    expect(enter(s).effect).toEqual({ type: "move", account: ROWS[1], slot: 3 });
+    s = key(key(s, undefined, { name: "backspace" }).state, "7").state;
+    expect(shows(s, "slot 7 is free")).toBe(true);
+    const here = enter({ ...s, menu: { ...s.menu, draft: "2" } });
+    expect(here.effect).toBeNull();
+    expect(here.state.notice.text).toBe("#2 bob@home.example (home) is already in slot 2");
+    expect(enter({ ...s, menu: { ...s.menu, draft: "0" } }).state.menu.error).toBe("a slot is a number from 1 to 999");
+  });
+
+  it("waits while the deck works, and closes when its account is gone", () => {
+    const s = key(deckState({ at: 1 }), "m").state;
+    const busy = { ...s, busy: { text: "removing", since: NOW } };
+    expect(key(busy, "x")).toEqual({ state: busy, effect: null });
+    const gone = view.withRoster(s, { ok: true, accounts: ROWS.filter(r => r.num !== 2) });
+    expect(key(gone, undefined, { name: "down" }).state.menu).toBeNull();
+  });
+});
+
+describe("the Codex side", () => {
+  const key = (s: State, str: string | undefined, k: Row = {}) => view.tuiKey(s, str, { name: str, ...k }, { now: NOW, g: U });
+  const enter = (s: State) => key(s, "\r", { name: "return" });
+  const onCodex = (over: State = {}) => key(codexState(over), "c").state;
+  const lines = (s: State, cols = 100, rows = 30, unicode = true, profile?: string) => text(frame(s, cols, rows, unicode, profile).lines);
+
+  it("puts Claude | Codex at the top once the deck has a Codex account, and c turns the list over", () => {
+    expect(lines(deckState(), 100, 30, false, "none")[0]).toMatch(/^ {2}ccdeck {2}Claude accounts /);
+    expect(lines(codexState(), 100, 30, false, "none")[0]).toMatch(/^ {2}ccdeck {2}\[Claude\] Codex /);
+    const s = onCodex();
+    expect(s.side).toBe("codex");
+    // The first look lands on the account Codex runs on.
+    expect(s.codexAt).toBe(0);
+    const shown = lines(s, 100, 30, false, "none");
+    expect(shown[0]).toMatch(/^ {2}ccdeck {3}Claude \[Codex\] /);
+    expect(shown.some(l => l.includes("ann@openai.example"))).toBe(true);
+    expect(shown.some(l => l.includes("alice@corp.example"))).toBe(false);
+    expect(shown.at(-1)).toContain("c Claude");
+    // And back, the Claude selection where it was.
+    const back = key(s, "c").state;
+    expect(back.side).toBe("claude");
+    expect(back.at).toBe(0);
+    expect(key(s, undefined, { name: "left" }).state.side).toBe("claude");
+    expect(key(codexState(), undefined, { name: "right" }).state.side).toBe("codex");
+  });
+
+  it("says why there is no Codex side, and opens an empty one to add the first account", () => {
+    expect(key(deckState(), undefined, { name: "right" })).toEqual({ state: deckState(), effect: null });
+    expect(key(deckState(), "c").state.notice.text).toBe("this deck does not serve Codex accounts — an update of ccdeck brings them");
+    expect(key(deckState({ deck: null }), "c").state.notice.text).toBe("the Codex accounts are the deck's — d starts one");
+    const empty = key(deckState({ codex: { profiles: [], revision: 0, live: null } }), "c").state;
+    expect(empty.side).toBe("codex");
+    expect(lines(empty).some(l => inside(l) === "no Codex accounts yet — + signs one in")).toBe(true);
+  });
+
+  it("draws each account's windows by their own length, the held-out mark and a signed-out account's word", () => {
+    const shown = lines(onCodex());
+    const ann = inside(shown.find(l => l.includes("ann@openai.example") && !l.includes("#1"))!);
+    expect(ann).toMatch(/^› ● 1 +ann@openai\.example +7d .* 63%/);
+    expect(ann).not.toMatch(/ 5h /);
+    const ben = inside(shown.find(l => l.includes("ben@openai.example") && !l.includes("#2"))!);
+    expect(ben).toMatch(/2 ‖ side {2}ben@openai\.example +5h .* 12% .* 7d .* 40%/);
+    expect(inside(shown.find(l => l.includes("cal@openai.example"))!)).toMatch(/cal@openai\.example +not signed in$/);
+    // The detail: in use, the plan, the reading's age; Codex Auto-switch's state on the list's foot.
+    expect(shown.some(l => /^╭─ #1 ann@openai\.example ─+ in use · Plus · read 30s ago ─╮$/.test(l))).toBe(true);
+    expect(shown.some(l => /^╰─+ Auto-switch off ─╯$/.test(l))).toBe(true);
+  });
+
+  it("says what is wrong with a signed-out account, in the deck's words", () => {
+    const shown = lines(onCodex({ codexAt: 2 }));
+    expect(shown.some(l => inside(l).startsWith("not signed in — this account has no Codex login yet"))).toBe(true);
+  });
+
+  it("does not draw a reading taken for an earlier login of the account", () => {
+    const s = onCodex({ codexQuota: { ...CQUOTA, [CXA]: { ...CQUOTA[CXA], identityVersion: "v-old" } } });
+    expect(inside(lines(s).find(l => l.includes("ann@openai.example") && !l.includes("#1"))!)).toMatch(/not read yet$/);
+  });
+
+  it("calls a reading stale as the panel does: too old, or the last one failed — not by the deck's own flag", () => {
+    const at = (q: Row, now = NOW) => codexRows({ ...codexState(), codexQuota: { [CXA]: q } }, now)[0].stale;
+    expect(at({ ...CQUOTA[CXA], stale: true })).toBe(false);
+    expect(at(CQUOTA[CXA], NOW + 20 * 60_000)).toBe(true);
+    expect(at({ ok: false, reason: "http_429", lastGood: CQUOTA[CXA] })).toBe(true);
+  });
+
+  it("keeps the last good reading, stale, when a reading fails", () => {
+    const s = onCodex({ codexQuota: { ...CQUOTA, [CXA]: { ok: false, reason: "http_429", lastGood: CQUOTA[CXA] } } });
+    const shown = lines(s);
+    expect(inside(shown.find(l => l.includes("ann@openai.example") && !l.includes("#1"))!)).toMatch(/rate limited$/);
+    expect(shown.some(l => /^│ 7d .* 63%/.test(l))).toBe(true);
+  });
+
+  it("enter switches Codex to the account, through the deck; a signed-out one is signed in instead", () => {
+    const s = onCodex({ codexAt: 1 });
+    const sw = enter(s);
+    expect(sw.effect).toMatchObject({ type: "switch", account: { codex: true, id: CXB, num: 2 } });
+    expect(enter(onCodex()).state.notice.text).toBe("Codex already runs on #1 ann@openai.example");
+    const signIn = enter(onCodex({ codexAt: 2 }));
+    expect(signIn.effect).toBeNull();
+    expect(signIn.state.codexSignin).toEqual({ id: CXC, name: "#3 cal@openai.example", adding: false, started: false, login: null });
+  });
+
+  it("offers the deck's Codex menu, by its rules", () => {
+    const items = (at: number) => view.menuItems(onCodex(), codexRows(onCodex())[at]).map((i: Row) => i.label);
+    const s = key(onCodex({ codexAt: 1 }), "m").state;
+    expect(s.menu).toMatchObject({ id: CXB, view: "menu" });
+    expect(lines(s).some(l => /│ › Switch to this account +enter │/.test(l))).toBe(true);
+    // The default, Codex's own login: no switch, no rotation, no removal.
+    expect(items(0)).toEqual(["Sign in again", "Rename…"]);
+    // Added in the deck and held out: everything, the way back into rotation among it.
+    expect(items(1)).toEqual(["Switch to this account", "Sign in again", "Rename…", "Put back in rotation", "Remove…"]);
+    // Signed out: no switch to it, its sign-in first.
+    expect(items(2)).toEqual(["Sign in", "Rename…", "Hold out of rotation", "Remove…"]);
+  });
+
+  it("holds out, renames and removes through the keys, and says what Codex has not got", () => {
+    expect(key(onCodex({ codexAt: 1 }), "o").effect).toMatchObject({ type: "hold", account: { id: CXB }, out: false });
+    expect(key(onCodex({ codexAt: 2 }), "o").effect).toMatchObject({ type: "hold", account: { id: CXC }, out: true });
+    expect(key(onCodex(), "h").state.notice.text).toBe("Codex Auto-switch has no home account");
+    expect(key(onCodex(), "v").state.notice.text).toBe("Codex accounts have no slots — the list is the deck's order");
+    expect(key(onCodex(), "x").state.notice.text).toBe("#1 ann@openai.example is Codex's own login — only accounts added in the deck can be removed");
+    const remove = key(onCodex({ codexAt: 1 }), "x").state;
+    expect(remove.menu).toMatchObject({ id: CXB, view: "remove" });
+    expect(lines(remove).some(l => l.includes("kept aside in the deck's data folder"))).toBe(true);
+    expect(key(remove, "y").effect).toMatchObject({ type: "remove", account: { id: CXB } });
+    let rename = key(onCodex({ codexAt: 1 }), "n").state;
+    expect(rename.menu).toMatchObject({ view: "rename", draft: "side" });
+    rename = key(rename, "/").state;
+    const slash = enter(rename);
+    expect(slash.effect).toBeNull();
+    expect(slash.state.menu.error).toBe("a name cannot hold a slash");
+    expect(enter({ ...rename, menu: { ...rename.menu, draft: "work stuff" } }).effect).toMatchObject({ type: "alias", account: { id: CXB }, alias: "work stuff" });
+  });
+
+  it("a and b are Codex Auto-switch's and Codex's room on its side", () => {
+    expect(key(onCodex(), "a").effect).toEqual({ type: "auto", enabled: true, codex: true });
+    // ben is held out and cal signed out: ann, in use, has the most room.
+    expect(key(onCodex({ codexAt: 2 }), "b").state).toMatchObject({ codexAt: 0, notice: { text: "Codex already runs on the most room: #1 ann@openai.example" } });
+    const roomy = onCodex({ codexAuto: { ...CAUTO, heldOut: [] } });
+    expect(key(roomy, "b").state).toMatchObject({ codexAt: 1, notice: { text: "enter switches Codex to #2 ben@openai.example (side) — the most room" } });
+  });
+
+  it("keeps the selection on its account when the list changes, and goes back to Claude when the deck goes", () => {
+    const s = onCodex({ codexAt: 1 });
+    const reordered = view.withCodex(s, { ...CODEX, profiles: [CODEX.profiles[1], CODEX.profiles[0], CODEX.profiles[2]] });
+    expect(reordered.codexAt).toBe(0);
+    const gone = view.withCodex(s, null);
+    expect(gone.side).toBe("claude");
+    expect(lines(gone)[0]).toContain("Claude accounts");
+  });
+
+  it("the sign-in shows the link and the code, and leaving it lets the deck's login go", () => {
+    let s = key(onCodex(), "+").state;
+    expect(s.codexSignin).toMatchObject({ id: null, adding: true, started: false });
+    expect(lines(s).some(l => l.includes("Add a Codex account"))).toBe(true);
+    const start = enter(s);
+    expect(start.effect).toEqual({ type: "codex-signin-start" });
+    s = { ...start.state, codexSignin: { ...start.state.codexSignin, id: CXC, login: CODE_PAGE } };
+    const f = frame(s, 100, 30);
+    const shown = text(f.lines);
+    expect(shown.some(l => l.trim() === "ABCD-EFGH")).toBe(true);
+    expect(f.run).toMatchObject({ rows: 1 });
+    expect(stripAnsi(f.run!.text)).toBe("https://auth.openai.com/codex/device");
+    expect(shown.some(l => l.includes("14 min left"))).toBe(true);
+    // Nothing is typed here: letters do nothing, esc lets the login go.
+    expect(key(s, "a")).toEqual({ state: s, effect: null });
+    const left = key(s, undefined, { name: "escape" });
+    expect(left.state.codexSignin).toBeNull();
+    expect(left.effect).toEqual({ type: "codex-signin-cancel", id: CXC });
+    // Done: enter closes it; failed: enter tries again.
+    const done = { ...s, codexSignin: { ...s.codexSignin, login: { state: "done" }, account: "cal@openai.example" } };
+    expect(lines(done).some(l => l.includes("Signed in as cal@openai.example"))).toBe(true);
+    expect(enter(done).effect).toEqual({ type: "codex-signin-done" });
+    const failed = { ...s, codexSignin: { ...s.codexSignin, login: { state: "expired", reason: "code_expired" } } };
+    expect(lines(failed).some(l => l.includes("The code expired before it was entered"))).toBe(true);
+    expect(enter(failed).effect).toEqual({ type: "codex-signin-start" });
   });
 });
 
@@ -811,6 +1128,203 @@ describe("the loop", () => {
     expect(deck.calls.find(c => c.method === "POST")).toEqual({ method: "POST", path: "/api/cswap-auto", body: { action: "enable", enabled: false } });
     term.input.write("\x03");        // Ctrl+C quits
     expect(await done).toBe(0);
+  });
+
+  it("o holds an account out with the deck's own POST, and reads the list again", async () => {
+    const term = fakeTerminal();
+    const deck = fakeDeck();
+    const { out } = quietOut();
+    const done = runTui({}, out, { input: term.input, output: term.output, source: deck.source, tickMs: 20, ...LOOK });
+    await until(() => term.screenText().includes("bob@home.example"));
+    term.input.write("\x1b[B");      // down, onto #2
+    term.input.write("o");
+    await until(() => term.screenText().includes("#2 bob@home.example (home) is held out of rotation — o puts it back"));
+    expect(deck.calls.filter(c => c.method === "POST")).toEqual([
+      { method: "POST", path: "/api/cswap-auto", body: { action: "account", account: 2, enabled: false } },
+    ]);
+    expect(deck.calls.filter(c => c.path === "/api/claude-accounts?refresh=1").length).toBeGreaterThanOrEqual(2);
+    term.input.write("q");
+    expect(await done).toBe(0);
+  });
+
+  it("removes only after y, through the deck's admin route", async () => {
+    const term = fakeTerminal();
+    const deck = fakeDeck();
+    const { out } = quietOut();
+    const done = runTui({}, out, { input: term.input, output: term.output, source: deck.source, tickMs: 20, ...LOOK });
+    await until(() => term.screenText().includes("bob@home.example"));
+    term.input.write("\x1b[B");
+    term.input.write("x");
+    await until(() => term.screenText().includes("Remove #2 bob@home.example (home)?"));
+    expect(deck.calls.some(c => c.method === "POST")).toBe(false);
+    term.input.write("y");
+    await until(() => term.screenText().includes("removed #2 bob@home.example (home)"));
+    expect(deck.calls.find(c => c.method === "POST")).toEqual({ method: "POST", path: "/api/claude-accounts/admin", body: { action: "remove", account: 2 } });
+    term.input.write("q");
+    expect(await done).toBe(0);
+  });
+
+  it("keeps the menu up with the deck's reason when it refuses, and esc then closes it", async () => {
+    const term = fakeTerminal();
+    const deck = fakeDeck();
+    const ask = deck.source.ask;
+    deck.source.ask = async (d: unknown, o: { method?: string; path: string; body?: unknown }) =>
+      (o.method === "POST" && o.path === "/api/claude-accounts/admin"
+        ? (deck.calls.push({ method: "POST", path: o.path, body: o.body }), { ok: false, status: 500, body: { ok: false, reason: "alias_failed", detail: "claude-swap: account 2 is locked" } })
+        : ask(d, o));
+    const { out } = quietOut();
+    const done = runTui({}, out, { input: term.input, output: term.output, source: deck.source, tickMs: 20, ...LOOK });
+    await until(() => term.screenText().includes("bob@home.example"));
+    term.input.write("\x1b[B");
+    term.input.write("n");
+    await until(() => term.screenText().includes("Rename #2 bob@home.example (home)"));
+    term.input.write("\x15");        // Ctrl+U empties the field
+    term.input.write("side");
+    term.input.write("\r");
+    await until(() => term.screenText().includes("claude-swap: account 2 is locked"));
+    expect(deck.calls.find(c => c.method === "POST")?.body).toEqual({ action: "alias", account: 2, alias: "side" });
+    term.input.write("\x1b");        // esc, back to the menu
+    await until(() => term.screenText().includes("Switch to this account"));
+    term.input.write("q");           // closes the menu, it does not quit
+    term.input.write("q");
+    expect(await done).toBe(0);
+  });
+
+  it("moves an account to another slot and the selection follows it", async () => {
+    const term = fakeTerminal();
+    let accounts = ROWS.map(r => ({ ...r }));
+    const deck = fakeDeck();
+    const ask = deck.source.ask;
+    deck.source.ask = async (d: unknown, o: { method?: string; path: string; body?: unknown }) => {
+      if (o.method === "POST" && o.path === "/api/claude-accounts/admin") {
+        deck.calls.push({ method: "POST", path: o.path, body: o.body });
+        accounts = accounts.map(a => (a.num === 2 ? { ...a, num: 7 } : a));
+        return { ok: true, status: 200, body: { ok: true, from: 2, to: 7, swapped: false } };
+      }
+      if (o.path.startsWith("/api/claude-accounts")) return { ok: true, status: 200, body: { ok: true, accounts } };
+      return ask(d, o);
+    };
+    const { out } = quietOut();
+    const done = runTui({}, out, { input: term.input, output: term.output, source: deck.source, tickMs: 20, ...LOOK });
+    await until(() => term.screenText().includes("bob@home.example"));
+    term.input.write("\x1b[B");
+    term.input.write("v");
+    term.input.write("7");
+    term.input.write("\r");
+    await until(() => term.screenText().includes("#2 bob@home.example (home) is in slot 7"));
+    expect(deck.calls.find(c => c.method === "POST")?.body).toEqual({ action: "move", account: 2, slot: 7 });
+    await until(() => term.screenText().includes("#7 bob@home.example (home)"));
+    term.input.write("q");
+    expect(await done).toBe(0);
+  });
+
+  /** The fake deck with a Codex side: its routes answered from `codex`, every
+   *  call recorded, the sign-in's state whatever the test sets `login` to. */
+  function codexDeck() {
+    const deck = fakeDeck();
+    const ask = deck.source.ask;
+    const box = { login: { ok: true, state: "starting" } as Row, codex: JSON.parse(JSON.stringify(CODEX)), auto: { ...CAUTO } as Row };
+    deck.source.ask = async (d: unknown, o: { method?: string; path: string; body?: unknown }) => {
+      const { method = "GET", path, body } = o;
+      const reply = (b: unknown, status = 200) => { deck.calls.push({ method, path, body }); return { ok: status < 400, status, body: b }; };
+      if (path === "/api/codex-profiles") return reply(box.codex);
+      if (path === "/api/codex-auto" && method === "GET") return reply(box.auto);
+      if (path === "/api/codex-auto") {
+        const b = body as Row;
+        if (b.action === "account") box.auto = { ...box.auto, heldOut: b.enabled ? [] : [b.id] };
+        return reply(box.auto);
+      }
+      if (path.startsWith("/api/codex-profile-quota?id=")) return reply(CQUOTA[decodeURIComponent(path.split("=")[1]) as keyof typeof CQUOTA] ?? { ok: false, reason: "unsupported" });
+      if (path === "/api/codex-profile-select") return reply({ ok: true, id: (body as Row).id, revision: 8, status: "requested_for_managed_sessions", live: { state: "applied", continuation: "none" } });
+      if (path === "/api/codex-profile-add") return reply({ ok: true, id: "d".repeat(20), revision: 8, status: "added" });
+      if (path === "/api/codex-profile-login-start") return reply({ ok: true, state: "starting" });
+      if (path.startsWith("/api/codex-profile-login-state")) return reply(box.login);
+      if (path === "/api/codex-profile-login-cancel") return reply({ ok: true, state: "cancelled" });
+      return ask(d, o);
+    };
+    return { ...deck, box };
+  }
+  const posts = (calls: { method: string; path: string; body?: unknown }[], path: string) => calls.filter(c => c.method === "POST" && c.path === path);
+
+  it("c shows the Codex accounts, and enter switches Codex through the deck against the list it saw", async () => {
+    const term = fakeTerminal();
+    const deck = codexDeck();
+    const { out } = quietOut();
+    const done = runTui({}, out, { input: term.input, output: term.output, source: deck.source, tickMs: 20, ...LOOK });
+    await until(() => term.screenText().includes(" Codex "));
+    term.input.write("c");
+    await until(() => term.screenText().includes("ann@openai.example"));
+    // Each account's quota is read, one request an account.
+    await until(() => deck.calls.some(c => c.path === `/api/codex-profile-quota?id=${CXB}`));
+    term.input.write("\x1b[B");      // down, onto ben
+    term.input.write("\r");
+    await until(() => term.screenText().includes("switched to #2 ben@openai.example (side) — connected Codex conversations use it now"));
+    const [select] = posts(deck.calls, "/api/codex-profile-select");
+    expect(select.body).toMatchObject({ id: CXB, expectedRevision: 7 });
+    expect((select.body as Row).operationId).toMatch(/^[0-9a-f-]{36}$/);
+    expect(deck.switched).toEqual([]);
+    term.input.write("q");
+    expect(await done).toBe(0);
+  });
+
+  it("o puts a Codex account back in rotation with Codex Auto-switch's own POST", async () => {
+    const term = fakeTerminal();
+    const deck = codexDeck();
+    const { out } = quietOut();
+    const done = runTui({}, out, { input: term.input, output: term.output, source: deck.source, tickMs: 20, ...LOOK });
+    await until(() => term.screenText().includes(" Codex "));
+    term.input.write("c");
+    term.input.write("2");
+    term.input.write("o");
+    await until(() => term.screenText().includes("#2 ben@openai.example (side) is back in Codex's rotation"));
+    expect(posts(deck.calls, "/api/codex-auto").map(c => c.body)).toEqual([{ action: "account", id: CXB, enabled: true }]);
+    term.input.write("q");
+    expect(await done).toBe(0);
+  });
+
+  it("adds a Codex account: the deck makes it, codex shows a code, and it finishes by itself", async () => {
+    const term = fakeTerminal();
+    const deck = codexDeck();
+    const { out } = quietOut();
+    const done = runTui({}, out, { input: term.input, output: term.output, source: deck.source, tickMs: 20, ...LOOK });
+    await until(() => term.screenText().includes(" Codex "));
+    term.input.write("c");
+    term.input.write("+");
+    await until(() => term.screenText().includes("Add a Codex account"));
+    expect(posts(deck.calls, "/api/codex-profile-add")).toEqual([]);
+    deck.box.login = { ...CODE_PAGE, expiresAt: Date.now() + 14 * 60_000 };
+    term.input.write("\r");
+    await until(() => term.screenText().includes("ABCD-EFGH"));
+    expect(posts(deck.calls, "/api/codex-profile-add")[0].body).toMatchObject({ expectedRevision: 7 });
+    expect(posts(deck.calls, "/api/codex-profile-login-start")[0].body).toEqual({ id: "d".repeat(20) });
+    expect(term.screenText()).toContain("https://auth.openai.com/codex/device");
+    deck.box.codex.profiles.push(cx("d".repeat(20), "dee@openai.example", { managed: true }));
+    deck.box.login = { ok: true, state: "done" };
+    await until(() => term.screenText().includes("Signed in as dee@openai.example"));
+    term.input.write("\r");
+    await until(() => term.screenText().includes("signed in to Codex"));
+    expect(posts(deck.calls, "/api/codex-profile-login-cancel")).toEqual([]);
+    term.input.write("q");
+    expect(await done).toBe(0);
+  });
+
+  it("q while the Codex sign-in waits lets the deck's codex login go before it leaves", async () => {
+    const term = fakeTerminal();
+    const deck = codexDeck();
+    const { out } = quietOut();
+    const done = runTui({}, out, { input: term.input, output: term.output, source: deck.source, tickMs: 20, ...LOOK });
+    await until(() => term.screenText().includes(" Codex "));
+    term.input.write("c");
+    term.input.write("3");           // cal, signed out: enter signs it in
+    term.input.write("\r");
+    await until(() => term.screenText().includes("Sign in: #3 cal@openai.example"));
+    deck.box.login = { ...CODE_PAGE, expiresAt: Date.now() + 14 * 60_000 };
+    term.input.write("\r");
+    await until(() => term.screenText().includes("ABCD-EFGH"));
+    expect(posts(deck.calls, "/api/codex-profile-add")).toEqual([]);
+    term.input.write("\x03");        // Ctrl+C
+    expect(await done).toBe(0);
+    expect(posts(deck.calls, "/api/codex-profile-login-cancel").map(c => c.body)).toEqual([{ id: CXC }]);
   });
 
   it("b selects the account with the most room and says Enter switches to it", async () => {
