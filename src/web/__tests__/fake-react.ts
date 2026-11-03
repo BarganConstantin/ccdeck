@@ -90,6 +90,9 @@ export const react = {
   useLayoutEffect(run: () => void | (() => void), deps?: readonly unknown[]) { effect(true, run, deps); },
   useCallback<F>(fn: F, deps: readonly unknown[]) { return memo(() => fn, deps); },
   useMemo<T>(make: () => T, deps: readonly unknown[]) { return memo(make, deps); },
+  // A store outside React, read as it stands at each render. No test flips one
+  // mid-render, so there is nothing for a subscription to hear.
+  useSyncExternalStore<T>(_subscribe: (onChange: () => void) => () => void, snapshot: () => T) { return snapshot(); },
   // A component that takes a ref: called plainly, with no ref to hand over.
   forwardRef<P>(render: (props: P, ref: null) => unknown) { return (props: P) => render(props, null); },
 };

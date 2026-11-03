@@ -24,13 +24,19 @@
 // tab only inside the press that asked for it, and the link arrives after a
 // request, so the press opens an empty tab at once and the dialog sends it to
 // the link when the link is known. A blocked tab leaves the button below it.
-import { useCallback, useEffect, useRef, useState } from "react";
+//
+// A new account has a second way in, as Claude's does: Paste a share, the code
+// another deck's ↗ made (CodexImportPane). Signing an existing row in again
+// has only the first, so it draws no tabs.
+import { useCallback, useEffect, useRef, useState, type KeyboardEvent } from "react";
 import { createPortal } from "react-dom";
+import CodexImportPane from "./CodexImportPane";
 import Confetti from "./Confetti";
 import SuccessMark from "./SuccessMark";
 import { copyText } from "../copy-text";
 import { useT, type TFunction } from "../i18n";
 import { celebrates, doneTitle } from "../signin-stages";
+import { tabStripMove } from "../tablist-keys";
 import { useModalDismiss, useScrimDismiss } from "./use-modal-dismiss";
 import { prefersReducedMotion } from "../viewport-motion";
 
@@ -66,10 +72,23 @@ interface Props {
   onReplace: (id: string, into: string) => Promise<boolean>;
   /** Take back an account made here that repeats one already listed. */
   onDiscard: (id: string) => Promise<boolean>;
+  /** The roster revision a pasted share is checked against. */
+  revision: number;
+  /** A pasted share landed: the roster is read again. */
+  onImported: () => void;
   onClose: () => void;
 }
 
 const POLL_MS = 1500;
+
+/** The two ways in, in the order the strip draws them and the arrows walk. */
+const TABS = [
+  { id: "login", key: "accounts.row.signIn" },
+  { id: "paste", key: "accounts.add.pasteShare" },
+] as const;
+type TabId = (typeof TABS)[number]["id"];
+const PANEL_ID = "aa-codex-panel";
+const tabDomId = (id: TabId) => `aa-codex-tab-${id}`;
 
 /** A sentence with the account's name in bold, wherever its language puts it. */
 function withName(template: string, name: string) {
@@ -84,8 +103,14 @@ function reasonText(reason: string | null | undefined, t: TFunction): string {
   return t("codex.add.reason.other");
 }
 
-export default function AddCodexAccountDialog({ profile, onCreate, onCopyCommand, onSignedIn, onReplace, onDiscard, onClose }: Props) {
+export default function AddCodexAccountDialog({ profile, onCreate, onCopyCommand, onSignedIn, onReplace, onDiscard, revision, onImported, onClose }: Props) {
   const t = useT();
+  const tabbed = !profile;
+  const [tab, setTab] = useState<TabId>("login");
+  const tabRefs = useRef<(HTMLButtonElement | null)[]>([]);
+  const pasteField = useRef<HTMLInputElement | null>(null);
+  /** The tab was reached by an arrow key, so focus stays on the strip. */
+  const arrowed = useRef(false);
   const [stage, setStage] = useState<Stage>("ready");
   const [id, setId] = useState<string | null>(profile?.id ?? null);
   const [login, setLogin] = useState<LoginAnswer | null>(null);
@@ -141,6 +166,20 @@ export default function AddCodexAccountDialog({ profile, onCreate, onCopyCommand
   }, []);
   // The step that held focus has gone, so it lands on what ends the dialog.
   useEffect(() => { if (stage === "done" || stage === "repeat") primaryRef.current?.focus(); }, [stage]);
+  // A press on Paste a share goes on to the field; an arrow leaves focus on the
+  // strip, which is what lets the next arrow come back (Claude's rule).
+  useEffect(() => {
+    if (tab === "paste" && !arrowed.current) pasteField.current?.focus();
+    arrowed.current = false;
+  }, [tab]);
+  const onTabKeys = (event: KeyboardEvent<HTMLSpanElement>) => {
+    const move = tabStripMove(event, TABS.findIndex(item => item.id === tab), TABS.length);
+    if (move.kind === "pass") return;
+    event.preventDefault();
+    arrowed.current = true;
+    setTab(TABS[move.index].id);
+    tabRefs.current[move.index]?.focus();
+  };
 
   /** Open the tab inside the press. Returns nothing: a blocked tab is not an error. */
   function openTab() {
@@ -242,133 +281,161 @@ export default function AddCodexAccountDialog({ profile, onCreate, onCopyCommand
   const minutesLeft = login?.expiresAt ? Math.max(0, Math.ceil((login.expiresAt - clock) / 60_000)) : null;
   const title = profile ? t("codex.add.titleSignIn", { label: profile.label }) : t("codex.add.titleNew");
 
+  // The sign-in, one stage at a time: the dialog's whole body when an
+  // existing row signs in again, and the Sign in tab's for a new account.
+  const steps = (
+    <>
+      {stage === "ready" && (
+        <div className="aa-step aa-primer">
+          <p className="aa-note">
+            {profile ? t("codex.add.introExisting") : t("codex.add.introNew")}
+          </p>
+          {!profile && (
+            <p className="aa-note">{t("codex.add.signOutFirst")}</p>
+          )}
+          {error && <p className="aa-err" role="alert">{error}</p>}
+          <div className="aa-actions">
+            <button ref={primaryRef} type="button" className="btn primary" aria-busy={busy}
+              onClick={() => void submit()}>{t("codex.add.signInButton")}</button>
+          </div>
+        </div>
+      )}
+
+      {stage === "starting" && (
+        <div className="aa-step">
+          <p className="aa-live-line" role="status">
+            <svg className="aa-spin" viewBox="0 0 16 16" aria-hidden>
+              <circle className="aa-spin-track" cx="8" cy="8" r="6" />
+              <circle className="aa-spin-arc" cx="8" cy="8" r="6" />
+            </svg>
+            <span>{t("codex.add.starting")}</span>
+          </p>
+        </div>
+      )}
+
+      {stage === "waiting" && login && (
+        <div className="aa-step">
+          <p className="aa-note">
+            <strong>1.</strong> {opened ? t("codex.add.step1Opened") : t("codex.add.step1")}
+          </p>
+          <a className="aa-link" href={login.url ?? "#"} target="_blank" rel="noreferrer noopener">
+            <span>{opened ? t("codex.add.openAgain") : t("codex.add.openPage")}</span>
+            <span className="aa-link-host">
+              auth.openai.com
+              <svg width="9" height="9" viewBox="0 0 10 10" fill="none" stroke="currentColor"
+                strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                <path d="M3 7 7 3M3.6 3H7v3.4" />
+              </svg>
+            </span>
+          </a>
+          <p className="aa-note"><strong>2.</strong> {t("codex.add.step2")}</p>
+          <div className="aa-field">
+            <code className="aa-device-code">{login.code}</code>
+            <button type="button" className="btn" onClick={async () => { if (login.code && await copyText(login.code)) setCopied(true); }}>
+              {copied ? t("codex.add.copied") : t("codex.add.copy")}
+            </button>
+          </div>
+          <p className="aa-live-line" role="status">
+            <svg className="aa-spin" viewBox="0 0 16 16" aria-hidden>
+              <circle className="aa-spin-track" cx="8" cy="8" r="6" />
+              <circle className="aa-spin-arc" cx="8" cy="8" r="6" />
+            </svg>
+            <span>{minutesLeft !== null ? t("codex.add.waitingMinutes", { count: minutesLeft }) : t("codex.add.waiting")}</span>
+          </p>
+          <p className="aa-note">{t("codex.add.onlyIfYou")}</p>
+        </div>
+      )}
+
+      {stage === "checking" && (
+        <div className="aa-step">
+          <p className="aa-live-line" role="status">
+            <svg className="aa-spin" viewBox="0 0 16 16" aria-hidden>
+              <circle className="aa-spin-track" cx="8" cy="8" r="6" />
+              <circle className="aa-spin-arc" cx="8" cy="8" r="6" />
+            </svg>
+            <span>{t("codex.add.checking")}</span>
+          </p>
+        </div>
+      )}
+
+      {stage === "done" && (
+        <div className="aa-done">
+          <SuccessMark ref={markRef} />
+          {celebrates({ added: !profile && !refreshed, reducedMotion: reduced }) && <Confetti anchor={markRef} />}
+          <h4 role="status">{profile && !refreshed ? t("codex.add.signedIn") : doneTitle({ num: null, added: !refreshed }, t)}</h4>
+          <p className="aa-note">
+            {refreshed ? (
+              withName(t("codex.add.doneRefreshed"), landed ?? "")
+            ) : profile ? (repeats
+              ? t("codex.add.doneSameAs", { name: repeats })
+              : t("codex.add.doneReady"))
+            : (
+              withName(t("codex.add.doneNew"), landed ?? t("codex.add.theAccount"))
+            )}
+          </p>
+          <div className="aa-actions"><button ref={primaryRef} type="button" className="btn primary" onClick={close}>{t("codex.add.done")}</button></div>
+        </div>
+      )}
+
+      {stage === "repeat" && (
+        <div className="aa-step">
+          <h4 className="aa-repeat-title">{t("codex.add.repeatTitle")}</h4>
+          <p className="aa-note">{withName(t("codex.add.repeatNote"), repeats ?? "")}</p>
+          <p className="aa-note">{t("codex.add.repeatHelp")}</p>
+          <div className="aa-actions">
+            <button ref={primaryRef} type="button" className="btn primary" onClick={() => { setLogin(null); setOpened(false); setStage("ready"); }}>{t("codex.add.tryAnother")}</button>
+            <button type="button" className="btn" onClick={close}>{t("codex.add.done")}</button>
+          </div>
+        </div>
+      )}
+
+      {stage === "failed" && (
+        <div className="aa-step">
+          <p className="aa-err" role="alert">{reasonText(login?.reason, t)}</p>
+          {login?.reason === "codex_missing" && id && (
+            <p className="aa-note">{t("codex.add.useTerminal")}</p>
+          )}
+          <div className="aa-actions">
+            {id && <button type="button" className="btn primary" onClick={() => { openTab(); void begin(id); }}>{t("codex.add.tryAgain")}</button>}
+            {id && <button type="button" className="btn" onClick={() => onCopyCommand(id)}>{t("codex.add.copyCommand")}</button>}
+          </div>
+        </div>
+      )}
+    </>
+  );
+
   return createPortal(
     <div className="modal-backdrop" {...scrimPress} role="presentation">
-      <div ref={dialogRef} className="modal aa-modal" onClick={event => event.stopPropagation()} role="dialog" aria-modal="true" aria-labelledby="aa-codex-title">
+      <div ref={dialogRef} className="modal aa-modal" onClick={event => event.stopPropagation()} role="dialog" aria-modal="true"
+        aria-labelledby="aa-codex-title">
         <header className="modal-head">
-          <div className="modal-title"><span id="aa-codex-title">{title}</span></div>
+          <div className="modal-title">
+            {/* Where the strip stands in the title's place, the title stays for
+                a reader, out of sight, so the dialog keeps its one name. */}
+            <span id="aa-codex-title" className={tabbed ? "vis-hidden" : undefined}>{title}</span>
+            {tabbed && (
+              <span className="aa-tabs" role="tablist" aria-label={t("accounts.add.tabsLabel")} onKeyDown={onTabKeys}>
+                {TABS.map((tb, i) => (
+                  <button key={tb.id} type="button" role="tab" id={tabDomId(tb.id)}
+                    ref={el => { tabRefs.current[i] = el; }}
+                    aria-selected={tab === tb.id} aria-controls={PANEL_ID} tabIndex={tab === tb.id ? 0 : -1}
+                    className={`aa-tab${tab === tb.id ? " on" : ""}`}
+                    onClick={() => { arrowed.current = false; setTab(tb.id); }}>{t(tb.key)}</button>
+                ))}
+              </span>
+            )}
+          </div>
           <div className="modal-actions">
             <button type="button" className="glyph-btn" onClick={close} aria-label={t("codex.add.close")} title={t("codex.add.close")}>×</button>
           </div>
         </header>
-        <section className="modal-body aa-body">
-          {stage === "ready" && (
-            <div className="aa-step aa-primer">
-              <p className="aa-note">
-                {profile ? t("codex.add.introExisting") : t("codex.add.introNew")}
-              </p>
-              {!profile && (
-                <p className="aa-note">{t("codex.add.signOutFirst")}</p>
-              )}
-              {error && <p className="aa-err" role="alert">{error}</p>}
-              <div className="aa-actions">
-                <button ref={primaryRef} type="button" className="btn primary" aria-busy={busy}
-                  onClick={() => void submit()}>{t("codex.add.signInButton")}</button>
-              </div>
-            </div>
-          )}
-
-          {stage === "starting" && (
-            <div className="aa-step">
-              <p className="aa-live-line" role="status">
-                <svg className="aa-spin" viewBox="0 0 16 16" aria-hidden>
-                  <circle className="aa-spin-track" cx="8" cy="8" r="6" />
-                  <circle className="aa-spin-arc" cx="8" cy="8" r="6" />
-                </svg>
-                <span>{t("codex.add.starting")}</span>
-              </p>
-            </div>
-          )}
-
-          {stage === "waiting" && login && (
-            <div className="aa-step">
-              <p className="aa-note">
-                <strong>1.</strong> {opened ? t("codex.add.step1Opened") : t("codex.add.step1")}
-              </p>
-              <a className="aa-link" href={login.url ?? "#"} target="_blank" rel="noreferrer noopener">
-                <span>{opened ? t("codex.add.openAgain") : t("codex.add.openPage")}</span>
-                <span className="aa-link-host">
-                  auth.openai.com
-                  <svg width="9" height="9" viewBox="0 0 10 10" fill="none" stroke="currentColor"
-                    strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-                    <path d="M3 7 7 3M3.6 3H7v3.4" />
-                  </svg>
-                </span>
-              </a>
-              <p className="aa-note"><strong>2.</strong> {t("codex.add.step2")}</p>
-              <div className="aa-field">
-                <code className="aa-device-code">{login.code}</code>
-                <button type="button" className="btn" onClick={async () => { if (login.code && await copyText(login.code)) setCopied(true); }}>
-                  {copied ? t("codex.add.copied") : t("codex.add.copy")}
-                </button>
-              </div>
-              <p className="aa-live-line" role="status">
-                <svg className="aa-spin" viewBox="0 0 16 16" aria-hidden>
-                  <circle className="aa-spin-track" cx="8" cy="8" r="6" />
-                  <circle className="aa-spin-arc" cx="8" cy="8" r="6" />
-                </svg>
-                <span>{minutesLeft !== null ? t("codex.add.waitingMinutes", { count: minutesLeft }) : t("codex.add.waiting")}</span>
-              </p>
-              <p className="aa-note">{t("codex.add.onlyIfYou")}</p>
-            </div>
-          )}
-
-          {stage === "checking" && (
-            <div className="aa-step">
-              <p className="aa-live-line" role="status">
-                <svg className="aa-spin" viewBox="0 0 16 16" aria-hidden>
-                  <circle className="aa-spin-track" cx="8" cy="8" r="6" />
-                  <circle className="aa-spin-arc" cx="8" cy="8" r="6" />
-                </svg>
-                <span>{t("codex.add.checking")}</span>
-              </p>
-            </div>
-          )}
-
-          {stage === "done" && (
-            <div className="aa-done">
-              <SuccessMark ref={markRef} />
-              {celebrates({ added: !profile && !refreshed, reducedMotion: reduced }) && <Confetti anchor={markRef} />}
-              <h4 role="status">{profile && !refreshed ? t("codex.add.signedIn") : doneTitle({ num: null, added: !refreshed }, t)}</h4>
-              <p className="aa-note">
-                {refreshed ? (
-                  withName(t("codex.add.doneRefreshed"), landed ?? "")
-                ) : profile ? (repeats
-                  ? t("codex.add.doneSameAs", { name: repeats })
-                  : t("codex.add.doneReady"))
-                : (
-                  withName(t("codex.add.doneNew"), landed ?? t("codex.add.theAccount"))
-                )}
-              </p>
-              <div className="aa-actions"><button ref={primaryRef} type="button" className="btn primary" onClick={close}>{t("codex.add.done")}</button></div>
-            </div>
-          )}
-
-          {stage === "repeat" && (
-            <div className="aa-step">
-              <h4 className="aa-repeat-title">{t("codex.add.repeatTitle")}</h4>
-              <p className="aa-note">{withName(t("codex.add.repeatNote"), repeats ?? "")}</p>
-              <p className="aa-note">{t("codex.add.repeatHelp")}</p>
-              <div className="aa-actions">
-                <button ref={primaryRef} type="button" className="btn primary" onClick={() => { setLogin(null); setOpened(false); setStage("ready"); }}>{t("codex.add.tryAnother")}</button>
-                <button type="button" className="btn" onClick={close}>{t("codex.add.done")}</button>
-              </div>
-            </div>
-          )}
-
-          {stage === "failed" && (
-            <div className="aa-step">
-              <p className="aa-err" role="alert">{reasonText(login?.reason, t)}</p>
-              {login?.reason === "codex_missing" && id && (
-                <p className="aa-note">{t("codex.add.useTerminal")}</p>
-              )}
-              <div className="aa-actions">
-                {id && <button type="button" className="btn primary" onClick={() => { openTab(); void begin(id); }}>{t("codex.add.tryAgain")}</button>}
-                {id && <button type="button" className="btn" onClick={() => onCopyCommand(id)}>{t("codex.add.copyCommand")}</button>}
-              </div>
-            </div>
-          )}
-        </section>
+        {tabbed ? (
+          <section className="modal-body aa-body" id={PANEL_ID} role="tabpanel" aria-labelledby={tabDomId(tab)}>
+            {tab === "paste"
+              ? <CodexImportPane revision={revision} onImported={onImported} onDone={close} fieldRef={pasteField} />
+              : steps}
+          </section>
+        ) : <section className="modal-body aa-body">{steps}</section>}
       </div>
     </div>,
     document.body,
