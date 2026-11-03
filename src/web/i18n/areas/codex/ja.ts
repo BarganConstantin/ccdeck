@@ -2,6 +2,8 @@
 import type { Catalog } from "../../catalogs";
 
 const catalog: Catalog = {
+  "codex.panel.liveControlPaused": "ログインの変更または接続切断により、Codex のアカウント制御が一時停止しています。再接続する前に /status を確認してください。",
+  "codex.panel.reconnectSelected": "選択したアカウントを再接続",
   // The row's voice (codex-accounts.ts CODEX_VOICE)
   "codex.row.liveTitle": "新しいセッションの既定アカウント",
   "codex.row.liveSpoken": "既定のアカウント：",
@@ -9,7 +11,11 @@ const catalog: Catalog = {
   "codex.row.readPlan": "ccdeck がこのアカウントの使用量を最後に読み取った時刻と、次に読み取る予定の時刻です。このパネルを開いている間、既定のアカウントは1分ごと、それ以外は5分ごとに読み取ります。Codex が報告するアカウントの上限を表示するため、枠が1つだけのプランではバーも1本です。",
   "codex.row.readPlanNamed": "{plan} プラン。{rest}",
   "codex.row.neverRead": "ccdeck はこのアカウントをまだ読み取っていません",
-  "codex.row.switched": "使用中になりました。ccdeck から始める新しいセッションはこのアカウントで開始され、ターミナル選択をオン（⋯ 内）にすればターミナルの codex も同様です。実行中のセッションは元のアカウントのままです。",
+  "codex.row.switched": "既定のアカウントを変更しました。ターミナルでアカウントを選択するセッションはこのアカウントを使用します。",
+  "codex.row.liveSwitched": "接続中の Codex の会話はこのアカウントを使用します。中断されたタスクは自動的に再開されます。",
+  "codex.row.switchWaiting": "アカウントを切り替える前に、実行中のツールや必要な入力を待っています。",
+  "codex.row.childrenResuming": "アカウントを切り替えました。サブエージェントの再開を待っています。",
+  "codex.row.continueUnconfirmed": "自動再開を確認できませんでした。続行する前に会話を確認してください。",
   "codex.row.reading": "使用量を読み取り中…",
   "codex.lane.limit": "上限",
   "codex.peer.account": "アカウント {n}",
@@ -63,6 +69,7 @@ const catalog: Catalog = {
   "codex.panel.unreachable": "サーバーに接続できません",
   "codex.panel.switchConflict": "直前に別の変更で既定のアカウントが変わりました。もう一度お試しください。",
   "codex.panel.switchFailed": "切り替えに失敗しました。再読み込みしてもう一度お試しください。",
+  "codex.panel.liveSwitchFailed": "既定のアカウントを保存しましたが、開いている Codex アプリは切り替えられませんでした。/status でアカウントを確認してください。",
   "codex.panel.removed": "アカウントを削除しました。サインイン情報と履歴は削除されず、ccdeck のデータフォルダーに保管されています。",
   "codex.panel.removeFailed": "アカウントを削除できませんでした。再読み込みしてもう一度お試しください。",
   "codex.panel.badName": "名前にスラッシュは使えません。",

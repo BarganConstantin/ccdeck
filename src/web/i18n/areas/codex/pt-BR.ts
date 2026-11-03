@@ -2,6 +2,8 @@
 import type { Catalog } from "../../catalogs";
 
 const catalog: Catalog = {
+  "codex.panel.liveControlPaused": "O controle da conta Codex está pausado após uma mudança de login ou perda de conexão. Confira /status antes de reconectar.",
+  "codex.panel.reconnectSelected": "Reconectar a conta selecionada",
   // The row's voice (codex-accounts.ts CODEX_VOICE)
   "codex.row.liveTitle": "Conta padrão para novas sessões",
   "codex.row.liveSpoken": "Conta padrão:",
@@ -9,7 +11,11 @@ const catalog: Catalog = {
   "codex.row.readPlan": "Quando o ccdeck leu o uso desta conta pela última vez e quando pretende ler de novo: a cada minuto para a conta padrão e a cada cinco minutos para as outras, enquanto este painel estiver aberto. São os limites que o Codex informa para a conta, então um plano com uma só janela mostra uma só barra.",
   "codex.row.readPlanNamed": "Plano {plan}. {rest}",
   "codex.row.neverRead": "O ccdeck ainda não leu esta conta",
-  "codex.row.switched": "Agora ativa. As novas sessões do ccdeck começam nela, e o codex do terminal também, quando a seleção no terminal estiver ativada (em ⋯). As que já estão rodando mantêm a conta.",
+  "codex.row.switched": "Conta padrão alterada. As sessões com seleção no terminal seguirão esta conta.",
+  "codex.row.liveSwitched": "As conversas do Codex conectadas usam esta conta agora. As tarefas interrompidas são retomadas automaticamente.",
+  "codex.row.switchWaiting": "Aguardando ferramentas em execução ou a entrada necessária antes de trocar de conta.",
+  "codex.row.childrenResuming": "Conta alterada. Aguardando a retomada dos subagentes.",
+  "codex.row.continueUnconfirmed": "A continuação automática não pôde ser confirmada; confira a conversa antes de continuar.",
   "codex.row.reading": "Lendo o uso…",
   "codex.lane.limit": "limite",
   "codex.peer.account": "conta {n}",
@@ -63,6 +69,7 @@ const catalog: Catalog = {
   "codex.panel.unreachable": "servidor inacessível",
   "codex.panel.switchConflict": "Outra alteração mudou a conta padrão neste instante. Tente de novo.",
   "codex.panel.switchFailed": "A troca não foi concluída. Recarregue e tente de novo.",
+  "codex.panel.liveSwitchFailed": "Conta padrão salva, mas o aplicativo Codex aberto não conseguiu mudar. Confira a conta com /status.",
   "codex.panel.removed": "Conta removida. O login e o histórico dela ficam guardados à parte na pasta de dados do ccdeck, não são excluídos.",
   "codex.panel.removeFailed": "Não foi possível remover a conta. Recarregue e tente de novo.",
   "codex.panel.badName": "O nome não pode conter barra.",

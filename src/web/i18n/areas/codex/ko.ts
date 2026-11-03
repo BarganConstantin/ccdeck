@@ -2,13 +2,19 @@
 import type { Catalog } from "../../catalogs";
 
 const catalog: Catalog = {
+  "codex.panel.liveControlPaused": "로그인 변경 또는 연결 끊김으로 Codex 계정 제어가 일시 중지되었습니다. 다시 연결하기 전에 /status를 확인하세요.",
+  "codex.panel.reconnectSelected": "선택한 계정 다시 연결",
   "codex.row.liveTitle": "새 세션의 기본 계정",
   "codex.row.liveSpoken": "기본 계정:",
   "codex.row.readBy": "ccdeck이 이 계정의 사용량을 마지막으로 읽은 시각",
   "codex.row.readPlan": "ccdeck이 이 계정의 사용량을 마지막으로 읽은 시각과 다음에 읽을 예정 시각입니다. 이 패널이 열려 있는 동안 기본 계정은 1분마다, 나머지는 5분마다 읽습니다. Codex가 계정에 대해 알려 주는 한도이므로, 구간이 하나인 플랜은 막대도 하나입니다.",
   "codex.row.readPlanNamed": "{plan} 플랜. {rest}",
   "codex.row.neverRead": "ccdeck이 아직 이 계정을 읽지 않았습니다",
-  "codex.row.switched": "지금 활성 상태입니다. ccdeck에서 시작하는 새 세션이 이 계정을 사용하며, 터미널 선택을 켜면(⋯) 터미널의 codex도 이 계정을 사용합니다. 실행 중인 세션은 기존 계정을 유지합니다.",
+  "codex.row.switched": "기본 계정이 변경되었습니다. 터미널 선택을 사용하는 세션은 이 계정을 따릅니다.",
+  "codex.row.liveSwitched": "연결된 Codex 대화가 이제 이 계정을 사용합니다. 중단된 작업은 자동으로 재개됩니다.",
+  "codex.row.switchWaiting": "계정을 전환하기 전에 실행 중인 도구나 필요한 입력을 기다리고 있습니다.",
+  "codex.row.childrenResuming": "계정이 전환되었습니다. 하위 에이전트가 재개되기를 기다리고 있습니다.",
+  "codex.row.continueUnconfirmed": "자동 재개를 확인하지 못했습니다. 계속하기 전에 대화를 확인하세요.",
   "codex.row.reading": "사용량 읽는 중…",
   "codex.lane.limit": "한도",
   "codex.peer.account": "계정 {n}",
@@ -59,6 +65,7 @@ const catalog: Catalog = {
   "codex.panel.unreachable": "서버에 연결할 수 없음",
   "codex.panel.switchConflict": "방금 다른 변경으로 기본 계정이 바뀌었습니다. 다시 시도하세요.",
   "codex.panel.switchFailed": "전환이 완료되지 않았습니다. 다시 불러온 뒤 시도하세요.",
+  "codex.panel.liveSwitchFailed": "기본 계정은 저장되었지만 열려 있는 Codex 앱은 전환하지 못했습니다. /status로 계정을 확인하세요.",
   "codex.panel.removed": "계정을 제거했습니다. 로그인 정보와 기록은 삭제되지 않고 ccdeck 데이터 폴더에 따로 보관됩니다.",
   "codex.panel.removeFailed": "계정을 제거하지 못했습니다. 다시 불러온 뒤 시도하세요.",
   "codex.panel.badName": "이름에는 슬래시를 쓸 수 없습니다.",

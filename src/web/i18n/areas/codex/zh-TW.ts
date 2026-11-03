@@ -2,6 +2,8 @@
 import type { Catalog } from "../../catalogs";
 
 const catalog: Catalog = {
+  "codex.panel.liveControlPaused": "登入變更或連線中斷後，Codex 帳戶控制已暫停。重新連線前請檢查 /status。",
+  "codex.panel.reconnectSelected": "重新連線所選帳戶",
   // The row's voice (codex-accounts.ts CODEX_VOICE)
   "codex.row.liveTitle": "新工作階段的預設帳號",
   "codex.row.liveSpoken": "預設帳號：",
@@ -9,7 +11,11 @@ const catalog: Catalog = {
   "codex.row.readPlan": "ccdeck 上次讀取此帳號用量的時間，以及預計下次讀取的時間：此面板開啟時，預設帳號每分鐘一次，其他帳號每五分鐘一次。這些是 Codex 回報的帳號額度，因此只有一個區間的方案只會顯示一條進度條。",
   "codex.row.readPlanNamed": "{plan} 方案。{rest}",
   "codex.row.neverRead": "ccdeck 尚未讀取此帳號",
-  "codex.row.switched": "已設為使用中。從 ccdeck 開啟的新工作階段會使用此帳號；啟用終端機選擇後（在 ⋯ 中），終端機的 codex 也會使用。執行中的工作階段維持原帳號。",
+  "codex.row.switched": "預設帳號已變更。使用終端機帳號選擇的工作階段將使用此帳號。",
+  "codex.row.liveSwitched": "已連線的 Codex 對話現在使用此帳號。中斷的任務會自動恢復。",
+  "codex.row.switchWaiting": "正在等待執行中的工具完成或必要的輸入，然後切換帳號。",
+  "codex.row.childrenResuming": "帳號已切換，正在等待子代理恢復。",
+  "codex.row.continueUnconfirmed": "無法確認是否已自動繼續。繼續之前請檢查對話。",
   "codex.row.reading": "正在讀取用量…",
   "codex.lane.limit": "額度",
   "codex.peer.account": "帳號 {n}",
@@ -62,6 +68,7 @@ const catalog: Catalog = {
   "codex.panel.unreachable": "無法連線到伺服器",
   "codex.panel.switchConflict": "預設帳號剛被另一項變更更動，請再試一次。",
   "codex.panel.switchFailed": "切換未完成，請重新載入後再試。",
+  "codex.panel.liveSwitchFailed": "預設帳號已儲存，但已開啟的 Codex 應用程式未能切換。請使用 /status 檢查其帳號。",
   "codex.panel.removed": "帳號已移除。其登入資訊與歷史記錄已另外保留在 ccdeck 的資料夾中，並未刪除。",
   "codex.panel.removeFailed": "無法移除帳號，請重新載入後再試。",
   "codex.panel.badName": "名稱不能包含斜線。",

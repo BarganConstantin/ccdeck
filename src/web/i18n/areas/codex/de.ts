@@ -2,13 +2,19 @@
 import type { Catalog } from "../../catalogs";
 
 const catalog: Catalog = {
+  "codex.panel.liveControlPaused": "Die Codex-Kontosteuerung pausiert nach einer Anmeldeänderung oder einem Verbindungsabbruch. Prüfe vor dem erneuten Verbinden /status.",
+  "codex.panel.reconnectSelected": "Ausgewähltes Konto verbinden",
   "codex.row.liveTitle": "Standardkonto für neue Sitzungen",
   "codex.row.liveSpoken": "Standardkonto:",
   "codex.row.readBy": "Wann ccdeck die Nutzung dieses Kontos zuletzt gelesen hat",
   "codex.row.readPlan": "Wann ccdeck die Nutzung dieses Kontos zuletzt gelesen hat und wann es sie wieder liest: jede Minute beim Standardkonto, bei den anderen alle fünf, solange dieses Panel offen ist. Das sind die Limits, die Codex für das Konto meldet – hat ein Tarif nur ein Fenster, siehst du nur einen Balken.",
   "codex.row.readPlanNamed": "Tarif {plan}. {rest}",
   "codex.row.neverRead": "ccdeck hat dieses Konto noch nicht gelesen",
-  "codex.row.switched": "Jetzt aktiv. Neue Sitzungen aus ccdeck starten damit, ebenso der Befehl codex im Terminal, sobald die Terminal-Auswahl an ist (in ⋯). Laufende Sitzungen behalten ihr Konto.",
+  "codex.row.switched": "Standardkonto geändert. Sitzungen mit Terminalauswahl folgen diesem Konto.",
+  "codex.row.liveSwitched": "Verbundene Codex-Unterhaltungen verwenden jetzt dieses Konto. Unterbrochene Aufgaben werden automatisch fortgesetzt.",
+  "codex.row.switchWaiting": "Vor dem Kontowechsel warten wir auf laufende Tools oder erforderliche Eingaben.",
+  "codex.row.childrenResuming": "Konto gewechselt. Wir warten, bis die Unteragenten fortfahren.",
+  "codex.row.continueUnconfirmed": "Die automatische Fortsetzung wurde nicht bestätigt. Prüfe die Unterhaltung, bevor du fortfährst.",
   "codex.row.reading": "Nutzung wird gelesen …",
   "codex.lane.limit": "Limit",
   "codex.peer.account": "Konto {n}",
@@ -60,6 +66,7 @@ const catalog: Catalog = {
   "codex.panel.unreachable": "Server nicht erreichbar",
   "codex.panel.switchConflict": "Eine andere Änderung hat das Standardkonto gerade verschoben. Versuche es erneut.",
   "codex.panel.switchFailed": "Der Wechsel hat nicht geklappt. Lade neu und versuche es erneut.",
+  "codex.panel.liveSwitchFailed": "Standardkonto gespeichert, aber die geöffnete Codex-App konnte nicht wechseln. Prüfe ihr Konto mit /status.",
   "codex.panel.removed": "Konto entfernt. Anmeldung und Verlauf wurden im Datenordner von ccdeck beiseitegelegt, aber nicht gelöscht.",
   "codex.panel.removeFailed": "Das Konto konnte nicht entfernt werden. Lade neu und versuche es erneut.",
   "codex.panel.badName": "Ein Name darf keinen Schrägstrich enthalten.",

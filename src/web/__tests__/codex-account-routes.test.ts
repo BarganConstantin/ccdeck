@@ -1,13 +1,15 @@
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
-import { mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, mkdir, rm, writeFile, readFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { Server } from 'node:http';
+import { ensureWindowsPrivateDirectory } from '../../server/codex-windows-private.mjs';
 
 const root = await mkdtemp(join(tmpdir(), 'ccdeck-account-routes-'));
 const original = join(root, 'codex');
-await mkdir(original);
-await writeFile(join(original, 'auth.json'), '{}');
+if (process.platform === 'win32') await ensureWindowsPrivateDirectory(original);
+else await mkdir(original);
+await writeFile(join(original, 'auth.json'), '{}', { mode: 0o600 });
 vi.stubEnv('CODEX_HOME', original);
 vi.stubEnv('CCDECK_HOME', join(root, 'deck'));
 vi.stubEnv('CLAUDE_CONFIG_DIR', join(root, 'claude'));
@@ -42,7 +44,7 @@ describe('Codex account route boundary', () => {
     expect(JSON.stringify(created)).not.toContain(root);
     const request = { id: created.id, expectedRevision: created.revision, operationId: 'route-select' };
     const switched = await (await fetch(`${base}/api/codex-profile-select`, { method: 'POST', headers: headers(), body: JSON.stringify(request) })).json();
-    expect(switched).toMatchObject({ ok: true, status: 'applied_for_new_sessions' });
+    expect(switched).toMatchObject({ ok: true, status: 'requested_for_managed_sessions' });
     const replay = await (await fetch(`${base}/api/codex-profile-select`, { method: 'POST', headers: headers(), body: JSON.stringify(request) })).json();
     expect(replay.revision).toBe(switched.revision);
     const stale = await fetch(`${base}/api/codex-profile-select`, { method: 'POST', headers: headers(), body: JSON.stringify({ id: roster.profiles[0].id, expectedRevision: 0, operationId: 'route-stale' }) });
@@ -57,5 +59,38 @@ describe('Codex account route boundary', () => {
     expect((await fetch(`${base}/api/codex-terminal-command?shell=fish`, { headers: headers() })).status).toBe(400);
     const setup = await (await fetch(`${base}/api/codex-terminal-command?shell=bash`, { headers: headers() })).json();
     expect(setup.command).toContain('install --shell bash');
+  });
+  it('guards manual sharing, supports script export/import and keeps credentials out of roster and errors', async () => {
+    for (const path of ['/api/codex-accounts-share', '/api/codex-accounts-import']) {
+      expect((await fetch(base + path, { method: 'POST', body: '{}' })).status).toBe(401);
+      expect((await fetch(base + path, { method: 'POST', headers: { ...headers(), origin: 'https://attacker.example' }, body: '{}' })).status).toBe(403);
+      expect((await fetch(base + path, { headers: headers() })).status).toBe(404);
+    }
+    const auth = { auth_mode: 'chatgpt', OPENAI_API_KEY: null, tokens: { id_token: 'fictional.id.signature', access_token: 'fictional-access', refresh_token: 'fictional-refresh' } };
+    await writeFile(join(original, 'auth.json'), JSON.stringify(auth), { mode: 0o600 });
+    const roster = await (await fetch(`${base}/api/codex-profiles`, { headers: headers() })).json();
+    const originalId = roster.profiles[0].id;
+    const sharedResponse = await fetch(`${base}/api/codex-accounts-share`, { method: 'POST', headers: headers(), body: JSON.stringify({ ids: [originalId] }) });
+    expect(sharedResponse.headers.get('cache-control')).toBe('no-store');
+    const shared = await sharedResponse.json();
+    expect(shared).toMatchObject({ ok: true, count: 1, blob: expect.stringMatching(/^ccdeck-codex-v1\./) });
+    expect(shared).not.toHaveProperty('expiresAt');
+    const body = JSON.stringify({ blob: shared.blob, expectedRevision: roster.revision });
+    const imported = await (await fetch(`${base}/api/codex-accounts-import`, { method: 'POST', headers: headers(), body })).json();
+    expect(imported).toMatchObject({ ok: true, results: [{ status: 'imported' }] });
+    expect(JSON.stringify(imported)).not.toContain(root);
+    expect(JSON.stringify(imported)).not.toContain('fictional');
+    const retry = await (await fetch(`${base}/api/codex-accounts-import`, { method: 'POST', headers: headers(), body })).json();
+    expect(retry).toMatchObject({ ok: true, revision: imported.revision, results: [{ id: imported.results[0].id, status: 'already_imported' }] });
+    const after = await (await fetch(`${base}/api/codex-profiles`, { headers: headers() })).json();
+    expect(after.profiles.find((p: { active: boolean }) => p.active).id).toBe(roster.profiles.find((p: { active: boolean }) => p.active).id);
+    expect(JSON.stringify(after)).not.toContain('fictional-refresh');
+    expect(JSON.stringify(after)).not.toContain('fictional-access');
+    expect(JSON.parse(await readFile(join(original, 'auth.json'), 'utf8'))).toEqual(auth);
+    const invalid = await (await fetch(`${base}/api/codex-accounts-import`, { method: 'POST', headers: headers(), body: JSON.stringify({ blob: 'fictional-secret-invalid', expectedRevision: after.revision }) })).json();
+    expect(invalid).toEqual({ ok: false, reason: 'invalid_share' });
+    const pathInjection = await fetch(`${base}/api/codex-accounts-import`, { method: 'POST', headers: headers(), body: JSON.stringify({ blob: shared.blob, expectedRevision: after.revision, home: original }) });
+    expect(await pathInjection.json()).toEqual({ ok: false, reason: 'bad_request' });
+    expect((await fetch(`${base}/api/codex-accounts-import`, { method: 'POST', headers: headers(), body: JSON.stringify({ blob: 'x'.repeat(520000), expectedRevision: 0 }) })).status).toBe(413);
   });
 });

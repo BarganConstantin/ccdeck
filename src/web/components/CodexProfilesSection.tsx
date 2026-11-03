@@ -5,8 +5,8 @@
 // The two columns stay separate (CodexAccountsPanel.tsx) but are one design.
 //
 // What differs is what a Codex account is. It is a CODEX_HOME folder rather than
-// a slot, so nothing here moves or shares a login: a login is a single-use
-// rotating token, and a copy of it would burn the original. codex-accounts.ts
+// a slot. Manual sharing explicitly warns about OAuth renewal across copies.
+// codex-accounts.ts
 // turns a profile and its reading into what the shared components read.
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { allOpen, isOpen, orderChoices, orderKey, SLOT_ORDER, sortAccounts, toggleAll, toggleOne, validOrder, type Openness } from "../other-accounts-order";
@@ -34,6 +34,7 @@ import AddCodexAccountDialog from "./AddCodexAccountDialog";
 import AnchoredPopover from "./AnchoredPopover";
 import AutoSwitchPolicy from "./AutoSwitchPolicy";
 import OtherAccounts from "./OtherAccounts";
+import CodexShareDialog from "./CodexShareDialog";
 
 /** Keeps this column's order and open rows apart from Claude's. */
 const SCOPE = ".codex";
@@ -41,13 +42,14 @@ const SCOPE = ".codex";
  *  floor at the latest, so a few tries are enough and nothing runs for ever. */
 const RETRY_MS = 15_000;
 const RETRIES = 6;
+type LiveSelection = { state: string; profileId?: string; requestedProfileId?: string; continuation?: string };
 
-async function postJson(path: string, body: unknown): Promise<{ ok: boolean; status: number; reason?: string; id?: string }> {
+async function postJson(path: string, body: unknown): Promise<{ ok: boolean; status: number; reason?: string; id?: string; live?: LiveSelection }> {
   const response = await fetch(path, {
     method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
   });
-  const result = await response.json().catch(() => null) as { ok?: boolean; reason?: string; id?: string } | null;
-  return { ok: response.ok && result?.ok === true, status: response.status, reason: result?.reason, id: result?.id };
+  const result = await response.json().catch(() => null) as { ok?: boolean; reason?: string; id?: string; live?: LiveSelection } | null;
+  return { ok: response.ok && result?.ok === true, status: response.status, reason: result?.reason, id: result?.id, live: result?.live };
 }
 
 export default function CodexProfilesSection({ onClose, switcher, onNotice }: {
@@ -78,9 +80,11 @@ export default function CodexProfilesSection({ onClose, switcher, onNotice }: {
   const revision = useRef(0);
   const [reloading, setReloading] = useState(false);
   /** The refusal a press left: on its row when `row` is set, else at the foot. */
-  const [failure, setFailure] = useState<Failure | null>(null);
+  const [failure, setFailure] = useState<(Failure & { liveProfileId?: string }) | null>(null);
   /** The account a switch from this panel just landed on, said on its row. */
-  const [switched, setSwitched] = useState<{ id: string; name: string } | null>(null);
+  const [switched, setSwitched] = useState<{ id: string; name: string; live: boolean } | null>(null);
+  const [liveSelection, setLiveSelection] = useState<LiveSelection | null>(null);
+  const [dismissedLiveFailure, setDismissedLiveFailure] = useState(false);
   /** What a copied command said, at the foot. */
   const [message, setMessage] = useState("");
   /** Which profile's ⋯ is open, how the keyboard came in, and which form it is. */
@@ -88,6 +92,7 @@ export default function CodexProfilesSection({ onClose, switcher, onNotice }: {
   const [aliasDraft, setAliasDraft] = useState("");
   const [menuError, setMenuError] = useState<string | null>(null);
   /** The Add / Sign in dialog: a new account, or one signed in again. */
+  const [transfer, setTransfer] = useState<null | "export" | "import">(null);
   const [dialog, setDialog] = useState<null | { id?: string; label?: string; account?: string | null }>(null);
   /** The account whose Remove has been pressed once and is waiting for the second. */
   const [confirmRemove, setConfirmRemove] = useState<string | null>(null);
@@ -152,15 +157,29 @@ export default function CodexProfilesSection({ onClose, switcher, onNotice }: {
     try {
       const response = await fetch("/api/codex-profiles", { signal });
       if (!response.ok) throw new Error("Unable to load Codex profiles");
-      const result = await response.json() as { profiles: CodexProfile[]; revision?: number };
+      const result = await response.json() as { profiles: CodexProfile[]; revision?: number; live?: LiveSelection };
       if (!Array.isArray(result.profiles)) throw new Error("Invalid Codex profiles response");
       if (signal?.aborted || request !== profileRequest.current) return undefined;
       setProfiles(result.profiles);
+      if (result.live) {
+        setLiveSelection(result.live);
+        const recovered = result.live.state === 'applied' ? result.live.profileId
+          : result.live.state === 'waiting' ? result.live.requestedProfileId : null;
+        if (recovered) setFailure(previous => previous?.liveProfileId === recovered ? null : previous);
+      }
       revision.current = result.revision ?? 0;
       setError(false);
       return result.profiles;
     } finally { profileRefreshes.current--; }
   }
+
+  useEffect(() => {
+    if (liveSelection?.state !== 'waiting' && liveSelection?.continuation !== 'waiting') return;
+    const timer = setInterval(() => {
+      if (profileRefreshes.current === 0) void refreshProfiles().catch(() => {});
+    }, 2000);
+    return () => clearInterval(timer);
+  }, [liveSelection?.state, liveSelection?.continuation]);
 
   /** Read one profile's numbers. `auto` is the first read of a login and shows
    *  that it is reading; `poll` keeps what is on screen until the new one lands.
@@ -282,11 +301,16 @@ export default function CodexProfilesSection({ onClose, switcher, onNotice }: {
     const profile = rows.find(row => row.account.num === num)?.profile;
     if (!profile || !claim(`switch-${num}`)) return;
     setFailure(null);
+    setDismissedLiveFailure(false);
     setSwitched(null);
     setMessage("");
     try {
       const out = await postJson("/api/codex-profile-select", { id: profile.id, expectedRevision: revision.current, operationId: crypto.randomUUID() });
-      if (out.ok) setSwitched({ id: profile.id, name });
+      if (out.ok) {
+        if (out.live) setLiveSelection(out.live);
+        if (out.live?.state === 'failed') setFailure({ text: t("codex.panel.liveSwitchFailed"), row: num, liveProfileId: profile.id });
+        else setSwitched({ id: profile.id, name, live: out.live?.state === 'applied' });
+      }
       else {
         const conflict = ["selection_conflict", "operation_conflict", "selection_busy"].includes(out.reason ?? "");
         setFailure({ text: conflict ? t("codex.panel.switchConflict") : t("codex.panel.switchFailed"), row: num });
@@ -382,6 +406,10 @@ export default function CodexProfilesSection({ onClose, switcher, onNotice }: {
 
   /** One account's row, drawn the same above the fold and behind it. */
   const voice = codexVoice(t);
+  const liveNote = liveSelection?.continuation === 'manual_required' ? t("codex.row.continueUnconfirmed")
+    : liveSelection?.state === 'waiting' ? t("codex.row.switchWaiting")
+    : liveSelection?.continuation === 'waiting' ? t("codex.row.childrenResuming")
+    : liveSelection?.state === 'applied' ? t("codex.row.liveSwitched") : null;
   const accountRow = ({ profile, reading, account: a, issue }: Row) => {
     const plan = shownReading(reading)?.plan;
     const reads = quotas[profile.id] === null || reading?.reason === "profile_changed";
@@ -389,15 +417,18 @@ export default function CodexProfilesSection({ onClose, switcher, onNotice }: {
       <AccountRow key={profile.id} a={a} nowSec={nowSec} issueOverride={issue}
         voice={{
           ...voice,
+          switched: liveNote ?? (switched?.live && !liveSelection ? t("codex.row.liveSwitched") : voice.switched),
           readPlan: plan ? t("codex.row.readPlanNamed", { plan: sentence(plan), rest: voice.readPlan ?? "" }) : voice.readPlan,
           waiting: reads ? t("codex.row.reading") : undefined,
         }}
         opened={isOpen(openness, a)} onToggleLanes={() => setOpenness(o => toggleOne(o, a))}
         busy={busy} pressProps={pressProps} onSwitch={doSwitch}
         menuOpen={menu?.id === profile.id} onOpenMenu={(_, start) => openMenu(profile.id, start)} onCloseMenu={() => setMenu(null)}
-        refusal={failure?.row === a.num ? failure : null} onDismissRefusal={() => setFailure(null)}
+        refusal={failure?.row === a.num ? failure : !dismissedLiveFailure && liveSelection?.state === 'failed' && liveSelection.requestedProfileId === profile.id
+          ? { text: t("codex.panel.liveSwitchFailed"), row: a.num } : null} onDismissRefusal={() => { setFailure(null); setDismissedLiveFailure(true); }}
         onSignIn={() => signIn(profile)}
-        switchedHere={switched?.id === profile.id} swapped={null} displaced={undefined}
+        switchedHere={liveSelection?.state !== 'failed' && (switched?.id === profile.id || (liveSelection?.state === 'waiting' && liveSelection.requestedProfileId === profile.id)
+          || (['manual_required', 'waiting'].includes(liveSelection?.continuation ?? '') && profile.active === true))} swapped={null} displaced={undefined}
         issueExpanded={issueOpen?.anchor === `ap-codex-issue-${a.num}`} onOpenIssue={(_, anchor) => openIssue(profile.id, anchor)}
         sortKey={a.active ? null : orderKey(shownOrder)} />
     );
@@ -415,6 +446,7 @@ export default function CodexProfilesSection({ onClose, switcher, onNotice }: {
       pressProps={pressProps} post={post} load={loadAuto} />
   ) : null;
 
+  const reconnectRow = liveSelection?.state === 'external_change' ? rows.find(row => row.profile.active) : undefined;
   const menuRow = rowOf(menu?.id);
   const issueRow = rowOf(issueOpen?.id);
   return (
@@ -423,6 +455,18 @@ export default function CodexProfilesSection({ onClose, switcher, onNotice }: {
         <h2 className={switcher ? "vis-hidden" : undefined}>{t("codex.panel.title")}</h2>
         {switcher}
         <div className="ap-header-right">
+          <button type="button" className="glyph-btn" aria-label={t("codex.share.title")} title={t("codex.share.title")}
+            aria-haspopup="dialog" onClick={() => setTransfer("export")}>
+            <svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+              <path d="M7 9V1.5m-2.5 2.5L7 1.5 9.5 4M3 7v5h8V7" />
+            </svg>
+          </button>
+          <button type="button" className="glyph-btn" aria-label={t("codex.share.importTitle")} title={t("codex.share.importTitle")}
+            aria-haspopup="dialog" onClick={() => setTransfer("import")}>
+            <svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+              <path d="M7 1.5V9m-2.5-2.5L7 9l2.5-2.5M3 10v2h8v-2" />
+            </svg>
+          </button>
           <button type="button" className="glyph-btn ap-add" aria-label={t("codex.panel.add")} title={t("codex.panel.addTitle")}
             aria-haspopup="dialog" onClick={() => setDialog({})}>
             <svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" aria-hidden>
@@ -459,6 +503,13 @@ export default function CodexProfilesSection({ onClose, switcher, onNotice }: {
           ) : (
             <>
               {error && <p role="alert" className="ap-codex-hint">{t("codex.panel.refreshFailed")}</p>}
+              {reconnectRow && <div className="ap-empty" role="status">
+                <span>{t("codex.panel.liveControlPaused")}</span>
+                <button type="button" className="ap-fix" {...pressProps(`switch-${reconnectRow.account.num}`)}
+                  onClick={() => void doSwitch(reconnectRow.account.num, reconnectRow.profile.label ?? reconnectRow.profile.id)}>
+                  {t("codex.panel.reconnectSelected")}
+                </button>
+              </div>}
               {/* The default account's trouble, once, above the list: every new
                   session starts on it, so it is the column's news. */}
               {head?.issue?.tone === "warn" && (
@@ -593,6 +644,8 @@ export default function CodexProfilesSection({ onClose, switcher, onNotice }: {
           fetchedAt={issueRow.account.fetchedAt} nowSec={nowSec}
           onClose={closeIssue} onSignIn={() => signIn(issueRow.profile)} />
       )}
+      {transfer && <CodexShareDialog mode={transfer} profiles={profiles ?? []} revision={revision.current}
+        onImported={() => { void refreshProfiles().catch(() => setError(true)); }} onClose={() => setTransfer(null)} />}
       {dialog && (
         <AddCodexAccountDialog
           profile={dialog.id && dialog.label ? { id: dialog.id, label: dialog.label, account: dialog.account } : undefined}

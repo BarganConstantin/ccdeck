@@ -144,16 +144,17 @@ describe("the register of conditionally-skipped cases", () => {
     expect(Object.keys(CONDITIONS).sort()).toEqual([...new Set(gates().map((g) => g.condition))].sort());
   });
 
-  it("expects nothing at all to be skipped on Linux and on macOS", () => {
-    // This is what un-gating the drive-colon case bought, and it is worth more
-    // than the case itself: zero is the only expectation that cannot be
-    // satisfied by accident. On these two legs CI does not have to work out
-    // which gate a skip belongs to — any skip at all is a finding.
-    expect(expectedSkips("linux")).toEqual({ total: 0, byFile: {} });
-    expect(expectedSkips("darwin")).toEqual({ total: 0, byFile: {} });
+  it("skips only the six Windows-native Codex probes on Linux and macOS", () => {
+    const expected = { total: 6, byFile: {
+      "codex-live-credentials.test.ts": 2,
+      "codex-windows-private.test.ts": 3,
+      "codex-windows-rpc.test.ts": 1,
+    } };
+    expect(expectedSkips("linux")).toEqual(expected);
+    expect(expectedSkips("darwin")).toEqual(expected);
   });
 
-  it("expects the sixty-nine platform-gated cases to skip on Windows, file by file", () => {
+  it("expects the ninety-eight platform-gated cases to skip on Windows, file by file", () => {
     // Fifty-six behind `process.platform === "win32"`, eight behind the posix
     // runIf family, and the three read-only-directory cases — sound-hook-park's,
     // the swap script's in desktop-updater and the macOS updater's in
@@ -163,11 +164,15 @@ describe("the register of conditionally-skipped cases", () => {
     // than as a total, so a change that moves a case from one gate to another is
     // a mismatch rather than an arithmetic coincidence.
     expect(expectedSkips("win32")).toEqual({
-      total: 69,
+      total: 98,
       byFile: {
         "append-deadline.test.ts": 1,
         "backup-root-shared.test.ts": 1,
         "codex-auth-rename-retry.test.ts": 1,
+        "codex-engine-adapter.test.ts": 1,
+        "codex-engine-rpc.test.ts": 1,
+        "codex-live-credentials.test.ts": 6,
+        "codex-live-rpc.test.ts": 21,
         "codex-auth-temp-collision.test.ts": 3,
         "codex-terminal-selection.test.ts": 1,
         "desktop-appimage-relaunch-1630.test.ts": 2,
@@ -232,18 +237,31 @@ describe("the register of conditionally-skipped cases", () => {
     }
   });
 
-  it("has no gate left that hides a case from every leg but one", () => {
-    // A case visible on exactly one runner is the shape that made #525
-    // necessary, and there is none now. This is not a ban on ever adding one —
-    // it is a place where somebody has to say out loud that they are.
+  it("limits single-platform gates to the registered Windows-native Codex probes", () => {
+    // Windows ACL, reparse-point and AF_UNIX behavior requires real Windows
+    // APIs. Enumerate those exceptions; every other gate still needs two legs.
+    const windowsNative = new Set(['codex-live-credentials.test.ts', 'codex-windows-private.test.ts', 'codex-windows-rpc.test.ts']);
     for (const g of gates()) {
       const legs = PLATFORMS.filter((p: string) => !skipsOn(g, p));
-      expect(legs.length, `${g.file} (${g.condition}) runs on only ${legs.join(", ")}`).toBeGreaterThan(1);
+      if (g.condition === "process.platform !== 'win32'" && windowsNative.has(g.file)) expect(legs).toEqual(['win32']);
+      else expect(legs.length, `${g.file} (${g.condition}) runs on only ${legs.join(", ")}`).toBeGreaterThan(1);
     }
   });
 });
 
 describe("the scanner the register is checked against", () => {
+  it("counts literal each rows inside a gated describe without running its source", () => {
+    const src = [
+      `${gate("describe.skipIf", 'process.platform === "win32"')}("block", () => {`,
+      '  it.each([0o777, 0o600])("modes", () => {});',
+      '  it.each([["a,b", 1], ["c", 2],])("tuples", () => {});',
+      '  it("ordinary", () => {});',
+      '});',
+    ].join("\n");
+    expect(scanSource("fake.test.ts", src)[0].cases).toBe(5);
+    expect(() => scanSource("fake.test.ts", src.replace('[0o777, 0o600]', 'uninspectedRows()'))).toThrow('literal table');
+  });
+
   it("reads the condition out of a gate however it is spread across lines", () => {
     const src = [
       `${gate("it.skipIf", 'process.platform === "win32"')}("a", () => {});`,
@@ -314,10 +332,10 @@ describe("what CI does with the register", () => {
     // Windows: the full expected breakdown, and nothing else pending.
     expect(auditReport(reportOf(expectedSkips("win32").byFile), "win32"))
       .toMatchObject({ ok: true, problems: [] });
-    // macOS and Linux: nothing skipped at all, which is the whole expectation.
-    expect(auditReport(reportOf({}, ["theme-first-paint.test.ts"]), "darwin"))
+    // POSIX legs skip exactly the Windows-native probes, with no extra skips.
+    expect(auditReport(reportOf(expectedSkips("darwin").byFile, ["theme-first-paint.test.ts"]), "darwin"))
       .toMatchObject({ ok: true, problems: [] });
-    expect(auditReport(reportOf({}, ["theme-first-paint.test.ts"]), "linux"))
+    expect(auditReport(reportOf(expectedSkips("linux").byFile, ["theme-first-paint.test.ts"]), "linux"))
       .toMatchObject({ ok: true, problems: [] });
   });
 

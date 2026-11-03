@@ -2,13 +2,19 @@
 import type { Catalog } from "../../catalogs";
 
 const catalog: Catalog = {
+  "codex.panel.liveControlPaused": "登录变更或连接中断后，Codex 账户控制已暂停。重新连接前请检查 /status。",
+  "codex.panel.reconnectSelected": "重新连接所选账户",
   "codex.row.liveTitle": "新会话使用的默认账号",
   "codex.row.liveSpoken": "默认账号：",
   "codex.row.readBy": "ccdeck 上次读取此账号用量的时间",
   "codex.row.readPlan": "ccdeck 上次读取此账号用量的时间，以及计划再次读取的时间：此面板打开期间，默认账号每分钟一次，其他账号每五分钟一次。这些是 Codex 为该账号报告的限额，因此只有一个窗口的套餐只显示一条用量条。",
   "codex.row.readPlanNamed": "{plan} 套餐。{rest}",
   "codex.row.neverRead": "ccdeck 尚未读取此账号",
-  "codex.row.switched": "已启用。ccdeck 新建的会话将使用它；开启终端选择后（在 ⋯ 中），终端里的 codex 也会使用它。已在运行的会话保持原账号。",
+  "codex.row.switched": "默认账号已更改。使用终端账号选择的会话将使用此账号。",
+  "codex.row.liveSwitched": "已连接的 Codex 对话现在使用此账号。中断的任务会自动恢复。",
+  "codex.row.switchWaiting": "正在等待运行中的工具完成或必要的输入，然后切换账号。",
+  "codex.row.childrenResuming": "账号已切换，正在等待子代理恢复。",
+  "codex.row.continueUnconfirmed": "无法确认是否已自动继续。继续之前请检查对话。",
   "codex.row.reading": "正在读取用量…",
   "codex.lane.limit": "限额",
   "codex.peer.account": "账号 {n}",
@@ -60,6 +66,7 @@ const catalog: Catalog = {
   "codex.panel.unreachable": "无法连接服务器",
   "codex.panel.switchConflict": "刚才有其他更改移动了默认账号，请重试。",
   "codex.panel.switchFailed": "切换未成功，请重新加载后重试。",
+  "codex.panel.liveSwitchFailed": "默认账号已保存，但已打开的 Codex 应用未能切换。请使用 /status 检查其账号。",
   "codex.panel.removed": "账号已移除。其登录信息和历史记录保留在 ccdeck 的数据文件夹中，并未删除。",
   "codex.panel.removeFailed": "无法移除账号，请重新加载后重试。",
   "codex.panel.badName": "名称不能包含斜杠。",
