@@ -610,6 +610,28 @@
    nested rings for one focus is worse than a small one in the right place. The
    row already answers the press it receives: `.ap-lan-pick:active` scales. */
 .ap-lan-pick:hover .ap-lan-dead { color: color-mix(in srgb, var(--muted) 65%, var(--text)); }
+
+/* CLAUDE AND CODEX, each under its own name, only on a deck that has both: one
+   address can be an account of each, and two ticks beside one email have to
+   say which is which. The name is the label for the ticks under it, so it sits
+   on the list's own left edge in the quiet register of a column head. */
+.ap-lan-group {
+  margin: 6px 0 1px;
+  color: var(--muted);
+  font-size: calc(10px + max(-1px, var(--ui-text-increase, 0px)));
+  font-weight: 600;
+}
+.ap-lan-group:first-child { margin-top: 0; }
+
+/* The same word beside an email wherever a lane or a round names a Codex
+   login. Quiet, and in the email's own line, so the row stays one line. */
+.lan-kind {
+  margin-left: 6px;
+  color: var(--muted);
+  font-size: calc(9px + max(0px, var(--ui-text-increase, 0px)));
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
 .ap-lan-dead { flex: none; margin-left: auto; color: var(--muted); font-size: calc(9px + max(0px, var(--ui-text-increase, 0px))); }
 
 /* The machine a request is about, named in the sentence that asks about it. */

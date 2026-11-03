@@ -27,6 +27,7 @@ import { createRouteCheck } from "./route-via.mjs";
 import { DISCOVERY_PORT } from "./lan-beacon.mjs";
 import { aboutThisDeck } from "./lan-about.mjs";
 import { createUsageShare } from "./usage-share.mjs";
+import { createCodexLan } from "./lan-codex-store.mjs";
 import { MAC_FW, PROBE_PS, UFW_CONF, UFW_DEFAULTS, isActive, localAliases, reachability, readMacProbe, readProbe, readUfw, silentInbound } from "./lan-reach.mjs";
 import { run } from "./exec.mjs";
 // A LAN round checks the imports it lands the way the paste box does.
@@ -131,6 +132,10 @@ export const lanEngine = createEngine({
     // moved/reused slot can never satisfy a want for another account.
     return accountKey(accounts[0]?.email, accounts[0]?.organizationUuid) === expectedKey ? out.blob : null;
   },
+  // This deck's Codex logins, offered and taken by the same pairing in a list
+  // of their own — see lan-codex.mjs for the rules and lan-codex-store.mjs for
+  // what is read and written.
+  codex: createCodexLan(),
   // The logins a round just imported, checked once after it — see checkImports.
   checkArrivals: async steps => {
     const { checkImports } = await import("./cswap-admin.mjs");

@@ -75,11 +75,11 @@ The deck opens on these eight pictures the first time it runs — they are the w
 </tr>
 <tr>
 <td><img src="assets/guide/welcome-5.svg" width="440" alt="Cores, memory and heat while the agents run, and what is hogging them."></td>
-<td><img src="assets/guide/welcome-6.svg" width="440" alt="Several Claude accounts: switch, add one, share one to another machine."></td>
+<td><img src="assets/guide/welcome-6.svg" width="440" alt="Several Claude and Codex accounts: switch, add one, share one to another machine."></td>
 </tr>
 <tr>
 <td align="center"><sub>Cores, memory and heat while the agents run, and what is hogging them.</sub></td>
-<td align="center"><sub>Several Claude accounts: switch, add one, share one to another machine.</sub></td>
+<td align="center"><sub>Several Claude and Codex accounts: switch, add one, share one to another machine.</sub></td>
 </tr>
 <tr>
 <td><img src="assets/guide/welcome-7.svg" width="440" alt="Your machines repair each other's expired logins over the local network."></td>

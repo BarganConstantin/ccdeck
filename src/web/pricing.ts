@@ -209,6 +209,18 @@ export function billedInputTokens(
   return Math.max(0, usage.inputTokens - usage.cacheReadTokens - written);
 }
 
+/** How many tokens one usage block holds, each counted once. The same split
+ *  as billedInputTokens above: Claude reports cache reads and writes beside
+ *  its input, so the four are added; Codex's input already holds its cached
+ *  reads and writes, so its total is input + output, Codex's own
+ *  `total_tokens` (ContextModal reads a session the same way). Adding the
+ *  four for Codex counted every cached token twice. */
+export function billedTokens(usage: TokenUsage, modelId: string | undefined): number {
+  return isCodexModel(modelId)
+    ? usage.inputTokens + usage.outputTokens
+    : usage.inputTokens + usage.outputTokens + usage.cacheReadTokens + usage.cacheCreateTokens;
+}
+
 /** A model with no row comes back as a breakdown of zeros, and those zeros are
  *  not a price: they are "this build cannot say". A caller that SUMS the result
  *  must ask ratesForModel as well and carry the unpriced tokens beside its

@@ -39,7 +39,7 @@ export interface Peer {
   lastSeen?: number;
   /** `why` on a row that did not arrive says why; on one that did, it is a
    *  problem this deck found with it after — see roundWhy. */
-  last?: { at: number; error?: string; done?: Array<{ email: string; action: string; ok: boolean; why?: string | null }> } | null;
+  last?: { at: number; error?: string; done?: Array<{ key?: string; email: string; action: string; ok: boolean; why?: string | null; provider?: "codex" }> } | null;
   /** What it said about itself. Null until it has, and forever for a deck
    *  older than the one that started saying. */
   about?: DeckAbout | null;
@@ -53,6 +53,8 @@ export interface Peer {
     at: number;
     accounts: OfferedAccount[];
     current?: { key: string } | { hidden: true } | { other: true } | null;
+    /** Its Codex logins, from a deck new enough to send them. */
+    codex?: OfferedAccount[];
   } | null;
   /** When somebody here accepted it. Null for a pairing made before this was
    *  kept, and for a row that is not paired. */
@@ -189,6 +191,9 @@ export interface LanReach {
  *  offeredHere. */
 export interface LanAccount {
   key: string; email: string; alive: boolean; shareable?: boolean; active?: boolean; inUse?: boolean;
+  /** A Codex login rather than a Claude one — its key starts `codex:`. Absent
+   *  means Claude, which is every row from before Codex logins moved. */
+  provider?: "codex";
 }
 
 /** What this deck is offering, and until when. */
