@@ -332,6 +332,80 @@ describe("home", () => {
   });
 });
 
+// What each round tells the account notifications (account-watch.mjs), which
+// say the swap notice from it and nothing else.
+describe("what a tick reports", () => {
+  const told = (options: Row) => {
+    const outcomes: Row[] = [];
+    return { options: { ...options, onTick: (o: Row) => { outcomes.push(o); } }, outcomes };
+  };
+
+  it("says the loop is off, and nothing more, while it is", async () => {
+    const r = rig(roster(), { [A]: q(95), [B]: q(10) });
+    const { options, outcomes } = told(r.options);
+    await codexAutoTick(options);
+    expect(outcomes).toEqual([{ enabled: false }]);
+  });
+
+  it("names both accounts of a move by what the panel calls them, with what the one it left had used", async () => {
+    await enable();
+    const rows = [
+      row(A, { active: true, label: "Work · a@x.com", managedLabel: "Work", account: "a@x.com" }),
+      row(B, { label: "b@x.com", account: "b@x.com" }),
+    ];
+    const r = rig(rows, { [A]: q(93), [B]: q(10) });
+    const { options, outcomes } = told(r.options);
+    await codexAutoTick(options);
+    expect(outcomes).toEqual([{
+      enabled: true, threshold: 90, switched: true, trigger: "proactive", used: 93,
+      from: { id: A, name: "Work" }, to: { id: B, name: "b@x.com" },
+    }]);
+  });
+
+  it("says a round that waited out the last move, one that stayed and one that lost a race", async () => {
+    await enable();
+    let t = NOW;
+    const r = rig(roster(), { [A]: q(95), [B]: q(10) }, { now: () => t });
+    const { options, outcomes } = told(r.options);
+    await codexAutoTick(options);
+    t += 60_000;
+    await codexAutoTick(options);
+    expect(outcomes[1]).toEqual({ enabled: true, threshold: 90, switched: false, reason: "cooldown" });
+
+    const calm = told(rig(roster(), { [A]: q(40), [B]: q(10) }).options);
+    await rm(store, { recursive: true, force: true });
+    store = await mkdtemp(join(tmpdir(), "codex-auto-"));
+    await enable();
+    await codexAutoTick({ ...calm.options, store });
+    expect(calm.outcomes).toEqual([{ enabled: true, threshold: 90, switched: false }]);
+
+    const raced = told(rig(roster(), { [A]: q(95), [B]: q(10) }, { selectError: "selection_conflict" }).options);
+    await codexAutoTick({ ...raced.options, store });
+    expect(raced.outcomes).toEqual([{ enabled: true, threshold: 90, switched: false }]);
+  });
+
+  it("tells the way home as such, and nothing for a round that failed", async () => {
+    await writeFile(join(store, "codex-auto.json"), JSON.stringify({ enabled: true, home: B, lastActive: A, movedAt: NOW - 31 * 60_000 }));
+    const { options, outcomes } = told(rig(roster(), { [A]: q(20), [B]: q(10) }).options);
+    await codexAutoTick(options);
+    expect(outcomes).toEqual([expect.objectContaining({ switched: true, trigger: "home", used: 20, to: expect.objectContaining({ id: B }) })]);
+
+    await rm(store, { recursive: true, force: true });
+    store = await mkdtemp(join(tmpdir(), "codex-auto-")); // past the move's cooldown
+    await enable();
+    const failed = told({ ...rig(roster(), {}).options, discover: async () => { throw new Error("boom"); } });
+    await codexAutoTick(failed.options);
+    expect(failed.outcomes).toEqual([]);
+  });
+
+  it("never lets a listener that throws cost the round", async () => {
+    await enable();
+    const r = rig(roster(), { [A]: q(95), [B]: q(10) });
+    await expect(codexAutoTick({ ...r.options, onTick: () => { throw new Error("listener"); } })).resolves.toBeUndefined();
+    expect(r.select).toHaveBeenCalledTimes(1);
+  });
+});
+
 describe("loop", () => {
   it("starts once, returns the same stop, and skips overlapping ticks", async () => {
     vi.useFakeTimers({ toFake: ["setInterval", "clearInterval"] }); // file reads stay real

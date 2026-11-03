@@ -173,97 +173,119 @@ const hasLogin = row => (row.signedIn === undefined ? row.signedInFilePresent ==
 const sameLogin = (a, b) => a.id === b.id || a.sameAccountAs === b.id || b.sameAccountAs === a.id
   || (a.sameAccountAs != null && a.sameAccountAs === b.sameAccountAs);
 
+/** What the notifications call a profile: its own name, else who it is signed
+ *  in as, else the row's label. */
+const nameOf = row => row.managedLabel || row.account || row.label || null;
+
+/**
+ * One round of the loop. `options.onTick`, when given, is told what the round
+ * did (account-watch.mjs `noteCodexAutoTick`, which says the swap notice):
+ * `{ enabled: false }` while the loop is off; else `threshold` and `switched`,
+ * `reason: 'cooldown'` while the last move settles, and for a move `from`,
+ * `to`, `used` and `trigger`. A round that failed tells nothing.
+ */
 export async function codexAutoTick(options = {}) {
-  try {
-    const state = await load(options);
-    if (!state.enabled) return;
-    const m = mem(options);
-    const now = options.now ?? Date.now;
-    if (now() - m.lastSwitchAt < COOLDOWN_MS) return;
-    const nowSec = Math.floor(now() / 1000);
-    const threshold = Number(state.threshold);
-    const readSelection = options.readSelection ?? readCodexSelection;
-    const discover = options.discover ?? discoverCodexProfiles;
-    const readQuota = options.readQuota ?? readCodexProfileQuota;
-    const select = options.select ?? selectCodexProfile;
+  let outcome = null;
+  try { outcome = await tickOnce(options); } catch { /* a failed round is retried on the next tick */ }
+  if (outcome) {
+    try { options.onTick?.(outcome); } catch { /* never the loop's problem */ }
+  }
+}
 
-    const selection = await readSelection(options);
-    const rows = await discover({ ...options, selection, enableNative: true });
-    const current = rows.find(r => r.id === selection.profileId);
-    if (!current) return;
-    const homeRow = state.home ? rows.find(r => r.id === state.home) ?? null : null;
-    const onHome = homeRow != null && sameLogin(homeRow, current);
+async function tickOnce(options) {
+  const state = await load(options);
+  if (!state.enabled) return { enabled: false };
+  const m = mem(options);
+  const now = options.now ?? Date.now;
+  const threshold = Number(state.threshold);
+  const stayed = { enabled: true, threshold, switched: false };
+  if (now() - m.lastSwitchAt < COOLDOWN_MS) return { ...stayed, reason: 'cooldown' };
+  const nowSec = Math.floor(now() / 1000);
+  const readSelection = options.readSelection ?? readCodexSelection;
+  const discover = options.discover ?? discoverCodexProfiles;
+  const readQuota = options.readQuota ?? readCodexProfileQuota;
+  const select = options.select ?? selectCodexProfile;
 
-    // WHO PICKED THE DEFAULT IN USE. One the last tick did not see is a pick
-    // by hand — the panel's Switch, or Codex itself — and stays picked until it
-    // fills or a home is set. Written over the file as it is now only when the
-    // person has not changed home since it was read, or this would undo them.
-    const manual = state.manual || (state.lastActive != null && state.lastActive !== current.id);
-    const goHome = state.goHome && !onHome;
-    if (manual !== state.manual || goHome !== state.goHome || state.lastActive !== current.id) {
-      await update(options, s => (s.home === state.home && s.goHome === state.goHome && s.manual === state.manual
-        ? { ...s, manual, goHome, lastActive: current.id }
-        : { ...s, lastActive: current.id }));
+  const selection = await readSelection(options);
+  const rows = await discover({ ...options, selection, enableNative: true });
+  const current = rows.find(r => r.id === selection.profileId);
+  if (!current) return stayed;
+  const homeRow = state.home ? rows.find(r => r.id === state.home) ?? null : null;
+  const onHome = homeRow != null && sameLogin(homeRow, current);
+
+  // WHO PICKED THE DEFAULT IN USE. One the last tick did not see is a pick
+  // by hand — the panel's Switch, or Codex itself — and stays picked until it
+  // fills or a home is set. Written over the file as it is now only when the
+  // person has not changed home since it was read, or this would undo them.
+  const manual = state.manual || (state.lastActive != null && state.lastActive !== current.id);
+  const goHome = state.goHome && !onHome;
+  if (manual !== state.manual || goHome !== state.goHome || state.lastActive !== current.id) {
+    await update(options, s => (s.home === state.home && s.goHome === state.goHome && s.manual === state.manual
+      ? { ...s, manual, goHome, lastActive: current.id }
+      : { ...s, lastActive: current.id }));
+  }
+
+  const readOpts = { ...options, selection, enableNative: true };
+  const currentQuota = await readQuota(current.id, readOpts);
+  // Only a reading taken now says how full an account is: the last good one
+  // kept for a failed read is an old number, and acting on it moves sessions
+  // for a window that may have reset, or onto an account that has since filled.
+  const currentLoad = currentQuota?.ok && !currentQuota.stale ? loadOf(liveWindows(currentQuota, nowSec)) : null;
+  if (currentLoad === null) return stayed;
+
+  // Home has room: in rotation, signed in, read recently, and comfortably
+  // under the threshold on every window that has not reset.
+  const homeHasRoom = async () => {
+    if (!homeRow || onHome || homeRow.available === false || !hasLogin(homeRow) || state.heldOut.includes(homeRow.id)) return false;
+    const q = await readQuota(homeRow.id, readOpts);
+    if (!q?.ok || q.stale || (Number.isFinite(q.fetchedAt) && now() - q.fetchedAt > FRESH_FOR_MS)) return false;
+    const load = loadOf(liveWindows(q, nowSec));
+    return load !== null && load < threshold - ROOM_MARGIN_PCT;
+  };
+  /** Move the default to `row`; what the round did, for the notifications. */
+  const move = async (row, trigger) => {
+    try {
+      await select({ id: row.id, expectedRevision: selection.revision, operationId: randomUUID() }, options);
+    } catch (e) {
+      if (e?.code === 'selection_conflict') return stayed; // somebody else moved it; look again next tick
+      throw e;
     }
-
-    const readOpts = { ...options, selection, enableNative: true };
-    const currentQuota = await readQuota(current.id, readOpts);
-    // Only a reading taken now says how full an account is: the last good one
-    // kept for a failed read is an old number, and acting on it moves sessions
-    // for a window that may have reset, or onto an account that has since filled.
-    const currentLoad = currentQuota?.ok && !currentQuota.stale ? loadOf(liveWindows(currentQuota, nowSec)) : null;
-    if (currentLoad === null) return;
-
-    // Home has room: in rotation, signed in, read recently, and comfortably
-    // under the threshold on every window that has not reset.
-    const homeHasRoom = async () => {
-      if (!homeRow || onHome || homeRow.available === false || !hasLogin(homeRow) || state.heldOut.includes(homeRow.id)) return false;
-      const q = await readQuota(homeRow.id, readOpts);
-      if (!q?.ok || q.stale || (Number.isFinite(q.fetchedAt) && now() - q.fetchedAt > FRESH_FOR_MS)) return false;
-      const load = loadOf(liveWindows(q, nowSec));
-      return load !== null && load < threshold - ROOM_MARGIN_PCT;
+    m.lastSwitchAt = now();
+    m.lastTick = { at: now(), event: 'switched', to: row.id, trigger };
+    await update(options, s => ({ ...s, manual: false, lastActive: row.id, movedAt: now(), goHome: s.goHome && row.id !== s.home }));
+    return {
+      ...stayed, switched: true, trigger, used: currentLoad,
+      from: { id: current.id, name: nameOf(current) }, to: { id: row.id, name: nameOf(row) },
     };
-    const move = async (to, trigger) => {
-      try {
-        await select({ id: to, expectedRevision: selection.revision, operationId: randomUUID() }, options);
-      } catch (e) {
-        if (e?.code === 'selection_conflict') return; // somebody else moved it; look again next tick
-        throw e;
-      }
-      m.lastSwitchAt = now();
-      m.lastTick = { at: now(), event: 'switched', to, trigger };
-      await update(options, s => ({ ...s, manual: false, lastActive: to, movedAt: now(), goHome: s.goHome && to !== s.home }));
-    };
+  };
 
-    if (currentLoad >= threshold) {
-      // HAS TO LEAVE: home first, then the account the engine picks.
-      if (await homeHasRoom()) { await move(homeRow.id, 'home'); return; }
-      // A row that is the same ChatGPT account shares the quota that just ran out.
-      const roster = rows.filter(r => r.id !== current.id && r.available && hasLogin(r)
-        && !state.heldOut.includes(r.id) && r.sameAccountAs !== current.id);
-      const quotas = new Map();
-      for (const row of roster) { // one at a time: each read may spawn a process
-        quotas.set(row.id, await readQuota(row.id, readOpts));
-      }
-      const pick = chooseEngineAccount(roster, quotas, { threshold, next: state.next, nowSec });
-      if (!pick) {
-        m.lastTick = { at: now(), event: 'nowhere', reason: 'no_account_with_room' };
-        return;
-      }
-      await move(pick.id, 'proactive');
-      return;
+  if (currentLoad >= threshold) {
+    // HAS TO LEAVE: home first, then the account the engine picks.
+    if (await homeHasRoom()) return move(homeRow, 'home');
+    // A row that is the same ChatGPT account shares the quota that just ran out.
+    const roster = rows.filter(r => r.id !== current.id && r.available && hasLogin(r)
+      && !state.heldOut.includes(r.id) && r.sameAccountAs !== current.id);
+    const quotas = new Map();
+    for (const row of roster) { // one at a time: each read may spawn a process
+      quotas.set(row.id, await readQuota(row.id, readOpts));
     }
+    const pick = chooseEngineAccount(roster, quotas, { threshold, next: state.next, nowSec });
+    const target = pick ? roster.find(r => r.id === pick.id) : null;
+    if (!target) {
+      m.lastTick = { at: now(), event: 'nowhere', reason: 'no_account_with_room' };
+      return stayed;
+    }
+    return move(target, 'proactive');
+  }
 
-    // BELOW THE THRESHOLD the one move made is the way home, and it is
-    // optional: never from home itself, never from a pick by hand, and only
-    // once the last move has settled — unless a home was just set, when the
-    // person asked to be taken there.
-    if (!homeRow || onHome) return;
-    const settled = now() - Math.max(m.lastSwitchAt, state.movedAt) >= SETTLE_MS;
-    // Awaited here, inside the try: a returned promise that rejects would
-    // escape it.
-    if ((goHome || (!manual && settled)) && await homeHasRoom()) await move(homeRow.id, 'home');
-  } catch { /* a failed round is retried on the next tick */ }
+  // BELOW THE THRESHOLD the one move made is the way home, and it is
+  // optional: never from home itself, never from a pick by hand, and only
+  // once the last move has settled — unless a home was just set, when the
+  // person asked to be taken there.
+  if (!homeRow || onHome) return stayed;
+  const settled = now() - Math.max(m.lastSwitchAt, state.movedAt) >= SETTLE_MS;
+  if ((goHome || (!manual && settled)) && await homeHasRoom()) return move(homeRow, 'home');
+  return stayed;
 }
 
 let stopLoop = null;

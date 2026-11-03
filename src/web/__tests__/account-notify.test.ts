@@ -351,6 +351,97 @@ describe("a switch the deck's auto-switch made", () => {
   });
 });
 
+// Codex's Auto-switch (codex-auto.mjs) ticks on its own and names both accounts
+// itself; a tick of either loop answers only for its own provider's notices.
+describe("a switch Codex's Auto-switch made", () => {
+  const ANA = { key: codexAccountKey("acc-1", "ana@x.com")!, name: "ana@x.com" };
+  const codex = (pct: number) => codexWindows({
+    ok: true, windows: [{ id: "primary", label: "5-hour window", pct, windowSec: 5 * H, resetAt: T0 / 1000 + 2 * H }],
+  });
+  const moved = (over: Record<string, unknown> = {}) => ({
+    enabled: true, threshold: 90, switched: true, trigger: "proactive", used: 93,
+    from: { id: "a".repeat(20), name: "Ana" }, to: { id: "b".repeat(20), name: "Work" }, ...over,
+  });
+  const stayed = (over: Record<string, unknown> = {}) => ({ enabled: true, threshold: 90, switched: false, ...over });
+
+  it("is said once, under Codex's name, with where it went and why", async () => {
+    const { n, said } = harness();
+    await n.codexTick(moved());
+    expect(said).toEqual([{
+      title: "Codex auto-switch — ccdeck",
+      body: "Switched to Work · Ana reached 90%",
+      meta: { who: "Codex auto-switch", chime: null, silent: true },
+    }]);
+  });
+
+  it("says the way home, and 100% when the account it left was full", async () => {
+    const { n, said } = harness();
+    await n.codexTick(moved({ trigger: "home", used: 20 }));
+    await n.codexTick(moved({ used: 100 }));
+    expect(bodies(said)).toEqual(["Back on Work · your home account", "Switched to Work · Ana reached 100%"]);
+  });
+
+  it("carries the crossing, so the threshold notice for it is never sent", async () => {
+    const { n, said } = harness();
+    await n.codexTick(stayed());
+    await n.observe("codex", ANA, codex(93));
+    expect(said, "the crossing went out before the tick could carry it").toEqual([]);
+    await n.codexTick(moved());
+    expect(bodies(said)).toEqual(["Switched to Work · Ana reached 90%"]);
+    await n.observe("codex", ANA, codex(95));
+    expect(said).toHaveLength(1);
+  });
+
+  it("holds through a cooldown, and lets go when a tick stays or the loop is off", async () => {
+    const { n, said } = harness();
+    await n.codexTick(stayed());
+    await n.observe("codex", ANA, codex(93));
+    await n.codexTick(stayed({ reason: "cooldown" }));
+    expect(said).toEqual([]);
+    await n.codexTick(stayed());
+    expect(bodies(said)).toEqual(["5-hour usage reached 90% · resets in 2h"]);
+
+    const off = harness();
+    await off.n.codexTick(stayed());
+    await off.n.observe("codex", ANA, codex(93));
+    await off.n.codexTick({ enabled: false });
+    expect(bodies(off.said)).toEqual(["5-hour usage reached 90% · resets in 2h"]);
+  });
+
+  it("holds nothing while the loop is off or below the threshold it runs at", async () => {
+    const { n, said } = harness();
+    await n.observe("codex", ANA, codex(91));
+    expect(said).toHaveLength(1);
+    const high = harness();
+    await high.n.codexTick(stayed({ threshold: 95 }));
+    await high.n.observe("codex", ANA, codex(92));
+    expect(high.said).toHaveLength(1);
+  });
+
+  it("answers only for Codex, and a Claude tick only for Claude", async () => {
+    const { n, said } = harness();
+    n.autoSwitch(true);
+    await n.tick(nothing(), null);
+    await n.codexTick(stayed());
+    await n.observe("claude", PERSONAL, claude(93));
+    await n.observe("codex", ANA, codex(93));
+    expect(n.held()).toHaveLength(2);
+    await n.codexTick(moved());
+    expect(n.held().map(e => e.provider)).toEqual(["claude"]);
+    await n.tick(nothing("no-candidates"), null);
+    expect(bodies(said)).toEqual(["Switched to Work · Ana reached 90%", "5-hour usage reached 90% · resets in 2h"]);
+  });
+
+  it("says nothing with the swap switch off, and lets the crossing speak for itself", async () => {
+    const { n, said } = harness({ settings: { swap: false, quota: true, reset: true } });
+    await n.codexTick(stayed());
+    await n.observe("codex", ANA, codex(93));
+    expect(bodies(said)).toEqual(["5-hour usage reached 90% · resets in 2h"]);
+    await n.codexTick(moved());
+    expect(said).toHaveLength(1);
+  });
+});
+
 describe("the three switches", () => {
   it("each works alone: the threshold off does not silence the swap", async () => {
     const { n, said } = harness({ settings: { swap: true, quota: false, reset: false } });
