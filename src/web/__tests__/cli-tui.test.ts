@@ -322,7 +322,8 @@ describe("the frame", () => {
     const bottom = lines.findIndex(l => l.includes("any key closes ─╯"));
     expect(top).toBeGreaterThan(0);
     expect(bottom).toBeGreaterThan(top);
-    expect(lines.slice(top, bottom).some(l => l.includes("enter  s   switch to it, or sign it in again"))).toBe(true);
+    expect(lines.slice(top, bottom).some(l => /enter  s +switch to it, or sign it in again/.test(l))).toBe(true);
+    expect(lines.slice(top, bottom).some(l => /c  l  ← → +Claude's or Codex's accounts  ·  Local network/.test(l))).toBe(true);
     expect(lines.some(l => l.includes("●  in use    ⌂  Auto-switch's home    ‖  held out of rotation"))).toBe(true);
     expect(lines[bottom][lines[top].indexOf("╭─ Keys")]).toBe("╰");
     // The screen around it is still there, faded.
