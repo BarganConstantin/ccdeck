@@ -1,25 +1,28 @@
-// THE PANEL BAR: ONE BAR ON THE LEFT HOLDS ALL THE DOORS (V4's Figma).
+// THE TWO STRIPES: A DOOR STAYS ON THE SIDE WHERE ITS PANEL OPENS (V4's Figma).
 //
-// The panel toggles used to sit in two stripes, one on each edge. Now one bar,
-// 40 wide, runs down the left edge: the doors at the top in runs between rules
-// (Sessions, Accounts · reports · Usage, Machine · activity · watchers ·
-// trackers, Explore), and the utilities at its foot (Radio, Settings).
-// rail-items.tsx lists them; each run is a named group.
+// One stripe on each edge, 40 wide, so the eye never crosses the canvas to find
+// what a door opened. The left one holds what opens on the left: Sessions,
+// Accounts · the capacity reports · trackers, Explore, and the utilities at its
+// foot (Radio, Settings). The right one holds what opens on the right: the
+// Inspector, alone and first · Usage, Machine · the three activity records ·
+// Browser watch, Radar, with no foot. rail-items.tsx lists them; each run
+// between two rules is a named group.
 //
-// The bar uses upright icons, with names and shortcuts in its tooltips.
-// Phone controls and the topbar utilities keep their visible words.
+// The stripes use upright icons, with names and shortcuts in their tooltips,
+// which open towards the canvas: right from the left stripe, left from the right
+// one. Phone controls and the topbar utilities keep their visible words.
 // The topbar keeps the identity, the stream's state, the waiting queue, Search
-// and Feedback (UtilityRun). Under 641px the bar and the utilities become one
-// dock along the bottom: the four panels and Settings one tap away, and the
+// and Feedback (UtilityRun). Under 641px the stripes and the utilities become
+// one dock along the bottom: the four panels and Settings one tap away, and the
 // three rare dialogs — History, Browser watch, Feedback — behind a More.
 //
 // THESE ARE NOT TABS. A stripe button shows or hides a panel beside the canvas,
 // several can be open at once, and the canvas never leaves the screen: "One
 // canvas. No tabs." (PRODUCT.md) is the promise the shape keeps.
 //
-// Semantics: each stripe is an APG toolbar (one Tab stop, the arrows inside it,
-// Home and End), vertical on the edges and horizontal in the dock. Its buttons
-// keep the roles they had on the bar: a disclosure for the four panels
+// Semantics: each stripe is its own APG toolbar (one Tab stop each, the arrows
+// inside it, Home and End), vertical on the edges and horizontal in the dock.
+// Its buttons keep the roles they had: a disclosure for the four panels
 // (aria-expanded, and aria-controls while the region exists), aria-haspopup=
 // "dialog" for the four that open a modal. Every key the deck answers is
 // unchanged, and each button names its own in aria-keyshortcuts while the
@@ -104,7 +107,9 @@ export function railHint(item: RailItem, singleKeys: boolean, wordShown: boolean
  *  carry is a literal the sheet sweeps can hold to a rule. */
 const BUTTON_CLASS = { stripe: "rail-btn rail-btn-stripe", dock: "rail-btn rail-btn-dock", bar: "rail-btn rail-btn-bar" } as const;
 const BAR_LOOK_CLASS = { field: "rail-btn rail-btn-bar rail-btn-field", icon: "rail-btn rail-btn-bar rail-btn-icon" } as const;
-const RAIL_CLASS = { left: "edge-rail edge-rail-left" } as const;
+const RAIL_CLASS = { left: "edge-rail edge-rail-left", right: "edge-rail edge-rail-right" } as const;
+/** A stripe's hint opens towards the canvas: the side facing it. */
+const RAIL_HINT_SIDE = { left: "right", right: "left" } as const;
 
 const NEXT_KEYS = { vertical: "ArrowDown", horizontal: "ArrowRight" } as const;
 const PREV_KEYS = { vertical: "ArrowUp", horizontal: "ArrowLeft" } as const;
@@ -213,12 +218,13 @@ function RailButton({ item, index, tabbable, onFocusIndex, hint, variant, offlin
   );
 }
 
-/** The Panel bar: the one bar on the window's left edge, under the topbar. Its
- *  doors are runs between rules at the top; its foot (utilities, no rule) is
- *  pushed to the bottom. Its hint opens towards the canvas, to its right. */
-export function EdgeRail({ label, groups, foot = [] }: { label: string; groups: RailItem[][]; foot?: RailItem[] }) {
+/** A stripe: on the window's left or right edge, under the topbar. Its doors
+ *  are runs between rules at the top; its foot (utilities, no rule), if it has
+ *  one, is pushed to the bottom. Its hint opens towards the canvas: to its right
+ *  on the left stripe, to its left on the right one. */
+export function EdgeRail({ side, label, groups, foot = [] }: { side: "left" | "right"; label: string; groups: RailItem[][]; foot?: RailItem[] }) {
   const t = useT();
-  const hint = useHint("right");
+  const hint = useHint(RAIL_HINT_SIDE[side]);
   const items = groups.filter(g => g.length > 0);
   const roving = useRoving(items.flat().length + foot.length, "vertical");
   const ref = useRef<HTMLDivElement>(null);
@@ -232,7 +238,7 @@ export function EdgeRail({ label, groups, foot = [] }: { label: string; groups: 
     );
   };
   return (
-    <div ref={ref} className={RAIL_CLASS.left} role="toolbar" aria-label={label}
+    <div ref={ref} className={RAIL_CLASS[side]} role="toolbar" aria-label={label}
       aria-orientation="vertical" onKeyDown={roving.onKeyDown}>
       <div className="rail-doors">
       {items.map(group => {

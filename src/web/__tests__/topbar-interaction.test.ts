@@ -340,8 +340,10 @@ describe("Pause is a canvas verb and lives on the canvas (#527's rule, applied l
     expect(app).toMatch(/<div className="actions"><UtilityRun items=\{\[rails\.search, \.\.\.rails\.topUtilities\]\} \/><\/div>/);
     expect(app).toMatch(/utilities: \[settings, feedback\]/);
     expect(app).toMatch(/ariaLabel: t\("board\.rail\.settings"\)/);
-    // V4's Figma: the one bar holds every door, Radio and Settings at its foot.
-    expect(app).toMatch(/<EdgeRail label=\{t\("board\.rail\.tools"\)\} groups=\{rails\.panelBar\} foot=\{rails\.panelFoot\} \/>/);
+    // CHANGED ON PURPOSE (V4's Figma): two stripes, each its own toolbar; Radio
+    // and Settings at the left one's foot, the right one with none.
+    expect(app).toMatch(/<EdgeRail side="left" label=\{t\("board\.rail\.tools"\)\} groups=\{rails\.leftStripe\} foot=\{rails\.leftFoot\} \/>/);
+    expect(app).toMatch(/<EdgeRail side="right" label=\{t\("shell\.rail\.right"\)\} groups=\{rails\.rightStripe\} \/>/);
     expect(app).toMatch(/ariaLabel: t\("board\.rail\.usage"\)/);
     expect(app).not.toMatch(/Sound settings/);
     expect(app, "Pause came back as a chrome control").not.toMatch(/id: "pause"|ariaLabel: "Pause/);

@@ -48,8 +48,7 @@ import { usePanelReturn } from "./use-panel-return";
 import { useNodeDrag } from "./use-node-drag";
 import { EmptyHero, TabCapHero } from "./components/EmptyHero";
 import DetailAside from "./components/DetailAside";
-import InspectorTab from "./components/InspectorTab";
-import { inspectorIsSheet, inspectorTabShown } from "./inspector-corner";
+import { inspectorDoorOpen, inspectorDoorPress, inspectorIsSheet } from "./inspector-corner";
 import { EdgeDock, EdgeRail, PHONE_QUERY, UtilityRun } from "./components/EdgeRails";
 import { railItems } from "./rail-items";
 import { unreadOf, useFeedbackAccount } from "./feedback-unread";
@@ -661,7 +660,7 @@ function Inner() {
   // (D, the ribbon) under it: workspace.css says why.
   const inspectorColumn = !useMediaQuery(INSPECTOR_SHEET_QUERY);
   // From 1100 to 1319 Workspace's Inspector is a sheet over the pane that starts
-  // folded: its tab (components/InspectorTab.tsx) is what the reader sees.
+  // folded: its door on the right stripe (rail-items.tsx) is what the reader sees.
   const inspectorSheet = inspectorIsSheet({ workspace: inWorkspace && stage.enabled, wide: wideWindow, column: inspectorColumn });
   // On a phone the Inspector is a sheet, and leaves down the bottom edge as the
   // other three do: its element is held for the slide, the flag already
@@ -685,8 +684,8 @@ function Inner() {
   const foldInspector = useCallback(() => {
     setInspectorFolded(true);
     setDetailOpen(false);
-    // The keyboard goes to the pane, never the page; failing that, to the tab's
-    // button (fold-focus.ts).
+    // The keyboard goes to the pane, never the page; failing that, to the
+    // Inspector's door (fold-focus.ts).
     requestAnimationFrame(() => { focusAfterFold(document); });
   }, [setDetailOpen]);
   // The sheet closed some way that is not Fold (D, a deselect) with the keys
@@ -701,21 +700,30 @@ function Inner() {
       if (!at || at === document.body || at.closest(".detail")) focusAfterFold(document);
     });
   }, [inspectorSheet, detailShown]);
-  // Workspace's Inspector tab: drawn from 1100 up, never under Zoom, while the
-  // Inspector is folded (the column, from 1320) or its sheet is closed (1100 to
-  // 1319). ‹ does what D does: shows the session's Inspector, picking a session
-  // first when none is selected.
-  const inspectorTab = inspectorTabShown({
-    workspace: inWorkspace && stage.enabled, wide: wideWindow, column: inspectorColumn,
-    zoom: zoomPhase !== undefined || stage.expanded, folded: inspectorFolded, shown: detailShown,
+  // The Inspector's door on the right stripe (rail-items.tsx). It reads Open
+  // while the Inspector shows: the column in Workspace from 1320 (until it is
+  // folded), the sheet from 1100 to 1319, or the detail panel on the Board and
+  // under 1100. Never under Zoom, which folds the panels away.
+  const zoomed = inWorkspace && (zoomPhase !== undefined || stage.expanded);
+  const inspectorOpen = inspectorDoorOpen({
+    workspace: inWorkspace, column: inspectorColumn, folded: inspectorFolded, shown: detailShown, zoomed,
   });
   const showInspector = useCallback(() => {
     setInspectorFolded(false);
     if (primarySelectedIdRef.current) setDetailOpen(true);
     else pickSessionForInspector(stateRef.current, focusSession, stepAgent);
-    // The tab is not drawn once the Inspector is: the keys go into it.
+    // The door is not what the keys are for once the Inspector is drawn: they go into it.
     requestAnimationFrame(() => { document.querySelector<HTMLElement>(".detail .insp-tab[aria-selected=\"true\"]")?.focus(); });
   }, [setDetailOpen, primarySelectedIdRef, stateRef, focusSession, stepAgent]);
+  // In Workspace the door folds and unfolds the column or the sheet; on the
+  // Board and under 1100 it is exactly D (inspector-corner.ts says which).
+  const toggleInspector = useCallback(() => {
+    const press = inspectorDoorPress({ workspace: inWorkspace, column: inspectorColumn, sheet: inspectorSheet, open: inspectorOpen });
+    if (press === "fold") foldInspector();
+    else if (press === "show") showInspector();
+    else if (primarySelectedIdRef.current) setDetailOpen(o => !o);
+    else pickSessionForInspector(stateRef.current, focusSession, stepAgent);
+  }, [inWorkspace, inspectorColumn, inspectorSheet, inspectorOpen, foldInspector, showInspector, setDetailOpen, primarySelectedIdRef, stateRef, focusSession, stepAgent]);
   const sheetFoldRef = useMirroredRef<(() => void) | null>(inspectorSheet && detailShown ? foldInspector : null);
   // A click on the switch crossfades the two views on Fast; a key switches in
   // one frame (view-switch.ts). The Board's canvas is held at its box while
@@ -986,6 +994,7 @@ function Inner() {
     openExploreIntegrations: () => setExploreIntegrationsOpen(true),
     openQuickOpen,
     feedbackUnread, openFeedbackConversations,
+    inspectorOpen, toggleInspector,
   });
   /** A phone opens on Sessions, and a row there opens that session's pane when
    *  the deck has a terminal for it (the Command Panel is on), else the
@@ -1117,7 +1126,7 @@ function Inner() {
     // data-view exists only in Workspace, so with the Command Panel off the
     // root is the root it was; data-zoom folds the list and the Inspector
     // (workspace.css); the switch between the views is view-switch.ts.
-    <div ref={appRef} className="app" data-view={inWorkspace ? "workspace" : undefined} data-zoom={zoomPhase} data-insp-tab={inspectorTab ? "" : undefined}>
+    <div ref={appRef} className="app" data-view={inWorkspace ? "workspace" : undefined} data-zoom={zoomPhase}>
       {/* The deck's regions, and why each one is the element it is (#381).
           Before this the whole page was <div>s apart from the topbar, so a
           screen reader's landmark rotor listed one entry — Banner — for an
@@ -1192,7 +1201,7 @@ function Inner() {
             items={[...rails.left, ...rails.right[0]].map(sessionsDoorUnderSheet)}
             more={[rails.search, ...rails.capacity, ...rails.right.slice(1).flat(), ...rails.integrations, ...rails.explore, ...rails.utilities]}
             offline={everConnected && !live} />
-        : <EdgeRail label={t("board.rail.tools")} groups={rails.panelBar} foot={rails.panelFoot} />}
+        : <EdgeRail side="left" label={t("board.rail.tools")} groups={rails.leftStripe} foot={rails.leftFoot} />}
 
       {/* Mounted whether or not anything was removed, for the reason the
           topbar's alarm region is (#372): words that arrive with their region
@@ -1328,6 +1337,13 @@ function Inner() {
           they sent a keyboard reader's focus topbar, right, left, right, centre;
           here it reads the way the page does: the left column, the canvas,
           these two, then the detail panel at the far right. */}
+      {/* THE RIGHT STRIPE, ahead of the panels it opens so Tab reaches the
+          control before the region it discloses: the left stripe, the left
+          column, the canvas, this stripe, then its panels and the Inspector.
+          Fixed to the window's right edge, so where it sits in the document
+          changes nothing on screen. */}
+      {!phone && <EdgeRail side="right" label={t("shell.rail.right")} groups={rails.rightStripe} />}
+
       {isMounted(usagePhase) && (
         <UsagePanel
           state={stateRef.current}
@@ -1380,7 +1396,6 @@ function Inner() {
           onClose={inWorkspace && (inspectorColumn || inspectorSheet) ? foldInspector : sheetClose("inspector", () => { panelReturn.detail(); setDetailOpen(false); })}
         />
       ) : null}
-      {inspectorTab && <InspectorTab onShow={showInspector} />}
 
       {/* A phone's sheets lie over a scrim; a press on it closes the one up. */}
       {phone && <div className="phone-scrim" data-open={sheets.sheet ? "" : undefined} aria-hidden="true" onClick={() => sheets.closeSheet()} />}

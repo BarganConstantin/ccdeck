@@ -218,7 +218,8 @@ describe("the deck's five regions are five landmarks (#381)", () => {
     // held for its slide down the bottom edge and wears `leaving` while it goes
     // (like the other three sheets); the landmark and its name are the same.
     // CHANGED ON PURPOSE (V4's motion spec): the sheet's entry and exit state rides on the same aside (a ref and data-sheet); the name is unchanged.
-    expect(code(source("components/DetailAside.tsx"))).toMatch(/<aside ref=\{asideRef\} className=\{leaving \? "detail leaving" : "detail"\} data-sheet=\{sheetState\} aria-label=\{t\("board\.detailPanel\.title"\)\}>/);
+    // CHANGED ON PURPOSE (V4's Figma): the aside carries the id the Inspector's door on the right stripe controls.
+    expect(code(source("components/DetailAside.tsx"))).toMatch(/<aside ref=\{asideRef\} id=\{INSPECTOR_REGION_ID\} className=\{leaving \? "detail leaving" : "detail"\} data-sheet=\{sheetState\} aria-label=\{t\("board\.detailPanel\.title"\)\}>/);
   });
 
   it("has no <div> left wearing one of those class names", () => {

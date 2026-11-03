@@ -311,8 +311,9 @@ describe("the column's width is written once", () => {
     expect(checked).toBeGreaterThanOrEqual(5);
   });
   it("--rail-r and the narrow band read the token, plus the gap and the stripe for the rail", () => {
-    // V4's Figma: no right bar, so the rail starts at the window's edge.
-    expect(decl(".app", "--rail-r")).toBe("calc(var(--inspector-w) + 8px)");
+    // CHANGED ON PURPOSE (V4's Figma): the right stripe is back, so the rail
+    // starts inside it.
+    expect(decl(".app", "--rail-r")).toBe("calc(var(--inspector-w) + 8px + var(--edge-w))");
     expect(decl(".app:has(.left-column)", "grid-template-columns", "(max-width: 647px)")).toBe("auto 1fr minmax(0, var(--inspector-w))");
   });
   it("is 360px at Default and 320px at Compact", () => {

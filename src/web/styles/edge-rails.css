@@ -1,13 +1,15 @@
-/* ---------------- the Panel bar: one bar on the left holds the doors ----------
+/* ---------------- the stripes: a door on the side its panel opens ------------
    components/EdgeRails.tsx says why. The geometry is two tokens in the
-   geometry block (tokens.css): --topbar-h, the bar this one hangs under,
-   and --edge-w, its width, with upright icons.
+   geometry block (tokens.css): --topbar-h, the bar these hang under,
+   and --edge-w, their width, with upright icons.
 
-   The bar is fixed to the window's left edge; `.app` keeps its width free
-   with its own left padding, so every grid column, banner and panel inside
-   it moves in by exactly one bar and nothing else has to know. The right
-   edge is free: there is no right bar. The topbar reaches back out across the
-   padding to keep the full width.
+   The stripes are fixed to the window's edges; `.app` keeps their width free
+   with its own inline padding, so every grid column, banner and panel inside
+   it moves in by exactly one stripe each side and nothing else has to know.
+   The topbar and the status bar reach back out across the padding to keep the
+   full width. A panel that is fixed to the window's right edge (Usage,
+   Machine, Workspace's Inspector sheet) stands --edge-w further in: nothing
+   sits under the right stripe.
 
    SHOW AND HIDE, NOT TABS. Each stripe button shows or hides a panel BESIDE
    the canvas, any number of them can be open at once, and the canvas never
@@ -15,10 +17,10 @@
    an open button is a fill on the button and a line on the edge it opened
    from, the seam the panel and its button share, and never a tab joined to a
    page. */
-.app { padding-left: var(--edge-w); }
-.app > .topbar { margin-left: calc(-1 * var(--edge-w)); }
+.app { padding-inline: var(--edge-w); }
+.app > .topbar { margin-inline: calc(-1 * var(--edge-w)); }
 
-/* ── the bar ─────────────────────────────────────────────────────────────── */
+/* ── the stripes ─────────────────────────────────────────────────────────── */
 /* Under the popover layer (40) and the rail panels (20), over the canvas and
    its chrome (12): a panel that slides out past a stripe goes over it. */
 .edge-rail {
@@ -31,16 +33,20 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  /* V4's Panel bar: two groups, pushed apart — the doors at the top, the
-     utilities at the foot — with 6px of air above and below. Figma centres
-     them on the bar's whole 40, its edge drawn inside; the border here takes
-     its 1px off the right, so 1px on the left puts the doors back 6 in. */
+  /* V4's stripes: two groups, pushed apart — the doors at the top, the
+     utilities at the foot (the left one only) — with 6px of air above and
+     below. Figma centres them on the stripe's whole 40, its edge drawn inside;
+     the border here takes its 1px off the side facing the canvas, so 1px of
+     padding on the other puts the doors back 6 in. */
   justify-content: space-between;
-  padding: 6px 0 6px 1px;
+  padding: 6px 0;
   background: var(--panel);
   user-select: none;
 }
-.edge-rail-left { left: 0; border-right: 1px solid var(--line); }
+/* The line sits on the side that faces the canvas: right on the left stripe,
+   left on the right one. */
+.edge-rail-left { left: 0; border-right: 1px solid var(--line); padding-left: 1px; }
+.edge-rail-right { right: 0; border-left: 1px solid var(--line); padding-right: 1px; }
 /* The doors and the foot: 2px between every child — a door, a group's rule,
    the next door. */
 .rail-doors,
@@ -70,9 +76,10 @@
   background: var(--line-soft);
 }
 
-/* Short windows can scroll the bar rather than clipping actions. */
-.edge-rail-left { overflow-y: auto; }
-.edge-rail-left .rail-group { flex-shrink: 0; }
+/* Short windows can scroll a stripe rather than clipping actions. */
+.edge-rail-left,
+.edge-rail-right { overflow-y: auto; }
+.edge-rail .rail-group { flex-shrink: 0; }
 .rail-foot { flex-shrink: 0; }
 
 /* One control, three placements: a stripe, the phone's dock, the topbar's
@@ -161,11 +168,14 @@
   background: var(--text);
   opacity: 0;
 }
-/* The door is 28, 6 in from the bar's left, so it ends at 34 and the line runs
-   37 to 39, against the border, where V4 draws it. Never past the border: the
-   bar scrolls, and a line past its edge widened scrollWidth into a horizontal
-   scrollbar even while transparent. */
+/* The door is 28, 6 in from the stripe's outer edge, so it ends at 34 and, on
+   the left stripe, the line runs 37 to 39, against the border, where V4 draws
+   it. On the right stripe the same door starts 6 in from the window's edge, 5
+   past the border, and its line runs 1 to 3, facing the canvas: the mirror.
+   Never past the border: a stripe scrolls, and a line past its edge widened
+   scrollWidth into a horizontal scrollbar even while transparent. */
 .edge-rail-left .rail-btn-stripe::before { right: -5px; }
+.edge-rail-right .rail-btn-stripe::before { left: -5px; }
 .rail-btn-stripe[aria-expanded="true"]::before { opacity: 1; }
 
 /* Unread findings, Browser watch's: a count, not an alarm, so --muted and

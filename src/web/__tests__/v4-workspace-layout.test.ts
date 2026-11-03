@@ -58,8 +58,9 @@ describe("the sheet", () => {
   });
 
   it("matches nothing on the Board: every Workspace rule is keyed on data-view, the pane's data-fill, or a class only Workspace draws", () => {
-    // CHANGED ON PURPOSE (V4's Figma): the folded Inspector's tab is a class only Workspace draws (`.insp-corner`).
-    const own = /\.insp-corner|\.view-switch|\.view-opt|\[data-view="workspace"\]|\[data-fill\]|\.ts-ws-|\.insp-none|\.insp-tab\[aria-current|\.ws-cell|:root\[data-view-switch\]|:root\[data-motion="instant"\] \.app\[data-view="workspace"\]|\.ts-tools \.glyph-btn\[data-zoom\]|\.ts-stage\[data-fill\]/;
+    // CHANGED ON PURPOSE (V4's Figma): the folded Inspector's tab (`.insp-corner`)
+    // is gone, its door is on the right stripe, so it is no longer a class to allow.
+    const own = /\.view-switch|\.view-opt|\[data-view="workspace"\]|\[data-fill\]|\.ts-ws-|\.insp-none|\.insp-tab\[aria-current|\.ws-cell|:root\[data-view-switch\]|:root\[data-motion="instant"\] \.app\[data-view="workspace"\]|\.ts-tools \.glyph-btn\[data-zoom\]|\.ts-stage\[data-fill\]/;
     const body = css.replace(/@media[^{]*\{/g, "").replace(/@keyframes[^{]*\{[^{}]*\{[^{}]*\}\s*\}/g, "");
     const stray: string[] = [];
     for (const m of body.matchAll(/([^{}]+)\{[^{}]*\}/g)) {
@@ -146,8 +147,9 @@ describe("narrower windows", () => {
     expect(decl(detail, "position")).toBe("fixed");
     // CHANGED ON PURPOSE (V4's Figma): the sheet starts under the banner strip as well as the top bar, so the strip's dismiss and Copy stay reachable.
     expect(decl(detail, "top")).toBe("calc(var(--topbar-h) + var(--rating-h, 0px))");
-    // V4's Figma: one bar on the left, none on the right.
-    expect(decl(detail, "right")).toBe("0");
+    // CHANGED ON PURPOSE (V4's Figma): the right stripe is back, so the sheet
+    // stands 40 in from the window's edge, clear of it.
+    expect(decl(detail, "right")).toBe("var(--edge-w)");
     expect(decl(detail, "bottom")).toBe("var(--status-room)");
     expect(decl(ruleFor(sheet, 'body .app[data-view="workspace"]').body, "grid-template-columns")).toBe("minmax(0, 1fr)");
     // CHANGED ON PURPOSE (V4's Figma draws the Fold in the column too): nothing hides it in the

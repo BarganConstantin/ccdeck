@@ -34,17 +34,17 @@ export function focusFirstTaking(
   return null;
 }
 
-/** Where the keyboard goes when the folded Inspector's tab is all there is to
- *  take it: the tab's one button. */
-export const INSPECTOR_TAB_BUTTON = ".insp-corner button";
+/** Where the keyboard goes when the folded Inspector's door is all there is to
+ *  take it: the Inspector's door on the right stripe. */
+export const INSPECTOR_DOOR_BUTTON = "button[data-rail-item=\"inspector\"]";
 
-/** After a fold: the pane (above), or else the tab's button, so the keyboard
- *  is never left on nothing. */
+/** After a fold: the pane (above), or else the Inspector's door, so the
+ *  keyboard is never left on nothing. */
 export function focusAfterFold(root: FocusRoot): HTMLElement | null {
   const pane = focusFirstTaking(root);
   if (pane) return pane;
-  const tab = root.querySelector(INSPECTOR_TAB_BUTTON) as HTMLElement | null;
-  if (!tab) return null;
-  tab.focus();
-  return root.activeElement === tab ? tab : null;
+  const door = root.querySelector(INSPECTOR_DOOR_BUTTON) as HTMLElement | null;
+  if (!door) return null;
+  door.focus();
+  return root.activeElement === door ? door : null;
 }

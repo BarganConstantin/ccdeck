@@ -93,9 +93,10 @@ describe("the rail with both CLIs", () => {
   it("has one Accounts button; Codex's own is only where Codex is all there is", () => {
     const both = items({ claude: true, codex: true });
     expect(ids(both.left)).toEqual(["accounts", "session-list"]);
-    expect(ids(both.panelBar.flat())).not.toContain("codex-accounts");
+    // CHANGED ON PURPOSE (V4's Figma): the left stripe's list, since the one bar is two stripes.
+    expect(ids(both.leftStripe.flat())).not.toContain("codex-accounts");
     expect(both.left[0]).toMatchObject({ label: "Accounts", short: "Accounts", ariaLabel: "Accounts" });
-    expect(ids(items({ claude: false, codex: true }).panelBar.flat())).toContain("codex-accounts");
+    expect(ids(items({ claude: false, codex: true }).leftStripe.flat())).toContain("codex-accounts");
   });
 
   it("keeps quick open's door to Codex's side", () => {

@@ -157,7 +157,9 @@ describe("the short list that used to sit in the detail rail", () => {
     // the table, and the gear's chord is the table's "," row.
     expect([...app.matchAll(/<kbd className="hint-key">/g)]).toHaveLength(1);
     const named = [...app.matchAll(/key: \{ cap: "([A-Z])", aria: "\1", single: true \}/g)].map(m => m[1]);
-    expect(named.sort()).toEqual(["A", "B", "H", "L", "S", "U"]);
+    // CHANGED ON PURPOSE (V4's Figma): D, the Inspector's door on the right stripe,
+    // names its key too, one the sheet already lists.
+    expect(named.sort()).toEqual(["A", "B", "D", "H", "L", "S", "U"]);
     const documented = documentedKeys();
     for (const k of named) expect(documented, k).toContain(k.toLowerCase());
     expect(app).toMatch(/key: \{ cap: settingsCap, aria: "Control\+, Meta\+,", single: false \}/);

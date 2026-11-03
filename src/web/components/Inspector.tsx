@@ -17,6 +17,7 @@ import { agentTree, sessionCostLabel, subagentCount, type TreeRow } from "../ins
 import {
   INSPECTOR_TAB_LABEL, INSPECTOR_TABS, loadInspectorTab, saveInspectorTab, type InspectorTab,
 } from "../inspector-tab";
+import { INSPECTOR_REGION_ID } from "../inspector-corner";
 import { modelChipText } from "../model-label";
 import { tabStripMove } from "../tablist-keys";
 import { contextFigure, contextFill } from "../context-figure";
@@ -125,7 +126,7 @@ export const EMPTY_INSPECTOR_LINE_MSG = "board.inspector.emptyLine";
 export function EmptyInspector() {
   const tr = useT();
   return (
-    <aside className="detail" aria-label={tr("board.inspector.detail")} data-empty="">
+    <aside id={INSPECTOR_REGION_ID} className="detail" aria-label={tr("board.inspector.detail")} data-empty="">
       <SheetHandle />
       <header className="insp-h">
         {/* The tabs' look, with nothing to switch between: not a tablist. */}

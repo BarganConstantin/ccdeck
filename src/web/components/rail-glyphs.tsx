@@ -69,6 +69,9 @@ export const CapacityGlyph = () => <KitIcon name="capacity" className="glyph" />
 /** Reset calendar. */
 export const ResetCalendarGlyph = () => <KitIcon name="calendar" className="glyph" />;
 
+/** The Inspector's door, first on the right stripe. */
+export const InspectorGlyph = () => <KitIcon name="info" className="glyph" />;
+
 /** Reported reset timing. */
 export const ClockGlyph = () => <KitIcon name="time" className="glyph" />;
 

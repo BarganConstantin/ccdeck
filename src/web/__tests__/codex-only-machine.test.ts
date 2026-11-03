@@ -482,7 +482,8 @@ describe("which panels the UI draws for each machine", () => {
     expect(appSrc).toMatch(/capacity: providers\.claude \? capacity : \[\]/);
     // The connected trackers (#2178) are in the bar's last run, so they cannot
     // stand in for the accounts button either.
-    expect(appSrc).toMatch(/<EdgeRail label=\{t\("board\.rail\.tools"\)\} groups=\{rails\.panelBar\} foot=\{rails\.panelFoot\} \/>/);
+    // CHANGED ON PURPOSE (V4's Figma): the one bar is two stripes, each its own toolbar.
+    expect(appSrc).toMatch(/<EdgeRail side="left" label=\{t\("board\.rail\.tools"\)\} groups=\{rails\.leftStripe\} foot=\{rails\.leftFoot\} \/>/);
     // And nowhere else: the phone's grouping and the utilities never carry it.
     expect(appSrc).toMatch(/right: \[\s*named\(t\("board\.rail\.group\.usage"\), \[usage, machine\]\),\s*named\(t\("board\.rail\.group\.activity"\), \[history, \.\.\.activity\]\),\s*named\(t\("board\.rail\.group\.watchers"\), \[browserWatch, \.\.\.radar\]\),\s*radio,\s*\]/);
     expect(appSrc).toMatch(/utilities: \[settings, feedback\]/);

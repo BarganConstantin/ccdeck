@@ -1,11 +1,19 @@
-// V4's Panel bar (V4's Figma): ONE bar on the left, 40 wide, holds
-// every door. Doors at the top in runs between 16x1 rules, Radio and Settings
-// at the foot, no right bar, Settings gone from the top bar. And V4's Tooltip:
-// one line, 24 high, the name and a key chip.
+// V4's two stripes (V4's Figma): a door stays on the side where its panel
+// opens. The left stripe holds Sessions, Accounts, the capacity doors and the
+// integrations, with Radio and Settings at its foot; the right one the
+// Inspector, Usage and Machine, the records and the watchers, with no foot.
+// Both 40 wide, doors in runs between 16x1 rules, Settings gone from the top
+// bar. And V4's Tooltip: one line, 24 high, the name and a key chip.
 //
 // The order and the rules are rail-items.tsx's data; the look is read out of
 // the sheet; what a bare-node suite cannot see (what App draws) is pinned at
 // the source.
+//
+// CHANGED ON PURPOSE (V4's Figma): this file pinned ONE bar on the left, with
+// every door in it and no right stripe. V4's Figma puts the doors back on two
+// stripes, each on the side its panel opens; each test below that said "the
+// bar" or "no right bar" now says the two-stripe answer, and the new
+// v4-two-stripes.test.ts holds the rest (the Inspector door, the sides).
 import { describe, expect, it } from "vitest";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
@@ -41,21 +49,28 @@ const base = {
 const rails = railItems({ ...base, providers: { kind: "reported", claude: true, codex: false } });
 const ids = (group: { id: string }[]) => group.map(i => i.id);
 
-describe("the Panel bar's doors, in V4's order", () => {
-  it("runs Sessions, Accounts | capacity, calendar | Usage, Machine | the three records | Browser watch, Radar | Explore", () => {
-    expect(rails.panelBar.map(ids)).toEqual([
+describe("the stripes' doors, in V4's order", () => {
+  // CHANGED ON PURPOSE (V4's Figma): one bar's six runs are now two stripes'.
+  it("runs the left stripe Sessions, Accounts | capacity, calendar | Explore", () => {
+    expect(rails.leftStripe.map(ids)).toEqual([
       ["session-list", "accounts"],
       ["account-capacity", "reset-calendar"],
-      ["usage", "machine"],
-      ["history", "tool-activity", "skill-activity"],
-      ["browser-watch", "traffic-radar"],
       ["explore-integrations"],
     ]);
   });
 
-  it("puts Radio and Settings in the foot, with no run of doors among them", () => {
-    expect(ids(rails.panelFoot)).toEqual(["radio", "settings"]);
-    const all = rails.panelBar.flat().map(i => i.id);
+  it("runs the right stripe Inspector | Usage, Machine | the three records | Browser watch, Radar", () => {
+    expect(rails.rightStripe.map(ids)).toEqual([
+      ["inspector"],
+      ["usage", "machine"],
+      ["history", "tool-activity", "skill-activity"],
+      ["browser-watch", "traffic-radar"],
+    ]);
+  });
+
+  it("puts Radio and Settings in the left foot, with no run of doors among them", () => {
+    expect(ids(rails.leftFoot)).toEqual(["radio", "settings"]);
+    const all = [...rails.leftStripe.flat(), ...rails.rightStripe.flat()].map(i => i.id);
     expect(all).not.toContain("radio");
     expect(all).not.toContain("settings");
   });
@@ -68,12 +83,16 @@ describe("the Panel bar's doors, in V4's order", () => {
 
   it("keeps a door the frame does not draw: Codex's own button, beside Sessions, where Codex is all there is", () => {
     const codexOnly = railItems({ ...base, providers: { kind: "reported", claude: false, codex: true } });
-    expect(codexOnly.panelBar.map(ids)).toEqual([
+    // CHANGED ON PURPOSE (V4's Figma): the stripes are two lists now.
+    expect(codexOnly.leftStripe.map(ids)).toEqual([
       ["session-list", "codex-accounts"],
+      ["explore-integrations"],
+    ]);
+    expect(codexOnly.rightStripe.map(ids)).toEqual([
+      ["inspector"],
       ["usage", "machine"],
       ["history", "tool-activity", "skill-activity"],
       ["browser-watch", "traffic-radar"],
-      ["explore-integrations"],
     ]);
   });
 
@@ -83,11 +102,12 @@ describe("the Panel bar's doors, in V4's order", () => {
       ...base, providers: { kind: "reported", claude: true, codex: false },
       integrations: [{ provider: { kind: "jira", label: "Jira", Glyph, shortcut: "j", detail: { key: "x" } as never }, onPress: noop }],
     });
-    expect(withJira.panelBar.slice(-2).map(ids)).toEqual([["integration-jira"], ["explore-integrations"]]);
+    // CHANGED ON PURPOSE (V4's Figma): the tracker is on the left stripe's list.
+    expect(withJira.leftStripe.slice(-2).map(ids)).toEqual([["integration-jira"], ["explore-integrations"]]);
   });
 
   it("keeps every key it had", () => {
-    const keys = Object.fromEntries([...rails.panelBar.flat(), ...rails.panelFoot].map(i => [i.id, i.key?.cap]));
+    const keys = Object.fromEntries([...rails.leftStripe.flat(), ...rails.leftFoot, ...rails.rightStripe.flat()].map(i => [i.id, i.key?.cap]));
     expect(keys["session-list"]).toBe("L");
     expect(keys["accounts"]).toBe("A");
     expect(keys["usage"]).toBe("U");
@@ -98,10 +118,12 @@ describe("the Panel bar's doors, in V4's order", () => {
   });
 });
 
-describe("the bar's markup", () => {
-  const html = renderToStaticMarkup(createElement(EdgeRail, { label: "Panels and tools", groups: rails.panelBar, foot: rails.panelFoot }));
+describe("the stripes' markup", () => {
+  // CHANGED ON PURPOSE (V4's Figma): one toolbar on the left is two toolbars.
+  const html = renderToStaticMarkup(createElement(EdgeRail, { side: "left", label: "Panels and tools", groups: rails.leftStripe, foot: rails.leftFoot }));
+  const right = renderToStaticMarkup(createElement(EdgeRail, { side: "right", label: "Usage and activity", groups: rails.rightStripe }));
 
-  it("is one toolbar on the left, with the doors and the foot as its two groups", () => {
+  it("is a toolbar on the left, with the doors and the foot as its two groups", () => {
     expect(html.match(/role="toolbar"/g)).toHaveLength(1);
     expect(html).toContain('class="edge-rail edge-rail-left"');
     expect(html).not.toContain("edge-rail-right");
@@ -110,13 +132,22 @@ describe("the bar's markup", () => {
 
   it("draws the doors in order and the foot last, Radio then Settings", () => {
     const order = [...html.matchAll(/data-rail-item="([^"]+)"/g)].map(m => m[1]);
-    expect(order).toEqual([...rails.panelBar.flat(), ...rails.panelFoot].map(i => i.id));
+    expect(order).toEqual([...rails.leftStripe.flat(), ...rails.leftFoot].map(i => i.id));
     expect(order.slice(-2)).toEqual(["radio", "settings"]);
   });
 
+  it("draws the right stripe's doors in order, with no foot", () => {
+    expect(right).toContain('class="edge-rail edge-rail-right"');
+    expect(right).not.toContain("rail-foot");
+    expect([...right.matchAll(/data-rail-item="([^"]+)"/g)].map(m => m[1])).toEqual(rails.rightStripe.flat().map(i => i.id));
+  });
+
   it("names its runs for a screen reader and the foot by its two doors", () => {
-    for (const name of ["Accounts and sessions", "Claude accounts", "Usage and machine", "Activity history", "Watchers"]) {
+    for (const name of ["Accounts and sessions", "Claude accounts"]) {
       expect(html).toContain(`role="group" aria-label="${name}"`);
+    }
+    for (const name of ["Usage and machine", "Activity history", "Watchers"]) {
+      expect(right).toContain(`role="group" aria-label="${name}"`);
     }
     expect(html).toContain('class="rail-foot" role="group" aria-label="Radio, Settings"');
   });
@@ -126,17 +157,25 @@ describe("the bar's markup", () => {
   });
 });
 
-describe("the bar's look", () => {
-  it("is 40 wide, --panel, a 1px --line on its right only, 6 of air top and foot, the groups pushed apart", () => {
+describe("the stripes' look", () => {
+  // CHANGED ON PURPOSE (V4's Figma): the 1px line sits on the side facing the
+  // canvas, so the left stripe keeps it on the right and the right one has it on
+  // the left; the 1px of padding is on the opposite side in each.
+  it("is 40 wide, --panel, a 1px --line on the canvas side only, 6 of air top and foot, the groups pushed apart", () => {
     expect(source("../styles/tokens.css")).toMatch(/--edge-w:\s*40px/);
     expect(decl(".edge-rail", "width")).toBe("var(--edge-w)");
     expect(decl(".edge-rail", "background")).toBe("var(--panel)");
     expect(decl(".edge-rail", "justify-content")).toBe("space-between");
-    // 1 on the left for the 1px border on the right: the doors centre on the
-    // whole 40, 6 in, where V4 draws them with its edge inside the bar.
-    expect(decl(".edge-rail", "padding")).toBe("6px 0 6px 1px");
+    // 1 on the side away from the canvas for the 1px border on the side facing
+    // it: the doors centre on the whole 40, 6 in, where V4 draws them with its
+    // edge inside the stripe.
+    expect(decl(".edge-rail", "padding")).toBe("6px 0");
+    expect(decl(".edge-rail-left", "padding-left")).toBe("1px");
+    expect(decl(".edge-rail-right", "padding-right")).toBe("1px");
     expect(decl(".edge-rail-left", "border-right")).toBe("1px solid var(--line)");
     expect(decl(".edge-rail-left", "border-left")).toBeUndefined();
+    expect(decl(".edge-rail-right", "border-left")).toBe("1px solid var(--line)");
+    expect(decl(".edge-rail-right", "border-right")).toBeUndefined();
   });
 
   it("holds its doors and its foot 2 apart", () => {
@@ -161,13 +200,12 @@ describe("the bar's look", () => {
     expect(decl(".rail-btn[aria-expanded=\"true\"]", "background")).toBe("var(--selected)");
   });
 
-  it("reserves the left bar's width and nothing on the right", () => {
-    expect(decl(".app", "padding-left")).toBe("var(--edge-w)");
-    expect(decl(".app", "padding-inline")).toBeUndefined();
-    expect(decl(".app > .topbar", "margin-left")).toBe("calc(-1 * var(--edge-w))");
-    const sheets = ["edge-rails", "workspace", "machine-panel", "radio", "panel-place", "status-bar"].map(n => source(`../styles/${n}.css`)).join("\n");
-    expect(sheets.replace(/\/\*[\s\S]*?\*\//g, "")).not.toContain("edge-rail-right");
-    expect(decl(".app", "--rail-r")).toBe("calc(var(--inspector-w) + 8px)");
+  it("reserves both stripes' width: the canvas, the columns and the Inspector move in by 40 each side", () => {
+    // CHANGED ON PURPOSE (V4's Figma): the right stripe takes its 40 back.
+    expect(decl(".app", "padding-inline")).toBe("var(--edge-w)");
+    expect(decl(".app", "padding-left")).toBeUndefined();
+    expect(decl(".app > .topbar", "margin-inline")).toBe("calc(-1 * var(--edge-w))");
+    expect(decl(".app", "--rail-r")).toBe("calc(var(--inspector-w) + 8px + var(--edge-w))");
   });
 
   it("makes the floating Usage and Machine panels 320 wide", () => {
@@ -190,6 +228,7 @@ describe("V4's Tooltip", () => {
     expect(decl(".hint", "line-height")).toMatch(/^calc\(16px/);
     expect(decl(".hint-head", "gap")).toBe("6px");
     expect(decl(".hint-right .hint-label", "white-space")).toBe("nowrap");
+    expect(decl(".hint-left .hint-label", "white-space")).toBe("nowrap");
   });
 
   it("sets the label at 12/16 in --text", () => {
@@ -208,11 +247,13 @@ describe("V4's Tooltip", () => {
     expect(decl(".hint-key", "font")).toMatch(/^500 calc\(11px .*\)\/calc\(14px .*\) var\(--font-mono\)$/);
   });
 
-  it("stands 8 off the bar's edge, centred on its door", () => {
+  it("stands 8 off the stripe's edge towards the canvas, centred on its door", () => {
     const hint = source("../components/use-hint.tsx");
     expect(hint).toContain("const GAP_PX = 8;");
     expect(hint).toContain(`closest?.(".edge-rail")`);
     expect(hint).toContain("edge.right - box.left");
+    // CHANGED ON PURPOSE (V4's Figma): and, from the right stripe, off its left edge.
+    expect(hint).toContain("new DOMRect(edge.left, box.top, box.right - edge.left, box.height)");
   });
 
   it("leaves the tooltip's timers where they were", () => {

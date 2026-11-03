@@ -88,15 +88,18 @@ interface Shown {
   instant: boolean;
 }
 
-/** The box a hint is placed against: the control's, except for a door of the
- *  Panel bar (V4's Figma), whose tooltip stands 8px off the BAR's right edge,
- *  centred on its own door, so it never covers the door or the bar. */
+/** The box a hint is placed against: the control's, except for a door of a
+ *  stripe (V4's Figma), whose tooltip stands 8px off the STRIPE's edge facing
+ *  the canvas (right of the left stripe, left of the right one), centred on its
+ *  own door, so it never covers the door or the stripe. */
 function anchorOf(side: HintSide, el: HTMLElement): DOMRect {
   const box = el.getBoundingClientRect();
-  const bar = side === "right" ? el.closest?.(".edge-rail") : null;
+  const bar = side === "right" || side === "left" ? el.closest?.(".edge-rail") : null;
   if (!bar) return box;
   const edge = bar.getBoundingClientRect();
-  return new DOMRect(box.left, box.top, edge.right - box.left, box.height);
+  return side === "right"
+    ? new DOMRect(box.left, box.top, edge.right - box.left, box.height)
+    : new DOMRect(edge.left, box.top, box.right - edge.left, box.height);
 }
 
 /** Where the hint goes against its control, kept inside the window — and

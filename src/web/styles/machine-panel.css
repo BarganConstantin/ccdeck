@@ -46,11 +46,11 @@
    own token instead of a number: the column is 320px at Compact and 360px at
    Default (reading.css, tokens.css), and the 368 this line wrote was the
    Default one, 40px too far at the density the app starts in.
-   Both offsets are measured from the window's edge. There is no right bar
-   (edge-rails.css), so neither carries one's width: the rail starts at the
-   window's right edge. */
-.app { --rail-r: calc(var(--inspector-w) + 8px); }
-.app:not(:has(.detail)) { --rail-r: 8px; }
+   Both offsets are measured from the window's edge, so both carry the right
+   stripe's width (edge-rails.css): the rail starts inside it, and nothing
+   sits under the stripe. */
+.app { --rail-r: calc(var(--inspector-w) + 8px + var(--edge-w)); }
+.app:not(:has(.detail)) { --rail-r: calc(8px + var(--edge-w)); }
 
 /* One panel further left: the rail's own offset, plus usage's width, plus the
    gap. Eight was too tight to read as two things; twenty separates them

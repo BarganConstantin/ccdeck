@@ -42,19 +42,21 @@ const ids = (items: { id: string }[]) => items.map(i => i.id);
 
 describe("the Panel bar's two doors into Account capacity", () => {
   it("stand right after Sessions and Accounts, in V4's order", () => {
-    const groups = rails().panelBar;
-    // V4's Panel bar: Sessions and Accounts, then the two reports.
+    // CHANGED ON PURPOSE (V4's Figma): the one bar is two stripes; Sessions,
+    // Accounts and the two reports are the left stripe's first runs.
+    const groups = rails().leftStripe;
+    // V4's left stripe: Sessions and Accounts, then the two reports.
     expect(groups.slice(0, 2).map(ids)).toEqual([["session-list", "accounts"], ["account-capacity", "reset-calendar"]]);
     // The reports are one run about the accounts, named for a screen reader
     // (with both CLIs one Accounts button covers Claude and Codex, so Codex has
     // no button beside it).
     expect(groups[1].map(i => i.group)).toEqual(["Claude accounts", "Claude accounts"]);
-    expect(ids(rails().panelBar.flat())).not.toContain("codex-accounts");
+    expect(ids(rails().leftStripe.flat())).not.toContain("codex-accounts");
   });
 
   it("leave a machine without Claude Code Codex's own button and not the Claude-only doors", () => {
     const r = rails({ claude: false });
-    expect(r.panelBar[0].map(i => i.id)).toEqual(["session-list", "codex-accounts"]);
+    expect(r.leftStripe[0].map(i => i.id)).toEqual(["session-list", "codex-accounts"]);
     expect(ids(r.left)).toEqual(["codex-accounts", "session-list"]);
     expect(r.codexDoor).toEqual([]);
     expect(r.capacity).toEqual([]);
