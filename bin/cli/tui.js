@@ -586,6 +586,14 @@ export async function runTui(flags, out, deps = {}) {
     await readCodex();
   }
 
+  async function doCodexHome(row, home) {
+    if (!deck) return;
+    const name = accountName(row);
+    const r = await act(home ? `making ${name} home` : `taking home away from ${name}`, { action: "home", id: home ? row.id : null }, "/api/codex-auto");
+    settle(r, home ? `${name} is home ${g.dash} Codex Auto-switch comes back to it once it has room again` : `${name} is no longer home`);
+    await readCodex();
+  }
+
   async function doCodexRename(row, label) {
     if (!deck) return;
     const r = await act(`renaming #${row.num}`, { id: row.id, label: label || null, expectedRevision: state.codex?.revision }, "/api/codex-profile-rename");
@@ -648,7 +656,7 @@ export async function runTui(flags, out, deps = {}) {
     auto: (e) => (e.codex ? doCodexAuto(e.enabled) : doAuto(e.enabled)),
     refresh: () => { quotaAt.clear(); return readAll(true); },
     history: () => readHistory(),
-    home: (e) => doHome(e.account, e.set),
+    home: (e) => (e.account?.codex ? doCodexHome(e.account, e.set) : doHome(e.account, e.set)),
     hold: (e) => (e.account?.codex ? doCodexHold(e.account, e.out) : doHold(e.account, e.out)),
     alias: (e) => (e.account?.codex ? doCodexRename(e.account, e.alias) : doAlias(e.account, e.alias)),
     move: (e) => doMove(e.account, e.slot),

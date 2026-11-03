@@ -634,17 +634,33 @@ describe("the Codex side", () => {
     expect(s.menu).toMatchObject({ id: CXB, view: "menu" });
     expect(lines(s).some(l => /│ › Switch to this account +enter │/.test(l))).toBe(true);
     // The default, Codex's own login: no switch, no rotation, no removal.
-    expect(items(0)).toEqual(["Sign in again", "Rename…"]);
+    expect(items(0)).toEqual(["Sign in again", "Rename…", "Set as home"]);
     // Added in the deck and held out: everything, the way back into rotation among it.
-    expect(items(1)).toEqual(["Switch to this account", "Sign in again", "Rename…", "Put back in rotation", "Remove…"]);
+    expect(items(1)).toEqual(["Switch to this account", "Sign in again", "Rename…", "Put back in rotation", "Set as home", "Remove…"]);
     // Signed out: no switch to it, its sign-in first.
-    expect(items(2)).toEqual(["Sign in", "Rename…", "Hold out of rotation", "Remove…"]);
+    expect(items(2)).toEqual(["Sign in", "Rename…", "Hold out of rotation", "Set as home", "Remove…"]);
+    // Home is Codex Auto-switch's: not offered before it is read, removable once set.
+    const unread = onCodex({ codexAuto: null });
+    expect(view.menuItems(unread, codexRows(unread)[0]).map((i: Row) => i.label)).toEqual(["Sign in again", "Rename…"]);
+    const homed = onCodex({ codexAuto: { ...CAUTO, homeId: CXB } });
+    expect(view.menuItems(homed, codexRows(homed)[1]).map((i: Row) => i.label)).toContain("Remove home");
+  });
+
+  it("h sets or removes a Codex home, and the list marks it with ⌂", () => {
+    expect(key(onCodex(), "h").effect).toMatchObject({ type: "home", account: { codex: true, id: CXA }, set: true });
+    const homed = onCodex({ codexAuto: { ...CAUTO, homeId: CXB }, codexAt: 1 });
+    expect(view.homeSlot(homed)).toBe(2);
+    expect(key(homed, "h").effect).toMatchObject({ type: "home", account: { id: CXB }, set: false });
+    expect(lines(homed).some(l => /⌂ +ben@openai\.example|2 ⌂ /.test(l))).toBe(true);
+    // Claude's home (slot 2 in the fixture) never shows on the Codex side.
+    expect(view.homeSlot({ ...homed, side: "claude" })).toBe(2);
+    expect(view.homeSlot(onCodex())).toBeNull();
+    expect(key(onCodex({ codexAuto: null }), "h").state.notice.text).toBe("Codex Auto-switch is not read yet — home waits for it");
   });
 
   it("holds out, renames and removes through the keys, and says what Codex has not got", () => {
     expect(key(onCodex({ codexAt: 1 }), "o").effect).toMatchObject({ type: "hold", account: { id: CXB }, out: false });
     expect(key(onCodex({ codexAt: 2 }), "o").effect).toMatchObject({ type: "hold", account: { id: CXC }, out: true });
-    expect(key(onCodex(), "h").state.notice.text).toBe("Codex Auto-switch has no home account");
     expect(key(onCodex(), "v").state.notice.text).toBe("Codex accounts have no slots — the list is the deck's order");
     expect(key(onCodex(), "x").state.notice.text).toBe("#1 ann@openai.example is Codex's own login — only accounts added in the deck can be removed");
     const remove = key(onCodex({ codexAt: 1 }), "x").state;
@@ -1232,6 +1248,7 @@ describe("the loop", () => {
       if (path === "/api/codex-auto") {
         const b = body as Row;
         if (b.action === "account") box.auto = { ...box.auto, heldOut: b.enabled ? [] : [b.id] };
+        if (b.action === "home") box.auto = { ...box.auto, homeId: b.id };
         return reply(box.auto);
       }
       if (path.startsWith("/api/codex-profile-quota?id=")) return reply(CQUOTA[decodeURIComponent(path.split("=")[1]) as keyof typeof CQUOTA] ?? { ok: false, reason: "unsupported" });
@@ -1278,6 +1295,23 @@ describe("the loop", () => {
     term.input.write("o");
     await until(() => term.screenText().includes("#2 ben@openai.example (side) is back in Codex's rotation"));
     expect(posts(deck.calls, "/api/codex-auto").map(c => c.body)).toEqual([{ action: "account", id: CXB, enabled: true }]);
+    term.input.write("q");
+    expect(await done).toBe(0);
+  });
+
+  it("h makes a Codex account home with Codex Auto-switch's own POST, and the row shows ⌂", async () => {
+    const term = fakeTerminal();
+    const deck = codexDeck();
+    const { out } = quietOut();
+    const done = runTui({}, out, { input: term.input, output: term.output, source: deck.source, tickMs: 20, ...LOOK });
+    await until(() => term.screenText().includes(" Codex "));
+    term.input.write("c");
+    await until(() => term.screenText().includes("ben@openai.example"));
+    term.input.write("2");
+    term.input.write("h");
+    await until(() => term.screenText().includes("#2 ben@openai.example (side) is home"));
+    expect(posts(deck.calls, "/api/codex-auto").map(c => c.body)).toEqual([{ action: "home", id: CXB }]);
+    await until(() => term.screenText().split("\n").some(l => l.includes("⌂") && l.includes("ben@openai.example")));
     term.input.write("q");
     expect(await done).toBe(0);
   });

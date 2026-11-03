@@ -97,9 +97,12 @@ const withAt = (state, i) => (onCodex(state) ? { ...state, codexAt: i } : { ...s
  *  when the list's order does not; a Claude one by its slot. */
 const menuRow = (state, m) => accountsOf(state).find(a => (m.id != null ? a.id === m.id : a.num === m.num)) ?? null;
 
-/** Auto-switch's home account, by slot, or null. Codex has no home. */
+/** Auto-switch's home account, by slot, or null. A Codex home is a profile id. */
 export function homeSlot(state) {
-  if (onCodex(state)) return null;
+  if (onCodex(state)) {
+    const id = state.codexAuto?.homeId;
+    return typeof id === "string" ? accountsOf(state).find(a => a.id === id)?.num ?? null : null;
+  }
   const home = state.auto?.choice?.home;
   if (!home || typeof home.email !== "string") return null;
   const key = accountKey(home.email, home.orgUuid);
@@ -376,8 +379,8 @@ const ALIAS_OK = /^(?!-)[A-Za-z0-9 ._-]{1,64}$/;
 /** The menu's items for `row`, in the deck's order — the Codex panel's, for
  *  a Codex account. */
 export function menuItems(state, row) {
-  if (row.codex) return codexMenuItems(row);
   const home = homeSlot(state) === row.num;
+  if (row.codex) return codexMenuItems(row, { home, homeable: state.codexAuto?.ok === true });
   const dead = !switchable(row) && !row.disabled;
   return [
     !row.active || dead ? { id: "switch", key: "enter", label: dead ? "Sign in again" : "Switch to this account" } : null,
@@ -402,9 +405,11 @@ function menuOpen(state, row, view, { now, g }) {
 function menuAct(state, row, id, { now, g }) {
   if (row.codex) {
     if (id === "switch") return codexSwitchKey({ ...state, menu: null }, row, { now, g });
-    // Codex has no slots and no home: the keys say so rather than nothing.
+    // Codex has no slots: the key says so rather than nothing.
     if (id === "move") return { state: { ...state, notice: note("info", `Codex accounts have no slots ${g.dash} the list is the deck's order`, now) }, effect: null };
-    if (id === "home") return { state: { ...state, notice: note("info", `Codex Auto-switch has no home account`, now) }, effect: null };
+    if (id === "home" && state.codexAuto?.ok !== true && homeSlot(state) !== row.num) {
+      return { state: { ...state, notice: note("info", `Codex Auto-switch is not read yet ${g.dash} home waits for it`, now) }, effect: null };
+    }
     if (id === "remove" && !row.managed) {
       return { state: { ...state, notice: note("info", `${accountName(row)} is Codex's own login ${g.dash} only accounts added in the deck can be removed`, now) }, effect: null };
     }
@@ -425,7 +430,7 @@ function menuAct(state, row, id, { now, g }) {
   }
   if (id === "home") {
     const home = homeSlot(state) === row.num;
-    if (!home && !row.email) return { state, effect: null };
+    if (!home && !row.email && !row.codex) return { state, effect: null };
     return { state, effect: { type: "home", account: row, set: !home } };
   }
   return { state, effect: null };
@@ -748,7 +753,7 @@ function bodyLines(state, room, width, look) {
     accounts = !state.deck ? [`${tone.muted}the Codex accounts are the deck's ${g.dash} d starts one${tone.reset}`]
       : !state.codex ? [`${tone.muted}reading the Codex accounts${g.ellipsis}${tone.reset}`]
       : !rows.length ? [`${tone.muted}no Codex accounts yet ${g.dash} + signs one in${tone.reset}`]
-      : accountRows(rows, { home: null, at, width: inner }, look);
+      : accountRows(rows, { home, at, width: inner }, look);
   } else if (!state.roster) accounts = [`${tone.muted}reading the accounts${g.ellipsis}${tone.reset}`];
   else if (!state.roster.ok && state.roster.reason === "no_accounts" && state.deck) {
     accounts = [`${tone.muted}no Claude accounts yet ${g.dash} + signs one in${tone.reset}`];
