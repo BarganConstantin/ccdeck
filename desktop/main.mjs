@@ -38,6 +38,7 @@ import { openAtLogin, replaceNpmLoginItem, setOpenAtLogin } from "./login-item.m
 import { createOwnDeck, discoverPlan, startOwnDeck, stopChild } from "./own-deck.mjs";
 import { trayIconFile } from "./tray-icon.mjs";
 import { windowChrome, titlebarColors, TITLEBAR_HEIGHT } from "./window-chrome.mjs";
+import { WINDOW_MIN, windowPlaceToKeep, windowPlaceToOpen } from "./window-place.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const icons = join(here, "dist", "icons");
@@ -589,11 +590,15 @@ function openWindow(steal = true, customChrome = true) {
   // Kept where both handlers below read it when they are asked, rather than
   // copied into them: attach() moves it when the deck moves to another port.
   windowOrigin = deckOrigin(deck.port);
+  // The way the last window was when it closed (#2466, window-place.mjs).
+  const place = windowPlaceToOpen(desktopState.read().window, screen.getAllDisplays().map(d => d.workArea));
+  // On macOS full screen is a Space of its own, and entering it takes the
+  // person there: only when they opened the window themselves (#1214).
+  const fullScreen = place.fullScreen && (steal || process.platform !== "darwin");
   win = new BrowserWindow({
-    width: 1440,
-    height: 900,
-    minWidth: 720,
-    minHeight: 480,
+    ...place.bounds,
+    minWidth: WINDOW_MIN.width,
+    minHeight: WINDOW_MIN.height,
     title: "ccdeck",
     ...(customChrome ? windowChrome(process.platform) : {}),
     backgroundColor: "#1f1f1f",
@@ -624,6 +629,7 @@ function openWindow(steal = true, customChrome = true) {
     if (where === "external") shell.openExternal(url);
   });
   const created = win;
+  let shown = false;
   win.once("ready-to-show", async () => {
     // The app can attach to an older npm deck. Keep its native frame when that
     // page has no caption strip, so its toolbar remains clear and draggable.
@@ -642,10 +648,19 @@ function openWindow(steal = true, customChrome = true) {
         return;
       }
     }
-    win?.show();
+    if (created.isDestroyed()) return;
+    // maximize() shows the window by itself, already at its size; full screen
+    // needs a window on screen to grow from.
+    if (place.maximized) created.maximize();
+    created.show();
+    if (fullScreen) created.setFullScreen(true);
+    shown = true;
     if (steal) app.focus({ steal: true });
     offerReadyUpdate();
   });
+  // Only a window that was shown: the one closed above for an older deck's
+  // page never was, and its default size is not what anybody chose.
+  win.on("close", () => { if (shown) keepWindowPlace(created); });
   win.on("focus", () => {
     trace(`focus onTop=${win?.isAlwaysOnTop()}`);
     offerReadyUpdate();
@@ -661,6 +676,20 @@ function openWindow(steal = true, customChrome = true) {
   // notification section it has no use for here (src/web/in-app.ts).
   win.webContents.setUserAgent(`${win.webContents.getUserAgent()} ccdeck-desktop/${app.getVersion()}`);
   win.loadURL(`${windowOrigin}/`);
+}
+
+/** Write down how the window is as it closes, for the next one to open the
+ *  same way (#2466, window-place.mjs). Every way the app ends goes through
+ *  app.quit(), which closes the window first, so this runs for those too. */
+function keepWindowPlace(window) {
+  const place = windowPlaceToKeep({
+    normal: window.getNormalBounds(),
+    maximized: window.isMaximized(),
+    fullScreen: window.isFullScreen(),
+  });
+  if (!place) return;
+  trace(`close: keeping ${place.width}x${place.height} at ${place.x},${place.y}${place.maximized ? ", maximized" : ""}${place.fullScreen ? ", full screen" : ""}`);
+  try { desktopState.merge({ window: place }); } catch (err) { trace(`window place not kept: ${err?.message ?? err}`); }
 }
 
 /** How long after macOS says the app let go before looking: the app's own
