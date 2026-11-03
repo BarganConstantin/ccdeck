@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 
+import type { SharedMark } from "../account-lan";
 import { useT } from "../i18n";
 import type { LanAccount } from "../lan-types";
 import CodexProfilesSection from "./CodexProfilesSection";
@@ -32,6 +33,10 @@ export default function CodexAccountsPanel({
 }) {
   const t = useT();
   const [view, setView] = useState<"accounts" | "lan">("accounts");
+  // Which Codex logins this deck offers, and to whom, for the share mark on
+  // their rows — from the status Local network's own section polls, as on
+  // Claude's side, so a row and the setup dialog's ticks never disagree.
+  const [shared, setShared] = useState<ReadonlyMap<string, SharedMark>>(() => new Map());
   const shown = side !== "hidden";
   // Focus follows the view, as on Claude's side: Back on the way in, the row
   // that opened it on the way out. After the frame, once it has mounted.
@@ -58,13 +63,14 @@ export default function CodexAccountsPanel({
   return (
     <aside className={`accounts-panel codex-accounts-panel${leaving ? " leaving" : ""}`} id="codex-accounts-panel" aria-label={t("codex.panel.title")}
       hidden={side === "hidden"} data-side={side}>
-      <CodexProfilesSection onClose={onClose} switcher={switcher} onNotice={onNotice} away={view === "lan"} onLanAccounts={onLanAccounts} />
+      <CodexProfilesSection onClose={onClose} switcher={switcher} onNotice={onNotice} away={view === "lan"} onLanAccounts={onLanAccounts} shared={shared} />
       {lanReady && (
         <LanSyncSection
           accounts={lanAccounts}
           // Both rosters this list comes from read themselves again on their
           // own polls; a Local network write changes neither.
           onChanged={() => {}}
+          onShared={setShared}
           view={view === "lan"}
           onOpen={() => setView("lan")}
           onBack={() => setView("accounts")}
