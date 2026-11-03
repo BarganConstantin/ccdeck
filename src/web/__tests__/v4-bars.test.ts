@@ -254,19 +254,24 @@ describe("V4's chip entrance and exit: opacity and 4px of x, over --dur-base in 
   });
 });
 
-// V4's Figma: ONE bar on the left, its doors and its foot 2px
-// apart inside, the two groups pushed apart (v4-panel-bar.test.ts has the rest).
-describe("V4's Panel bar (the one bar)", () => {
+// V4's Figma: two stripes, each its doors 2px apart inside, the two groups
+// pushed apart (v4-panel-bar.test.ts has the rest). CHANGED ON PURPOSE (V4's
+// Figma): this block pinned the one bar on the left and "no right stripe".
+describe("V4's stripes", () => {
   it("fills with --panel, 6px at the top and foot, 2px between every child", () => {
     expect(decl(".edge-rail", "background")).toBe("var(--panel)");
-    // The 1 on the left answers the 1px border on the right (v4-panel-bar.test.ts).
-    expect(decl(".edge-rail", "padding")).toBe("6px 0 6px 1px");
+    // The 1 on the side away from the canvas answers the 1px border on the side
+    // facing it (v4-panel-bar.test.ts).
+    expect(decl(".edge-rail", "padding")).toBe("6px 0");
+    expect(decl(".edge-rail-left", "padding-left")).toBe("1px");
+    expect(decl(".edge-rail-right", "padding-right")).toBe("1px");
     expect(decl(".rail-doors", "gap")).toBe("2px");
     expect(decl(".rail-group", "gap")).toBe("2px");
   });
-  it("keeps its --line edge on its right side only, at --edge-w", () => {
+  it("keeps its --line edge on the side facing the canvas only, at --edge-w", () => {
     expect(decl(".edge-rail-left", "border-right")).toBe("1px solid var(--line)");
-    expect(has(".edge-rail-right")).toBe(false);
+    expect(decl(".edge-rail-right", "border-left")).toBe("1px solid var(--line)");
+    expect(has(".edge-rail-right")).toBe(true);
     expect(decl(".edge-rail", "width")).toBe("var(--edge-w)");
   });
   it("draws between two groups a 16x1 --line-soft rule as the next group's first flex item", () => {

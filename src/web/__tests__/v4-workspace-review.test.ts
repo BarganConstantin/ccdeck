@@ -206,9 +206,11 @@ describe("Usage and Machine over the Inspector (review 11)", () => {
   it("puts their right edge where the Board has no Inspector under them, from 1320 up, in Workspace only", () => {
     const wide = block(css, "@media (min-width: 1320px)");
     // CHANGED ON PURPOSE (V4's motion spec): the right edge is written by the
-    // panels' own rule in the Inspector's column (right: 0, while .detail
-    // exists), not by a --rail-r that nothing reads any more.
-    expect(wide.replace(/\s+/g, " ")).toContain('.app[data-view="workspace"]:has(.detail) :is(.usage-panel, .sysdetail):not([data-place]) { top: var(--ws-head); right: 0;');
+    // panels' own rule in the Inspector's column (while .detail exists), not by
+    // a --rail-r that nothing reads any more.
+    // CHANGED ON PURPOSE (V4's Figma): and it is --edge-w in, clear of the right
+    // stripe, where it was at the window's edge.
+    expect(wide.replace(/\s+/g, " ")).toContain('.app[data-view="workspace"]:has(.detail) :is(.usage-panel, .sysdetail):not([data-place]) { top: var(--ws-head); right: var(--edge-w);');
   });
 
   it("states it nowhere else: under 1320 the Board's place stands", () => {
@@ -228,7 +230,8 @@ describe("Usage and Machine over the Inspector (review 11)", () => {
   });
 
   it("leaves the Board's own rules where they were", () => {
-    expect(machine).toContain(".app { --rail-r: calc(var(--inspector-w) + 8px); }");
-    expect(machine).toContain(".app:not(:has(.detail)) { --rail-r: 8px; }");
+    // CHANGED ON PURPOSE (V4's Figma): both carry the right stripe's width again.
+    expect(machine).toContain(".app { --rail-r: calc(var(--inspector-w) + 8px + var(--edge-w)); }");
+    expect(machine).toContain(".app:not(:has(.detail)) { --rail-r: calc(8px + var(--edge-w)); }");
   });
 });

@@ -331,11 +331,12 @@ describe("where Usage and Machine sit in Workspace", () => {
     expect(decl(base, "max-height")).toBe("calc(100vh - var(--ws-head) - 16px - var(--status-room, 0px))");
   });
 
-  it("are the Inspector's column from 1320 only while it exists: under its head, above the status bar, right edge at the window", () => {
+  // CHANGED ON PURPOSE (V4's Figma): the right edge is 40 in from the window's, clear of the right stripe.
+  it("are the Inspector's column from 1320 only while it exists: under its head, above the status bar, right edge clear of the right stripe", () => {
     const wide = workspace.slice(workspace.indexOf("@media (min-width: 1320px)"));
     const body = rule(wide, '.app[data-view="workspace"]:has(.detail) :is(.usage-panel, .sysdetail):not([data-place])');
     expect(decl(body, "top")).toBe("var(--ws-head)");
-    expect(decl(body, "right")).toBe("0");
+    expect(decl(body, "right")).toBe("var(--edge-w)");
     expect(decl(body, "max-height")).toBe("var(--ws-col-h)");
     expect(workspace).toContain("--ws-col-h: calc(100vh - var(--ws-head) - var(--status-room, 0px));");
     // The column rule never reaches a folded Inspector: no .detail, no column.

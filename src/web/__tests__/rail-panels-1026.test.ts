@@ -140,8 +140,8 @@ describe("--rail-r is read by both panels it was introduced to hold together (#1
     // (0px, from 1320 up) that nothing read once its panels were placed by their
     // own rules (workspace.css: top and right 0 in the Inspector's column), so it
     // is gone and the two are the Board's.
-    // V4's Figma: no right bar, so none of them carries a stripe's width.
-    expect(defs).toEqual(["calc(var(--inspector-w) + 8px)", "8px"]);
+    // CHANGED ON PURPOSE (V4's Figma): the right stripe is back, so both carry its width again.
+    expect(defs).toEqual(["calc(var(--inspector-w) + 8px + var(--edge-w))", "calc(8px + var(--edge-w))"]);
     expect(css).not.toMatch(/\.usage-panel\s*\{[^}]*right:\s*368px/);
     // And the duplicate override is gone with it.
     expect(css).not.toMatch(/:not\(:has\(\.detail\)\)\s+\.usage-panel/);

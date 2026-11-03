@@ -32,10 +32,10 @@ export type PanelPlace = {
   y: number;
 };
 
-/** The room a panel may be moved in: the window, less the Panel bar and an
+/** The room a panel may be moved in: the window, less the stripes and an
  *  8px inset at each side, and below the bar. `side` is the left inset (the
- *  Panel bar's width and 8); `sideRight` the right one (8, with no right bar),
- *  `side` again when unset. */
+ *  left stripe's width and 8); `sideRight` the right one (the right stripe's
+ *  width and 8), `side` again when unset. */
 export type PanelRoom = { w: number; h: number; side: number; sideRight?: number; top: number };
 
 /** How much of a panel stays above the window's foot, so its header and a
@@ -170,9 +170,10 @@ function scheduleFit(): void {
  *  height ends where the status bar begins (none on a phone, or before it is
  *  drawn: 0). */
 function roomOf(home: DOMRect): PanelRoom {
-  const bar = document.querySelector(".edge-rail-left")?.getBoundingClientRect().width ?? 0;
+  const left = document.querySelector(".edge-rail-left")?.getBoundingClientRect().width ?? 0;
+  const right = document.querySelector(".edge-rail-right")?.getBoundingClientRect().width ?? 0;
   const status = document.querySelector(".statusbar")?.getBoundingClientRect().height ?? 0;
-  return { w: window.innerWidth, h: window.innerHeight - status, side: bar + 8, sideRight: 8, top: home.top };
+  return { w: window.innerWidth, h: window.innerHeight - status, side: left + 8, sideRight: right + 8, top: home.top };
 }
 
 type Drag = {

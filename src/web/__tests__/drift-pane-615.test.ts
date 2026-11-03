@@ -275,7 +275,8 @@ describe("the six layouts are still the six the stylesheet declares", () => {
     // inset by the edge stripes on both sides.
     expect(css).toMatch(/\.app\s*\{[^}]*grid-template-rows:\s*var\(--topbar-h\) auto 1fr;/);
     expect(TOPBAR_H).toBe(44);
-    expect(css).toMatch(/\.app\s*\{\s*padding-left:\s*var\(--edge-w\);\s*\}/);
+    // CHANGED ON PURPOSE (V4's Figma): two stripes again, the grid inset by both.
+    expect(css).toMatch(/\.app\s*\{\s*padding-inline:\s*var\(--edge-w\);\s*\}/);
     expect(EDGES_W).toBe(80);
     expect(css).toMatch(/\.canvas-wrap\s*\{[^}]*grid-row:\s*3;/);
     expect(css).toMatch(/\.conn-banner\s*\{[^}]*grid-row:\s*2;/);

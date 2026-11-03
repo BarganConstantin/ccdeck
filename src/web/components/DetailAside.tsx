@@ -16,6 +16,7 @@ import Detail from "./Detail";
 import Inspector from "./Inspector";
 import { useT } from "../i18n";
 import SheetHandle from "./SheetHandle";
+import { INSPECTOR_REGION_ID } from "../inspector-corner";
 
 /** Build a portable JSON snapshot of a single session (root + every subagent)
  *  and trigger a browser download.
@@ -86,7 +87,7 @@ export default function DetailAside({ selected, now, openTool, setSummaryFor, on
     // identity when nothing is selected, and a landmark whose name changes
     // under the reader is a landmark they cannot come back to. The agent's
     // name is the panel's <h2>, which is where a changing title belongs.
-    <aside ref={asideRef} className={leaving ? "detail leaving" : "detail"} data-sheet={sheetState} aria-label={t("board.detailPanel.title")}>
+    <aside ref={asideRef} id={INSPECTOR_REGION_ID} className={leaving ? "detail leaving" : "detail"} data-sheet={sheetState} aria-label={t("board.detailPanel.title")}>
       <SheetHandle />
       <Inspector
         selected={selected}

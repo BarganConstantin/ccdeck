@@ -56,8 +56,10 @@ const rails = railItems({
   setUsageHistoryOpen: noop, watchOn: false, watchUnseen: 0, setBrowserWatchOpen: noop,
   openSettings: noop, onFeedback: noop, toggles: { sessionList: ref(), usage: ref(), accounts: ref(), machine: ref() },
 });
-// V4's Panel bar: one bar holds every door and Settings at its foot.
-const left = renderToStaticMarkup(createElement(EdgeRail, { label: "Panels and tools", groups: rails.panelBar, foot: rails.panelFoot }));
+// CHANGED ON PURPOSE (V4's Figma): one bar holding every door is two stripes, a
+// door on the side its panel opens; Settings at the left one's foot.
+const left = renderToStaticMarkup(createElement(EdgeRail, { side: "left", label: "Panels and tools", groups: rails.leftStripe, foot: rails.leftFoot }));
+const right = renderToStaticMarkup(createElement(EdgeRail, { side: "right", label: "Usage and activity", groups: rails.rightStripe }));
 const corner = renderToStaticMarkup(createElement(UtilityRun, { items: rails.topUtilities }));
 const dock = renderToStaticMarkup(createElement(EdgeDock, {
   items: [...rails.left, ...rails.right[0], rails.utilities[0]], more: [...rails.right.slice(1).flat(), rails.utilities[1]],
@@ -73,23 +75,26 @@ function buttons(html: string): Array<{ name: string; word: string }> {
 
 // Each word, and the accessible name it has to be found in (2.5.3).
 const WORDS: Array<[word: string, name: string]> = [
-  // Sessions first on the Panel bar (V4's Figma), Settings at its foot.
+  // The left stripe: Sessions first (V4's Figma), Settings at its foot; the
+  // right stripe: the Inspector's door first, then the panels and records.
   ["Session list", "Session list"],
   ["Accounts", "Accounts"],
+  ["Settings", "Settings"],
+  ["Show the Inspector", "Show the Inspector"],
   ["Usage", "Usage"],
   ["Machine", "Machine"],
   ["Usage history", "Usage history"],
   ["Browser watch", "Browser watch, not watching"],
-  ["Settings", "Settings"],
   ["Feedback", "Send feedback"],
 ];
 
 describe("every control in the chrome says its name (#836)", () => {
-  const drawn = [...buttons(left), ...buttons(corner)];
+  const drawn = [...buttons(left), ...buttons(right), ...buttons(corner)];
 
   it("names every control and keeps visible words on the topbar", () => {
     expect(drawn.map(b => b.name)).toEqual(WORDS.map(([, name]) => name));
     expect(buttons(left).every(b => b.word === "")).toBe(true);
+    expect(buttons(right).every(b => b.word === "")).toBe(true);
     // V4's Figma draws Feedback as a bare 28x28 icon: its word is the hint's and
     // the name's ("Send feedback"), not a visible one.
     expect(buttons(corner).map(b => b.word)).toEqual([""]);
@@ -111,8 +116,8 @@ describe("every control in the chrome says its name (#836)", () => {
     // Drawn on the stripes and in the corner whenever the window is not a
     // phone's — the dock takes over there, in the same breakpoint.
     expect(app).toMatch(/\{!phone && <div className="actions"><UtilityRun items=\{\[rails\.search, \.\.\.rails\.topUtilities\]\} \/><\/div>\}/);
-    expect(app).toMatch(/: <EdgeRail label=\{t\("board\.rail\.tools"\)\} groups=\{rails\.panelBar\} foot=\{rails\.panelFoot\} \/>\}/);
-    expect(app).not.toContain("<EdgeRail side=");
+    expect(app).toMatch(/: <EdgeRail side="left" label=\{t\("board\.rail\.tools"\)\} groups=\{rails\.leftStripe\} foot=\{rails\.leftFoot\} \/>\}/);
+    expect(app).toMatch(/\{!phone && <EdgeRail side="right" label=\{t\("shell\.rail\.right"\)\} groups=\{rails\.rightStripe\} \/>\}/);
   });
 
   it("says a short word under each glyph in the phone's dock, and the rest by name behind More", () => {
@@ -141,10 +146,12 @@ describe("every control in the chrome says its name (#836)", () => {
     // Since 2026-10-23 both stripes follow one rule: runs of doors that answer
     // one question (rail-items.tsx), so the records and the watchers are two
     // runs, and a run of two or more is a group named for a screen reader.
-    // V4's Figma: one bar, Sessions first, Settings at the foot.
-    expect(buttons(left).map(b => b.name)).toEqual(["Session list", "Accounts", "Usage", "Machine", "Usage history", "Browser watch, not watching", "Settings"]);
-    expect(left.match(/<div class="rail-group"/g)).toHaveLength(4);
-    expect(left).toContain('<div class="rail-group" role="group" aria-label="Usage and machine">');
+    // V4's Figma: the left stripe, Sessions first, Settings at the foot; the
+    // right stripe, the Inspector's door alone first.
+    expect(buttons(left).map(b => b.name)).toEqual(["Session list", "Accounts", "Settings"]);
+    expect(buttons(right).map(b => b.name)).toEqual(["Show the Inspector", "Usage", "Machine", "Usage history", "Browser watch, not watching"]);
+    expect(right.match(/<div class="rail-group"/g)).toHaveLength(4);
+    expect(right).toContain('<div class="rail-group" role="group" aria-label="Usage and machine">');
     expect(body(".rail-foot") /* shares the rule with .rail-doors */).toMatch(/gap: 2px;/);
     expect(body(".rail-group")).toMatch(/gap: 2px;/);
     expect(body(".rail-doors .rail-group + .rail-group::before")).toMatch(/width: 16px;[^}]*height: 1px;[^}]*background: var\(--line-soft\);/);
@@ -195,8 +202,8 @@ describe("the chrome is quiet: no edge at rest, a neutral look under the pointer
     // chrome is one since the speaker left (2026-10-07); `.icon-btn` and its
     // pressed look left with the bar's toggles. A disclosure says
     // aria-expanded, a dialog opener aria-haspopup="dialog".
-    for (const html of [left, corner, dock]) expect(html).not.toMatch(/aria-pressed/);
-    expect(left).toMatch(/aria-label="Usage history"[^>]*aria-haspopup="dialog"|aria-haspopup="dialog"[^>]*aria-label="Usage history"/);
+    for (const html of [left, right, corner, dock]) expect(html).not.toMatch(/aria-pressed/);
+    expect(right).toMatch(/aria-label="Usage history"[^>]*aria-haspopup="dialog"|aria-haspopup="dialog"[^>]*aria-label="Usage history"/);
     expect(left).toMatch(/aria-expanded="false"/);
   });
 

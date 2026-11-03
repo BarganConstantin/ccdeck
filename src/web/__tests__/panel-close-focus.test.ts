@@ -191,7 +191,8 @@ describe("the wiring", () => {
       expect(rails, item).toMatch(new RegExp(`const ${item}: RailItem = \\{[\\s\\S]*?buttonRef: toggles\\.${ref},`));
     }
     expect(edge).toMatch(/<button\s+ref=\{item\.buttonRef\}/);
-    expect(app).toMatch(/\{phone\s*\?\s*<EdgeDock[\s\S]*?:\s*<EdgeRail label/);
-    expect(app).not.toMatch(/<EdgeRail side="right"/); // V4's Figma: one bar, no right one
+    expect(app).toMatch(/\{phone\s*\?\s*<EdgeDock[\s\S]*?:\s*<EdgeRail side="left" label/);
+    // CHANGED ON PURPOSE (V4's Figma): the right stripe is back, never beside the phone dock.
+    expect(app).toMatch(/\{!phone && <EdgeRail side="right"/);
   });
 });

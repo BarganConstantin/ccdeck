@@ -7,21 +7,24 @@
 // label cannot drift between them. The keys are the ones the deck has always
 // answered (use-deck-shortcuts.ts); moving a button moved none of them.
 //
-// ONE PANEL BAR (V4's Figma). The two stripes became one bar on
-// the left: runs of doors that answer one question each, three doors at most,
-// between rules, each run a name a screen reader says on the way in, and a foot
-// of utilities pushed to the bottom:
+// TWO STRIPES, A DOOR ON THE SIDE WHERE ITS PANEL OPENS (V4's Figma). The eye
+// never crosses the canvas to find what a door opened. Each stripe is runs of
+// doors that answer one question each, three doors at most, between rules, each
+// run a name a screen reader says on the way in:
 //
-//   Sessions and accounts  Session list · Accounts (or Codex accounts)
-//   Claude accounts        Account capacity · Reset calendar
-//   Usage and machine      Usage · Machine
-//   Activity history       Usage history · Tool activity · Skill activity
-//   Watchers               Browser watch · Telemetry Radar
-//   the connected trackers (a run of their own, so Explore keeps its place)
-//   Explore integrations
-//   foot                   Radio · Settings
+//   LEFT   Sessions and accounts  Session list · Accounts (or Codex accounts)
+//          Claude accounts        Account capacity · Reset calendar
+//          the connected trackers (a run of their own, so Explore keeps its place)
+//          Explore integrations
+//          foot                   Radio · Settings
 //
-// Every door stayed: only the place moved. The phone keeps its dock.
+//   RIGHT  the Inspector          its door alone, first
+//          Usage and machine      Usage · Machine
+//          Activity history       Usage history · Tool activity · Skill activity
+//          Watchers               Browser watch · Telemetry Radar
+//          (no foot)
+//
+// Every door keeps its key: only the place moved. The phone keeps its dock.
 import { providerText } from "./integrations/provider-text";
 import type { Dispatch, SetStateAction } from "react";
 import type { Providers } from "./providers";
@@ -34,28 +37,31 @@ import type { IntegrationWebDef } from "./integrations/types";
 import type { CapacityView } from "./components/AccountsUsageReport";
 import {
   AccountsGlyph, CodexAccountsGlyph, BrowserWatchGlyph, CapacityGlyph, FeedbackGlyph, HistoryGlyph, IntegrationsGlyph, MachineGlyph, ResetCalendarGlyph,
-  SessionListGlyph, SettingsGlyph, UsageGlyph, TrafficRadarGlyph, RadioGlyph, ToolActivityGlyph, SkillActivityGlyph, SearchGlyph,
+  InspectorGlyph, SessionListGlyph, SettingsGlyph, UsageGlyph, TrafficRadarGlyph, RadioGlyph, ToolActivityGlyph, SkillActivityGlyph, SearchGlyph,
 } from "./components/rail-glyphs";
 import type { ToolActivityView } from "./components/ToolAuditModal";
 import { t, type TFunction } from "./i18n";
+import { INSPECTOR_REGION_ID } from "./inspector-corner";
 
 /** What the top bar's search field says before anything is typed (V4's Figma), and so its
  *  name: the words on screen are the name (WCAG 2.5.3). */
 export const QUICK_OPEN_PLACEHOLDER_MSG = "board.quick.placeholder";
 
 type Toggle = Dispatch<SetStateAction<boolean>>;
-
 export interface RailItems {
   /** The left column's two, Accounts first: they share it, and opening one
    *  closes the other. */
   left: RailItem[];
-  /** The Panel bar's doors, top to bottom, in V4's Figma order and its runs
+  /** The left stripe's doors, top to bottom, in V4's Figma order and its runs
    *  (the rules fall between them): Sessions and Accounts, Account capacity and
-   *  Reset calendar, Usage and Machine, the three activity records, Browser
-   *  watch and Telemetry Radar, then the trackers and Explore integrations. */
-  panelBar: RailItem[][];
-  /** The Panel bar's foot, pushed down by the bar: Radio, Settings. */
-  panelFoot: RailItem[];
+   *  Reset calendar, then the trackers and Explore integrations. */
+  leftStripe: RailItem[][];
+  /** The left stripe's foot, pushed down: Radio, Settings. */
+  leftFoot: RailItem[];
+  /** The right stripe's doors, top to bottom: the Inspector alone, Usage and
+   *  Machine, the three activity records, Browser watch and Telemetry Radar. It
+   *  has no foot. */
+  rightStripe: RailItem[][];
   /** What the top bar keeps of the two utilities: Feedback. Settings moved to
    *  the Panel bar's foot (its key is unchanged). */
   topUtilities: RailItem[];
@@ -67,7 +73,7 @@ export interface RailItems {
    *  its five slots. Empty without Claude Code. */
   capacity: RailItem[];
   /** The phone's grouping of the same doors: the two panels, the activity
-   *  records, the watchers, then Radio. The desktop draws `panelBar`. */
+   *  records, the watchers, then Radio. The desktop draws the two stripes. */
   right: RailItem[][];
   /** Settings and Feedback, in the topbar's corner. */
   utilities: RailItem[];
@@ -124,7 +130,12 @@ export function railItems({
   usagePanelOpen, setUsagePanelOpen, machinePanelOpen, setMachinePanelOpen, setUsageHistoryOpen,
   watchOn, watchUnseen, setBrowserWatchOpen, setTrafficRadarOpen, setRadioOpen, openToolActivity, openSettings, onFeedback, toggles,
   openCapacity, integrations = [], openExploreIntegrations, openQuickOpen, feedbackUnread = 0, openFeedbackConversations,
+  inspectorOpen = false, toggleInspector = () => {},
 }: {
+  /** Whether the Inspector shows, as a column, a sheet or the detail panel. */
+  inspectorOpen?: boolean;
+  /** The Inspector door's press: what D does in the place it is pressed. */
+  toggleInspector?: () => void;
   providers: Providers;
   sessionListOpen: boolean;
   toggleSessionList: () => void;
@@ -205,6 +216,15 @@ export function railItems({
     id: "codex-accounts", label: "Codex accounts", short: "Codex",
     ariaLabel: "Codex accounts", glyph: <CodexAccountsGlyph />, kind: "panel",
     open: codexPanelOpen, controls: "codex-accounts-panel", onPress: toggleCodexPanel, buttonRef: toggles.codex,
+  };
+  // The Inspector's door, first on the right stripe (V4's Figma): the side its
+  // panel opens on. It reads Open while the Inspector shows, as a column, as the
+  // 1100 to 1319 sheet or as the Board's detail panel. The region is the
+  // Inspector's aside (DetailAside.tsx), whichever of them is drawn.
+  const inspector: RailItem = {
+    id: "inspector", label: t("board.inspector.show"), short: t("board.inspector.show"), key: { cap: "D", aria: "D", single: true },
+    ariaLabel: t("board.inspector.show"), glyph: <InspectorGlyph />, kind: "panel",
+    open: inspectorOpen, controls: INSPECTOR_REGION_ID, onPress: toggleInspector,
   };
   const usage: RailItem = {
     id: "usage", label: t("board.rail.usage"), short: t("board.rail.usage"), key: { cap: "U", aria: "U", single: true },
@@ -304,16 +324,21 @@ export function railItems({
     // this deck has; beside Claude it is a side of the same panel.
     // V4's Panel bar (Figma): Sessions first, then Accounts, and Codex's door
     // beside Accounts where it is all this deck has; the rest in its runs.
-    panelBar: [
+    leftStripe: [
       named(t("shell.rail.left"), [sessionList, ...(providers.claude ? [accounts] : providers.codex ? [codex] : [])]),
       providers.claude ? named(t("board.rail.group.accounts"), capacity) : [],
-      named(t("board.rail.group.usage"), [usage, machine]),
-      named(t("board.rail.group.activity"), [history, ...activity]),
-      named(t("board.rail.group.watchers"), [browserWatch, ...radar]),
       trackers,
       explore,
     ].filter(group => group.length > 0),
-    panelFoot: [...radio, settings],
+    leftFoot: [...radio, settings],
+    // The Inspector's door alone, then the panels and records the right side
+    // opens. Its press is App's (it does what D does in the place it is pressed).
+    rightStripe: [
+      [inspector],
+      named(t("board.rail.group.usage"), [usage, machine]),
+      named(t("board.rail.group.activity"), [history, ...activity]),
+      named(t("board.rail.group.watchers"), [browserWatch, ...radar]),
+    ].filter(group => group.length > 0),
     topUtilities: [feedback],
     capacity: providers.claude ? capacity : [],
     right: [

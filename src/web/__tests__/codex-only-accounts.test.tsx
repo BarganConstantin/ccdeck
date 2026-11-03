@@ -27,7 +27,8 @@ describe("Codex accounts, in their own column", () => {
     const both = items({ claude: true, codex: true });
     expect(ids(both.left)).toEqual(["accounts", "session-list"]);
     expect(ids(both.codexDoor)).toEqual(["codex-accounts"]);
-    expect(ids(both.panelBar.flat()).slice(0, 2)).toEqual(["session-list", "accounts"]);
+    // CHANGED ON PURPOSE (V4's Figma): the left stripe's list, since the one bar is two stripes.
+    expect(ids(both.leftStripe.flat()).slice(0, 2)).toEqual(["session-list", "accounts"]);
     expect(ids(items({ claude: true, codex: false }).left)).toEqual(["accounts", "session-list"]);
   });
 });

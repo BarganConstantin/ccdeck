@@ -21,8 +21,8 @@
 .statusbar {
   grid-row: 4;
   grid-column: 1 / -1;
-  /* Out across the Panel bar's padding, as the topbar is: full width. */
-  margin-left: calc(-1 * var(--edge-w));
+  /* Out across the stripes' padding, as the topbar is: full width. */
+  margin-inline: calc(-1 * var(--edge-w));
   box-sizing: border-box;
   height: var(--statusbar-h);
   display: flex;
