@@ -21,7 +21,7 @@ import { ACCOUNT_NOTIFY_SWITCHES } from "../notify-reach";
 import { CHIME_ORDER } from "../sound";
 import { CLAUDE_SETTINGS } from "../../server/claude-settings-catalog.mjs";
 import { TONE_LABEL } from "../components/ToneSection";
-import { TERMINAL_LABEL } from "../components/TerminalSection";
+import enSettings from "../i18n/areas/settings/en";
 import SettingsModal, { type SettingsModalProps } from "../components/SettingsModal";
 import { DEFAULT_PREFS } from "../sound";
 import { ACCOUNT_NOTIFY_DEFAULTS } from "../use-os-notifications";
@@ -115,7 +115,7 @@ describe("the index holds every place a result can land", () => {
 
   it("names the Command Panel's switch as Experimental names it, and finds it by the words people use for one", () => {
     const entry = SETTINGS_INDEX.find(e => e.id === "terminal")!;
-    expect(entry.label).toBe(TERMINAL_LABEL);
+    expect(entry.label).toBe(enSettings["settings.search.commandPanel"]);
     // CHANGED ON PURPOSE (V4's Figma): Experimental is a group in General, not a
     // section of its own, so the result is General's and the group is named.
     expect(entry.section).toBe("general");
