@@ -36,8 +36,9 @@ export function cliPollMs(env = process.env) {
  * `clis` is `{ name, want, off, installed }` per CLI: `want` is the boot's
  * answer, `off` is `--no-claude` / `--no-codex` (the user telling the deck to
  * leave that CLI alone, which still holds for one installed afterwards), and
- * `installed` is the boot's presence check. A CLI already served or switched
- * off is not watched, and with nothing to watch no timer is started at all.
+ * `installed` is the boot's presence check, which may answer now or with a
+ * promise. A CLI already served or switched off is not watched, and with
+ * nothing to watch no timer is started at all.
  *
  * The timer is unref'd: it must never be the thing keeping a deck alive.
  * A presence check that throws is a no for this beat, not the end of the watch.
@@ -46,12 +47,13 @@ export function watchForClis({ clis, onArrive, everyMs = cliPollMs(), timers = g
   const awaited = clis.filter(c => !c.want && !c.off);
   if (!awaited.length) return () => {};
   let stopped = false;
-  const timer = timers.setInterval(() => {
-    if (stopped) return;
-    const found = awaited.find(c => {
-      try { return Boolean(c.installed()); } catch { return false; }
-    });
-    if (!found) return;
+  let looking = false;
+  const timer = timers.setInterval(async () => {
+    if (stopped || looking) return;
+    looking = true;
+    const found = await firstInstalled(awaited);
+    looking = false;
+    if (!found || stopped) return;
     stop();
     onArrive(found.name);
   }, everyMs);
@@ -61,4 +63,16 @@ export function watchForClis({ clis, onArrive, everyMs = cliPollMs(), timers = g
     timers.clearInterval(timer);
   }
   return stop;
+}
+
+/** The first CLI whose check answers yes. The answer is awaited, because a
+ *  promise is truthy: hasCodexInstalled is async, and read as it stood it said
+ *  yes on every machine without Codex, restarting the deck on every beat. */
+async function firstInstalled(clis) {
+  for (const c of clis) {
+    try {
+      if (await c.installed()) return c;
+    } catch { /* a no for this beat */ }
+  }
+  return null;
 }

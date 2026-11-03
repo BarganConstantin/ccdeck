@@ -180,7 +180,10 @@ describe("the banner for a dropped connection", () => {
   // anything); with none it keeps the plain sentence.
   it("names the time of the last news when there is one, and none when there is not", () => {
     expect(words(banner({ phone: true }))).not.toMatch(/last news|\d{1,2}:\d{2}/i);
-    const at = new Date(2026, 10, 2, 14, 2).getTime();
+    // CHANGED ON PURPOSE: today at 14:02, not a fixed date. The banner reads the
+    // clock, and names the day as well once the news is from another day.
+    const today = new Date();
+    const at = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 14, 2).getTime();
     expect(words(banner({ phone: true, lastNewsAt: at }))).toContain("Last news 14:02");
   });
 
