@@ -112,7 +112,10 @@ describe("an open account row whose windows have reset since a reading that is f
   it("preserves panel reset wording while qualifying the report estimate", () => {
     const shut = row(frozenAndReset, false);
     const open = row(frozenAndReset, true);
-    const cells = [...report(frozenAndReset).matchAll(/<td class="ap-report-cell"[^]*?<\/td>/g)].map(m => seen(m[0].replace(/<span class="ap-report-mobile-label"[^]*?<\/span>/g, "")));
+    // CHANGED ON PURPOSE (V4's Figma): the report's cell now ends with a second
+    // line, when the window resets (pinned in accounts-report-window-lines). This
+    // compares the figure each view gives for the window, as it always did.
+    const cells = [...report(frozenAndReset).matchAll(/<td class="ap-report-cell"[^]*?<\/td>/g)].map(m => seen(m[0].replace(/<span class="ap-report-mobile-label"[^]*?<\/span>/g, "").replace(/<span class="ap-report-win-sub"[^]*$/, "")));
     expect(cells).toHaveLength(2);
     WINDOWS.forEach(({ label }, i) => {
       const views = {

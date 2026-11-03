@@ -267,11 +267,10 @@ describe("a percentage width under a horizontal margin", () => {
       // each filling the fixed-width day slot the flex plot hands them. Named
       // here so they enter the margin check below; no rule gives them a margin.
       "ap-proj-col", "ap-proj-colseg",
-      // The Account capacity table (#1707, #1713), which fills the dialog's
-      // body; its columns are sized in pixels now, and the account column takes
-      // the rest. Named so it enters the margin check below; no rule gives it a
-      // margin.
-      "ap-report-table",
+      // CHANGED ON PURPOSE (V4's Figma): the Account capacity table is not on this
+      // list any more. It is four columns of 678px in all, as the frame draws
+      // them, so it has no percentage width to check; on a phone it is
+      // `width: auto`.
       // Each reset-day hit area fills its grid cell, with no outer margins.
       "ap-reset-day-button",
       "bw-ep-head", "bw-radar", "cost-bar",

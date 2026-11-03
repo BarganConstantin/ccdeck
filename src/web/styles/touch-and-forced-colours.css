@@ -358,6 +358,9 @@
   .ap-reset-meter,
   .ap-proj-bar,
   .ap-proj-track { outline: 1px solid CanvasText; outline-offset: -1px; }
+  /* The capacity table's bar is 2px tall: the edge sits outside it, or it would
+     cover the whole bar. */
+  .ap-report-fig .ap-report-meter { outline-offset: 1px; }
   /* A day of the Projects report's chart is a button with no edge, and a quiet
      day's column is a pixel tall: each gets the edge a button has, so the
      targets can be found. The chosen day's accent ring is a shadow, which the

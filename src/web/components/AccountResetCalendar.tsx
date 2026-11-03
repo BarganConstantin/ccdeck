@@ -167,7 +167,11 @@ export default function AccountResetCalendar({ accounts, nowSec, held, selectedD
     <div ref={resultsRef} className="ap-reset-results">
     <section className="ap-reset-scheduled" hidden={scope !== "upcoming"} aria-label={t("accounts.cal.scheduledLabel")}>
       <div className="ap-reset-list-head">
-        <h3>{selected ? `${weekday(selected.date)}, ${dayLabel(selected.date)}` : t("accounts.cal.allUpcoming")} <span>{shownCount}</span></h3>
+        {/* The heading names the window once. With no day picked it carries no
+            count: the list under it is the count, and the Next 7 days heading
+            above already says how many resets the week holds. It reads as the
+            list's label, quieter than a picked day's heading. */}
+        {selected ? <h3>{`${weekday(selected.date)}, ${dayLabel(selected.date)}`} <span>{shownCount}</span></h3> : <h3 className="ap-reset-all-head">{t("accounts.cal.allUpcoming")}</h3>}
         <button className="btn" type="button" aria-pressed={!selected} onClick={() => { returnToStart(); onSelect(null); }}>{t("accounts.cal.allDaysBtn")}</button>
       </div>
       <p className="ap-reset-hint" role="status">{selected ? t("accounts.cal.showingOnly", { date: fullDate(selected.date) }) : t("accounts.cal.allDaysHint")}</p>
