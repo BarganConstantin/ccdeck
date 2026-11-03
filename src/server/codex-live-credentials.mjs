@@ -12,9 +12,10 @@ import { pathLookup } from './exec-spec.mjs';
 import { holdWindowsPrivatePath } from './codex-windows-private.mjs';
 
 const MAX_AUTH_BYTES = 1024 * 1024;
-// Windows cold CLI startup needs the same twelve-second request allowance as
-// native quota inspection, plus the owned process's four-second shutdown.
-const NATIVE_DEADLINE_MS = process.platform === 'win32' ? 16000 : 7000;
+// A loaded Windows host can exceed twelve seconds starting a cold CLI while
+// native agents work. Bound initialization/reads together at thirty seconds,
+// plus the owned process's four-second shutdown; never retry a native request.
+const NATIVE_DEADLINE_MS = process.platform === 'win32' ? 34000 : 7000;
 // startEngineRpc.stop() closes stdin, then escalates at 2s and 4s. Reserve its
 // full shutdown window rather than giving each request another seven seconds.
 const STOP_RESERVE_MS = 4000;

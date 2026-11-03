@@ -88,7 +88,8 @@ export async function holdWindowsPrivatePath(path, options = {}) {
       });
       return releasing;
     };
-    const lifetime = setTimeout(() => { expired = true; release(); }, 60000); lifetime.unref();
+    // Covers cold native startup and the subsequent bounded ACL rechecks.
+    const lifetime = setTimeout(() => { expired = true; release(); }, 120000); lifetime.unref();
     return { path: captured.path, generation: captured.generation, valid: () => alive && !released && !expired && child.exitCode === null && child.signalCode === null,
       release };
   } catch { child?.stdin?.destroy(); child?.kill(); throw unsafe(); }
