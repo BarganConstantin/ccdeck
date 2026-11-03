@@ -197,7 +197,7 @@ const catalog: Catalog = {
   "settings.key.sessions": "工作階段清單",
   "settings.key.detail": "詳細資料面板",
   "settings.key.history": "使用量記錄",
-  "settings.key.accounts": "Claude 帳號（需已安裝 Claude Code）",
+  "settings.key.accounts": "Claude 和 Codex 帳號（取決於已安裝的工具）",
   "settings.key.machine": "這台電腦——核心、記憶體、溫度",
   "settings.key.bw": "Browser Watch",
   "settings.key.jira": "Jira（需先在「設定 › 整合」中連線）",

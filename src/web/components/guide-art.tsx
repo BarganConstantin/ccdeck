@@ -322,7 +322,11 @@ function AccountsArt() {
           180 with that line drawn at 182, and the word poked out under the
           card. Reported from a screenshot. */}
       <Screen x={14} y={16} w={232} h={170} />
-      <text x={28} y={40} className="ga-t ga-strong">{t("shell.art.claudeAccounts")}</text>
+      {/* The panel's own head: one switch between the Claude and Codex
+          accounts, Claude's picked. Product names, so not translated. */}
+      <rect x={22} y={28} width={50} height={18} rx={6} className="ga-track" />
+      <text x={47} y={41} className="ga-t ga-strong" textAnchor="middle">Claude</text>
+      <text x={84} y={41} className="ga-t ga-dim">Codex</text>
       <Glyph x={196} y={33} d="M7 2.2v9.6M2.2 7h9.6" />
       <Glyph x={220} y={33} d="M3.3 10.7L10.7 3.3M5.2 3.3h5.5v5.5" />
       <line x1={14} y1={52} x2={246} y2={52} className="ga-line" />

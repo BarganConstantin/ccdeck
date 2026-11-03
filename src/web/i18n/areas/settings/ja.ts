@@ -197,7 +197,7 @@ const catalog: Catalog = {
   "settings.key.sessions": "セッション一覧",
   "settings.key.detail": "詳細パネル",
   "settings.key.history": "使用量の履歴",
-  "settings.key.accounts": "Claude アカウント（Claude Code がある場合）",
+  "settings.key.accounts": "Claude と Codex のアカウント（インストール済みのもの）",
   "settings.key.machine": "このマシン：コア・メモリ・温度",
   "settings.key.bw": "Browser Watch",
   "settings.key.jira": "Jira（設定 › 連携 で接続済みの場合）",

@@ -190,7 +190,7 @@ const catalog: Catalog = {
   "settings.key.sessions": "세션 목록",
   "settings.key.detail": "상세 패널",
   "settings.key.history": "사용량 기록",
-  "settings.key.accounts": "Claude Code가 설치된 Claude 계정",
+  "settings.key.accounts": "설치된 Claude 및 Codex 계정",
   "settings.key.machine": "이 컴퓨터 — 코어, 메모리, 온도",
   "settings.key.bw": "Browser Watch",
   "settings.key.jira": "설정 › 연동에서 연결한 후의 Jira",
