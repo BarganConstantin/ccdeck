@@ -5,12 +5,37 @@
 // choice is made when the file is collected rather than by a skip, so no case
 // is skipped on any leg.
 import { afterEach, describe, expect, it } from "vitest";
-import { execFileSync } from "node:child_process";
+import { execFileSync, spawnSync } from "node:child_process";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 // @ts-expect-error plain server module
-import { createWindowsAcl } from "../../server/windows-acl.mjs";
+import { createWindowsAcl, boundedRun } from "../../server/windows-acl.mjs";
+
+type RunOptions = { env: Record<string, string>; timeoutMs: number; maxBytes: number };
+/** The deck's own `run`, with a note of how each call ended, so a refusal on
+ *  the real machine says whether the tool timed out or exited, and what it
+ *  wrote to stderr. */
+function noted() {
+  const notes: string[] = [];
+  const run = async (file: string, args: string[], options: RunOptions) => {
+    const started = Date.now();
+    try {
+      const answer = await boundedRun(file, args, options);
+      let note = `exit ${answer.code} after ${Date.now() - started} ms`;
+      if (answer.code !== 0) {
+        const again = spawnSync(file, args, { env: options.env, input: "", timeout: options.timeoutMs, windowsHide: true, encoding: "utf8" });
+        note += `, stderr: ${String(again.stderr ?? "").slice(0, 600)}`;
+      }
+      notes.push(note);
+      return answer;
+    } catch (error) {
+      notes.push(`no answer after ${Date.now() - started} ms`);
+      throw error;
+    }
+  };
+  return { run, notes };
+}
 
 const roots: string[] = [];
 afterEach(async () => {
@@ -29,7 +54,13 @@ if (process.platform !== "win32") {
   });
 } else {
   describe("the Windows ACL reader on Windows", () => {
-    const acl = createWindowsAcl();
+    const { run, notes } = noted();
+    const reader = createWindowsAcl({ run });
+    const why = (error: unknown) => { throw new Error(`${(error as Error).message} (${notes.join("; ")})`); };
+    const acl = {
+      identity: () => reader.identity().catch(why),
+      inspect: (target: string) => reader.inspect(target).catch(why),
+    };
 
     it("names this user by SID and says whether it is elevated", async () => {
       const me = await acl.identity();

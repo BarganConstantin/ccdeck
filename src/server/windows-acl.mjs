@@ -35,13 +35,16 @@ function systemRoot(env) {
 /** The default `run`: no shell, a timeout, bounded output, no console window.
  *  Resolves `{ code, stdout }`; rejects when the tool cannot start, takes too
  *  long or says too much. */
-function boundedRun(file, args, { env, timeoutMs, maxBytes }) {
+export function boundedRun(file, args, { env, timeoutMs, maxBytes }) {
   return new Promise((resolve, reject) => {
-    execFile(file, args, { env, timeout: timeoutMs, maxBuffer: maxBytes, windowsHide: true, shell: false, encoding: 'utf8' }, (error, stdout) => {
+    const child = execFile(file, args, { env, timeout: timeoutMs, maxBuffer: maxBytes, windowsHide: true, shell: false, encoding: 'utf8' }, (error, stdout) => {
       if (!error) return resolve({ code: 0, stdout });
       if (typeof error.code === 'number') return resolve({ code: error.code, stdout: typeof stdout === 'string' ? stdout : '' });
       reject(failed());
     });
+    // Windows PowerShell waits for the end of its input when stdin is a pipe,
+    // even with a command to run: it gets none.
+    child.stdin?.end();
   });
 }
 
@@ -69,25 +72,32 @@ const HIGH_INTEGRITY = 12288;
 // append, write extended attributes and attributes, delete, delete children,
 // change permissions, take ownership, and the unmapped generic write and all.
 const WRITE_MASK = 0x500d0156;
-const INSPECT_SCRIPT = [
+// .NET calls and language statements only, no cmdlet: with the bare
+// environment the child gets, finding a cmdlet can make PowerShell search
+// every module on disk. The JSON is written out by hand; it holds SIDs and a
+// boolean only, and every SID is checked again here. The script goes over as
+// -EncodedCommand (UTF-16LE, base64), so no quoting rule of the command line
+// can change it.
+export const INSPECT_SCRIPT = [
   "$ErrorActionPreference = 'Stop'",
-  '$item = Get-Item -LiteralPath $env:CCDECK_ACL_PATH -Force',
-  '$acl = $item.GetAccessControl()',
+  '$p = $env:CCDECK_ACL_PATH',
+  '$attributes = [System.IO.File]::GetAttributes($p)',
+  'if (($attributes -band [System.IO.FileAttributes]::Directory) -ne 0) { $acl = [System.IO.Directory]::GetAccessControl($p) } else { $acl = [System.IO.File]::GetAccessControl($p) }',
   '$sid = [System.Security.Principal.SecurityIdentifier]',
-  '$writers = @()',
+  '$writers = [System.Collections.Generic.List[string]]::new()',
   'foreach ($rule in $acl.GetAccessRules($true, $true, $sid)) {',
   '  if ($rule.AccessControlType -ne [System.Security.AccessControl.AccessControlType]::Allow) { continue }',
   '  if (([int]$rule.PropagationFlags -band 2) -ne 0) { continue }',
   `  if (([int]$rule.FileSystemRights -band ${WRITE_MASK}) -eq 0) { continue }`,
-  '  $writers += $rule.IdentityReference.Value',
+  '  $value = $rule.IdentityReference.Value',
+  '  if (-not $writers.Contains($value)) { $writers.Add($value) }',
   '}',
-  '$out = [ordered]@{',
-  '  owner = $acl.GetOwner($sid).Value',
-  '  writers = @($writers | Select-Object -Unique)',
-  '  reparsePoint = [bool]($item.Attributes -band [System.IO.FileAttributes]::ReparsePoint)',
-  '}',
-  'ConvertTo-Json -InputObject $out -Compress',
+  '$owner = $acl.GetOwner($sid).Value',
+  '$reparse = if (($attributes -band [System.IO.FileAttributes]::ReparsePoint) -ne 0) { \'true\' } else { \'false\' }',
+  '$quoted = foreach ($w in $writers) { \'"\' + $w + \'"\' }',
+  '[Console]::Out.Write(\'{"owner":"\' + $owner + \'","writers":[\' + ($quoted -join \',\') + \'],"reparsePoint":\' + $reparse + \'}\')',
 ].join('\n');
+const ENCODED_SCRIPT = Buffer.from(INSPECT_SCRIPT, 'utf16le').toString('base64');
 
 /**
  * `run(file, args, { env, timeoutMs, maxBytes })` resolves `{ code, stdout }`
@@ -130,7 +140,7 @@ export function createWindowsAcl({ run = boundedRun, env = process.env } = {}) {
       if (typeof target !== 'string' || !target || target.includes('\0')) throw failed();
       const text = await ask(
         (root) => `${root}\\System32\\WindowsPowerShell\\v1.0\\powershell.exe`,
-        ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-Command', INSPECT_SCRIPT],
+        ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-InputFormat', 'None', '-EncodedCommand', ENCODED_SCRIPT],
         { CCDECK_ACL_PATH: target },
       );
       let info;

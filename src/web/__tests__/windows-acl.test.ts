@@ -6,7 +6,7 @@ import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 // @ts-expect-error plain server module
-import { createWindowsAcl, ACL_MAX_BYTES, ACL_TIMEOUT_MS } from "../../server/windows-acl.mjs";
+import { createWindowsAcl, boundedRun, ACL_MAX_BYTES, ACL_TIMEOUT_MS, INSPECT_SCRIPT } from "../../server/windows-acl.mjs";
 // @ts-expect-error plain server module
 import { trustGate } from "../../server/pro-engine-install.mjs";
 // @ts-expect-error plain server module
@@ -25,6 +25,8 @@ const SYSTEM = '"Mandatory Label\\System Mandatory Level","Label","S-1-16-16384"
 const LOW = '"Mandatory Label\\Low Mandatory Level","Label","S-1-16-4096","Mandatory group"';
 
 type Call = { file: string; args: string[]; env: Record<string, string>; timeoutMs: number; maxBytes: number };
+/** The script a PowerShell call carries, decoded from -EncodedCommand. */
+const script = (args: string[]) => Buffer.from(args[args.indexOf("-EncodedCommand") + 1], "base64").toString("utf16le");
 type Answer = { code: number; stdout: string };
 /** A `run` that answers by tool and records every call. */
 function fake(answers: { user?: Answer | Error; groups?: Answer | Error; ps?: Answer | Error }) {
@@ -85,7 +87,8 @@ describe("inspect", () => {
     expect(result).toEqual({ owner: ME, writers: [ME, "S-1-5-18"], reparsePoint: false, links: 1 });
     expect(calls).toHaveLength(1);
     expect(calls[0].file).toBe("C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe");
-    expect(calls[0].args.slice(0, 5)).toEqual(["-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-Command"]);
+    expect(calls[0].args.slice(0, 7)).toEqual(["-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-InputFormat", "None", "-EncodedCommand"]);
+    expect(script(calls[0].args)).toBe(INSPECT_SCRIPT);
   });
 
   it("passes the path in the environment and never in the script text", async () => {
@@ -100,16 +103,27 @@ describe("inspect", () => {
   it("asks for write-class rights, generic ones included, and skips inherit-only and deny rules", async () => {
     const { run, calls } = fake({ ps: info() });
     await createWindowsAcl({ run, env: ENV }).inspect(await file());
-    const script = calls[0].args[5];
-    const mask = Number(/FileSystemRights -band (\d+)\)/.exec(script)?.[1]);
+    const text = script(calls[0].args);
+    const mask = Number(/FileSystemRights -band (\d+)\)/.exec(text)?.[1]);
     for (const bit of [0x2, 0x4, 0x10, 0x40, 0x100, 0x10000, 0x40000, 0x80000, 0x40000000, 0x10000000]) expect(mask & bit).toBe(bit);
     for (const bit of [0x1, 0x8, 0x20, 0x80, 0x20000, 0x100000, 0x20000000]) expect(mask & bit).toBe(0);
-    expect(script).toContain("GetAccessRules($true, $true, $sid)");
-    expect(script).toContain("PropagationFlags -band 2");
-    expect(script).toContain("AccessControlType]::Allow");
-    expect(script).toContain("GetOwner($sid)");
-    expect(script).toContain("-LiteralPath");
-    expect(script).toContain("-Force");
+    expect(text).toContain("GetAccessRules($true, $true, $sid)");
+    expect(text).toContain("PropagationFlags -band 2");
+    expect(text).toContain("AccessControlType]::Allow");
+    expect(text).toContain("GetOwner($sid)");
+    expect(text).toContain("[System.IO.File]::GetAttributes($p)");
+  });
+
+  it("uses no cmdlet, so PowerShell never searches its modules for one", async () => {
+    const { run, calls } = fake({ ps: info() });
+    await createWindowsAcl({ run, env: ENV }).inspect(await file());
+    expect(script(calls[0].args)).not.toMatch(/\b[A-Z][a-z]+-[A-Z][A-Za-z]+\b/);
+  });
+
+  it("closes the tool's input, which Windows PowerShell otherwise waits on", async () => {
+    // A child that echoes its input back exits only when its stdin ends.
+    const answer = await boundedRun(process.execPath, ["-e", "process.stdin.pipe(process.stdout)"], { env: process.env, timeoutMs: 5_000, maxBytes: 1024 });
+    expect(answer).toEqual({ code: 0, stdout: "" });
   });
 
   it.each([
