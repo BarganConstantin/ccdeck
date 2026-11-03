@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { all, mount, one, textOf, flush } from './fake-react';
+import { openMenuOf, openOthers } from './codex-panel-helpers';
 
 vi.mock('react', async () => (await import('./fake-react')).react);
 vi.mock('react-dom', () => ({ createPortal: (node: unknown) => node }));
@@ -105,5 +106,45 @@ describe('Codex share dialog', () => {
     }
     expect(all(view.tree, el => el.type === CodexShareDialog)).toHaveLength(0);
     expect(fetch.mock.calls.every(call => !String(call[0]).includes('share') && !String(call[0]).includes('import'))).toBe(true);
+  });
+
+  // Claude's ⋯ has Share for one account; the Codex one opens the same dialog
+  // as the header, with that row ticked, and reads nothing until Generate.
+  it('opens from a row\'s menu with that row ticked, for a row with a login', async () => {
+    vi.useFakeTimers();
+    vi.stubGlobal('window', { setInterval, clearInterval, setTimeout, clearTimeout, addEventListener: () => {}, removeEventListener: () => {} });
+    const rows = [...profiles, { id: 'b'.repeat(20), label: 'Signed out', active: false, signedInFilePresent: false, identityVersion: 'none' }];
+    const fetch = vi.fn(async () => ({ ok: true, json: async () => ({ profiles: rows, revision: 7 }) }));
+    vi.stubGlobal('fetch', fetch);
+    const view = mount(() => CodexProfilesSection()); cleanup = view.unmount; await flush();
+    const shareItem = () => one(view.tree, el => el.type === 'button' && el.props.role === 'menuitem' && textOf(el) === 'Share');
+    openOthers(view);
+    openMenuOf(view, 'Signed out');
+    expect(shareItem(), 'a row with no login has nothing to share').toBeNull();
+    openMenuOf(view, 'Fictional account');
+    expect(shareItem()!.props.title).toContain('treat it as the password');
+    (shareItem()!.props.onClick as () => void)();
+    const opened = one(view.tree, el => el.type === CodexShareDialog)!;
+    expect(opened.props).toMatchObject({ mode: 'export', initial: [profiles[0].id] });
+    // The menu closed as the dialog opened, so focus goes back to the row's ⋯.
+    vi.stubGlobal('document', { getElementById: (id: string) => ({ id }) });
+    expect((opened.props.returnFocusTo as () => { id: string })().id).toMatch(/^ap-codex-more-/);
+    expect(fetch.mock.calls.every(call => !String(call[0]).includes('share'))).toBe(true);
+    // The header's share still starts with nothing ticked.
+    (opened.props.onClose as () => void)();
+    (one(view.tree, el => el.type === 'button' && el.props['aria-label'] === 'Share Codex accounts')!.props.onClick as () => void)();
+    expect(one(view.tree, el => el.type === CodexShareDialog)!.props.initial).toBeUndefined();
+  });
+
+  it('starts with the accounts it was handed ticked, and exports exactly those', async () => {
+    const fetch = vi.fn(async () => ({ ok: true, json: async () => ({ ok: true, blob: 'ccdeck-codex-v1.fictional', count: 1 }) }));
+    vi.stubGlobal('fetch', fetch);
+    vi.stubGlobal('document', { body: null });
+    const view = mount(CodexShareDialog, { mode: 'export', initial: [profiles[0].id], profiles, revision: 7, onImported: vi.fn(), onClose: vi.fn() });
+    cleanup = view.unmount;
+    expect(one(view.tree, el => el.type === 'input')!.props.checked).toBe(true);
+    press(view, 'Generate share code');
+    await flush();
+    expect(fetch.mock.calls[0]).toMatchObject(['/api/codex-accounts-share', { method: 'POST', body: JSON.stringify({ ids: [profiles[0].id] }) }]);
   });
 });

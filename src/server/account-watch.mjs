@@ -45,6 +45,8 @@ export const WATCH_MS = 2 * 60_000;
 let _deps = null;
 let _notifier = null;
 let _autoOn = false;
+/** Whether Codex's Auto-switch was on at its last tick. */
+let _codexAutoOn = false;
 let _timer = null;
 let _watching = null;
 /** The auto-switch loop's "tick now", handed in by the loop as it loads
@@ -79,6 +81,7 @@ function notifier() {
     },
   });
   _notifier.autoSwitch(_autoOn);
+  _notifier.codexAutoSwitch(_codexAutoOn);
   return _notifier;
 }
 
@@ -113,6 +116,24 @@ export function noteAutoTick(result, meta = {}) {
   return (named ? Promise.all([storeAccounts(), result.switched ? telemetryReader() : null]) : Promise.resolve([null, null]))
     .then(([accounts, telemetryOf]) => n.tick(result, accounts, { ...meta, telemetryOf }))
     .catch(() => {});
+}
+
+/**
+ * A finished tick of Codex's Auto-switch (codex-auto.mjs), which reports every
+ * tick here — the loop is started with this as its `onTick` (index.mjs), since
+ * codex-auto.mjs also runs inside the terminal helper and imports nothing of
+ * the deck's notifications. The tick names both accounts itself; no store is
+ * read. Never throws.
+ */
+export function noteCodexAutoTick(outcome) {
+  try {
+    if (!outcome || typeof outcome !== "object") return Promise.resolve();
+    _codexAutoOn = outcome.enabled === true;
+    const n = notifier();
+    return n ? n.codexTick(outcome).catch(() => {}) : Promise.resolve();
+  } catch {
+    return Promise.resolve();
+  }
 }
 
 /** What each organization's settings were last seen to turn on, as the
