@@ -382,7 +382,9 @@ describe("key cap", () => {
       expect(decl(sel, "border"), sel).toBe("1px solid var(--line)");
       expect(decl(sel, "border-radius"), sel).toBe("var(--r-tag)");
       expect(decl(sel, "background"), sel).toBe("var(--bg-soft)");
-      expect(decl(sel, "color"), sel).toBe(sel === ".qo-foot kbd" ? "var(--text)" : "var(--muted)");
+      // CHANGED ON PURPOSE: the command menu's foot caps take the kit's --muted
+      // like every other cap; they were the one cap left in --text.
+      expect(decl(sel, "color"), sel).toBe("var(--muted)");
       expect(decl(sel, "font"), sel).toBe("500 calc(11px + var(--ui-text-increase, 0px))/calc(14px + var(--ui-text-increase, 0px)) var(--font-mono)");
     }
   });

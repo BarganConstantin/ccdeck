@@ -734,6 +734,12 @@ describe("the Time tab", () => {
       expect(out).toContain("Waiting on you is part of the turn. It never counts as Claude or machine time.");
       expect(out).not.toMatch(/legend/i);
     });
+    it("draws Waiting on you in amber only when something waited on you", () => {
+      const tone = (turn: SessionTurn) => body(turn).match(/<div class="insp-time-stat"( data-tone="warn")?><dt>Waiting on you<\/dt>/)?.[1] ?? "";
+      expect(tone(TURN)).toBe(' data-tone="warn"');
+      expect(tone({ ...TURN, youMs: 0 })).toBe("");
+      expect(body({ ...TURN, youMs: 0 })).toContain('<div class="insp-time-stat"><dt>Waiting on you</dt><dd>0.0s</dd>');
+    });
     it("draws the axis row, a row per call with its name, argument and duration, a fold on the group and the wait pill", () => {
       const out = body(TURN);
       expect(out).toContain("<span role=\"columnheader\">Span</span>");
