@@ -2,6 +2,8 @@
 import type { Catalog } from "../../catalogs";
 
 const catalog: Catalog = {
+  "codex.panel.liveControlPaused": "Die Codex-Kontosteuerung pausiert nach einer Anmeldeänderung oder einem Verbindungsabbruch. Prüfe vor dem erneuten Verbinden /status.",
+  "codex.panel.reconnectSelected": "Ausgewähltes Konto verbinden",
   "codex.row.liveTitle": "Standardkonto für neue Sitzungen",
   "codex.row.liveSpoken": "Standardkonto:",
   "codex.row.readBy": "Wann ccdeck die Nutzung dieses Kontos zuletzt gelesen hat",

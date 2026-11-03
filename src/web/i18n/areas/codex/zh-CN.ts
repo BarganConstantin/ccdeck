@@ -2,6 +2,8 @@
 import type { Catalog } from "../../catalogs";
 
 const catalog: Catalog = {
+  "codex.panel.liveControlPaused": "登录变更或连接中断后，Codex 账户控制已暂停。重新连接前请检查 /status。",
+  "codex.panel.reconnectSelected": "重新连接所选账户",
   "codex.row.liveTitle": "新会话使用的默认账号",
   "codex.row.liveSpoken": "默认账号：",
   "codex.row.readBy": "ccdeck 上次读取此账号用量的时间",

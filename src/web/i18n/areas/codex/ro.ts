@@ -2,6 +2,8 @@
 import type { Catalog } from "../../catalogs";
 
 const catalog: Catalog = {
+  "codex.panel.liveControlPaused": "Controlul contului Codex este suspendat după o schimbare de autentificare sau pierderea conexiunii. Verifică /status înainte de reconectare.",
+  "codex.panel.reconnectSelected": "Reconectează contul selectat",
   "codex.share.title": "Partajează conturi Codex",
   "codex.share.importTitle": "Importă conturi Codex",
   "codex.share.warning": "Codul conține credențiale active de autentificare. Oricine îl are poate folosi aceste conturi. Trimite-l doar printr-un canal privat de încredere.",

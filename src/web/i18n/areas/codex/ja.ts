@@ -2,6 +2,8 @@
 import type { Catalog } from "../../catalogs";
 
 const catalog: Catalog = {
+  "codex.panel.liveControlPaused": "ログインの変更または接続切断により、Codex のアカウント制御が一時停止しています。再接続する前に /status を確認してください。",
+  "codex.panel.reconnectSelected": "選択したアカウントを再接続",
   // The row's voice (codex-accounts.ts CODEX_VOICE)
   "codex.row.liveTitle": "新しいセッションの既定アカウント",
   "codex.row.liveSpoken": "既定のアカウント：",

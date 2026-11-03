@@ -2,6 +2,8 @@
 import type { Catalog } from "../../catalogs";
 
 const catalog: Catalog = {
+  "codex.panel.liveControlPaused": "로그인 변경 또는 연결 끊김으로 Codex 계정 제어가 일시 중지되었습니다. 다시 연결하기 전에 /status를 확인하세요.",
+  "codex.panel.reconnectSelected": "선택한 계정 다시 연결",
   "codex.row.liveTitle": "새 세션의 기본 계정",
   "codex.row.liveSpoken": "기본 계정:",
   "codex.row.readBy": "ccdeck이 이 계정의 사용량을 마지막으로 읽은 시각",

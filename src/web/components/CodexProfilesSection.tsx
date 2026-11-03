@@ -446,6 +446,7 @@ export default function CodexProfilesSection({ onClose, switcher, onNotice }: {
       pressProps={pressProps} post={post} load={loadAuto} />
   ) : null;
 
+  const reconnectRow = liveSelection?.state === 'external_change' ? rows.find(row => row.profile.active) : undefined;
   const menuRow = rowOf(menu?.id);
   const issueRow = rowOf(issueOpen?.id);
   return (
@@ -502,6 +503,13 @@ export default function CodexProfilesSection({ onClose, switcher, onNotice }: {
           ) : (
             <>
               {error && <p role="alert" className="ap-codex-hint">{t("codex.panel.refreshFailed")}</p>}
+              {reconnectRow && <div className="ap-empty" role="status">
+                <span>{t("codex.panel.liveControlPaused")}</span>
+                <button type="button" className="ap-fix" {...pressProps(`switch-${reconnectRow.account.num}`)}
+                  onClick={() => void doSwitch(reconnectRow.account.num, reconnectRow.profile.label ?? reconnectRow.profile.id)}>
+                  {t("codex.panel.reconnectSelected")}
+                </button>
+              </div>}
               {/* The default account's trouble, once, above the list: every new
                   session starts on it, so it is the column's news. */}
               {head?.issue?.tone === "warn" && (

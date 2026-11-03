@@ -2,6 +2,8 @@
 import type { Catalog } from "../../catalogs";
 
 const catalog: Catalog = {
+  "codex.panel.liveControlPaused": "O controle da conta Codex está pausado após uma mudança de login ou perda de conexão. Confira /status antes de reconectar.",
+  "codex.panel.reconnectSelected": "Reconectar a conta selecionada",
   // The row's voice (codex-accounts.ts CODEX_VOICE)
   "codex.row.liveTitle": "Conta padrão para novas sessões",
   "codex.row.liveSpoken": "Conta padrão:",
