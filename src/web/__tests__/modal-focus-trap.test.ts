@@ -292,7 +292,7 @@ describe("the deck's ten overlays", () => {
     // Quota history (#2121) shares the same trap and named close focus.
     // The thirtieth is a connected tracker's panel (#2178).
     // Explore integrations joins the same focus and dismissal contract.
-    expect(MODALS.length).toBe(32);
+    expect(MODALS.length).toBe(33);
   });
 
   it("gives every dialog a boundary for the trap to hold Tab inside", () => {
@@ -342,7 +342,7 @@ describe("the deck's ten overlays", () => {
       // Add Codex account names its name field for a new account, and its sign-in
       // button for one that exists: the one thing each is opened to do.
       "AddCodexAccountDialog.tsx",
-      "ClearConfirm.tsx", "ContextModal.tsx",
+      "ClearConfirm.tsx", "CodexShareDialog.tsx", "ContextModal.tsx",
       // Feedback names its message field: it was opened to write in, the
       // row of kinds above it already holds a sensible answer, and the message
       // is the one thing it asks for — the title under it is optional (#1853).

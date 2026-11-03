@@ -36,6 +36,24 @@ describe('Codex share dialog', () => {
     expect(textOf(view.tree)).toContain('no automatic expiry');
   });
 
+  it('keeps the selected export frozen while generation is pending without removing keyboard focus', async () => {
+    let resolve!: (value: unknown) => void;
+    const fetch = vi.fn(() => new Promise(r => { resolve = r; }));
+    vi.stubGlobal('fetch', fetch);
+    const view = dialog('export');
+    (one(view.tree, el => el.type === 'input')!.props.onChange as () => void)();
+    press(view, 'Generate share code');
+    const input = one(view.tree, el => el.type === 'input')!;
+    expect(input.props['aria-disabled']).toBe(true);
+    expect(input.props.disabled).toBeUndefined();
+    (input.props.onChange as () => void)();
+    expect(one(view.tree, el => el.type === 'input')!.props.checked).toBe(true);
+    expect(fetch).toHaveBeenCalledOnce();
+    resolve({ ok: false, json: async () => ({ ok: false }) }); await flush();
+    (one(view.tree, el => el.type === 'input')!.props.onChange as () => void)();
+    expect(one(view.tree, el => el.type === 'input')!.props.checked).toBe(false);
+  });
+
   it('imports only on press, uses CAS, clears credentials on success and reports dedup results', async () => {
     const fetch = vi.fn(async () => ({ ok: true, json: async () => ({ ok: true, revision: 8, results: [{ id: 'b'.repeat(20), status: 'imported' }, { id: 'c'.repeat(20), status: 'already_imported' }] }) }));
     vi.stubGlobal('fetch', fetch);

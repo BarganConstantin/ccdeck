@@ -2,7 +2,7 @@
 // that daemon or takes ownership of its conversations.
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
-import { lstat, realpath, stat } from 'node:fs/promises';
+import { lstat, realpath } from 'node:fs/promises';
 import { dirname, isAbsolute, join, resolve, win32 } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import WebSocket from 'ws';
@@ -17,6 +17,35 @@ function rejection(method, error) {
   if (method === 'thread/turns/list' && error?.code === -32600 && unmaterializedHistory.test(error.message ?? '')) return liveError('native_thread_not_materialized');
   return liveError(error?.code === -32601 ? 'unsupported_protocol' : 'native_request_rejected');
 }
+
+async function inspectPosixSocket(socketPath, uid = process.getuid?.()) {
+  try {
+    // Work with the resolved endpoint, never a newly substituted path alias.
+    if (uid == null || await realpath(socketPath) !== socketPath) throw liveError('untrusted_native_socket');
+    const info = await lstat(socketPath);
+    if (!info.isSocket() || info.uid !== uid) throw liveError('untrusted_native_socket');
+    const ancestors = [];
+    for (let path = dirname(socketPath);; path = dirname(path)) {
+      const directory = await lstat(path);
+      if (!directory.isDirectory() || directory.uid !== uid && directory.uid !== 0) throw liveError('untrusted_native_socket');
+      ancestors.push(directory);
+      if (dirname(path) === path) break;
+    }
+    let privateTraversal = false;
+    for (const directory of ancestors.reverse()) {
+      // A writable ancestor could replace even a private descendant. Sticky
+      // shared directories (such as /tmp) protect our owner/root-owned entries.
+      if (!privateTraversal && directory.mode & 0o022 && !(directory.mode & 0o1000)) throw liveError('untrusted_native_socket');
+      if (directory.uid === uid && !(directory.mode & 0o011)) privateTraversal = true;
+    }
+    // Socket chmod alone does not prevent connections on all supported Unix
+    // systems. Require an owner-private traversal barrier somewhere in the
+    // actual path; a permissive socket/parent below that barrier is legitimate.
+    if (!privateTraversal) throw liveError('untrusted_native_socket');
+    return { generation: `${info.dev}:${info.ino}:${info.ctimeMs}` };
+  } catch { throw liveError('untrusted_native_socket'); }
+}
+
 export async function resolveCodexLiveEndpoint(home, options = {}) {
   const platform = options.platform ?? process.platform, windows = platform === 'win32';
   let canonical, advertised;
@@ -37,18 +66,17 @@ export async function resolveCodexLiveEndpoint(home, options = {}) {
   const version = String(result.appServerVersion ?? result.managedCodexVersion ?? '');
   const v = version.match(/^(\d+)\.(\d+)\.(\d+)(?:$|[-+])/);
   if (!v || Number(v[1]) === 0 && Number(v[2]) < 166) throw liveError('unsupported_version');
-  let socketPath, info, parent;
+  let socketPath;
   if (windows) {
     try {
       const captured = await inspectWindowsPrivateSocket(advertised, { ...options.windowsPrivate, platform });
       return { home: canonical, socketPath: captured.path, version, generation: captured.generation, executable, transport: 'windows-proxy' };
     } catch { throw liveError('untrusted_native_socket'); }
   }
-  try { socketPath = await realpath(advertised); info = await lstat(socketPath); parent = await stat(dirname(socketPath)); }
+  try { socketPath = await realpath(advertised); }
   catch { throw liveError('native_not_running'); }
-  const uid = options.uid ?? process.getuid?.();
-  if (!info.isSocket() || uid == null || info.uid !== uid || parent.uid !== uid || parent.mode & 0o022) throw liveError('untrusted_native_socket');
-  return { home: canonical, socketPath, version, generation: `${info.dev}:${info.ino}:${info.ctimeMs}`, executable };
+  const captured = await inspectPosixSocket(socketPath, options.uid);
+  return { home: canonical, socketPath, version, generation: captured.generation, executable };
 }
 
 export async function connectCodexLiveRpc(endpoint, options = {}) {
@@ -60,6 +88,9 @@ export async function connectCodexLiveRpc(endpoint, options = {}) {
       if (win32.toNamespacedPath(guard.path).toLowerCase() !== win32.toNamespacedPath(endpoint.socketPath).toLowerCase()) throw liveError('untrusted_native_socket');
       if (guard.generation !== endpoint.generation) throw liveError('native_endpoint_changed');
     } catch (error) { await guard?.release(); throw error.code === 'native_endpoint_changed' ? error : liveError('untrusted_native_socket'); }
+  } else {
+    const before = await inspectPosixSocket(endpoint.socketPath);
+    if (before.generation !== endpoint.generation) throw liveError('native_endpoint_changed');
   }
   let ws;
   try {
@@ -113,8 +144,8 @@ export async function connectCodexLiveRpc(endpoint, options = {}) {
   };
   try {
     await new Promise((ready, reject) => { ws.once('open', ready); ws.once('error', () => reject(liveError('native_connection_failed'))); });
-    const after = windows ? await inspectWindowsPrivateSocket(endpoint.socketPath, options.windowsPrivate) : await lstat(endpoint.socketPath);
-    if ((windows ? after.generation : `${after.dev}:${after.ino}:${after.ctimeMs}`) !== endpoint.generation) throw liveError('native_endpoint_changed');
+    const after = windows ? await inspectWindowsPrivateSocket(endpoint.socketPath, options.windowsPrivate) : await inspectPosixSocket(endpoint.socketPath);
+    if (after.generation !== endpoint.generation) throw liveError('native_endpoint_changed');
     if (guard && !guard.valid()) throw liveError('untrusted_native_socket');
     await rpc.request('initialize', { clientInfo: { name: 'ccdeck', title: 'ccdeck', version: '3.53.1' }, capabilities: { experimentalApi: true } });
     send({ method: 'initialized', params: {} });

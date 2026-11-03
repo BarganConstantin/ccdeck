@@ -62,14 +62,25 @@ export async function runAccountEngine(adapter, initial, { signal, onSwitch = ()
       if (!latest.enabled || signal?.aborted) return { ...result, reason: 'cancelled' };
       if (!chooseEngineAccount(rows.filter(row => row.id === pick.id), quotas, { ...latest, exclude })) return { ...result, reason: 'settings_changed' };
     }
+    // Do not move a stopped rollout into an account we cannot launch.
+    if (!manual && attempt === 31) return { ...result, reason: 'attempt_limit' };
     let next;
     try { next = await adapter.prepare({ from: current, id: pick.id, threadId }); }
     catch { return { ...result, reason: 'handoff_failed' }; }
-    if (signal?.aborted) return { ...result, reason: 'cancelled' };
-    const beforeLaunch = await adapter.settings();
-    if (!manual && (!beforeLaunch.enabled || beforeLaunch.heldOut?.includes(next.id))) return { ...result, reason: 'disabled' };
+    const abandon = async reason => {
+      try { await next.restoreSource?.(); }
+      catch { return { ...result, reason: 'handoff_failed' }; }
+      return { ...result, reason };
+    };
+    if (signal?.aborted) return abandon('cancelled');
+    let beforeLaunch;
+    try { beforeLaunch = await adapter.settings(); }
+    catch { return abandon('handoff_failed'); }
+    if (signal?.aborted) return abandon('cancelled');
+    if (!manual && (!beforeLaunch.enabled || beforeLaunch.heldOut?.includes(next.id))) return abandon('disabled');
+    try { onSwitch({ from: current.id, to: next.id, threadId }); }
+    catch { return abandon('handoff_failed'); }
     if (manual) { tried.clear(); attempt = -1; }
-    onSwitch({ from: current.id, to: next.id, threadId });
     current = next;
   }
   return { code: 1, reason: 'attempt_limit', threadId };

@@ -1,9 +1,10 @@
+import { renameWithRetry } from './atomic-write.mjs';
 // Codex adapter for supervised exec sessions. Authentication remains in each
 // Codex home; a handoff transfers only the exact, closed conversation rollout.
 import { randomUUID } from 'node:crypto';
 import { spawn } from 'node:child_process';
 import { StringDecoder } from 'node:string_decoder';
-import { chmod, link, lstat, mkdir, open, readdir, realpath, readFile, rename, unlink } from 'node:fs/promises';
+import { chmod, link, lstat, mkdir, open, readdir, realpath, readFile, unlink } from 'node:fs/promises';
 import { constants } from 'node:fs';
 import { dirname, join, relative } from 'node:path';
 import { spawnSpec } from './exec-spec.mjs';
@@ -103,7 +104,7 @@ export function runCodexEngineAttempt(executable, args, home, { signal, stdout =
   });
 }
 
-export async function transferCodexThread(sourceHome, targetHome, threadId, { moveSource = false } = {}) {
+export async function transferCodexThread(sourceHome, targetHome, threadId, { moveSource = false, onSourceMoved } = {}) {
   if (!UUID.test(threadId)) throw new Error('Invalid Codex conversation id.');
   const root = join(sourceHome, 'sessions');
   let found = null, visited = 0;
@@ -178,16 +179,29 @@ export async function transferCodexThread(sourceHome, targetHome, threadId, { mo
   if (moveSource) {
     const backup = `${found}.ccdeck-moved-${randomUUID()}`;
     try {
-      await rename(found, backup);
+      await renameWithRetry(found, backup);
       await chmod(backup, 0o600);
       // A returning rollout publishes a fresh prefix receipt. Keep the old
       // one beside its backup rather than blocking a later round trip.
-      await rename(codexHandoffPath(found), codexHandoffPath(backup)).catch(e => { if (e.code !== 'ENOENT') throw e; });
+      await renameWithRetry(codexHandoffPath(found), codexHandoffPath(backup)).catch(e => { if (e.code !== 'ENOENT') throw e; });
     }
     catch (error) {
-      await rename(backup, found).catch(() => {});
+      await renameWithRetry(backup, found).catch(() => {});
       await unlink(destination).catch(() => {}); await unlink(marker).catch(() => {}); throw error;
     }
+    let restored = false;
+    onSourceMoved?.(async () => {
+      if (restored) return;
+      const saved = await lstat(backup);
+      if (!saved.isFile() || saved.ino !== snapshot.ino || saved.size !== snapshot.size
+        || saved.mtimeMs !== snapshot.mtimeMs) throw new Error('Codex source backup changed; restore manually.');
+      // Exclusive hard links restore the exact stopped rollout without ever
+      // overwriting work created in the source home after preparation.
+      try { await link(codexHandoffPath(backup), codexHandoffPath(found)); }
+      catch (error) { if (error.code !== 'ENOENT') throw error; }
+      await link(backup, found);
+      restored = true;
+    });
   }
   return destination;
 }
@@ -248,8 +262,11 @@ export function createCodexEngineAdapter(file, executable, args, home, options =
       const sourceConfig = await config(from.home), targetConfig = await config(target.home);
       if (sourceConfig !== targetConfig && (!sessionConfig || sessionConfig.sourceHash !== configHash(sourceConfig)
         || !isTrustOnlyConfig(targetConfig) && configHash(targetConfig) !== sessionConfig.originHash)) throw new Error('Codex account configurations differ; resume manually.');
-      await transferCodexThread(from.home, target.home, threadId, { moveSource: options.moveConversation === true });
-      return { id, home: target.home, args: invocation.resumeArgs(threadId), resumed: true, threadId };
+      let restoreSource;
+      await transferCodexThread(from.home, target.home, threadId, { moveSource: options.moveConversation === true,
+        onSourceMoved: restore => { restoreSource = restore; } });
+      return { id, home: target.home, args: invocation.resumeArgs(threadId), resumed: true, threadId,
+        ...(restoreSource ? { restoreSource } : {}) };
     },
   };
 }

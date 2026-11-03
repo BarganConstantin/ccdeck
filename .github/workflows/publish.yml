@@ -57,11 +57,13 @@ jobs:
   #                   #585, because #532 deleted two of them along with
   #                   ccdeck-stub-exit.test.ts and nothing was watching.
   #   windows-latest  the whole reason for the matrix. Those sites are *skipped*
-  #                   here — 69 skipped cases in all — together with the
+  #                   here — 81 skipped cases in all — together with the
   #                   `runIf(posix)` family and the three read-only-directory
   #                   cases (sound-hook-park's, the macOS swap script's and the
   #                   macOS updater's), whose probe cannot block a write on
-  #                   Windows. Windows is
+  #                   Windows. Six Windows-native Codex security and socket
+  #                   probes run only on this leg; the POSIX legs skip those
+  #                   six explicitly registered cases. Windows is
   #                   where this repo's recurring bugs live: .cmd shim
   #                   resolution, cmd.exe quoting, kill-tree, atomic rename.
   #                   It used to be the only leg that ran the drive-colon

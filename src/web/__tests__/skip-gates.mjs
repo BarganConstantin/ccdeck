@@ -69,6 +69,14 @@ export const PLATFORMS = ["linux", "win32", "darwin"];
  * kind supplies that half in `skipsOn` below.
  */
 export const CONDITIONS = {
+  "process.platform === 'win32'": {
+    holdsOn: platform => platform === "win32",
+    why: "Codex POSIX file identity and process-group probes have Windows-specific counterparts.",
+  },
+  "process.platform !== 'win32'": {
+    holdsOn: platform => platform !== "win32",
+    why: "The Codex DACL, junction and AF_UNIX probes require actual Windows APIs.",
+  },
   'process.platform === "win32"': {
     holdsOn: (platform) => platform === "win32",
     why: "Signals, mode bits and /bin/sh are POSIX, and the fake-Windows cases build their fixture out of shell scripts and a ComSpec pointing at one, which cannot stand in for the real cmd.exe on a machine that has it.",
@@ -142,6 +150,15 @@ export const CONDITIONS = {
 // why CI can assert the strongest possible thing on those two legs — that
 // nothing was skipped at all.
 export const GATES = [
+  // Native Codex platform probes, each exercised on its matching CI runner.
+  {"file": "codex-engine-adapter.test.ts", "gate": "it.skipIf", "condition": "process.platform === 'win32'", "sites": 1, "cases": 1},
+  {"file": "codex-engine-rpc.test.ts", "gate": "it.skipIf", "condition": "process.platform === 'win32'", "sites": 1, "cases": 1},
+  {"file": "codex-live-credentials.test.ts", "gate": "it.skipIf", "condition": "process.platform !== 'win32'", "sites": 2, "cases": 2},
+  {"file": "codex-live-credentials.test.ts", "gate": "it.skipIf", "condition": "process.platform === 'win32'", "sites": 6, "cases": 6},
+  {"file": "codex-live-rpc.test.ts", "gate": "describe.skipIf", "condition": "process.platform === 'win32'", "sites": 1, "cases": 4},
+  {"file": "codex-windows-private.test.ts", "gate": "describe.skipIf", "condition": "process.platform !== 'win32'", "sites": 1, "cases": 3},
+  {"file": "codex-windows-rpc.test.ts", "gate": "describe.skipIf", "condition": "process.platform !== 'win32'", "sites": 1, "cases": 1},
+
   // The append queue's deadline answering false for real (log-writer.mjs's
   // withinDeadline). The wedge is a FIFO with no reader, which takes mkfifo, and
   // Windows has neither; the deadline is the same code on all three legs, and

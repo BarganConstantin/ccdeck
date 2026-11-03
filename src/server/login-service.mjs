@@ -409,6 +409,8 @@ export const SETTING_VARS = Object.freeze([
   // Radar's off switch (index.mjs). A deck started at login without it would
   // look for Claude Code's collector and capture it.
   "AGENTS_DECK_NO_RADAR",
+  // Keep native Codex account control disabled after a login-service restart.
+  "AGENTS_DECK_NO_CODEX_LIVE",
 ]);
 
 export function settingsEnv(env = process.env) {

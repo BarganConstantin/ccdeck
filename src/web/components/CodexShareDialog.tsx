@@ -37,7 +37,7 @@ export default function CodexShareDialog({ mode, profiles, revision, onImported,
   const alive = useRef(true);
   const field = useRef<HTMLTextAreaElement | null>(null);
   const primary = useRef<HTMLButtonElement | null>(null);
-  const dialog = useModalDismiss(onClose, { focusRef: mode === 'import' ? field : undefined });
+  const dialogRef = useModalDismiss(onClose, { focusRef: mode === 'import' ? field : undefined });
   const scrim = useScrimDismiss(onClose);
   const exported = mode === 'export' && !!answer?.blob;
   const imported = mode === 'import' && answer?.ok === true;
@@ -69,9 +69,9 @@ export default function CodexShareDialog({ mode, profiles, revision, onImported,
 
   return createPortal(
     <div className="modal-backdrop" {...scrim} role="presentation">
-      <div ref={dialog} className="modal sa-modal" role="dialog" aria-modal="true" aria-label={title} onClick={event => event.stopPropagation()}>
+      <div ref={dialogRef} className="modal sa-modal" role="dialog" aria-modal="true" aria-labelledby="codex-transfer-title" onClick={event => event.stopPropagation()}>
         <header className="modal-head">
-          <div className="modal-title"><h3>{title}</h3></div>
+          <div className="modal-title"><h3 id="codex-transfer-title">{title}</h3></div>
           <div className="modal-actions"><button type="button" className="glyph-btn" onClick={onClose} aria-label={t('codex.add.close')}>×</button></div>
         </header>
         <section className="modal-body sa-body">
@@ -89,8 +89,8 @@ export default function CodexShareDialog({ mode, profiles, revision, onImported,
               <p className="sa-note">{t('codex.share.choose')}</p>
               <ul className="sa-list sa-pick">
                 {profiles.map(profile => <li key={profile.id}>
-                  <label className="sa-row"><input type="checkbox" checked={ids.includes(profile.id)} disabled={busy}
-                    onChange={() => setPicked(current => current.includes(profile.id) ? current.filter(id => id !== profile.id) : [...current, profile.id])} />
+                  <label className="sa-row"><input type="checkbox" checked={ids.includes(profile.id)} aria-disabled={busy || undefined}
+                    onChange={() => { if (pending.current) return; setPicked(current => current.includes(profile.id) ? current.filter(id => id !== profile.id) : [...current, profile.id]); }} />
                     <span className="sa-who">{profile.label}</span>
                   </label>
                 </li>)}

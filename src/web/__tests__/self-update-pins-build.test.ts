@@ -25,7 +25,7 @@
 // index.mjs calls things in, and every line of that is the shipped code.
 import { describe, it, expect, afterAll } from "vitest";
 import { spawn, type ChildProcess } from "node:child_process";
-import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import { cpSync, copyFileSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { request } from "node:http";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
@@ -127,6 +127,8 @@ function sandbox(name: string): Box {
     copyFileSync(join(REAL_SERVER, f), join(server, f));
   }
   copyFileSync(REAL_MANIFEST, join(box.pkg, "package.json"));
+  // The copied server imports the bundled WebSocket runtime at boot.
+  cpSync(join(dirname(REAL_MANIFEST), "node_modules", "ws"), join(box.pkg, "node_modules", "ws"), { recursive: true });
 
   // What npm leaves behind, as far as this process can tell: every module file
   // replaced. A module evaluated out of it says so in a log and then throws, so

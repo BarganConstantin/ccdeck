@@ -64,6 +64,8 @@ const PINNED_MODULES = [
   "codex-terminal.mjs",
   "codex-native-account.mjs",
   "codex-auto.mjs",
+  "codex-profiles.mjs", "codex-selection.mjs", "codex-live-engine.mjs",
+  "codex-share.mjs", "codex-login.mjs",
   "ccusage.mjs",
   "browser-watch.mjs",
   "browser-watch-store.mjs",
