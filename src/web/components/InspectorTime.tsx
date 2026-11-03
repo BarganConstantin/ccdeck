@@ -124,7 +124,8 @@ export function TimeBody({ turn, table, now }: { turn: SessionTurn; table: SpanT
       </div>
       <dl className="insp-time-stats">
         <Stat label={turn.open ? t("board.insTime.thisTurn") : t("board.insTime.lastTurn")} value={turnSpan(turn.totalMs)} />
-        <Stat label={t("board.insTime.waitingOnYou")} value={turnSpan(turn.youMs)} tone="warn" />
+        {/* Amber only while something did wait on you: a turn you never held up reads in plain ink. */}
+        <Stat label={t("board.insTime.waitingOnYou")} value={turnSpan(turn.youMs)} tone={turn.youMs > 0 ? "warn" : undefined} />
         <Stat label="Claude" value={turnSpan(turn.claudeMs)} />
         <Stat label={t("board.insTime.thisMachine")} value={turnSpan(turn.machineMs)} />
       </dl>

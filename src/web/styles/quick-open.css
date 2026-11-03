@@ -279,7 +279,6 @@ kbd.qo-key, .qo-esc, .qo-foot kbd, .fb-shortcut kbd {
 .qo-foot-run { min-width: 0; margin-left: 12px; }
 .qo-foot-run > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .qo-foot-count { margin-left: auto; }
-.qo-foot kbd { color: var(--text); }
 .qo-foot-act kbd + kbd { margin-left: -2px; }
 
 .qo-live {
