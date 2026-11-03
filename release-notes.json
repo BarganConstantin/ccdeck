@@ -142,7 +142,7 @@
       "priority": "highlight",
       "icon": "accounts",
       "noticeLabel": "Compatibility",
-      "notice": "Requires Codex 0.166.0 or newer and a private auth.json login on a supported shared native server. Conversations connected to that server switch together. ccdeck waits for tools and approvals, and must stay open to renew the selected login. If continuation is unconfirmed, check the conversation before continuing manually; uncertain sends are never repeated automatically."
+      "notice": "Requires Codex 0.166.0 or newer and a private auth.json login on a supported shared native server. Conversations connected to that server switch together. ccdeck waits for tools and approvals, and must stay open to renew the selected login. After a lost connection or restart, a server that cannot confirm the workspace identity requires Reconnect selected account. If continuation is unconfirmed, check the conversation before continuing manually; uncertain sends are never repeated automatically."
     },
     {
       "title": "Share Codex logins between your machines",
