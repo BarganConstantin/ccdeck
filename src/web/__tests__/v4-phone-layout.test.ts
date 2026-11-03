@@ -473,8 +473,12 @@ describe("one sheet at a time, closed by Esc or a flick", () => {
 describe("the offline card is inside Sessions, with the last news time", () => {
   it("the card says when the last news was, in the frame's words, and keeps the plain sentence when none came", () => {
     expect(unreachableSub(null)).toBe(UNREACHABLE_SUB);
-    const at = new Date(2026, 10, 2, 14, 2).getTime();
+    // CHANGED ON PURPOSE: today at 14:02, not a fixed date. The card reads the
+    // clock, and names the day as well once the news is from another day.
+    const today = new Date();
+    const at = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 14, 2).getTime();
     expect(lastNewsTime(at, at)).toBe("14:02");
+    expect(lastNewsTime(at, at + 86_400_000)).toMatch(/^\S.* 14:02$/);
     expect(unreachableSub(at, at)).toBe("Agents may still be running. Last news 14:02, so what you see may be old.");
     const out = renderToStaticMarkup(createElement(OfflineCard, { lastNewsAt: at }));
     expect(out).toContain('class="conn-banner conn-banner-phone" role="alert"');
