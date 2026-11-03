@@ -945,7 +945,6 @@
 }
 
 
-.ap-report-upd-h { text-align: left; }
 /* Codex has its own account column beside Claude's, drawn with the same rows
    (.ap-account, .ap-rest); the section only drops its inline-block padding and
    insets the lines that are not rows. */

@@ -170,7 +170,13 @@ describe("what was migrated to the secondary tier", () => {
       // the selected bed in dark, and the address is read, not glanced at.
       ".aa-steps li", ".ap-account.active :where(.ap-plan, .ap-lane-label, .ap-lane-reset, .ap-meta, .ap-age:not(.ap-stale), .ap-more)",
       ".ap-account:has(.ap-held) .ap-alias", ".ap-auto-label", ".ap-auto-title", ".ap-chip",
-      ".ap-meta-email", ".ap-preview", ".ap-state-text b", ".ap-sum .ap-nav-name",
+      ".ap-meta-email", ".ap-preview",
+      // CHANGED ON PURPOSE (V4's Figma): with no day picked, the Reset
+      // calendar's list names its window once, as a quieter label in this ink
+      // rather than a heading in --text. A label, not prose, kept in the list
+      // because the kit draws it so.
+      ".ap-reset-list-head h3.ap-reset-all-head",
+      ".ap-state-text b", ".ap-sum .ap-nav-name",
       // V4's Agent / Card sets its task line (the session's name or title, or a
       // subagent's kind and folder) in this tier, and its foot — cost · time …
       // and the sub-agent count — in the same ink as mono figures. The foot is

@@ -640,6 +640,7 @@ const catalog: Catalog = {
   "board.hosts.cancelEsc": "Annuler (Esc)",
   "board.inspector.label": "Inspector",
   "board.inspector.fold": "Replier l’Inspector",
+  "board.inspector.show": "Afficher l’Inspector",
   "board.inspector.detail": "Détail",
   "board.inspector.agents": "Agents",
   "board.inspector.agentsNote": "Qui a lancé qui, d’après la transcription. Chaque carte montre son propre modèle, son coût et son temps.",

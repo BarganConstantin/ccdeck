@@ -158,7 +158,8 @@ describe("the wiring", () => {
     // through foldInspector, which gives the keyboard to the pane; the Board's
     // sheet keeps the hand-off to the card.
     // And (the phone layout) on a phone the same close is the sheet's one close.
-    expect(app).toMatch(/onClose=\{inWorkspace && inspectorColumn \? foldInspector : sheetClose\("inspector", \(\) => \{ panelReturn\.detail\(\); setDetailOpen\(false\); \}\)\}/);
+    // CHANGED ON PURPOSE (V4's Figma): the Workspace sheet from 1100 to 1319 folds the same way.
+    expect(app).toMatch(/onClose=\{inWorkspace && \(inspectorColumn \|\| inspectorSheet\) \? foldInspector : sheetClose\("inspector", \(\) => \{ panelReturn\.detail\(\); setDetailOpen\(false\); \}\)\}/);
     expect(app).toMatch(/const foldInspector = useCallback\(\(\) => \{\s*setInspectorFolded\(true\);\s*setDetailOpen\(false\);/);
     // CHANGED ON PURPOSE (V4's Figma): the Inspector's fold is named "Fold the Inspector".
     // CHANGED ON PURPOSE (the UI in every language): the name is read through its key.

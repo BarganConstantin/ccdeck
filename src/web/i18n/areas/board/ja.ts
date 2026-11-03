@@ -640,6 +640,7 @@ const catalog: Catalog = {
   "board.hosts.cancelEsc": "キャンセル（Esc）",
   "board.inspector.label": "インスペクター",
   "board.inspector.fold": "インスペクターを折りたたむ",
+  "board.inspector.show": "インスペクターを表示",
   "board.inspector.detail": "詳細",
   "board.inspector.agents": "エージェント",
   "board.inspector.agentsNote": "誰が誰を起動したかを、トランスクリプトから読み取っています。各カードに、そのモデル・コスト・時間が表示されます。",

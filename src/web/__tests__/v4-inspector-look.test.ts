@@ -92,12 +92,14 @@ describe("the header and the tabs", () => {
     expect(code).toContain('<KitIcon name="context"');
     expect(code).not.toContain("CapacityGlyph");
   });
-  it("ends in a 24x24 Fold named 'Fold the Inspector' with the kit's chevron-left, in the column and in the sheet", () => {
+  // CHANGED ON PURPOSE (V4's Figma): the Fold points right (›), so fold and unfold never point the same way; the folded tab's button is ‹.
+  it("ends in a 24x24 Fold named 'Fold the Inspector' with the kit's chevron-right, in the column and in the sheet", () => {
     const out = renderToStaticMarkup(createElement(Inspector, { selected: A("s"), agents: new Map([["s", A("s")]]), onSelectAgent: () => {}, onClose: () => {}, detail: null }));
     expect(out).toContain('aria-label="Fold the Inspector"');
     expect(decl(".detail .insp-fold", "width")).toBe("24px");
     expect(decl(".detail .insp-fold", "height")).toBe("24px");
-    expect(src("components/Inspector.tsx")).toContain('<KitIcon name="chevron-left" />');
+    expect(src("components/Inspector.tsx")).toContain('<KitIcon name="chevron-right" />');
+    expect(src("components/Inspector.tsx")).not.toContain('<KitIcon name="chevron-left" />');
     // Drawn in the Workspace column too: nothing hides it any more.
     expect(css).not.toMatch(/\.insp-fold\s*\{\s*display:\s*none/);
   });
@@ -110,7 +112,8 @@ describe("the header and the tabs", () => {
     expect(fold).not.toMatch(/toggleExpand|expanded/);
     expect(app).toMatch(/inWorkspace && inspectorColumn && !inspectorFolded && !\(detailOpen && selected\)/);
     expect(app).toContain("onClose={foldInspector}");
-    expect(app).toContain("onClose={inWorkspace && inspectorColumn ? foldInspector :");
+    // CHANGED ON PURPOSE (V4's Figma): the sheet from 1100 to 1319 folds the same way, to its tab.
+    expect(app).toContain("onClose={inWorkspace && (inspectorColumn || inspectorSheet) ? foldInspector :");
     expect(app).toMatch(/useEffect\(\(\) => \{ if \(detailOpen\) setInspectorFolded\(false\); \}, \[detailOpen\]\)/);
   });
 });

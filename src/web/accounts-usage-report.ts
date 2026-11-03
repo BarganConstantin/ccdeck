@@ -119,13 +119,31 @@ export function statusOf(cells: Record<WindowId, Cell>): Status {
  * window never read. `old` is whether the reader should notice it.
  */
 export function freshness(row: ReportRow, nowSec: number, t: TFunction = tNow): { text: string; old: boolean } {
+  const f = freshnessOf(row, nowSec, t);
+  return { text: f.text, old: f.old };
+}
+
+/** freshness() with what kind of answer it is: a reason, or a time. */
+function freshnessOf(row: ReportRow, nowSec: number, t: TFunction): { text: string; old: boolean; time: "now" | "ago" | null } {
   const cells = REPORT_WINDOWS.map(w => row.cells[w.id]);
   for (const c of cells) {
-    if (!c.counted && (c.why === "login" || c.why === "none")) return { text: c.say, old: true };
+    if (!c.counted && (c.why === "login" || c.why === "none")) return { text: c.say, old: true, time: null };
   }
-  if (row.updatedAt == null) return { text: t("accounts.report.neverReadLower"), old: true };
-  if (cells.every(c => c.counted)) return { text: t("accounts.report.now"), old: false };
-  return { text: ago(row.updatedAt, nowSec, t), old: true };
+  if (row.updatedAt == null) return { text: t("accounts.report.neverReadLower"), old: true, time: null };
+  if (cells.every(c => c.counted)) return { text: t("accounts.report.now"), old: false, time: "now" };
+  return { text: ago(row.updatedAt, nowSec, t), old: true, time: "ago" };
+}
+
+/**
+ * The line under a row's state: "Updated now", "Updated 4m ago", or the reason
+ * there is no time to give (a login that expired, a window never read). It
+ * reads as a sentence, so it needs no column of its own to say what it is.
+ */
+export function updatedLine(row: ReportRow, nowSec: number, t: TFunction = tNow): { text: string; old: boolean } {
+  const f = freshnessOf(row, nowSec, t);
+  if (f.time === "now") return { text: t("accounts.report.updatedNow"), old: false };
+  if (f.time === "ago") return { text: t("accounts.report.updated", { ago: f.text }), old: true };
+  return { text: f.text, old: f.old };
 }
 
 /** How old a reading may be and still count — the server's own line. */
@@ -292,9 +310,12 @@ export function usageReport(accounts: readonly Account[], nowSec: number, t: TFu
   return { rows, windows: REPORT_WINDOWS.map(w => windowTotal(rows, w.id)), roomInBoth };
 }
 
-/** The columns a reader can order the rows by: each window's use and reset,
- *  and the name, the state and the age on either side of them. */
-export type ReportSortKey = "account" | WindowId | "five_hour_reset" | "seven_day_reset" | "status" | "updated";
+/** The columns a reader can order the rows by: the name, the state and each
+ *  window's use. When a window resets is the Reset calendar's to answer, so
+ *  neither a reset nor the age of a reading is a column to sort by. */
+export type ReportSortKey = "account" | "status" | WindowId;
+
+const SORT_KEYS: ReadonlySet<string> = new Set<ReportSortKey>(["account", "status", "five_hour", "seven_day"]);
 
 export interface ReportSort {
   key: ReportSortKey;
@@ -304,8 +325,7 @@ export interface ReportSort {
 /**
  * What a press on a column header does: a column you are not on arrives
  * ascending, and the one you are on flips. Ascending is the order a reader
- * looks for room in — A to Z, the least used first, Ready first, the newest
- * reading first, earliest recorded reset first — so the first press answers "which account next", and the
+ * looks for room in — A to Z, the least used first, Ready first — so the first press answers "which account next", and the
  * second turns it round.
  */
 export function nextReportSort(current: ReportSort | null, key: ReportSortKey): ReportSort {
@@ -327,9 +347,6 @@ function shownPct(c: Cell): number | null {
  *  none, which goes last whichever way the column points. */
 function sortValue(row: ReportRow, key: Exclude<ReportSortKey, "account">): number | null {
   if (key === "status") return STATUS_RANK[row.status];
-  if (key === "updated") return row.updatedAt == null ? null : -row.updatedAt;
-  if (key === "five_hour_reset") return row.resets.five_hour;
-  if (key === "seven_day_reset") return row.resets.seven_day;
   return shownPct(row.cells[key]);
 }
 
@@ -344,7 +361,9 @@ function sortValue(row: ReportRow, key: Exclude<ReportSortKey, "account">): numb
  * on every press and on every poll while nothing about them had changed.
  */
 export function sortReportRows(rows: readonly ReportRow[], sort: ReportSort | null): ReportRow[] {
-  if (!sort) return [...rows];
+  // A key this table no longer sorts by (a reset or an age, which an older
+  // build let a reader press) falls back to the panel's order, never throws.
+  if (!sort || !SORT_KEYS.has(sort.key)) return [...rows];
   const sign = sort.dir === "asc" ? 1 : -1;
   const at = new Map(rows.map((r, i) => [r.num, i]));
   const primary = (a: ReportRow, b: ReportRow): number => {

@@ -43,15 +43,17 @@ import { useNodeMeasurements, useSettled } from "./use-node-measurements";
 import { useLayoutFrame } from "./use-layout-frame";
 import { useCamera } from "./use-camera";
 import { usePointerFocus } from "./use-pointer-focus";
-import { useDeckShortcuts } from "./use-deck-shortcuts";
+import { pickSessionForInspector, useDeckShortcuts } from "./use-deck-shortcuts";
 import { usePanelReturn } from "./use-panel-return";
 import { useNodeDrag } from "./use-node-drag";
 import { EmptyHero, TabCapHero } from "./components/EmptyHero";
 import DetailAside from "./components/DetailAside";
+import InspectorTab from "./components/InspectorTab";
+import { inspectorIsSheet, inspectorTabShown } from "./inspector-corner";
 import { EdgeDock, EdgeRail, PHONE_QUERY, UtilityRun } from "./components/EdgeRails";
 import { railItems } from "./rail-items";
 import { unreadOf, useFeedbackAccount } from "./feedback-unread";
-import { focusFirstTaking } from "./fold-focus";
+import { focusAfterFold } from "./fold-focus";
 // The modal and its panels load on demand; this is the light wrapper that
 // fetches them (IntegrationModalOnDemand.tsx).
 import IntegrationModal, { preloadIntegrationModal } from "./components/IntegrationModalOnDemand";
@@ -557,14 +559,8 @@ function Inner() {
    *  Not `detailOpen` on its own — the panel is `detailOpen && selected`, so a
    *  deck with the panel enabled and nothing selected is 360px out. */
   const detailShown = detailOpen && selected != null;
-  // On a phone the Inspector is a sheet, and leaves down the bottom edge as the
-  // other three do: its element is held for the slide, the flag already
-  // dropped. Never held on a wider window, where it goes at once as it did.
-  const detailPhase = usePanelPresence(detailShown, phone ? railExitMs : 0);
-  const detailLeaving = phone && isLeaving(detailShown, detailPhase);
   const lastSelected = useRef(selected);
   if (selected) lastSelected.current = selected;
-  const detailOnScreen = detailShown ? selected : detailLeaving ? lastSelected.current : null;
   // Where keyboard focus goes when a panel's own × or ‹ takes it away with the
   // panel: the topbar button that opens it, or the card the detail panel was
   // about — use-panel-return.ts.
@@ -664,6 +660,23 @@ function Inner() {
   // The Inspector is a column in Workspace down to 1320px, and the detail sheet
   // (D, the ribbon) under it: workspace.css says why.
   const inspectorColumn = !useMediaQuery(INSPECTOR_SHEET_QUERY);
+  // From 1100 to 1319 Workspace's Inspector is a sheet over the pane that starts
+  // folded: its tab (components/InspectorTab.tsx) is what the reader sees.
+  const inspectorSheet = inspectorIsSheet({ workspace: inWorkspace && stage.enabled, wide: wideWindow, column: inspectorColumn });
+  // On a phone the Inspector is a sheet, and leaves down the bottom edge as the
+  // other three do: its element is held for the slide, the flag already
+  // dropped. Workspace's sheet leaves the way it came, off the right edge, on
+  // the panels' fold timing; by a key or under reduced motion it goes at once.
+  // Never held otherwise, where it goes at once as it did.
+  const sheetExitMs = inspectorSheet && !reducedMotion && !lastInputWasKey() ? tokenMs("--dur-stage-out") : 0;
+  const detailPhase = usePanelPresence(detailShown, phone ? railExitMs : sheetExitMs);
+  const detailLeaving = (phone || sheetExitMs > 0) && isLeaving(detailShown, detailPhase);
+  const detailOnScreen = detailShown ? selected : detailLeaving ? lastSelected.current : null;
+  // The Board's stored Inspector choice is not the sheet width's: entering
+  // Workspace here, or narrowing into this range, folds it in memory alone
+  // (use-right-panels.ts, the same hold the panels use).
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useLayoutEffect(() => { if (inspectorSheet) holdRight.detail(); }, [inspectorSheet]);
   // The Inspector's Fold folds the Inspector alone, at any width: the list and
   // the pane stay (folding both is Zoom's). D, or choosing a session to
   // inspect, opens it again; the grid drops its track while it is folded.
@@ -672,9 +685,38 @@ function Inner() {
   const foldInspector = useCallback(() => {
     setInspectorFolded(true);
     setDetailOpen(false);
-    // The keyboard goes to the pane, never the page (fold-focus.ts).
-    requestAnimationFrame(() => { focusFirstTaking(document); });
+    // The keyboard goes to the pane, never the page; failing that, to the tab's
+    // button (fold-focus.ts).
+    requestAnimationFrame(() => { focusAfterFold(document); });
   }, [setDetailOpen]);
+  // The sheet closed some way that is not Fold (D, a deselect) with the keys
+  // still in it, or on nothing: the same hand-off.
+  const sheetWasShown = useRef(false);
+  useEffect(() => {
+    const was = sheetWasShown.current;
+    sheetWasShown.current = inspectorSheet && detailShown;
+    if (!was || sheetWasShown.current || !inspectorSheet) return;
+    requestAnimationFrame(() => {
+      const at = document.activeElement;
+      if (!at || at === document.body || at.closest(".detail")) focusAfterFold(document);
+    });
+  }, [inspectorSheet, detailShown]);
+  // Workspace's Inspector tab: drawn from 1100 up, never under Zoom, while the
+  // Inspector is folded (the column, from 1320) or its sheet is closed (1100 to
+  // 1319). ‹ does what D does: shows the session's Inspector, picking a session
+  // first when none is selected.
+  const inspectorTab = inspectorTabShown({
+    workspace: inWorkspace && stage.enabled, wide: wideWindow, column: inspectorColumn,
+    zoom: zoomPhase !== undefined || stage.expanded, folded: inspectorFolded, shown: detailShown,
+  });
+  const showInspector = useCallback(() => {
+    setInspectorFolded(false);
+    if (primarySelectedIdRef.current) setDetailOpen(true);
+    else pickSessionForInspector(stateRef.current, focusSession, stepAgent);
+    // The tab is not drawn once the Inspector is: the keys go into it.
+    requestAnimationFrame(() => { document.querySelector<HTMLElement>(".detail .insp-tab[aria-selected=\"true\"]")?.focus(); });
+  }, [setDetailOpen, primarySelectedIdRef, stateRef, focusSession, stepAgent]);
+  const sheetFoldRef = useMirroredRef<(() => void) | null>(inspectorSheet && detailShown ? foldInspector : null);
   // A click on the switch crossfades the two views on Fast; a key switches in
   // one frame (view-switch.ts). The Board's canvas is held at its box while
   // Workspace is up, so it neither narrows nor re-fits on the way in or out.
@@ -804,7 +846,7 @@ function Inner() {
     pointerFocusRef, nodesRef, stateRef, primarySelectedIdRef, providersRef, soundOnRef,
     keyHelpOpenRef, modalOpenRef, waitingCursorRef, removeSelectedRef, activateSoundRef,
     viewRef: viewShortcutRef,
-    stageRef: stage.keysRef, lodRef,
+    stageRef: stage.keysRef, lodRef, inspectorSheetFoldRef: sheetFoldRef,
     // What the keys do.
     clearSelection, selectAgent, focusAgent, stepAgent, focusSession: focusSessionOnView, requestClear,
     handleRelayout, undoRearrange: rearrangeUndo.undo, handleFit, togglePause, toggleSessionList: pressSessionsKey, toggleAccountsPanel,
@@ -1075,7 +1117,7 @@ function Inner() {
     // data-view exists only in Workspace, so with the Command Panel off the
     // root is the root it was; data-zoom folds the list and the Inspector
     // (workspace.css); the switch between the views is view-switch.ts.
-    <div ref={appRef} className="app" data-view={inWorkspace ? "workspace" : undefined} data-zoom={zoomPhase}>
+    <div ref={appRef} className="app" data-view={inWorkspace ? "workspace" : undefined} data-zoom={zoomPhase} data-insp-tab={inspectorTab ? "" : undefined}>
       {/* The deck's regions, and why each one is the element it is (#381).
           Before this the whole page was <div>s apart from the topbar, so a
           screen reader's landmark rotor listed one entry — Banner — for an
@@ -1331,13 +1373,14 @@ function Inner() {
       ) : null}
       {detailOnScreen ? (
         <DetailAside
-          workspace={inWorkspace} leaving={detailLeaving}
+          workspace={inWorkspace} leaving={detailLeaving} sheet={inspectorSheet}
           selected={detailOnScreen} now={now} openTool={openTool} setSummaryFor={setSummaryFor}
           stateRef={stateRef} removeSelectedNode={removeSelectedNode}
           onSelectAgent={selectInspected}
-          onClose={inWorkspace && inspectorColumn ? foldInspector : sheetClose("inspector", () => { panelReturn.detail(); setDetailOpen(false); })}
+          onClose={inWorkspace && (inspectorColumn || inspectorSheet) ? foldInspector : sheetClose("inspector", () => { panelReturn.detail(); setDetailOpen(false); })}
         />
       ) : null}
+      {inspectorTab && <InspectorTab onShow={showInspector} />}
 
       {/* A phone's sheets lie over a scrim; a press on it closes the one up. */}
       {phone && <div className="phone-scrim" data-open={sheets.sheet ? "" : undefined} aria-hidden="true" onClick={() => sheets.closeSheet()} />}

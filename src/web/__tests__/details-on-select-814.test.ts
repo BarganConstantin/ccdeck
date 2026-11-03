@@ -87,7 +87,8 @@ describe("selecting an agent opens its details (#814)", () => {
     // CHANGED ON PURPOSE (the phone layout): on a phone the × is the sheet's one
     // close (sheetClose), so a second ask during the slide is nothing; the
     // plain close it wraps is the same hand-off as before.
-    expect(appCode).toMatch(/onClose=\{inWorkspace && inspectorColumn \? foldInspector : sheetClose\("inspector", \(\) => \{ panelReturn\.detail\(\); setDetailOpen\(false\); \}\)\}/);
+    // CHANGED ON PURPOSE (V4's Figma): the Workspace sheet from 1100 to 1319 folds the same way.
+    expect(appCode).toMatch(/onClose=\{inWorkspace && \(inspectorColumn \|\| inspectorSheet\) \? foldInspector : sheetClose\("inspector", \(\) => \{ panelReturn\.detail\(\); setDetailOpen\(false\); \}\)\}/);
     expect(appCode).toMatch(/const foldInspector = useCallback\(\(\) => \{\s*setInspectorFolded\(true\);\s*setDetailOpen\(false\);/);
     // CHANGED ON PURPOSE (V4's Figma): the Inspector's fold is named "Fold the Inspector".
     // CHANGED ON PURPOSE (the UI in every language): the name is read through its key.
