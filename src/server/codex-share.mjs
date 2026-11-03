@@ -6,7 +6,7 @@ import { constants } from 'node:fs';
 import { chmod, lstat, mkdir, open, readFile, unlink } from 'node:fs/promises';
 import { join } from 'node:path';
 import { createTemp, renameWithRetry } from './atomic-write.mjs';
-import { readCodexSelection, importCodexProfiles } from './codex-selection.mjs';
+import { readCodexSelection, importCodexProfiles, withCodexProfileLocked } from './codex-selection.mjs';
 import { ensureWindowsPrivateDirectory, holdWindowsPrivatePath } from './codex-windows-private.mjs';
 
 export const CODEX_SHARE_PREFIX = 'ccdeck-codex-v1.';
@@ -154,6 +154,51 @@ function parseShare(blob) {
     const fingerprint = createHash('sha256').update(auth.tokens.refresh_token).digest('hex');
     return { label: entry.label, auth, fingerprint };
   });
+}
+
+/** The logins a share carries, validated as an import validates them, without
+ *  touching disk: Local network reads who a login is before it lands. */
+export function readCodexShare(blob) { return parseShare(blob); }
+
+/** Put the one login a share carries into a registered profile's home in place
+ *  of the login there — only while `stillDead(auth)` says that login is still
+ *  the one the caller proved superseded. The check and the write happen under
+ *  the registry lock every sign-in and move of this deck takes, so a sign-in
+ *  that lands meanwhile is never overwritten. Local network's heal, and only
+ *  that: an import never replaces anything (see importCodexShare). */
+export async function replaceCodexLoginFromShare({ blob, id, stillDead } = {}, options = {}) {
+  const entries = parseShare(blob);
+  if (entries.length !== 1 || typeof stillDead !== 'function') fail('invalid_share');
+  return withCodexProfileLocked({ id }, async home => {
+    const target = join(home, 'auth.json');
+    let current = null;
+    try {
+      const info = await lstat(target);
+      if (info.isFile() && info.size <= AUTH_MAX_BYTES) current = JSON.parse(await readFile(target, 'utf8'));
+    } catch { /* no login there to replace */ }
+    if (!current || !stillDead(current)) fail('login_changed');
+    let tmp, guard;
+    try {
+      // ON WINDOWS ONLY INTO A PRIVATE FOLDER, by the rule secureCodexImportHome
+      // states: a profile that arrived over the network has one, while a folder
+      // made by a plain mkdir (a sign-in profile, or ~/.codex) does not and is
+      // refused here rather than repaired — its permissions are never changed.
+      if ((options.platform ?? process.platform) === 'win32') guard = await holdWindowsPrivatePath(home, { ...options, kind: 'directory' });
+      const staged = await createTemp(target, { mode: 0o600 });
+      tmp = staged.tmp;
+      try { await staged.handle.writeFile(JSON.stringify(entries[0].auth) + '\n'); await staged.handle.sync(); }
+      finally { await staged.handle.close(); }
+      await chmod(tmp, 0o600);
+      if (guard && !guard.valid()) fail('windows_permissions_failed');
+      await renameWithRetry(tmp, target);
+      tmp = null;
+    } catch (error) {
+      if (tmp) await unlink(tmp).catch(() => {});
+      if (error.code === 'windows_permissions_failed' || error.code === 'windows_private_path_unsafe') fail('windows_permissions_failed');
+      fail('import_write_failed');
+    } finally { await guard?.release(); }
+    return { ok: true, home };
+  }, options);
 }
 
 /** The common Windows helper creates the directory with its protected DACL

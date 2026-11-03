@@ -41,8 +41,9 @@
 // anything.
 import {
   addTrusted, ANNOUNCE_MS, credentialAad, dropTrusted, identityFrom, open, peerWhy, plan, PRESENT_MS,
-  sharedWith, stillListed, transferChallenge, trustedPeer,
+  sharedWith, slotFor, stillListed, transferChallenge, trustedPeer,
 } from "./lan-sync.mjs";
+import { isCodexKey, offeredCodex, planCodex } from "./lan-codex.mjs";
 import { mintInvite, readInvite } from "./lan-invite.mjs";
 import { createInviteOffer } from "./lan-invite-offer.mjs";
 import { syncAccounts } from "./lan-accounts.mjs";
@@ -252,6 +253,10 @@ function askOver(conn, frame) {
  */
 export function createEngine({
   readAccounts, exportAccount, importAccount, checkArrivals, liveLogin,
+  /** This deck's Codex logins — `readAccounts`, `exportAccount(id, key)` and
+   *  `importAccount(blob, step, mine)`, see lan-codex-store.mjs — or nothing,
+   *  which is a deck that offers and takes Claude logins only. */
+  codex = null,
   onChange, onError, onIdentity, onPort, onTrust, onUnpaired, onDial, onShared, now = Date.now,
   /**
    * The UDP socket the beacon shouts through, injectable for the same reason
@@ -440,6 +445,15 @@ export function createEngine({
     await usage?.refresh(accounts);
     return accounts;
   };
+  /** This deck's Codex logins in the same shape, or null for a deck without
+   *  them. A Codex store that cannot be read offers nothing this time; it is
+   *  never a reason for a round, or the Claude logins in it, to fail. */
+  const localCodex = codex ? async () => {
+    try {
+      const rows = await codex.readAccounts();
+      return Array.isArray(rows) ? rows.filter(r => isCodexKey(r?.key)) : [];
+    } catch { return []; }
+  } : null;
 
   /** This deck's side of the manifest exchange: the frame it sends, what it
    *  keeps of the one it hears — a paired deck's card and the logins it offers,
@@ -522,6 +536,7 @@ export function createEngine({
   const { serve } = createServe({
     settings: () => cfg, serverNow: () => server, myFp: () => identity.fp,
     inbound, learnCaller, keepManifest, manifestFrame, localAccounts, liveLogin, exportAccount, onError,
+    localCodex, exportCodex: codex ? (id, key) => codex.exportAccount(id, key) : null,
   });
 
   /**
@@ -626,7 +641,8 @@ export function createEngine({
   /** Checks the logins a round brought, once, and records any reason one is
    *  unusable here on its row. An unanswered check is not a failure. */
   const markArrivals = async done => {
-    const arrived = done.filter(d => d.ok);
+    // claude-swap's logins only: it is claude-swap that is asked.
+    const arrived = done.filter(d => d.ok && d.provider !== "codex");
     if (!arrived.length || !checkArrivals) return;
     let found = null;
     try { found = await checkArrivals(arrived); } catch { /* unasked is not a failure of the round */ }
@@ -742,10 +758,11 @@ export function createEngine({
         && trustedPeer(cfg.trusted, conn.peerFp)?.pub === conn.peerPub;
       if (!stillPaired()) throw new Error("peer no longer paired");
       const mine = await localAccounts();
+      const mineCodex = localCodex ? await localCodex() : null;
       // The owner can revoke trust or disable sync while the store is read.
       // Never send this deck's account identities on that old connection.
       if (!stillPaired()) throw new Error("peer no longer paired");
-      const theirs = await ask(manifestFrame(mine, conn.key, conn.peerFp));
+      const theirs = await ask(manifestFrame(mine, conn.key, conn.peerFp, mineCodex));
       // A response from a round that was stopped or unpaired is stale even
       // when the peer had already sent it before the setting changed.
       if (!stillPaired()) throw new Error("peer no longer paired");
@@ -802,7 +819,14 @@ export function createEngine({
       // the store lock, while the panel drew 50 and every other paired deck
       // waited behind it. `step.key` also reached transferChallenge and
       // importAccount untyped, which `offered`'s filter would have caught.
-      const wanted = plan(mine, list);
+      // AND THEN ITS CODEX LOGINS, after every Claude one and by the same steps
+      // below — a `want` with its own proof, a sealed `have`, an import, a tick
+      // onward for an add. Their own list, read off the frame here because the
+      // token history the heal needs is not kept (see lan-codex.mjs).
+      const wanted = [
+        ...plan(mine, list),
+        ...(mineCodex ? planCodex(mineCodex, offeredCodex(theirs.codex)) : []),
+      ];
       /** One login, asked for and opened: a `want` carrying its own proof that
        *  names the account (see transferChallenge), and the `have` opened under
        *  the additional data it was sealed with. The login, or why there is
@@ -840,9 +864,13 @@ export function createEngine({
         // The step goes down with the blob: the wiring has to know WHICH account
         // it is placing before it may treat a decline as an empty slot rather
         // than as a healthy one.
+        // A Codex login goes to the Codex store, with the copy it heals.
         let got;
-        try { got = await importAccount(blob, step); }
-        catch {
+        try {
+          got = step.provider === "codex"
+            ? await codex.importAccount(blob, step, slotFor(mineCodex, step.key))
+            : await importAccount(blob, step);
+        } catch {
           // One local store failure must not erase earlier arrivals or stop
           // independent logins from being received. Store diagnostics can
           // contain credential material, so only a fixed verdict leaves here.

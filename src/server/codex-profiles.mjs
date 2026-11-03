@@ -9,6 +9,7 @@ import { createHash } from 'node:crypto';
 import { readCodexSelection, codexProfileId, codexSelectionError, moveCodexLogin } from './codex-selection.mjs';
 import { usesNativeCodexAccount } from './codex-auth.mjs';
 import { readNativeCodexAccount } from './codex-native-account.mjs';
+import { codexLoginOf } from './codex-lan-identity.mjs';
 export { configuredCodexHomes } from './codex-selection.mjs';
 
 /** Resolve each explicitly trusted home once before scanning rollout trees.
@@ -44,8 +45,14 @@ export async function discoverCodexProfiles(options = {}) {
     try { await access(join(directory, 'auth.json')); installed = true; } catch { /* No login yet. */ }
     const credentialVersion = await credentialFileVersion(directory);
     let identity = null;
+    /** How Local network names this login, the key and the email it is offered
+     *  under — the server's own (see codex-lan-identity.mjs), so a tick in the
+     *  share dialog is the key the manifest is built from. No token. */
+    let lan = null;
     try {
       const auth = JSON.parse(await readFile(join(directory, 'auth.json'), 'utf8'));
+      const login = codexLoginOf(auth);
+      if (login) lan = { key: login.key, email: login.email };
       let claims = {};
       try { claims = JSON.parse(Buffer.from(auth.tokens?.id_token?.split('.')[1] ?? '', 'base64url').toString()); } catch { /* Account ID may still be available. */ }
       const email = typeof claims.email === 'string' ? claims.email.replace(/[\x00-\x1f\x7f]/g, '').slice(0, 254) : null;
@@ -53,7 +60,7 @@ export async function discoverCodexProfiles(options = {}) {
       const workspace = typeof account === 'string' ? createHash('sha256').update(account).digest('hex').slice(0, 8) : null;
       identity = email ? `${email}${workspace ? ` · ${workspace}` : ''}` : workspace ? `Account ${workspace}` : null;
     } catch { /* Missing or malformed login metadata uses the profile label. */ }
-    if (await credentialFileVersion(directory) !== credentialVersion) identity = null;
+    if (await credentialFileVersion(directory) !== credentialVersion) { identity = null; lan = null; }
     const id = selection.profiles?.find(p => p.home === directory)?.id ?? await codexProfileId(directory);
     const managedEntry = selection.managedProfiles?.find(p => p.id === id);
     const managedLabel = selection.profileLabels?.find(p => p.id === id)?.label ?? managedEntry?.label ?? null;
@@ -74,6 +81,7 @@ export async function discoverCodexProfiles(options = {}) {
       available,
       ...(native ? { signedIn: native.ok && native.signedIn, authSource: 'native', metadataUnavailable: !native.ok, metadataReason: native.reason ?? null } : {}),
       signedInFilePresent: installed, // file presence is NOT authentication validity
+      ...(lan ? { lan } : {}),
     });
     // The file's workspace goes in too: one address on one plan can be two
     // workspaces, and Codex's own answer does not always tell them apart.
