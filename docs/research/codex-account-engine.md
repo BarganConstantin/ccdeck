@@ -422,3 +422,63 @@ network-permission revocation error. The running monitor timed out before the
 long report finished; a later native-history read established its completed
 state without rerunning the task. Existing original-profile auth files had
 modification times predating the test thread.
+
+
+## Windows transport and portable accounts — 2026-11-03
+
+The Windows adapter uses the official Codex 0.166 `app-server proxy --sock`
+byte relay for WebSocket framing over AF_UNIX. It does not use named pipes
+or expose a local TCP listener. Endpoint paths and generation are checked
+through Win32 reparse metadata: Node 22 `lstat` returns EACCES for an actual
+Windows AF_UNIX rendezvous. The fixed helper accepts only the AF_UNIX tag,
+requires a protected current-user DACL and pins the parent during setup.
+Private file guards also protect credential reads. Closing the connection
+stops only its proxy, never the shared daemon.
+
+Sources: official `openai/codex` tag `rust-v0.166.0` (`6ff1e1ca`),
+`codex-rs/cli/src/main.rs`, `stdio-to-uds/src/lib.rs` and
+`uds/src/windows_socket_validation.rs`. This adapter is original ccdeck code.
+
+Windows QA used a private packaged 0.166 CLI and a detached source worktree on
+Node 22.23.3. The existing global Codex 0.149.1 and ccdeck 3.53.0 were preserved.
+An SSH token is elevated on that host; native QA therefore used a temporary
+interactive task with a normal user token. A separate foreground native server
+was used because Task Scheduler's job prevents managed-daemon breakaway.
+Real connection, account inspection, model listing, one-controller leases,
+account changes and Continue submission worked. The source account used for
+inference returned `usage_limit_exceeded`; completion and live V2 subagents on
+Windows remain unconfirmed. A synthetic credential-reader case also still
+failed during private-directory startup on this host; the Windows suite is
+not fully green. The successful earlier macOS V2 acceptance does
+not establish that Windows result.
+
+Manual Share/Import transfers file-backed ChatGPT grants as an explicitly
+selected code. Imports create private, separate homes and deduplicate exact
+credentials without overwriting a login or changing the selected default.
+The code contains the live login, including its renewal token: it is not
+encrypted, has no automatic expiry and has no ccdeck revocation. Account
+renewal on one machine can invalidate the other copy. Codex 0.166's optional
+`oauth_provenance` and `login_owner_id` travel with their grant; non-OpenAI
+renewal authorities, API keys and arbitrary configuration are rejected.
+Both real account grants were exported Mac → Windows and Windows → Mac,
+recognized through native account reads, and reimported without duplicates.
+The original authentication files remained byte-identical. No reset credit
+was redeemed.
+
+## Saved reset inventory with native quotas — 2026-11-03
+
+`account/rateLimits/read` omits the saved rate-limit-reset grants. Switching
+the selected-profile quota source to native RPC had consequently hidden their
+existing count/nearest-expiry row. The native quota now supplements its bars
+with a read-only GET to `/wham/rate-limit-reset-credits`, using a validated,
+unexpired file-backed credential for the same registered profile. The native
+reader still owns renewal. Missing/system-store credentials or an optional
+endpoint error leave ordinary limits usable. Credentials, config, native
+identity and selection are revalidated; cached inventories remain scoped to
+those bindings.
+
+[CodexBar's provider documentation](https://github.com/steipete/CodexBar/blob/main/docs/codex.md)
+confirms the same optional account-scoped inventory endpoint. No CodexBar
+implementation was copied. Live reads returned one available reset for each
+local profile, with a nearest expiry. Browser QA rendered the real count and
+expiry in the existing Usage card at 1280, 390 and 320px.
