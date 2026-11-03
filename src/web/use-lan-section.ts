@@ -155,8 +155,12 @@ async function post(url: string, body: Record<string, unknown>) {
  * @param onChanged The roster changed under the section — a healed account is
  *   a different row. The section's own prop, passed through.
  * @param onSwitchedOn A press switched the network on, and the write landed.
+ * @param active Whether the section is on screen. Both sides of the Accounts
+ *   panel draw Local network (#2472) and both stay mounted on a deck with both
+ *   CLIs, so the side out of sight reads once, to be ready, and does not poll:
+ *   one deck, one poller. Back on screen, it reads at once and polls again.
  */
-export function useLanSection(onChanged: () => void, onSwitchedOn: () => void) {
+export function useLanSection(onChanged: () => void, onSwitchedOn: () => void, active = true) {
   const [status, setStatus] = useState<LanStatus | null>(null);
   const [manual, setManual] = useState<string[]>([]);
   /** WHICH control is working, not WHETHER one is — the tagged slot #518 wrote
@@ -231,11 +235,11 @@ export function useLanSection(onChanged: () => void, onSwitchedOn: () => void) {
     const tick = async () => {
       setNow(Date.now());
       await load();
-      if (alive.current) timer = window.setTimeout(tick, every.current);
+      if (alive.current && active) timer = window.setTimeout(tick, every.current);
     };
     void tick();
     return () => { alive.current = false; window.clearTimeout(timer); };
-  }, [load]);
+  }, [load, active]);
 
   const toggle = useCallback(async () => {
     const on = status?.enabled === true;
