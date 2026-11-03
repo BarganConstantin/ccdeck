@@ -84,6 +84,7 @@
     "without one."
   ],
   "//summaries": {
+    "3.80.0": "Codex account switching, continuation and sharing",
     "3.53.0": "Codex accounts, with sign-in, switching and Auto-switch",
     "3.52.0": "ccdeck in nine more languages",
     "3.51.0": "Jira integration updates",
@@ -133,6 +134,42 @@
     "3.49.1",
     "3.53.1",
     "3.53.3"
+  ],
+  "3.80.0": [
+    {
+      "title": "Switch Codex accounts without losing your place",
+      "body": "Move supported running Codex conversations and their subagents to another account, then continue the same work.",
+      "priority": "highlight",
+      "icon": "accounts",
+      "noticeLabel": "Compatibility",
+      "notice": "Requires Codex 0.166.0 or newer and a private auth.json login on a supported shared native server. Conversations connected to that server switch together. ccdeck waits for tools and approvals, and must stay open to renew the selected login. If continuation is unconfirmed, check the conversation before continuing manually; uncertain sends are never repeated automatically."
+    },
+    {
+      "title": "Share Codex logins between your machines",
+      "body": "Choose accounts to export, then paste the code into Import Codex accounts on another machine, including Windows.",
+      "priority": "highlight",
+      "icon": "accounts",
+      "noticeLabel": "Login privacy",
+      "notice": "Sharing is optional and exports live ChatGPT credentials, including the renewal token, from file-backed logins. The code is encoded, not encrypted, and has no automatic expiry or ccdeck revocation. Use a trusted private channel and delete clipboard or message copies afterward. Renewal on one machine can invalidate the other copy and require signing in again. Configuration and conversation history are not transferred."
+    },
+    {
+      "title": "See your available Codex resets",
+      "body": "Usage shows saved rate-limit resets and their nearest expiry when the selected account provides them.",
+      "priority": "highlight",
+      "noticeLabel": "Availability",
+      "notice": "Reset inventory requires a validated file-backed login and an available provider reading. Checking the inventory never spends a reset."
+    },
+    {
+      "title": "Continue managed terminal tasks on another account",
+      "body": "With Codex Auto-switch enabled, supported terminal tasks can resume the same conversation on an account with quota after a usage-limit failure.",
+      "priority": "required",
+      "noticeLabel": "Terminal setup",
+      "notice": "Update an existing setup with Enable in terminal, then open a new terminal. Interactive continuation requires Codex 0.166.0 or newer with the native remote transport. Only supported commands launched through ccdeck terminal selection are covered; explicit CODEX_HOME pins, independent sessions and incompatible profile settings require manual handling."
+    },
+    {
+      "title": "Help us improve Codex support",
+      "body": "We are continuing to improve Codex support, and feedback on switching, subagents and sharing is welcome through the Feedback button in ccdeck."
+    }
   ],
   "3.53.2": [
     {
