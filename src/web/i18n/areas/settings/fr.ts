@@ -253,7 +253,7 @@ const catalog: Catalog = {
   "settings.notify.accountsNote": "Pour les comptes Claude et Codex que vous utilisez, que ccdeck soit ouvert ou non.",
   "settings.notify.accountsVeto": "Suspendu aussi pour cette exécution.",
   "settings.notify.swap.label": "Compte changé automatiquement",
-  "settings.notify.swap.title": "Quand le changement automatique fait passer Claude Code sur un autre compte",
+  "settings.notify.swap.title": "Quand le changement automatique fait passer Claude Code ou Codex sur un autre compte",
   "settings.notify.quota.label": "Quota à 90 % et 100 %",
   "settings.notify.quota.title": "Quand une fenêtre de quota du compte utilisé atteint 90 %, puis à nouveau 100 %",
   "settings.notify.reset.label": "Réinitialisation du quota",

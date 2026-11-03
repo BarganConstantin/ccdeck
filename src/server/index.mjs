@@ -139,7 +139,7 @@ export { markDeckReady, releaseRestart } from "./lifecycle.mjs";
 import { prefsRead } from "./prefs-state.mjs";
 // Quota read for the account notifications while no page reads it — only while
 // one of their quota switches is on (account-watch.mjs).
-import { startAccountWatch } from "./account-watch.mjs";
+import { startAccountWatch, noteCodexAutoTick } from "./account-watch.mjs";
 // This deck's LAN engine, what the settings may tell it, and the probe that
 // asks whether other decks can reach it — see lan-deck.mjs. startServer hands
 // it the prefs at boot; the settings route does after every write.
@@ -602,8 +602,9 @@ export async function startServer({ port = 4317, host = "127.0.0.1", persist = n
       // caller with nothing to wait for.
       cswapAutoModule().then(m => m.initCswapAuto({ after: cswapQuiet })).catch(() => {});
       // Codex's Auto-switch, on the deck's own loop. A settings read a minute
-      // unless somebody turned it on (codex-auto.mjs).
-      import("./codex-auto.mjs").then(m => m.startCodexAutoLoop()).catch(() => {});
+      // unless somebody turned it on (codex-auto.mjs). Each tick tells the
+      // account notifications what it did, for the swap notice.
+      import("./codex-auto.mjs").then(m => m.startCodexAutoLoop({ onTick: noteCodexAutoTick })).catch(() => {});
       // The account notifications' own quota reads, for the providers this deck
       // watches. Idle — a check of two switches every couple of minutes — unless
       // the threshold or the reset notification is on.

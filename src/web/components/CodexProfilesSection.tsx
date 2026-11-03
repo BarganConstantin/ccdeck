@@ -15,7 +15,9 @@ import { allOpen, isOpen, orderChoices, orderKey, SLOT_ORDER, sortAccounts, togg
 import { loadOpenness, loadOrder, saveOpenness, saveOrder } from "../accounts-prefs";
 import { sentence } from "../account-issue";
 import { isAutoArmed, pastThreshold } from "../account-fold";
+import { codexHomeTitle } from "../auto-choice";
 import { ALIAS_MAX_LENGTH } from "../alias-save";
+import { PRODUCT } from "../brand";
 import { type AutoStatus } from "../claude-accounts";
 import {
   codexVoice, codexAccount, codexIssue, codexPeers, DEFAULT_READ_MS, nextReading, OTHER_READ_MS, readingFor, shownReading, signedOut,
@@ -110,7 +112,9 @@ export default function CodexProfilesSection({ onClose, switcher, onNotice, away
   const [aliasDraft, setAliasDraft] = useState("");
   const [menuError, setMenuError] = useState<string | null>(null);
   /** The Add / Sign in dialog: a new account, or one signed in again. */
-  const [transfer, setTransfer] = useState<null | "export" | "import">(null);
+  /** The share or import dialog, and for a share opened from a row's ⋯, the
+   *  row it starts with ticked and that ⋯, for focus to come back to. */
+  const [transfer, setTransfer] = useState<null | { mode: "export" | "import"; pick?: string; from?: string }>(null);
   const [dialog, setDialog] = useState<null | { id?: string; label?: string; account?: string | null }>(null);
   /** The account whose Remove has been pressed once and is waiting for the second. */
   const [confirmRemove, setConfirmRemove] = useState<string | null>(null);
@@ -440,6 +444,7 @@ export default function CodexProfilesSection({ onClose, switcher, onNotice, away
     return (
       <AccountRow key={profile.id} a={a} nowSec={nowSec} issueOverride={issue}
         lan={mark ? { sharedTo: mark.to, sharedInUse: mark.inUse } : undefined}
+        home={auto?.homeId === profile.id ? codexHomeTitle(a, !signedOut(profile), !!auto.enabled, t) : null}
         voice={{
           ...voice,
           switched: liveNote ?? (switched?.live && !liveSelection ? t("codex.row.liveSwitched") : voice.switched),
@@ -482,13 +487,13 @@ export default function CodexProfilesSection({ onClose, switcher, onNotice, away
         {switcher}
         <div className="ap-header-right">
           <button type="button" className="glyph-btn" aria-label={t("codex.share.title")} title={t("codex.share.title")}
-            aria-haspopup="dialog" onClick={() => setTransfer("export")}>
+            aria-haspopup="dialog" onClick={() => setTransfer({ mode: "export" })}>
             <svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
               <path d="M7 9V1.5m-2.5 2.5L7 1.5 9.5 4M3 7v5h8V7" />
             </svg>
           </button>
           <button type="button" className="glyph-btn" aria-label={t("codex.share.importTitle")} title={t("codex.share.importTitle")}
-            aria-haspopup="dialog" onClick={() => setTransfer("import")}>
+            aria-haspopup="dialog" onClick={() => setTransfer({ mode: "import" })}>
             <svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
               <path d="M7 1.5V9m-2.5-2.5L7 9l2.5-2.5M3 10v2h8v-2" />
             </svg>
@@ -612,12 +617,30 @@ export default function CodexProfilesSection({ onClose, switcher, onNotice, away
                 <button type="button" role="menuitem" className="ap-menu-item"
                   title={t("codex.menu.copyLaunchTitle")}
                   onClick={choose(() => void copyCommand(`/api/codex-profile-launch?id=${encodeURIComponent(profile.id)}`, t("codex.panel.launchCopied")))}>{t("codex.menu.copyLaunch")}</button>
+                {/* Share, as Claude's ⋯ has it: the header's share dialog with
+                    this row ticked, for a row with a login to share. */}
+                {!signedOut(profile) && (
+                  <button type="button" role="menuitem" className="ap-menu-item" aria-haspopup="dialog"
+                    title={t("codex.menu.shareTip", { product: PRODUCT })}
+                    onClick={choose(() => setTransfer({ mode: "export", pick: profile.id, from: `ap-codex-more-${a.num}` }))}>{t("accounts.menu.share")}</button>
+                )}
                 {(!a.active || a.disabled) && (
                   <button type="button" role="menuitem" className="ap-menu-item"
                     {...pressProps(`rot-${a.num}`)}
                     title={a.disabled ? t("codex.menu.putBackTitle") : t("codex.menu.holdOutTitle")}
                     onClick={() => void post({ action: "account", id: profile.id, enabled: a.disabled }, `rot-${a.num}`).then(out => { if (out?.ok) setMenu(null); })}
                   >{a.disabled ? t("codex.menu.putBack") : t("codex.menu.holdOut")}</button>
+                )}
+                {/* Home, as Claude's ⋯ has it: set with Auto-switch on or off —
+                    a tick reads it only while the switch is on — and removed
+                    whenever there is one, the one way to undo the row's ⌂. */}
+                {auto?.ok && (
+                  <button type="button" role="menuitem" className="ap-menu-item"
+                    {...pressProps(`home-${a.num}`)}
+                    title={auto.homeId === profile.id ? t("accounts.menu.removeHomeTip") : t("codex.menu.setHomeTip")}
+                    onClick={() => void post({ action: "home", id: auto.homeId === profile.id ? null : profile.id }, `home-${a.num}`)
+                      .then(out => { if (out?.ok) setMenu(null); })}
+                  >{auto.homeId === profile.id ? t("accounts.menu.removeHome") : t("accounts.menu.setHome")}</button>
                 )}
                 {a.active && (
                   <>
@@ -671,7 +694,9 @@ export default function CodexProfilesSection({ onClose, switcher, onNotice, away
           fetchedAt={issueRow.account.fetchedAt} nowSec={nowSec}
           onClose={closeIssue} onSignIn={() => signIn(issueRow.profile)} />
       )}
-      {transfer && <CodexShareDialog mode={transfer} profiles={profiles ?? []} revision={revision.current}
+      {transfer && <CodexShareDialog mode={transfer.mode} initial={transfer.pick ? [transfer.pick] : undefined}
+        returnFocusTo={transfer.from ? () => document.getElementById(transfer.from!) : undefined}
+        profiles={profiles ?? []} revision={revision.current}
         onImported={() => { void refreshProfiles().catch(() => setError(true)); }} onClose={() => setTransfer(null)} />}
       {dialog && (
         <AddCodexAccountDialog
