@@ -49,6 +49,7 @@ import { normaliseOrigins } from "./account-origins.mjs";
 import { normaliseUsage } from "./usage-day.mjs";
 import { refSlug } from "./install-ref.mjs";
 import { normaliseRating } from "./rating.mjs";
+import { uiLanguageCode } from "./ui-language.mjs";
 
 /** Set to "1" to keep the deck off the desktop whatever the stored preference
  *  says. Same sheet of switches as AGENTS_DECK_NO_DOWNLOAD and
@@ -121,11 +122,14 @@ export const DEFAULTS = Object.freeze({
   // `firstSessionAt`/`firstProvider`/`activationSent` the install's first
   // session and whether the "activated" event saying so got through — the times
   // stay here, only a bucket leaves (activation.mjs); `rating` is the one
-  // question the deck asks about itself, answered or put off (rating.mjs).
+  // question the deck asks about itself, answered or put off (rating.mjs);
+  // `uiLanguage` is the language the page said it is showing, for the reports
+  // (ui-language.mjs).
   report: Object.freeze({
     installId: "", lastVersion: "", lastActiveDay: "", forget: "", usage: null,
     installedAt: "", firstSessionAt: "", firstProvider: "", activationSent: false,
     rating: Object.freeze(normaliseRating(null)),
+    uiLanguage: "",
   }),
   // The accounts this deck signed in itself, and the re-sign-in prompts
   // somebody put off (#1893) — keyed by account identity, written by the deck
@@ -379,6 +383,7 @@ function normaliseReport(raw) {
     ref: refSlug(src.ref) ?? "",
     selfUpdate: selfUpdateMarker(src.selfUpdate),
     rating: normaliseRating(src.rating),
+    uiLanguage: uiLanguageCode(src.uiLanguage),
   };
 }
 
