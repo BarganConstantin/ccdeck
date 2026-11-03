@@ -104,7 +104,7 @@ async function nativeAccount(home, env, executable, startRpc, refresh) {
     }
   }
   if (failure) throw failure;
-  return account.account;
+  return account;
 }
 
 function privateFile(info, windows) {
@@ -123,7 +123,8 @@ function jwtClaims(token) {
 const validEmail = value => typeof value === 'string' && value.length <= 254 && /^[^\s@/\\\x00-\x1f\x7f]+@[^\s@/\\\x00-\x1f\x7f]+$/.test(value);
 const validAccountId = value => typeof value === 'string' && value.length > 0 && value.length <= 256 && !/[\s/\\\x00-\x1f\x7f]/.test(value);
 const plan = value => typeof value === 'string' && /^[a-z0-9_-]{1,40}$/.test(value) ? value : null;
-function credentialFrom(auth, account, profileId) {
+function credentialFrom(auth, snapshot, profileId) {
+  const account = snapshot.account;
   if (auth?.auth_mode !== 'chatgpt' || auth.OPENAI_API_KEY != null) fail('unsupported_auth');
   const tokens = auth.tokens;
   if (!record(tokens) || !validAccountId(tokens.account_id)) fail('invalid_credentials');
@@ -135,7 +136,8 @@ function credentialFrom(auth, account, profileId) {
   if (!validEmail(email) || !validEmail(account.email) || email.toLowerCase() !== account.email.toLowerCase()
     || (claims?.chatgpt_account_id != null && claims.chatgpt_account_id !== tokens.account_id)
     || (account.accountId != null && account.accountId !== tokens.account_id)
-    || (account.id != null && account.id !== tokens.account_id)) fail('identity_mismatch');
+    || (account.id != null && account.id !== tokens.account_id)
+    || (snapshot.workspaceRouting?.chatgptAccountId != null && snapshot.workspaceRouting.chatgptAccountId !== tokens.account_id)) fail('identity_mismatch');
   if (!Number.isSafeInteger(access.exp) || access.exp <= 0 || access.exp > 8_640_000_000_000) fail('invalid_credentials');
   const expiresAt = access.exp * 1000;
   if (expiresAt <= Date.now()) fail('credential_expired');

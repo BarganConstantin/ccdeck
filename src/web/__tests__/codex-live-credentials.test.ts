@@ -61,6 +61,7 @@ type FakeOptions = {
   storeMode?: unknown;
   config?: unknown;
   account?: unknown;
+  workspaceRouting?: unknown;
   onAccount?: () => Promise<void>;
   onStop?: () => Promise<void>;
   failAt?: string;
@@ -78,7 +79,7 @@ function fakeRpc(settings: FakeOptions = {}) {
       if (method === 'config/read') return 'config' in settings ? settings.config : { config: { cli_auth_credentials_store: settings.storeMode } };
       if (method === 'account/read') {
         await settings.onAccount?.();
-        return { account: 'account' in settings ? settings.account : { type: 'chatgpt', email: EMAIL, planType: 'plus' } };
+        return { account: 'account' in settings ? settings.account : { type: 'chatgpt', email: EMAIL, planType: 'plus' }, workspaceRouting: settings.workspaceRouting };
       }
       throw new Error('Unexpected fake method');
     }),
@@ -189,6 +190,16 @@ describe('live Codex credential reader (fictional JWTs and owned fake RPC only)'
     const f = await fixture();
     await writeFile(f.file, JSON.stringify({ ...f.credential, OPENAI_API_KEY: 'fictional-file-key' }));
     await expect(readLiveCodexCredential(f.profileId, f.options)).rejects.toMatchObject({ code: 'unsupported_auth' });
+  });
+
+  it('binds experimental native workspace routing to the source credential', async () => {
+    const f = await fixture();
+    for (const id of [ACCOUNT, 'different-workspace']) {
+      const fake = fakeRpc({ workspaceRouting: { chatgptAccountId: id } });
+      const read = readLiveCodexCredential(f.profileId, { ...f.options, startRpc: fake.startRpc });
+      if (id === ACCOUNT) await expect(read).resolves.toMatchObject({ accountId: ACCOUNT });
+      else await expect(read).rejects.toMatchObject({ code: 'identity_mismatch' });
+    }
   });
 
   it('accepts case-compatible email and rejects another native identity', async () => {

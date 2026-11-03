@@ -27,10 +27,13 @@ async function fixture({ saved = null as any, actual = A, readCredential = null 
       if (method === 'thread/turns/list') return { data: [{ ...turn, items: [...turn.items] }] } as any;
       if (method === 'turn/interrupt') { thread.status.type = 'idle'; turn.status = 'interrupted'; return {} as any; }
       if (method === 'turn/start') { thread.status.type = 'active'; turn.id = 'continued-turn'; turn.status = 'inProgress'; return { turn: { id: turn.id } } as any; }
-      if (method === 'account/read') return { account };
+      if (method === 'account/read') return { account, workspaceRouting: { chatgptAccountId: account.email === email(A) ? 'first' : 'second' } };
       if (method === 'account/login/start') {
         account = { type: 'chatgpt', email: email(params.chatgptAccountId === 'first' ? A : B), planType: 'plus' };
-        callbacks.onNotification({ method: 'account/updated', params: { authMode: 'chatgptAuthTokens', planType: 'plus' } });
+        setTimeout(() => {
+          callbacks.onNotification({ method: 'account/login/completed', params: { loginId: null, success: true } });
+          callbacks.onNotification({ method: 'account/updated', params: { authMode: 'chatgptAuthTokens', planType: 'plus' } });
+        }, 0);
         return { type: 'chatgptAuthTokens' };
       }
       throw Error('Unexpected native RPC');
@@ -346,12 +349,12 @@ describe('existing Codex session account engine', () => {
     expect(f.persisted.at(-1).wasControlling).toBe(false);
     expect(f.calls.filter(c => c.method === 'account/login/start')).toHaveLength(1);
   });
-  it('retains ownership when a native notification only renews the same account', async () => {
+  it('pauses ownership for an unsolicited account update even with the same email', async () => {
     const f = await fixture(); await f.c.request({ id: B, revision: 1 });
     f.notify({ method: 'account/updated', params: { authMode: 'chatgptAuthTokens' } });
     await new Promise(resolve => setTimeout(resolve, 0));
-    expect(f.c.status().state).toBe('applied');
-    expect(f.lease.release).not.toHaveBeenCalled();
+    expect(f.c.status().state).toBe('external_change');
+    expect(f.lease.release).toHaveBeenCalledOnce();
   });
   it('keeps live renewal ownership if metadata persistence fails after a successful native login', async () => {
     const f = await fixture({ persistError: true });
