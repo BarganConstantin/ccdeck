@@ -53,7 +53,10 @@
 // Each event carries the install id, the version, the OS and CPU architecture,
 // the channel (the desktop app, npm, or a source checkout) and the runtime, plus
 // a coarse sketch of the environment: the logical CPU count, the RAM in MB, the
-// locale, the shell and terminal names, and the Claude Code and Codex CLI
+// locale, the language chosen in the deck's own page (`uiLanguage`, "ro" or
+// "pt-BR": the page tells the server, which keeps it in prefs.json and omits it
+// until a page has said it; never on the ping, errors or feedback), the shell
+// and terminal names, and the Claude Code and Codex CLI
 // versions — and, on install, update, active and activated, what the boot set
 // up: whether the Claude hooks went in ("ok", "failed", "off") and whether
 // Codex is watched ("on", "off"). Every one of those is a small fixed token or
@@ -104,6 +107,7 @@ import { RUNNING_VERSION } from "./running-version.mjs";
 import { FEATURES, usageDay, utcDay } from "./usage-day.mjs";
 import { setupFacts, sinceInstallBucket, whenSetupKnown } from "./activation.mjs";
 import { notedRef, refSlug } from "./install-ref.mjs";
+import { UI_LANGUAGE_MAX, uiLanguageCode } from "./ui-language.mjs";
 import {
   CLAUDE_PLANS, CODEX_PLANS, cappedCount, deckDepth, eventsBucket, launchBucket, memoryBucket, updateVia,
 } from "./depth-facts.mjs";
@@ -142,6 +146,7 @@ const EMPTY_REPORT = Object.freeze({
   installId: "", lastVersion: "", lastActiveDay: "", forget: "", usage: null,
   installedAt: "", firstSessionAt: "", firstProvider: "", activationSent: false, ref: "", selfUpdate: null,
   rating: normaliseRating(null),
+  uiLanguage: "",
 });
 
 /** Is this deck sending reports right now? The switch, which is on unless
@@ -165,7 +170,7 @@ export function reportsOn(prefs, env = process.env) {
 // The keys the API caps, so a value that would be rejected for length is not
 // sent: it is trimmed to the cap here instead. Only ever tokens the shape of a
 // terminal name, a shell name, a locale or a version — never anything free.
-const TOKEN_CAPS = { locale: 16, shell: 16, term: 32, claudeVersion: 32, codexVersion: 32, deviceId: 64 };
+const TOKEN_CAPS = { locale: 16, shell: 16, term: 32, claudeVersion: 32, codexVersion: 32, deviceId: 64, uiLanguage: UI_LANGUAGE_MAX };
 
 /** A value reduced to the API's token shape `^[0-9A-Za-z.+_-]+$`: spaces become
  *  "_" (so "Apple Terminal" rides as "Apple_Terminal"), every other disallowed
@@ -330,6 +335,7 @@ export function installFacts({
   deviceId = deviceIdToken(),
   claudeVersion,
   codexVersion,
+  uiLanguage,
 } = {}) {
   const facts = {
     version: String(version),
@@ -343,6 +349,9 @@ export function installFacts({
   addIf(facts, "cpus", count(cpus));
   addIf(facts, "memMb", count(memMb));
   addIf(facts, "locale", token(locale, TOKEN_CAPS.locale));
+  // The language chosen in the deck's own page, which the reporter folds in
+  // from the prefs (factsNow); not the OS locale above.
+  addIf(facts, "uiLanguage", token(uiLanguage, TOKEN_CAPS.uiLanguage));
   addIf(facts, "shell", token(shell, TOKEN_CAPS.shell));
   addIf(facts, "term", token(term, TOKEN_CAPS.term));
   // The one derived, hashed, personal field. Present on the events that carry
@@ -627,7 +636,39 @@ export function createReporter({
   /** The full facts an event carries: the fixed install facts, plus whatever CLI
    *  versions are known this moment. */
   function factsNow() {
-    return { ...facts, ...versionFacts() };
+    return { ...facts, ...versionFacts(), ...uiLanguageFact() };
+  }
+
+  /** The page's language, from the prefs; nothing until a page has said it, and
+   *  nothing with reports off (switching them off empties it). Never throws. */
+  function uiLanguageFact() {
+    try {
+      const p = prefs.current();
+      if (!reportsOn(p, env)) return {};
+      const out = {};
+      addIf(out, "uiLanguage", token(uiLanguageCode(p.report.uiLanguage), TOKEN_CAPS.uiLanguage));
+      return out;
+    } catch {
+      return {};
+    }
+  }
+
+  /** The language a page is showing, kept for the reports. Only while reports
+   *  are on (there is nothing to keep it for otherwise, and the page says it
+   *  again on its next load); a code that is not a language tag is refused.
+   *  Resolves to whether it was kept; never throws. */
+  async function setUiLanguage(code) {
+    try {
+      const next = uiLanguageCode(code);
+      if (!next) return false;
+      await Promise.resolve(ready).catch(() => {});
+      if (!reportsOn(prefs.current(), env)) return false;
+      if (prefs.current().report.uiLanguage === next) return true;
+      await prefs.update(prev => (reportsOn(prev, env) ? { report: { ...prev.report, uiLanguage: next } } : undefined));
+      return true;
+    } catch {
+      return false;
+    }
   }
 
   /** What the boot set up — the Claude hooks and the Codex watcher — as the two
@@ -1205,7 +1246,7 @@ export function createReporter({
     const stack = typeof error?.stack === "string" ? scrub(error.stack, home, root).slice(0, STACK_MAX) : undefined;
     // Less the runtime, and less the deviceId — an error is not one of the events
     // the fingerprint rides on, so the personal field never leaves on one.
-    const { runtime: _runtime, deviceId: _deviceId, ...fields } = factsNow();
+    const { runtime: _runtime, deviceId: _deviceId, uiLanguage: _uiLanguage, ...fields } = factsNow();
     return (await call("POST", "/v1/app/errors", { installId: p.report.installId, ...fields, where, message, stack })) === "sent";
   }
 
@@ -1278,7 +1319,7 @@ export function createReporter({
 
   return {
     checkIn, ping, setReports, reportError, restoreUsage, restoreRating, saveUsage, sendActivation, willReport,
-    reportUninstall, noteSelfUpdate, ratingAsk, rate, rateLater, sendRating, start, stop,
+    reportUninstall, noteSelfUpdate, setUiLanguage, ratingAsk, rate, rateLater, sendRating, start, stop,
   };
 }
 
