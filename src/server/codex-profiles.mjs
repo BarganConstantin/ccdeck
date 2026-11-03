@@ -29,6 +29,29 @@ export async function codexProfileSessionDirs(options = {}) {
   return result;
 }
 
+/** The claims of an auth.json's id_token, or {} when it has none that decode. */
+function idTokenClaims(auth) {
+  try { return JSON.parse(Buffer.from(auth?.tokens?.id_token?.split('.')[1] ?? '', 'base64url').toString()) ?? {}; }
+  catch { return {}; }
+}
+
+/** The ChatGPT account id a parsed auth.json is signed in to, or null. The one
+ *  rule the profile roster and the Projects report both read it by: the stored
+ *  `account_id`, else the id_token's own claim. It is the value a rollout's
+ *  `creator_account_id` carries, so it stays on the server: callers compare it
+ *  and never send it. */
+export function codexAccountIdOf(auth, claims = idTokenClaims(auth)) {
+  const account = auth?.tokens?.account_id ?? claims['https://api.openai.com/auth']?.chatgpt_account_id;
+  return typeof account === 'string' && account !== '' ? account : null;
+}
+
+/** The account id a Codex home is signed in to right now, or null when it has no
+ *  readable login. */
+export async function readCodexHomeAccountId(home) {
+  try { return codexAccountIdOf(JSON.parse(await readFile(join(home, 'auth.json'), 'utf8'))); }
+  catch { return null; }
+}
+
 /** The ID identifies a home, never an OAuth token or an email address. */
 export async function discoverCodexProfiles(options = {}) {
   const selection = options.selection ?? await readCodexSelection(options);
@@ -53,10 +76,9 @@ export async function discoverCodexProfiles(options = {}) {
       const auth = JSON.parse(await readFile(join(directory, 'auth.json'), 'utf8'));
       const login = codexLoginOf(auth);
       if (login) lan = { key: login.key, email: login.email };
-      let claims = {};
-      try { claims = JSON.parse(Buffer.from(auth.tokens?.id_token?.split('.')[1] ?? '', 'base64url').toString()); } catch { /* Account ID may still be available. */ }
+      const claims = idTokenClaims(auth);
       const email = typeof claims.email === 'string' ? claims.email.replace(/[\x00-\x1f\x7f]/g, '').slice(0, 254) : null;
-      const account = auth.tokens?.account_id ?? claims['https://api.openai.com/auth']?.chatgpt_account_id;
+      const account = codexAccountIdOf(auth, claims);
       const workspace = typeof account === 'string' ? createHash('sha256').update(account).digest('hex').slice(0, 8) : null;
       identity = email ? `${email}${workspace ? ` · ${workspace}` : ''}` : workspace ? `Account ${workspace}` : null;
     } catch { /* Missing or malformed login metadata uses the profile label. */ }

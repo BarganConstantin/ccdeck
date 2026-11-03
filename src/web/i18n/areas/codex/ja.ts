@@ -110,6 +110,8 @@ const catalog: Catalog = {
   "codex.menu.copyLaunch": "起動コマンドをコピー",
   "codex.menu.copyLaunchTitle": "このアカウントで Codex を起動するコマンドをコピーします",
   "codex.menu.shareTip": "このアカウントを別の {product} にコピーします。このテキストを持つ人は誰でもアカウントを使えるため、パスワードと同じ扱いにしてください。",
+  "codex.projects.foot": "API 料金での概算 · Codex のセッションログから",
+  "codex.projects.unNote": "このアカウントのフォルダーで別のサインインにより行われた作業、またはプロジェクトフォルダーのない作業です。",
   "codex.menu.putBackTitle": "このアカウントを自動ローテーションに戻す",
   "codex.menu.holdOutTitle": "このアカウントを自動ローテーションから外す",
   "codex.menu.putBack": "ローテーションに戻す",

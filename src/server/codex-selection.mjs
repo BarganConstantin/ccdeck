@@ -25,7 +25,7 @@ export function codexSelectionError(code) {
   return Object.assign(new Error(code), { code });
 }
 const fail = code => { throw codexSelectionError(code); };
-const idPattern = /^[a-f0-9]{20}$/;
+export const idPattern = /^[a-f0-9]{20}$/;
 const operationPattern = /^[A-Za-z0-9_-]{1,128}$/;
 const safeCodes = new Set(['not_removable', 'login_not_movable', 'selection_conflict', 'operation_conflict', 'selection_busy', 'unknown_profile', 'profile_unavailable', 'registry_corrupt', 'registry_write_failed', 'invalid_operation', 'invalid_revision', 'invalid_label', 'import_write_failed', 'windows_permissions_failed', 'login_changed']);
 const storeDir = options => resolve(options.store ?? deckDataDir(options.platform, options.env, options.home));

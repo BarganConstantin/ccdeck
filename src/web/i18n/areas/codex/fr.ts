@@ -109,6 +109,8 @@ const catalog: Catalog = {
   "codex.menu.copyLaunch": "Copier la commande de lancement",
   "codex.menu.copyLaunchTitle": "Copie une commande qui lance Codex sur ce compte",
   "codex.menu.shareTip": "Copier ce compte vers un autre {product}. Quiconque possède le texte peut utiliser le compte — traitez-le comme le mot de passe.",
+  "codex.projects.foot": "Estimation au tarif de l'API · d'après les journaux de session de Codex",
+  "codex.projects.unNote": "Travail dans le dossier de ce compte sous une autre connexion, ou sans dossier de projet.",
   "codex.menu.putBackTitle": "Remettre ce compte dans la rotation automatique",
   "codex.menu.holdOutTitle": "Exclure ce compte de la rotation automatique",
   "codex.menu.putBack": "Remettre dans la rotation",
