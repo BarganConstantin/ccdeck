@@ -364,9 +364,19 @@ Each one fires the bundled `hook.js`, which POSTs the event JSON to the running 
 
 To use **multiple separate Codex logins**, open **Accounts → Add Codex account**, give the profile a label, and run its copied sign-in command in a terminal. Sign-in uses the official [Codex login flow](https://learn.chatgpt.com/docs/auth); each profile keeps its own login, configuration and history. Existing logins remain in place. You can also register existing homes at startup with `CCDECK_CODEX_HOMES`, a JSON array of additional absolute directories: for example, `CCDECK_CODEX_HOMES='["/home/me/.codex-work","/home/me/.codex-personal"]' npx ccdeck` on Linux.
 
-**Use account** saves the default for ccdeck's Codex quota and account notifications. Selection is serialized across local processes and persists across restarts. Running sessions keep their previous account; restart them to apply a different account. All configured profile session trees stay monitored independently of selection. Token renewal belongs to Codex. ccdeck never rotates managed-profile refresh tokens itself; system-store inspection uses the official Codex app-server, which may renew a login while reading quota. System-store account metadata depends on the installed CLI protocol and may not include a workspace ID. Native quota readings cover standard Codex limits; additional limits and credits are not included.
+**Use account** saves the default for ccdeck's Codex quota and account notifications. Selection is serialized across local processes and persists across restarts. Switching also asks supported interactive sessions opened through ccdeck terminal selection to move to that account, even with Auto-switch off. The engine waits for active tools, other turns and approvals, interrupts the current response if needed, and resumes the same conversation once. An idle conversation moves without sending a message. The managed terminal path does not cover sessions opened before installing it, explicit `CODEX_HOME` pins or unsupported commands; those can be reopened through terminal selection. Applications sharing the native daemon use the separate live connection described below. All configured profile session trees stay monitored independently of selection. Token renewal belongs to Codex. ccdeck never rotates managed-profile refresh tokens itself; system-store inspection uses the official Codex app-server, which may renew a login while reading quota. System-store account metadata depends on the installed CLI protocol and may not include a workspace ID. Native quota readings cover standard Codex limits. For a validated file-backed login, the panel also shows available rate-limit resets and their nearest expiry; additional limit families and purchased credit balances are not included in native readings.
 
-For plain `codex` commands to use this default, click **Enable terminal selection**, run the copied setup command once, then open a new terminal. Supported shells are zsh, bash and PowerShell (PowerShell 5 uses `--shell powershell5`). The installed launcher uses durable local metadata, so ccdeck can be closed. An explicit `CODEX_HOME` always takes priority. **Remove terminal selection** provides the reverse command; it removes only ccdeck's shell integration and keeps profile data. Individual launch commands remain available without terminal setup. Terminal setup applies to shell commands, not an independently launched IDE extension.
+For plain `codex` commands to use this default, click **Enable terminal selection**, run the copied setup command once, then open a new terminal. Supported shells are zsh, bash and PowerShell (PowerShell 5 uses `--shell powershell5`). The installed launcher uses durable local metadata, so ccdeck can be closed. An explicit `CODEX_HOME` always takes priority. **Remove terminal selection** provides the reverse command; it removes only ccdeck's shell integration and keeps profile data. Individual launch commands remain available without terminal setup. Terminal setup applies to shell commands, not an independently launched IDE extension. Interactive switching requires a Codex CLI with the native remote transport (verified with 0.166.0). A closed rollout is moved between homes with a private source backup; credentials are never copied. An isolated home with no runtime settings (empty or containing only project trust) inherits the original CLI configuration in memory, so starting on a second login keeps the same tools and settings. Existing session settings are carried across subsequent switches. Different destination settings, conflicting rollout files or an uncertain process exit stop the transfer. Automatic quota continuation still requires Auto-switch to be enabled.
+
+**Share Codex accounts** exports selected ChatGPT logins stored in `auth.json` as a code you can paste into **Import Codex accounts** on another machine, including Windows. Import creates separate profiles, keeps the current default and existing logins, and skips an exact repeated import. It transfers the login only, without configuration or conversation history. The code contains live credentials: it is encoded, not encrypted, and has no automatic expiry or ccdeck revocation. Use a trusted private channel and delete clipboard/message copies afterward. Both machines share the OAuth renewal token; renewing on one can invalidate the other copy and require signing in again. Keyring-only logins and API keys cannot be shared.
+
+**An already-open Codex app or IDE:** on macOS, Linux and Windows with Codex 0.166.0 or newer, **Use account** can also update the existing native shared app-server through its local control socket. Every conversation using that daemon changes together, including conversations opened before ccdeck. Their IDs, history and settings remain in place. Windows uses Codex's own `app-server proxy` to reach its AF_UNIX socket; run Codex and ccdeck as your normal Windows user. Existing unsafe permissions are rejected rather than changed.
+
+For conversations that accept direct input, ccdeck waits for observed tools and approvals, pauses responses through the native interrupt API, verifies the new login, then submits one Continue in each paused conversation. Supported subagents move with their parent: parents pause first, then the same child conversations resume before their parents. A naturally finished response stays idle.
+
+Parent-owned multi-agent v2 children use a cooperative pause instead. ccdeck asks their existing active parent to let current tools finish and collect checkpoints of unfinished work. Only after those responses end does it change the account and ask the parent to resume the same agents with Codex’s native follow-up tool. The row shows when child resumption is still pending; success requires observing their new live turns. Finished original assignments stay finished. A running answer or tool may finish before its checkpoint takes effect. If the parent is unavailable or its activity cannot be inspected safely, the switch waits. An active V2 parent whose children are idle waits for inspectable child activity or natural completion. A checkpoint unconfirmed after two minutes, or a follow-up unconfirmed after one minute, requires checking the conversation. Uncertain requests are never resent, and new handoffs cannot erase unfinished recovery records. ccdeck never changes network permissions or answers an approval for you.
+
+Live switching uses Codex's experimental host-managed authentication with ChatGPT accounts stored in private `auth.json` files. The live connection keeps access tokens in server memory and leaves source-profile renewal to native Codex; it does not copy authentication files. Explicit Share/Import is the separate credential-copying action described above. ccdeck must stay open to renew this live login; it saves only account IDs and ownership metadata for recovery after restart. A login made directly in Codex pauses ccdeck's control instead of being changed back. After a restart or lost connection, automatic recovery requires a native workspace ID; email alone is insufficient. If Codex cannot attest that identity, the panel offers **Reconnect selected account** after you check `/status`. This explicitly reapplies the selected login to the shared server. A second ccdeck instance cannot control the same daemon simultaneously. `AGENTS_DECK_NO_CODEX_LIVE=1` disables this connection. Keyring-only profiles, independent stdio servers and other daemons are outside this adapter. If the native switch fails, the panel reports that the default was saved while the app stayed on its account. Check the app's own `/status` after switching. Active native handoffs keep a private `codex-live-handoff.json` journal containing thread/turn IDs and send phases, never prompts or credentials. A lost response, changed login, competing client input or restart during an uncertain Continue requires checking the conversation; ccdeck does not repeat that send automatically. The Accounts row distinguishes waiting, completed switching and an unconfirmed continuation. Independent frontend Stop/input can race the native protocol, which has no atomic handoff or expected-idle start; strict cancellation coordination requires frontend cooperation.
 
 The Accounts panel shows account/workspace labels and independent quotas where available. Missing profiles remain inspectable so another account can be selected. Usage history outside the profile cards may still reflect the original home; historical sessions are never reassigned when the default changes. Migration from CC Switch currently means signing in to isolated profiles again; it does not modify CC Switch's store. Claude continues to use claude-swap.
 
@@ -376,7 +386,7 @@ Quota is the one thing that is not just reading. It needs a live token, so when 
 
 Opening Radio asks the public [Radio Browser](https://www.radio-browser.info/) directory for stations; searching sends the search text and selected filters to it. Playing a directory station reports its identifier for the directory's public popularity count, once per server session. Playing connects directly to the broadcaster, or to YouTube for the existing video streams. These services receive ordinary connection information such as your IP address. Favorites and listening history stay in this browser. `AGENTS_DECK_NO_MUSIC=1` disables the radio player and directory requests.
 
-It never steers an agent or edits your code, but it is not read-only either — besides the hook entry and its own event log, it manages the two tools it leans on, and it refreshes the Codex token it reads quota with, rewriting `~/.codex/auth.json` the way `codex` itself does. It also reads your browser's history, because Browser Watch is on unless you switch it off; that is its own section below, because it is the one thing here that is about you rather than about an agent.
+Account switching changes the login used by supported Codex sessions, and managed terminal continuation can submit Continue. The deck also writes the hook entry and its own event log; it manages the two tools it leans on, and it refreshes the Codex token it reads quota with, rewriting `~/.codex/auth.json` the way `codex` itself does. It also reads your browser's history, because Browser Watch is on unless you switch it off; that is its own section below, because it is the one thing here that is about you rather than about an agent.
 
 Telemetry Radar's flag switches write to `~/.claude/settings.json` too: each puts the flag you set — `CLAUDE_CODE_ENABLE_TELEMETRY`, `OTEL_LOG_USER_PROMPTS` and the other telemetry and content flags Radar lists — in that file's `env` block, as `"1"` or `"0"`. Switching a flag off writes `"0"` rather than removing it, and `--uninstall`, which removes ccdeck's hook entries, leaves these values as you set them. Radar's monitoring writes `~/.agents-deck/radar-monitor-<port>.json`, the destinations a deck on that port resumes, never packets or decoded messages, and `radar-settings-<port>.json` beside it, the collectors it found. And the quota readings the deck takes are kept in `quota-history.json`, in its data directory (see [Uninstall](#uninstall)), for 35 days and up to 2 MB, under a hash of the account rather than its address, for the Usage panel's quota history. What each Claude organization's settings turn on for telemetry is kept in `org-telemetry.json`, in the same data directory: per organization, its name, the level, the content flags that are on, the collector's scheme, host and port, and when the deck read them, never a path, a header or a credential.
 
@@ -413,6 +423,47 @@ Step by step: [Detect browser automation while you were away](https://ccdeck.dev
 ## Accounts
 
 The Accounts panel shows Claude accounts managed by [claude-swap](https://github.com/realiti4/claude-swap) and configured Codex profiles. With both CLIs on a machine, the Claude | Codex switch at the top of the panel chooses which you see; it changes the view, not the account in use. Codex profiles support adding accounts, isolated quota checks and a persistent default for new sessions. The Claude controls described below continue to use claude-swap.
+
+**Codex continuation:** with Codex Auto-switch enabled, the updated terminal
+integration can continue a managed interactive `codex`, an explicit-ID
+`codex resume <id>`, or `codex exec --json` task on another account after a
+terminal usage-limit failure. In the default Codex account's **⋯** menu, run
+**Enable in terminal** again to update an older integration, then open a new
+terminal. The engine transfers only the exact conversation's saved rollout.
+The global default and each account's login stay unchanged. Unknown/stale usage,
+held-out accounts and copies of the exhausted account are skipped.
+
+In interactive mode the native TUI stays open while ccdeck replaces its owned
+Codex app-server. It waits for a structured `usageLimitExceeded` failure, no
+active observed tools, approvals or other turns, and the old server's clean exit;
+then it resumes the exact thread and submits one Continue. A queued follow-up
+from the same conversation takes the place of that Continue, and Esc/interrupt
+during the handoff cancels automatic submission. Short throttles, network errors,
+assistant text and unknown outcomes do not trigger rotation. When no account is
+available, the conversation reopens idle on its current account so you can retry
+manually; automatic attempts are bounded for that managed launch.
+
+Interactive mode requires a Codex CLI exposing `--remote` and
+`--remote-auth-token-env` (verified with 0.166.0). Older versions use the original
+command. The local bridge accepts one authenticated connection on loopback and
+exists only for that terminal's lifetime. Quitting closes its owned backend; the
+native remote reconnect address printed on exit is not a durable session entry.
+Use a new managed `codex resume <id>` invocation to reopen a conversation that is
+still in the selected profile; a conversation moved to another profile can be
+reopened after selecting that profile in Accounts.
+
+Automatic terminal continuation does not cover desktop/IDE sessions, externally
+started sessions, ephemeral sessions, images, unknown CLI options, custom
+providers/profiles or an explicit `CODEX_HOME` pin. Manual shared-daemon switching
+for a supported native app is described above. Source and destination `config.toml` must match;
+otherwise resume manually. Existing destination transcripts are never overwritten.
+A private continuation lease prevents two engines from resuming the same thread;
+a lease left by a crashed launcher requires inspection before removing its file
+in `codex-engine-locks` under the ccdeck data directory. Changing conversations
+within one managed TUI can stop automatic continuation; launch a new managed
+session to rearm it. Native terminal/protocol resumption was verified against a
+local simulated provider and authenticated cross-account inference on macOS.
+Native Windows/Linux TUI behavior remains a separate acceptance check.
 
 The deck installs that package itself, so it installs it **bounded**: `claude-swap~=0.26`, which is `>= 0.26, == 0.*`, and when PyPI can be reached the exact version it resolved rather than the range. What `cswap --version` reports afterwards has to be that version, or the deck says so and leaves the panel dark rather than driving a copy it cannot account for — this is the tool that holds your Claude logins. The daily upgrade is bounded by the same specifier, and what it left behind is written to `~/.agents-deck/cswap-upgrade.json`.
 
@@ -655,6 +706,7 @@ Environment:
 |---|---|
 | `AGENT_DAG_PORT` | Default port, same as `-p` |
 | `CODEX_HOME` | Override `~/.codex` |
+| `AGENTS_DECK_NO_CODEX_LIVE` | Set to `1` to disable switching an existing native shared Codex app-server |
 | `CCDECK_CODEX_HOMES` | JSON array of additional absolute Codex home directories to monitor and list in Accounts; restart ccdeck after changing it |
 | `AGENTS_DECK_NO_INSTALL=1` | Never install or update claude-swap / ccusage or the terminal's `ccdeck`, never ask npm about releases, never read the status pages, and never send reports or feedback |
 | `AGENTS_DECK_NO_DOWNLOAD=1` | Never download the `uv` binary, but keep the managed installs |

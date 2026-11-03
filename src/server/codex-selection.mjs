@@ -27,7 +27,7 @@ export function codexSelectionError(code) {
 const fail = code => { throw codexSelectionError(code); };
 const idPattern = /^[a-f0-9]{20}$/;
 const operationPattern = /^[A-Za-z0-9_-]{1,128}$/;
-const safeCodes = new Set(['not_removable', 'login_not_movable', 'selection_conflict', 'operation_conflict', 'selection_busy', 'unknown_profile', 'profile_unavailable', 'registry_corrupt', 'registry_write_failed', 'invalid_operation', 'invalid_revision', 'invalid_label']);
+const safeCodes = new Set(['not_removable', 'login_not_movable', 'selection_conflict', 'operation_conflict', 'selection_busy', 'unknown_profile', 'profile_unavailable', 'registry_corrupt', 'registry_write_failed', 'invalid_operation', 'invalid_revision', 'invalid_label', 'import_write_failed', 'windows_permissions_failed']);
 const storeDir = options => resolve(options.store ?? deckDataDir(options.platform, options.env, options.home));
 export const codexSelectionPath = (options = {}) => join(storeDir(options), 'codex-accounts.json');
 
@@ -48,6 +48,7 @@ async function validate(state, options) {
   const ids = new Set();
   for (const p of state.profiles) {
     if (!p || typeof p.id !== 'string' || !idPattern.test(p.id) || ids.has(p.id) || typeof p.home !== 'string' || !path.isAbsolute(p.home)
+      || (p.importFingerprint !== undefined && (!p.managed || !/^[a-f0-9]{64}$/.test(p.importFingerprint)))
       || typeof p.managed !== 'boolean' || !(p.label === null || validLabel(p.label))) fail('registry_corrupt');
     ids.add(p.id);
     if (p.managed) {
@@ -62,11 +63,14 @@ async function validate(state, options) {
     if (await directoryExists(p.home) && await codexProfileId(p.home) !== p.id) fail('profile_unavailable');
   }
   if (!state.profiles.some(p => p.home === state.originalHome) || !ids.has(state.selectedProfileId)) fail('registry_corrupt');
+  if (state.runningSelection != null && (!ids.has(state.runningSelection.id) || !Number.isSafeInteger(state.runningSelection.revision)
+    || state.runningSelection.revision < 1 || state.runningSelection.revision > state.revision)) fail('registry_corrupt');
   const operations = new Set();
   for (const op of state.operations) {
     if (!op || typeof op.operationId !== 'string' || !operationPattern.test(op.operationId) || operations.has(op.operationId)
       || !['add', 'select'].includes(op.kind) || !ids.has(op.id) || !Number.isSafeInteger(op.revision)
       || op.revision < 1 || op.revision > state.revision
+      || (op.switchRunning !== undefined && typeof op.switchRunning !== 'boolean')
       || (op.kind === 'select' && (!Number.isSafeInteger(op.expectedRevision) || op.expectedRevision < 0))
       || (op.kind === 'add' && !(op.label === null || validLabel(op.label)))) fail('registry_corrupt');
     operations.add(op.operationId);
@@ -104,9 +108,9 @@ async function snapshot(state, options) {
   })));
   // Absence is a recoverable state, not permission to choose another account.
   return {
-    home, profileId: state?.selectedProfileId ?? await codexProfileId(home),
+    home, originalHome: state?.originalHome ?? homes[0], profileId: state?.selectedProfileId ?? await codexProfileId(home),
     revision: state?.revision ?? 0, selectionEnabled: state !== null,
-    available: await directoryExists(home), homes, profiles,
+    available: await directoryExists(home), homes, profiles, runningSelection: state?.runningSelection ?? null,
     managedProfiles: (state?.profiles ?? []).filter(p => p.managed).map(({ id, label }) => ({ id, label })),
     /** The name somebody gave each account, the deck's own or not. */
     profileLabels: (state?.profiles ?? []).filter(p => p.label).map(({ id, label }) => ({ id, label })),
@@ -218,14 +222,15 @@ function replay(state, operationId, kind, matches) {
   if (op && (op.kind !== kind || !matches(op))) fail('operation_conflict');
   return op;
 }
-export async function selectCodexProfile({ id, expectedRevision, operationId: operation } = {}, options = {}) {
+export async function selectCodexProfile({ id, expectedRevision, operationId: operation, switchRunning = false } = {}, options = {}) {
   operationId(operation);
+  if (typeof switchRunning !== 'boolean') fail('invalid_operation');
   if (typeof id !== 'string' || !idPattern.test(id)) fail('unknown_profile');
   if (!Number.isSafeInteger(expectedRevision) || expectedRevision < 0) fail('invalid_revision');
   return locked(options, async () => {
     const state = await initial(options);
-    if (replay(state, operation, 'select', o => o.id === id && o.expectedRevision === expectedRevision)) {
-      return { ...await snapshot(state, options), status: 'applied_for_new_sessions' };
+    if (replay(state, operation, 'select', o => o.id === id && o.expectedRevision === expectedRevision && !!o.switchRunning === switchRunning)) {
+      return { ...await snapshot(state, options), status: switchRunning ? 'requested_for_managed_sessions' : 'applied_for_new_sessions' };
     }
     if (state.revision !== expectedRevision) fail('selection_conflict');
     const homes = await homesFor(state, options);
@@ -236,10 +241,11 @@ export async function selectCodexProfile({ id, expectedRevision, operationId: op
     if (!state.profiles.some(p => p.id === id)) state.profiles.push({ id, home, label: null, managed: false });
     state.selectedProfileId = id;
     state.revision++;
-    state.operations.push({ operationId: operation, kind: 'select', id, expectedRevision, revision: state.revision });
+    state.operations.push({ operationId: operation, kind: 'select', id, expectedRevision, revision: state.revision, ...(switchRunning ? { switchRunning } : {}) });
+    if (switchRunning) state.runningSelection = { id, revision: state.revision };
     const result = await snapshot(state, options);
     await persist(state, options);
-    return { ...result, status: 'applied_for_new_sessions' };
+    return { ...result, status: switchRunning ? 'requested_for_managed_sessions' : 'applied_for_new_sessions' };
   });
 }
 /** Add an account this deck keeps the home of. The name is optional: without
@@ -318,6 +324,7 @@ export async function removeCodexProfile({ id, expectedRevision } = {}, options 
 async function dropProfile(state, profile, options) {
   const { id } = profile;
   state.profiles = state.profiles.filter(p => p.id !== id);
+  if (state.runningSelection?.id === id) delete state.runningSelection;
   // What this profile's add and select left behind would name a profile that
   // is gone, which the registry's own check refuses.
   state.operations = state.operations.filter(op => op.id !== id);
@@ -367,5 +374,52 @@ export async function moveCodexLogin({ id, into, expectedRevision } = {}, option
     // login that is no longer there to move again.
     try { await settleMovedLogin(target.home); } catch { /* the next read settles it */ }
     return { ...await dropProfile(state, profile, options), status: 'replaced' };
+  });
+}
+
+/** Register a prepared batch under the same lock as account selection. The
+ * callback creates and writes only fresh, empty managed homes. No existing home is
+ * passed to it, including on retries. Only credential fingerprints persist in
+ * metadata; the registry never receives auth contents. */
+export async function importCodexProfiles({ entries, expectedRevision }, prepareHome, options = {}) {
+  if (!Number.isSafeInteger(expectedRevision) || expectedRevision < 0) fail('invalid_revision');
+  if (!Array.isArray(entries) || entries.length < 1 || entries.length > 20
+    || entries.some(e => !e || !/^[a-f0-9]{64}$/.test(e.fingerprint) || !(e.label === null || validLabel(e.label)))) fail('invalid_operation');
+  return locked(options, async () => {
+    const state = await initial(options);
+    const existing = fingerprint => state.profiles.find(p => p.importFingerprint === fingerprint);
+    // A fully repeated import is safe even if the caller lost the reply or
+    // another operation has since changed the selection revision.
+    if (entries.some(e => !existing(e.fingerprint)) && state.revision !== expectedRevision) fail('selection_conflict');
+    const made = [], results = [], guards = [];
+    try {
+      for (let index = 0; index < entries.length; index++) {
+        const entry = entries[index], previous = existing(entry.fingerprint);
+        if (previous) {
+          if (!await directoryExists(previous.home)) fail('profile_unavailable');
+          results.push({ id: previous.id, status: 'already_imported' }); continue;
+        }
+        const root = join(storeDir(options), 'codex-profiles');
+        await mkdir(root, { recursive: true, mode: 0o700 });
+        if (!(await lstat(root)).isDirectory()) fail('registry_corrupt');
+        const home = join(root, randomBytes(16).toString('hex'));
+        // The preparer creates the home: on Windows it needs an atomic
+        // protected DACL at creation, which mkdir(mode) cannot provide.
+        made.push(home);
+        const guard = await prepareHome(home, index);
+        if (guard) guards.push(guard);
+        const id = await codexProfileId(home);
+        state.profiles.push({ id, home, label: entry.label, managed: true, importFingerprint: entry.fingerprint });
+        results.push({ id, status: 'imported' });
+      }
+      if (guards.some(guard => !guard.valid())) fail('windows_permissions_failed');
+      if (made.length) { state.revision++; await persist(state, options); }
+      return { revision: state.revision, results };
+    } catch (error) {
+      for (const guard of guards) await guard.release();
+      // None of these homes was registered if preparation or commit failed.
+      await Promise.all(made.map(home => rm(home, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 })));
+      throw error;
+    } finally { for (const guard of guards) await guard.release(); }
   });
 }

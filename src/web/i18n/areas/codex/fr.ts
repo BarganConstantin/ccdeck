@@ -2,6 +2,8 @@
 import type { Catalog } from "../../catalogs";
 
 const catalog: Catalog = {
+  "codex.panel.liveControlPaused": "Le contrôle du compte Codex est suspendu après un changement de connexion ou une déconnexion. Vérifiez /status avant de reconnecter.",
+  "codex.panel.reconnectSelected": "Reconnecter le compte sélectionné",
   // The row's voice (codex-accounts.ts CODEX_VOICE)
   "codex.row.liveTitle": "Compte par défaut des nouvelles sessions",
   "codex.row.liveSpoken": "Compte par défaut :",
@@ -9,7 +11,11 @@ const catalog: Catalog = {
   "codex.row.readPlan": "Dernière lecture de l'utilisation de ce compte par ccdeck, et prochaine lecture prévue : chaque minute pour le compte par défaut et toutes les cinq minutes pour les autres, tant que ce panneau est ouvert. Ce sont les limites que Codex indique pour le compte ; un forfait à une seule fenêtre affiche donc une seule barre.",
   "codex.row.readPlanNamed": "Forfait {plan}. {rest}",
   "codex.row.neverRead": "ccdeck n'a pas encore lu ce compte",
-  "codex.row.switched": "Désormais actif. Les nouvelles sessions lancées depuis ccdeck démarrent dessus, ainsi que la commande codex du terminal si la sélection du terminal est activée (dans ⋯). Les sessions en cours gardent leur compte.",
+  "codex.row.switched": "Compte par défaut modifié. Les sessions avec sélection dans le terminal suivront ce compte.",
+  "codex.row.liveSwitched": "Les conversations Codex connectées utilisent ce compte. Les tâches interrompues reprennent automatiquement.",
+  "codex.row.switchWaiting": "En attente des outils en cours ou de la saisie requise avant de changer de compte.",
+  "codex.row.childrenResuming": "Compte changé. En attente de la reprise des sous-agents.",
+  "codex.row.continueUnconfirmed": "La reprise automatique n’a pas pu être confirmée ; vérifiez la conversation avant de continuer.",
   "codex.row.reading": "Lecture de l'utilisation…",
   "codex.lane.limit": "limite",
   "codex.peer.account": "compte {n}",
@@ -62,6 +68,7 @@ const catalog: Catalog = {
   "codex.panel.unreachable": "serveur injoignable",
   "codex.panel.switchConflict": "Un autre changement vient de déplacer le compte par défaut. Réessayez.",
   "codex.panel.switchFailed": "Le changement n'a pas abouti. Rechargez et réessayez.",
+  "codex.panel.liveSwitchFailed": "Compte par défaut enregistré, mais l’application Codex ouverte n’a pas pu changer. Vérifiez son compte avec /status.",
   "codex.panel.removed": "Compte retiré. Sa connexion et son historique sont mis de côté dans le dossier de données de ccdeck, pas supprimés.",
   "codex.panel.removeFailed": "Impossible de retirer le compte. Rechargez et réessayez.",
   "codex.panel.badName": "Un nom ne peut pas contenir de barre oblique.",

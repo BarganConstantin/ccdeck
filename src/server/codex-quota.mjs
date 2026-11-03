@@ -9,6 +9,7 @@ import { noteQuotaHistory, forgetQuotaHistoryAccount } from "./quota-history.mjs
 // optional, unknown values pass through verbatim, and a `partial` flag tells
 // the UI when something was dropped instead of silently showing less.
 import { readFile } from "node:fs/promises";
+import { createHash } from "node:crypto";
 // One clamp for both quota readers: see the note on cooldownFromHeader. From
 // quota-oauth.mjs, which owns it, rather than through quota.mjs, which only
 // re-exported it and brings the whole Claude quota chain with it.
@@ -20,6 +21,7 @@ import { usesNativeCodexAccount, decodeJwt, codexCredentialFingerprint, getCodex
 import { PRODUCT } from "./brand.mjs";
 import { resetLabel } from "./reset-label.mjs";
 import { readNativeCodexAccount } from "./codex-native-account.mjs";
+import { readLiveCodexCredential } from "./codex-live-credentials.mjs";
 
 // Resolved by codex-dir.mjs rather than here. This file used to spell it
 // `process.env.CODEX_HOME ?? join(homedir(), ".codex")`, which keeps an empty
@@ -227,6 +229,37 @@ async function fetchResetCredits(base, auth) {
       .sort((a, b) => a - b)[0] ?? null;
     return { availableCount: count, nextExpiryAt: next };
   } catch { return null; }
+}
+
+// Native account/rateLimits/read omits the saved reset grants. Read their
+// inventory separately, using only a validated file-backed login from the same
+// profile. Codex remains the credential owner; this path never renews or redeems.
+const nativeResetCache = new Map();
+const configFingerprint = async home => createHash('sha256').update(await readFile(join(home, 'config.toml')).catch(() => '')).digest('hex');
+async function nativeResetCredits(selected, home, native, fingerprint, credentialRead) {
+  if (!fingerprint || !/^[a-f0-9]{20}$/.test(selected.profileId ?? '')
+    || await codexCredentialFingerprint({ home }) !== fingerprint) return null;
+  const config = await configFingerprint(home);
+  const key = `${selected.profileId}:${native.identityVersion}:${fingerprint}:${config}`;
+  const now = Date.now(), held = nativeResetCache.get(key);
+  if (held && now - held.at < CACHE_MS) return held.promise;
+  if (native.stale) return null;
+  if (nativeResetCache.size >= MAX_SELECTED_READERS) nativeResetCache.delete(nativeResetCache.keys().next().value);
+  const promise = (async () => {
+    try {
+      if (await codexCredentialFingerprint({ home }) !== fingerprint) return null;
+      const auth = await credentialRead(selected.profileId, { refresh: false });
+      const suffix = auth.accountId ? ` · ${createHash('sha256').update(auth.accountId).digest('hex').slice(0, 8)}` : '';
+      if (auth.profileId !== selected.profileId || ![auth.email, auth.email + suffix].includes(native.label)
+        || auth.expiresAt <= Date.now() || await codexCredentialFingerprint({ home }) !== fingerprint) return null;
+      const base = await readBaseUrl(home);
+      if (!isCredentialHost(base)) return null;
+      const credits = await fetchResetCredits(base, auth);
+      return await codexCredentialFingerprint({ home }) === fingerprint && await configFingerprint(home) === config ? credits : null;
+    } catch { return null; }
+  })();
+  nativeResetCache.set(key, { at: now, promise });
+  return promise;
 }
 
 async function requestUsage(base, auth) {
@@ -591,7 +624,7 @@ function selectedReader(selection) {
 }
 
 /** Capture the selected target once; reject a completion from any old revision. */
-export async function fetchCodexQuota({ force = false, readSelection: read = readCodexSelection, enableNative = false, nativeRead = readNativeCodexAccount } = {}) {
+export async function fetchCodexQuota({ force = false, readSelection: read = readCodexSelection, enableNative = false, nativeRead = readNativeCodexAccount, credentialRead = readLiveCodexCredential } = {}) {
   let selected;
   try { selected = await read(); }
   catch { return { ok: false, reason: "selection_unavailable" }; }
@@ -609,7 +642,7 @@ export async function fetchCodexQuota({ force = false, readSelection: read = rea
   try { result = authoritative ? { ok: false, reason: "no_token" } : await (entry?.reader ?? legacyReader).fetch({ force }); }
   finally { if (entry) entry.active--; }
   if (enableNative && result.reason === "no_token") {
-    const fingerprint = authoritative ? null : await codexCredentialFingerprint({ home });
+    const fingerprint = await codexCredentialFingerprint({ home });
     const native = await nativeRead(home, { includeQuota: true, force: true });
     if (!authoritative && await codexCredentialFingerprint({ home }) !== fingerprint) {
       return { ok: false, reason: 'profile_changed' };
@@ -621,6 +654,7 @@ export async function fetchCodexQuota({ force = false, readSelection: read = rea
       result = { ok: true, windows, extraWindows: [], plan: native.plan, planLabel: planLabel(native.plan),
         email: native.label, partial: true, coverage: "standard_limits", refreshed: false, fetchedAt: native.fetchedAt,
         ...(native.stale ? { stale: true } : {}) };
+      result.resetCredits = await nativeResetCredits(selected, home, native, fingerprint, credentialRead);
       _accountOfQuota.set(result, { accountId: `profile:${selected.profileId}`, profileId: selected.profileId, email: native.label });
     } else result = { ok: false, reason: native.reason ?? (native.plan === 'api' ? 'api_key_mode' : 'no_token'), fetchedAt: native.fetchedAt,
       ...(native.stale ? { stale: true } : {}) };

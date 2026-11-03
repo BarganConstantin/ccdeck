@@ -119,15 +119,19 @@ describe('Codex profile discovery', () => {
   });
 
   it('quotes shell paths and scopes launch environment to a new process', async () => {
-    const path = "/tmp/profile's private";
-    const env = { CODEX_HOME: path };
-    const [profile] = await discoverCodexProfiles({ env, platform: 'darwin' });
-    expect(await codexProfileLaunchCommand(profile.id, { env, platform: 'darwin' }))
-      .toBe("CODEX_HOME='/tmp/profile'\\''s private' codex");
-    const windowsEnv = { CODEX_HOME: "C:\\Users\\dev's home\\.codex" };
-    const [windowsProfile] = await discoverCodexProfiles({ env: windowsEnv, platform: 'win32' });
-    expect(await codexProfileLaunchCommand(windowsProfile.id, { env: windowsEnv, platform: 'win32' }))
-      .toBe("$previousCodexHome = $env:CODEX_HOME; try { $env:CODEX_HOME = 'C:\\Users\\dev''s home\\.codex'; codex } finally { $env:CODEX_HOME = $previousCodexHome }");
+    const root = await mkdtemp(join(tmpdir(), 'ccdeck-quote-profile-'));
+    const store = join(root, 'store');
+    try {
+      const path = "/tmp/profile's private";
+      const env = { CODEX_HOME: path };
+      const [profile] = await discoverCodexProfiles({ store, env, platform: 'darwin' });
+      expect(await codexProfileLaunchCommand(profile.id, { store, env, platform: 'darwin' }))
+        .toBe("CODEX_HOME='/tmp/profile'\\''s private' codex");
+      const windowsEnv = { CODEX_HOME: "C:\\Users\\dev's home\\.codex" };
+      const [windowsProfile] = await discoverCodexProfiles({ store, env: windowsEnv, platform: 'win32' });
+      expect(await codexProfileLaunchCommand(windowsProfile.id, { store, env: windowsEnv, platform: 'win32' }))
+        .toBe("$previousCodexHome = $env:CODEX_HOME; try { $env:CODEX_HOME = 'C:\\Users\\dev''s home\\.codex'; codex } finally { $env:CODEX_HOME = $previousCodexHome }");
+    } finally { await rm(root, { recursive: true, force: true }); }
   });
 
   it('reads each profile quota with its own token, without refreshing or leaking credentials', async () => {

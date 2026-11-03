@@ -72,7 +72,8 @@ is off under `AGENTS_DECK_NO_INSTALL=1`.
 
 ### Server runtime dependencies
 
-The server uses `fs-native-extensions` for OS file locks. The npm tarball bundles
+The server uses `fs-native-extensions` for OS file locks and `ws` for the
+authenticated local Codex terminal transport. The npm tarball bundles
 the following production dependency graph for offline installation. Desktop builds
 copy the same installed packages to `Resources/deck/node_modules`, outside
 `app.asar`. Whole packages are retained, including their original `LICENSE`
@@ -83,6 +84,7 @@ their source files and licences are unchanged.
 
 | Package | Version | Licence | Source |
 | --- | --- | --- | --- |
+| `ws` | 8.22.1 | MIT | https://github.com/websockets/ws |
 | `fs-native-extensions` | 1.5.2 | Apache-2.0 | https://github.com/holepunchto/fs-native-extensions |
 | `require-addon` | 1.3.0 | Apache-2.0 | https://github.com/holepunchto/require-addon |
 | `which-runtime` | 1.4.0 | Apache-2.0 | https://github.com/holepunchto/which-runtime |
@@ -782,3 +784,31 @@ https://creativecommons.org/publicdomain/zero/1.0/.
 GitHub is a trademark of GitHub, Inc., and GitLab of GitLab Inc. ccdeck is not
 affiliated with or endorsed by either; the marks are used only to name the
 service a connection reaches.
+
+## ws runtime licence
+
+The durable Codex terminal helper also retains this package and its original
+`LICENSE` file. Optional native acceleration packages are not installed.
+
+```text
+Copyright (c) 2011 Einar Otto Stangvik <einaros@gmail.com>
+Copyright (c) 2013 Arnout Kazemier and contributors
+Copyright (c) 2016 Luigi Pinca and contributors
+
+Permission is hereby granted, free of charge, to any person obtaining a copy of
+this software and associated documentation files (the "Software"), to deal in
+the Software without restriction, including without limitation the rights to
+use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of
+the Software, and to permit persons to whom the Software is furnished to do so,
+subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS
+FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR
+COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
+IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
+CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+```

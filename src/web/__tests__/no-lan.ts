@@ -33,3 +33,7 @@ process.env.AGENTS_DECK_SKILL_HOOK = "0";
 // and spawn processes under suites that count them. Radar's suites build the
 // service directly with fakes and never need a real deck for it.
 process.env.AGENTS_DECK_NO_RADAR = "1";
+
+// A test deck must never change authentication in the developer's existing
+// Codex daemon. Live-account suites construct controllers with fake peers.
+process.env.AGENTS_DECK_NO_CODEX_LIVE = "1";

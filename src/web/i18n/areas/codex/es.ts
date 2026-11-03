@@ -2,13 +2,19 @@
 import type { Catalog } from "../../catalogs";
 
 const catalog: Catalog = {
+  "codex.panel.liveControlPaused": "El control de la cuenta de Codex está pausado tras un cambio de sesión o una desconexión. Revisa /status antes de reconectar.",
+  "codex.panel.reconnectSelected": "Reconectar la cuenta seleccionada",
   "codex.row.liveTitle": "Cuenta predeterminada para las sesiones nuevas",
   "codex.row.liveSpoken": "Cuenta predeterminada:",
   "codex.row.readBy": "Cuándo leyó ccdeck por última vez el uso de esta cuenta",
   "codex.row.readPlan": "Cuándo leyó ccdeck por última vez el uso de esta cuenta y cuándo piensa volver a leerlo: cada minuto para la cuenta predeterminada y cada cinco para las demás, mientras este panel esté abierto. Son los límites que Codex informa para la cuenta, así que un plan con una sola ventana muestra una sola barra.",
   "codex.row.readPlanNamed": "Plan {plan}. {rest}",
   "codex.row.neverRead": "ccdeck aún no ha leído esta cuenta",
-  "codex.row.switched": "Ahora activa. Las sesiones nuevas de ccdeck empiezan con ella, y el codex de la terminal también si la selección en la terminal está activada (en ⋯). Las que ya están en marcha conservan su cuenta.",
+  "codex.row.switched": "Cuenta predeterminada cambiada. Las sesiones con selección en terminal usarán esta cuenta.",
+  "codex.row.liveSwitched": "Las conversaciones de Codex conectadas usan ahora esta cuenta. Las tareas interrumpidas se reanudan automáticamente.",
+  "codex.row.switchWaiting": "Esperando a que terminen las herramientas o se responda la entrada pendiente antes de cambiar de cuenta.",
+  "codex.row.childrenResuming": "Cuenta cambiada. Esperando a que los subagentes continúen.",
+  "codex.row.continueUnconfirmed": "No se pudo confirmar la continuación automática; revisa la conversación antes de continuar.",
   "codex.row.reading": "Leyendo el uso…",
   "codex.lane.limit": "límite",
   "codex.peer.account": "cuenta {n}",
@@ -59,6 +65,7 @@ const catalog: Catalog = {
   "codex.panel.unreachable": "servidor inaccesible",
   "codex.panel.switchConflict": "Otro cambio movió la cuenta predeterminada justo entonces. Inténtalo de nuevo.",
   "codex.panel.switchFailed": "El cambio no se completó. Recarga e inténtalo de nuevo.",
+  "codex.panel.liveSwitchFailed": "Cuenta predeterminada guardada, pero la aplicación Codex abierta no pudo cambiar. Comprueba su cuenta con /status.",
   "codex.panel.removed": "Cuenta eliminada. Su inicio de sesión y su historial quedan aparte en la carpeta de datos de ccdeck, no se borran.",
   "codex.panel.removeFailed": "No se pudo eliminar la cuenta. Recarga e inténtalo de nuevo.",
   "codex.panel.badName": "Un nombre no puede contener una barra diagonal.",

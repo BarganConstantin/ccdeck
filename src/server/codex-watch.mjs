@@ -8,6 +8,7 @@
 // cwd and the chunked reader from the modules that own them — nothing here
 // reads the ring or the SSE clients. index.mjs starts the watcher. The bodies
 // are unchanged.
+import { codexHandoffOffset } from './codex-handoff.mjs';
 import { stat, readdir } from "node:fs/promises";
 import { basename, dirname, join } from "node:path";
 import { PRODUCT } from "./brand.mjs";
@@ -361,7 +362,8 @@ async function openCodexCursor(path, st, now, firstRun, recover = false) {
   // UsageObserved in the file to every tab, and re-appending the lot to
   // the shared events.jsonl if this deck is the elected writer (#981).
   const fresh = !codexSeenEver.has(path);
-  const state = { offset: fresh ? 0 : st.size, sid: header.sid, cwd: header.cwd, link: header.link, skip: false, sawBeginning: fresh, rootOpened: false, seenAt: now, path };
+  const copiedPrefix = fresh ? await codexHandoffOffset(path, header.sid, st.size) : 0;
+  const state = { offset: fresh ? copiedPrefix : st.size, sid: header.sid, cwd: header.cwd, link: header.link, skip: false, sawBeginning: fresh && copiedPrefix === 0, rootOpened: false, seenAt: now, path };
   codexFileState.set(path, state);
   rememberCodexPath(path);
   if (firstRun) {
