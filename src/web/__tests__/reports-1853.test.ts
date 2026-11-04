@@ -154,6 +154,7 @@ describe("a deck nobody has touched", () => {
     // field added to it is a change to what the README promises.
     expect(h.calls[0].body).toEqual({
       installId, kind: "install", version: "3.32.2", os: "linux", arch: "x64", channel: "npm", runtime: "node-22.18.0",
+      via: "npm",
     });
     expect(h.calls[1].body).toEqual({
       installId, kind: "active", version: "3.32.2", os: "linux", arch: "x64", channel: "npm", runtime: "node-22.18.0",

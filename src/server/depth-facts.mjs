@@ -1,5 +1,6 @@
 // How the deck holds up and who runs it, for the daily "active" report
-// (reports.mjs), and how an update arrived, for the "update" one.
+// (reports.mjs), how an update arrived, for the "update" one, and how a new
+// install arrived, for the "install" one.
 //
 // EVERY VALUE HERE IS A BUCKET, A CATEGORY OR A SMALL COUNT. How long this run
 // took to start, the usage day's peak memory and how many events the deck took
@@ -12,6 +13,11 @@
 //
 // Each bucket is named by its upper edge: "2s" is over one second and up to
 // two, "512m" over 256 MB and up to 512 MB, "1k" a day of 100 to 999 events.
+
+import { readFile, stat, unlink } from "node:fs/promises";
+import { homedir } from "node:os";
+import { posix as posixPath, win32 as winPath } from "node:path";
+import { localAppData } from "./deck-home.mjs";
 
 export const LAUNCH_BUCKETS = Object.freeze(["1s", "2s", "5s", "10s", "30s", "later"]);
 const LAUNCH_EDGES_MS = [1000, 2000, 5000, 10_000, 30_000];
@@ -29,6 +35,22 @@ export const CODEX_PLANS = Object.freeze(["free", "go", "plus", "pro", "pro-lite
  *  runs while nobody is looking), the desktop app's updater, npx fetching the
  *  latest, npm run by hand, or a source checkout pulled. */
 export const UPDATE_VIAS = Object.freeze(["self-update", "desktop-updater", "npx", "npm", "checkout"]);
+
+/** How a new install arrived: ccdeck.dev's one-line install on macOS (`curl`)
+ *  or on Windows (PowerShell's `irm`), an installer downloaded by hand, npx, or
+ *  npm. A source checkout is not an install anybody chose a way for, and says
+ *  nothing. */
+export const INSTALL_VIAS = Object.freeze(["curl", "irm", "download", "npx", "npm"]);
+
+/** How long the one-line installs' mark stays the answer: a script run a week
+ *  ago is not how an app first opened today arrived. */
+export const INSTALL_MARK_FRESH_MS = 7 * 24 * 60 * 60 * 1000;
+
+/** The words the install scripts write in the mark: install.sh's, install.ps1's. */
+const INSTALL_MARK_WORDS = Object.freeze(["curl", "irm"]);
+
+/** Past this many bytes the mark is not one word, and is not read. */
+const INSTALL_MARK_MAX_BYTES = 64;
 
 /** The most accounts or paired machines a report says; past it, it says this. */
 export const COUNT_CAP = 50;
@@ -106,6 +128,76 @@ export function updateVia({ marker, lastVersion, channel, npx = false, now = new
   if (channel === "checkout") return "checkout";
   if (channel === "npm") return npx ? "npx" : "npm";
   return undefined;
+}
+
+/**
+ * How this install arrived, for the "install" that says it.
+ *
+ * An npm install says it by where this copy runs from: npx's cache, or an
+ * install somebody ran npm for. The desktop app is a download unless one of
+ * ccdeck.dev's one-line installs says otherwise: its script writes one word in a
+ * file (installMarkPath) just before it opens the app, and `mark` is that file
+ * as read — `{ content, mtimeMs }`, or null. The word counts only when it is
+ * one the scripts write and the file is at most INSTALL_MARK_FRESH_MS old. A
+ * source checkout says nothing.
+ */
+export function installVia({ channel, npx = false, mark = null, now = new Date() } = {}) {
+  if (channel === "npm") return npx ? "npx" : "npm";
+  if (channel !== "desktop") return undefined;
+  const word = typeof mark?.content === "string" ? mark.content.trim() : "";
+  const age = now.getTime() - Number(mark?.mtimeMs);
+  return INSTALL_MARK_WORDS.includes(word) && age <= INSTALL_MARK_FRESH_MS ? word : "download";
+}
+
+/**
+ * Where ccdeck.dev's one-line installs leave their mark: `install-via`, in
+ * ccdeck's folder under Application Support on macOS and under %LOCALAPPDATA%
+ * on Windows. Linux has none — the desktop app there is always a download — and
+ * gets null.
+ *
+ * A FIXED PATH, NOT THE DECK'S HOME. The scripts cannot know a CCDECK_HOME or a
+ * CLAUDE_CONFIG_DIR, and an app opened by an installer or from Finder does not
+ * have the shell's environment anyway, so neither moves it. Joined with the
+ * target platform's separator, as deck-home.mjs does, so the Windows answer can
+ * be checked from any machine.
+ */
+export function installMarkPath(platform = process.platform, env = process.env, home = homedir()) {
+  if (platform === "darwin") return posixPath.join(home, "Library", "Application Support", "ccdeck", "install-via");
+  if (platform === "win32") return winPath.join(localAppData(env, home, platform), "ccdeck", "install-via");
+  return null;
+}
+
+/**
+ * The mark, read and taken away, with the file system handed in so a test
+ * needs no file outside its own folder. `read()` answers `{ content, mtimeMs }`,
+ * or null for no mark, no place for one on this platform, or one that is not a
+ * word (too big, unreadable); `remove()` deletes it. Neither throws: a mark is a
+ * nicety on one report, and no report waits on it.
+ */
+export function installMarkFile({
+  platform = process.platform, env = process.env, home = homedir(), fs = { readFile, stat, unlink },
+} = {}) {
+  return {
+    async read() {
+      try {
+        const path = installMarkPath(platform, env, home);
+        if (!path) return null;
+        const st = await fs.stat(path);
+        if (!(st.size <= INSTALL_MARK_MAX_BYTES)) return null;
+        return { content: String(await fs.readFile(path, "utf8")), mtimeMs: st.mtimeMs };
+      } catch {
+        return null;
+      }
+    },
+    async remove() {
+      try {
+        const path = installMarkPath(platform, env, home);
+        if (path) await fs.unlink(path);
+      } catch {
+        // Gone already, or not this deck's to delete: past a week it is ignored anyway.
+      }
+    },
+  };
 }
 
 // ── the deck's own readings ──────────────────────────────────────────────────
