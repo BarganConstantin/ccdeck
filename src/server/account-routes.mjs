@@ -56,14 +56,14 @@ export async function handleCodexAccountShare(req, res, action) {
     const raw = await readBody(req, res, CODEX_SHARE_MAX_LENGTH + 4096).catch(() => null);
     let body;
     try { body = JSON.parse(raw ?? ''); } catch { return send(res, 400, { ok: false, reason: 'bad_request' }); }
-    const allowed = action === 'export' ? ['ids'] : ['blob', 'expectedRevision'];
+    const allowed = action === 'export' ? ['ids', 'preparePermissions'] : ['blob', 'expectedRevision'];
     if (!body || typeof body !== 'object' || Array.isArray(body) || Object.keys(body).some(key => !allowed.includes(key))) {
       return send(res, 400, { ok: false, reason: 'bad_request' });
     }
     const result = await (action === 'export' ? createCodexShare(body) : importCodexShare(body));
     send(res, 200, result);
   } catch (error) {
-    const safe = new Set(['invalid_profiles', 'unknown_profile', 'file_auth_required', 'unsupported_auth', 'share_too_large', 'invalid_share', 'invalid_revision', 'selection_conflict', 'selection_busy', 'registry_corrupt', 'registry_write_failed', 'profile_unavailable', 'import_write_failed', 'windows_permissions_failed']);
+    const safe = new Set(['invalid_profiles', 'unknown_profile', 'file_auth_required', 'unsupported_auth', 'share_too_large', 'invalid_share', 'invalid_revision', 'selection_conflict', 'selection_busy', 'registry_corrupt', 'registry_write_failed', 'profile_unavailable', 'import_write_failed', 'windows_permissions_failed', 'windows_permissions_required', 'windows_share_protection_failed']);
     const reason = safe.has(error?.code) ? error.code : 'share_failed';
     send(res, ['selection_conflict', 'selection_busy'].includes(reason) ? 409 : reason === 'unknown_profile' ? 404 : 400, { ok: false, reason });
   }

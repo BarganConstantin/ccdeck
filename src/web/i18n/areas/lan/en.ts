@@ -2,6 +2,11 @@
 import type { Catalog } from "../../catalogs";
 
 const catalog: Catalog = {
+  "lan.round.exportFailed.short": "export failed on sending deck",
+  "lan.round.exportFailed.long": "Open Share for this account on the sending deck to see what blocks its export.",
+  "lan.round.permissions.short": "Windows permissions block sharing there",
+  "lan.round.permissions.long": "On the sending Windows deck, open Share for this Codex account, generate a code, then choose Secure permissions and share.",
+
   "lan.checking": "checking…",
   "lan.starting": "starting…",
   "lan.online": "online",

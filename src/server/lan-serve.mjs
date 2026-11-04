@@ -120,7 +120,12 @@ export function createServe({
           return ctx.send({ t: "no", why: "export failed" });
         }
         if (!maySend()) return ctx.send({ t: "no", why: "not shared" });
-        const blob = codexWant ? await exportCodex(mine.num, msg.key) : await exportAccount(mine.num, msg.key);
+        let blob;
+        try { blob = codexWant ? await exportCodex(mine.num, msg.key) : await exportAccount(mine.num, msg.key); }
+        catch (err) {
+          if (codexWant && err?.code === 'windows_permissions_required') return ctx.send({ t: 'no', why: 'windows_permissions_required' });
+          throw err;
+        }
         if (!maySend()) return ctx.send({ t: "no", why: "not shared" });
         // A Mac's failed export refreshes the verdict behind `readable` in the
         // background, so when the Keychain was why, the next ask is answered by

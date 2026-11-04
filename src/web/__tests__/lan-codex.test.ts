@@ -158,6 +158,17 @@ async function pair(from: Awaited<ReturnType<typeof deck>>, to: Awaited<ReturnTy
 }
 
 describe("two decks sharing Codex logins", () => {
+  it("reports Windows permission refusal without exporting credentials or losing the reason", async () => {
+    const ana = row("ana@example.net", "b1");
+    const mine = codexStore([]), theirs = codexStore([ana]);
+    theirs.adapter.exportAccount = async () => { throw Object.assign(new Error("fictional private diagnostics"), { code: "windows_permissions_required" }); };
+    const a = await deck("Deck-A", { codex: mine });
+    const b = await deck("Deck-B", { codex: theirs, shared: [ana.key] });
+    await pair(a, b);
+    expect(await a.e.round()).toEqual([{ key: ana.key, email: ana.email, action: "add", provider: "codex", ok: false, why: "windows_permissions_required" }]);
+    expect(mine.imported).toEqual([]);
+  }, 20_000);
+
   it("adds a Codex login ticked on the other deck, and offers it onward", async () => {
     const ana = row("ana@example.net", "b1");
     const mine = codexStore([]);

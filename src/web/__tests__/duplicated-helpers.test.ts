@@ -740,7 +740,7 @@ describe("the shapes these helpers replaced", () => {
     // And it still finds the millions tier a private three-tier copy carries.
     expect(/\(n \/ 1_000_000(?:_000)?\)\.toFixed\(2\)\}[MB]/.test("return `${(n / 1_000_000).toFixed(2)}M`;")).toBe(true);
     expect(/const seg = \(val: number, cls: string, label: string\)/.test(costBarSrc)).toBe(true);
-    expect(/const nums = \(s\) => s\.split\(\/\[\.\+\]\//.test(src("../../server/self-update.mjs"))).toBe(true);
+    expect(/const nums = \(s\) => s\.split\(\/\[\.\+\]\//.test(src("../../server/version-order.mjs"))).toBe(true);
     expect(/replace\(\/\\s\+\(AM\|PM\)\//.test(src("../../server/reset-label.mjs"))).toBe(true);
   });
 

@@ -54,7 +54,7 @@ async function fixture({ saved = null as any, actual = A, readCredential = null 
     persistHandoff: async (data: any) => { journals.push(structuredClone(data)); },
     resolveEndpoint: resolveEndpoint ?? (async () => ({ home: '/native-home', generation: 'native-generation' })),
     acquireLease: async () => lease,
-    connectRpc: async (_endpoint: any, hooks: any) => { callbacks = hooks; return rpc; },
+    connectRpc: async (_endpoint: any, hooks: any) => { callbacks = hooks; hooks.onNotification({ method: 'account/updated', params: { authMode: 'chatgptAuthTokens', planType: 'plus' } }); return rpc; },
     readCredential: vi.fn(readCredential ?? (async (id: string) => credential(id))),
   });
   controllers.push(c); await c.ready;

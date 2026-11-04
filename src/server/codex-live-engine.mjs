@@ -111,7 +111,7 @@ export function createCodexLiveAccountController(input = {}) {
     }
     if (message.method === 'account/login/completed') {
       if (login && !login.completed && message.params?.loginId === null && message.params?.success === true) login.completed = true;
-      else if (login) invalidateOwnership();
+      else invalidateOwnership();
     } else if (message.method === 'account/updated') {
       // Native external-token login sends its RPC result, then login/completed,
       // then updated (account_processor.rs, rust-v0.166.0). Consume only that
@@ -170,9 +170,18 @@ export function createCodexLiveAccountController(input = {}) {
     if (!await lease.valid()) throw liveError('native_control_lost');
     endpoint = next;
     const serial = ++connectionSerial;
+    let readingInitialAccount = true;
+    let initialUpdate = false, resolveInitialUpdate;
+    const initialAccountReady = new Promise(resolve => { resolveInitialUpdate = resolve; });
     rpc = await connect(next, {
       onRequest: m => serial === connectionSerial ? serverRequest(m) : undefined,
       onNotification: m => {
+        // New connections receive an account/updated routing snapshot even
+        // when no login changed. Establish the account baseline first; restore
+        // and reconnect still attest its native IDs before reclaiming control.
+        if (!closed && serial === connectionSerial && readingInitialAccount && !initialUpdate && m.method === 'account/updated') {
+          initialUpdate = true; resolveInitialUpdate(); return;
+        }
         const observe = () => { if (!closed && serial === connectionSerial) accountNotification(m); };
         // A WebSocket read can contain the result and both notifications. Let
         // its already-resolved RPC continuation mark the acknowledgement first,
@@ -185,7 +194,24 @@ export function createCodexLiveAccountController(input = {}) {
         rpc = null; if (!closed && owned) update({ state: 'disconnected', reason: 'native_disconnected' });
       },
     });
-    const account = await rpc.request('account/read', { refreshToken: false });
+    let account;
+    try {
+      account = await rpc.request('account/read', { refreshToken: false });
+      // Routing discovery notifies each initialized connection asynchronously,
+      // including after account/read has answered. Do not mistake that delayed
+      // snapshot for an outside login, or claim ownership before it arrives.
+      if (account.workspaceRouting && !initialUpdate) {
+        let timeout;
+        try {
+          await Promise.race([initialAccountReady, new Promise((_, reject) => {
+            timeout = setTimeout(() => reject(liveError('native_initial_account_unconfirmed')),
+              options.initialAccountTimeoutMs ?? 30_000);
+          })]);
+        } finally { clearTimeout(timeout); }
+        account = await rpc.request('account/read', { refreshToken: false });
+      }
+    }
+    finally { readingInitialAccount = false; }
     if (account.account && account.account.type !== 'chatgpt') { rpc.close(); rpc = null; owned = false; throw liveError('unsupported_auth_mode'); }
   }
   async function loginCredential(id, refresh = false) {

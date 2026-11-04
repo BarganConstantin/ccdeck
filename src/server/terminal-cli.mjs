@@ -75,8 +75,14 @@ function unixCli({ env, exists, read, realpath }) {
  *  — or null for any other layout: pnpm, yarn and bun keep their globals
  *  elsewhere, and a project's own node_modules has a package around it, as a
  *  global prefix's `lib` never does (install-layout.mjs, frozenNameInstall). */
-function npmPrefix(root, read) {
-  const modules = posix.dirname(root);
+export function npmPrefix(root, read = readFileSync, platform = "linux") {
+  const path = platform === "win32" ? win32 : posix;
+  const modules = path.dirname(root);
+  if (platform === "win32") {
+    const prefix = path.dirname(modules);
+    return path.basename(modules).toLowerCase() === "node_modules"
+      && manifest(path.join(prefix, "package.json"), read) === undefined ? prefix : null;
+  }
   const lib = posix.dirname(modules);
   if (posix.basename(modules) !== "node_modules" || posix.basename(lib) !== "lib") return null;
   if (manifest(posix.join(lib, "package.json"), read) !== undefined) return null;

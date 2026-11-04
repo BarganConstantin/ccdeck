@@ -1,5 +1,5 @@
 param(
-  [ValidateSet('ensure','check','hold')][string]$Operation,
+  [ValidateSet('ensure','check','hold','protect-login')][string]$Operation,
   [Parameter(Mandatory=$true)][string]$TargetPath,
   [ValidateSet('directory','file','socket')][string]$Kind = 'directory'
 )
@@ -83,6 +83,49 @@ public static class CodexPrivatePath {
       Require(userAccess);
     } finally { if (descriptor != IntPtr.Zero) LocalFree(descriptor); }
   }
+  // Explicit preparation only. Open both objects without following final
+  // reparse points or sharing deletion; modify security through those handles,
+  // never by looking up an unchecked path a second time. No credential bytes
+  // are read, copied or replaced here.
+  [DllImport("advapi32.dll", SetLastError=true)]
+  static extern uint SetSecurityInfo(SafeFileHandle h, uint type, uint what, IntPtr owner, IntPtr group, IntPtr dacl, IntPtr sacl);
+  static SafeFileHandle OpenForProtection(string path, bool directory) {
+    var h = CreateFileW(path, 0xe0081u, directory ? 3u : 1u,
+      IntPtr.Zero, 3, 0x02000000u | 0x00200000u, IntPtr.Zero);
+    if (h.IsInvalid) { h.Dispose(); throw new IOException("unsafe"); }
+    try {
+      FileInfo info; Require(GetFileInformationByHandle(h, out info));
+      Require((info.Attributes & 0x400u) == 0 && ((info.Attributes & 0x10u) != 0) == directory);
+      if (!directory) Require(info.Links == 1);
+      return h;
+    } catch { h.Dispose(); throw; }
+  }
+  static void Protect(SafeFileHandle h, bool directory) {
+    var user = WindowsIdentity.GetCurrent().User;
+    var sid = new byte[user.BinaryLength]; user.GetBinaryForm(sid, 0);
+    var acl = new RawAcl(2, 1);
+    acl.InsertAce(0, new CommonAce(directory ? AceFlags.ContainerInherit | AceFlags.ObjectInherit : AceFlags.None,
+      AceQualifier.AccessAllowed, 0x1f01ff, user, false, null));
+    var bytes = new byte[acl.BinaryLength]; acl.GetBinaryForm(bytes, 0);
+    var owner = GCHandle.Alloc(sid, GCHandleType.Pinned);
+    var dacl = GCHandle.Alloc(bytes, GCHandleType.Pinned);
+    try {
+      Require(SetSecurityInfo(h, 1, 0x80000005u, owner.AddrOfPinnedObject(), IntPtr.Zero, dacl.AddrOfPinnedObject(), IntPtr.Zero) == 0);
+      ValidateAcl(h, directory);
+    } finally { dacl.Free(); owner.Free(); }
+  }
+  public static string ProtectLogin(string path) {
+    Require(!String.Equals(Path.GetPathRoot(path).TrimEnd('\\'), path.TrimEnd('\\'), StringComparison.OrdinalIgnoreCase));
+    using (var directory = OpenForProtection(path, true)) {
+      string canonical = Canonical(directory);
+      using (var file = OpenForProtection(Path.Combine(canonical, "auth.json"), false)) {
+        Protect(file, false);
+        Protect(directory, true);
+        ValidateAcl(file, false);
+      }
+      return canonical;
+    }
+  }
   public static string SocketGeneration(string path) {
     // Node/libuv lstat returns EACCES on Windows AF_UNIX entries. Open only
     // reparse metadata, never follow a symlink/junction or read socket bytes.
@@ -111,6 +154,10 @@ public static class CodexPrivatePath {
   $guards = [System.Collections.Generic.List[System.IDisposable]]::new()
   try {
     $path = [IO.Path]::GetFullPath($TargetPath)
+    if ($Operation -eq 'protect-login') {
+      if ($Kind -ne 'directory') { throw 'unsafe' }
+      $null = [CodexPrivatePath]::ProtectLogin($path)
+    }
     if ($Operation -eq 'ensure') {
       if ($Kind -ne 'directory') { throw 'unsafe' }
       [CodexPrivatePath]::Ensure($path)
