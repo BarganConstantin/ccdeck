@@ -254,8 +254,10 @@ describe("npm i -g, in every shape a deck can be running in", () => {
       // those two have to be the same answer.
       expect(upgradeName(pkgRoot), typed).toBe(installs);
       expect(upgradeCommand(pkgRoot), typed).toBe(`npm i -g ${installs}@latest`);
+      const installRoot = hostPackage(pkgRoot, installedName(pkgRoot))?.root ?? pkgRoot;
+      const prefix = resolve(installRoot, process.platform === "win32" ? "../.." : "../../..");
       expect(npmArgv(pkgRoot), typed)
-        .toEqual(["install", "-g", `${installs}@latest`, "--no-audit", "--no-fund", "--loglevel", "error"]);
+        .toEqual(["install", "-g", "--prefix", prefix, `${installs}@latest`, "--no-audit", "--no-fund", "--loglevel", "error"]);
       // And the in-app button stays offered in every one of them.
       expect(upgradeBlock(pkgRoot), typed).toBeNull();
       expect(upgradeMode(upgradeBlock(pkgRoot)), typed).toBe("install");

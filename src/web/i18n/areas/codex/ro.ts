@@ -2,6 +2,11 @@
 import type { Catalog } from "../../catalogs";
 
 const catalog: Catalog = {
+  "codex.share.needsProtection": "Permisiunile Windows blochează partajarea. Securizează profilurile selectate, apoi încearcă din nou.",
+  "codex.share.protectionNotice": "Restrânge accesul la fiecare folder Codex selectat și la auth.json la utilizatorul tău Windows. Schimbă permisiunile folderului, inclusiv accesul moștenit de conținut. Autentificarea, setările și contul activ rămân în loc.",
+  "codex.share.protect": "Securizează și partajează",
+  "codex.share.protectionFailed": "Windows nu a putut securiza un profil selectat. Închide programele care folosesc autentificarea, pornește ccdeck fără drepturi de administrator și reîncearcă. Unele permisiuni pot fi deja restrânse.",
+
   "codex.panel.liveControlPaused": "Controlul contului Codex este suspendat după o schimbare de autentificare sau pierderea conexiunii. Verifică /status înainte de reconectare.",
   "codex.panel.reconnectSelected": "Reconectează contul selectat",
   "codex.share.title": "Partajează conturi Codex",

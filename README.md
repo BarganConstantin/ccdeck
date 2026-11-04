@@ -370,6 +370,9 @@ For plain `codex` commands to use this default, click **Enable terminal selectio
 
 **Share Codex accounts** exports selected ChatGPT logins stored in `auth.json` as a code you can paste into **Import Codex accounts** on another machine, including Windows. Import creates separate profiles, keeps the current default and existing logins, and skips an exact repeated import. It transfers the login only, without configuration or conversation history. The code contains live credentials: it is encoded, not encrypted, and has no automatic expiry or ccdeck revocation. Use a trusted private channel and delete clipboard/message copies afterward. Both machines share the OAuth renewal token; renewing on one can invalidate the other copy and require signing in again. Keyring-only logins and API keys cannot be shared.
 
+On Windows, Share reports when the profile's permissions prevent export. **Secure permissions and share** is an explicit, optional repair: it gives only your Windows user access to the selected Codex folders and `auth.json`, changes inherited access for their contents, and keeps the login, settings and selected account in place. Close programs holding the login file if Windows refuses the change, and run ccdeck without administrator rights. Automatic network sync never changes folder permissions. After preparation, a paired deck can receive the selected shared login on its next round.
+
+
 **An already-open Codex app or IDE:** on macOS, Linux and Windows with Codex 0.166.0 or newer, **Use account** can also update the existing native shared app-server through its local control socket. Every conversation using that daemon changes together, including conversations opened before ccdeck. Their IDs, history and settings remain in place. Windows uses Codex's own `app-server proxy` to reach its AF_UNIX socket; run Codex and ccdeck as your normal Windows user. Existing unsafe permissions are rejected rather than changed.
 
 For conversations that accept direct input, ccdeck waits for observed tools and approvals, pauses responses through the native interrupt API, verifies the new login, then submits one Continue in each paused conversation. Supported subagents move with their parent: parents pause first, then the same child conversations resume before their parents. A naturally finished response stays idle.
@@ -837,6 +840,18 @@ What the banner offers depends on how this copy was installed:
 Nothing is installed unless you click, or, with **Update when idle** on (Settings › General; on by default), once nobody is looking at the deck and no agent has worked for 30 seconds. The argument vector is fixed in the server rather than taken from the request, and the command is always on screen — button or no button. If npm fails, the banner shows npm's own last line.
 
 **The `ccdeck` your terminal starts** is a separate copy whenever the deck runs from the desktop app, npx or a checkout, and it does not move when they do. When the first `ccdeck` on your PATH is older than the deck, the deck runs the same install for it — `npm install -g --prefix <its prefix> ccdeck@latest`, into the prefix that copy lives in — five minutes after it starts, without waiting for an idle moment, since nothing of the deck's restarts. It does that only for a global npm install of `ccdeck` whose folders you can write, under the same switch (the desktop app shows none, and keeps it on), and never with `AGENTS_DECK_NO_INSTALL=1`. A root-owned prefix, pnpm, yarn or bun, or an old `agents-deck` or `agent-dag` install is left to you: **Settings › About** shows the command, and why an automatic install failed when one did. An install that failed is tried again after half an hour.
+
+### Windows update says installed but the version stays old
+
+Newer ccdeck versions target the npm prefix of the running copy and verify its version after installation. A different Node installation on PATH no longer redirects that update into another copy.
+
+An older installation already stuck in this state needs one manual update to receive that fix. For a Windows **npm installation**, run this in PowerShell to update the copy owning the `ccdeck.cmd` command, then close and reopen ccdeck:
+
+```powershell
+npm install -g --prefix (Split-Path (Get-Command ccdeck.cmd).Source) ccdeck@latest
+```
+
+For the **desktop app**, run the latest [Windows installer](https://github.com/BarganConstantin/ccdeck/releases/latest) instead; updating npm does not replace the desktop app's bundled copy. Your accounts and settings are kept.
 
 ### Restarting
 

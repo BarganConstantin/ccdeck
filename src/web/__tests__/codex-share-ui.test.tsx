@@ -27,6 +27,21 @@ function pane(onImported = vi.fn(), onDone = vi.fn()) {
   return view;
 }
 describe('Codex share dialog', () => {
+  it('offers permission repair only after a Windows refusal and only on explicit press', async () => {
+    const fetch = vi.fn()
+      .mockResolvedValueOnce({ ok: false, json: async () => ({ ok: false, reason: 'windows_permissions_required' }) })
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ ok: true, blob: 'ccdeck-codex-v1.fictional' }) });
+    vi.stubGlobal('fetch', fetch);
+    const view = dialog();
+    (one(view.tree, el => el.type === 'input')!.props.onChange as () => void)();
+    press(view, 'Generate share code'); await flush();
+    expect(textOf(view.tree)).toContain('Restricts access');
+    expect(fetch).toHaveBeenCalledTimes(1);
+    press(view, 'Secure permissions and share'); await flush();
+    expect(JSON.parse(fetch.mock.calls[1][1].body)).toEqual({ ids: [profiles[0].id], preparePermissions: true });
+    expect(one(view.tree, el => el.type === 'textarea')!.props.value).toBe('ccdeck-codex-v1.fictional');
+  });
+
   it('does not read credentials on open; warns clearly and exports exactly the selection after explicit generation', async () => {
     const fetch = vi.fn(async () => ({ ok: true, json: async () => ({ ok: true, blob: 'ccdeck-codex-v1.fictional', count: 1 }) }));
     vi.stubGlobal('fetch', fetch);
@@ -42,6 +57,19 @@ describe('Codex share dialog', () => {
     expect(fetch.mock.calls[0]).toMatchObject(['/api/codex-accounts-share', { method: 'POST', body: JSON.stringify({ ids: [profiles[0].id] }) }]);
     expect(one(view.tree, el => el.type === 'textarea')!.props.value).toBe('ccdeck-codex-v1.fictional');
     expect(textOf(view.tree)).toContain('no automatic expiry');
+  });
+
+  it('clears repair consent when the selection changes', async () => {
+    const fetch = vi.fn(async () => ({ ok: false, json: async () => ({ ok: false, reason: 'windows_permissions_required' }) }));
+    vi.stubGlobal('fetch', fetch);
+    const view = dialog();
+    const toggle = () => (one(view.tree, el => el.type === 'input')!.props.onChange as () => void)();
+    toggle(); press(view, 'Generate share code'); await flush();
+    expect(textOf(view.tree)).toContain('Secure permissions and share');
+    toggle(); toggle();
+    expect(textOf(view.tree)).not.toContain('Secure permissions and share');
+    expect(textOf(view.tree)).toContain('Generate share code');
+    expect(fetch).toHaveBeenCalledOnce();
   });
 
   it('keeps the selected export frozen while generation is pending without removing keyboard focus', async () => {

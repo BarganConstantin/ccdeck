@@ -312,7 +312,7 @@ describe("the wiring", () => {
   });
 
   it("acts only through what a press would do", () => {
-    expect(lifecycle).toContain("su.startUpgrade({ pkgRoot: PKG_ROOT });");
+    expect(lifecycle).toContain("su.startUpgrade({ pkgRoot: PKG_ROOT, running: RUNNING_VERSION });");
     expect(lifecycle).toContain('handOffRestart(step.act === "npx" ? "npx" : null);');
     // The press goes through the same hand-off.
     const press = lifecycle.slice(lifecycle.indexOf("async function handleRestart("));
