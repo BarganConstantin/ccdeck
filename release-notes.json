@@ -84,7 +84,7 @@
     "without one."
   ],
   "//summaries": {
-    "3.81.1": "Windows Codex sharing and update fixes",
+    "3.81.1": "Codex reconnection and Windows fixes",
     "3.81.0": "Codex accounts on a par with Claude's, Codex over Local network, and ccdeck tui for the whole deck",
     "3.80.0": "Codex account switching, continuation and sharing",
     "3.53.0": "Codex accounts, with sign-in, switching and Auto-switch",
@@ -152,6 +152,12 @@
       "priority": "highlight",
       "noticeLabel": "Already stuck?",
       "notice": "An older Windows installation already stuck at installed may need one manual update to receive this fix. For the desktop app, run the latest Windows installer. For npm, follow the Windows recovery steps in README, then restart ccdeck. Accounts and settings are kept."
+    },
+    {
+      "title": "Reconnect Codex without a false login-change warning",
+      "body": "Connecting to an unchanged Codex account no longer pauses control because of its initial account update.",
+      "priority": "highlight",
+      "icon": "accounts"
     },
     {
       "title": "See why a shared login did not arrive",
