@@ -456,8 +456,6 @@ const catalog: Catalog = {
 
   // Account rows
   "radar.org.who": "Die Organisation dieses Kontos",
-  "radar.org.whoPossessive": "Die Telemetrie seiner Organisation",
-  "radar.org.named": "Die Telemetrie von {org}",
   "radar.org.and": "{list} und {last}",
   "radar.org.sep": ", ",
   "radar.org.word.prompts": "Prompts",
@@ -471,9 +469,6 @@ const catalog: Catalog = {
   "radar.org.collector": "ihren Collector",
   "radar.org.detail": "{who} schaltet die Claude-Code-Telemetrie für neue Sitzungen ein: {what}, gesendet an {where}. Zuletzt gesehen: {ago}, als dieses Konto aktiv war.",
   "radar.org.holdOut": " Damit Auto-Switch nicht darauf wechselt, wähle im ⋯-Menü „Aus der Rotation nehmen“.",
-  "radar.org.switchedWhat": "deine {words}",
-  "radar.org.switchedTo": " an {list}",
-  "radar.org.switched": "{who} ist für sie eingeschaltet: Sie sendet {what}{where}.",
   "radar.srv.ipv4": "Wähle eine IPv4-Adresse und einen TCP-Port.",
   "radar.srv.platform": "Live-Mitschnitt gibt es unter macOS, Linux und Windows.",
   "radar.srv.destCount": "Wähle ein bis acht Ziele.",

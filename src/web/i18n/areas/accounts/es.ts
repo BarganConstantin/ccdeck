@@ -453,7 +453,6 @@ const catalog: Catalog = {
   "accounts.row.reauthTip": "Abre el diálogo de inicio de sesión. Al iniciar sesión con esta cuenta se reemplaza su acceso caducado en el mismo lugar: conserva su posición, su alias y su historial.",
   "accounts.row.dismissLabel": "Descartar este mensaje",
   "accounts.row.dismiss": "Descartar",
-  "accounts.row.nowActive": "Ahora activa. Las sesiones nuevas empiezan con ella; las que ya están en marcha la toman en su siguiente mensaje, hasta unos 30 segundos después en macOS.",
   "accounts.row.whoWasThere": "la cuenta que estaba allí",
   "accounts.row.swapTitle": "La posición {at} estaba ocupada, así que las dos cuentas intercambiaron sitio: {who} ahora ocupa la posición {displaced}.",
   "accounts.row.swapped": "intercambiada con la posición {n}",

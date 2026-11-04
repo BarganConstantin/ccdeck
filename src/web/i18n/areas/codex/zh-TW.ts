@@ -32,8 +32,6 @@ const catalog: Catalog = {
   "codex.row.readPlan": "ccdeck 上次讀取此帳號用量的時間，以及預計下次讀取的時間：此面板開啟時，預設帳號每分鐘一次，其他帳號每五分鐘一次。這些是 Codex 回報的帳號額度，因此只有一個區間的方案只會顯示一條進度條。",
   "codex.row.readPlanNamed": "{plan} 方案。{rest}",
   "codex.row.neverRead": "ccdeck 尚未讀取此帳號",
-  "codex.row.switched": "預設帳號已變更。使用終端機帳號選擇的工作階段將使用此帳號。",
-  "codex.row.liveSwitched": "已連線的 Codex 對話現在使用此帳號。中斷的任務會自動恢復。",
   "codex.row.switchWaiting": "正在等待執行中的工具完成或必要的輸入，然後切換帳號。",
   "codex.row.childrenResuming": "帳號已切換，正在等待子代理恢復。",
   "codex.row.continueUnconfirmed": "無法確認是否已自動繼續。繼續之前請檢查對話。",

@@ -74,19 +74,20 @@ describe("a switch answers on the row it was about (#827)", () => {
 });
 
 describe("what a switch that took says (#827)", () => {
-  it("says it on the row it took to, while that row is still the active one", () => {
+  it("says a note on the row it took to, while that row is still the active one", () => {
     expect(clientText()).toMatch(/const switchedHere = switched\?\.num === a\.num;/);
-    expect(clientText()).toMatch(/\{a\.active && switchedHere && \(\s*<p className="ap-switched">/);
+    expect(clientText()).toMatch(/\{a\.active && switchedHere && voice\.switched && \(\s*<p className="ap-switched">/);
   });
 
-  it("says what happens to sessions already running, as claude-swap does", () => {
-    // The row renders the voice's sentence...
+  it("adds no words to a switch that took: the row's dot and its telemetry mark say it", () => {
+    // Only a provider's own note for a switch still under way is drawn, and
+    // Claude's voice sets none — so a Claude switch leaves the row as it is.
     const said = /<p className="ap-switched">([\s\S]*?)<\/p>/.exec(row)?.[1].replace(/\s+/g, " ").trim() ?? "";
-    // A provider may say its own; Claude's voice, the default, sets none, so
-    // the catalog's words stand.
-    expect(said).toBe('{voice.switched ?? t("accounts.row.nowActive")}');
+    expect(said).toBe("{voice.switched}");
+    expect(row).toMatch(/\{a\.active && switchedHere && voice\.switched && \(/);
+    expect(row).not.toMatch(/accounts\.row\.nowActive|switchedTelemetry/);
     expect(readFileSync(fileURLToPath(new URL("../i18n/areas/accounts/en.ts", import.meta.url)), "utf8"))
-      .toContain("Now active. New sessions start on it; ones already running pick it up on their next message, up to about 30 seconds later on macOS.");
+      .not.toContain("Now active. New sessions start on it");
     expect(row).toMatch(/voice = CLAUDE_VOICE/);
     expect(row).toMatch(/export const CLAUDE_VOICE: RowVoice = \{ idPrefix: "" \};/);
   });

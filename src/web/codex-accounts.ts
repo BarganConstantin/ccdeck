@@ -64,7 +64,6 @@ export function codexVoice(t: TFunction = translateNow): RowVoice {
     readBy: t("codex.row.readBy"),
     readPlan: t("codex.row.readPlan"),
     neverRead: t("codex.row.neverRead"),
-    switched: t("codex.row.switched"),
   };
 }
 

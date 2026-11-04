@@ -453,7 +453,6 @@ const catalog: Catalog = {
   "accounts.row.reauthTip": "打开登录窗口。以此账号登录会直接替换其已过期的登录，并保留位置、别名和历史记录。",
   "accounts.row.dismissLabel": "关闭此消息",
   "accounts.row.dismiss": "关闭",
-  "accounts.row.nowActive": "已切换为使用中。新的会话会使用它；运行中的会话会在下一条消息时改用，在 macOS 上最多约晚 30 秒。",
   "accounts.row.whoWasThere": "原本在那里的账号",
   "accounts.row.swapTitle": "位置 {at} 已被占用，两个账号因此互换：{who} 现在位于位置 {displaced}。",
   "accounts.row.swapped": "已与位置 {n} 对调",

@@ -32,8 +32,6 @@ const catalog: Catalog = {
   "codex.row.readPlan": "Dernière lecture de l'utilisation de ce compte par ccdeck, et prochaine lecture prévue : chaque minute pour le compte par défaut et toutes les cinq minutes pour les autres, tant que ce panneau est ouvert. Ce sont les limites que Codex indique pour le compte ; un forfait à une seule fenêtre affiche donc une seule barre.",
   "codex.row.readPlanNamed": "Forfait {plan}. {rest}",
   "codex.row.neverRead": "ccdeck n'a pas encore lu ce compte",
-  "codex.row.switched": "Compte par défaut modifié. Les sessions avec sélection dans le terminal suivront ce compte.",
-  "codex.row.liveSwitched": "Les conversations Codex connectées utilisent ce compte. Les tâches interrompues reprennent automatiquement.",
   "codex.row.switchWaiting": "En attente des outils en cours ou de la saisie requise avant de changer de compte.",
   "codex.row.childrenResuming": "Compte changé. En attente de la reprise des sous-agents.",
   "codex.row.continueUnconfirmed": "La reprise automatique n’a pas pu être confirmée ; vérifiez la conversation avant de continuer.",

@@ -453,7 +453,6 @@ const catalog: Catalog = {
   "accounts.row.reauthTip": "Öffnet das Anmeldefenster. Wenn du dich als dieses Konto anmeldest, ersetzt das die abgelaufene Anmeldung an Ort und Stelle – Slot, Alias und Verlauf bleiben erhalten.",
   "accounts.row.dismissLabel": "Diese Meldung ausblenden",
   "accounts.row.dismiss": "Ausblenden",
-  "accounts.row.nowActive": "Jetzt aktiv. Neue Sitzungen starten damit; laufende übernehmen es bei ihrer nächsten Nachricht, unter macOS bis zu etwa 30 Sekunden später.",
   "accounts.row.whoWasThere": "das Konto, das dort war",
   "accounts.row.swapTitle": "Slot {at} war belegt, deshalb haben die beiden Konten die Plätze getauscht: {who} liegt jetzt in Slot {displaced}.",
   "accounts.row.swapped": "mit Slot {n} getauscht",

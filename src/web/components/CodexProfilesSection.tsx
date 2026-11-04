@@ -439,8 +439,7 @@ export default function CodexProfilesSection({ onClose, switcher, onNotice, away
   const voice = codexVoice(t);
   const liveNote = liveSelection?.continuation === 'manual_required' ? t("codex.row.continueUnconfirmed")
     : liveSelection?.state === 'waiting' ? t("codex.row.switchWaiting")
-    : liveSelection?.continuation === 'waiting' ? t("codex.row.childrenResuming")
-    : liveSelection?.state === 'applied' ? t("codex.row.liveSwitched") : null;
+    : liveSelection?.continuation === 'waiting' ? t("codex.row.childrenResuming") : null;
   const accountRow = ({ profile, reading, account: a, issue }: Row) => {
     const plan = shownReading(reading)?.plan;
     const reads = quotas[profile.id] === null || reading?.reason === "profile_changed";
@@ -453,7 +452,9 @@ export default function CodexProfilesSection({ onClose, switcher, onNotice, away
         home={auto?.homeId === profile.id ? codexHomeTitle(a, !signedOut(profile), !!auto.enabled, t) : null}
         voice={{
           ...voice,
-          switched: liveNote ?? (switched?.live && !liveSelection ? t("codex.row.liveSwitched") : voice.switched),
+          // Only a live switch still under way, or one that needs a hand: a
+          // switch that took is the row's own dot, as on Claude's side.
+          switched: liveNote ?? undefined,
           readPlan: plan ? t("codex.row.readPlanNamed", { plan: sentence(plan), rest: voice.readPlan ?? "" }) : voice.readPlan,
           waiting: reads ? t("codex.row.reading") : undefined,
         }}
