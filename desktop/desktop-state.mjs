@@ -1,6 +1,7 @@
 // What the desktop app remembers between launches, in desktop-state.json:
-// which first-run questions it has asked, and which update's ready notice it
-// has already shown (#1182, #1187).
+// which first-run questions it has asked, which update's ready notice it has
+// already shown (#1182, #1187), and how the window was when it last closed
+// (#2466, window-place.mjs).
 //
 // One small file with three writers — the first-run question, the offer to
 // replace the npm deck's login item, and the update notice — each of which

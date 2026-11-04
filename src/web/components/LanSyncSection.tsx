@@ -67,7 +67,7 @@ export { PEEK_DELAY_MS, PEEK_GRACE_MS } from "../use-hover-peek";
 export { CONFIRM_GAP_MS } from "../panel-press";
 
 export default function LanSyncSection({
-  accounts: held, onChanged, onNoCopy, onShared, view, onOpen, onBack, closeButton,
+  accounts: held, onChanged, onNoCopy, onShared, view, onOpen, onBack, closeButton, active = true,
 }: {
   accounts: LanAccount[];
   /** The roster changed under us — a healed account is a different row. */
@@ -90,6 +90,10 @@ export default function LanSyncSection({
   onBack: () => void;
   /** The panel's close, drawn in this view's header as it is in the accounts'. */
   closeButton?: ReactNode;
+  /** Whether the side of the Accounts panel this is drawn in is the one on
+   *  screen. Claude's side and Codex's both draw Local network (#2472); the
+   *  hidden one keeps its state, draws nothing and does not poll. */
+  active?: boolean;
 }) {
   const t = useT();
   const [setupOpen, setSetupOpen] = useState(false);
@@ -118,7 +122,7 @@ export default function LanSyncSection({
   const {
     status, manual, now, busy, failure, dismissFailure, answerGiveBack, pressProps, load,
     toggle, answer, dropAddress, rename, checkOne, checkNow,
-  } = useLanSection(onChanged, () => setSetupOpen(true));
+  } = useLanSection(onChanged, () => setSetupOpen(true), active);
   // Which paired row's unpair is armed, and what a press on one means. Held
   // here rather than in the list, which the view takes away with it.
   const { armed, pressUnpair } = useRowUnpair(answer);
@@ -252,6 +256,10 @@ export default function LanSyncSection({
       )}
     </>
   );
+
+  // The other side of the Accounts panel is on screen and draws its own: one
+  // row, one set of ids, one live region (#2472).
+  if (!active) return null;
 
   // THE WAY IN. One row at the foot of the accounts view: the name, and the two
   // facts a reader decides on — is it on, is anything wrong. The live region

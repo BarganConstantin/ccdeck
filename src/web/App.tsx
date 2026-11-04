@@ -68,6 +68,7 @@ import DeckDialogs from "./components/DeckDialogs";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { usePauseGate } from "./use-pause-gate";
 import { panelId, useAccountSide } from "./use-account-side";
+import type { LanAccount } from "./lan-types";
 import { useDeckScope } from "./use-deck-scope";
 import { useProviderStatus } from "./use-provider-status";
 import { incidentsOf } from "./provider-status";
@@ -266,12 +267,19 @@ function Inner() {
   const rememberAccountSide = accountSide.remember;
   // Settings' door names Claude's accounts where Claude Code is, so it opens that side.
   const openAccounts = useCallback(() => { rememberAccountSide(providers.claude ? "claude" : "codex"); openAccountsPanel(); }, [openAccountsPanel, providers.claude, rememberAccountSide]);
-  // Local network is Claude's view, so it opens on Claude's side.
+  // Both sides of the panel draw Local network (#2472), so it opens on
+  // whichever side is up — and on a deck with only Codex, it opens at all.
   const openLocalNetwork = useCallback(() => {
-    rememberAccountSide("claude");
     openAccountsPanel();
     setLanWanted(true);
-  }, [openAccountsPanel, rememberAccountSide]);
+  }, [openAccountsPanel]);
+  // What Local network offers from this deck, read by Claude's side and drawn
+  // by Codex's too (#2472). Null until Claude's side has read its roster.
+  const [claudeLan, setClaudeLan] = useState<LanAccount[] | null>(null);
+  // And its Codex logins, read by Codex's side: both sides share them from the
+  // same dialog, after Claude's.
+  const [codexLan, setCodexLan] = useState<LanAccount[]>([]);
+  const lanOffered = useMemo(() => [...(claudeLan ?? []), ...codexLan], [claudeLan, codexLan]);
   useEffect(() => { if (!accountsPanelOpen) setLanWanted(false); }, [accountsPanelOpen]);
   const lanShown = useCallback(() => setLanWanted(false), []);
 
@@ -809,13 +817,15 @@ function Inner() {
           {accountsDrawn && (shownAccountProvider === "claude" || accountSide.bothMounted) && (
             <AccountsPanel leaving={isLeaving(accountsPanelOpen, accountsPhase)} onReport={dialogs.openFeedback}
               onRoster={attention.observe} onClose={closeAccounts}
-              lanWanted={lanWanted} onLanShown={lanShown} switcher={accountsSwitch}
+              lanWanted={lanWanted} onLanShown={lanShown} onLanAccounts={setClaudeLan} codexLanAccounts={codexLan} switcher={accountsSwitch}
               side={sideState("claude")} onNotice={accountSide.noteClaude} />
           )}
           {accountsDrawn && (shownAccountProvider === "codex" || accountSide.bothMounted) && (
             <CodexAccountsPanel leaving={isLeaving(accountsPanelOpen, accountsPhase)}
               onClose={closeAccounts} switcher={accountsSwitch}
-              side={sideState("codex")} onNotice={accountSide.noteCodex} />
+              side={sideState("codex")} onNotice={accountSide.noteCodex}
+              lanAccounts={lanOffered} lanReady={!providers.claude || claudeLan != null}
+              lanWanted={lanWanted} onLanShown={lanShown} onLanAccounts={setCodexLan} />
           )}
           {sessionListDrawn && (
             <SessionList

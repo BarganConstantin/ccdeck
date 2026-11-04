@@ -6,6 +6,7 @@
 // lan-copies.mjs's, and the card's are lan-about.mjs's.
 import { currentFor, heardCurrent, manifestFor, offered, sharedWith } from "./lan-sync.mjs";
 import { openAbout, sealAbout } from "./lan-about.mjs";
+import { codexManifest, offeredCodex } from "./lan-codex.mjs";
 
 /**
  * `about` is this deck's own card, or null for a deck built without one. `now`
@@ -40,7 +41,7 @@ export function createManifests({ about, now, myFp, settings, usage = null }) {
    *  it shares with that deck (see sharedWith), which of them it is on, and its
    *  card. One frame whichever way it travels — the question a round asks, and
    *  the answer `serve` gives. */
-  const manifestFrame = (accounts, key, toFp) => {
+  const manifestFrame = (accounts, key, toFp, codexAccounts = null) => {
     const cfg = settings();
     const shared = sharedWith(cfg, toFp);
     const list = manifestFor(accounts, shared, { sendInUse: cfg.sendInUse === true, shareActive: cfg.shareActive });
@@ -51,6 +52,12 @@ export function createManifests({ about, now, myFp, settings, usage = null }) {
       // The readings this deck owns for accounts in `list`, sealed like the
       // card. An older deck ignores the key, as it ignores the card.
       ...(usage ? usage.fieldFor(key, toFp, list) : {}),
+      // The Codex logins it shares with that deck, by Claude's rules, in a list
+      // of their own that an older deck never reads — see lan-codex.mjs. Sent
+      // empty too, so unticking the last one is heard.
+      ...(Array.isArray(codexAccounts)
+        ? { codex: codexManifest(codexAccounts, shared, { sendInUse: cfg.sendInUse === true, shareActive: cfg.shareActive }) }
+        : {}),
     };
   };
 
@@ -67,7 +74,14 @@ export function createManifests({ about, now, myFp, settings, usage = null }) {
     if (card) aboutBy.set(fromFp, { ...card, at: now() });
     if (!Array.isArray(frame.accounts)) return null;
     const list = offered(frame.accounts);
-    offersBy.set(fromFp, { at: now(), accounts: list, current: heardCurrent(frame.current, list) });
+    offersBy.set(fromFp, {
+      at: now(), accounts: list, current: heardCurrent(frame.current, list),
+      // Its Codex logins, from a deck new enough to send them — without their
+      // token history, which only the round reads, and reads off the frame.
+      ...(Array.isArray(frame.codex)
+        ? { codex: offeredCodex(frame.codex).map(({ rt: _rt, was: _was, ...row }) => row) }
+        : {}),
+    });
     // Never awaited: handing a reading to claude-swap runs behind the round.
     usage?.heard(key, frame, fromFp, list);
     return list;

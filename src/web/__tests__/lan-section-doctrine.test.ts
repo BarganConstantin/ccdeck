@@ -762,7 +762,9 @@ describe("switching on says what switching on does", () => {
     // switch-on and the next, so a dialog shown once is a dialog about a list
     // that has since moved. Nothing here remembers having shown it.
     expect(TOGGLE).toMatch(/if \(!on\) onSwitchedOn\(\)/);
-    expect(CODE).toMatch(/useLanSection\(onChanged, \(\) => setSetupOpen\(true\)\)/);
+    // The third argument is whether this side of the Accounts panel is on
+    // screen (#2472); it does not change what a switch-on opens.
+    expect(CODE).toMatch(/useLanSection\(onChanged, \(\) => setSetupOpen\(true\), active\)/);
     expect(TOGGLE).not.toMatch(/setupShown|seenSetup|firstTime|once/);
     // And only where the write landed: after the `ok`, before the `else` that
     // reports a refusal. A dialog over a switch that did not move would be the

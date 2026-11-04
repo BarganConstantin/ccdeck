@@ -75,11 +75,11 @@ The deck opens on these eight pictures the first time it runs — they are the w
 </tr>
 <tr>
 <td><img src="assets/guide/welcome-5.svg" width="440" alt="Cores, memory and heat while the agents run, and what is hogging them."></td>
-<td><img src="assets/guide/welcome-6.svg" width="440" alt="Several Claude accounts: switch, add one, share one to another machine."></td>
+<td><img src="assets/guide/welcome-6.svg" width="440" alt="Several Claude and Codex accounts: switch, add one, share one to another machine."></td>
 </tr>
 <tr>
 <td align="center"><sub>Cores, memory and heat while the agents run, and what is hogging them.</sub></td>
-<td align="center"><sub>Several Claude accounts: switch, add one, share one to another machine.</sub></td>
+<td align="center"><sub>Several Claude and Codex accounts: switch, add one, share one to another machine.</sub></td>
 </tr>
 <tr>
 <td><img src="assets/guide/welcome-7.svg" width="440" alt="Your machines repair each other's expired logins over the local network."></td>
@@ -517,10 +517,14 @@ ccdeck switch                 pick from a list (arrows, Enter; Esc cancels)
 ccdeck usage                  the active account's limits, every lane
 ccdeck sessions               what each session is doing, the ones waiting on you first
 ccdeck open                   the deck in your browser — over SSH, the line that opens it on yours
-ccdeck tui                    all of the above on one screen that stays up
+ccdeck tui                    all of the above, and the machine, on one screen that stays up
 ```
 
-**`ccdeck tui`** keeps the accounts and the sessions waiting on you on one full screen, read again every few seconds. Move with the arrows (or `j` / `k`, or a slot's number), **Enter** switches to the selected account, **b** selects the one Auto-switch would pick, **a** turns Auto-switch on or off, **r** reads the usage again, **?** lists the keys and **q** leaves with your terminal as it was. With no deck running it reads claude-swap's store and **d** starts one in the background. It fits from 40×12 up, sets the selected account's detail beside the waiting sessions from 120 columns, follows `NO_COLOR`, and draws in ASCII on a console that cannot show its lines.
+**`ccdeck tui`** keeps the accounts, the sessions waiting on you and the machine on one full screen, read again every few seconds. Move with the arrows (or `j` / `k`, or a slot's number), **Enter** switches to the selected account, **b** selects the one Auto-switch would pick, **a** turns Auto-switch on or off, **r** reads the usage again, **?** lists the keys and **q** leaves with your terminal as it was. **m** opens the selected account's actions, as in the deck's account menu: set or clear home (⌂), hold out of Auto-switch's rotation (‖) or put back, rename, move to another slot, and remove, which asks first; **h**, **o**, **n**, **v** and **x** reach them straight from the list. While nobody is waiting on you, the room goes to the machine's charts: all cores and the busiest one, memory, swap, queued work, temperature and throttling, live, or the last hours by the minute with **t**. With no deck running it reads claude-swap's store and **d** starts one in the background. It fits from 40×12 up, sets the selected account's detail beside the waiting sessions from 120 columns, follows `NO_COLOR`, and draws in ASCII on a console that cannot show its lines.
+
+**Codex accounts**: once the deck has one, the title reads **Claude | Codex** and **c** (or ← →) turns the list to the other side. There **Enter** makes the selected account Codex's default, **a** turns Codex Auto-switch on or off, and **m** offers sign in again, rename, set or clear home (⌂), hold out of rotation and remove, for accounts added in the deck. **+**, or **Enter** on a signed-out account, shows a sign-in link and a code: open the link in any browser, a phone included, type the code there, and the sign-in finishes by itself.
+
+**Local network**: **l** opens the deck's Local network on its own tab, with what the panel in the browser has. **Space** turns sync with paired decks on or off, picks which accounts paired decks get, and sets the sharing, pairing and Tailscale switches. On a deck, **Enter** accepts one that asks to pair, checks a paired one now, or lets a declined one ask again; **n** names it and **x** declines, unpairs (it asks first) or stops dialling an address. **n** on this deck's own line renames it. **+** adds a deck by its address or with an invite: make one to paste on the other deck, or paste the one it made. **r** checks every paired deck now. A deck that asks to pair while you are on the accounts is said there too, and **l** goes back to them.
 
 **Adding an account over SSH**: **+** signs one in, and **Enter** on an account whose login has expired signs it in again, keeping its slot, alias and history. The screen shows a sign-in link to open in any browser; once you approve, the page there shows a code, which you paste back into the terminal. If that browser runs on the machine itself, the sign-in finishes without the code. The account you are using stays active throughout. Sign-in goes through the deck, so it needs one running.
 

@@ -47,3 +47,13 @@ export function homeTitle(a: Pick<Account, "disabled" | "alive" | "error" | "rea
   if (a.alive === false || a.error || a.reauth) return t("accounts.auto.home.reauth");
   return t("accounts.auto.home.on");
 }
+
+/** The same title on a Codex row. Its home is come back to once it has room
+ *  again, not after a 5-hour window: a Codex plan may have only the weekly one
+ *  (codex-auto.mjs). */
+export function codexHomeTitle(a: Pick<Account, "disabled">, signedIn: boolean, autoOn: boolean, t: TFunction = tNow): string {
+  if (!autoOn) return t("accounts.auto.home.off");
+  if (a.disabled) return t("accounts.auto.home.held");
+  if (!signedIn) return t("accounts.auto.home.reauth");
+  return t("codex.auto.home.on");
+}

@@ -7,13 +7,20 @@
 // rest of the deck. Attribution is per message and starts at the version that
 // began recording which account was active — everything before that is honestly
 // unattributable, shown apart so a total is never quietly inflated.
+//
+// A CODEX ACCOUNT OPENS THE SAME REPORT, from its own row's ⋯, with `codexId`
+// in place of `num`. Its tally comes from Codex's own session logs in that
+// account's folder (codex-projects.mjs), so there is no tracking start to
+// state, and ccusage has nothing to reconcile: the dollars are pricing.ts's
+// API-equivalent estimate, and the foot says so. Work in that folder by a
+// different sign-in is the Codex report's unattributed part.
 import { useEffect, useMemo, useReducer, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { fmtCost } from "../pricing";
 import AccountProjectsLoading from "./AccountProjectsLoading";
 import { fmtTokens } from "../token-format";
 import { ccCellsFrom, reconcile, type Counters } from "../account-projects-reconcile";
-import { INITIAL_LOAD, loadProjects, projectsLoad, reportLoading } from "../account-projects-load";
+import { INITIAL_LOAD, loadCodexProjects, loadProjects, projectsLoad, reportLoading } from "../account-projects-load";
 import { copyText } from "../copy-text";
 import { homeRelativePath, projectParentLabel } from "../account-project-paths";
 import { useModalDismiss, useScrimDismiss } from "./use-modal-dismiss";
@@ -103,7 +110,18 @@ function niceDate(ms: number | null): string {
   catch { return ""; }
 }
 
-export default function AccountProjectsModal({ num, name, onClose }: { num: number; name: string; onClose: () => void }) {
+/** Whose report: a Claude account by its slot, or a Codex account by its
+ *  profile id. */
+type Whose = { num: number; codexId?: undefined } | { codexId: string; num?: undefined };
+
+export default function AccountProjectsModal({ num, codexId, name, onClose, returnFocusTo }: Whose & {
+  name: string;
+  onClose: () => void;
+  /** Where focus goes on close when the control that opened the report has
+   *  left the page — a ⋯ menu item, gone with its menu. */
+  returnFocusTo?: () => HTMLElement | null;
+}) {
+  const codex = codexId != null;
   const t = useT();
   const lang = useLanguage();
   // Opened: one of the features the usage reports name (feature-use.ts).
@@ -134,7 +152,7 @@ export default function AccountProjectsModal({ num, name, onClose }: { num: numb
   const alive = useRef(true);
   useEffect(() => () => { alive.current = false; window.clearTimeout(copiedTimer.current); }, []);
   const closeRef = useRef<HTMLButtonElement>(null);
-  const dialogRef = useModalDismiss(onClose, { focusRef: closeRef });
+  const dialogRef = useModalDismiss(onClose, { focusRef: closeRef, restoreFocusFallback: returnFocusTo });
   const scrimPress = useScrimDismiss(onClose);
   const reqId = useRef(0);
 
@@ -143,8 +161,9 @@ export default function AccountProjectsModal({ num, name, onClose }: { num: numb
     dispatch({ type: "start", gen });
     setSelectedDay(null);   // a new window is a fresh chart
     setExpandedRows(new Set());
-    loadProjects<Report>({ num, days, gen, dispatch });
-  }, [num, days]);
+    if (codexId != null) loadCodexProjects<Report>({ id: codexId, days, gen, dispatch });
+    else if (num != null) loadProjects<Report>({ num, days, gen, dispatch });
+  }, [num, codexId, days]);
 
   // One reconciliation, per day, aggregated — so period, project, day and
   // selected-day totals are the same dollars summed different ways and cannot
@@ -253,7 +272,9 @@ export default function AccountProjectsModal({ num, name, onClose }: { num: numb
   const copyAria = (path: string, label: string) => t(copied?.ok && copied.path === path ? "accounts.projects.copiedLocation" : "accounts.projects.copyLocation", { label });
   const cost = (usd: number, unpriced: number, fmt?: (usd: number) => string) => projectCostText(usd, unpriced, fmt, t);
 
-  const trackedNote = report?.trackedSince
+  // Codex's report reads the logs Codex keeps itself, back as far as they go,
+  // so it has no start of tracking to state.
+  const trackedNote = codex ? null : report?.trackedSince
     ? t("accounts.projects.trackedSince", { date: niceDate(report.trackedSince) })
     : t("accounts.projects.trackStarts");
   const windowWord = windowPhrase(shownDays, t);
@@ -303,7 +324,7 @@ export default function AccountProjectsModal({ num, name, onClose }: { num: numb
                       </button>
                     </div>
                   )}
-                  <div className="ap-proj-note">{trackedNote}{t("accounts.endMark")}{t("accounts.projects.onward")}</div>
+                  {trackedNote && <div className="ap-proj-note">{trackedNote}{t("accounts.endMark")}{t("accounts.projects.onward")}</div>}
                 </div>
               ) : (
                 <>
@@ -475,7 +496,7 @@ export default function AccountProjectsModal({ num, name, onClose }: { num: numb
                       </div>
                       <span className="ap-proj-un-cost" title={unpricedTitleText(view.un.unpricedTokens, t)}>{cost(view.un.cost, view.un.unpricedTokens, fmtCostGrouped)}</span>
                       <span className="ap-proj-un-tok">{fmtTokens(view.un.tokens)}</span>
-                      <div className="ap-proj-note">{t("accounts.projects.unNote")}</div>
+                      <div className="ap-proj-note">{t(codex ? "codex.projects.unNote" : "accounts.projects.unNote")}</div>
                     </div>
                   )}
 
@@ -492,11 +513,12 @@ export default function AccountProjectsModal({ num, name, onClose }: { num: numb
                         model under the total has no rate (#1330). A ccusage
                         that answered with nothing it could price is not
                         unavailable, and says what it did instead. */}
-                    {costPending ? t("accounts.projects.footPending")
+                    {codex ? t("codex.projects.foot")
+                      : <>{costPending ? t("accounts.projects.footPending")
                       : view.reconciled ? t("accounts.projects.footReconciled")
                       : view.calibrated ? t("accounts.projects.footCalibrated")
                       : ccRange ? t("accounts.projects.footNoPrice")
-                      : t("accounts.projects.footUnavailable")} · {trackedNote}
+                      : t("accounts.projects.footUnavailable")} · {trackedNote}</>}
                   </div>
                 </>
               )}

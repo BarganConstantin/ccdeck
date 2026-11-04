@@ -25,9 +25,9 @@ export function codexSelectionError(code) {
   return Object.assign(new Error(code), { code });
 }
 const fail = code => { throw codexSelectionError(code); };
-const idPattern = /^[a-f0-9]{20}$/;
+export const idPattern = /^[a-f0-9]{20}$/;
 const operationPattern = /^[A-Za-z0-9_-]{1,128}$/;
-const safeCodes = new Set(['not_removable', 'login_not_movable', 'selection_conflict', 'operation_conflict', 'selection_busy', 'unknown_profile', 'profile_unavailable', 'registry_corrupt', 'registry_write_failed', 'invalid_operation', 'invalid_revision', 'invalid_label', 'import_write_failed', 'windows_permissions_failed']);
+const safeCodes = new Set(['not_removable', 'login_not_movable', 'selection_conflict', 'operation_conflict', 'selection_busy', 'unknown_profile', 'profile_unavailable', 'registry_corrupt', 'registry_write_failed', 'invalid_operation', 'invalid_revision', 'invalid_label', 'import_write_failed', 'windows_permissions_failed', 'login_changed']);
 const storeDir = options => resolve(options.store ?? deckDataDir(options.platform, options.env, options.home));
 export const codexSelectionPath = (options = {}) => join(storeDir(options), 'codex-accounts.json');
 
@@ -374,6 +374,21 @@ export async function moveCodexLogin({ id, into, expectedRevision } = {}, option
     // login that is no longer there to move again.
     try { await settleMovedLogin(target.home); } catch { /* the next read settles it */ }
     return { ...await dropProfile(state, profile, options), status: 'replaced' };
+  });
+}
+
+/** Hand one registered profile's home to `fn` under the registry lock, the
+ *  lock every sign-in, move and import of this deck takes — so what `fn` checks
+ *  in that home is still true when it writes there. The registry itself is only
+ *  read: nothing is added, selected or persisted. Local network's heal is the
+ *  caller (see lan-codex-store.mjs). */
+export async function withCodexProfileLocked({ id } = {}, fn, options = {}) {
+  if (typeof id !== 'string' || !idPattern.test(id)) fail('unknown_profile');
+  return locked(options, async () => {
+    const state = await initial(options);
+    const profile = state.profiles.find(p => p.id === id);
+    if (!profile || !await directoryExists(profile.home)) fail('unknown_profile');
+    return fn(profile.home);
   });
 }
 

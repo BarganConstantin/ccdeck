@@ -299,12 +299,10 @@ export function CodexQuotaSection({ codexQuota, codexLoading, nowSec, incident, 
           {codexQuota.promo && (
             <div className="up-quota-sub">{codexQuota.promo}</div>
           )}
-          {codexQuota.partial && (
-            <div className="up-quota-sub up-quota-hint">
-              {codexQuota.coverage === 'standard_limits'
-                ? t(codexQuota.resetCredits ? "usage.quota.standardLimitsWithResets" : "usage.quota.standardLimits")
-                : t("usage.quota.partial")}
-            </div>
+          {/* Native Codex limits cover only the standard windows; that needs no
+              line under the bars, while limits this build cannot read do. */}
+          {codexQuota.partial && codexQuota.coverage !== 'standard_limits' && (
+            <div className="up-quota-sub up-quota-hint">{t("usage.quota.partial")}</div>
           )}
         </div>
       ) : codexQuota?.ok === false ? (
