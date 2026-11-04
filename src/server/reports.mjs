@@ -24,7 +24,10 @@
 //     and that day's date — numbers, never their names (see usage-day.mjs) —
 //     and which of the deck's features were used that day, as fixed names
 //     ("usage-history", "account-switch") and nothing about what was done
-//     with them (feature-use.mjs), and how the deck held up and who runs it:
+//     with them (feature-use.mjs) — among them where the deck was looked at
+//     from that day: the desktop app's window ("desktop-window"), a browser
+//     tab ("browser-tab") or `ccdeck tui` ("tui"), a window or tab counted on
+//     every day it stayed open — and how the deck held up and who runs it:
 //     how long this run took to start, that day's peak memory and how many
 //     events it took in, each as a bucket ("2s", "512m", "1k"), the Claude and
 //     Codex plan as its category ("max-20x", "plus") and nothing else from the
