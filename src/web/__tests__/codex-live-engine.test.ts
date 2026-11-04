@@ -64,6 +64,69 @@ async function fixture({ saved = null as any, actual = A, readCredential = null 
     externalLogin: (id: string) => { account = { ...account, email: email(id) }; callbacks.onNotification({ method: 'account/updated' }); } };
 }
 describe('existing Codex session account engine', () => {
+  it('keeps a manual switch waiting when new activity appears before authentication, then applies it once quiet', async () => {
+    const f = await fixture({ active: true });
+    const original = f.rpc.request.getMockImplementation()!;
+    let lists = 0, raced = true;
+    f.rpc.request.mockImplementation(async (method, params) => {
+      if (method === 'thread/loaded/list') {
+        lists++;
+        if (raced) return { data: lists === 1 ? [] : [f.thread.id] } as any;
+        return { data: [] } as any;
+      }
+      return original(method, params);
+    });
+    expect(await f.c.request({ id: B, revision: 1 })).toMatchObject({ state: 'waiting', reason: 'native_tools_active', requestedProfileId: B });
+    expect(f.calls.some(c => ['account/login/start', 'turn/interrupt', 'turn/start'].includes(c.method))).toBe(false);
+    raced = false;
+    await f.c.tick();
+    expect(f.c.status()).toMatchObject({ state: 'applied', profileId: B });
+    expect(f.calls.filter(c => c.method === 'account/login/start')).toHaveLength(1);
+  });
+
+  it('keeps rechecking a raced switch without logging in while tools remain active', async () => {
+    const f = await fixture({ active: true }), original = f.rpc.request.getMockImplementation()!;
+    let lists = 0;
+    f.rpc.request.mockImplementation(async (method, params) => {
+      if (method === 'thread/loaded/list' && ++lists === 1) return { data: [] } as any;
+      return original(method, params);
+    });
+    await f.c.request({ id: B, revision: 1 });
+    f.turn.items.push({ id: 'tool', type: 'commandExecution', status: 'inProgress' });
+    await f.c.tick(); await f.c.tick();
+    expect(f.c.status()).toMatchObject({ state: 'waiting', requestedProfileId: B });
+    expect(f.calls.some(c => ['account/login/start', 'turn/interrupt', 'turn/start'].includes(c.method))).toBe(false);
+    f.thread.status.type = 'idle'; f.turn.status = 'completed'; f.turn.items[1].status = 'completed';
+    await f.c.tick();
+    expect(f.c.status()).toMatchObject({ state: 'applied', profileId: B });
+  });
+  it('does not retry after an interrupt was sent and its result cannot be reconciled', async () => {
+    const f = await fixture({ active: true }), original = f.rpc.request.getMockImplementation()!;
+    let interrupted = false;
+    f.rpc.request.mockImplementation(async (method, params) => {
+      const result = await original(method, params);
+      if (method === 'turn/interrupt') interrupted = true;
+      if (method === 'thread/turns/list' && interrupted) result.data[0].items.push({ id: 'new-input', type: 'userMessage' });
+      return result;
+    });
+    await f.c.request({ id: B, revision: 1 });
+    expect(f.c.status()).toMatchObject({ state: 'failed', continuation: 'manual_required' });
+    await f.c.tick();
+    expect(f.calls.filter(c => c.method === 'turn/interrupt')).toHaveLength(1);
+    expect(f.calls.some(c => ['account/login/start', 'turn/start'].includes(c.method))).toBe(false);
+  });
+  it('discards a raced selection after an outside login instead of retrying it', async () => {
+    const f = await fixture({ active: true }), original = f.rpc.request.getMockImplementation()!;
+    let lists = 0;
+    f.rpc.request.mockImplementation(async (method, params) => {
+      if (method === 'thread/loaded/list' && ++lists === 1) return { data: [] } as any;
+      return original(method, params);
+    });
+    await f.c.request({ id: B, revision: 1 });
+    f.externalLogin(A); await f.c.tick();
+    expect(f.c.status().state).toBe('external_change');
+    expect(f.calls.some(c => c.method === 'account/login/start')).toBe(false);
+  });
   async function v2({ timeout = undefined as number | undefined, nearExpiry = false, auto = false } = {}) {
     const credential = nearExpiry ? async (id: string) => ({ profileId: id, accessToken: 'fictional-access', accountId: id === A ? 'first' : 'second',
       email: id === A ? 'first@example.test' : 'second@example.test', planType: 'plus', expiresAt: Date.now() + 300_000 }) : null;

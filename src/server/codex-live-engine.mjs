@@ -346,6 +346,17 @@ export function createCodexLiveAccountController(input = {}) {
       }
     } catch (error) {
       handoff ??= error.handoff;
+      // Activity may start between the handoff snapshot and the final quiet
+      // check. If nothing was sent, retain the current selection and observe
+      // again instead of turning a harmless race into a permanent failure.
+      // Any durable interrupt/checkpoint or possible login stays on the
+      // existing recovery path: uncertain work must never be replayed.
+      if (error.code === 'native_activity_changed' && !maybeApplied && !checkpoint
+        && !journal.entries.length && !handoff?.paused?.length && owner() && await lease?.valid()) {
+        defer(intent, refresh, automatic);
+        update({ state: 'waiting', requestedProfileId: intent.id, reason: 'native_tools_active', continuation: 'waiting' });
+        return status();
+      }
       const lostControl = ['native_control_lost', 'account_changed_outside_deck', 'native_disconnected'].includes(error.code);
       if (!maybeApplied && !lostControl && handoff?.paused?.length && rpc && !closed) {
         try { await resume(); } catch { update({ continuation: 'manual_required' }); }
