@@ -79,6 +79,9 @@ describe('machine-local Codex selection', () => {
     if (process.platform !== 'win32') {
       expect((await stat(codexSelectionPath(options))).mode & 0o777).toBe(0o600);
       expect((await stat(home!)).mode & 0o777).toBe(0o700);
+    } else {
+      const { assertWindowsPrivatePath } = await import('../../server/codex-windows-private.mjs');
+      expect(await assertWindowsPrivatePath(home!)).toBeTruthy();
     }
     await expect(addCodexProfile({ ...input, label: 'Personal' }, options)).rejects.toMatchObject({ code: 'operation_conflict' });
   });

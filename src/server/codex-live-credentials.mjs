@@ -228,6 +228,8 @@ export async function readLiveCodexCredential(profileId, options = {}) {
       let auth;
       try { auth = JSON.parse(bytes.subarray(0, length).toString('utf8')); }
       catch { fail('invalid_credentials'); }
+      if (windows && resolve(profile.home).toLowerCase() === resolve(selection.originalHome).toLowerCase()
+        && auth?.auth_mode == null && auth?.tokens && auth.OPENAI_API_KEY == null) auth.auth_mode = 'chatgpt';
       const credential = credentialFrom(auth, account, profileId);
       await revalidateProfile(profile, captured, selection.revision, selectionOptions);
       if (!sameFile(opened, await handle.stat({ bigint: true })) || !sameFile(opened, await lstat(file, { bigint: true }))) fail('credential_file_changed');

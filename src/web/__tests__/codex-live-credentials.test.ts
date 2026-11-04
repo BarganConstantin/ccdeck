@@ -184,7 +184,9 @@ describe('live Codex credential reader (fictional JWTs and owned fake RPC only)'
   it.each(['apiKey', undefined])('requires explicit chatgpt auth_mode, received %s', async mode => {
     const f = await fixture();
     await writeFile(f.file, JSON.stringify({ ...f.credential, auth_mode: mode }));
-    await expect(readLiveCodexCredential(f.profileId, f.options)).rejects.toMatchObject({ code: 'unsupported_auth' });
+    if (process.platform === 'win32' && mode === undefined) {
+      expect((await readLiveCodexCredential(f.profileId, f.options)).email).toBe(EMAIL);
+    } else await expect(readLiveCodexCredential(f.profileId, f.options)).rejects.toMatchObject({ code: 'unsupported_auth' });
   });
   it('refuses an API key in the file even if its mode says chatgpt', async () => {
     const f = await fixture();
