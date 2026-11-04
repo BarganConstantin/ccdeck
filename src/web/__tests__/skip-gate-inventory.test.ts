@@ -241,7 +241,7 @@ describe("the register of conditionally-skipped cases", () => {
   it("limits single-platform gates to the registered Windows-native Codex probes", () => {
     // Windows ACL, reparse-point and AF_UNIX behavior requires real Windows
     // APIs. Enumerate those exceptions; every other gate still needs two legs.
-    const windowsNative = new Set(['codex-live-credentials.test.ts', 'codex-windows-private.test.ts', 'codex-windows-rpc.test.ts']);
+    const windowsNative = new Set(['codex-live-credentials.test.ts', 'codex-windows-private.test.ts', 'codex-windows-rpc.test.ts', 'codex-share.test.ts']);
     for (const g of gates()) {
       const legs = PLATFORMS.filter((p: string) => !skipsOn(g, p));
       if (g.condition === "process.platform !== 'win32'" && windowsNative.has(g.file)) expect(legs).toEqual(['win32']);
