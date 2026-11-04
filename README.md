@@ -841,6 +841,18 @@ Nothing is installed unless you click, or, with **Update when idle** on (Setting
 
 **The `ccdeck` your terminal starts** is a separate copy whenever the deck runs from the desktop app, npx or a checkout, and it does not move when they do. When the first `ccdeck` on your PATH is older than the deck, the deck runs the same install for it — `npm install -g --prefix <its prefix> ccdeck@latest`, into the prefix that copy lives in — five minutes after it starts, without waiting for an idle moment, since nothing of the deck's restarts. It does that only for a global npm install of `ccdeck` whose folders you can write, under the same switch (the desktop app shows none, and keeps it on), and never with `AGENTS_DECK_NO_INSTALL=1`. A root-owned prefix, pnpm, yarn or bun, or an old `agents-deck` or `agent-dag` install is left to you: **Settings › About** shows the command, and why an automatic install failed when one did. An install that failed is tried again after half an hour.
 
+### Windows update says installed but the version stays old
+
+Newer ccdeck versions target the npm prefix of the running copy and verify its version after installation. A different Node installation on PATH no longer redirects that update into another copy.
+
+An older installation already stuck in this state needs one manual update to receive that fix. For a Windows **npm installation**, run this in PowerShell to update the copy owning the `ccdeck.cmd` command, then close and reopen ccdeck:
+
+```powershell
+npm install -g --prefix (Split-Path (Get-Command ccdeck.cmd).Source) ccdeck@latest
+```
+
+For the **desktop app**, run the latest [Windows installer](https://github.com/BarganConstantin/ccdeck/releases/latest) instead; updating npm does not replace the desktop app's bundled copy. Your accounts and settings are kept.
+
 ### Restarting
 
 ccdeck runs as a two-process pair: a supervisor that owns nothing but the lifecycle, and the deck itself. When newer code is found, the deck exits with code 75 and the supervisor brings it back **on the port it actually bound**, which is not always the one it asked for. Both live in their own process group since 3.20, so stdout goes to `deck.log` rather than to the terminal you started from — `ccdeck --logs` reads it back. The supervisor also puts the deck back after a crash, five times in ten minutes with the wait doubling, and then stops and says why rather than spinning.
