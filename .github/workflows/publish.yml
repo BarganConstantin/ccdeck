@@ -737,6 +737,15 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      # One install, two Macs: this leg packs the Intel and the Apple silicon
+      # app from the install above, on an Apple silicon runner, and npm installs
+      # only the engine package whose cpu fits it. This adds the other, from the
+      # version and integrity package-lock.json records. Nothing to do while the
+      # root package.json lists no engine package.
+      - name: Engine packages for both Macs
+        if: runner.os == 'macOS'
+        run: node desktop/scripts/engine-packages.cjs darwin x64 arm64
+
       - name: Build web bundle
         run: npm run build
 

@@ -3,7 +3,7 @@
 // The app id is permanent: macOS keys notification permission to it and
 // Windows keys the Start menu entry and toasts to it, so changing it later
 // orphans every install.
-const { runtimeResources, validateRuntime } = require("./scripts/deck-runtime.cjs");
+const { engineResources, runtimeResources, validateRuntime } = require("./scripts/deck-runtime.cjs");
 
 module.exports = {
   appId: "dev.ccdeck.app",
@@ -65,6 +65,10 @@ module.exports = {
     // Not notarised (no Apple Developer ID), so hardened runtime buys nothing
     // and would enforce library validation against Electron's own frameworks.
     hardenedRuntime: false,
+    // The Command Panel's engine for the arch being packed, once the root
+    // package.json lists it (scripts/deck-runtime.cjs); nothing until then.
+    // Signing leaves its bytes as published (scripts/sign-mac.cjs).
+    ...engineResources("darwin"),
     // No LSUIElement. An app that DECLARES itself an agent and then turns
     // regular when its window opens kept that window in front of other apps on
     // a real Mac — clicking the browser behind it left ccdeck on top. main.mjs
@@ -76,6 +80,8 @@ module.exports = {
     // The brand kit's launcher .ico, copied by scripts/icons.mjs, so no icon
     // toolset is downloaded here either.
     icon: "dist/icons/icon.ico",
+    // The engine, as on macOS.
+    ...engineResources("win32"),
   },
   nsis: {
     // Per-user, no admin prompt, so an update can replace it in place.
@@ -99,6 +105,8 @@ module.exports = {
     // app_id one string. Nothing is renamed by this: the name it syncs to is
     // the one the file already had, so no installed entry is orphaned.
     syncDesktopName: true,
+    // The engine, as on macOS.
+    ...engineResources("linux"),
   },
   deb: {
     // electron-builder's own list, plus the ALSA library it leaves out: Ubuntu

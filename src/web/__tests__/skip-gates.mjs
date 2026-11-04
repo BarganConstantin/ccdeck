@@ -125,6 +125,15 @@ export const CONDITIONS = {
     holdsOn: () => false,
     why: "publish.yml runs `npm run build` before the suite, so dist/web/index.html is always on disk in CI.",
   },
+  "!hasTar": {
+    // A runtime probe, like the hard-link one: every runner image has a system
+    // tar — GNU tar on Ubuntu, bsdtar on macOS and in System32 on Windows 10
+    // and later — so it never skips in CI, and CI asserts that rather than
+    // trusting it. A machine without one skips the cases instead of failing
+    // on the missing tool.
+    holdsOn: () => false,
+    why: "Every runner has a system tar, which the desktop build's engine-packages script unpacks the npm tarball with.",
+  },
   "!['darwin', 'linux'].includes(process.platform)": {
     holdsOn: (platform) => !["darwin", "linux"].includes(platform),
     why: "The optional local engine is verified and launched on macOS and Linux only; Windows' ownership and ACL checks are not written yet, and pro-engine-client.test.ts asserts its refusal there on every leg.",
@@ -280,6 +289,12 @@ export const GATES = [
   { file: "hook-script-atomic.test.ts", gate: "it.skipIf", condition: "!hardLinksWork", sites: 1, cases: 1 },
   { file: "settings-atomic-write.test.ts", gate: "it.skipIf", condition: "!hardLinksWork", sites: 1, cases: 1 },
   { file: "uv-bootstrap-atomic.test.ts", gate: "it.skipIf", condition: "!hardLinksWork", sites: 1, cases: 1 },
+
+  // The desktop build's engine-packages script fetching the other Mac's engine
+  // package: a real npm-shaped tarball made here with `tar -czf`, handed over
+  // by a stand-in fetch and unpacked by the script with the system tar. Its
+  // refusals that never reach tar run beside it, un-gated.
+  { file: "desktop-engine-packaging.test.ts", gate: "describe.skipIf", condition: "!hasTar", sites: 1, cases: 3 },
 
   { file: "sound-hook-park.test.ts", gate: "it.skipIf", condition: "!readOnlyDirBlocksWrites", sites: 1, cases: 1 },
   // #1176: the swap script run against an installed app whose folder the

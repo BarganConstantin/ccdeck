@@ -27,11 +27,79 @@
 // With no certificate the app is left ad-hoc signed and the build says so.
 const { execFileSync } = require("node:child_process");
 const { createHash, X509Certificate } = require("node:crypto");
-const { existsSync, mkdtempSync, readFileSync, rmSync } = require("node:fs");
+const { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync } = require("node:fs");
 const { homedir, tmpdir } = require("node:os");
-const { join } = require("node:path");
+const { join, resolve } = require("node:path");
 
 const APP_ID = "dev.ccdeck.app";
+const ROOT = resolve(__dirname, "../..");
+
+/** What rcodesign must not sign: the Command Panel's engine package, copied
+ *  into the app by scripts/deck-runtime.cjs. The engine's own signed manifest
+ *  pins its executable's size and SHA-256, and rcodesign re-signs every Mach-O
+ *  in the bundle it is not told to skip — the deck would refuse that engine.
+ *  Excluded, the file keeps its bytes and is still sealed in the app's
+ *  CodeResources by its hash, like any other resource. A path inside the
+ *  bundle, matched by rcodesign itself: no shell ever sees the `*`. */
+const ENGINE_EXCLUDE = "Contents/Resources/deck/node_modules/@ccdeck/engine-*/**";
+
+/** rcodesign's argv for the app. Exported for the tests. */
+function rcodesignArgs({ certPath, keyPath, requirements, app }) {
+  return [
+    "sign",
+    "--pem-file", certPath,
+    "--pem-file", keyPath,
+    "--code-requirements-file", requirements,
+    "--exclude", ENGINE_EXCLUDE,
+    app,
+  ];
+}
+
+/** Every file under `dir`, by its path relative to it, with its SHA-256. A
+ *  link or anything else that is not a plain file or folder is refused: the
+ *  deck refuses one in the engine package too. */
+function digests(dir, base = dir, out = new Map()) {
+  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    const path = join(dir, entry.name);
+    const name = path.slice(base.length + 1).split("\\").join("/");
+    if (entry.isDirectory()) digests(path, base, out);
+    else if (entry.isFile()) out.set(name, createHash("sha256").update(readFileSync(path)).digest("hex"));
+    else throw new Error(`${path} is not a regular file`);
+  }
+  return out;
+}
+
+/** After signing: every engine package in the app must be byte for byte the
+ *  one in the root node_modules it was copied from, both ways — no file
+ *  changed, none missing, none added. rcodesign's help says --exclude applies
+ *  to nested bundles; 0.29.0 does apply it to these files, and this is what
+ *  fails the build, instead of shipping an engine the deck refuses, the day a
+ *  version does not. No engine in the app, nothing to compare. Returns the
+ *  folders it compared. */
+function verifyEngineCopies(app, root = ROOT) {
+  const scope = join(app, "Contents", "Resources", "deck", "node_modules", "@ccdeck");
+  let folders;
+  try {
+    folders = readdirSync(scope).filter(name => name.startsWith("engine-")).sort();
+  } catch (error) {
+    if (error.code === "ENOENT") return [];
+    throw error;
+  }
+  for (const folder of folders) {
+    const source = join(root, "node_modules", "@ccdeck", folder);
+    if (!existsSync(source)) throw new Error(`ccdeck: the app carries @ccdeck/${folder}, and ${source} is not there to compare it with`);
+    const copied = digests(join(scope, folder));
+    const original = digests(source);
+    for (const [file, hash] of original) {
+      if (!copied.has(file)) throw new Error(`ccdeck: @ccdeck/${folder}/${file} is missing from the signed app`);
+      if (copied.get(file) !== hash) throw new Error(`ccdeck: signing changed @ccdeck/${folder}/${file}; the deck would refuse that engine`);
+    }
+    for (const file of copied.keys()) {
+      if (!original.has(file)) throw new Error(`ccdeck: the signed app's @ccdeck/${folder}/${file} is not in ${source}`);
+    }
+  }
+  return folders;
+}
 
 /** The designated requirement's expression, as text. Exported for the tests.
  *  A single requirement, not a `designated => …` set: rcodesign takes the
@@ -46,7 +114,9 @@ function requirementForLeaf(leafSha1, appId = APP_ID) {
   return `identifier "${appId}" and certificate leaf = H"${leafSha1}"`;
 }
 
-module.exports = async function signMac(context) {
+// electron-builder passes only the context. A test hands in its own `run`, to
+// see what rcodesign is asked without one installed, and a fixture `root`.
+module.exports = async function signMac(context, { run = execFileSync, root = ROOT } = {}) {
   if (context.electronPlatformName !== "darwin") return;
   const home = join(homedir(), ".config", "ccdeck-signing");
   const certPath = process.env.CCDECK_SIGNING_CERT || join(home, "ccdeck-signing.cert.pem");
@@ -74,14 +144,9 @@ module.exports = async function signMac(context) {
     // The id the build actually carries, so a build with an overridden appId
     // is not signed with a requirement it can never satisfy.
     const appId = context.packager.appInfo.id || APP_ID;
-    execFileSync("csreq", ["-r", `=${requirementFor(readFileSync(certPath, "utf8"), appId)}`, "-b", req]);
-    execFileSync(process.env.RCODESIGN || "rcodesign", [
-      "sign",
-      "--pem-file", certPath,
-      "--pem-file", keyPath,
-      "--code-requirements-file", req,
-      app,
-    ], { stdio: "inherit" });
+    run("csreq", ["-r", `=${requirementFor(readFileSync(certPath, "utf8"), appId)}`, "-b", req]);
+    run(process.env.RCODESIGN || "rcodesign", rcodesignArgs({ certPath, keyPath, requirements: req, app }), { stdio: "inherit" });
+    verifyEngineCopies(app, root);
   } finally {
     rmSync(work, { recursive: true, force: true });
   }
@@ -89,4 +154,7 @@ module.exports = async function signMac(context) {
 
 module.exports.requirementFor = requirementFor;
 module.exports.requirementForLeaf = requirementForLeaf;
+module.exports.rcodesignArgs = rcodesignArgs;
+module.exports.verifyEngineCopies = verifyEngineCopies;
 module.exports.APP_ID = APP_ID;
+module.exports.ENGINE_EXCLUDE = ENGINE_EXCLUDE;
