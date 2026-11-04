@@ -10,7 +10,7 @@
 // than read. The drawing, the presses and the dialog's own state stay in the
 // dialog. None of it touches React.
 import { exchangeLanes, type Lane, versionOrder } from "./lan-exchange";
-import { roundLabel, seenLabel, seenOrJustNow, silenceNote } from "./lan-round";
+import { roundWhy, roundLabel, seenLabel, seenOrJustNow, silenceNote } from "./lan-round";
 import type { DeckRow, RowSource } from "./lan-roster";
 import type { DeckAbout, LanAccount, LanStatus } from "./lan-types";
 import { currentLanguage, t } from "./i18n";
@@ -164,11 +164,20 @@ export function peerView({ row, source, status, accounts, now }: {
   // This deck's half is what it offers THAT deck, which is less than what is
   // ticked here for a deck the accept switch paired — see notOffered.
   const offering = (status.shared ?? []).filter(key => !peer?.notOffered?.includes(key));
-  const lanes = paired
+  const rawLanes = paired
     // Its Codex logins after its Claude ones, on lanes of their own: one
     // address can be both, and they are two logins.
     ? exchangeLanes(offers ? [...offers.accounts, ...(offers.codex ?? [])] : null, accounts, offering, theirKey)
     : [];
+  // A recorded refusal takes precedence over the manifest's optimistic next
+  // round. A later successful round replaces it; never put peer-supplied text
+  // into the caption. Both the network map and peer dialog read these lanes.
+  const lanes = rawLanes.map(l => {
+    const failed = done.find(d => (d.key ? d.key === l.key : d.email === l.email) && d.ok === false);
+    if (!failed || l.in !== "wait") return l;
+    const why = roundWhy(failed);
+    return { ...l, caption: [hereSaid(l.here), why?.short ?? t("lan.pm.notArrivedLast")].join(" · "), tone: "bad" as const };
+  });
   // A login this deck advertises and cannot honour, with nothing coming the
   // other way to repair it: every paired deck is promised something that
   // gives them nothing. A lane that already says `sign in again` is not one,

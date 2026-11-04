@@ -2,6 +2,11 @@
 import type { Catalog } from "../../catalogs";
 
 const catalog: Catalog = {
+  "codex.share.needsProtection": "Windows permissions prevent sharing this login. Secure the selected profiles, then try again.",
+  "codex.share.protectionNotice": "Restricts access to each selected Codex folder and auth.json to your Windows user. This changes folder permissions, including inherited access for its contents. Your login, settings and active account stay in place.",
+  "codex.share.protect": "Secure permissions and share",
+  "codex.share.protectionFailed": "Windows could not secure a selected profile. Close programs using its login file, run ccdeck without administrator rights and try again. Some permissions may already have been tightened.",
+
   "codex.panel.liveControlPaused": "Codex account control is paused after a login change or lost connection. Check /status before reconnecting.",
   "codex.panel.reconnectSelected": "Reconnect selected account",
   "codex.share.title": "Share Codex accounts",

@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { codexLanAccounts, lanKindHeads, offeredHere } from "../account-lan";
+import { peerView } from "../lan-peer";
+import { deckRows, rowSource } from "../lan-roster";
 import { exchangeLanes } from "../lan-exchange";
 import type { CodexProfile } from "../codex-accounts";
 import type { LanAccount, OfferedAccount } from "../lan-types";
@@ -46,4 +48,18 @@ describe("Codex logins in the Local network share list", () => {
     const mine: LanAccount = { key: ANA, email: "ana@example.net", alive: true, provider: "codex" };
     expect(exchangeLanes([], [mine], [ANA], null)[0]).toMatchObject({ key: ANA, provider: "codex", out: "live" });
   });
+});
+
+it('shows a failed Codex transfer instead of promising arrival next round', () => {
+  const now = 1_700_000_000_000;
+  const peer = { fp: 'aaa-aaa-aaa-aaa', peerFp: 'aaa-aaa-aaa-aaa', name: 'Windows deck', paired: true,
+    addr: '127.0.0.1', port: 52011, lastSeen: now,
+    offers: { at: now, accounts: [], codex: [{ key: ANA, email: 'ana@example.net', alive: true }] },
+    last: { at: now, done: [{ key: ANA, email: 'ana@example.net', provider: 'codex', action: 'add', ok: false, why: 'export failed' }] } };
+  const status = { peers: [peer], shared: [] } as never;
+  const [row] = deckRows(status, now);
+  const view = peerView({ row, source: rowSource(status, row), status, accounts: [], now });
+  expect(view.lanes[0].caption).not.toContain('arrives next round');
+  expect(view.lanes[0].caption).toContain('export failed');
+  expect(view.lanes[0].tone).toBe('bad');
 });

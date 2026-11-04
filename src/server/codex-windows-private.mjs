@@ -42,6 +42,8 @@ async function check(path, operation, options) {
  * execFile is an async (file, args, options) => { stdout } test seam.
  */
 export const ensureWindowsPrivateDirectory = async (path, options = {}) => (await check(path, 'ensure', { ...options, kind: 'directory' })).path;
+// Only the explicit Share repair may tighten an existing profile.
+export const protectWindowsCodexLogin = async (path, options = {}) => (await check(path, 'protect-login', { ...options, kind: 'directory' })).path;
 export const assertWindowsPrivatePath = async (path, options = {}) => (await check(path, 'check', options)).path;
 export async function inspectWindowsPrivateSocket(path, options = {}) {
   const value = await check(path, 'check', { ...options, kind: 'socket' });

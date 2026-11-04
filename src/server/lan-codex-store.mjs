@@ -117,7 +117,10 @@ export function createCodexLan(options = {}) {
         const out = await (options.share ?? createCodexShare)({ ids: [id] }, options);
         const entries = readCodexShare(out?.blob);
         return entries.length === 1 && codexLoginOf(entries[0].auth)?.key === expectedKey ? out.blob : null;
-      } catch { return null; }
+      } catch (err) {
+        if (err?.code === 'windows_permissions_required') throw Object.assign(new Error('windows_permissions_required'), { code: 'windows_permissions_required' });
+        return null;
+      }
     },
 
     /**
