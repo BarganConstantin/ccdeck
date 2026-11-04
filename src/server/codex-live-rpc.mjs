@@ -2,6 +2,7 @@
 // that daemon or takes ownership of its conversations.
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
+import { setTimeout as delay } from 'node:timers/promises';
 import { lstat, realpath } from 'node:fs/promises';
 import { dirname, isAbsolute, join, resolve, win32 } from 'node:path';
 import { randomUUID } from 'node:crypto';
@@ -13,6 +14,27 @@ import { RUNNING_VERSION } from './running-version.mjs';
 
 export const liveError = code => Object.assign(new Error(code), { code });
 const runFile = promisify(execFile);
+
+// Only this read-only probe is safe to replay. In particular, never retry a
+// login or an interrupted turn whose outcome may already have committed.
+export async function probeCodexLiveDaemon(executable, env, options = {}) {
+  const spec = spawnSpec(executable, ['app-server', 'daemon', 'version'], options.platform ?? process.platform);
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      const output = await (options.execFile ?? runFile)(spec.file, spec.args,
+        { ...spec.opts, env, timeout: 5000, maxBuffer: 256 * 1024, windowsHide: true });
+      return JSON.parse(output.stdout);
+    } catch (error) {
+      // Keep diagnostics fixed and credential-free, including native stderr.
+      const failure = liveError('native_unavailable');
+      failure.cause = liveError(error instanceof SyntaxError ? 'native_probe_invalid_response'
+        : error.killed || error.code === 'ETIMEDOUT' ? 'native_probe_timeout' : 'native_probe_command_failed');
+      // A missing executable cannot recover by waiting.
+      if (attempt === 2 || ['ENOENT', 'EACCES', 'EPERM'].includes(error.code)) throw failure;
+      await delay(500);
+    }
+  }
+}
 const unmaterializedHistory = /^thread [0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12} is not materialized yet; thread\/turns\/list is unavailable before first user message$/i;
 function rejection(method, error) {
   if (method === 'thread/turns/list' && error?.code === -32600 && unmaterializedHistory.test(error.message ?? '')) return liveError('native_thread_not_materialized');
@@ -56,12 +78,7 @@ export async function resolveCodexLiveEndpoint(home, options = {}) {
   if (!executable) throw liveError('cli_unavailable');
   const env = { ...(options.env ?? process.env), CODEX_HOME: canonical };
   for (const key of Object.keys(env)) if (/^(OPENAI_API_KEY|CODEX_API_KEY)$/i.test(key)) delete env[key];
-  let result;
-  try {
-    const spec = spawnSpec(executable, ['app-server', 'daemon', 'version'], platform);
-    const output = await (options.execFile ?? runFile)(spec.file, spec.args, { ...spec.opts, env, timeout: 5000, maxBuffer: 256 * 1024, windowsHide: true });
-    result = JSON.parse(output.stdout);
-  } catch { throw liveError('native_unavailable'); }
+  const result = await probeCodexLiveDaemon(executable, env, { ...options, platform });
   const equalPath = windows ? (a, b) => win32.toNamespacedPath(a).toLowerCase() === win32.toNamespacedPath(b).toLowerCase() : (a, b) => resolve(a) === b;
   if (result.status !== 'running' || !(windows ? win32.isAbsolute : isAbsolute)(result.socketPath ?? '') || !equalPath(result.socketPath, advertised)) throw liveError('native_not_running');
   const version = String(result.appServerVersion ?? result.managedCodexVersion ?? '');
