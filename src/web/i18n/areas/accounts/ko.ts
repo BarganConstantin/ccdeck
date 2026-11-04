@@ -441,7 +441,6 @@ const catalog: Catalog = {
   "accounts.row.reauthTip": "로그인 대화상자를 엽니다. 이 계정으로 로그인하면 만료된 로그인이 그 자리에서 교체되며, 슬롯, 별칭, 기록은 그대로 유지됩니다.",
   "accounts.row.dismissLabel": "이 메시지 닫기",
   "accounts.row.dismiss": "닫기",
-  "accounts.row.nowActive": "이제 활성입니다. 새 세션은 이 계정으로 시작하고, 이미 실행 중인 세션은 다음 메시지에서 적용되며 macOS에서는 최대 30초 정도 늦을 수 있습니다.",
   "accounts.row.whoWasThere": "그 자리에 있던 계정",
   "accounts.row.swapTitle": "슬롯 {at}이(가) 사용 중이어서 두 계정이 자리를 맞바꿨습니다. {who}은(는) 이제 슬롯 {displaced}에 있습니다.",
   "accounts.row.swapped": "슬롯 {n}과(와) 교체됨",

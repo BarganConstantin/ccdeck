@@ -12,7 +12,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { rmTempDir } from "./rm-temp-dir";
 import { knownOrgTelemetry, observeOrgTelemetry, resetOrgTelemetry, telemetryClause, telemetrySummary } from "../../server/org-telemetry.mjs";
-import { switchedTelemetry, telemetryLine } from "../org-telemetry";
+import { telemetryLine } from "../org-telemetry";
 
 const ORG = "00000000-0000-4000-8000-0000000000aa";
 const OTHER = "00000000-0000-4000-8000-0000000000bb";
@@ -207,13 +207,6 @@ describe("what a switch turns on", () => {
     expect(telemetryClause(undefined)).toBeNull();
   });
 
-  it("is one sentence for the row a pressed switch landed on", () => {
-    expect(switchedTelemetry(record("content", ["OTEL_LOG_USER_PROMPTS"]) as never))
-      .toBe("Acme's telemetry is on for them: it sends your prompts to http://192.0.2.16:4317.");
-    expect(switchedTelemetry(record("off") as never)).toBeNull();
-    expect(switchedTelemetry(null)).toBeNull();
-  });
-
   it("reads what was saved, for a reader with no store to pin a new reading on", async () => {
     liveLogin();
     remoteSettings(CONTENT, T_SWITCH + 60_000);
@@ -243,10 +236,14 @@ describe("the row, around a switch", () => {
     lanes: [], headroom: 70, fetchedAt: T_SWITCH, nextAt: null, stale: false, error: null, telemetry: content, ...over,
   });
 
-  it("says what the switch just turned on in the Now active note", async () => {
+  it("leaves a switch that took to the row's telemetry mark, with no sentence under it", async () => {
     const html = await render(account({ active: true }), { switchedHere: true });
-    expect(html).toMatch(/<p class="ap-switched">Now active\.[^<]*macOS\.<\/p><p class="ap-switched">Acme&#x27;s telemetry is on for them: it sends your prompts to http:\/\/h:4317\.<\/p>/);
-    expect(await render(account({ active: true, telemetry: null }), { switchedHere: true })).not.toContain("telemetry is on");
+    expect(html).not.toContain('class="ap-switched"');
+    expect(html).not.toContain("Now active");
+    // What the account sends is still there, on the mark beside the name and
+    // in its detail for a screen reader.
+    expect(html).toContain('class="ap-more ap-telemetry"');
+    expect(html).toMatch(/<span class="vis-hidden" id="ap-telemetry-3">[^<]*Acme[^<]*http:\/\/h:4317/);
   });
 
   it("points at Hold out of rotation only while something rotates onto that account", async () => {

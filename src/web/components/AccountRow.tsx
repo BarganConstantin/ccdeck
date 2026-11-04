@@ -30,7 +30,7 @@ import { type useRequestSlot } from "../use-request-slot";
 import { laneName } from "../other-accounts-order";
 import { resetSinceReading } from "../accounts-usage-report";
 import { sharedLine } from "../account-lan";
-import { switchedTelemetry, telemetryLine } from "../org-telemetry";
+import { telemetryLine } from "../org-telemetry";
 
 type RequestSlot = ReturnType<typeof useRequestSlot>;
 
@@ -223,7 +223,6 @@ export default function AccountRow({
   // before a switch, because Claude Code applies it without asking in its
   // non-interactive surfaces. See org-telemetry.ts.
   const telemetry = telemetryLine(a.telemetry, nowSec, { holdOut: rotating && !a.active && !a.disabled });
-  const switchedNote = switchedTelemetry(a.telemetry);
   return (
     <li className={`ap-account${a.active ? " active" : ""}`}
       aria-current={a.active ? "true" : undefined}
@@ -385,13 +384,12 @@ export default function AccountRow({
             aria-label={t("accounts.row.dismissLabel")} title={t("accounts.row.dismiss")}>×</button>
         </div>
       )}
-      {a.active && switchedHere && (
-        <p className="ap-switched">{voice.switched ?? t("accounts.row.nowActive")}</p>
-      )}
-      {/* What the switch just turned on, said where the switch is answered: a
-          switch somebody pressed raises no notification. */}
-      {a.active && switchedHere && switchedNote && (
-        <p className="ap-switched">{switchedNote}</p>
+      {/* A switch that took is said by the row itself — its dot, and the
+          telemetry mark beside the name for what the account sends — so the
+          row adds words only for a switch still under way or one that needs
+          a hand, which only a provider's voice knows (Codex's live switch). */}
+      {a.active && switchedHere && voice.switched && (
+        <p className="ap-switched">{voice.switched}</p>
       )}
       {/* A move into a taken slot relocated a second account, and this
           is the only place that says so, for eight seconds. The

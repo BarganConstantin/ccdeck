@@ -31,8 +31,6 @@ const catalog: Catalog = {
   "codex.row.readPlan": "Wann ccdeck die Nutzung dieses Kontos zuletzt gelesen hat und wann es sie wieder liest: jede Minute beim Standardkonto, bei den anderen alle fünf, solange dieses Panel offen ist. Das sind die Limits, die Codex für das Konto meldet – hat ein Tarif nur ein Fenster, siehst du nur einen Balken.",
   "codex.row.readPlanNamed": "Tarif {plan}. {rest}",
   "codex.row.neverRead": "ccdeck hat dieses Konto noch nicht gelesen",
-  "codex.row.switched": "Standardkonto geändert. Sitzungen mit Terminalauswahl folgen diesem Konto.",
-  "codex.row.liveSwitched": "Verbundene Codex-Unterhaltungen verwenden jetzt dieses Konto. Unterbrochene Aufgaben werden automatisch fortgesetzt.",
   "codex.row.switchWaiting": "Vor dem Kontowechsel warten wir auf laufende Tools oder erforderliche Eingaben.",
   "codex.row.childrenResuming": "Konto gewechselt. Wir warten, bis die Unteragenten fortfahren.",
   "codex.row.continueUnconfirmed": "Die automatische Fortsetzung wurde nicht bestätigt. Prüfe die Unterhaltung, bevor du fortfährst.",

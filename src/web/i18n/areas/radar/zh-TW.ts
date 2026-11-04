@@ -456,8 +456,6 @@ const catalog: Catalog = {
 
   // Account rows
   "radar.org.who": "此帳號所屬的組織",
-  "radar.org.whoPossessive": "其組織的遙測",
-  "radar.org.named": "{org} 的遙測",
   "radar.org.and": "{list}和{last}",
   "radar.org.sep": "、",
   "radar.org.word.prompts": "提示詞",
@@ -471,9 +469,6 @@ const catalog: Catalog = {
   "radar.org.collector": "其收集器",
   "radar.org.detail": "{who}為新的工作階段開啟了 Claude Code 遙測：{what}，傳送至{where}。最近一次查看：{ago}，當時此帳號正在使用中。",
   "radar.org.holdOut": " 若要避免自動切換到此帳號，請在其 ⋯ 選單中選擇「排除於輪替之外」。",
-  "radar.org.switchedWhat": "您的{words}",
-  "radar.org.switchedTo": "，傳送至{list}",
-  "radar.org.switched": "{who}已對它們開啟：會傳送{what}{where}。",
   "radar.srv.ipv4": "請選擇 IPv4 位址與 TCP 連接埠。",
   "radar.srv.platform": "即時擷取支援 macOS、Linux 與 Windows。",
   "radar.srv.destCount": "請選擇一到八個目的地。",
