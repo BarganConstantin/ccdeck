@@ -84,7 +84,7 @@
     "without one."
   ],
   "//summaries": {
-    "3.81.1": "Fix Codex account sharing on Windows",
+    "3.81.1": "Windows Codex sharing and update fixes",
     "3.81.0": "Codex accounts on a par with Claude's, Codex over Local network, and ccdeck tui for the whole deck",
     "3.80.0": "Codex account switching, continuation and sharing",
     "3.53.0": "Codex accounts, with sign-in, switching and Auto-switch",
@@ -145,6 +145,13 @@
       "icon": "accounts",
       "noticeLabel": "Folder permissions",
       "notice": "Secure permissions and share is optional and restricts the selected Codex folders and auth.json to your Windows user, including changes to inherited access for their contents. Your login, settings and active account stay in place. Automatic network sync never changes folder permissions."
+    },
+    {
+      "title": "Windows updates reach the copy you use",
+      "body": "Global npm updates now target the active installation and confirm that newer files arrived before showing installed.",
+      "priority": "highlight",
+      "noticeLabel": "Already stuck on an older version?",
+      "notice": "An older Windows installation already stuck at installed may need one manual update to receive this fix. For the desktop app, run the latest Windows installer. For npm, follow the Windows recovery steps in README, then restart ccdeck. Accounts and settings are kept."
     },
     {
       "title": "See why a shared login did not arrive",
