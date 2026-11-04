@@ -205,8 +205,9 @@ export function tuiKey(state, str, key = {}, { now = 0, g } = {}) {
   if (str === "q" || name === "escape") return { state, effect: { type: "quit" } };
   if (str === "?") return { state: { ...state, help: true }, effect: null };
 
-  // The sides: c turns Claude's list over to Codex's, l opens the Local
-  // network and closes it again, the arrows walk along the tabs.
+  // The tabs: the arrows walk along them, as a tab bar anywhere else does —
+  // the way the footer offers. c (Codex's list, and back) and l (the Local
+  // network, and back) stay as shortcuts for whoever learnt them.
   if (str === "c") return sideKey({ ...state, notice: null }, null, { now, g });
   if (str === "l") return lanSideKey({ ...state, notice: null }, { now, g });
   if (name === "left" || name === "right") return stepSide({ ...state, notice: null }, name === "right" ? 1 : -1);
@@ -782,18 +783,20 @@ function noticeLine(state, { tone, g, unicode, now }) {
  *  Each key is a cap where the terminal can draw one. */
 function footerLine(state, width, look) {
   const { tone, unicode, skin } = look;
+  // The tabs are walked with the arrows, offered once there is more than one.
+  const tabsKey = unicode ? "←→" : "left/right";
+  const tabs = sidesOf(state).length > 1 ? [[tabsKey, "tabs"]] : [];
   const keys = state.signin ? signinKeys(state.signin) : state.codexSignin ? codexSigninKeys(state.codexSignin)
     : lanInvitePage(state) ? lanInviteKeys() : onLan(state) ? [
     ...lanFooterKeys(state, { now: look.now, unicode }),
-    ["l", "accounts"],
+    ...tabs,
     ["?", "keys"],
     ["q", "quit"],
   ] : [
     [unicode ? "↑↓" : "up/down", "move"],
     ["enter", "switch"],
     ["m", "actions"],
-    ...(hasCodex(state) || onCodex(state) ? [["c", onCodex(state) ? "Claude" : "Codex"]] : []),
-    ...(hasLan(state) ? [["l", "network"]] : []),
+    ...tabs,
     ["b", "best"],
     state.deck ? ["a", "auto-switch"] : ["d", "start the deck"],
     ["+", "add"],
@@ -806,7 +809,7 @@ function footerLine(state, width, look) {
   const list = keys.slice();
   // r goes first, then the moves, then b: the screen says what they do, and ?
   // and q are how to find out and how to leave.
-  for (const drop of ["r", unicode ? "↑↓" : "up/down", "b", "+", "a", "d", "m", "c", "l", "n", "x", "space", "enter"]) {
+  for (const drop of ["r", unicode ? "↑↓" : "up/down", "b", "+", "a", "d", "m", tabsKey, "n", "x", "space", "enter"]) {
     if (textWidth(draw(list)) <= width) break;
     const i = list.findIndex(([k]) => k === drop);
     if (i !== -1) list.splice(i, 1);
@@ -1620,7 +1623,7 @@ function withHelp(base, width, look) {
     ["a", "turn Auto-switch on or off"],
     ["+", "add an account, signed in from any browser"],
     ["r", "read the usage again"],
-    [unicode ? "c  l  ← →" : "c  l", `Claude's or Codex's accounts  ${g.bullet}  Local network`],
+    [unicode ? "← →" : "left right", `the tabs  ${g.bullet}  c Codex  ${g.bullet}  l Local network`],
     ["t", "the machine: live, or the last hours"],
     ["d", "start the deck, when none is running"],
     ["ctrl+l", "draw the screen again"],
