@@ -465,7 +465,6 @@ const catalog: Catalog = {
   "accounts.row.reauthTip": "Deschide dialogul de autentificare. Autentificarea cu acest cont îi înlocuiește pe loc autentificarea expirată — își păstrează slotul, aliasul și istoricul.",
   "accounts.row.dismissLabel": "Închide acest mesaj",
   "accounts.row.dismiss": "Închide",
-  "accounts.row.nowActive": "Acum activ. Sesiunile noi pornesc pe el; cele deja în desfășurare îl preiau la următorul mesaj, cu o întârziere de până la 30 de secunde pe macOS.",
   "accounts.row.whoWasThere": "contul care era acolo",
   "accounts.row.swapTitle": "Slotul {at} era ocupat, așa că cele două conturi au făcut schimb: {who} ocupă acum slotul {displaced}.",
   "accounts.row.swapped": "schimbat cu slotul {n}",

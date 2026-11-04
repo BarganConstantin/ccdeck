@@ -670,7 +670,7 @@ export async function runTui(flags, out, deps = {}) {
     for (const p of status.enabled ? status.pending ?? [] : []) {
       if (!p?.fp || askedBefore.has(p.fp)) continue;
       askedBefore.add(p.fp);
-      if (!view.onLan(state)) tell("warn", `${p.name || p.addr || "a deck"} wants to pair ${g.dash} l answers it`);
+      if (!view.onLan(state)) tell("warn", `${p.name || p.addr || "a deck"} wants to pair ${g.dash} answer it on the Network tab`);
     }
   };
 

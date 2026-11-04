@@ -9,7 +9,11 @@
 //
 //   - an "install" event the first time, with the ccdeck.dev page its command
 //     was copied from when the command said (`--ref`, install-ref.mjs) — a
-//     page name, never anything about the person,
+//     page name, never anything about the person — and how it was installed:
+//     ccdeck.dev's one-line install on macOS (curl) or Windows (irm), a
+//     downloaded installer, npx or npm (depth-facts.mjs installVia; the
+//     one-line installs leave a one-word file, `install-via`, that the first
+//     report reads and then deletes),
 //   - an "update" event, with the version it came from, when the version moves,
 //     and how the new one arrived: the deck's own update, the desktop app's
 //     updater, npx, npm, or a source checkout,
@@ -109,7 +113,8 @@ import { setupFacts, sinceInstallBucket, whenSetupKnown } from "./activation.mjs
 import { notedRef, refSlug } from "./install-ref.mjs";
 import { UI_LANGUAGE_MAX, uiLanguageCode } from "./ui-language.mjs";
 import {
-  CLAUDE_PLANS, CODEX_PLANS, cappedCount, deckDepth, eventsBucket, launchBucket, memoryBucket, updateVia,
+  CLAUDE_PLANS, CODEX_PLANS, cappedCount, deckDepth, eventsBucket, installMarkFile, installVia, launchBucket,
+  memoryBucket, updateVia,
 } from "./depth-facts.mjs";
 import { daysUsedBucket, normaliseRating, ratingDue, ratingStage, scoreOf } from "./rating.mjs";
 
@@ -551,6 +556,12 @@ export function scrub(text, home = homedir(), root = PKG_ROOT) {
  *   where the question's outcome is kept a second time, out of reach of an
  *   older deck's write of prefs.json (ratingFile). Default: none — the deck's
  *   own reporter passes ratingFile(), so no test writes beside a real prefs.json.
+ * @param {{ read: () => Promise<{ content: string, mtimeMs: number } | null>, remove: () => Promise<void> } | null} [deps.installMark]
+ *   the mark ccdeck.dev's one-line installs leave (depth-facts.mjs
+ *   installMarkFile): read for the desktop app's install event, and deleted
+ *   once that event is settled, or at once when this install has reported
+ *   before. Default: none — the deck's own reporter passes installMarkFile(),
+ *   so no test reads or deletes a file in a real home.
  */
 export function createReporter({
   fetchImpl = globalThis.fetch,
@@ -575,6 +586,7 @@ export function createReporter({
   uptime = () => process.uptime() * 1000,
   firstRun = bootFoundNoPrefs,
   ratingKept = null,
+  installMark = null,
 } = {}) {
   const errorsSent = [];
   const lastSentAt = new Map();
@@ -701,6 +713,36 @@ export function createReporter({
       return refSlug(reference());
     } catch {
       return undefined;
+    }
+  }
+
+  /** The one-line installs' mark, for the install event. Only the desktop app
+   *  reads it or deletes it: the app is what those scripts install, and an npm
+   *  deck beside it, on settings of its own, is not the install the mark is
+   *  about. */
+  const markHere = () => facts.channel === "desktop" && installMark != null;
+  /** Whether this run has already taken the mark away. */
+  let markGone = false;
+
+  /** The mark as read, or null. Never throws. */
+  async function markNow() {
+    if (!markHere()) return null;
+    try {
+      return (await installMark.read()) ?? null;
+    } catch {
+      return null;
+    }
+  }
+
+  /** Take the mark away, best effort, once a run. Never throws: a mark that
+   *  will not go is ignored once it is a week old. */
+  async function dropMark() {
+    if (!markHere() || markGone) return;
+    markGone = true;
+    try {
+      await installMark.remove();
+    } catch {
+      // Left where it is.
     }
   }
 
@@ -987,9 +1029,14 @@ export function createReporter({
       const ref = refSlug(prefs.current().report.ref) ?? refNow();
       const body = { installId, kind: "install", ...factsNow(), ...setupNow() };
       addIf(body, "ref", ref);
+      // How it arrived: npx or npm, or for the desktop app the one-line install
+      // whose script left a fresh mark, else a download (depth-facts.mjs).
+      addIf(body, "via", installVia({ channel: facts.channel, npx, mark: await markNow(), now: now() }));
       // Refused by the API is as done as sent: the same body would be refused again.
       if (settled(await call("POST", "/v1/app/events", body))) {
         await remember(installId, { lastVersion: facts.version, ref: "" });
+        // Said once, and only a new install has a way it arrived.
+        await dropMark();
       } else if (ref) {
         await remember(installId, { ref });
       }
@@ -1004,6 +1051,9 @@ export function createReporter({
         await remember(installId, { lastVersion: facts.version, selfUpdate: null });
       }
     }
+    // This install has reported before: a mark beside it was left by a
+    // reinstall over it, which is not a new install.
+    if (lastVersion) await dropMark();
 
     if (lastActiveDay !== today) {
       // Usage rides on the "active" event alone, and is read only here — the one
@@ -1383,4 +1433,5 @@ export const reporter = createReporter({
     return integrationsStore.connectedKinds();
   },
   ratingKept: ratingFile(),
+  installMark: installMarkFile(),
 });

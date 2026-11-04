@@ -38,8 +38,6 @@ const catalog: Catalog = {
   "codex.row.readPlan": "Când a citit ccdeck ultima oară utilizarea acestui cont și când plănuiește s-o citească din nou: în fiecare minut pentru contul implicit și la cinci minute pentru celelalte, cât timp acest panou este deschis. Sunt limitele raportate de Codex pentru cont, deci un plan cu o singură fereastră arată o singură bară.",
   "codex.row.readPlanNamed": "Plan {plan}. {rest}",
   "codex.row.neverRead": "ccdeck nu a citit încă acest cont",
-  "codex.row.switched": "Contul implicit a fost schimbat. Sesiunile cu selecția din terminal vor urma acest cont.",
-  "codex.row.liveSwitched": "Conversațiile Codex conectate folosesc acum acest cont. Sarcinile întrerupte se reiau automat.",
   "codex.row.switchWaiting": "Așteptăm uneltele în desfășurare sau răspunsul necesar înainte de schimbarea contului.",
   "codex.row.childrenResuming": "Contul a fost schimbat. Așteptăm reluarea subagenților.",
   "codex.row.continueUnconfirmed": "Reluarea automată nu a putut fi confirmată; verifică conversația înainte să continui.",

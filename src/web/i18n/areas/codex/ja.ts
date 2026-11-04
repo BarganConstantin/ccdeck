@@ -32,8 +32,6 @@ const catalog: Catalog = {
   "codex.row.readPlan": "ccdeck がこのアカウントの使用量を最後に読み取った時刻と、次に読み取る予定の時刻です。このパネルを開いている間、既定のアカウントは1分ごと、それ以外は5分ごとに読み取ります。Codex が報告するアカウントの上限を表示するため、枠が1つだけのプランではバーも1本です。",
   "codex.row.readPlanNamed": "{plan} プラン。{rest}",
   "codex.row.neverRead": "ccdeck はこのアカウントをまだ読み取っていません",
-  "codex.row.switched": "既定のアカウントを変更しました。ターミナルでアカウントを選択するセッションはこのアカウントを使用します。",
-  "codex.row.liveSwitched": "接続中の Codex の会話はこのアカウントを使用します。中断されたタスクは自動的に再開されます。",
   "codex.row.switchWaiting": "アカウントを切り替える前に、実行中のツールや必要な入力を待っています。",
   "codex.row.childrenResuming": "アカウントを切り替えました。サブエージェントの再開を待っています。",
   "codex.row.continueUnconfirmed": "自動再開を確認できませんでした。続行する前に会話を確認してください。",
