@@ -48,9 +48,10 @@
 //     names, the host of every web address, every IP address and the machine
 //     name a network error carries, email addresses and key-shaped strings
 //     scrubbed out before they leave (see scrub),
-//   - a "ping" heartbeat, every ten minutes or so while the deck runs, which
-//     moves the install's "last seen" so the admin can show who is online now,
-//     and is counted per day, which is how long the deck stays open.
+//   - a "ping" heartbeat, a minute or two after the deck starts and every ten
+//     minutes or so after that while it runs, which moves the install's "last
+//     seen" so the admin can show who is online now, and is counted per day,
+//     which is how long the deck stays open.
 //     It writes no event and carries the install id alone — no facts, no
 //     fingerprint.
 //
@@ -143,6 +144,13 @@ const CHECK_IN_EVERY_MS = 6 * 60 * 60 * 1000;
  *  not all beat on the same tick. */
 const PING_EVERY_MS = 10 * 60 * 1000;
 const PING_JITTER_MS = 2 * 60 * 1000;
+/** One ping of its own soon after a start, one to two minutes in, ahead of the
+ *  first beat. A restart on a day and a version already reported sends nothing
+ *  at its check-in, so until the first beat the admin showed a restarted deck
+ *  offline for ten minutes or more. Not at once: the boot check-in goes first,
+ *  and a fleet started together still spreads out. The beats keep their pace. */
+const FIRST_PING_MS = 60 * 1000;
+const FIRST_PING_JITTER_MS = 60 * 1000;
 /** The longest a 429's or a 503's Retry-After is waited for: a header that asks
  *  for a week does not silence a deck for one. */
 const RETRY_AFTER_MAX_MS = 24 * 60 * 60 * 1000;
@@ -711,6 +719,8 @@ export function createReporter({
   const lastSentAt = new Map();
   let timer = null;
   let pingTimer = null;
+  /** The one ping a start sends ahead of the first beat (FIRST_PING_MS). */
+  let firstPingTimer = null;
   /** How long this run took to start, read when start() runs; null before. */
   let launchMs = null;
 
@@ -1452,9 +1462,13 @@ export function createReporter({
 
   /** Check in once the prefs are read, and every few hours after; and beat a
    *  heartbeat on its own, lighter timer, which also sends whatever a check-in
-   *  still owes (beat). Both timers never hold the process open. The first
-   *  check-in already puts a freshly launched deck online, so the first ping is
-   *  a full interval out — nothing pings at boot. */
+   *  still owes (beat). Both timers never hold the process open. Ahead of the
+   *  first beat, one ping alone, one to two minutes after the start
+   *  (FIRST_PING_MS), so a restarted deck — whose check-in has nothing new to
+   *  send on a day already reported — is online again within two minutes. It
+   *  is the heartbeat's ping and nothing more: the same body, under the same
+   *  rules (reports on, an install id, no Retry-After running), and nothing
+   *  pings at the boot itself. */
   function start() {
     // start() runs as the deck starts listening (index.mjs), so this is the
     // launch: process start to ready. A second start() keeps the first answer.
@@ -1481,7 +1495,14 @@ export function createReporter({
       timer = setInterval(() => { if (retryDue()) void checkIn(); }, CHECK_IN_EVERY_MS);
       timer.unref?.();
     }
-    if (!pingTimer) scheduleNextPing();
+    if (!pingTimer) {
+      scheduleNextPing();
+      firstPingTimer = setTimeout(() => {
+        firstPingTimer = null;
+        void ping();
+      }, FIRST_PING_MS + Math.floor(Math.random() * FIRST_PING_JITTER_MS));
+      firstPingTimer.unref?.();
+    }
   }
 
   function stop() {
@@ -1489,6 +1510,8 @@ export function createReporter({
     timer = null;
     if (pingTimer) clearTimeout(pingTimer);
     pingTimer = null;
+    if (firstPingTimer) clearTimeout(firstPingTimer);
+    firstPingTimer = null;
   }
 
   return {

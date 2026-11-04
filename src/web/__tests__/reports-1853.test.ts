@@ -627,13 +627,18 @@ describe("the heartbeat ping", () => {
       const rep = h.reporterWith({ ready: Promise.resolve() });
 
       rep.start();
-      // PING_EVERY_MS (10m) + PING_JITTER_MS (2m) from reports.mjs: covers one
-      // beat whatever the jitter, and never a second (its delay is ≥ 10m).
+      // FIRST_PING_MS (1m) + FIRST_PING_JITTER_MS (1m) from reports.mjs: the
+      // one ping a start sends early, whatever the jitter
+      // (reports-first-ping.test.ts).
+      await vi.advanceTimersByTimeAsync(2 * 60 * 1000);
+      const ping = () => h.calls.filter(c => c.url.endsWith("/v1/app/ping"));
+      expect(ping().length).toBe(1);
+      expect(ping()[0].body).toEqual({ installId: "id-1" });
+      // PING_EVERY_MS (10m) + PING_JITTER_MS (2m) from the start: the first
+      // beat, whatever the jitter, and never a second (its delay is ≥ 10m).
       await vi.advanceTimersByTimeAsync(10 * 60 * 1000 + 2 * 60 * 1000);
-
-      const pings = h.calls.filter(c => c.url.endsWith("/v1/app/ping"));
-      expect(pings.length).toBe(1);
-      expect(pings[0].body).toEqual({ installId: "id-1" });
+      expect(ping().length).toBe(2);
+      expect(ping()[1].body).toEqual({ installId: "id-1" });
       rep.stop();
     } finally {
       vi.useRealTimers();
