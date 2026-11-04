@@ -323,7 +323,7 @@ describe("the frame", () => {
     expect(top).toBeGreaterThan(0);
     expect(bottom).toBeGreaterThan(top);
     expect(lines.slice(top, bottom).some(l => /enter  s +switch to it, or sign it in again/.test(l))).toBe(true);
-    expect(lines.slice(top, bottom).some(l => /c  l  ← → +Claude's or Codex's accounts  ·  Local network/.test(l))).toBe(true);
+    expect(lines.slice(top, bottom).some(l => /← → +the tabs  ·  c Codex  ·  l Local network/.test(l))).toBe(true);
     expect(lines.some(l => l.includes("●  in use    ⌂  Auto-switch's home    ‖  held out of rotation"))).toBe(true);
     expect(lines[bottom][lines[top].indexOf("╭─ Keys")]).toBe("╰");
     // The screen around it is still there, faded.
@@ -604,13 +604,25 @@ describe("the Codex side", () => {
     expect(shown[0]).toMatch(/^ {2}ccdeck {3}Claude \[Codex\] /);
     expect(shown.some(l => l.includes("ann@openai.example"))).toBe(true);
     expect(shown.some(l => l.includes("alice@corp.example"))).toBe(false);
-    expect(shown.at(-1)).toContain("c Claude");
+    expect(shown.at(-1)).toContain("left/right tabs");
     // And back, the Claude selection where it was.
     const back = key(s, "c").state;
     expect(back.side).toBe("claude");
     expect(back.at).toBe(0);
     expect(key(s, undefined, { name: "left" }).state.side).toBe("claude");
     expect(key(codexState(), undefined, { name: "right" }).state.side).toBe("codex");
+  });
+
+  it("offers the arrows for the tabs in the footer, where a tab bar is walked anywhere else", () => {
+    const foot = (s: State, unicode = true) => lines(s, 120, 30, unicode, "none").at(-1);
+    // One tab: nothing to walk to, and nothing offered.
+    expect(foot(deckState())).not.toContain("tabs");
+    for (const s of [codexState(), onCodex(), view.withLan(deckState(), LAN), lanState()]) {
+      expect(foot(s)).toMatch(/←→ +tabs/);
+      // c and l are shortcuts the keys page lists, not the way in.
+      expect(foot(s)).not.toMatch(/\bc +(Codex|Claude)\b|\bl +(network|accounts)\b/);
+    }
+    expect(foot(codexState(), false)).toMatch(/left\/right +tabs/);
   });
 
   it("says why there is no Codex side, and opens an empty one to add the first account", () => {
@@ -1867,7 +1879,7 @@ describe("the loop", () => {
     const deck = lanDeck();
     const { out } = quietOut();
     const done = runTui({}, out, { input: term.input, output: term.output, source: deck.source, tickMs: 20, ...LOOK });
-    await until(() => term.screenText().includes("kitchen-pc wants to pair — l answers it"));
+    await until(() => term.screenText().includes("kitchen-pc wants to pair — answer it on the Network tab"));
     expect(term.screenText()).toContain(" Network ");
     term.input.write("l");
     await until(() => term.screenText().includes("╭─ Local network"));
