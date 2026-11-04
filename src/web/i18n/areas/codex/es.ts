@@ -85,6 +85,7 @@ const catalog: Catalog = {
   "codex.panel.switchConflict": "Otro cambio movió la cuenta predeterminada justo entonces. Inténtalo de nuevo.",
   "codex.panel.switchFailed": "El cambio no se completó. Recarga e inténtalo de nuevo.",
   "codex.panel.liveSwitchFailed": "Cuenta predeterminada guardada, pero la aplicación Codex abierta no pudo cambiar. Comprueba su cuenta con /status.",
+  "codex.panel.liveSwitchPrivateLogin": "Se guard? la cuenta predeterminada, pero la carpeta de inicio de sesi?n no es lo bastante privada para cambiar la app Codex abierta. Usa + para iniciar sesi?n con esta cuenta en un perfil separado. Conserva los permisos del sandbox de Codex.",
   "codex.panel.removed": "Cuenta eliminada. Su inicio de sesión y su historial quedan aparte en la carpeta de datos de ccdeck, no se borran.",
   "codex.panel.removeFailed": "No se pudo eliminar la cuenta. Recarga e inténtalo de nuevo.",
   "codex.panel.badName": "Un nombre no puede contener una barra diagonal.",

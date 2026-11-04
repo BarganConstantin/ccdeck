@@ -7,6 +7,27 @@ let cleanup: (() => void) | undefined;
 afterEach(() => { cleanup?.(); vi.unstubAllGlobals(); });
 
 describe('Codex default selection controls', () => {
+  it.each([false, true])('explains unsafe login permissions after %s persisted failure', async persisted => {
+    let selected = persisted;
+    const live = { state: 'failed', requestedProfileId: 'b', reason: 'credential_file_unsafe' };
+    vi.stubGlobal('fetch', vi.fn(async (url: string) => {
+      if (url === '/api/codex-profile-select') { selected = true; return { ok: true, json: async () => ({ ok: true, live }) }; }
+      if (url.startsWith('/api/codex-profile-quota')) return { ok: false, json: async () => ({}) };
+      return { ok: true, json: async () => ({ profiles: [
+        { id: 'a', label: 'Personal', active: !selected, signedInFilePresent: true },
+        { id: 'b', label: 'Work', active: selected, signedInFilePresent: true },
+      ], ...(selected ? { live } : {}) }) };
+    }));
+    const view = mount(() => CodexProfilesSection()); cleanup = view.unmount; await flush();
+    if (!persisted) {
+      openOthers(view);
+      (rowOf(view, 'Work')!.props.onSwitch as (num: number, name: string) => void)(2, 'Work'); await flush();
+    }
+    const text = rowText(rowOf(view, 'Work')!);
+    expect(text).toContain('Use + to sign this account into a separate profile');
+    expect(text).toContain('Keep the existing Codex sandbox permissions');
+    expect(text).not.toContain('/status');
+  });
   it('offers an explicit reconnect for the already-selected account after native ownership is lost', async () => {
     let writes = 0, reconnected = false;
     const fetch = vi.fn(async (url: string) => {
