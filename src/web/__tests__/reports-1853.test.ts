@@ -896,11 +896,14 @@ describe("what an install says about itself", () => {
     env: { CCDECK_APP: "1" }, cpus: 10, memMb: 32768, locale: "en-US", shell: "zsh", term: "iTerm.app",
     // Injected so the whole shape stays pinned; its own derivation is tested below.
     deviceId: "0123456789abcdef",
+    // The kernel's release, which a Mac runner would otherwise read off itself
+    // (reports-os-facts.test.ts tests the translation).
+    release: "24.6.0",
   };
 
   it("is the version, the system, the channel, the runtime and the coarse environment", () => {
     expect(installFacts(controlled)).toEqual({
-      version: "3.32.2", os: "darwin", arch: "arm64", channel: "desktop", runtime: "node-22.18.0",
+      version: "3.32.2", os: "darwin", arch: "arm64", channel: "desktop", runtime: "node-22.18.0", osVersion: "macos-15",
       cpus: 10, memMb: 32768, locale: "en-US", shell: "zsh", term: "iTerm.app", deviceId: "0123456789abcdef",
     });
     expect(installFacts({ versions: { node: "22.18.0", electron: "42.11.6" }, env: {}, checkout: false })).toMatchObject({ channel: "npm", runtime: "electron-42.11.6" });
@@ -925,7 +928,7 @@ describe("what an install says about itself", () => {
     });
     // Whatever the running machine resolved, each token matches the API's shape.
     const shape = /^[0-9A-Za-z.+_-]+$/;
-    for (const key of ["locale", "shell", "term"] as const) {
+    for (const key of ["locale", "shell", "term", "osVersion", "distro"] as const) {
       if (facts[key] !== undefined) {
         expect(String(facts[key]), key).toMatch(shape);
         expect(String(facts[key]), key).not.toContain(" ");

@@ -36,3 +36,22 @@ export function osVersionOf({ platform, release = "" } = {}) {
   }
   return null;
 }
+
+/**
+ * The fields of an os-release file (os-release(5)): `KEY=value` lines, the
+ * value bare or in single or double quotes, a double-quoted one with its
+ * backslash escapes undone. Comments, blank lines and anything else are
+ * skipped. Never throws.
+ */
+export function osReleaseFields(text) {
+  const out = {};
+  for (const line of String(text ?? "").split(/\r?\n/)) {
+    const m = /^\s*([A-Za-z0-9_]+)=(.*)$/.exec(line);
+    if (!m) continue;
+    let value = m[2].trim();
+    const quoted = /^(["'])(.*)\1$/.exec(value);
+    if (quoted) value = quoted[1] === '"' ? quoted[2].replace(/\\([\\"$`])/g, "$1") : quoted[2];
+    out[m[1]] = value;
+  }
+  return out;
+}

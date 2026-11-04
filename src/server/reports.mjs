@@ -56,6 +56,13 @@
 //
 // Each event carries the install id, the version, the OS and CPU architecture,
 // the channel (the desktop app, npm, or a source checkout) and the runtime, plus
+// which release of the OS it is: on macOS and Windows the release as a token
+// (`osVersion`, "macos-15", "windows-11", translated from the kernel version as
+// os-version.mjs does for a paired deck's card), on Linux the distribution
+// (`distro`, os-release's ID and VERSION_ID, "ubuntu-24.04" or "arch", or
+// "omarchy" when Omarchy's folder is there — never os-release's free-text
+// names) and `wsl: true` under WSL (each left out where it does not apply, and
+// never on the ping, errors or feedback), and
 // a coarse sketch of the environment: the logical CPU count, the RAM in MB, the
 // locale, the language chosen in the deck's own page (`uiLanguage`, "ro" or
 // "pt-BR": the page tells the server, which keeps it in prefs.json and omits it
@@ -96,8 +103,11 @@
 // be refused the same way. A 4xx the edge in front of it answers with is tried again.
 
 import { createHash, randomUUID } from "node:crypto";
+import { readFileSync, statSync } from "node:fs";
 import { chmod, mkdir, readFile, unlink } from "node:fs/promises";
-import { arch as osArch, cpus as osCpus, homedir, hostname, platform as osPlatform, totalmem } from "node:os";
+import {
+  arch as osArch, cpus as osCpus, homedir, hostname, platform as osPlatform, release as osKernelRelease, totalmem,
+} from "node:os";
 import { basename, dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { inApp } from "./app-host.mjs";
@@ -111,6 +121,8 @@ import { RUNNING_VERSION } from "./running-version.mjs";
 import { FEATURES, usageDay, utcDay } from "./usage-day.mjs";
 import { setupFacts, sinceInstallBucket, whenSetupKnown } from "./activation.mjs";
 import { notedRef, refSlug } from "./install-ref.mjs";
+import { isWsl } from "./open-url.mjs";
+import { osReleaseFields, osVersionOf } from "./os-version.mjs";
 import { UI_LANGUAGE_MAX, uiLanguageCode } from "./ui-language.mjs";
 import {
   CLAUDE_PLANS, CODEX_PLANS, cappedCount, deckDepth, eventsBucket, installMarkFile, installVia, launchBucket,
@@ -175,7 +187,10 @@ export function reportsOn(prefs, env = process.env) {
 // The keys the API caps, so a value that would be rejected for length is not
 // sent: it is trimmed to the cap here instead. Only ever tokens the shape of a
 // terminal name, a shell name, a locale or a version — never anything free.
-const TOKEN_CAPS = { locale: 16, shell: 16, term: 32, claudeVersion: 32, codexVersion: 32, deviceId: 64, uiLanguage: UI_LANGUAGE_MAX };
+const TOKEN_CAPS = {
+  locale: 16, shell: 16, term: 32, claudeVersion: 32, codexVersion: 32, deviceId: 64, uiLanguage: UI_LANGUAGE_MAX,
+  osVersion: 24, distro: 32,
+};
 
 /** A value reduced to the API's token shape `^[0-9A-Za-z.+_-]+$`: spaces become
  *  "_" (so "Apple Terminal" rides as "Apple_Terminal"), every other disallowed
@@ -315,6 +330,99 @@ function baseName(p) {
   return String(p).split(/[\\/]/).pop().replace(/\.exe$/i, "");
 }
 
+/** The API's token shape. A distribution's own words leave only when they are
+ *  already in it: nothing is reshaped into one, as `token` does for a terminal. */
+const TOKEN_SHAPE = /^[0-9A-Za-z.+_-]+$/;
+
+/** `value` when it is already a token no longer than `max`, else nothing. */
+function shaped(value, max) {
+  return typeof value === "string" && TOKEN_SHAPE.test(value) && value.length <= max ? value : undefined;
+}
+
+/** The OS release as a token, on macOS and Windows only — "macos-15",
+ *  "macos-26", "windows-10", "windows-11" — by the translation a paired deck's
+ *  card uses (os-version.mjs). Nothing on Linux, which says its distribution
+ *  instead (distroToken), and nothing for a release that cannot be told. */
+export function osVersionToken({ platform = process.platform, release = "" } = {}) {
+  const v = osVersionOf({ platform, release });
+  return v ? shaped(`${v.family}-${v.major}`, TOKEN_CAPS.osVersion) : undefined;
+}
+
+/**
+ * The Linux distribution as a token: os-release's `ID`, lowercased, with its
+ * `VERSION_ID` after a dash when it has one — "ubuntu-24.04", "fedora-41",
+ * "debian-12", and "arch", which has none. Omarchy sits on Arch and leaves
+ * Arch's os-release in place, so it is told by the folder it installs into
+ * (`omarchy`, read by the caller) or by an os-release that names it, and is
+ * sent as "omarchy".
+ *
+ * Only what is already token-shaped leaves: an ID that is not, or is longer
+ * than the cap, is nothing at all; a version that is not, or that would take
+ * the token past the cap, leaves the ID alone. The free-text fields — NAME,
+ * PRETTY_NAME — are only ever looked through for "omarchy", never sent.
+ * Never throws.
+ */
+export function distroToken({ osRelease = "", omarchy = false } = {}) {
+  try {
+    const f = osReleaseFields(osRelease);
+    if (omarchy === true || [f.ID, f.VARIANT_ID, f.NAME, f.PRETTY_NAME].some(v => /omarchy/i.test(v ?? ""))) return "omarchy";
+    const id = shaped(String(f.ID ?? "").trim().toLowerCase(), TOKEN_CAPS.distro);
+    if (!id) return undefined;
+    const version = String(f.VERSION_ID ?? "").trim().toLowerCase();
+    return (version && shaped(`${id}-${version}`, TOKEN_CAPS.distro)) || id;
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * This Linux's distribution as distroToken words it: os-release from where the
+ * spec puts it, `/etc/os-release` and then `/usr/lib/os-release`, and Omarchy's
+ * folder under the home folder, which only ever answers yes or no. The reads
+ * are parameters so a test can stand up any machine. Never throws.
+ */
+export function readDistro({ read = readFileSync, isDir = isDirectory, home = homedir() } = {}) {
+  let osRelease = "";
+  for (const file of ["/etc/os-release", "/usr/lib/os-release"]) {
+    try {
+      osRelease = String(read(file, "utf8"));
+      break;
+    } catch { /* not this one */ }
+  }
+  let omarchy = false;
+  try {
+    omarchy = isDir(join(home, ".local", "share", "omarchy")) === true;
+  } catch { /* no home, no Omarchy */ }
+  return distroToken({ osRelease, omarchy });
+}
+
+function isDirectory(path) {
+  try { return statSync(path).isDirectory(); } catch { return false; }
+}
+
+/** This machine's distribution, read the first time it is asked and kept:
+ *  nothing it is read from changes under a running deck. */
+let distroKept = null;
+function machineDistro() {
+  if (!distroKept) {
+    let value;
+    try { value = readDistro(); } catch { value = undefined; }
+    distroKept = { value };
+  }
+  return distroKept.value;
+}
+
+/** The kernel's release, or "" when it will not say. */
+function kernelRelease() {
+  try { return osKernelRelease(); } catch { return ""; }
+}
+
+/** Whether this Linux is WSL (open-url.mjs, which opens the browser on the
+ *  Windows side for it). Never throws. */
+function underWsl(platform, env) {
+  try { return isWsl(platform, env ?? {}) === true; } catch { return false; }
+}
+
 function addIf(target, key, value) {
   if (value !== undefined) target[key] = value;
 }
@@ -324,13 +432,18 @@ function addIf(target, key, value) {
  *  counts the API records as optional. `claudeVersion`/`codexVersion` are
  *  supplied by the reporter once its background probe has them (cli-versions.mjs)
  *  and omitted until then; everything else is read here from the OS and the
- *  environment. */
+ *  environment. The OS release, the distribution and WSL are read off this
+ *  machine only when `platform` is this machine's, so a test that names
+ *  another platform is never handed this one's. */
 export function installFacts({
   version = RUNNING_VERSION,
   platform = process.platform,
   arch = process.arch,
   versions = process.versions,
   env = process.env,
+  release = platform === process.platform ? kernelRelease() : "",
+  distro = platform === "linux" && platform === process.platform ? machineDistro() : undefined,
+  wsl = platform === "linux" && platform === process.platform ? underWsl(platform, env) : false,
   checkout = isGitCheckout(PKG_ROOT),
   cpus = cpuCount(),
   memMb = totalMemMb(),
@@ -351,6 +464,12 @@ export function installFacts({
     channel: inApp(env) ? "desktop" : checkout ? "checkout" : "npm",
     runtime: versions.electron ? `electron-${versions.electron}` : `node-${versions.node}`,
   };
+  // Which release of the system: "macos-26", "windows-11" on those two, and on
+  // Linux the distribution ("ubuntu-24.04", "arch", "omarchy") and, under WSL,
+  // `wsl: true`. Fixed tokens and one yes, never a name the machine was given.
+  addIf(facts, "osVersion", osVersionToken({ platform, release }));
+  addIf(facts, "distro", platform === "linux" ? shaped(distro, TOKEN_CAPS.distro) : undefined);
+  addIf(facts, "wsl", platform === "linux" && wsl === true ? true : undefined);
   addIf(facts, "cpus", count(cpus));
   addIf(facts, "memMb", count(memMb));
   addIf(facts, "locale", token(locale, TOKEN_CAPS.locale));
@@ -1295,8 +1414,13 @@ export function createReporter({
     lastSentAt.set(key, at);
     const stack = typeof error?.stack === "string" ? scrub(error.stack, home, root).slice(0, STACK_MAX) : undefined;
     // Less the runtime, and less the deviceId — an error is not one of the events
-    // the fingerprint rides on, so the personal field never leaves on one.
-    const { runtime: _runtime, deviceId: _deviceId, uiLanguage: _uiLanguage, ...fields } = factsNow();
+    // the fingerprint rides on, so the personal field never leaves on one. The
+    // page's language and the OS release, distribution and WSL ride on the
+    // events alone, as their contract with the API says.
+    const {
+      runtime: _runtime, deviceId: _deviceId, uiLanguage: _uiLanguage,
+      osVersion: _osVersion, distro: _distro, wsl: _wsl, ...fields
+    } = factsNow();
     return (await call("POST", "/v1/app/errors", { installId: p.report.installId, ...fields, where, message, stack })) === "sent";
   }
 
