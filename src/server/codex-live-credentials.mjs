@@ -9,7 +9,7 @@ import { performance } from 'node:perf_hooks';
 import { readCodexSelection } from './codex-selection.mjs';
 import { startEngineRpc } from './codex-engine-rpc.mjs';
 import { pathLookup } from './exec-spec.mjs';
-import { holdWindowsPrivatePath } from './codex-windows-private.mjs';
+import { holdWindowsPrivatePath, snapshotWindowsCodexLogin } from './codex-windows-private.mjs';
 
 const MAX_AUTH_BYTES = 1024 * 1024;
 // A loaded Windows host can exceed twelve seconds starting a cold CLI while
@@ -159,11 +159,19 @@ export async function readLiveCodexCredential(profileId, options = {}) {
     const selectionOptions = { store: options.store, env };
     const selection = await readCodexSelection(selectionOptions);
     const profile = profileFrom(selection, profileId);
+    if (windows && env.CODEX_HOME && (await lstat(env.CODEX_HOME)).isSymbolicLink()) fail('credential_file_unsafe');
+    let nativeHomeSnapshot = false;
     if (windows) {
       try { profileGuard = await holdWindowsPrivatePath(profile.home, { ...options.windowsPrivate, kind: 'directory' }); }
-      catch { fail('credential_file_unsafe'); }
+      catch {
+        // Only the user's original native home may carry Codex sandbox ACLs.
+        // Imported/managed profiles keep the existing strict private-path gate.
+        if (resolve(profile.home).toLowerCase() !== resolve(selection.originalHome).toLowerCase()) fail('credential_file_unsafe');
+        nativeHomeSnapshot = true;
+      }
     }
     const captured = await captureProfile(profile);
+    if (nativeHomeSnapshot && captured.literal.isSymbolicLink()) fail('credential_file_unsafe');
     const childEnv = { ...env, CODEX_HOME: captured.canonical };
     for (const key of Object.keys(childEnv)) if (/^(OPENAI_API_KEY|CODEX_API_KEY)$/i.test(key)) delete childEnv[key];
     phase = 'native_unavailable';
@@ -176,13 +184,31 @@ export async function readLiveCodexCredential(profileId, options = {}) {
     // Native has finished refreshing and its owned process has stopped. No
     // pre-refresh file version is compared with the legitimately renewed file.
     await revalidateProfile(profile, captured, selection.revision, selectionOptions);
+    const snapshotCredential = async () => {
+      let auth;
+      try { auth = await snapshotWindowsCodexLogin(captured.canonical, options.windowsPrivate); }
+      catch { fail('credential_file_unsafe'); }
+      // Older native file logins omit auth_mode; the native account/read above
+      // has already confirmed ChatGPT auth, not an API-key account.
+      if (auth?.auth_mode == null && auth?.tokens && auth.OPENAI_API_KEY == null) auth.auth_mode = 'chatgpt';
+      // Bind the copied access token to the selected account read by native
+      // Codex. No refresh token is copied, persisted, or renewed by the deck.
+      const credential = credentialFrom(auth, account, profileId);
+      await revalidateProfile(profile, captured, selection.revision, selectionOptions);
+      if (credential.expiresAt <= Date.now()) fail('credential_expired');
+      return credential;
+    };
+    if (nativeHomeSnapshot) return await snapshotCredential();
     phase = 'credential_unavailable';
     const file = join(captured.canonical, 'auth.json');
     let handle, fileGuard;
     try {
       if (windows) {
         try { fileGuard = await holdWindowsPrivatePath(file, { ...options.windowsPrivate, kind: 'file' }); }
-        catch { fail('credential_file_unsafe'); }
+        catch {
+          if (resolve(profile.home).toLowerCase() !== resolve(selection.originalHome).toLowerCase()) fail('credential_file_unsafe');
+          return await snapshotCredential();
+        }
       }
       const initial = await lstat(file, { bigint: true });
       privateFile(initial, windows);
