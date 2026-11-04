@@ -33,6 +33,15 @@ corrected controller accepted all 20. These comparisons did not change accounts
 or generate inference. Regression tests separately cover manual reconnection,
 delayed or missing snapshots, outside changes and identity mismatches.
 
+An activity change between the handoff snapshot and the final quiet check is
+also an observation race. Before any login or durable interrupt/checkpoint has
+been sent, the controller retains the current request as waiting and checks
+again through the normal handoff path. Tools must still finish first, and an
+outside login cancels the pending request. Once any interrupt or authentication
+may have been sent, the existing recovery rules apply; this retry does not
+replay uncertain work. Regression tests cover new activity, tools staying busy,
+outside login cancellation and an unreconciled interrupt.
+
 ## Research
 
 - [yunkai93/codex-switch-account](https://github.com/yunkai93/codex-switch-account),
