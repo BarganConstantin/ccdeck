@@ -32,8 +32,6 @@ const catalog: Catalog = {
   "codex.row.readPlan": "Quando o ccdeck leu o uso desta conta pela última vez e quando pretende ler de novo: a cada minuto para a conta padrão e a cada cinco minutos para as outras, enquanto este painel estiver aberto. São os limites que o Codex informa para a conta, então um plano com uma só janela mostra uma só barra.",
   "codex.row.readPlanNamed": "Plano {plan}. {rest}",
   "codex.row.neverRead": "O ccdeck ainda não leu esta conta",
-  "codex.row.switched": "Conta padrão alterada. As sessões com seleção no terminal seguirão esta conta.",
-  "codex.row.liveSwitched": "As conversas do Codex conectadas usam esta conta agora. As tarefas interrompidas são retomadas automaticamente.",
   "codex.row.switchWaiting": "Aguardando ferramentas em execução ou a entrada necessária antes de trocar de conta.",
   "codex.row.childrenResuming": "Conta alterada. Aguardando a retomada dos subagentes.",
   "codex.row.continueUnconfirmed": "A continuação automática não pôde ser confirmada; confira a conversa antes de continuar.",

@@ -63,17 +63,3 @@ export function telemetryLine(t: OrgTelemetry | null | undefined, nowSec: number
     detail: tr("radar.org.detail", { who, what, where, ago: ago(t.seenAt, nowSec) }) + (holdOut ? tr("radar.org.holdOut") : ""),
   };
 }
-
-/**
- * The sentence the row's "Now active" note adds after a switch somebody
- * pressed: what the account just made active turns on for the sessions that
- * start from now. Null when nothing is known to be on.
- */
-export function switchedTelemetry(t: OrgTelemetry | null | undefined, tr: TFunction = translateNow): string | null {
-  if (!t || (t.level !== "metrics" && t.level !== "content")) return null;
-  const words = t.level === "content" ? t.content.map(k => wordFor(k, tr)) : [];
-  const what = words.length ? tr("radar.org.switchedWhat", { words: listed(words, tr) }) : tr("radar.org.usageData");
-  const who = t.orgName ? tr("radar.org.named", { org: t.orgName }) : tr("radar.org.whoPossessive");
-  const where = t.destinations.length ? tr("radar.org.switchedTo", { list: listed(t.destinations, tr) }) : "";
-  return tr("radar.org.switched", { who, what, where });
-}

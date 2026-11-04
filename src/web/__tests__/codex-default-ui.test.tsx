@@ -98,13 +98,11 @@ describe('Codex default selection controls', () => {
     } else if (liveState === 'manual_required') {
       expect(rowText(selected)).toContain('Automatic continuation could not be confirmed');
       expect(rowText(selected)).not.toContain('Interrupted tasks resume automatically');
-    } else if (liveState === 'applied') {
-      expect(rowText(selected)).toContain('Connected Codex conversations now use this account');
-      expect(rowText(selected)).toContain('Interrupted tasks resume automatically');
     } else {
-      expect(rowText(selected)).toContain('Default changed');
-      expect(rowText(selected)).toContain('Sessions using terminal selection will follow this account');
+      // A switch that took, live or not, adds no words: the row's dot says it.
       expect(rowText(selected)).not.toContain('Connected Codex conversations');
+      expect(rowText(selected)).not.toContain('Default changed');
+      expect(rowText(selected)).not.toContain('Interrupted tasks resume automatically');
     }
   });
 });

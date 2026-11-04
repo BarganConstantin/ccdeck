@@ -453,7 +453,6 @@ const catalog: Catalog = {
   "accounts.row.reauthTip": "サインインのダイアログを開きます。このアカウントでサインインすると、期限切れのログインがその場で置き換わり、スロット・エイリアス・履歴は保持されます。",
   "accounts.row.dismissLabel": "このメッセージを閉じる",
   "accounts.row.dismiss": "閉じる",
-  "accounts.row.nowActive": "使用中に切り替わりました。新しいセッションはこのアカウントで始まり、実行中のセッションは次のメッセージで切り替わります（macOS では最大30秒ほど遅れます）。",
   "accounts.row.whoWasThere": "そこにあったアカウント",
   "accounts.row.swapTitle": "スロット {at} は使用中だったため、2つのアカウントが入れ替わりました。{who} は現在スロット {displaced} にあります。",
   "accounts.row.swapped": "スロット {n} と入れ替え",

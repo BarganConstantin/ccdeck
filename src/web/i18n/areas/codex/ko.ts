@@ -31,8 +31,6 @@ const catalog: Catalog = {
   "codex.row.readPlan": "ccdeck이 이 계정의 사용량을 마지막으로 읽은 시각과 다음에 읽을 예정 시각입니다. 이 패널이 열려 있는 동안 기본 계정은 1분마다, 나머지는 5분마다 읽습니다. Codex가 계정에 대해 알려 주는 한도이므로, 구간이 하나인 플랜은 막대도 하나입니다.",
   "codex.row.readPlanNamed": "{plan} 플랜. {rest}",
   "codex.row.neverRead": "ccdeck이 아직 이 계정을 읽지 않았습니다",
-  "codex.row.switched": "기본 계정이 변경되었습니다. 터미널 선택을 사용하는 세션은 이 계정을 따릅니다.",
-  "codex.row.liveSwitched": "연결된 Codex 대화가 이제 이 계정을 사용합니다. 중단된 작업은 자동으로 재개됩니다.",
   "codex.row.switchWaiting": "계정을 전환하기 전에 실행 중인 도구나 필요한 입력을 기다리고 있습니다.",
   "codex.row.childrenResuming": "계정이 전환되었습니다. 하위 에이전트가 재개되기를 기다리고 있습니다.",
   "codex.row.continueUnconfirmed": "자동 재개를 확인하지 못했습니다. 계속하기 전에 대화를 확인하세요.",

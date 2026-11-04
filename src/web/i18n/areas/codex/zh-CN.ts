@@ -31,8 +31,6 @@ const catalog: Catalog = {
   "codex.row.readPlan": "ccdeck 上次读取此账号用量的时间，以及计划再次读取的时间：此面板打开期间，默认账号每分钟一次，其他账号每五分钟一次。这些是 Codex 为该账号报告的限额，因此只有一个窗口的套餐只显示一条用量条。",
   "codex.row.readPlanNamed": "{plan} 套餐。{rest}",
   "codex.row.neverRead": "ccdeck 尚未读取此账号",
-  "codex.row.switched": "默认账号已更改。使用终端账号选择的会话将使用此账号。",
-  "codex.row.liveSwitched": "已连接的 Codex 对话现在使用此账号。中断的任务会自动恢复。",
   "codex.row.switchWaiting": "正在等待运行中的工具完成或必要的输入，然后切换账号。",
   "codex.row.childrenResuming": "账号已切换，正在等待子代理恢复。",
   "codex.row.continueUnconfirmed": "无法确认是否已自动继续。继续之前请检查对话。",

@@ -38,8 +38,6 @@ const catalog: Catalog = {
   "codex.row.readPlan": "When the deck last read this account's usage, and when it plans to read it again: each minute for the default account and every five for the others, while this panel is open. These are the limits Codex reports for the account, so a plan with one window shows one bar.",
   "codex.row.readPlanNamed": "{plan} plan. {rest}",
   "codex.row.neverRead": "The deck has not read this account yet",
-  "codex.row.switched": "Default changed. Sessions using terminal selection will follow this account.",
-  "codex.row.liveSwitched": "Connected Codex conversations now use this account. Interrupted tasks resume automatically.",
   "codex.row.switchWaiting": "Waiting for running tools or pending input before switching accounts.",
   "codex.row.childrenResuming": "Account switched. Waiting for subagents to resume.",
   "codex.row.continueUnconfirmed": "Automatic continuation could not be confirmed; check the conversation before continuing.",
