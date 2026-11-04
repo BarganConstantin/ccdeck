@@ -114,8 +114,9 @@ export function deckLogDir(platform = process.platform, env = process.env, home 
 /** %LOCALAPPDATA%, or the path it points at on every Windows since Vista. The
  *  fallback is not decoration: a service account or a stripped environment can
  *  reach this code with the variable unset, and a deck that throws there is a
- *  deck that will not start. */
-function localAppData(env = process.env, home = homedir(), platform = process.platform) {
+ *  deck that will not start. Also where ccdeck.dev's Windows install leaves its
+ *  mark (depth-facts.mjs installMarkPath). */
+export function localAppData(env = process.env, home = homedir(), platform = process.platform) {
   const { join } = platform === "win32" ? winPath : posixPath;
   return env.LOCALAPPDATA?.trim() || join(home, "AppData", "Local");
 }
