@@ -18,6 +18,8 @@ import { SEQ_EPOCH, ringHoldsNewerThan, ringSnapshot } from "./event-ring.mjs";
 // The one door every event comes through — see event-pipeline.mjs.
 import { pushEvent } from "./event-pipeline.mjs";
 import { noteToolAudit } from "./tool-audit.mjs";
+// Which surface a page is, counted for the usage reports — see feature-use.mjs.
+import { holdPageSurface } from "./feature-use.mjs";
 import { noteLogWriter } from "./event-log.mjs";
 // Which CLIs this deck watches — see deck-scope.mjs.
 import { deckProviders } from "./deck-scope.mjs";
@@ -284,7 +286,12 @@ export function handleSse(req, res) {
   // is already committed to a 200 and its own failure path is to hang up — so
   // start it, keep the router's contract of returning nothing, and make sure a
   // rejection ends the stream rather than the process.
-  resumeSse(req, res, lastId, { tray: isTrayRequest(req) }).catch(() => dropSse(res));
+  const tray = isTrayRequest(req);
+  // A page — the app's window or a browser tab — is that surface used, today
+  // and on every day it is still connected when the day turns (feature-use.mjs).
+  // The tray connection is a reader, not somebody looking.
+  if (!tray) holdPageSurface(req);
+  resumeSse(req, res, lastId, { tray }).catch(() => dropSse(res));
 }
 
 /**

@@ -23,6 +23,7 @@
 import { readFileSync } from "node:fs";
 import { release as osRelease } from "node:os";
 import { open, seal } from "./lan-sync.mjs";
+import { osVersionOf } from "./os-version.mjs";
 
 /**
  * The operating system, in the words its owner would use.
@@ -30,26 +31,17 @@ import { open, seal } from "./lan-sync.mjs";
  * Node reports the KERNEL — `darwin 25.5.0`, `win32 10.0.26100` — and nobody
  * calls their laptop Darwin 25. So the numbers are translated on the machine
  * they describe, where the translation is certain, rather than on the one
- * reading them. Every input is a parameter, so all three platforms are tested
- * on any one of them.
+ * reading them (os-version.mjs, which the usage reports share). Every input is
+ * a parameter, so all three platforms are tested on any one of them.
  */
 export function osLabel({ platform, release = "", prettyName = "" } = {}) {
-  const [major, minor, build] = String(release).split(".").map(n => Number.parseInt(n, 10));
-  const dot = Number.isInteger(minor) ? `.${minor}` : "";
   if (platform === "darwin") {
-    if (!Number.isInteger(major)) return "macOS";
-    // Darwin 20 was macOS 11 and every major after it was one more — until 25,
-    // which Apple shipped as macOS 26 to match the year.
-    if (major >= 25) return `macOS ${major + 1}${dot}`;
-    if (major >= 20) return `macOS ${major - 9}${dot}`;
-    // The 10.x years, where the kernel's major minus four is the second number.
-    return major >= 5 ? `macOS 10.${major - 4}` : "macOS";
+    const v = osVersionOf({ platform, release });
+    return v ? `macOS ${v.major}${v.minor === null ? "" : `.${v.minor}`}` : "macOS";
   }
   if (platform === "win32") {
-    // Windows 11 kept the version 10.0 and moved only the build, and 22000 is
-    // the first one. From here it is the only way to tell the two apart.
-    if (major === 10 && Number.isInteger(build)) return build >= 22_000 ? "Windows 11" : "Windows 10";
-    return "Windows";
+    const v = osVersionOf({ platform, release });
+    return v ? `Windows ${v.major}` : "Windows";
   }
   if (platform === "linux") return prettyName || "Linux";
   return typeof platform === "string" && platform ? platform : "unknown";

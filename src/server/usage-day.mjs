@@ -53,6 +53,10 @@ export const FEATURES = Object.freeze([
   "jira", "github", "gitlab",
   // Which CLI the day's sessions came from.
   "claude-sessions", "codex-sessions",
+  // Where somebody looked at the deck that day: the desktop app's window, a
+  // browser tab, `ccdeck tui` (feature-use.mjs). One left open across midnight
+  // counts for the day after too (holdFeature).
+  "desktop-window", "browser-tab", "tui",
 ]);
 const FEATURE_SET = new Set(FEATURES);
 
@@ -130,6 +134,9 @@ export function createUsageDay({ now = () => new Date() } = {}) {
   /** The first use this run heard, `{ at, provider }`, for activation.mjs. */
   let first = null;
   const firstListeners = [];
+  /** Features in use right now, for as long as they last — a page connected —
+   *  with how many hold each: every new day starts with them used. */
+  const held = new Map();
 
   function fresh(day, floor = null) {
     return {
@@ -164,6 +171,9 @@ export function createUsageDay({ now = () => new Date() } = {}) {
     if (current?.day === day) return current;
     if (current && current.day < day) done = totals(current);
     current = fresh(day);
+    // What is still in use as the day turns was used on this day too: a window
+    // left open overnight is a window open today.
+    for (const name of held.keys()) current.features.add(name);
     changes++;
     return current;
   }
@@ -215,6 +225,29 @@ export function createUsageDay({ now = () => new Date() } = {}) {
     if (!FEATURE_SET.has(name)) return false;
     add(today().features, name);
     return true;
+  }
+
+  /**
+   * A feature in use for as long as something lasts — a page connected to the
+   * deck — rather than at one moment: used today, and on every later day it is
+   * still in use when that day starts. Returns the release, to call once when
+   * it ends, which notes it on the day it ends as well: an end the day's first
+   * reading comes after would otherwise leave that day without it. A name off
+   * FEATURES holds nothing and its release does nothing.
+   */
+  function holdFeature(name) {
+    if (!FEATURE_SET.has(name)) return () => {};
+    noteFeature(name);
+    held.set(name, (held.get(name) ?? 0) + 1);
+    let released = false;
+    return () => {
+      if (released) return;
+      released = true;
+      noteFeature(name);
+      const left = (held.get(name) ?? 1) - 1;
+      if (left > 0) held.set(name, left);
+      else held.delete(name);
+    };
   }
 
   /** A Codex session's working directory, which is its project. */
@@ -308,8 +341,8 @@ export function createUsageDay({ now = () => new Date() } = {}) {
   }
 
   return {
-    noteUse, noteProject, noteFolder, noteFeature, notePeak, firstUse, onFirstUse, finished, markSent, saved, restore, version,
-    daysUsed,
+    noteUse, noteProject, noteFolder, noteFeature, holdFeature, notePeak, firstUse, onFirstUse, finished, markSent, saved,
+    restore, version, daysUsed,
   };
 }
 
