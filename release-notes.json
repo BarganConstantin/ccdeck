@@ -84,6 +84,7 @@
     "without one."
   ],
   "//summaries": {
+    "3.81.3": "More reliable Codex switching and quieter account rows",
     "3.81.2": "Codex account switches wait through activity changes",
     "3.81.1": "Codex reconnection and Windows fixes",
     "3.81.0": "Codex accounts on a par with Claude's, Codex over Local network, and ccdeck tui for the whole deck",
@@ -137,6 +138,22 @@
     "3.49.1",
     "3.53.1",
     "3.53.3"
+  ],
+  "3.81.3": [
+    {
+      "title": "More reliable Codex account switching",
+      "body": "ccdeck retries temporary connection failures before switching the open Codex app.",
+      "priority": "highlight",
+      "icon": "accounts"
+    },
+    {
+      "title": "Quieter account switching",
+      "body": "Successful switches no longer leave an extra message under the account row."
+    },
+    {
+      "title": "Arrow-key navigation in ccdeck tui",
+      "body": "The footer and help now show the left and right arrow keys for moving between tabs."
+    }
   ],
   "3.81.2": [
     {
