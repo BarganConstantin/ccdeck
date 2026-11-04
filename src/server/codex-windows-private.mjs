@@ -44,6 +44,16 @@ async function check(path, operation, options) {
 export const ensureWindowsPrivateDirectory = async (path, options = {}) => (await check(path, 'ensure', { ...options, kind: 'directory' })).path;
 // Only the explicit Share repair may tighten an existing profile.
 export const protectWindowsCodexLogin = async (path, options = {}) => (await check(path, 'protect-login', { ...options, kind: 'directory' })).path;
+// The caller validates the native identity before using this local snapshot.
+// Do not use check()/result(): login material must never become path metadata.
+export async function snapshotWindowsCodexLogin(path, options = {}) {
+  try {
+    const spec = command(path, 'snapshot-login', { ...options, kind: 'directory' });
+    const output = await (options.execFile ?? runFile)(spec.file, spec.args,
+      { timeout: deadline(options), maxBuffer: 2 * 1024 * 1024, windowsHide: true, shell: false });
+    return JSON.parse(output.stdout.replace(/^\uFEFF/, ''));
+  } catch { throw unsafe(); }
+}
 export const assertWindowsPrivatePath = async (path, options = {}) => (await check(path, 'check', options)).path;
 export async function inspectWindowsPrivateSocket(path, options = {}) {
   const value = await check(path, 'check', { ...options, kind: 'socket' });

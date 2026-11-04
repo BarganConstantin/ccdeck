@@ -627,13 +627,18 @@ describe("the heartbeat ping", () => {
       const rep = h.reporterWith({ ready: Promise.resolve() });
 
       rep.start();
-      // PING_EVERY_MS (10m) + PING_JITTER_MS (2m) from reports.mjs: covers one
-      // beat whatever the jitter, and never a second (its delay is ≥ 10m).
+      // FIRST_PING_MS (1m) + FIRST_PING_JITTER_MS (1m) from reports.mjs: the
+      // one ping a start sends early, whatever the jitter
+      // (reports-first-ping.test.ts).
+      await vi.advanceTimersByTimeAsync(2 * 60 * 1000);
+      const ping = () => h.calls.filter(c => c.url.endsWith("/v1/app/ping"));
+      expect(ping().length).toBe(1);
+      expect(ping()[0].body).toEqual({ installId: "id-1" });
+      // PING_EVERY_MS (10m) + PING_JITTER_MS (2m) from the start: the first
+      // beat, whatever the jitter, and never a second (its delay is ≥ 10m).
       await vi.advanceTimersByTimeAsync(10 * 60 * 1000 + 2 * 60 * 1000);
-
-      const pings = h.calls.filter(c => c.url.endsWith("/v1/app/ping"));
-      expect(pings.length).toBe(1);
-      expect(pings[0].body).toEqual({ installId: "id-1" });
+      expect(ping().length).toBe(2);
+      expect(ping()[1].body).toEqual({ installId: "id-1" });
       rep.stop();
     } finally {
       vi.useRealTimers();
@@ -896,11 +901,14 @@ describe("what an install says about itself", () => {
     env: { CCDECK_APP: "1" }, cpus: 10, memMb: 32768, locale: "en-US", shell: "zsh", term: "iTerm.app",
     // Injected so the whole shape stays pinned; its own derivation is tested below.
     deviceId: "0123456789abcdef",
+    // The kernel's release, which a Mac runner would otherwise read off itself
+    // (reports-os-facts.test.ts tests the translation).
+    release: "24.6.0",
   };
 
   it("is the version, the system, the channel, the runtime and the coarse environment", () => {
     expect(installFacts(controlled)).toEqual({
-      version: "3.32.2", os: "darwin", arch: "arm64", channel: "desktop", runtime: "node-22.18.0",
+      version: "3.32.2", os: "darwin", arch: "arm64", channel: "desktop", runtime: "node-22.18.0", osVersion: "macos-15",
       cpus: 10, memMb: 32768, locale: "en-US", shell: "zsh", term: "iTerm.app", deviceId: "0123456789abcdef",
     });
     expect(installFacts({ versions: { node: "22.18.0", electron: "42.11.6" }, env: {}, checkout: false })).toMatchObject({ channel: "npm", runtime: "electron-42.11.6" });
@@ -925,7 +933,7 @@ describe("what an install says about itself", () => {
     });
     // Whatever the running machine resolved, each token matches the API's shape.
     const shape = /^[0-9A-Za-z.+_-]+$/;
-    for (const key of ["locale", "shell", "term"] as const) {
+    for (const key of ["locale", "shell", "term", "osVersion", "distro"] as const) {
       if (facts[key] !== undefined) {
         expect(String(facts[key]), key).toMatch(shape);
         expect(String(facts[key]), key).not.toContain(" ");

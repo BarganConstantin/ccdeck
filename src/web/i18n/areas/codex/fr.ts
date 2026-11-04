@@ -88,6 +88,7 @@ const catalog: Catalog = {
   "codex.panel.switchConflict": "Un autre changement vient de déplacer le compte par défaut. Réessayez.",
   "codex.panel.switchFailed": "Le changement n'a pas abouti. Rechargez et réessayez.",
   "codex.panel.liveSwitchFailed": "Compte par défaut enregistré, mais l’application Codex ouverte n’a pas pu changer. Vérifiez son compte avec /status.",
+  "codex.panel.liveSwitchPrivateLogin": "Compte par d?faut enregistr?, mais le dossier de connexion n?est pas assez priv? pour changer le compte dans Codex ouvert. Utilisez + pour connecter ce compte dans un profil s?par?. Conservez les autorisations du bac ? sable Codex.",
   "codex.panel.removed": "Compte retiré. Sa connexion et son historique sont mis de côté dans le dossier de données de ccdeck, pas supprimés.",
   "codex.panel.removeFailed": "Impossible de retirer le compte. Rechargez et réessayez.",
   "codex.panel.badName": "Un nom ne peut pas contenir de barre oblique.",

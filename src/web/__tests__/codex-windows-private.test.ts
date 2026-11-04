@@ -1,11 +1,11 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { mkdtemp, mkdir, readFile, realpath, rm, symlink, writeFile } from 'node:fs/promises';
+import { link, mkdtemp, mkdir, readFile, realpath, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, win32 } from 'node:path';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 // @ts-expect-error server ES module
-import { assertWindowsPrivatePath, ensureWindowsPrivateDirectory, holdWindowsPrivatePath, protectWindowsCodexLogin } from '../../server/codex-windows-private.mjs';
+import { assertWindowsPrivatePath, ensureWindowsPrivateDirectory, holdWindowsPrivatePath, protectWindowsCodexLogin, snapshotWindowsCodexLogin } from '../../server/codex-windows-private.mjs';
 
 const runFile = promisify(execFile), roots: string[] = [];
 afterEach(async () => { for (const root of roots.splice(0)) await rm(root, { recursive: true, force: true }); });
@@ -72,6 +72,21 @@ describe.skipIf(process.platform !== 'win32')('Windows token DACL and pinned han
     const { dir } = await fixture();
     await runFile(win32.join(process.env.SystemRoot!, 'System32', 'icacls.exe'), [dir, '/grant', '*S-1-1-0:(OI)(CI)RX'], { windowsHide: true, timeout: 5000 });
     await expect(assertWindowsPrivatePath(dir)).rejects.toMatchObject({ code: 'windows_private_path_unsafe' });
+    await writeFile(join(dir, 'auth.json'), '{"tokens":{}}');
+    await expect(snapshotWindowsCodexLogin(dir)).rejects.toMatchObject({ code: 'windows_private_path_unsafe' });
+  }, 120000);
+  it('snapshots native login material without refresh tokens or source changes', async () => {
+    const { dir } = await fixture();
+    const file = join(dir, 'auth.json');
+    const auth = { auth_mode: 'chatgpt', tokens: { access_token: 'fictional-access', id_token: 'fictional-id', account_id: 'fictional-account', refresh_token: 'fictional-refresh' } };
+    const original = JSON.stringify(auth); await writeFile(file, original);
+    const snapshot = await snapshotWindowsCodexLogin(dir);
+    expect(snapshot.tokens).toEqual({ access_token: 'fictional-access', id_token: 'fictional-id', account_id: 'fictional-account' });
+    expect(await readFile(file, 'utf8')).toBe(original);
+    const alias = join(dir, 'alias'); await symlink(dir, alias, 'junction');
+    await expect(snapshotWindowsCodexLogin(alias)).rejects.toMatchObject({ code: 'windows_private_path_unsafe' });
+    await link(file, join(dir, 'hardlink'));
+    await expect(snapshotWindowsCodexLogin(dir)).rejects.toMatchObject({ code: 'windows_private_path_unsafe' });
   }, 120000);
 });
 

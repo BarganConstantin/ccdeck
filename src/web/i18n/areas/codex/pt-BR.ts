@@ -89,6 +89,7 @@ const catalog: Catalog = {
   "codex.panel.switchConflict": "Outra alteração mudou a conta padrão neste instante. Tente de novo.",
   "codex.panel.switchFailed": "A troca não foi concluída. Recarregue e tente de novo.",
   "codex.panel.liveSwitchFailed": "Conta padrão salva, mas o aplicativo Codex aberto não conseguiu mudar. Confira a conta com /status.",
+  "codex.panel.liveSwitchPrivateLogin": "Conta padr?o salva, mas a pasta de login n?o ? privada o suficiente para trocar a conta no Codex aberto. Use + para entrar nesta conta em um perfil separado. Mantenha as permiss?es atuais do sandbox do Codex.",
   "codex.panel.removed": "Conta removida. O login e o histórico dela ficam guardados à parte na pasta de dados do ccdeck, não são excluídos.",
   "codex.panel.removeFailed": "Não foi possível remover a conta. Recarregue e tente de novo.",
   "codex.panel.badName": "O nome não pode conter barra.",

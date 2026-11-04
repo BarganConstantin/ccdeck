@@ -19,7 +19,9 @@ import { challengeDeck, challengeProof, isProcessAlive } from "./deck-probe.mjs"
 export { challengeDeck, challengeProof, isProcessAlive };
 // The gates in front of the route table — see src/server/request-gates.mjs,
 // which also holds the per-process token the strictest of them checks.
-import { OPEN_MUTATIONS, isAuthorizedDataRead, isAuthorizedMutation, isGuardedRead, isTrustedMutation, isTrustedRead } from "./request-gates.mjs";
+import {
+  OPEN_MUTATIONS, isAuthorizedDataRead, isAuthorizedMutation, isGuardedRead, isTrustedMutation, isTrustedRead, presentsDeckToken,
+} from "./request-gates.mjs";
 import { trafficCapture } from "./traffic-radar-capture.mjs";
 import { trafficRadar } from "./traffic-radar.mjs";
 import { handleTrafficCapture, isAuthorizedTrafficIngest } from "./traffic-radar-routes.mjs";
@@ -71,7 +73,7 @@ import { serveStatic } from "./static-serve.mjs";
 // session-tracking.mjs.
 import { handleForget, startOutputWatch } from "./session-tracking.mjs";
 // Which features were used today, for the usage reports — see feature-use.mjs.
-import { handleFeature, noteRouteFeature } from "./feature-use.mjs";
+import { handleFeature, noteClientFeature, noteRouteFeature } from "./feature-use.mjs";
 // Exported from this file before it moved, and still.
 export { HARD_TRACKED_SESSIONS } from "./session-tracking.mjs";
 // The desktop app's update as its window sees it — the state the app reports
@@ -316,6 +318,9 @@ export async function startServer({ port = 4317, host = "127.0.0.1", persist = n
     // account, pairing a deck — counts as that feature used today. Past the
     // gates above, so only the deck's own callers count. See feature-use.mjs.
     noteRouteFeature(req.method, url.pathname);
+    // And `ccdeck tui` saying it is the one asking, on a request with the
+    // deck's own token — which only this user's own commands hold.
+    noteClientFeature(req.headers, presentsDeckToken(req.headers));
 
     // `?persist=0` — another deck was elected to write this event to the log
     // the two of them share. Absent, this deck writes it.

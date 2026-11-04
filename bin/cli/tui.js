@@ -927,7 +927,9 @@ export function deckSource(port) {
       return findDeck({ port });
     },
     silent: () => silentDecks(port).catch(() => []),
-    ask: (deck, opts) => ask(deck, opts),
+    // Said as this screen, so the deck counts `ccdeck tui` as used today
+    // (feature-use.mjs); the one-shot commands say nothing.
+    ask: (deck, opts) => ask(deck, { ...opts, client: "tui" }),
     localRoster: async () => {
       const { fetchClaudeAccounts } = await load("src/server/claude-accounts.mjs");
       return fetchClaudeAccounts({ force: true });

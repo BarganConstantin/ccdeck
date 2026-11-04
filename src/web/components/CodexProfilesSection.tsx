@@ -49,7 +49,7 @@ const SCOPE = ".codex";
  *  floor at the latest, so a few tries are enough and nothing runs for ever. */
 const RETRY_MS = 15_000;
 const RETRIES = 6;
-type LiveSelection = { state: string; profileId?: string; requestedProfileId?: string; continuation?: string };
+type LiveSelection = { state: string; profileId?: string; requestedProfileId?: string; continuation?: string; reason?: string };
 
 async function postJson(path: string, body: unknown): Promise<{ ok: boolean; status: number; reason?: string; id?: string; live?: LiveSelection }> {
   const response = await fetch(path, {
@@ -339,7 +339,7 @@ export default function CodexProfilesSection({ onClose, switcher, onNotice, away
       const out = await postJson("/api/codex-profile-select", { id: profile.id, expectedRevision: revision.current, operationId: crypto.randomUUID() });
       if (out.ok) {
         if (out.live) setLiveSelection(out.live);
-        if (out.live?.state === 'failed') setFailure({ text: t("codex.panel.liveSwitchFailed"), row: num, liveProfileId: profile.id });
+        if (out.live?.state === 'failed') setFailure({ text: t(out.live.reason === 'credential_file_unsafe' ? "codex.panel.liveSwitchPrivateLogin" : "codex.panel.liveSwitchFailed"), row: num, liveProfileId: profile.id });
         else setSwitched({ id: profile.id, name, live: out.live?.state === 'applied' });
       }
       else {
@@ -462,7 +462,7 @@ export default function CodexProfilesSection({ onClose, switcher, onNotice, away
         busy={busy} pressProps={pressProps} onSwitch={doSwitch}
         menuOpen={menu?.id === profile.id} onOpenMenu={(_, start) => openMenu(profile.id, start)} onCloseMenu={() => setMenu(null)}
         refusal={failure?.row === a.num ? failure : !dismissedLiveFailure && liveSelection?.state === 'failed' && liveSelection.requestedProfileId === profile.id
-          ? { text: t("codex.panel.liveSwitchFailed"), row: a.num } : null} onDismissRefusal={() => { setFailure(null); setDismissedLiveFailure(true); }}
+          ? { text: t(liveSelection.reason === 'credential_file_unsafe' ? "codex.panel.liveSwitchPrivateLogin" : "codex.panel.liveSwitchFailed"), row: a.num } : null} onDismissRefusal={() => { setFailure(null); setDismissedLiveFailure(true); }}
         onSignIn={() => signIn(profile)}
         switchedHere={liveSelection?.state !== 'failed' && (switched?.id === profile.id || (liveSelection?.state === 'waiting' && liveSelection.requestedProfileId === profile.id)
           || (['manual_required', 'waiting'].includes(liveSelection?.continuation ?? '') && profile.active === true))} swapped={null} displaced={undefined}

@@ -84,6 +84,7 @@
     "without one."
   ],
   "//summaries": {
+    "3.81.4": "Codex account switching works with Windows sandbox logins",
     "3.81.3": "More reliable Codex switching and quieter account rows",
     "3.81.2": "Codex account switches wait through activity changes",
     "3.81.1": "Codex reconnection and Windows fixes",
@@ -139,25 +140,41 @@
     "3.53.1",
     "3.53.3"
   ],
+  "3.81.4": [
+    {
+      "title": "🔄 Switch Codex accounts without another sign-in",
+      "body": "On Windows, Switch can use your existing native Codex login while keeping its sandbox permissions unchanged.",
+      "priority": "highlight",
+      "icon": "accounts"
+    },
+    {
+      "title": "🔐 New Windows accounts are ready for switching",
+      "body": "Accounts added through + now get private folders from the start, and older native login files are recognized."
+    },
+    {
+      "title": "💬 Clearer account-switching errors",
+      "body": "If a login cannot be used safely, ccdeck explains the folder-permission problem and how to continue."
+    }
+  ],
   "3.81.3": [
     {
-      "title": "More reliable Codex account switching",
+      "title": "🔄 More reliable Codex account switching",
       "body": "ccdeck retries temporary connection failures before switching the open Codex app.",
       "priority": "highlight",
       "icon": "accounts"
     },
     {
-      "title": "Quieter account switching",
+      "title": "✨ Quieter account switching",
       "body": "Successful switches no longer leave an extra message under the account row."
     },
     {
-      "title": "Arrow-key navigation in ccdeck tui",
+      "title": "⌨️ Arrow-key navigation in ccdeck tui",
       "body": "The footer and help now show the left and right arrow keys for moving between tabs."
     }
   ],
   "3.81.2": [
     {
-      "title": "Codex account switches wait through activity changes",
+      "title": "🔄 Codex account switches wait through activity changes",
       "body": "If new work starts while a switch is being prepared, ccdeck now waits and retries safely instead of leaving the switch failed.",
       "priority": "highlight",
       "icon": "accounts"
@@ -165,7 +182,7 @@
   ],
   "3.81.1": [
     {
-      "title": "Fix Codex sharing on Windows",
+      "title": "🔐 Fix Codex sharing on Windows",
       "body": "Codex logins blocked by Windows folder permissions can now be prepared for sharing from the Share dialog.",
       "priority": "highlight",
       "icon": "accounts",
@@ -173,20 +190,20 @@
       "notice": "Secure permissions and share is optional and restricts the selected Codex folders and auth.json to your Windows user, including changes to inherited access for their contents. Your login, settings and active account stay in place. Automatic network sync never changes folder permissions."
     },
     {
-      "title": "Windows updates reach the copy you use",
+      "title": "🪟 Windows updates reach the copy you use",
       "body": "Global npm updates now target the active installation and confirm that newer files arrived before showing installed.",
       "priority": "highlight",
       "noticeLabel": "Already stuck?",
       "notice": "An older Windows installation already stuck at installed may need one manual update to receive this fix. For the desktop app, run the latest Windows installer. For npm, follow the Windows recovery steps in README, then restart ccdeck. Accounts and settings are kept."
     },
     {
-      "title": "Reconnect Codex without a false login-change warning",
+      "title": "🔄 Reconnect Codex without a false login-change warning",
       "body": "Connecting to an unchanged Codex account no longer pauses control because of its initial account update.",
       "priority": "highlight",
       "icon": "accounts"
     },
     {
-      "title": "See why a shared login did not arrive",
+      "title": "📡 See why a shared login did not arrive",
       "body": "The network map now shows a failed transfer instead of promising that the login will arrive next round."
     }
   ],
