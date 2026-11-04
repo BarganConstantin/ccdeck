@@ -156,7 +156,8 @@ export const GATES = [
   {"file": "codex-live-credentials.test.ts", "gate": "it.skipIf", "condition": "process.platform !== 'win32'", "sites": 2, "cases": 2},
   {"file": "codex-live-credentials.test.ts", "gate": "it.skipIf", "condition": "process.platform === 'win32'", "sites": 6, "cases": 6},
   {"file": "codex-live-rpc.test.ts", "gate": "describe.skipIf", "condition": "process.platform === 'win32'", "sites": 1, "cases": 21},
-  {"file": "codex-windows-private.test.ts", "gate": "describe.skipIf", "condition": "process.platform !== 'win32'", "sites": 1, "cases": 3},
+  {"file": "codex-share.test.ts", "gate": "describe.skipIf", "condition": "process.platform !== 'win32'", "sites": 1, "cases": 1},
+  {"file": "codex-windows-private.test.ts", "gate": "describe.skipIf", "condition": "process.platform !== 'win32'", "sites": 2, "cases": 5},
   {"file": "codex-windows-rpc.test.ts", "gate": "describe.skipIf", "condition": "process.platform !== 'win32'", "sites": 1, "cases": 1},
 
   // The append queue's deadline answering false for real (log-writer.mjs's

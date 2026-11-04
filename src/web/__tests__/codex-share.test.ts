@@ -281,3 +281,28 @@ describe('manual Codex credential sharing', () => {
     expect(await readdir(join(f.store, 'codex-profiles'))).toEqual([]);
   });
 });
+
+// The ordinary Windows Codex folder inherits a user-profile ACL; exporting
+// must remain read-only until the person explicitly prepares that profile.
+describe.skipIf(process.platform !== 'win32')('explicit Windows share preparation', () => {
+  it('protects a normal file-backed profile only on request and preserves login bytes and selection', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'ccdeck-share-normal-')); roots.push(root);
+    const home = join(root, 'original'); await mkdir(home);
+    const before = JSON.stringify(auth()); await writeFile(join(home, 'auth.json'), before);
+    const options = { store: join(root, 'registry'), env: { CODEX_HOME: home } };
+    const selection = await readCodexSelection(options);
+    await expect(createCodexShare({ ids: [selection.profileId] }, options)).rejects.toMatchObject({ code: 'windows_permissions_required' });
+    const shared = await createCodexShare({ ids: [selection.profileId], preparePermissions: true }, options);
+    expect(shared).toMatchObject({ ok: true, count: 1 });
+    expect(await readFile(join(home, 'auth.json'), 'utf8')).toBe(before);
+    expect((await readCodexSelection(options)).profileId).toBe(selection.profileId);
+    expect(await createCodexShare({ ids: [selection.profileId] }, options)).toMatchObject({ ok: true });
+  }, 60_000);
+});
+
+it('rejects non-boolean permission consent before any export', async () => {
+  const f = await fixture();
+  for (const preparePermissions of ['true', 1, null]) {
+    await expect(createCodexShare({ ids: [f.selection.profileId], preparePermissions }, f.options)).rejects.toMatchObject({ code: 'invalid_profiles' });
+  }
+});

@@ -220,8 +220,10 @@ describe("npm i -g ccdeck — the install that could not update itself", () => {
     // rewrites <prefix>/lib/node_modules/ccdeck, and the copy running out of
     // its nested node_modules goes with it — which is what finally makes
     // installedVersion move and the restart notice appear.
-    expect(npmArgv(layout("stub")))
-      .toEqual(["install", "-g", "ccdeck@latest", "--no-audit", "--no-fund", "--loglevel", "error"]);
+    const pkgRoot = layout("stub");
+    const prefix = resolve(hostPackage(pkgRoot, "agents-deck").root, process.platform === "win32" ? "../.." : "../../..");
+    expect(npmArgv(pkgRoot))
+      .toEqual(["install", "-g", "--prefix", prefix, "ccdeck@latest", "--no-audit", "--no-fund", "--loglevel", "error"]);
   });
 
   it("still offers the in-app install, on the tree npm would actually rewrite", () => {
@@ -358,7 +360,7 @@ describe("a package that merely depends on the deck is not one of its names", ()
     expect(hostPackage(pkgRoot)).toBeNull();
     expect(upgradeName(pkgRoot)).toBe("agents-deck");
     expect(upgradeCommand(pkgRoot)).toBe("npm i -g agents-deck@latest");
-    expect(npmArgv(pkgRoot)[2]).toBe("agents-deck@latest");
+    expect(npmArgv(pkgRoot)).toContain("agents-deck@latest");
   });
 
   it("wants both halves: one of our names, and a dependency on us", () => {

@@ -5,11 +5,17 @@ import { join, win32 } from 'node:path';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 // @ts-expect-error server ES module
-import { assertWindowsPrivatePath, ensureWindowsPrivateDirectory, holdWindowsPrivatePath } from '../../server/codex-windows-private.mjs';
+import { assertWindowsPrivatePath, ensureWindowsPrivateDirectory, holdWindowsPrivatePath, protectWindowsCodexLogin } from '../../server/codex-windows-private.mjs';
 
 const runFile = promisify(execFile), roots: string[] = [];
 afterEach(async () => { for (const root of roots.splice(0)) await rm(root, { recursive: true, force: true }); });
 describe('Windows private path command boundary', () => {
+  it('uses a separate explicit operation for preparing an existing login', async () => {
+    const execFile = vi.fn(async () => ({ stdout: JSON.stringify({ path: 'C:\\fictional\\profile' }) }));
+    await protectWindowsCodexLogin('C:\\fictional\\profile', { platform: 'win32', execFile });
+    expect(execFile.mock.calls[0][1]).toEqual(expect.arrayContaining(['protect-login', 'directory']));
+  });
+
   it('passes literal paths through -File arguments with a fixed script and bounded execution', async () => {
     const path = "C:\\Users\\O'Brien $user & test\\private";
     const run = vi.fn(async () => ({ stdout: JSON.stringify({ path }) }));
@@ -67,4 +73,24 @@ describe.skipIf(process.platform !== 'win32')('Windows token DACL and pinned han
     await runFile(win32.join(process.env.SystemRoot!, 'System32', 'icacls.exe'), [dir, '/grant', '*S-1-1-0:(OI)(CI)RX'], { windowsHide: true, timeout: 5000 });
     await expect(assertWindowsPrivatePath(dir)).rejects.toMatchObject({ code: 'windows_private_path_unsafe' });
   }, 120000);
+});
+
+describe.skipIf(process.platform !== 'win32')('explicit protection stays within the selected login', () => {
+  it('refuses a hard-linked auth file before changing permissions', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'ccdeck-protect-link-')); roots.push(root);
+    const home = join(root, 'profile'); await mkdir(home);
+    const original = join(root, 'outside.json'); await writeFile(original, 'fictional-login');
+    const { link } = await import('node:fs/promises');
+    await link(original, join(home, 'auth.json'));
+    await expect(protectWindowsCodexLogin(home)).rejects.toMatchObject({ code: 'windows_private_path_unsafe' });
+    expect(await readFile(original, 'utf8')).toBe('fictional-login');
+    await expect(assertWindowsPrivatePath(home, { kind: 'directory' })).rejects.toMatchObject({ code: 'windows_private_path_unsafe' });
+  }, 60_000);
+  it('refuses a junction instead of changing the target folder', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'ccdeck-protect-junction-')); roots.push(root);
+    const target = join(root, 'outside'); await mkdir(target); await writeFile(join(target, 'auth.json'), 'fictional-login');
+    const junction = join(root, 'profile'); await symlink(target, junction, 'junction');
+    await expect(protectWindowsCodexLogin(junction)).rejects.toMatchObject({ code: 'windows_private_path_unsafe' });
+    await expect(assertWindowsPrivatePath(target, { kind: 'directory' })).rejects.toMatchObject({ code: 'windows_private_path_unsafe' });
+  }, 60_000);
 });

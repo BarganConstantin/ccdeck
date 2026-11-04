@@ -144,10 +144,11 @@ describe("the register of conditionally-skipped cases", () => {
     expect(Object.keys(CONDITIONS).sort()).toEqual([...new Set(gates().map((g) => g.condition))].sort());
   });
 
-  it("skips only the six Windows-native Codex probes on Linux and macOS", () => {
-    const expected = { total: 6, byFile: {
+  it("skips only the nine Windows-native Codex probes on Linux and macOS", () => {
+    const expected = { total: 9, byFile: {
       "codex-live-credentials.test.ts": 2,
-      "codex-windows-private.test.ts": 3,
+      "codex-windows-private.test.ts": 5,
+      "codex-share.test.ts": 1,
       "codex-windows-rpc.test.ts": 1,
     } };
     expect(expectedSkips("linux")).toEqual(expected);
@@ -240,7 +241,7 @@ describe("the register of conditionally-skipped cases", () => {
   it("limits single-platform gates to the registered Windows-native Codex probes", () => {
     // Windows ACL, reparse-point and AF_UNIX behavior requires real Windows
     // APIs. Enumerate those exceptions; every other gate still needs two legs.
-    const windowsNative = new Set(['codex-live-credentials.test.ts', 'codex-windows-private.test.ts', 'codex-windows-rpc.test.ts']);
+    const windowsNative = new Set(['codex-live-credentials.test.ts', 'codex-windows-private.test.ts', 'codex-windows-rpc.test.ts', 'codex-share.test.ts']);
     for (const g of gates()) {
       const legs = PLATFORMS.filter((p: string) => !skipsOn(g, p));
       if (g.condition === "process.platform !== 'win32'" && windowsNative.has(g.file)) expect(legs).toEqual(['win32']);

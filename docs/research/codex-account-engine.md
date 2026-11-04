@@ -12,6 +12,27 @@ connected to an authenticated, single-client loopback bridge during the handoff.
 Claude stays on its existing cswap path. A separate shared-daemon adapter now
 covers supported already-open native application/IDE conversations; see below.
 
+## Initial account synchronization (2026-11-04)
+
+Codex sends `account/updated` to a newly initialized connection after saved
+workspace routing is ready. This is an initial snapshot, including when the
+account has not changed. Its asynchronous delivery can follow `account/read`.
+See the [upstream routing notification implementation](https://github.com/openai/codex/blob/6ff1e1ca3b30fc8b914720681fcf5fe62e95f856/codex-rs/app-server/src/request_processors/account_processor/workspace_routing.rs).
+
+The live controller consumes one initial snapshot while establishing its account
+baseline. When `account/read` supplies workspace routing, it waits up to 30
+seconds for that snapshot before claiming control or attempting a login. A late
+snapshot is followed by another account read. Missing confirmation fails without
+changing authentication or interrupting work. Additional updates and unsolicited
+login completions still invalidate control; restart and reconnect still require
+matching native account IDs.
+
+Verification included 20 read-only comparisons against a running native daemon:
+the published controller falsely paused on all 20 initializations, while the
+corrected controller accepted all 20. These comparisons did not change accounts
+or generate inference. Regression tests separately cover manual reconnection,
+delayed or missing snapshots, outside changes and identity mismatches.
+
 ## Research
 
 - [yunkai93/codex-switch-account](https://github.com/yunkai93/codex-switch-account),

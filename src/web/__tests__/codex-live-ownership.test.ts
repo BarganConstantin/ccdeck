@@ -9,8 +9,8 @@ const A = 'a'.repeat(20), B = 'b'.repeat(20);
 const controllers: any[] = [];
 afterEach(async () => { for (const c of controllers.splice(0)) await c.close(); vi.restoreAllMocks(); });
 const flush = () => new Promise(resolve => setTimeout(resolve, 0));
-async function fixture({ ids = false, saved = false, notifyLogin = true, actual = A, active = false, workspaceName = null as string | null } = {}) {
-  let hooks: any;
+async function fixture({ ids = false, saved = false, notifyLogin = true, actual = A, active = false, initialUpdate = false as false | 'connect' | 'read' | 'delayed' | 'missing', workspaceName = null as string | null, initialAccountTimeoutMs = undefined as number | undefined } = {}) {
+  let hooks: any, initialRead = false;
   let snapshot: any = { account: { type: 'chatgpt', email: 'same@example.invalid', planType: 'plus', workspaceName } };
   const nativeId = (id: string) => id === A ? 'workspace-a' : 'workspace-b';
   const setAccount = (id: string) => {
@@ -28,7 +28,11 @@ async function fixture({ ids = false, saved = false, notifyLogin = true, actual 
   const notify = (method = 'account/updated', params: any = { authMode: 'chatgptAuthTokens', planType: 'plus' }) => hooks.onNotification({ method, params });
   const rpc = {
     request: vi.fn(async (method: string, params: any) => {
-      if (method === 'account/read') return structuredClone(snapshot);
+      if (method === 'account/read') {
+        if (initialRead && initialUpdate === 'read') notify();
+        initialRead = false;
+        return structuredClone(snapshot);
+      }
       if (method === 'thread/loaded/list') return { data: active ? [thread.id] : [] };
       if (method === 'thread/read') return { thread: structuredClone(thread) };
       if (method === 'thread/turns/list') return { data: [structuredClone(turn)] };
@@ -46,14 +50,20 @@ async function fixture({ ids = false, saved = false, notifyLogin = true, actual 
     send: vi.fn((message: any) => sends.push(message)), close: vi.fn(),
   };
   const readCredential = vi.fn(async (id: string) => credential(id));
-  const c = createCodexLiveAccountController({ store: '/fictional-unused-store', pollMs: 1000_000, loginNotificationTimeoutMs: 200,
+  const c = createCodexLiveAccountController({ store: '/fictional-unused-store', pollMs: 1000_000, loginNotificationTimeoutMs: 200, initialAccountTimeoutMs,
     readSelection: async () => selection, readAuto: async () => ({ enabled: true }),
     readCredential, loadState: async () => saved ? { version: 1, wasControlling: true, profileId: A, revision: 1,
       endpoint: createHash('sha256').update('generation').digest('hex') } : null,
     loadHandoff: async () => null, persistHandoff, persistState: async (s: any) => persisted.push(s),
     resolveEndpoint: async () => ({ home: selection.originalHome, generation: 'generation' }),
     acquireLease: async () => ({ valid: async () => true, release: async () => {} }),
-    connectRpc: async (_: any, callbacks: any) => { hooks = callbacks; connections.push(callbacks); return rpc; },
+    connectRpc: async (_: any, callbacks: any) => {
+      hooks = callbacks; connections.push(callbacks);
+      initialRead = true;
+      if (initialUpdate === 'connect' || ids && !initialUpdate) notify();
+      if (initialUpdate === 'delayed') setTimeout(() => notify(), 5);
+      return rpc;
+    },
   });
   controllers.push(c); await c.ready;
   return { c, rpc, sends, persisted, persistHandoff, connections, readCredential, selection, notify, credential, setAccount,
@@ -62,6 +72,52 @@ async function fixture({ ids = false, saved = false, notifyLogin = true, actual 
 }
 
 describe('native Codex authentication ownership', () => {
+  it.each(['connect', 'read'] as const)('accepts the initial routing snapshot during %s and still detects later outside updates', async initialUpdate => {
+    const f = await fixture({ initialUpdate });
+    expect(await f.c.request({ id: A, revision: 2 })).toMatchObject({ state: 'applied', profileId: A });
+    f.notify(); await flush();
+    expect(f.c.status()).toMatchObject({ state: 'external_change', profileId: null });
+    expect(await f.c.request({ id: B, revision: 3 })).toMatchObject({ state: 'applied', profileId: B });
+    expect(f.connections).toHaveLength(2);
+  });
+  it.each(['restart', 'reconnect'])('checks native identity after an initial routing snapshot during %s', async mode => {
+    const f = await fixture({ initialUpdate: 'read', ids: true, saved: mode === 'restart' });
+    if (mode === 'reconnect') {
+      await f.c.request({ id: A, revision: 2 }); f.disconnect(); await f.c.tick();
+    }
+    expect(f.c.status()).toMatchObject({ state: 'applied', profileId: A });
+    f.notify(); await flush();
+    expect(f.c.status().state).toBe('external_change');
+  });
+
+  it.each(['account/updated', 'account/login/completed'])('still pauses on a second auth event during initialization: %s', async method => {
+    const f = await fixture({ initialUpdate: 'connect', ids: true });
+    const original = f.rpc.request.getMockImplementation()!;
+    f.rpc.request.mockImplementationOnce(async (name, params) => {
+      f.notify(method, method === 'account/login/completed' ? { loginId: null, success: true } : { authMode: 'chatgptAuthTokens', planType: 'plus' });
+      return original(name, params);
+    });
+    await f.c.request({ id: A, revision: 2 }); await flush();
+    expect(f.c.status().state).toBe('external_change');
+    expect(f.rpc.request.mock.calls.some(([name]) => name === 'account/login/start')).toBe(false);
+  });
+  it('waits for routing discovery that notifies after the first account read', async () => {
+    const f = await fixture({ ids: true, initialUpdate: 'delayed' });
+    expect(await f.c.request({ id: A, revision: 2 })).toMatchObject({ state: 'applied', profileId: A });
+    expect(f.rpc.request.mock.calls.filter(([method]) => method === 'account/login/start')).toHaveLength(1);
+    f.notify(); await flush(); expect(f.c.status().state).toBe('external_change');
+  });
+  it('does not log in or continue work when the promised initial routing snapshot never arrives', async () => {
+    const f = await fixture({ ids: true, initialUpdate: 'missing', initialAccountTimeoutMs: 5 });
+    expect(await f.c.request({ id: A, revision: 2 })).toMatchObject({ state: 'failed', reason: 'native_initial_account_unconfirmed' });
+    expect(f.rpc.request.mock.calls.some(([method]) => ['account/login/start', 'turn/start', 'turn/interrupt'].includes(method))).toBe(false);
+  });
+  it.each([false, true])('does not use the initial snapshot to bypass restart identity checks (IDs: %s)', async ids => {
+    const f = await fixture({ initialUpdate: 'read', ids, saved: true, actual: B });
+    expect(f.c.status().state).toBe('external_change');
+    expect(f.rpc.request.mock.calls.some(([method]) => method === 'account/login/start')).toBe(false);
+    await f.refresh(); expect(f.sends).toEqual([]);
+  });
   it('pauses on an unsolicited same-email update and sends no later renewal', async () => {
     const f = await fixture(); await f.c.request({ id: A, revision: 2 }); await flush();
     f.setAccount(B); f.notify(); await flush(); await f.refresh();

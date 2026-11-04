@@ -710,6 +710,7 @@ describe("an install that runs past its deadline", () => {
     dir = mkdtempSync(join(tmpdir(), "ccdeck-upgrade-"));
     pkgRoot = join(dir, "node_modules", "ccdeck");
     mkdirSync(pkgRoot, { recursive: true });
+    writeFileSync(join(pkgRoot, "package.json"), JSON.stringify({ name: "ccdeck", version: "1.0.0" }));
     optOut = process.env.AGENTS_DECK_NO_INSTALL;
     delete process.env.AGENTS_DECK_NO_INSTALL;
     vi.useFakeTimers();
@@ -808,6 +809,7 @@ describe("an install that runs past its deadline", () => {
     // the restart — saying "failed" next to it is the mismatch this fixes.
     const child = start("win32");
     vi.advanceTimersByTime(INSTALL_TIMEOUT_MS);
+    writeFileSync(join(pkgRoot, "package.json"), JSON.stringify({ name: "ccdeck", version: "1.1.0" }));
     child.emit("close", 0);
     expect(upgradeStatus()).toMatchObject({ state: "done", error: null });
   });
@@ -841,6 +843,7 @@ describe("an install that runs past its deadline", () => {
     expect(spawns).toHaveLength(1);
     expect(upgradeStatus().state).toBe("running");
 
+    writeFileSync(join(pkgRoot, "package.json"), JSON.stringify({ name: "ccdeck", version: "1.1.0" }));
     child.emit("close", 0);
     expect(upgradeStatus().state).toBe("done");
   });

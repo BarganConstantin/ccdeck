@@ -7,7 +7,7 @@ import { chmod, lstat, mkdir, open, readFile, unlink } from 'node:fs/promises';
 import { join } from 'node:path';
 import { createTemp, renameWithRetry } from './atomic-write.mjs';
 import { readCodexSelection, importCodexProfiles, withCodexProfileLocked } from './codex-selection.mjs';
-import { ensureWindowsPrivateDirectory, holdWindowsPrivatePath } from './codex-windows-private.mjs';
+import { ensureWindowsPrivateDirectory, holdWindowsPrivatePath, protectWindowsCodexLogin } from './codex-windows-private.mjs';
 
 export const CODEX_SHARE_PREFIX = 'ccdeck-codex-v1.';
 export const CODEX_SHARE_MAX_LENGTH = 512_000;
@@ -80,23 +80,30 @@ function requireFileStore(config) {
   }
 }
 
+async function requireFileStoreAt(home) {
+  let config = '';
+  try {
+    const file = join(home, 'config.toml');
+    if ((await lstat(file)).size > 128_000) fail('unsupported_auth');
+    config = await readFile(file, 'utf8');
+  } catch (error) { if (error.code !== 'ENOENT') throw error; }
+  requireFileStore(config);
+}
+
 async function readFileAuth(home, options) {
   const platform = options.platform ?? process.platform;
   let handle, guard;
   try {
     // A non-file store can leave a stale auth.json behind. Never export that
     // stale copy as if it were the actual native login. Unknown TOML is refused.
-    let config = '';
-    try {
-      const file = join(home, 'config.toml');
-      if ((await lstat(file)).size > 128_000) fail('unsupported_auth');
-      config = await readFile(file, 'utf8');
-    } catch (error) { if (error.code !== 'ENOENT') throw error; }
-    requireFileStore(config);
+    await requireFileStoreAt(home);
     const file = join(home, 'auth.json');
-    if (platform === 'win32') guard = await holdWindowsPrivatePath(file, { ...options, kind: 'file' });
     const before = await lstat(file);
     privateAuthFile(before, platform);
+    if (platform === 'win32') {
+      try { guard = await holdWindowsPrivatePath(file, { ...options, kind: 'file' }); }
+      catch { fail('windows_permissions_required'); }
+    }
     handle = await open(file, constants.O_RDONLY | (constants.O_NOFOLLOW ?? 0));
     const opened = await handle.stat();
     privateAuthFile(opened, platform);
@@ -110,18 +117,28 @@ async function readFileAuth(home, options) {
     if (guard && !guard.valid()) fail('file_auth_required');
     return chatgptAuth(JSON.parse(bytes.subarray(0, bytesRead).toString('utf8')));
   } catch (error) {
-    if (['file_auth_required', 'unsupported_auth'].includes(error.code)) throw error;
+    if (['file_auth_required', 'unsupported_auth', 'windows_permissions_required'].includes(error.code)) throw error;
     fail('file_auth_required');
   } finally { try { await handle?.close(); } finally { await guard?.release(); } }
 }
 
 /** Called only by explicit POST export, against opaque registered profile IDs. */
-export async function createCodexShare({ ids } = {}, options = {}) {
+export async function createCodexShare({ ids, preparePermissions = false } = {}, options = {}) {
   if (!Array.isArray(ids) || ids.length < 1 || ids.length > CODEX_SHARE_MAX_ACCOUNTS
     || new Set(ids).size !== ids.length || ids.some(id => typeof id !== 'string' || !/^[a-f0-9]{20}$/.test(id))) fail('invalid_profiles');
+  if (typeof preparePermissions !== 'boolean' || (preparePermissions && (options.platform ?? process.platform) !== 'win32')) fail('invalid_profiles');
   const selection = await readCodexSelection(options);
   const profiles = ids.map(id => selection.profiles.find(profile => profile.id === id));
   if (profiles.some(profile => !profile)) fail('unknown_profile');
+  if (preparePermissions) {
+    // The export and LAN paths never repair permissions implicitly. Check the
+    // credential store for the entire selection before this explicit action.
+    for (const profile of profiles) await requireFileStoreAt(profile.home);
+    for (const profile of profiles) {
+      try { await protectWindowsCodexLogin(profile.home, options); }
+      catch { fail('windows_share_protection_failed'); }
+    }
+  }
   const accounts = [];
   for (const profile of profiles) {
     const label = selection.profileLabels.find(entry => entry.id === profile.id)?.label ?? null;
