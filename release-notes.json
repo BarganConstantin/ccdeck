@@ -150,7 +150,7 @@
       "title": "Windows updates reach the copy you use",
       "body": "Global npm updates now target the active installation and confirm that newer files arrived before showing installed.",
       "priority": "highlight",
-      "noticeLabel": "Already stuck on an older version?",
+      "noticeLabel": "Already stuck?",
       "notice": "An older Windows installation already stuck at installed may need one manual update to receive this fix. For the desktop app, run the latest Windows installer. For npm, follow the Windows recovery steps in README, then restart ccdeck. Accounts and settings are kept."
     },
     {
