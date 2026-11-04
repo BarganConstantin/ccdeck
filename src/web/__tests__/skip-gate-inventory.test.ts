@@ -223,7 +223,12 @@ describe("the register of conditionally-skipped cases", () => {
     const always = gates().filter((g) => PLATFORMS.every((p) => !skipsOn(g, p)));
     // Nine since V4's Chat and Decision card: v4-screens-bundle.test.ts reads
     // the built entry chunk and stylesheets for any trace of them.
-    expect(always.reduce((n, g) => n + g.sites, 0)).toBe(9);
+    // CHANGED ON PURPOSE: ten since the desktop app carries the engine —
+    // desktop-engine-packaging.test.ts unpacks a real npm tarball with the
+    // system tar, behind a `!hasTar` probe that holds on no runner. This is the
+    // acknowledgement the comment above asks for, not a loosening: the new
+    // gate is held to "always runs" like the other nine.
+    expect(always.reduce((n, g) => n + g.sites, 0)).toBe(10);
     for (const g of always) for (const platform of PLATFORMS) expect(skipsOn(g, platform)).toBe(false);
 
     // The remaining probe sites are the read-only-directory ones, the only probe
