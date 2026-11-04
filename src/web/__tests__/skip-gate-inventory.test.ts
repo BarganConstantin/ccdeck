@@ -144,10 +144,10 @@ describe("the register of conditionally-skipped cases", () => {
     expect(Object.keys(CONDITIONS).sort()).toEqual([...new Set(gates().map((g) => g.condition))].sort());
   });
 
-  it("skips only the nine Windows-native Codex probes on Linux and macOS", () => {
-    const expected = { total: 9, byFile: {
+  it("skips only the ten Windows-native Codex probes on Linux and macOS", () => {
+    const expected = { total: 10, byFile: {
       "codex-live-credentials.test.ts": 2,
-      "codex-windows-private.test.ts": 5,
+      "codex-windows-private.test.ts": 6,
       "codex-share.test.ts": 1,
       "codex-windows-rpc.test.ts": 1,
     } };

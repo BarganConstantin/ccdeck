@@ -184,7 +184,9 @@ describe('live Codex credential reader (fictional JWTs and owned fake RPC only)'
   it.each(['apiKey', undefined])('requires explicit chatgpt auth_mode, received %s', async mode => {
     const f = await fixture();
     await writeFile(f.file, JSON.stringify({ ...f.credential, auth_mode: mode }));
-    await expect(readLiveCodexCredential(f.profileId, f.options)).rejects.toMatchObject({ code: 'unsupported_auth' });
+    if (process.platform === 'win32' && mode === undefined) {
+      expect((await readLiveCodexCredential(f.profileId, f.options)).email).toBe(EMAIL);
+    } else await expect(readLiveCodexCredential(f.profileId, f.options)).rejects.toMatchObject({ code: 'unsupported_auth' });
   });
   it('refuses an API key in the file even if its mode says chatgpt', async () => {
     const f = await fixture();
@@ -245,6 +247,28 @@ describe('live Codex credential reader (fictional JWTs and owned fake RPC only)'
   });
   it.skipIf(process.platform !== 'win32')('rejects oversized or nonregular Windows auth files and a file with public read access', async () => {
     const f = await fixture();
+    // Native homes can carry sandbox/admin ACLs. Snapshot the access material
+    // without modifying them; imported profiles still require private DACLs.
+    await promisify(execFile)(win32.join(process.env.SystemRoot!, 'System32', 'icacls.exe'), [f.home, '/grant', '*S-1-5-32-544:(OI)(CI)F'], { timeout: 5000, windowsHide: true });
+    const before = await readFile(f.file, 'utf8');
+    const credential = await readLiveCodexCredential(f.profileId, f.options);
+    expect(credential.email).toBe(EMAIL);
+    expect(credential).not.toHaveProperty('refreshToken');
+    expect(await readFile(f.file, 'utf8')).toBe(before);
+    const fileOnly = await fixture();
+    await promisify(execFile)(win32.join(process.env.SystemRoot!, 'System32', 'icacls.exe'), [fileOnly.file, '/grant', '*S-1-5-32-544:R'], { timeout: 5000, windowsHide: true });
+    expect((await readLiveCodexCredential(fileOnly.profileId, fileOnly.options)).email).toBe(EMAIL);
+    // A separate configured/imported home cannot use the native-home exception.
+    await writeFile(join(fileOnly.other, 'auth.json'), JSON.stringify(auth()));
+    await promisify(execFile)(win32.join(process.env.SystemRoot!, 'System32', 'icacls.exe'), [fileOnly.other, '/grant', '*S-1-5-32-544:(OI)(CI)F'], { timeout: 5000, windowsHide: true });
+    await expect(readLiveCodexCredential(await codexProfileId(fileOnly.other), fileOnly.options)).rejects.toMatchObject({ code: 'credential_file_unsafe' });
+    const mismatch = fakeRpc({ account: { type: 'chatgpt', email: 'other@example.invalid' } });
+    await expect(readLiveCodexCredential(f.profileId, { ...f.options, startRpc: mismatch.startRpc })).rejects.toMatchObject({ code: 'identity_mismatch' });
+    await writeFile(f.file, JSON.stringify({ ...f.credential, auth_mode: undefined }));
+    expect((await readLiveCodexCredential(f.profileId, f.options)).email).toBe(EMAIL);
+    await writeFile(f.file, JSON.stringify(auth(1)));
+    await expect(readLiveCodexCredential(f.profileId, f.options)).rejects.toMatchObject({ code: 'credential_expired' });
+    await writeFile(f.file, before);
     await writeFile(f.file, ' '.repeat(1024 * 1024 + 1));
     await expect(readLiveCodexCredential(f.profileId, f.options)).rejects.toMatchObject({ code: 'credential_file_unsafe' });
     await rm(f.file); await mkdir(f.file);

@@ -1,5 +1,5 @@
 param(
-  [ValidateSet('ensure','check','hold','protect-login')][string]$Operation,
+  [ValidateSet('ensure','check','hold','protect-login','snapshot-login')][string]$Operation,
   [Parameter(Mandatory=$true)][string]$TargetPath,
   [ValidateSet('directory','file','socket')][string]$Kind = 'directory'
 )
@@ -126,6 +126,47 @@ public static class CodexPrivatePath {
       return canonical;
     }
   }
+  // Explicit local import: the source may be shared with Codex's sandbox.
+  // Pin owner-controlled objects and read one immutable regular-file handle.
+  // Never alter source permissions and never export a refresh token.
+  public static string SnapshotLogin(string path) {
+    using (var directory = OpenForProtection(path, true)) {
+      Require(Owned(directory));
+      string canonical = Canonical(directory);
+      using (var file = OpenForProtection(Path.Combine(canonical, "auth.json"), false)) {
+        Require(Owned(file));
+        FileInfo info; Require(GetFileInformationByHandle(file, out info));
+        Require(info.SizeHigh == 0 && info.SizeLow <= 1048576);
+        using (var stream = new FileStream(file, FileAccess.Read)) {
+          var bytes = new byte[info.SizeLow];
+          int offset = 0;
+          while (offset < bytes.Length) { int n = stream.Read(bytes, offset, bytes.Length - offset); Require(n > 0); offset += n; }
+          return Encoding.UTF8.GetString(bytes);
+        }
+      }
+    }
+  }
+  static bool Owned(SafeFileHandle h) {
+    IntPtr owner, group, dacl, sacl, descriptor;
+    Require(GetSecurityInfo(h, 1, 5, out owner, out group, out dacl, out sacl, out descriptor) == 0);
+    try {
+      Require(owner != IntPtr.Zero && dacl != IntPtr.Zero);
+      var bytes = new byte[GetSecurityDescriptorLength(descriptor)];
+      Marshal.Copy(descriptor, bytes, 0, bytes.Length);
+      var sd = new RawSecurityDescriptor(bytes, 0);
+      Require(sd.DiscretionaryAcl != null && sd.DiscretionaryAcl.Count > 0);
+      foreach (GenericAce entry in sd.DiscretionaryAcl) {
+        var ace = entry as CommonAce;
+        Require(ace != null && !ace.IsCallback);
+        if (ace.AceQualifier == AceQualifier.AccessAllowed) {
+          string sid = ace.SecurityIdentifier.Value;
+          Require(sid != "S-1-1-0" && sid != "S-1-5-11" && sid != "S-1-5-32-545" && sid != "S-1-5-7");
+        }
+      }
+      return sd.Owner == WindowsIdentity.GetCurrent().User;
+    }
+    finally { if (descriptor != IntPtr.Zero) LocalFree(descriptor); }
+  }
   public static string SocketGeneration(string path) {
     // Node/libuv lstat returns EACCES on Windows AF_UNIX entries. Open only
     // reparse metadata, never follow a symlink/junction or read socket bytes.
@@ -154,7 +195,17 @@ public static class CodexPrivatePath {
   $guards = [System.Collections.Generic.List[System.IDisposable]]::new()
   try {
     $path = [IO.Path]::GetFullPath($TargetPath)
-    if ($Operation -eq 'protect-login') {
+  if ($Operation -eq 'snapshot-login') {
+    $auth = [CodexPrivatePath]::SnapshotLogin($TargetPath) | Microsoft.PowerShell.Utility\ConvertFrom-Json
+    if ($null -ne $auth.OPENAI_API_KEY -or $null -eq $auth.tokens) { throw 'unsafe' }
+    # Only the access/identity material needed by the live daemon crosses this
+    # pipe. Native Codex remains the sole owner of refresh-token rotation.
+    $safe = @{ auth_mode = $auth.auth_mode; OPENAI_API_KEY = $null; tokens = @{
+      access_token = $auth.tokens.access_token; id_token = $auth.tokens.id_token; account_id = $auth.tokens.account_id
+    } }
+    [Console]::Out.WriteLine(($safe | Microsoft.PowerShell.Utility\ConvertTo-Json -Depth 4 -Compress))
+    exit 0
+  } elseif ($Operation -eq 'protect-login') {
       if ($Kind -ne 'directory') { throw 'unsafe' }
       $null = [CodexPrivatePath]::ProtectLogin($path)
     }

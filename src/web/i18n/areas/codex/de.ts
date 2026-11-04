@@ -86,6 +86,7 @@ const catalog: Catalog = {
   "codex.panel.switchConflict": "Eine andere Änderung hat das Standardkonto gerade verschoben. Versuche es erneut.",
   "codex.panel.switchFailed": "Der Wechsel hat nicht geklappt. Lade neu und versuche es erneut.",
   "codex.panel.liveSwitchFailed": "Standardkonto gespeichert, aber die geöffnete Codex-App konnte nicht wechseln. Prüfe ihr Konto mit /status.",
+  "codex.panel.liveSwitchPrivateLogin": "Standard gespeichert, aber der Anmeldeordner ist f?r den Kontowechsel in der offenen Codex-App nicht privat genug. Melde dieses Konto ?ber + in einem separaten Profil an. Behalte die bestehenden Codex-Sandbox-Berechtigungen bei.",
   "codex.panel.removed": "Konto entfernt. Anmeldung und Verlauf wurden im Datenordner von ccdeck beiseitegelegt, aber nicht gelöscht.",
   "codex.panel.removeFailed": "Das Konto konnte nicht entfernt werden. Lade neu und versuche es erneut.",
   "codex.panel.badName": "Ein Name darf keinen Schrägstrich enthalten.",

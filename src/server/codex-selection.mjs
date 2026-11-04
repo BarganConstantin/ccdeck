@@ -261,7 +261,10 @@ export async function addCodexProfile({ label = null, operationId: operation } =
     await mkdir(root, { recursive: true, mode: 0o700 });
     if (!(await lstat(root)).isDirectory()) fail('registry_corrupt');
     const home = join(root, randomBytes(16).toString('hex'));
-    await mkdir(home, { mode: 0o700 });
+    if ((options.platform ?? process.platform) === 'win32') {
+      const { ensureWindowsPrivateDirectory } = await import('./codex-windows-private.mjs');
+      await ensureWindowsPrivateDirectory(home);
+    } else await mkdir(home, { mode: 0o700 });
     try {
       const id = await codexProfileId(home);
       state.profiles.push({ id, home, label, managed: true });
