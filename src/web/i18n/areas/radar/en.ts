@@ -86,7 +86,7 @@ const catalog: Catalog = {
   "radar.cfg.destinations.other": "{count} configured destinations",
   "radar.cfg.noDestination": "No destination found in the settings files read. Telemetry may still be running.",
   "radar.cfg.observed": "Claude connections observed",
-  "radar.cfg.observedNote": "These are active connections, not confirmed telemetry messages. Radar watches them while no settings file names a destination, and Monitor shows what they send.",
+  "radar.cfg.observedNote": "These are active connections, not confirmed telemetry messages. While no settings file names a destination, Radar watches only IPv4 connections on port 4317, where OpenTelemetry collectors listen, and Monitor shows what they send.",
   "radar.cfg.readFailed": "Could not read settings. Sampling will retry.",
   "radar.cfg.readingLocal": "Reading local settings…",
 

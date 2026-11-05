@@ -86,7 +86,7 @@ const catalog: Catalog = {
   "radar.cfg.destinations.other": "已配置 {count} 个目的地",
   "radar.cfg.noDestination": "在读取的设置文件中未找到目的地。遥测数据仍可能在发送。",
   "radar.cfg.observed": "已观察到 Claude 连接",
-  "radar.cfg.observedNote": "这些是活动连接，并非已确认的遥测消息。在没有设置文件指定目的地时，Radar 会监视这些连接，“监控”则显示它们发送的内容。",
+  "radar.cfg.observedNote": "这些是活动连接，并非已确认的遥测消息。在没有设置文件指定目的地时，Radar 只监视通往 4317 端口（OpenTelemetry 收集器监听的端口）的 IPv4 连接，“监控”则显示它们发送的内容。",
   "radar.cfg.readFailed": "无法读取设置。将重新采样。",
   "radar.cfg.readingLocal": "正在读取本地设置…",
 

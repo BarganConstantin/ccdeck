@@ -86,7 +86,7 @@ const catalog: Catalog = {
   "radar.cfg.destinations.other": "{count} destinations configurées",
   "radar.cfg.noDestination": "Aucune destination dans les fichiers de paramètres lus. La télémétrie peut tout de même être active.",
   "radar.cfg.observed": "Connexions de Claude observées",
-  "radar.cfg.observedNote": "Ce sont des connexions actives, pas des messages de télémétrie confirmés. Le Radar les surveille tant qu’aucun fichier de paramètres ne nomme de destination, et Surveillance montre ce qu’elles envoient.",
+  "radar.cfg.observedNote": "Ce sont des connexions actives, pas des messages de télémétrie confirmés. Tant qu’aucun fichier de paramètres ne nomme de destination, le Radar ne surveille que les connexions IPv4 vers le port 4317, où écoutent les collecteurs OpenTelemetry, et Surveillance montre ce qu’elles envoient.",
   "radar.cfg.readFailed": "Lecture des paramètres impossible. L’échantillonnage réessaiera.",
   "radar.cfg.readingLocal": "Lecture des paramètres locaux…",
 
