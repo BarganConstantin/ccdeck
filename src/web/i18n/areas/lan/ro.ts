@@ -2,6 +2,11 @@
 import type { Catalog } from "../../catalogs";
 
 const catalog: Catalog = {
+  "lan.round.exportFailed.short": "exportul a eșuat pe calculatorul sursă",
+  "lan.round.exportFailed.long": "Deschide Partajează pentru acest cont pe calculatorul sursă ca să vezi cauza refuzului.",
+  "lan.round.permissions.short": "permisiunile Windows blochează partajarea acolo",
+  "lan.round.permissions.long": "Pe calculatorul Windows sursă, deschide Partajează pentru contul Codex, generează un cod și alege Securizează și partajează.",
+
   "lan.checking": "se verifică…",
   "lan.starting": "pornește…",
   "lan.online": "online",

@@ -1,4 +1,4 @@
-// Copied with exec-spec.mjs into the durable terminal integration directory.
+// Copied with its engine dependencies into the durable terminal integration directory.
 // No dependency on an npx cache, running server, or OAuth credential store.
 import { readFile, realpath, stat } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
@@ -39,6 +39,43 @@ export async function terminalCodexHome(file, env = process.env) {
 
 export async function runSelectedCodex(file, executable, args, { env = process.env } = {}) {
   const home = await terminalCodexHome(file, env);
+  // Explicit account pins and ordinary interactive/utility commands retain the
+  // existing path. Only supervised exec JSON sessions opt into continuation.
+  if (home && !env.CODEX_HOME?.trim()) {
+    const { createCodexEngineAdapter } = await import('./codex-engine-adapter.mjs');
+    if (process.stdin.isTTY && process.stdout.isTTY) {
+      const { codexInteractiveInvocation, supportsCodexInteractiveEngine, runInteractiveCodex } = await import('./codex-interactive-engine.mjs');
+      const policy = createCodexEngineAdapter(file, executable, ['exec', '--json'], home, { env });
+      if (codexInteractiveInvocation(args) && !(await policy.settings()).custom && await supportsCodexInteractiveEngine(executable, env)) {
+        return runInteractiveCodex(file, executable, args, home, { env });
+      }
+    }
+    const adapter = createCodexEngineAdapter(file, executable, args, home, { env });
+    if (adapter && (await adapter.settings()).enabled) {
+      const { runAccountEngine } = await import('./account-engine.mjs');
+      const controller = new AbortController();
+      const cancel = () => controller.abort();
+      process.on('SIGINT', cancel);
+      process.on('SIGTERM', cancel);
+      process.on('SIGHUP', cancel);
+      try {
+        const id = createHash('sha256').update(await realpath(home)).digest('hex').slice(0, 20);
+        const result = await runAccountEngine(adapter, { id, home, args, threadId: adapter.invocation.threadId }, {
+          signal: controller.signal,
+          onSwitch: () => process.stderr.write('ccdeck: continuing this Codex conversation on another account.\n'),
+        });
+        if (result.code !== 0 && ['handoff_failed', 'no_account_with_room', 'thread_changed', 'attempt_limit'].includes(result.reason)) {
+          process.stderr.write(`ccdeck: automatic continuation stopped (${result.reason}); reopen this conversation manually.\n`);
+        }
+        return result;
+      } finally {
+        await adapter.close();
+        process.removeListener('SIGINT', cancel);
+        process.removeListener('SIGTERM', cancel);
+        process.removeListener('SIGHUP', cancel);
+      }
+    }
+  }
   const spec = spawnSpec(executable, args);
   const child = spawn(spec.file, spec.args, { ...spec.opts, stdio: 'inherit', env: home ? { ...env, CODEX_HOME: home } : env });
   // Terminal Ctrl+C already reaches both processes. Keep the wrapper alive

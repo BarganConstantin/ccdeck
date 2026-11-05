@@ -43,7 +43,30 @@ export async function handleCodexProfiles(_req, res) {
   const { discoverCodexProfiles } = await import('./codex-profiles.mjs');
   const { readCodexSelection } = await import('./codex-selection.mjs');
   const selection = await readCodexSelection();
-  send(res, 200, { profiles: await discoverCodexProfiles({ selection, enableNative: true }), revision: selection.revision });
+  const { codexLiveAccountStatus } = await import('./codex-live-engine.mjs');
+  send(res, 200, { profiles: await discoverCodexProfiles({ selection, enableNative: true }), revision: selection.revision, live: codexLiveAccountStatus() });
+}
+
+/** Manual credential transfer is POST-only and behind the global mutation
+ * gate. All failures are fixed codes: no auth, blob, native stderr or paths
+ * can reach the generic request logger/reporting path. */
+export async function handleCodexAccountShare(req, res, action) {
+  try {
+    const { createCodexShare, importCodexShare, CODEX_SHARE_MAX_LENGTH } = await import('./codex-share.mjs');
+    const raw = await readBody(req, res, CODEX_SHARE_MAX_LENGTH + 4096).catch(() => null);
+    let body;
+    try { body = JSON.parse(raw ?? ''); } catch { return send(res, 400, { ok: false, reason: 'bad_request' }); }
+    const allowed = action === 'export' ? ['ids', 'preparePermissions'] : ['blob', 'expectedRevision'];
+    if (!body || typeof body !== 'object' || Array.isArray(body) || Object.keys(body).some(key => !allowed.includes(key))) {
+      return send(res, 400, { ok: false, reason: 'bad_request' });
+    }
+    const result = await (action === 'export' ? createCodexShare(body) : importCodexShare(body));
+    send(res, 200, result);
+  } catch (error) {
+    const safe = new Set(['invalid_profiles', 'unknown_profile', 'file_auth_required', 'unsupported_auth', 'share_too_large', 'invalid_share', 'invalid_revision', 'selection_conflict', 'selection_busy', 'registry_corrupt', 'registry_write_failed', 'profile_unavailable', 'import_write_failed', 'windows_permissions_failed', 'windows_permissions_required', 'windows_share_protection_failed']);
+    const reason = safe.has(error?.code) ? error.code : 'share_failed';
+    send(res, ['selection_conflict', 'selection_busy'].includes(reason) ? 409 : reason === 'unknown_profile' ? 404 : 400, { ok: false, reason });
+  }
 }
 
 export async function handleCodexProfileMutation(req, res, action) {
@@ -57,13 +80,18 @@ export async function handleCodexProfileMutation(req, res, action) {
   // that is about to be moved away: stop it first, so nothing lands there.
   if (action === 'remove' && typeof body.id === 'string') (await import('./codex-login.mjs')).cancelCodexLogin(body.id);
   try {
-    const result = action === 'select' ? await selectCodexProfile(body)
+    const result = action === 'select' ? await selectCodexProfile({ ...body, switchRunning: true })
       : action === 'remove' ? await removeCodexProfile(body)
       : action === 'replace' ? await replaceCodexLogin(body)
       : action === 'rename' ? await renameCodexProfile(body) : await addCodexProfile(body);
+    let live;
+    if (action === 'select') {
+      try { live = await (await import('./codex-live-engine.mjs')).requestCodexLiveAccount(result.runningSelection); }
+      catch { live = { state: 'failed', reason: 'live_switch_failed', profileId: null }; }
+    }
     // Registry paths are local implementation details; only explicit command
     // requests below return a home as part of a copyable terminal command.
-    send(res, 200, { ok: true, id: result.id ?? result.profileId, revision: result.revision, status: result.status });
+    send(res, 200, { ok: true, id: result.id ?? result.profileId, revision: result.revision, status: result.status, ...(live ? { live } : {}) });
   } catch (error) {
     const reason = error?.code ?? 'operation_failed';
     const conflicts = ['selection_conflict', 'operation_conflict', 'selection_busy'];
@@ -126,6 +154,24 @@ export async function handleCodexProfileQuota(req, res) {
   const { readCodexProfileQuota } = await import('./codex-profiles.mjs');
   const id = new URL(req.url, 'http://localhost').searchParams.get('id');
   send(res, 200, await readCodexProfileQuota(id, { enableNative: true }));
+}
+
+/** One Codex profile's Projects report (codex-projects.mjs): the Claude report's
+ *  shape, for the same dialog. `days` is clamped as handleAccountProjects clamps
+ *  it. The id is validated here and resolved to a home only against the trusted
+ *  roster; the answer carries no home path and no account id. */
+export async function handleCodexProfileProjects(req, res) {
+  const url = new URL(req.url, 'http://localhost');
+  const id = url.searchParams.get('id');
+  // A missing `days` is 7, not 0: Number(null) is 0, which would read as "all".
+  const raw = url.searchParams.get('days');
+  const d = raw === null || raw === '' ? NaN : Number(raw);
+  const days = d === 1 ? 1 : d === 30 ? 30 : d === 0 ? 0 : 7;
+  const { idPattern } = await import('./codex-selection.mjs');
+  if (typeof id !== 'string' || !idPattern.test(id)) return send(res, 400, { ok: false, reason: 'bad_profile' });
+  const { codexProjectsReport } = await import('./codex-projects.mjs');
+  const report = await codexProjectsReport({ id, days });
+  send(res, report.ok ? 200 : 404, report);
 }
 
 export async function handleCodexProfileLaunch(req, res) {

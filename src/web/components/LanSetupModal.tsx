@@ -64,13 +64,14 @@
 // under the switch's own label. The heading already says Tailscale, so the
 // labels do not say it again.
 import Checkbox from "./Checkbox";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Dialog, DialogClose } from "./Dialog";
 import { useModalDismiss, useScrimDismiss } from "./use-modal-dismiss";
 import { useFocusRescue } from "./use-focus-rescue";
 import { pressState } from "../panel-press";
 import { nextShared, settlePending } from "../lan-share";
+import { lanKindHeads } from "../account-lan";
 import { writeFailure } from "../use-lan-section";
 import { refusalLine, type SettingsLine } from "../settings-give-back";
 import { SettingsFailureLine } from "./SettingsFailureLine";
@@ -220,6 +221,9 @@ export default function LanSetupModal({ status, accounts, onClose, onChanged }: 
   };
 
   const shared = new Set(pending.current ?? status.shared ?? []);
+  // Claude's logins and Codex's in one list, each kind under its name when
+  // there are both (see .ap-lan-group). The caller lists Claude's first.
+  const heads = lanKindHeads(accounts);
   // Absent means on: a deck that has not written prefs since this shipped is a
   // deck with the defaults, and reading a missing key as `off` would draw the
   // switches against what the engine is actually doing.
@@ -310,8 +314,12 @@ export default function LanSetupModal({ status, accounts, onClose, onChanged }: 
                   {t("lan.setup.shareNone")}
                 </span>
               )}
-              {accounts.map(a => (
-                <label key={a.key} className="ap-lan-pick" title={!a.alive
+              {accounts.map((a, i) => (
+                <Fragment key={a.key}>
+                {/* Each kind under its own name, on a deck that has both — one
+                    address can be an account of each. See .ap-lan-group. */}
+                {heads[i] && <span className="ap-lan-group">{heads[i]}</span>}
+                <label className="ap-lan-pick" title={!a.alive
                   ? t("lan.setup.shareDead")
                   // The one this deck is on heals nobody while it is (#2192).
                   : a.inUse
@@ -343,6 +351,7 @@ export default function LanSetupModal({ status, accounts, onClose, onChanged }: 
                       is sent either way, and the row says nothing, as before. */}
                   {a.alive && a.inUse && shared.has(a.key) && <span className="ap-lan-dead">{t("lan.setup.inUseNotSent")}</span>}
                 </label>
+                </Fragment>
               ))}
             </div>
             {/* WHICH OF THESE THIS DECK IS ON, told to the decks it is paired

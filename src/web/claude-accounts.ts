@@ -126,4 +126,7 @@ export interface AutoStatus {
   /** Codex only: the profiles held out of rotation. Claude's roster carries it
    *  per account, as `disabled`. */
   heldOut?: string[];
+  /** Codex only: the home profile's id. Claude's home is `choice.home`, an
+   *  email and an organization. */
+  homeId?: string | null;
 }

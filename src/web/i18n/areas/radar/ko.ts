@@ -456,8 +456,6 @@ const catalog: Catalog = {
 
   // Account rows (org-telemetry.ts)
   "radar.org.who": "이 계정의 조직",
-  "radar.org.whoPossessive": "해당 조직의 텔레메트리",
-  "radar.org.named": "{org}의 텔레메트리",
   "radar.org.and": "{list} 및 {last}",
   "radar.org.sep": ", ",
   "radar.org.word.prompts": "프롬프트",
@@ -471,9 +469,6 @@ const catalog: Catalog = {
   "radar.org.collector": "해당 수집기",
   "radar.org.detail": "{who}은(는) 새 세션에서 Claude Code 텔레메트리를 켭니다. {what}을(를) {where}(으)로 보냅니다. 이 계정이 활성 상태였을 때 {ago}에 확인되었습니다.",
   "radar.org.holdOut": " 자동 전환 대상에서 제외하려면 ⋯ 메뉴에서 순환에서 제외를 선택하세요.",
-  "radar.org.switchedWhat": "내 {words}",
-  "radar.org.switchedTo": " {list}(으)로",
-  "radar.org.switched": "{who}이(가) 켜 놓았습니다. {what}을(를){where} 보냅니다.",
   "radar.srv.ipv4": "IPv4 주소와 TCP 포트를 선택하세요.",
   "radar.srv.platform": "실시간 캡처는 macOS, Linux, Windows에서 사용할 수 있습니다.",
   "radar.srv.destCount": "대상을 1개에서 8개 사이로 선택하세요.",

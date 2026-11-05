@@ -168,7 +168,7 @@ async function handleUpgrade(_req, res) {
   // has finished booting this settled long ago; it only waits for a press that
   // lands in the first moments of a boot, or on a server nothing marked ready.
   await pinRunningBuild();
-  const out = startUpgrade({ pkgRoot: PKG_ROOT });
+  const out = startUpgrade({ pkgRoot: PKG_ROOT, running: RUNNING_VERSION });
   if (out.ok) selfUpdateStarted();
   send(res, out.ok ? 200 : 409, out);
 }
@@ -448,7 +448,7 @@ async function awayUpdateTick() {
     // Pinned before npm is spawned, never after it — see pinned-build.mjs. On a
     // deck bin/deck.js has marked ready this is a promise that settled long ago.
     await pinRunningBuild();
-    const started = su.startUpgrade({ pkgRoot: PKG_ROOT });
+    const started = su.startUpgrade({ pkgRoot: PKG_ROOT, running: RUNNING_VERSION });
     if (started?.ok) selfUpdateStarted();
     return step.act;
   }

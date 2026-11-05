@@ -421,6 +421,15 @@ describe("one sheet at a time, closed by Esc or a flick", () => {
     expect(squash(phoneOf(detail))).not.toContain("--sheet-bottom");
   });
 
+  it("the Accounts sheet gives its header and roster the sheet's full width, the column keeps its right-edge packing", () => {
+    // In the column the panel packs its children to the right edge; on the
+    // sheet that left the Claude | Codex switch and a short Codex roster
+    // hanging off the right, an empty band at the left.
+    const css = strip(read("styles/phone-sheet.css"));
+    expect(squash(phoneOf(css))).toContain(squash(".app.app.app .accounts-panel { align-items: stretch; }"));
+    expect(squash(strip(read("styles/accounts-panel.css")))).toMatch(/\.accounts-panel\{[^}]*align-items:flex-end;/);
+  });
+
   it("every header of a sheet is part of the grab zone, the Accounts one too", () => {
     const css = strip(read("styles/phone-sheet.css"));
     expect(css).toContain(".up-header, .sd-top, .insp-h, .ap-header { touch-action: none; }");

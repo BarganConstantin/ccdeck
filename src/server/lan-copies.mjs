@@ -277,7 +277,7 @@ export const SENDER_UNREADABLE = "keychain_unavailable";
  *  "refused". "in use" is the sending deck being on that login itself (#2192);
  *  a deck older than that records it as "refused", which is all it proves. */
 export const IN_USE = "in use";
-const WIRE_REFUSALS = new Set(["proof", "not shared", "not mine to give", "export failed", SENDER_UNREADABLE, IN_USE, "error"]);
+const WIRE_REFUSALS = new Set(["proof", "not shared", "not mine to give", "export failed", "windows_permissions_required", SENDER_UNREADABLE, IN_USE, "error"]);
 
 /**
  * A peer's refusal, as this deck records it. The panel prints these, so a peer

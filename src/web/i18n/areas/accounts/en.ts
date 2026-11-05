@@ -463,7 +463,6 @@ const catalog: Catalog = {
   "accounts.row.reauthTip": "Open the sign-in dialog. Signing in as this account replaces its expired login in place — it keeps its slot, its alias and its history.",
   "accounts.row.dismissLabel": "Dismiss this message",
   "accounts.row.dismiss": "Dismiss",
-  "accounts.row.nowActive": "Now active. New sessions start on it; ones already running pick it up on their next message, up to about 30 seconds later on macOS.",
   "accounts.row.whoWasThere": "the account that was there",
   "accounts.row.swapTitle": "Slot {at} was taken, so the two accounts traded places: {who} now holds slot {displaced}.",
   "accounts.row.swapped": "swapped with slot {n}",

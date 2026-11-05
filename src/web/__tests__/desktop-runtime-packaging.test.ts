@@ -53,7 +53,14 @@ describe("the desktop hosted server's runtime packages", () => {
     for (const entry of runtimeResources(repo)) {
       const { name, version, license } = JSON.parse(readFileSync(join(entry.from, "package.json"), "utf8"));
       expect(notices).toContain(`| \`${name}\` | ${version} | ${license} |`);
-      expect(readFileSync(join(entry.from, "LICENSE"), "utf8")).toContain("Apache License");
+      const text = readFileSync(join(entry.from, "LICENSE"), "utf8");
+      if (license === "Apache-2.0") expect(text).toContain("Apache License");
+      else {
+        expect(license).toBe("MIT");
+        expect(text).toContain("Permission is hereby granted, free of charge");
+        expect(text).toContain('THE SOFTWARE IS PROVIDED "AS IS"');
+        expect(text).toContain("Copyright");
+      }
     }
   });
 

@@ -64,6 +64,11 @@ const PINNED_MODULES = [
   "codex-terminal.mjs",
   "codex-native-account.mjs",
   "codex-auto.mjs",
+  "codex-profiles.mjs", "codex-selection.mjs", "codex-live-engine.mjs",
+  "codex-share.mjs", "codex-login.mjs",
+  // The Codex profile Projects report, reached only through import() from its
+  // route (it imports account-projects.mjs, pinned below, for the day rule).
+  "codex-projects.mjs",
   "ccusage.mjs",
   "browser-watch.mjs",
   "browser-watch-store.mjs",

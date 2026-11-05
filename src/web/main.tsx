@@ -3,6 +3,7 @@ import App from "./App";
 import { pruneStaleState } from "./storage";
 import { installInputModality } from "./input-modality";
 import { applyDocumentLanguage } from "./i18n";
+import { startLanguageReport } from "./report-language";
 import "reactflow/dist/style.css";
 import "./styles.css";
 
@@ -13,6 +14,8 @@ try { pruneStaleState(window.localStorage); } catch { /* private mode */ }
 
 // <html lang> and <html dir> follow the chosen (or detected) language from the first frame.
 applyDocumentLanguage();
+// The server keeps the language for the usage reports; best effort, silent.
+startLanguageReport();
 
 const root = createRoot(document.getElementById("root")!);
 if (window.ccdeckWindow) {

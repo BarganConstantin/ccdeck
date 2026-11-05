@@ -73,9 +73,11 @@ describe("the deck's modals", () => {
     // sheet on phones. The thirtieth is a connected tracker's panel — Jira's
     // backlog and its issues — opened from its stripe control or I (#2178).
     // Explore integrations follows every shared dialog assertion below.
-    // Thirty-one of them draw `<Dialog` and the radio draws `<DialogScrim`.
-    expect(MODALS.length).toBe(32);
-    expect(ON_SURFACE.length).toBe(31);
+    // The thirty-third is the Codex share dialog, development's twin of the
+    // Claude share picker, on the same shell since the 3.81 sync.
+    // Thirty-two of them draw `<Dialog` and the radio draws `<DialogScrim`.
+    expect(MODALS.length).toBe(33);
+    expect(ON_SURFACE.length).toBe(32);
     expect(MODALS.filter(f => !ON_SURFACE.includes(f))).toEqual(["RadioExperience.tsx"]);
   });
 

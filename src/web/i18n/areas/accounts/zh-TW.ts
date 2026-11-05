@@ -463,7 +463,6 @@ const catalog: Catalog = {
   "accounts.row.reauthTip": "開啟登入視窗。以此帳號登入會直接取代其已過期的登入，並保留位置、別名與歷史記錄。",
   "accounts.row.dismissLabel": "忽略此訊息",
   "accounts.row.dismiss": "忽略",
-  "accounts.row.nowActive": "已切換為使用中。新的工作階段會使用它；執行中的工作階段會在下一則訊息時改用，在 macOS 上最多約晚 30 秒。",
   "accounts.row.whoWasThere": "原本在那裡的帳號",
   "accounts.row.swapTitle": "位置 {at} 已被佔用，兩個帳號因此互換：{who} 現在位於位置 {displaced}。",
   "accounts.row.swapped": "已與位置 {n} 對調",

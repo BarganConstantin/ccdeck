@@ -1,0 +1,300 @@
+// Quiesce model responses before native auth invalidates their network permits.
+// Never answer approvals, widen permissions, or resume a naturally finished turn.
+import { randomUUID } from 'node:crypto';
+import { liveError } from './codex-live-rpc.mjs';
+
+const passive = new Set(['userMessage', 'hookPrompt', 'agentMessage', 'functionCallOutput', 'plan', 'reasoning']);
+const terminal = new Set(['completed', 'failed', 'declined']);
+const tool = item => !passive.has(item.type);
+const completed = item => item.status !== 'inProgress' && (terminal.has(item.status)
+  || Number.isFinite(item.completedAtMs) && item.completedAtMs > 0);
+const v2Child = thread => thread.canAcceptDirectInput === false && !!thread.parentThreadId
+  && thread.source?.subAgent?.thread_spawn?.parent_thread_id === thread.parentThreadId
+  && typeof thread.source.subAgent.thread_spawn.agent_path === 'string'
+  && thread.source.subAgent.thread_spawn.agent_path.startsWith('/root/');
+function ancestors(thread, known) {
+  const seen = new Set([thread.id]), parents = [];
+  for (let id = thread.parentThreadId; id; id = known.get(id)?.parentThreadId) {
+    if (seen.has(id) || !known.has(id)) throw liveError('native_activity_unknown');
+    seen.add(id); parents.push(id);
+  }
+  return parents;
+}
+// Waiting for a known descendant has no side effect. Spawn/input/close and
+// every real tool must finish before we pause any member of the family.
+const childWait = (item, thread, known) => item.type === 'collabAgentToolCall'
+  && item.tool === 'wait' && item.status === 'inProgress' && item.senderThreadId === thread.id
+  && Array.isArray(item.receiverThreadIds) && (item.receiverThreadIds.length > 0
+    ? item.receiverThreadIds.every(id => known.has(id) && ancestors(known.get(id), known).includes(thread.id))
+    : [...known.values()].some(t => v2Child(t) && ancestors(t, known).includes(thread.id)));
+const safe = (turn, thread, known) => turn?.itemsView === 'full' && Array.isArray(turn?.items)
+  && (turn.items.some(i => i.type === 'userMessage') || v2Child(thread))
+  && turn.items.every(i => passive.has(i.type) || completed(i) || childWait(i, thread, known));
+const inputIds = turn => turn.items.filter(i => i.type === 'userMessage').map(i => i.id);
+const sameInputs = (a, b) => JSON.stringify(inputIds(a)) === JSON.stringify(inputIds(b));
+const retained = new WeakMap();
+
+/** Keep this connection's observations attached until a cooperative handoff
+ * finishes. Native idle unloading otherwise loses direct-input capabilities
+ * between a completed checkpoint and its continuation. Never starts a turn.
+ */
+export async function retainCodexLiveHandoff(rpc, entries) {
+  const counts = retained.get(rpc) ?? new Map(); retained.set(rpc, counts);
+  const held = [];
+  let released = false;
+  const release = async () => {
+    if (released) return;
+    released = true;
+    for (const id of held.reverse()) {
+      const count = (counts.get(id) ?? 1) - 1;
+      if (count) counts.set(id, count);
+      else { counts.delete(id); await rpc.request('thread/unsubscribe', { threadId: id }).catch(() => {}); }
+    }
+    if (!counts.size) retained.delete(rpc);
+  };
+  try {
+    for (const entry of entries) {
+      const valid = t => t?.id === entry.threadId && (t.parentThreadId ?? null) === (entry.parentThreadId ?? null)
+        && ['active', 'idle'].includes(t.status?.type);
+      if (!valid((await rpc.request('thread/read', { threadId: entry.threadId, includeTurns: false }))?.thread)) throw liveError('native_activity_changed');
+      held.push(entry.threadId); counts.set(entry.threadId, (counts.get(entry.threadId) ?? 0) + 1);
+      const t = (await rpc.request('thread/resume', { threadId: entry.threadId, excludeTurns: true }))?.thread;
+      if (!valid(t)) throw liveError('native_activity_changed');
+    }
+    return release;
+  } catch (error) { await release(); throw error; }
+}
+
+async function latest(rpc, threadId) {
+  const page = await rpc.request('thread/turns/list', { threadId, limit: 1, sortDirection: 'desc', itemsView: 'full' });
+  if (!Array.isArray(page?.data)) throw liveError('native_activity_unknown');
+  return page.data[0] ?? null;
+}
+async function liveLatest(rpc, thread) {
+  if (thread.historyMode !== 'paginated') return latest(rpc, thread.id);
+  // Stored paginated history omits tool-start events. Native resume composes a
+  // live snapshot in its listener before subscribing this connection. Request
+  // one full turn, apply no settings, ignore replayed requests, then detach.
+  try {
+    const result = await rpc.request('thread/resume', { threadId: thread.id, excludeTurns: true,
+      initialTurnsPage: { limit: 1, sortDirection: 'desc', itemsView: 'full' } });
+    const page = result?.initialTurnsPage;
+    if (!Array.isArray(page?.data)) throw liveError('native_activity_unknown');
+    return page.data[0] ?? null;
+  } finally {
+    if (!retained.get(rpc)?.has(thread.id)) await rpc.request('thread/unsubscribe', { threadId: thread.id }).catch(() => {});
+  }
+}
+export const readCodexLiveTurn = (rpc, thread) => thread.status?.type === 'active' ? liveLatest(rpc, thread) : latest(rpc, thread.id);
+async function snapshot(rpc) {
+  const page = await rpc.request('thread/loaded/list', { limit: 65 });
+  if (!Array.isArray(page?.data) || page.data.length > 64 || page.nextCursor) throw liveError('native_activity_unknown');
+  const threads = [], known = new Map();
+  for (const id of page.data) {
+    if (typeof id !== 'string') throw liveError('native_activity_unknown');
+    const result = await rpc.request('thread/read', { threadId: id, includeTurns: false });
+    const t = result?.thread;
+    if (!t || t.id !== id || !['idle', 'systemError', 'active', 'notLoaded'].includes(t.status?.type)) throw liveError('native_activity_unknown');
+    known.set(id, t);
+    // Ephemeral native jobs have no stored turn-history API. Never interrupt
+    // them or attempt to reconstruct their history; wait until twice idle.
+    if (t.ephemeral === true) {
+      if (t.status.type === 'idle') {
+        const again = (await rpc.request('thread/read', { threadId: id, includeTurns: false }))?.thread;
+        if (again?.id !== id) throw liveError('native_activity_unknown');
+        if (again.ephemeral === true && again.status?.type === 'idle') continue;
+      }
+      threads.push({ id, active: false, turn: null }); continue;
+    }
+    let turn;
+    try { turn = t.status.type === 'active' ? await liveLatest(rpc, t) : await latest(rpc, id); }
+    catch (error) {
+      // A newly opened blank native conversation has no stored turn page yet.
+      // Only this exact native error and a second idle observation establish
+      // that it has no work to hand off. Other rejected reads still fail closed.
+      if (t.status.type !== 'idle' || error.code !== 'native_thread_not_materialized') throw error;
+      const again = (await rpc.request('thread/read', { threadId: id, includeTurns: false }))?.thread;
+      if (again?.id !== id) throw liveError('native_activity_unknown');
+      if (again.status?.type === 'idle') continue;
+      threads.push({ id, active: false, turn: null });
+      continue;
+    }
+    if (t.status.type === 'active' || turn?.status === 'inProgress' || turn?.items?.some(i => i.status === 'inProgress')) threads.push({ id,
+      active: t.status.type === 'active',
+      thread: t, flags: t.status.activeFlags, turn });
+  }
+  return { threads, known };
+}
+
+/** A waiting result sends no interrupt and no authentication mutation. */
+export async function prepareCodexLiveHandoff(rpc, options = {}) {
+  const isCurrent = options.isCurrent ?? (() => true);
+  const paused = [];
+  const { threads: initial, known } = await snapshot(rpc);
+  const routes = new Map();
+  for (const t of initial) {
+    if (!t.thread || !v2Child(t.thread)) continue;
+    const owner = ancestors(t.thread, known).map(id => initial.find(p => p.id === id))
+      .find(p => p?.thread.canAcceptDirectInput === true);
+    if (owner && (owner.turn?.rootTurnId ?? owner.turn?.id) === (t.turn?.rootTurnId ?? t.turn?.id)) routes.set(t.id, owner.id);
+  }
+  for (const t of known.values()) {
+    if (!v2Child(t)) continue;
+    const owner = ancestors(t, known).find(id => initial.some(p => p.id === id && p.thread?.canAcceptDirectInput === true));
+    // Even an idle V2 child identifies a parent whose current internal send or
+    // followup may be absent from the item feed. Wait for inspectable active
+    // child work (then checkpoint it), or for the parent to finish naturally.
+    if (owner && ![...routes.values()].includes(owner)) return { waiting: true, paused };
+  }
+  const cooperative = new Set([...routes.keys(), ...routes.values()]);
+  if (initial.some(t => !t.active || t.thread?.canAcceptDirectInput === false && !routes.has(t.id)
+    || t.thread?.parentThreadId && t.thread.canAcceptDirectInput !== true && !routes.has(t.id)
+    || !Array.isArray(t.flags) || t.flags.length || t.turn?.status !== 'inProgress'
+    || (cooperative.has(t.id) ? t.turn.itemsView !== 'full' || !Array.isArray(t.turn.items)
+      || !routes.has(t.id) && !t.turn.items.some(i => i.type === 'userMessage') : !safe(t.turn, t.thread, known)))) {
+    return { waiting: true, paused };
+  }
+  // Stop parents first so a child's interruption cannot complete a live wait
+  // and let its parent launch more work. Resume in the opposite order below.
+  initial.sort((a, b) => ancestors(a.thread, known).length - ancestors(b.thread, known).length);
+  if (routes.size) {
+    // V2's send/followup handlers do not expose every tool-start item. Never
+    // interrupt that family based on an empty snapshot: ask its owner to drain
+    // tools and collect terminal checkpoints through normal agent messaging.
+    const owners = new Set(routes.values()), markers = new Map([...owners].map(id => [id, randomUUID()]));
+    return { waiting: true, paused, checkpoint: initial.filter(t => routes.has(t.id) || owners.has(t.id)).map(t => ({
+      threadId: t.id, turnId: t.turn.id, rootTurnId: t.turn.rootTurnId ?? t.turn.id, inputIds: inputIds(t.turn), messageId: randomUUID(),
+      checkpointId: markers.get(routes.get(t.id) ?? t.id),
+      ...(t.thread.parentThreadId ? { parentThreadId: t.thread.parentThreadId } : {}),
+      ...(routes.has(t.id) ? { resumeViaThreadId: routes.get(t.id) } : {}),
+    })) };
+  }
+  try {
+    for (const observed of initial) {
+      if (!isCurrent()) throw liveError('native_switch_superseded');
+      const now = (await rpc.request('thread/read', { threadId: observed.id, includeTurns: false }))?.thread;
+      if (now?.status?.type !== 'active') continue;
+      const turn = await liveLatest(rpc, now);
+      if (turn?.id !== observed.turn.id || now.status.activeFlags?.length || now.canAcceptDirectInput === false && !routes.has(observed.id)
+        || (now.parentThreadId ?? null) !== (observed.thread.parentThreadId ?? null)
+        || now.parentThreadId && now.canAcceptDirectInput !== true && !routes.has(observed.id)
+        || routes.has(observed.id) && !v2Child(now)
+        || !safe(turn, now, known) || !sameInputs(observed.turn, turn)) throw liveError('native_activity_changed');
+      const entry = { threadId: observed.id, turnId: turn.id, rootTurnId: turn.rootTurnId ?? turn.id, messageId: randomUUID(), inputIds: inputIds(turn),
+        ...(now.parentThreadId ? { parentThreadId: now.parentThreadId } : {}),
+        ...(routes.has(observed.id) ? { resumeViaThreadId: routes.get(observed.id) } : {}) };
+      await options.beforeInterrupt?.(entry);
+      // Native acknowledges terminal completion; verify whether it interrupted
+      // or finished naturally. Never use an empty ID or change configuration.
+      await rpc.request('turn/interrupt', { threadId: observed.id, turnId: turn.id });
+      const after = await latest(rpc, observed.id);
+      if (after?.id === turn.id && after.status === 'completed') { await options.afterInterrupt?.(entry, 'skipped'); continue; }
+      if (after?.id !== turn.id || after.status !== 'interrupted') throw liveError('native_interrupt_unconfirmed');
+      if (!sameInputs(turn, after)) throw liveError('native_activity_changed');
+      const previous = new Set(turn.items.map(i => i.id));
+      if (after.items.some(i => tool(i) && !previous.has(i.id) && !completed(i))) throw liveError('native_tool_interrupted');
+      paused.push(entry);
+      await options.afterInterrupt?.(entry, 'paused');
+    }
+    await assertCodexLiveQuiet(rpc);
+    return { waiting: false, paused };
+  } catch (error) {
+    // Preserve exact interrupted IDs for recovery, never include thread text.
+    error.handoff = { waiting: false, paused };
+    throw error;
+  }
+}
+
+export async function assertCodexLiveQuiet(rpc) {
+  if ((await snapshot(rpc)).threads.length) throw liveError('native_activity_changed');
+}
+
+/** Mark a send durably before submitting. An uncertain send is never replayed. */
+export async function continueCodexLiveHandoff(rpc, handoff, options = {}) {
+  let resumed = 0;
+  const delegated = [], owners = new Set();
+  for (const entry of [...handoff?.paused ?? []].reverse()) {
+    if (entry.sent) continue;
+    if (options.isCurrent && !options.isCurrent()) throw liveError('native_switch_superseded');
+    const t = (await rpc.request('thread/read', { threadId: entry.threadId, includeTurns: false }))?.thread;
+    // A closed/unloaded child has no direct-input capability. Leave it alone
+    // before inspecting history, and allow the remaining family to continue.
+    if (t?.status?.type !== 'idle') {
+      if (entry.resumeViaThreadId && t?.status?.type === 'notLoaded') throw liveError('native_continue_unconfirmed');
+      await options.onSkip?.(entry); continue;
+    }
+    if (entry.resumeViaThreadId ? !v2Child(t) || t.parentThreadId !== entry.parentThreadId
+      : t?.canAcceptDirectInput === false || entry.parentThreadId
+        && (t?.canAcceptDirectInput !== true || t.parentThreadId !== entry.parentThreadId)) throw liveError('native_activity_changed');
+    const turn = await latest(rpc, entry.threadId);
+    // New input, natural completion, archival or a different turn wins over us.
+    const checkpoint = entry.checkpointReady && turn?.status === 'completed'
+      && turn.items?.some(i => i.type === 'agentMessage' && i.text?.includes('CCDECK_CHECKPOINT_' + entry.checkpointId));
+    if (turn?.id !== entry.turnId || (!checkpoint && turn.status !== 'interrupted')
+      || JSON.stringify(inputIds(turn)) !== JSON.stringify(entry.inputIds)) {
+      await options.onSkip?.(entry); continue;
+    }
+    if (entry.resumeViaThreadId) {
+      await options.onDelegate?.(entry);
+      entry.sent = true; delegated.push(entry); continue;
+    }
+    await options.beforeSend?.(entry);
+    // Journal/authentication callbacks may wait on disk or native RPC. A user
+    // can close the conversation or submit new work during that wait.
+    if (options.isCurrent && !options.isCurrent()) throw liveError('native_switch_superseded');
+    const current = (await rpc.request('thread/read', { threadId: entry.threadId, includeTurns: false }))?.thread;
+    if (current?.status?.type !== 'idle') { await options.onSkip?.(entry); continue; }
+    if (current.id !== entry.threadId || current.canAcceptDirectInput === false
+      || (current.parentThreadId ?? null) !== (t.parentThreadId ?? null)) throw liveError('native_activity_changed');
+    const finalTurn = await latest(rpc, entry.threadId);
+    const finalCheckpoint = entry.checkpointReady && finalTurn?.status === 'completed'
+      && finalTurn.items?.some(i => i.type === 'agentMessage' && i.text?.includes('CCDECK_CHECKPOINT_' + entry.checkpointId));
+    if (finalTurn?.id !== entry.turnId || (!finalCheckpoint && finalTurn.status !== 'interrupted')
+      || JSON.stringify(inputIds(finalTurn)) !== JSON.stringify(entry.inputIds)) {
+      await options.onSkip?.(entry); continue;
+    }
+    if (options.isCurrent && !options.isCurrent()) throw liveError('native_switch_superseded');
+    entry.sent = true;
+    const children = delegated.filter(e => e.resumeViaThreadId === entry.threadId);
+    const continuation = 'Continue the interrupted task, honoring the latest user instructions already in this conversation. Do not repeat completed tools or actions. If the user cancelled or asked to stop, remain stopped.';
+    const resumeTask = entry.checkpointReady ? 'The ccdeck account change is complete. Resume the original assignment from the checkpoint; the temporary checkpoint request is finished. ' + continuation : continuation;
+    const text = children.length ? resumeTask + '\n\nThe account handoff paused these existing subagents (deepest first): '
+      + JSON.stringify(children.map(e => e.threadId)) + '. Before continuing your own work, inspect their current status with list_agents. '
+      + (entry.checkpointReady ? 'These listed agents ended temporary checkpoints; their original assignments are unfinished. Their native status may be completed: that checkpoint still needs continuation. For each that has not already resumed or been closed, '
+        : 'For each listed agent that is still interrupted, ')
+      + 'use the native followup_task tool exactly once, targeting that SAME existing agent ID, '
+      + 'with this message: ' + JSON.stringify(resumeTask) + '. Resume in the listed order. Keep their existing assignments, history and parent relationships. '
+      + 'Do not spawn replacements, reopen closed agents, repeat completed work, or send followups to agents already running. '
+      + (entry.checkpointReady ? 'A completed temporary checkpoint is not a finished original assignment. ' : 'Do not restart completed agents. ')
+      + 'Then continue the original task and wait for the same agents as needed.' : resumeTask;
+    const result = await rpc.request('turn/start', { threadId: entry.threadId,
+      rootTurnId: entry.rootTurnId, clientUserMessageId: entry.messageId,
+      input: [{ type: 'text', text }] });
+    if (!result?.turn?.id) throw liveError('native_continue_unconfirmed');
+    resumed++;
+    await options.afterSend?.(entry, result.turn.id);
+    owners.add(entry.threadId);
+  }
+  if (delegated.some(e => !owners.has(e.resumeViaThreadId))) throw liveError('native_continue_unconfirmed');
+  return { resumed, ...(delegated.length ? { delegated } : {}) };
+}
+
+/** Observe the parent's native followups; never submit or retry child input. */
+export async function confirmCodexLiveChildren(rpc, entries, options = {}) {
+  const pending = [];
+  for (const entry of entries) {
+    const t = (await rpc.request('thread/read', { threadId: entry.threadId, includeTurns: false }))?.thread;
+    if (!t || t.parentThreadId !== entry.parentThreadId) throw liveError('native_activity_changed');
+    // Eviction and closure both appear unloaded here. Only the owning parent
+    // can distinguish them; do not claim that an unobserved child resumed.
+    if (t.status?.type === 'notLoaded') { pending.push(entry); continue; }
+    const turn = t.status?.type === 'active' ? await liveLatest(rpc, t) : await latest(rpc, entry.threadId);
+    if (turn?.id === entry.turnId && (turn.status === 'interrupted' || entry.checkpointReady && turn.status === 'completed'
+      && turn.items?.some(i => i.type === 'agentMessage' && i.text?.includes('CCDECK_CHECKPOINT_' + entry.checkpointId)))) { pending.push(entry); continue; }
+    if (turn?.id !== entry.turnId && turn.rootTurnId === entry.rootTurnId && ['inProgress', 'completed'].includes(turn.status)) {
+      await options.onConfirmed?.(entry, turn.id); continue;
+    }
+    throw liveError('native_activity_changed');
+  }
+  return { pending };
+}

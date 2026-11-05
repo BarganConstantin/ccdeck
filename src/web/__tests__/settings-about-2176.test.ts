@@ -431,11 +431,15 @@ describe("Settings › General › Elsewhere on the deck", () => {
     // sheet over the list and does not take its place.
     expect(column).toContain("const openAccountsPanel = useCallback(() => { accountsEvictedRef.current = false; setAccountsPanelOpen(open => { if (!open && !loadsOnPhone()) setSessionListOpen(false); return true; }); }, []);");
     const app = flat(read("../App.tsx"));
-    expect(app).toContain('const openLocalNetwork = useCallback(() => { rememberAccountSide("claude"); openAccountsPanel(); setLanWanted(true); }, [openAccountsPanel, rememberAccountSide]);');
+    // Both sides of the panel draw Local network (#2472), so the door no
+    // longer moves the panel to Claude's side: the side that is up answers it.
+    expect(app).toContain("const openLocalNetwork = useCallback(() => { openAccountsPanel(); setLanWanted(true); }, [openAccountsPanel]);");
     expect(app).toContain("useEffect(() => { if (!accountsPanelOpen) setLanWanted(false); }, [accountsPanelOpen]);");
     expect(app).toContain("lanWanted={lanWanted} onLanShown={lanShown}");
     const panel = flat(read("../components/AccountsPanel.tsx"));
-    expect(panel).toContain("if (!lanWanted || !lanReady) return; openLan(); onLanShown?.();");
+    expect(panel).toContain('if (!lanWanted || !lanReady || side === "hidden") return; openLan(); onLanShown?.();');
+    const codex = flat(read("../components/CodexAccountsPanel.tsx"));
+    expect(codex).toContain('if (!lanWanted || !lanReady || !shown) return; setView("lan"); onLanShown?.();');
   });
 
   it("says General holds more than the board now, in one line", () => {

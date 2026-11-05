@@ -468,8 +468,6 @@ const catalog: Catalog = {
 
   // Account rows (org-telemetry.ts)
   "radar.org.who": "Organizația acestui cont",
-  "radar.org.whoPossessive": "Telemetria organizației sale",
-  "radar.org.named": "Telemetria {org}",
   "radar.org.and": "{list} și {last}",
   "radar.org.sep": ", ",
   "radar.org.word.prompts": "prompturile",
@@ -483,9 +481,6 @@ const catalog: Catalog = {
   "radar.org.collector": "colectorul ei",
   "radar.org.detail": "{who} activează telemetria Claude Code pentru sesiunile noi: {what}, trimise la {where}. Văzut {ago}, cât contul a fost activ.",
   "radar.org.holdOut": " Ca să-l ții în afara comutării automate, alege Exclude din rotație în meniul ⋯ al contului.",
-  "radar.org.switchedWhat": "{words} tale",
-  "radar.org.switchedTo": " la {list}",
-  "radar.org.switched": "{who} este activă pentru ele: trimite {what}{where}.",
   "radar.srv.ipv4": "Alege o adresă IPv4 și un port TCP.",
   "radar.srv.platform": "Captura live este disponibilă pe macOS, Linux și Windows.",
   "radar.srv.destCount": "Alege între una și opt destinații.",

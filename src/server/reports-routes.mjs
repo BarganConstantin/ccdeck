@@ -6,6 +6,7 @@
 import { reportsVetoed } from "./deck-prefs.mjs";
 import { MAX_REQUEST_BYTES, isMultipart, readFeedbackForm, upstreamForm } from "./feedback-form.mjs";
 import { readBody, readBytes, send } from "./http-io.mjs";
+import { uiLanguageCode } from "./ui-language.mjs";
 import { heldPrefs } from "./prefs-state.mjs";
 import { REPORTS_API, deviceIdToken, installFacts, reporter, reportsOn } from "./reports.mjs";
 
@@ -26,6 +27,15 @@ export async function handleReportsWrite(req, res, { report = reporter } = {}) {
   if (typeof body?.on !== "boolean") return send(res, 400, { ok: false, reason: "bad_request" });
   await report.setReports(body.on);
   return send(res, 200, { ok: true, reports: heldPrefs.current().reports, reportsVetoed: reportsVetoed() });
+}
+
+/** `POST /api/ui-language` `{ code }`: the language the page is showing, kept for
+ *  the usage reports (ui-language.mjs). Best effort: 400 for a code that is not
+ *  a language tag, 200 `{ kept }` otherwise (not kept with reports off). */
+export async function handleUiLanguageWrite(req, res, { report = reporter } = {}) {
+  const body = await readJson(req, res, 1_000);
+  if (!uiLanguageCode(body?.code)) return send(res, 400, { ok: false, reason: "bad_request" });
+  return send(res, 200, { ok: true, kept: await report.setUiLanguage(body.code) });
 }
 
 /** `GET /api/rating`: whether the page should ask "How useful is ccdeck to

@@ -463,7 +463,6 @@ const catalog: Catalog = {
   "accounts.row.reauthTip": "Ouvre la boîte de dialogue de connexion. Se connecter avec ce compte remplace sur place sa connexion expirée : il garde son emplacement, son alias et son historique.",
   "accounts.row.dismissLabel": "Ignorer ce message",
   "accounts.row.dismiss": "Ignorer",
-  "accounts.row.nowActive": "Désormais actif. Les nouvelles sessions démarrent dessus ; celles déjà en cours le prennent à leur prochain message, jusqu'à environ 30 secondes plus tard sur macOS.",
   "accounts.row.whoWasThere": "le compte qui s'y trouvait",
   "accounts.row.swapTitle": "L'emplacement {at} était occupé, les deux comptes ont donc échangé leur place : {who} occupe maintenant l'emplacement {displaced}.",
   "accounts.row.swapped": "échangé avec l'emplacement {n}",

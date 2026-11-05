@@ -7,6 +7,7 @@
 // of them can change while the store is read.
 import { credentialAad, IN_USE, mayGiveInUse, seal, sharedWith, slotFor, transferChallenge, trustedPeer } from "./lan-sync.mjs";
 import { liveLoginIs } from "./account-health.mjs";
+import { isCodexKey } from "./lan-codex.mjs";
 
 /**
  * `settings`, `serverNow` and `myFp` answer the engine's settings in force,
@@ -15,11 +16,13 @@ import { liveLoginIs } from "./account-health.mjs";
  * `learnCaller` is the engine's dial-back for a paired deck nothing here
  * dials. `keepManifest` and `manifestFrame` are lan-manifest.mjs's,
  * `localAccounts` reads the store in the rules' shape, and `liveLogin`,
- * `exportAccount` and `onError` are the engine's own.
+ * `exportAccount` and `onError` are the engine's own. `localCodex` and
+ * `exportCodex` are the same two for Codex logins, or null on a deck without
+ * them — see lan-codex.mjs.
  */
 export function createServe({
   settings, serverNow, myFp, inbound, learnCaller, keepManifest, manifestFrame, localAccounts, liveLogin, exportAccount,
-  onError,
+  localCodex = null, exportCodex = null, onError,
 }) {
   /** Frames from a deck that finished the handshake AND that somebody here has
    *  accepted. Nothing reaches this before both, which is the whole point of
@@ -48,11 +51,12 @@ export function createServe({
         // nothing here dials is ever known by what it offers.
         keepManifest(ctx.key, msg, ctx.peerFp);
         const accounts = await localAccounts();
+        const codexAccounts = localCodex ? await localCodex() : null;
         // Reading the store can take long enough for the owner to unpair this
         // deck. Do not disclose account identities or the active account from
         // a manifest assembled before that decision.
         if (!mayAnswer()) return ctx.send({ t: "no", why: "not paired" });
-        return ctx.send(manifestFrame(accounts, ctx.key, ctx.peerFp));
+        return ctx.send(manifestFrame(accounts, ctx.key, ctx.peerFp, codexAccounts));
       }
       if (msg.t === "want") {
         // A listener may have authenticated this socket before its owner
@@ -78,10 +82,16 @@ export function createServe({
         if (typeof msg.proof !== "string" || msg.proof !== want) {
           return ctx.send({ t: "no", why: "proof" });
         }
+        // A CODEX LOGIN takes every step below in the same order, from its own
+        // store: the tick, the slot, the one this deck is on, readable, alive.
+        // Only the CLI check is Claude's, since it asks claude-swap who is
+        // signed in. A deck without Codex has none to give.
+        const codexWant = isCodexKey(msg.key);
+        if (codexWant && !(localCodex && exportCodex)) return ctx.send({ t: "no", why: "not mine to give" });
         // Only what the user ticked, checked again here rather than trusted
         // from the manifest we sent: the list can change between the two, and
         // the answer that matters is the one at the moment of sending.
-        const accounts = await localAccounts();
+        const accounts = codexWant ? await localCodex() : await localAccounts();
         if (!maySend()) return ctx.send({ t: "no", why: "not shared" });
         // The slot manifestFor told the peer about, by the same rule: with two
         // slots for one identity, an expired one listed first must not hide a
@@ -106,11 +116,16 @@ export function createServe({
         if (!mine.alive) return ctx.send({ t: "no", why: "not mine to give" });
         // The active slot exports the live CLI login, and its verdict can
         // predate a `/login` as somebody else, so ask the CLI who it is now.
-        if (mine.active && liveLogin && !liveLoginIs(await liveLogin(), mine.email, mine.org)) {
+        if (!codexWant && mine.active && liveLogin && !liveLoginIs(await liveLogin(), mine.email, mine.org)) {
           return ctx.send({ t: "no", why: "export failed" });
         }
         if (!maySend()) return ctx.send({ t: "no", why: "not shared" });
-        const blob = await exportAccount(mine.num, msg.key);
+        let blob;
+        try { blob = codexWant ? await exportCodex(mine.num, msg.key) : await exportAccount(mine.num, msg.key); }
+        catch (err) {
+          if (codexWant && err?.code === 'windows_permissions_required') return ctx.send({ t: 'no', why: 'windows_permissions_required' });
+          throw err;
+        }
         if (!maySend()) return ctx.send({ t: "no", why: "not shared" });
         // A Mac's failed export refreshes the verdict behind `readable` in the
         // background, so when the Keychain was why, the next ask is answered by

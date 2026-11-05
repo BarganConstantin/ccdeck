@@ -198,7 +198,7 @@ describe("every dialog is the shared shell", () => {
     "LanPairRequestModal", "LanPeerModal", "LanSetupModal", "ProcessListModal", "QuotaHistoryModal",
     "ReleaseNotesModal", "SectionHistoryModal", "SessionSummary", "SessionUsageModal", "SettingsModal",
     "ShareAccountsDialog", "HostsDialog", "ToolAuditModal", "ToolModal", "TrafficRadar", "UsageHistoryModal",
-    "AccountCapacityDialog",
+    "AccountCapacityDialog", "CodexShareDialog",
   ];
   /** A mount that is not an open/close of its own: the component's own file
    *  declares it, or the mount is the lazy chunk's fallback. */
