@@ -86,7 +86,7 @@ const catalog: Catalog = {
   "radar.cfg.destinations.other": "已設定 {count} 個目的地",
   "radar.cfg.noDestination": "在讀取的設定檔中找不到目的地。遙測資料仍可能在傳送。",
   "radar.cfg.observed": "已觀察到 Claude 連線",
-  "radar.cfg.observedNote": "這些是使用中的連線，並非已確認的遙測訊息。在沒有設定檔指定目的地時，Radar 會監看這些連線，「監控」則顯示它們傳送的內容。",
+  "radar.cfg.observedNote": "這些是使用中的連線，並非已確認的遙測訊息。在沒有設定檔指定目的地時，Radar 只監看通往 4317 連接埠（OpenTelemetry 收集器監聽的連接埠）的 IPv4 連線，「監控」則顯示它們傳送的內容。",
   "radar.cfg.readFailed": "無法讀取設定。將重新取樣。",
   "radar.cfg.readingLocal": "正在讀取本機設定…",
 

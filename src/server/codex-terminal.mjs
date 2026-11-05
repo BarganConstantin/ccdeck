@@ -1,5 +1,5 @@
 import { createRequire } from 'node:module';
-import { readFile, mkdir, chmod, access, stat, cp } from 'node:fs/promises';
+import { readFile, mkdir, chmod, access, stat, cp, rm } from 'node:fs/promises';
 import { constants } from 'node:fs';
 import { basename, dirname, join, isAbsolute } from 'node:path';
 import { homedir } from 'node:os';
@@ -48,6 +48,10 @@ async function rcFor(shell, home, env, platform) {
     }
     return join(home, '.bashrc');
   }
+  return powershellProfile(shell);
+}
+
+async function powershellProfile(shell) {
   const executable = shell === 'powershell5' ? 'powershell.exe' : 'pwsh.exe';
   const { stdout } = await promisify(execFile)(executable, ['-NoProfile', '-Command', '$PROFILE.CurrentUserAllHosts'], { encoding: 'utf8', timeout: 5000, maxBuffer: 4096 });
   const rc = stdout.trim();
@@ -118,4 +122,70 @@ export async function configureCodexTerminal(action, options = {}) {
   // permissions and unrelated settings; authentication files are never opened.
   if (action === 'install') await chmod(join(options.store ?? deckDataDir(undefined, env, home), 'codex-terminal'), 0o700);
   return { shell, rc, action };
+}
+
+/**
+ * For `--uninstall`: take the block Enable terminal selection wrote out of every
+ * shell profile it may be in, and the helper it calls with it.
+ *
+ * Nothing records which shell the person set it up in (they ran the command
+ * themselves), so every profile `rcFor` can pick is read: zsh's in ZDOTDIR and
+ * in the home folder, bash's on Linux and the three macOS picks the first of
+ * (an earlier setup may have picked another), and on Windows both PowerShells'.
+ * Left behind, the block outlives ccdeck: `codex` runs through a helper that
+ * the desktop app's removal takes away, and it no longer starts.
+ *
+ * A file whose markers are incomplete is not touched and is named, and so is a
+ * PowerShell whose profile could not be asked for. The helper goes only when
+ * every profile was read and none still holds a block, since a block left
+ * anywhere still calls it. Answers { removed, refused, kept, helper, directory }.
+ */
+export async function removeCodexTerminalEverywhere(options = {}) {
+  const env = options.env ?? process.env;
+  const platform = options.platform ?? process.platform;
+  const home = options.home ?? homedir();
+  const store = options.store ?? deckDataDir(undefined, env, home);
+  const profileOf = options.powershellProfile ?? powershellProfile;
+  const candidates = [];
+  const zdot = env.ZDOTDIR?.trim();
+  if (zdot) candidates.push(join(zdot, '.zshrc'));
+  candidates.push(...['.zshrc', '.bashrc', '.bash_profile', '.bash_login', '.profile'].map(name => join(home, name)));
+  const removed = [], refused = [];
+  if (platform === 'win32') {
+    for (const shell of ['powershell', 'powershell5']) {
+      try { candidates.push(await profileOf(shell)); }
+      // A PowerShell that is not installed has no profile to clean.
+      catch (error) {
+        if (error?.code !== 'ENOENT') refused.push({ path: shell === 'powershell5' ? 'the Windows PowerShell profile' : 'the PowerShell profile', why: error?.message ?? String(error) });
+      }
+    }
+  }
+  for (const rc of new Set(candidates)) {
+    let text;
+    try { text = await readFile(rc, 'utf8'); }
+    catch (error) {
+      if (error.code !== 'ENOENT' && error.code !== 'ENOTDIR') refused.push({ path: rc, why: error.message });
+      continue;
+    }
+    if (!text.includes(BEGIN) && !text.includes(END)) continue;
+    try {
+      await writeFileAtomic(await resolveWriteTarget(rc), stripIntegration(text));
+      removed.push(rc);
+    } catch (error) {
+      refused.push({ path: rc, why: error.message });
+    }
+  }
+  const directory = join(store, 'codex-terminal');
+  let helper = false;
+  const kept = refused.length > 0;
+  if (!kept) {
+    try {
+      await stat(directory);
+      await rm(directory, { recursive: true, force: true });
+      helper = true;
+    } catch (error) {
+      if (error.code !== 'ENOENT') refused.push({ path: directory, why: error.message });
+    }
+  }
+  return { removed, refused, kept, helper, directory };
 }

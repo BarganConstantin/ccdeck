@@ -86,7 +86,7 @@ const catalog: Catalog = {
   "radar.cfg.destinations.other": "{count} destinos configurados",
   "radar.cfg.noDestination": "Nenhum destino encontrado nos arquivos de configuração lidos. A telemetria ainda pode estar ativa.",
   "radar.cfg.observed": "Conexões do Claude observadas",
-  "radar.cfg.observedNote": "São conexões ativas, não mensagens de telemetria confirmadas. O Radar as observa enquanto nenhum arquivo de configuração indicar um destino, e o Monitor mostra o que elas enviam.",
+  "radar.cfg.observedNote": "São conexões ativas, não mensagens de telemetria confirmadas. Enquanto nenhum arquivo de configuração indicar um destino, o Radar observa apenas conexões IPv4 na porta 4317, onde os coletores do OpenTelemetry escutam, e o Monitor mostra o que elas enviam.",
   "radar.cfg.readFailed": "Não foi possível ler as configurações. A amostragem tentará de novo.",
   "radar.cfg.readingLocal": "Lendo configurações locais…",
 

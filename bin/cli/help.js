@@ -74,8 +74,9 @@ Options:
       --no-claude          Skip Claude entirely: no hooks or claude-swap; Codex accounts remain
       --ref <name>         The site page this command was copied from (first run)
       --uninstall          Remove ${PRODUCT}'s hooks from ~/.claude/settings.json and
-                           ~/.codex/hooks.json, and restore any sound hooks of yours it parked.
-                           Hook entries only: the forwarder script under
+                           ~/.codex/hooks.json and Codex's terminal selection from
+                           your shell profile, and restore any sound hooks of yours it parked.
+                           Otherwise nothing is deleted: the forwarder script under
                            ~/.claude/agent-dag/, the deck's own state and log
                            directories (\`--status\` names them), ~/.agents-deck/
                            and claude-swap all stay. It NAMES the prefs.json
