@@ -80,10 +80,13 @@ describe("a selected card says so on the canvas", () => {
     expect(c.s1).not.toContain("rf-selected");
   });
 
-  it("draws the deck's ring and lift from that mark, up close and on the far face", () => {
+  // CHANGED ON PURPOSE (V4's cards carry no shadow, selected or not): the lift
+  // under the ring is gone; the ring is the whole of the selected state.
+  it("draws the deck's ring from that mark, with no lift, up close and on the far face", () => {
     expect(decl(".react-flow__node.rf-selected .agent-node", "outline")).toBe("2px solid var(--accent)");
     expect(decl(".react-flow__node.rf-selected .agent-node", "outline-offset")).toBe("2px");
-    expect(decl(".react-flow__node.rf-selected .agent-node", "box-shadow")).toBe("var(--shadow-2)");
+    expect(decl(".react-flow__node.rf-selected .agent-node", "box-shadow")).toBeNull();
+    expect(css).not.toMatch(/\.rf-selected[^{}]*\.agent-node[^{}]*\{[^}]*box-shadow/);
     expect(decl(".react-flow__node.rf-selected .agent-node > .lod-face", "outline")).toBe("2px solid var(--accent)");
   });
 

@@ -9,7 +9,46 @@
 import { ensureSubagent, explicitSubagentKey, lookupSubagent, popActive, pushActive, subagentLabel } from "./agent-attribution";
 import { subagentIdFor, type GraphState } from "./graph-state";
 import { HOOK_REDELIVERY_WINDOW_MS } from "./redelivery";
-import type { HookPayload } from "./types";
+import type { AgentNodeData, HookPayload, ToolCall } from "./types";
+
+/** The calls that start a subagent. */
+const SPAWN_TOOLS = new Set(["Task", "Agent"]);
+/** How far a Start may run ahead of its call's own stamp, as inspector-time.ts
+ *  allows when it ties a subagent to its call. */
+const SPAWN_SKEW_MS = 1000;
+
+/**
+ * The call that started this subagent, or undefined when none reached the deck.
+ *
+ * `SubagentStart` names the subagent and its type, never the call. The call is
+ * the payload's `parent_tool_use_id` when it carries one; otherwise it is the
+ * oldest Task or Agent call of the session still running that no sibling has
+ * taken, of the same type when the call says one. Oldest, because calls made
+ * side by side start their subagents in the order they were made. A guess, so
+ * it only ever feeds the words on the card: nothing counts or clears by it.
+ */
+function spawnCallFor(state: GraphState, sessionId: string, sub: AgentNodeData, p: HookPayload, now: number): ToolCall | undefined {
+  const taken = new Set<string>();
+  const calls: ToolCall[] = [];
+  for (const a of state.agents.values()) {
+    if (a.sessionId !== sessionId || a === sub) continue;
+    if (a.spawnCall) taken.add(a.spawnCall.id);
+    for (const call of a.tools) if (SPAWN_TOOLS.has(call.name)) calls.push(call);
+  }
+  if (p.parent_tool_use_id) {
+    const named = calls.find(call => call.id === p.parent_tool_use_id);
+    if (named) return named;
+  }
+  const type = p.agent_type ?? p.subagent_type;
+  let oldest: ToolCall | undefined;
+  for (const call of calls) {
+    if (taken.has(call.id) || call.endedAt != null || call.startedAt > now + SPAWN_SKEW_MS) continue;
+    const asked = (call.input as { subagent_type?: unknown } | undefined)?.subagent_type;
+    if (type && typeof asked === "string" && asked !== type) continue;
+    if (!oldest || call.startedAt < oldest.startedAt) oldest = call;
+  }
+  return oldest;
+}
 
 /** A subagent announcing itself — the only event that creates a subagent node.
  *  A Start whose Stop is already in (a tombstone, or a node that ended inside
@@ -20,6 +59,13 @@ export function applySubagentStart(state: GraphState, p: HookPayload, sessionId:
   const sub = ensureSubagent(state, sessionId, key, p, now);
   const lbl = subagentLabel(p);
   if (lbl) sub.label = lbl;
+  // What it is for, in the words of the call that started it (the card's task
+  // line). Paired once: a re-delivered Start keeps the pairing it has.
+  if (!sub.spawnCall) {
+    const call = spawnCallFor(state, sessionId, sub, p, now);
+    const said = (call?.input as { description?: unknown } | undefined)?.description;
+    if (call) sub.spawnCall = typeof said === "string" && said.trim() ? { id: call.id, description: said.trim() } : { id: call.id };
+  }
 
   // THE ENDING THIS START ALREADY HAS, WHEREVER IT CAME FROM (#1023).
   //

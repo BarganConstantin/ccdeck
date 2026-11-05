@@ -320,12 +320,14 @@ describe("dialogs.css: the header and the × are V4's Figma", () => {
     expect(x).toMatch(/font-size:\s*calc\(14px/);
   });
 
-  it("the Usage header's buttons and the recap pin lose the circle", () => {
-    // Both are the kit's icon button, which is on --r-ctl for every state; no
-    // rule of theirs rounds them back into a circle.
+  it("the Usage header's buttons lose the circle", () => {
+    // The kit's icon button, which is on --r-ctl for every state; no rule of
+    // theirs rounds them back into a circle. CHANGED ON PURPOSE: the card's
+    // recap pin, the other button this held, is gone (V4's Agent / Card draws
+    // no button in the foot).
     expect(rule(".glyph-btn")).toMatch(/border-radius:\s*var\(--r-ctl\)/);
     expect(read("components/UsagePanel.tsx")).toMatch(/className="glyph-btn up-close"/);
-    expect(read("components/AgentNode.tsx")).toMatch(/className="glyph-btn recap-pin"/);
+    expect(read("components/AgentNode.tsx")).not.toContain("recap-pin");
     const own = [...css.matchAll(/([^{}]+)\{([^}]*)\}/g)]
       .filter(m => /\.up-header-right|\.recap-pin/.test(m[1]))
       .map(m => m[2]);

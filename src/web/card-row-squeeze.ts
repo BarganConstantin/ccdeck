@@ -52,14 +52,14 @@ export function squeezeOnResize(
 }
 
 // THE FOOT'S SQUEEZE (V4's Agent / Card): Figma's foot is one line, cost · time,
-// a spacer, the sub-agent count. The deck adds meta items, so while the foot
-// overflows it drops them in this order: tokens, then the in-flight count, then
-// the tool count. Cost, time, the failed count and the sub-agent count never
-// drop. Same shape as the head's: a notch, measured after paint, reset when the
-// card gets wider or what the foot holds changes.
+// a spacer, the sub-agent count. The deck adds two meta items, so while the foot
+// overflows it drops them in this order: tokens, then the in-flight count. The
+// tool icons, cost, time and the sub-agent count never drop. Same shape as the
+// head's: a notch, measured after paint, reset when the card gets wider or what
+// the foot holds changes.
 
-export type FootItem = "tokens" | "inflight" | "tools";
-export const FOOT_DROP_ORDER: readonly FootItem[] = ["tokens", "inflight", "tools"];
+export type FootItem = "tokens" | "inflight";
+export const FOOT_DROP_ORDER: readonly FootItem[] = ["tokens", "inflight"];
 
 /** The droppable items the foot holds right now, in drop order. */
 export function footDroppable(present: Record<FootItem, boolean>): FootItem[] {

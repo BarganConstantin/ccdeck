@@ -576,8 +576,14 @@ describe("where Remove lives and what follows it", () => {
     // pick is openSession, as it was.
     expect(app).toMatch(/const pickSession = useCallback\(\(sessionId: string\) => \{\s*if \(phone && stage\.enabled\) \{\s*if \(removedAgentIds\.has\(sessionId\)\) bringBack\(\[sessionId\]\);[\s\S]*?\}\s*(?:\/\/[^\n]*\s*)?openSession\(sessionId\);/);
     expect(app).toMatch(/if \(removedAgentIds\.has\(sessionId\)\) bringBack\(\[sessionId\]\);\s*focusSession\(sessionId\);/);
-    // The row (components/RailParts.tsx since V4's Attention rail) says it in the model tag's own face.
-    expect(readFileSync(fileURLToPath(new URL("../components/RailParts.tsx", import.meta.url)), "utf8")).toMatch(/\{removed && <span className="sl-model">\{t\("board\.rail\.offBoard"\)\}<\/span>\}/);
+    // The row (components/RailParts.tsx since V4's Attention rail) says it.
+    // CHANGED ON PURPOSE: the words lead the row's second line rather than
+    // sitting after the model on the first, where they cut the session's name
+    // down to two letters.
+    const rail = readFileSync(fileURLToPath(new URL("../components/RailParts.tsx", import.meta.url)), "utf8");
+    expect(rail).toMatch(/\{removed && <span className="sl-off">\{t\("board\.rail\.offBoard"\)\}<\/span>\}/);
+    expect(rail).not.toMatch(/className="sl-model">\{t\("board\.rail\.offBoard"\)\}/);
+    expect(rail.indexOf('className="sl-off"')).toBeGreaterThan(rail.indexOf("sl-line2"));
     // CHANGED ON PURPOSE (the UI in every language): the words are behind the key.
     expect(en["board.rail.offBoard"]).toBe("off the board");
     expect(list).toMatch(/\{t\("board\.list\.bringBack", \{ count \}\)\}/);
