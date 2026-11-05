@@ -259,7 +259,12 @@ describe("Explore integrations", () => {
   const explore = src("../components/ExploreIntegrationsModal.tsx");
   it("draws 58-high rows r10 with a 1px --line-soft stroke and no icon", () => {
     expect(decl(".explore-provider", "min-height")).toBe("58px");
-    expect(decl(".explore-provider", "border")).toBe("1px solid var(--line-soft)");
+    // CHANGED ON PURPOSE: the same 1px --line-soft stroke, drawn as an outline
+    // a pixel in, as Figma's stroke inside the frame, so it adds nothing to
+    // the 10/12 padding and the row stays 58 high.
+    expect(decl(".explore-provider", "border")).toBeNull();
+    expect(decl(".explore-provider", "outline")).toBe("1px solid var(--line-soft)");
+    expect(decl(".explore-provider", "outline-offset")).toBe("-1px");
     expect(decl(".explore-provider", "border-radius")).toBe("var(--r-node)");
     expect(explore).not.toContain("explore-glyph");
   });
@@ -268,7 +273,30 @@ describe("Explore integrations", () => {
     expect(explore).toContain("className=\"btn\" aria-label={t(\"integrations.form.connect\"");
     expect(explore).toContain("go(() => onOpen(def.kind))");
     expect(explore).toContain("go(() => onConnect(def.kind))");
-    expect(explore).toContain("go(() => onManage(first?.id))");
+    // CHANGED ON PURPOSE (V4's Figma): a connected row has no Manage of its
+    // own (the foot's Manage in Settings is the way); only a row the deck can
+    // no longer open keeps one, as a plain link.
+    expect(explore).not.toContain("onManage(first?.id)");
+    expect(explore).toContain('<button type="button" className="explore-text-action" aria-label={t("integrations.manageProvider", { label: def.label })} onClick={() => go(() => onManage(first.id))}>');
+  });
+  it("sets the rows 12 apart with the content 10/12 in from the edge and the caption's label in the UI face", () => {
+    expect(decl(".explore-providers", "gap")).toBe("12px");
+    // 10/12 from the outer edge; the stroke is an outline inside, so 58 high.
+    expect(decl(".explore-provider", "padding")).toBe("10px 12px");
+    expect(decl(".explore-caption", "font-family")).toBeNull();
+    expect(decl(".explore-caption > :first-child", "font-family")).toBeNull();
+    expect(decl(".explore-caption > :last-child:not(:first-child)", "font-family")).toBe("var(--font-mono)");
+  });
+  it("draws its notes as 28-high bands at --r-panel, 12/400, neutral or in the error wash", () => {
+    expect(decl(".explore-status", "min-height")).toBe("28px");
+    expect(decl(".explore-status", "padding")).toBe("6px 8px");
+    expect(decl(".explore-status", "border-radius")).toBe("var(--r-panel)");
+    expect(decl(".explore-status", "background")).toBe("var(--ctl-fill)");
+    expect(decl(".explore-status", "color")).toBe("var(--text-secondary)");
+    expect(px(decl(".explore-status", "font-size"))).toBe("12px");
+    expect(decl(".explore-status", "line-height")).toBe("16px");
+    expect(decl('.explore-status[data-tone="err"]', "background")).toBe("var(--err-12)");
+    expect(decl('.explore-status[data-tone="err"]', "color")).toBe("var(--text)");
   });
   it("writes Connected / Not connected as plain 12px --muted text and the tag beside the name", () => {
     expect(decl(".explore-connection, .explore-unavailable", "color")).toBe("var(--muted)");

@@ -19,18 +19,23 @@ const decl = (selector: string, prop: string): string | undefined => {
 };
 
 const FIELDS = [".ap-manage-input", ".settings-filter-field", ".ig-search-input", ".sm-select"];
+// CHANGED ON PURPOSE (V4's Figma): the integration panels' search field is sunk
+// into the panel (--sunken) with 12px words on a 16px line.
+const SUNK = new Set([".ig-search-input"]);
 
 describe("V4's field", () => {
   for (const f of FIELDS) {
     describe(f, () => {
-      it("fills with --bg-soft", () => expect(decl(f, "background")).toBe("var(--bg-soft)"));
+      const fill = SUNK.has(f) ? "--sunken" : "--bg-soft";
+      it(`fills with ${fill}`, () => expect(decl(f, "background")).toBe(`var(${fill})`));
       it("keeps the --ctl-edge edge (the kit's --line is under the 3:1 boundary floor)", () => {
         expect(decl(f, "border")).toBe("1px solid var(--ctl-edge)");
       });
       it("takes the corner token, not a literal", () => expect(decl(f, "border-radius")).toBe("var(--r-ctl)"));
-      it("sets a 13px value (plus the text increase) on the body line at weight 400 in --text", () => {
-        expect(decl(f, "font-size")).toBe("calc(13px + var(--ui-text-increase, 0px))");
-        expect(decl(f, "line-height")).toBe("var(--lh-body)");
+      const size = SUNK.has(f) ? 12 : 13;
+      it(`sets a ${size}px value (plus the text increase) at weight 400 in --text`, () => {
+        expect(decl(f, "font-size")).toBe(`calc(${size}px + var(--ui-text-increase, 0px))`);
+        expect(decl(f, "line-height")).toBe(SUNK.has(f) ? "16px" : "var(--lh-body)");
         expect(decl(f, "font-weight")).toBe("400");
         expect(decl(f, "color")).toBe("var(--text)");
       });

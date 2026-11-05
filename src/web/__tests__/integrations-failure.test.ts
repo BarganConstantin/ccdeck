@@ -9,7 +9,7 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import IntegrationFailureNote from "../components/IntegrationFailureNote";
-import { actionLabel, failureAction, failureSaid, failureWords, retryWait, retryWhen, type FailureInfo } from "../integrations/failure";
+import { actionLabel, failureAction, failureSaid, failureWords, retryWait, retryWhen, statusLine, type FailureInfo } from "../integrations/failure";
 import type { IntegrationErrorKind } from "../integrations/types";
 import { sheetText } from "./sheet-source";
 
@@ -60,6 +60,30 @@ describe("what a failure offers", () => {
     expect(failureSaid({ kind: "auth", detail: "Bad credentials" }, "x")).toBeNull();
     expect(failureSaid({ kind: "expired", detail: "Token expired" }, "x")).toBeNull();
   });
+
+  it("names the status a provider answered: alone for a token, under one fixed sentence for an error answer", () => {
+    expect(statusLine(401)).toBe("401 Unauthorized");
+    expect(statusLine(500)).toBe("500 Internal Server Error");
+    expect(statusLine(599)).toBe("599");
+    expect(statusLine(200)).toBeNull();
+    expect(statusLine(undefined)).toBeNull();
+    // A token failure says the status and never the words that came with it.
+    expect(failureSaid({ kind: "auth", status: 401, detail: "Bad credentials" }, "x")).toBe("401 Unauthorized");
+    expect(failureSaid({ kind: "expired", status: 401 }, "x")).toBe("401 Unauthorized");
+    // An error answer: the fixed sentence, and what the provider answered under it.
+    const answered: FailureInfo = { kind: "upstream", message: "500 Internal Server Error", status: 500 };
+    const words = failureWords(answered, "Jira");
+    expect(words.body).toBe("Try again in a moment.");
+    expect(failureSaid(answered, words.body)).toBe("500 Internal Server Error");
+    const said: FailureInfo = { kind: "upstream", message: "Jira answered 502.", status: 502, detail: "Bad gateway at the proxy" };
+    expect(failureWords(said, "Jira").body).toBe("Try again in a moment.");
+    expect(failureSaid(said, "Try again in a moment.")).toBe("Bad gateway at the proxy");
+    // The deck's own account of a failure with no answer stays the sentence.
+    expect(failureWords({ kind: "upstream", message: "The board could not be read." }, "Jira").body).toBe("The board could not be read.");
+    // A kind whose own sentence already says what the status would adds none.
+    expect(failureSaid({ kind: "rate-limit", status: 429 }, "x")).toBeNull();
+    expect(failureSaid({ kind: "not-found", status: 404 }, "x")).toBeNull();
+  });
 });
 
 describe("the failure note on screen", () => {
@@ -67,6 +91,12 @@ describe("the failure note on screen", () => {
     const html = render({ kind: "expired" });
     expect(html).toMatch(/<button type="button" class="btn primary">Reconnect<\/button>/);
     expect(html).not.toMatch(/Try again/);
+  });
+
+  it("says what the provider answered under a refused token's sentence", () => {
+    const html = render({ kind: "auth", status: 401, detail: "Bad credentials" }, { provider: "Jira" });
+    expect(html).toContain('<p class="ig-failure-said">Jira said: 401 Unauthorized</p>');
+    expect(html).not.toContain("Bad credentials");
   });
 
   it("draws nothing to press for a page that is gone", () => {

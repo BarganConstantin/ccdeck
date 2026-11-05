@@ -487,8 +487,8 @@
   .ig-splitter { forced-color-adjust: none; background: CanvasText; }
   .ig-splitter::before { forced-color-adjust: none; background: transparent; }
   /* A row chosen with others: its square keeps a border and its tick is system ink, so it is not a fill alone. */
-  .jr-board[data-multi] .jr-row[data-picked] .jr-toggle-space::before { forced-color-adjust: none; border: 1px solid CanvasText; background: Canvas; }
-  .jr-board[data-multi] .jr-row[data-picked] .jr-toggle-space::after { forced-color-adjust: none; border-color: CanvasText; }
+  .jr-board[data-multi] .jr-row[data-picked] :is(.jr-toggle-space, .jr-toggle)::before { forced-color-adjust: none; border: 1px solid CanvasText; background: Canvas; }
+  .jr-board[data-multi] .jr-row[data-picked] :is(.jr-toggle-space, .jr-toggle)::after { forced-color-adjust: none; border-color: CanvasText; }
   .ig-splitter:focus-visible::before { background: Highlight; }
   @media (hover: hover) and (pointer: fine) {
   .ig-splitter:hover::before { background: Highlight; }

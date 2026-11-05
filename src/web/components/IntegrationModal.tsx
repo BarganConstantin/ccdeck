@@ -25,6 +25,7 @@ import { isTabbable, TABBABLE_SELECTOR } from "../modal-dismiss";
 import { useDrillIn } from "./IntegrationSplit";
 import { FreshnessSlot } from "./IntegrationFreshness";
 import { Dialog } from "./Dialog";
+import { KitIcon } from "./kit-icons";
 import { useModalDismiss, useScrimDismiss } from "./use-modal-dismiss";
 
 export interface IntegrationModalProps {
@@ -99,7 +100,6 @@ export default function IntegrationModal({ kind, connections, onClose, onReconne
     prefs: connectionPrefs(kind, connId),
   } : null), [kind, connId]);
   if (!def || !Panel || !connection || !helpers) return null;
-  const { Glyph } = def;
 
   return createPortal(
     <Dialog scrim={scrimPress} dialogRef={dialogRef} id={`integration-${kind}-modal`} className="ig-modal" labelledBy="integration-modal-title"
@@ -107,7 +107,9 @@ export default function IntegrationModal({ kind, connections, onClose, onReconne
         {/* A div, not a <header>: the dialog's label already names it, and a
             second banner landmark is one too many (axe). */}
         <div className="ig-head">
-          <h2 className="ig-title" id="integration-modal-title"><span className="ig-title-glyph" aria-hidden><Glyph /></span>{def.label}</h2>
+          {/* V4 marks every provider's dialog with the Integrations glyph; the
+              title already names the provider. */}
+          <h2 className="ig-title" id="integration-modal-title"><span className="ig-title-glyph" aria-hidden><KitIcon name="integrations" /></span>{def.label}</h2>
           {connections.length > 1 ? (
             <label className="ig-conn-select">
               <span className="vis-hidden">{t("integrations.modal.connection")}</span>

@@ -55,9 +55,13 @@ export default function ExploreIntegrationsModal({ integrations, onClose, onOpen
         </div>
         <div className="explore-body">
           <p id="explore-integrations-description" className="explore-intro">{t("integrations.explore.intro")}</p>
-          {integrations.error && <p className="explore-status" role="alert">{integrations.error} {t("integrations.explore.stale")}</p>}
-          {integrations.connections === null ? (
-            <p className="explore-status" role="status">{integrations.error ? t("integrations.explore.statusUnavailable") : <span className="loader-line"><WaitingLoader busy />{t("integrations.explore.reading")}</span>}</p>
+          {/* One band per note (V4's Figma): a failure over rows still shown
+              says they may be out of date; with no rows at all, the one
+              sentence says so, and the deck's own words stay in its title. */}
+          {integrations.error && integrations.connections !== null && <p className="explore-status" data-tone="err" role="alert">{integrations.error} {t("integrations.explore.stale")}</p>}
+          {integrations.connections === null ? (integrations.error
+            ? <p className="explore-status" data-tone="err" role="alert" title={integrations.error}>{t("integrations.explore.statusUnavailable")}</p>
+            : <p className="explore-status" role="status"><span className="loader-line"><WaitingLoader busy />{t("integrations.explore.reading")}</span></p>
           ) : providers.length === 0 ? (
             <p className="explore-status" role="status">{t("integrations.explore.none")}</p>
           ) : <>
@@ -77,13 +81,15 @@ export default function ExploreIntegrationsModal({ integrations, onClose, onOpen
                       {offered ? openable ? t("integrations.explore.connected") : t("integrations.explore.notConnected") : t("integrations.explore.unavailableOnDeck")}
                     </span>
                     <div className="explore-actions">
-                      {openable ? <>
+                      {/* A connected row opens; managing it is the foot's Manage in
+                          Settings. Only a row the deck can no longer open keeps its
+                          own Manage, a plain link. */}
+                      {openable ? (
                         <button type="button" className="btn primary" aria-label={t("integrations.explore.openAria", { label: def.label })} onClick={() => go(() => onOpen(def.kind))}>{t("integrations.explore.open")}</button>
-                        <button type="button" className="btn explore-text-action" aria-label={t("integrations.manageProvider", { label: def.label })} onClick={() => go(() => onManage(first?.id))}>{t("integrations.manage")}</button>
-                      </> : offered ? (
+                      ) : offered ? (
                         <button type="button" className="btn" aria-label={t("integrations.form.connect", { provider: def.label })} onClick={() => go(() => onConnect(def.kind))}>{t("integrations.form.connectBtn")}</button>
                       ) : first ? (
-                        <button type="button" className="btn explore-text-action" aria-label={t("integrations.manageProvider", { label: def.label })} onClick={() => go(() => onManage(first.id))}>{t("integrations.manage")}</button>
+                        <button type="button" className="explore-text-action" aria-label={t("integrations.manageProvider", { label: def.label })} onClick={() => go(() => onManage(first.id))}>{t("integrations.manage")}</button>
                       ) : <span className="explore-unavailable">{t("integrations.explore.notAvailable")}</span>}
                     </div>
                   </li>

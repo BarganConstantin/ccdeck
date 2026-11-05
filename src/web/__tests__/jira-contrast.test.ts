@@ -262,7 +262,9 @@ describe("workflow status and current detail remain independent of batch state",
     it(`${theme}: the current key reads independently of picked membership`, () => {
       for (const selected of [false, true]) {
         const key = [...rowChain(theme, { selected, current: true }), el("span", ["jr-key"])];
-        expect(prop(key, "font-weight")).toBe("600");
+        // CHANGED ON PURPOSE (V4's Figma): the open issue's key keeps the
+        // key's own 12/400; the row's fill says which issue is open.
+        expect(prop(key, "font-weight")).toBe("400");
         expect(inkOn(key)).toBeGreaterThanOrEqual(BODY);
       }
     });
@@ -348,8 +350,9 @@ describe("the toolbar's quiet words on their fields", () => {
   }
 });
 
-/** A sprint's header, from the modal down: it sits on the modal's --bg, not
- *  on a panel, and its toggle takes a fill under the pointer. */
+/** A sprint's header, from the modal down: it sits on the modal's own fill
+ *  (the panel, edge to edge in V4), and its toggle takes a fill under the
+ *  pointer. */
 function headChain(theme: string): El[] {
   return [
     rootOf(theme),
@@ -362,11 +365,11 @@ function headChain(theme: string): El[] {
 const toggle = (hover: boolean) => [el("h3", ["jr-group-title"]), el("button", ["jr-group-toggle"], { states: hover ? ["hover"] : [] })];
 const facts = [el("div", ["jr-group-facts"])];
 
-/** What a header word is written on: --bg, then every fill from the panel
+/** What a header word is written on: --bg, then every fill from the modal
  *  down to the word's own lozenge, composited. */
 function headInk(chain: El[]): number {
   let bed = over(color("var(--bg)", chain.slice(0, 1)), [0, 0, 0, 1]);
-  for (let i = 3; i <= chain.length; i++) {
+  for (let i = 2; i <= chain.length; i++) {
     const fill = prop(chain.slice(0, i), "background");
     if (fill && fill !== "none") bed = over(color(fill, chain.slice(0, i)), bed);
   }
@@ -380,7 +383,8 @@ describe("a sprint's header reads on the modal's ground", () => {
       for (const hover of [false, true]) {
         const at = hover ? " under the pointer" : "";
         for (const [word, tail] of Object.entries({
-          "Active lozenge": [...toggle(hover), el("span", ["jr-group-identity"]), el("span", ["jr-badge"])],
+          // The lozenge sits at the head's end, outside the toggle.
+          "Active lozenge": [el("span", ["jr-badge"])],
           count: [...toggle(hover), el("span", ["jr-group-identity"]), el("span", ["jr-group-count"])],
           dates: [...toggle(hover), el("span", ["jr-group-identity"]), el("span", ["jr-group-dates"])],
         })) {

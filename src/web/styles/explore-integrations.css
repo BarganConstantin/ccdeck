@@ -13,11 +13,16 @@
 .explore-intro { margin: 0; color: var(--text-secondary); line-height: var(--lh-body); }
 .explore-body { min-height: 0; overflow-y: auto; padding: 16px; display: flex; flex-direction: column; gap: 12px; }
 .explore-body > * { flex: none; }
-.explore-caption { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; margin: 0; min-height: 20px; color: var(--muted); font-family: var(--font-mono); font-size: calc(11px + var(--ui-text-increase, 0px)); line-height: 14px; }
-.explore-caption > :first-child { font-family: inherit; font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: 16px; font-weight: 600; color: var(--text-secondary); }
-.explore-providers { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
-/* V4's row: 58 tall, r10, a 1px --line-soft stroke and no fill; no icon. */
-.explore-provider { display: flex; align-items: center; gap: 12px; min-height: 58px; box-sizing: border-box; padding: 8px 12px; border: 1px solid var(--line-soft); border-radius: var(--r-node); }
+/* The caption: its label 12/600 in the UI face, the count in mono 11. */
+.explore-caption { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; margin: 0; min-height: 20px; color: var(--muted); font-size: calc(11px + var(--ui-text-increase, 0px)); line-height: 14px; }
+.explore-caption > :first-child { font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: 16px; font-weight: 600; color: var(--text-secondary); }
+.explore-caption > :last-child:not(:first-child) { font-family: var(--font-mono); }
+.explore-providers { list-style: none; margin: 0; padding: 0; display: grid; gap: 12px; }
+/* V4's row: 58 tall, r10, a 1px --line-soft stroke and no fill, its content
+   10/12 in from the outer edge, 12 apart; no icon. Figma's stroke sits inside
+   the frame, so it is an outline drawn a pixel in, over the padding, rather
+   than a border that would add to it. */
+.explore-provider { display: flex; align-items: center; gap: 12px; min-height: 58px; box-sizing: border-box; padding: 10px 12px; outline: 1px solid var(--line-soft); outline-offset: -1px; border-radius: var(--r-node); }
 .explore-info { flex: 1; min-width: 0; overflow-wrap: anywhere; }
 .explore-name { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
 .explore-info h3 { font-size: calc(13px + var(--ui-text-increase, 0px)); line-height: var(--lh-body); margin: 0; font-weight: 600; color: var(--text); }
@@ -35,7 +40,11 @@
 /* The footer: Manage in Settings (quiet) at the left, Done (primary) at the
    right, on the shared 48 band and --line-soft rule. */
 .explore-footer { display: flex; align-items: center; justify-content: space-between; gap: 8px 16px; min-height: var(--dialog-foot-h); box-sizing: content-box; padding: 0 16px; border-top: 1px solid var(--line-soft); flex-shrink: 0; }
-.explore-status { margin: 8px; color: var(--text-secondary); }
+/* A note (V4's Figma): a 28 band at --r-panel, 6/8 inside, 12/16; neutral on
+   the control fill in --text-secondary, a failure on the error wash in --text.
+   A transparent outline is what a Contrast theme draws when it drops the fill. */
+.explore-status { margin: 0; min-height: 28px; box-sizing: border-box; padding: 6px 8px; border-radius: var(--r-panel); background: var(--ctl-fill); outline: 1px solid transparent; color: var(--text-secondary); font-size: calc(12px + var(--ui-text-increase, 0px)); font-weight: 400; line-height: 16px; overflow-wrap: anywhere; }
+.explore-status[data-tone="err"] { background: var(--err-12); color: var(--text); }
 @media (max-width: 640px) {
   .explore-body { padding: 12px; }
   .explore-provider { flex-wrap: wrap; align-items: flex-start; gap: 8px; padding: 10px 12px; }

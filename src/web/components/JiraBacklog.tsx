@@ -21,7 +21,8 @@ import {
 } from "../jira-board";
 import type { BoardSnapshot, GroupData } from "../use-jira-board";
 import { connectionHost } from "../integrations/client";
-import IntegrationAvatar, { IntegrationAvatarStack, UnassignedAvatar } from "./IntegrationAvatar";
+import { copyText } from "../copy-text";
+import IntegrationAvatar, { IntegrationAvatarStack } from "./IntegrationAvatar";
 import IntegrationFailureNote from "./IntegrationFailureNote";
 import IntegrationSkeleton from "./IntegrationSkeleton";
 import { Chevron, EpicChip, Estimate, FlagGlyph, PriorityIcon, StatusLozenge, TypeIcon } from "./JiraParts";
@@ -162,13 +163,14 @@ function IssueLine({ issue, estimation, time }: { issue: JiraIssue; estimation: 
         <Estimate issue={issue} estimation={estimation} time={time} />
         <span className="jr-status-cell"><StatusLozenge status={issue.status} /></span>
       </span>
-      {/* The reader's own issues: their face ringed in the accent, and
-          "assigned to you" in the row's label. */}
-      <span className="jr-assignee" title={issue.assignee ? (issue.mine ? t("integrations.row.assigneeYou", { name: issue.assignee.name }) : issue.assignee.name) : t("integrations.unassigned")}>
-        {issue.assignee
-          ? <IntegrationAvatar src={issue.assignee.avatar} name={issue.assignee.name} size={20} you={issue.mine} />
-          : <UnassignedAvatar size={20} />}
-      </span>
+      {/* V4's row draws a face with no ring, and nothing for nobody; the
+          reader's own issues say "assigned to you" in the row's label and
+          title. The cell stays, so the column holds its place. */}
+      {issue.assignee
+        ? <span className="jr-assignee" title={issue.mine ? t("integrations.row.assigneeYou", { name: issue.assignee.name }) : issue.assignee.name}>
+            <IntegrationAvatar src={issue.assignee.avatar} name={issue.assignee.name} size={20} />
+          </span>
+        : <span className="jr-assignee" />}
     </>
   );
 }
@@ -240,6 +242,10 @@ export default function JiraBacklog(props: JiraBacklogProps) {
         Array.from(listRef.current?.querySelectorAll<HTMLElement>(".jr-row-main[data-key]") ?? []).find(el => el.dataset.key === menu.issue.key)?.focus();
       }
     });
+  };
+  const copyLink = async (issue: JiraIssue) => {
+    const ok = await copyText(issue.url);
+    setMoveNotice(t(ok ? "integrations.rowMenu.copied" : "integrations.rowMenu.copyFailed", { key: issue.key }));
   };
   const finishDrag = () => { drag.current = null; setDragKeys([]); setDropAt(null); };
   const saveMove = async (move: JiraMove, destination: GroupDef): Promise<boolean> => {
@@ -574,18 +580,21 @@ export default function JiraBacklog(props: JiraBacklogProps) {
       <p className="vis-hidden" id={`${boardId}-instructions`}>{t("integrations.list.instructions")}{canMove ? t("integrations.list.instructionsMove") : ""}</p>
       {selectionMode && selectedItems.length > 0 && <div className="jr-selection" role="group" aria-label={t("integrations.list.selectedGroup")}>
         <span role="status">{t("integrations.list.selectedCount", { n: selectedItems.length })}</span>
-        {canMove && <button type="button" className="btn" id={`${boardId}-move-selected`} {...selfPressProps(moveBusy, Boolean(selectionProblem))}
-          aria-haspopup="dialog" aria-expanded={moveMenu?.anchorId === `${boardId}-move-selected`}
-          onClick={() => { if (!selectionProblem) openMoveMenu(selectedItems[0].issue, selectedItems[0].group, `${boardId}-move-selected`); }}>{t("integrations.list.moveSelected")}</button>}
-        <button type="button" className="jr-link-btn jr-selection-clear" aria-label={t("integrations.list.clearSelectionAria")} onClick={() => {
-          selectionVersion.current++; setPicked(new Set()); setSelectionMode(true); selectionAnchor.current = null;
-        }}>{t("integrations.list.clear")}</button>
         {selectionProblem && canMove && <span className="jr-selection-note" id={`${boardId}-blocked`}>{selectionProblem}</span>}
-        {blockedItems.length > 0 && canMove && <button type="button" className="btn" onClick={() => {
-          selectionVersion.current++;
-          setPicked(new Set(selectedItems.filter(i => !issueMoveBlocker(i)).map(i => i.issue.key)));
-          setMoveError("");
-        }}>{t("integrations.list.removeBlocked", { n: blockedItems.length })}</button>}
+        {/* V4's bar: the count at the start, the actions at the end, Clear last. */}
+        <span className="jr-selection-actions">
+          {canMove && <button type="button" className="btn" id={`${boardId}-move-selected`} {...selfPressProps(moveBusy, Boolean(selectionProblem))}
+            aria-haspopup="dialog" aria-expanded={moveMenu?.anchorId === `${boardId}-move-selected`}
+            onClick={() => { if (!selectionProblem) openMoveMenu(selectedItems[0].issue, selectedItems[0].group, `${boardId}-move-selected`); }}>{t("integrations.list.moveSelected")}</button>}
+          {blockedItems.length > 0 && canMove && <button type="button" className="btn" onClick={() => {
+            selectionVersion.current++;
+            setPicked(new Set(selectedItems.filter(i => !issueMoveBlocker(i)).map(i => i.issue.key)));
+            setMoveError("");
+          }}>{t("integrations.list.removeBlocked", { n: blockedItems.length })}</button>}
+          <button type="button" className="jr-link-btn jr-selection-clear" aria-label={t("integrations.list.clearSelectionAria")} onClick={() => {
+            selectionVersion.current++; setPicked(new Set()); setSelectionMode(true); selectionAnchor.current = null;
+          }}>{t("integrations.list.clear")}</button>
+        </span>
       </div>}
       <p className="jr-move-status" role="status" aria-live="polite">{moveNotice}</p>
       {moveError && !moveMenu && <p className="jr-move-error" role="alert">{moveError}</p>}
@@ -623,7 +632,7 @@ export default function JiraBacklog(props: JiraBacklogProps) {
                   <Chevron open={open} />
                   <span className="jr-group-identity">
                     <span className="jr-group-name">{groupTitle(def, t)}</span>
-                    {def.kind === "active" && <span className="jr-badge">{t("integrations.list.active")}</span>}
+                    {def.kind === "active" && <span className="vis-hidden">{t("integrations.list.active")}</span>}
                     {dates && <span className="jr-group-dates">{dates}</span>}
                     {onDemand ? (
                       <span className="jr-group-count" title={t("integrations.list.countOnOpen")}><span aria-hidden>—</span><span className="vis-hidden">{t("integrations.list.countOnOpenSr")}</span></span>
@@ -641,6 +650,9 @@ export default function JiraBacklog(props: JiraBacklogProps) {
                   <Totals def={def} totals={stats.totals} estimation={estimation} time={time} />
                 </div>
               )}
+              {/* The lozenge sits at the head's end (V4's Figma); the toggle
+                  says "Active" to a screen reader. */}
+              {def.kind === "active" && <span className="jr-badge" aria-hidden>{t("integrations.list.active")}</span>}
             </div>
             {sprint?.goal && open && <p className="jr-goal">{sprint.goal}</p>}
             {open && (
@@ -664,7 +676,7 @@ export default function JiraBacklog(props: JiraBacklogProps) {
                 {rows.length > 0 && <ul className="jr-rows">{rows.map(row => renderRow(row, def, 0))}</ul>}
                 {data?.capped && <p className="jr-board-note">{t("integrations.list.capped")}</p>}
                 {def.paged && data?.next && (
-                  <button type="button" className="btn jr-more" {...selfPressProps(readBusy || Boolean(data.more))} onClick={() => { if (selfPressAccepted(readBusyRef.current || Boolean(data.more))) onMore(def); }}>
+                  <button type="button" className="jr-more" {...selfPressProps(readBusy || Boolean(data.more))} onClick={() => { if (selfPressAccepted(readBusyRef.current || Boolean(data.more))) onMore(def); }}>
                     {data.more ? t("integrations.list.reading") : data.total != null ? t("integrations.list.showMoreCount", { n: data.issues.length, total: data.total }) : t("integrations.list.showMore")}
                   </button>
                 )}
@@ -677,6 +689,8 @@ export default function JiraBacklog(props: JiraBacklogProps) {
 
       {moveMenu && <JiraMovePopover key={moveMenu.anchorId} items={moveMenu.items} groups={groups} snap={snap}
         initialView={moveMenu.initialView}
+        onOpen={() => pick(moveMenu.issue.key, { ctrlKey: false, metaKey: false, shiftKey: false })}
+        onCopyLink={moveMenu.issue.url ? () => copyLink(moveMenu.issue) : undefined}
         anchorId={moveMenu.anchorId} portalId={boardId} boundaryId={props.scrollBoundaryId} busy={moveBusy && !moveUncertain} uncertain={moveUncertain} outcome={moveOutcome} onChecked={onMoveChecked} error={moveError}
         onMove={saveMove} onClose={closeMoveMenu} />}
 
