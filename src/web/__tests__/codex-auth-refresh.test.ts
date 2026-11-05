@@ -33,10 +33,12 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 
 const DIR = mkdtempSync(join(tmpdir(), "ccdeck-codex-refresh-"));
-const prevEnv = { HOME: process.env.HOME, USERPROFILE: process.env.USERPROFILE, CODEX_HOME: process.env.CODEX_HOME };
+const prevEnv = { HOME: process.env.HOME, USERPROFILE: process.env.USERPROFILE, CODEX_HOME: process.env.CODEX_HOME, CCDECK_HOME: process.env.CCDECK_HOME };
 process.env.HOME = DIR;
 process.env.USERPROFILE = DIR;
 process.env.CODEX_HOME = join(DIR, "codex");
+// Windows stores the registry under LocalAppData, independently of HOME.
+process.env.CCDECK_HOME = join(DIR, "deck");
 if (!resolve(process.env.CODEX_HOME).startsWith(resolve(DIR))) throw new Error("sandbox escaped");
 mkdirSync(process.env.CODEX_HOME, { recursive: true });
 const AUTH_PATH = join(process.env.CODEX_HOME, "auth.json");
