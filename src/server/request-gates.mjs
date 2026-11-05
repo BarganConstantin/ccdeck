@@ -453,6 +453,9 @@ export const GUARDED_READS = new Set([
   // credentials are deliberately omitted from the response.
   "/api/codex-profiles",
   "/api/codex-profile-quota",
+  // Per-project token spend of one Codex profile: the Claude report's class of
+  // secret, under the same rule as /api/account-projects below.
+  "/api/codex-profile-projects",
   "/api/codex-auto",
   "/api/codex-profile-launch",
   "/api/codex-profile-login",

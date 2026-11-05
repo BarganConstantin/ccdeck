@@ -209,13 +209,15 @@ describe('the panel, on the moments that matter', () => {
 
   // CHANGED ON PURPOSE (V4's Figma): Auto-switch is one row under the roster, fold
   // shut or open, for Codex as for Claude — its state and threshold are readable
-  // without opening anything, and it is there with one account too.
+  // without opening anything, and it is there with one account too (which also
+  // answers development's lone-account ask of 2026-11-03).
   it('draws Auto-switch under the roster with the fold shut, through the same component as Claude', async () => {
     const status = { ok: true, enabled: true, external: false, lastTick: null, settings: { 'autoswitch.threshold': { value: '85', isDefault: false } }, choice: { next: 'room', home: null }, heldOut: ['o'] };
     const answer = (url: string) => url === '/api/codex-auto' ? status : null;
     const policy = (v: Drawn) => one(v.tree, el => typeof el.type === 'function' && 'thresholdPick' in el.props);
     const alone = await deck(() => [profile({ id: 'd', active: true })], () => reading(), answer);
     expect(policy(alone.view)?.props.threshold).toBe('85');
+    expect(one(alone.view.tree, el => el.props?.id === 'ap-codex-rest-panel')).toBeFalsy();
     alone.view.unmount();
     const { view } = await deck(() => [profile({ id: 'd', active: true, account: 'd', label: 'd' }), profile({ id: 'o', account: 'o', label: 'o' })], () => reading(), answer);
     // Fold shut: both the on/off state and the threshold are there, and it is Codex's own scroll that bounds it.

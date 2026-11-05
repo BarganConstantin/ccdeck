@@ -214,6 +214,49 @@ describe("a switch the auto-switch loop made", () => {
   });
 });
 
+describe("a switch Codex's Auto-switch made", () => {
+  // The real loop round and the real door, with the profiles and their
+  // readings handed in: a move reaches the desktop once, under Codex's name.
+  const id = (c: string) => c.repeat(20);
+  const read = (usedPercent: number) => ({ ok: true, windows: [{ usedPercent, seconds: 18000, resetAt: Math.floor(Date.now() / 1000) + 3600 }] });
+  const round = async (onTick: (o: unknown) => unknown, enabled = true) => {
+    const { applyCodexAuto, codexAutoTick } = await import("../../server/codex-auto.mjs");
+    const store = join(DIR, "deck", `codex-${Math.random().toString(36).slice(2)}`);
+    await applyCodexAuto({ action: "enable", enabled }, { store });
+    await codexAutoTick({
+      store, onTick,
+      readSelection: async () => ({ profileId: id("a"), revision: 1 }),
+      discover: async () => [
+        { id: id("a"), active: true, available: true, signedIn: true, managedLabel: "Ana", label: "Ana · ana@x.com" },
+        { id: id("b"), active: false, available: true, signedIn: true, account: "work@x.com", label: "work@x.com" },
+      ],
+      readQuota: async (rid: string) => read(rid === id("a") ? 95 : 10),
+      select: async () => ({}),
+    });
+  };
+
+  it("reaches the desktop once, through the door index.mjs hands the loop", async () => {
+    const pending: Promise<unknown>[] = [];
+    await round(o => pending.push(watch.noteCodexAutoTick(o)));
+    await Promise.all(pending);
+    expect(said).toEqual([{ title: "Codex auto-switch — ccdeck", body: "Switched to work@x.com · Ana reached 90%" }]);
+    const index = readFileSync(fileURLToPath(new URL("../../server/index.mjs", import.meta.url)), "utf8");
+    expect(index).toMatch(/startCodexAutoLoop\(\{ onTick: noteCodexAutoTick \}\)/);
+  });
+
+  it("is not said with the swap switch off, nor for a loop that is off", async () => {
+    settings.swap = false;
+    const pending: Promise<unknown>[] = [];
+    await round(o => pending.push(watch.noteCodexAutoTick(o)));
+    // The switch is read when the notice is decided, so wait for that first.
+    await Promise.all(pending);
+    settings.swap = true;
+    await round(o => pending.push(watch.noteCodexAutoTick(o)), false);
+    await Promise.all(pending);
+    expect(said).toEqual([]);
+  });
+});
+
 describe("a switch somebody pressed", () => {
   it("never reaches the notifier", async () => {
     writeStore(2, { 2: 94, 3: 20 });

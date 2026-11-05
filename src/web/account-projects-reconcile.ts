@@ -50,7 +50,7 @@
 // — our tokens of that day and model priced by speed, over the same tokens at
 // the standard rate — and then multiplies each project priced by speed: the
 // day still totals ccusage's dollars, and each project carries its own premium.
-import { costAtSpeed, costForUsage, fmtCost, ratesForModel, speedShares, STANDARD_SPEED, UNPRICED_LABEL } from "./pricing";
+import { billedTokens, costAtSpeed, costForUsage, fmtCost, ratesForModel, speedShares, STANDARD_SPEED, UNPRICED_LABEL } from "./pricing";
 import { bareModelId } from "./model-id";
 import { fmtTokens } from "./token-format";
 import type { TokenUsage } from "./types";
@@ -115,9 +115,10 @@ function flatUsage(c: Counters): TokenUsage {
   return u;
 }
 
-/** Billed tokens of one counter set. c1h/c5m are a split OF cc, not extra. */
-function billedOf(c: Counters): number {
-  return c.i + c.o + c.cr + c.cc;
+/** Billed tokens of one counter set. c1h/c5m are a split OF cc, not extra, and
+ *  a Codex model's input already holds its cache (pricing.ts billedTokens). */
+function billedOf(c: Counters, model: string): number {
+  return billedTokens(toUsage(c), model);
 }
 
 /** Add `src` into `dst`, speed shares and all. */
@@ -139,8 +140,7 @@ function bySpeed(usage: TokenUsage, model: string, now: number) {
   const unpricedSpeeds: string[] = [];
   for (const share of speedShares(usage)) {
     if (!ratesForModel(model, now, share.speed)) {
-      const u = share.usage;
-      const t = u.inputTokens + u.outputTokens + u.cacheReadTokens + u.cacheCreateTokens;
+      const t = billedTokens(share.usage, model);
       if (t > 0) { unpriced += t; unpricedSpeeds.push(share.speed); }
       continue;
     }
@@ -153,7 +153,7 @@ function bySpeed(usage: TokenUsage, model: string, now: number) {
 /** Billed tokens of a model spread. */
 export function tokensOf(models: Record<string, Counters>): number {
   let t = 0;
-  for (const c of Object.values(models)) t += billedOf(c);
+  for (const [model, c] of Object.entries(models)) t += billedOf(c, model);
   return t;
 }
 
@@ -284,7 +284,7 @@ export function reconcile(
         for (const speed of p.unpricedSpeeds) unpricedModels.add(`${m} (${speed})`);
         continue;
       }
-      const t = billedOf(c);
+      const t = billedOf(c, m);
       if (t > 0) { unpriced += t; unpricedModels.add(m); }
     }
     return { cost, unpriced };

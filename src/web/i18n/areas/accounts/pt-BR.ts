@@ -463,7 +463,6 @@ const catalog: Catalog = {
   "accounts.row.reauthTip": "Abre o diálogo de login. Entrar com esta conta substitui o login expirado no mesmo lugar — ela mantém o slot, o apelido e o histórico.",
   "accounts.row.dismissLabel": "Dispensar esta mensagem",
   "accounts.row.dismiss": "Dispensar",
-  "accounts.row.nowActive": "Agora ativa. As novas sessões começam nela; as que já estão rodando a adotam na próxima mensagem, até cerca de 30 segundos depois no macOS.",
   "accounts.row.whoWasThere": "a conta que estava lá",
   "accounts.row.swapTitle": "O slot {at} estava ocupado, então as duas contas trocaram de lugar: {who} agora ocupa o slot {displaced}.",
   "accounts.row.swapped": "trocada com o slot {n}",

@@ -61,6 +61,8 @@ type DoneRow = NonNullable<NonNullable<Peer["last"]>["done"]>[number];
  * which sent people to the one that was fine.
  */
 const ROUND_WHY: Record<string, { short: string; long: string }> = {
+  "export failed": { short: "lan.round.exportFailed.short", long: "lan.round.exportFailed.long" },
+  windows_permissions_required: { short: "lan.round.permissions.short", long: "lan.round.permissions.long" },
   // From the sending deck, on the wire. Nothing to do here: once that Mac
   // opens its Keychain the next round asks again and brings it.
   keychain_unavailable: {

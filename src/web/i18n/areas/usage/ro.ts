@@ -102,7 +102,6 @@ const catalog: Catalog = {
   "usage.sessionNote": "Sesiunile cu activitate {noun} și ce atribuie ccusage fiecăreia.",
   "usage.sessionNote.over": "Însumează {sum}, mai mult decât {total} de mai sus: ce a costat o sesiune și ce a costat o zi sunt două măsurători diferite și nu trebuie să coincidă.",
   "usage.refreshWord": "Actualizează",
-  "usage.quota.standardLimits": "Doar limitele standard Codex; limitele suplimentare și creditele nu sunt incluse.",
   "usage.quota.hint.codexProfileChanged": "Autentificarea Codex tocmai s-a schimbat — se citește din nou în cel mult un minut.",
 };
 

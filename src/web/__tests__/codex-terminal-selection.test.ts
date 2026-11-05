@@ -3,7 +3,7 @@ import { chmod, mkdtemp, mkdir, readFile, rm, symlink, writeFile } from 'node:fs
 import { execFileSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { addCodexProfile, readCodexSelection, selectCodexProfile } from '../../server/codex-selection.mjs';
 import { configureCodexTerminal, codexLoginCommand, codexTerminalCommand } from '../../server/codex-terminal.mjs';
 import { terminalCodexHome } from '../../server/codex-terminal-runner.mjs';
@@ -72,7 +72,15 @@ describe('durable terminal selection', () => {
     const first = await readFile(rc, 'utf8');
     await configureCodexTerminal('install', options);
     expect(await readFile(rc, 'utf8')).toBe(first);
+    // Reports or unrelated project files above the data directory must not
+    // become the installed helper's Node package configuration.
+    await writeFile(join(f.root, 'package.json'), '[]\n');
     const runner = join(f.store, 'codex-terminal', 'codex-terminal-runner.mjs');
+    const interactive = pathToFileURL(join(f.store, 'codex-terminal', 'codex-interactive-engine.mjs')).href;
+    expect(execFileSync(process.execPath, ['--input-type=module', '-e',
+      'const m=await import(process.argv[1]);console.log(m.codexInteractiveInvocation([]).backendArgs[0]);', interactive],
+      { encoding: 'utf8' }).trim()).toBe('app-server');
+    expect(await readFile(join(f.store, 'codex-terminal', 'node_modules', 'ws', 'LICENSE'), 'utf8')).toContain('Einar Otto Stangvik');
     const env = { ...process.env };
     delete env.CODEX_HOME;
     const strange = 'spaces "quotes" & dollar $ and apostrophe\'';

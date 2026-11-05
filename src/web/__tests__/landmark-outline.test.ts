@@ -409,6 +409,9 @@ describe("the heading outline starts at level 1 and skips nothing (#381)", () =>
       "components/BrowserWatchFindings.tsx",
       "components/BrowserWatchOverview.tsx",
       "components/BrowserWatchProfiles.tsx",
+      // Add a Codex account's Paste a share tab, lifted out of that dialog's
+      // file and only ever rendered inside it, as Claude's paste tab's <h4> is.
+      "components/CodexImportPane.tsx",
       "components/RemoteControl.tsx",
       "components/SessionSummary.tsx",
       "components/ShareAccountsDialog.tsx",

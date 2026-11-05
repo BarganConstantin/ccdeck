@@ -40,3 +40,6 @@ process.env.AGENTS_DECK_NO_RADAR = "1";
 // against the fake API in account-fake-api.ts.
 delete process.env.CCDECK_ACCOUNT;
 delete process.env.CCDECK_ACCOUNT_API;
+// A test deck must never change authentication in the developer's existing
+// Codex daemon. Live-account suites construct controllers with fake peers.
+process.env.AGENTS_DECK_NO_CODEX_LIVE = "1";

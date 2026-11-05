@@ -152,3 +152,33 @@ export function loadProjects<R>({ num, days, gen, dispatch, get = (url, init) =>
     .catch(() => null)
     .then(body => dispatch({ type: "cost", gen, cost: costFrom(body) }));
 }
+
+/** The one read for a Codex account's report. */
+export function codexProjectsUrl(id: string, days: number): string {
+  return `/api/codex-profile-projects?id=${encodeURIComponent(id)}&days=${days}`;
+}
+
+/**
+ * A Codex account's report: ONE read. ccusage prices Claude's logs only, so
+ * there is no second authority to wait for; the cost settles as `failed` at
+ * once, which is what draws pricing.ts's dollars with nothing said to be
+ * running. The report keeps the same events, generations and guard as
+ * Claude's, so a late answer still cannot land on a window left behind.
+ */
+export function loadCodexProjects<R>({ id, days, gen, dispatch, get = (url, init) => fetch(url, init) }: {
+  id: string;
+  days: number;
+  gen: number;
+  dispatch: (e: ProjectsEvent<R>) => void;
+  get?: Get;
+}): void {
+  dispatch({ type: "cost", gen, cost: FAILED });
+  get(codexProjectsUrl(id, days), { credentials: "same-origin" })
+    .then(r => (r.ok ? r.json() : Promise.reject(new OwnError(`HTTP ${r.status}`))))
+    .then(data => {
+      // The route answers `ok: false` for an account it no longer knows.
+      if ((data as { ok?: unknown } | null)?.ok === false) throw new OwnError(tNow("accounts.projects.couldNotLoad"));
+      dispatch({ type: "report", gen, days, data: data as R });
+    })
+    .catch((err: Error) => dispatch({ type: "reportFailed", gen, message: ownMessage(err, tNow("accounts.projects.couldNotLoad")) }));
+}

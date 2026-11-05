@@ -455,8 +455,6 @@ const catalog: Catalog = {
 
   // Account rows
   "radar.org.who": "このアカウントの組織",
-  "radar.org.whoPossessive": "その組織のテレメトリ",
-  "radar.org.named": "{org} のテレメトリ",
   "radar.org.and": "{list}、{last}",
   "radar.org.sep": "、",
   "radar.org.word.prompts": "プロンプト",
@@ -470,9 +468,6 @@ const catalog: Catalog = {
   "radar.org.collector": "そのコレクター",
   "radar.org.detail": "{who}は、新しいセッションで Claude Code のテレメトリをオンにしています。送信内容：{what}、送信先：{where}。最後に確認：{ago}（このアカウントがアクティブだったとき）。",
   "radar.org.holdOut": " このアカウントへの自動切り替えを避けるには、⋯ メニューで「ローテーションから外す」を選んでください。",
-  "radar.org.switchedWhat": "あなたの{words}",
-  "radar.org.switchedTo": "（送信先：{list}）",
-  "radar.org.switched": "{who}は、これらのセッションでオンです。送信内容：{what}{where}。",
   "radar.srv.ipv4": "IPv4 アドレスと TCP ポートを選んでください。",
   "radar.srv.platform": "ライブキャプチャは macOS、Linux、Windows で使えます。",
   "radar.srv.destCount": "送信先を1〜8件選んでください。",

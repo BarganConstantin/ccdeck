@@ -456,8 +456,6 @@ const catalog: Catalog = {
 
   // Account rows
   "radar.org.who": "此账号所属的组织",
-  "radar.org.whoPossessive": "其组织的遥测",
-  "radar.org.named": "{org} 的遥测",
   "radar.org.and": "{list}和{last}",
   "radar.org.sep": "、",
   "radar.org.word.prompts": "提示词",
@@ -471,9 +469,6 @@ const catalog: Catalog = {
   "radar.org.collector": "其收集器",
   "radar.org.detail": "{who}为新会话开启了 Claude Code 遥测：{what}，发送至{where}。最近一次查看：{ago}，当时此账号正在使用中。",
   "radar.org.holdOut": " 若要避免自动切换到此账号，请在其 ⋯ 菜单中选择“排除轮换”。",
-  "radar.org.switchedWhat": "您的{words}",
-  "radar.org.switchedTo": "，发送至{list}",
-  "radar.org.switched": "{who}已对它们开启：会发送{what}{where}。",
   "radar.srv.ipv4": "请选择 IPv4 地址和 TCP 端口。",
   "radar.srv.platform": "实时捕获支持 macOS、Linux 和 Windows。",
   "radar.srv.destCount": "请选择一到八个目的地。",

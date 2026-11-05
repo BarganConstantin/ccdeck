@@ -9,7 +9,11 @@
 //
 //   - an "install" event the first time, with the ccdeck.dev page its command
 //     was copied from when the command said (`--ref`, install-ref.mjs) — a
-//     page name, never anything about the person,
+//     page name, never anything about the person — and how it was installed:
+//     ccdeck.dev's one-line install on macOS (curl) or Windows (irm), a
+//     downloaded installer, npx or npm (depth-facts.mjs installVia; the
+//     one-line installs leave a one-word file, `install-via`, that the first
+//     report reads and then deletes),
 //   - an "update" event, with the version it came from, when the version moves,
 //     and how the new one arrived: the deck's own update, the desktop app's
 //     updater, npx, npm, or a source checkout,
@@ -20,7 +24,10 @@
 //     and that day's date — numbers, never their names (see usage-day.mjs) —
 //     and which of the deck's features were used that day, as fixed names
 //     ("usage-history", "account-switch") and nothing about what was done
-//     with them (feature-use.mjs), and how the deck held up and who runs it:
+//     with them (feature-use.mjs) — among them where the deck was looked at
+//     from that day: the desktop app's window ("desktop-window"), a browser
+//     tab ("browser-tab") or `ccdeck tui` ("tui"), a window or tab counted on
+//     every day it stayed open — and how the deck held up and who runs it:
 //     how long this run took to start, that day's peak memory and how many
 //     events it took in, each as a bucket ("2s", "512m", "1k"), the Claude and
 //     Codex plan as its category ("max-20x", "plus") and nothing else from the
@@ -44,16 +51,27 @@
 //     names, the host of every web address, every IP address and the machine
 //     name a network error carries, email addresses and key-shaped strings
 //     scrubbed out before they leave (see scrub),
-//   - a "ping" heartbeat, every ten minutes or so while the deck runs, which
-//     moves the install's "last seen" so the admin can show who is online now,
-//     and is counted per day, which is how long the deck stays open.
+//   - a "ping" heartbeat, a minute or two after the deck starts and every ten
+//     minutes or so after that while it runs, which moves the install's "last
+//     seen" so the admin can show who is online now, and is counted per day,
+//     which is how long the deck stays open.
 //     It writes no event and carries the install id alone — no facts, no
 //     fingerprint.
 //
 // Each event carries the install id, the version, the OS and CPU architecture,
 // the channel (the desktop app, npm, or a source checkout) and the runtime, plus
+// which release of the OS it is: on macOS and Windows the release as a token
+// (`osVersion`, "macos-15", "windows-11", translated from the kernel version as
+// os-version.mjs does for a paired deck's card), on Linux the distribution
+// (`distro`, os-release's ID and VERSION_ID, "ubuntu-24.04" or "arch", or
+// "omarchy" when Omarchy's folder is there — never os-release's free-text
+// names) and `wsl: true` under WSL (each left out where it does not apply, and
+// never on the ping, errors or feedback), and
 // a coarse sketch of the environment: the logical CPU count, the RAM in MB, the
-// locale, the shell and terminal names, and the Claude Code and Codex CLI
+// locale, the language chosen in the deck's own page (`uiLanguage`, "ro" or
+// "pt-BR": the page tells the server, which keeps it in prefs.json and omits it
+// until a page has said it; never on the ping, errors or feedback), the shell
+// and terminal names, and the Claude Code and Codex CLI
 // versions — and, on install, update, active and activated, what the boot set
 // up: whether the Claude hooks went in ("ok", "failed", "off") and whether
 // Codex is watched ("on", "off"). Every one of those is a small fixed token or
@@ -89,8 +107,11 @@
 // be refused the same way. A 4xx the edge in front of it answers with is tried again.
 
 import { createHash, randomUUID } from "node:crypto";
+import { readFileSync, statSync } from "node:fs";
 import { chmod, mkdir, readFile, unlink } from "node:fs/promises";
-import { arch as osArch, cpus as osCpus, homedir, hostname, platform as osPlatform, totalmem } from "node:os";
+import {
+  arch as osArch, cpus as osCpus, homedir, hostname, platform as osPlatform, release as osKernelRelease, totalmem,
+} from "node:os";
 import { basename, dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { inApp } from "./app-host.mjs";
@@ -104,8 +125,12 @@ import { RUNNING_VERSION } from "./running-version.mjs";
 import { FEATURES, usageDay, utcDay } from "./usage-day.mjs";
 import { setupFacts, sinceInstallBucket, whenSetupKnown } from "./activation.mjs";
 import { notedRef, refSlug } from "./install-ref.mjs";
+import { isWsl } from "./open-url.mjs";
+import { osReleaseFields, osVersionOf } from "./os-version.mjs";
+import { UI_LANGUAGE_MAX, uiLanguageCode } from "./ui-language.mjs";
 import {
-  CLAUDE_PLANS, CODEX_PLANS, cappedCount, deckDepth, eventsBucket, launchBucket, memoryBucket, updateVia,
+  CLAUDE_PLANS, CODEX_PLANS, cappedCount, deckDepth, eventsBucket, installMarkFile, installVia, launchBucket,
+  memoryBucket, updateVia,
 } from "./depth-facts.mjs";
 import { daysUsedBucket, normaliseRating, ratingDue, ratingStage, scoreOf } from "./rating.mjs";
 
@@ -122,6 +147,13 @@ const CHECK_IN_EVERY_MS = 6 * 60 * 60 * 1000;
  *  not all beat on the same tick. */
 const PING_EVERY_MS = 10 * 60 * 1000;
 const PING_JITTER_MS = 2 * 60 * 1000;
+/** One ping of its own soon after a start, one to two minutes in, ahead of the
+ *  first beat. A restart on a day and a version already reported sends nothing
+ *  at its check-in, so until the first beat the admin showed a restarted deck
+ *  offline for ten minutes or more. Not at once: the boot check-in goes first,
+ *  and a fleet started together still spreads out. The beats keep their pace. */
+const FIRST_PING_MS = 60 * 1000;
+const FIRST_PING_JITTER_MS = 60 * 1000;
 /** The longest a 429's or a 503's Retry-After is waited for: a header that asks
  *  for a week does not silence a deck for one. */
 const RETRY_AFTER_MAX_MS = 24 * 60 * 60 * 1000;
@@ -142,6 +174,7 @@ const EMPTY_REPORT = Object.freeze({
   installId: "", lastVersion: "", lastActiveDay: "", forget: "", usage: null,
   installedAt: "", firstSessionAt: "", firstProvider: "", activationSent: false, ref: "", selfUpdate: null,
   rating: normaliseRating(null),
+  uiLanguage: "",
 });
 
 /** Is this deck sending reports right now? The switch, which is on unless
@@ -165,7 +198,10 @@ export function reportsOn(prefs, env = process.env) {
 // The keys the API caps, so a value that would be rejected for length is not
 // sent: it is trimmed to the cap here instead. Only ever tokens the shape of a
 // terminal name, a shell name, a locale or a version — never anything free.
-const TOKEN_CAPS = { locale: 16, shell: 16, term: 32, claudeVersion: 32, codexVersion: 32, deviceId: 64 };
+const TOKEN_CAPS = {
+  locale: 16, shell: 16, term: 32, claudeVersion: 32, codexVersion: 32, deviceId: 64, uiLanguage: UI_LANGUAGE_MAX,
+  osVersion: 24, distro: 32,
+};
 
 /** A value reduced to the API's token shape `^[0-9A-Za-z.+_-]+$`: spaces become
  *  "_" (so "Apple Terminal" rides as "Apple_Terminal"), every other disallowed
@@ -305,6 +341,99 @@ function baseName(p) {
   return String(p).split(/[\\/]/).pop().replace(/\.exe$/i, "");
 }
 
+/** The API's token shape. A distribution's own words leave only when they are
+ *  already in it: nothing is reshaped into one, as `token` does for a terminal. */
+const TOKEN_SHAPE = /^[0-9A-Za-z.+_-]+$/;
+
+/** `value` when it is already a token no longer than `max`, else nothing. */
+function shaped(value, max) {
+  return typeof value === "string" && TOKEN_SHAPE.test(value) && value.length <= max ? value : undefined;
+}
+
+/** The OS release as a token, on macOS and Windows only — "macos-15",
+ *  "macos-26", "windows-10", "windows-11" — by the translation a paired deck's
+ *  card uses (os-version.mjs). Nothing on Linux, which says its distribution
+ *  instead (distroToken), and nothing for a release that cannot be told. */
+export function osVersionToken({ platform = process.platform, release = "" } = {}) {
+  const v = osVersionOf({ platform, release });
+  return v ? shaped(`${v.family}-${v.major}`, TOKEN_CAPS.osVersion) : undefined;
+}
+
+/**
+ * The Linux distribution as a token: os-release's `ID`, lowercased, with its
+ * `VERSION_ID` after a dash when it has one — "ubuntu-24.04", "fedora-41",
+ * "debian-12", and "arch", which has none. Omarchy sits on Arch and leaves
+ * Arch's os-release in place, so it is told by the folder it installs into
+ * (`omarchy`, read by the caller) or by an os-release that names it, and is
+ * sent as "omarchy".
+ *
+ * Only what is already token-shaped leaves: an ID that is not, or is longer
+ * than the cap, is nothing at all; a version that is not, or that would take
+ * the token past the cap, leaves the ID alone. The free-text fields — NAME,
+ * PRETTY_NAME — are only ever looked through for "omarchy", never sent.
+ * Never throws.
+ */
+export function distroToken({ osRelease = "", omarchy = false } = {}) {
+  try {
+    const f = osReleaseFields(osRelease);
+    if (omarchy === true || [f.ID, f.VARIANT_ID, f.NAME, f.PRETTY_NAME].some(v => /omarchy/i.test(v ?? ""))) return "omarchy";
+    const id = shaped(String(f.ID ?? "").trim().toLowerCase(), TOKEN_CAPS.distro);
+    if (!id) return undefined;
+    const version = String(f.VERSION_ID ?? "").trim().toLowerCase();
+    return (version && shaped(`${id}-${version}`, TOKEN_CAPS.distro)) || id;
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * This Linux's distribution as distroToken words it: os-release from where the
+ * spec puts it, `/etc/os-release` and then `/usr/lib/os-release`, and Omarchy's
+ * folder under the home folder, which only ever answers yes or no. The reads
+ * are parameters so a test can stand up any machine. Never throws.
+ */
+export function readDistro({ read = readFileSync, isDir = isDirectory, home = homedir() } = {}) {
+  let osRelease = "";
+  for (const file of ["/etc/os-release", "/usr/lib/os-release"]) {
+    try {
+      osRelease = String(read(file, "utf8"));
+      break;
+    } catch { /* not this one */ }
+  }
+  let omarchy = false;
+  try {
+    omarchy = isDir(join(home, ".local", "share", "omarchy")) === true;
+  } catch { /* no home, no Omarchy */ }
+  return distroToken({ osRelease, omarchy });
+}
+
+function isDirectory(path) {
+  try { return statSync(path).isDirectory(); } catch { return false; }
+}
+
+/** This machine's distribution, read the first time it is asked and kept:
+ *  nothing it is read from changes under a running deck. */
+let distroKept = null;
+function machineDistro() {
+  if (!distroKept) {
+    let value;
+    try { value = readDistro(); } catch { value = undefined; }
+    distroKept = { value };
+  }
+  return distroKept.value;
+}
+
+/** The kernel's release, or "" when it will not say. */
+function kernelRelease() {
+  try { return osKernelRelease(); } catch { return ""; }
+}
+
+/** Whether this Linux is WSL (open-url.mjs, which opens the browser on the
+ *  Windows side for it). Never throws. */
+function underWsl(platform, env) {
+  try { return isWsl(platform, env ?? {}) === true; } catch { return false; }
+}
+
 function addIf(target, key, value) {
   if (value !== undefined) target[key] = value;
 }
@@ -314,13 +443,18 @@ function addIf(target, key, value) {
  *  counts the API records as optional. `claudeVersion`/`codexVersion` are
  *  supplied by the reporter once its background probe has them (cli-versions.mjs)
  *  and omitted until then; everything else is read here from the OS and the
- *  environment. */
+ *  environment. The OS release, the distribution and WSL are read off this
+ *  machine only when `platform` is this machine's, so a test that names
+ *  another platform is never handed this one's. */
 export function installFacts({
   version = RUNNING_VERSION,
   platform = process.platform,
   arch = process.arch,
   versions = process.versions,
   env = process.env,
+  release = platform === process.platform ? kernelRelease() : "",
+  distro = platform === "linux" && platform === process.platform ? machineDistro() : undefined,
+  wsl = platform === "linux" && platform === process.platform ? underWsl(platform, env) : false,
   checkout = isGitCheckout(PKG_ROOT),
   cpus = cpuCount(),
   memMb = totalMemMb(),
@@ -330,6 +464,7 @@ export function installFacts({
   deviceId = deviceIdToken(),
   claudeVersion,
   codexVersion,
+  uiLanguage,
 } = {}) {
   const facts = {
     version: String(version),
@@ -340,9 +475,18 @@ export function installFacts({
     channel: inApp(env) ? "desktop" : checkout ? "checkout" : "npm",
     runtime: versions.electron ? `electron-${versions.electron}` : `node-${versions.node}`,
   };
+  // Which release of the system: "macos-26", "windows-11" on those two, and on
+  // Linux the distribution ("ubuntu-24.04", "arch", "omarchy") and, under WSL,
+  // `wsl: true`. Fixed tokens and one yes, never a name the machine was given.
+  addIf(facts, "osVersion", osVersionToken({ platform, release }));
+  addIf(facts, "distro", platform === "linux" ? shaped(distro, TOKEN_CAPS.distro) : undefined);
+  addIf(facts, "wsl", platform === "linux" && wsl === true ? true : undefined);
   addIf(facts, "cpus", count(cpus));
   addIf(facts, "memMb", count(memMb));
   addIf(facts, "locale", token(locale, TOKEN_CAPS.locale));
+  // The language chosen in the deck's own page, which the reporter folds in
+  // from the prefs (factsNow); not the OS locale above.
+  addIf(facts, "uiLanguage", token(uiLanguage, TOKEN_CAPS.uiLanguage));
   addIf(facts, "shell", token(shell, TOKEN_CAPS.shell));
   addIf(facts, "term", token(term, TOKEN_CAPS.term));
   // The one derived, hashed, personal field. Present on the events that carry
@@ -546,6 +690,12 @@ export function scrub(text, home = homedir(), root = PKG_ROOT) {
  *   where the question's outcome is kept a second time, out of reach of an
  *   older deck's write of prefs.json (ratingFile). Default: none — the deck's
  *   own reporter passes ratingFile(), so no test writes beside a real prefs.json.
+ * @param {{ read: () => Promise<{ content: string, mtimeMs: number } | null>, remove: () => Promise<void> } | null} [deps.installMark]
+ *   the mark ccdeck.dev's one-line installs leave (depth-facts.mjs
+ *   installMarkFile): read for the desktop app's install event, and deleted
+ *   once that event is settled, or at once when this install has reported
+ *   before. Default: none — the deck's own reporter passes installMarkFile(),
+ *   so no test reads or deletes a file in a real home.
  */
 export function createReporter({
   fetchImpl = globalThis.fetch,
@@ -570,11 +720,14 @@ export function createReporter({
   uptime = () => process.uptime() * 1000,
   firstRun = bootFoundNoPrefs,
   ratingKept = null,
+  installMark = null,
 } = {}) {
   const errorsSent = [];
   const lastSentAt = new Map();
   let timer = null;
   let pingTimer = null;
+  /** The one ping a start sends ahead of the first beat (FIRST_PING_MS). */
+  let firstPingTimer = null;
   /** How long this run took to start, read when start() runs; null before. */
   let launchMs = null;
 
@@ -631,7 +784,39 @@ export function createReporter({
   /** The full facts an event carries: the fixed install facts, plus whatever CLI
    *  versions are known this moment. */
   function factsNow() {
-    return { ...facts, ...versionFacts() };
+    return { ...facts, ...versionFacts(), ...uiLanguageFact() };
+  }
+
+  /** The page's language, from the prefs; nothing until a page has said it, and
+   *  nothing with reports off (switching them off empties it). Never throws. */
+  function uiLanguageFact() {
+    try {
+      const p = prefs.current();
+      if (!reportsOn(p, env)) return {};
+      const out = {};
+      addIf(out, "uiLanguage", token(uiLanguageCode(p.report.uiLanguage), TOKEN_CAPS.uiLanguage));
+      return out;
+    } catch {
+      return {};
+    }
+  }
+
+  /** The language a page is showing, kept for the reports. Only while reports
+   *  are on (there is nothing to keep it for otherwise, and the page says it
+   *  again on its next load); a code that is not a language tag is refused.
+   *  Resolves to whether it was kept; never throws. */
+  async function setUiLanguage(code) {
+    try {
+      const next = uiLanguageCode(code);
+      if (!next) return false;
+      await Promise.resolve(ready).catch(() => {});
+      if (!reportsOn(prefs.current(), env)) return false;
+      if (prefs.current().report.uiLanguage === next) return true;
+      await prefs.update(prev => (reportsOn(prev, env) ? { report: { ...prev.report, uiLanguage: next } } : undefined));
+      return true;
+    } catch {
+      return false;
+    }
   }
 
   /** What the boot set up — the Claude hooks and the Codex watcher — as the two
@@ -664,6 +849,36 @@ export function createReporter({
       return refSlug(reference());
     } catch {
       return undefined;
+    }
+  }
+
+  /** The one-line installs' mark, for the install event. Only the desktop app
+   *  reads it or deletes it: the app is what those scripts install, and an npm
+   *  deck beside it, on settings of its own, is not the install the mark is
+   *  about. */
+  const markHere = () => facts.channel === "desktop" && installMark != null;
+  /** Whether this run has already taken the mark away. */
+  let markGone = false;
+
+  /** The mark as read, or null. Never throws. */
+  async function markNow() {
+    if (!markHere()) return null;
+    try {
+      return (await installMark.read()) ?? null;
+    } catch {
+      return null;
+    }
+  }
+
+  /** Take the mark away, best effort, once a run. Never throws: a mark that
+   *  will not go is ignored once it is a week old. */
+  async function dropMark() {
+    if (!markHere() || markGone) return;
+    markGone = true;
+    try {
+      await installMark.remove();
+    } catch {
+      // Left where it is.
     }
   }
 
@@ -950,9 +1165,14 @@ export function createReporter({
       const ref = refSlug(prefs.current().report.ref) ?? refNow();
       const body = { installId, kind: "install", ...factsNow(), ...setupNow() };
       addIf(body, "ref", ref);
+      // How it arrived: npx or npm, or for the desktop app the one-line install
+      // whose script left a fresh mark, else a download (depth-facts.mjs).
+      addIf(body, "via", installVia({ channel: facts.channel, npx, mark: await markNow(), now: now() }));
       // Refused by the API is as done as sent: the same body would be refused again.
       if (settled(await call("POST", "/v1/app/events", body))) {
         await remember(installId, { lastVersion: facts.version, ref: "" });
+        // Said once, and only a new install has a way it arrived.
+        await dropMark();
       } else if (ref) {
         await remember(installId, { ref });
       }
@@ -967,6 +1187,9 @@ export function createReporter({
         await remember(installId, { lastVersion: facts.version, selfUpdate: null });
       }
     }
+    // This install has reported before: a mark beside it was left by a
+    // reinstall over it, which is not a new install.
+    if (lastVersion) await dropMark();
 
     if (lastActiveDay !== today) {
       // Usage rides on the "active" event alone, and is read only here — the one
@@ -1208,8 +1431,13 @@ export function createReporter({
     lastSentAt.set(key, at);
     const stack = typeof error?.stack === "string" ? scrub(error.stack, home, root).slice(0, STACK_MAX) : undefined;
     // Less the runtime, and less the deviceId — an error is not one of the events
-    // the fingerprint rides on, so the personal field never leaves on one.
-    const { runtime: _runtime, deviceId: _deviceId, ...fields } = factsNow();
+    // the fingerprint rides on, so the personal field never leaves on one. The
+    // page's language and the OS release, distribution and WSL ride on the
+    // events alone, as their contract with the API says.
+    const {
+      runtime: _runtime, deviceId: _deviceId, uiLanguage: _uiLanguage,
+      osVersion: _osVersion, distro: _distro, wsl: _wsl, ...fields
+    } = factsNow();
     return (await call("POST", "/v1/app/errors", { installId: p.report.installId, ...fields, where, message, stack })) === "sent";
   }
 
@@ -1241,9 +1469,13 @@ export function createReporter({
 
   /** Check in once the prefs are read, and every few hours after; and beat a
    *  heartbeat on its own, lighter timer, which also sends whatever a check-in
-   *  still owes (beat). Both timers never hold the process open. The first
-   *  check-in already puts a freshly launched deck online, so the first ping is
-   *  a full interval out — nothing pings at boot. */
+   *  still owes (beat). Both timers never hold the process open. Ahead of the
+   *  first beat, one ping alone, one to two minutes after the start
+   *  (FIRST_PING_MS), so a restarted deck — whose check-in has nothing new to
+   *  send on a day already reported — is online again within two minutes. It
+   *  is the heartbeat's ping and nothing more: the same body, under the same
+   *  rules (reports on, an install id, no Retry-After running), and nothing
+   *  pings at the boot itself. */
   function start() {
     // start() runs as the deck starts listening (index.mjs), so this is the
     // launch: process start to ready. A second start() keeps the first answer.
@@ -1270,7 +1502,14 @@ export function createReporter({
       timer = setInterval(() => { if (retryDue()) void checkIn(); }, CHECK_IN_EVERY_MS);
       timer.unref?.();
     }
-    if (!pingTimer) scheduleNextPing();
+    if (!pingTimer) {
+      scheduleNextPing();
+      firstPingTimer = setTimeout(() => {
+        firstPingTimer = null;
+        void ping();
+      }, FIRST_PING_MS + Math.floor(Math.random() * FIRST_PING_JITTER_MS));
+      firstPingTimer.unref?.();
+    }
   }
 
   function stop() {
@@ -1278,11 +1517,13 @@ export function createReporter({
     timer = null;
     if (pingTimer) clearTimeout(pingTimer);
     pingTimer = null;
+    if (firstPingTimer) clearTimeout(firstPingTimer);
+    firstPingTimer = null;
   }
 
   return {
     checkIn, ping, setReports, reportError, restoreUsage, restoreRating, saveUsage, sendActivation, willReport,
-    reportUninstall, noteSelfUpdate, ratingAsk, rate, rateLater, sendRating, start, stop,
+    reportUninstall, noteSelfUpdate, setUiLanguage, ratingAsk, rate, rateLater, sendRating, start, stop,
   };
 }
 
@@ -1346,4 +1587,5 @@ export const reporter = createReporter({
     return integrationsStore.connectedKinds();
   },
   ratingKept: ratingFile(),
+  installMark: installMarkFile(),
 });

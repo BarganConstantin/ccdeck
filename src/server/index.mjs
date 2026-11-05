@@ -19,7 +19,9 @@ import { challengeDeck, challengeProof, isProcessAlive } from "./deck-probe.mjs"
 export { challengeDeck, challengeProof, isProcessAlive };
 // The gates in front of the route table — see src/server/request-gates.mjs,
 // which also holds the per-process token the strictest of them checks.
-import { OPEN_MUTATIONS, isAuthorizedDataRead, isAuthorizedMutation, isGuardedRead, isTrustedMutation, isTrustedRead } from "./request-gates.mjs";
+import {
+  OPEN_MUTATIONS, isAuthorizedDataRead, isAuthorizedMutation, isGuardedRead, isTrustedMutation, isTrustedRead, presentsDeckToken,
+} from "./request-gates.mjs";
 import { trafficCapture } from "./traffic-radar-capture.mjs";
 import { trafficRadar } from "./traffic-radar.mjs";
 import { handleTrafficCapture, isAuthorizedTrafficIngest } from "./traffic-radar-routes.mjs";
@@ -71,7 +73,7 @@ import { serveStatic } from "./static-serve.mjs";
 // session-tracking.mjs.
 import { handleForget, startOutputWatch } from "./session-tracking.mjs";
 // Which features were used today, for the usage reports — see feature-use.mjs.
-import { handleFeature, noteRouteFeature } from "./feature-use.mjs";
+import { handleFeature, noteClientFeature, noteRouteFeature } from "./feature-use.mjs";
 // Exported from this file before it moved, and still.
 export { HARD_TRACKED_SESSIONS } from "./session-tracking.mjs";
 // The desktop app's update as its window sees it — the state the app reports
@@ -146,7 +148,7 @@ import { accountOn } from "./account-flag.mjs";
 export { beforeShutdown } from "./lifecycle.mjs";
 // Quota read for the account notifications while no page reads it — only while
 // one of their quota switches is on (account-watch.mjs).
-import { startAccountWatch } from "./account-watch.mjs";
+import { startAccountWatch, noteCodexAutoTick } from "./account-watch.mjs";
 // This deck's LAN engine, what the settings may tell it, and the probe that
 // asks whether other decks can reach it — see lan-deck.mjs. startServer hands
 // it the prefs at boot; the settings route does after every write.
@@ -158,7 +160,7 @@ import { handlePrefsGiveBack, handlePrefsRead, handlePrefsWrite } from "./prefs-
 // Usage reports and the feedback dialog (#1853). The requests to
 // api.ccdeck.dev are made in reports.mjs, never in this file.
 import {
-  handleClientError, handleFeedback, handleFeedbackFacts, handleRatingRead, handleRatingWrite, handleReportsWrite,
+  handleClientError, handleFeedback, handleFeedbackFacts, handleRatingRead, handleRatingWrite, handleReportsWrite, handleUiLanguageWrite,
 } from "./reports-routes.mjs";
 import { reporter } from "./reports.mjs";
 import { MANIFEST_PATH, offerManifest } from "./app-manifest.mjs";
@@ -171,7 +173,7 @@ export { sendInternalError };
 // The accounts surface's routes — see account-routes.mjs. The boot wires the
 // stale-copy repair and starts auto-switch through the same module.
 import { handleStopContinue, handleStopContinueRead } from "./stop-continue.mjs";
-import { cswapAutoModule, getProjectRollup, handleAccountLoginState, handleAccountProjects, handleClaudeAccountAdmin, handleClaudeAccountSwitch, handleClaudeAccounts, handleCodexProfiles, handleCodexProfileQuota, handleCodexProfileLaunch, handleCodexProfileMutation, handleCodexProfileLogin, handleCodexProfileLoginFlow, handleCodexTerminalCommand, handleCodexAuto, handleCodexAutoAction, handleCswapAuto, handleCswapAutoAction, wireAccountOrigins, wireStaleCopyRepair } from "./account-routes.mjs";
+import { cswapAutoModule, getProjectRollup, handleAccountLoginState, handleAccountProjects, handleClaudeAccountAdmin, handleClaudeAccountSwitch, handleClaudeAccounts, handleCodexProfiles, handleCodexAccountShare, handleCodexProfileQuota, handleCodexProfileProjects, handleCodexProfileLaunch, handleCodexProfileMutation, handleCodexProfileLogin, handleCodexProfileLoginFlow, handleCodexTerminalCommand, handleCodexAuto, handleCodexAutoAction, handleCswapAuto, handleCswapAutoAction, wireAccountOrigins, wireStaleCopyRepair } from "./account-routes.mjs";
 // Browser Watch's three routes — see browser-watch-routes.mjs.
 import { handleBrowserWatch, handleBrowserWatchDismiss, handleBrowserWatchSettings } from "./browser-watch-routes.mjs";
 // The music routes, every one behind AGENTS_DECK_NO_MUSIC — see music-routes.mjs.
@@ -391,6 +393,9 @@ export async function startServer({ port = 4317, host = "127.0.0.1", persist = n
     // account, pairing a deck — counts as that feature used today. Past the
     // gates above, so only the deck's own callers count. See feature-use.mjs.
     noteRouteFeature(req.method, url.pathname);
+    // And `ccdeck tui` saying it is the one asking, on a request with the
+    // deck's own token — which only this user's own commands hold.
+    noteClientFeature(req.headers, presentsDeckToken(req.headers));
 
     // `?persist=0` — another deck was elected to write this event to the log
     // the two of them share. Absent, this deck writes it.
@@ -424,6 +429,7 @@ export async function startServer({ port = 4317, host = "127.0.0.1", persist = n
     if (req.method === "POST" && url.pathname === "/api/prefs")        return guard(handlePrefsWrite(req, res, panelPlatform), res);
     if (req.method === "POST" && url.pathname === "/api/prefs/give-back") return guard(handlePrefsGiveBack(req, res, panelPlatform), res);
     if (req.method === "POST" && url.pathname === "/api/reports")      return guard(handleReportsWrite(req, res), res);
+    if (req.method === "POST" && url.pathname === "/api/ui-language")  return guard(handleUiLanguageWrite(req, res), res);
     if (req.method === "GET"  && url.pathname === "/api/feedback")     return handleFeedbackFacts(req, res);
     if (req.method === "POST" && url.pathname === "/api/feedback")     return guard(handleFeedback(req, res), res);
     if (req.method === "POST" && url.pathname === "/api/client-error") return guard(handleClientError(req, res), res);
@@ -479,9 +485,12 @@ export async function startServer({ port = 4317, host = "127.0.0.1", persist = n
     if (req.method === "GET"  && url.pathname === "/api/claude-accounts") return guard(handleClaudeAccounts(req, res), res);
     if (req.method === "GET"  && url.pathname === "/api/codex-profiles") return guard(handleCodexProfiles(req, res), res);
     if (req.method === "GET"  && url.pathname === "/api/codex-profile-quota") return guard(handleCodexProfileQuota(req, res), res);
+    if (req.method === "GET"  && url.pathname === "/api/codex-profile-projects") return guard(handleCodexProfileProjects(req, res), res);
     if (req.method === "GET"  && url.pathname === "/api/codex-profile-launch") return guard(handleCodexProfileLaunch(req, res), res);
     if (req.method === "GET"  && url.pathname === "/api/codex-auto") return guard(handleCodexAuto(req, res), res);
     if (req.method === "POST" && url.pathname === "/api/codex-auto") return guard(handleCodexAutoAction(req, res), res);
+    if (req.method === "POST" && url.pathname === "/api/codex-accounts-share") return guard(handleCodexAccountShare(req, res, "export"), res);
+    if (req.method === "POST" && url.pathname === "/api/codex-accounts-import") return guard(handleCodexAccountShare(req, res, "import"), res);
     if (req.method === "POST" && url.pathname === "/api/codex-profile-select") return guard(handleCodexProfileMutation(req, res, "select"), res);
     if (req.method === "POST" && url.pathname === "/api/codex-profile-add") return guard(handleCodexProfileMutation(req, res, "add"), res);
     if (req.method === "POST" && url.pathname === "/api/codex-profile-remove") return guard(handleCodexProfileMutation(req, res, "remove"), res);
@@ -678,6 +687,10 @@ export async function startServer({ port = 4317, host = "127.0.0.1", persist = n
       if (codex) {
         startCodexWatcher(workspace);
         server.once("close", stopCodexEnrichment);
+        const liveOptions = { env: { ...process.env } };
+        const liveAccounts = await import("./codex-live-engine.mjs");
+        liveAccounts.startCodexLiveAccounts(liveOptions);
+        server.once("close", () => { void liveAccounts.stopCodexLiveAccounts(liveOptions); });
       }
       if (claude) {
         const recovery = createClaudeRecovery({ workspace });
@@ -715,8 +728,9 @@ export async function startServer({ port = 4317, host = "127.0.0.1", persist = n
       // caller with nothing to wait for.
       cswapAutoModule().then(m => m.initCswapAuto({ after: cswapQuiet })).catch(() => {});
       // Codex's Auto-switch, on the deck's own loop. A settings read a minute
-      // unless somebody turned it on (codex-auto.mjs).
-      import("./codex-auto.mjs").then(m => m.startCodexAutoLoop()).catch(() => {});
+      // unless somebody turned it on (codex-auto.mjs). Each tick tells the
+      // account notifications what it did, for the swap notice.
+      import("./codex-auto.mjs").then(m => m.startCodexAutoLoop({ onTick: noteCodexAutoTick })).catch(() => {});
       // The account notifications' own quota reads, for the providers this deck
       // watches. Idle — a check of two switches every couple of minutes — unless
       // the threshold or the reset notification is on.

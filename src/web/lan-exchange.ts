@@ -129,7 +129,12 @@ export interface Lane {
    *  last list. This deck's own is not marked — its owner sees it in the
    *  accounts panel's switcher. */
   usedThere: boolean;
+  /** A Codex login, said beside the email: one address can be both a Claude
+   *  and a Codex account, and two lanes for it must not read as one. */
+  provider?: "codex";
 }
+
+const kindOf = (key: string): { provider?: "codex" } => (key.startsWith("codex:") ? { provider: "codex" } : {});
 
 export function exchangeLanes(
   offered: OfferedAccount[] | null,
@@ -175,6 +180,7 @@ export function exchangeLanes(
       caption,
       tone: said.tone,
       usedThere: current === theirs.key,
+      ...kindOf(theirs.key),
     });
   }
   // What only this deck offers, after, in the order this deck offers it.
@@ -194,6 +200,7 @@ export function exchangeLanes(
       tone: mine.alive ? mine.shareable === false && !mine.inUse ? "idle" : "ok" : "bad",
       // That deck does not offer it, so it is never named as the one it is on.
       usedThere: false,
+      ...kindOf(key),
     });
   }
   return lanes;

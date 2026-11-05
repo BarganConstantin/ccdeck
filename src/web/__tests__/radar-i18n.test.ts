@@ -8,7 +8,7 @@ import { catalogFor } from "../i18n/catalogs";
 import { translate } from "../i18n/translate";
 import { serverText } from "../radar-server-text";
 import { outcomeLabel } from "../components/TelemetryCapture";
-import { telemetryLine, switchedTelemetry } from "../org-telemetry";
+import { telemetryLine } from "../org-telemetry";
 import { configuredState, configuredKind } from "../telemetry-inspection";
 import { radarMonitorState } from "../radar-monitor-state";
 
@@ -72,6 +72,5 @@ describe("helpers answer in the language they are given", () => {
     const org = { level: "content" as const, content: ["OTEL_LOG_USER_PROMPTS", "OTEL_LOG_TOOL_DETAILS"], destinations: ["a.example"], orgName: "Acme", seenAt: 0 } as never;
     const line = telemetryLine(org, 60, { tr: tIn("de") });
     expect(line?.text).toBe("Telemetrie · Prompts, Tool-Details");
-    expect(switchedTelemetry(org, tIn("zh-CN"))).toContain("Acme 的遥测");
   });
 });

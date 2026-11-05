@@ -9,14 +9,16 @@
 // upgrade is refused and how the last one went for the version report, and
 // re-exports every name, so index.mjs still reaches startUpgrade there. The
 // code is unchanged.
+import { npmPrefix } from "./terminal-cli.mjs";
+import { isOlder } from "./version-order.mjs";
 import { inApp } from "./app-host.mjs";
 import { accessSync, constants as FS, unlinkSync, writeFileSync } from "node:fs";
 import { spawn } from "node:child_process";
 import { join, resolve } from "node:path";
-import { killTree, shimPath, spawnSpec } from "./exec.mjs";
+import { killTree, shimPath, spawnSpec, shellQuoteArg } from "./exec.mjs";
 import { npmCliLaunch } from "./npx.mjs";
 import {
-  frozenNameInstall, hostPackage, installedName, isGitCheckout, isNpxInstall, isOneOffRun,
+  frozenNameInstall, hostPackage, installedName, installedVersion, isGitCheckout, isNpxInstall, isOneOffRun,
   PUBLISHED_NAME, successorRoot, upgradeCommand, upgradeName,
 } from "./install-layout.mjs";
 
@@ -235,7 +237,7 @@ export function upgradeStatus() {
  * assembled from request input: the only thing that varies is which alias, and
  * that is read off the install on disk and confined to ALIAS_PACKAGES.
  */
-export function startUpgrade({ pkgRoot, name = PUBLISHED_NAME }) {
+export function startUpgrade({ pkgRoot, name = PUBLISHED_NAME, running = installedVersion(pkgRoot) }) {
   if (_upgrade.state === "running") return { ok: true, already: true, command: _upgrade.command };
   const blocked = upgradeBlock(pkgRoot);
   if (blocked) return { ok: false, reason: blocked, command: upgradeCommand(pkgRoot, name) };
@@ -245,18 +247,27 @@ export function startUpgrade({ pkgRoot, name = PUBLISHED_NAME }) {
   // there wrote a tree this process never reads, so the version on disk never
   // moved and the same update was offered forever.
   const target = upgradeName(pkgRoot, name);
-  const spec = upgradeSpec(target);
+  const installRoot = hostPackage(pkgRoot, installedName(pkgRoot))?.root ?? successorRoot(pkgRoot) ?? pkgRoot;
+  const prefix = npmPrefix(installRoot, undefined, process.platform);
+  const spec = upgradeSpec(target, process.platform, undefined, prefix);
   // The LOGICAL vector, not the cmd.exe line: this string is shown to the user
   // and is the one they can paste. `cmd /d /s /c "…"` is an implementation
   // detail of how this platform reaches npm, and pasting it would be advice
   // about the deck rather than about their install.
-  const command = `npm ${spec.plain.join(" ")}`;
+  const command = `npm ${spec.plain.map(arg => arg === prefix ? shellQuoteArg(arg) : arg).join(" ")}`;
   setUpgrade("running", command);
   // Deliberately does not restart anything once it is done. The new files on
   // disk make installedVersion() disagree with the running one, and the
   // ordinary drift path takes it from there — including its wait for an idle
   // moment.
-  if (!runInstall(spec, (state, error) => setUpgrade(state, command, error))) {
+  if (!runInstall(spec, (state, error) => {
+    // A zero exit can mean npm wrote into another Node manager's prefix, or
+    // installed the same version again. Only the active copy's fresh manifest
+    // can establish that there are newer files for this process to restart.
+    if (state === "done" && !isOlder(running, installedVersion(pkgRoot))) {
+      setUpgrade("failed", command, "The install finished, but this running copy was not updated. Retry the update or reinstall this copy in its existing location.");
+    } else setUpgrade(state, command, error);
+  })) {
     return { ok: false, reason: "spawn_failed", command };
   }
   return { ok: true, command };

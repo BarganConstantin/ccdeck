@@ -268,6 +268,8 @@ describe("the tour no longer has to say where it is (#844)", () => {
   it("points at the row instead of describing the panel's layout", () => {
     expect(guide).not.toMatch(/last section of the Claude accounts panel/);
     expect(guide).toContain('"shell.guide.welcome.7.tip"');
-    expect(shellEn["shell.guide.welcome.7.tip"]).toBe("Open it from the row at the foot of the Claude accounts panel.");
+    // The row is at the foot of both tabs since #2473, so the tip names the
+    // panel, not Claude's tab.
+    expect(shellEn["shell.guide.welcome.7.tip"]).toBe("Open it from the row at the foot of the Accounts panel.");
   });
 });

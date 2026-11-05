@@ -60,8 +60,15 @@ function newer(a, b) {
  * the caller has something to say about. `ok` is the HTTP status, and `body` the
  * parsed JSON or null — the deck's own `{ ok: false, reason }` arrives with a
  * 400 and is worth more to the reader than the status alone, so it is kept.
+ *
+ * `client` names the command asking, in `x-ccdeck-client`, for the deck's
+ * usage tally to count where it was looked at from (feature-use.mjs). Only
+ * `ccdeck tui` passes one, "tui"; every other command sends nothing new, and a
+ * name that is not a bare lowercase word is not sent.
  */
-export function askDeck(rec, { method = "GET", path, body = undefined, timeoutMs = ASK_MS, request = httpRequest } = {}) {
+export function askDeck(rec, {
+  method = "GET", path, body = undefined, timeoutMs = ASK_MS, request = httpRequest, client = undefined,
+} = {}) {
   return new Promise(resolve => {
     let settled = false;
     const finish = (v) => { if (!settled) { settled = true; resolve(v); } };
@@ -79,6 +86,7 @@ export function askDeck(rec, { method = "GET", path, body = undefined, timeoutMs
           // an Origin or Sec-Fetch-Site would be judged as a page's, and a page
           // is not who this is.
           "x-ccdeck-token": String(rec.token ?? ""),
+          ...(typeof client === "string" && /^[a-z][a-z0-9-]{0,31}$/.test(client) ? { "x-ccdeck-client": client } : {}),
           ...(payload === null
             ? { "content-length": "0" }
             : { "content-type": "application/json", "content-length": String(Buffer.byteLength(payload)) }),
