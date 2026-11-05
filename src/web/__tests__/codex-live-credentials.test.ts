@@ -123,7 +123,7 @@ describe('live Codex credential reader (fictional JWTs and owned fake RPC only)'
     expect([executable, args, home]).toEqual([resolve('fictional-codex'), ['app-server', '--listen', 'stdio://'], f.home]);
     expect(rpcOptions.env).toEqual({ CODEX_HOME: f.home, CCDECK_CODEX_HOMES: f.options.env.CCDECK_CODEX_HOMES, PATH: '/fictional/bin' });
     expect(rpcOptions.deadlineMs).toBeGreaterThan(0);
-    expect(rpcOptions.deadlineMs).toBeLessThanOrEqual(process.platform === 'win32' ? 30000 : 3000);
+    expect(rpcOptions.deadlineMs).toBeLessThanOrEqual(30000);
     expect(f.messages).toEqual([
       { method: 'initialize', params: expect.objectContaining({ capabilities: { experimentalApi: true } }) },
       { method: 'initialized', params: {} },
@@ -384,6 +384,30 @@ describe('live Codex credential reader (fictional JWTs and owned fake RPC only)'
     expect(f.rpc.stop).toHaveBeenCalledOnce(); expect(failing.rpc.stop).toHaveBeenCalledOnce();
     expect(unrelated.rpc.stop).not.toHaveBeenCalled();
   });
+  it('allows a slow valid native startup and account read while reserving shutdown time', async () => {
+    const f = await fixture();
+    const before = { auth: await readFile(f.file), config: await readFile(f.config) };
+    let entered!: () => void;
+    const reached = new Promise<void>(resolve => { entered = resolve; });
+    const fake = fakeRpc({ onStop: async () => { await new Promise(resolve => setTimeout(resolve, 2000)); } });
+    const original = fake.rpc.request.getMockImplementation()!;
+    fake.rpc.request.mockImplementation(async (method, params) => {
+      entered();
+      await new Promise(resolve => setTimeout(resolve, 4000));
+      return original(method, params);
+    });
+    const startRpc = (...args: Parameters<typeof fake.startRpc>) => {
+      vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'performance'] });
+      return fake.startRpc(...args);
+    };
+    const result = readLiveCodexCredential(f.profileId, { ...f.options, startRpc }).then(value => ({ value }), error => ({ error }));
+    await reached;
+    await vi.advanceTimersByTimeAsync(14000);
+    expect(await result).toMatchObject({ value: { profileId: f.profileId, accountId: ACCOUNT } });
+    expect(fake.rpc.request.mock.calls.map(([method]) => method)).toEqual(['initialize', 'config/read', 'account/read']);
+    expect(fake.rpc.stop).toHaveBeenCalledOnce();
+    expect({ auth: await readFile(f.file), config: await readFile(f.config) }).toEqual(before);
+  });
   it('bounds a stalled native request plus shutdown without retrying', async () => {
     let entered!: () => void;
     const reached = new Promise<void>(resolve => { entered = resolve; });
@@ -402,7 +426,7 @@ describe('live Codex credential reader (fictional JWTs and owned fake RPC only)'
     const pending = readLiveCodexCredential(f.profileId, { ...f.options, startRpc });
     const rejected = expect(pending).rejects.toMatchObject({ code: 'native_timeout' });
     await reached;
-    await vi.advanceTimersByTimeAsync(process.platform === 'win32' ? 34000 : 7000);
+    await vi.advanceTimersByTimeAsync(34000);
     await rejected;
     expect(fake.rpc.stop).toHaveBeenCalledOnce();
     expect(fake.rpc.request).toHaveBeenCalledOnce();
@@ -412,7 +436,7 @@ describe('live Codex credential reader (fictional JWTs and owned fake RPC only)'
     const now = performance.now();
     const clock = vi.spyOn(performance, 'now');
     const startRpc = (...args: Parameters<typeof f.startRpc>) => {
-      clock.mockReturnValue(now + (process.platform === 'win32' ? 35000 : 8000));
+      clock.mockReturnValue(now + (35000));
       return f.startRpc(...args);
     };
     await expect(readLiveCodexCredential(f.profileId, { ...f.options, startRpc })).rejects.toMatchObject({ code: 'native_timeout' });

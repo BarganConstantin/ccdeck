@@ -50,6 +50,8 @@ const SCOPE = ".codex";
 const RETRY_MS = 15_000;
 const RETRIES = 6;
 type LiveSelection = { state: string; profileId?: string; requestedProfileId?: string; continuation?: string; reason?: string };
+const liveFailureKey = (reason?: string) => reason === 'native_timeout' ? "codex.panel.liveSwitchTimeout"
+  : reason === 'credential_file_unsafe' ? "codex.panel.liveSwitchPrivateLogin" : "codex.panel.liveSwitchFailed";
 
 async function postJson(path: string, body: unknown): Promise<{ ok: boolean; status: number; reason?: string; id?: string; live?: LiveSelection }> {
   const response = await fetch(path, {
@@ -339,7 +341,7 @@ export default function CodexProfilesSection({ onClose, switcher, onNotice, away
       const out = await postJson("/api/codex-profile-select", { id: profile.id, expectedRevision: revision.current, operationId: crypto.randomUUID() });
       if (out.ok) {
         if (out.live) setLiveSelection(out.live);
-        if (out.live?.state === 'failed') setFailure({ text: t(out.live.reason === 'credential_file_unsafe' ? "codex.panel.liveSwitchPrivateLogin" : "codex.panel.liveSwitchFailed"), row: num, liveProfileId: profile.id });
+        if (out.live?.state === 'failed') setFailure({ text: t(liveFailureKey(out.live.reason)), row: num, liveProfileId: profile.id });
         else setSwitched({ id: profile.id, name, live: out.live?.state === 'applied' });
       }
       else {
@@ -462,7 +464,7 @@ export default function CodexProfilesSection({ onClose, switcher, onNotice, away
         busy={busy} pressProps={pressProps} onSwitch={doSwitch}
         menuOpen={menu?.id === profile.id} onOpenMenu={(_, start) => openMenu(profile.id, start)} onCloseMenu={() => setMenu(null)}
         refusal={failure?.row === a.num ? failure : !dismissedLiveFailure && liveSelection?.state === 'failed' && liveSelection.requestedProfileId === profile.id
-          ? { text: t(liveSelection.reason === 'credential_file_unsafe' ? "codex.panel.liveSwitchPrivateLogin" : "codex.panel.liveSwitchFailed"), row: a.num } : null} onDismissRefusal={() => { setFailure(null); setDismissedLiveFailure(true); }}
+          ? { text: t(liveFailureKey(liveSelection.reason)), row: a.num } : null} onDismissRefusal={() => { setFailure(null); setDismissedLiveFailure(true); }}
         onSignIn={() => signIn(profile)}
         switchedHere={liveSelection?.state !== 'failed' && (switched?.id === profile.id || (liveSelection?.state === 'waiting' && liveSelection.requestedProfileId === profile.id)
           || (['manual_required', 'waiting'].includes(liveSelection?.continuation ?? '') && profile.active === true))} swapped={null} displaced={undefined}
@@ -483,7 +485,8 @@ export default function CodexProfilesSection({ onClose, switcher, onNotice, away
       pressProps={pressProps} post={post} load={loadAuto} />
   ) : null;
 
-  const reconnectRow = liveSelection?.state === 'external_change' ? rows.find(row => row.profile.active) : undefined;
+  const credentialTimedOut = liveSelection?.state === 'failed' && liveSelection.reason === 'native_timeout';
+  const reconnectRow = liveSelection?.state === 'external_change' || credentialTimedOut ? rows.find(row => row.profile.active) : undefined;
   const menuRow = rowOf(menu?.id);
   const issueRow = rowOf(issueOpen?.id);
   return (
@@ -543,10 +546,10 @@ export default function CodexProfilesSection({ onClose, switcher, onNotice, away
             <>
               {error && <p role="alert" className="ap-codex-hint">{t("codex.panel.refreshFailed")}</p>}
               {reconnectRow && <div className="ap-empty" role="status">
-                <span>{t("codex.panel.liveControlPaused")}</span>
+                {!credentialTimedOut && <span>{t("codex.panel.liveControlPaused")}</span>}
                 <button type="button" className="ap-fix" {...pressProps(`switch-${reconnectRow.account.num}`)}
                   onClick={() => void doSwitch(reconnectRow.account.num, reconnectRow.profile.label ?? reconnectRow.profile.id)}>
-                  {t("codex.panel.reconnectSelected")}
+                  {t(credentialTimedOut ? "codex.panel.retrySelected" : "codex.panel.reconnectSelected")}
                 </button>
               </div>}
               {/* The default account's trouble, once, above the list: every new

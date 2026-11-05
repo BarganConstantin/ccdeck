@@ -84,6 +84,7 @@
     "without one."
   ],
   "//summaries": {
+    "3.82.0": "Steadier Codex switching, and uninstall cleans up Codex's terminal selection",
     "3.81.4": "Codex account switching works with Windows sandbox logins",
     "3.81.3": "More reliable Codex switching and quieter account rows",
     "3.81.2": "Codex account switches wait through activity changes",
@@ -139,6 +140,38 @@
     "3.49.1",
     "3.53.1",
     "3.53.3"
+  ],
+  "3.82.0": [
+    {
+      "title": "🔄 Codex switching recovers instead of staying stuck",
+      "body": "A failed reconnect or manual switch no longer leaves Codex account control disconnected, and turning Auto-switch off stops a switch it had already queued.",
+      "priority": "highlight",
+      "icon": "accounts",
+      "details": "On Windows, a Codex connection that never answers now fails after 30 seconds instead of waiting forever."
+    },
+    {
+      "title": "⏱️ Slow Codex logins get more time and a Retry button",
+      "body": "ccdeck now gives Codex more time to read a login during a switch, and if it still runs out, the panel says why and offers Retry selected account.",
+      "priority": "highlight",
+      "icon": "accounts"
+    },
+    {
+      "title": "🧹 Uninstall also removes Codex's terminal selection",
+      "body": "ccdeck --uninstall now takes the codex block that Enable terminal selection added out of your shell profiles, and names any file it could not clean.",
+      "priority": "highlight"
+    },
+    {
+      "title": "⌨️ A opens Codex accounts on a Codex-only deck",
+      "body": "With Codex alone, the Codex accounts door now shows its A key, and its name follows your interface language."
+    },
+    {
+      "title": "🔑 Jira token help names the permission for comments and statuses",
+      "body": "A scoped Jira Cloud token needs write:jira-work to add comments and change statuses, and the token help and Settings › Integrations now say so."
+    },
+    {
+      "title": "🌍 Codex messages read correctly in every language",
+      "body": "The message about a Codex login folder that is not private enough had lost its accented and non-Latin letters; it is whole again, and the new timeout message is translated."
+    }
   ],
   "3.81.4": [
     {

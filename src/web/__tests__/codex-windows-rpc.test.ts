@@ -1,5 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { spawn } from 'node:child_process';
+import { EventEmitter } from 'node:events';
+import { PassThrough } from 'node:stream';
 import { lstat, mkdir, mkdtemp, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -22,14 +24,14 @@ vi.mock('../../server/codex-windows-private.mjs', async importOriginal => {
 });
 
 const roots: string[] = [], cleanup: (() => Promise<void>)[] = [];
-afterEach(async () => { for (const close of cleanup.splice(0)) await close(); for (const root of roots.splice(0)) await rm(root, { recursive: true, force: true }); snapshots.clear(); });
+afterEach(async () => { vi.useRealTimers(); for (const close of cleanup.splice(0)) await close(); for (const root of roots.splice(0)) await rm(root, { recursive: true, force: true }); snapshots.clear(); });
 // Only the ACL helper is simulated. HTTP handshake/WebSocket framing, RPC and
 // the byte relay run unchanged against an owned synthetic server and child.
 function fakeGuard() {
   const guard = { kill: vi.fn() };
   return { guard, options: { guard } };
 }
-async function fixture() {
+async function fixture({ startupDelayMs = 0 } = {}) {
   const root = await realpath(await mkdtemp(join(tmpdir(), 'ccd-proxy-'))); roots.push(root);
   const socketPath = join(root, 'synthetic.sock'); await writeFile(socketPath, 'synthetic endpoint marker');
   const info = await lstat(socketPath);
@@ -51,7 +53,7 @@ async function fixture() {
   const port = (server.address() as { port: number }).port;
   const children: ReturnType<typeof spawn>[] = [];
   const spawnChild = vi.fn((_file: string, _args: string[], options: any) => {
-    const script = `const net=require('node:net');const s=net.connect(${port},'127.0.0.1');process.stdin.pipe(s);s.pipe(process.stdout);s.on('close',()=>process.exit());s.on('error',()=>process.exit(1));`;
+    const script = `setTimeout(()=>{const net=require('node:net');const s=net.connect(${port},'127.0.0.1');process.stdin.pipe(s);s.pipe(process.stdout);s.on('close',()=>process.exit());s.on('error',()=>process.exit(1));},${startupDelayMs});`;
     const child = spawn(process.execPath, ['-e', script], options); children.push(child); return child;
   });
   cleanup.push(async () => {
@@ -64,6 +66,38 @@ async function fixture() {
 }
 
 describe('Windows raw proxy WebSocket bridge (simulated ACL, real byte relay)', () => {
+  it('bounds a Windows proxy that never completes the WebSocket handshake and cleans up only its child', async () => {
+    const f = await fixture();
+    const child = Object.assign(new EventEmitter(), { stdin: new PassThrough(), stdout: new PassThrough(),
+      exitCode: null, signalCode: null, kill: vi.fn() });
+    const spawnChild = vi.fn(() => child);
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    let result: unknown = null;
+    const pending = connectCodexLiveRpc(f.endpoint, { platform: 'linux', windowsPrivate: f.options, spawnChild })
+      .then((rpc: any) => { rpc.close(); result = { connected: true }; }, (error: any) => { result = { code: error.code }; });
+    try {
+      await vi.waitFor(() => expect(spawnChild).toHaveBeenCalledOnce());
+      await vi.advanceTimersByTimeAsync(30000);
+      expect(result).toMatchObject({ code: 'native_connection_failed' });
+      await vi.advanceTimersByTimeAsync(600);
+      expect(child.kill).toHaveBeenCalledOnce();
+      expect(f.guard.kill).toHaveBeenCalledOnce();
+      expect(f.requests).toEqual([]);
+    } finally {
+      child.emit('error', new Error('Synthetic test cleanup')); await pending; vi.useRealTimers();
+    }
+  });
+
+  it('allows a cold Windows byte relay to start after the POSIX handshake deadline without replaying initialization', async () => {
+    const f = await fixture({ startupDelayMs: 6000 });
+    const rpc = await connectCodexLiveRpc(f.endpoint, { platform: 'linux', windowsPrivate: f.options, spawnChild: f.spawnChild });
+    try {
+      expect(await rpc.request('account/read')).toEqual({ ok: true });
+      expect(f.requests.filter(m => m.method === 'initialize')).toHaveLength(1);
+      expect(f.spawnChild).toHaveBeenCalledOnce();
+    } finally { rpc.close(); }
+  }, process.platform === 'win32' ? 60000 : 15000);
+
   it('performs HTTP/WebSocket framing over stdio, releases the setup guard and closes only its proxy', async () => {
     const f = await fixture();
     const rpc = await connectCodexLiveRpc(f.endpoint, { platform: 'linux', windowsPrivate: f.options, spawnChild: f.spawnChild,

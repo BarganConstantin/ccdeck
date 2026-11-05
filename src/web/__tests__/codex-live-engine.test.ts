@@ -64,6 +64,52 @@ async function fixture({ saved = null as any, actual = A, readCredential = null 
     externalLogin: (id: string) => { account = { ...account, email: email(id) }; callbacks.onNotification({ method: 'account/updated' }); } };
 }
 describe('existing Codex session account engine', () => {
+  it('does not start an automatic handoff when Auto-switch is disabled during the credential read', async () => {
+    let release!: () => void;
+    const gate = new Promise<void>(resolve => { release = resolve; });
+    const f = await fixture({ auto: true, active: true, readCredential: async (id: string) => {
+      await gate; return f.credential(id);
+    } });
+    const pending = f.c.request({ id: B, revision: 1 }, true);
+    await vi.waitFor(() => expect(f.rpc.request.mock.calls.some(([method]) => method === 'account/read')).toBe(true));
+    f.autoSettings.enabled = false; release(); await pending;
+    expect(f.calls.some(c => ['account/login/start', 'turn/interrupt', 'turn/start'].includes(c.method))).toBe(false);
+    expect(f.c.status().reason).toBe('auto_switch_disabled');
+  });
+
+  it('resumes the original turn once if Auto-switch is disabled after interruption', async () => {
+    const f = await fixture({ auto: true, active: true });
+    const original = f.rpc.request.getMockImplementation()!;
+    f.rpc.request.mockImplementation(async (method, params) => {
+      const result = await original(method, params);
+      if (method === 'turn/interrupt') f.autoSettings.enabled = false;
+      return result;
+    });
+    expect(await f.c.request({ id: B, revision: 1 }, true)).toMatchObject({ state: 'idle', reason: 'auto_switch_disabled' });
+    await f.c.tick();
+    expect(f.calls.filter(c => c.method === 'turn/interrupt')).toHaveLength(1);
+    expect(f.calls.filter(c => c.method === 'turn/start')).toHaveLength(1);
+    expect(f.calls.some(c => c.method === 'account/login/start')).toBe(false);
+    expect(f.actual().email).toBe('first@example.test');
+    expect(f.journals.at(-1).phase).toBe('finished');
+  });
+
+  it('preserves recovery protection if a cancelled automatic switch cannot resume the original turn', async () => {
+    const f = await fixture({ auto: true, active: true });
+    const original = f.rpc.request.getMockImplementation()!;
+    f.rpc.request.mockImplementation(async (method, params) => {
+      if (method === 'turn/start') throw Object.assign(Error('timeout'), { code: 'native_request_timeout' });
+      const result = await original(method, params);
+      if (method === 'turn/interrupt') f.autoSettings.enabled = false;
+      return result;
+    });
+    expect(await f.c.request({ id: B, revision: 1 }, true)).toMatchObject({ continuation: 'manual_required', reason: 'native_continue_unconfirmed' });
+    await f.c.tick();
+    expect(await f.c.request({ id: B, revision: 2 })).toMatchObject({ continuation: 'manual_required' });
+    expect(f.rpc.request.mock.calls.filter(([method]) => method === 'turn/start')).toHaveLength(1);
+    expect(f.calls.some(c => c.method === 'account/login/start')).toBe(false);
+  });
+
   it('keeps a manual switch waiting when new activity appears before authentication, then applies it once quiet', async () => {
     const f = await fixture({ active: true });
     const original = f.rpc.request.getMockImplementation()!;

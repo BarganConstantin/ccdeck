@@ -112,6 +112,25 @@ export async function uninstall(flags) {
   if (await hasCodexInstalled()) {
     report(await uninstallHooks({ provider: "codex" }), "Codex");
   }
+  // Codex's terminal selection, whether or not Codex is still installed: the
+  // block sits in the person's own shell profile, and with ccdeck gone the
+  // `codex` it defines runs a helper that may not be there any more.
+  {
+    const { removeCodexTerminalEverywhere } =
+      await import(pathToFileURL(join(PKG_ROOT, "src/server/codex-terminal.mjs")).href);
+    const terminal = await removeCodexTerminalEverywhere().catch((e) => ({
+      removed: [], refused: [{ path: "", why: e?.message ?? String(e) }], kept: true, helper: false,
+    }));
+    for (const rc of terminal.removed) console.log(`${PRODUCT}: Codex terminal selection removed from ${rc}`);
+    for (const f of terminal.refused) {
+      refused = true;
+      console.error(`${PRODUCT}: Codex terminal selection NOT removed${f.path ? ` from ${f.path}` : ""} ${gDash} ${f.why}`);
+    }
+    if (terminal.refused.length > 0) {
+      console.error(`${PRODUCT}: delete the block between the "ccdeck Codex accounts" lines yourself, then open a new terminal.`);
+    }
+    if (terminal.helper) console.log(`${PRODUCT}: removed the Codex terminal helper in ${terminal.directory}`);
+  }
   // ── THE DECKS STILL RUNNING ────────────────────────────────────────────────
   //
   // Since 3.20 the deck runs in the background, and an uninstall that left it
