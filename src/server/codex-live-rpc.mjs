@@ -113,7 +113,7 @@ export async function connectCodexLiveRpc(endpoint, options = {}) {
   let ws;
   try {
     ws = new WebSocket(windows ? 'ws://localhost/' : `ws+unix://${endpoint.socketPath}:/`, {
-      handshakeTimeout: 5000, maxPayload: 64 * 1024 * 1024, perMessageDeflate: false,
+      handshakeTimeout: windows ? 30000 : 5000, maxPayload: 64 * 1024 * 1024, perMessageDeflate: false,
       ...(windows ? { createConnection: () => { proxy = createCodexWindowsProxy(endpoint, options); return proxy; } } : {}),
     });
   } catch { await guard?.release(); proxy?.destroy(); throw liveError('native_connection_failed'); }
@@ -161,7 +161,18 @@ export async function connectCodexLiveRpc(endpoint, options = {}) {
     close() { closing = true; rejectPending(); ws.close(); const timer = setTimeout(() => { ws.terminate(); proxy?.destroy(); }, 500); timer.unref(); },
   };
   try {
-    await new Promise((ready, reject) => { ws.once('open', ready); ws.once('error', () => reject(liveError('native_connection_failed'))); });
+    await new Promise((ready, reject) => {
+      // The Windows stdio Duplex does not emit a net.Socket connect event, so
+      // the HTTP client's socket timeout alone cannot bound its handshake.
+      const finish = error => {
+        clearTimeout(timer);
+        ws.off('open', opened); ws.off('error', failed); ws.off('close', failed);
+        if (error) reject(liveError('native_connection_failed')); else ready();
+      };
+      const opened = () => finish(false), failed = () => finish(true);
+      const timer = setTimeout(failed, windows ? 30000 : 5000);
+      ws.once('open', opened); ws.once('error', failed); ws.once('close', failed);
+    });
     const after = windows ? await inspectWindowsPrivateSocket(endpoint.socketPath, options.windowsPrivate) : await inspectPosixSocket(endpoint.socketPath);
     if (after.generation !== endpoint.generation) throw liveError('native_endpoint_changed');
     if (guard && !guard.valid()) throw liveError('untrusted_native_socket');

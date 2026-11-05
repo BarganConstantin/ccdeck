@@ -210,8 +210,12 @@ export function createCodexLiveAccountController(input = {}) {
         } finally { clearTimeout(timeout); }
         account = await rpc.request('account/read', { refreshToken: false });
       }
-    }
-    finally { readingInitialAccount = false; }
+    } catch (error) {
+      // Manual switches and renewals can also create this connection while
+      // retaining a previous login. Never retain an unattested bootstrap.
+      await disconnect();
+      throw error;
+    } finally { readingInitialAccount = false; }
     if (account.account && account.account.type !== 'chatgpt') { rpc.close(); rpc = null; owned = false; throw liveError('unsupported_auth_mode'); }
   }
   async function loginCredential(id, refresh = false) {
@@ -252,6 +256,11 @@ export function createCodexLiveAccountController(input = {}) {
       journal.phase = journal.entries.every(e => ['continued', 'skipped'].includes(e.phase)) ? 'finished' : 'pending';
       await saveHandoff(journal);
     };
+    const assertAutoEnabled = async () => {
+      if (automatic && !(await (options.readAuto ?? (() => readCodexAuto({ ...options, store })))()).enabled) {
+        throw liveError('auto_switch_disabled');
+      }
+    };
     const authCurrent = () => !closed && !ownershipPaused && epoch === ownershipEpoch;
     const owner = () => authCurrent() && currentIntent()?.revision === intent.revision && currentIntent()?.id === intent.id;
     const verifyOwnership = async () => {
@@ -277,12 +286,15 @@ export function createCodexLiveAccountController(input = {}) {
       if (!s.profiles?.some(p => p.id === intent.id && p.available !== false)) throw liveError('profile_unavailable');
       await ensureRpc(s.originalHome);
       const next = await loginCredential(intent.id, refresh);
+      await assertAutoEnabled();
       if (!owner()) throw liveError('account_changed_outside_deck');
       if (!await lease.valid()) throw liveError('native_control_lost');
       const before = await rpc.request('account/read', { refreshToken: false });
       resumeIdentity = before;
       handoff = await prepareCodexLiveHandoff(rpc, { isCurrent: owner,
         beforeInterrupt: async entry => {
+          await assertAutoEnabled();
+          if (!owner()) throw liveError('account_changed_outside_deck');
           await record(entry, 'interrupt_sent');
           if (!owner()) throw liveError('account_changed_outside_deck');
         }, afterInterrupt: (entry, phase) => record(entry, phase) });
@@ -312,6 +324,8 @@ export function createCodexLiveAccountController(input = {}) {
       const current = await rpc.request('account/read', { refreshToken: false });
       if (!owner() || !sameNativeAccount(current, before)) throw liveError('account_changed_outside_deck');
       if (!await lease.valid()) throw liveError('native_control_lost');
+      await assertAutoEnabled();
+      if (!owner()) throw liveError('account_changed_outside_deck');
       // Authentication crosses only this owner-validated local socket. Codex
       // stores external tokens in memory, not either profile's credential file.
       maybeApplied = true;
@@ -365,7 +379,8 @@ export function createCodexLiveAccountController(input = {}) {
       if (journal.entries.length && journal.phase !== 'finished') update({ continuation: 'manual_required' });
       if (maybeApplied) { credential = null; owned = false; }
       const reason = publicReason(error);
-      update({ state: ['native_not_running', 'cli_unavailable'].includes(reason) ? 'unavailable' : 'failed',
+      update({ state: reason === 'auto_switch_disabled' && !maybeApplied ? (owned ? 'applied' : 'idle')
+        : ['native_not_running', 'cli_unavailable'].includes(reason) ? 'unavailable' : 'failed',
         ...(maybeApplied ? { profileId: null } : {}), reason });
       if (!owned) await disconnect();
     } finally {
@@ -553,14 +568,21 @@ export function createCodexLiveAccountController(input = {}) {
     } catch { /* Keep the durable recovery intent until its outcome is known. */ }
   }
   async function reconnect() {
-    const s = await selection(); await ensureRpc(s.originalHome);
-    const actual = await rpc.request('account/read', { refreshToken: false });
-    // Notifications were unobservable during the gap. Email/workspace labels
-    // cannot restore authority; require a native ID or a fresh manual selection.
-    if (!accountIds(actual).length) await externalChange('native_identity_unattested');
-    else if (!ownershipPaused && sameAccount(actual, credential, true)) {
-      lastCheck = Date.now(); update({ state: 'applied', profileId: credential.profileId, reason: null });
-    } else await externalChange();
+    try {
+      const s = await selection(); await ensureRpc(s.originalHome);
+      const actual = await rpc.request('account/read', { refreshToken: false });
+      // Notifications were unobservable during the gap. Email/workspace labels
+      // cannot restore authority; require a native ID or a fresh manual selection.
+      if (!accountIds(actual).length) await externalChange('native_identity_unattested');
+      else if (!ownershipPaused && sameAccount(actual, credential, true)) {
+        lastCheck = Date.now(); update({ state: 'applied', profileId: credential.profileId, reason: null });
+      } else await externalChange();
+    } catch (error) {
+      // A partially initialized connection cannot attest ownership. Drop only
+      // our control connection so the next poll can reconnect and read IDs.
+      await disconnect();
+      throw error;
+    }
   }
   async function tick() {
     if (closed || ticking) return;
