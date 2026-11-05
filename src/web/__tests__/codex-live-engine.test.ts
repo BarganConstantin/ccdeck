@@ -7,7 +7,7 @@ const controllers: { close(): Promise<void> }[] = [];
 afterEach(async () => { for (const c of controllers.splice(0)) await c.close(); vi.restoreAllMocks(); });
 async function fixture({ saved = null as any, actual = A, readCredential = null as any, auto = false, persistError = false,
   initial = null as any, resolveEndpoint = null as any, active = false, savedHandoff = null as any,
-  delegationTimeoutMs = undefined as number | undefined } = {}) {
+  delegationTimeoutMs = undefined as number | undefined, beforeSelectionRead = null as any } = {}) {
   const selection = { originalHome: '/native-home', profileId: A, revision: 0, runningSelection: null as any,
     profiles: [{ id: A, available: true }, { id: B, available: true }] };
   const email = (id: string) => id === A ? 'first@example.test' : 'second@example.test';
@@ -48,7 +48,7 @@ async function fixture({ saved = null as any, actual = A, readCredential = null 
   const c = createCodexLiveAccountController({
     store: '/unused-fixture-store', pollMs: 1000_000, restoreRetryMs: 0,
     delegationTimeoutMs,
-    readSelection: async () => ({ ...selection }), readAuto: async () => autoSettings,
+    readSelection: async () => { await beforeSelectionRead?.(); return { ...selection }; }, readAuto: async () => autoSettings,
     loadState: async () => saved, persistState: async (m: any) => { if (persistError) throw Error('private disk detail'); persisted.push(m); },
     loadHandoff: async () => savedHandoff,
     persistHandoff: async (data: any) => { journals.push(structuredClone(data)); },
@@ -100,6 +100,17 @@ describe('existing Codex session account engine', () => {
     expect(f.sent).toMatchObject([{ id: 'renewal-profile', result: { chatgptAccountId: 'first' } }]);
     expect(f.c.status()).toMatchObject({ state: 'applied', profileId: A });
     expect(f.calls.filter(c => c.method === 'account/login/start')).toHaveLength(1);
+  });
+
+  it('still checks the control lease after the final renewal profile lookup', async () => {
+    let checking = false;
+    const f = await fixture({ beforeSelectionRead: async () => {
+      if (checking) f.lease.valid.mockResolvedValue(false);
+    } });
+    await f.c.request({ id: A, revision: 1 }); checking = true;
+    await f.serverRequest({ id: 'renewal', method: 'account/chatgptAuthTokens/refresh', params: { previousAccountId: 'first' } });
+    expect(f.sent.some(m => m.result?.accessToken)).toBe(false);
+    expect(f.c.status()).toMatchObject({ state: 'external_change', reason: 'native_control_lost' });
   });
 
   it.each(['before', 'account-read'] as const)('does not return renewed credentials when the control lease is lost at %s', async when => {

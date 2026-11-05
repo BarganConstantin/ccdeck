@@ -154,11 +154,11 @@ export function createCodexLiveAccountController(input = {}) {
         const actual = await owner.request('account/read', { refreshToken: false });
         if (closed || owner !== rpc || ownershipPaused || epoch !== ownershipEpoch) return;
         if (!sameAccount(actual, next)) { await externalChange(); return; }
-        if (!await lease?.valid()) throw liveError('native_control_lost');
         // A profile can be removed after its credential read has finished.
         // Do not keep renewing a login whose row/home is no longer available.
         const latest = await selection();
         if (!latest.profiles?.some(p => p.id === credential.profileId && p.available !== false)) throw liveError('profile_unavailable');
+        if (!await lease?.valid()) throw liveError('native_control_lost');
         if (closed || owner !== rpc || !owned || ownershipPaused || epoch !== ownershipEpoch) return;
         // ExternalAuthBridge::refresh returns the auth directly; it does not
         // emit account/updated. Do not leave a notification-suppression window.
