@@ -135,8 +135,11 @@ export interface Drawn {
 /** The dialog shell's two components draw nothing but the scrim and the
  *  surface, with no state of their own: this React draws no child component, so
  *  they are drawn in place, and a test sees the markup the browser would (the
- *  `modal-backdrop` with its handlers, the `modal` with its ref and role). */
-const SHELL = new Set(["Dialog", "DialogScrim"]);
+ *  `modal-backdrop` with its handlers, the `modal` with its ref and role).
+ *  V4's Checkbox is the same kind of thing — a real `input` with every prop it
+ *  was given, plus the tick's picture — so a dialog's checkbox is pressed where
+ *  the browser would press it. */
+const SHELL = new Set(["Dialog", "DialogScrim", "Checkbox"]);
 /** DialogPresence is transparent while its dialog is open: what it draws is
  *  what its callback returns (it stays mounted when closed only to let the
  *  dialog leave, which this React has no time for). */
