@@ -86,31 +86,33 @@ describe("removeCodexTerminalEverywhere", () => {
     expect(await readFile(join(s.home, ".zshrc"), "utf8")).toBe("export A=1\n");
   });
 
-  it("on Windows also cleans both PowerShell profiles, and skips a PowerShell that is not installed", async () => {
+  it("on Windows also cleans both PowerShells' profiles, in Documents and in OneDrive's Documents", async () => {
     const s = await sandbox();
-    const pwsh = join(s.root, "Documents", "PowerShell", "profile.ps1");
-    await mkdir(join(s.root, "Documents", "PowerShell"), { recursive: true });
-    await writeFile(pwsh, `Set-Alias g git\n${BEGIN}\nfunction global:codex { }\n${END}\n`);
-    const powershellProfile = async (shell: string) => {
-      if (shell === "powershell") return pwsh;
-      throw Object.assign(new Error("spawn powershell.exe ENOENT"), { code: "ENOENT" });
-    };
+    const ps7 = join(s.home, "Documents", "PowerShell", "profile.ps1");
+    const ps5 = join(s.home, "OneDrive", "Documents", "WindowsPowerShell", "profile.ps1");
+    await mkdir(join(s.home, "Documents", "PowerShell"), { recursive: true });
+    await mkdir(join(s.home, "OneDrive", "Documents", "WindowsPowerShell"), { recursive: true });
+    await writeFile(ps7, `Set-Alias g git\n${BEGIN}\nfunction global:codex { }\n${END}\n`);
+    await writeFile(ps5, `${BEGIN}\nfunction global:codex { }\n${END}\n`);
 
-    const res = await removeCodexTerminalEverywhere({ home: s.home, store: s.store, env: {}, platform: "win32", powershellProfile });
+    const res = await removeCodexTerminalEverywhere({ home: s.home, store: s.store, env: { OneDrive: join(s.home, "OneDrive") }, platform: "win32" });
 
-    expect(res.removed).toEqual([pwsh]);
     expect(res.refused).toEqual([]);
-    expect(await readFile(pwsh, "utf8")).toBe("Set-Alias g git\n");
+    expect([...res.removed].sort()).toEqual([ps5, ps7].sort());
+    expect(await readFile(ps7, "utf8")).toBe("Set-Alias g git\n");
+    expect(await readFile(ps5, "utf8")).toBe("");
     expect(res.helper).toBe(true);
   });
 
-  it("names a PowerShell whose profile could not be asked for, and keeps the helper", async () => {
+  it("never reaches a OneDrive outside the home folder it was given", async () => {
     const s = await sandbox();
-    const powershellProfile = async () => { throw new Error("timed out"); };
-    const res = await removeCodexTerminalEverywhere({ home: s.home, store: s.store, env: {}, platform: "win32", powershellProfile });
-    expect(res.refused.map((f: { path: string }) => f.path)).toEqual(["the PowerShell profile", "the Windows PowerShell profile"]);
-    expect(res.helper).toBe(false);
-    expect(existsSync(join(s.store, "codex-terminal"))).toBe(true);
+    const outside = join(s.root, "elsewhere-OneDrive");
+    const profile = join(outside, "Documents", "PowerShell", "profile.ps1");
+    await mkdir(join(outside, "Documents", "PowerShell"), { recursive: true });
+    await writeFile(profile, BLOCK);
+    const res = await removeCodexTerminalEverywhere({ home: s.home, store: s.store, env: { OneDrive: outside }, platform: "win32" });
+    expect(res.removed).toEqual([]);
+    expect(await readFile(profile, "utf8")).toBe(BLOCK);
   });
 });
 

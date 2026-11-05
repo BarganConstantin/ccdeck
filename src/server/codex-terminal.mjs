@@ -1,7 +1,7 @@
 import { createRequire } from 'node:module';
 import { readFile, mkdir, chmod, access, stat, cp, rm } from 'node:fs/promises';
 import { constants } from 'node:fs';
-import { basename, dirname, join, isAbsolute } from 'node:path';
+import { basename, dirname, join, isAbsolute, relative } from 'node:path';
 import { homedir } from 'node:os';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
@@ -131,35 +131,38 @@ export async function configureCodexTerminal(action, options = {}) {
  * Nothing records which shell the person set it up in (they ran the command
  * themselves), so every profile `rcFor` can pick is read: zsh's in ZDOTDIR and
  * in the home folder, bash's on Linux and the three macOS picks the first of
- * (an earlier setup may have picked another), and on Windows both PowerShells'.
- * Left behind, the block outlives ccdeck: `codex` runs through a helper that
- * the desktop app's removal takes away, and it no longer starts.
+ * (an earlier setup may have picked another), and on Windows both PowerShells'
+ * CurrentUserAllHosts profile in Documents, and in OneDrive's Documents when
+ * OneDrive keeps that folder. Left behind, the block outlives ccdeck: `codex`
+ * runs through a helper that the desktop app's removal takes away, and it no
+ * longer starts.
  *
- * A file whose markers are incomplete is not touched and is named, and so is a
- * PowerShell whose profile could not be asked for. The helper goes only when
- * every profile was read and none still holds a block, since a block left
- * anywhere still calls it. Answers { removed, refused, kept, helper, directory }.
+ * The PowerShell profiles are found from the home folder, not by asking
+ * PowerShell: `$PROFILE` follows the Documents folder Windows has on record,
+ * whatever HOME or USERPROFILE say, so asking would reach past an isolated
+ * home into the real one. A OneDrive folder outside the home is skipped for
+ * the same reason.
+ *
+ * A file whose markers are incomplete is not touched and is named. The helper
+ * goes only when no profile still holds a block, since a block left anywhere
+ * still calls it. Answers { removed, refused, kept, helper, directory }.
  */
 export async function removeCodexTerminalEverywhere(options = {}) {
   const env = options.env ?? process.env;
   const platform = options.platform ?? process.platform;
   const home = options.home ?? homedir();
   const store = options.store ?? deckDataDir(undefined, env, home);
-  const profileOf = options.powershellProfile ?? powershellProfile;
   const candidates = [];
   const zdot = env.ZDOTDIR?.trim();
   if (zdot) candidates.push(join(zdot, '.zshrc'));
   candidates.push(...['.zshrc', '.bashrc', '.bash_profile', '.bash_login', '.profile'].map(name => join(home, name)));
-  const removed = [], refused = [];
   if (platform === 'win32') {
-    for (const shell of ['powershell', 'powershell5']) {
-      try { candidates.push(await profileOf(shell)); }
-      // A PowerShell that is not installed has no profile to clean.
-      catch (error) {
-        if (error?.code !== 'ENOENT') refused.push({ path: shell === 'powershell5' ? 'the Windows PowerShell profile' : 'the PowerShell profile', why: error?.message ?? String(error) });
-      }
-    }
+    const inHome = dir => { const r = relative(home, dir); return r !== '' && !r.startsWith('..') && !isAbsolute(r); };
+    const documents = [join(home, 'Documents'),
+      ...[env.OneDrive, env.OneDriveConsumer, env.OneDriveCommercial].filter(dir => dir?.trim() && inHome(dir)).map(dir => join(dir, 'Documents'))];
+    for (const dir of documents) candidates.push(join(dir, 'PowerShell', 'profile.ps1'), join(dir, 'WindowsPowerShell', 'profile.ps1'));
   }
+  const removed = [], refused = [];
   for (const rc of new Set(candidates)) {
     let text;
     try { text = await readFile(rc, 'utf8'); }
