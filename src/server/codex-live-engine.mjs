@@ -252,6 +252,11 @@ export function createCodexLiveAccountController(input = {}) {
       journal.phase = journal.entries.every(e => ['continued', 'skipped'].includes(e.phase)) ? 'finished' : 'pending';
       await saveHandoff(journal);
     };
+    const assertAutoEnabled = async () => {
+      if (automatic && !(await (options.readAuto ?? (() => readCodexAuto({ ...options, store })))()).enabled) {
+        throw liveError('auto_switch_disabled');
+      }
+    };
     const authCurrent = () => !closed && !ownershipPaused && epoch === ownershipEpoch;
     const owner = () => authCurrent() && currentIntent()?.revision === intent.revision && currentIntent()?.id === intent.id;
     const verifyOwnership = async () => {
@@ -277,12 +282,15 @@ export function createCodexLiveAccountController(input = {}) {
       if (!s.profiles?.some(p => p.id === intent.id && p.available !== false)) throw liveError('profile_unavailable');
       await ensureRpc(s.originalHome);
       const next = await loginCredential(intent.id, refresh);
+      await assertAutoEnabled();
       if (!owner()) throw liveError('account_changed_outside_deck');
       if (!await lease.valid()) throw liveError('native_control_lost');
       const before = await rpc.request('account/read', { refreshToken: false });
       resumeIdentity = before;
       handoff = await prepareCodexLiveHandoff(rpc, { isCurrent: owner,
         beforeInterrupt: async entry => {
+          await assertAutoEnabled();
+          if (!owner()) throw liveError('account_changed_outside_deck');
           await record(entry, 'interrupt_sent');
           if (!owner()) throw liveError('account_changed_outside_deck');
         }, afterInterrupt: (entry, phase) => record(entry, phase) });
@@ -312,6 +320,8 @@ export function createCodexLiveAccountController(input = {}) {
       const current = await rpc.request('account/read', { refreshToken: false });
       if (!owner() || !sameNativeAccount(current, before)) throw liveError('account_changed_outside_deck');
       if (!await lease.valid()) throw liveError('native_control_lost');
+      await assertAutoEnabled();
+      if (!owner()) throw liveError('account_changed_outside_deck');
       // Authentication crosses only this owner-validated local socket. Codex
       // stores external tokens in memory, not either profile's credential file.
       maybeApplied = true;
@@ -365,7 +375,8 @@ export function createCodexLiveAccountController(input = {}) {
       if (journal.entries.length && journal.phase !== 'finished') update({ continuation: 'manual_required' });
       if (maybeApplied) { credential = null; owned = false; }
       const reason = publicReason(error);
-      update({ state: ['native_not_running', 'cli_unavailable'].includes(reason) ? 'unavailable' : 'failed',
+      update({ state: reason === 'auto_switch_disabled' && !maybeApplied ? (owned ? 'applied' : 'idle')
+        : ['native_not_running', 'cli_unavailable'].includes(reason) ? 'unavailable' : 'failed',
         ...(maybeApplied ? { profileId: null } : {}), reason });
       if (!owned) await disconnect();
     } finally {
