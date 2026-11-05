@@ -75,6 +75,53 @@ async function fixture({ ids = false, saved = false, notifyLogin = true, actual 
 }
 
 describe('native Codex authentication ownership', () => {
+  it.each([
+    ['success', A], ['failure', A], ['success', B], ['failure', B],
+  ] as const)('discards a late renewal %s after disconnection and reattests native account %s without replaying login', async (outcome, actual) => {
+    const f = await fixture({ ids: true }); await f.c.request({ id: A, revision: 2 });
+    let entered!: () => void, finish!: () => void;
+    const reading = new Promise<void>(resolve => { entered = resolve; });
+    const blocked = new Promise<void>(resolve => { finish = resolve; });
+    f.readCredential.mockImplementationOnce(async (id: string) => {
+      entered(); await blocked;
+      if (outcome === 'failure') throw Error('fictional provider failure');
+      return f.credential(id);
+    });
+    const renewing = f.refresh(); await reading;
+    f.disconnect(); f.setAccount(actual); finish(); await renewing;
+    expect(f.sends).toEqual([]);
+    expect(f.c.status()).toMatchObject({ state: 'disconnected' });
+    await f.c.tick();
+    expect(f.c.status()).toMatchObject({ state: actual === A ? 'applied' : 'external_change', profileId: actual === A ? A : null });
+    expect(f.rpc.request.mock.calls.filter(([method]) => method === 'account/login/start')).toHaveLength(1);
+    await f.refresh();
+    expect(f.sends).toHaveLength(actual === A ? 1 : 0);
+  });
+
+  it('closes during a pending renewal without returning tokens or replaying authentication', async () => {
+    const f = await fixture({ ids: true }); await f.c.request({ id: A, revision: 2 });
+    let entered!: () => void, finish!: () => void;
+    const reading = new Promise<void>(resolve => { entered = resolve; });
+    const blocked = new Promise<void>(resolve => { finish = resolve; });
+    f.readCredential.mockImplementationOnce(async (id: string) => { entered(); await blocked; return f.credential(id); });
+    const renewing = f.refresh(); await reading;
+    const closing = f.c.close(); finish(); await renewing; await closing;
+    expect(f.sends).toEqual([]);
+    expect(f.rpc.close).toHaveBeenCalledOnce();
+    expect(f.rpc.request.mock.calls.filter(([method]) => method === 'account/login/start')).toHaveLength(1);
+  });
+
+  it('rejects a different workspace returned by renewal of the same profile without switching live authentication', async () => {
+    const f = await fixture({ ids: true }); await f.c.request({ id: A, revision: 2 });
+    f.readCredential.mockImplementationOnce(async () => ({ ...f.credential(B), profileId: A }));
+    await f.refresh();
+    expect(f.sends).toMatchObject([{ id: 'renewal', error: { code: -32000 } }]);
+    expect(f.sends.some(m => m.result?.accessToken)).toBe(false);
+    expect(f.snapshot.workspaceRouting.chatgptAccountId).toBe('workspace-a');
+    expect(f.rpc.request.mock.calls.filter(([method]) => method === 'account/login/start')).toHaveLength(1);
+    expect(f.c.status().reason).toBe('credential_refresh_failed');
+  });
+
   it('does not restore authority from an account snapshot taken before a slow credential read', async () => {
     const f = await fixture({ ids: true, saved: true, beforeCredentialRead: async ({ setAccount }: any) => setAccount(B) });
     expect(f.c.status()).toMatchObject({ state: 'external_change', profileId: null });

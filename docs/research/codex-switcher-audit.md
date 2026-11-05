@@ -224,3 +224,20 @@ guard was unavailable in the minimal container.
 This remains isolated controller/endpoint verification, not authenticated
 live-provider switching. The earlier fifth-pass fixes remain on this local
 branch and have not been integrated into development.
+
+
+## Seventh pass: disconnects and workspace replacement during renewal
+
+Six additional cases exercise successful and failed credential reads that
+finish after disconnection, native workspace changes across that gap, shutdown
+while renewal is pending, and a changed workspace returned from the same
+profile. These cases pass on the existing production code: no further product
+defect was reproduced in this pass. Late renewal results are discarded; only
+the same attested native account can regain control, and authentication is not
+replayed. Returning a credential for another workspace yields a fixed error
+without changing live authentication.
+
+The cases are retained as regression coverage. Full integration CI verifies
+them together with the preceding two local audit rounds before development
+integration. Verification uses synthetic identities and cannot establish
+live-provider switching behavior.
