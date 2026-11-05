@@ -9,7 +9,7 @@ const A = 'a'.repeat(20), B = 'b'.repeat(20);
 const controllers: any[] = [];
 afterEach(async () => { for (const c of controllers.splice(0)) await c.close(); vi.restoreAllMocks(); });
 const flush = () => new Promise(resolve => setTimeout(resolve, 0));
-async function fixture({ ids = false, saved = false, notifyLogin = true, actual = A, active = false, initialUpdate = false as false | 'connect' | 'read' | 'delayed' | 'missing', workspaceName = null as string | null, initialAccountTimeoutMs = undefined as number | undefined } = {}) {
+async function fixture({ ids = false, saved = false, notifyLogin = true, actual = A, active = false, initialUpdate = false as false | 'connect' | 'read' | 'delayed' | 'missing' | 'missing-once', workspaceName = null as string | null, initialAccountTimeoutMs = undefined as number | undefined, accountReadFailures = 0, restoreRetryMs = 0 } = {}) {
   let hooks: any, initialRead = false;
   let snapshot: any = { account: { type: 'chatgpt', email: 'same@example.invalid', planType: 'plus', workspaceName } };
   const nativeId = (id: string) => id === A ? 'workspace-a' : 'workspace-b';
@@ -29,6 +29,7 @@ async function fixture({ ids = false, saved = false, notifyLogin = true, actual 
   const rpc = {
     request: vi.fn(async (method: string, params: any) => {
       if (method === 'account/read') {
+        if (accountReadFailures-- > 0) throw Object.assign(Error('timeout'), { code: 'native_request_timeout' });
         if (initialRead && initialUpdate === 'read') notify();
         initialRead = false;
         return structuredClone(snapshot);
@@ -50,7 +51,7 @@ async function fixture({ ids = false, saved = false, notifyLogin = true, actual 
     send: vi.fn((message: any) => sends.push(message)), close: vi.fn(),
   };
   const readCredential = vi.fn(async (id: string) => credential(id));
-  const c = createCodexLiveAccountController({ store: '/fictional-unused-store', pollMs: 1000_000, loginNotificationTimeoutMs: 200, initialAccountTimeoutMs,
+  const c = createCodexLiveAccountController({ store: '/fictional-unused-store', pollMs: 1000_000, restoreRetryMs, loginNotificationTimeoutMs: 200, initialAccountTimeoutMs,
     readSelection: async () => selection, readAuto: async () => ({ enabled: true }),
     readCredential, loadState: async () => saved ? { version: 1, wasControlling: true, profileId: A, revision: 1,
       endpoint: createHash('sha256').update('generation').digest('hex') } : null,
@@ -60,7 +61,7 @@ async function fixture({ ids = false, saved = false, notifyLogin = true, actual 
     connectRpc: async (_: any, callbacks: any) => {
       hooks = callbacks; connections.push(callbacks);
       initialRead = true;
-      if (initialUpdate === 'connect' || ids && !initialUpdate) notify();
+      if (initialUpdate === 'connect' || ids && !initialUpdate || initialUpdate === 'missing-once' && connections.length > 1) notify();
       if (initialUpdate === 'delayed') setTimeout(() => notify(), 5);
       return rpc;
     },
@@ -72,6 +73,49 @@ async function fixture({ ids = false, saved = false, notifyLogin = true, actual 
 }
 
 describe('native Codex authentication ownership', () => {
+  it('does not overwrite an outside account change when a pending credential renewal fails late', async () => {
+    const f = await fixture({ ids: true }); await f.c.request({ id: A, revision: 2 });
+    let fail!: (error: Error) => void;
+    const blocked = new Promise<never>((_resolve, reject) => { fail = reject; });
+    f.readCredential.mockImplementationOnce(async () => blocked);
+    const renewal = f.refresh(); await flush();
+    f.setAccount(B); f.notify();
+    fail(Error('fictional provider failure')); await renewal; await flush();
+    expect(f.sends).toEqual([]);
+    expect(f.c.status()).toMatchObject({ state: 'external_change', profileId: null });
+  });
+
+  it.each(['account-read', 'initial-snapshot'] as const)('retries read-only startup attestation after a transient %s timeout without replaying login', async stage => {
+    const f = await fixture({ ids: true, saved: true, accountReadFailures: stage === 'account-read' ? 1 : 0,
+      initialUpdate: stage === 'initial-snapshot' ? 'missing-once' : 'connect', initialAccountTimeoutMs: 5 });
+    expect(f.c.status().state).toBe('unavailable');
+    await f.c.tick();
+    expect(f.c.status()).toMatchObject({ state: 'applied', profileId: A });
+    expect(f.connections).toHaveLength(2);
+    expect(f.rpc.request.mock.calls.some(([method]) => method === 'account/login/start')).toBe(false);
+    await f.refresh(); expect(f.sends).toHaveLength(1);
+  });
+
+  it.each(['account-read', 'initial-snapshot'] as const)('rejects a changed workspace while retrying startup attestation after a %s timeout', async stage => {
+    const f = await fixture({ ids: true, saved: true, accountReadFailures: stage === 'account-read' ? 1 : 0,
+      initialUpdate: stage === 'initial-snapshot' ? 'missing-once' : 'connect', initialAccountTimeoutMs: 5 });
+    f.setAccount(B); await f.c.tick();
+    expect(f.c.status()).toMatchObject({ state: 'external_change', profileId: null });
+    expect(f.rpc.request.mock.calls.some(([method]) => method === 'account/login/start')).toBe(false);
+    await f.refresh(); expect(f.sends).toEqual([]);
+  });
+
+  it('respects the restore retry delay after a read timeout instead of probing on every poll', async () => {
+    let now = Date.now(); vi.spyOn(Date, 'now').mockImplementation(() => now);
+    const f = await fixture({ ids: true, saved: true, accountReadFailures: 1, restoreRetryMs: 5000 });
+    await f.c.tick(); expect(f.connections).toHaveLength(1);
+    now += 4999; await f.c.tick(); expect(f.connections).toHaveLength(1);
+    now++; await f.c.tick();
+    expect(f.c.status()).toMatchObject({ state: 'applied', profileId: A });
+    expect(f.connections).toHaveLength(2);
+    expect(f.rpc.request.mock.calls.some(([method]) => method === 'account/login/start')).toBe(false);
+  });
+
   it.each([1, 2])('discards a manual switch connection if bootstrap account read %s times out while retaining prior ownership', async failedRead => {
     const f = await fixture({ ids: true, initialUpdate: 'delayed' });
     await f.c.request({ id: A, revision: 2 });

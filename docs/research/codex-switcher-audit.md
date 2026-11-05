@@ -108,3 +108,50 @@ bootstrap reads and an outside workspace change. The controller and ownership
 suites passed all 86 cases locally after this repair. The complete focused
 set then passed 364 cases with 9 platform skips on macOS; full cross-platform
 CI is required before development integration.
+
+## Third pass: restart timeouts and removed switch targets
+
+Starting from development `0c9fc801`, five new failing cases reproduced two
+additional defects. An account-read timeout during startup cleared the restore
+intent permanently, so a later healthy daemon did not restore renewal ownership.
+Separately, deleting or making a target profile unavailable while credentials
+were being read still allowed its cached login to be applied.
+
+`6e109cf4` retains the read-only restore intent for account-read and initial
+routing-snapshot timeouts, using the existing retry delay. The next attempt
+must still attest the native account ID; it never replays login. Tests also
+cover a changed workspace during the gap and verify the retry interval.
+
+`d0c38a5f` rechecks target availability after credential reading, before
+interruption and before authentication. Cancellation after an interruption
+uses the existing continuation mechanism on the original account. An uncertain
+continuation retains durable recovery protection. An unrelated rename or
+registry revision change does not cancel a still-available target.
+
+The unchanged rapid-selection regression still submits only the latest unsent
+selection. Ten additional cases in this pass cover the two defects and their
+adjacent recovery behavior. The 19-file focused set passed 374 tests with 9
+platform skips on both macOS (Node 22.14.0) and Linux (Node 22.23.4,
+non-root). Windows (Node 22.23.3) passed 354 cases with 29 platform skips;
+its POSIX RPC file is explicitly skipped, while real Windows ACL cases run.
+No platform reported a failure. Typecheck and build passed on macOS; the
+build retained its existing large-chunk advisory. Linux's isolated container
+could not run the process-table stray-server guard. These tests do not switch
+authenticated provider accounts or mutate the owner's running sessions.
+
+
+## Fourth pass: renewal after losing the control lease
+
+A native credential-renewal callback did not validate the control lease before
+returning refreshed tokens. Two failing cases reproduced successful renewal
+after lease loss before the credential read or during the subsequent account
+read. The callback now verifies the lease before reading credentials and again
+before returning them, and pauses ownership if it has lost control. It returns
+only a fixed diagnostic error on the old request, never credentials or private
+provider text.
+
+Four additional cases cover lease loss at both boundaries, replacement during
+credential reading, and a late credential failure after an outside account
+change. The latter must not send an obsolete reply or overwrite the observed
+external-change state. The controller and ownership suites passed 100 cases
+locally; full integration CI validates the combined candidate before merge.
