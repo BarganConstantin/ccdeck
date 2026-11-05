@@ -501,6 +501,8 @@ const PRESSES: Press[] = [
   [".jr-board-item:active", "0.97", "transform"],
   [".jr-crumb:active", "0.97", "transform"],
   [".jr-link-btn:active", "0.97", "transform"],
+  // Show more under a sprint: a worded control, 0.97.
+  ['.jr-more:active:not([aria-disabled="true"])', "0.97", "transform"],
   // An issue's actions button on a touch screen (⋯, the only way to Move
   // there): a 28px glyph, so 0.94.
   [".jr-move-button:active:not(:disabled)", "0.94", "transform"],

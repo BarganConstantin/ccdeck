@@ -326,13 +326,23 @@ describe("what was migrated to the secondary tier", () => {
       // the first 600 shown), a sprint's goal, the empty board's explanation,
       // and a quote inside an issue. Why a read failed is the integrations'
       // shared failure note's.
-      ".jr-board-note", ".jr-goal", ".jr-html blockquote", ".jr-state p",
+      // CHANGED ON PURPOSE (V4's Figma): the empty board's sentence is the
+      // state's own paragraph only, so the shared failure note inside a state
+      // keeps its heading in --text; an issue's description, its section
+      // heads and its Flagged chip are set in this tier too.
+      ".jr-board-note", ".jr-goal", ".jr-html blockquote", ".jr-state > p",
+      ".jr-detail-desc > .jr-html", ".jr-detail-section h3", ".jr-flag-chip",
+      // CHANGED ON PURPOSE (V4's Figma): the initials that stand in for a
+      // missing picture, on their own opaque surface.
+      ".ig-avatar-initials",
       // And around the backlog: how many issues are picked, the Move form's
       // field labels, a reading preview's version and epic, and Clear filters,
       // a worded action that steps up to --text under the pointer.
       ".jr-selection .btn", ".jr-selection-note", ".jr-move-pop label", ".jr-row-preview dd", ".jr-clear",
       // The explanation below an unsuccessful Jira comment.
-      '.jr-comment-compose [role="alert"]',
+      // CHANGED ON PURPOSE: the plain sentence only; an unconfirmed comment's
+      // words are the write band's, in --text.
+      '.jr-comment-compose > [role="alert"]',
       // Jira's labels and sprint totals: words on a --ctl-fill pill, kept
       // here by their bed rather than their role, as the shared field's
       // placeholder is — --muted is 4.05:1 on that fill in dark. A status

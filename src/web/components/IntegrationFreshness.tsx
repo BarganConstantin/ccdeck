@@ -60,7 +60,7 @@ export function freshnessWords({ loadedAt, loading, stale }: FreshnessState, now
 }
 
 /** "just now", "5m ago", "3h ago", "2d ago" from an age in milliseconds. */
-function agoText(ms: number, t: TFunction): string {
+export function agoText(ms: number, t: TFunction): string {
   const s = Math.max(0, Math.floor(ms / 1000));
   if (s < 60) return t("integrations.fresh.now");
   if (s < 3600) return t("integrations.fresh.m", { n: Math.floor(s / 60) });

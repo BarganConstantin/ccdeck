@@ -166,7 +166,7 @@ describe("every row says what state its issue is in", () => {
 });
 
 describe("the reader's own issues are marked as theirs", () => {
-  it("rings their face, says so in the row's label and title, and says nothing extra for someone else's", () => {
+  it("says so in the row's label and title, draws faces with no ring and nobody as nothing", () => {
     const html = drawBoard([
       issue("MOCK-1", { assignee: ME, mine: true }),
       issue("MOCK-2", { assignee: ALEX }),
@@ -174,10 +174,16 @@ describe("the reader's own issues are marked as theirs", () => {
     ]);
     const drawn = rows(html);
     expect(drawn["MOCK-1"]).toMatch(/aria-label="MOCK-1: Summary of MOCK-1\. Story, To Do, Jane Doe, assigned to you"/);
-    expect(drawn["MOCK-1"]).toMatch(/<span class="jr-assignee" title="Jane Doe \(you\)"><span class="ig-avatar ig-avatar-initials"[^>]*data-you="true"/);
+    // CHANGED ON PURPOSE (V4's Figma): a row's face has no accent ring, and an
+    // unassigned row draws no empty face; the label and the title still say
+    // whose it is.
+    expect(drawn["MOCK-1"]).toMatch(/<span class="jr-assignee" title="Jane Doe \(you\)"><span class="ig-avatar ig-avatar-initials"/);
+    expect(drawn["MOCK-1"]).not.toContain("data-you");
     expect(drawn["MOCK-2"]).toMatch(/aria-label="MOCK-2: Summary of MOCK-2\. Story, To Do, Alex Kim"/);
     expect(drawn["MOCK-2"]).not.toContain("data-you");
-    expect(drawn["MOCK-3"]).toMatch(/<span class="jr-assignee" title="Unassigned"><span class="ig-avatar ig-avatar-none"/);
+    expect(drawn["MOCK-3"]).toContain('<span class="jr-assignee"></span>');
+    expect(drawn["MOCK-3"]).not.toContain("ig-avatar");
+    expect(drawn["MOCK-3"]).toMatch(/aria-label="MOCK-3: Summary of MOCK-3\. Story, To Do, unassigned"/);
   });
 
   it("rings the reader in the sprint's stack of people, which names everyone once", () => {
@@ -270,8 +276,13 @@ describe("a sprint's header says what it holds in words", () => {
     expect(head).toContain('<span class="jr-total" title="Total: 3d estimated">Total 3d</span>');
   });
 
-  it("marks the active sprint in sentence case", () => {
-    expect(headOf(drawBoard([issue("MOCK-1")]))).toContain('<span class="jr-badge">Active</span>');
+  it("marks the active sprint in sentence case, at the head's end, and names it in the toggle", () => {
+    // CHANGED ON PURPOSE (V4's Figma): the lozenge left the toggle for the
+    // head's end; the toggle keeps the word for a screen reader.
+    const head = headOf(drawBoard([issue("MOCK-1")]));
+    expect(head).toContain('<span class="jr-badge" aria-hidden="true">Active</span></div>');
+    expect(head).toMatch(/<button[^>]*class="jr-group-toggle"[\s\S]*?<span class="vis-hidden">Active<\/span>[\s\S]*?<\/button>/);
+    expect(head.indexOf("jr-group-facts")).toBeLessThan(head.indexOf('class="jr-badge"'));
   });
 
   it("gives a closed sprint not yet opened a dash, not a count on its way", () => {

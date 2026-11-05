@@ -149,16 +149,20 @@ button.btn.jr-chip[aria-pressed="true"] { background: color-mix(in srgb, var(--a
 .jr-group-toggle > .jr-chevron { margin-top: 3px; }
 .jr-group-identity { flex: 1; min-width: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 2px 8px; }
 .jr-group-name { max-width: 100%; overflow-wrap: anywhere; }
-/* The active sprint's lozenge, in sentence case like the status ones. The
-   group's header sits on the modal's --bg, so its tint is mixed over that. */
+/* The active sprint's lozenge, in sentence case like the status ones, 16
+   high at 11/500 at the head's end (V4's Figma). The group's header sits on
+   the panel, so its tint is mixed over that. */
 .jr-badge {
+  flex: none;
+  align-self: center;
   padding: 0 6px;
   border-radius: var(--r-tag);
-  background: color-mix(in srgb, var(--accent) 14%, var(--bg));
+  background: color-mix(in srgb, var(--accent) 14%, var(--panel));
   color: var(--text);
   font-size: calc(11px + var(--ui-text-increase, 0px));
-  font-weight: 600;
-  line-height: calc(18px + var(--ui-text-increase, 0px));
+  font-weight: 500;
+  line-height: calc(16px + var(--ui-text-increase, 0px));
+  white-space: nowrap;
 }
 .jr-group-dates, .jr-group-count { color: var(--muted); font-family: var(--font-mono); font-size: calc(11px + var(--ui-text-increase, 0px)); font-weight: 400; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .jr-group-facts { display: flex; align-items: center; gap: 12px; margin-left: auto; min-width: 0; }
@@ -178,8 +182,8 @@ button.btn.jr-chip[aria-pressed="true"] { background: color-mix(in srgb, var(--a
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
-.jr-total[data-cat="indeterminate"] { background: color-mix(in srgb, var(--accent) 14%, var(--bg)); color: var(--text); }
-.jr-total[data-cat="done"] { background: color-mix(in srgb, var(--ok) 14%, var(--bg)); color: var(--text); }
+.jr-total[data-cat="indeterminate"] { background: color-mix(in srgb, var(--accent) 14%, var(--panel)); color: var(--text); }
+.jr-total[data-cat="done"] { background: color-mix(in srgb, var(--ok) 14%, var(--panel)); color: var(--text); }
 .jr-goal { overflow-wrap: anywhere; margin: 0 0 8px 6px; color: var(--text-secondary); font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: 1.45; }
 /* V4's rows stand alone (32 high, rounded), so the group is no box around them. */
 .jr-group-body { min-width: 0; }
@@ -191,7 +195,29 @@ button.btn.jr-chip[aria-pressed="true"] { background: color-mix(in srgb, var(--a
 .jr-group-body[data-empty] { overflow: visible; border: 0; border-radius: 0; background: transparent; }
 .jr-group-body[data-empty] .jr-empty-group { padding: 6px 12px; }
 .jr-empty-group { margin: 0; padding: 12px; color: var(--muted); font-size: calc(12px + var(--ui-text-increase, 0px)); }
-.jr-more { margin: 8px 12px; }
+/* Show more (V4's Figma): plain words, 12/400 in --muted, in a 28 row. */
+.jr-more {
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  margin: 4px 0 0;
+  padding: 0 8px;
+  border: 0;
+  border-radius: var(--r-ctl);
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: calc(12px + var(--ui-text-increase, 0px));
+  font-weight: 400;
+  line-height: 16px;
+  cursor: pointer;
+  transition: color var(--dur-fast) var(--ease), background-color var(--dur-fast) var(--ease), transform var(--dur-fast) var(--ease);
+}
+@media (hover: hover) and (pointer: fine) {
+.jr-more:hover:not([aria-disabled="true"]) { color: var(--text); background: var(--ctl-fill); }
+}
+.jr-more:active:not([aria-disabled="true"]) { transform: scale(var(--press)); }
+.jr-more[aria-disabled="true"] { cursor: progress; }
 .jr-closed-foot { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 4px 0; }
 .jr-closed-foot .jr-subnote { flex-basis: 100%; padding: 0; }
 .jr-closed-foot > .ig-failure { flex-basis: 100%; min-width: 0; margin: 0; }
@@ -201,10 +227,12 @@ button.btn.jr-chip[aria-pressed="true"] { background: color-mix(in srgb, var(--a
 .jr-rows, .jr-subrows { margin: 0; padding: 0; list-style: none; }
 .jr-item { min-width: 0; }
 .jr-row { position: relative; display: flex; align-items: stretch; min-width: 0; min-height: 32px; border-radius: var(--r-panel); }
-/* A row chosen with others (the board is in selection mode with more than one chosen; a plain click that only opens a row draws nothing) wears V4's checkbox (14 x 14, on) where a row
-   without sub-tasks keeps its disclosure's room; unchosen rows have none. */
-.jr-board[data-multi] .jr-row[data-picked] .jr-toggle-space::before { content: ""; position: absolute; left: 7px; top: 50%; width: 14px; height: 14px; margin-top: -7px; box-sizing: border-box; border: 1px solid var(--accent); border-radius: var(--r-tag); background: var(--accent); }
-.jr-board[data-multi] .jr-row[data-picked] .jr-toggle-space::after { content: ""; position: absolute; left: 11px; top: 50%; width: 3px; height: 6px; margin-top: -5px; box-sizing: border-box; border: solid var(--bg); border-width: 0 1.5px 1.5px 0; transform: rotate(40deg); }
+/* A row chosen with others (the board is in selection mode with more than one chosen; a plain click that only opens a row draws nothing) wears V4's checkbox (14 x 14, on) in its disclosure's place:
+   the room a row without sub-tasks keeps, or the chevron itself, which still
+   opens the sub-tasks; unchosen rows have none. */
+.jr-board[data-multi] .jr-row[data-picked] .jr-toggle > svg { visibility: hidden; }
+.jr-board[data-multi] .jr-row[data-picked] :is(.jr-toggle-space, .jr-toggle)::before { content: ""; position: absolute; left: 7px; top: 50%; width: 14px; height: 14px; margin-top: -7px; box-sizing: border-box; border: 1px solid var(--accent); border-radius: var(--r-tag); background: var(--accent); }
+.jr-board[data-multi] .jr-row[data-picked] :is(.jr-toggle-space, .jr-toggle)::after { content: ""; position: absolute; left: 11px; top: 50%; width: 3px; height: 6px; margin-top: -5px; box-sizing: border-box; border: solid var(--bg); border-width: 0 1.5px 1.5px 0; transform: rotate(40deg); }
 .jr-subrow { padding-left: 20px; }
 .jr-toggle, .jr-toggle-space { flex: none; width: 28px; }
 .jr-toggle {
@@ -277,31 +305,41 @@ button.btn.jr-chip[aria-pressed="true"] { background: color-mix(in srgb, var(--a
 }
 .jr-move-button:active:not(:disabled) { background: var(--accent-dim); transform: scale(var(--press-small)); }
 .jr-move-button:disabled { cursor: wait; }
-.jr-actions-pop { width: min(180px, calc(100vw - 24px)); box-sizing: border-box; padding: 4px; }
-.jr-action-item { display: flex; align-items: center; gap: 8px; width: 100%; box-sizing: border-box; padding: 8px 10px; border: 0; border-radius: var(--r-ctl); background: transparent; color: var(--text); font: inherit; font-size: calc(13px + var(--ui-text-increase, 0px)); text-align: left; cursor: pointer; }
+/* The row's menu (V4's Figma): 220 wide, items 28 high at 13/400 on --r-tag,
+   a rule before Copy link. */
+.jr-actions-pop { width: min(220px, calc(100vw - 24px)); box-sizing: border-box; padding: 4px; }
+.jr-action-item { display: flex; align-items: center; gap: 8px; width: 100%; min-height: var(--row-table); box-sizing: border-box; padding: 0 8px; border: 0; border-radius: var(--r-tag); background: transparent; color: var(--text); font: inherit; font-size: calc(13px + var(--ui-text-increase, 0px)); font-weight: 400; line-height: var(--lh-body); text-align: left; cursor: pointer; }
+.jr-action-sep { height: 1px; margin: 4px 0; background: var(--line-soft); }
 .jr-action-item:active:not([aria-disabled="true"]) { background: var(--ctl-fill); }
 @media (hover: hover) and (pointer: fine) {
 .jr-action-item:hover:not([aria-disabled="true"]) { background: var(--ctl-fill); }
 }
 .jr-action-item[aria-disabled="true"] { color: var(--muted); cursor: default; }
-.jr-action-hint { display: block; margin: 0; padding: 8px 10px; color: var(--muted); font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: 1.45; overflow-wrap: anywhere; }
-.jr-move-pop { width: min(340px, calc(100vw - 24px)); }
+.jr-action-hint { display: block; margin: 0; padding: 4px 8px; color: var(--muted); font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: 1.45; overflow-wrap: anywhere; }
+/* Move (V4's Figma): 320 wide, the title 13/600, the label 12/500, the field
+   28 high sunk into the popover. */
+.jr-move-pop { width: min(320px, calc(100vw - 24px)); }
 .jr-move-pop form { display: flex; flex-direction: column; gap: 8px; padding: 12px; }
-.jr-move-pop h3 { margin: 0 0 4px; font-size: calc(13px + var(--ui-text-increase, 0px)); }
-.jr-move-pop label { color: var(--text-secondary); font-size: calc(12px + var(--ui-text-increase, 0px)); }
-.jr-move-pop select { width: 100%; min-width: 0; max-width: 100%; font: inherit; color: var(--text); background: var(--panel); border: 1px solid var(--ctl-edge); border-radius: var(--r-ctl); padding: 6px; }
+.jr-move-pop h3 { margin: 0 0 4px; font-size: calc(13px + var(--ui-text-increase, 0px)); font-weight: 600; line-height: 20px; }
+.jr-move-pop label { color: var(--text-secondary); font-size: calc(12px + var(--ui-text-increase, 0px)); font-weight: 500; }
+.jr-move-pop select { width: 100%; min-width: 0; max-width: 100%; height: 28px; box-sizing: border-box; font: inherit; color: var(--text); background: var(--sunken); border: 1px solid var(--ctl-edge); border-radius: var(--r-ctl); padding: 0 6px; }
 .jr-move-help, .jr-move-status, .jr-move-error { margin: 0; font-size: calc(12px + var(--ui-text-increase, 0px)); overflow-wrap: anywhere; }
 .jr-move-help, .jr-move-status { color: var(--muted); }
 .jr-move-status:not(:empty), .jr-board > .jr-move-error { margin-bottom: 8px; }
 .jr-move-error { color: var(--err); }
 .jr-move-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; margin-top: 4px; }
 /* The bar for several chosen issues (V4's Figma): 40 high on --selected, edge to
-   edge under the toolbar, "N selected" 13/500 in --text, Move outlined, Clear a
-   plain accent word. */
+   edge under the toolbar, "N selected" 13/500 in --text at the start, the
+   actions at the end with Move outlined and Clear last, a plain accent word at
+   12/500. */
 .jr-selection { position: sticky; top: calc(-1 * var(--jr-pad-t)); z-index: 1; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; min-height: 40px; box-sizing: border-box; margin: calc(-1 * var(--jr-pad-t)) calc(-1 * var(--jr-pad-x)) 8px; padding: 6px 12px; background: var(--selected); color: var(--text); font-size: calc(13px + var(--ui-text-increase, 0px)); font-weight: 500; }
 .jr-selection > [role="status"] { color: var(--text); }
 .jr-selection .btn { --ctl-h: 28px; font-weight: 500; color: var(--text-secondary); background: transparent; }
-.jr-selection-clear { text-decoration: none; font-weight: 500; line-height: 16px; }
+.jr-selection-actions { margin-left: auto; display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 8px; min-width: 0; }
+.jr-selection .jr-selection-clear { color: var(--accent); font-size: calc(12px + var(--ui-text-increase, 0px)); font-weight: 500; line-height: 16px; text-decoration: none; }
+@media (hover: hover) and (pointer: fine) {
+.jr-selection .jr-selection-clear:hover { color: var(--text); }
+}
 /* The hint at the foot of the list, 12px in --muted. */
 .jr-selection-hint { position: sticky; bottom: calc(-1 * var(--jr-pad-b)); margin: auto calc(-1 * var(--jr-pad-x)) calc(-1 * var(--jr-pad-b)); padding: 6px 12px; background: var(--panel); color: var(--muted); font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: 16px; }
 .jr-selection-note { color: var(--text-secondary); overflow-wrap: anywhere; }
@@ -316,7 +354,6 @@ button.btn.jr-chip[aria-pressed="true"] { background: color-mix(in srgb, var(--a
 .jr-icon { width: 16px; height: 16px; flex: none; display: block; border-radius: 2px; }
 .jr-key { color: var(--muted); font-family: var(--font-mono); font-size: calc(12px + var(--ui-text-increase, 0px)); font-weight: 400; line-height: 16px; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .jr-key[data-done] { text-decoration: line-through; }
-.jr-row[data-current] > .jr-row-main > .jr-key { font-weight: 600; color: var(--text); }
 .jr-summary { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text); font-size: calc(13px + var(--ui-text-increase, 0px)); line-height: 20px; }
 .jr-item[data-context] > .jr-row .jr-summary { color: var(--muted); }
 /* The row's end: its facts (flag, versions, epic, estimate), then its status
@@ -466,7 +503,7 @@ button.btn.jr-chip[aria-pressed="true"] { background: color-mix(in srgb, var(--a
 /* ── states ──────────────────────────────────────────────────────────────── */
 .jr-state { max-width: 520px; margin: 48px auto; display: flex; flex-direction: column; align-items: center; gap: 8px; text-align: center; }
 .jr-state h3 { margin: 0; font-size: calc(16px + var(--ui-text-increase, 0px)); font-weight: 600; }
-.jr-state p { margin: 0; color: var(--text-secondary); line-height: 1.5; text-wrap: pretty; }
+.jr-state > p { margin: 0; color: var(--text-secondary); line-height: 1.5; text-wrap: pretty; }
 /* Where the shared failure note (IntegrationFailureNote) sits: across a
    state's column, over the rows it is the last answer for, and inside a
    sprint's frame with room around it. */
@@ -491,6 +528,8 @@ button.btn.jr-chip[aria-pressed="true"] { background: color-mix(in srgb, var(--a
 .jr-detail-head { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
 .jr-detail-title { margin: 0; font-size: calc(14px + var(--ui-text-increase, 0px)); font-weight: 600; line-height: 20px; overflow-wrap: anywhere; }
 .jr-detail-state { margin: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; font-size: calc(12px + var(--ui-text-increase, 0px)); }
+/* Flagged, beside the status (V4's Figma): a neutral chip, 16 high at 11/500. */
+.jr-flag-chip { flex: none; padding: 0 6px; border-radius: var(--r-tag); background: var(--ctl-fill); color: var(--text-secondary); font-size: calc(11px + var(--ui-text-increase, 0px)); font-weight: 500; line-height: 16px; white-space: nowrap; }
 .jr-detail-dates { margin: -8px 0 0; color: var(--muted); font-size: calc(12px + var(--ui-text-increase, 0px)); }
 .jr-detail-dates:empty { display: none; }
 /* An epic in the field list is a block of its own, so its ellipsis holds
@@ -515,19 +554,26 @@ button.btn.jr-chip[aria-pressed="true"] { background: color-mix(in srgb, var(--a
 .jr-dim { color: var(--muted); }
 .jr-chips { display: inline-flex; flex-wrap: wrap; gap: 4px; }
 .jr-detail-section { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
-.jr-detail-section h3 { margin: 0; display: flex; align-items: baseline; gap: 6px; font-size: calc(13px + var(--ui-text-increase, 0px)); font-weight: 600; }
+/* A section's head 12/600 in --text-secondary, its count in mono 11, and the
+   description in --text-secondary (V4's Figma). */
+.jr-detail-section h3 { margin: 0; display: flex; align-items: baseline; gap: 6px; color: var(--text-secondary); font-size: calc(12px + var(--ui-text-increase, 0px)); font-weight: 600; line-height: 16px; }
+.jr-detail-desc > .jr-html { color: var(--text-secondary); }
 .jr-detail-section > p { margin: 0; font-size: calc(12px + var(--ui-text-increase, 0px)); }
-.jr-count { color: var(--muted); font-size: calc(12px + var(--ui-text-increase, 0px)); font-weight: 400; font-variant-numeric: tabular-nums; }
-.jr-detail-subtasks { margin: 0; padding: 0; list-style: none; overflow: hidden; border: 1px solid var(--line); border-radius: var(--r-panel); }
-.jr-detail-subtasks li + li { border-top: 1px solid var(--line-soft); }
+.jr-count { color: var(--muted); font-family: var(--font-mono); font-size: calc(11px + var(--ui-text-increase, 0px)); font-weight: 400; font-variant-numeric: tabular-nums; }
+/* Sub-tasks stand alone as the backlog's rows do (V4's Figma): one line, 32
+   high on --r-panel, no box round them. */
+.jr-detail-subtasks { margin: 0; padding: 0; list-style: none; }
 .jr-detail-sub {
   width: 100%;
+  min-height: 32px;
+  box-sizing: border-box;
   display: grid;
   grid-template-columns: 16px auto minmax(0, 1fr) auto 18px;
   align-items: center;
   gap: 8px;
-  padding: 6px 10px;
+  padding: 0 8px;
   border: 0;
+  border-radius: var(--r-panel);
   background: transparent;
   color: inherit;
   font: inherit;
@@ -538,7 +584,11 @@ button.btn.jr-chip[aria-pressed="true"] { background: color-mix(in srgb, var(--a
 }
 .jr-detail-subtasks .jr-detail-sub:active { background: color-mix(in srgb, var(--text) 10%, transparent); }
 .jr-files { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 4px; font-size: calc(12px + var(--ui-text-increase, 0px)); }
-.jr-files li { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px; min-width: 0; }
+/* An attachment (V4's Figma): the 14 file glyph in --muted, the name, and
+   its size in mono 11. */
+.jr-files li { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; min-width: 0; }
+.jr-file-glyph { flex: none; color: var(--muted); }
+.jr-file-size { color: var(--muted); font-family: var(--font-mono); font-size: calc(11px + var(--ui-text-increase, 0px)); font-variant-numeric: tabular-nums; }
 .jr-more-link { display: inline-flex; align-items: center; gap: 4px; color: var(--accent); }
 .jr-files a { display: inline-flex; align-items: center; gap: 4px; color: var(--accent); overflow-wrap: anywhere; }
 .jr-comments { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 12px; }
@@ -587,7 +637,7 @@ button.btn.jr-chip[aria-pressed="true"] { background: color-mix(in srgb, var(--a
   .jr-facts { max-width: none; grid-column: 3 / -1; grid-row: 2; justify-content: flex-start; flex-wrap: nowrap; }
   .jr-facts .jr-meta { flex: 1; justify-content: flex-start; flex-wrap: nowrap; overflow: hidden; }
   .jr-facts .jr-status-cell { order: -1; min-width: 0; }
-  .jr-group-facts { margin-left: 0; flex-basis: 100%; flex-wrap: wrap; }
+  .jr-group-facts { order: 1; margin-left: 0; flex-basis: 100%; flex-wrap: wrap; }
 }
 /* A phone: three lines at most. The issue's type, priority, key, status and
    person on the first; its summary under them, up to two lines; its flag,
@@ -624,8 +674,9 @@ button.btn.jr-chip[aria-pressed="true"] { background: color-mix(in srgb, var(--a
   .jr-filter-chips { flex: 1 1 0; }
 }
 /* A sub-task in a narrow detail: its key, status and person on the first
-   line and its summary under them, rather than cut at the frame's edge. */
-@container jira-detail (max-width: 440px) {
+   line and its summary under them, rather than cut at the frame's edge. The
+   detail beside the list at the default width keeps one line. */
+@container jira-detail (max-width: 360px) {
   .jr-detail-sub { grid-template-columns: 16px minmax(0, 1fr) auto 18px; row-gap: 2px; }
   .jr-detail-sub > .jr-icon { grid-column: 1; grid-row: 1; }
   .jr-detail-sub > .jr-key { grid-column: 2; grid-row: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
@@ -645,7 +696,8 @@ button.btn.jr-chip[aria-pressed="true"] { background: color-mix(in srgb, var(--a
   .jr-chevron { transition: none; }
   .jr-group-body[data-fade], .jr-subrows[data-fade] { animation: none; }
   .jr-board-item:active, .jr-crumb:active, .jr-group-toggle:active,
-  .jr-link-btn:active, .jr-toggle:active, .jr-move-button:active:not(:disabled) { transform: none; }
+  .jr-link-btn:active, .jr-toggle:active, .jr-move-button:active:not(:disabled),
+  .jr-more:active:not([aria-disabled="true"]) { transform: none; }
 }
 
 /* Workflow actions stay beside the current status, wrapping on narrow screens. */
@@ -659,4 +711,5 @@ button.btn.jr-status-btn { --ctl-h: 28px; padding: 0 12px; border-radius: var(--
 .jr-comment-compose label { color: var(--text-secondary); font-size: calc(12px + var(--ui-text-increase, 0px)); font-weight: 500; line-height: 16px; }
 .jr-comment-compose textarea { width: 100%; box-sizing: border-box; resize: vertical; height: 28px; min-height: 28px; max-height: 240px; field-sizing: content; padding: 4px 8px; color: var(--text); background: var(--sunken); border: 1px solid var(--line); border-radius: var(--r-ctl); font: inherit; font-size: calc(13px + var(--ui-text-increase, 0px)); line-height: 20px; }
 .jr-comment-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
-.jr-comment-compose [role="alert"] { margin: 0; color: var(--text-secondary); }
+/* A definite failure's sentence; the write band brings its own words. */
+.jr-comment-compose > [role="alert"] { margin: 0; color: var(--text-secondary); }

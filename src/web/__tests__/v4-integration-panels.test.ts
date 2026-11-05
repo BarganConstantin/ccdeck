@@ -145,14 +145,18 @@ describe("Jira", () => {
     expect(integrations).toMatch(/--ig-sel-fill:\s*var\(--selected\)/);
   });
 
-  it("draws a checkbox on a row chosen with others, and none on the rest", () => {
+  it("draws a checkbox on a row chosen with others, in its disclosure's place too, and none on the rest", () => {
     // only while the board is in selection mode with more than one chosen: a plain click that opens a row sets data-picked too
-    expect(jira).toMatch(/\.jr-board\[data-multi\] \.jr-row\[data-picked\] \.jr-toggle-space::before/);
+    // CHANGED ON PURPOSE (V4's Figma): a chosen row with sub-tasks shows the
+    // box in place of its chevron, as a row without them does in its room.
+    const box = ".jr-board[data-multi] .jr-row[data-picked] :is(.jr-toggle-space, .jr-toggle)::before";
     expect(jira).not.toMatch(/(^|\})\s*\.jr-row\[data-picked\] \.jr-toggle-space::before/);
     expect(read("components/JiraBacklog.tsx")).toContain("data-multi={(selectionMode && picked.size > 1) || undefined}");
+    expect(rule(jira, ".jr-board[data-multi] .jr-row[data-picked] .jr-toggle > svg")).toMatch(/visibility:\s*hidden/);
     // the square has a border of its own, in forced colours too
-    expect(rule(jira, ".jr-board[data-multi] .jr-row[data-picked] .jr-toggle-space::before")).toMatch(/border:\s*1px solid/);
-    expect(strip(read("styles/touch-and-forced-colours.css"))).toMatch(/\.jr-board\[data-multi\] \.jr-row\[data-picked\] \.jr-toggle-space::before\s*\{[^}]*border:\s*1px solid CanvasText/);
+    expect(rule(jira, box)).toMatch(/border:\s*1px solid/);
+    expect(rule(jira, box)).toMatch(/width:\s*14px/);
+    expect(strip(read("styles/touch-and-forced-colours.css"))).toMatch(/\.jr-board\[data-multi\] \.jr-row\[data-picked\] :is\(\.jr-toggle-space, \.jr-toggle\)::before\s*\{[^}]*border:\s*1px solid CanvasText/);
   });
 
   it("writes the key 12/400 mono --muted and the status chip 16 high at 11/500", () => {

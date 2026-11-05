@@ -1331,6 +1331,12 @@ describe("every control that draws a boundary draws one that can be seen (1.4.11
       // The checkbox's box: the same --ctl-edge the fields are swept for above,
       // recoloured to --accent when ticked (a state, as the period strip's).
       ".cbx > input", ".cbx > input:checked",
+      // A Jira row chosen with others draws the ticked box in its disclosure's
+      // place, the sub-tasks' toggle included: a state mark filled solid in the
+      // accent (its fill is its shape), as the checkbox's ticked state above.
+      // The toggle is named by its label and keeps opening the sub-tasks.
+      ".jr-board[data-multi] .jr-row[data-picked] :is(.jr-toggle-space, .jr-toggle)::before",
+      ".jr-board[data-multi] .jr-row[data-picked] :is(.jr-toggle-space, .jr-toggle)::after",
       // A key cap: named by the key written in it (and `.qo-esc` by its word);
       // V4's kit gives it the --line hairline, a label's rim and not a boundary.
       "kbd.qo-key", ".qo-esc", ".qo-foot kbd", ".fb-shortcut kbd",
