@@ -196,3 +196,31 @@ test-only edits. The Linux
 run predates this test-only isolation edit; its production source matches the
 final candidate. The Linux process-table stray-server guard was unavailable
 inside the isolated container.
+
+## Sixth pass: final identity and lease checks during restart
+
+Starting from the local fifth-pass candidate `9088e084`, two failing tests
+showed that startup restoration could adopt an account snapshot taken before
+credential preparation, or claim control after its lease was lost during that
+preparation. The same problems reproduced in the fallback that reconciles an
+unacknowledged newer selection with the surviving previous login.
+
+`5712623b` obtains a fresh native account snapshot and validates the control
+lease after credential preparation in both paths. Missing native IDs or a
+changed workspace prevent ownership adoption. These paths only observe and
+adopt an already surviving login; they never submit login or continue turns.
+`b62a28a9` retains pending read-only fallback recovery if its added final read
+times out, rather than permanently abandoning that recovery intent.
+
+Seven additional regression cases cover stale snapshots, lease loss, fallback
+reconciliation, missing final account IDs and read-timeout recovery. The final
+23-file macOS set passed 413 cases with 9 platform skips; typecheck and build
+passed. Linux passed the same 413 cases with 9 platform skips in a non-root,
+network-isolated container. Windows passed 212 cases in the seven affected
+controller, ownership, checkpoint, handoff, quota-refresh, route and removal
+files; unchanged transport/credential security files were not rerun on Windows
+in this pass. No executed test failed. The Linux process-table stray-server
+guard was unavailable in the minimal container.
+This remains isolated controller/endpoint verification, not authenticated
+live-provider switching. The earlier fifth-pass fixes remain on this local
+branch and have not been integrated into development.
