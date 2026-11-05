@@ -82,7 +82,7 @@ const catalog: Catalog = {
   "board.pill.title.full.one": "A pausa está cheia — {held} retidos e {count} mais antigo já descartado. Retome para acompanhar a tela de novo",
   "board.pill.title.full.other": "A pausa está cheia — {held} retidos e {count} mais antigos já descartados. Retome para acompanhar a tela de novo",
   "board.pill.title.nothing": "Nada chegou desde que você pausou. Retome para acompanhar a tela de novo",
-  "board.pill.outage": "A tela também está pausada — Espaço a retoma, mas nada novo chega até o fluxo voltar.",
+  "board.pill.outage": "A tela também está pausada: Espaço a retoma, mas nada novo chega até o fluxo voltar.",
   "board.pill.title.offlinePaused": "SSE desconectado — e a tela está pausada, então retomar não trará os eventos de volta até reconectar",
   "board.pill.title.offline": "SSE desconectado",
   "board.pill.title.arrived": "{held} chegaram durante a pausa e serão aplicados em ordem quando você retomar",

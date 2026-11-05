@@ -112,7 +112,8 @@ describe("the deck under a Windows Contrast theme (#871)", () => {
     expect(background(".switch-knob")).toBe("CanvasText");
     expect(background(".switch:hover:not(:disabled) .switch-knob")).toBe("CanvasText");
     expect(opts(".switch-knob")).toBe(true);
-    for (const on of [".switch[aria-checked=\"true\"]", ".switch[aria-checked=\"true\"]:hover:not(:disabled)", ".ver-banner .switch[aria-checked=\"true\"]"]) {
+    // CHANGED ON PURPOSE (V4's Figma): the version banner has no switch of its own any more.
+    for (const on of [".switch[aria-checked=\"true\"]", ".switch[aria-checked=\"true\"]:hover:not(:disabled)"]) {
       expect(opts(on), on).toBe(true);
       expect(background(on), on).toBe("Highlight");
       expect(bodyOf(on), on).toMatch(/border-color:\s*Highlight/);

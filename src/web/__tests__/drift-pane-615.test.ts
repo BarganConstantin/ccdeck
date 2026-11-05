@@ -279,8 +279,9 @@ describe("the six layouts are still the six the stylesheet declares", () => {
     expect(css).toMatch(/\.app\s*\{\s*padding-inline:\s*var\(--edge-w\);\s*\}/);
     expect(EDGES_W).toBe(80);
     expect(css).toMatch(/\.canvas-wrap\s*\{[^}]*grid-row:\s*3;/);
-    expect(css).toMatch(/\.conn-banner\s*\{[^}]*grid-row:\s*2;/);
-    expect(css).toMatch(/\.ver-banner\s*\{[^}]*grid-row:\s*2;/);
+    // CHANGED ON PURPOSE (V4's motion rules): every banner is drawn in one
+    // holder, the strip, whose height eases in and out; the holder is row 2.
+    expect(css).toMatch(/\.app > \.banner-strip\s*\{[^}]*grid-row:\s*2;/);
   });
 
   it("opens with the accounts panel and without the detail panel", () => {

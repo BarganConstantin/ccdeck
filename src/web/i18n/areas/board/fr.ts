@@ -83,7 +83,7 @@ const catalog: Catalog = {
   "board.pill.title.full.other": "La pause est pleine — {held} retenus et {count} plus anciens déjà abandonnés. Reprenez pour suivre de nouveau le canevas",
   "board.pill.title.nothing": "Rien n’est arrivé depuis la mise en pause. Reprenez pour suivre de nouveau le canevas",
   "board.pill.title.arrived": "{held} arrivés pendant la pause, appliqués dans l’ordre à la reprise",
-  "board.pill.outage": "Le canevas est aussi en pause — Espace le reprend, mais rien de nouveau n’arrive tant que le flux n’est pas revenu.",
+  "board.pill.outage": "Le canevas est aussi en pause : Espace le reprend, mais rien de nouveau n’arrive tant que le flux n’est pas revenu.",
   "board.pill.title.offlinePaused": "SSE déconnecté — et le canevas est en pause, donc reprendre ne ramènera pas les événements avant la reconnexion",
   "board.pill.title.offline": "SSE déconnecté",
   "board.pill.title.connectedFull": "Connecté — la pause est pleine à {held} ; les plus anciens sont abandonnés à mesure que de nouveaux arrivent. Reprenez pour rattraper",

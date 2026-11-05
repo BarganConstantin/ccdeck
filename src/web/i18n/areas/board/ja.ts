@@ -83,7 +83,7 @@ const catalog: Catalog = {
   "board.pill.title.full.other": "一時停止のバッファが満杯です — {held}を保持し、古いイベント{count}件を破棄済み。再開するとキャンバスに追従します",
   "board.pill.title.nothing": "一時停止後、何も届いていません。再開するとキャンバスに追従します",
   "board.pill.title.arrived": "一時停止中に{held}が届き、再開時に順番に反映されます",
-  "board.pill.outage": "キャンバスも一時停止中です — Space で再開できますが、ストリームが復旧するまで新しいイベントは届きません。",
+  "board.pill.outage": "キャンバスも一時停止中です。Space で再開できますが、ストリームが復旧するまで新しいイベントは届きません。",
   "board.pill.title.offlinePaused": "SSE が切断され、キャンバスも一時停止中です。再接続するまで、再開してもイベントは戻りません",
   "board.pill.title.offline": "SSE が切断されました",
   "board.pill.title.connectedFull": "接続中 — 一時停止のバッファが{held}で満杯です。新しいイベントが届くと古いものから破棄されます。再開して追いつきましょう",

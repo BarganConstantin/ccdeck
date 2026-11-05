@@ -252,7 +252,8 @@ describe("what gets said, and to whom", () => {
     // Only the first line is written in the browser. The second one is renameNotice's
     // `fix`, handed over by /api/version — see "one fact, one place" below for
     // why it stopped being written twice.
-    expect(banner).toContain("{version.renameFix}");
+    // CHANGED ON PURPOSE (V4's Figma): one run with the sentence before it.
+    expect(banner).toContain("version?.renameFix)}</strong>");
     expect(app).not.toMatch(/deprecated/i);
   });
 
@@ -524,7 +525,9 @@ describe("one fact, one place: which line the rename notice ends with", () => {
 
   it("is rendered by the browser, not decided there", () => {
     const jsx = bannerJsx();
-    expect(jsx).toContain('{version?.renameFix ? <span className="ver-sub">{version.renameFix}</span> : null}');
+    // CHANGED ON PURPOSE (V4's Figma): the server's sentence ends the message's one run;
+    // sentences() leaves it out when the field is missing, as the old branch did.
+    expect(jsx).toContain('<strong>{sentences(t("shell.banner.oldName", { old: oldName, product: PRODUCT }), version?.renameFix)}</strong>');
     // VersionInfo moved to use-version-check.ts with the check itself; the
     // field is what this pins, not the file it is declared in.
     expect(clientText()).toContain("renameFix?: string | null;");

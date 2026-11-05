@@ -83,7 +83,7 @@ const catalog: Catalog = {
   "board.pill.title.full.other": "일시 중지 버퍼가 가득 찼습니다 — {held}개를 보관 중이며 이전 이벤트 {count}개는 이미 버려졌습니다. 재개하면 캔버스를 다시 따라갑니다",
   "board.pill.title.nothing": "일시 중지한 이후 도착한 것이 없습니다. 재개하면 캔버스를 다시 따라갑니다",
   "board.pill.title.arrived": "일시 중지 중 {held}개가 도착했으며 재개하면 순서대로 적용됩니다",
-  "board.pill.outage": "캔버스도 일시 중지되어 있습니다 — Space로 재개할 수 있지만 스트림이 복구될 때까지 새 이벤트는 도착하지 않습니다.",
+  "board.pill.outage": "캔버스도 일시 중지되어 있습니다: Space로 재개할 수 있지만 스트림이 복구될 때까지 새 이벤트는 도착하지 않습니다.",
   "board.pill.title.offlinePaused": "SSE 연결이 끊겼고 캔버스도 일시 중지되어 있어, 다시 연결되기 전에는 재개해도 이벤트가 돌아오지 않습니다",
   "board.pill.title.offline": "SSE 연결 끊김",
   "board.pill.title.connectedFull": "연결됨 — 일시 중지 버퍼가 {held}개로 가득 차, 새 이벤트가 오면 가장 오래된 것부터 버려집니다. 재개하여 따라잡으세요",

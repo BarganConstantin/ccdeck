@@ -206,11 +206,13 @@ describe("Settings › About says which ccdeck this is", () => {
     expect(upgrade).toContain("Update available");
     expect(upgrade).toContain("ccdeck v3.42.0 is out — you are on v3.41.0.");
     // The banner's own first sentences.
+    // CHANGED ON PURPOSE (V4's Figma): the banner's are sentences with full
+    // stops now; the About note above keeps its own catalog's words.
     const banner = flat(read("../components/VersionBanner.tsx"));
     expect(banner).toContain('t("shell.banner.installedStale"');
-    expect(shellEn["shell.banner.installedStale"]).toBe("v{to} is installed — this deck still runs v{from}.");
+    expect(shellEn["shell.banner.installedStale"]).toBe("v{to} is installed. This deck still runs v{from}.");
     expect(banner).toContain('t("shell.banner.isOut"');
-    expect(shellEn["shell.banner.isOut"]).toBe("{product} v{to} is out — you are on v{from}.");
+    expect(shellEn["shell.banner.isOut"]).toBe("{product} v{to} is out. You are on v{from}.");
 
     const d = doors();
     const update = buttons(AboutSection(aboutProps({ notice: { kind: "upgrade", from: "3.41.0", to: "3.42.0" }, doors: d })))
@@ -297,6 +299,8 @@ describe("a door out of Settings closes it before it opens what it names", () =>
 
 // ── General › Updates ────────────────────────────────────────────────────────
 
+// CHANGED ON PURPOSE (V4's Figma): the banner has no switch any more; this is
+// the one place the preference is drawn, and the banner says its countdown.
 describe("Settings › General › Updates is the update banner's switch", () => {
   it("is drawn in General, under the board, with the state the banner reads", () => {
     const on = drawSettings({ section: "general" });
@@ -320,7 +324,8 @@ describe("Settings › General › Updates is the update banner's switch", () =>
     const app = flat(read("../App.tsx"));
     expect(app).toMatch(/<DeckDialogs[^>]*restart=\{restart\}/);
     expect(app).toMatch(/<DeckBanner restart=\{restart\}/);
-    expect(read("../components/DeckBanner.tsx")).toMatch(/toggleAutoRestart/);
+    expect(read("../components/DeckBanner.tsx")).not.toMatch(/toggleAutoRestart/);
+    expect(read("../components/VersionBanner.tsx")).not.toMatch(/role="switch"/);
     // One preference: prefs.json's autoUpdate, which the toggle writes.
     expect(read("../use-auto-restart.ts")).toMatch(/body: JSON\.stringify\(\{ autoUpdate: next \}\)/);
   });

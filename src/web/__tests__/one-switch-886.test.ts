@@ -58,7 +58,10 @@ describe("every switch is the one switch (#886)", () => {
     // one `role="switch"` from its short list of Claude Code settings.
     // Twenty-four with the Command Panel's switch (TerminalSection.tsx), in
     // Settings › Experimental.
-    expect(switches, "the twenty-four switches in the source").toBe(24);
+    // CHANGED ON PURPOSE (V4's Figma): twenty-three since the version banner's
+    // auto-restart switch went; the banner says its countdown in a sentence
+    // and the preference is Settings › General's "Update when idle".
+    expect(switches, "the twenty-three switches in the source").toBe(23);
     expect(count(/className="switch(?: ap-auto-state)?"/g)).toBe(switches);
     expect(count(/<span className="switch-knob" \/>/g)).toBe(switches);
   });
@@ -109,11 +112,13 @@ describe("the one switch owns its states (#886)", () => {
     expect(knob).toMatch(/height:\s*14px/);
   });
 
-  it("lets the version banner's armed switch keep its warning, and nothing else differ", () => {
-    expect(body('.ver-banner .switch[aria-checked="true"]')).toMatch(/background:\s*var\(--warn\)/);
-    // The forced-colours block (#871) restates the banner's switch in system
-    // colours. That is the same switch answering a Contrast theme, not a second
-    // context drawing it differently, so its cascade is read separately.
+  // CHANGED ON PURPOSE (V4's Figma): the version banner's armed switch is gone
+  // with the switch, so no context draws a switch differently any more.
+  it("lets nothing draw a switch differently", () => {
+    expect(body('.ver-banner .switch[aria-checked="true"]')).toBe("");
+    // The forced-colours block (#871) restates the switch in system colours.
+    // That is the same switch answering a Contrast theme, not a second context
+    // drawing it differently, so its cascade is read separately.
     const open = "@media (forced-colors: active) {";
     const at = css.indexOf(open);
     let close = at;
@@ -127,6 +132,6 @@ describe("the one switch owns its states (#886)", () => {
     // Radar enlarges only the invisible mobile hit area; the track and knob
     // retain the shared geometry and states.
     expect(body('.tr-flag-action .switch::after')).toMatch(/width:\s*44px;\s*height:\s*44px/);
-    expect(overrides.sort()).toEqual(['.tr-flag-action .switch::after', '.ver-banner .switch[aria-checked="true"]']);
+    expect(overrides.sort()).toEqual(['.tr-flag-action .switch::after']);
   });
 });

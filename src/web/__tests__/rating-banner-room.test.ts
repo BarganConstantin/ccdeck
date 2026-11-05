@@ -62,10 +62,12 @@ describe("the rating question's row", () => {
   // CHANGED ON PURPOSE (V4's Figma): every banner, not only the question, spans the window so its
   // dismiss sits at the right edge; the rule is the strip's (search-and-banners.css) and the left
   // panels' column rules are out-weighed by specificity rather than by source order.
+  // CHANGED ON PURPOSE (V4's motion rules): every banner is drawn in one holder, the strip, whose
+  // height eases in and out, so the rule that spans the window is the holder's.
   it("spans the window under the topbar, whichever left panel is open", () => {
-    const own = top(/\.ver-banner/).find(r => r.selector.startsWith(".app.app.app ") && decl(r, "grid-column") != null);
+    const own = top(/\.banner-strip/).find(r => r.selector.startsWith(".app.app.app") && decl(r, "grid-column") != null);
     expect(own && decl(own, "grid-column")).toBe("1 / -1");
-    expect(own!.selector).toContain(".conn-banner:has(> .banner-mark)");
+    expect(own!.selector).toContain("> .banner-strip");
     const split = (list: string): string[] => {
       const out: string[] = [];
       let depth = 0, from = 0;
@@ -84,7 +86,7 @@ describe("the rating question's row", () => {
       });
       return n + (rest.match(/\.[\w-]+|\[[^\]]*\]|:(?!:)[\w-]+/g) ?? []).length;
     };
-    const others = all.filter(r => r !== own && /\.(ver|conn)-banner\b/.test(r.selector) && decl(r, "grid-column"));
+    const others = all.filter(r => r !== own && /\.(ver|conn)-banner\b|\.banner-strip\b/.test(r.selector) && decl(r, "grid-column"));
     expect(others.length).toBeGreaterThan(0);
     for (const r of others) {
       for (const sel of split(r.selector)) expect(weight(sel.trim()), sel).toBeLessThan(weight(own!.selector));
@@ -179,8 +181,11 @@ describe("the height it hands the page", () => {
     const row = { getBoundingClientRect: () => ({ height }), closest: (sel: string) => (sel === ".app" ? page : null) };
     vi.stubGlobal("document", { querySelector: (sel: string) => { asked = sel; return row; } });
     const view = mount(() => { useStripHeight(); return null; }, {});
+    // CHANGED ON PURPOSE (V4's motion rules): the strip's holder is measured,
+    // so the height handed on follows the banner while it eases in and out.
+    expect(asked).toContain(".banner-strip");
     expect(asked).toContain(".ver-banner");
-    expect(asked).toContain(".conn-banner:has(> .banner-mark)");
+    expect(asked).toContain(".conn-banner > .banner-mark");
     expect(style.get("--rating-h")).toBe("41px");
     height = 72;
     for (const cb of observed) cb();

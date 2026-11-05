@@ -18,10 +18,52 @@
    width of its own or a two-digit total would sit under them. */
 
 
-/* ---------------- connection banner ---------------- */
-.conn-banner {
+/* ---------------- the banner strip ---------------- */
+/* The row under the top bar every banner is drawn in (DeckBanner.tsx). It
+   SPANS THE WINDOW (V4's Figma): the dismiss sits at the window's right edge,
+   and nothing docked covers it. The rail is fixed rather than in the grid, so
+   rating.css moves it down by the strip's own height.
+   HOW A BANNER COMES AND GOES (V4's motion rules): in, its height and opacity
+   over --dur-base, as grid rows 0fr to 1fr; out, the same path over
+   --dur-exit, still drawn until it has gone. Transitions, so a banner asked
+   back while it leaves turns round from where it is. A banner that changes its
+   words swaps at once, in place: the holder stays open. */
+.app > .banner-strip {
   grid-column: 1;
   grid-row: 2;
+  display: grid;
+  grid-template-rows: 0fr;
+  opacity: 0;
+  transition: grid-template-rows var(--dur-exit) var(--ease), opacity var(--dur-exit) var(--ease);
+}
+.app > .banner-strip[data-open] {
+  grid-template-rows: 1fr;
+  opacity: 1;
+  transition-duration: var(--dur-base);
+}
+@starting-style {
+  .app > .banner-strip[data-open] { grid-template-rows: 0fr; opacity: 0; }
+}
+/* Written at the weight that beats the column the left panels and the
+   workspace give the strip (left-column.css, workspace.css). The phone's card
+   is not a strip: it has no mark, and keeps the first column. */
+.app.app.app > .banner-strip:has(.ver-banner, .conn-banner > .banner-mark) { grid-column: 1 / -1; }
+.banner-strip-in { min-height: 0; overflow: hidden; }
+/* A leaving banner takes no press: the next thing under the pointer does. */
+.app > .banner-strip:not([data-open]) { pointer-events: none; }
+/* Reduced motion keeps the meaning: the space is there at once and the banner
+   fades in; on the way out it fades where it stands and its space closes once
+   the fade is over. Nothing moves but the opacity. */
+@media (prefers-reduced-motion: reduce) {
+  .app > .banner-strip { transition: opacity var(--dur-exit) var(--ease), grid-template-rows 0s var(--ease) var(--dur-exit); }
+  .app > .banner-strip[data-open] { transition: opacity var(--dur-base) var(--ease); }
+  @starting-style {
+    .app > .banner-strip[data-open] { grid-template-rows: 1fr; }
+  }
+}
+
+/* ---------------- connection banner ---------------- */
+.conn-banner {
   display: flex;
   align-items: center;
   /* V4's banner: one frame for every tone (V4's Figma). Panel fill, a
@@ -36,8 +78,10 @@
   font-size: calc(13px + var(--ui-text-increase, 0px));
   line-height: var(--lh-body);
   font-weight: 400;
-  animation: fadeIn var(--dur-base) var(--ease);
 }
+/* The phone's card inside the Sessions panel is not in the strip, so it keeps
+   the fade it has always come in with. */
+.session-list .conn-banner { animation: fadeIn var(--dur-base) var(--ease); }
 /* The mark (BannerMark.tsx): V4's 14px kit icon in the tone's colour, where the
    strip drew a 7px dot with an 8px glow. Pulsing is kept for the one moment
    it carries information: a restart counting down. Info is --muted, Error
@@ -55,25 +99,6 @@
 :is(.ver-banner, .conn-banner) .banner-mark.info { color: var(--muted); }
 :is(.ver-banner, .conn-banner) .banner-mark.armed { animation: pulse 2.4s infinite; }
 
-/* THE STRIP SPANS THE WINDOW (V4's Figma): the dismiss sits at the window's
-   right edge, and nothing docked covers it. The rail is fixed rather than in
-   the grid, so rating.css moves it down by the strip's own height. Written at
-   the weight that beats the column the left panels and the workspace give a
-   banner. The phone's card is not a strip. */
-.app.app.app :is(.ver-banner, .conn-banner:has(> .banner-mark)) { grid-column: 1 / -1; }
-/* The sentence that used to be reachable only by hovering the status pill
-   (#510), rendered here because this banner already announces and already
-   stays. Drawn as the version banner draws its own second clause: the alarm
-   colour belongs to the mark and to the headline, and the explanation under it
-   is running text. --text rather than --muted for the same reason .ver-banner
-   gives — this is the row that tells the user what to do about an outage, and
-   it is the worst place in the deck to make somebody squint. Measured on the
-   banner's own wash at both ends of its gradient: 11.54:1 / 13.99:1 dark,
-   13.25:1 / 16.72:1 light. */
-.conn-banner .conn-sub {
-  color: var(--text);
-  font-weight: 400;
-}
 
 /* THE PHONE'S WORDS FOR IT (ConnectionBanner, 640 and under): a card, not a
    strip. It says the deck cannot reach the computer, not that the agents have
@@ -106,8 +131,6 @@
 /* Same slot and shape as .conn-banner, one step calmer: this is important but
    it is not an outage, so it takes --warn. */
 .ver-banner {
-  grid-column: 1;
-  grid-row: 2;
   display: flex;
   align-items: center;
   /* V4's banner: the same frame as .conn-banner, no wash, no tint. The tone is
@@ -121,18 +144,16 @@
   font-size: calc(13px + var(--ui-text-increase, 0px));
   line-height: var(--lh-body);
   font-weight: 400;
-  animation: fadeIn var(--dur-base) var(--ease);
 }
 /* V4's banner: the message is regular (the rule below sets it with the ellipsis) */
-/* The consequence, in the voice of the person who has to act on it. Dimmer
-   than the headline so the two read in order rather than competing. */
+/* The message is one run in --text, sentences with full stops (V4's Figma);
+   .ver-sub is left for the rating question's two ends, the one quiet part. */
 .ver-banner strong, .ver-banner .ver-sub { white-space: nowrap; }
 /* A long message (an npm error with a long path) shrinks to an ellipsis, its full
    text in the title, rather than pushing the dismiss off the strip. */
 .ver-banner strong { font-weight: 400; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .ver-banner .ver-sub {
-  /* --muted on the banner's flat --panel is 4.70:1 at its lowest (dark), so
-     the consequence can step down from the headline again now the wash is gone. */
+  /* --muted on the banner's flat --panel is 4.70:1 at its lowest (dark). */
   color: var(--muted);
   font-weight: 400;
   min-width: 0;
@@ -204,10 +225,13 @@
 .ver-banner .ver-copy:active { transform: scale(var(--press-small)); }
 /* The one action in the row. V4's banner: NOT a button — plain text in the
    accent, 12/16 weight 500, no fill, no border. The radius only shapes the
-   focus ring. 24px tall is the target floor (SC 2.5.8). */
+   focus ring. 24px tall is the target floor (SC 2.5.8). The row's space is
+   before it: mark, message, space, action, × (V4's Figma), so the action sits
+   at the end, just before the dismiss. */
 .ver-banner .ver-act {
   display: inline-flex;
   align-items: center;
+  margin-left: auto;
   min-height: 24px;
   padding: 0 4px;
   border: 0;
@@ -231,34 +255,16 @@
   .ver-banner strong { white-space: normal; min-width: 0; }
 }
 /* The most consequential control in the deck — it restarts the process — sat in
-   a banner where .ver-copy, .ver-auto and .ver-close all answered a press and it
-   alone did not. */
+   a banner where .ver-copy and .ver-close answered a press and it alone did
+   not. */
 .ver-banner .ver-act:active:not(:disabled) { transform: scale(var(--press)); }
 .ver-banner .ver-act:disabled { opacity: var(--dim-off); cursor: default; }
-/* Reads as a sentence continuing the button: "Restart now · auto when idle".
-   The switch is the shared one (#886), where this was a pill with a dot in it,
-   and the word beside it still carries the state — `off` against `when idle` /
-   `in 18s` — which is what keeps the control that arms a process kill out of
-   1.4.1. The word is --text for the reason the pill gave: --muted and --warn
-   each measured under AA on this wash in one theme (4.32:1 dark, 4.20:1
-   light). A <label>, so pressing the word throws the switch. */
-.ver-banner .ver-auto {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  color: var(--text);
-  font-size: calc(11px + var(--ui-text-increase, 0px));
-}
-/* Armed means a restart is coming, so this switch fills with the banner's own
-   warning colour rather than the accent every other switch fills with. After
-   the shared hover rule, so an armed switch keeps it under the pointer. */
-.ver-banner .switch[aria-checked="true"] { border-color: var(--warn); background: var(--warn); }
-
 /* A <button> now, so the element brings its own border and background to strip.
    24px is the floor SC 2.5.8 sets and this was 18: the exception for an
    undersized target needs 24px of clear space around it, and margin-left: 2px
    puts this well inside the neighbouring .ver-cmd. The glyph stays at 14px —
-   the box grew, the × did not. */
+   the box grew, the × did not. Pinned at the strip's right edge on its own; after an
+   action the space is the action's. */
 .ver-banner .ver-close {
   display: inline-flex;
   align-items: center;
@@ -280,6 +286,7 @@
 .ver-banner .ver-close:hover { background: var(--line); color: var(--text); }
 }
 .ver-banner .ver-close:active { transform: scale(var(--press-small)); }
+.ver-banner .ver-act ~ .ver-close { margin-left: 0; }
 
 /* dim nodes that don't match search */
 

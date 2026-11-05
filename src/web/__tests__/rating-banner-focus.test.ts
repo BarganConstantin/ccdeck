@@ -131,7 +131,9 @@ describe("where focus goes when the question changes under it", () => {
     q.tab("3 out of 10");
     q.press("3 out of 10");
     expect(q.rating().ratingPhase).toBe("thanks");
-    expect(page.activeElement.name).toBe("Tell us what would make it better");
+    // CHANGED ON PURPOSE (V4's Figma): the button reads "Tell us"; its name is
+    // still the whole sentence it is short for.
+    expect(page.activeElement.name).toBe("Tell us what would make it better.");
   });
 
   it("and the × for any other", async () => {
@@ -223,6 +225,7 @@ describe("the strip around it", () => {
     }
     const regions = live(strip({ ratingPhase: "thanks", ratingScore: 9 }));
     expect(regions).toHaveLength(1);
-    expect(textOf(regions[0])).toBe("Thanks — that helps.");
+    // CHANGED ON PURPOSE (V4's Figma): a comma, not an em dash.
+    expect(textOf(regions[0])).toBe("Thanks, that helps.");
   });
 });

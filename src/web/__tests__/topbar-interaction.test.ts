@@ -529,7 +529,10 @@ describe("the outage explanation reaches something other than a pointer (#510)",
   it("renders inside the banner that already announces, and only there", () => {
     expect(app).toMatch(/<div className="conn-banner" role="alert">/);
     expect(app).toMatch(/const outage = outageSentence\(\{ connected: live, paused \}\);/);
-    expect(app).toMatch(/\{outage && <span className="conn-sub">\{outage\}<\/span>\}/);
+    // CHANGED ON PURPOSE (V4's Figma): the banner's message is one run of
+    // sentences, so the outage sentence follows "Lost connection." in it
+    // rather than in a span of its own.
+    expect(app).toContain('return outage ? sentences(t("shell.banner.lostShort"), outage) : t("shell.banner.lost", { product: PRODUCT });');
   });
 
   it("earns that choice — the banner has no dismiss control, which the pill was kept for", () => {
@@ -593,7 +596,10 @@ describe("the outage explanation reaches something other than a pointer (#510)",
     // split `.ver-banner` argues for at `.ver-sub`. Measured on the banner's
     // wash at both ends of its gradient: 11.54:1 / 13.99:1 dark and
     // 13.25:1 / 16.72:1 light.
-    expect(decl(".conn-banner .conn-sub", "color")).toBe("var(--text)");
-    expect(decl(".conn-banner .conn-sub", "font-weight")).toBe("400");
+    // CHANGED ON PURPOSE (V4's Figma): the sentence is in the banner's one run,
+    // so it is drawn in the banner's own --text at 400 and has no rule of its own.
+    expect(decl(".conn-banner", "color")).toBe("var(--text)");
+    expect(decl(".conn-banner", "font-weight")).toBe("400");
+    expect(css).not.toContain(".conn-sub");
   });
 });

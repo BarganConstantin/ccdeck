@@ -685,7 +685,7 @@
 /* ONE SWITCH (#886, V4's Forms / Switch). There were four: `.ap-auto-state`
    (the accounts panel's and the LAN dialog's five), `.sm-toggle` (the sound
    menu's two), `.bw-toggle` (Browser Watch) and `.ver-auto` (the version
-   banner's pill with a dot) — 35 rules between them, so every fix to a switch,
+   banner's pill with a dot, since gone from the banner with its switch) — 35 rules between them, so every fix to a switch,
    its focus ring or its reduced-motion answer had to land four times.
    One now. The element carrying `role="switch"` is the track and the
    `.switch-knob` span inside it is the knob. The state is `aria-checked`, read

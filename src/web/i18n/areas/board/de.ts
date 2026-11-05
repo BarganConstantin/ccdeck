@@ -83,7 +83,7 @@ const catalog: Catalog = {
   "board.pill.title.full.other": "Die Pause ist voll – {held} gehalten und {count} ältere bereits verworfen. Setze fort, um dem Canvas wieder zu folgen",
   "board.pill.title.nothing": "Seit der Pause ist nichts angekommen. Setze fort, um dem Canvas wieder zu folgen",
   "board.pill.title.arrived": "{held} während der Pause angekommen und werden beim Fortsetzen der Reihe nach angewendet",
-  "board.pill.outage": "Der Canvas ist außerdem pausiert – Leertaste setzt ihn fort, aber neue Ereignisse kommen erst an, wenn der Stream wieder da ist.",
+  "board.pill.outage": "Der Canvas ist außerdem pausiert: Leertaste setzt ihn fort, aber neue Ereignisse kommen erst an, wenn der Stream wieder da ist.",
   "board.pill.title.offlinePaused": "SSE getrennt – und der Canvas ist pausiert, daher bringt Fortsetzen erst nach dem Wiederverbinden wieder Ereignisse",
   "board.pill.title.offline": "SSE getrennt",
   "board.pill.title.connectedFull": "Verbunden – die Pause ist bei {held} voll; die ältesten werden beim Eintreffen neuer verworfen. Setze fort, um aufzuholen",

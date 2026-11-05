@@ -83,7 +83,7 @@ const catalog: Catalog = {
   "board.pill.title.full.other": "暫停佇列已滿——保留了 {held}，且已丟棄 {count} 個較舊的事件。恢復即可再次跟上畫布",
   "board.pill.title.nothing": "暫停後尚未收到任何內容。恢復即可再次跟上畫布",
   "board.pill.title.arrived": "暫停期間收到 {held}，恢復時會依序套用",
-  "board.pill.outage": "畫布同時處於暫停——按空白鍵可恢復，但在連線恢復前不會有新內容送達。",
+  "board.pill.outage": "畫布同時處於暫停：按空白鍵可恢復，但在連線恢復前不會有新內容送達。",
   "board.pill.title.offlinePaused": "SSE 已中斷——且畫布已暫停，因此在重新連線前恢復也無法取回事件",
   "board.pill.title.offline": "SSE 已中斷",
   "board.pill.title.connectedFull": "已連線——暫停佇列已滿（{held}）；新事件送達時會丟棄最舊的。恢復即可跟上",
