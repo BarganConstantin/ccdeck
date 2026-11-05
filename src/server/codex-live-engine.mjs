@@ -210,8 +210,12 @@ export function createCodexLiveAccountController(input = {}) {
         } finally { clearTimeout(timeout); }
         account = await rpc.request('account/read', { refreshToken: false });
       }
-    }
-    finally { readingInitialAccount = false; }
+    } catch (error) {
+      // Manual switches and renewals can also create this connection while
+      // retaining a previous login. Never retain an unattested bootstrap.
+      await disconnect();
+      throw error;
+    } finally { readingInitialAccount = false; }
     if (account.account && account.account.type !== 'chatgpt') { rpc.close(); rpc = null; owned = false; throw liveError('unsupported_auth_mode'); }
   }
   async function loginCredential(id, refresh = false) {

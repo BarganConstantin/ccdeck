@@ -72,6 +72,34 @@ async function fixture({ ids = false, saved = false, notifyLogin = true, actual 
 }
 
 describe('native Codex authentication ownership', () => {
+  it.each([1, 2])('discards a manual switch connection if bootstrap account read %s times out while retaining prior ownership', async failedRead => {
+    const f = await fixture({ ids: true, initialUpdate: 'delayed' });
+    await f.c.request({ id: A, revision: 2 });
+    f.disconnect();
+    const original = f.rpc.request.getMockImplementation()!; let reads = 0;
+    f.rpc.request.mockImplementation(async (method, params) => {
+      if (method === 'account/read' && ++reads === failedRead) throw Object.assign(Error('timeout'), { code: 'native_request_timeout' });
+      return original(method, params);
+    });
+    expect(await f.c.request({ id: B, revision: 3 })).toMatchObject({ state: 'failed', profileId: A });
+    await f.c.tick();
+    expect(f.c.status()).toMatchObject({ state: 'applied', profileId: A });
+    expect(f.rpc.close).toHaveBeenCalledOnce();
+    expect(f.connections).toHaveLength(3);
+    expect(f.rpc.request.mock.calls.filter(([method]) => method === 'account/login/start')).toHaveLength(1);
+  });
+
+  it('does not reclaim a changed workspace after a manual switch bootstrap fails', async () => {
+    const f = await fixture({ ids: true }); await f.c.request({ id: A, revision: 2 });
+    f.disconnect();
+    f.rpc.request.mockRejectedValueOnce(Object.assign(Error('timeout'), { code: 'native_request_timeout' }));
+    await f.c.request({ id: B, revision: 3 });
+    f.setAccount(B); await f.c.tick();
+    expect(f.c.status()).toMatchObject({ state: 'external_change', profileId: null });
+    expect(f.rpc.request.mock.calls.filter(([method]) => method === 'account/login/start')).toHaveLength(1);
+    await f.refresh(); expect(f.sends).toEqual([]);
+  });
+
   it.each([1, 2])('recovers an attested connection after account read %s times out during reconnection without replaying login', async failedRead => {
     const f = await fixture({ ids: true }); await f.c.request({ id: A, revision: 2 });
     f.disconnect();

@@ -94,3 +94,17 @@ The audit does not establish that every possible provider failure is fixed.
 Full release CI, supported-Node coverage and authenticated end-to-end switching
 remain separate release checks. No UI behavior or real account selection was
 changed during verification.
+
+## Follow-up: manual switch during connection recovery
+
+A second pass reproduced the same incomplete-bootstrap problem through a
+manual switch after a disconnection, while the controller still retained its
+previous login. The reconnect-specific cleanup did not cover this caller.
+
+Bootstrap account-read failures now discard the control connection inside the
+shared initialization path as well. The next observation reattests the previous
+account without replaying either login. Three additional cases cover both
+bootstrap reads and an outside workspace change. The controller and ownership
+suites passed all 86 cases locally after this repair. The complete focused
+set then passed 364 cases with 9 platform skips on macOS; full cross-platform
+CI is required before development integration.
