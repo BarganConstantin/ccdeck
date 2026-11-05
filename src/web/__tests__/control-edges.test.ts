@@ -648,9 +648,9 @@ const CONTROLS: Control[] = [
   // V4's banner: .ver-act is plain accent text with no edge, so it left this
   // sweep (a text control has no boundary to measure; its ink is held to 4.5:1
   // on --panel by v4-banner.test.ts).
-  // The auto-restart switch is the shared one since #886. Armed, it fills with
-  // the banner's warning colour, measured here on the banner's own beds.
-  { at: '.ver-banner .switch[aria-checked="true"]', beds: BANNER },
+  // CHANGED ON PURPOSE (V4's Figma): the banner draws no auto-restart switch any
+  // more; the countdown is said in its sentence and the preference is the
+  // shared switch in Settings › Updates, swept with every other switch.
   // The one question's scale, eleven numbered buttons on the calm `note` bed,
   // framed at rest like the version banner's command and louder on hover.
   { at: ".rating-banner .rating-pick", states: [".rating-banner .rating-pick:hover"], beds: BANNER },

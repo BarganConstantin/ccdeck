@@ -144,10 +144,8 @@
   .app:has(.left-column):not(:has(.detail)) { grid-template-columns: minmax(0, 1fr); }
   .app:has(.session-list) .canvas-wrap,
   .app:has(.accounts-panel) .canvas-wrap,
-  .app:has(.session-list) .conn-banner,
-  .app:has(.accounts-panel) .conn-banner,
-  .app:has(.session-list) .ver-banner,
-  .app:has(.accounts-panel) .ver-banner { grid-column: 1; }
+  .app:has(.session-list) .banner-strip,
+  .app:has(.accounts-panel) .banner-strip { grid-column: 1; }
   .left-column {
     position: fixed;
     top: calc(var(--topbar-h) + var(--rating-h, 0px)); /* under the banner strip, so its dismiss stays reachable */

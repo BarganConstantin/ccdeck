@@ -285,7 +285,7 @@
 @media (max-width: 1099px) {
   body .app[data-view="workspace"],
   body .app[data-view="workspace"]:has(.left-column) { grid-template-columns: minmax(0, 1fr); }
-  .app[data-view="workspace"] :is(.canvas-wrap, .ws-cell, .stage-dock, .conn-banner, .ver-banner) { grid-column: 1; }
+  .app[data-view="workspace"] :is(.canvas-wrap, .ws-cell, .stage-dock, .banner-strip) { grid-column: 1; }
   .app[data-view="workspace"] .left-column {
     position: fixed;
     top: calc(var(--topbar-h) + var(--rating-h, 0px)); /* under the banner strip, so its dismiss stays reachable */
@@ -314,7 +314,7 @@
    crossfades over --dur-xfade. */
 body .app[data-view="workspace"][data-zoom],
 body .app[data-view="workspace"][data-zoom]:has(.left-column) { grid-template-columns: minmax(0, 1fr); }
-.app[data-view="workspace"][data-zoom] :is(.canvas-wrap, .ws-cell, .stage-dock, .conn-banner, .ver-banner) { grid-column: 1; }
+.app[data-view="workspace"][data-zoom] :is(.canvas-wrap, .ws-cell, .stage-dock, .banner-strip) { grid-column: 1; }
 .app[data-view="workspace"][data-zoom] .left-column {
   position: fixed;
   top: calc(var(--topbar-h) + var(--rating-h, 0px));

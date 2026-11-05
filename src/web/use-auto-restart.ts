@@ -242,6 +242,8 @@ export function useAutoRestart({ now, stateRef, version, notice, noticeOpen, upg
     const t = window.setTimeout(() => setRestartedTo(null), 6000);
     return () => window.clearTimeout(t);
   }, [version?.running]);
+  /** The "Restarted" row's ×: it goes now rather than at the end of its six seconds. */
+  const dismissRestarted = useCallback(() => setRestartedTo(null), []);
 
   // Didn't land. A failed `npx -y <spec>@latest` comes back on the OLD version
   // and the same port, so `running` never moves and the check above waits for a
@@ -279,6 +281,6 @@ export function useAutoRestart({ now, stateRef, version, notice, noticeOpen, upg
     }
   }, []);
 
-  return { autoRestart, toggleAutoRestart, restarting, restartMode, restartedTo, askRestart,
+  return { autoRestart, toggleAutoRestart, restarting, restartMode, restartedTo, dismissRestarted, askRestart,
            restartCopy, restartFuseMs, loadAutoRestartPrefs };
 }

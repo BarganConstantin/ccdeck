@@ -83,7 +83,7 @@ const catalog: Catalog = {
   "board.pill.title.full.other": "The pause is full — {held} held and {count} older ones already dropped. Resume to follow the canvas again",
   "board.pill.title.nothing": "Nothing has arrived since you paused. Resume to follow the canvas again",
   "board.pill.title.arrived": "{held} arrived while paused and will be applied in order when you resume",
-  "board.pill.outage": "The canvas is paused as well — Space resumes it, but nothing new arrives until the stream is back.",
+  "board.pill.outage": "The canvas is paused as well: Space resumes it, but nothing new arrives until the stream is back.",
   "board.pill.title.offlinePaused": "SSE disconnected — and the canvas is paused, so resuming will not bring events back until it reconnects",
   "board.pill.title.offline": "SSE disconnected",
   "board.pill.title.connectedFull": "Connected — the pause is full at {held}; the oldest are being dropped as new ones arrive. Resume to catch up",

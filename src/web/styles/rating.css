@@ -141,7 +141,7 @@
   .rating-banner > strong { grid-area: ask; }
   .rating-banner > :is(.ver-act, .ver-close, .rating-later) { grid-area: end; }
   .rating-banner > .rating-scale { grid-area: next; }
-  .rating-banner > .ver-act:has(+ .ver-close) { grid-area: next; justify-self: start; }
+  .rating-banner > .ver-act:has(+ .ver-close) { grid-area: next; justify-self: start; margin-left: 0; }
   .rating-banner .rating-ends { display: none; }
 
   /* Clear of the dock as well as the question (edge-rails.css). */

@@ -8,9 +8,10 @@ import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import {
-  activeCount, autoRestartLabel, autoRestartRemainingMs, autoRestartStep, countdownLabel,
+  activeCount, autoRestartRemainingMs, autoRestartStep, restartCountdown,
   restartSafety, shouldReloadBundle, IDLE_BEFORE_RESTART_MS,
 } from "../restart";
+import { t } from "../i18n";
 import { noticeIsOpen, noticeKeyFor } from "../version-chip";
 import { clientText } from "./client-source";
 
@@ -115,18 +116,19 @@ describe("autoRestartStep", () => {
     expect(autoRestartRemainingMs({ ...ok, idleSince: NOW - 10 * IDLE_BEFORE_RESTART_MS })).toBe(0);
   });
 
+  // CHANGED ON PURPOSE (V4's Figma): the countdown is said in the banner's
+  // sentence, "Restarting by itself in 30 s.", rather than on a switch label.
   it("says the countdown the way a reader would", () => {
-    expect(countdownLabel(18_000)).toBe("18s");
-    // Rounded UP, so the label never shows a second the deck has already spent:
-    // `0s` on screen while nothing has happened yet reads as a hang.
-    expect(countdownLabel(17_400)).toBe("18s");
-    expect(countdownLabel(0)).toBe("0s");
-    expect(countdownLabel(-5)).toBe("0s");
-    expect(countdownLabel(59_000)).toBe("59s");
-    // Minutes only past the point where counting seconds stops being how
-    // anybody says it.
-    expect(countdownLabel(60_000)).toBe("1:00");
-    expect(countdownLabel(125_000)).toBe("2:05");
+    expect(restartCountdown(18_000)).toBe("Restarting by itself in 18 s.");
+    // Rounded UP, so the sentence never shows a second the deck has already
+    // spent: `0 s` on screen while nothing has happened yet reads as a hang.
+    expect(restartCountdown(17_400)).toBe("Restarting by itself in 18 s.");
+    expect(restartCountdown(0)).toBe("Restarting by itself in 0 s.");
+    expect(restartCountdown(-5)).toBe("Restarting by itself in 0 s.");
+    // The window is thirty seconds, so the clock never reaches a minute and
+    // the sentence never needs one.
+    expect(IDLE_BEFORE_RESTART_MS).toBeLessThan(60_000);
+    expect(restartCountdown(IDLE_BEFORE_RESTART_MS)).toBe("Restarting by itself in 30 s.");
   });
 
   it("does not restart the deck from a tab nobody is looking at", () => {
@@ -159,27 +161,29 @@ describe("autoRestartStep", () => {
   });
 });
 
-describe("what the auto-restart switch says", () => {
-  // The state was carried by colour alone — --muted to --warn on the label and
-  // on a 6px dot — on the one control in this deck that arms a process kill.
-  // 1.4.1 asks for a second channel; the word is it.
-  it("says off in a word rather than in a hue", () => {
-    expect(autoRestartLabel(false, null)).toBe("auto-restart off");
-    expect(autoRestartLabel(false, 12_000)).toBe("auto-restart off");
+// CHANGED ON PURPOSE (V4's Figma): the banner has no auto-restart switch any
+// more. Its state was carried by colour alone once — --muted to --warn on a
+// label and a 6px dot — on the one control in this deck that arms a process
+// kill, and 1.4.1 asked for a word. The words are still there: the banner says
+// the clock in its sentence, and the switch is Settings › Updates' own, read
+// off aria-checked like every other.
+describe("what the banner says while it counts", () => {
+  it("says the clock in words, and something other than a hue", () => {
+    expect(restartCountdown(18_000)).toMatch(/\b18 s\.$/);
   });
 
-  it("says the rule while it is armed and nothing is counting", () => {
-    expect(autoRestartLabel(true, null)).toBe("auto when idle");
+  it("reads differently while counting and while it waits for the deck to be idle", () => {
+    const counting = restartCountdown(18_000);
+    const waiting = t("shell.banner.restartingWhenIdle");
+    expect(waiting).toBe("Restarting by itself when idle.");
+    expect(new Set([counting, waiting, restartCountdown(0)]).size).toBe(3);
   });
 
-  it("says the clock the moment there is one", () => {
-    expect(autoRestartLabel(true, 18_000)).toBe("auto in 18s");
-    expect(autoRestartLabel(true, 0)).toBe("auto in 0s");
-  });
-
-  it("never reads the same in two different states", () => {
-    const labels = [autoRestartLabel(false, null), autoRestartLabel(true, null), autoRestartLabel(true, 18_000)];
-    expect(new Set(labels).size).toBe(labels.length);
+  it("is said without a switch, and the switch is Settings' own", () => {
+    const banner = readFileSync(fileURLToPath(new URL("../components/VersionBanner.tsx", import.meta.url)), "utf8");
+    expect(banner).not.toMatch(/role="switch"|className="switch"/);
+    const settings = readFileSync(fileURLToPath(new URL("../components/UpdatesSection.tsx", import.meta.url)), "utf8");
+    expect(settings).toMatch(/role="switch"/);
   });
 });
 
@@ -192,13 +196,16 @@ describe("what the restart button says, and what it says beside itself", () => {
   // word, and because the honest version costs no second click when the machine
   // is actually quiet.
   it("names the press for what it does to work in flight", () => {
-    expect(restartSafety(0)).toEqual({ label: "Restart now", clause: "nothing is running" });
+    // CHANGED ON PURPOSE (V4's Figma): each clause is a sentence of its own, and
+    // the answer says whether the banner takes the Waiting tone.
+    expect(restartSafety(0)).toEqual({ label: "Restart now", clause: "Nothing is running.", risky: false });
     expect(restartSafety(2).label).toBe("Restart anyway");
-    expect(restartSafety(2).clause).toBe("2 agents are running — their events during the restart are lost");
+    expect(restartSafety(2).clause).toBe("2 agents are running: their events during the restart are lost.");
+    expect(restartSafety(2).risky).toBe(true);
   });
 
   it("counts one agent as one", () => {
-    expect(restartSafety(1).clause).toBe("1 agent is running — their events during the restart are lost");
+    expect(restartSafety(1).clause).toBe("1 agent is running: their events during the restart are lost.");
   });
 
   it("says something in every state, because the reassurance is the point", () => {

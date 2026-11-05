@@ -85,7 +85,7 @@ const catalog: Catalog = {
   "board.pill.title.full.other": "Pauza este plină — {held} reținute și {count} de mai vechi deja pierdute. Reia pentru a urmări din nou canvasul",
   "board.pill.title.nothing": "Nu a sosit nimic de când ai pus în pauză. Reia pentru a urmări din nou canvasul",
   "board.pill.title.arrived": "{held} au sosit cât a fost în pauză și vor fi aplicate în ordine la reluare",
-  "board.pill.outage": "Și canvasul este în pauză — Space îl reia, dar nu sosește nimic nou până revine fluxul.",
+  "board.pill.outage": "Și canvasul este în pauză: Space îl reia, dar nu sosește nimic nou până revine fluxul.",
   "board.pill.title.offlinePaused": "SSE deconectat — iar canvasul este în pauză, deci reluarea nu va readuce evenimentele până la reconectare",
   "board.pill.title.offline": "SSE deconectat",
   "board.pill.title.connectedFull": "Conectat — pauza este plină la {held}; cele mai vechi se pierd pe măsură ce sosesc altele noi. Reia pentru a ajunge din urmă",

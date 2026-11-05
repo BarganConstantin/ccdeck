@@ -101,7 +101,7 @@ describe("Zoom", () => {
   it("folds the list and the Inspector without unmounting them, into one track", () => {
     expect(decl(ruleFor(css, 'body .app[data-view="workspace"][data-zoom]').body, "grid-template-columns")).toBe("minmax(0, 1fr)");
     expect(decl(ruleFor(css, 'body .app[data-view="workspace"][data-zoom]:has(.left-column)').body, "grid-template-columns")).toBe("minmax(0, 1fr)");
-    expect(css).toContain('.app[data-view="workspace"][data-zoom] :is(.canvas-wrap, .ws-cell, .stage-dock, .conn-banner, .ver-banner) { grid-column: 1; }');
+    expect(css).toContain('.app[data-view="workspace"][data-zoom] :is(.canvas-wrap, .ws-cell, .stage-dock, .banner-strip) { grid-column: 1; }');
   });
 
   it("takes the panels out by sliding them, not by display: none, so the pane has the cell once and the terminal refits once", () => {

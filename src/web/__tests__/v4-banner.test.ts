@@ -39,15 +39,19 @@ describe("V4's banner frame", () => {
         expect(decl(f, "font-weight")).toBe("400");
         expect(decl(f, "color")).toBe("var(--text)");
       });
-      it("keeps its grid row", () => expect(decl(f, "grid-row")).toBe("2"));
+      // CHANGED ON PURPOSE (V4's motion rules): the banner is drawn in the strip's holder, whose
+      // height eases in and out; the holder takes the grid row, and the banner fills it.
+      it("keeps its grid row, through the strip it is drawn in", () => {
+        expect(decl(f, "grid-row")).toBeUndefined();
+        expect(decl(".app > .banner-strip", "grid-row")).toBe("2");
+      });
     });
   }
-  it("keeps each second clause's own tier at 400", () => {
-    // The outage's sentence is what to do about it, so it stays --text (#510);
-    // the version notice's consequence steps down from its headline to
-    // --muted, 4.70:1 or more on the flat --panel.
-    expect(decl(".conn-banner .conn-sub", "color")).toBe("var(--text)");
-    expect(decl(".conn-banner .conn-sub", "font-weight")).toBe("400");
+  // CHANGED ON PURPOSE (V4's Figma): the message is one run in --text, sentences with full stops,
+  // so the outage's sentence is in that run and has no tier of its own. The one quiet part left
+  // is the rating question's two ends, still --muted, 4.70:1 or more on the flat --panel.
+  it("keeps the one quiet part at 400 in --muted, and the outage in the message's run", () => {
+    expect(sheet).not.toContain(".conn-sub");
     expect(decl(".ver-banner .ver-sub", "color")).toBe("var(--muted)");
     expect(decl(".ver-banner .ver-sub", "font-weight")).toBe("400");
   });
