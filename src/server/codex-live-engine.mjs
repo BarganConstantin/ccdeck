@@ -440,11 +440,12 @@ export function createCodexLiveAccountController(input = {}) {
     return pendingSwitch;
   }
   async function restorePrevious(saved, intent) {
-    restorePending = null;
     const epoch = ownershipEpoch;
     const previous = await loginCredential(saved.profileId);
     const actual = await rpc.request('account/read', { refreshToken: false });
     if (!await lease?.valid()) throw liveError('native_control_lost');
+    if (closed) return;
+    restorePending = null;
     if (ownershipPaused || epoch !== ownershipEpoch) { await externalChange(); return; }
     if (endpointKey(endpoint) === saved.endpoint && sameAccount(actual, previous, true)) {
       credential = previous; appliedIntent = { id: saved.profileId, revision: saved.revision }; owned = true;

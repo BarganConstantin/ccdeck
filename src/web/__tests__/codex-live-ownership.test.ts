@@ -119,6 +119,16 @@ describe('native Codex authentication ownership', () => {
     expect(f.rpc.request.mock.calls.some(([method]) => method === 'account/login/start')).toBe(false);
   });
 
+  it('retains read-only fallback recovery if its final account attestation times out', async () => {
+    const f = await fixture({ ids: true, saved: true, failReadAt: 4,
+      initial: { profileId: B, revision: 2, runningSelection: { id: B, revision: 2 } } });
+    expect(f.c.status()).toMatchObject({ state: 'unavailable', profileId: null, reason: 'native_request_timeout' });
+    await f.c.tick();
+    expect(f.c.status()).toMatchObject({ state: 'failed', profileId: A, reason: 'native_login_unconfirmed' });
+    expect(f.rpc.request.mock.calls.some(([method]) => method === 'account/login/start')).toBe(false);
+    await f.refresh(); expect(f.sends).toHaveLength(1);
+  });
+
   it('does not overwrite an outside account change when a pending credential renewal fails late', async () => {
     const f = await fixture({ ids: true }); await f.c.request({ id: A, revision: 2 });
     let fail!: (error: Error) => void;
