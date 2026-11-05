@@ -724,7 +724,7 @@ export default function CodexProfilesSection({ onClose, switcher, onNotice, away
       )}
       {/* Under the name the row has now; an account gone from a roster that
           was read takes its report with it, as Claude's does. */}
-      {projectsFor && (() => {
+      <DialogPresence when={projectsFor}>{projectsFor => {
         const row = rowOf(projectsFor.id);
         if (profiles && !row) return null;
         return (
@@ -733,10 +733,12 @@ export default function CodexProfilesSection({ onClose, switcher, onNotice, away
             returnFocusTo={() => document.getElementById(projectsFor.from)}
             onClose={() => setProjectsFor(null)} />
         );
-      })()}
-      {transfer && <CodexShareDialog initial={transfer.pick ? [transfer.pick] : undefined}
-        returnFocusTo={transfer.from ? () => document.getElementById(transfer.from!) : undefined}
-        profiles={profiles ?? []} onClose={() => setTransfer(null)} />}
+      }}</DialogPresence>
+      <DialogPresence when={transfer}>{transfer => (
+        <CodexShareDialog initial={transfer.pick ? [transfer.pick] : undefined}
+          returnFocusTo={transfer.from ? () => document.getElementById(transfer.from!) : undefined}
+          profiles={profiles ?? []} onClose={() => setTransfer(null)} />
+      )}</DialogPresence>
       <DialogPresence when={dialog}>
         {d => (
         <AddCodexAccountDialog
