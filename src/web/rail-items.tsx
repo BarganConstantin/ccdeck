@@ -171,9 +171,13 @@ export function railItems({
     detail: t("board.rail.calendar.detail"),
     glyph: <ResetCalendarGlyph />, kind: "dialog", onPress: () => openCapacity("calendar"),
   }] : [];
+  // On a deck with Codex alone this is the Accounts door, and A opens it
+  // (use-deck-shortcuts.ts), so it shows the key. Beside Claude it is only in
+  // Quick open, and A belongs to the Accounts door.
   const codex: RailItem = {
-    id: "codex-accounts", label: "Codex accounts", short: "Codex",
-    ariaLabel: "Codex accounts", glyph: <CodexAccountsGlyph />, kind: "panel",
+    id: "codex-accounts", label: t("codex.panel.title"), short: "Codex",
+    ...(providers.claude ? {} : { key: { cap: "A", aria: "A", single: true } }),
+    ariaLabel: t("codex.panel.title"), glyph: <CodexAccountsGlyph />, kind: "panel",
     open: codexPanelOpen, controls: "codex-accounts-panel", onPress: toggleCodexPanel, buttonRef: toggles.codex,
   };
   const usage: RailItem = {
