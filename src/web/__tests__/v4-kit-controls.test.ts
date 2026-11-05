@@ -14,7 +14,8 @@ vi.mock("react", async importOriginal => ({ ...await importOriginal<typeof impor
 const { useOptimisticSwitch } = await import("../use-optimistic-switch");
 const { useWaitingLoader } = await import("../use-waiting-loader");
 const { WriteState } = await import("../components/WriteState");
-const { default: SessionRecoverySettings } = await import("../components/SessionRecoverySettings");
+const { default: SessionRecoveryRow } = await import("../components/SessionRecoverySettings");
+const { settingsFailure, setSettingsFailure } = await import("../settings-failure");
 const { ClaudeRow } = await import("../components/ClaudeCodeSettings");
 const { useSegmentThumb } = await import("../use-segment-thumb");
 
@@ -146,12 +147,15 @@ describe("switch: flips at once (optimistic)", () => {
     await flush();
     view.unmount();
   });
-  it("is the path the session-recovery switches take: flips on the press, back on a refused write, and says Failed", async () => {
+  it("is the path the session-recovery switches take: flips on the press, back on a refused write, and says why under the page head", async () => {
+    // CHANGED ON PURPOSE (V4's failed write): the row no longer says a red
+    // Failed word under itself; the one line under the page head says it, in
+    // V4's words, and a write that takes clears it.
     let answer: (r: unknown) => void = () => {};
     vi.stubGlobal("fetch", vi.fn((_url: string, init?: { method?: string }) => init?.method === "POST"
       ? new Promise(r => { answer = r; })
       : Promise.resolve({ ok: true, json: async () => ({ ok: true, prefs: { recoverClaudeSessions: true, continueStopped: false } }) })));
-    const view = mount(SessionRecoverySettings, { provider: "Codex" as const });
+    const view = mount(SessionRecoveryRow, { provider: "Codex" as const });
     await flush();
     const control = () => (all(view.tree, e => e.props.settingId === "codex-session-recovery")[0].props.control as { props: Record<string, unknown> }).props;
     expect(control()["aria-checked"]).toBe(true);
@@ -160,26 +164,34 @@ describe("switch: flips at once (optimistic)", () => {
     answer({ ok: false, json: async () => ({}) });
     await flush();
     expect(control()["aria-checked"]).toBe(true);
-    expect(all(view.tree, e => e.props.state === "failed" && typeof e.props.sentence === "string")[0].props.sentence).toBe("Could not save this setting. Try again.");
+    expect(all(view.tree, e => e.props.state === "failed")).toHaveLength(0);
+    expect(settingsFailure()?.line).toEqual({ text: "Could not save that setting. Try again.", giveBack: false, done: false });
+    void (control().onClick as () => void)();
+    answer({ ok: true, json: async () => ({ ok: true, prefs: { recoverCodexSessions: false } }) });
+    await flush();
+    expect(control()["aria-checked"]).toBe(false);
+    expect(settingsFailure()).toBeNull();
     view.unmount();
   });
 });
 
-describe("switch: Settings › Claude Code says Failed", () => {
-  it("slides back and shows the Failed word in the row when a write is refused", async () => {
+describe("switch: Settings › Claude Code says a refused write under the page head", () => {
+  afterEach(() => { setSettingsFailure(null); });
+  it("slides back, and the page's one failure line says why, with no word in the row", async () => {
+    // CHANGED ON PURPOSE (V4's failed write): the Failed word under the row is
+    // gone; the line under the page head carries the sentence.
     vi.stubGlobal("fetch", vi.fn(async () => ({ ok: false, json: async () => ({}) })));
     const entry = CLAUDE_SETTINGS.find(e => e.kind === "switch")!;
     const row = { id: entry.id, value: false, isSet: true, editable: true };
     const view = mount(ClaudeRow, { entry, row, saving: null, said: "" });
-    const failed = () => all(view.tree, e => e.props.state === "failed");
     const control = () => (one(view.tree, e => e.props.settingId === `claude-${entry.id}`)!.props.control as { props: { flip: { checked: boolean; flip: () => Promise<void> } } }).props.flip;
-    expect(failed()).toHaveLength(0);
+    expect(settingsFailure()).toBeNull();
     void control().flip();
     expect(control().checked).toBe(true);
     await flush();
     expect(control().checked).toBe(false);
-    expect(failed()).toHaveLength(1);
-    expect(failed()[0].props.sentence).toBe("Could not save this setting. Try again.");
+    expect(all(view.tree, e => e.props.state === "failed")).toHaveLength(0);
+    expect(settingsFailure()?.line.text).toBe("Could not save that setting. Try again.");
     view.unmount();
   });
 });

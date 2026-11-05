@@ -6,15 +6,20 @@
 // teaches the deck's shortcuts as it is used.
 import { liveKey, type RailItem } from "./components/EdgeRails";
 import type { RailItems } from "./rail-items";
-import { elapsedShort, type Row } from "./components/SessionList";
-import { isAlarming } from "./ambient-counts";
+import { elapsedShort, rank, type Row } from "./components/SessionList";
+import { railGlyph, railLine, type RailGlyphKind } from "./rail-row-copy";
+import type { RailGroup } from "./rail-model";
+import { homeRelativePath } from "./account-project-paths";
+import type { TerminalProvider } from "./terminal-api";
+import type { AgentNodeData } from "./types";
 import { SETTINGS_SECTIONS, type SettingsSection } from "./settings";
 import { isSectionEntry, resultPlace, type SettingsEntry } from "./settings-search";
 import { THEME_DEFINITIONS, THEMES, type Theme } from "./theme";
 import type { QuickItem } from "./quick-open";
 import { t } from "./i18n";
 import SettingsSectionGlyph from "./components/SettingsSectionGlyph";
-import { ArrangeGlyph, ClearGlyph, FitGlyph, PauseGlyph, TourGlyph } from "./components/rail-glyphs";
+import { ArrangeGlyph, ClearGlyph, ClockGlyph, FitGlyph, PauseGlyph, TourGlyph } from "./components/rail-glyphs";
+import { KitIcon } from "./components/kit-icons";
 
 /** Words that find a door without being in its name. */
 const DOOR_WORDS: Record<string, readonly string[]> = {
@@ -76,13 +81,53 @@ function doorItem(door: RailItem, singleKeys: boolean): QuickItem {
   };
 }
 
-/** A session's state in the words its row and card use. */
-export function sessionLine(row: Pick<Row, "state" | "waiting" | "label" | "cwdBasename">, now: number): { line: string; tone: QuickItem["tone"] } {
+/** A session's state as its rail row draws it (the same 14px glyph, from the
+ *  same rule), with one short lowercase hint after the name: the ask while it
+ *  waits on you, how long the turn has run while it works, its summary once
+ *  done, "idle" when it has nothing going. A state with nothing more to say
+ *  falls back on its own word. The folder follows where it is not the name. */
+export function sessionLine(row: Row, now: number): { line: string; tone: RailGlyphKind } {
+  const group = rank(row);
+  const tone = railGlyph(row, group);
   const where = row.cwdBasename && row.cwdBasename !== row.label ? ` · ${row.cwdBasename}` : "";
-  if (row.waiting && isAlarming(row.waiting)) return { line: `${t("board.quick.needsYou")} · ${elapsedShort(row.waiting.since, undefined, now)}${where}`, tone: "waiting" };
-  if (row.state === "active") return { line: `${t("board.quick.working")}${where}`, tone: "active" };
-  if (row.state === "err") return { line: `${t("board.quick.failed")}${where}`, tone: "err" };
-  return { line: `${t("board.quick.done")}${where}`, tone: "done" };
+  return { line: `${sessionHint(row, group, tone, now)}${where}`, tone };
+}
+
+function sessionHint(row: Row, group: RailGroup, tone: RailGlyphKind, now: number): string {
+  const note = row.recap?.text || row.status?.text;
+  if (tone === "waiting") {
+    const ask = railLine(row, group);
+    if (ask) return ask.kind === "tool" ? (ask.rest ? `${ask.name} · ${ask.rest}` : ask.name) : ask.text;
+    return t("board.quick.hint.needsYou", { time: elapsedShort(row.waiting?.since ?? now, undefined, now) });
+  }
+  if (tone === "working") return t("board.quick.hint.working", { time: elapsedShort(row.turnStartedAt ?? row.startedAt ?? now, undefined, now) });
+  if (tone === "done") return note || t("board.quick.hint.done");
+  if (tone === "error") return note || t("board.quick.hint.failed");
+  return t("board.quick.hint.idle");
+}
+
+/** Where the Start rows put a new session: the folder of the session in focus,
+ *  else the one heard from last (the New session popover's first choice). */
+export interface StartFolder {
+  cwd: string;
+  name: string;
+}
+
+/** The folder for the Start rows, picked as the New session popover orders its
+ *  projects (projectChoices): the focused session's first, then the latest
+ *  heard from. The rule is written out here rather than imported because the
+ *  stage's model loads only with the terminal, and the menu loads on every
+ *  visit. Only an absolute folder counts, as the deck starts agents in no
+ *  other; null when no session on the board ran in one. */
+export function startFolder(agents: Iterable<AgentNodeData>, focusSessionId: string | null): StartFolder | null {
+  let pick: AgentNodeData | null = null;
+  for (const a of agents) {
+    if (a.kind !== "root" || !a.cwd || !/^(\/|[A-Za-z]:[\\/])/.test(a.cwd)) continue;
+    if (a.sessionId === focusSessionId) { pick = a; break; }
+    if (!pick || (a.lastEventAt ?? a.startedAt) > (pick.lastEventAt ?? pick.startedAt)) pick = a;
+  }
+  if (!pick?.cwd) return null;
+  return { cwd: pick.cwd, name: pick.cwdBasename || pick.cwd.split(/[\\/]+/).filter(Boolean).pop() || pick.cwd };
 }
 
 export interface QuickOpenSources {
@@ -102,6 +147,13 @@ export interface QuickOpenSources {
   togglePause: () => void;
   /** Absent while the canvas has nothing to clear. */
   clear?: () => void;
+  /** N's move, to the session that has waited longest (then the next one).
+   *  Absent while nobody waits, when N does nothing either. */
+  nextWaiting?: () => void;
+  /** Starting Claude or Codex in a folder, as the New session popover's Start
+   *  does. Absent where the deck has no way to start one (the Command Panel is
+   *  off) or no folder to start it in. */
+  start?: { folder: StartFolder; launch: (agent: TerminalProvider, cwd: string) => void };
   keyHelp: () => void;
   tour: () => void;
   theme: Theme;
@@ -131,6 +183,20 @@ export function quickOpenItems(src: QuickOpenSources): QuickItem[] {
     });
   }
 
+  if (src.start) {
+    const { folder, launch } = src.start;
+    const where = t("board.quick.start.where", { name: folder.name, path: homeRelativePath(folder.cwd) });
+    for (const [agent, title] of [["claude", t("board.quick.start.claude")], ["codex", t("board.quick.start.codex")]] as const) {
+      items.push({
+        id: `start:${agent}`, section: "start", title, subtitle: where,
+        keywords: ["new", "start", "launch", agent, folder.name],
+        tag: t("board.quick.tag.action"), verb: t("board.quick.verb.start"),
+        glyph: <KitIcon name="plus" className="glyph" />,
+        run: () => launch(agent, folder.cwd),
+      });
+    }
+  }
+
   for (const door of doors) items.push(doorItem(door, src.singleKeys));
 
   for (const entry of src.settings) {
@@ -138,6 +204,12 @@ export function quickOpenItems(src: QuickOpenSources): QuickItem[] {
     items.push(settingItem(entry, src.openSettings));
   }
 
+  // Do's first row, while someone waits: the deck's N, named.
+  if (src.nextWaiting) {
+    items.push({ id: "action:next-waiting", section: "actions", title: t("board.quick.action.nextWaiting"), subtitle: t("board.quick.action.nextWaitingHint"),
+      keywords: ["waiting", "needs you", "next", "blocked", "queue"], tag: t("board.quick.tag.action"), verb: t("board.quick.verb.goSession"),
+      keyCap: key("n"), glyph: <ClockGlyph />, run: src.nextWaiting });
+  }
   items.push(
     { id: "action:fit", section: "actions", title: t("board.quick.action.fit"), keywords: ["zoom", "view", "recenter"],
       tag: t("board.quick.tag.action"), verb: t("board.quick.verb.run"), keyCap: key("F"), glyph: <FitGlyph />, run: src.fit },

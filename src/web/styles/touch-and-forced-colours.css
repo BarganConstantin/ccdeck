@@ -147,10 +147,10 @@
 
   .tr-tab[aria-selected="true"] { outline: 2px solid Highlight; outline-offset: -2px; border-bottom-color: Highlight; }
   /* The Inspector's chosen tab is a --panel chip on a --bg-soft track, a
-     difference of fill that forced colours remove: it takes the outline, and
-     the card the tree is about takes the same one in place of its ring. */
+     difference of fill that forced colours remove: it takes the outline. The
+     card the tree is about wears no ring in any theme, so it takes none here
+     either; aria-current says which one it is. */
   .insp-tab[aria-selected="true"] { outline: 2px solid Highlight; outline-offset: -2px; }
-  .insp-card[data-current] .agent-node { box-shadow: none; outline: 2px solid Highlight; }
   /* The tree's lines are drawn as a fill, which forced colours turn into the
      canvas's own colour, so who started whom would vanish: paint them in the
      text colour, as the meters above are. */

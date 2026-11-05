@@ -376,9 +376,11 @@ describe("5. one focus language, and nothing quietly opting out of it", () => {
     expect(declOf(".radio-search:focus-within", "border-color")).toBe("var(--accent)");
     expect(declOf(".radio-search:focus-within", "outline")).toBe("none");
     expect(declOf(".radio-pin:focus-visible .radio-pin-dot", "stroke")).toBe("var(--accent)");
-    // Quick open's input draws the ring on the field row it sits in, inset
-    // under the dialog's clipped edge.
-    expect(declOf(".qo-field:has(.qo-input:focus-visible)", "outline")).toBe("var(--focus-w) solid var(--accent)");
+    // CHANGED ON PURPOSE (V4's Figma): quick open's input draws no ring; the
+    // rule under the field turns --accent while it holds focus, as the radio
+    // search's border does.
+    expect(declOf(".qo-field:has(.qo-input:focus-visible)", "outline")).toBeNull();
+    expect(declOf(".qo-field:has(.qo-input:focus-visible)", "border-bottom-color")).toBe("var(--accent)");
     // A Jira issue's main button draws its ring on the whole row, around the
     // disclosure and actions button that sit beside it.
     expect(declOf(".jr-row:has(> .jr-row-main:focus-visible)", "outline")).toBe("var(--focus-w) solid var(--accent)");

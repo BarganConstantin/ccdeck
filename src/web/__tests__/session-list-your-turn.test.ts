@@ -61,7 +61,9 @@ describe("the session list's waiting word", () => {
     expect(html).toMatch(/<span class="sl-group-label">Needs you<\/span><span class="sl-group-count">1<\/span>/);
     const rows = clocks(html);
     expect(rows.blocked.spoken).toBe("waiting ");
-    expect(rows.blocked.text).toMatch(/^\d+m$/);
+    // CHANGED ON PURPOSE: the wait reads to the second under an hour, as V4
+    // draws it ("6m 42s"); it was whole minutes before.
+    expect(rows.blocked.text).toMatch(/^\d+m \d{2}s$/);
     expect(Object.values(rows).filter(r => r.spoken.startsWith("waiting")).length).toBe(1);
     // The old readout ended "· Bash": the tool still shows, on the row's
     // second line now, with what it was asked to run.

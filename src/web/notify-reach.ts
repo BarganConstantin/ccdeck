@@ -29,10 +29,10 @@ import { t as tNow, type TFunction } from "./i18n";
  *  typechecks in the bare-node suite. */
 export type NotifyPermission = "default" | "granted" | "denied" | "unsupported";
 
-/** What the switch itself covers. Says WHEN, because that is the only thing
- *  separating it from the Sound switch above it — the two fire on the same
- *  moments, sound while a tab is open and this once none is (block-notify.mjs
- *  `isChimeEvent`). */
+/** What the switch itself covers, under its name ("While the deck is closed"),
+ *  which says WHEN: that is the only thing separating it from the Sound
+ *  switch — the two fire on the same moments, sound while a tab is open and
+ *  this once none is (block-notify.mjs `isChimeEvent`). */
 export const NOTIFY_NOTE_MSG = "settings.notify.note";
 
 /** The same promise inside the desktop app, where what closes is its window. */
@@ -46,8 +46,9 @@ export function notifyNote(inApp: boolean, t: TFunction = tNow): string {
 /** AGENTS_DECK_NO_NOTIFY=1 at launch. Not the same as the switch being off:
  *  somebody else decided it, the press cannot undo it until the next start, and
  *  it silences BOTH notifiers — which is more than any browser setting can do.
- *  So it replaces the note above and hides the channel below: there is nothing
- *  to say about a channel when the whole feature is held. */
+ *  So it is said under the note above, with the info icon, and hides the
+ *  channel below: there is nothing to say about a channel when the whole
+ *  feature is held. */
 export const NOTIFY_VETO_NOTE_MSG = "settings.notify.veto";
 
 /** The four account notifications, in the order the menu draws them: what

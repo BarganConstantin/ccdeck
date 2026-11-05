@@ -116,7 +116,9 @@ describe("Rail / Group header and the fold line", () => {
     expect(decl(".session-list .sl-group-head", "height")).toBe("var(--row-group)");
     expect(decl(".session-list .sl-group-head", "padding")).toBe("0 8px");
     expect(decl(".session-list .sl-group-head", "justify-content")).toBe("space-between");
-    expect(decl(".session-list .sl-group-head.spaced", "margin-top")).toBe("8px");
+    // CHANGED ON PURPOSE: V4 draws the rail's groups 4 apart, on the Board and
+    // in Workspace alike; the rule said 8 before.
+    expect(decl(".session-list .sl-group-head.spaced", "margin-top")).toBe("4px");
     expect(decl(".session-list .sl-group-label", "font-size")).toBe("calc(12px + var(--ui-text-increase, 0px))");
     expect(decl(".session-list .sl-group-label", "line-height")).toBe("16px");
     expect(decl(".session-list .sl-group-label", "font-weight")).toBe("600");
@@ -473,7 +475,9 @@ describe("what each row says", () => {
   });
 
   it("counts the wait in the warn tone, the turn quietly, and says how long ago a turn ended", () => {
-    expect(time("perm")).toMatchObject({ tone: "warn", text: "1m" });
+    // CHANGED ON PURPOSE: the wait reads to the second under an hour, as V4
+    // draws it ("6m 42s"); "1m" before.
+    expect(time("perm")).toMatchObject({ tone: "warn", text: "1m 35s" });
     expect(time("work")).toMatchObject({ tone: "quiet" });
     expect(time("done-unseen")).toEqual({ text: "1m ago", tone: "quiet", spoken: "ended " });
     expect(time("idle-unseen")?.spoken).toBe("your turn, ended ");

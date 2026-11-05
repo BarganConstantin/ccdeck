@@ -154,6 +154,23 @@ export function pickSessionForInspector(
   if (waiting.length > 0) focusSession(waiting[0].id); else stepAgent(1);
 }
 
+/** N's move (Shift+N's with `back`): the next session blocked on the reader
+ *  after the one visited last, oldest first, wrapping, through the cursor W
+ *  shares. The command menu's "Next waiting" runs it too. Nothing waiting,
+ *  nothing happens. */
+export function stepWaiting(
+  state: GraphState,
+  cursorRef: MutableRefObject<string | null>,
+  focusSession: (sessionId: string) => void,
+  back = false,
+): void {
+  const queue = blockedSessions(state.agents.values());
+  const to = back ? prevWaiting(queue, cursorRef.current) : nextWaiting(queue, cursorRef.current);
+  if (!to) return;
+  cursorRef.current = to.id;
+  focusSession(to.id);
+}
+
 export function useDeckShortcuts({
   pointerFocusRef, nodesRef, stateRef, primarySelectedIdRef, providersRef, soundOnRef,
   keyHelpOpenRef, modalOpenRef, waitingCursorRef, removeSelectedRef, activateSoundRef,
@@ -556,14 +573,7 @@ export function useDeckShortcuts({
       // Caps-locked keyboard sends "N" for a plain press, and that is still
       // "next". With the stage open stageKeyIntent has already answered n and
       // Shift+N as "next ask" above and returned, so none of this runs there.
-      if (e.key === "n" || e.key === "N") {
-        const queue = blockedSessions(stateRef.current.agents.values());
-        const to = e.shiftKey ? prevWaiting(queue, waitingCursorRef.current) : nextWaiting(queue, waitingCursorRef.current);
-        if (to) {
-          waitingCursorRef.current = to.id;
-          focusSession(to.id);
-        }
-      }
+      if (e.key === "n" || e.key === "N") stepWaiting(stateRef.current, waitingCursorRef, focusSession, e.shiftKey);
       // P, new in 4.0: the card's peek (SessionPeek) on a key, without opening
       // anything. P again closes it, and so does Escape (above).
       if (e.key === "p" || e.key === "P") {

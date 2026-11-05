@@ -532,7 +532,7 @@ describe("where Remove lives and what follows it", () => {
     const detail = /function Detail\([\s\S]*?\n}\n/.exec(panel)?.[0] ?? "";
     expect(detail, "no Detail in components/Detail.tsx").not.toBe("");
     expect(panel).not.toMatch(/>\s*Remove node\s*</);
-    expect(detail).toMatch(/className="btn hero-action-btn"\s+onClick=\{onRemove\}[\s\S]*?>\{t\("board\.detail\.remove"\)\}<\/button>/);
+    expect(detail).toMatch(/className="btn"\s+onClick=\{onRemove\}[\s\S]*?>\{t\("board\.detail\.remove"\)\}<\/button>/);
     expect(app).toMatch(/<DetailAside\b[^>]*\bremoveSelectedNode=\{removeSelectedNode\}/);
     const aside = readFileSync(fileURLToPath(new URL("../components/DetailAside.tsx", import.meta.url)), "utf8");
     expect(aside).toMatch(/onRemove=\{removeSelectedNode\}/);

@@ -143,6 +143,8 @@ const DARK: Record<string, string> = {
   "--panel": "#14161b", "--line": "#1f2229",
   "--accent": "#7dd3fc", "--text-dim": "#7e828c", "--bg": "#0b0c10",
   "--text": "#d8dae0", "--text-secondary": "#9aa0ab", "--muted": "#7e828c", "--accent-dim": "#38bdf850",
+  // As a browser hands a custom property back: var() filled in, the mix left unworked.
+  "--sunken": "color-mix(in srgb, #0b0c10 90%, #000000)",
   "--cat-shell": "#fcd34d", "--cat-agent": "#f9a8d4", "--cat-web": "#67e8f9",
   "--usage-indigo": "#a5b4fc", "--usage-pink": "#f9a8d4", "--usage-cyan": "#67e8f9",
   "--usage-lime": "#bef264", "--usage-orange": "#fdba74", "--usage-purple": "#c4b5fd",
@@ -154,6 +156,7 @@ const LIGHT: Record<string, string> = {
   "--panel": "#ffffff", "--line": "#c8cdd6",
   "--accent": "#0369a1", "--text-dim": "#5b5f68", "--bg": "#eef1f6",
   "--text": "#0d1117", "--text-secondary": "#303845", "--muted": "#4a5260", "--accent-dim": "rgba(3,105,161,0.22)",
+  "--sunken": "color-mix(in srgb, #ffffff 98.5%, #0d1117)",
   "--cat-shell": "#b45309", "--cat-agent": "#a21caf", "--cat-web": "#0e7490",
   "--usage-indigo": "#3730a3", "--usage-pink": "#be185d", "--usage-cyan": "#0e7490",
   "--usage-lime": "#4d7c0f", "--usage-orange": "#7c2d12", "--usage-purple": "#4c1d95",

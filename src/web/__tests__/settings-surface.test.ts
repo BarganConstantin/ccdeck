@@ -493,7 +493,9 @@ describe("the README sends a reader to the section a setting is drawn in", () =>
       // render draws; the README names the group too.
       ["Keep history", /\*\*Keep history\*\* in \*\*Settings › ([^*›]+) › Tool history\*\*/, />Tool history<\/h3>/],
       ["Clear history", /\*\*Clear\s+history…\*\* under \*\*Settings › ([^*›]+) › Tool history\*\*/, />Tool history<\/h3>/],
-      ["startup recovery", /\*\*Settings › ([^*›]+)\*\* has a separate startup-recovery switch/, />Codex sessions<\/h3>/],
+      // CHANGED ON PURPOSE: the two switches are rows of General's one
+      // Sessions group now, each named for its provider, not groups of their own.
+      ["startup recovery", /\*\*Settings › ([^*›]+)\*\* has a separate startup-recovery switch/, />Bring back unfinished Codex turns</],
       ["Updates", /Settings › ([^*›]+) › Updates/, />Updates<\/h3>/],
     ];
     for (const [what, sentence, drawn] of pointers) {

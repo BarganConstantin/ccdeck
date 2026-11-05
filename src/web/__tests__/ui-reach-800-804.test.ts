@@ -147,8 +147,15 @@ describe("#801 — what the Notifications switch is saying", () => {
     // Two identically-shaped switches whose difference lives nowhere on screen
     // is the reason this note exists: they fire on the same moments, and the
     // difference is WHEN — sound while a tab is open, this once none is.
-    expect(NOTIFY_NOTE).toBe("With no deck tab open, get a notification wherever a sound would have played.");
-    expect(notifications).toContain('{notifyVetoed ? t("settings.notify.veto") : notifyNote(inApp, t)}');
+    // CHANGED ON PURPOSE (V4's Notifications page): the row's name says when,
+    // and the note under it what keeps happening then.
+    expect(en["settings.notify.closedName"]).toBe("While the deck is closed");
+    expect(NOTIFY_NOTE).toBe("Keeps notifying from the background.");
+    // A launch-time veto no longer takes the note's place: the note stays, and
+    // the veto is said under it with the info icon, read with it by the switch.
+    expect(notifications).toContain("note={notifyNote(inApp, t)}");
+    expect(notifications).toContain('{notifyVetoed && <SettingsInfo id="sm-notify-veto">{t(NOTIFY_VETO_NOTE_MSG)}</SettingsInfo>}');
+    expect(notifications).toContain('aria-describedby={notifyVetoed ? "sm-notify-note sm-notify-veto" : "sm-notify-note"}');
   });
 
   it("finishes the job on the press, rather than reporting that it did not", () => {
@@ -277,7 +284,8 @@ describe("#801 — what the Notifications switch is saying", () => {
     expect(NOTIFY_VETO_NOTE).toContain("saved for the next start");
     // CHANGED ON PURPOSE (the UI in every language): the sentences are keys now;
     // the English they carry is pinned here word for word.
-    expect(NOTIFY_VETO_NOTE).toBe("Held off for this run — the deck was started with alerts disabled. Your choice is saved for the next start.");
+    // CHANGED ON PURPOSE (V4's held-off line): its words.
+    expect(NOTIFY_VETO_NOTE).toBe("Held off for this run: the deck was started with alerts off. Your choice is saved for the next start.");
     expect(en[ACCOUNT_NOTIFY_NOTE_MSG]).toBe("For the Claude and Codex accounts you're on, whether or not the deck is open.");
     expect(en[ACCOUNT_NOTIFY_VETO_NOTE_MSG]).toBe("Held off for this run too.");
     // The switch still moves under a veto, because the preference is still the

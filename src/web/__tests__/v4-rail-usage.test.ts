@@ -171,18 +171,20 @@ describe("what it says, and when it says nothing", () => {
     expect(m.name).toBe("Max 20x");
     expect(m.pctText).toBe("62%");
     expect(m.reset).toBe(`Resets in ${resetCountdown(NOW + 2 * 3600 + 9 * 60, NOW)}`);
-    expect(m.reset).toBe("Resets in 2h 9m");
+    // CHANGED ON PURPOSE: V4 draws the reset "Resets in 2h 09m", two digits
+    // for the minutes once an hour leads them; it read "2h 9m" here before.
+    expect(m.reset).toBe("Resets in 2h 09m");
     expect(m.week).toBe("7-day 31%");
     const html = draw(reading());
     expect(html).toContain("Max 20x");
     expect(html).toContain("5-hour limit");
-    expect(html).toContain("<span>Resets in 2h 9m</span><span>·</span><span>7-day 31%</span>");
+    expect(html).toContain("<span>Resets in 2h 09m</span><span>·</span><span>7-day 31%</span>");
   });
 
   it("is named by one sentence with every figure, and hides the pieces from a reader", () => {
-    expect(meter(reading())?.spoken).toBe("Usage: Max 20x, 5-hour limit 62%, resets in 2h 9m, 7-day 31%");
+    expect(meter(reading())?.spoken).toBe("Usage: Max 20x, 5-hour limit 62%, resets in 2h 09m, 7-day 31%");
     const html = draw(reading());
-    expect(html).toContain('aria-label="Usage: Max 20x, 5-hour limit 62%, resets in 2h 9m, 7-day 31%"');
+    expect(html).toContain('aria-label="Usage: Max 20x, 5-hour limit 62%, resets in 2h 09m, 7-day 31%"');
     expect(html).toContain('<span class="sl-usage-bar" aria-hidden="true">');
     expect(html).toContain('<span class="sl-usage-line1" aria-hidden="true">');
     expect(html).toContain('<span class="sl-usage-line2" aria-hidden="true">');
@@ -202,8 +204,8 @@ describe("what it says, and when it says nothing", () => {
   it("drops '· 7-day …' without a 7-day reading, and 'Resets in …' without a reset", () => {
     const noWeek = meter(reading({ week7dPct: null }))!;
     expect(noWeek.week).toBeNull();
-    expect(noWeek.spoken).toBe("Usage: Max 20x, 5-hour limit 62%, resets in 2h 9m");
-    expect(draw(reading({ week7dPct: null }))).toContain("<span>Resets in 2h 9m</span></span>");
+    expect(noWeek.spoken).toBe("Usage: Max 20x, 5-hour limit 62%, resets in 2h 09m");
+    expect(draw(reading({ week7dPct: null }))).toContain("<span>Resets in 2h 09m</span></span>");
     expect(draw(reading({ week7dPct: null }))).not.toContain("·");
     const noReset = meter(reading({ session5hResetAt: undefined }))!;
     expect(noReset.reset).toBeNull();
@@ -221,13 +223,13 @@ describe("what it says, and when it says nothing", () => {
   it("drops the name when the reading carries none, rather than inventing one", () => {
     const m = meter(reading({ planLabel: null }))!;
     expect(m.name).toBeNull();
-    expect(m.spoken).toBe("Usage: 5-hour limit 62%, resets in 2h 9m, 7-day 31%");
+    expect(m.spoken).toBe("Usage: 5-hour limit 62%, resets in 2h 09m, 7-day 31%");
     expect(draw(reading({ planLabel: undefined }))).not.toContain("sl-usage-name");
   });
 
   it("labels the meter with the active account's alias, else with its plan", () => {
     expect(usageMeter(heldOf(reading(), NOW), NOW * 1000, "Home")?.name).toBe("Home");
-    expect(usageMeter(heldOf(reading(), NOW), NOW * 1000, "Home")?.spoken).toBe("Usage: Home, 5-hour limit 62%, resets in 2h 9m, 7-day 31%");
+    expect(usageMeter(heldOf(reading(), NOW), NOW * 1000, "Home")?.spoken).toBe("Usage: Home, 5-hour limit 62%, resets in 2h 09m, 7-day 31%");
     for (const none of [null, "", "   "]) expect(usageMeter(heldOf(reading(), NOW), NOW * 1000, none)?.name, JSON.stringify(none)).toBe("Max 20x");
     expect(usageMeter(heldOf(reading(), NOW), NOW * 1000)?.name).toBe("Max 20x");
     expect(usageMeter(heldOf(reading({ planLabel: null }), NOW), NOW * 1000, "Home")?.name).toBe("Home");
@@ -344,10 +346,10 @@ describe("a reading the deck has not taken lately is drawn quiet and says so", (
   it("says when it was read on line 2, with the deck's short clock, and in the spoken name", () => {
     const m = meter(reading(), NOW, { readAt: readAgo(12) })!;
     expect(m.readAgo).toBe("read 12m ago");
-    expect(m.spoken).toBe("Usage: Max 20x, 5-hour limit 62%, resets in 2h 9m, 7-day 31%, last read 12 minutes ago");
+    expect(m.spoken).toBe("Usage: Max 20x, 5-hour limit 62%, resets in 2h 09m, 7-day 31%, last read 12 minutes ago");
     const html = draw(reading(), NOW, { readAt: readAgo(12) });
-    expect(html).toContain("<span>read 12m ago</span><span>·</span><span>Resets in 2h 9m</span>");
-    expect(html).toContain('aria-label="Usage: Max 20x, 5-hour limit 62%, resets in 2h 9m, 7-day 31%, last read 12 minutes ago"');
+    expect(html).toContain("<span>read 12m ago</span><span>·</span><span>Resets in 2h 09m</span>");
+    expect(html).toContain('aria-label="Usage: Max 20x, 5-hour limit 62%, resets in 2h 09m, 7-day 31%, last read 12 minutes ago"');
     expect(meter(reading(), NOW, { readAt: readAgo(75) })?.readAgo).toBe("read 1h 15m ago");
   });
 

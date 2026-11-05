@@ -139,6 +139,94 @@
   line-height: calc(16px + var(--ui-text-increase, 0px));
 }
 .settings-pane-head > .btn { flex: none; }
+/* A REFUSED WRITE, SAID ONCE FOR THE PAGE (SettingsFailureLine.tsx, V4's
+   Banner in the Error tone): right under the page head, the pane's full
+   width, 32 high with its --line rule at the foot (4 + 24 + 3 + 1, the
+   frame every banner has), the 14px mark, the sentence in body text and the
+   kit's close on the right. It sticks to the top of the pane while the page
+   scrolls, so a switch far down a long page that slides back still has its
+   reason in view: at the pane's top edge, the pane's own padding above it
+   (16px, 14px on a phone) taken back, so no row shows through over it. The
+   first group under it keeps the 8px it has under the page head. */
+.settings-failure {
+  position: sticky;
+  top: -16px;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: var(--ctl-h-lg);
+  padding: 4px 4px 3px 12px;
+  background: var(--panel);
+  border-bottom: 1px solid var(--line);
+  color: var(--text);
+  font-size: calc(13px + var(--ui-text-increase, 0px));
+  line-height: var(--lh-body);
+}
+.settings-failure .banner-mark { flex: none; display: inline-flex; width: 14px; height: 14px; color: var(--err); }
+.settings-failure .banner-mark.ok { color: var(--ok); }
+.settings-failure .banner-mark svg { display: block; }
+.settings-failure-text { flex: 1 1 auto; min-width: 0; }
+.settings-failure-act {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  padding: 0 4px;
+  border: 0;
+  border-radius: var(--r-ctl);
+  background: none;
+  color: var(--accent);
+  font: inherit;
+  font-size: calc(12px + var(--ui-text-increase, 0px));
+  line-height: 16px;
+  font-weight: 500;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: transform var(--dur-fast) var(--ease);
+}
+.settings-failure-x {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-left: auto;
+  width: 24px; height: 24px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--r-ctl);
+  background: none;
+  color: var(--muted);
+  font: inherit;
+  cursor: pointer;
+  transition: background var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease),
+              transform var(--dur-fast) var(--ease);
+}
+@media (hover: hover) and (pointer: fine) {
+.settings-failure-act:hover { text-decoration: underline; }
+.settings-failure-x:hover { background: var(--line); color: var(--text); }
+}
+.settings-failure-act:active { transform: scale(var(--press)); }
+.settings-failure-x:active { transform: scale(var(--press-small)); }
+.settings-failure + .settings-group > .settings-caption { padding-top: 8px; }
+.settings-failure + .settings-group:not(:has(> .settings-caption)) { padding-top: 8px; }
+/* A fact about a row or a group that is not its note (V4's Forms / Note with
+   its info icon): why a choice waits, said in the note's --muted ink with
+   the kit's 14px info mark on its first line. Under a row's note it is part
+   of the row's left column; under a caption it follows the caption's note. */
+.settings-info {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  min-width: 0;
+  max-width: 400px;
+  color: var(--muted);
+  font-size: calc(12px + var(--ui-text-increase, 0px));
+  line-height: calc(16px + var(--ui-text-increase, 0px));
+}
+.settings-info > svg { flex: none; width: 14px; height: 14px; margin-top: calc(1px + var(--ui-text-increase, 0px) / 2); }
+.settings-row > .settings-info { grid-column: 1; margin-top: 6px; }
+.settings-caption-text > .settings-info { margin: 6px 0 0; }
 
 .settings-row-with-details > .settings-row { padding-bottom: 0; }
 .settings-row-details { padding: 0 0 calc(8px * var(--ui-space, 1)); color: var(--text-secondary); font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: 1.5; min-width: 0; }
@@ -335,6 +423,22 @@
 .settings-link:hover { text-decoration: underline; }
 }
 .settings-link:active { transform: scale(var(--press)); }
+/* The same link as a press that stays in the deck (Elsewhere's Open): V4's
+   text link at 12/16 and 500, no fill and no border, the radius only
+   shaping the focus ring. 24 tall for the target, set 2px up so its words sit
+   level with the row's name. */
+button.settings-link {
+  min-height: 24px;
+  margin-top: -2px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--r-ctl);
+  background: none;
+  font: inherit;
+  font-size: calc(12px + var(--ui-text-increase, 0px));
+  line-height: calc(16px + var(--ui-text-increase, 0px));
+  font-weight: 500;
+}
 /* A key cap, in a caption's right-hand slot or beside the switch it flips, and
    on the right of every row of Settings › Keyboard. */
 .settings-key {
@@ -572,6 +676,7 @@
     scroll-padding: 14px 0 32px;
 
   }
+  .settings-failure { top: -14px; }
   .settings-list > .sm-row { grid-template-columns: minmax(64px, auto) minmax(0, 1fr) 40px; }
 }
 /* Under 420px a select, or a read-out with something beside it, goes under
@@ -594,6 +699,7 @@
   .settings-tab:active { transform: none; }
   .settings-result:active { transform: none; }
   .settings-link:active { transform: none; }
+  .settings-failure-act:active, .settings-failure-x:active { transform: none; }
 }
 
 /* Each choice previews the deck in that theme, so it is recognised before it

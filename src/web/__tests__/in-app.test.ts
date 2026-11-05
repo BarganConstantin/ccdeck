@@ -55,7 +55,8 @@ describe("knowing the page is in the app", () => {
     expect(notifyNote(true)).toBe(NOTIFY_NOTE_APP);
     expect(NOTIFY_NOTE_APP).toMatch(/window closed/);
     // CHANGED ON PURPOSE (the UI in every language): the English the key carries.
-    expect(en[NOTIFY_NOTE_APP_MSG]).toBe("With the ccdeck window closed, get a notification wherever a sound would have played.");
+    // V4's shorter note: the row's name already says when it applies.
+    expect(en[NOTIFY_NOTE_APP_MSG]).toBe("Keeps notifying from the background with the ccdeck window closed.");
     expect(notifyNote(false)).toBe(NOTIFY_NOTE);
   });
 });

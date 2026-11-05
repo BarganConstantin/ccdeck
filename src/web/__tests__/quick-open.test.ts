@@ -7,6 +7,7 @@ import type { QuickItem } from "../quick-open";
 import type { RailItem } from "../components/EdgeRails";
 import type { RailItems } from "../rail-items";
 import type { Row } from "../components/SessionList";
+import type { AgentNodeData } from "../types";
 
 vi.mock("react", async (orig) => ({ ...(await orig<typeof import("react")>()), useEffect: (run: () => void) => { run(); } }));
 
@@ -16,7 +17,7 @@ const {
   EMPTY_SESSIONS, RECENT_KEY, SECTION_CAP, fuzzyMatch, isQuickOpenChord, quickOpenChordLabel, rankQuick,
   readRecent, rememberRecent, stepRow, withRecent,
 } = await import("../quick-open");
-const { quickOpenItems, sessionLine } = await import("../quick-open-items");
+const { quickOpenItems, sessionLine, startFolder } = await import("../quick-open-items");
 const { indexFor } = await import("../settings-search");
 const { openedAt, SETTINGS_CLOSED } = await import("../settings");
 const { keyHelpFor } = await import("../key-help");
@@ -305,6 +306,43 @@ describe("the rows the deck offers", () => {
     expect(byId(sources({ clear }).items, "action:clear")).toMatchObject({ subtitle: "Asks first", verb: "Ask first", run: clear });
   });
 
+  it("offer Next waiting as Do's first row while someone waits, on N's cap, running N's move", () => {
+    expect(byId(sources().items, "action:next-waiting")).toBeUndefined();
+    const nextWaiting = vi.fn();
+    const { items } = sources({ nextWaiting });
+    expect(byId(items, "action:next-waiting")).toMatchObject({ title: "Next waiting", subtitle: "the longest wait first", keyCap: "n", run: nextWaiting });
+    expect(items.filter(i => i.section === "actions")[0].id).toBe("action:next-waiting");
+    expect(byId(sources({ nextWaiting, singleKeys: false }).items, "action:next-waiting")?.keyCap).toBeUndefined();
+    expect(sourceOf("App.tsx")).toContain("stepWaiting(stateRef.current, waitingCursorRef, focusSessionOnView)");
+    expect(sourceOf("use-deck-shortcuts.ts")).toContain("stepWaiting(stateRef.current, waitingCursorRef, focusSession, e.shiftKey)");
+  });
+
+  it("offer a new Claude and a new Codex in the focused folder only where the deck can start one", () => {
+    expect(sources().items.filter(i => i.section === "start")).toEqual([]);
+    const launch = vi.fn();
+    const { items } = sources({ start: { folder: { cwd: "/home/me/work/web-api", name: "web-api" }, launch } });
+    const start = items.filter(i => i.section === "start");
+    expect(start.map(i => [i.title, i.subtitle])).toEqual([
+      ["New Claude session", "in web-api, ~/work/web-api"],
+      ["New Codex session", "in web-api, ~/work/web-api"],
+    ]);
+    start[1].run();
+    expect(launch).toHaveBeenCalledWith("codex", "/home/me/work/web-api");
+    const app = sourceOf("App.tsx");
+    expect(app).toMatch(/const quickStart = \(\) => \{\s*if \(!stage\.enabled\) return undefined;/);
+    expect(app).toContain("folder ? { folder, launch: stage.launch } : undefined");
+  });
+
+  it("pick the Start folder as the New session popover does: the focused session's, else the latest", () => {
+    const root = (sessionId: string, cwd: string, at: number) => ({ id: sessionId, sessionId, kind: "root", cwd, startedAt: at }) as unknown as AgentNodeData;
+    const agents = [root("a", "/home/me/work/web-api", 10), root("b", "/home/me/work/infra", 20), root("c", "relative/path", 30)];
+    expect(startFolder(agents, null)).toEqual({ cwd: "/home/me/work/infra", name: "infra" });
+    expect(startFolder(agents, "a")).toEqual({ cwd: "/home/me/work/web-api", name: "web-api" });
+    expect(startFolder([], null)).toBeNull();
+    expect(startFolder([root("r", "relative/path", 1)], "r")).toBeNull();
+    expect(startFolder([root("w", "C:\\Users\\me\\proj", 1)], null)).toEqual({ cwd: "C:\\Users\\me\\proj", name: "proj" });
+  });
+
   it("say Pause or Resume as the stream stands", () => {
     expect(byId(sources().items, "action:pause")?.title).toBe("Pause the stream");
     expect(byId(sources({ paused: true }).items, "action:pause")?.title).toBe("Resume the stream");
@@ -312,17 +350,28 @@ describe("the rows the deck offers", () => {
 });
 
 describe("a session's line", () => {
-  const row = (o: Partial<Row>) => ({ state: "active" as const, label: "fix login", cwdBasename: "api", waiting: null, ...o });
+  const row = (o: Partial<Row>) => ({ state: "active" as const, label: "fix login", cwdBasename: "api", waiting: null, startedAt: 0, ...o }) as Row;
 
-  it("says who needs you first, in the words its card uses, and where it runs", () => {
-    expect(sessionLine(row({ waiting: { kind: "permission", since: 40_000 } as Row["waiting"] }), 100_000)).toEqual({ line: "Needs you · 1m · api", tone: "waiting" });
-    expect(sessionLine(row({}), 100_000)).toEqual({ line: "Working · api", tone: "active" });
-    expect(sessionLine(row({ state: "err" }), 100_000)).toEqual({ line: "Failed · api", tone: "err" });
-    expect(sessionLine(row({ state: "done", waiting: { kind: "idle", since: 0 } as Row["waiting"] }), 100_000)).toEqual({ line: "Done · api", tone: "done" });
+  // CHANGED ON PURPOSE (V4's Figma): the hint is the ask while it waits, the turn's time while it
+  // works, the summary once done and "idle" otherwise, lowercase; the state is the rail row's glyph.
+  it("says what it asks, how long it has worked, what it did, or that it is idle, and where it runs", () => {
+    const ask = { kind: "permission", since: 40_000, tool: { name: "Bash", preview: "npm test -- rate-limit" } } as Row["waiting"];
+    expect(sessionLine(row({ waiting: ask }), 100_000)).toEqual({ line: "Bash · npm test -- rate-limit · api", tone: "waiting" });
+    expect(sessionLine(row({ turnStartedAt: 28_000 }), 300_000)).toEqual({ line: "working 4m 32s · api", tone: "working" });
+    expect(sessionLine(row({ state: "done", unseen: true, recap: { text: "Both deploy keys rotated, old ones revoked", at: 1 } }), 100_000))
+      .toEqual({ line: "Both deploy keys rotated, old ones revoked · api", tone: "done" });
+    expect(sessionLine(row({ neverPrompted: true }), 100_000)).toEqual({ line: "idle · api", tone: "idle" });
+    expect(sessionLine(row({ state: "err" }), 100_000)).toEqual({ line: "failed · api", tone: "error" });
+  });
+
+  it("falls back on the state's own word when there is nothing more to say", () => {
+    expect(sessionLine(row({ state: "done", unseen: true }), 100_000).line).toBe("done · api");
+    // A permission wait with no tool to name says what its rail row says.
+    expect(sessionLine(row({ waiting: { kind: "permission", since: 40_000 } as Row["waiting"] }), 100_000).line).toBe("Needs your permission · api");
   });
 
   it("does not repeat a folder that is the session's own name", () => {
-    expect(sessionLine(row({ label: "api" }), 0).line).toBe("Working");
+    expect(sessionLine(row({ label: "api" }), 0).line).toBe("working <1s");
   });
 });
 

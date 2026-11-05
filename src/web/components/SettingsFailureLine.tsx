@@ -5,15 +5,24 @@
 // The line's owner keeps the SettingsLine; this draws it and makes the press.
 // Once the press has an answer the owner is handed the next line — the good
 // news, or why not — so a later refusal replaces it the way any other does.
+//
+// TWO FORMS. In a panel (Local network's rows) it is the red box the panel's
+// other refusals are. Under the Settings page head it is V4's Banner in the
+// Error tone: the error mark, the sentence in body text, the press as the
+// banner's link, and the kit's close in a 24px icon button.
 import { useEffect, useRef, useState } from "react";
 import { afterGiveBack, requestGiveBack, type SettingsLine } from "../settings-give-back";
 import { useT } from "../i18n";
+import BannerMark from "./BannerMark";
+import { KitIcon } from "./kit-icons";
 
-export function SettingsFailureLine({ line, onDismiss, onAnswer }: {
+export function SettingsFailureLine({ line, onDismiss, onAnswer, banner = false }: {
   line: SettingsLine | null;
   onDismiss: () => void;
   /** The press has an answer; `next` is what the line says now. */
   onAnswer: (next: SettingsLine) => void;
+  /** Settings' own line, under the page head (V4's Banner). */
+  banner?: boolean;
 }) {
   const t = useT();
   const [asking, setAsking] = useState(false);
@@ -48,6 +57,22 @@ export function SettingsFailureLine({ line, onDismiss, onAnswer }: {
     rescue.current = document.activeElement === pressRef.current;
     onAnswer(afterGiveBack(answer, t));
   };
+
+  if (banner) return (
+    <div className="settings-failure" data-done={line.done || undefined} role="alert">
+      <BannerMark glyph={line.done ? "done" : "unreachable"} tone={line.done ? "ok" : "err"} />
+      <span className="settings-failure-text">{line.text}</span>
+      {line.giveBack && (
+        <button ref={pressRef} type="button" className="settings-failure-act" aria-busy={asking}
+          onClick={press}
+          title={t("settings.giveBack.tip")}>
+          {asking ? t("settings.giveBack.waiting") : t("settings.giveBack.press")}
+        </button>
+      )}
+      <button ref={xRef} type="button" className="settings-failure-x" onClick={onDismiss}
+        aria-label={t("settings.giveBack.dismissAria")} title={t("settings.giveBack.dismiss")}><KitIcon name="close" /></button>
+    </div>
+  );
 
   return (
     <div className={line.done ? "ap-failure ap-failure-done" : "ap-failure"} role="alert">

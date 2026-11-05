@@ -248,10 +248,16 @@
 /* V4's top bar, right group (V4's Figma): Search is a 264x28 field (--bg-soft
    fill, --line-soft edge, --r-panel corner, 8 in, 4 at the Kbd's end, 8
    between) holding a 14px glyph, the sentence in --muted at 12/16 and the
-   chord's Kbd. Same button as before. Feedback keeps its word (#1853). */
+   chord's Kbd. Same button as before. Feedback keeps its word (#1853).
+   264 is drawn around ⌘K. Off a Mac the chord reads Ctrl+K, about 24 wider,
+   and at 264 it cut the sentence short; so the field is as wide as what it
+   holds, from 264 up to the 24 that chord adds, and past that the sentence
+   shortens as before. */
 .rail-btn-bar.rail-btn-field {
   box-sizing: border-box;
-  width: 264px;
+  width: auto;
+  min-width: 264px;
+  max-width: 288px;
   height: 28px;
   gap: 8px;
   padding: 0 4px 0 8px;
@@ -261,7 +267,7 @@
   color: var(--muted);
 }
 .rail-btn-field .rail-field-text {
-  flex: 1 1 0;
+  flex: 1 1 auto;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -291,7 +297,7 @@
    under 900 the sentence leaves the bar, leaving the glyph and the chord; the
    name and the hint still say it (EdgeRails.tsx, fieldText). */
 @media (max-width: 1279px) {
-  .rail-btn-bar.rail-btn-field { width: 200px; }
+  .rail-btn-bar.rail-btn-field { width: 200px; min-width: 0; max-width: none; }
 }
 @media (max-width: 899px) {
   .rail-btn-bar.rail-btn-field { width: auto; }

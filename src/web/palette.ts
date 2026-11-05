@@ -58,6 +58,8 @@ export const CANVAS_TOKENS = [
   // keyed on a flag the palette has no business knowing about.
   "--text",
   "--text-secondary",
+  // Workspace's pane, which the terminal there is drawn on.
+  "--sunken",
   "--accent-dim",
   "--cat-shell",
   "--cat-agent",

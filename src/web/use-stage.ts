@@ -65,6 +65,7 @@ import { useAsks, type Asks } from "./use-asks";
 import type { StageShortcuts } from "./use-deck-shortcuts";
 import { useMirroredRef } from "./use-mirrored-ref";
 import { t } from "./i18n";
+import { refuseSave, setSettingsFailure } from "./settings-failure";
 import { readView, workspaceOffered, writeView, type View } from "./use-view";
 
 /** The lazy chunk's one door: the navigator, the stage and everything they
@@ -914,14 +915,18 @@ export function useStage({ stateRef, canvasRef, detailOpen, detailShown, setDeta
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ terminal: want }),
-    }).then(r => (r.ok ? r.json() : null)).then(d => {
-      if (d?.ok) {
+    }).then(async r => {
+      const d = await r.json().catch(() => null);
+      if (r.ok && d?.ok) {
+        setSettingsFailure(null);
         if (press === pressRef.current) loadTerminalPrefs(d);
         writeStored(TERMINAL_SWITCHED_KEY, String(Date.now()));
       } else {
+        // Settings says why under its page head (settings-failure.ts).
+        refuseSave(d);
         askDeck(press, !want);
       }
-    }).catch(() => askDeck(press, !want));
+    }).catch(() => { refuseSave(null); askDeck(press, !want); });
   }, [enabledRef, loadTerminalPrefs, askDeck]);
   useEffect(() => {
     const changed = (event: StorageEvent) => {

@@ -32,20 +32,26 @@ const live: StagePhase = { kind: "live", sizeOwner: "dock", readOnly: false };
 
 describe("the header's sentence, from what the board knows", () => {
   it("says the face's word for a session waiting on you, with how long in bold", () => {
-    const s = stageStatusFrom({ active: true, waiting: { since: NOW - 6 * MIN, tool: "Bash", detail: "git push" } }, NOW);
-    expect(s).toEqual({ state: "waiting", phrase: "waiting", emphasis: "6m", tool: "Bash", arg: "git push" });
+    // CHANGED ON PURPOSE: to the second under an hour, as the rail row and the
+    // empty pane count the same wait (V4 draws "waiting 6m 42s").
+    const s = stageStatusFrom({ active: true, waiting: { since: NOW - (6 * MIN + 42_000), tool: "Bash", detail: "git push" } }, NOW);
+    expect(s).toEqual({ state: "waiting", phrase: "waiting", emphasis: "6m 42s", tool: "Bash", arg: "git push" });
     expect(JSON.stringify(s), "one word per state, everywhere").not.toMatch(/blocked/i);
   });
 
   it("counts a long wait in hours and minutes", () => {
     expect(waitedFor(72 * MIN)).toBe("1h 12m");
-    expect(waitedFor(6 * MIN + 59_000)).toBe("6m");
+    // CHANGED ON PURPOSE: under an hour the seconds stay ("6m" before).
+    expect(waitedFor(6 * MIN + 59_000)).toBe("6m 59s");
+    expect(waitedFor(59 * MIN + 59_000)).toBe("59m 59s");
+    expect(waitedFor(60 * MIN)).toBe("1h 0m");
   });
 
   it("counts a fresh ask in seconds, never as '0m'", () => {
     expect(waitedFor(20_000)).toBe("20s");
     expect(waitedFor(59_999)).toBe("59s");
-    expect(waitedFor(60_000)).toBe("1m");
+    // CHANGED ON PURPOSE: "1m 00s", the seconds padded once a minute leads.
+    expect(waitedFor(60_000)).toBe("1m 00s");
     expect(waitedFor(-5)).toBe("0s");
   });
 

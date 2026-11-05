@@ -18,7 +18,10 @@
   animation: none;
 }
 
-/* V4's overlay frame, as a dialog wears it: its corner and its one shadow. */
+/* V4's overlay frame: its corner, and the two shadows the menu is drawn with
+   (a wide soft one and a tight one under the edge) rather than the dialog's
+   one. Figma draws them over Dark; Light takes them at the strength its
+   overlay and contact shadows have there. */
 .qo {
   width: min(600px, calc(100vw - 32px));
   /* 432 at most, and never past the bottom of a short window: the backdrop's
@@ -29,16 +32,16 @@
   background: var(--panel);
   border: 1px solid var(--line);
   border-radius: var(--r-overlay);
-  box-shadow: var(--shadow-overlay);
+  box-shadow: 0 12px 28px rgba(0,0,0,0.38), 0 2px 4px rgba(0,0,0,0.28);
   overflow: hidden;
   transform-origin: 50% 0;
 }
+:root[data-color-scheme="light"] .qo { box-shadow: 0 12px 28px rgba(0,0,0,0.16), 0 2px 4px rgba(15,23,42,0.10); }
 
-/* The field: 40 high with the rule under it. V4 draws no ring on it; the deck
-   keeps its one focus ring for the input in it (a text field is always keyboard
-   focus), inset so the clipped edge of the dialog does not cut it, the way the
-   Radio search draws its ring on the wrapper rather than the bare input
-   (radio.css). */
+/* The field: 40 high with the rule under it. V4 draws no ring on it: the caret
+   and that rule say where the keys go. A text field is always keyboard focus,
+   so the rule takes the accent while the input holds it, which is the deck's
+   focus colour on the line the frame draws, not a box of its own. */
 .qo-field {
   display: flex;
   flex: none;
@@ -47,14 +50,8 @@
   height: 40px;
   padding: 0 12px;
   border-bottom: 1px solid var(--line);
-  /* The box's corner less its border, so the inset ring is not cut by the
-     box's clip at the top corners. */
-  border-radius: calc(var(--r-overlay) - 1px) calc(var(--r-overlay) - 1px) 0 0;
 }
-.qo-field:has(.qo-input:focus-visible) {
-  outline: var(--focus-w) solid var(--accent);
-  outline-offset: calc(-1 * var(--focus-w));
-}
+.qo-field:has(.qo-input:focus-visible) { border-bottom-color: var(--accent); }
 .qo-field > .glyph {
   width: 14px;
   height: 14px;
@@ -164,17 +161,15 @@ kbd.qo-key, .qo-esc, .qo-foot kbd, .fb-shortcut kbd {
 .qo-row[aria-selected="true"] .qo-icon { color: var(--text); }
 .qo-icon > .glyph { width: 14px; height: 14px; }
 
-/* A session's state, by the colours its card uses; amber only for waiting. */
-.qo-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: var(--muted);
-}
-.qo-dot.waiting { background: var(--warn); }
-.qo-dot.active { background: var(--accent); }
-.qo-dot.done { background: var(--ok); }
-.qo-dot.err { background: var(--err); }
+/* A session's state: the 14px glyph its rail row and card wear, in the same
+   tokens (working on --inflight, the Signal/Working colour). It holds still,
+   as everything in quick open does. */
+.qo-icon > .qo-state { width: 14px; height: 14px; }
+.qo-state[data-kind="waiting"] { color: var(--warn); }
+.qo-state[data-kind="working"] { color: var(--inflight); }
+.qo-state[data-kind="done"] { color: var(--ok); }
+.qo-state[data-kind="error"] { color: var(--err); }
+.qo-state[data-kind="idle"] { color: var(--muted); }
 
 /* A theme's own canvas and accent, from Settings › Appearance's previews. */
 .qo-icon > .qo-swatch {
@@ -258,8 +253,8 @@ kbd.qo-key, .qo-esc, .qo-foot kbd, .fb-shortcut kbd {
 .qo-empty-title { color: var(--text); font-size: calc(13px + var(--ui-text-increase, 0px)); }
 .qo-empty-note { color: var(--muted); font-size: calc(12px + var(--ui-text-increase, 0px)); }
 
-/* The foot: Tab's jump, the arrows, how many, and what Enter does to the row
-   that is chosen. */
+/* The foot: Tab's jump at the start, and what Enter does to the row that is
+   chosen at the end. */
 .qo-foot {
   display: flex;
   flex: none;
@@ -276,10 +271,8 @@ kbd.qo-key, .qo-esc, .qo-foot kbd, .fb-shortcut kbd {
 }
 .qo-foot-act { display: inline-flex; align-items: center; gap: 6px; }
 /* What Enter does is the one phrase that may be long: it shortens, the rest keeps. */
-.qo-foot-run { min-width: 0; margin-left: 12px; }
+.qo-foot-run { min-width: 0; margin-left: auto; }
 .qo-foot-run > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
-.qo-foot-count { margin-left: auto; }
-.qo-foot-act kbd + kbd { margin-left: -2px; }
 
 .qo-live {
   position: absolute;
@@ -296,8 +289,6 @@ kbd.qo-key, .qo-esc, .qo-foot kbd, .fb-shortcut kbd {
   .qo { width: 100%; }
   .qo-list { max-height: min(360px, 48dvh); }
   .qo { max-height: min(432px, calc(100dvh - 16px)); }
-  .qo-foot-count, .qo-foot-move { display: none; }
-  .qo-foot-run { margin-left: auto; }
 }
 
 /* A fingertip has no Tab key to name, and a row is a touch target: the list
