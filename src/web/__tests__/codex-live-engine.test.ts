@@ -64,6 +64,44 @@ async function fixture({ saved = null as any, actual = A, readCredential = null 
     externalLogin: (id: string) => { account = { ...account, email: email(id) }; callbacks.onNotification({ method: 'account/updated' }); } };
 }
 describe('existing Codex session account engine', () => {
+  it.each(['removed', 'unavailable'] as const)('does not return cached renewal tokens if the active profile becomes %s after the credential read', async state => {
+    const f = await fixture(); await f.c.request({ id: A, revision: 1 });
+    const original = f.rpc.request.getMockImplementation()!;
+    f.rpc.request.mockImplementation(async (method, params) => {
+      const result = await original(method, params);
+      if (method === 'account/read') {
+        if (state === 'removed') f.selection.profiles = f.selection.profiles.filter(p => p.id !== A);
+        else f.selection.profiles.find(p => p.id === A)!.available = false;
+      }
+      return result;
+    });
+    await f.serverRequest({ id: 'renewal-profile', method: 'account/chatgptAuthTokens/refresh', params: { previousAccountId: 'first' } });
+    expect(f.sent.some(m => m.result?.accessToken)).toBe(false);
+    expect(f.sent).toMatchObject([{ id: 'renewal-profile', error: { code: -32000 } }]);
+    expect(f.c.status()).toMatchObject({ state: 'external_change', profileId: null, reason: 'profile_unavailable' });
+    await f.serverRequest({ id: 'later-renewal', method: 'account/chatgptAuthTokens/refresh', params: { previousAccountId: 'first' } });
+    expect(f.sent).toHaveLength(1);
+    expect(f.calls.filter(c => c.method === 'account/login/start')).toHaveLength(1);
+    expect(f.calls.some(c => ['turn/interrupt', 'turn/start'].includes(c.method))).toBe(false);
+  });
+
+  it('continues renewal after an unrelated registry revision changes while the active profile remains available', async () => {
+    const f = await fixture(); await f.c.request({ id: A, revision: 1 });
+    const original = f.rpc.request.getMockImplementation()!;
+    f.rpc.request.mockImplementation(async (method, params) => {
+      const result = await original(method, params);
+      if (method === 'account/read') {
+        f.selection.revision++;
+        f.selection.profiles = f.selection.profiles.map(p => p.id === A ? { ...p, label: 'Renamed account' } : p);
+      }
+      return result;
+    });
+    await f.serverRequest({ id: 'renewal-profile', method: 'account/chatgptAuthTokens/refresh', params: { previousAccountId: 'first' } });
+    expect(f.sent).toMatchObject([{ id: 'renewal-profile', result: { chatgptAccountId: 'first' } }]);
+    expect(f.c.status()).toMatchObject({ state: 'applied', profileId: A });
+    expect(f.calls.filter(c => c.method === 'account/login/start')).toHaveLength(1);
+  });
+
   it.each(['before', 'account-read'] as const)('does not return renewed credentials when the control lease is lost at %s', async when => {
     const f = await fixture(); await f.c.request({ id: A, revision: 1 });
     if (when === 'before') f.lease.valid.mockResolvedValue(false);

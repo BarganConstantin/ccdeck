@@ -155,6 +155,10 @@ export function createCodexLiveAccountController(input = {}) {
         if (closed || owner !== rpc || ownershipPaused || epoch !== ownershipEpoch) return;
         if (!sameAccount(actual, next)) { await externalChange(); return; }
         if (!await lease?.valid()) throw liveError('native_control_lost');
+        // A profile can be removed after its credential read has finished.
+        // Do not keep renewing a login whose row/home is no longer available.
+        const latest = await selection();
+        if (!latest.profiles?.some(p => p.id === credential.profileId && p.available !== false)) throw liveError('profile_unavailable');
         if (closed || owner !== rpc || !owned || ownershipPaused || epoch !== ownershipEpoch) return;
         // ExternalAuthBridge::refresh returns the auth directly; it does not
         // emit account/updated. Do not leave a notification-suppression window.
@@ -164,7 +168,7 @@ export function createCodexLiveAccountController(input = {}) {
         if (closed || owner !== rpc || !owned || ownershipPaused || epoch !== ownershipEpoch) return;
         // Never return paths, token values or provider error text on the wire.
         try { owner.send({ id: message.id, error: { code: -32000, message: 'Selected Codex login could not be renewed.' } }); } catch { /* connection ended */ }
-        if (error?.code === 'native_control_lost') await externalChange('native_control_lost');
+        if (['native_control_lost', 'profile_unavailable'].includes(error?.code)) await externalChange(error.code);
         else update({ state: 'failed', reason: 'credential_refresh_failed' });
       }
     });
