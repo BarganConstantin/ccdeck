@@ -155,3 +155,44 @@ credential reading, and a late credential failure after an outside account
 change. The latter must not send an obsolete reply or overwrite the observed
 external-change state. The controller and ownership suites passed 100 cases
 locally; full integration CI validates the combined candidate before merge.
+
+## Fifth pass: renewal after profile removal
+
+Starting from development `c5df895a`, two failing cases reproduced renewal
+using cached tokens after the active profile had been removed or marked
+unavailable during the native account read. The credential reader had already
+completed its filesystem and registry checks, so those checks could not cover
+the later asynchronous gap before the control server's response.
+
+`0d583db7` rechecks the active profile's availability immediately before returning
+the renewal result. A missing/unavailable profile receives a fixed error and
+pauses control; subsequent callbacks cannot return tokens until a new manual
+selection. The change does not interrupt or restart turns and does not replay
+login. A third case verifies that an unrelated registry revision or rename
+still allows renewal for an available profile.
+
+The 23-file macOS and Linux sets passed 406 cases with 9 platform skips
+each after the final lease-order regression was added; typecheck and build
+passed on macOS. The verification set includes native ownership, checkpoints,
+continuation, credentials, platform transport, account routes, authentication
+refresh and profile removal. As in earlier passes, these are synthetic account
+and endpoint tests, not authenticated live-provider switching.
+
+Review of the repair added a fourth case: lease replacement during the final
+profile lookup must still block renewal. `46f251a3` keeps the final control
+lease check after that asynchronous lookup.
+
+The expanded Windows run initially reported three failures in the pre-existing
+quota refresh fixture, while 382 cases passed and 29 were skipped. The same
+three failures reproduced on unchanged development `c5df895a`. That fixture
+set HOME, USERPROFILE and CODEX_HOME but omitted CCDECK_HOME; on a Windows
+machine with an existing registry under LocalAppData, quota reads could select
+that registry instead of the synthetic Codex home. `4b75e4b9` gives the fixture
+its own registry directory and restores the previous override afterward.
+After the isolation repair, all 117 cases in the final controller, ownership
+and quota-refresh files passed on Windows, including the three baseline
+failures. Other Windows files were not rerun after the final lease-order and
+test-only edits. The Linux
+run predates this test-only isolation edit; its production source matches the
+final candidate. The Linux process-table stray-server guard was unavailable
+inside the isolated container.
