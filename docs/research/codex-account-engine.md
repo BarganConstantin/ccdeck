@@ -12,6 +12,25 @@ connected to an authenticated, single-client loopback bridge during the handoff.
 Claude stays on its existing cswap path. A separate shared-daemon adapter now
 covers supported already-open native application/IDE conversations; see below.
 
+## Native credential read timeout (2026-11-05)
+
+All platforms allow thirty seconds for the reader's owned Codex process to
+initialize, resolve configuration and read the account, with four additional
+seconds reserved for shutdown. Previously POSIX allowed seven seconds overall,
+leaving only three seconds for these reads. A cold CLI or workspace-routing
+discovery could therefore reject a valid login as `native_timeout`.
+
+A controlled four-second startup delay around the installed Codex CLI reproduced
+the old timeout and succeeded with the corrected budget. This read-only probe
+did not submit a login or switch conversation authentication. Regression tests
+also cover delayed successful reads, a stalled request bounded with shutdown,
+and cleanup after an exhausted budget. Native requests are not replayed.
+
+If the credential read still times out, the account panel explains that read
+failure and offers Retry selected account, including after reopening the panel.
+The retry requires a fresh explicit press and uses the normal guarded switch
+path. It does not claim that existing conversations already changed accounts.
+
 ## Initial account synchronization (2026-11-04)
 
 Codex sends `account/updated` to a newly initialized connection after saved

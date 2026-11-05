@@ -7,6 +7,35 @@ let cleanup: (() => void) | undefined;
 afterEach(() => { cleanup?.(); vi.unstubAllGlobals(); });
 
 describe('Codex default selection controls', () => {
+  it.each([false, true])('explains a native credential timeout and retries only on an explicit press (persisted: %s)', async persisted => {
+    let selected = persisted, recovered = false, writes = 0;
+    const failed = { state: 'failed', requestedProfileId: 'b', reason: 'native_timeout' };
+    vi.stubGlobal('fetch', vi.fn(async (url: string) => {
+      if (url === '/api/codex-profile-select') {
+        writes++;
+        if (selected) recovered = true;
+        selected = true;
+        return { ok: true, json: async () => ({ ok: true, live: recovered ? { state: 'applied', profileId: 'b' } : failed }) };
+      }
+      if (url.startsWith('/api/codex-profile-quota')) return { ok: false, json: async () => ({}) };
+      return { ok: true, json: async () => ({ profiles: [
+        { id: 'a', label: 'Personal', active: !selected, signedInFilePresent: true },
+        { id: 'b', label: 'Work', active: selected, signedInFilePresent: true },
+      ], ...(selected ? { live: recovered ? { state: 'applied', profileId: 'b' } : failed } : {}) }) };
+    }));
+    const view = mount(() => CodexProfilesSection()); cleanup = view.unmount; await flush();
+    if (!persisted) { openOthers(view); (rowOf(view, 'Work')!.props.onSwitch as (n: number, name: string) => void)(2, 'Work'); await flush(); }
+    expect(writes).toBe(persisted ? 0 : 1);
+    expect(rowText(rowOf(view, 'Work')!)).toContain('Codex took too long to read this login');
+    expect(rowText(rowOf(view, 'Work')!)).not.toContain('/status');
+    const retry = one(view.tree, n => n.type === 'button' && textOf(n) === 'Retry selected account');
+    expect(retry).toBeTruthy();
+    (retry!.props.onClick as () => void)(); await flush();
+    expect(writes).toBe(persisted ? 1 : 2);
+    expect(textOf(view.tree)).not.toContain('Retry selected account');
+    expect(rowText(rowOf(view, 'Work')!)).not.toContain('took too long');
+  });
+
   it.each([false, true])('explains unsafe login permissions after %s persisted failure', async persisted => {
     let selected = persisted;
     const live = { state: 'failed', requestedProfileId: 'b', reason: 'credential_file_unsafe' };
