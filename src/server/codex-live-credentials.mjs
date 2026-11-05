@@ -12,10 +12,10 @@ import { pathLookup } from './exec-spec.mjs';
 import { holdWindowsPrivatePath, snapshotWindowsCodexLogin } from './codex-windows-private.mjs';
 
 const MAX_AUTH_BYTES = 1024 * 1024;
-// A loaded Windows host can exceed twelve seconds starting a cold CLI while
-// native agents work. Bound initialization/reads together at thirty seconds,
+// A cold CLI or workspace routing discovery can exceed three seconds on any
+// platform. Bound initialization/reads together at thirty seconds,
 // plus the owned process's four-second shutdown; never retry a native request.
-const NATIVE_DEADLINE_MS = process.platform === 'win32' ? 34000 : 7000;
+const NATIVE_DEADLINE_MS = 34000;
 // startEngineRpc.stop() closes stdin, then escalates at 2s and 4s. Reserve its
 // full shutdown window rather than giving each request another seven seconds.
 const STOP_RESERVE_MS = 4000;
