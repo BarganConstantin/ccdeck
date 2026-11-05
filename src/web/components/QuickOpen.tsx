@@ -21,6 +21,7 @@ import {
 import { useT } from "../i18n";
 import { isApplePlatform, platformName } from "../platform";
 import { SearchGlyph } from "./rail-glyphs";
+import { KitStateGlyph } from "./kit-icons";
 
 /** The groups that hold more than one kind of row, where the kind tag is drawn. */
 const MIXED_GROUPS: ReadonlySet<string> = new Set(["recent", "open"]);
@@ -65,6 +66,8 @@ export default function QuickOpen({ items, onClose, onRun }: {
   const dialogRef = useModalDismiss(leave, { focusRef: inputRef });
   const scrimPress = useScrimDismiss(leave);
 
+  // The field names starting a session only where the menu can start one.
+  const canStart = useMemo(() => items.some(item => item.section === "start"), [items]);
   const sections = useMemo(() => rankQuick(items, query, recent), [items, query, recent]);
   const groups = useMemo(() => groupQuick(sections, query.trim() !== "", t), [sections, query, t]);
   const rows = useMemo(() => flatGroupRows(groups), [groups]);
@@ -148,7 +151,7 @@ export default function QuickOpen({ items, onClose, onRun }: {
             aria-autocomplete="list"
             aria-keyshortcuts="Tab Shift+Tab"
             aria-activedescendant={active >= 0 ? `qo-opt-${active}` : undefined}
-            placeholder={t("board.quick.placeholder")}
+            placeholder={t(canStart ? "board.quick.placeholderStart" : "board.quick.placeholder")}
             value={query}
             onChange={e => { setQuery(e.target.value); setActiveId(null); }}
             onKeyDown={onKeyDown}
@@ -185,7 +188,7 @@ export default function QuickOpen({ items, onClose, onRun }: {
                     onClick={() => run(row)}
                   >
                     <span className="qo-icon" aria-hidden>
-                      {item.tone ? <span className={`qo-dot ${item.tone}`} /> : item.glyph}
+                      {item.tone ? <KitStateGlyph name={item.tone} className="qo-state" kind={item.tone} /> : item.glyph}
                     </span>
                     <span className="qo-text">
                       <span className="qo-title"><Highlighted text={item.title} hits={row.hits} /></span>
@@ -211,10 +214,10 @@ export default function QuickOpen({ items, onClose, onRun }: {
           )}
         </div>
 
+        {/* Tab's jump and what Enter does to the chosen row: the arrows go
+            without saying, and the count is said to a screen reader below. */}
         <div className="qo-foot" aria-hidden>
           <span className="qo-foot-act qo-foot-tab"><kbd>{t("board.quick.tabKey")}</kbd> {t("board.quick.tabHint")}</span>
-          <span className="qo-foot-act qo-foot-move"><kbd>↑</kbd><kbd>↓</kbd> {t("board.quick.move")}</span>
-          <span className="qo-foot-count">{t("board.quick.results.count", { count: rows.length })}</span>
           {activeRow && <span className="qo-foot-act qo-foot-run"><kbd>↵</kbd> <span>{activeRow.item.verb}</span></span>}
         </div>
         <span className="qo-live" role="status">{query.trim() ? t("board.quick.results.count", { count: rows.length }) : ""}</span>

@@ -161,10 +161,11 @@ describe("the header", () => {
     expect(decl(".insp-tab", "color")).toBe("var(--muted)");
     expect(decl(".insp-tab", "background")).toBe("transparent");
   });
-  it("marks the chosen tab with a --panel fill, the smallest shadow token and a 600 --text label", () => {
+  // CHANGED ON PURPOSE (V4's Figma): the chosen tab is the --panel chip with no shadow.
+  it("marks the chosen tab with a --panel fill, no shadow and a 600 --text label", () => {
     const sel = '.insp-tab[aria-selected="true"]';
     expect(decl(sel, "background")).toBe("var(--panel)");
-    expect(decl(sel, "box-shadow")).toBe("var(--shadow-contact)");
+    expect(decl(sel, "box-shadow")).toBeUndefined();
     expect(decl(sel, "font-weight")).toBe("600");
     expect(decl(sel, "color")).toBe("var(--text)");
   });
@@ -181,9 +182,10 @@ describe("the header", () => {
 
 describe("the body and its head row", () => {
   // CHANGED ON PURPOSE (V4's Figma): padding 12 and a gap of 12 (was 8 12 12 and 8).
-  it("is padded 12 with a gap of 12, and scrolls instead of clipping", () => {
-    expect(decl(".insp-b", "padding")).toBe("12px");
-    expect(decl(".insp-b", "gap")).toBe("12px");
+  // CHANGED ON PURPOSE (V4's Figma, measured again): every tab's frame draws 8 12 12 and a gap of 8.
+  it("is padded 8 12 12 with a gap of 8, and scrolls instead of clipping", () => {
+    expect(decl(".insp-b", "padding")).toBe("8px 12px 12px");
+    expect(decl(".insp-b", "gap")).toBe("8px");
     expect(decl(".insp-b", "overflow-y")).toBe("auto");
     expect(decl(".detail", "overflow")).toBe("hidden");
   });

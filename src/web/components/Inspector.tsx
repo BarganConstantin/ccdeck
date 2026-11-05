@@ -213,9 +213,10 @@ const TreeItem = memo(function TreeItem({ row, current, onSelectAgent }: { row: 
           buttons stop theirs). The keyboard reaches it through the real button
           first in the cell: invisible and out of the pointer's way, named for
           the card, and its Enter is a click that bubbles to the same cell. It
-          stands in for a focusable <div>, and carries the ring and the mark of
-          the agent the panel is about onto the card beside it (detail-panel.css). */}
-      <div className="insp-card" data-current={current || undefined} onClick={() => onSelectAgent(id)}>
+          stands in for a focusable <div>, draws its focus ring on the card
+          beside it (detail-panel.css), and says which agent the panel is about
+          with aria-current: the card itself wears no ring for that. */}
+      <div className="insp-card" onClick={() => onSelectAgent(id)}>
         <button type="button" className="insp-pick" aria-label={agentAriaLabel(row.agent)} aria-current={current || undefined} />
         <AgentCard data={row.agent} />
       </div>

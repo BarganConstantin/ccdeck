@@ -13,14 +13,15 @@
 import type { ReactNode } from "react";
 import { readStored, writeStored } from "./storage";
 import { t, type TFunction } from "./i18n";
+import type { RailGlyphKind } from "./rail-row-copy";
 
 /** The sections, in the order an empty field lists them. */
-export type QuickSection = "recent" | "sessions" | "open" | "settings" | "actions" | "themes";
+export type QuickSection = "recent" | "sessions" | "start" | "open" | "settings" | "actions" | "themes";
 
 /** The section titles in the language on show. */
 export const sectionTitle = (key: QuickSection, tr: TFunction = t): string => tr(`board.quick.section.${key}`);
 
-const SECTION_ORDER: readonly QuickSection[] = ["recent", "sessions", "open", "settings", "actions", "themes"];
+const SECTION_ORDER: readonly QuickSection[] = ["recent", "sessions", "start", "open", "settings", "actions", "themes"];
 
 export interface QuickItem {
   /** Stable across loads: what the recent list stores. */
@@ -38,8 +39,8 @@ export interface QuickItem {
   /** Its own key, where it has one: U, ⌘,. */
   keyCap?: string;
   glyph?: ReactNode;
-  /** A session's state, drawn as its dot. */
-  tone?: "waiting" | "active" | "done" | "err";
+  /** A session's state, drawn as the 14px glyph its rail row wears. */
+  tone?: RailGlyphKind;
   /** The tag is a state worth reading (Shown, Current), not just the kind of
    *  row: the menu draws it, and only reads the kind aloud otherwise. */
   tagIsState?: true;
@@ -202,11 +203,12 @@ function section(key: QuickSection, items: RankedItem[]): RankedSection {
 }
 
 /** The groups V4's menu draws, in its order. Recent is the one extra, first
- *  when something was opened lately; Panels and dialogs, Settings and Themes
- *  follow Do, so a long list of them cannot bury the actions. */
-export type QuickGroup = "recent" | "needs" | "sessions" | "do" | "open" | "settings" | "themes";
+ *  when something was opened lately; Start is there only where the deck can
+ *  start a session; Panels and dialogs, Settings and Themes follow Do, so a
+ *  long list of them cannot bury the actions. */
+export type QuickGroup = "recent" | "needs" | "sessions" | "start" | "do" | "open" | "settings" | "themes";
 
-export const GROUP_ORDER: readonly QuickGroup[] = ["recent", "needs", "sessions", "do", "open", "settings", "themes"];
+export const GROUP_ORDER: readonly QuickGroup[] = ["recent", "needs", "sessions", "start", "do", "open", "settings", "themes"];
 
 export interface RankedGroup {
   group: QuickGroup;

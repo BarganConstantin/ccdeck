@@ -327,14 +327,17 @@ describe("no font-size is declared where a shared rule outranks it (#379, #380)"
     expect(CLASS_SETS.length).toBeGreaterThan(50);
   });
 
-  it("keeps the one per-button override that does out-rank the shared rule", () => {
+  it("lets the Inspector's foot buttons take the shared rule's size, as V4's Quiet button", () => {
     // `.detail-hero .hero-action-btn` is (0,2,0) against `button.btn`'s (0,1,1),
     // so its 11px renders. It is not dead and must not be swept up with the
     // seven that were.
     // CHANGED ON PURPOSE (V4's Figma): it is `.detail .hero-action-btn` now, at 12px, and the
     // relation is unchanged: (0,2,0) against `button.btn`'s (0,1,1).
-    expect(decl(".detail .hero-action-btn", "font-size")).toBe("12px");
-    expect(higher(specificity(".detail .hero-action-btn"), specificity("button.btn"))).toBe(true);
+    // CHANGED ON PURPOSE (V4's Figma): the foot's Recap, Export JSON and Remove
+    // are drawn as the Quiet button, 13/500, so the override is gone and the
+    // shared rule's 13px is the one that renders.
+    expect(decl(".detail .hero-action-btn", "font-size")).toBeNull();
+    expect(decl("button.btn", "font-size")).toBe("13px");
   });
 
   it("removed the seven font sizes without removing the rules around them", () => {

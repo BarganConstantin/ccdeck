@@ -160,13 +160,13 @@
 .insp-none { align-items: center; justify-content: center; text-align: center; gap: 4px; padding: 8px 12px 12px; }
 .insp-none-title { margin: 0; font-size: calc(13px + var(--ui-text-increase, 0px)); font-weight: 600; line-height: 20px; color: var(--text-secondary); }
 /* The empty Inspector's tabs are chips, not buttons: the chosen one is
-   marked as the Inspector's chosen tab is (detail-panel.css). */
+   marked as the Inspector's chosen tab is (detail-panel.css), with no shadow. */
 .insp-tab[aria-current="true"] {
   background: var(--panel);
-  box-shadow: var(--shadow-contact);
   color: var(--text);
   font-weight: 600;
 }
+.insp-tab[aria-current="true"] .glyph { color: var(--text); }
 
 /* ── the view switch ──────────────────────────────────────────────────────── */
 /* THE BOARD'S CANVAS IS HELD AT ITS BOX while Workspace is up (view-switch.ts

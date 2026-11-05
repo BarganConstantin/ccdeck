@@ -477,12 +477,17 @@ describe("N, Shift+N and P", () => {
   });
 
   const source = read("use-deck-shortcuts.ts");
-  const nBranch = source.slice(source.indexOf('if (e.key === "n" || e.key === "N") {'));
+  // N's move lives in stepWaiting, which the command menu's "Next waiting"
+  // row runs as well, so the branch hands it W's cursor and the Shift key and
+  // the helper's body holds the queue, the direction and the cursor.
+  const nBranch = source.slice(source.indexOf('if (e.key === "n" || e.key === "N")'));
+  const step = source.slice(source.indexOf("export function stepWaiting("));
 
   it("N shares W's cursor and queue, and Shift decides the direction, not the letter's case", () => {
-    expect(source).toMatch(/if \(e\.key === "n" \|\| e\.key === "N"\) \{/);
-    expect(nBranch.slice(0, 520)).toMatch(/e\.shiftKey \? prevWaiting\(queue, waitingCursorRef\.current\) : nextWaiting\(queue, waitingCursorRef\.current\)/);
-    expect(nBranch.slice(0, 520)).toMatch(/waitingCursorRef\.current = to\.id;\s*focusSession\(to\.id\);/);
+    expect(source).toMatch(/if \(e\.key === "n" \|\| e\.key === "N"\) stepWaiting\(stateRef\.current, waitingCursorRef, focusSession, e\.shiftKey\);/);
+    expect(step.slice(0, 520)).toMatch(/const queue = blockedSessions\(state\.agents\.values\(\)\);/);
+    expect(step.slice(0, 520)).toMatch(/back \? prevWaiting\(queue, cursorRef\.current\) : nextWaiting\(queue, cursorRef\.current\)/);
+    expect(step.slice(0, 520)).toMatch(/cursorRef\.current = to\.id;\s*focusSession\(to\.id\);/);
     expect(nBranch.slice(0, 520)).not.toMatch(/e\.key === "N"\s*\?|e\.key === "n"\s*\?/);
     // W is untouched.
     expect(source).toMatch(/const next = nextWaiting\(blockedSessions\(stateRef\.current\.agents\.values\(\)\), waitingCursorRef\.current\);/);

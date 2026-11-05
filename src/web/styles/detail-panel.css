@@ -55,15 +55,20 @@
   line-height: 16px;
   font-weight: 500;
 }
-.insp-tab .glyph { width: 14px; height: 14px; }
+/* An unselected tab's icon is a step brighter than its label (V4's Figma:
+   Text/Secondary over Text/Muted); the selected tab's takes the text colour. */
+.insp-tab .glyph { width: 14px; height: 14px; color: var(--text-secondary); }
+/* The selected tab is the --panel chip on the track and nothing more: the
+   frame lifts it with no shadow. */
 .insp-tab[aria-selected="true"] {
   background: var(--panel);
-  box-shadow: var(--shadow-contact);
   color: var(--text);
   font-weight: 600;
 }
+.insp-tab[aria-selected="true"] .glyph { color: var(--text); }
 @media (hover: hover) and (pointer: fine) {
-.insp-tab:hover:not([aria-selected="true"]) { color: var(--text); }
+.insp-tab:hover:not([aria-selected="true"]),
+.insp-tab:hover:not([aria-selected="true"]) .glyph { color: var(--text); }
 }
 /* Fold: one quiet 24x24 icon button, radius 6 (the rail's close, on the right). */
 .detail .insp-fold {
@@ -81,15 +86,16 @@
 @media (hover: hover) and (pointer: fine) {
 .detail .insp-fold:hover { background: var(--ctl-fill); }
 }
-/* The body: padding 12, a gap of 12, and the scroller. A tabpanel that is
-   not the chosen one is `hidden`, which a `display` here would otherwise beat. */
+/* The body: 8 under the header, 12 at the sides and the foot, a gap of 8,
+   and the scroller (V4's Figma, every tab). A tabpanel that is not the chosen
+   one is `hidden`, which a `display` here would otherwise beat. */
 .insp-b {
   flex: 1;
   min-height: 0;
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  padding: 12px;
+  gap: 8px;
+  padding: 8px 12px 12px;
   overflow-y: auto;
 }
 .insp-b[hidden] { display: none; }
@@ -180,15 +186,22 @@
   grid-template-columns: 124px minmax(0, 1fr);
   align-items: center;
 }
+/* The column's name is a word, in the UI face at 12/16; only the figures on
+   the axis are mono, as the durations in the rows are. */
 .insp-time-axis {
   height: 20px;
   border-bottom: 1px solid var(--line-soft);
+  font-size: calc(12px + var(--ui-text-increase, 0px));
+  line-height: 16px;
+  color: var(--muted);
+}
+.insp-time-ticks {
+  display: flex;
+  justify-content: space-between;
   font-family: var(--font-mono);
   font-size: calc(11px + var(--ui-text-increase, 0px));
   line-height: 14px;
-  color: var(--muted);
 }
-.insp-time-ticks { display: flex; justify-content: space-between; }
 /* Figma draws the row radius 5, which has no fill to show it and no step on the
    radius ladder (spacing-ladder-887), so it is left out. */
 .insp-time-row { height: 24px; }
@@ -313,8 +326,9 @@
   min-width: 0;
 }
 /* The keyboard's stop for the card: there, named, and neither seen nor in the
-   pointer's way. Its ring and its mark are drawn on the card beside it, which
-   has the card's own corners. */
+   pointer's way. Its focus ring is drawn on the card beside it, which has the
+   card's own corners. The card the panel is about wears no ring of its own
+   (V4's Figma): its state stroke alone, and aria-current on this button. */
 .insp-pick {
   position: absolute;
   inset: 0;
@@ -324,7 +338,6 @@
   opacity: 0;
   pointer-events: none;
 }
-.insp-card[data-current] .agent-node { box-shadow: 0 0 0 2px var(--accent); }
 /* The focused thing is the hidden pick button, the card is its box: the one ring, inside. */
 .insp-card:has(.insp-pick:focus-visible) .agent-node { outline: var(--focus-w) solid var(--accent); outline-offset: calc(-1 * var(--focus-w)); }
 /* The card is the board's, drawn to the row's width instead of the board's 256. */

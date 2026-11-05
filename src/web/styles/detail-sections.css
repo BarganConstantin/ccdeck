@@ -79,18 +79,15 @@
   font-weight: 400;
   color: var(--muted);
 }
-/* The verbs about the card (Recap, Export JSON, Remove from board): the frame
-   draws none of them, so they close the body as quiet small buttons. */
+/* The verbs about the card (Recap, Export JSON, Remove from board) close the
+   body, 8 apart, as V4's Quiet button draws them: `button.btn` as it is, 28
+   high, 13/500 --text-secondary, r8, 12 in. The edge stays the button's
+   --ctl-edge (control-edges.test.ts holds every control to 3:1), and the row
+   stays on a running session too: each is something the card can do then. */
 .detail .hero-actions {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
-}
-.detail .hero-action-btn {
-  padding: 0 8px;
-  font-size: calc(12px + var(--ui-text-increase, 0px));
-  line-height: 16px;
-  color: var(--muted);
+  gap: 8px;
 }
 
 /* Stacked cost-breakdown bar */
