@@ -146,20 +146,26 @@ export function createCodexLiveAccountController(input = {}) {
         return;
       }
       try {
+        if (!await lease?.valid()) throw liveError('native_control_lost');
+        if (owner !== rpc || !owned || closed || ownershipPaused || epoch !== ownershipEpoch) return;
         const next = await credentialFor(credential.profileId, { refresh: true });
         if (closed || owner !== rpc || !owned || ownershipPaused || epoch !== ownershipEpoch) return;
         if (next.accountId !== previous) throw liveError('profile_changed');
         const actual = await owner.request('account/read', { refreshToken: false });
         if (closed || owner !== rpc || ownershipPaused || epoch !== ownershipEpoch) return;
         if (!sameAccount(actual, next)) { await externalChange(); return; }
+        if (!await lease?.valid()) throw liveError('native_control_lost');
+        if (closed || owner !== rpc || !owned || ownershipPaused || epoch !== ownershipEpoch) return;
         // ExternalAuthBridge::refresh returns the auth directly; it does not
         // emit account/updated. Do not leave a notification-suppression window.
         credential = next; lastRefresh = Date.now();
         owner.send({ id: message.id, result: { accessToken: next.accessToken, chatgptAccountId: next.accountId, chatgptPlanType: next.planType } });
-      } catch {
+      } catch (error) {
+        if (closed || owner !== rpc || !owned || ownershipPaused || epoch !== ownershipEpoch) return;
         // Never return paths, token values or provider error text on the wire.
         try { owner.send({ id: message.id, error: { code: -32000, message: 'Selected Codex login could not be renewed.' } }); } catch { /* connection ended */ }
-        update({ state: 'failed', reason: 'credential_refresh_failed' });
+        if (error?.code === 'native_control_lost') await externalChange('native_control_lost');
+        else update({ state: 'failed', reason: 'credential_refresh_failed' });
       }
     });
   }

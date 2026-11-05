@@ -73,6 +73,18 @@ async function fixture({ ids = false, saved = false, notifyLogin = true, actual 
 }
 
 describe('native Codex authentication ownership', () => {
+  it('does not overwrite an outside account change when a pending credential renewal fails late', async () => {
+    const f = await fixture({ ids: true }); await f.c.request({ id: A, revision: 2 });
+    let fail!: (error: Error) => void;
+    const blocked = new Promise<never>((_resolve, reject) => { fail = reject; });
+    f.readCredential.mockImplementationOnce(async () => blocked);
+    const renewal = f.refresh(); await flush();
+    f.setAccount(B); f.notify();
+    fail(Error('fictional provider failure')); await renewal; await flush();
+    expect(f.sends).toEqual([]);
+    expect(f.c.status()).toMatchObject({ state: 'external_change', profileId: null });
+  });
+
   it.each(['account-read', 'initial-snapshot'] as const)('retries read-only startup attestation after a transient %s timeout without replaying login', async stage => {
     const f = await fixture({ ids: true, saved: true, accountReadFailures: stage === 'account-read' ? 1 : 0,
       initialUpdate: stage === 'initial-snapshot' ? 'missing-once' : 'connect', initialAccountTimeoutMs: 5 });

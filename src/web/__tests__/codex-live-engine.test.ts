@@ -64,6 +64,38 @@ async function fixture({ saved = null as any, actual = A, readCredential = null 
     externalLogin: (id: string) => { account = { ...account, email: email(id) }; callbacks.onNotification({ method: 'account/updated' }); } };
 }
 describe('existing Codex session account engine', () => {
+  it.each(['before', 'account-read'] as const)('does not return renewed credentials when the control lease is lost at %s', async when => {
+    const f = await fixture(); await f.c.request({ id: A, revision: 1 });
+    if (when === 'before') f.lease.valid.mockResolvedValue(false);
+    else {
+      // Let the renewal read finish, but revoke this controller's lease before
+      // it can supply refreshed credentials to the shared native server.
+      const original = f.rpc.request.getMockImplementation()!;
+      f.rpc.request.mockImplementation(async (method, params) => {
+        if (method === 'account/read') f.lease.valid.mockResolvedValue(false);
+        return original(method, params);
+      });
+    }
+    await f.serverRequest({ id: 'renewal-lease', method: 'account/chatgptAuthTokens/refresh', params: { previousAccountId: 'first' } });
+    expect(f.sent.some(m => m.result?.accessToken)).toBe(false);
+    expect(f.c.status()).toMatchObject({ state: 'external_change', profileId: null, reason: 'native_control_lost' });
+  });
+
+  it('stops renewal when the control lease is replaced during a credential read', async () => {
+    let renewing = false;
+    const f = await fixture({ readCredential: async (id: string) => {
+      if (renewing) f.lease.valid.mockResolvedValue(false);
+      return f.credential(id);
+    } });
+    await f.c.request({ id: A, revision: 1 }); renewing = true;
+    await f.serverRequest({ id: 'renewal', method: 'account/chatgptAuthTokens/refresh', params: { previousAccountId: 'first' } });
+    expect(f.sent.some(m => m.result?.accessToken)).toBe(false);
+    expect(f.c.status()).toMatchObject({ state: 'external_change', reason: 'native_control_lost' });
+    expect(f.rpc.close).toHaveBeenCalledOnce();
+    await f.c.request({ id: B, revision: 2 }, true);
+    expect(f.calls.filter(c => c.method === 'account/login/start')).toHaveLength(1);
+  });
+
   it.each(['removed', 'unavailable'])('refuses a target profile made %s during credential reading before interrupting work', async state => {
     let release!: () => void;
     const gate = new Promise<void>(resolve => { release = resolve; });

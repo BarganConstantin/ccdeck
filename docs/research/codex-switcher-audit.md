@@ -138,3 +138,20 @@ No platform reported a failure. Typecheck and build passed on macOS; the
 build retained its existing large-chunk advisory. Linux's isolated container
 could not run the process-table stray-server guard. These tests do not switch
 authenticated provider accounts or mutate the owner's running sessions.
+
+
+## Fourth pass: renewal after losing the control lease
+
+A native credential-renewal callback did not validate the control lease before
+returning refreshed tokens. Two failing cases reproduced successful renewal
+after lease loss before the credential read or during the subsequent account
+read. The callback now verifies the lease before reading credentials and again
+before returning them, and pauses ownership if it has lost control. It returns
+only a fixed diagnostic error on the old request, never credentials or private
+provider text.
+
+Four additional cases cover lease loss at both boundaries, replacement during
+credential reading, and a late credential failure after an outside account
+change. The latter must not send an obsolete reply or overwrite the observed
+external-change state. The controller and ownership suites passed 100 cases
+locally; full integration CI validates the combined candidate before merge.
