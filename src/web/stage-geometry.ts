@@ -59,6 +59,10 @@ export const INSET_LEFT = 24;
 /** The lane after the last column, where xterm's scrollbar sits. */
 export const INSET_RIGHT = 20;
 export const INSET_X = INSET_LEFT + INSET_RIGHT;
+/** Workspace's pane: its text 14 in from the pane's edge, its first row 12
+ *  under the header, as V4 draws the pane (terminal-stage.css sets the 14). */
+export const WS_INSET_LEFT = 14;
+export const WS_TERM_TOP = 12;
 
 /** The navigator at tiles density: every name at 1:1 with its subagents. */
 export const NAV_MIN = 320;
@@ -261,13 +265,18 @@ function rememberedCols(stored: number, range: ColsRange): number {
  * remembered width is the Board's and is left alone, and the cell's width is
  * what decides (Workspace keeps the Inspector a column only while the pane
  * stays wide enough: detail-panel.css / workspace.css).
+ *
+ * The grid is not centred here: V4 sets the pane's text 14 in and its first
+ * row 12 under the header, so the columns are what fit after those 14 and the
+ * scrollbar's lane, and the rows are the Board's count, hung from the 12. What
+ * is left over goes below the last row, never above the first.
  */
 function fillGeometry(input: StageGeometryInput, appW: number, cellW: number, cellH: number, headH: number): StageGeometry {
-  const cols = Math.max(MIN_TAKEOVER_COLS, Math.floor((appW - INSET_X) / cellW));
+  const cols = Math.max(MIN_TAKEOVER_COLS, Math.floor((appW - WS_INSET_LEFT - INSET_RIGHT) / cellW));
   const barH = Math.max(BAR_H, finite(input.barH ?? BAR_H, BAR_H));
   const avail = Math.max(0, input.bodyH - headH - barH);
   const rows = Math.max(MIN_ROWS, Math.floor((avail - ROW_SLACK) / cellH));
-  const termTop = Math.max(6, Math.floor((avail - rows * cellH) / 2));
+  const termTop = WS_TERM_TOP;
   return {
     cols, rows, stageW: appW, navW: 0, density: "rail", takeover: false, headH, termTop,
     range: { min: cols, max: cols, detents: [] }, fill: true,

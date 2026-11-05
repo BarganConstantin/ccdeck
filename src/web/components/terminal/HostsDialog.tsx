@@ -20,7 +20,7 @@ import { shortAgo } from "../../relative-time";
 import { Dialog, DialogClose } from "../Dialog";
 import { useModalDismiss, useScrimDismiss } from "../use-modal-dismiss";
 import { endAllLabel, hostReason, hostsConsequences, type HostsView } from "./older-hosts";
-import { agentName, folderName } from "./stage-model";
+import { agentShortName, folderName } from "./stage-model";
 import { t, useT } from "../../i18n";
 
 export interface HostsReviewProps {
@@ -52,7 +52,7 @@ export function HostsReview(p: HostsReviewProps) {
           {sessions.map(s => (
             <li key={s.id}>
               <b>{s.name}</b>
-              <span>{t("board.hosts.row", { agent: agentName(s.agent), folder: folderName(s.cwd), ago: shortAgo(p.now - s.started) })}</span>
+              <span>{t("board.hosts.row", { agent: agentShortName(s.agent), folder: folderName(s.cwd), ago: shortAgo(p.now - s.started) })}</span>
             </li>
           ))}
         </ul>

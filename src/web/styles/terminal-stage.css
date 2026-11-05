@@ -192,10 +192,11 @@
 /* ── the body: the terminal, or the card that stands in for it ───────────── */
 
 .ts-body { position: relative; flex: 1 1 auto; min-height: 0; overflow: hidden; }
-/* What the body is behind a state (V4's Term pane states): in Workspace the pane
-   is --sunken, beside the board --bg. Only while a state speaks: the terminal's
-   own frame (xterm, drawn on --panel) keeps the body it always had around it. */
-.ts-stage[data-fill] .ts-body:not([data-frame]) { background: var(--sunken); }
+/* What the body is (V4's Term pane and its states): in Workspace the whole pane
+   is --sunken, the terminal's frame included (xterm draws on --sunken there,
+   terminal-palette.ts). Beside the board a state speaks on --bg, and the frame
+   (xterm on --panel) keeps the body it always had around it. */
+.ts-stage[data-fill] .ts-body { background: var(--sunken); }
 .ts-stage:not([data-fill]) .ts-body:not([data-frame]) { background: var(--bg); }
 /* Hidden, never removed: the one terminal lives in here for the stage's whole
    life. Leaving takes 70ms; arriving fades in once the seed is drawn. */
@@ -207,6 +208,10 @@
   opacity: 0;
   transition: opacity 70ms linear, visibility 0s linear 70ms;
 }
+/* Workspace's pane sets its text 14 in from the pane's edge, as V4 draws it
+   (stage-geometry.ts WS_INSET_LEFT); its first row sits 12 under the header
+   (WS_TERM_TOP, through --ts-term-top). */
+.ts-stage[data-fill] .ts-host { left: 14px; }
 .ts-host[data-shown] {
   visibility: visible;
   opacity: 1;

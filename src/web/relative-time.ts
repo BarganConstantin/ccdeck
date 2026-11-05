@@ -63,8 +63,10 @@ export function shortAgo(ms: number): string {
 }
 
 /**
- * "3h 43m" / "6d 21h" / "12m" — how long until a quota window resets, or null
- * once it already has.
+ * "3h 43m" / "2h 09m" / "6d 21h" / "12m" — how long until a quota window
+ * resets, or null once it already has. The minutes take two digits once an
+ * hour leads them, as V4 draws every reset, so the rail's meter, the Usage
+ * panel and the accounts say one reset the same way.
  *
  * Recomputed client-side from a tick rather than served as a string, so it can
  * never show a countdown the server calculated minutes ago.
@@ -88,7 +90,7 @@ export function resetCountdown(resetAtSec: number, nowSec: number): string | nul
   const h = Math.floor((diff % 86400) / 3600);
   const m = Math.floor((diff % 3600) / 60);
   if (d > 0) return t("common.time.dh", { d, h });
-  return h > 0 ? t("common.time.hm", { h, m }) : t("common.time.m", { m });
+  return h > 0 ? t("common.time.hm", { h, m: String(m).padStart(2, "0") }) : t("common.time.m", { m });
 }
 
 /** Same local calendar day — the user's own day, in the browser's zone, which

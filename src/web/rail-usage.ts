@@ -8,7 +8,7 @@
 // that failed, the numbers are drawn in --muted and the second line names the
 // age instead of passing them off as now. The click opens the Usage panel.
 import { quotaPctText } from "./components/QuotaBar";
-import { elapsedShort } from "./elapsed-short";
+import { agoShort } from "./elapsed-short";
 import { resetCountdown } from "./relative-time";
 import type { MeterQuota } from "./use-quota";
 import { t } from "./i18n";
@@ -35,7 +35,7 @@ export interface UsageMeter {
   stale: boolean;
   /** "read 12m ago" when stale, else null. */
   readAgo: string | null;
-  /** "Resets in 2h 9m", from the panel's own countdown; null without a reset. */
+  /** "Resets in 2h 09m", from the panel's own countdown; null without a reset. */
   reset: string | null;
   /** "7-day 31%"; null while the source sent no 7-day reading. */
   week: string | null;
@@ -103,7 +103,7 @@ export function usageMeter(held: MeterQuota | null | undefined, nowMs: number, a
   const name = alias?.trim() || quota.planLabel || null;
   const reset = countdown ? t("accounts.row.resetsIn", { time: countdown }) : null;
   const week = weekPct != null ? t("board.meter.week", { pct: quotaPctText(weekPct) }) : null;
-  const readAgo = stale ? t("board.meter.readAgo", { ago: elapsedShort(held!.readAt, undefined, nowMs) }) : null;
+  const readAgo = stale ? t("board.meter.readAgo", { ago: agoShort(held!.readAt, undefined, nowMs) }) : null;
   const spoken = t("board.meter.spoken", {
     parts: [name, t("board.meter.fiveHour", { pct: pctText }), countdown && t("usage.quota.resetsIn", { time: countdown }), week, stale && t("board.meter.lastRead", { ago: minutesAgo(age) })]
       .filter(Boolean).join(", "),

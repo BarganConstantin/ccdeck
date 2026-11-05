@@ -135,21 +135,27 @@
 }
 :root[data-motion="instant"] .ts-stage[data-fill][data-empty] .ts-card { transition: none; }
 
-/* The empty pane's words (Figma, "Empty workspace"). */
+/* The empty pane's words (Figma, "Empty workspace"). Someone waiting is one
+   row: the waiting glyph, 8 before who waits, then how long, 12 after. */
 .ts-ws-empty { gap: 8px; }
 .ts-ws-title { margin: 0; font-size: 14px; font-weight: 600; line-height: 20px; color: var(--text); }
-.ts-ws-head { display: flex; align-items: baseline; gap: 12px; }
-.ts-ws-wait { font: 500 13px/20px var(--font-mono); font-variant-numeric: tabular-nums; color: var(--warn); }
+.ts-ws-head { display: flex; align-items: baseline; gap: 8px; }
+.ts-ws-head > .ts-glyph { align-self: center; }
+.ts-ws-wait { margin-left: 4px; font: 500 13px/20px var(--font-mono); font-variant-numeric: tabular-nums; color: var(--warn); }
 .ts-ws-ask { margin: 0; font-size: 12px; line-height: 16px; color: var(--muted); }
-.ts-ws-ask code { font: 400 13px/16px var(--font-mono); color: var(--text); }
+/* The command in the ask's own tone, as V4 sets it: mono on the 20 line. */
+.ts-ws-ask code { font: 400 13px/20px var(--font-mono); color: var(--muted); }
 /* One button, the kit's .btn (its edge and states are the swept ones):
-   "Open <name>", then its key chip, as V4 draws it. */
+   "Open <name>", then its key chip, as V4 draws it: on the panel's fill with
+   the label in --text, the kit's height kept. Hover is the kit's own. */
 .btn.ts-ws-open {
   display: inline-flex;
   align-items: center;
   gap: 8px;
   margin-top: 4px;
   padding: 0 4px 0 8px;
+  background: var(--panel);
+  color: var(--text);
   font-size: 13px;
   font-weight: 500;
   line-height: 20px;

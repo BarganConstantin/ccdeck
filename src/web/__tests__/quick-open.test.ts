@@ -315,7 +315,9 @@ describe("a session's line", () => {
   const row = (o: Partial<Row>) => ({ state: "active" as const, label: "fix login", cwdBasename: "api", waiting: null, ...o });
 
   it("says who needs you first, in the words its card uses, and where it runs", () => {
-    expect(sessionLine(row({ waiting: { kind: "permission", since: 40_000 } as Row["waiting"] }), 100_000)).toEqual({ line: "Needs you · 1m · api", tone: "waiting" });
+    // CHANGED ON PURPOSE: a wait reads to the second under an hour wherever
+    // the deck prints it, as V4 draws it ("6m 42s"); "1m" before.
+    expect(sessionLine(row({ waiting: { kind: "permission", since: 40_000 } as Row["waiting"] }), 100_000)).toEqual({ line: "Needs you · 1m 00s · api", tone: "waiting" });
     expect(sessionLine(row({}), 100_000)).toEqual({ line: "Working · api", tone: "active" });
     expect(sessionLine(row({ state: "err" }), 100_000)).toEqual({ line: "Failed · api", tone: "err" });
     expect(sessionLine(row({ state: "done", waiting: { kind: "idle", since: 0 } as Row["waiting"] }), 100_000)).toEqual({ line: "Done · api", tone: "done" });

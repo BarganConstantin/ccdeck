@@ -291,7 +291,9 @@ describe("the report, drawn", () => {
   it("names whose reset comes next on the line, since each account keeps its own window", () => {
     // "Resets in 25m" under 88% remaining read as the whole window coming back.
     const out = html([acct(1, 12, 10, { alias: "work" }, [NOW + HOUR]), acct(2, 10, 10, {}, [NOW + 3 * HOUR])]);
-    expect(out).toContain('<p class="ap-report-reset" title="First: work (12% used)"><span>Next reported reset in <span class="ap-report-num">1h 0m</span></span><span aria-hidden="true">·</span><span class="ap-report-who">work</span><span class="vis-hidden">. First: work (12% used)</span></p>');
+    // CHANGED ON PURPOSE: "1h 00m", the countdown's minutes padded once an
+    // hour leads them, as V4 draws every reset; it read "1h 0m" before.
+    expect(out).toContain('<p class="ap-report-reset" title="First: work (12% used)"><span>Next reported reset in <span class="ap-report-num">1h 00m</span></span><span aria-hidden="true">·</span><span class="ap-report-who">work</span><span class="vis-hidden">. First: work (12% used)</span></p>');
     // CHANGED ON PURPOSE (V4's Figma): the rows' second lines now say "Resets
     // in", so the cards above the table are what this checks.
     expect(out.slice(0, out.indexOf("<table"))).not.toMatch(/>Resets in /);

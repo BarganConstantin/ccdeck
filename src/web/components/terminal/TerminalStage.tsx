@@ -42,9 +42,12 @@ import {
 import {
   agentName,
   canType as phaseTakesKeys,
+  frameState,
   headerStatus,
+  onItsWay,
   spineLive,
   stageAnnouncement,
+  type FrameState,
   type KeysOwner,
   type StagePhase, type StagePhaseKind,
   type StageStatus,
@@ -349,7 +352,9 @@ export default function TerminalStage(p: TerminalStageProps) {
     change: p.show.kind === "session" ? `${p.show.session.promptCount ?? 0}:${p.show.session.status.state}` : "",
   });
   useEffect(() => { if (chatSession === null) setView("term"); }, [chatSession]);
-  const theme = useMemo(() => terminalTheme(p.readToken), [p.readToken]);
+  // Workspace's pane is sunken (V4), the terminal with it; beside the board it
+  // stays on the panel.
+  const theme = useMemo(() => terminalTheme(p.readToken, workspace ? "--sunken" : "--panel"), [p.readToken, workspace]);
   const fontFamily = useMemo(() => p.readToken(TERMINAL_FONT_TOKEN).trim() || "monospace", [p.readToken]);
   const chordLabel = useMemo(() => releaseChordLabel(platformName()), []);
 
@@ -367,6 +372,11 @@ export default function TerminalStage(p: TerminalStageProps) {
     windows: p.windows,
   });
   const { phase } = session;
+  // The host's frame from one render to the next, followed as StageBody
+  // follows it: the keys bar is not drawn while the pane is only on its way.
+  const frameRef = useRef<FrameState>("hidden");
+  const frame = frameState(frameRef.current, phase);
+  useEffect(() => { frameRef.current = frame; });
 
   const board = p.show.kind === "session" ? p.show.session.status : null;
   const status = headerStatus(board, phase);
@@ -564,7 +574,7 @@ export default function TerminalStage(p: TerminalStageProps) {
         notice={notice}
         firstRun={p.firstRun}
         workspace={workspace}
-        paneless={p.show.kind === "empty" || PANELESS.has(phase.kind)}
+        paneless={p.show.kind === "empty" || PANELESS.has(phase.kind) || onItsWay(phase, frame)}
         onFirstRunDone={p.onFirstRunDone}
         onTypeHere={session.focus}
         end={end}
