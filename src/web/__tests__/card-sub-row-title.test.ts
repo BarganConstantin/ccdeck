@@ -37,13 +37,17 @@ describe("the card's second row", () => {
     expect(body(".agent-node .task-line")).toMatch(/text-overflow:\s*ellipsis;/);
   });
 
+  // CHANGED ON PURPOSE (V4's Agent / Card): a subagent whose spawning call gave
+  // it a description shows that description on the line; the kind, folder and
+  // model it no longer draws stay in the tooltip, under the description.
   it("carries its whole text on hover", () => {
-    expect(node).toContain('<div className="task-line" title={subRowTitle(data, t)}>');
+    expect(node).toContain('<div className="task-line" title={spawnTask ? `${spawnTask}\\n${subRowTitle(data, t)}` : subRowTitle(data, t)}>');
   });
 
+  // CHANGED ON PURPOSE (V4's Agent / Card): the model's family is in lowercase.
   it("says a subagent's kind, folder and model, in the order the row draws them", () => {
     expect(subRowTitle(card({ kind: "subagent", cwdBasename: "shop-api-auth", model: "claude-sonnet-5-5" })))
-      .toBe("subagent · shop-api-auth · Sonnet 5.5");
+      .toBe("subagent · shop-api-auth · sonnet 5.5");
   });
 
   it("says how many a session started, and the models its spend covers past the current one", () => {
@@ -56,7 +60,7 @@ describe("the card's second row", () => {
     });
     // A session's folder is its name on the row above, so the row leaves it out
     // and so does its tooltip.
-    expect(subRowTitle(root)).toBe("session · → 2 · Opus 5.5 +1");
+    expect(subRowTitle(root)).toBe("session · → 2 · opus 5.5 +1");
   });
 
   it("names Codex where a Codex session has no model yet, and nothing where a Claude one has none", () => {

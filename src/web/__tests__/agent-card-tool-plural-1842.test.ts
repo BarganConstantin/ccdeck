@@ -3,6 +3,10 @@
 // The meta row printed its count before a fixed plural. The session list
 // (#1810), the peek and the card's own accessible name already say "1 tool";
 // the card's visible text now says it the same way.
+//
+// CHANGED ON PURPOSE (V4's Agent / Card): the foot no longer prints the count
+// in words. It is said where the foot's tool icons are hovered, with the same
+// plural the accessible name uses, so that is where "1 tool" is pinned now.
 import { describe, it, expect } from "vitest";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
@@ -30,19 +34,24 @@ function meta(data: AgentNodeData): string {
   const html = renderToStaticMarkup(createElement(ReactFlowProvider, null,
     // NodeProps carries more than the card reads; only data and selected matter here.
     createElement(AgentNode as any, { id: data.id, data, selected: false })));
-  const m = html.match(/<div class="foot">(.*?)<\/div>/);
+  // Across lines: the tool icons' tooltip holds a line break.
+  const m = html.match(/<div class="foot">([\s\S]*?)<\/div>/);
   expect(m).not.toBeNull();
   return m![1];
 }
 
+/** The last line of the foot's tool icons' tooltip: the call count. */
+function countLine(data: AgentNodeData): string | undefined {
+  return /<span class="foot-tools" title="([^"]*)"/.exec(meta(data))?.[1].split("\n").at(-1);
+}
+
 describe("the agent card's tool count (#1842)", () => {
   it("says one tool, not one tools", () => {
-    const row = meta(agent(1));
-    expect(row).toContain("<span><b>1</b> tool</span>");
-    expect(row).not.toContain("<b>1</b> tools");
+    expect(countLine(agent(1))).toBe("1 tool");
+    expect(meta(agent(1))).not.toMatch(/\btools?\b<\/span>/);
   });
 
   it("still says tools for more than one", () => {
-    expect(meta(agent(2))).toContain("<span><b>2</b> tools</span>");
+    expect(countLine(agent(2))).toBe("2 tools");
   });
 });

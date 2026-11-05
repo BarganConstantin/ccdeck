@@ -18,7 +18,7 @@ import {
 } from "../card-row-squeeze";
 // The card's words — its state, a block's sentence and label — which the
 // session list, the peek and the topbar say too. See agent-copy.ts.
-import { agentKindLabel, categoryLabel, spawnBadgeTitle, subRowTitle, waitingLabel, waitingSentence } from "../agent-copy";
+import { agentKindLabel, blockedToolTooltip, categoryLabel, spawnBadgeTitle, subRowTitle, waitingLabel, waitingSentence } from "../agent-copy";
 import { isAlarming } from "../ambient-counts";
 // The card's token count, which used to be a private three-tier `fmtTok` here —
 // byte-identical to the two copies #323 deleted, and the fourth one it missed
@@ -35,8 +35,7 @@ import { ContextDonut } from "./ContextModal";
 import type { AgentNodeData, PlanItem, WaitingBlock } from "../types";
 import { useNow } from "../use-now";
 import { useLanguage, useT } from "../i18n";
-import { boardNote, noteTag } from "../session-note";
-import { toggleRecapDismissed, useRecapDismissed } from "../recap-note";
+import { promptLine } from "../session-note";
 import { cardState, drawnState, faceSignal, stateMarkKind, type BranchSummary, type CardState, type StateMarkKind } from "../node-face";
 // The agent's own checklist, as one line (#2157). See agent-plan.ts.
 import { planSummary, planTitle, type PlanSummary } from "../agent-plan";
@@ -46,7 +45,6 @@ import { recentToolKinds, TOOL_KIT_ICON } from "../card-tool-icons";
 import { AlertMark, StateMark } from "./StateMark";
 import { KitIcon, KitStateGlyph, type KitStateName } from "./kit-icons";
 import { CostChipTip } from "./CostTip";
-import { NoteMark } from "./RecapMark";
 // The words for a turn that stopped on an error. See stop-failure-copy.ts.
 import { stopRowLabel, stopTooltip } from "../stop-failure-copy";
 import type { StopFacts } from "../../server/stop-failure.mjs";
@@ -99,8 +97,9 @@ export function AgentCard({ data, handles = false }: { data: CardData; handles?:
   // nowhere on the canvas. The card counts them instead, and the count does not
   // expire: the lifetime count (#1809) the detail panel reads, not the failures
   // still inside the 200-call window `tools` keeps, which forgot a long
-  // session's early ones. Silent at zero, like the in-flight count: a session
-  // with nothing wrong says nothing.
+  // session's early ones. V4's foot has no words for it, so the count is said
+  // where the foot's tool icons are hovered, beside the call count, and in the
+  // card's accessible name; the Inspector prints both.
   const failed = data.toolErrorCount ?? 0;
   const hue = sessionHue(data.canvasSessionId ?? data.sessionId);
   const currentContextTokens = data.context?.currentContextTokens ?? 0;
@@ -194,20 +193,16 @@ export function AgentCard({ data, handles = false }: { data: CardData; handles?:
   // carry an agent-name and 4.1% carry an ai-title, and not one of them
   // carries a name without a title. See session-display.ts for the sweep.
   const naming = sessionDisplay(data.sessionName, data.sessionTitle);
-  // What the session's note says — what it is doing, what came of it, or
-  // Claude Code's recap once that arrives — and the plan on it, or null when it
-  // says nothing. A note can hold the plan alone. See session-note.ts for the
-  // whole rule.
-  const board = boardNote(data);
-  const note = board?.note ?? null;
-  // The note opens by itself the moment there is one, and stays shut once it
-  // has been closed — for THAT note: a recap, or one turn's line of one kind;
-  // the next one opens again. Asked of every card, because a hook cannot wait
-  // for the note (recap-note.ts).
-  const noteKey = board ? board.key : null;
-  const noteDismissed = useRecapDismissed(noteKey);
-  const noteOpen = board != null && !noteDismissed;
-  const isRecap = note?.kind === "recap";
+  // A root's task line (V4's Agent / Card): the name or the title, and the
+  // session's first prompt before Claude Code has given it either, which is
+  // most sessions and every Codex one. The prompt's first line on the face,
+  // as much of it as the deck keeps on hover.
+  const promptFace = data.firstPrompt ? promptLine(data.firstPrompt) : "";
+  const rootTask = naming.face
+    ? { face: naming.face, tooltip: naming.tooltip }
+    : promptFace ? { face: promptFace, tooltip: data.firstPrompt } : null;
+  // What the call that started a subagent said it is for (subagent-lifecycle.ts).
+  const spawnTask = data.spawnCall?.description;
   // The cost slot at the end of the meta row, decided once (card-cost.ts).
   const cost = costChip(data);
   // The kinds of tool the session used, for the foot's icons.
@@ -223,12 +218,12 @@ export function AgentCard({ data, handles = false }: { data: CardData; handles?:
   // foot has to be measured again by the card itself.
   const [, setFootBeat] = useState(0);
   const tokenTotal = data.usage.inputTokens + data.usage.outputTokens;
-  const present = { tokens: tokenTotal > 0, inflight: inflight > 0, tools: true };
+  const present = { tokens: tokenTotal > 0, inflight: inflight > 0 };
   const footMax = footDroppable(present).length;
   const dropped = footDropped(footNotch, present);
   const footKey = [
     cost ? `${cost.kind}:${cost.kind === "spent" ? fmtCost(cost.total) + (cost.floor ? "+" : "") : ""}` : "",
-    data.toolCount, data.toolErrorCount ?? 0, inflight, fmtTokens(tokenTotal), data.childCount, data.synthetic ? 1 : 0,
+    toolKinds.join(","), inflight, fmtTokens(tokenTotal), data.childCount, data.synthetic ? 1 : 0,
   ].join("|");
   useBeforePaint(() => { setFootNotch(0); }, [footKey]);
   useBeforePaint(() => {
@@ -302,7 +297,7 @@ export function AgentCard({ data, handles = false }: { data: CardData; handles?:
 
       {/* THE TASK LINE (V4's Agent / Card): one line of what the card is for, in
           the secondary ink, cut with an ellipsis and carrying its whole text on
-          hover. No new data — it is the two rows it replaces.
+          hover.
 
           A root says what Claude Code calls the session: the NAME when it has
           one, the TITLE when it does not, the same line either way. #520 drew
@@ -312,26 +307,28 @@ export function AgentCard({ data, handles = false }: { data: CardData; handles?:
           id: both records are rewritten as the session moves and two sessions
           can hold the same one, so this is a description, not an address — the
           short id in the cluster header stays the thing that still means this
-          node in five minutes. ABSENT rather than empty when there is neither:
-          a Codex rollout carries no such record and a young Claude session has
-          not been given one yet.
+          node in five minutes. Without either (a Codex rollout carries no such
+          record and a young Claude session has not been given one yet) it is
+          the first prompt, and ABSENT rather than empty when there is none.
 
           A subagent has neither record (copying the parent's naming onto every
           child would print the same string five times on one canvas), so it
-          says what it is: the kind word and the folder it works in, as the row
-          this replaces drew them, with the whole row — kind, count, folder and
-          model — on hover. A Codex child session is a root with a parent, and
-          agentKindLabel names it "child session": it draws that word the same
-          way. The kind word of an ordinary root is not drawn (its edge, its
-          tooltip and the card's accessible name already say it). */}
-      {data.kind === "root" && naming.face && (
-        <div className="task-line" title={naming.tooltip}>
-          {naming.face}
+          says what the call that started it said it is for: the Task or Agent
+          call's description. When no such call reached the deck it says what
+          it is, the kind word and the folder it works in. The whole row — kind,
+          count, folder and model — is on hover either way. A Codex child
+          session is a root with a parent, and agentKindLabel names it "child
+          session": it draws that word the same way. The kind word of an
+          ordinary root is not drawn (its edge, its tooltip and the card's
+          accessible name already say it). */}
+      {data.kind === "root" && rootTask && (
+        <div className="task-line" title={rootTask.tooltip}>
+          {rootTask.face}
         </div>
       )}
-      {!(data.kind === "root" && naming.face) && agentKindLabel(data, t) !== "session" && (
-        <div className="task-line" title={subRowTitle(data, t)}>
-          {agentKindLabel(data, t)}{data.cwdBasename ? ` · ${data.cwdBasename}` : ""}
+      {!(data.kind === "root" && rootTask) && agentKindLabel(data, t) !== "session" && (
+        <div className="task-line" title={spawnTask ? `${spawnTask}\n${subRowTitle(data, t)}` : subRowTitle(data, t)}>
+          {spawnTask || `${agentKindLabel(data, t)}${data.cwdBasename ? ` · ${data.cwdBasename}` : ""}`}
         </div>
       )}
 
@@ -388,14 +385,20 @@ export function AgentCard({ data, handles = false }: { data: CardData; handles?:
       })()}
 
       {/* THE FOOT (V4): up to three icons for the tool kinds the session used,
-          latest first, then cost · time, then the figures that stay (tools,
-          errors, in-flight, tokens), a spacer, and at the end the sub-agent
-          count with its icon and the recap pin. Items are separated by a dot,
-          and the row stays one line by dropping meta items (see .foot). The
-          icons replace the activity sparkline: same calls, said as kinds. */}
+          latest first, then cost · time, then the figures that stay (in-flight,
+          tokens), a spacer, and at the end the sub-agent count with its icon.
+          Items are separated by a dot, and the row stays one line by dropping
+          meta items (see .foot). The icons replace the activity sparkline: same
+          calls, said as kinds, and their tooltip says how many calls and how
+          many failed, which the foot no longer prints. No recap pin: the note
+          opens by itself, its × puts it away, and the Inspector's Recap section
+          reads it whole. */}
       <div className="foot" ref={footRef}>
         {toolKinds.length > 0 && (
-          <span className="foot-tools" title={toolKinds.map(k => categoryLabel(k, t)).join(" · ")}>
+          <span className="foot-tools" title={[
+            toolKinds.map(k => categoryLabel(k, t)).join(" · "),
+            t("board.toolCount", { count: data.toolCount }) + (failed > 0 ? t("board.listSep") + t("board.failedCount", { n: failed }) : ""),
+          ].join("\n")}>
             {toolKinds.map(k => <KitIcon key={k} name={TOOL_KIT_ICON[k]} />)}
           </span>
         )}
@@ -419,14 +422,6 @@ export function AgentCard({ data, handles = false }: { data: CardData; handles?:
             : t("board.node.started", { time: new Date(data.startedAt).toLocaleTimeString(language) })}>
             {data.synthetic ? "≥ " : ""}<Elapsed start={data.startedAt} end={data.endedAt} />
           </span>,
-          // One tool, as the session list and the card's own label say it
-          // (#1842).
-          !dropped.has("tools") && <span key="tools"><b>{data.toolCount}</b> {t("board.meta.tools", { count: data.toolCount })}</span>,
-          failed > 0 && (
-            <span key="failed" className="failed-meta" title={t("board.meta.errTitle", { count: failed })}>
-              <b>{failed}</b> {t("board.meta.err")}
-            </span>
-          ),
           inflight > 0 && !dropped.has("inflight") && <span key="inflight" className="inflight-meta"><b>{inflight}</b> {t("board.meta.inflight")}</span>,
           tokenTotal > 0 && !dropped.has("tokens") && (
             <span key="tokens" className="tokens-meta" title={`${t("board.meta.tokensTitle", { input: data.usage.inputTokens, output: data.usage.outputTokens, cacheR: data.usage.cacheReadTokens, cacheC: data.usage.cacheCreateTokens })}${(data.usage.reasoningOutputTokens ?? 0) > 0 ? `  ${t("board.meta.reasoning", { n: data.usage.reasoningOutputTokens ?? 0 })}` : ""}`}>
@@ -434,37 +429,14 @@ export function AgentCard({ data, handles = false }: { data: CardData; handles?:
             </span>
           ),
         ])}
-        {(data.childCount > 0 || (board && noteKey)) && (
+        {data.childCount > 0 && (
           <span className="foot-end">
-            {data.childCount > 0 && (
-              <span className="spawn-badge" title={spawnBadgeTitle(data.childCount, t)}>{data.childCount}<KitIcon name="agents" /></span>
-            )}
-            {/* Claude Code's ※, in the session's colour, beside the name: the
-                card's own mark that a recap is there, and the switch for its
-                note. The note opens by itself, so this is how it is put away
-                and brought back. The click stops here, so it does not also
-                select the card. */}
-            {board && noteKey && (
-              <button
-                type="button"
-                className="glyph-btn recap-pin"
-                aria-label={isRecap ? t("board.node.recapLabel") : note ? t("board.node.noteLabel", { tag: noteTag(note.kind) }) : t("board.node.notePlan")}
-                aria-expanded={noteOpen}
-                data-open={noteOpen ? "" : undefined}
-                title={isRecap
-                  ? (noteOpen ? t("board.node.hideRecap") : t("board.node.showRecap"))
-                  : note
-                    ? (noteOpen ? t("board.node.hideNote") : t("board.node.showNote"))
-                    : (noteOpen ? t("board.node.hidePlan") : t("board.node.showPlan"))}
-                onClick={e => { e.stopPropagation(); toggleRecapDismissed(noteKey); }}
-              ><NoteMark recap={isRecap} /></button>
-            )}
-
+            <span className="spawn-badge" title={spawnBadgeTitle(data.childCount, t)}>{data.childCount}<KitIcon name="agents" /></span>
           </span>
         )}
       </div>
 
-      <NodeFace data={data} title={data.kind === "root" ? naming.face : undefined} />
+      <NodeFace data={data} title={data.kind === "root" ? rootTask?.face : undefined} />
 
       {handles && <Handle type="source" position={Position.Right} style={{ background: "transparent", border: "none" }} />}
     </div>
@@ -588,54 +560,45 @@ function StateLine({ state, under }: { state: CardState; under: StateMarkKind })
 /** The turn stopped on an error: which one, in the row's words, with what
  *  Claude Code said and what to do in the tooltip. The card's accessible name
  *  carries the same (agentAriaLabel), which is where a reader on the node hears
- *  it — a title is not announced there. The still dot is the waiting row's:
- *  nothing here is still happening. A background session's row carries its
- *  Continue button at the end (#2193); an interactive one's says to type
- *  "continue" in its terminal. */
+ *  it — a title is not announced there. Text alone in the failure's hue, with
+ *  no dot (V4's Agent / Card): the head's Failed mark already marks it. A
+ *  background session's row carries its Continue button at the end (#2193); an
+ *  interactive one's says to type "continue" in its terminal. */
 function StopRow({ data, stop }: { data: AgentNodeData; stop: StopFacts }) {
   const t = useT();
   return (
     <div className="stop-row" title={stopTooltip(stop, data.job != null, t)} data-kind={stop.kind}>
-      <span className="waiting-dot" aria-hidden />
       <span className="stop-said">{stopRowLabel(stop, t)}</span>
       <CardContinue data={data} />
     </div>
   );
 }
 
-/** The session is blocked on a human — and on which of the two chores that is.
- *  A dot alone would not carry it: a permission prompt is a decision a session
- *  cannot proceed without, an idle prompt is a finished turn waiting for your
- *  next instruction, and those are not the same errand. So the sentence carries
- *  it and the dot reinforces it (the hue is one --warn for both, V4's one
- *  Waiting colour) — and only the permission variant pings: a stalled session is
- *  interrupt-driven and rare, which is the case a pulse is for, and a session
- *  that finished and is resting is neither. The
- *  ping is .ap-pulse, the emitter the accounts panel
- *  already uses, so the app keeps one idiom for "still asking" and one
- *  reduced-motion answer for it. */
+/** What the session is waiting on, as V4's Agent / Card draws it: one mono line
+ *  in the Waiting colour, with no dot and no clock (the head's alert mark says
+ *  it is waiting, the foot's clock says for how long). A permission prompt reads
+ *  as the call it is most likely about — "Bash · npm test -- rate-limit", the
+ *  same line the session list draws — and as Claude Code's sentence when the
+ *  stream implied no call. A question reads as the question, and an idle prompt
+ *  as "Your turn". The tooltip keeps Claude Code's own sentence, the hedge on
+ *  the guess (blockedToolTooltip) and how long it has been blocked. */
 function WaitingRow({ waiting }: { waiting: WaitingBlock }) {
   const t = useT();
-  // Its own beat (#873): "blocked for 3m" counts up while the card sits still.
+  // Its own beat (#873): the tooltip's "blocked for 3m" counts up while the
+  // card sits still.
   const now = useNow(1000);
-  // The amber is every waiting card's (V4 has one Waiting colour).
-  // The pulse belongs to a session that is STOPPED until a human answers,
-  // which is both `permission` and `asked` — the same set `isAlarming` names,
-  // and it has to stay the same set or the card would contradict the topbar
-  // chip beside it. Idle keeps the quiet dot: a finished turn is not an
-  // interruption.
-  const alarming = isAlarming(waiting);
   const said = waitingSentence(waiting, t);
+  const tool = waiting.kind === "asked" ? undefined : waiting.tool;
+  const title = [
+    said,
+    blockedToolTooltip(waiting, said, t),
+    t("board.node.blockedFor", { time: elapsed(waiting.since, undefined, now) }),
+  ].filter(Boolean).join("\n");
   return (
-    <div
-      className="waiting-row"
-      title={`${said}\n${t("board.node.blockedFor", { time: elapsed(waiting.since, undefined, now) })}`}
-    >
-      {alarming
-        ? <span className="ap-pulse" aria-hidden />
-        : <span className="waiting-dot" aria-hidden />}
-      <span className="waiting-said">{waitingLabel(waiting, t)}</span>
-      <b>{elapsed(waiting.since, undefined, now)}</b>
+    <div className="waiting-row" title={title}>
+      <span className="waiting-said">
+        {tool ? (tool.preview ? `${tool.name} · ${tool.preview}` : tool.name) : waitingLabel(waiting, t)}
+      </span>
     </div>
   );
 }

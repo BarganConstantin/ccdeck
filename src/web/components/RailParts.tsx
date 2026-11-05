@@ -143,16 +143,18 @@ export function RailRow({ row: r, group, now, selected, removed, leaving, landNo
               <span className="sl-name">
                 <span className="sl-label">{r.label}</span>
                 {r.modelId && <span className="sl-model" title={modelChipTitle(r.modelId, r.effort)}>{modelChipText(r.modelId, r.effort)}</span>}
-                {/* Words, in the row's name: the press on this row does something different. */}
-                {removed && <span className="sl-model">{t("board.rail.offBoard")}</span>}
               </span>
               {time && <span className={`sl-time ${time.tone}`}><span className="vis-hidden">{time.spoken}</span>{time.text}</span>}
             </span>
-            {line && (
-              <span className={`sl-line2 ${line.kind === "sans" ? "sans" : "mono"}`}>
-                {line.kind === "tool"
+            {(line || removed) && (
+              <span className={`sl-line2 ${line?.kind === "sans" ? "sans" : "mono"}`}>
+                {/* Words, leading the second line, so the name keeps the first
+                    line whole: the press on this row does something different. */}
+                {removed && <span className="sl-off">{t("board.rail.offBoard")}</span>}
+                {removed && line ? " · " : ""}
+                {line && (line.kind === "tool"
                   ? <><b className="sl-tool">{line.name}</b>{line.rest ? ` · ${line.rest}` : ""}</>
-                  : line.text}
+                  : line.text)}
               </span>
             )}
           </span>

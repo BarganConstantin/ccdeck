@@ -452,6 +452,9 @@ describe("what was migrated to the secondary tier", () => {
       // stands alone now, under the mouse query, so it ends a line of its own.
       ".session-list .sl-row.selected .sl-model",
       ".session-list .sl-row:hover .sl-model",
+      // The words leading a removed row's second line, in the tool name's tier
+      // beside it: what pressing this row does differently.
+      ".session-list .sl-off",
       ".session-list .sl-time.quiet",
       ".session-list .sl-tool",
       // Rail / Usage: "5-hour limit" beside the account's name, the one

@@ -25,19 +25,22 @@ const modal = readFileSync(
 );
 
 describe("the shared model label", () => {
+  // CHANGED ON PURPOSE (V4's Agent / Card): the Claude family is written in
+  // lowercase ("sonnet 4.5") on every surface the shared label reaches; the
+  // version and what each id reads as are unchanged.
   it("reads a dated Claude id as family and version, without the date", () => {
-    expect(shortModel("claude-sonnet-4-5-20250929")).toBe("Sonnet 4.5");
-    expect(shortModel("claude-opus-4-7-20250101")).toBe("Opus 4.7");
+    expect(shortModel("claude-sonnet-4-5-20250929")).toBe("sonnet 4.5");
+    expect(shortModel("claude-opus-4-7-20250101")).toBe("opus 4.7");
   });
 
   it("keeps a version that is not a date", () => {
-    expect(shortModel("claude-haiku-4-5")).toBe("Haiku 4.5");
-    expect(shortModel("claude-opus-4")).toBe("Opus 4");
+    expect(shortModel("claude-haiku-4-5")).toBe("haiku 4.5");
+    expect(shortModel("claude-opus-4")).toBe("opus 4");
   });
 
   it("reads a Bedrock id as the same label as the plain one", () => {
-    expect(shortModel("anthropic.claude-sonnet-4-5-20250929-v1:0")).toBe("Sonnet 4.5");
-    expect(shortModel("anthropic.claude-haiku-4-5")).toBe("Haiku 4.5");
+    expect(shortModel("anthropic.claude-sonnet-4-5-20250929-v1:0")).toBe("sonnet 4.5");
+    expect(shortModel("anthropic.claude-haiku-4-5")).toBe("haiku 4.5");
   });
 
   it("still names Codex models apart from the plain GPT ones", () => {
