@@ -270,10 +270,9 @@ const catalog: Catalog = {
 
   // ── desktop app update ──
   "shell.desktop.restartToUpdate": "重新啟動以更新",
+  "shell.desktop.restartToFinish": "重新啟動以完成",
   "shell.desktop.menuMac": "選單列中的 ccdeck 選單",
   "shell.desktop.menuTray": "系統匣中的 ccdeck 選單",
-  "shell.desktop.chipLabel": "{text}，更新已下載並驗證完成",
-  "shell.desktop.chipTitle": "ccdeck v{to} 已下載並驗證完成 · 點選以開啟「新功能」，「{action}」就在最前面",
   "shell.desktop.restartLabel": "{action}至 v{to}",
   "shell.desktop.restartTitle": "立即安裝 ccdeck v{to}：ccdeck 會重新啟動，幾秒後就會回來。您的 Claude Code 與 Codex 工作階段會繼續執行。",
   "shell.desktop.way": "請在{menu}中選擇「{action}」。",

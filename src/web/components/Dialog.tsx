@@ -25,6 +25,7 @@ import {
   EXIT_SLACK_MS, finish, isDrawn, lastInputWasKey, settle, startPresence, type Presence,
 } from "../dialog-presence";
 import { tokenMs } from "../rail-motion";
+import { KitIcon } from "./kit-icons";
 import type { useScrimDismiss } from "./use-modal-dismiss";
 
 interface PresenceValue {
@@ -157,10 +158,11 @@ export function Dialog({
 }
 
 /** The × of a dialog header: the kit's 28 icon button (dialogs.css gives
- *  `.modal-actions .glyph-btn` its size, radius and 14px glyph). */
+ *  `.modal-actions .glyph-btn` its size and radius) with the kit's Close icon,
+ *  14 at a 1.5 stroke in --muted, as the banners draw theirs. */
 export function DialogClose({ onClick, label }: { onClick: () => void; label: string }) {
   return (
-    <button type="button" className="glyph-btn" onClick={onClick} aria-label={label} title={label}>×</button>
+    <button type="button" className="glyph-btn" onClick={onClick} aria-label={label} title={label}><KitIcon name="close" /></button>
   );
 }
 

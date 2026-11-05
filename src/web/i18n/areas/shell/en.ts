@@ -271,10 +271,9 @@ const catalog: Catalog = {
 
   // ── desktop app update ──
   "shell.desktop.restartToUpdate": "Restart to update",
+  "shell.desktop.restartToFinish": "Restart to finish",
   "shell.desktop.menuMac": "the ccdeck menu in the menu bar",
   "shell.desktop.menuTray": "the ccdeck tray menu",
-  "shell.desktop.chipLabel": "{text}, update downloaded and verified",
-  "shell.desktop.chipTitle": "ccdeck v{to} is downloaded and verified · click to open What's new, where {action} comes first",
   "shell.desktop.restartLabel": "{action} to v{to}",
   "shell.desktop.restartTitle": "Install ccdeck v{to} now: ccdeck restarts and is back in a few seconds. Your Claude Code and Codex sessions keep running.",
   "shell.desktop.way": "Use {action} in {menu}.",

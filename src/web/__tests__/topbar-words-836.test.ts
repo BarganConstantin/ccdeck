@@ -244,18 +244,22 @@ describe("the bar keeps amber for the alarm", () => {
     // A download the app has verified is good news; amber is this bar's
     // warning (#1187), and in V4 amber leaves the version chip altogether: the
     // count, a paused stream and an incident are the bar's only amber. A newer
-    // version, a ready update and the press share the --accent-16 wash with no
-    // edge and --text; the dot is the accent in every state, on the live pulse.
-    const chip = body(".topbar button.v:is(.stale, .ready, .v-update)");
+    // version and a ready update share the --accent-16 wash with no edge and
+    // --text; the icon is the accent in every state.
+    // CHANGED ON PURPOSE (V4's Figma): the ready update is one chip that is
+    // the press (no `.v-update` beside it), and it leads with the kit's icon,
+    // not a dot.
+    const chip = body(".topbar button.v:is(.stale, .ready)");
     expect(chip).toMatch(/background: var\(--accent-16\);/);
     // No stroke at all now (V4's Figma): the base rule has border: 0.
     expect(body(".topbar button.v")).toMatch(/border: 0;/);
     expect(chip).toMatch(/color: var\(--text\);/);
     expect(chip).not.toMatch(/--warn/);
-    expect(body(".topbar button.v:is(.stale, .ready, .v-update):hover")).not.toMatch(/--warn/);
-    const dot = body(".topbar button.v .v-dot");
-    expect(dot).toMatch(/background: var\(--accent\);/);
-    expect(dot).not.toMatch(/--warn/);
+    expect(body(".topbar button.v:is(.stale, .ready):hover")).not.toMatch(/--warn/);
+    const icon = body(".topbar button.v .v-icon");
+    expect(icon).toMatch(/color: var\(--accent\);/);
+    expect(icon).not.toMatch(/--warn/);
+    expect(css).not.toMatch(/\.v-dot|\.v-update/);
     // And there is no up-to-date chip any more (V4's Figma: the version chip
     // only when needed), so no rule dresses one.
     expect(css).not.toMatch(/button\.v:not\(\.stale\)/);

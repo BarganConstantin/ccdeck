@@ -371,6 +371,8 @@ const catalog: Catalog = {
   "board.queue.waiting": "în așteptare",
   "board.queue.moreLabel": "încă {n} în așteptare; deschide lista de sesiuni",
   "board.queue.openList": "Deschide lista de sesiuni",
+  "board.queue.title": "Te așteaptă",
+  "board.queue.more": "+{n} în plus",
   "board.notify.on": "notificări active",
   "board.notify.blocked": "notificări blocate",
   "board.notify.means.on": "ccdeck va afișa o notificare de sistem când o sesiune se blochează așteptându-te și această filă este în fundal",

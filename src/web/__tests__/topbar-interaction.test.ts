@@ -168,8 +168,17 @@ const transitioned = (value: string | null): string[] =>
 // across every count, and the paused tone's cost charged to the paused tone —
 // and both survive the extra glyph unchanged. The assertions below are on the
 // invariant, not on the pixels.
+//
+// CHANGED ON PURPOSE (V4's Figma): the pill now hugs the label it shows —
+// "paused · 3" is drawn 84 wide — so the hidden copy and the grid cell it
+// shared with the label are gone. The neighbourhood that made the ghost worth
+// its 30-odd pixels went too: the counts stand BEFORE the pill now, and only
+// the incident and notify chips can follow it. What still holds is pinned below: the
+// figures are tabular, so a count moves the pill only when it gains a digit,
+// nothing eases the box, and nothing in it asks to be pressed. statusPill
+// still names each tone's widest label, the cases above.
 
-const PILL = ".topbar .status .pill .pill-box";
+const LABEL = ".topbar .status .pill .pill-label";
 
 describe("the status pill stopped resizing itself (#504)", () => {
   it("caps the held count in the label and nowhere else", () => {
@@ -245,34 +254,16 @@ describe("the status pill stopped resizing itself (#504)", () => {
       .toEqual([`${HELD_LABEL_CAP}+`, "full"]);
   });
 
-  it("draws the ghost and the live label in one grid cell, so the box measures the worst case", () => {
-    // A `min-width` in pixels was the other option and is the one this sheet
-    // would normally reach for. It cannot work here: the number would be
-    // measured in whatever face rendered it and then applied to Segoe UI on
-    // Windows and to whatever fontconfig picks on Linux, and a wider face
-    // simply overruns it. A hidden copy of the string measures itself.
-    expect(decl(PILL, "display")).toBe("inline-grid");
-    const area = decl(PILL, "grid-template-areas")!;
-    const cell = /"([\w-]+)"/.exec(area)![1];
-    for (const child of [".topbar .status .pill .pill-widest", ".topbar .status .pill .pill-label"]) {
-      expect(declIn(bodyOf(child), "grid-area"), child).toBe(cell);
-      expect(declIn(bodyOf(child), "white-space"), child).toBe("nowrap");
-    }
-    expect(decl(".topbar .status .pill .pill-widest", "visibility")).toBe("hidden");
-    expect(decl(PILL, "font-variant-numeric")).toBe("tabular-nums");
-    // Anchored to the dot at the left rather than centred, which is where the
-    // button differed: the slack at zero held has to open where the count will
-    // appear, or the word itself shifts when the first event lands.
-    expect(decl(PILL, "justify-items")).toBe("start");
-  });
-
-  it("renders that ghost from the pill the app is already reading, not a second copy", () => {
-    expect(app).toContain('<span className="pill-widest" aria-hidden>{pill.widest}</span>');
+  it("hugs the label it shows, with no hidden widest copy beside it", () => {
     expect(app).toContain('<span className="pill-label">{pill.label}</span>');
-    // aria-hidden as well as visibility:hidden. Either alone keeps the ghost
-    // out of what is announced; both is what makes it true of a reader that
-    // walks the markup and of one that walks the render.
-    expect(app).toMatch(/className="pill-widest" aria-hidden/);
+    expect(app).not.toMatch(/pill-widest|pill-box|pill\.widest/);
+    expect(RULES.filter(r => /pill-widest|pill-box/.test(r.selector)).map(r => r.selector)).toEqual([]);
+    expect(decl(LABEL, "white-space")).toBe("nowrap");
+    // Tabular figures: `paused · 3` → `paused · 4` keeps its width, and only a
+    // new digit widens the pill.
+    expect(decl(LABEL, "font-variant-numeric")).toBe("tabular-nums");
+    expect(declIn(bodyOf(LABEL), "min-width"),
+      "a pixel min-width would size the pill for a label it is not showing").toBeNull();
   });
 
   it("does not animate the box, because animating a box means animating layout", () => {
@@ -282,23 +273,19 @@ describe("the status pill stopped resizing itself (#504)", () => {
     // still a reflow. The same reasoning is what moved `.sd-core-fill` off
     // `height` two describes down.
     const layout = ["width", "min-width", "max-width", "height", "all"];
-    for (const sel of [PILL, ".topbar .status .pill .pill-widest",
-                       ".topbar .status .pill .pill-label", ".topbar .status .pill"]) {
+    for (const sel of [LABEL, ".topbar .status .pill"]) {
       const eased = transitioned(declIn(bodyOf(sel), "transition"));
       expect(eased.filter(p => layout.includes(p)), `${sel} eases a layout property`).toEqual([]);
     }
-    expect(declIn(bodyOf(PILL), "min-width"),
-      "a pixel min-width is the fix this control deliberately did not take").toBeNull();
   });
 
   it("adds no press obligation, because the pill is not a control at all", () => {
     // The pill is an unfocusable span with a title, which is the whole reason
     // #510 moved its one irreplaceable sentence into the connection banner. It
-    // has no cursor, and neither do the two spans inside it — canvas-motion's
+    // has no cursor, and neither does the label inside it — canvas-motion's
     // press sweep is keyed on `cursor: pointer`, so a stray one here would owe
     // five obligations for a thing nobody can press.
-    for (const sel of [PILL, ".topbar .status .pill .pill-widest",
-                       ".topbar .status .pill .pill-label", ".topbar .status .pill"]) {
+    for (const sel of [LABEL, ".topbar .status .pill"]) {
       expect(declIn(bodyOf(sel), "cursor"), sel).toBeNull();
     }
   });

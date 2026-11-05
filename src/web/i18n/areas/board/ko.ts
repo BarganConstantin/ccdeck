@@ -354,6 +354,8 @@ const catalog: Catalog = {
   "board.queue.waiting": "대기 중",
   "board.queue.moreLabel": "{n}개 더 대기 중. 세션 목록 열기",
   "board.queue.openList": "세션 목록 열기",
+  "board.queue.title": "확인 필요",
+  "board.queue.more": "+{n}개 더",
   "board.notify.on": "알림 켜짐",
   "board.notify.blocked": "알림 차단됨",
   "board.notify.means.on": "세션이 사용자를 기다리며 막히고 이 탭이 백그라운드에 있으면 ccdeck이 시스템 알림을 띄웁니다",

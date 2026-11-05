@@ -15,6 +15,7 @@ const QUICK_OPEN_PLACEHOLDER = en[QUICK_OPEN_PLACEHOLDER_MSG];
 import { railHint, UtilityRun } from "../components/EdgeRails";
 import { WaitingStat } from "../components/TopbarReadouts";
 import VersionChip from "../components/VersionChip";
+import { KitIcon } from "../components/kit-icons";
 import { versionNoticeLabel } from "../version-chip";
 
 const read = (rel: string) => readFileSync(fileURLToPath(new URL(rel, import.meta.url)), "utf8");
@@ -70,12 +71,16 @@ describe("the newer-version chip", () => {
     openReleaseNotes: noop, showNotice: noop, loadVersion: async () => {},
   }));
 
-  it("reads '{to} is ready' with no leading v, and keeps the still dot", () => {
+  it("reads '{to} is ready' with no leading v, after the kit's still Update icon", () => {
+    // CHANGED ON PURPOSE (V4's Figma): the chip leads with the kit's Update
+    // icon, not a dot.
+    const updateIcon = renderToStaticMarkup(createElement(KitIcon, { name: "update" }));
     for (const kind of ["upgrade", "restart"] as const) {
       const html = render(kind);
       expect(html).toContain("4.0.1 is ready");
       expect(html).not.toMatch(/>v4\.0\.0</);
-      expect(html).toContain("v-dot");
+      expect(html).toContain(`<span class="v-icon" aria-hidden="true">${updateIcon}</span>`);
+      expect(html).not.toContain("v-dot");
     }
   });
 

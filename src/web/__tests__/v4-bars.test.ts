@@ -161,9 +161,13 @@ describe("V4's chips: 24 tall, 12 on 16", () => {
       expect(decl(`${pill}.${state}::before`, "box-shadow"), state).toBeUndefined();
     }
   });
-  it("keeps the stream chip's ghost cell: the widest label is reserved, invisibly", () => {
-    expect(decl(`${pill} .pill-box`, "display")).toBe("inline-grid");
-    expect(decl(`${pill} .pill-widest`, "visibility")).toBe("hidden");
+  it("hugs the stream chip's label, in tabular figures, with no reserved cell", () => {
+    // CHANGED ON PURPOSE (V4's Figma): "paused · 3" is drawn 84 wide, its own
+    // label's width; the invisible widest copy that held the box open is gone.
+    expect(has(`${pill} .pill-box`)).toBe(false);
+    expect(has(`${pill} .pill-widest`)).toBe(false);
+    expect(decl(`${pill} .pill-label`, "white-space")).toBe("nowrap");
+    expect(decl(`${pill} .pill-label`, "font-variant-numeric")).toBe("tabular-nums");
   });
   it("has no live dot to pulse, and the paused and lost dots stand still", () => {
     expect(decl(`${pill}.live::before`, "animation")).toBeUndefined();
@@ -203,23 +207,28 @@ describe("V4's chips: 24 tall, 12 on 16", () => {
     expect(decl(`${ver} .v-icon`, "width")).toBe("14px");
     expect(decl(`${ver} .v-icon`, "height")).toBe("14px");
   });
-  it("a newer version, a ready update and the press are the --accent-16 wash with no edge", () => {
-    const sel = `${ver}:is(.stale, .ready, .v-update)`;
+  it("a newer version and a ready update are the --accent-16 wash with no edge", () => {
+    // CHANGED ON PURPOSE (V4's Figma): the ready update is one chip that is the
+    // press, so there is no separate `.v-update` button to name here.
+    const sel = `${ver}:is(.stale, .ready)`;
     expect(decl(sel, "background")).toBe("var(--accent-16)");
     expect(decl(sel, "color")).toBe("var(--text)");
     expect(decl(sel, "font-weight")).toBe("400");
     expect(decl(`${sel}:hover`, "background", "(hover: hover) and (pointer: fine)")).toBe("color-mix(in srgb, var(--accent) 24%, transparent)");
   });
-  it("has no amber: the chip's rules name no --warn, and its dot is the accent, unglowed", () => {
+  it("has no amber: the chip's rules name no --warn, and its icon is the accent, unglowed", () => {
     const own = rules.filter(r => r.selectors.some(s => s.startsWith(ver)));
     expect(own.length).toBeGreaterThan(5);
     for (const r of own) expect(JSON.stringify(r.decls), r.selectors.join(", ")).not.toContain("--warn");
-    expect(decl(`${ver} .v-dot`, "background")).toBe("var(--accent)");
-    expect(decl(`${ver} .v-dot`, "box-shadow")).toBeUndefined();
-    // A still dot: nothing on the top bar pulses at rest, so
+    // CHANGED ON PURPOSE (V4's Figma): the chip leads with the kit's icon
+    // (Update, or Restart on a ready update), stroked in the accent, not a dot.
+    expect(has(`${ver} .v-dot`)).toBe(false);
+    expect(decl(`${ver} .v-icon`, "color")).toBe("var(--accent)");
+    expect(decl(`${ver} .v-icon`, "box-shadow")).toBeUndefined();
+    // A still icon: nothing on the top bar pulses at rest, so
     // there is no animation for reduced motion to take away either.
-    expect(decl(`${ver} .v-dot`, "animation")).toBeUndefined();
-    expect(decl(`${ver} .v-dot`, "animation", REDUCED)).toBeUndefined();
+    expect(decl(`${ver} .v-icon`, "animation")).toBeUndefined();
+    expect(decl(`${ver} .v-icon`, "animation", REDUCED)).toBeUndefined();
   });
   it("draws no chip for a current version: only a newer one or a ready update has a rule", () => {
     expect(has(`${ver}:not(.stale):not(.ready)`)).toBe(false);

@@ -43,10 +43,10 @@ const RESTING_WORDED = [
   ".ap-dot",
 ];
 const RESTING = [".sl-dot::before", ".bw-dot", ".bw-mode-dot", ".bw-prof-dot"];
-// The version chip's dot is the accent in every state now (V4's chip), so the
-// one rule names it; the ready chip's own recolouring rule, which had to be
-// named here as well, is gone.
-const LIVE = [".sl-dot.state-active::before", ".bw-mode-dot.on", ".topbar button.v .v-dot"];
+// CHANGED ON PURPOSE (V4's Figma): the version chip leads with a stroked kit
+// icon in currentColor, which a Contrast theme repaints in the button's text
+// colour by itself, so the version dot's Highlight rule is gone with the dot.
+const LIVE = [".sl-dot.state-active::before", ".bw-mode-dot.on"];
 // CHANGED ON PURPOSE (V4's Figma): the recap draws its tools as chips and a day as a table, so the
 // recap's tool bar and the history dialog's per-model meter are gone from these three lists.
 // The context dialog's meter and its two levels, and a tool's failed bar in Tool activity with its

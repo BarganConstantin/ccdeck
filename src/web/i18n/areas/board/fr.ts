@@ -354,6 +354,8 @@ const catalog: Catalog = {
   "board.queue.waiting": "en attente",
   "board.queue.moreLabel": "{n} autres en attente ; ouvrir la liste des sessions",
   "board.queue.openList": "Ouvrir la liste des sessions",
+  "board.queue.title": "Vous attendent",
+  "board.queue.more": "+{n} autres",
   "board.notify.on": "notifications activées",
   "board.notify.blocked": "notifications bloquées",
   "board.notify.means.on": "ccdeck émettra une notification système quand une session vous attend et que cet onglet est en arrière-plan",

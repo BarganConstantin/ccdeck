@@ -1322,6 +1322,10 @@ describe("every control that draws a boundary draws one that can be seen (1.4.11
       // by "the text-field focus border" test below.
       // A DISABLED field or select: V4's kit draws it in --line, because an
       // inactive component owes no boundary (1.4.11 exempts it, as 1.4.3 does its text).
+      // A disabled button, of every kind, the same way (V4's kit: no fill, a
+      // --line-soft edge, the label in --muted-dim), and LAN's Unpair, whose
+      // own rules outrank the shared one, says it again.
+      "button.btn:disabled", "button.btn:disabled:hover", ".lan-peer-foot .btn.danger:disabled",
       ".ap-manage-input:disabled", ".ap-manage-input:disabled:hover:not(:focus-visible)",
       ".sm-select:disabled", ".sm-select:disabled:hover:not(:focus-visible)",
       // The checkbox's box: the same --ctl-edge the fields are swept for above,

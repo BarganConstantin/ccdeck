@@ -354,6 +354,8 @@ const catalog: Catalog = {
   "board.queue.waiting": "等待中",
   "board.queue.moreLabel": "還有 {n} 個在等待；開啟工作階段清單",
   "board.queue.openList": "開啟工作階段清單",
+  "board.queue.title": "等您處理",
+  "board.queue.more": "另外 {n} 項",
   "board.notify.on": "通知已開啟",
   "board.notify.blocked": "通知已封鎖",
   "board.notify.means.on": "當工作階段卡在等您、而此分頁在背景時，ccdeck 會發出系統通知",

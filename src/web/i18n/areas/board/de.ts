@@ -354,6 +354,8 @@ const catalog: Catalog = {
   "board.queue.waiting": "wartend",
   "board.queue.moreLabel": "{n} weitere warten; Sitzungsliste öffnen",
   "board.queue.openList": "Sitzungsliste öffnen",
+  "board.queue.title": "Wartet auf dich",
+  "board.queue.more": "+{n} weitere",
   "board.notify.on": "Benachrichtigungen an",
   "board.notify.blocked": "Benachrichtigungen blockiert",
   "board.notify.means.on": "Das ccdeck löst eine Systembenachrichtigung aus, wenn eine Sitzung auf dich wartet und dieser Tab im Hintergrund ist",

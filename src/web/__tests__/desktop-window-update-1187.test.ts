@@ -102,7 +102,7 @@ describe("the one-button window wiring", () => {
     expect(app).toContain("desktopUpdateRef.current = onDesktopUpdateEvent;");
     expect(app).toMatch(/const onDesktopUpdateEvent = useCallback\(\(data: string\) => \{\s*if \(!inDesktopApp\(\)\) return;/);
     expect(app).toContain('fetch("/api/desktop-update/restart"');
-    expect(app).toContain("readyChipCopy(desktopAppVersion() ?? chipVersion, readyAppUpdate.version)");
+    expect(app).toContain("readyChipCopy(desktopAppVersion() ?? chipVersion, readyAppUpdate.version, updateRestarting)");
     // One restart door: the deck's own Restart is not offered beside it.
     expect(app).toContain("onRestart={!readyAppUpdate && version?.canRestart");
     expect(modal).toContain('t("shell.notes.downloaded", { version: updateVersion })');
@@ -151,20 +151,27 @@ describe("the one-button window wiring", () => {
 });
 
 describe("the ready chip's words (#1187)", () => {
-  it("starts its accessible name with what it prints (WCAG 2.5.3)", () => {
+  // CHANGED ON PURPOSE (V4's Figma): the ready update is one chip that is the
+  // restart, reading "Restart to finish", with the versions in its tooltip.
+  // It used to print the versions and open What's new, with a second button
+  // beside it for the restart.
+  it("prints what a press does, and its accessible name is what it prints (WCAG 2.5.3)", () => {
     const copy = readyChipCopy("1.63.0", "1.64.0");
-    expect(copy.text).toBe("v1.63.0 → v1.64.0");
-    expect(copy.label.startsWith(copy.text)).toBe(true);
+    expect(copy.text).toBe("Restart to finish");
+    expect(copy).not.toHaveProperty("label");
   });
 
-  it("says what a click does, which is open What's new, not restart", () => {
+  it("keeps the versions and what a restart does in the tooltip", () => {
     const { title } = readyChipCopy("1.63.0", "1.64.0");
-    expect(title).toContain("v1.64.0 is downloaded and verified");
-    expect(title).toContain("click to open What's new");
-    expect(title).toContain(RESTART_TO_UPDATE);
-    expect(title).not.toMatch(/click to (?:update|restart)/i);
+    expect(title.startsWith("v1.63.0 → v1.64.0 · ")).toBe(true);
+    expect(title).toContain("Install ccdeck v1.64.0 now");
+    expect(title).toContain("Your Claude Code and Codex sessions keep running.");
     const app = clientText();
     expect(app).not.toContain("click to update and restart");
+  });
+
+  it("says it is restarting while its press is out", () => {
+    expect(readyChipCopy("1.63.0", "1.64.0", true).text).toBe(shellEn["shell.notes.restarting"]);
   });
 });
 

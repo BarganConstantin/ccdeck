@@ -270,10 +270,9 @@ const catalog: Catalog = {
 
   // ── desktop app update ──
   "shell.desktop.restartToUpdate": "Redémarrer pour mettre à jour",
+  "shell.desktop.restartToFinish": "Redémarrer pour terminer",
   "shell.desktop.menuMac": "le menu ccdeck de la barre des menus",
   "shell.desktop.menuTray": "le menu ccdeck de la zone de notification",
-  "shell.desktop.chipLabel": "{text}, mise à jour téléchargée et vérifiée",
-  "shell.desktop.chipTitle": "ccdeck v{to} est téléchargé et vérifié · cliquez pour ouvrir les nouveautés, où {action} figure en premier",
   "shell.desktop.restartLabel": "{action} vers la v{to}",
   "shell.desktop.restartTitle": "Installer ccdeck v{to} maintenant : ccdeck redémarre et revient en quelques secondes. Vos sessions Claude Code et Codex continuent de tourner.",
   "shell.desktop.way": "Utilisez {action} dans {menu}.",

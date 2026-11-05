@@ -212,8 +212,7 @@
   .bw-mode-dot,
   .bw-prof-dot { forced-color-adjust: none; background: GrayText; }
   .sl-dot.state-active::before,
-  .bw-mode-dot.on,
-  .topbar button.v .v-dot { forced-color-adjust: none; background: Highlight; }
+  .bw-mode-dot.on { forced-color-adjust: none; background: Highlight; }
   /* The live account's mark is the kit's done glyph, a stroke in the text colour,
      so it takes the highlight as its colour rather than as a fill. */
   .ap-live { forced-color-adjust: none; color: Highlight; }
