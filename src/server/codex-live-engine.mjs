@@ -553,14 +553,21 @@ export function createCodexLiveAccountController(input = {}) {
     } catch { /* Keep the durable recovery intent until its outcome is known. */ }
   }
   async function reconnect() {
-    const s = await selection(); await ensureRpc(s.originalHome);
-    const actual = await rpc.request('account/read', { refreshToken: false });
-    // Notifications were unobservable during the gap. Email/workspace labels
-    // cannot restore authority; require a native ID or a fresh manual selection.
-    if (!accountIds(actual).length) await externalChange('native_identity_unattested');
-    else if (!ownershipPaused && sameAccount(actual, credential, true)) {
-      lastCheck = Date.now(); update({ state: 'applied', profileId: credential.profileId, reason: null });
-    } else await externalChange();
+    try {
+      const s = await selection(); await ensureRpc(s.originalHome);
+      const actual = await rpc.request('account/read', { refreshToken: false });
+      // Notifications were unobservable during the gap. Email/workspace labels
+      // cannot restore authority; require a native ID or a fresh manual selection.
+      if (!accountIds(actual).length) await externalChange('native_identity_unattested');
+      else if (!ownershipPaused && sameAccount(actual, credential, true)) {
+        lastCheck = Date.now(); update({ state: 'applied', profileId: credential.profileId, reason: null });
+      } else await externalChange();
+    } catch (error) {
+      // A partially initialized connection cannot attest ownership. Drop only
+      // our control connection so the next poll can reconnect and read IDs.
+      await disconnect();
+      throw error;
+    }
   }
   async function tick() {
     if (closed || ticking) return;

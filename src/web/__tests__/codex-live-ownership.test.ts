@@ -72,6 +72,35 @@ async function fixture({ ids = false, saved = false, notifyLogin = true, actual 
 }
 
 describe('native Codex authentication ownership', () => {
+  it.each([1, 2])('recovers an attested connection after account read %s times out during reconnection without replaying login', async failedRead => {
+    const f = await fixture({ ids: true }); await f.c.request({ id: A, revision: 2 });
+    f.disconnect();
+    const original = f.rpc.request.getMockImplementation()!; let reads = 0;
+    f.rpc.request.mockImplementation(async (method, params) => {
+      if (method === 'account/read' && ++reads === failedRead) throw Object.assign(Error('timeout'), { code: 'native_request_timeout' });
+      return original(method, params);
+    });
+    await f.c.tick();
+    expect(f.c.status().state).toBe('disconnected');
+    await f.c.tick();
+    expect(f.c.status()).toMatchObject({ state: 'applied', profileId: A });
+    expect(f.connections).toHaveLength(3);
+    // A discarded socket's late update cannot revoke the new attested owner.
+    f.connections[1].onNotification({ method: 'account/updated' });
+    await f.c.tick();
+    expect(f.c.status().state).toBe('applied');
+    await f.refresh(); expect(f.sends).toHaveLength(1);
+    expect(f.rpc.request.mock.calls.filter(([method]) => method === 'account/login/start')).toHaveLength(1);
+  });
+  it('still rejects an outside workspace change when retrying a failed reconnection', async () => {
+    const f = await fixture({ ids: true }); await f.c.request({ id: A, revision: 2 }); f.disconnect();
+    f.rpc.request.mockRejectedValueOnce(Object.assign(Error('timeout'), { code: 'native_request_timeout' }));
+    await f.c.tick(); f.setAccount(B); await f.c.tick();
+    expect(f.c.status().state).toBe('external_change');
+    expect(f.rpc.request.mock.calls.filter(([method]) => method === 'account/login/start')).toHaveLength(1);
+    await f.refresh(); expect(f.sends).toEqual([]);
+  });
+
   it.each(['connect', 'read'] as const)('accepts the initial routing snapshot during %s and still detects later outside updates', async initialUpdate => {
     const f = await fixture({ initialUpdate });
     expect(await f.c.request({ id: A, revision: 2 })).toMatchObject({ state: 'applied', profileId: A });
