@@ -197,6 +197,9 @@ describe("what was migrated to the secondary tier", () => {
       ".detail h3:not(.ctx-section-title)",
       ".detail-hero .hero-state",
       ".insp-none-title",
+      // CHANGED ON PURPOSE (V4's Figma): an unselected Inspector tab's icon is
+      // drawn in the secondary ink, a step above its --muted label.
+      ".insp-tab .glyph",
       ".prompt-text",
       ".qb-label",
       // CHANGED ON PURPOSE (V4's Figma): the command menu's group captions

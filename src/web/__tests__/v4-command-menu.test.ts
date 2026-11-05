@@ -36,7 +36,10 @@ describe("the box", () => {
     expect(decl(".qo", "border-radius")).toBe("var(--r-overlay)");
     expect(decl(".qo", "border")).toBe("1px solid var(--line)");
     expect(decl(".qo", "background")).toBe("var(--panel)");
-    expect(decl(".qo", "box-shadow")).toBe("var(--shadow-overlay)");
+    // CHANGED ON PURPOSE (V4's Figma): the menu's own two drop shadows, 28 at 0,12 .38 and 4 at
+    // 0,2 .28, not the dialog's one; Light takes them at its overlay's and contact's strength.
+    expect(decl(".qo", "box-shadow")).toBe("0 12px 28px rgba(0,0,0,0.38), 0 2px 4px rgba(0,0,0,0.28)");
+    expect(decl(':root[data-color-scheme="light"] .qo', "box-shadow")).toBe("0 12px 28px rgba(0,0,0,0.16), 0 2px 4px rgba(15,23,42,0.10)");
     expect(decl(".qo-backdrop", "padding")).toBe("max(13vh, 64px) 16px 16px");
   });
 
@@ -75,13 +78,15 @@ describe("the field", () => {
     expect(en).toContain('"board.quick.placeholder": "Open a session or run a command"');
   });
 
-  it("keeps the deck's keyboard focus ring on the field, which a text field always has", () => {
-    expect(decl(".qo-field:has(.qo-input:focus-visible)", "outline")).toBe("var(--focus-w) solid var(--accent)");
+  // CHANGED ON PURPOSE (V4's Figma): no ring on the field. The caret (--accent) and the rule
+  // under the field mark where the keys go: the rule takes --accent while the input holds focus,
+  // as the deck's other text fields turn their edge. The corner that kept the old ring uncut went with it.
+  it("draws no ring on the field: the caret and the rule under it mark focus", () => {
+    expect(decl(".qo-field:has(.qo-input:focus-visible)", "outline")).toBeNull();
+    expect(decl(".qo-field:has(.qo-input:focus-visible)", "border-bottom-color")).toBe("var(--accent)");
     expect(decl(".qo-input:focus-visible", "outline")).toBe("none");
-  });
-
-  it("gives the field the box's corner less its border, so the inset ring is not cut", () => {
-    expect(decl(".qo-field", "border-radius")).toBe("calc(var(--r-overlay) - 1px) calc(var(--r-overlay) - 1px) 0 0");
+    expect(decl(".qo-input", "caret-color")).toBe("var(--accent)");
+    expect(decl(".qo-field", "border-radius")).toBeNull();
   });
 });
 
@@ -101,6 +106,23 @@ describe("the rows", () => {
     expect(decl(".qo-title", "line-height")).toBe("20px");
     expect(decl(".qo-sub", "font-size")).toBe("calc(12px + var(--ui-text-increase, 0px))");
     expect(decl(".qo-sub", "color")).toBe("var(--muted)");
+  });
+
+  it("draw a session's state as the rail row's 14px glyph, working in --inflight, and hold it still", () => {
+    const html = renderToStaticMarkup(createElement(QuickOpen, {
+      items: [item("session:a", "sessions", "api", { tone: "working" }), item("session:b", "sessions", "web", { tone: "waiting" })],
+      onClose: noop, onRun: noop,
+    }));
+    expect(html).toContain('<svg class="qo-state" data-kind="working" width="14" height="14"');
+    expect(html).toContain('<svg class="qo-state" data-kind="waiting" width="14" height="14"');
+    expect(html).not.toContain("qo-dot");
+    expect(decl(".qo-icon > .qo-state", "width")).toBe("14px");
+    expect(decl('.qo-state[data-kind="working"]', "color")).toBe("var(--inflight)");
+    expect(decl('.qo-state[data-kind="waiting"]', "color")).toBe("var(--warn)");
+    expect(decl('.qo-state[data-kind="done"]', "color")).toBe("var(--ok)");
+    expect(decl('.qo-state[data-kind="error"]', "color")).toBe("var(--err)");
+    expect(decl('.qo-state[data-kind="idle"]', "color")).toBe("var(--muted)");
+    expect(css).not.toMatch(/\.qo-state[^{]*\{[^}]*animation/);
   });
 
   it("put the key chip on the right, after any drawn tag", () => {
@@ -136,13 +158,23 @@ describe("the foot", () => {
     expect(decl(".qo-foot", "padding")).toBe("0 12px");
   });
 
-  it("says Tab jumps between groups, and keeps the arrows, the count and what Enter does", () => {
+  // CHANGED ON PURPOSE (V4's Figma): the foot is Tab's jump and what Enter does; the arrows and
+  // the count are gone from it. The count is still said to a screen reader as a query narrows.
+  it("says Tab jumps between groups and what Enter does, at the two ends", () => {
     expect(source).toContain('t("board.quick.tabKey")');
     expect(source).toContain('t("board.quick.tabHint")');
     expect(en).toContain('"board.quick.tabHint": "jumps between groups"');
-    expect(source).toContain("<kbd>↑</kbd><kbd>↓</kbd>");
-    expect(source).toContain('t("board.quick.results.count"');
+    expect(source).not.toContain("<kbd>↑</kbd><kbd>↓</kbd>");
+    expect(source).not.toContain("qo-foot-count");
+    expect(en).not.toContain('"board.quick.move"');
     expect(source).toContain("<kbd>↵</kbd> <span>{activeRow.item.verb}</span>");
+    expect(source).toMatch(/className="qo-live" role="status">\{query\.trim\(\) \? t\("board\.quick\.results\.count"/);
+    expect(decl(".qo-foot-run", "margin-left")).toBe("auto");
+    const html = renderToStaticMarkup(createElement(QuickOpen, { items: [item("action:fit", "actions", "Fit")], onClose: noop, onRun: noop }));
+    const foot = html.slice(html.indexOf('class="qo-foot"'));
+    expect(foot).toContain("jumps between groups");
+    expect(foot).not.toContain("↑");
+    expect(foot.slice(0, foot.indexOf('class="qo-live"'))).not.toMatch(/\d+ results?/);
   });
 });
 
@@ -154,21 +186,34 @@ function item(id: string, section: QuickItem["section"], title: string, extra: P
 }
 
 describe("the groups", () => {
-  it("are Needs you, Sessions, Do, with the rest after Do (no Start: no row could fill it)", () => {
-    expect(GROUP_ORDER).toEqual(["recent", "needs", "sessions", "do", "open", "settings", "themes"]);
+  // CHANGED ON PURPOSE (V4's Figma): Start is a group again, between Sessions and Do, now that
+  // the deck can start a session from the menu (where the Command Panel is on).
+  it("are Needs you, Sessions, Start, Do, with the rest after Do", () => {
+    expect(GROUP_ORDER).toEqual(["recent", "needs", "sessions", "start", "do", "open", "settings", "themes"]);
     expect(en).toContain('"board.quick.group.needs": "Needs you"');
-    expect(en).not.toContain("board.quick.group.start");
+    expect(en).toContain('"board.quick.section.start": "Start"');
     expect(en).toContain('"board.quick.group.do": "Do"');
   });
 
   const items = [
-    item("session:a", "sessions", "api", { tone: "active" }),
+    item("session:a", "sessions", "api", { tone: "working" }),
     item("session:b", "sessions", "web-api", { tone: "waiting" }),
-    item("session:c", "sessions", "infra", { tone: "err" }),
+    item("session:c", "sessions", "infra", { tone: "error" }),
     item("action:fit", "actions", "Fit every agent on screen"),
     item("door:usage", "open", "Usage"),
     item("settings:section:sounds", "settings", "Sounds"),
   ];
+
+  it("name starting a session in the field, and list Start, only where the menu can start one", () => {
+    const plain = renderToStaticMarkup(createElement(QuickOpen, { items: [item("action:fit", "actions", "Fit")], onClose: noop, onRun: noop }));
+    expect(plain).toContain('placeholder="Open a session or run a command"');
+    expect(plain).not.toContain(">Start</div>");
+    const start = [item("start:claude", "start", "New Claude session"), item("action:fit", "actions", "Fit")];
+    const withStart = renderToStaticMarkup(createElement(QuickOpen, { items: start, onClose: noop, onRun: noop }));
+    expect(withStart).toContain('placeholder="Open a session, start one, or run a command"');
+    expect(withStart.indexOf(">Start</div>")).toBeLessThan(withStart.indexOf(">Do</div>"));
+    expect(groupQuick(rankQuick([...items, ...start], ""), false).map(g => g.group)).toEqual(["needs", "sessions", "start", "do", "open", "settings"]);
+  });
 
   it("put a session that needs you in Needs you and the others in Sessions", () => {
     const groups = groupQuick(rankQuick(items, ""), false);

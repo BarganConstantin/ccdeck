@@ -924,9 +924,6 @@ describe("what counts as an edge, which BORDER_PROPS decides (#655)", () => {
       ".insp-card:has(.insp-pick:focus-visible) .agent-node",
       // The navigable button now puts its focus ring on the whole issue row.
       ".jr-row:has(> .jr-row-main:focus-visible)",
-      // Quick open's field: the input in it is borderless, so the row it
-      // sits in draws the ring, as the feedback kinds' cards do.
-      ".qo-field:has(.qo-input:focus-visible)",
       // (not on a selected card: there the selection ring is the one drawn)
       // And the same ring on the card's face at the compact and overview
       // distances, where the card's own is a hairline of layout units.
@@ -1345,6 +1342,12 @@ describe("every control that draws a boundary draws one that can be seen (1.4.11
       ".jr-comment-compose textarea:focus-visible", ".su-pricing select:focus-visible",
       ".ap-field select:focus-visible", ".ap-pop .ap-field select:focus-visible", ".bw-settings select:focus-visible",
       'input[aria-invalid="true"]:focus-visible', 'textarea[aria-invalid="true"]:focus-visible', 'select[aria-invalid="true"]:focus-visible',
+      // CHANGED ON PURPOSE (V4's Figma): quick open's field draws no ring. The
+      // rule under it takes --accent while the input in it holds focus, the
+      // text-field family's focus colour on the line the frame draws: a state
+      // indicator, as above, not the boundary of a field named by its caret
+      // and its placeholder.
+      ".qo-field:has(.qo-input:focus-visible)",
     ]);
     const swept = new Set<string>();
     for (const c of CONTROLS) {
@@ -1381,7 +1384,9 @@ describe("the rings, which a border sweep cannot see (1.4.11, 2.4.11)", () => {
       // CHANGED ON PURPOSE (V4 Figma): 8 became 7 because the five-preview picker of Text &
       // density, and with it its one ring rule, was deleted; the Select that replaced it takes
       // the shared `.sm-select:focus-visible` ring already counted. A floor, as above.
-      .toBeGreaterThanOrEqual(7);
+      // CHANGED ON PURPOSE (V4's Figma): 7 became 6 because quick open's field draws no ring;
+      // its input's focus shows as the --accent rule under the field (exempted above).
+      .toBeGreaterThanOrEqual(6);
     expect(RING_RULES.some(r => selectors(r.selector).includes(":focus-visible")),
       "the global :focus-visible bed is gone, so most of the app has no ring").toBe(true);
   });

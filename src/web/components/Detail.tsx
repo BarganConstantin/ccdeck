@@ -310,14 +310,14 @@ export default function Detail({
         </div>
       </section>
 
-      {/* The verbs about this one card. V4's Figma draws none of them, and the
-          deck has no menu for the card that holds Export or Remove, so they stay
-          at the foot of the body as quiet small buttons. */}
+      {/* The verbs about this one card, as V4's Quiet buttons. The deck has no
+          menu for the card that holds Export or Remove, so they stay at the
+          foot of the body, on a running session as on a finished one. */}
       <div className="hero-actions">
         {agent.kind === "root" && agent.state === "done" && onShowSummary && (
           <button
             type="button"
-            className="btn hero-action-btn"
+            className="btn"
             onClick={() => onShowSummary(agent.sessionId)}
             title={t("board.detail.recapTitle")}
           >{t("board.detail.recap")}</button>
@@ -325,7 +325,7 @@ export default function Detail({
         {onExportSession && (
           <button
             type="button"
-            className="btn hero-action-btn"
+            className="btn"
             onClick={() => onExportSession(agent.sessionId)}
             title={t("board.detail.exportTitle")}
           >{t("board.detail.export")}</button>
@@ -337,7 +337,7 @@ export default function Detail({
         {onRemove && (
           <button
             type="button"
-            className="btn hero-action-btn"
+            className="btn"
             onClick={onRemove}
             title={agent.kind === "root"
               ? t("board.detail.removeRoot", { list: withKey(t("board.detail.listLower"), "L", singleKeys) })

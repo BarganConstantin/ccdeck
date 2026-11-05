@@ -8,7 +8,7 @@ import DesktopTitlebar from "./components/DesktopTitlebar";
 import SessionList, { buildRows } from "./components/SessionList";
 import QuickOpen from "./components/QuickOpen";
 import { DialogPresence } from "./components/Dialog";
-import { quickOpenItems } from "./quick-open-items";
+import { quickOpenItems, startFolder } from "./quick-open-items";
 import type { QuickItem } from "./quick-open";
 import { indexFor } from "./settings-search";
 import { useSingleKeyShortcuts } from "./use-single-key-shortcuts";
@@ -43,7 +43,7 @@ import { useNodeMeasurements, useSettled } from "./use-node-measurements";
 import { useLayoutFrame } from "./use-layout-frame";
 import { useCamera } from "./use-camera";
 import { usePointerFocus } from "./use-pointer-focus";
-import { pickSessionForInspector, useDeckShortcuts } from "./use-deck-shortcuts";
+import { pickSessionForInspector, stepWaiting, useDeckShortcuts } from "./use-deck-shortcuts";
 import { usePanelReturn } from "./use-panel-return";
 import { useNodeDrag } from "./use-node-drag";
 import { EmptyHero, TabCapHero } from "./components/EmptyHero";
@@ -848,6 +848,19 @@ function Inner() {
   const openQuickOpen = useCallback(() => setQuickOpenOpen(true), []);
   const closeQuickOpen = useCallback(() => setQuickOpenOpen(false), []);
   const runQuick = useCallback((item: QuickItem) => { setQuickOpenOpen(false); item.run(); }, []);
+  // N, as the menu's "Next waiting" row: the key's own move, cursor and all.
+  const quickNextWaiting = useCallback(() => stepWaiting(stateRef.current, waitingCursorRef, focusSessionOnView),
+    [stateRef, focusSessionOnView]);
+  // The menu's Start rows: the launch the New session popover's Start makes,
+  // where the Command Panel is on and the board has a folder to start in.
+  // Read while the menu is drawn, which is only while it is open.
+  const quickStart = () => {
+    if (!stage.enabled) return undefined;
+    const onStage = stage.shell.phase !== "closed" ? targetSession(stage.shell.target) : null;
+    const selected = primarySelectedId ? stateRef.current.agents.get(primarySelectedId)?.sessionId ?? null : null;
+    const folder = startFolder(stateRef.current.agents.values(), onStage ?? selected);
+    return folder ? { folder, launch: stage.launch } : undefined;
+  };
   const singleKeys = useSingleKeyShortcuts();
 
   // The L key is the Sessions door's press: with a sheet up over the list it
@@ -1337,6 +1350,8 @@ function Inner() {
           settings: indexFor(providers.claude, integrationsReach(integrations), offeredKinds(integrations)), openSettings,
           singleKeys, fit: handleFit, rearrange: handleRelayout, paused, togglePause,
           clear: agentCount > 0 ? () => requestClear("button") : undefined,
+          nextWaiting: blockedSessions(stateRef.current.agents.values()).length > 0 ? quickNextWaiting : undefined,
+          start: quickStart(),
           keyHelp: () => setKeyHelpOpen(true), tour: openTour, theme: appearance.theme, setTheme,
         })} />
       )}

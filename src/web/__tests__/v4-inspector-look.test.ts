@@ -74,7 +74,8 @@ describe("the header and the tabs", () => {
     expect(decl(".insp-h", "border-bottom")).toBe("1px solid var(--line-soft)");
     expect(decl(".insp-h", "padding")).toBe("0 6px 0 8px");
   });
-  it("draws each tab 20 tall, padding 0 8 0 6, gap 4, --r-ctl; the chosen one --panel with the contact shadow, 600 --text", () => {
+  // CHANGED ON PURPOSE (V4's Figma): the chosen tab has no shadow, and an unselected tab's icon is --text-secondary.
+  it("draws each tab 20 tall, padding 0 8 0 6, gap 4, --r-ctl; the chosen one --panel with no shadow, 600 --text", () => {
     expect(decl(".insp-tab", "height")).toBe("20px");
     expect(decl(".insp-tab", "padding")).toBe("0 8px 0 6px");
     expect(decl(".insp-tab", "gap")).toBe("4px");
@@ -82,8 +83,10 @@ describe("the header and the tabs", () => {
     expect(decl(".insp-tab", "font-weight")).toBe("500");
     expect(decl(".insp-tab", "color")).toBe("var(--muted)");
     expect(decl('.insp-tab[aria-selected="true"]', "background")).toBe("var(--panel)");
-    expect(decl('.insp-tab[aria-selected="true"]', "box-shadow")).toBe("var(--shadow-contact)");
+    expect(decl('.insp-tab[aria-selected="true"]', "box-shadow")).toBeUndefined();
     expect(decl('.insp-tab[aria-selected="true"]', "font-weight")).toBe("600");
+    expect(decl(".insp-tab .glyph", "color")).toBe("var(--text-secondary)");
+    expect(decl('.insp-tab[aria-selected="true"] .glyph', "color")).toBe("var(--text)");
   });
   it("wears the kit's Agents, Time and Context icons, Context not the gauge", () => {
     const code = src("components/Inspector.tsx");
@@ -119,9 +122,10 @@ describe("the header and the tabs", () => {
 });
 
 describe("the body and the title block", () => {
-  it("pads the body 12 with a gap of 12", () => {
-    expect(decl(".insp-b", "padding")).toBe("12px");
-    expect(decl(".insp-b", "gap")).toBe("12px");
+  // CHANGED ON PURPOSE (V4's Figma): every tab's body is 8 under the header, 12 at the sides and foot, with a gap of 8.
+  it("pads the body 8 12 12 with a gap of 8", () => {
+    expect(decl(".insp-b", "padding")).toBe("8px 12px 12px");
+    expect(decl(".insp-b", "gap")).toBe("8px");
   });
   it("sets the name 600 14/20 --text, the meta line 400 12/16 --muted, the spend mono 600 18/24 --text", () => {
     expect(decl(".detail-hero .hero-title", "font-size")).toBe(INC(14));
@@ -143,12 +147,23 @@ describe("the body and the title block", () => {
     expect(out).not.toContain("state-pill");
     expect(out).toMatch(/class="hero-state"[^>]*><svg[^>]*width="14"/);
   });
-  it("keeps Export JSON, Remove and Recap, at the foot of the body as quiet small buttons", () => {
+  // CHANGED ON PURPOSE (V4's Figma): the three are V4's Quiet button, `button.btn` unchanged (28 high,
+  // 13/500 --text-secondary, r8, 12 in), 8 apart, and stay on a running session.
+  it("keeps Export JSON, Remove and Recap, at the foot of the body as V4's Quiet buttons", () => {
     const out = renderToStaticMarkup(createElement(Detail, { agent: A("s"), now: 2000, onExportSession: () => {}, onRemove: () => {} }));
     expect(out.lastIndexOf('class="hero-actions"')).toBeGreaterThan(out.lastIndexOf('class="detail-section"'));
     expect(out).toContain("Export JSON");
-    expect(decl(".detail .hero-action-btn", "font-size")).toBe(INC(12));
-    expect(decl(".detail .hero-action-btn", "color")).toBe("var(--muted)");
+    expect(out).toContain('class="btn"');
+    expect(out).not.toContain("hero-action-btn");
+    expect(decl(".detail .hero-action-btn", "font-size")).toBeUndefined();
+    expect(decl(".detail .hero-action-btn", "color")).toBeUndefined();
+    expect(decl(".detail .hero-action-btn", "padding")).toBeUndefined();
+    expect(decl("button.btn", "font-size")).toBe(INC(13));
+    expect(decl("button.btn", "font-weight")).toBe("500");
+    expect(decl("button.btn", "color")).toBe("var(--text-secondary)");
+    expect(decl("button.btn", "padding")).toBe("0 12px");
+    expect(decl("button.btn", "border-radius")).toBe("var(--r-panel)");
+    expect(decl(".detail .hero-actions", "gap")).toBe("8px");
   });
   it("sets the empty Inspector 600 13/20 --text-secondary over 400 12/16 --muted, centred, padded 8 12 12 with a gap of 4", () => {
     expect(decl(".insp-none-title", "font-size")).toBe(INC(13));
@@ -298,6 +313,13 @@ describe("the Time tab", () => {
   });
   it("draws the waterfall: an axis 20 high, rows 24, a 124 name column", () => {
     expect(decl(".insp-time-axis", "height")).toBe("20px");
+    // The column's name is a word, 12/16 in the UI face; only the ticks are mono 11/14.
+    expect(decl(".insp-time-axis", "font-family")).toBeUndefined();
+    expect(decl(".insp-time-axis", "font-size")).toBe(INC(12));
+    expect(decl(".insp-time-axis", "line-height")).toBe("16px");
+    expect(decl(".insp-time-ticks", "font-family")).toBe("var(--font-mono)");
+    expect(decl(".insp-time-ticks", "font-size")).toBe(INC(11));
+    expect(decl(".insp-time-ticks", "line-height")).toBe("14px");
     expect(decl(".insp-time-axis", "border-bottom")).toBe("1px solid var(--line-soft)");
     expect(decl(".insp-time-row", "height")).toBe("24px");
     expect(decl(".insp-time-row", "grid-template-columns")).toBe("124px minmax(0, 1fr)");
