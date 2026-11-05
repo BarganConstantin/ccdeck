@@ -1,14 +1,14 @@
 // The Merge requests tab (#2179) — Pull requests on GitHub: GitLab's Merge
 // requests dashboard, for one project or across all of them.
 //
-// Open / Merged / Closed with the forge's counts, then All (the default) /
-// Mine / Review requests, then the sort — created, newest first, or last
-// updated. All three are the panel's remembered view, so the list reopens the
-// way it was left. A row is the dashboard's row: the title (a draft marked),
-// `!iid · created 3h ago by Author` under it (the project's path too when the
-// list is across projects), and on the right the pipeline's mark, Approved,
-// the reviewers with how each one stands, the comment count, and when it last
-// moved — or was merged or closed.
+// Open / Merged / Closed as chips with the forge's counts, then All (the
+// default) / Mine / Review requests, then the sort — created, newest first, or
+// last updated — all in the row over the search. All three are the panel's
+// remembered view, so the list reopens the way it was left. A row is the
+// dashboard's row: the title (a draft marked), `!iid · created 3h ago by
+// Author` under it (the project's path too when the list is across projects),
+// the pipeline's mark, Approved, the reviewers with how each one stands, the
+// comment count, and when it last moved — or was merged or closed.
 //
 // REVIEW REQUESTS ARE SPLIT THE WAY A REVIEWER READS THEM: still waiting for
 // me first, the ones I already approved folded under them.
@@ -30,7 +30,7 @@ import { useForgePages, useForgeRead } from "../../use-forge-read";
 import type { ForgeTabProps } from "./ForgePanel";
 import { sameSelection, useForge, useReportRows } from "./ForgeContext";
 import { IntegrationAvatarStack } from "../IntegrationAvatar";
-import { AgoIn, Badge, Face, FoldGroup, ListEnd, LoadingRows, ReadFailure, StateMark, useFaceOf } from "./ForgeParts";
+import { AgoIn, Badge, Face, FoldGroup, ListEnd, LoadingRows, ReadFailure, StateMark, TabFilters, useFaceOf } from "./ForgeParts";
 import { CheckGlyph } from "../integration-glyphs";
 import { ChevronGlyph, StateGlyph } from "./ForgeGlyphs";
 import AnchoredPopover from "../AnchoredPopover";
@@ -50,7 +50,7 @@ const FILTERS: { filter: ChangeFilter; label: string }[] = [
 const DRAFT: Mark = changeBadge({ state: "open", draft: true, approved: false });
 const APPROVED: Mark = changeBadge({ state: "open", draft: false, approved: true });
 
-export default function ChangesTab({ view, setView, query }: ForgeTabProps) {
+export default function ChangesTab({ view, setView, query, filterSlot }: ForgeTabProps) {
   const { kind, api, scope, refresh, reportFreshness, isOpen } = useForge();
   const t = useT();
   const words = forgeNouns(kind, t);
@@ -88,31 +88,35 @@ export default function ChangesTab({ view, setView, query }: ForgeTabProps) {
 
   return (
     <div className="fgl">
-      <div className="fgl-controls">
-        <div className="uh-range fgl-seg" role="group" aria-label={t("forge.changes.byState", { changes: words.changes })}>
-          {STATES.map(({ state, label }) => {
-            const count = countWords(counts.data?.[state]);
-            return (
-              <button key={state} type="button" className="uh-range-btn" aria-pressed={view.state === state} onClick={() => setView({ state })}>
-                {t(label)}{count && <span className="fgl-seg-count">{count}</span>}
+      <TabFilters slot={filterSlot}>
+        <div className="fgl-controls">
+          {/* The states as chips, the forge's count beside each word. */}
+          <div className="fgl-chips" role="group" aria-label={t("forge.changes.byState", { changes: words.changes })}>
+            {STATES.map(({ state, label }) => {
+              const count = countWords(counts.data?.[state]);
+              return (
+                <button key={state} type="button" className="btn fgl-chip" aria-pressed={view.state === state} onClick={() => setView({ state })}>
+                  {t(label)}{count && <span className="fgl-chip-count">{count}</span>}
+                </button>
+              );
+            })}
+          </div>
+          {/* Which ones, at the row's end: a strip where the list has room,
+              one menu button named by the current choice where it does not
+              (a phone, or the column beside an open item). Both are drawn and
+              the list's width shows one, so the choice never moves when the
+              pane is resized. */}
+          <div className="uh-range fgl-seg fgl-scope-seg" role="group" aria-label={t("forge.changes.which", { changes: noun })}>
+            {FILTERS.map(({ filter, label }) => (
+              <button key={filter} type="button" className="uh-range-btn" aria-pressed={view.filter === filter} onClick={() => setView({ filter })}>
+                {t(label)}
               </button>
-            );
-          })}
+            ))}
+          </div>
+          <ScopeMenu filter={view.filter} noun={noun} onChange={filter => setView({ filter })} />
+          <SortToggle sort={view.sort} onChange={sort => setView({ sort })} />
         </div>
-        {/* Which ones: a strip where the list has room, one menu button named
-            by the current choice where it does not (a phone, or the column
-            beside an open item). Both are drawn and the list's width shows
-            one, so the choice never moves when the pane is resized. */}
-        <div className="uh-range fgl-seg fgl-scope-seg" role="group" aria-label={t("forge.changes.which", { changes: noun })}>
-          {FILTERS.map(({ filter, label }) => (
-            <button key={filter} type="button" className="uh-range-btn" aria-pressed={view.filter === filter} onClick={() => setView({ filter })}>
-              {t(label)}
-            </button>
-          ))}
-        </div>
-        <ScopeMenu filter={view.filter} noun={noun} onChange={filter => setView({ filter })} />
-        <SortToggle sort={view.sort} onChange={sort => setView({ sort })} />
-      </div>
+      </TabFilters>
 
       {read.error && read.data && <ReadFailure error={read.error} onRetry={read.reload} compact />}
       {phase === "loading" && <LoadingRows label={t("forge.loadingNoun", { noun })} />}
@@ -241,13 +245,18 @@ function ChangeRow({ kind, change: c, acrossRepos }: { kind: ForgeKind; change: 
           <Reviewers reviewers={c.reviewers} />
           <CommentCount count={c.comments} />
         </span>
-        <span className="fg-meta fgl-meta">
-          <code>{itemLabel(kind === "gitlab" ? "!" : "#", c, acrossRepos)}</code>
-          {c.createdAt != null
-            ? <> · <AgoIn at={c.createdAt} text={t(author ? "forge.meta.createdBy" : "forge.meta.created", { author: author ?? "" })} /></>
-            : author && <> {t("forge.meta.by", { author })}</>}
+        {/* The meta line and the time: two cells of the row's grid, or one
+            line with the time at its end in the column beside an open item
+            (forge-lists.css), so the title has the row's whole first line. */}
+        <span className="fgl-line">
+          <span className="fg-meta fgl-meta">
+            <code>{itemLabel(kind === "gitlab" ? "!" : "#", c, acrossRepos)}</code>
+            {c.createdAt != null
+              ? <> · <AgoIn at={c.createdAt} text={t(author ? "forge.meta.createdBy" : "forge.meta.created", { author: author ?? "" })} /></>
+              : author && <> {t("forge.meta.by", { author })}</>}
+          </span>
+          <span className="fgl-when">{moment.at != null && <AgoIn at={moment.at} text={momentPhrase(moment.verb, t)} verb="fgl-when-verb" />}</span>
         </span>
-        <span className="fgl-when">{moment.at != null && <AgoIn at={moment.at} text={momentPhrase(moment.verb, t)} verb="fgl-when-verb" />}</span>
       </button>
     </li>
   );

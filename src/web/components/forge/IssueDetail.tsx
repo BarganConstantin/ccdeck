@@ -1,9 +1,8 @@
-// An issue (#2179): its title and state, who opened it and when, the facts the
-// forge's side column keeps (assignees, labels, milestone, its parent), the
-// description, its child items — GitLab's tasks, GitHub's sub-issues — and its
-// comments, folded behind "Show N comments" and read only when that is pressed:
-// an issue opened to check its state should not cost a comment thread.
-import { useState } from "react";
+// An issue (#2179): its state as a chip in the bar, its title, one line with
+// who opened it, when, and how many comments it has; the facts the forge's
+// side column keeps (assignees, labels, milestone, its parent), the
+// description under its name, its child items — GitLab's tasks, GitHub's
+// sub-issues — and its comments, listed as the forge's own page lists them.
 import type { ForgeComment, IssueDetail as Issue, IssueRef } from "../../forge-types";
 import { issueMark } from "../../forge-detail";
 import type { Mark } from "../../forge-panel";
@@ -12,7 +11,7 @@ import { formatNumber } from "../../i18n/format";
 import { useForgePages, useForgeRead } from "../../use-forge-read";
 import ForgeHtml, { renderForgeNodes } from "../ForgeHtml";
 import { useForge, type ForgeSelection } from "./ForgeContext";
-import { Ago, AgoIn, Badge, ListEnd, LoadingRows, Person, ReadFailure, StateMark } from "./ForgeParts";
+import { Ago, AgoIn, ListEnd, LoadingRows, ReadFailure, StateChip, StateMark } from "./ForgeParts";
 import {
   DetailFrame, DetailHeading, DetailPending, LabelsFact, PeopleFact, SideFact, SideFacts, useDetailBar, useForgeNodes,
 } from "./DetailParts";
@@ -30,7 +29,8 @@ export default function IssueDetail({ selection }: { selection: Selection }) {
   const reference = issue?.key ?? `${selection.repo}#${selection.number}`;
   return (
     <DetailFrame label={t("forge.issue.frame", { ref: reference })}>
-      <IntegrationDetailBar {...bar} reference={reference} copyLabel={t("forge.copy.reference")} href={issue?.webUrl ?? null} />
+      <IntegrationDetailBar {...bar} reference={reference} copyLabel={t("forge.copy.reference")}
+        status={issue && <StateChip mark={issueMark(issue.state, issue.stateReason)} />} href={issue?.webUrl ?? null} />
       <DetailPending data={issue} loading={read.loading} error={read.error} onRetry={read.reload} what={t("forge.noun.issue")} />
       {issue && (
         <>
@@ -43,33 +43,35 @@ export default function IssueDetail({ selection }: { selection: Selection }) {
 }
 
 function IssueBody({ selection, issue: i }: { selection: Selection; issue: Issue }) {
-  const { select } = useForge();
+  const { kind, select } = useForge();
   const t = useT();
+  const author = i.author ? i.author.name || i.author.login : null;
   const titleNodes = useForgeNodes(i.titleHtml, true);
   const nodes = useForgeNodes(i.descriptionHtml);
   return (
     <>
       <header className="fd-head">
         <h2 className="fd-title">{titleNodes.length ? renderForgeNodes(titleNodes) : i.title}</h2>
-        <p className="fd-byline">
-          <Badge mark={issueMark(i.state, i.stateReason)} />
-          <span><code>#{i.number}</code> {t("forge.issue.opened")}</span>
-          {i.createdAt != null && <Ago at={i.createdAt} />}
-          {i.author && <><span>{t("forge.issue.by")}</span><Person user={i.author} size={18} /></>}
-          {i.state === "closed" && i.closedAt != null && <span className="fd-when">· <AgoIn at={i.closedAt} text={t("forge.when.closed")} /></span>}
+        {/* "Opened by dan · 2d ago · 2 comments", and when it was closed. */}
+        <p className="fd-summary">
+          {author ? t("forge.issue.openedBy", { author }) : t("forge.issue.openedPlain")}
+          {i.createdAt != null && <> · <Ago at={i.createdAt} /></>}
+          {i.comments > 0 && <> · {t("forge.comments", { count: i.comments, n: formatNumber(i.comments, 0) })}</>}
+          {i.state === "closed" && i.closedAt != null && <> · <AgoIn at={i.closedAt} text={t("forge.when.closed")} /></>}
         </p>
       </header>
       <div className="fd-layout">
         <SideFacts label={t("forge.issue.about")}>
-          <SideFact label={t(i.assignees.length > 1 ? "forge.fact.assignees" : "forge.fact.assignee")}><PeopleFact users={i.assignees} /></SideFact>
-          {i.labels.length > 0 && <SideFact label={t("forge.fact.labels")}><LabelsFact labels={i.labels} /></SideFact>}
-          {i.milestone && (
-            <SideFact label={t("forge.fact.milestone")}>
-              {i.milestone.webUrl
+          {/* GitHub names the field in the plural whatever it holds; GitLab
+              says Assignee for one. */}
+          <SideFact label={t(kind === "gitlab" && i.assignees.length <= 1 ? "forge.fact.assignee" : "forge.fact.assignees")}><PeopleFact users={i.assignees} /></SideFact>
+          <SideFact label={t("forge.fact.labels")}><LabelsFact labels={i.labels} /></SideFact>
+          <SideFact label={t("forge.fact.milestone")}>
+            {!i.milestone ? <span className="fd-none">{t("forge.none")}</span>
+              : i.milestone.webUrl
                 ? <a className="fd-plain-link" href={i.milestone.webUrl} target="_blank" rel="noreferrer noopener">{i.milestone.title}</a>
                 : i.milestone.title}
-            </SideFact>
-          )}
+          </SideFact>
           {i.parent && (
             <SideFact label={t("forge.fact.parent")}>
               <IssueLink item={i.parent} onOpen={() => select({ type: "issue", repo: i.parent!.repo, number: i.parent!.number })} />
@@ -77,6 +79,7 @@ function IssueBody({ selection, issue: i }: { selection: Selection; issue: Issue
           )}
         </SideFacts>
         <div className="fd-main">
+          <DetailHeading>{t("forge.description")}</DetailHeading>
           {nodes.length ? <ForgeHtml className="fd-description" nodes={nodes} /> : <p className="fd-none fd-description">{t("forge.noDescription")}</p>}
           {i.childItems.length > 0 && (
             <section className="fd-block">
@@ -131,27 +134,13 @@ function IssueLink({ item, onOpen }: { item: IssueRef; onOpen: () => void }) {
   );
 }
 
+/** The comments, read with the page when there are any. */
 function Comments({ selection, count }: { selection: Selection; count: number }) {
   const t = useT();
-  const [shown, setShown] = useState(false);
-  if (!count) {
-    return (
-      <section className="fd-block">
-        <DetailHeading count={0}>{t("forge.comments.title")}</DetailHeading>
-        <p className="fd-none">{t("forge.comments.none")}</p>
-      </section>
-    );
-  }
   return (
     <section className="fd-block">
       <DetailHeading count={count}>{t("forge.comments.title")}</DetailHeading>
-      {shown
-        ? <CommentList selection={selection} />
-        : (
-          <button type="button" className="btn fd-show-comments" onClick={() => setShown(true)}>
-            {t("forge.comments.show", { count, n: formatNumber(count, 0) })}
-          </button>
-        )}
+      {count ? <CommentList selection={selection} /> : <p className="fd-none">{t("forge.comments.none")}</p>}
     </section>
   );
 }

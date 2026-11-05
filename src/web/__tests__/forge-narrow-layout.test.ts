@@ -77,9 +77,58 @@ describe("a narrow list's rows", () => {
 const detail = sheet("forge-detail.css");
 const panel = sheet("forge-panel.css");
 
+describe("a list beside an open item", () => {
+  // The list column beside an open item is 441 to 640 wide.
+  const beside = blocks(lists, "@container fgl (min-width: 441px) and (max-width: 640px)").join("\n");
+
+  it("gives a pull request's or an issue's title the whole first line, and the meta, the time and the facts the second", () => {
+    expect(decls(beside, ".fg-row.fgl-row")).toContain('grid-template-areas: "title title" "line side"');
+    expect(decls(beside, ".fgl-row > .fgl-title")).toMatch(/white-space: nowrap/);
+    // The meta and the time are one line there, the time at its end; on a
+    // wide list and a phone they are cells of the row's grid.
+    expect(decls(topLevel(lists), ".fgl-row > .fgl-line")).toBe("display: contents;");
+    expect(decls(beside, ".fgl-row > .fgl-line")).toMatch(/grid-area: line; display: flex;/);
+    expect(decls(beside, ".fgl-line > .fgl-when")).toMatch(/flex: none/);
+    // The facts' chips are taller than the line and lend it 2px each way, so the row stays 44.
+    expect(decls(beside, ".fgl-row > .fgl-side")).toMatch(/margin-block: -2px/);
+  });
+
+  it("lays a pipeline out on its own areas, so its state never sits on its duration", () => {
+    // The rule for every row matches a pipeline's too; the pipeline's own,
+    // after it, gives each of its pieces a cell.
+    const pipe = decls(beside, ".fg-row.fgl-pipeline");
+    expect(pipe).toContain('grid-template-areas: "status title side" ". line side"');
+    expect(pipe).toMatch(/grid-template-columns: 14px minmax\(0, 1fr\) auto/);
+    expect(beside.indexOf(".fg-row.fgl-pipeline")).toBeGreaterThan(beside.indexOf(".fg-row.fgl-row"));
+    // The state is its 14px glyph; its word is kept for a screen reader.
+    expect(decls(beside, ".fgl-pipeline > .fgl-status .fg-glyph")).toMatch(/width: 14px; height: 14px/);
+    expect(decls(beside, ".fgl-pipeline > .fgl-status .fg-mark-word")).toMatch(SR_HIDDEN);
+    // How long it ran joins the meta line, and an empty one takes no room.
+    expect(decls(beside, ".fgl-line > .fgl-duration:empty")).toMatch(/display: none/);
+  });
+
+  it("keeps a selected row's title at 400, as every other row's", () => {
+    expect(panel).not.toMatch(/\.fg-row\[data-selected\] \.fg-row-title\s*\{[^}]*font-weight/);
+  });
+
+  it("keeps a branch's name on one line, cut with an ellipsis rather than broken inside", () => {
+    expect(decls(topLevel(lists), ".fgl-branch-code")).toMatch(/white-space: nowrap; overflow: hidden; text-overflow: ellipsis/);
+    expect(decls(topLevel(lists), ".fgl-branch-code")).not.toMatch(/overflow-wrap: anywhere/);
+    // Up to 820 the name has the first line beside the counts alone.
+    expect(decls(blocks(lists, "@container fgl (max-width: 820px)").join("\n"), ".fg-rows > li.fgl-branch"))
+      .toContain('grid-template-areas: "name stats" "commit change"');
+  });
+
+  it("says how far a branch is from the default one on one line", () => {
+    expect(decls(topLevel(detail), ".fd-fact dd.fd-diverge")).toMatch(/display: flex; flex-wrap: nowrap; white-space: nowrap/);
+  });
+});
+
 describe("a phone's first screen goes to the list", () => {
   it("keeps a narrow list's filters on one row: the scope as a menu button, the sort as its glyph", () => {
-    const narrow = blocks(lists, "@container fgl (max-width: 520px)").join("\n");
+    // CHANGED ON PURPOSE: the filters stand in the row over the search now,
+    // outside the tab's own box, so they answer the list column's width.
+    const narrow = blocks(lists, "@container fg-list (max-width: 520px)").join("\n");
     // The menu button is drawn always and shown only on a narrow list…
     expect(decls(topLevel(lists), ".fgl-scope")).toMatch(/display: none/);
     expect(decls(narrow, ".fgl-scope")).toMatch(/display: inline-flex/);
@@ -89,7 +138,9 @@ describe("a phone's first screen goes to the list", () => {
   });
 
   it("keeps the four tabs on one row that scrolls, never a grid of two rows", () => {
-    const narrow = blocks(panel, "@container fg-list (max-width: 440px)").join("\n");
+    // CHANGED ON PURPOSE: the toolbar spans the whole panel now, over the list
+    // and the open item, so its tabs answer the panel's width, not the list's.
+    const narrow = blocks(panel, "@container fg-panel (max-width: 440px)").join("\n");
     expect(decls(narrow, ".fg-tabs")).not.toMatch(/display: grid/);
     expect(decls(narrow, ".fg-tabs .uh-range-btn")).toMatch(/flex: 1 0 auto/);
     expect(decls(narrow, ".fg-tabs .uh-range-btn")).not.toMatch(/white-space: normal/);
@@ -100,16 +151,20 @@ describe("a phone's first screen goes to the list", () => {
     // GitLab's four names need 288px at 4px a side, which a 360px phone's
     // list has; at 6px a side Issues ran past the edge there, and at 320px
     // it was out of sight altogether, not even a sliver to say it was there.
-    const narrow = blocks(panel, "@container fg-list (max-width: 440px)").join("\n");
+    const narrow = blocks(panel, "@container fg-panel (max-width: 440px)").join("\n");
     // CHANGED ON PURPOSE (V4's Figma): the tabs are 24px pills with no vertical padding, so the
     // same 4px a side is written as "0 4px".
     expect(decls(narrow, ".fg-tabs .uh-range-btn")).toMatch(/(?:^|; )padding: 0 4px;/);
   });
 
-  it("keeps a change's sections on one row on a phone's pane, each label whole over its count", () => {
+  it("keeps a change's sections on one row on a phone's pane, each label whole", () => {
+    // CHANGED ON PURPOSE: the sections carry their names alone now (V4's
+    // Figma), so there is no count to stack under a label; each pill shares
+    // the row and centres its name.
     const narrow = blocks(detail, "@container fd (max-width: 479px)").join("\n");
     expect(decls(narrow, ".fd-sections")).not.toMatch(/display: grid/);
-    expect(decls(narrow, ".fd-sections .uh-range-btn")).toMatch(/flex: 1 0 auto;.*flex-direction: column/);
+    expect(decls(narrow, ".fd-sections .uh-range-btn")).toMatch(/flex: 1 0 auto;.*justify-content: center/);
+    expect(decls(narrow, ".fd-sections .uh-range-btn")).not.toMatch(/flex-direction: column/);
     expect(decls(narrow, ".fd-sections .uh-range-btn")).not.toMatch(/white-space: normal/);
     expect(detail).not.toMatch(/\.fd-sections\s*\{[^}]*grid-template-columns/);
   });

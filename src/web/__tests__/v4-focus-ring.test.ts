@@ -152,7 +152,8 @@ describe("one focus ring (V4's Figma)", () => {
       ".aa-tab.on", '.character-choice[aria-checked="true"]',
       // CHANGED ON PURPOSE (V4's Figma): the provider switch's chosen segment is raised onto the panel, not
       // accent-edged, so it no longer takes the outside ring step.
-      'button.btn.jr-chip[aria-pressed="true"]', '.radio-controls .radio-mute[aria-pressed="true"]',
+      'button.btn.jr-chip[aria-pressed="true"]', 'button.btn.fgl-chip[aria-pressed="true"]',
+      '.radio-controls .radio-mute[aria-pressed="true"]',
       '.radio-filter-trigger[data-filtered="true"]', "button.btn.primary",
     ]) expect(sels, s).toContain(s + ":focus-visible");
     // Offset only: width, style and colour stay the global ring's.

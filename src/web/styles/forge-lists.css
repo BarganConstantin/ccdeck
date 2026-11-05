@@ -16,14 +16,20 @@
 .fgl-group-empty { margin: 6px 0 0; color: var(--text-secondary); font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: 1.5; }
 
 /* ── the filters over a list ─────────────────────────────────────────────
-   The deck's own segmented strip (.uh-range), its chosen segment on the
-   accent as everywhere else, with each segment's count beside its word. A
-   segment is 24px so the strip stands at the control height, level with the
-   sort button beside it. */
-.fgl-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 4px; }
+   They stand in the row over the search (.fg-filters). The states are chips,
+   24 high and fully round, as the Jira panel's: the chosen one on the accent
+   wash with an accent edge, each with the forge's count beside its word.
+   Which ones (the deck's own segmented strip, or its menu) and the order sit
+   at the row's right. */
+.fgl-controls { flex: 1; min-width: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.fgl-chips { display: inline-flex; flex-wrap: wrap; gap: 6px; }
+button.btn.fgl-chip { --ctl-h: 24px; gap: 6px; padding: 0 8px; border-radius: var(--r-pill); font-size: calc(12px + var(--ui-text-increase, 0px)); font-weight: 400; line-height: 16px; color: var(--text-secondary); white-space: nowrap; }
+/* A 16% wash put --text at 4.485:1 in Gruvbox Material; 14% holds AA, as the Jira chips' does. */
+button.btn.fgl-chip[aria-pressed="true"] { background: color-mix(in srgb, var(--accent) 14%, var(--panel)); border-color: var(--accent); color: var(--text); }
+.fgl-chip-count { font-family: var(--font-mono); font-size: calc(11px + var(--ui-text-increase, 0px)); font-variant-numeric: tabular-nums; }
+.fgl-scope-seg, .fgl-scope { margin-left: auto; }
 .fgl-seg { flex: none; max-width: 100%; overflow-x: auto; scrollbar-width: none; }
 .fgl-seg .uh-range-btn { display: inline-flex; align-items: center; gap: 6px; min-height: 24px; white-space: nowrap; }
-.fgl-seg-count { font-variant-numeric: tabular-nums; }
 .fgl-controls button.btn.fgl-sort { gap: 6px; padding: 0 10px; font-family: var(--font-mono); font-size: calc(11px + var(--ui-text-increase, 0px)); }
 .fgl-controls-note { color: var(--muted); font-size: calc(12px + var(--ui-text-increase, 0px)); }
 /* All / Mine / Review requests as one menu button, for a list too narrow for
@@ -40,8 +46,11 @@
 .fg-row.fgl-row { grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "title side" "meta when"; gap: 0 16px; }
 .fgl-row > .fgl-title { grid-area: title; }
 .fgl-row > .fgl-side { grid-area: side; justify-self: end; }
-.fgl-row > .fgl-meta { grid-area: meta; }
-.fgl-row > .fgl-when { grid-area: when; justify-self: end; }
+/* The meta and the time are cells of the row's grid; beside an open item
+   they share one line (below). */
+.fgl-row > .fgl-line { display: contents; }
+.fgl-line > .fgl-meta { grid-area: meta; }
+.fgl-line > .fgl-when { grid-area: when; justify-self: end; }
 .fgl-title { line-height: 1.4; }
 /* The leading glyph of a pull request row: its state, 14px, in the state's tone. */
 .fgl-state { display: inline-flex; vertical-align: -2px; margin-right: 8px; color: var(--muted); }
@@ -78,7 +87,7 @@
 /* ── Pipelines: status first, as GitLab's table has it ───────────────────── */
 .fg-row.fgl-pipeline { grid-template-columns: 8.5em minmax(0, 1fr) auto; grid-template-areas: "status title side" "duration meta when"; }
 .fgl-pipeline > .fgl-status { grid-area: status; min-width: 0; }
-.fgl-pipeline > .fgl-duration { grid-area: duration; }
+.fgl-pipeline .fgl-line > .fgl-duration { grid-area: duration; }
 .fgl-duration { min-width: 0; color: var(--muted); font-family: var(--font-mono); font-size: calc(12px + var(--ui-text-increase, 0px)); font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .fgl-duration:empty { visibility: hidden; }
 .fgl-pipeline .fgl-meta { display: block; }
@@ -111,7 +120,7 @@
 .fgl-branch .ig-copy, .fgl-branch .fgl-create { pointer-events: auto; }
 .fgl-branch-name { grid-area: name; display: flex; align-items: center; gap: 4px 8px; min-width: 0; }
 .fgl-branch-name .fg-copyable { min-width: 0; max-width: 100%; }
-.fgl-branch-code { min-width: 0; font-size: calc(13px + var(--ui-text-increase, 0px)); font-weight: 400; line-height: 20px; color: var(--text); overflow-wrap: anywhere; }
+.fgl-branch-code { min-width: 0; font-size: calc(13px + var(--ui-text-increase, 0px)); font-weight: 400; line-height: 20px; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 /* The chips: 20 high, fully round, a --line-soft edge, 11/400 in --text-secondary, no colour of their own. */
 .fgl-branch-name .fg-badge { flex: none; padding: 0 6px; height: 20px; box-sizing: border-box; border: 1px solid var(--line-soft); font-size: calc(11px + var(--ui-text-increase, 0px)); font-weight: 400; line-height: 18px; color: var(--text-secondary); }
 .fgl-commit { grid-area: commit; display: flex; align-items: baseline; gap: 6px; min-width: 0; overflow: hidden; }
@@ -130,7 +139,7 @@
 /* ── the project picker ──────────────────────────────────────────────────── */
 /* The span is the popover's width, so the end-aligned popover starts under
    the button (RepoPicker.tsx); the button inside it is only as wide as its words. */
-.fgl-repo { --fgl-pop-w: min(400px, calc(100vw - 24px)); display: inline-flex; flex: 0 1 auto; width: auto; min-width: 0; }
+.fgl-repo { --fgl-pop-w: min(340px, calc(100vw - 24px)); display: inline-flex; flex: 0 1 auto; width: auto; min-width: 0; }
 /* The button is the deck's .btn; this only lays its words out and keeps it
    filled while its list is open. */
 /* V4: 28 high, 13/500 in --text-secondary on a --line edge. */
@@ -140,37 +149,46 @@ button.btn.fgl-repo-trigger[aria-expanded="true"] { background: var(--ctl-fill);
 .fgl-glyph, .fgl-chevron { flex: none; color: var(--muted); }
 .fgl-repo-trigger[aria-expanded="true"] .fgl-chevron { transform: rotate(180deg); }
 .fgl-repo-path { display: inline-flex; min-width: 0; overflow: hidden; font-size: calc(13px + var(--ui-text-increase, 0px)); white-space: nowrap; }
-/* The group is the prefix that gives way first. */
-.fgl-repo-group { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; color: var(--text-secondary); font-weight: 400; }
-.fgl-repo-name { flex: none; max-width: 100%; overflow: hidden; text-overflow: ellipsis; font-weight: 500; color: var(--text); }
+.fgl-repo-name { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; font-weight: 500; color: var(--text); }
 .fgl-repo-all { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 500; }
 
-.fgl-repo-pop { width: var(--fgl-pop-w); padding: 6px; display: flex; flex-direction: column; overflow: hidden; }
-.fgl-repo-body { display: flex; flex-direction: column; flex: 1; min-height: 0; }
-.fgl-repo-search { display: flex; align-items: center; gap: 8px; flex: none; padding: 2px 6px 8px; border-bottom: 1px solid var(--line); }
-/* The field is the deck's text field (.ap-manage-input); this only sizes it. */
-.fgl-repo-search input { flex: 1; box-sizing: border-box; }
-.fgl-repo-scroll { flex: 1 1 auto; min-height: 0; max-height: min(380px, 52dvh); overflow-y: auto; overscroll-behavior: contain; padding: 4px 0 2px; }
+/* The popover: 340 wide, 12 in from its edge, its pieces 8 apart. */
+.fgl-repo-pop { width: var(--fgl-pop-w); padding: 12px; display: flex; flex-direction: column; overflow: hidden; }
+.fgl-repo-body { display: flex; flex-direction: column; gap: 8px; flex: 1; min-height: 0; }
+/* The search: the deck's text field (.ap-manage-input) on the sunken fill,
+   28 high, its glyph inside at the left. */
+.fgl-repo-search { position: relative; display: flex; align-items: center; flex: none; }
+.fgl-repo-search > .fgl-glyph { position: absolute; left: 8px; pointer-events: none; }
+.fgl-repo-search input { --ctl-h: 28px; flex: 1; box-sizing: border-box; padding-left: 28px; font-size: calc(12px + var(--ui-text-increase, 0px)); }
+.fgl-repo-scroll { flex: 1 1 auto; min-height: 0; max-height: min(380px, 52dvh); overflow-y: auto; overscroll-behavior: contain; }
 .fgl-repo-scroll .ig-skeleton[data-variant] { margin: 0; padding: 4px 0; gap: 6px; border: 0; border-radius: 0; background: none; }
 .fgl-repo-scroll .ig-skeleton[data-variant] i { height: 32px; }
 .fgl-repo-scroll .ig-failure[data-kind] { margin: 4px 2px; }
-.fgl-repo-scroll .fg-more { width: 100%; margin-top: 4px; }
-.fgl-repo-options { display: grid; gap: 1px; }
-.fgl-repo-option { display: grid; grid-template-columns: minmax(0, 1fr) auto auto 14px; align-items: center; gap: 8px; min-height: 38px; padding: 5px 8px; box-sizing: border-box; border: 0; border-radius: var(--r-ctl); background: none; color: var(--text); text-align: left; font: inherit; cursor: pointer; transition: background var(--dur-fast) var(--ease), transform var(--dur-fast) var(--ease); }
+.fgl-repo-scroll .fg-more { width: 100%; margin-top: 8px; }
+.fgl-repo-options, .fgl-repo-group-rows { display: grid; gap: 8px; }
+/* A group's name, 12/600 in --text-secondary, with how many it holds. */
+.fgl-repo-head { display: flex; align-items: center; gap: 6px; min-height: 20px; padding: 0 8px; color: var(--text-secondary); font-size: calc(12px + var(--ui-text-increase, 0px)); font-weight: 600; line-height: 16px; }
+.fgl-repo-head-count { color: var(--muted); font-family: var(--font-mono); font-size: calc(11px + var(--ui-text-increase, 0px)); font-weight: 400; font-variant-numeric: tabular-nums; }
+/* A row: the path over when it last moved, 44 high, and the check. */
+.fgl-repo-option { display: grid; grid-template-columns: minmax(0, 1fr) 14px; align-items: center; gap: 8px; min-height: 44px; padding: 4px 8px; box-sizing: border-box; border: 0; border-radius: var(--r-ctl); background: none; color: var(--text); text-align: left; font: inherit; cursor: pointer; transition: background var(--dur-fast) var(--ease), transform var(--dur-fast) var(--ease); }
 .fgl-repo-option[data-active="true"] { background: var(--ctl-fill); }
 .fgl-repo-option:active { transform: scale(var(--press)); }
 .fgl-repo-option-text { display: flex; flex-direction: column; min-width: 0; }
-.fgl-repo-option-name, .fgl-repo-option-group { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.fgl-repo-option-name { font-size: calc(13px + var(--ui-text-increase, 0px)); font-weight: 500; }
-.fgl-repo-option[aria-selected="true"] .fgl-repo-option-name { font-weight: 600; }
-.fgl-repo-option-group { font-family: var(--font-mono); font-size: calc(11px + var(--ui-text-increase, 0px)); color: var(--text-secondary); }
-.fgl-repo-option-when { color: var(--muted); font-size: calc(11px + var(--ui-text-increase, 0px)); white-space: nowrap; font-variant-numeric: tabular-nums; }
-.fgl-repo-check { display: inline-flex; color: var(--accent); }
+.fgl-repo-option-name, .fgl-repo-option-when { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fgl-repo-option-name { font-size: calc(13px + var(--ui-text-increase, 0px)); font-weight: 500; line-height: 20px; }
+.fgl-repo-option-when { color: var(--muted); font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: 16px; font-variant-numeric: tabular-nums; }
+/* The current one's check is the done colour, as a finished state is. */
+.fgl-repo-check { display: inline-flex; color: var(--ok); }
 .fgl-repo-none { margin: 10px 8px; color: var(--text-secondary); font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: 1.5; }
 
 /* ── a narrow list ───────────────────────────────────────────────────────── */
+/* A narrower list gives the name the whole first line beside the counts,
+   and the change goes under the counts, beside the last commit. */
 @container fgl (max-width: 820px) {
-  .fg-rows > li.fgl-branch { grid-template-columns: minmax(0, 1fr) auto auto; grid-template-areas: "name stats change" "commit commit commit"; row-gap: 0; padding-block: 4px; }
+  .fg-rows > li.fgl-branch { grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "name stats" "commit change"; row-gap: 0; padding-block: 4px; }
+  /* Create's 4px of reach above and below its words stays, without making
+     its row taller than the others. */
+  .fgl-branch .fgl-create { margin-block: -4px; }
 }
 @container fgl (max-width: 440px) {
   .fg-rows > li.fgl-branch { grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "name name" "commit commit" "stats change"; row-gap: 2px; padding-block: 6px; }
@@ -178,10 +196,11 @@ button.btn.fgl-repo-trigger[aria-expanded="true"] { background: var(--ctl-fill);
   .fgl-stats[data-empty], .fgl-diverge[data-empty] { display: none; }
   .fgl-branch:has(.fgl-stats[data-empty]) { grid-template-areas: "name name" "commit commit" "change change"; }
 }
-/* A narrow list keeps its filters on one row: the state strip, the scope as
+/* A narrow list keeps its filters on one row: the state chips, the scope as
    a menu button, and the sort as its glyph alone (its name and tooltip still
-   say which order it is). */
-@container fgl (max-width: 520px) {
+   say which order it is). The filters stand over the search, outside the
+   tab's own box, so they answer the list column's width. */
+@container fg-list (max-width: 520px) {
   .fgl-controls { gap: 6px; }
   .fgl-seg .uh-range-btn { gap: 4px; padding-inline: 6px; }
   .fgl-scope-seg { display: none; }
@@ -190,17 +209,32 @@ button.btn.fgl-repo-trigger[aria-expanded="true"] { background: var(--ctl-fill);
   .fgl-sort-word { display: none; }
   .fgl-controls button.btn.fgl-sort { min-width: var(--ctl-h); padding: 0; }
 }
-/* The facts go on a line of their own, beside the time. They wrap inside
-   their column rather than run under the time: the column is what is left
-   once the time has its words. */
-/* Beside an open item (a 480 column) a pull request or issue row stays at two lines, 44 high:
-   the title and the time on the first, the number and the row's facts on the second. */
+/* Beside an open item (a 480 column) a row is two lines, 44 high: the title
+   across the whole row, then one line of meta that ends on the time, with
+   the row's facts at its right. The facts' chips and faces are taller than
+   the line's 16px and lend it their 2px top and bottom, so the row keeps its
+   height. A pipeline's state is its 14px glyph at the left, its word left to
+   a screen reader; how long it ran joins the line, its face at the right. */
 @container fgl (min-width: 441px) and (max-width: 640px) {
-  .fg-row.fgl-row { grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "title when" "meta side"; }
-  .fgl-row > .fgl-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .fgl-row > .fgl-title .fgl-title-text { white-space: nowrap; }
-  .fgl-row > .fgl-side { justify-self: end; }
-  .fgl-row > .fgl-meta { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .fg-row.fgl-row { grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "title title" "line side"; }
+  /* The title's line is 20 high whatever sits in it; the labels give way
+     before the title does. */
+  .fgl-row > .fgl-title { display: flex; align-items: center; height: 20px; min-width: 0; white-space: nowrap; }
+  .fgl-row > .fgl-title .fgl-title-text { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .fgl-row > .fgl-title > .fgl-labels { flex: 0 1000 auto; min-width: 0; flex-wrap: nowrap; overflow: hidden; }
+  .fgl-row > .fgl-title > :not(.fgl-title-text):not(.fgl-labels) { flex: none; }
+  .fgl-row > .fgl-side { justify-self: end; margin-block: -2px; }
+  .fgl-row > .fgl-line { grid-area: line; display: flex; align-items: center; height: 16px; min-width: 0; color: var(--muted); font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: 16px; white-space: nowrap; }
+  .fgl-line > .fgl-meta { flex: 0 1 auto; display: block; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+  .fgl-line > .fgl-when, .fgl-line > .fgl-duration { flex: none; }
+  /* The dot between them is drawn, not read. */
+  .fgl-line > .fgl-when:not(:empty)::before, .fgl-line > .fgl-duration:not(:empty)::before { content: "\00a0·\00a0"; content: "\00a0·\00a0" / ""; }
+  .fgl-line > .fgl-duration:empty { display: none; }
+  .fg-row.fgl-pipeline { grid-template-columns: 14px minmax(0, 1fr) auto; grid-template-areas: "status title side" ". line side"; column-gap: 8px; }
+  .fgl-pipeline > .fgl-status { display: flex; align-items: center; height: 20px; }
+  .fgl-pipeline > .fgl-status .fg-glyph { width: 14px; height: 14px; }
+  .fgl-pipeline > .fgl-status .fg-mark-word { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  .fgl-pipeline .fgl-title-text { display: block; }
 }
 @container fgl (max-width: 440px) {
   .fg-row.fgl-row { grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "title title" "meta meta" "side when"; }
@@ -225,6 +259,7 @@ button.btn.fgl-repo-trigger[aria-expanded="true"] { background: var(--ctl-fill);
 
 @media (pointer: coarse) {
   .fgl-seg .uh-range-btn { min-height: 34px; }
+  button.btn.fgl-chip { --ctl-h: 32px; }
   .fgl-controls button.btn.fgl-sort, .fgl-controls button.btn.fgl-scope-trigger { min-height: 40px; min-width: 40px; }
   button.btn.fgl-repo-trigger { min-height: 40px; }
   .fgl-repo-option { min-height: 44px; }
