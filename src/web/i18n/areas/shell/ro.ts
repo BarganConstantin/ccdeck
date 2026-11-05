@@ -268,10 +268,9 @@ const catalog: Catalog = {
 
   // ── desktop app update ──
   "shell.desktop.restartToUpdate": "Repornește pentru a actualiza",
+  "shell.desktop.restartToFinish": "Repornește pentru a termina",
   "shell.desktop.menuMac": "meniul ccdeck din bara de meniu",
   "shell.desktop.menuTray": "meniul ccdeck din bara de sistem",
-  "shell.desktop.chipLabel": "{text}, actualizare descărcată și verificată",
-  "shell.desktop.chipTitle": "ccdeck v{to} este descărcat și verificat · clic pentru a deschide Noutăți, unde {action} este primul",
   "shell.desktop.restartLabel": "{action} la v{to}",
   "shell.desktop.restartTitle": "Instalează acum ccdeck v{to}: ccdeck se repornește și revine în câteva secunde. Sesiunile tale Claude Code și Codex continuă să ruleze.",
   "shell.desktop.way": "Folosește {action} din {menu}.",

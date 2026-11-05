@@ -76,6 +76,30 @@ describe("the bar: 40 high, --panel, a rule under it, 12 and 8 at the sides", ()
   });
 });
 
+describe("the desktop app's title bar: the menu 8 in, the wordmark 44, the traffic lights' 80", () => {
+  const chrome = ':root[data-desktop-chrome="true"]';
+  it("packs the start group from the left and leaves the space only before the end group", () => {
+    expect(decl(`${chrome} .topbar`, "padding-left")).toBe("8px");
+    expect(decl(`${chrome} .topbar`, "gap")).toBe("12px");
+    expect(decl(`${chrome} .topbar .tb-end`, "margin-left")).toBe("auto");
+  });
+  it("draws the app menu as the kit's 28 icon button with the More icon, 8 from the wordmark", () => {
+    expect(decl(".desktop-menu.btn", "width")).toBe("28px");
+    expect(decl(".desktop-menu.btn", "height")).toBe("28px");
+    expect(decl(".desktop-menu.btn", "border-radius")).toBe("var(--r-ctl)");
+    expect(decl(".desktop-menu.btn", "color")).toBe("var(--muted)");
+    // 8 + 28 + (12 - 4) = 44, where the wordmark stands.
+    expect(decl(".desktop-menu.btn", "margin-right")).toBe("-4px");
+    const bar = sourceOf("components/DesktopTitlebar.tsx");
+    expect(bar).toContain("<KitIcon name=\"more\" />");
+    expect(bar).not.toContain("<svg");
+  });
+  it("starts 80 in on macOS, after the traffic lights", () => {
+    expect(decl(`${chrome}[data-desktop-platform="darwin"] .topbar`, "padding-left")).toBe("var(--traffic-lights-w)");
+    expect(decl(`${chrome}[data-desktop-platform="darwin"] .topbar`, "--traffic-lights-w")).toBe("80px");
+  });
+});
+
 describe("the three counts", () => {
   it("are 24 tall pills: waiting outlined in --warn, working and done plain", () => {
     expect(decl(".topbar .count-pill", "height")).toBe("24px");
@@ -144,8 +168,15 @@ describe("the version chip, only when needed", () => {
     expect(decl(".topbar button.v", "border-radius")).toBe("var(--r-ctl)");
     expect(decl(".topbar button.v", "padding")).toBe("0 6px");
     expect(decl(".topbar button.v", "gap")).toBe("4px");
-    expect(decl(".topbar button.v:is(.stale, .ready, .v-update)", "background")).toBe("var(--accent-16)");
+    expect(decl(".topbar button.v:is(.stale, .ready)", "background")).toBe("var(--accent-16)");
     expect(decl(".topbar button.v .v-icon", "width")).toBe("14px");
+    // The icon is the kit's, in the accent: Update on a newer version, Restart
+    // on the app's ready update, which is the one chip "Restart to finish".
+    expect(decl(".topbar button.v .v-icon", "color")).toBe("var(--accent)");
+    const chip = sourceOf("components/VersionChip.tsx");
+    expect(chip).toContain('<span className="v-icon" aria-hidden><KitIcon name="update" /></span>');
+    expect(chip).toContain('<span className="v-icon" aria-hidden><KitIcon name="restart" /></span>');
+    expect(en["shell.desktop.restartToFinish"]).toBe("Restart to finish");
   });
   it("sits in the end group, ahead of the Layout switch", () => {
     const end = readouts.indexOf('<div className="tb-end">');
@@ -154,7 +185,7 @@ describe("the version chip, only when needed", () => {
   });
 });
 
-describe("the Layout switch: 170x28, Medium on both, the lift on the selected one", () => {
+describe("the Layout switch: 170x28, Medium on both, the selected one flat on --panel", () => {
   it("is 28 tall with its stroke inside the padding, r8, --bg-soft, --line-soft", () => {
     expect(decl(".view-switch", "box-sizing")).toBe("border-box");
     expect(decl(".view-switch", "height")).toBe("28px");
@@ -177,9 +208,12 @@ describe("the Layout switch: 170x28, Medium on both, the lift on the selected on
     expect(decl('.view-opt[aria-pressed="true"]', "color")).toBe("var(--text)");
     expect(decl(".view-opt", "color")).toBe("var(--muted)");
   });
-  it("keeps the deck's lift on the SELECTED segment, not Figma's unselected one", () => {
-    expect(decl('.view-opt[aria-pressed="true"]', "box-shadow")).toBe("var(--shadow-contact)");
+  it("draws no shadow on either segment: the selected one is told by its fill alone", () => {
+    // CHANGED ON PURPOSE (V4's Figma): the selected segment is flat on --panel;
+    // the deck used to lift it with --shadow-contact.
+    expect(decl('.view-opt[aria-pressed="true"]', "box-shadow")).toBeNull();
     expect(decl(".view-opt", "box-shadow")).toBeNull();
+    expect(decl(".view-opt", "transition")).not.toMatch(/box-shadow/);
   });
 });
 
@@ -238,10 +272,49 @@ describe("the queue popover", () => {
   });
   it("is the menu's look: --panel, a --line edge, the overlay shadow, rows at the table height", () => {
     expect(decl(".anchored-popover.queue-pop", "box-shadow")).toBe("var(--shadow-overlay)");
-    expect(decl(".anchored-popover.queue-pop", "border-radius")).toBe("var(--r-panel)");
+    // CHANGED ON PURPOSE (V4's Figma): the popover is 320 wide on the overlay
+    // corner (12), padded 12, with 8 between its heading, rows and foot.
+    expect(decl(".anchored-popover.queue-pop", "border-radius")).toBe("var(--r-overlay)");
+    expect(tokens).toMatch(/--r-overlay:\s*12px;/);
+    expect(decl(".anchored-popover.queue-pop", "width")).toBe("320px");
+    expect(decl(".anchored-popover.queue-pop", "padding")).toBe("12px");
+    expect(decl(".anchored-popover.queue-pop", "gap")).toBe("8px");
     expect(decl(".queue-row", "min-height")).toBe("var(--row-table)");
     expect(decl(".queue-row:focus-visible", "background")).toBe("var(--selected)");
     expect(css).toMatch(/\.anchored-popover \{[^}]*background: var\(--panel\);[^}]*border: 1px solid var\(--line\);/);
+  });
+  it("heads its rows with a muted 'Waiting on you', seen and not read", () => {
+    expect(readouts).toContain('<div className="queue-head" aria-hidden>{t("board.queue.title")}</div>');
+    expect(en["board.queue.title"]).toBe("Waiting on you");
+    expect(decl(".queue-head", "color")).toBe("var(--muted)");
+    expect(decl(".queue-head", "font-size")).toBe("calc(12px + var(--ui-text-increase, 0px))");
+    expect(decl(".queue-head", "line-height")).toBe("16px");
+    expect(decl(".queue-head", "font-weight")).toBe("500");
+  });
+  it("draws a row as the Waiting glyph, the name in SemiBold 13 and the wait in mono 11 at the right end", () => {
+    const at = readouts.indexOf("{sessions.map(w => (");
+    const row = readouts.slice(at, readouts.indexOf("))}", at));
+    expect(row).toContain("<AlertMark size={14} />");
+    expect(row.indexOf("<AlertMark")).toBeLessThan(row.indexOf("<QueueEntryWords"));
+    expect(decl(".queue-row .alert-mark", "margin-left")).toBe("0");
+    expect(decl(".queue-row", "font-size")).toBe("calc(13px + var(--ui-text-increase, 0px))");
+    expect(decl(".queue-row .we-name", "font-weight")).toBe("600");
+    expect(decl(".queue-row :is(.we-wait, .we-what)", "font-family")).toBe("var(--font-mono)");
+    expect(decl(".queue-row :is(.we-wait, .we-what)", "font-size")).toBe("calc(11px + var(--ui-text-increase, 0px))");
+    expect(decl(".queue-row :is(.we-wait, .we-what)", "line-height")).toBe("14px");
+    expect(decl(".queue-row :is(.we-wait, .we-what)", "color")).toBe("var(--muted)");
+    expect(decl(".queue-row .we-wait", "margin-left")).toBe("auto");
+  });
+  it("keeps every waiting session a row: a long queue scrolls, and a foot counts what is out of view, with n", () => {
+    // Every row stays in the menu, so each is still a press and the arrows
+    // still reach it; only the list scrolls, under a heading and foot that stay.
+    expect(decl(".queue-rows", "overflow-y")).toBe("auto");
+    expect(decl(".queue-rows", "min-height")).toBe("0");
+    expect(readouts).toMatch(/\{unseen > 0 && \(\s*<div className="queue-foot" aria-hidden>\s*<span>\{t\("board\.queue\.more", \{ n: unseen \}\)\}<\/span>\s*\{singleKeys && <Kbd>n<\/Kbd>\}\s*<\/div>\s*\)\}/);
+    expect(en["board.queue.more"]).toBe("+{n} more");
+    expect(readouts).toContain("setUnseen(Math.max(0, sessions.length - rowsInView(list)));");
+    // The reader's scroll survives the popover placing itself again.
+    expect(readouts).toContain("list.scrollTop = scrolled.current;");
   });
   it("moves with TRANSITIONS from the trigger corner: --enter-scale in over --dur-base, .98 out over --dur-exit", () => {
     const base = ".anchored-popover.queue-pop";

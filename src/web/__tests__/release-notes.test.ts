@@ -961,8 +961,11 @@ describe("how App.tsx wires it up", () => {
     // be reachable at all, so nothing awaits the check ahead of the dialog.
     expect(app).not.toMatch(/loadVersion\(true\)[^}]*openReleaseNotes/);
     expect(app).not.toMatch(/await loadVersion\(true\)/);
-    // The ready and drift chips open the notes first and do nothing slower.
-    expect(app).toMatch(/onClick=\{openReleaseNotes\}/);
+    // The drift chip opens the notes first and only then brings its notice
+    // back. The ready chip is no longer a door to the notes: V4 draws it as the
+    // restart itself ("Restart to finish"), and What's new for that update
+    // stays in Settings › About.
+    expect(app).toMatch(/onClick=\{\(\) => \{ openReleaseNotes\(\); showNotice\(\); \}\}/);
   });
 
   it("keeps the forced check the plain chip used to do, in Settings > Updates", () => {

@@ -903,6 +903,10 @@ input, textarea { caret-color: var(--accent); }
 /* Armed is the second press of the only irreversible act here, and it keeps
    the error colour without being pointed at — as the row's does. */
 .lan-peer-foot .btn.danger.armed { color: var(--bg); background: var(--err); }
+/* While another press is out Unpair is disabled, and it draws as every
+   disabled button does (button.btn:disabled), which the two rules above
+   outrank: no fill, a --line-soft edge, the label in --muted-dim. */
+.lan-peer-foot .btn.danger:disabled { background: transparent; border-color: var(--line-soft); color: var(--muted-dim); }
 
 /* The alert carries a panel's own inset — 14px, sized for the 288px column it
    was written for — and inside a dialog's 16px padding that put it 30px from

@@ -355,6 +355,8 @@ const catalog: Catalog = {
   "board.queue.waiting": "待機中",
   "board.queue.moreLabel": "ほか{n}件が待機中；セッション一覧を開く",
   "board.queue.openList": "セッション一覧を開く",
+  "board.queue.title": "対応待ち",
+  "board.queue.more": "ほか{n}件",
   "board.notify.on": "通知オン",
   "board.notify.blocked": "通知ブロック中",
   "board.notify.means.on": "セッションがあなたの対応待ちになり、このタブがバックグラウンドにあるとき、ccdeck がシステム通知を出します",

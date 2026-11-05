@@ -39,53 +39,20 @@
 .topbar .status .pill::before {
   transition: background-color var(--dur-base) var(--ease);
 }
-/* One box, every count (#504, relocated).
-   The pill leads the readout group after the brand, so its width is upstream
-   of everything to its right — the incident chips and the blocked count now,
-   the machine meter, the tokens and the cost when this was written — and all
-   of it slides when the pill grows. That did not matter while the label was
-   one of three fixed words. It matters now that the paused label carries the
-   held queue, because the queue climbs on its own: `paused · 9` → `paused ·
-   10` is a digit nobody asked for, and the alarm moving because of it.
-   `inline-grid` with one named cell, so the invisible widest label and the live
-   one stack instead of sitting side by side, and the box measures its own worst
-   case in whatever face the platform supplies. A pixel `min-width` is this
-   sheet's usual idiom and is the wrong tool for a string: the number would be
-   measured in the font this machine renders and shipped to Segoe UI on Windows
-   and to whatever fontconfig picks on Linux, where a wider face overruns it and
-   the reflow comes back. The same argument #504 made for the button that used
-   to carry this count, and the same technique.
-   The ghost is per TONE, not one string for all three — see `widest` in
-   status-pill.ts. `live` reserves `live`, so the resting pill is exactly as
-   wide as its own word.
-   `justify-items: start` rather than centre, which is where the button
-   differed: the dot is at the left and the word is anchored to it, so the slack
-   at zero held opens where the count will appear rather than splitting either
-   side of a word that then shifts.
-   `tabular-nums` is what makes the ghost an upper bound rather than a good
-   guess: every label is `paused · ` plus at most two digits, or `99+`, which is
-   two digits and one more glyph. Equal-width figures turn that into arithmetic.
+/* The pill hugs the label it shows (V4 draws "paused · 3" 84 wide). It used
+   to keep the widest label its tone could reach in an invisible copy (#504),
+   so `paused · 9` → `paused · 10` would not walk what came after it; the counts
+   stand before it now and only the incident and notify chips follow it, and the reserve cost
+   the bar about 30px of empty pill while paused. `tabular-nums` keeps a count
+   from moving the pill until it gains a digit.
    No transition on the box, deliberately, for the reason `.sd-core-fill` was
    converted: easing a box means easing `width`, which is layout, runs on the
    main thread and would owe reduced motion an answer under this sheet's own
    rules. A smoothly animated reflow is still a reflow. */
-.topbar .status .pill .pill-box {
-  display: inline-grid;
-  grid-template-areas: "pill-label";
-  align-items: center;
-  justify-items: start;
+.topbar .status .pill .pill-label {
+  white-space: nowrap;
   font-variant-numeric: tabular-nums;
 }
-.topbar .status .pill .pill-widest,
-.topbar .status .pill .pill-label {
-  grid-area: pill-label;
-  white-space: nowrap;
-}
-/* Out of the picture and out of the accessible tree — `visibility: hidden`
-   removes it from both, and the `aria-hidden` on the element says so a second
-   time for anything that reads the markup rather than the computed style. All
-   it contributes is its width. */
-.topbar .status .pill .pill-widest { visibility: hidden; }
 
 /* THE STATE IS THE EDGE AND THE DOT, and the word stays --text. V4 draws the
    stream chip as an outline in the state's colour with no fill: --warn when
@@ -243,11 +210,15 @@
 }
 /* THE QUEUE POPOVER (QueuePopover in TopbarReadouts.tsx; V4's top bar: it
    is what the `.wait-names` row became). AnchoredPopover draws it portalled
-   under the waiting pill, on the kit's menu look: --panel, a 1px --line edge,
-   the overlay corner, the overlay shadow, rows at the table height with the
-   --selected fill under the pointer and the arrows. A row is the old name's
-   words: the name at 600, how long it has waited (tabular, the number that
-   decides whether somebody gets up, DESIGN.md), and what it is on in --muted.
+   under the waiting pill, as V4 draws it: 320 wide, --panel, a 1px --line
+   edge, the overlay corner and shadow, 12 in and 8 between its parts — a muted
+   "Waiting on you", the rows, and, when the window cannot show every row, a
+   foot with how many are out of view and the N key. A row is 28 at Compact
+   (the table height), the --selected fill under the pointer and the arrows:
+   the Waiting glyph, the name at 600, and at the right end how long it has
+   waited and on what, in 11/14 mono --muted. The fill reaches 8 past the
+   words on either side (the list's negative inset), so the words stand on the
+   popover's 12.
    MOTION is transitions on a class, never keyframes (the base popover's
    `pop-from-anchor` is switched off here): mounted closed — opacity 0, scale
    --enter-scale from the pill's corner — a frame later `queue-pop-open` takes
@@ -258,11 +229,11 @@
 .anchored-popover.queue-pop {
   display: flex;
   flex-direction: column;
-  width: max-content;
-  min-width: 200px;
-  max-width: min(360px, calc(100vw - 16px));
-  padding: 4px;
-  border-radius: var(--r-panel);
+  gap: 8px;
+  width: 320px;
+  max-width: calc(100vw - 16px);
+  padding: 12px;
+  border-radius: var(--r-overlay);
   box-shadow: var(--shadow-overlay);
   animation: none;
   opacity: 0;
@@ -283,10 +254,29 @@
   .anchored-popover.queue-pop,
   .anchored-popover.queue-pop.queue-pop-leaving { transform: none; transition-property: opacity; }
 }
+.queue-head {
+  flex: none;
+  color: var(--muted);
+  font-size: calc(12px + var(--ui-text-increase, 0px));
+  line-height: 16px;
+  font-weight: 500;
+}
+/* The rows' own scroller, so the heading and the foot stay put while a long
+   queue scrolls under them. */
+.queue-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  flex: 0 1 auto;
+  min-height: 0;
+  margin-inline: -8px;
+  overflow-y: auto;
+}
 .queue-row {
   display: flex;
+  flex: none;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
   min-height: var(--row-table);
   box-sizing: border-box;
   padding: 0 8px;
@@ -301,21 +291,40 @@
   white-space: nowrap;
   cursor: pointer;
 }
+.queue-row .alert-mark { margin-left: 0; }
 .queue-row .we-name {
   min-width: 0;
-  max-width: 160px;
   overflow: hidden;
   text-overflow: ellipsis;
   font-weight: 600;
 }
-.queue-row .we-wait { font-variant-numeric: tabular-nums; }
-.queue-row .we-what { margin-left: -2px; color: var(--muted); }
+/* The wait and what it is on read as one run, "6m · Bash": the row's 8 gap
+   between them is taken back to one space of the mono face. */
+.queue-row :is(.we-wait, .we-what) {
+  flex: none;
+  color: var(--muted);
+  font-family: var(--font-mono);
+  font-size: calc(11px + var(--ui-text-increase, 0px));
+  line-height: 14px;
+}
+.queue-row .we-wait { margin-left: auto; font-variant-numeric: tabular-nums; }
+.queue-row .we-what { margin-left: calc(1ch - 8px); }
 .queue-row:focus-visible { background: var(--selected); }
 @media (hover: hover) and (pointer: fine) {
   .queue-row:hover { background: var(--selected); }
-  .queue-row:hover .we-what { color: var(--text); }
+  .queue-row:hover :is(.we-wait, .we-what) { color: var(--text); }
 }
 .queue-row:active { background: color-mix(in srgb, var(--text) 12%, transparent); }
+.queue-foot {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 24px;
+  color: var(--muted);
+  font-size: calc(12px + var(--ui-text-increase, 0px));
+  line-height: 16px;
+}
 
 /* A provider's own incident (#1311), while its status page reports one. A link
    to the provider's page (its title and a hidden tail say it opens in a new tab;
@@ -457,12 +466,6 @@ button.btn:hover { border-color: var(--text); color: var(--text); background: va
 /* By keyboard (Enter/Space) there is no scale: Chrome sets :active on Space,
    so the press is held back while the button shows its focus ring. */
 button.btn:active:not(:disabled):not(:focus-visible) { transform: scale(var(--press)); }
-/* The token :root's own prose names for "cannot be operated right now", which
-   covers `:disabled` and which `button.btn` never got. Without it a primary
-   with nothing to act on drew exactly like one ready to be pressed - the
-   add-account dialog's Import over an empty field, and the share picker's
-   Share with nothing ticked. Both were live-looking buttons that do nothing. */
-button.btn:disabled { opacity: var(--dim-off); cursor: default; }
 /* V4's Primary: the --accent-16 wash with --accent edge and label, weight 600.
    The edge stays the full --accent: 1.79:1 on white made the old filled button
    the one with the least perceivable outline of the three .btn variants. A
@@ -496,6 +499,24 @@ button.btn.danger:hover {
   color: var(--err);
   background: var(--btn-danger-wash-hover, color-mix(in srgb, var(--err) 14%, transparent));
 }
+}
+/* A button that cannot be operated right now, of every kind (V4's disabled
+   Primary and Quiet): no fill, a 1px --line-soft edge, the label in
+   --muted-dim, at full opacity. Without a disabled look a primary with
+   nothing to act on drew exactly like one ready to be pressed (the
+   add-account dialog's Import over an empty field, the share picker's Share
+   with nothing ticked); the old answer dimmed the live look to 0.6, which
+   still read as the primary action. It comes after the kinds and their
+   hovers, so a pointer resting on it changes nothing. An inactive control
+   owes no 3:1 boundary and no 4.5:1 label (WCAG 1.4.11 and 1.4.3 exempt it). */
+button.btn:disabled {
+  background: transparent;
+  border-color: var(--line-soft);
+  color: var(--muted-dim);
+  cursor: default;
+}
+@media (hover: hover) and (pointer: fine) {
+button.btn:disabled:hover { background: transparent; border-color: var(--line-soft); color: var(--muted-dim); }
 }
 /* The themes where the kit's washes would take a label under the 4.5:1 floor
    answer with lighter ones (label on wash over --panel):

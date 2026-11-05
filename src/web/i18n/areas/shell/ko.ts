@@ -262,10 +262,9 @@ const catalog: Catalog = {
 
   // ── desktop app update ──
   "shell.desktop.restartToUpdate": "다시 시작하여 업데이트",
+  "shell.desktop.restartToFinish": "다시 시작하여 완료",
   "shell.desktop.menuMac": "메뉴 막대의 ccdeck 메뉴",
   "shell.desktop.menuTray": "ccdeck 트레이 메뉴",
-  "shell.desktop.chipLabel": "{text}, 업데이트 다운로드 및 검증 완료",
-  "shell.desktop.chipTitle": "ccdeck v{to}을(를) 다운로드하고 검증했습니다 · 클릭하면 새로운 기능이 열리며 {action}이(가) 가장 먼저 나옵니다",
   "shell.desktop.restartLabel": "v{to}(으)로 {action}",
   "shell.desktop.restartTitle": "지금 ccdeck v{to}을(를) 설치합니다. ccdeck이 다시 시작되어 몇 초 안에 돌아옵니다. Claude Code와 Codex 세션은 계속 실행됩니다.",
   "shell.desktop.way": "{menu}에서 {action}을(를) 사용하세요.",

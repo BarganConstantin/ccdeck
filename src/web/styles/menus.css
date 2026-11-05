@@ -777,10 +777,11 @@
    resting on it does not wash the warning back out. */
 .switch[data-tone="warn"][aria-checked="true"] { border-color: var(--warn); background: var(--warn); }
 
-/* V4's checkbox (Checkbox.tsx): a 14px box, filled with --accent when ticked, and
-   a tick that draws itself by its dash offset over Fast. Unticking fades the
-   tick over Fast and only then resets the dash, so nothing draws backwards.
-   Under reduced motion the tick does not draw, it fades. */
+/* V4's checkbox (Checkbox.tsx): a 14px box with no fill when off, filled with
+   --accent when ticked, and a 1.5 tick in --bg that draws itself by its dash
+   offset over Fast. Unticking fades the tick over Fast and only then resets the
+   dash, so nothing draws backwards. Under reduced motion the tick does not
+   draw, it fades. */
 .cbx { --dim-off: 0.45; position: relative; display: inline-grid; flex: none; width: 14px; height: 14px; }
 .cbx > input {
   grid-area: 1 / 1;
@@ -791,7 +792,7 @@
   margin: 0;
   border: 1px solid var(--ctl-edge);
   border-radius: var(--r-tag);
-  background: var(--bg-soft);
+  background: transparent;
   cursor: inherit;
   transition: background-color var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease);
 }
@@ -802,8 +803,8 @@
   width: 14px;
   height: 14px;
   fill: none;
-  stroke: var(--panel);
-  stroke-width: 2;
+  stroke: var(--bg);
+  stroke-width: 1.5;
   stroke-linecap: round;
   stroke-linejoin: round;
   stroke-dasharray: 1;

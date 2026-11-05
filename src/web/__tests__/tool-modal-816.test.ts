@@ -65,6 +65,8 @@ describe("the tool dialog shows a call as what it is (#816)", () => {
     const first = /<DialogClose\b[^>]*>|<button(?:=>|[^>])*>/.exec(code)?.[0] ?? "";
     expect(first.startsWith("<DialogClose") || first.includes('className="glyph-btn"')).toBe(true);
     // And DialogClose is the kit's glyph-btn ×.
-    expect(read("../components/Dialog.tsx")).toMatch(/<button type="button" className="glyph-btn"[^>]*>×<\/button>/);
+    // CHANGED ON PURPOSE (V4's Figma): it draws the kit's Close icon, not a
+    // typed ×, and its name is still the label it is handed.
+    expect(read("../components/Dialog.tsx")).toMatch(/<button type="button" className="glyph-btn"[^>]*aria-label=\{label\}[^>]*><KitIcon name="close" \/><\/button>/);
   });
 });

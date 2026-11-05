@@ -355,6 +355,8 @@ const catalog: Catalog = {
   "board.queue.waiting": "等待中",
   "board.queue.moreLabel": "还有 {n} 个在等待；打开会话列表",
   "board.queue.openList": "打开会话列表",
+  "board.queue.title": "等您处理",
+  "board.queue.more": "另外 {n} 项",
   "board.notify.on": "通知已开启",
   "board.notify.blocked": "通知已被阻止",
   "board.notify.means.on": "当会话卡在等您、而此标签页在后台时，ccdeck 会发出系统通知",

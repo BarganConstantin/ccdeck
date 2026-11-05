@@ -355,6 +355,8 @@ const catalog: Catalog = {
   "board.queue.waiting": "waiting",
   "board.queue.moreLabel": "{n} more waiting; open the session list",
   "board.queue.openList": "Open the session list",
+  "board.queue.title": "Waiting on you",
+  "board.queue.more": "+{n} more",
   "board.notify.on": "notifications on",
   "board.notify.blocked": "notifications blocked",
   "board.notify.means.on": "The deck will raise a system notification when a session blocks on you and this tab is in the background",
