@@ -261,6 +261,10 @@ export function createCodexLiveAccountController(input = {}) {
         throw liveError('auto_switch_disabled');
       }
     };
+    const assertProfileAvailable = async () => {
+      const latest = await selection();
+      if (!latest.profiles?.some(p => p.id === intent.id && p.available !== false)) throw liveError('profile_unavailable');
+    };
     const authCurrent = () => !closed && !ownershipPaused && epoch === ownershipEpoch;
     const owner = () => authCurrent() && currentIntent()?.revision === intent.revision && currentIntent()?.id === intent.id;
     const verifyOwnership = async () => {
@@ -286,6 +290,7 @@ export function createCodexLiveAccountController(input = {}) {
       if (!s.profiles?.some(p => p.id === intent.id && p.available !== false)) throw liveError('profile_unavailable');
       await ensureRpc(s.originalHome);
       const next = await loginCredential(intent.id, refresh);
+      await assertProfileAvailable();
       await assertAutoEnabled();
       if (!owner()) throw liveError('account_changed_outside_deck');
       if (!await lease.valid()) throw liveError('native_control_lost');
@@ -293,6 +298,7 @@ export function createCodexLiveAccountController(input = {}) {
       resumeIdentity = before;
       handoff = await prepareCodexLiveHandoff(rpc, { isCurrent: owner,
         beforeInterrupt: async entry => {
+          await assertProfileAvailable();
           await assertAutoEnabled();
           if (!owner()) throw liveError('account_changed_outside_deck');
           await record(entry, 'interrupt_sent');
@@ -324,6 +330,7 @@ export function createCodexLiveAccountController(input = {}) {
       const current = await rpc.request('account/read', { refreshToken: false });
       if (!owner() || !sameNativeAccount(current, before)) throw liveError('account_changed_outside_deck');
       if (!await lease.valid()) throw liveError('native_control_lost');
+      await assertProfileAvailable();
       await assertAutoEnabled();
       if (!owner()) throw liveError('account_changed_outside_deck');
       // Authentication crosses only this owner-validated local socket. Codex

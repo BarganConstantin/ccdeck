@@ -64,6 +64,62 @@ async function fixture({ saved = null as any, actual = A, readCredential = null 
     externalLogin: (id: string) => { account = { ...account, email: email(id) }; callbacks.onNotification({ method: 'account/updated' }); } };
 }
 describe('existing Codex session account engine', () => {
+  it.each(['removed', 'unavailable'])('refuses a target profile made %s during credential reading before interrupting work', async state => {
+    let release!: () => void;
+    const gate = new Promise<void>(resolve => { release = resolve; });
+    const f = await fixture({ active: true, readCredential: async (id: string) => { await gate; return f.credential(id); } });
+    const pending = f.c.request({ id: B, revision: 1 });
+    await vi.waitFor(() => expect(f.rpc.request.mock.calls.some(([method]) => method === 'account/read')).toBe(true));
+    if (state === 'removed') f.selection.profiles = f.selection.profiles.filter(p => p.id !== B);
+    else f.selection.profiles.find(p => p.id === B)!.available = false;
+    release();
+    expect(await pending).toMatchObject({ state: 'failed', reason: 'profile_unavailable' });
+    expect(f.calls.some(c => ['account/login/start', 'turn/interrupt', 'turn/start'].includes(c.method))).toBe(false);
+  });
+
+  it('resumes the original account once if the target profile is removed after interruption', async () => {
+    const f = await fixture({ active: true });
+    const original = f.rpc.request.getMockImplementation()!;
+    f.rpc.request.mockImplementation(async (method, params) => {
+      const result = await original(method, params);
+      if (method === 'turn/interrupt') f.selection.profiles = f.selection.profiles.filter(p => p.id !== B);
+      return result;
+    });
+    expect(await f.c.request({ id: B, revision: 1 })).toMatchObject({ state: 'failed', reason: 'profile_unavailable' });
+    expect(f.calls.filter(c => c.method === 'turn/start')).toHaveLength(1);
+    expect(f.calls.some(c => c.method === 'account/login/start')).toBe(false);
+    expect(f.actual().email).toBe('first@example.test');
+    expect(f.journals.at(-1).phase).toBe('finished');
+  });
+
+  it('retains durable recovery if a removed-target cancellation cannot confirm resuming the original turn', async () => {
+    const f = await fixture({ active: true });
+    const original = f.rpc.request.getMockImplementation()!;
+    f.rpc.request.mockImplementation(async (method, params) => {
+      if (method === 'turn/start') throw Object.assign(Error('timeout'), { code: 'native_request_timeout' });
+      const result = await original(method, params);
+      if (method === 'turn/interrupt') f.selection.profiles = f.selection.profiles.filter(p => p.id !== B);
+      return result;
+    });
+    expect(await f.c.request({ id: B, revision: 1 })).toMatchObject({ continuation: 'manual_required', reason: 'native_continue_unconfirmed' });
+    await f.c.tick(); await f.c.request({ id: A, revision: 2 });
+    expect(f.rpc.request.mock.calls.filter(([method]) => method === 'turn/start')).toHaveLength(1);
+    expect(f.calls.some(c => c.method === 'account/login/start')).toBe(false);
+  });
+
+  it('allows a still-available profile after an unrelated label or registry revision change during the credential read', async () => {
+    let release!: () => void;
+    const gate = new Promise<void>(resolve => { release = resolve; });
+    const f = await fixture({ readCredential: async (id: string) => { await gate; return f.credential(id); } });
+    const pending = f.c.request({ id: B, revision: 1 });
+    await vi.waitFor(() => expect(f.rpc.request.mock.calls.some(([method]) => method === 'account/read')).toBe(true));
+    f.selection.revision++;
+    f.selection.profiles = f.selection.profiles.map(p => p.id === B ? { ...p, label: 'Renamed test account' } : p);
+    release();
+    expect(await pending).toMatchObject({ state: 'applied', profileId: B });
+    expect(f.calls.filter(c => c.method === 'account/login/start')).toHaveLength(1);
+  });
+
   it('does not start an automatic handoff when Auto-switch is disabled during the credential read', async () => {
     let release!: () => void;
     const gate = new Promise<void>(resolve => { release = resolve; });
