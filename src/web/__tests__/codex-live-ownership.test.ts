@@ -9,8 +9,8 @@ const A = 'a'.repeat(20), B = 'b'.repeat(20);
 const controllers: any[] = [];
 afterEach(async () => { for (const c of controllers.splice(0)) await c.close(); vi.restoreAllMocks(); });
 const flush = () => new Promise(resolve => setTimeout(resolve, 0));
-async function fixture({ ids = false, saved = false, notifyLogin = true, actual = A, active = false, initialUpdate = false as false | 'connect' | 'read' | 'delayed' | 'missing' | 'missing-once', workspaceName = null as string | null, initialAccountTimeoutMs = undefined as number | undefined, accountReadFailures = 0, restoreRetryMs = 0 } = {}) {
-  let hooks: any, initialRead = false;
+async function fixture({ ids = false, saved = false, notifyLogin = true, actual = A, active = false, initialUpdate = false as false | 'connect' | 'read' | 'delayed' | 'missing' | 'missing-once', workspaceName = null as string | null, initialAccountTimeoutMs = undefined as number | undefined, accountReadFailures = 0, restoreRetryMs = 0, beforeCredentialRead = null as any, initial = null as any, failReadAt = 0 } = {}) {
+  let hooks: any, initialRead = false, accountReads = 0;
   let snapshot: any = { account: { type: 'chatgpt', email: 'same@example.invalid', planType: 'plus', workspaceName } };
   const nativeId = (id: string) => id === A ? 'workspace-a' : 'workspace-b';
   const setAccount = (id: string) => {
@@ -19,6 +19,7 @@ async function fixture({ ids = false, saved = false, notifyLogin = true, actual 
   setAccount(actual);
   const selection = { originalHome: '/fictional-native', profileId: A, revision: 1,
     runningSelection: { id: A, revision: 1 }, profiles: [{ id: A, available: true }, { id: B, available: true }] };
+  if (initial) Object.assign(selection, initial);
   const sends: any[] = [], persisted: any[] = [], connections: any[] = [];
   const thread = { id: 'fictional-thread', canAcceptDirectInput: true, historyMode: 'legacy', status: { type: active ? 'active' : 'idle', activeFlags: [] } };
   const turn = { id: 'fictional-turn', rootTurnId: 'fictional-root', status: 'inProgress', itemsView: 'full', items: [{ id: 'input', type: 'userMessage' }] };
@@ -29,7 +30,7 @@ async function fixture({ ids = false, saved = false, notifyLogin = true, actual 
   const rpc = {
     request: vi.fn(async (method: string, params: any) => {
       if (method === 'account/read') {
-        if (accountReadFailures-- > 0) throw Object.assign(Error('timeout'), { code: 'native_request_timeout' });
+        if (++accountReads === failReadAt || accountReadFailures-- > 0) throw Object.assign(Error('timeout'), { code: 'native_request_timeout' });
         if (initialRead && initialUpdate === 'read') notify();
         initialRead = false;
         return structuredClone(snapshot);
@@ -50,14 +51,15 @@ async function fixture({ ids = false, saved = false, notifyLogin = true, actual 
     }),
     send: vi.fn((message: any) => sends.push(message)), close: vi.fn(),
   };
-  const readCredential = vi.fn(async (id: string) => credential(id));
+  const lease = { valid: vi.fn(async () => true), release: vi.fn(async () => {}) };
+  const readCredential = vi.fn(async (id: string) => { await beforeCredentialRead?.({ id, setAccount, lease, snapshot }); return credential(id); });
   const c = createCodexLiveAccountController({ store: '/fictional-unused-store', pollMs: 1000_000, restoreRetryMs, loginNotificationTimeoutMs: 200, initialAccountTimeoutMs,
     readSelection: async () => selection, readAuto: async () => ({ enabled: true }),
     readCredential, loadState: async () => saved ? { version: 1, wasControlling: true, profileId: A, revision: 1,
       endpoint: createHash('sha256').update('generation').digest('hex') } : null,
     loadHandoff: async () => null, persistHandoff, persistState: async (s: any) => persisted.push(s),
     resolveEndpoint: async () => ({ home: selection.originalHome, generation: 'generation' }),
-    acquireLease: async () => ({ valid: async () => true, release: async () => {} }),
+    acquireLease: async () => lease,
     connectRpc: async (_: any, callbacks: any) => {
       hooks = callbacks; connections.push(callbacks);
       initialRead = true;
@@ -67,12 +69,56 @@ async function fixture({ ids = false, saved = false, notifyLogin = true, actual 
     },
   });
   controllers.push(c); await c.ready;
-  return { c, rpc, sends, persisted, persistHandoff, connections, readCredential, selection, notify, credential, setAccount,
+  return { c, rpc, sends, persisted, persistHandoff, connections, readCredential, selection, notify, credential, setAccount, lease,
     get snapshot() { return snapshot; }, disconnect: () => hooks.onClose(),
     refresh: () => hooks.onRequest({ id: 'renewal', method: 'account/chatgptAuthTokens/refresh', params: { previousAccountId: nativeId(A) } }) };
 }
 
 describe('native Codex authentication ownership', () => {
+  it('does not restore authority from an account snapshot taken before a slow credential read', async () => {
+    const f = await fixture({ ids: true, saved: true, beforeCredentialRead: async ({ setAccount }: any) => setAccount(B) });
+    expect(f.c.status()).toMatchObject({ state: 'external_change', profileId: null });
+    expect(f.rpc.request.mock.calls.some(([method]) => method === 'account/login/start')).toBe(false);
+    await f.refresh(); expect(f.sends).toEqual([]);
+  });
+
+  it('does not claim restored ownership after losing its lease during credential preparation', async () => {
+    const f = await fixture({ ids: true, saved: true, beforeCredentialRead: async ({ lease }: any) => lease.valid.mockResolvedValue(false) });
+    expect(f.c.status()).not.toMatchObject({ state: 'applied' });
+    expect(f.c.status().profileId).toBeNull();
+    expect(f.c.status().reason).toBe('native_control_lost');
+    await f.refresh(); expect(f.sends).toEqual([]);
+  });
+
+  it.each(['workspace', 'lease'] as const)('reattests the surviving prior login after its credential read when %s changes during restart fallback', async change => {
+    const f = await fixture({ ids: true, saved: true,
+      initial: { profileId: B, revision: 2, runningSelection: { id: B, revision: 2 } },
+      beforeCredentialRead: async ({ id, setAccount, lease }: any) => {
+        if (id === A) {
+          if (change === 'workspace') setAccount(B);
+          else lease.valid.mockResolvedValue(false);
+        }
+      } });
+    expect(f.c.status().profileId).toBeNull();
+    expect(f.c.status().reason).toBe(change === 'workspace' ? 'account_changed_outside_deck' : 'native_control_lost');
+    expect(f.rpc.request.mock.calls.some(([method]) => method === 'account/login/start')).toBe(false);
+    await f.refresh(); expect(f.sends).toEqual([]);
+  });
+
+  it('does not restore authority if the final native account read no longer attests an account ID', async () => {
+    const f = await fixture({ ids: true, saved: true, beforeCredentialRead: async ({ snapshot }: any) => { delete snapshot.workspaceRouting; } });
+    expect(f.c.status()).toMatchObject({ state: 'external_change', profileId: null, reason: 'native_identity_unattested' });
+    await f.refresh(); expect(f.sends).toEqual([]);
+  });
+
+  it('retries a timed-out final startup attestation without adopting stale identity or replaying login', async () => {
+    const f = await fixture({ ids: true, saved: true, failReadAt: 3 });
+    expect(f.c.status()).toMatchObject({ state: 'unavailable', profileId: null, reason: 'native_request_timeout' });
+    await f.c.tick();
+    expect(f.c.status()).toMatchObject({ state: 'applied', profileId: A });
+    expect(f.rpc.request.mock.calls.some(([method]) => method === 'account/login/start')).toBe(false);
+  });
+
   it('does not overwrite an outside account change when a pending credential renewal fails late', async () => {
     const f = await fixture({ ids: true }); await f.c.request({ id: A, revision: 2 });
     let fail!: (error: Error) => void;

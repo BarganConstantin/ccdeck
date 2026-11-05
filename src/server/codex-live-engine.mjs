@@ -439,10 +439,12 @@ export function createCodexLiveAccountController(input = {}) {
     });
     return pendingSwitch;
   }
-  async function restorePrevious(saved, intent, actual) {
+  async function restorePrevious(saved, intent) {
     restorePending = null;
     const epoch = ownershipEpoch;
     const previous = await loginCredential(saved.profileId);
+    const actual = await rpc.request('account/read', { refreshToken: false });
+    if (!await lease?.valid()) throw liveError('native_control_lost');
     if (ownershipPaused || epoch !== ownershipEpoch) { await externalChange(); return; }
     if (endpointKey(endpoint) === saved.endpoint && sameAccount(actual, previous, true)) {
       credential = previous; appliedIntent = { id: saved.profileId, revision: saved.revision }; owned = true;
@@ -471,7 +473,7 @@ export function createCodexLiveAccountController(input = {}) {
       if (closed || restorePending !== saved) return;
       desired = intent;
       await ensureRpc(s.originalHome);
-      const actual = await rpc.request('account/read', { refreshToken: false });
+      let actual = await rpc.request('account/read', { refreshToken: false });
       if (!accountIds(actual).length) {
         restorePending = null; await externalChange('native_identity_unattested'); return;
       }
@@ -479,14 +481,19 @@ export function createCodexLiveAccountController(input = {}) {
       try { next = await loginCredential(intent.id); }
       catch (error) {
         if (intent.revision <= saved.revision) throw error;
-        await restorePrevious(saved, intent, actual); return;
+        await restorePrevious(saved, intent); return;
       }
+      // Credential preparation can outlive both the native account and our
+      // control lease. Reattest after it, rather than adopting the old read.
+      actual = await rpc.request('account/read', { refreshToken: false });
+      if (!await lease?.valid()) throw liveError('native_control_lost');
       if (closed || restorePending !== saved) return;
       if (ownershipPaused || epoch !== ownershipEpoch) { restorePending = null; await externalChange(); return; }
+      if (!accountIds(actual).length) { restorePending = null; await externalChange('native_identity_unattested'); return; }
       if (intent.revision > saved.revision && !sameAccount(actual, next, true)) {
         // The newer request has no persisted acknowledgement. It may have
         // timed out after sending: reconcile it, never replay it on restart.
-        await restorePrevious(saved, intent, actual); return;
+        await restorePrevious(saved, intent); return;
       }
       if (intent.revision === saved.revision && endpointKey(endpoint) === saved.endpoint && !sameAccount(actual, next, true)) {
         restorePending = null; await externalChange(); return;
