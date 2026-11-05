@@ -6,8 +6,10 @@
 // words, so a row offers what the server accepts and nothing else. Each row
 // reads as the machine does (use-claude-settings.ts): a row an administrator
 // decides, or that this Claude Code is too old for, keeps its control but
-// disabled, with the reason under it; a row a running session wrote back over
-// says so under it until it is set again.
+// disabled, with the reason under it — or once under its group's caption, with
+// the info icon, when every row of the group waits for the same Claude Code
+// version; a row a running session wrote back over says so under it until it
+// is set again.
 //
 // In the shared shape (SettingsParts.tsx, #2176): one group per caption, the
 // name and one line on the left, the control on the right. While the deck has
@@ -21,13 +23,12 @@
 // be. A variable that outranks a row is said under it.
 import { claudeDaysLabel, claudeGroupTitle, claudeOptionLabel, claudeRowLabel, claudeRowNote } from "../claude-settings-text";
 import { CLAUDE_SETTING_GROUPS, CLAUDE_SETTINGS, type ClaudeSettingEntry, type ClaudeSettingOption } from "../../server/claude-settings-catalog.mjs";
-import { claudeReasonText, refreshClaudeSettings, setClaudeSetting, useClaudeSettings, type ClaudeSettingRow, type ClaudeSettingsState } from "../use-claude-settings";
+import { claudeReasonText, refreshClaudeSettings, setClaudeSetting, useClaudeSettings, versionReason, type ClaudeSettingRow, type ClaudeSettingsState } from "../use-claude-settings";
 import ClaudeSettingsIndex from "./ClaudeSettingsIndex";
 import { SettingRow, SettingsGroup } from "./SettingsParts";
 import SelectShell from "./SelectShell";
 import { t as tNow, useT, type TFunction } from "../i18n";
 import { useOptimisticSwitch } from "../use-optimistic-switch";
-import { WriteState } from "./WriteState";
 
 export const CLAUDE_UNDONE = "Changed back after saving, most likely by a running Claude Code session. Set it again to keep it.";
 export const CLAUDE_NO_FILE = "There is no settings.json yet, so Claude Code uses its defaults. The first change here creates it.";
@@ -111,7 +112,8 @@ function Control({ entry, row, saving, nameId, noteId, flip }: {
 }
 
 /** One row. A switch flips on the press and the write runs behind it; a refused
- *  write slides it back, and the row says Failed as Session recovery does. */
+ *  write slides it back, and the line under the page head says why
+ *  (setClaudeSetting, settings-failure.ts), as it does for every setting. */
 export function ClaudeRow({ entry, row, saving, said }: {
   entry: ClaudeSettingEntry; row: ClaudeSettingRow | undefined; saving: string | null; said: string;
 }) {
@@ -128,9 +130,21 @@ export function ClaudeRow({ entry, row, saving, said }: {
       control={<Control entry={entry} row={row} saving={saving} nameId={nameId} noteId={noteId} flip={flip} />}
     >
       <span className="settings-row-said settings-row-said-quiet" role="status">{said}</span>
-      {flip.failed && <WriteState state="failed" role="alert" sentence={t("settings.recover.saveFail")} />}
     </SettingRow>
   );
+}
+
+/** The version every row of a group waits for, when they all wait for the
+ *  same one — said once under the group's caption rather than under each row,
+ *  so the rows keep their own height. A group of one row keeps it under the
+ *  row: there is nothing to say once instead of several times. */
+export function groupVersionNote(rows: readonly (ClaudeSettingRow | undefined)[], t: TFunction = tNow): string | null {
+  if (rows.length < 2 || rows.some(row => !row || row.editable)) return null;
+  const reasons = new Set(rows.map(row => row!.reason));
+  if (reasons.size !== 1) return null;
+  const needs = versionReason([...reasons][0]);
+  if (!needs) return null;
+  return t(needs.unread ? "settings.claude.groupNeedsUnread" : "settings.claude.groupNeeds", { version: needs.version });
 }
 
 /** The one reason every row is off, when there is one — the file could not
@@ -169,17 +183,24 @@ export function ClaudeCodeSettingsView({ state }: { state: ClaudeSettingsState }
           )}
         </SettingsGroup>
       )}
-      {rowsKnown && CLAUDE_SETTING_GROUPS.map(group => (
-        <SettingsGroup key={group.id} id={`claude-group-${group.id}`} title={claudeGroupTitle(group.id, group.title, t)}>
-          {CLAUDE_SETTINGS.filter(entry => entry.group === group.id).map(entry => {
-            const row = reading?.settings.find(r => r.id === entry.id);
-            const said = row && !row.editable && !common ? claudeReasonText(row.reason ?? "", t)
-              : undone?.id === entry.id ? t("settings.claude.undone")
-              : row?.override ? overrideLine(row.override, t) : "";
-            return <ClaudeRow key={entry.id} entry={entry} row={row} saving={saving} said={said} />;
-          })}
-        </SettingsGroup>
-      ))}
+      {rowsKnown && CLAUDE_SETTING_GROUPS.map(group => {
+        const entries = CLAUDE_SETTINGS.filter(entry => entry.group === group.id);
+        const rows = entries.map(entry => reading?.settings.find(r => r.id === entry.id));
+        // Said once above every group already when the whole page shares it.
+        const version = common ? null : groupVersionNote(rows, t);
+        return (
+          <SettingsGroup key={group.id} id={`claude-group-${group.id}`} title={claudeGroupTitle(group.id, group.title, t)}
+            info={version ?? undefined} infoId={`claude-group-${group.id}-info`}>
+            {entries.map((entry, i) => {
+              const row = rows[i];
+              const said = row && !row.editable && !common && !version ? claudeReasonText(row.reason ?? "", t)
+                : undone?.id === entry.id ? t("settings.claude.undone")
+                : row?.override ? overrideLine(row.override, t) : "";
+              return <ClaudeRow key={entry.id} entry={entry} row={row} saving={saving} said={said} />;
+            })}
+          </SettingsGroup>
+        );
+      })}
       {rowsKnown && <p className="settings-foot">{claudeFoot(reading?.fileShown, t)}</p>}
       <ClaudeSettingsIndex present={reading?.present ?? null} noFile={noFile} />
     </>

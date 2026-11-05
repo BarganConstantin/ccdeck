@@ -23,7 +23,7 @@
 // whose updates are the app's and which this switch does not reach.
 import { inDesktopApp } from "../in-app";
 import type { VersionInfo } from "../use-version-check";
-import { SettingRow, SettingsGroup } from "./SettingsParts";
+import { SettingRow, SettingsGroup, SettingsInfo } from "./SettingsParts";
 import { useT, type TFunction } from "../i18n";
 
 export const AUTO_UPDATE_LABEL = "Update when idle";
@@ -85,6 +85,11 @@ interface Props {
 export default function UpdatesSection({ autoRestart, onToggleAutoRestart, version, inApp = inDesktopApp() }: Props) {
   const t = useT();
   const shape = updatesShape(version, inApp);
+  // What this deck cannot do with the switch is said UNDER the note, with the
+  // info icon (V4's Forms / Note), and the note keeps saying what the switch
+  // does wherever it can.
+  const info = shape === "no-restart" ? t("settings.updates.noRestartNote")
+    : shape === "checks-off" ? t("settings.updates.checksOffNote") : null;
   return (
     <SettingsGroup id="settings-updates-caption" title={t("settings.updates.title")}>
       {shape === "app" ? (
@@ -94,9 +99,7 @@ export default function UpdatesSection({ autoRestart, onToggleAutoRestart, versi
           settingId="auto-update"
           name={t("settings.updates.label")}
           nameId="settings-auto-update-label"
-          note={shape === "no-restart" ? t("settings.updates.noRestartNote")
-            : shape === "checks-off" ? t("settings.updates.checksOffNote")
-            : t("settings.updates.plainNote")}
+          note={t("settings.updates.plainNote")}
           details={t(NOTE_KEYS[shape])}
           noteId="settings-auto-update-note"
           control={
@@ -109,13 +112,15 @@ export default function UpdatesSection({ autoRestart, onToggleAutoRestart, versi
               role="switch"
               aria-checked={autoRestart}
               aria-labelledby="settings-auto-update-label"
-              aria-describedby="settings-auto-update-note"
+              aria-describedby={info ? "settings-auto-update-note settings-auto-update-info" : "settings-auto-update-note"}
               onClick={onToggleAutoRestart}
             >
               <span className="switch-knob" />
             </button>
           }
-        />
+        >
+          {info && <SettingsInfo id="settings-auto-update-info">{info}</SettingsInfo>}
+        </SettingRow>
       )}
     </SettingsGroup>
   );

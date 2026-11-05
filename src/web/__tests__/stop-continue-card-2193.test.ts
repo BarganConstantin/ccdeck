@@ -17,7 +17,8 @@ import type { AgentNodeData, BackgroundJob, HookEnvelope, HookPayload } from "..
 import AgentNode from "../components/AgentNode";
 import { isAgentVisible } from "../visibility";
 import { StopContinueSection } from "../components/StopContinue";
-import SessionRecoverySettings from "../components/SessionRecoverySettings";
+import { readFileSync } from "node:fs";
+import SessionRecoveryRow, { ContinueStoppedRow } from "../components/SessionRecoverySettings";
 import { SETTINGS_INDEX } from "../settings-search";
 import { stopAdvice, stopTooltip } from "../stop-failure-copy";
 import {
@@ -241,12 +242,17 @@ describe("a press", () => {
 });
 
 describe("the setting", () => {
-  it("is a switch under Claude sessions, drawn off until the server says otherwise, and findable", () => {
-    const claude = renderToStaticMarkup(createElement(SessionRecoverySettings, { provider: "Claude" }));
+  it("is a switch in General's Sessions group, only where Claude Code is, drawn off until the server says otherwise, and findable", () => {
+    // CHANGED ON PURPOSE (V4's General page): the row is the last of the one
+    // Sessions group, drawn by Settings only where Claude Code is, rather than
+    // the foot of a "Claude sessions" group of its own.
+    const claude = renderToStaticMarkup(createElement(ContinueStoppedRow));
     expect(claude).toMatch(/data-setting="claude-continue-stopped"/);
     expect(claude).toMatch(/<button[^>]*role="switch"[^>]*aria-label="Continue stopped background sessions automatically"[^>]*>/);
     expect(/<button[^>]*aria-label="Continue stopped background sessions automatically"[^>]*>/.exec(claude)![0]).toMatch(/aria-checked="false"/);
-    expect(renderToStaticMarkup(createElement(SessionRecoverySettings, { provider: "Codex" }))).not.toContain("Continue stopped");
-    expect(SETTINGS_INDEX.find(e => e.id === "claude-continue-stopped")).toMatchObject({ claudeOnly: true, group: "Claude sessions" });
+    expect(renderToStaticMarkup(createElement(SessionRecoveryRow, { provider: "Codex" }))).not.toContain("Continue stopped");
+    expect(renderToStaticMarkup(createElement(SessionRecoveryRow, { provider: "Claude" }))).not.toContain("Continue stopped");
+    expect(readFileSync(new URL("../components/SettingsModal.tsx", import.meta.url), "utf8")).toContain("{providers.claude && <ContinueStoppedRow />}");
+    expect(SETTINGS_INDEX.find(e => e.id === "claude-continue-stopped")).toMatchObject({ claudeOnly: true, group: "Sessions" });
   });
 });

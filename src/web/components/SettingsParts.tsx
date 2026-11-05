@@ -18,6 +18,16 @@
 // controls would hand every press on its name to the first of them.
 import type { ReactNode } from "react";
 import { useT } from "../i18n";
+import { KitIcon } from "./kit-icons";
+
+/** V4's Forms / Note: the info icon and one muted line, for a state that
+ *  qualifies a row or a group — held off for this run, not available here,
+ *  waiting on a newer Claude Code — said under what the row or group already
+ *  says rather than in its place. A <span>, so it can stand in a row that is a
+ *  <label>. */
+export function SettingsInfo({ id, children }: { id?: string; children: ReactNode }) {
+  return <span className="settings-info" id={id}><KitIcon name="info" /><span>{children}</span></span>;
+}
 
 interface GroupProps {
   /** The caption's id, which names the group to assistive technology. A group
@@ -28,6 +38,10 @@ interface GroupProps {
   /** One line under the caption, for what every row in it shares. */
   note?: ReactNode;
   noteId?: string;
+  /** A state every row in it shares, under the caption and any note, with the
+   *  info icon (SettingsInfo). */
+  info?: ReactNode;
+  infoId?: string;
   /** The caption's right-hand slot: a key cap, a count, a button that acts on
    *  the whole group. */
   aside?: ReactNode;
@@ -42,7 +56,7 @@ interface GroupProps {
   children: ReactNode;
 }
 
-export function SettingsGroup({ id, title, note, noteId, aside, list = true, settingId, className, children }: GroupProps) {
+export function SettingsGroup({ id, title, note, noteId, info, infoId, aside, list = true, settingId, className, children }: GroupProps) {
   const classes = className ? `settings-group ${className}` : "settings-group";
   const body = list ? <div className="settings-list">{children}</div> : children;
   if (title === undefined) return <div className={classes} data-setting={settingId}>{body}</div>;
@@ -52,6 +66,7 @@ export function SettingsGroup({ id, title, note, noteId, aside, list = true, set
         <div className="settings-caption-text">
           <h3 id={id}>{title}</h3>
           {note && <p className="settings-caption-note" id={noteId}>{note}</p>}
+          {info && <SettingsInfo id={infoId}>{info}</SettingsInfo>}
         </div>
         {aside}
       </div>

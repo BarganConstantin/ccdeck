@@ -18,6 +18,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { type NotifyPermission, blockKey, canAsk, mayRaise, nextRaised, noticesFor, seedRaised, shouldReseed, shouldSeedFromWorld } from "./notify";
 import type { BlockedSession } from "./ambient-counts";
 import { useMirroredRef } from "./use-mirrored-ref";
+import { refuseSave, setSettingsFailure } from "./settings-failure";
 
 /** The kit's 192px web icon, the one the manifest names for installs. */
 const NOTIFICATION_ICON = "/icon-192.png";
@@ -120,17 +121,24 @@ export function useOsNotifications({ waitingSessions, liveSince, focusSession }:
    *  beside `notifications` for the same reason: the server raises them. */
   const [accountNotify, setAccountNotify] = useState<AccountNotify>(ACCOUNT_NOTIFY_DEFAULTS);
   const toggleAccountNotify = useCallback((kind: AccountNotifyKind) => {
-    // Optimistic and corrected by the answer, like the switch above.
+    // Optimistic and corrected by the answer, like the switch below; refused,
+    // it slides back as that one does.
     const want = !accountNotify[kind];
     setAccountNotify(prev => ({ ...prev, [kind]: want }));
+    const refused = (d: Parameters<typeof refuseSave>[0]) => {
+      setAccountNotify(prev => (prev[kind] === want ? { ...prev, [kind]: !want } : prev));
+      refuseSave(d);
+    };
     fetch("/api/prefs", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ [kind]: want }),
-    }).then(r => (r.ok ? r.json() : null)).then(d => {
-      if (!d?.ok) return;
+    }).then(async r => {
+      const d = await r.json().catch(() => null);
+      if (!r.ok || !d?.ok) return refused(d);
+      setSettingsFailure(null);
       setAccountNotify(accountNotifyFrom(d.prefs));
-    }).catch(() => {});
+    }).catch(() => refused(null));
   }, [accountNotify]);
   const askNotifyRef = useRef<() => void>(() => {});
   const notifyRaisedRef = useRef<ReadonlySet<string>>(new Set());
@@ -162,15 +170,20 @@ export function useOsNotifications({ waitingSessions, liveSince, focusSession }:
     if (want && typeof Notification !== "undefined" && Notification.permission === "default") {
       askNotifyRef.current();
     }
+    // A refused write slides the switch back, unless a later press has moved
+    // it since, and Settings says why under its page head (settings-failure.ts).
+    const refused = (d: Parameters<typeof refuseSave>[0]) => { setNotifyOn(on => (on === want ? !want : on)); refuseSave(d); };
     fetch("/api/prefs", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ notifications: want }),
-    }).then(r => (r.ok ? r.json() : null)).then(d => {
-      if (!d?.ok) return;
+    }).then(async r => {
+      const d = await r.json().catch(() => null);
+      if (!r.ok || !d?.ok) return refused(d);
+      setSettingsFailure(null);
       setNotifyOn(d.prefs?.notifications === true);
       setNotifyVetoed(d.notificationsVetoed === true);
-    }).catch(() => {});
+    }).catch(() => refused(null));
   }, [notifyOn]);
   const notifySupported = typeof Notification !== "undefined";
   // `canAsk` is still what decides whether a prompt can be raised at all; the
