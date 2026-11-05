@@ -17,6 +17,7 @@ import type { SettingsSection } from "../settings";
 import { DEFAULT_PREFS } from "../sound";
 import { ACCOUNT_NOTIFY_DEFAULTS } from "../use-os-notifications";
 import { SETTINGS_INDEX, isSectionEntry } from "../settings-search";
+import { setSettingsFailure } from "../settings-failure";
 import { sheetText } from "./sheet-source";
 import { deckOffersEveryKind } from "./integrations-offered";
 
@@ -97,8 +98,8 @@ describe("the Select", () => {
     expect(readFileSync(new URL("../components/SelectShell.tsx", import.meta.url), "utf8")).not.toMatch(/role="listbox"|onKeyDown/);
   });
   it("is the one control behind every select in Settings", () => {
-    const files = ["LanguageSection", "BoardSection", "ToneSection", "SpokenVoiceForm", "ToolAuditSettings", "ClaudeCodeSettings", "ReadingSection"];
-    const wanted = { LanguageSection: 1, BoardSection: 1, ToneSection: 1, SpokenVoiceForm: 1, ToolAuditSettings: 1, ClaudeCodeSettings: 1, ReadingSection: 2 } as Record<string, number>;
+    const files = ["LanguageSection", "SessionsSection", "ToneSection", "SpokenVoiceForm", "ToolAuditSettings", "ClaudeCodeSettings", "ReadingSection"];
+    const wanted = { LanguageSection: 1, SessionsSection: 1, ToneSection: 1, SpokenVoiceForm: 1, ToolAuditSettings: 1, ClaudeCodeSettings: 1, ReadingSection: 2 } as Record<string, number>;
     let total = 0;
     for (const file of files) {
       const source = readFileSync(new URL(`../components/${file}.tsx`, import.meta.url), "utf8");
@@ -184,7 +185,36 @@ describe("each page's groups, in order", () => {
     const labels = groups(draw("general"));
     expect(labels[0]).toBe("Language");
     expect(labels.slice(-2)).toEqual(["Elsewhere on the deck", "Experimental"]);
-    expect(labels).toEqual(["Language", "Board", "Codex sessions", "Claude sessions", "Updates", "Elsewhere on the deck", "Experimental"]);
+    // CHANGED ON PURPOSE (V4's General page): one Sessions group where Board
+    // and a group per provider were.
+    expect(labels).toEqual(["Language", "Sessions", "Updates", "Elsewhere on the deck", "Experimental"]);
+  });
+  it("General's Sessions group: V4's four rows in V4's order, Claude before Codex, and none lost", () => {
+    const html = draw("general");
+    const group = html.slice(html.indexOf('aria-labelledby="settings-sessions-caption"'), html.indexOf('aria-labelledby="settings-updates-caption"'));
+    const rows = [...group.matchAll(/data-setting="([^"]+)"/g)].map(m => m[1]);
+    expect(rows).toEqual(["hide-finished", "claude-session-recovery", "codex-session-recovery", "claude-continue-stopped"]);
+    const names = [...group.matchAll(/<span class="settings-row-name"[^>]*>([^<]*)</g)].map(m => m[1]);
+    expect(names).toEqual(["Hide finished sessions after", "Bring back busy Claude sessions", "Bring back unfinished Codex turns", "Continue stopped background sessions"]);
+    // Where Claude Code is not, its two rows go and Codex's stays.
+    const codexOnly = draw("general", { providers: { kind: "reported", claude: false, codex: true } } as Partial<SettingsModalProps>);
+    const left = codexOnly.slice(codexOnly.indexOf('aria-labelledby="settings-sessions-caption"'), codexOnly.indexOf('aria-labelledby="settings-updates-caption"'));
+    expect([...left.matchAll(/data-setting="([^"]+)"/g)].map(m => m[1])).toEqual(["hide-finished", "codex-session-recovery"]);
+  });
+  it("draws a refused write's line right under the page head, on any page, and nothing while there is none", () => {
+    expect(draw("general")).not.toContain("settings-failure");
+    setSettingsFailure({ text: "Could not save that setting. Try again.", giveBack: false, done: false });
+    try {
+      for (const section of ["general", "notifications", "claude"] as SettingsSection[]) {
+        const html = pane(draw(section));
+        const head = html.indexOf('<div class="settings-pane-head">');
+        const line = html.indexOf('<div class="settings-failure" role="alert">');
+        expect(line, section).toBeGreaterThan(head);
+        // Next to the head, before the page's first group.
+        expect(html.slice(head, line).match(/<\/div><\/div>$/), section).not.toBeNull();
+        expect(html.indexOf('class="settings-group', line), section).toBeGreaterThan(line);
+      }
+    } finally { setSettingsFailure(null); }
   });
   it("General draws no Experimental group while the deck does not hand over the Command Panel's switch", () => {
     expect(groups(draw("general", { terminal: undefined }))).not.toContain("Experimental");

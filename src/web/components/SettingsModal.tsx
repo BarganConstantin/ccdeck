@@ -19,7 +19,7 @@
 import { useMediaQuery } from "../use-media-query";
 import { useT } from "../i18n";
 import LanguageSection from "./LanguageSection";
-import SessionRecoverySettings from "./SessionRecoverySettings";
+import SessionRecoveryRow, { ContinueStoppedRow } from "./SessionRecoverySettings";
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import type { Providers } from "../providers";
 import { focusedTabToFollow, isFindChord, sectionIndex, sectionsDrawn, settingsSections, type SettingsDoors, type SettingsSection } from "../settings";
@@ -35,7 +35,7 @@ import type { useTonePrefs } from "../use-tone-prefs";
 import type { useVersionCheck } from "../use-version-check";
 import { setSingleKeyShortcuts } from "../single-key-shortcuts";
 import { useSingleKeyShortcuts } from "../use-single-key-shortcuts";
-import BoardSection from "./BoardSection";
+import SessionsSection from "./SessionsSection";
 import ElsewhereSection from "./ElsewhereSection";
 import KeyboardSection from "./KeyboardSection";
 import NotificationsSection from "./NotificationsSection";
@@ -55,6 +55,8 @@ import { Dialog } from "./Dialog";
 import { useModalDismiss, useScrimDismiss } from "./use-modal-dismiss";
 import { SettingsSearchField, SettingsSearchResults, SettingsSearchStatus } from "./SettingsSearch";
 import { useSettingsJump } from "./use-settings-jump";
+import { SettingsFailureLine } from "./SettingsFailureLine";
+import { answerSettingsFailure, setSettingsFailure, useSettingsFailure } from "../settings-failure";
 
 // Settings › Account, hidden: its own chunk, fetched only when the section is
 // drawn, which is only on a deck with the ccdeck account on (or vetoed at
@@ -197,6 +199,13 @@ export default function SettingsModal({
     selectedTabRef.current?.scrollIntoView?.({ block: "nearest", inline: "nearest" });
   }, [section]);
 
+  // A REFUSED WRITE'S LINE (settings-failure.ts), under the page head, for
+  // every setting that writes. Said only on the page it happened on: emptied
+  // as the dialog opens, as the section changes, and as the dialog closes.
+  const failure = useSettingsFailure();
+  useEffect(() => { setSettingsFailure(null); }, [section]);
+  useEffect(() => () => setSettingsFailure(null), []);
+
   const { theme, setTheme, characterEnabled, setCharacterEnabled, character, setCharacter } = appearance;
   const singleKeys = useSingleKeyShortcuts();
 
@@ -308,16 +317,21 @@ export default function SettingsModal({
           />
         );
       default:
-        // General: how the board behaves, the sessions recovered at startup,
-        // how the deck updates itself, and the preferences that live in a
-        // panel of their own (#2176), then Experimental, where the Command
-        // Panel's switch stands (V4 draws no tab for it).
+        // General: the language, then one Sessions group — how long a
+        // finished session stays on the board and which sessions come back
+        // after a restart, Claude's before Codex's, as V4 draws it — how the
+        // deck updates itself, the preferences that live in a panel of their
+        // own (#2176), then Experimental, where the Command Panel's switch
+        // stands (V4 draws no tab for it). Claude's two rows are drawn where
+        // Claude Code is.
         return (
           <>
             <LanguageSection />
-            <BoardSection />
-            <SessionRecoverySettings provider="Codex" />
-            {providers.claude && <SessionRecoverySettings provider="Claude" />}
+            <SessionsSection>
+              {providers.claude && <SessionRecoveryRow provider="Claude" />}
+              <SessionRecoveryRow provider="Codex" />
+              {providers.claude && <ContinueStoppedRow />}
+            </SessionsSection>
             <UpdatesSection autoRestart={restart.autoRestart} onToggleAutoRestart={restart.toggleAutoRestart} version={versionCheck.version} />
             <ElsewhereSection claudeHere={providers.claude} codexHere={providers.codex} singleKeys={singleKeys} doors={doors} />
             {terminal && <TerminalSection terminal={terminal} />}
@@ -432,6 +446,10 @@ export default function SettingsModal({
               </div>
               {paneAction}
             </div>
+            {/* Keyed by the refusal, so a second one is a new alert a screen
+                reader says again; the press's own answer keeps the key. */}
+            {failure && <SettingsFailureLine key={failure.serial} banner line={failure.line}
+              onDismiss={() => setSettingsFailure(null)} onAnswer={answerSettingsFailure} />}
             {pane}
           </div>
           {searching && <SettingsSearchResults query={query} results={results} active={active} onOpen={openResult} />}

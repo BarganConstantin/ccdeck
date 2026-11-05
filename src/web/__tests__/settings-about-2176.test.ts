@@ -414,10 +414,14 @@ describe("Settings › General › Elsewhere on the deck", () => {
     expect(html).not.toMatch(/<label[^>]*data-setting="(?:accounts|local-network|browser-watch)"/);
   });
 
-  it("draws each panel's key beside its door only while single keys answer", () => {
+  it("names each panel's key on its door only while single keys answer, with no key cap", () => {
+    // CHANGED ON PURPOSE (V4's Settings row): the door is the accent text link
+    // and the row draws no key cap beside it. The key is still said to a
+    // screen reader on the link, and still only while single keys answer.
     const on = draw(true, true);
-    expect(on).toMatch(/<kbd class="settings-key" aria-hidden="true" title="Press A[^"]*">A<\/kbd><button[^>]*aria-keyshortcuts="A"/);
-    expect(on).toMatch(/<kbd class="settings-key" aria-hidden="true" title="Press B[^"]*">B<\/kbd><button[^>]*aria-keyshortcuts="B"/);
+    expect(on).not.toContain('class="settings-key"');
+    expect(on).toMatch(/<button type="button" class="settings-link" id="settings-accounts-open"[^>]*aria-keyshortcuts="A"/);
+    expect(on).toMatch(/<button type="button" class="settings-link" id="settings-browser-watch-open"[^>]*aria-keyshortcuts="B"/);
     const off = draw(true, false);
     expect(off).not.toContain('class="settings-key"');
     expect(off).not.toContain("aria-keyshortcuts");
@@ -442,9 +446,11 @@ describe("Settings › General › Elsewhere on the deck", () => {
     expect(codex).toContain('if (!lanWanted || !lanReady || !shown) return; setView("lan"); onLanShown?.();');
   });
 
-  it("says General holds more than the board now, in one line", () => {
+  it("says General holds sessions and updates, in one line", () => {
+    // CHANGED ON PURPOSE (V4's page note): it names how sessions come back,
+    // and updates; the board's own row is one of the Sessions rows now.
     const general = SETTINGS_SECTIONS.find(s => s.id === "general")!;
-    expect(general.note).toMatch(/board/);
+    expect(general.note).toMatch(/sessions/);
     expect(general.note).toMatch(/updates/);
     expect(general.note.split(". ").length).toBe(1);
   });

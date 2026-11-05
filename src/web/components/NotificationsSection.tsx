@@ -10,12 +10,12 @@ import { useRef } from "react";
 import { useT } from "../i18n";
 import { useFocusRescue } from "./use-focus-rescue";
 import {
-  ACCOUNT_NOTIFY_SWITCHES, browserChannel, notifyNote,
-  type NotifyPermission,
+  ACCOUNT_NOTIFY_NOTE_MSG, ACCOUNT_NOTIFY_SWITCHES, ACCOUNT_NOTIFY_VETO_NOTE_MSG, browserChannel, notifyNote,
+  NOTIFY_VETO_NOTE_MSG, type NotifyPermission,
 } from "../notify-reach";
 import type { AccountNotify, AccountNotifyKind } from "../use-os-notifications";
 import { inDesktopApp } from "../in-app";
-import { SettingRow, SettingsGroup } from "./SettingsParts";
+import { SettingRow, SettingsGroup, SettingsInfo } from "./SettingsParts";
 
 export interface NotificationsProps {
   /** The switch: a notification once no deck tab is open. Held server-side
@@ -53,8 +53,8 @@ export default function NotificationsSection({
   notifyOn, onToggleNotify, notifyVetoed, notifyPermission, onAskNotify, accountNotify, onToggleAccountNotify,
 }: NotificationsProps) {
   /* The channel, and whether it is worth drawing at all. A veto silences both
-     notifiers, so there is no channel to report on; the switch's own note says
-     what happened instead. */
+     notifiers, so there is no channel to report on; the line under the
+     switch's note says what happened instead. */
   const t = useT();
   const channel = browserChannel(notifyPermission, t);
   // Not inside the desktop app: its notifications are its own, and the
@@ -77,13 +77,16 @@ export default function NotificationsSection({
           list, the channel it reaches you through. The note is not
           decoration: it is what separates this switch from Sounds — sound
           fires on every finished turn while a tab is open, this fires only
-          when something has stopped and no tab is. */}
+          when something has stopped and no tab is. A launch-time veto keeps
+          the note and is said under it, with the info icon (V4's Forms /
+          Note): the switch still means what the note says, from the next
+          start. */}
       <SettingsGroup id="sm-closed-caption" title={t("settings.notify.closedGroup")}>
         <SettingRow
           settingId="notify-closed"
           name={t("settings.notify.closedName")}
           nameId="sm-notify-label"
-          note={notifyVetoed ? t("settings.notify.veto") : notifyNote(inApp, t)}
+          note={notifyNote(inApp, t)}
           noteId="sm-notify-note"
           control={
             <button
@@ -92,14 +95,16 @@ export default function NotificationsSection({
               role="switch"
               aria-checked={notifyOn}
               aria-labelledby="sm-notify-label"
-              aria-describedby="sm-notify-note"
+              aria-describedby={notifyVetoed ? "sm-notify-note sm-notify-veto" : "sm-notify-note"}
               className="switch"
               onClick={onToggleNotify}
             >
               <span className="switch-knob" />
             </button>
           }
-        />
+        >
+          {notifyVetoed && <SettingsInfo id="sm-notify-veto">{t(NOTIFY_VETO_NOTE_MSG)}</SettingsInfo>}
+        </SettingRow>
 
         {/* THE CHANNEL, WHICH IS NOT A THIRD SWITCH. "Notifications" is the
             feature and "Browser notifications" is one of the two channels it
@@ -148,11 +153,13 @@ export default function NotificationsSection({
           note, because the note is the same for all five: whose accounts,
           and that the deck need not be closed. What each one says, and when,
           is its own row's note — it was a tooltip, which a reader on a touch
-          screen or a keyboard never saw. */}
+          screen or a keyboard never saw. The veto keeps the note too, and is
+          said under it as it is above. */}
       <SettingsGroup
         id="sm-accounts-caption"
         title={t("settings.notify.accountsGroup")}
-        note={notifyVetoed ? t("settings.notify.accountsVeto") : t("settings.notify.accountsNote")}
+        note={t(ACCOUNT_NOTIFY_NOTE_MSG)}
+        info={notifyVetoed ? t(ACCOUNT_NOTIFY_VETO_NOTE_MSG) : undefined}
       >
         {ACCOUNT_NOTIFY_SWITCHES.map(({ kind, label, title }) => (
           <SettingRow

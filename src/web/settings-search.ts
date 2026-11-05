@@ -127,16 +127,16 @@ const CHARACTER_WORDS = ["deck companion", "fox", "penguin"];
 
 /** Every entry, in nav order, each section's own entry first in its block. */
 function buildIndex(): SettingsEntry[] {
-  const recover = (provider: "Claude" | "Codex") => L("settings.recover.group", { provider });
+  const sessions = L("settings.sessions.group");
   // Account is a hidden section (settings.ts ACCOUNT_SECTION) and is never in
   // the index: the walk below is over the released SETTINGS_SECTIONS.
   const rows: Record<Exclude<SettingsSection, "account">, SettingsEntry[]> = {
     general: [
-      entryOf({ id: "claude-session-recovery", claudeOnly: true, section: "general", group: recover("Claude"), label: L("settings.recover.name") }),
-      entryOf({ id: "claude-continue-stopped", claudeOnly: true, section: "general", group: recover("Claude"), label: L("settings.recover.continueName") }),
-      entryOf({ id: "codex-session-recovery", section: "general", group: recover("Codex"), label: L("settings.recover.name") }),
+      entryOf({ id: "claude-session-recovery", claudeOnly: true, section: "general", group: sessions, label: L("settings.recover.claudeName") }),
+      entryOf({ id: "claude-continue-stopped", claudeOnly: true, section: "general", group: sessions, label: L("settings.recover.continueName") }),
+      entryOf({ id: "codex-session-recovery", section: "general", group: sessions, label: L("settings.recover.codexName") }),
       entryOf({ id: "language", section: "general", group: L("settings.language.group"), label: L("settings.language.name") }),
-      entryOf({ id: "hide-finished", section: "general", group: L("settings.board.title"), label: L("settings.board.hideLabel") }),
+      entryOf({ id: "hide-finished", section: "general", group: sessions, label: L("settings.board.hideLabel") }),
       entryOf({ id: "auto-update", section: "general", group: L("settings.updates.title"), label: L("settings.updates.label") }),
       entryOf({ id: "accounts", section: "general", group: L("settings.search.group.elsewhere"), label: L("settings.search.accounts"), claudeOnly: true }),
       entryOf({ id: "local-network", section: "general", group: L("settings.search.group.elsewhere"), label: L("settings.search.localNetwork"), claudeOnly: true }),

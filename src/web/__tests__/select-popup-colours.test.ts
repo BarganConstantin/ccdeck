@@ -75,10 +75,11 @@ const SELECTS: Record<string, Array<{ name: string; chain: El[] }>> = {
     name: "which tracker connection is on show",
     chain: [el("body"), el("div", ["modal-backdrop"]), el("div", ["modal", "ig-modal"]), el("div", ["ig-head"]), el("label", ["ig-conn-select"]), el("select", ["sm-select"])],
   }],
-  "components/BoardSection.tsx": [{
+  "components/SessionsSection.tsx": [{
     name: "how long a finished session stays on the board",
-    // CHANGED ON PURPOSE (V4 Figma): the select now sits in the Select shell, span.v4-select.
-    chain: [el("body"), el("div", ["modal", "settings-modal"]), el("div", ["settings-body"]), el("div", ["settings-pane"]), el("section", ["settings-group"]), el("div", ["appearance-controls"]), el("label", ["appearance-row"]), el("span", ["v4-select"]), el("select", ["sm-select"])],
+    // CHANGED ON PURPOSE: the row moved into General's Sessions group, a
+    // settings row with Details, and the select sits in the Select shell.
+    chain: [el("body"), el("div", ["modal", "settings-modal"]), el("div", ["settings-body"]), el("div", ["settings-pane"]), el("section", ["settings-group"]), el("div", ["settings-list"]), el("div", ["settings-row-with-details"]), el("label", ["settings-row"]), el("span", ["settings-row-control"]), el("span", ["v4-select"]), el("select", ["sm-select"])],
   }],
   "components/LanguageSection.tsx": [{
     name: "the interface language",

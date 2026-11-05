@@ -19,6 +19,7 @@ import {
 } from "../use-stage";
 import { TYPE_AHEAD_MS } from "../type-ahead";
 import { en } from "../i18n/en";
+import { settingsFailure, setSettingsFailure } from "../settings-failure";
 import { mount } from "./fake-react";
 
 vi.mock("react", async () => (await import("./fake-react")).react);
@@ -290,6 +291,9 @@ describe("the switch in Settings", () => {
     expect(now().stage.enabled).toBe(true);
     await flush();
     expect(now().stage.enabled).toBe(false);
+    // And Settings says why under its page head, as for every setting.
+    expect(settingsFailure()?.line.text).toBe("Could not save that setting. Try again.");
+    setSettingsFailure(null);
   });
 
   it("puts it back when the deck does not answer at all", async () => {

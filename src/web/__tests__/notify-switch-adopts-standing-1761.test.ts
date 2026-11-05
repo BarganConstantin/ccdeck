@@ -106,6 +106,7 @@ const hooks = vi.hoisted(() => {
 vi.mock("react", () => hooks.react);
 
 const { useOsNotifications } = await import("../use-os-notifications");
+const { settingsFailure, setSettingsFailure } = await import("../settings-failure");
 
 const blocked = (id: string, since: number): BlockedSession =>
   ({ id, label: id, waiting: { kind: "permission", message: "Claude needs your permission", since } });
@@ -181,5 +182,35 @@ describe("turning the deck's notification switch on", () => {
     page.hidden = true;
     view.rerender({ waitingSessions: [blocked("A", 1000)] });
     expect(raised).toEqual([]);
+  });
+});
+
+describe("a refused write", () => {
+  afterEach(() => { setSettingsFailure(null); });
+
+  it("slides the switch back and says why under Settings' page head; the next write that takes clears it", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => ({ ok: false, json: async () => ({ error: "refused" }) })));
+    const view = deck();
+    view.now.toggleNotify();
+    expect(view.now.notifyOn).toBe(true);
+    await flush();
+    expect(view.now.notifyOn).toBe(false);
+    expect(settingsFailure()?.line.text).toBe("Could not save that setting. Try again.");
+    vi.stubGlobal("fetch", vi.fn(async () => ({ ok: true, json: async () => ({ ok: true, prefs: { notifications: true } }) })));
+    view.now.toggleNotify();
+    await flush();
+    expect(view.now.notifyOn).toBe(true);
+    expect(settingsFailure()).toBeNull();
+  });
+
+  it("does the same for an account notification, and for a deck that did not answer", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => { throw new TypeError("Failed to fetch"); }));
+    const view = deck();
+    const before = view.now.accountNotify.notifySwap;
+    view.now.toggleAccountNotify("notifySwap");
+    expect(view.now.accountNotify.notifySwap).toBe(!before);
+    await flush();
+    expect(view.now.accountNotify.notifySwap).toBe(before);
+    expect(settingsFailure()?.line.text).toBe("Could not save that setting. Try again.");
   });
 });

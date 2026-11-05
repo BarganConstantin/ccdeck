@@ -11,6 +11,7 @@ import { useEffect, useState } from "react";
 import { t as tNow, type TFunction } from "./i18n";
 import { OwnError, ownMessage } from "./own-error";
 import { serverText } from "./radar-server-text";
+import { setSettingsFailure } from "./settings-failure";
 
 export type ClaudeSettingValue = boolean | string | number | null;
 
@@ -48,6 +49,9 @@ export interface ClaudeSettingsState {
   reading: ClaudeSettingsReading | null;
   /** The row whose change is being saved. */
   saving: string | null;
+  /** Why the settings could not be read. A refused save is said under the
+   *  page head instead, as every refused write in Settings is
+   *  (settings-failure.ts). */
   error: string;
   /** The row a running session wrote back over, and what to say about it. */
   undone: { id: string } | null;
@@ -110,8 +114,9 @@ export async function setClaudeSetting(id: string, value: ClaudeSettingValue): P
       body: JSON.stringify({ id, value }), signal: controller.signal,
     });
     const data = await res.json().catch(() => null);
-    if (!res.ok || !valid(data)) throw new OwnError(typeof data?.error === "string" && data.error ? claudeReasonText(data.error) : tNow("settings.claude.saveFail"));
+    if (!res.ok || !valid(data)) throw new OwnError(typeof data?.error === "string" && data.error ? claudeReasonText(data.error) : tNow("settings.failure.save"));
     publish({ reading: data });
+    setSettingsFailure(null);
     // What the save left the row reading, taken now: the ten-second reading
     // may land first and already hold the session's copy.
     const saved = rowValue(data, id);
@@ -124,7 +129,8 @@ export async function setClaudeSetting(id: string, value: ClaudeSettingValue): P
     }, RECHECK_MS);
     return true;
   } catch (error) {
-    publish({ error: ownMessage(error, tNow("settings.claude.saveFail")) });
+    // The server's own reason when it gave one, V4's sentence otherwise.
+    setSettingsFailure({ text: ownMessage(error, tNow("settings.failure.save")), giveBack: false, done: false });
     return false;
   } finally { clearTimeout(timeout); publish({ saving: null }); }
 }
@@ -152,9 +158,16 @@ const REASON_KEYS: Record<string, string> = {
 export function claudeReasonText(text: string, t: TFunction = tNow): string {
   const fixed = REASON_KEYS[text];
   if (fixed) return t(fixed);
-  const needs = /^Needs Claude Code (\S+) or newer(, and the version installed here could not be read)?\.$/.exec(text);
-  if (needs) return t(needs[2] ? "settings.claude.reason.needsUnread" : "settings.claude.reason.needs", { version: needs[1] });
+  const needs = versionReason(text);
+  if (needs) return t(needs.unread ? "settings.claude.reason.needsUnread" : "settings.claude.reason.needs", { version: needs.version });
   return serverText(text, t);
+}
+
+/** A row's reason when it is the version Claude Code needs for it: the
+ *  version, and whether the one installed here could be read at all. */
+export function versionReason(text: string | undefined): { version: string; unread: boolean } | null {
+  const needs = /^Needs Claude Code (\S+) or newer(, and the version installed here could not be read)?\.$/.exec(text ?? "");
+  return needs ? { version: needs[1], unread: !!needs[2] } : null;
 }
 
 export function useClaudeSettings() {

@@ -480,6 +480,11 @@ const PRESSES: Press[] = [
   [".film-link:active", "0.97", "transform"],
   // Settings › About's Source, the same kind of link out of the deck (#2176).
   [".settings-link:active", "0.97", "transform"],
+  // The line a refused settings write leaves under the page head: its give-back
+  // press is the banner's word link, 0.97 like .ver-act, and its close is the
+  // banner's 24px icon button, 0.94 like .ver-close.
+  [".settings-failure-act:active", "0.97", "transform"],
+  [".settings-failure-x:active", "0.94", "transform"],
   // Continue on a stopped background session's card (#2193): a word in a
   // 20px pill, a labelled control, so 0.97. And the detail panel's
   // disclosure of the commands it runs, a sentence that opens them.
