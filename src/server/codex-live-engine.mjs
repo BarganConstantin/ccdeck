@@ -488,7 +488,8 @@ export function createCodexLiveAccountController(input = {}) {
     } catch (error) {
       if (!owned) await disconnect();
       const reason = publicReason(error);
-      const retry = ['native_not_running', 'cli_unavailable', 'native_unavailable', 'native_connection_failed', 'native_disconnected', 'native_control_busy'].includes(reason);
+      const retry = ['native_not_running', 'cli_unavailable', 'native_unavailable', 'native_connection_failed', 'native_disconnected', 'native_control_busy',
+        'native_request_timeout', 'native_initial_account_unconfirmed'].includes(reason);
       update({ state: retry ? 'unavailable' : 'failed', reason });
       if (!retry) restorePending = null;
       restoreRetryAt = Date.now() + (options.restoreRetryMs ?? 5000);
