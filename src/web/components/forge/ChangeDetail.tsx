@@ -1,13 +1,14 @@
 // A merge request or pull request, drawn the way GitLab's merge request page
 // draws one (#2179) — the page reviewers work from.
 //
-// The title with its state, "Author requested to merge source into target",
-// the pipeline and the approvals; then the page's four tabs with their counts
-// — Overview (the description and the discussions: unresolved threads open,
-// resolved threads and general comments folded), Commits, Pipelines and
-// Changes (a file list with its +/−, never a diff) — and the side column:
-// assignee, reviewers with their state, labels, milestone, participants. No
-// time tracking, nothing that writes: every action is a link to the forge.
+// Its state as a chip in the bar beside its reference; the title, "Author
+// wants to merge source into target", the pipeline and the approvals; then the
+// page's four tabs — Overview (the description and the discussions:
+// unresolved threads open, resolved threads and general comments folded),
+// Commits, Pipelines and Changes (a file list with its +/−, never a diff) —
+// above the facts: reviewers with their state, assignees, labels, milestone,
+// participants. No time tracking, nothing that writes: every action is a link
+// to the forge.
 //
 // Only the Overview is read when the page opens. Commits and Changes are paged
 // and asked for when their tab is first shown; the change's pipelines are read
@@ -27,9 +28,9 @@ import { tabStripMove } from "../../tablist-keys";
 import { useForgePages, useForgeRead, type ForgeReadState } from "../../use-forge-read";
 import ForgeHtml, { renderForgeNodes } from "../ForgeHtml";
 import { useForge, type ForgeSelection } from "./ForgeContext";
-import { Ago, AgoIn, Badge, Copyable, FoldGroup, ListEnd, LoadingRows, OpenOnForge, Person, ReadFailure, StateMark } from "./ForgeParts";
+import { Ago, AgoIn, Copyable, FoldGroup, ListEnd, LoadingRows, OpenOnForge, Person, ReadFailure, StateChip, StateMark } from "./ForgeParts";
 import {
-  CommitRow, DetailFrame, DetailPending, Faces, LabelsFact, PathDir, PeopleFact, SideFact, SideFacts, useDetailBar, useForgeNodes,
+  CommitRow, DetailFrame, DetailHeading, DetailPending, Faces, LabelsFact, PathDir, PeopleFact, SideFact, SideFacts, useDetailBar, useForgeNodes,
 } from "./DetailParts";
 import { ThreadList } from "./DetailThreads";
 import IntegrationDetailBar from "../IntegrationDetailBar";
@@ -66,46 +67,47 @@ export default function ChangeDetail({ selection }: { selection: Selection }) {
 
   return (
     <DetailFrame label={`${words.change} ${reference}`}>
-      <IntegrationDetailBar {...bar} reference={reference} copyLabel={t("forge.copy.reference")} href={c?.webUrl ?? null} />
+      <IntegrationDetailBar {...bar} reference={reference} copyLabel={t("forge.copy.reference")}
+        status={c && <StateChip mark={changeStateMark(c)} />} href={c?.webUrl ?? null} />
       <DetailPending data={c} loading={read.loading} error={read.error} onRetry={read.reload} what={words.changeLc} />
       {c && (
         <>
           {read.error && <ReadFailure error={read.error} onRetry={read.reload} compact />}
           <ChangeHead change={c} pipelines={pipelines.data} />
+          {/* The page's tabs, over the facts as on the forge's own page: one
+              tab stop, the arrows between them (#581). */}
+          <div
+            className="uh-range fd-sections"
+            role="tablist"
+            aria-label={t("forge.change.sections", { change: words.change })}
+            onKeyDown={event => {
+              const move = tabStripMove(event, sections.findIndex(s => s.id === section), sections.length);
+              if (move.kind === "pass") return;
+              event.preventDefault();
+              event.stopPropagation();
+              setSection(sections[move.index].id);
+              event.currentTarget.querySelectorAll<HTMLButtonElement>('[role=tab]')[move.index]?.focus();
+            }}
+          >
+            {sections.map(s => (
+              <button
+                key={s.id}
+                id={sectionTabId(s.id)}
+                type="button"
+                role="tab"
+                className="uh-range-btn"
+                aria-selected={section === s.id}
+                aria-controls={sectionPanelId(s.id)}
+                tabIndex={section === s.id ? 0 : -1}
+                onClick={() => setSection(s.id)}
+              >
+                {s.label}
+              </button>
+            ))}
+          </div>
           <div className="fd-layout">
             <ChangeSide change={c} />
             <div className="fd-main">
-              {/* The page's tabs: one tab stop, the arrows between them (#581). */}
-              <div
-                className="uh-range fd-sections"
-                role="tablist"
-                aria-label={t("forge.change.sections", { change: words.change })}
-                onKeyDown={event => {
-                  const move = tabStripMove(event, sections.findIndex(s => s.id === section), sections.length);
-                  if (move.kind === "pass") return;
-                  event.preventDefault();
-                  event.stopPropagation();
-                  setSection(sections[move.index].id);
-                  event.currentTarget.querySelectorAll<HTMLButtonElement>('[role=tab]')[move.index]?.focus();
-                }}
-              >
-                {sections.map(s => (
-                  <button
-                    key={s.id}
-                    id={sectionTabId(s.id)}
-                    type="button"
-                    role="tab"
-                    className="uh-range-btn"
-                    aria-selected={section === s.id}
-                    aria-controls={sectionPanelId(s.id)}
-                    tabIndex={section === s.id ? 0 : -1}
-                    onClick={() => setSection(s.id)}
-                  >
-                    <span className="fd-section-label">{s.label}</span>
-                    <span className="fd-section-count">{formatNumber(s.count, 0)}</span>
-                  </button>
-                ))}
-              </div>
               {/* A panel per section; only the chosen one is drawn, and reads. */}
               {sections.map(s => (
                 <div key={s.id} className="fd-section" id={sectionPanelId(s.id)} role="tabpanel" aria-labelledby={sectionTabId(s.id)} hidden={section !== s.id}>
@@ -142,7 +144,6 @@ function ChangeHead({ change: c, pipelines }: { change: Change; pipelines: Forge
     <header className="fd-head">
       <h2 className="fd-title">{title}</h2>
       <p className="fd-byline">
-        <Badge mark={changeStateMark(c)} />
         {c.author && <Person user={c.author} size={18} />}
         {kind === "github"
           ? (
@@ -160,7 +161,7 @@ function ChangeHead({ change: c, pipelines }: { change: Change; pipelines: Forge
             />
           )
           : (
-            <ByLine text={t("forge.change.gl.requested")} target={c.targetBranch} source={c.sourceBranch} sourceLabel={t("forge.copy.sourceBranch")} />
+            <ByLine text={t("forge.change.gl.wants")} target={c.targetBranch} source={c.sourceBranch} sourceLabel={t("forge.copy.sourceBranch")} />
           )}
         {c.createdAt != null && <span className="fd-when">· <AgoIn at={c.createdAt} text={t("forge.when.created")} /></span>}
         {c.state === "merged" && c.mergedAt != null && <span className="fd-when">· <AgoIn at={c.mergedAt} text={t("forge.when.merged")} /></span>}
@@ -214,23 +215,25 @@ function ByLine({ text, target, source, sourceLabel }: { text: string; target: s
 }
 
 function ChangeSide({ change: c }: { change: Change }) {
+  const { kind } = useForge();
   const t = useT();
   return (
     <SideFacts label={t("forge.change.about")}>
-      <SideFact label={t(c.assignees.length > 1 ? "forge.fact.assignees" : "forge.fact.assignee")}>
-        <PeopleFact users={c.assignees} />
-      </SideFact>
-      <SideFact label={t(c.reviewers.length > 1 ? "forge.fact.reviewers" : "forge.fact.reviewer")}>
+      <SideFact label={t("forge.fact.reviewers")}>
         <PeopleFact users={c.reviewers} extra={u => <StateMark className="fd-review" mark={reviewerMark((u as ForgeReviewer).state)} />} />
       </SideFact>
-      {c.labels.length > 0 && <SideFact label={t("forge.fact.labels")}><LabelsFact labels={c.labels} /></SideFact>}
-      {c.milestone && (
-        <SideFact label={t("forge.fact.milestone")}>
-          {c.milestone.webUrl
+      {/* GitHub names the field in the plural whatever it holds; GitLab says
+          Assignee for one. */}
+      <SideFact label={t(kind === "gitlab" && c.assignees.length <= 1 ? "forge.fact.assignee" : "forge.fact.assignees")}>
+        <PeopleFact users={c.assignees} />
+      </SideFact>
+      <SideFact label={t("forge.fact.labels")}><LabelsFact labels={c.labels} /></SideFact>
+      <SideFact label={t("forge.fact.milestone")}>
+        {!c.milestone ? <span className="fd-none">{t("forge.none")}</span>
+          : c.milestone.webUrl
             ? <a className="fd-plain-link" href={c.milestone.webUrl} target="_blank" rel="noreferrer noopener">{c.milestone.title}</a>
             : c.milestone.title}
-        </SideFact>
-      )}
+      </SideFact>
       {c.participants.length > 0 && (
         <SideFact label={t("forge.fact.participants", { n: formatNumber(c.participants.length, 0) })}>
           <Faces users={c.participants} />
@@ -247,6 +250,7 @@ function Overview({ change: c }: { change: Change }) {
   const nothing = !unresolved.length && !resolved.length && !general.length;
   return (
     <>
+      <DetailHeading>{t("forge.description")}</DetailHeading>
       {nodes.length ? <ForgeHtml className="fd-description" nodes={nodes} /> : <p className="fd-none fd-description">{t("forge.noDescription")}</p>}
       <div className="fd-discussions">
         {nothing && <p className="fg-empty">{t("forge.change.noDiscussions")}</p>}

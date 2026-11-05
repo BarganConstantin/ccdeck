@@ -348,18 +348,22 @@ describe("what was migrated to the secondary tier", () => {
       // row, a branch row and a project in the picker take --ctl-fill under the
       // pointer and while chosen, where --muted is 4.05:1 in dark (#1789) — a
       // state's word beside its mark or in its chip, a row's meta line, a
-      // label, a branch's behind | ahead, and a project's group, there and in
-      // the picker's button. (Its search field is the integrations' shared
-      // one now, .ig-search-input.)
-      ".fg-badge", ".fg-mark-word", ".fgl-label", ".fgl-repo-group",
-      ".fgl-repo-option-group",
+      // label and a branch's behind | ahead. (Its search field is the
+      // integrations' shared one now, .ig-search-input.) CHANGED ON PURPOSE
+      // (V4's Figma): the picker's button names the project alone, and a
+      // project in the picker reads its whole path over when it last moved,
+      // so neither draws the group in this tier any more.
+      ".fg-badge", ".fg-mark-word", ".fgl-label",
       // CHANGED ON PURPOSE (V4's Figma): the integrations' controls and chips are written in
       // --text-secondary on their --line edge or soft fills (a branch's chips and change, the
       // repository trigger, the tabs and detail tabs, Jira's board button, filter chips, status
       // control, group heads, the compose label and the status words), and a row's meta line and
       // a branch's ahead and behind went to --muted, the tier the Figma draws them in.
       ".fd-sections .uh-range-btn", ".fg-tabs .uh-range-btn", ".fgl-branch-change", ".fgl-branch-name .fg-badge",
-      "button.btn.fgl-repo-trigger", ".jr-board-btn", ".jr-comment-compose label",
+      "button.btn.fgl-repo-trigger",
+      // The forge lists' state chips, as Jira's filter chips; the picker's
+      // group heads (Recent, All this token can see), V4's 12/600 Secondary.
+      "button.btn.fgl-chip", ".fgl-repo-head", ".jr-board-btn", ".jr-comment-compose label",
       ".jr-group-title", ".jr-group-toggle", ".jr-status, .jr-panel .jr-status.ig-chip",
       "button.btn.jr-chip", "button.btn.jr-status-btn",
       ".ns-form .uh-range-btn[aria-pressed=\"false\"]", ".ns-title",

@@ -1,15 +1,16 @@
 // The project (GitLab) or repository (GitHub) the panel's tabs read, as the
 // toolbar's first control (#2179).
 //
-// A button that names the current one — the group as a quiet prefix that is
-// cut first, with an ellipsis, when the room runs short, and the project's own
-// name last and never cut, so acme/api and acme-forks/api still read apart by
-// touch and keyboard — or "All projects" where the tab reads across them.
+// A button that names the current one by its own name — its whole path in
+// the tooltip and in its accessible name, so acme/api and acme-forks/api still
+// read apart — or "All projects" where the tab reads across them.
 // It opens a popover the way the radio's filters do (AnchoredPopover, with
 // RadioFilter's combobox-and-listbox keys): a search the forge answers, so a
-// project on the fourth page is one word away; the unfiltered list by recent
-// activity, the projects most likely to be opened; "All projects" first where
-// the tab allows it; the current one marked; Load more for the next page.
+// project on the fourth page is one word away; "All projects" first where the
+// tab allows it; then Recent, up to three with activity this week, and every
+// other project the token can see, with how many there are; each one its path
+// over when it last moved; the current one checked; Load more for the next
+// page. A search answers in one list, without the groups.
 //
 // PORTALLED INTO ITS OWN SPAN, AND HUNG OFF IT. The panel lives in the
 // integrations host's modal, so the popover is drawn inside that dialog —
@@ -25,14 +26,15 @@
 import { useCallback, useEffect, useId, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import type { ForgeRepo } from "../../forge-types";
 import { forgeNouns } from "../../forge-types";
-import { allReposLabel, repoNounPlural, splitRepoPath } from "../../forge-lists";
+import { allReposLabel, repoGroups, repoNounPlural, splitRepoPath } from "../../forge-lists";
 import { useT } from "../../i18n";
+import { formatNumber } from "../../i18n/format";
 import { useForgePages } from "../../use-forge-read";
 import AnchoredPopover from "../AnchoredPopover";
 import { CheckGlyph } from "../integration-glyphs";
 import { ChevronGlyph } from "./ForgeGlyphs";
 import { useForge } from "./ForgeContext";
-import { Ago, ListEnd, LoadingRows, ReadFailure } from "./ForgeParts";
+import { AgoIn, ListEnd, LoadingRows, ReadFailure } from "./ForgeParts";
 
 interface Props {
   value: string | null;
@@ -74,7 +76,7 @@ export default function RepoPicker({ value, allowAll, onChange }: Props) {
       >
         <RepoGlyph />
         {parts
-          ? <span className="fgl-repo-path"><span className="fgl-repo-group">{parts.group}</span><span className="fgl-repo-name">{parts.name}</span></span>
+          ? <span className="fgl-repo-path"><span className="fgl-repo-name">{parts.name}</span></span>
           : <span className="fgl-repo-all">{shown}</span>}
         <ChevronGlyph />
       </button>
@@ -97,6 +99,7 @@ export default function RepoPicker({ value, allowAll, onChange }: Props) {
 }
 
 type Option = { value: string | null; repo: ForgeRepo | null };
+type Section = { key: "top" | "recent" | "rest"; head: string | null; count: number | null; options: Option[] };
 
 function RepoOptions({ value, allowAll, onPick, onEscape }: {
   value: string | null; allowAll: boolean; onPick: (repo: string | null) => void; onEscape: () => void;
@@ -118,14 +121,22 @@ function RepoOptions({ value, allowAll, onPick, onEscape }: {
 
   const repos = useForgePages<ForgeRepo>(api, scope, "repos", { search: search || undefined }, refresh);
   const items = repos.data?.items;
-  const options = useMemo<Option[]>(() => {
-    const out: Option[] = [];
-    if (allowAll && !search) out.push({ value: null, repo: null });
+  const total = repos.data?.total ?? null;
+  // The sections in the order they are drawn; the keys walk them as one list.
+  const sections = useMemo<Section[]>(() => {
+    const of = (list: ForgeRepo[]): Option[] => list.map(r => ({ value: r.path, repo: r }));
+    if (search) return [{ key: "rest", head: null, count: null, options: of(items ?? []) }];
+    const out: Section[] = [];
+    if (allowAll) out.push({ key: "top", head: null, count: null, options: [{ value: null, repo: null }] });
+    const { recent, rest } = repoGroups(items ?? [], Date.now());
     // The current project stays in reach before the page that holds it loads.
-    if (value && !search && items && !items.some(r => r.path === value)) out.push({ value, repo: null });
-    for (const r of items ?? []) out.push({ value: r.path, repo: r });
+    const current: Option[] = value && items && !items.some(r => r.path === value) ? [{ value, repo: null }] : [];
+    const recentOptions = [...current, ...of(recent)];
+    if (recentOptions.length) out.push({ key: "recent", head: t("forge.repos.recent"), count: null, options: recentOptions });
+    if (rest.length) out.push({ key: "rest", head: t("forge.repos.allSeen"), count: total ?? (repos.data?.next ? null : (items ?? []).length), options: of(rest) });
     return out;
-  }, [allowAll, search, value, items]);
+  }, [allowAll, search, value, items, total, repos.data?.next, t]);
+  const options = useMemo(() => sections.flatMap(s => s.options), [sections]);
 
   // A new answer starts on the current project when it is there, else on the
   // top; Load more keeps the place.
@@ -176,7 +187,7 @@ function RepoOptions({ value, allowAll, onPick, onEscape }: {
           ref={input}
           className="ap-manage-input"
           role="combobox"
-          placeholder={t("forge.repo.searchPlaceholder", { repos: plural })}
+          placeholder={t("forge.repo.find", { repo: forgeNouns(kind, t).repoLc })}
           autoComplete="off"
           spellCheck={false}
           value={query}
@@ -197,17 +208,33 @@ function RepoOptions({ value, allowAll, onPick, onEscape }: {
           <p className="fgl-repo-none" role="status">{search ? t("forge.noMatch", { noun: plural, query: search }) : t("forge.repos.none", { repos: plural })}</p>
         )}
         <div id={`${id}-options`} className="fgl-repo-options" role="listbox" aria-label={forgeNouns(kind, t).repo} hidden={phase !== "rows"}>
-          {phase === "rows" && options.map((o, i) => (
-            <RepoOption
-              key={o.value ?? "(all)"}
-              id={`${id}-option-${i}`}
-              option={o}
-              selected={o.value === value}
-              active={i === index}
-              onHover={() => { if (i !== index) setActive(i); }}
-              onPick={() => onPick(o.value)}
-            />
-          ))}
+          {phase === "rows" && sections.map((section, s) => {
+            const first = sections.slice(0, s).reduce((n, x) => n + x.options.length, 0);
+            const rows = section.options.map((o, j) => {
+              const i = first + j;
+              return (
+                <RepoOption
+                  key={o.value ?? "(all)"}
+                  id={`${id}-option-${i}`}
+                  option={o}
+                  selected={o.value === value}
+                  active={i === index}
+                  onHover={() => { if (i !== index) setActive(i); }}
+                  onPick={() => onPick(o.value)}
+                />
+              );
+            });
+            if (!section.head) return <div key={section.key} className="fgl-repo-group-rows">{rows}</div>;
+            return (
+              <div key={section.key} className="fgl-repo-group-rows" role="group" aria-labelledby={`${id}-${section.key}`}>
+                <div id={`${id}-${section.key}`} className="fgl-repo-head" role="presentation">
+                  {section.head}
+                  {section.count != null && <span className="fgl-repo-head-count">{formatNumber(section.count, 0)}</span>}
+                </div>
+                {rows}
+              </div>
+            );
+          })}
         </div>
         {repos.data && (
           <ListEnd pages={repos} label={t("forge.repo.more", { repos: plural })} />
@@ -222,7 +249,6 @@ function RepoOption({ id, option, selected, active, onHover, onPick }: {
 }) {
   const { kind } = useForge();
   const t = useT();
-  const parts = option.value ? splitRepoPath(option.value) : null;
   return (
     <button
       id={id}
@@ -236,15 +262,19 @@ function RepoOption({ id, option, selected, active, onHover, onPick }: {
       onClick={onPick}
     >
       <span className="fgl-repo-option-text">
-        {parts
+        {option.value
           ? <>
-              <span className="fgl-repo-option-name">{parts.name}</span>
-              {parts.group && <span className="fgl-repo-option-group">{parts.group.slice(0, -1)}</span>}
+              <span className="fgl-repo-option-name">{option.value}</span>
+              {option.repo && (option.repo.archived || option.repo.lastActivityAt != null) && (
+                <span className="fgl-repo-option-when">
+                  {option.repo.archived && t("forge.badge.archived")}
+                  {option.repo.archived && option.repo.lastActivityAt != null && " · "}
+                  {option.repo.lastActivityAt != null && <AgoIn at={option.repo.lastActivityAt} text={t("forge.when.updated")} />}
+                </span>
+              )}
             </>
           : <span className="fgl-repo-option-name">{allReposLabel(kind, t)}</span>}
       </span>
-      {option.repo?.archived && <span className="fg-badge">{t("forge.badge.archived")}</span>}
-      {option.repo?.lastActivityAt != null && <span className="fgl-repo-option-when"><Ago at={option.repo.lastActivityAt} /></span>}
       <span className="fgl-repo-check" aria-hidden="true">{selected && <CheckGlyph />}</span>
     </button>
   );

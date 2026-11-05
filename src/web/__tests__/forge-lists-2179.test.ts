@@ -15,7 +15,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import {
   allReposLabel, changeMoment, countWords, defaultFirst, divergeWords, draftTitle, emptyChangesWords, emptyIssuesWords,
   emptyPipelinesWords, issueClosedMark, itemLabel, labelColor, listPhase, moreLabel, newChangeUrl, noMatchWords,
-  pipelineSourceWords, pipelineTitle, repoNounPlural, splitRepoPath,
+  pipelineSourceWords, pipelineTitle, repoGroups, repoNounPlural, splitRepoPath,
 } from "../forge-lists";
 import { DEFAULT_VIEW, forgeReadPath, keepRead, type ForgeView } from "../forge-panel";
 import type { ChangeCounts, ForgeBranch, ForgeChange, ForgeIssue, ForgeKind, ForgePipeline, Page } from "../forge-types";
@@ -340,10 +340,20 @@ describe("the Merge requests tab", () => {
     keep<ChangeCounts>(c, "change-counts", { repo: undefined, filter: "all" }, { open: 2, merged: null, closed: 1868 });
     keep(c, "changes", { repo: undefined, filter: "all", state: "open", sort: "created" }, page([change(1)]));
     const html = draw(c, tab(ChangesTab, view({ tab: "changes" })));
-    expect(html).toContain('aria-pressed="true">Open<span class="fgl-seg-count">2</span>');
+    // The states are chips (V4's Figma), each with the forge's count.
+    expect(html).toContain('<button type="button" class="btn fgl-chip" aria-pressed="true">Open<span class="fgl-chip-count">2</span></button>');
     expect(html).toContain('aria-pressed="false">Merged</button>');
-    expect(html).toContain('<span class="fgl-seg-count">1,868</span>');
+    expect(html).toContain('<span class="fgl-chip-count">1,868</span>');
     expect(html).toContain('aria-pressed="true">All</button>');
+  });
+
+  it("puts a row's meta and its time on one line of their own, after the title and the facts", () => {
+    const c = ctx("gitlab");
+    keep(c, "changes", { repo: undefined, filter: "all", state: "open", sort: "created" }, page([change(1)]));
+    const html = draw(c, tab(ChangesTab, view({ tab: "changes" })));
+    // Two cells of the row's grid on a wide list; one line ending on the time
+    // beside an open item, so the title has the row's whole first line.
+    expect(html).toMatch(/<span class="fgl-side">[\s\S]*?<\/span><span class="fgl-line"><span class="fg-meta fgl-meta">[\s\S]*?<\/span><span class="fgl-when">/);
   });
 
   it("draws the scope as a menu button too, named by the current choice, for a narrow list", () => {
@@ -490,6 +500,14 @@ describe("the Issues tab", () => {
     ...over,
   });
 
+  it("puts the issues' Open / Closed on the same chips, with no scope beside them", () => {
+    const c = ctx("github");
+    keep(c, "issues", { repo: "acme/web", state: "open" }, page([issue(3, { kind: "github" })]));
+    const html = draw(c, tab(IssuesTab, view({ tab: "issues", repo: "acme/web" })));
+    expect(html).toContain('<div class="fgl-chips" role="group" aria-label="Issues by state"><button type="button" class="btn fgl-chip" aria-pressed="true">Open</button><button type="button" class="btn fgl-chip" aria-pressed="false">Closed</button></div>');
+    expect(html).not.toContain("fgl-scope");
+  });
+
   it("is the issues assigned to the user on GitLab, labels and child items drawn", () => {
     const c = ctx("gitlab");
     keep(c, "issues", { repo: undefined, state: "open" }, page([issue(7, {
@@ -536,13 +554,28 @@ describe("the project picker", () => {
   const pick = (kind: ForgeKind, value: string | null, allowAll: boolean) =>
     draw(ctx(kind), createElement(RepoPicker, { value, allowAll, onChange: () => {} }));
 
-  it("names the current project with its group quiet and its own name last", () => {
+  it("names the current project by its own name, its whole path in its tooltip and its name", () => {
     const html = pick("gitlab", "acme/tools/web", true);
-    // The group stays as a prefix that is cut first (acme/api and acme-forks/api must read apart).
-    expect(html).toContain('<span class="fgl-repo-group">acme/tools/</span><span class="fgl-repo-name">web</span>');
+    // CHANGED ON PURPOSE (V4's Figma): the trigger reads the project's name
+    // alone; acme/api and acme-forks/api still read apart by the tooltip and
+    // by what a screen reader hears.
+    expect(html).toContain('<span class="fgl-repo-path"><span class="fgl-repo-name">web</span></span>');
+    expect(html).not.toContain("fgl-repo-group");
     expect(html).toContain('title="acme/tools/web"');
     expect(html).toContain('aria-label="Project: acme/tools/web"');
     expect(html).toContain('aria-haspopup="dialog" aria-expanded="false"');
+  });
+
+  it("groups the unfiltered list: Recent (activity this week, three at most), then the rest", () => {
+    const now = Date.UTC(2026, 10, 6);
+    const day = 24 * 60 * 60 * 1000;
+    const repo = (path: string, ago: number | null) => ({ path, lastActivityAt: ago == null ? null : now - ago * day });
+    const items = [repo("a/1", 0), repo("a/2", 1), repo("a/3", 2), repo("a/4", 3), repo("a/5", 4), repo("a/6", 5), repo("a/7", 8), repo("a/8", null)];
+    const { recent, rest } = repoGroups(items, now);
+    expect(recent.map(r => r.path)).toEqual(["a/1", "a/2", "a/3"]);
+    expect(rest.map(r => r.path)).toEqual(["a/4", "a/5", "a/6", "a/7", "a/8"]);
+    // Nothing this week: no Recent at all.
+    expect(repoGroups([repo("b/1", 9)], now).recent).toEqual([]);
   });
 
   it("says All where the tab reads across projects, and asks for one where it cannot", () => {

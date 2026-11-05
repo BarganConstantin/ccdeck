@@ -33,11 +33,28 @@ export function allReposLabel(kind: ForgeKind, t: TFunction = tGlobal): string {
   return t("forge.allRepos", { repos: repoNounPlural(kind, t) });
 }
 
-/** A path as the picker draws it: the group quiet, the project's own name
- *  last and never cut. `group/sub/` and `project`. */
+/** A path in its two parts: `group/sub/` and `project`. The trigger names
+ *  the project alone, its whole path in its tooltip. */
 export function splitRepoPath(path: string): { group: string; name: string } {
   const i = path.lastIndexOf("/");
   return i < 0 ? { group: "", name: path } : { group: path.slice(0, i + 1), name: path.slice(i + 1) };
+}
+
+/** How long a project counts as recent in the picker, and how many it shows. */
+export const RECENT_REPO_MS = 7 * 24 * 60 * 60 * 1000;
+export const RECENT_REPO_MAX = 3;
+
+/** The picker's two groups, unfiltered: Recent — the projects with activity
+ *  in the last week, in the forge's order (most recent first), three at most —
+ *  then every other project the token can see. A project is in one group. */
+export function repoGroups<T extends { path: string; lastActivityAt: number | null }>(items: T[], now: number): { recent: T[]; rest: T[] } {
+  const recent: T[] = [];
+  const rest: T[] = [];
+  for (const r of items) {
+    const isRecent = recent.length < RECENT_REPO_MAX && r.lastActivityAt != null && now - r.lastActivityAt <= RECENT_REPO_MS;
+    (isRecent ? recent : rest).push(r);
+  }
+  return { recent, rest };
 }
 
 // ── rows ─────────────────────────────────────────────────────────────────

@@ -219,10 +219,13 @@ describe("the bar for several chosen issues", () => {
 describe("the forge panel", () => {
   it("shows the repository's name alone in a 28 trigger, and the tabs as 24 round outlined pills at the toolbar's right", () => {
     const picker = read("components/forge/RepoPicker.tsx");
-    // the group stays as a quiet prefix that gives way first, so two owners' "api" read apart
-    expect(picker).toContain('<span className="fgl-repo-group">{parts.group}</span><span className="fgl-repo-name">{parts.name}</span>');
-    expect(rule(forgeLists, ".fgl-repo-group")).toMatch(/flex:\s*0 1 auto/);
-    expect(rule(forgeLists, ".fgl-repo-name")).toMatch(/flex:\s*none/);
+    // The trigger names the repository alone; its whole path stays in the
+    // tooltip and the accessible name, so two owners' "api" still read apart.
+    expect(picker).toContain('<span className="fgl-repo-path"><span className="fgl-repo-name">{parts.name}</span></span>');
+    expect(picker).not.toContain("fgl-repo-group\">{parts.group}");
+    expect(picker).toContain("title={value ?? undefined}");
+    expect(picker).toContain('aria-label={t("forge.repo.aria", { repo: noun, shown })}');
+    expect(rule(forgeLists, ".fgl-repo-name")).toMatch(/text-overflow:\s*ellipsis/);
     expect(rule(forgeLists, "button.btn.fgl-repo-trigger")).toMatch(/--ctl-h:\s*28px/);
     const tabs = rule(forgePanel, ".fg-tabs .uh-range-btn");
     expect(tabs).toMatch(/height:\s*24px/);
@@ -230,14 +233,75 @@ describe("the forge panel", () => {
     expect(tabs).toMatch(/font-weight:\s*400/);
     expect(rule(forgePanel, ".fg-tabs")).toMatch(/margin:\s*0 0 0 auto/);
     const panel = read("components/forge/ForgePanel.tsx");
-    const toolbar = panel.slice(panel.indexOf('<div className="fg-toolbar">'), panel.indexOf('<div className="fg-searchbar">'));
+    const toolbar = panel.slice(panel.indexOf('<div className="fg-toolbar"'), panel.indexOf("const list = ("));
     expect(toolbar).toContain('className="uh-range fg-tabs"');
     expect(toolbar).toContain("<RepoPicker");
   });
 
-  it("keeps the detail tabs' counts (nothing else shows them) as outlined pills", () => {
+  it("puts the toolbar in one row across the panel, over the list and the open item, as the Jira panel does", () => {
+    const panel = read("components/forge/ForgePanel.tsx");
+    // The toolbar is drawn before the split, not inside the list column.
+    expect(panel).toMatch(/<div ref=\{panelRef\} className="fg-panel" data-kind=\{kind\}>\s*\{toolbar\}\s*<Split /);
+    const list = panel.slice(panel.indexOf("const list = ("), panel.indexOf("const detail ="));
+    expect(list).not.toContain("fg-toolbar");
+    // So the "Repository" label shows at the dialog's width: it gives way to
+    // the panel's own width (a phone), no longer to the list column's.
+    expect(forgePanel).toMatch(/@container fg-panel \(max-width: 520px\)\s*\{\s*\.fg-toolbar-label\s*\{\s*display:\s*none/);
+    expect(forgePanel).not.toMatch(/@container fg-list/);
+    expect(rule(forgePanel, ".fg-toolbar[hidden]")).toMatch(/display:\s*none/);
+  });
+
+  it("puts the state chips over the search, the search under them with the short hint at every width", () => {
+    const panel = read("components/forge/ForgePanel.tsx");
+    const list = panel.slice(panel.indexOf("const list = ("), panel.indexOf("const detail ="));
+    expect(list.indexOf('className="fg-filters"')).toBeGreaterThan(-1);
+    expect(list.indexOf('className="fg-filters"')).toBeLessThan(list.indexOf('className="fg-searchbar"'));
+    expect(list).toContain('placeholder={view.tab === "branches" ? t("forge.search.branches") : t("forge.search.short", { name })}');
+    expect(en["forge.search.short"]).toBe("Search, or paste a {name} link");
+    // The chips: 24 high, fully round, 12/400, the chosen one on the accent wash and edge.
+    const chip = rule(forgeLists, "button.btn.fgl-chip");
+    expect(chip).toMatch(/--ctl-h:\s*24px/);
+    expect(chip).toMatch(/border-radius:\s*var\(--r-pill\)/);
+    expect(chip).toMatch(/font-weight:\s*400/);
+    const on = rule(forgeLists, 'button.btn.fgl-chip[aria-pressed="true"]');
+    expect(on).toMatch(/border-color:\s*var\(--accent\)/);
+    // The filter row is 40 high and drawn only when a tab puts filters in it.
+    expect(rule(forgePanel, ".fg-filters")).toMatch(/min-height:\s*40px/);
+    expect(rule(forgePanel, ".fg-filters:empty")).toMatch(/display:\s*none/);
+    expect(read("components/forge/ChangesTab.tsx")).toContain("<TabFilters slot={filterSlot}>");
+    expect(read("components/forge/IssuesTab.tsx")).toContain("<TabFilters slot={filterSlot}>");
+  });
+
+  it("draws the repository picker 340 wide with Recent and everything the token can see, two-line rows and a done-coloured check", () => {
+    expect(rule(forgeLists, ".fgl-repo")).toMatch(/--fgl-pop-w:\s*min\(340px/);
+    expect(rule(forgeLists, ".fgl-repo-pop")).toMatch(/padding:\s*12px/);
+    expect(rule(forgeLists, ".fgl-repo-option")).toMatch(/min-height:\s*44px/);
+    expect(rule(forgeLists, ".fgl-repo-check")).toMatch(/color:\s*var\(--ok\)/);
+    expect(rule(forgeLists, ".fgl-repo-head")).toMatch(/font-weight:\s*600/);
+    const picker = read("components/forge/RepoPicker.tsx");
+    expect(picker).toContain('placeholder={t("forge.repo.find", { repo: forgeNouns(kind, t).repoLc })}');
+    expect(picker).toContain('t("forge.repos.recent")');
+    expect(picker).toContain('t("forge.repos.allSeen")');
+    expect(en["forge.repo.find"]).toBe("Find a {repo}");
+    // "All repositories" stays the first choice where the tab can read across them.
+    expect(picker).toContain('if (allowAll) out.push({ key: "top"');
+  });
+
+  it("says GitLab's merge request line as GitHub's does: wants to merge", () => {
+    expect(read("components/forge/ChangeDetail.tsx")).toContain('t("forge.change.gl.wants")');
+    expect(en["forge.change.gl.wants"]).toBe("wants to merge {source} into {target}");
+    // The state is a 16 chip in the bar.
+    expect(rule(forgeDetail, ".fd-state")).toMatch(/height:\s*16px/);
+  });
+
+  it("puts the change page's tabs, by name alone, between its head and its facts", () => {
     expect(rule(forgeDetail, ".fd-sections .uh-range-btn")).toMatch(/border-radius:\s*var\(--r-pill\)/);
-    expect(read("components/forge/ChangeDetail.tsx")).toContain("fd-section-count");
+    const detail = read("components/forge/ChangeDetail.tsx");
+    expect(detail).not.toContain("fd-section-count");
+    const tabs = detail.indexOf('className="uh-range fd-sections"');
+    expect(tabs).toBeGreaterThan(detail.indexOf("<ChangeHead change={c}"));
+    expect(tabs).toBeLessThan(detail.indexOf("<ChangeSide change={c} />"));
+    expect(rule(forgeDetail, ".fd-title")).toMatch(/font-size:\s*calc\(14px/);
   });
 
   it("draws pull request rows 44 high with a leading state glyph, and detail fields as plain rows", () => {

@@ -584,6 +584,9 @@ const CONTROLS: Control[] = [
   // with the primary button's accent edge. Its search fields and its Open in
   // Jira link are the integrations' shared ones.
   { at: 'button.btn.jr-chip[aria-pressed="true"]', fillFrom: 'button.btn.jr-chip[aria-pressed="true"]', beds: ["--panel"] },
+  // The forge lists' state chips (#2179): the same chip, on the filter row
+  // over the list, and its accent edge when it is on.
+  { at: 'button.btn.fgl-chip[aria-pressed="true"]', fillFrom: 'button.btn.fgl-chip[aria-pressed="true"]', beds: ["--panel"] },
   // Move's native destination/position fields sit on the anchored panel.
   { at: ".jr-move-pop select", beds: ["--panel"] },
   // The workflow transition selector is drawn in Jira's detail panel.

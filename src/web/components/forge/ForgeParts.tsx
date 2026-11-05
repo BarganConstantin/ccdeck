@@ -3,6 +3,7 @@
 // its recovery, the list's end, a person, a relative time, a copyable value.
 // Each draws a state as a mark AND a word (DESIGN.md), never a colour alone.
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode, type RefObject } from "react";
+import { createPortal } from "react-dom";
 import type { ForgeErrorInfo, ForgeUser } from "../../forge-types";
 import { forgeWords } from "../../forge-types";
 import { isReader, markWord, rovingStop, rowMove, stripScrollDelta, type Mark } from "../../forge-panel";
@@ -39,6 +40,22 @@ export function Badge({ mark }: { mark: Mark }) {
       <StateGlyph name={mark.mark} /> {markWord(mark, t)}
     </span>
   );
+}
+
+/** An item's state in its page's top bar: the word in a small chip washed in
+ *  the state's tone. The word says the state; the wash only echoes it. */
+export function StateChip({ mark }: { mark: Mark }) {
+  const t = useT();
+  return <span className="fd-state" data-tone={mark.tone}>{markWord(mark, t)}</span>;
+}
+
+/** A tab's filters, drawn in the list's own row over the search (ForgePanel's
+ *  slot), so they and the search stay put while the rows scroll. Without a
+ *  slot at all they are drawn in place; while the slot is not on screen yet,
+ *  nowhere. */
+export function TabFilters({ slot, children }: { slot: HTMLElement | null | undefined; children: ReactNode }) {
+  if (slot === undefined) return <>{children}</>;
+  return slot ? createPortal(children, slot) : null;
 }
 
 /** A group the user can fold, remembered per connection. `defaultOpen`

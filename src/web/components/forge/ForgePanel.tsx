@@ -2,11 +2,12 @@
 //
 // Drawn inside the integrations host's large modal (#2178), below its header
 // (the forge's glyph and name, the connection selector, Close). Everything
-// under that is here: a toolbar with the project or repository, how fresh the
-// list is and Refresh; the four tabs a GitLab user works through —
-// Branches, Merge requests, Pipelines, Issues (Pull requests and Actions on
-// GitHub); a search over what is loaded that also opens a pasted link; and on
-// the right, the selected item the way the forge's own page shows it. The host's
+// under that is here: a toolbar across the whole panel with the project or
+// repository, how fresh the list is and Refresh, and the four tabs a GitLab
+// user works through — Branches, Merge requests, Pipelines, Issues (Pull
+// requests and Actions on GitHub); then, over the list, the tab's filters and
+// a search over what is loaded that also opens a pasted link; and on the
+// right, the selected item the way the forge's own page shows it. The host's
 // split draws list and detail side by side, or the detail as its own screen
 // with Back on a narrow window, and closes an open item on Escape at every
 // width before the modal; the panel registers no Escape of its own for it.
@@ -78,6 +79,10 @@ export interface ForgeTabProps {
   setView: (patch: Partial<ForgeView>) => void;
   /** The search box's text: each tab keeps the loaded rows that match it. */
   query: string;
+  /** The row over the list, above the search, where a tab draws its filters
+   *  (TabFilters); null until it is on screen. Left out, a tab draws them in
+   *  place, at the top of its rows. */
+  filterSlot?: HTMLElement | null;
 }
 
 const TAB_ORDER: ForgeTab[] = ["branches", "changes", "pipelines", "issues"];
@@ -122,6 +127,7 @@ export default function ForgePanel({ kind, connection, api, assetUrl, prefs, nar
   const panelRef = useRef<HTMLDivElement>(null);
   const tabsRef = useRef<HTMLDivElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
+  const [filterSlot, setFilterSlot] = useState<HTMLDivElement | null>(null);
   // The rows are one Tab stop, walked with the arrow keys.
   useRovingRows(listRef);
   // The row a page was opened from. The split keeps the list mounted under the
@@ -238,55 +244,65 @@ export default function ForgePanel({ kind, connection, api, assetUrl, prefs, nar
 
   const words = forgeNouns(kind, t);
   const name = forgeWords[kind].name;
-  const tabProps: ForgeTabProps = { view, setView, query };
+  const tabProps: ForgeTabProps = { view, setView, query, filterSlot };
+
+  // The toolbar spans the panel above the list and the open item, as the
+  // Jira panel's does. On a narrow window an open item is a screen of its own,
+  // and the toolbar is the list's: it waits behind Back with it.
+  const toolbar = (
+    <div className="fg-toolbar" hidden={(narrow && selected != null) || undefined}>
+      <span className="fg-toolbar-label">{words.repo}</span>
+      <RepoPicker value={view.repo} allowAll={allowsAll} onChange={repo => setView({ repo })} />
+      {/* One tab stop for the strip, the arrows between its tabs (#581). */}
+      <div
+        ref={tabsRef}
+        className="uh-range fg-tabs"
+        role="tablist"
+        aria-label={t("forge.views", { name })}
+        onKeyDown={event => {
+          const move = tabStripMove(event, TAB_ORDER.indexOf(view.tab), TAB_ORDER.length);
+          if (move.kind === "pass") return;
+          event.preventDefault();
+          event.stopPropagation();
+          chooseTab(TAB_ORDER[move.index]);
+          event.currentTarget.querySelectorAll<HTMLButtonElement>('[role=tab]')[move.index]?.focus();
+        }}
+      >
+        {TAB_ORDER.map(tab => (
+          <button
+            key={tab}
+            id={tabDomId(tab)}
+            type="button"
+            role="tab"
+            className="uh-range-btn"
+            aria-selected={view.tab === tab}
+            aria-controls={panelDomId(tab)}
+            tabIndex={view.tab === tab ? 0 : -1}
+            onClick={() => chooseTab(tab)}
+          >
+            {tabLabel(kind, tab, t)}
+          </button>
+        ))}
+      </div>
+      <IntegrationFreshness loadedAt={fresh.loadedAt} loading={fresh.loading} stale={fresh.stale}
+        onRefresh={() => setRefresh(n => n + 1)} label={t("forge.refresh", { name })} />
+    </div>
+  );
 
   const list = (
     <div ref={listRef} className="fg-list">
-      <div className="fg-toolbar">
-        <span className="fg-toolbar-label">{words.repo}</span>
-        <RepoPicker value={view.repo} allowAll={allowsAll} onChange={repo => setView({ repo })} />
-        {/* One tab stop for the strip, the arrows between its tabs (#581). */}
-        <div
-          ref={tabsRef}
-          className="uh-range fg-tabs"
-          role="tablist"
-          aria-label={t("forge.views", { name })}
-          onKeyDown={event => {
-            const move = tabStripMove(event, TAB_ORDER.indexOf(view.tab), TAB_ORDER.length);
-            if (move.kind === "pass") return;
-            event.preventDefault();
-            event.stopPropagation();
-            chooseTab(TAB_ORDER[move.index]);
-            event.currentTarget.querySelectorAll<HTMLButtonElement>('[role=tab]')[move.index]?.focus();
-          }}
-        >
-          {TAB_ORDER.map(tab => (
-            <button
-              key={tab}
-              id={tabDomId(tab)}
-              type="button"
-              role="tab"
-              className="uh-range-btn"
-              aria-selected={view.tab === tab}
-              aria-controls={panelDomId(tab)}
-              tabIndex={view.tab === tab ? 0 : -1}
-              onClick={() => chooseTab(tab)}
-            >
-              {tabLabel(kind, tab, t)}
-            </button>
-          ))}
-        </div>
-        <IntegrationFreshness loadedAt={fresh.loadedAt} loading={fresh.loading} stale={fresh.stale}
-          onRefresh={() => setRefresh(n => n + 1)} label={t("forge.refresh", { name })} />
-      </div>
+      {/* The chosen tab's filters land here, over the search (TabFilters);
+          a tab without any leaves the row empty, and it is not drawn. */}
+      <div ref={setFilterSlot} className="fg-filters" />
       <div className="fg-searchbar">
         {/* The integrations' shared field: Escape empties it before it closes
-            anything. A phone gets the short hint; the name says it all. */}
+            anything. Its hint is the short one at every width; its name says
+            it all. */}
         <IntegrationSearch
           value={query}
           onChange={v => { setQuery(v); setResolveError(null); }}
           label={view.tab === "branches" ? t("forge.search.branches") : t("forge.search.full", { name })}
-          placeholder={view.tab === "branches" ? t("forge.search.branches") : narrow ? t("forge.search.short", { name }) : t("forge.search.full", { name })}
+          placeholder={view.tab === "branches" ? t("forge.search.branches") : t("forge.search.short", { name })}
           onKeyDown={e => { if (e.key === "Enter" && looksLikeRef(query)) void openRef(); }}
         />
         {looksLikeRef(query) && (
@@ -325,6 +341,7 @@ export default function ForgePanel({ kind, connection, api, assetUrl, prefs, nar
   return (
     <ForgeProvider value={ctx}>
       <div ref={panelRef} className="fg-panel" data-kind={kind}>
+        {toolbar}
         <Split list={list} detail={detail} onBack={() => select(null)} backLabel={backLabel(kind, view.tab, t)} storageKey={kind} automaticDetailShare={0.5705} detailKey={selected ? selectionKey(selected) : undefined} />
       </div>
     </ForgeProvider>
