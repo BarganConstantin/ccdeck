@@ -109,7 +109,11 @@
     transform: translateY(100%);
     transition: transform var(--dur-stage-out) var(--ease-stage);
   }
-  /* The accounts panel's children were fixed to the column's measure. */
+  /* The accounts panel's children were fixed to the column's measure. In the
+     column it packs them to its right edge (align-items: flex-end), which on
+     the sheet left a short header and a short Codex roster hanging off the
+     right with an empty band at the left: here they take the sheet's width. */
+  .app.app.app .accounts-panel { align-items: stretch; }
   .accounts-panel > *, .accounts-panel > .ap-failure { width: auto; max-width: 100%; }
   .accounts-panel > .ap-failure { margin-inline: var(--panel-inset); }
 
