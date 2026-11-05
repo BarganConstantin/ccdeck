@@ -102,7 +102,9 @@ describe("what the stage shows", () => {
     const root = agent("s1", { waiting: wait("permission", NOW - 6 * MIN), state: "active" });
     const show = stageShowFor({ kind: "session", id: "s1" }, new Map([["s1", root]]), NOW);
     if (show.kind !== "session") throw new Error("not a session");
-    expect(show.session.status).toMatchObject({ state: "waiting", phrase: "waiting", emphasis: "6m" });
+    // CHANGED ON PURPOSE: the header counts the wait to the second, as the
+    // rail row does and V4 draws it ("waiting 6m 42s"); "6m" before.
+    expect(show.session.status).toMatchObject({ state: "waiting", phrase: "waiting", emphasis: "6m 00s" });
     expect(JSON.stringify(show)).not.toMatch(/blocked/);
   });
 
@@ -170,7 +172,8 @@ describe("the asks run, in the keys bar's terms", () => {
       position: null, resumed: { id: "s-paycore", label: "paycore" }, next: { id: "s-travel", label: "travel" }, clear: false, arrival: null,
     };
     expect(barAsks(view, waiting, NOW)).toMatchObject({
-      resumed: "paycore", next: { name: "travel", waited: "2m", tool: "Bash" },
+      // CHANGED ON PURPOSE: to the second, as every wait reads now; "2m" before.
+      resumed: "paycore", next: { name: "travel", waited: "2m 00s", tool: "Bash" },
     });
   });
 

@@ -268,7 +268,8 @@
 
 /* ── groups ───────────────────────────────────────────────────────────────── */
 /* Rail / Group header: --row-group tall, label and count at the two
-   ends, 8px of space between one group and the one before. */
+   ends, 4px of space between one group and the one before (V4 draws the
+   rail's groups 4 apart on the Board and in Workspace alike). */
 .session-list .sl-group-head {
   display: flex;
   align-items: center;
@@ -277,7 +278,7 @@
   height: var(--row-group);
   padding: 0 8px;
 }
-.session-list .sl-group-head.spaced { margin-top: 8px; }
+.session-list .sl-group-head.spaced { margin-top: 4px; }
 .session-list .sl-group-label {
   font-size: calc(12px + var(--ui-text-increase, 0px));
   font-weight: 600;

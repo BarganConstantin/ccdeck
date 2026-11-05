@@ -497,10 +497,16 @@ describe("the countdown to a quota reset", () => {
     // `d > 0` and `h > 23` are the same test — both mean `diff >= 86400` — but
     // that is an argument, and this is the proof. Every second, no sampling,
     // because a countdown is read at exactly the boundaries.
+    // CHANGED ON PURPOSE: the one countdown now writes two digits for its
+    // minutes once an hour leads them ("2h 09m", as V4 draws every reset),
+    // where both copies wrote "2h 9m". The copies stay as they were; that one
+    // deliberate difference is applied to them before comparing, so the sweep
+    // still proves nothing else moved.
+    const padded = (s: string | null) => s && s.replace(/^(\d+h )(\d)m$/, "$10$2m");
     const moved: Array<{ diff: number; accounts: string | null; usage: string | null; now: string | null }> = [];
     for (let diff = -100; diff <= 40 * 86400; diff++) {
-      const a = accountsCopy(1000 + diff, 1000);
-      const u = usageCopy(1000 + diff, 1000);
+      const a = padded(accountsCopy(1000 + diff, 1000));
+      const u = padded(usageCopy(1000 + diff, 1000));
       const now = resetCountdown(1000 + diff, 1000);
       if (a !== now || u !== now) moved.push({ diff, accounts: a, usage: u, now });
     }

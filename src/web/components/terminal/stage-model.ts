@@ -7,7 +7,7 @@
 // can hold it in plain node — the components only draw what these return.
 //
 // ONE WORD PER STATE, EVERYWHERE. The header IS the
-// face's sentence: "waiting 6m" because the face, the topbar chip and the
+// face's sentence: "waiting 6m 42s" because the face, the topbar chip and the
 // navigator say "waiting", never "blocked". What the board knows about a
 // session (stageStatusFrom) is the header's default, and only what the stage
 // itself knows better — it is attaching, it has no pane, tmux is missing —
@@ -21,6 +21,7 @@ import type { SizeOwner } from "../../terminal-protocol";
 import type { PanelUnavailable, TerminalProvider, TerminalTarget, TmuxProgress } from "../../terminal-api";
 import { shortAgo } from "../../relative-time";
 import { elapsed } from "../../duration";
+import { clockShort } from "../../elapsed-short";
 import { t } from "../../i18n";
 
 // ---------------------------------------------------------------------------
@@ -110,6 +111,16 @@ export function frameRun(previous: FrameRun, phase: StagePhase): FrameRun {
   return { state, afterHold };
 }
 
+/** Whether the stage is only on its way to a pane: a session being started,
+ *  or attached with no frame on screen. Its card says what is happening and
+ *  there is nothing to type into yet, so the keys bar is not drawn (V4's
+ *  Attaching is the card alone). A switch that holds the last frame up is not
+ *  on its way in that sense, so its bar does not blink between two sessions;
+ *  nor is a reconnect, whose frame stays and whose bar says it reconnects. */
+export function onItsWay(phase: StagePhase, frame: FrameState): boolean {
+  return phase.kind === "starting" || (phase.kind === "attaching" && frame === "hidden");
+}
+
 /** Whether keys can go to the pane right now. */
 export function canType(phase: StagePhase): boolean {
   return phase.kind === "live" && !phase.readOnly;
@@ -129,8 +140,8 @@ export interface StageStatus {
   state: StageState;
   /** The words: "working", "waiting", "ended 14m ago". */
   phrase: string;
-  /** Said right after the phrase, in the same weight: the "6m" of "waiting 6m"
-   *  (to the minute; the header does not re-render every second). */
+  /** Said right after the phrase, in the same weight: the "6m 42s" of
+   *  "waiting 6m 42s", to the second as the rail row counts it. */
   emphasis?: string;
   /** The tool, at 600 in --text: "Bash". */
   tool?: string;
@@ -164,15 +175,12 @@ export interface BoardFacts {
   yourTurn?: boolean;
 }
 
-/** "40s", "6m", "1h 12m": how long a session has waited, in the face's units.
- *  Seconds in the first minute, as the face counts them: a fresh ask said as
- *  "waiting 0m" reads as no wait at all, when it is the newest thing on the
- *  board. */
+/** "40s", "6m 42s", "1h 12m": how long a session has waited, the clock its
+ *  row in the rail prints (elapsed-short.ts), so the header, the empty pane,
+ *  the keys bar's next ask and the row say one wait the same way. A wait
+ *  under a second is "0s": "waiting <1s" would read as no wait at all. */
 export function waitedFor(ms: number): string {
-  const s = Math.max(0, Math.floor(ms / 1000));
-  if (s < 60) return `${s}s`;
-  const m = Math.floor(s / 60);
-  return m < 60 ? `${m}m` : `${Math.floor(m / 60)}h ${m % 60}m`;
+  return clockShort(Math.max(0, Math.floor(ms / 1000)));
 }
 
 /**
@@ -422,4 +430,10 @@ export function elidePath(p: string, max = 24): string {
 /** The product name the stage uses for an agent. */
 export function agentName(agent: TerminalProvider): string {
   return agent === "codex" ? "Codex" : "Claude Code";
+}
+
+/** The agent's short name, for a line that already says what it runs in: the
+ *  Hosts dialog's "Claude · web-api · started 2h ago". */
+export function agentShortName(agent: TerminalProvider): string {
+  return agent === "codex" ? "Codex" : "Claude";
 }

@@ -287,10 +287,12 @@ describe("numbers, durations and window names in the language on show", () => {
   it("words a duration per language from the same two largest units", () => {
     const sec = (d: number, h: number, m: number) => d * 86400 + h * 3600 + m * 60;
     expect(durationLabel(tFor("en"), sec(2, 4, 9))).toBe("2d 4h");
-    expect(durationLabel(tFor("en"), sec(0, 1, 5))).toBe("1h 5m");
+    // CHANGED ON PURPOSE: the minutes take two digits once an hour leads them,
+    // in every language, as V4 draws a reset ("2h 09m"); "1h 5m" before.
+    expect(durationLabel(tFor("en"), sec(0, 1, 5))).toBe("1h 05m");
     expect(durationLabel(tFor("en"), 30)).toBe("0m");
     expect(durationLabel(tFor("de"), sec(2, 4, 0))).toBe("2 Tg. 4 Std.");
-    expect(durationLabel(tFor("ja"), sec(0, 1, 5))).toBe("1時間5分");
+    expect(durationLabel(tFor("ja"), sec(0, 1, 5))).toBe("1時間05分");
     expect(durationLabel(tFor("zh-TW"), sec(0, 0, 12))).toBe("12 分鐘");
   });
 

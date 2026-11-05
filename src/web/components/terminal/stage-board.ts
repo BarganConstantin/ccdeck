@@ -199,15 +199,6 @@ export function barAsks(view: RunView, waiting: readonly BlockedSession[], now: 
   };
 }
 
-/** The wait as the empty Workspace pane prints it, "6m 42s": the minute and the
- *  second, where the header's `waitedFor` rounds to the minute. */
-export function waitedExact(ms: number): string {
-  const s = Math.max(0, Math.floor(ms / 1000));
-  if (s < 60) return `${s}s`;
-  const m = Math.floor(s / 60);
-  return m < 60 ? `${m}m ${s % 60}s` : `${Math.floor(m / 60)}h ${m % 60}m`;
-}
-
 /** The session the empty Workspace pane names when someone is waiting, with
  *  what it asks and how long it has waited (Figma, "Empty workspace, someone
  *  waits"): the oldest waiting, as W and N take it. */
@@ -239,7 +230,7 @@ export function waitingCardFor(waiting: readonly BlockedSession[], now: number):
   return {
     id: first.id,
     name: first.label,
-    waited: waitedExact(now - first.waiting.since),
+    waited: waitedFor(now - first.waiting.since),
     ask: askSentence(first.waiting),
     command: first.waiting.tool?.preview || null,
   };

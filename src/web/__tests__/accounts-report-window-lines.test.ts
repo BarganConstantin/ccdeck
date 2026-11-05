@@ -44,7 +44,9 @@ const line = (cell: string) => /<span class="ap-report-win-sub" data-sub="" titl
 describe("a window's second line: when it resets", () => {
   it("reads Resets in, with the countdown the accounts panel uses, for a reset ahead", () => {
     const [five, seven] = windows(body([acct([62, NOW + 2 * HOUR + 9 * MIN], [31, NOW + 44 * HOUR])]));
-    expect(line(five)).toBe("Resets in 2h 9m");
+    // CHANGED ON PURPOSE: the countdown pads its minutes once an hour leads
+    // them, as V4 draws every reset ("2h 09m"); it read "2h 9m" before.
+    expect(line(five)).toBe("Resets in 2h 09m");
     expect(line(seven)).toBe("Resets in 1d 20h");
   });
 
@@ -73,7 +75,7 @@ describe("a window's second line: when it resets", () => {
     const old = { stale: true, fetchedAt: (NOW - HOUR) * 1000 } as Partial<Account>;
     const [ahead] = windows(body([acct([33, NOW + 2 * HOUR], [20, null], old)]));
     expect(ahead).toContain('data-uncounted=""');
-    expect(line(ahead)).toBe("Resets in 2h 0m");
+    expect(line(ahead)).toBe("Resets in 2h 00m");
     const [passed] = windows(body([acct([96, NOW - 15 * HOUR], [20, null], { stale: true, fetchedAt: (NOW - 18 * HOUR) * 1000 })]));
     expect(line(passed)).toBe("Reset due · awaiting read");
     // Never read in the window: no figure, no bar, and no line without a reset.

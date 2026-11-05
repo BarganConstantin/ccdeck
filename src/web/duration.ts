@@ -28,10 +28,10 @@
 //
 // Deliberately NOT folded in, and why:
 //
-//   * `elapsedShort` (SessionList.tsx) — "<1s" / "42s" / "3m" / "1h 15m". It
-//     drops the seconds above a minute and adds an hour tier, because it is a
-//     compact table cell rather than a card. Folding it in would print
-//     "75m 12s" where "1h 15m" is today.
+//   * `elapsedShort` (elapsed-short.ts) — "<1s" / "42s" / "6m 07s" / "1h 15m".
+//     It reads hours from the hour on, because it is a compact table cell
+//     rather than a card. Folding it in would print "75m 12s" where "1h 15m"
+//     is today.
 //   * `durationLabel` (SessionSummary.tsx) — "42s" / "3m 07s" / "1h 15m". Same
 //     hour tier, no sub-second tier, on a summary of a finished session.
 //

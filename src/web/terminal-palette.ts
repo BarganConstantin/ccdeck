@@ -24,6 +24,14 @@
 // canvas's #eef1f6 takes --cat-shell to 4.44:1 — under the floor — where white
 // leaves it at 5.02.
 //
+// IN WORKSPACE IT IS --sunken. V4 draws Workspace's pane on Surface/Sunken,
+// below the panel-toned header and Inspector beside it, and the terminal is
+// that pane. Sunken is a whisper off the panel on light (1.5% of --text) and
+// darker than it on dark, so every slot keeps its floor on it
+// (terminal-palette.test.ts sweeps both grounds). The token is a color-mix(),
+// which the snapshot hands over unevaluated, so it is mixed here into the
+// opaque #rrggbb xterm and tmux are told.
+//
 // EVERY ANSI SLOT CLEARS 4.5:1 ON THAT BACKGROUND, in both themes, including
 // the two that conventionally do not: black on a dark terminal and white on a
 // light one. A slot below the floor would not be drawn as written anyway —
@@ -52,12 +60,12 @@
 //
 // Two kinds of slot, because a TUI uses the 256 palette two ways:
 //
-//   ink   — a foreground. Every one clears 4.5:1 on --panel in both themes,
+//   ink   — a foreground. Every one clears 4.5:1 on the ground in both themes,
 //           the same promise as the sixteen; the greys step from --text down
 //           to the lowest readable grey and stop there.
 //   band  — a background a line of text sits on (237, the diff bands, the
 //           dark end of the grey ramp). A band is a stated wash of one token
-//           over --panel, composited here into the opaque colour xterm needs,
+//           over the ground, composited here into the opaque colour xterm needs,
 //           and the promise it keeps is the other way round: --text on it
 //           still clears 4.5:1. It is not a new colour so much as a known
 //           alpha of two measured ones.
@@ -79,6 +87,8 @@ export const MINIMUM_CONTRAST_RATIO = 4.5;
  *  each of these has to be in CANVAS_TOKENS for the reader to answer it. */
 export const TERMINAL_TOKENS = [
   "--panel",
+  // Workspace's ground (TerminalGround).
+  "--sunken",
   "--text",
   "--text-secondary",
   "--muted",
@@ -101,6 +111,10 @@ export const TERMINAL_TOKENS = [
 ] as const;
 
 export type TerminalToken = (typeof TERMINAL_TOKENS)[number];
+
+/** What the terminal is drawn on: the panel beside the board, the sunken pane
+ *  in Workspace. */
+export type TerminalGround = "--panel" | "--sunken";
 
 /** Which end of the ramp the background sits at. */
 export type Paper = "dark" | "light";
@@ -147,7 +161,7 @@ export interface InkSlot {
   token: Record<Paper, TerminalToken>;
 }
 
-/** A 256-colour slot drawn as a background: `wash` of `token` over --panel. */
+/** A 256-colour slot drawn as a background: `wash` of `token` over the ground. */
 export interface BandSlot {
   kind: "band";
   token: TerminalToken;
@@ -228,8 +242,8 @@ export function washOver(inkColour: string, paperColour: string, wash: number): 
   return "#" + [0, 1, 2].map(i => hex2(a[i] * wash + b[i] * (1 - wash))).join("");
 }
 
-/** #rgb, #rgba, #rrggbb, #rrggbbaa and rgb()/rgba(): what a token resolves to.
- *  Null for anything else. */
+/** #rgb, #rgba, #rrggbb, #rrggbbaa, rgb()/rgba() and an srgb color-mix() of
+ *  two of those: what a token resolves to. Null for anything else. */
 function rgbOf(value: string): [number, number, number] | null {
   const s = value.trim();
   const hex = /^#([0-9a-f]{3,4}|[0-9a-f]{6}|[0-9a-f]{8})$/i.exec(s);
@@ -238,7 +252,52 @@ function rgbOf(value: string): [number, number, number] | null {
     return [parseInt(h.slice(0, 2), 16), parseInt(h.slice(2, 4), 16), parseInt(h.slice(4, 6), 16)];
   }
   const fn = /^rgba?\(\s*([\d.]+)\s*[,\s]\s*([\d.]+)\s*[,\s]\s*([\d.]+)/i.exec(s);
-  return fn ? [+fn[1], +fn[2], +fn[3]] : null;
+  if (fn) return [+fn[1], +fn[2], +fn[3]];
+  return mixOf(s);
+}
+
+/** `color-mix(in srgb, A p%, B q%)`, mixed as the browser mixes it: a missing
+ *  share is what the other leaves of 100, two missing are half each, and two
+ *  given are scaled to add up to 100. The colours are taken opaque, as rgbOf
+ *  takes every colour. Null for any other space or shape. */
+function mixOf(s: string): [number, number, number] | null {
+  const body = /^color-mix\(\s*in\s+srgb\s*,([\s\S]*)\)$/i.exec(s)?.[1];
+  if (body == null) return null;
+  // Split on the commas at the top level only: a side may be an rgb().
+  const sides: string[] = [];
+  let depth = 0, from = 0;
+  for (let i = 0; i < body.length; i++) {
+    if (body[i] === "(") depth++;
+    else if (body[i] === ")") depth--;
+    else if (body[i] === "," && depth === 0) { sides.push(body.slice(from, i)); from = i + 1; }
+  }
+  sides.push(body.slice(from));
+  if (sides.length !== 2) return null;
+  const parsed = sides.map(side => {
+    const m = /^\s*(?:([\d.]+)%\s+)?(.+?)(?:\s+([\d.]+)%)?\s*$/.exec(side);
+    if (!m || (m[1] && m[3])) return null;
+    const rgb = rgbOf(m[2]);
+    const share = m[1] ?? m[3];
+    return rgb ? { rgb, share: share == null ? null : Number(share) } : null;
+  });
+  const [a, b] = parsed;
+  if (!a || !b) return null;
+  let pa = a.share, pb = b.share;
+  if (pa == null && pb == null) { pa = 50; pb = 50; }
+  else if (pa == null) pa = 100 - pb!;
+  else if (pb == null) pb = 100 - pa;
+  const total = pa + pb!;
+  if (!(total > 0)) return null;
+  const wa = pa / total;
+  return [0, 1, 2].map(i => a.rgb[i] * wa + b.rgb[i] * (1 - wa)) as [number, number, number];
+}
+
+/** A token's value as one opaque colour xterm can take and tmux can be told:
+ *  a color-mix() is mixed into #rrggbb, anything else is handed on as it is. */
+function opaque(value: string): string {
+  if (!/^color-mix\(/i.test(value)) return value;
+  const rgb = mixOf(value);
+  return rgb ? "#" + rgb.map(hex2).join("") : value;
 }
 
 /**
@@ -270,32 +329,36 @@ export function paperOf(background: string): Paper {
  * the empty string (one that never made it into the snapshot) leaves its slot
  * unset rather than set to "", so xterm falls back to its own default for that
  * one colour instead of failing to parse it.
+ *
+ * `ground` is what the terminal is drawn on: --panel beside the board, --sunken
+ * in Workspace. The background, the glyph under a block cursor and the bands
+ * are all the ground; the paper, and so the greys, are read off it too.
  */
-export function terminalTheme(read: (token: TerminalToken) => string): ITheme {
+export function terminalTheme(read: (token: TerminalToken) => string, ground: TerminalGround = "--panel"): ITheme {
   const theme: ITheme = {};
   const set = (slot: keyof ITheme, token: TerminalToken) => {
     const value = read(token).trim();
     if (value) (theme as Record<string, string>)[slot] = value;
   };
-  const paper = paperOf(read("--panel"));
-  set("background", "--panel");
+  const paperColour = opaque(read(ground).trim());
+  const paper = paperOf(paperColour);
+  if (paperColour) theme.background = paperColour;
   set("foreground", "--text");
   // The cursor is the accent, which is the deck's "focused, live" colour —
   // and the glyph under a block cursor is drawn in the background colour, which
   // the accent clears 4.5:1 against in both themes.
   set("cursor", "--accent");
-  set("cursorAccent", "--panel");
+  if (paperColour) theme.cursorAccent = paperColour;
   set("selectionBackground", "--accent-dim");
   for (const slot of ANSI_SLOTS) set(slot, ANSI[slot][paper]);
   // Indexed from colour 16, as xterm reads it. An entry left undefined is
   // xterm's own default for that slot, so only the slots above move.
   const extended: Array<string | undefined> = Array.from({ length: 240 }, () => undefined);
-  const panel = read("--panel").trim();
   let any = false;
   for (const [n, slot] of EXTENDED) {
     const value = slot.kind === "ink"
       ? read(slot.token[paper]).trim()
-      : panel ? washOver(read(slot.token), panel, slot.wash) ?? "" : "";
+      : paperColour ? washOver(read(slot.token), paperColour, slot.wash) ?? "" : "";
     if (!value) continue;
     extended[n - 16] = value;
     any = true;

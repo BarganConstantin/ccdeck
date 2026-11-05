@@ -10,7 +10,7 @@ import { noteSource, noteTag } from "./session-note";
 import { planSpoken } from "./agent-plan";
 import { salientInput } from "./tool-input";
 import type { Row } from "./components/SessionList";
-import { elapsedShort } from "./elapsed-short";
+import { agoShort, elapsedShort } from "./elapsed-short";
 import type { RailGroup } from "./rail-model";
 
 /** Figma's Glyph: Waiting, Working, Done, Idle, Error. Background wears the
@@ -61,15 +61,16 @@ export function railLine(r: Row, group: RailGroup): RailLine | null {
 }
 
 /** The clock at the row's right edge. Needs you counts the wait, in the warn
- *  tone; Working counts the turn; a finished or idle row says how long ago the
- *  turn ended; a session that never had a prompt has none. `spoken` is the
- *  word a screen reader hears first, since the number alone is not "waiting". */
+ *  tone, and Working counts the turn, both to the second under an hour; a
+ *  finished or idle row says how long ago the turn ended, to the minute; a
+ *  session that never had a prompt has none. `spoken` is the word a screen
+ *  reader hears first, since the number alone is not "waiting". */
 export function railTime(r: Row, group: RailGroup, now: number): { text: string; tone: "warn" | "quiet"; spoken: string } | null {
   if (group === 0 && r.waiting) return { text: elapsedShort(r.waiting.since, undefined, now), tone: "warn", spoken: t("board.row.spokenWaiting") };
   if (group === 1) return { text: elapsedShort(r.turnStartedAt ?? r.startedAt, undefined, now), tone: "quiet", spoken: t("board.row.spokenRunning") };
   if (r.neverPrompted || r.turnEndedAt == null) return null;
   return {
-    text: t("board.row.ago", { time: elapsedShort(r.turnEndedAt, undefined, now) }),
+    text: t("board.row.ago", { time: agoShort(r.turnEndedAt, undefined, now) }),
     tone: "quiet",
     spoken: r.waiting?.kind === "idle" ? t("board.row.spokenYourTurnEnded") : t("board.row.spokenEnded"),
   };

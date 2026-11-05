@@ -60,7 +60,10 @@ function resolved(token: string, theme: Theme, depth = 0): string {
   const value = DECLARED[theme][token] ?? DECLARED.dark[token];
   if (value === undefined) throw new Error(`styles/tokens.css does not declare ${token}`);
   const alias = /^var\((--[\w-]+)\)$/.exec(value);
-  return alias ? resolved(alias[1], theme, depth + 1) : value;
+  if (alias) return resolved(alias[1], theme, depth + 1);
+  // A var() inside a value (--sunken's color-mix) is substituted in place, as
+  // the browser hands a custom property back: the mix itself stays unevaluated.
+  return value.replace(/var\((--[\w-]+)\)/g, (_, name: string) => resolved(name, theme, depth + 1));
 }
 
 type Rgba = [number, number, number, number];
@@ -161,13 +164,17 @@ describe("where the colours come from", () => {
     // Each theme reads a subset — dark has no use for light's white, and the
     // other way round — and between them they read every declared token, so
     // the list holds nothing the snapshot would carry for no one.
+    // CHANGED ON PURPOSE: over both grounds, the Board's --panel and
+    // Workspace's --sunken, since each reads its own.
     const union = new Set<string>();
     for (const theme of THEMES) {
-      const { read, asked } = reader(theme);
-      terminalTheme(read);
-      for (const token of asked) {
-        expect(TERMINAL_TOKENS as readonly string[], `${theme} asked for undeclared ${token}`).toContain(token);
-        union.add(token);
+      for (const ground of ["--panel", "--sunken"] as const) {
+        const { read, asked } = reader(theme);
+        terminalTheme(read, ground);
+        for (const token of asked) {
+          expect(TERMINAL_TOKENS as readonly string[], `${theme} asked for undeclared ${token}`).toContain(token);
+          union.add(token);
+        }
       }
     }
     expect([...union].sort()).toEqual([...TERMINAL_TOKENS].sort());
@@ -246,6 +253,76 @@ describe("which paper it is on", () => {
       expect(ansiToken(bright, "dark"), `${bright} invents a lighter hue`).toBe(ansiToken(slot, "dark"));
     }
   });
+});
+
+describe("Workspace's terminal, drawn on --sunken", () => {
+  // V4 draws Workspace's pane on Surface/Sunken; the Board's stage stays on
+  // the panel. The token is a color-mix(), which the snapshot holds as written
+  // with its var()s substituted, so the theme mixes it into one opaque colour.
+  const sunkenOf = (theme: Theme) => terminalTheme(reader(theme).read, "--sunken");
+
+  it("mixes the token into the #rrggbb xterm takes and tmux is told", () => {
+    expect(resolved("--sunken", "dark")).toBe("color-mix(in srgb, #0b0c10 90%, #000000)");
+    expect(sunkenOf("dark").background).toBe("#0a0b0e");
+    expect(sunkenOf("light").background).toBe("#fbfbfc");
+    // V4's own Sunken values, out of the default theme's inputs (Rider Black's
+    // background and the light panel): Figma's #1b1c1f and #fbfbfc.
+    const mixed = (value: string) => terminalTheme(t => (t === "--sunken" ? value : ""), "--sunken").background;
+    expect(mixed("color-mix(in srgb, #1e1f22 90%, #000000)")).toBe("#1b1c1f");
+    expect(mixed("color-mix(in srgb, #ffffff 98.5%, #0d1117)")).toBe("#fbfbfc");
+  });
+
+  it("mixes the way the browser does, whichever side states the share", () => {
+    const mixed = (value: string) => terminalTheme(t => (t === "--sunken" ? value : ""), "--sunken").background;
+    expect(mixed("color-mix(in srgb, 90% #1e1f22, #000000)")).toBe("#1b1c1f");
+    expect(mixed("color-mix(in srgb, #1e1f22, #000000 10%)")).toBe("#1b1c1f");
+    expect(mixed("color-mix(in srgb, #1e1f22 45%, #000000 5%)"), "two shares are scaled to 100").toBe("#1b1c1f");
+    expect(mixed("color-mix(in srgb, #000000, #ffffff)"), "none is half each").toBe("#808080");
+    expect(mixed("color-mix(in srgb, rgb(30, 31, 34) 90%, #000000)")).toBe("#1b1c1f");
+    // Another space is not guessed at: handed on as written, read as dark.
+    expect(mixed("color-mix(in oklch, #1e1f22 90%, #000000)")).toBe("color-mix(in oklch, #1e1f22 90%, #000000)");
+  });
+
+  it("leaves the Board's terminal exactly as it was", () => {
+    for (const theme of THEMES) {
+      expect(terminalTheme(reader(theme).read, "--panel")).toEqual(themeOf(theme));
+      expect(themeOf(theme).background).toBe(resolved("--panel", theme));
+    }
+  });
+
+  for (const theme of THEMES) {
+    it(`keeps every colour readable on it in the ${theme} theme, on the panel's paper`, () => {
+      const t = sunkenOf(theme);
+      const bg = t.background!;
+      expect(paperOf(bg)).toBe(paperOf(resolved("--panel", theme)));
+      const failures: string[] = [];
+      for (const slot of ANSI_SLOTS) {
+        const r = ratio(t[slot]!, bg);
+        if (r < MINIMUM_CONTRAST_RATIO) failures.push(`${slot} ${t[slot]} ${r.toFixed(2)}:1`);
+      }
+      for (const n of EXTENDED_SLOTS) {
+        const slot = extendedSlot(n)!;
+        const colour = t.extendedAnsi?.[n - 16];
+        expect(colour, `slot ${n}`).toBeTruthy();
+        if (slot.kind === "ink") {
+          const r = ratio(colour!, bg);
+          if (r < MINIMUM_CONTRAST_RATIO) failures.push(`${n} ${colour} ${r.toFixed(2)}:1`);
+        } else {
+          // A band is a wash over the ground it sits on, not over the panel.
+          expect(colour, `band ${n}`).toBe(washOver(resolved(slot.token, theme), bg, slot.wash));
+          expect(ratio(t.foreground!, colour!), `--text on band ${n}`).toBeGreaterThanOrEqual(MINIMUM_CONTRAST_RATIO);
+          expect(colour!.toLowerCase(), `band ${n} is the ground itself`).not.toBe(bg.toLowerCase());
+        }
+      }
+      expect(failures, `under ${MINIMUM_CONTRAST_RATIO}:1 on ${bg} in ${theme}`).toEqual([]);
+      expect(ratio(t.foreground!, bg), "body text").toBeGreaterThanOrEqual(MINIMUM_CONTRAST_RATIO);
+      expect(ratio(t.cursor!, bg), "cursor against the background").toBeGreaterThanOrEqual(3);
+      expect(t.cursorAccent, "the glyph under a block cursor is the ground").toBe(bg);
+      expect(ratio(t.cursorAccent!, t.cursor!)).toBeGreaterThanOrEqual(4.5);
+      const selected = over(parse(t.selectionBackground!), parse(bg));
+      expect(ratio(t.foreground!, `rgb(${selected.slice(0, 3).map(Math.round).join(",")})`), "text inside a selection").toBeGreaterThanOrEqual(4.5);
+    });
+  }
 });
 
 describe("a snapshot that does not carry the tokens yet", () => {

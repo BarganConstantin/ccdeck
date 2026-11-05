@@ -92,10 +92,13 @@ export interface KeysBarProps {
   notice?: string | null;
   firstRun: boolean;
   /** The pane is one of Workspace's: its ✕ empties the pane (and on the empty
-   *  pane leaves for the Board), where the Board's closes the Command Panel. */
+   *  pane leaves for the Board), where the Board's closes the Command Panel,
+   *  and the keys go back to "the deck", as the status bar says, not to a
+   *  board that is not in view. */
   workspace?: boolean;
   /** No pane to type into (nothing open, an error, a session that cannot be
-   *  attached, tmux missing): the bar says nothing and is not drawn, unless it
+   *  attached, tmux missing, or a pane still being attached or started with
+   *  nothing on screen yet): the bar says nothing and is not drawn, unless it
    *  carries the older hosts' line. */
   paneless?: boolean;
   onFirstRunDone(): void;
@@ -195,6 +198,9 @@ export default function KeysBar(p: KeysBarProps) {
   // An ask outranks it; an end bar does not — it is the same note on any
   // pane, and a refused launch is where it is needed most.
   else if (p.hosts) { right = <HostsNote hosts={p.hosts} />; lean = true; }
+  // Workspace has no board in view: its strip names the place the keys go
+  // back to as the status bar under it does, "the deck", in the same words.
+  const deck = p.workspace === true;
   let left;
   if (p.end) {
     left = (
@@ -237,13 +243,13 @@ export default function KeysBar(p: KeysBarProps) {
       <div className="ts-keys" data-owner="pane">
         <span className="ts-label" data-strong>{t("board.keys.typingInto", { name: p.name })}</span>
         {!lean && <span className="ts-hint" data-optional><Kbd>Esc</Kbd> {t("board.keys.escGoes")}</span>}
-        {!lean && <span className="ts-hint"><Kbd label={t(RELEASE_CHORD_SPOKEN_MSG)}>{p.chordLabel}</Kbd> {t("board.keys.backToBoard")}</span>}
+        {!lean && <span className="ts-hint"><Kbd label={t(RELEASE_CHORD_SPOKEN_MSG)}>{p.chordLabel}</Kbd> {t(deck ? "board.status.keysBack" : "board.keys.backToBoard")}</span>}
       </div>
     );
   } else {
     left = (
       <div className="ts-keys" data-owner="board">
-        <span className="ts-label">{t("board.keys.onBoard")}</span>
+        <span className="ts-label">{t(deck ? "board.status.deckLabel" : "board.keys.onBoard")}</span>
         {!lean && !p.takeover && <span className="ts-hint"><Kbd>j k</Kbd> {t("board.keys.sessions")}</span>}
         {!lean && p.canType && (
           <span className="ts-hint">

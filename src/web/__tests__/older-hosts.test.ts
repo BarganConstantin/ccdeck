@@ -170,7 +170,9 @@ describe("the Review dialog", () => {
   it("lists each session with its agent, folder and age, why its host is listed, and what ending costs", () => {
     const html = renderToStaticMarkup(createElement(HostsReview, props()));
     expect(html).toContain("proj-1");
-    expect(html).toContain("Claude Code · proj-1 · started 2h ago");
+    // CHANGED ON PURPOSE: V4's row names the agent as the rail does, short:
+    // "Claude · web-api · started 2h ago"; it said "Claude Code" before.
+    expect(html).toContain("Claude · proj-1 · started 2h ago");
     expect(html).toContain("Codex · proj-2 · started 2h ago");
     expect(html).toContain(hostReason(host(1, "stranded")));
     expect(hostReason(host(1, "stranded"))).toBe("The Command Panel has moved to a newer session host and cannot open these here.");

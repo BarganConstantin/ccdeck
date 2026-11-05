@@ -159,8 +159,9 @@ export function WorkspaceEmpty({ waiting, onOpen, onNewSession }: {
   if (waiting) {
     return (
       <div className="ts-card ts-ws-empty" data-waiting="">
-        <StageGlyph kind="waiting" />
+        {/* One row, the glyph first (V4's "Empty workspace, someone waits"). */}
         <div className="ts-ws-head">
+          <StageGlyph kind="waiting" />
           <span className="ts-ws-title">{t("board.stage.waitingOnYou", { name: waiting.name })}</span>
           <span className="ts-ws-wait">{waiting.waited}</span>
         </div>
