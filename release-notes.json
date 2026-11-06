@@ -84,6 +84,7 @@
     "without one."
   ],
   "//summaries": {
+    "3.82.1": "Clearer network shortcuts, accurate account capacity and Codex recovery fixes",
     "3.82.0": "Steadier Codex switching, and uninstall cleans up Codex's terminal selection",
     "3.81.4": "Codex account switching works with Windows sandbox logins",
     "3.81.3": "More reliable Codex switching and quieter account rows",
@@ -140,6 +141,25 @@
     "3.49.1",
     "3.53.1",
     "3.53.3"
+  ],
+  "3.82.1": [
+    {
+      "title": "Local network controls, easier to find",
+      "body": "Open this deck’s network settings or the network graph directly from the Local network row.",
+      "priority": "highlight"
+    },
+    {
+      "title": "More accurate account capacity",
+      "body": "Accounts at their weekly limit no longer inflate the average remaining five-hour capacity.",
+      "priority": "highlight",
+      "icon": "accounts"
+    },
+    {
+      "title": "Codex account recovery fixes",
+      "body": "Codex account control can recover after temporary startup timeouts and checks account changes again when reconnecting.",
+      "priority": "highlight",
+      "icon": "accounts"
+    }
   ],
   "3.82.0": [
     {
