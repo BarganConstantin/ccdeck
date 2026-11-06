@@ -399,7 +399,7 @@ const catalog: Catalog = {
   "accounts.rep.tableLabel": "Tableau de capacité des comptes",
   "accounts.rep.caption": "L'utilisation et la réinitialisation de chaque fenêtre pour chaque compte, et ce qu'il peut faire maintenant",
   "accounts.rep.how": "Comment l'utilisation est calculée",
-  "accounts.rep.howOne": "Chaque compte ici, à son dernier relevé : <b>utilisé</b> est leur moyenne, et <b>restant</b> le reste, pas un quota mutualisé. Une heure de réinitialisation indiquée déjà passée ne confirme pas une capacité renouvelée. Son dernier relevé d'utilisation reste jusqu'à l'actualisation.",
+  "accounts.rep.howOne": "Chaque compte ici, à son dernier relevé : <b>utilisé</b> est leur moyenne, et <b>restant</b> le reste, pas un quota mutualisé. Une heure de réinitialisation indiquée déjà passée ne confirme pas une capacité renouvelée. Son dernier relevé d'utilisation reste jusqu'à l'actualisation. Un compte ayant atteint sa limite hebdomadaire contribue à la moyenne sur 5 heures avec 0 % restant.",
   "accounts.rep.howTwo": "<b>Prêt</b> a de la marge dans les deux fenêtres. <b>Limité</b> est à la limite de l'une, et <b>Épuisé</b> des deux. <b>Obsolète</b> n'a jamais été lu, ou est déconnecté. Prêt peut reposer sur un relevé plus ancien dont l'heure de réinitialisation est passée ; les comptes exclus restent inclus, mais sont exclus de la rotation automatique.",
   "accounts.rep.viewAccounts": "Capacité des comptes",
   "accounts.rep.viewCalendar": "Calendrier des réinitialisations",
