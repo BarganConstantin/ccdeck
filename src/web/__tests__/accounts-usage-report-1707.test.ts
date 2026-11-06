@@ -50,6 +50,27 @@ describe("adding it up", () => {
     expect(seven).toMatchObject({ label: "7d", reporting: 3, total: 3, used: 40 });
   });
 
+  it("counts weekly-limited accounts as zero short-window capacity without rewriting their readings", () => {
+    const r = usageReport([acct(1, 0, 100), acct(2, 20, 30)], NOW);
+    expect(usedAndAvailable(r.windows[0].used!)).toEqual({ used: 60, available: 40 });
+    expect(r.windows[0]).toMatchObject({ included: 2, reporting: 2 });
+    expect(r.rows[0].cells.five_hour).toMatchObject({ counted: true, pct: 0 });
+    expect(r.windows[1].used).toBe(65);
+    expect(r.roomInBoth).toBe(1);
+  });
+
+  it("keeps weekly exhaustion blocking the short window until a new reading confirms room", () => {
+    const blocked = acct(1, 0, 100, {}, [NOW + HOUR, NOW - 1]);
+    expect(usageReport([blocked], NOW).windows[0].used).toBe(100);
+    blocked.lanes[1] = { ...blocked.lanes[1], pct: 10, resetAt: NOW + 70 * HOUR };
+    expect(usageReport([blocked], NOW).windows[0].used).toBe(0);
+  });
+
+  it("does not treat near-weekly limits or an unknown weekly reading as exhaustion", () => {
+    expect(usageReport([acct(1, 20, 99.9), acct(2, 40, null)], NOW).windows[0].used).toBe(30);
+    expect(usageReport([acct(1, null, 100)], NOW).windows[0].used).toBeNull();
+  });
+
   it("rounds once, where it is printed, and prints two figures that add up to a hundred", () => {
     // Eleven accounts summing to 291: 26.45…%. Rounded to a tenth first and a
     // whole second, it read 27.

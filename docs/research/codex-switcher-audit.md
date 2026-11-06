@@ -108,3 +108,136 @@ bootstrap reads and an outside workspace change. The controller and ownership
 suites passed all 86 cases locally after this repair. The complete focused
 set then passed 364 cases with 9 platform skips on macOS; full cross-platform
 CI is required before development integration.
+
+## Third pass: restart timeouts and removed switch targets
+
+Starting from development `0c9fc801`, five new failing cases reproduced two
+additional defects. An account-read timeout during startup cleared the restore
+intent permanently, so a later healthy daemon did not restore renewal ownership.
+Separately, deleting or making a target profile unavailable while credentials
+were being read still allowed its cached login to be applied.
+
+`6e109cf4` retains the read-only restore intent for account-read and initial
+routing-snapshot timeouts, using the existing retry delay. The next attempt
+must still attest the native account ID; it never replays login. Tests also
+cover a changed workspace during the gap and verify the retry interval.
+
+`d0c38a5f` rechecks target availability after credential reading, before
+interruption and before authentication. Cancellation after an interruption
+uses the existing continuation mechanism on the original account. An uncertain
+continuation retains durable recovery protection. An unrelated rename or
+registry revision change does not cancel a still-available target.
+
+The unchanged rapid-selection regression still submits only the latest unsent
+selection. Ten additional cases in this pass cover the two defects and their
+adjacent recovery behavior. The 19-file focused set passed 374 tests with 9
+platform skips on both macOS (Node 22.14.0) and Linux (Node 22.23.4,
+non-root). Windows (Node 22.23.3) passed 354 cases with 29 platform skips;
+its POSIX RPC file is explicitly skipped, while real Windows ACL cases run.
+No platform reported a failure. Typecheck and build passed on macOS; the
+build retained its existing large-chunk advisory. Linux's isolated container
+could not run the process-table stray-server guard. These tests do not switch
+authenticated provider accounts or mutate the owner's running sessions.
+
+
+## Fourth pass: renewal after losing the control lease
+
+A native credential-renewal callback did not validate the control lease before
+returning refreshed tokens. Two failing cases reproduced successful renewal
+after lease loss before the credential read or during the subsequent account
+read. The callback now verifies the lease before reading credentials and again
+before returning them, and pauses ownership if it has lost control. It returns
+only a fixed diagnostic error on the old request, never credentials or private
+provider text.
+
+Four additional cases cover lease loss at both boundaries, replacement during
+credential reading, and a late credential failure after an outside account
+change. The latter must not send an obsolete reply or overwrite the observed
+external-change state. The controller and ownership suites passed 100 cases
+locally; full integration CI validates the combined candidate before merge.
+
+## Fifth pass: renewal after profile removal
+
+Starting from development `c5df895a`, two failing cases reproduced renewal
+using cached tokens after the active profile had been removed or marked
+unavailable during the native account read. The credential reader had already
+completed its filesystem and registry checks, so those checks could not cover
+the later asynchronous gap before the control server's response.
+
+`0d583db7` rechecks the active profile's availability immediately before returning
+the renewal result. A missing/unavailable profile receives a fixed error and
+pauses control; subsequent callbacks cannot return tokens until a new manual
+selection. The change does not interrupt or restart turns and does not replay
+login. A third case verifies that an unrelated registry revision or rename
+still allows renewal for an available profile.
+
+The 23-file macOS and Linux sets passed 406 cases with 9 platform skips
+each after the final lease-order regression was added; typecheck and build
+passed on macOS. The verification set includes native ownership, checkpoints,
+continuation, credentials, platform transport, account routes, authentication
+refresh and profile removal. As in earlier passes, these are synthetic account
+and endpoint tests, not authenticated live-provider switching.
+
+Review of the repair added a fourth case: lease replacement during the final
+profile lookup must still block renewal. `46f251a3` keeps the final control
+lease check after that asynchronous lookup.
+
+The expanded Windows run initially reported three failures in the pre-existing
+quota refresh fixture, while 382 cases passed and 29 were skipped. The same
+three failures reproduced on unchanged development `c5df895a`. That fixture
+set HOME, USERPROFILE and CODEX_HOME but omitted CCDECK_HOME; on a Windows
+machine with an existing registry under LocalAppData, quota reads could select
+that registry instead of the synthetic Codex home. `4b75e4b9` gives the fixture
+its own registry directory and restores the previous override afterward.
+After the isolation repair, all 117 cases in the final controller, ownership
+and quota-refresh files passed on Windows, including the three baseline
+failures. Other Windows files were not rerun after the final lease-order and
+test-only edits. The Linux
+run predates this test-only isolation edit; its production source matches the
+final candidate. The Linux process-table stray-server guard was unavailable
+inside the isolated container.
+
+## Sixth pass: final identity and lease checks during restart
+
+Starting from the local fifth-pass candidate `9088e084`, two failing tests
+showed that startup restoration could adopt an account snapshot taken before
+credential preparation, or claim control after its lease was lost during that
+preparation. The same problems reproduced in the fallback that reconciles an
+unacknowledged newer selection with the surviving previous login.
+
+`5712623b` obtains a fresh native account snapshot and validates the control
+lease after credential preparation in both paths. Missing native IDs or a
+changed workspace prevent ownership adoption. These paths only observe and
+adopt an already surviving login; they never submit login or continue turns.
+`b62a28a9` retains pending read-only fallback recovery if its added final read
+times out, rather than permanently abandoning that recovery intent.
+
+Seven additional regression cases cover stale snapshots, lease loss, fallback
+reconciliation, missing final account IDs and read-timeout recovery. The final
+23-file macOS set passed 413 cases with 9 platform skips; typecheck and build
+passed. Linux passed the same 413 cases with 9 platform skips in a non-root,
+network-isolated container. Windows passed 212 cases in the seven affected
+controller, ownership, checkpoint, handoff, quota-refresh, route and removal
+files; unchanged transport/credential security files were not rerun on Windows
+in this pass. No executed test failed. The Linux process-table stray-server
+guard was unavailable in the minimal container.
+This remains isolated controller/endpoint verification, not authenticated
+live-provider switching. The earlier fifth-pass fixes remain on this local
+branch and have not been integrated into development.
+
+
+## Seventh pass: disconnects and workspace replacement during renewal
+
+Six additional cases exercise successful and failed credential reads that
+finish after disconnection, native workspace changes across that gap, shutdown
+while renewal is pending, and a changed workspace returned from the same
+profile. These cases pass on the existing production code: no further product
+defect was reproduced in this pass. Late renewal results are discarded; only
+the same attested native account can regain control, and authentication is not
+replayed. Returning a credential for another workspace yields a fixed error
+without changing live authentication.
+
+The cases are retained as regression coverage. Full integration CI verifies
+them together with the preceding two local audit rounds before development
+integration. Verification uses synthetic identities and cannot establish
+live-provider switching behavior.

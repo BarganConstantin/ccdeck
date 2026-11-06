@@ -11,18 +11,19 @@
 import { useT } from "../i18n";
 import type { DeckRow, entryLine } from "../lan-roster";
 import { PEEK_DELAY_MS, type useHoverPeek } from "../use-hover-peek";
-import { MapGlyph } from "./LanNetworkMap";
 import LanPeek from "./LanPeek";
+import { MapGlyph } from "./LanNetworkMap";
 
-export default function LanEntryRow({ entry, rows, onOpen, onMap, peek, openPeek, shutPeek, holdPeek, dropPeek }: {
+export default function LanEntryRow({ entry, rows, onOpen, onSetup, onMap, peek, openPeek, shutPeek, holdPeek, dropPeek }: {
   /** What the row says: entryLine, from the same rows the list is drawn from. */
   entry: ReturnType<typeof entryLine>;
   /** The rows the peek names. */
   rows: DeckRow[];
   /** The row was pressed: give the section the column. */
   onOpen: () => void;
-  /** Open the network map — absent while this deck is off the network, when
-   *  the map would be one machine and a sentence saying so. */
+  /** Open this deck's network settings. */
+  onSetup?: () => void;
+  /** Open the network graph independently of settings and navigation. */
   onMap?: () => void;
 } & ReturnType<typeof useHoverPeek>) {
   const t = useT();
@@ -73,14 +74,22 @@ export default function LanEntryRow({ entry, rows, onOpen, onMap, peek, openPeek
           <path d="M5.6 3.4 9.2 7l-3.6 3.6" />
         </svg>
       </button>
-      {/* THE MAP, BESIDE THE ROW RATHER THAN IN IT. The row is one button
-          and a button cannot hold another, so this one is laid over the row's
-          right side, the way the fold's own controls are (#1579). A glyph, in
-          the family the view's header draws its acts in. */}
+      {/* Separate button beside the navigation row, so settings do not navigate. */}
+      {onSetup && (
+        <button type="button" className="ap-lan-map ap-lan-set" onClick={() => { dropPeek(); onSetup(); }}
+          aria-label={t("lan.header.setup")}
+          title={t("lan.header.setupTitle")}>
+          <svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor"
+            strokeWidth="1.3" strokeLinecap="round" aria-hidden>
+            <path d="M1.8 4.7h10.4M1.8 9.3h10.4" />
+            <circle cx="9.1" cy="4.7" r="1.6" fill="var(--panel)" />
+            <circle cx="4.9" cy="9.3" r="1.6" fill="var(--panel)" />
+          </svg>
+        </button>
+      )}
       {onMap && (
         <button type="button" className="ap-lan-map" onClick={() => { dropPeek(); onMap(); }}
-          aria-label={t("lan.map.show")}
-          title={t("lan.map.showTitle")}>
+          aria-label={t("lan.map.show")} title={t("lan.map.showTitle")}>
           <MapGlyph />
         </button>
       )}

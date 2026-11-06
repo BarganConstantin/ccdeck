@@ -703,8 +703,8 @@ describe("the list is quiet until it is not", () => {
     expect(head).toMatch(/ap-lan-check/);
     // A glyph has to carry its label somewhere, and `+` alone is not one.
     expect(head).not.toMatch(/aria-label=""/);
-    expect(head).toMatch(/ap-lan-set/);
-    expect(head).toMatch(/aria-label="This deck's name and shared logins"/);
+    expect(head).not.toMatch(/ap-lan-set/);
+    expect(SURFACE).toMatch(/aria-label="This deck's name and shared logins"/);
     // AN ICON IS DRAWN, NOT TYPED. The three were `+`, `↻` and `⚙` — three
     // Unicode codepoints from three different blocks, drawn by whichever
     // installed font happened to cover each one, which measured 8.7x7.4,
@@ -712,7 +712,7 @@ describe("the list is quiet until it is not", () => {
     // authored now at the spec the topbar's five already use.
     expect(head).not.toMatch(/[\u2699\u21BB]/);
     const icons = [...head.matchAll(/<svg([^>]*)>/g)].map(m => m[1]);
-    expect(icons).toHaveLength(3);
+    expect(icons).toHaveLength(2);
     for (const attrs of icons) {
       expect(attrs, attrs).toContain('width="13" height="13"');
       expect(attrs, attrs).toContain('viewBox="0 0 14 14"');
@@ -803,7 +803,7 @@ describe("switching on says what switching on does", () => {
     // and the line in a deck's own dialog that goes from "you offer" to where
     // that list is changed.
     expect([...SURFACE.matchAll(/setSetupOpen\(true\)/g)]).toHaveLength(3);
-    expect(HEADER).toMatch(/onClick=\{\(\) => setSetupOpen\(true\)\}/);
+    expect(CODE).toMatch(/onSetup=\{on \? \(\) => setSetupOpen\(true\) : undefined\}/);
     expect(CODE).toMatch(/onSettings=\{\(\) => \{ setPeerOpen\(null\); setSetupOpen\(true\); \}\}/);
   });
 });
