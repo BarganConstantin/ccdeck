@@ -13,16 +13,11 @@
 // accounts reporting. If the deck is ever told real limits, the average can
 // become a weighted one without the report changing shape.
 //
-// EACH WINDOW ON ITS OWN: missing data stays unknown. Totals describe the
-// last observed percentages, including older readings, not pooled usable quota.
-// Fresh reporting counts exclude missing/auth-blocked/stale observations and
-// elapsed reported reset times. Passing a timestamp never proves renewal.
-//
-// AND AN AVERAGE PER WINDOW CANNOT SAY WHICH WINDOW HOLDS AN ACCOUNT BACK. An
-// account at 12% of its 5 hours and 100% of its week adds 88 points of "5h
-// available" that nobody can use. So the report leads with how many accounts
-// have room in both — the panel's own "free" measure, which is the tighter of
-// the two — and gives each row a state that names the spent window (#1713).
+// Missing readings stay unknown. Older readings remain included, and passing
+// a reported reset time never proves renewal. The short-window aggregate
+// counts an account with observed weekly exhaustion as fully unavailable;
+// the table and reset details retain each window's original reading.
+// Weekly capacity remains its own longer-horizon reading, not pooled quota.
 //
 // Pure, so the suite can call it. The modal is components/AccountsUsageReport.tsx.
 import { accountIssue } from "./account-issue";
@@ -146,7 +141,7 @@ export interface WindowTotal {
   reporting: number;
   included: number;
   total: number;
-  /** The average over the accounts in the total, unrounded; null when none
+  /** The average unavailable share (5h includes weekly exhaustion), unrounded; null when none
    *  has a number. Rounded once, where it is printed — see usedAndAvailable. */
   used: number | null;
   /** The soonest reset still ahead among the accounts in the total: whose, at
@@ -238,7 +233,11 @@ export function windowTotal(rows: readonly ReportRow[], id: WindowId): WindowTot
     // last reading and says so; the row still marks it Stale.
     const pct = c.counted ? c.pct : c.estimate;
     if (pct == null) continue;
-    sum += pct;
+    const weekly = r.cells.seven_day;
+    const weeklyUsed = weekly.counted ? weekly.pct : weekly.estimate;
+    // A full weekly window blocks all short-window use, even when its own
+    // five-hour reading has room. Keep the raw reading for rows and resets.
+    sum += id === "five_hour" && weeklyUsed != null && weeklyUsed >= 100 ? 100 : pct;
     included++;
     if (c.counted) count++;
     if (c.resetAt != null) resets.push({ at: c.resetAt, name: r.name, pct });

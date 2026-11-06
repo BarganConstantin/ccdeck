@@ -399,7 +399,7 @@ const catalog: Catalog = {
   "accounts.rep.tableLabel": "Account capacity table",
   "accounts.rep.caption": "Each account's use and reset of each window, and what it can do now",
   "accounts.rep.how": "How usage is calculated",
-  "accounts.rep.howOne": "Every account here, at its last reading: <b>used</b> is their average, and <b>remaining</b> is the rest, not pooled quota. A passed reported reset time does not confirm renewed capacity. Its last usage reading remains until refreshed.",
+  "accounts.rep.howOne": "Every account here, at its last reading: <b>used</b> is their average, and <b>remaining</b> is the rest, not pooled quota. A passed reported reset time does not confirm renewed capacity. Its last usage reading remains until refreshed. A weekly-limited account contributes 0% remaining to the 5-hour average.",
   "accounts.rep.howTwo": "<b>Ready</b> has room in both windows. <b>Limited</b> is at the limit of one, and <b>Exhausted</b> of both. <b>Stale</b> was never read, or is signed out. Ready may be based on an older reading whose reset time has passed; held-out accounts remain included, but are excluded from automatic rotation.",
   "accounts.rep.viewAccounts": "Account capacity",
   "accounts.rep.viewCalendar": "Reset calendar",
