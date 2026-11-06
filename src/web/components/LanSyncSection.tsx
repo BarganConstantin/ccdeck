@@ -268,7 +268,7 @@ export default function LanSyncSection({
   if (!view) {
     return (
       <div className="ap-foot">
-        <LanEntryRow entry={entry} rows={rows} onOpen={onOpen} onMap={on ? () => setMapOpen(true) : undefined} {...hoverPeek} />
+        <LanEntryRow entry={entry} rows={rows} onOpen={onOpen} onSetup={on ? () => setSetupOpen(true) : undefined} {...hoverPeek} />
         <p className="vis-hidden" role="status">{state.tone === "ok" ? "" : state.text}</p>
         {modals}
       </div>
@@ -282,7 +282,7 @@ export default function LanSyncSection({
   return (
     <div className="ap-lan-view">
       <LanViewHeader on={on} status={status} paired={paired} busy={busy} pressProps={pressProps}
-        checkNow={checkNow} setAddOpen={setAddOpen} setSetupOpen={setSetupOpen} onBack={onBack}
+        checkNow={checkNow} setAddOpen={setAddOpen} onBack={onBack}
         closeButton={closeButton} />
       <div className="ap-scroll" id="ap-lan-scroll">
         <div className="ap-lan">
