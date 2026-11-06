@@ -268,7 +268,8 @@ export default function LanSyncSection({
   if (!view) {
     return (
       <div className="ap-foot">
-        <LanEntryRow entry={entry} rows={rows} onOpen={onOpen} onSetup={on ? () => setSetupOpen(true) : undefined} {...hoverPeek} />
+        <LanEntryRow entry={entry} rows={rows} onOpen={onOpen} onSetup={on ? () => setSetupOpen(true) : undefined}
+          onMap={on ? () => setMapOpen(true) : undefined} {...hoverPeek} />
         <p className="vis-hidden" role="status">{state.tone === "ok" ? "" : state.text}</p>
         {modals}
       </div>

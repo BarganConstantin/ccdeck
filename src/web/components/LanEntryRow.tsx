@@ -12,8 +12,9 @@ import { useT } from "../i18n";
 import type { DeckRow, entryLine } from "../lan-roster";
 import { PEEK_DELAY_MS, type useHoverPeek } from "../use-hover-peek";
 import LanPeek from "./LanPeek";
+import { MapGlyph } from "./LanNetworkMap";
 
-export default function LanEntryRow({ entry, rows, onOpen, onSetup, peek, openPeek, shutPeek, holdPeek, dropPeek }: {
+export default function LanEntryRow({ entry, rows, onOpen, onSetup, onMap, peek, openPeek, shutPeek, holdPeek, dropPeek }: {
   /** What the row says: entryLine, from the same rows the list is drawn from. */
   entry: ReturnType<typeof entryLine>;
   /** The rows the peek names. */
@@ -22,6 +23,8 @@ export default function LanEntryRow({ entry, rows, onOpen, onSetup, peek, openPe
   onOpen: () => void;
   /** Open this deck's network settings. */
   onSetup?: () => void;
+  /** Open the network graph independently of settings and navigation. */
+  onMap?: () => void;
 } & ReturnType<typeof useHoverPeek>) {
   const t = useT();
   return (
@@ -82,6 +85,12 @@ export default function LanEntryRow({ entry, rows, onOpen, onSetup, peek, openPe
             <circle cx="9.1" cy="4.7" r="1.6" fill="var(--panel)" />
             <circle cx="4.9" cy="9.3" r="1.6" fill="var(--panel)" />
           </svg>
+        </button>
+      )}
+      {onMap && (
+        <button type="button" className="ap-lan-map" onClick={() => { dropPeek(); onMap(); }}
+          aria-label={t("lan.map.show")} title={t("lan.map.showTitle")}>
+          <MapGlyph />
         </button>
       )}
       {peek && <LanPeek anchorId="ap-lan-entry" id="ap-lan-peek" rows={rows} onHold={holdPeek} onLet={shutPeek} />}
