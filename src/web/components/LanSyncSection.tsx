@@ -282,7 +282,7 @@ export default function LanSyncSection({
   return (
     <div className="ap-lan-view">
       <LanViewHeader on={on} status={status} paired={paired} busy={busy} pressProps={pressProps}
-        checkNow={checkNow} setAddOpen={setAddOpen} setSetupOpen={setSetupOpen} setMapOpen={setMapOpen} onBack={onBack}
+        checkNow={checkNow} setAddOpen={setAddOpen} setSetupOpen={setSetupOpen} onBack={onBack}
         closeButton={closeButton} />
       <div className="ap-scroll" id="ap-lan-scroll">
         <div className="ap-lan">
