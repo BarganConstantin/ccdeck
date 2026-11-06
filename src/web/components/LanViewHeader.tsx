@@ -11,12 +11,11 @@ import type { ReactNode } from "react";
 import { useT } from "../i18n";
 import type { LanStatus } from "../lan-types";
 import type { useLanSection } from "../use-lan-section";
-import { MapGlyph } from "./LanNetworkMap";
 
 type Section = ReturnType<typeof useLanSection>;
 
 export default function LanViewHeader({
-  on, status, paired, busy, pressProps, checkNow, setAddOpen, setSetupOpen, setMapOpen, onBack, closeButton,
+  on, status, paired, busy, pressProps, checkNow, setAddOpen, onBack, closeButton,
 }: {
   /** Whether this deck is on the network. Every act here is about a deck that is. */
   on: boolean;
@@ -29,10 +28,6 @@ export default function LanViewHeader({
   checkNow: Section["checkNow"];
   /** Open the add dialog, through the door this glyph is. */
   setAddOpen: (door: "add") => void;
-  /** Open this deck's own settings. */
-  setSetupOpen: (open: true) => void;
-  /** Open the network map. */
-  setMapOpen: (open: true) => void;
   /** Give the column back to the accounts. */
   onBack: () => void;
   /** The panel's close, drawn in this view's header as it is in the accounts'. */
@@ -74,15 +69,6 @@ export default function LanViewHeader({
             reload, a few rows up, meaning two other things (#838). So adding a
             deck is a link — pairing is what it starts — and checking the paired
             decks is a broadcast, one ask sent to all of them. */}
-        {/* THE MAP, FIRST OF THE FOUR: it is the one act here that changes
-            nothing, and it is about every deck on the list at once. */}
-        {on && (
-          <button type="button" className="glyph-btn" onClick={() => setMapOpen(true)}
-            aria-label={t("lan.map.show")}
-            title={t("lan.map.showTitle")}>
-            <MapGlyph />
-          </button>
-        )}
         {on && (
           <button type="button" className="glyph-btn ap-lan-plus"
             onClick={() => setAddOpen("add")}
@@ -110,34 +96,6 @@ export default function LanViewHeader({
               <circle cx="7" cy="7" r="1.1" fill="currentColor" stroke="none" />
               <path d="M4.6 4.6a3.4 3.4 0 0 0 0 4.8M9.4 4.6a3.4 3.4 0 0 1 0 4.8" />
               <path d="M2.6 2.6a6.2 6.2 0 0 0 0 8.8M11.4 2.6a6.2 6.2 0 0 1 0 8.8" />
-            </svg>
-          </button>
-        )}
-        {/* AND THE SETTINGS, on the same row as the three controls that are also
-            about this deck rather than about the machines on the list. It was
-            `name & sharing` at the foot — a phrase naming a dialog's two fields,
-            which is a caption rather than a control, and the last thing left
-            down there beside a timestamp. A cog is what every application on
-            this machine uses for the same door. */}
-        {on && (
-          <button type="button" className="glyph-btn ap-lan-set" {...pressProps("setup")}
-            onClick={() => setSetupOpen(true)}
-            aria-label={t("lan.header.setup")}
-            title={t("lan.header.setupTitle")}>
-            {/* SLIDERS, NOT A COG, and the reason is what came back from the
-                render. The browser-watch modal draws its settings as a circle
-                with eight straight radial spokes, and at 13px that is the
-                universal brightness glyph — a sun, in a row about a network.
-                Reusing it would have been reuse of a drawing that says the
-                wrong thing, next to a plus and a round where the wrong thing is
-                readable. A gear with real teeth is mush at this size; two rails
-                and two knobs is the shape that stays a setting all the way
-                down. */}
-            <svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor"
-              strokeWidth="1.3" strokeLinecap="round" aria-hidden>
-              <path d="M1.8 4.7h10.4M1.8 9.3h10.4" />
-              <circle cx="9.1" cy="4.7" r="1.6" fill="var(--panel)" />
-              <circle cx="4.9" cy="9.3" r="1.6" fill="var(--panel)" />
             </svg>
           </button>
         )}
