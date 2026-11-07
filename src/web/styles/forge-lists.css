@@ -159,7 +159,7 @@ button.btn.fgl-repo-trigger[aria-expanded="true"] { background: var(--ctl-fill);
    28 high, its glyph inside at the left. */
 .fgl-repo-search { position: relative; display: flex; align-items: center; flex: none; }
 .fgl-repo-search > .fgl-glyph { position: absolute; left: 8px; pointer-events: none; }
-.fgl-repo-search input { --ctl-h: 28px; flex: 1; box-sizing: border-box; padding-left: 28px; font-size: calc(12px + var(--ui-text-increase, 0px)); }
+.fgl-repo-search input { --ctl-h: 28px; flex: 1; box-sizing: border-box; padding-left: 32px; font-size: calc(12px + var(--ui-text-increase, 0px)); }
 .fgl-repo-scroll { flex: 1 1 auto; min-height: 0; max-height: min(380px, 52dvh); overflow-y: auto; overscroll-behavior: contain; }
 .fgl-repo-scroll .ig-skeleton[data-variant] { margin: 0; padding: 4px 0; gap: 6px; border: 0; border-radius: 0; background: none; }
 .fgl-repo-scroll .ig-skeleton[data-variant] i { height: 32px; }
