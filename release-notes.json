@@ -84,7 +84,8 @@
     "without one."
   ],
   "//summaries": {
-    "3.82.1": "Clearer network shortcuts, accurate account capacity and Codex recovery fixes",
+    "3.82.2": "Arrow keys show the selected row on ccdeck tui's Network tab",
+    "3.82.1":"Clearer network shortcuts, accurate account capacity and Codex recovery fixes",
     "3.82.0": "Steadier Codex switching, and uninstall cleans up Codex's terminal selection",
     "3.81.4": "Codex account switching works with Windows sandbox logins",
     "3.81.3": "More reliable Codex switching and quieter account rows",
@@ -141,6 +142,12 @@
     "3.49.1",
     "3.53.1",
     "3.53.3"
+  ],
+  "3.82.2": [
+    {
+      "title": "⌨️ Arrow keys show where you are on ccdeck tui's Network tab",
+      "body": "In ccdeck tui, ↑ and ↓ on the Network tab now highlight the row you are on and scroll the list to it."
+    }
   ],
   "3.82.1": [
     {
