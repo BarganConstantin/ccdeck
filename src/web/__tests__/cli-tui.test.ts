@@ -834,6 +834,17 @@ describe("the Local network", () => {
     expect(foot(s)).toMatch(/enter +accept +x +decline/);
     expect(key(s, undefined, { name: "up" }).state.lanSel).toBe("self");
     expect(key(lanState(), "G").state.lanSel).toBe("autoAccept");
+    // The row the arrows are on is the one drawn selected. It was none: the
+    // list compared rows built twice by identity, so moving showed nothing.
+    const SELECT = "\x1b[44;97m";
+    const marked = (s: State, cols = 100, rows = 40) => frame(s, cols, rows, true, "ansi16").lines
+      .filter((l: string) => l.includes(SELECT) && stripAnsi(l).startsWith("│")).map((l: string) => stripAnsi(l));
+    expect(marked(lanState())).toEqual([expect.stringContaining("Sync with paired decks")]);
+    expect(marked(key(lanState(), "j").state)).toEqual([expect.stringContaining("This deck")]);
+    expect(marked(at("deck:pend-1"))).toEqual([expect.stringContaining("kitchen-pc")]);
+    expect(marked(at("share:alice@corp.example@@org-1"))).toEqual([expect.stringContaining("alice@corp.example")]);
+    // On a short screen the list scrolls to it, however far down it is.
+    expect(marked(at("autoAccept"), 80, 16)).toEqual([expect.stringContaining("Say yes to every deck")]);
     // The accounts' keys do nothing here.
     for (const k of ["a", "b", "1", "m", "h", "o", "v"]) expect(key(at("deck:peer-1"), k).effect).toBeNull();
   });
