@@ -125,7 +125,7 @@ describe("the head", () => {
   });
   it("draws the model as text with no chip class and no family tint", () => {
     const out = html({ model: "claude-opus-5-5", effort: "high" });
-    expect(out).toMatch(/<span class="model-text" title="claude-opus-5-5\neffort: high">Opus 5\.5 · high<\/span>/);
+    expect(out).toMatch(/<span class="model-text" title="claude-opus-5-5\neffort: high">opus 5\.5 · high<\/span>/);
     expect(out).not.toContain("model-chip");
     expect(out).not.toContain("data-family");
     expect(node).not.toContain("model-chip");
@@ -200,8 +200,26 @@ describe("the task line", () => {
     expect(html({ sessionName: "Billing rewrite" })).toContain('<div class="task-line" title="Billing rewrite">Billing rewrite</div>');
     expect(html({ kind: "subagent", cwdBasename: "shop" })).toContain(">subagent · shop</div>");
   });
-  it("is absent for a root with neither a name nor a title", () => {
+  it("is absent for a root with neither a name, a title nor a prompt", () => {
     expect(html({})).not.toContain("task-line");
+  });
+  // V4's Agent / Card: every root carries its prompt line, and most sessions
+  // (every Codex one) have no name or title to put there.
+  it("says the first prompt's first line for a root with neither a name nor a title", () => {
+    expect(html({ firstPrompt: "Add rate limiting to the public API" }))
+      .toContain('<div class="task-line" title="Add rate limiting to the public API">Add rate limiting to the public API</div>');
+    const two = html({ firstPrompt: "Fix the flaky test\nIt fails on CI only" });
+    expect(two).toMatch(/<div class="task-line" title="Fix the flaky test\nIt fails on CI only">Fix the flaky test<\/div>/);
+    // A name or a title still wins over the prompt.
+    expect(html({ sessionTitle: "Rate limits", firstPrompt: "Add rate limiting" })).toContain(">Rate limits</div>");
+    // The far face's title line says the same.
+    expect(html({ firstPrompt: "Add rate limiting" })).toContain('<div class="lod-title">Add rate limiting</div>');
+  });
+  it("says what a subagent's spawning call said it is for, and the kind and folder without one", () => {
+    const out = html({ kind: "subagent", label: "Explore", cwdBasename: "web-api", spawnCall: { id: "t1", description: "Find every public route" } });
+    expect(out).toMatch(/<div class="task-line" title="Find every public route\nsubagent · web-api">Find every public route<\/div>/);
+    expect(html({ kind: "subagent", cwdBasename: "web-api", spawnCall: { id: "t1" } })).toContain(">subagent · web-api</div>");
+    expect(html({ kind: "subagent", cwdBasename: "web-api" })).toContain(">subagent · web-api</div>");
   });
 });
 
@@ -223,14 +241,17 @@ describe("the foot", () => {
     expect(decl(".agent-node .foot .spawn-badge", "gap")).toBe("4px");
     expect(sheet).not.toMatch(/(?:^|\})\s*\.spawn-badge\s*\{/);
   });
-  it("reads cost · time · tools · tokens, then the sub-agent count", () => {
-    const out = html({ toolCount: 5, usage: SPENT, model: "claude-opus-5-5", childCount: 2 });
+  // CHANGED ON PURPOSE (V4's Figma, Agent / Card): the foot no longer prints
+  // "5 tools" or "1 err"; the tool icons' tooltip says both, as do the card's
+  // accessible name and the Inspector.
+  it("reads cost · time · tokens, then the sub-agent count, with no tools or err words", () => {
+    const out = html({ toolCount: 5, toolErrorCount: 1, usage: SPENT, model: "claude-opus-5-5", childCount: 2 });
     const foot = /<div class="foot">([\s\S]*?)<\/div>/.exec(out)![1];
     const at = (s: string) => foot.indexOf(s);
     expect(at("cost-meta")).toBeGreaterThan(-1);
     expect(at("cost-meta")).toBeLessThan(at('class="time"'));
-    expect(at('class="time"')).toBeLessThan(at("<b>5</b> tools"));
-    expect(at("<b>5</b> tools")).toBeLessThan(at("tokens-meta"));
+    expect(at('class="time"')).toBeLessThan(at("tokens-meta"));
+    expect(foot).not.toMatch(/\btools?\b|\berr\b|failed-meta/);
     expect(at("tokens-meta")).toBeLessThan(at("spawn-badge"));
     expect(foot).toContain('<span class="foot-sep" aria-hidden="true">·</span>');
     expect(foot).toMatch(/<span class="foot-end"><span class="spawn-badge"[^>]*>2<svg[^>]*>[\s\S]*<\/svg><\/span><\/span>$/);
@@ -252,7 +273,7 @@ describe("no new colour literals", () => {
       '.agent-node .state-line[data-tone="active"] .state-mark',
       ".agent-node .title", ".agent-node .title .label", ".agent-node .title .model-text, .agent-node .title .synth-tag",
       ".agent-node .time", ".agent-node .task-line", ".agent-node .foot", ".agent-node .foot b", ".agent-node .foot .foot-sep",
-      ".agent-node .foot .inflight-meta", ".agent-node .foot .failed-meta", ".agent-node .foot .spawn-badge",
+      ".agent-node .foot .inflight-meta", ".agent-node .foot .spawn-badge",
     ]) expect(body(sel), sel).not.toMatch(LITERAL);
     expect(body(".agent-node")).not.toMatch(LITERAL);
   });
@@ -320,14 +341,22 @@ describe("fixes found in the browser", () => {
     expect(decl(row, "color")).toBe("var(--warn)");
     expect(sheet).not.toMatch(/\.waiting-row\.(permission|idle)\b/);
     expect(decl(".agent-node .waiting-said", "text-overflow")).toBe("ellipsis");
-    expect(decl(".agent-node .waiting-row b", "font-weight")).toBe("400");
+    // CHANGED ON PURPOSE (V4's Agent / Card): no clock in the row, so no rule
+    // for one.
+    expect(sheet).not.toMatch(/\.waiting-row b\b/);
   });
 
-  it("gives the model text and then the name a visible floor, in that order", () => {
+  // CHANGED ON PURPOSE (V4's Agent / Card): the name has no floor of its own.
+  // min(8ch, 100%) held a short name's box at 8ch, so the model started about
+  // 25px after "infra" instead of 6px.
+  it("gives the model text a visible floor, and the name none, so the model follows the name", () => {
     // min(6ch, max-content) is not valid CSS (a math function takes no keyword),
-    // so the floor is min(6ch, 100%): "Opus..." stays readable on a long name.
+    // so the floor is min(6ch, 100%): "opus..." stays readable on a long name.
     expect(decl(".agent-node .title .model-text", "min-width")).toBe("min(6ch, 100%)");
-    expect(decl(".agent-node .title .label", "min-width")).toBe("min(8ch, 100%)");
+    expect(decl(".agent-node .title .label", "min-width")).toBe("0");
+    // The model still gives way first.
+    expect(decl(".agent-node .title .model-text", "flex")).toBe("0 100 auto");
+    expect(decl(".agent-node .title .label", "flex")).toBe("0 1 auto");
   });
 
   it("drops the effort when the model text OR the name is cut and that would uncut it", () => {
@@ -344,25 +373,32 @@ describe("fixes found in the browser", () => {
     expect(decl(".agent-node .foot", "flex-wrap")).toBe("nowrap");
   });
 
+  // CHANGED ON PURPOSE (V4's Agent / Card): the tool count left the foot, so
+  // the squeeze has two items to drop, not three.
   describe("the foot's squeeze", () => {
-    const all = { tokens: true, inflight: true, tools: true };
-    it("drops tokens first, then in-flight, then the tool count", () => {
-      expect(footDroppable(all)).toEqual(["tokens", "inflight", "tools"]);
+    const all = { tokens: true, inflight: true };
+    it("drops tokens first, then in-flight", () => {
+      expect(footDroppable(all)).toEqual(["tokens", "inflight"]);
       expect([...footDropped(0, all)]).toEqual([]);
       expect([...footDropped(1, all)]).toEqual(["tokens"]);
       expect([...footDropped(2, all)]).toEqual(["tokens", "inflight"]);
-      expect([...footDropped(3, all)]).toEqual(["tokens", "inflight", "tools"]);
     });
     it("skips items the foot does not hold, so no notch is wasted", () => {
-      const some = { tokens: false, inflight: false, tools: true };
-      expect(footDroppable(some)).toEqual(["tools"]);
-      expect([...footDropped(1, some)]).toEqual(["tools"]);
+      const some = { tokens: false, inflight: true };
+      expect(footDroppable(some)).toEqual(["inflight"]);
+      expect([...footDropped(1, some)]).toEqual(["inflight"]);
     });
-    it("never offers cost, time, the failed count or the sub-agent count to drop", () => {
-      expect(footDroppable(all)).toEqual(["tokens", "inflight", "tools"]);
-      const out = html({ toolCount: 5, usage: SPENT, model: "claude-opus-5-5", childCount: 2, toolErrorCount: 1 });
-      for (const kept of ["cost-meta", 'class="time"', "failed-meta", "spawn-badge"]) expect(out).toContain(kept);
-      expect(node).not.toMatch(/dropped\.has\("(?:cost|time|failed|spawn)/);
+    it("never offers the tool icons, cost, time or the sub-agent count to drop", () => {
+      expect(footDroppable(all)).toEqual(["tokens", "inflight"]);
+      const tools = [{ id: "r1", name: "Read", inputPreview: "", startedAt: 1, endedAt: 2 }];
+      const out = html({ tools: tools as never, toolCount: 5, usage: SPENT, model: "claude-opus-5-5", childCount: 2, toolErrorCount: 1 });
+      for (const kept of ["foot-tools", "cost-meta", 'class="time"', "spawn-badge"]) expect(out).toContain(kept);
+      expect(node).not.toMatch(/dropped\.has\("(?:cost|time|tools|spawn)/);
+    });
+    it("says the call and failure counts in the tool icons' tooltip", () => {
+      const tools = [{ id: "r1", name: "Read", inputPreview: "", startedAt: 1, endedAt: 2 }];
+      expect(html({ tools: tools as never, toolCount: 5, toolErrorCount: 2 })).toMatch(/<span class="foot-tools" title="[^"]*\n5 tools, 2 failed">/);
+      expect(html({ tools: tools as never, toolCount: 1 })).toMatch(/<span class="foot-tools" title="[^"]*\n1 tool">/);
     });
     it("steps down one notch per overflowing measure and stops when nothing is left", () => {
       expect(nextFootNotch(0, { overflow: 12, max: 3 })).toBe(1);
@@ -376,9 +412,44 @@ describe("fixes found in the browser", () => {
       expect(footNotchOnResize(2, { from: 256, to: 256 })).toBe(2);
     });
     it("draws every item at notch 0 (the server markup)", () => {
-      const out = html({ toolCount: 5, usage: SPENT });
+      const tools = [{ id: "b1", name: "Bash", inputPreview: "", startedAt: 1 }];
+      const out = html({ tools: tools as never, toolCount: 5, usage: SPENT });
       expect(out).toContain("tokens-meta");
-      expect(out).toContain("<b>5</b> tools");
+      expect(out).toContain("inflight-meta");
     });
+  });
+});
+
+// V4's Agent / Card, Waiting and Failed: the ask row is the call (or the
+// question) in mono Signal/Waiting with no dot and no clock, and the stop row
+// is its reason with no dot.
+describe("the ask row and the stop row", () => {
+  const SAID = "Claude needs your permission to use Bash";
+  const block = (over: object) => ({ kind: "permission", message: SAID, since: Date.now() - 322_000, ...over }) as never;
+  const row = (out: string, cls: string) => new RegExp(`<div class="${cls}"[^>]*>([\\s\\S]*?)</div>`).exec(out)?.[1];
+  it("reads a permission prompt as the call it is most likely about, with no dot and no clock", () => {
+    const out = html({ state: "active", waiting: block({ tool: { name: "Bash", preview: "npm test -- rate-limit" } }) });
+    expect(row(out, "waiting-row")).toBe('<span class="waiting-said">Bash · npm test -- rate-limit</span>');
+    expect(out).not.toMatch(/ap-pulse|waiting-dot/);
+    expect(row(out, "waiting-row")).not.toMatch(/<b>|\d+m \d\ds/);
+  });
+  it("keeps Claude Code's sentence, the hedge on the guess and the wait in the tooltip", () => {
+    const out = html({ state: "active", waiting: block({ tool: { name: "Bash", preview: "npm test -- rate-limit" } }) });
+    expect(out).toMatch(new RegExp(`<div class="waiting-row" title="${SAID}\\nLikely on: npm test -- rate-limit\\nBlocked for 5m 2\\ds`));
+  });
+  it("says the call's name alone without a preview, the sentence without a call, the question, and Your turn", () => {
+    expect(row(html({ waiting: block({ tool: { name: "WebFetch", preview: "" } }) }), "waiting-row")).toBe('<span class="waiting-said">WebFetch</span>');
+    expect(row(html({ waiting: block({}) }), "waiting-row")).toBe(`<span class="waiting-said">${SAID}</span>`);
+    const asked = "paycore needs your input: merge both branches to main, or just one?";
+    expect(row(html({ waiting: block({ kind: "asked", message: asked, tool: { name: "Bash", preview: "git merge" } }) }), "waiting-row"))
+      .toBe(`<span class="waiting-said">${asked}</span>`);
+    expect(row(html({ state: "done", waiting: block({ kind: "idle", message: "Claude is waiting for your input" }) }), "waiting-row"))
+      .toBe('<span class="waiting-said">Your turn</span>');
+  });
+  it("draws the failed card's reason with no dot", () => {
+    const out = html({ state: "done", stopFailure: { kind: "usage-limit", error: "rate_limit", message: "", at: 1 } as never });
+    const stop = /<div class="stop-row"[^>]*>([\s\S]*?)<\/div>/.exec(out)![1];
+    expect(stop).toMatch(/^<span class="stop-said">[^<]+<\/span>/);
+    expect(stop).not.toContain("waiting-dot");
   });
 });

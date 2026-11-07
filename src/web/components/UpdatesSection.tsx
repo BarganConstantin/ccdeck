@@ -1,13 +1,14 @@
 // Settings › General › Updates: whether the deck updates itself when nothing
 // is running (#2176).
 //
-// THE BANNER'S SWITCH, NOT A SECOND ONE. `autoUpdate` in prefs.json had one
-// control, "auto when idle" inside the update banner (VersionBanner.tsx), and
-// the banner is up only while a restart is waiting — so the one switch that
-// decides whether a deck changes its own code could be reached only in the
-// moment it was about to matter, and never to look at beforehand. This row is
-// the same state and the same toggle (use-auto-restart.ts, toggleAutoRestart),
-// handed down from App, so pressing either is pressing both.
+// THE ONE SWITCH. `autoUpdate` in prefs.json had one control, "auto when idle"
+// inside the update banner (VersionBanner.tsx), and the banner is up only
+// while a restart is waiting — so the one switch that decides whether a deck
+// changes its own code could be reached only in the moment it was about to
+// matter, and never to look at beforehand. This row is that state and its
+// toggle (use-auto-restart.ts, toggleAutoRestart), handed down from App. The
+// banner draws no switch since V4's Figma: it says its countdown in a
+// sentence, and its × is the "not now".
 //
 // WHAT IT DOES, said whole, because the name cannot. There are two paths and
 // the switch governs both: a tab somebody is looking at restarts the deck into

@@ -267,6 +267,12 @@ export interface AgentNodeData {
   cwd?: string;
   cwdBasename?: string;
   firstPrompt?: string;
+  /** Subagents only: the Task or Agent call that started this one, as the
+   *  reducer paired it when the subagent announced itself, and the call's own
+   *  `description` — "Find every public route" — which the card shows as what
+   *  the subagent is for. Absent when no such call reached the deck; the card
+   *  then says the kind and the folder. See subagent-lifecycle.ts. */
+  spawnCall?: { id: string; description?: string };
   /** The name Claude Code gave this session, from the transcript's `agent-name`
    *  records — e.g. "account-management-oauth-flow". Session root only, and
    *  Claude only: a Codex rollout carries no such record, so the field stays

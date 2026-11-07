@@ -46,15 +46,42 @@ describe("Explore's native catalog", () => {
   it("closes before handing off Connect, Open and Manage to their existing owners", () => {
     const { tree, props } = catalog(state([connection("jira-1", "jira"), connection("jira-2", "jira")]));
     for (const [label, callback, arg] of [
-      ["Connect GitHub", props.onConnect, "github"], ["Open Jira", props.onOpen, "jira"], ["Manage Jira", props.onManage, "jira-1"],
+      ["Connect GitHub", props.onConnect, "github"], ["Open Jira", props.onOpen, "jira"],
     ] as const) {
       (one(tree, e => e.props["aria-label"] === label)!.props.onClick as () => void)();
       expect(callback).toHaveBeenLastCalledWith(arg);
       expect(props.onClose.mock.invocationCallOrder.at(-1)).toBeLessThan(callback.mock.invocationCallOrder.at(-1)!);
     }
+    // CHANGED ON PURPOSE (V4's Figma): a connected row has Open only; managing
+    // it is the foot's Manage in Settings. A row the deck can no longer open
+    // keeps its own Manage, for its first connection.
+    expect(one(tree, e => e.props["aria-label"] === "Manage Jira")).toBeNull();
     const footer = all(tree, e => e.type === "button" && !e.props["aria-label"])[0];
     (footer.props.onClick as () => void)();
     expect(props.onManage).toHaveBeenLastCalledWith();
+    const stranded = catalog({ ...state([connection("jira-1", "jira"), connection("jira-2", "jira")]), providers: [{ kind: "jira" as const, label: "Jira", available: false }] });
+    const manage = one(stranded.tree, e => e.props["aria-label"] === "Manage Jira")!;
+    expect(manage.props.className).toBe("explore-text-action");
+    (manage.props.onClick as () => void)();
+    expect(stranded.props.onManage).toHaveBeenLastCalledWith("jira-1");
+    expect(stranded.props.onClose.mock.invocationCallOrder.at(-1)).toBeLessThan(stranded.props.onManage.mock.invocationCallOrder.at(-1)!);
+  });
+
+  it("draws its notes as bands, one sentence each, the failures in the error tone", () => {
+    const reading = catalog(state(null)).tree;
+    const note = one(reading, e => e.type === "p" && e.props.className === "explore-status")!;
+    expect(note.props.role).toBe("status");
+    expect(note.props["data-tone"]).toBeUndefined();
+    const unavailable = catalog({ ...state(null), error: "Cannot reach the deck." });
+    const notes = all(unavailable.tree, e => e.type === "p" && e.props.className === "explore-status");
+    expect(notes).toHaveLength(1);
+    expect(notes[0].props).toMatchObject({ role: "alert", "data-tone": "err", title: "Cannot reach the deck." });
+    expect(unavailable.html).toContain(">Connection status is unavailable.</p>");
+    expect(unavailable.html).not.toContain("may be out of date");
+    const stale = catalog({ ...state([connection("jira-1", "jira")]), error: "Cannot reach the deck." });
+    const staleNotes = all(stale.tree, e => e.type === "p" && e.props.className === "explore-status");
+    expect(staleNotes).toHaveLength(1);
+    expect(staleNotes[0].props).toMatchObject({ role: "alert", "data-tone": "err" });
   });
   it("updates status from the shared snapshot, including the last disconnection", () => {
     const snapshot = state([connection("j1", "jira"), connection("j2", "jira")]);

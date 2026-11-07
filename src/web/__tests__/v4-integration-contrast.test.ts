@@ -15,6 +15,12 @@ const CHOSEN: Array<[string, string]> = [
   ["forge-panel.css", '.fg-tabs .uh-range-btn[aria-selected="true"], .fd-sections .uh-range-btn[aria-selected="true"]'],
   ["forge-detail.css", '.fd-sections .uh-range-btn[aria-selected="true"]'],
   ["jira.css", 'button.btn.jr-chip[aria-pressed="true"]'],
+  ["forge-lists.css", 'button.btn.fgl-chip[aria-pressed="true"]'],
+  // An item's state as a chip in the detail bar: --text on each tone's wash.
+  ["forge-detail.css", ".fd-state"],
+  ["forge-detail.css", '.fd-state[data-tone="busy"]'],
+  ["forge-detail.css", '.fd-state[data-tone="ok"]'],
+  ["forge-detail.css", '.fd-state[data-tone="bad"]'],
 ];
 
 describe("chosen pills in the integration panels", () => {

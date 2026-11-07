@@ -6,6 +6,7 @@
 // version notice, then the old-name notice); this file is only what this one
 // says.
 import { PRODUCT } from "../brand";
+import { sentences } from "../banner-sentences";
 import { UnreachableGlyph } from "./action-glyphs";
 import BannerMark from "./BannerMark";
 import { outageSentence } from "../status-pill";
@@ -71,7 +72,9 @@ export default function ConnectionBanner({ restarting, restartMode, live, paused
   if (phone && !restarting) return <OfflineCard lastNewsAt={lastNewsAt} />;
   return (
     <div className="conn-banner" role="alert">
-      <BannerMark glyph="unreachable" tone="err" />
+      {/* A restart the reader asked for is news, not an outage (V4's Figma):
+          the Info mark in muted. The error mark is kept for a real loss. */}
+      {restarting ? <BannerMark glyph="info" tone="info" /> : <BannerMark glyph="unreachable" tone="err" />}
       {restarting
         ? restartMode === "npx"
           ? t("shell.banner.fetchingNpx")
@@ -92,14 +95,10 @@ export default function ConnectionBanner({ restarting, restartMode, live, paused
             // being kept for, and the banner already had it.
             // Nothing is added while the canvas is running: the sentence
             // above already says the connection is gone. What was missing
-            // is what the two states mean together.
+            // is what the two states mean together, and with the canvas
+            // paused the row says both in one run, as V4 writes it.
             const outage = outageSentence({ connected: live, paused });
-            return (
-              <>
-                {t("shell.banner.lost", { product: PRODUCT })}
-                {outage && <span className="conn-sub">{outage}</span>}
-              </>
-            );
+            return outage ? sentences(t("shell.banner.lostShort"), outage) : t("shell.banner.lost", { product: PRODUCT });
           })()}
     </div>
   );

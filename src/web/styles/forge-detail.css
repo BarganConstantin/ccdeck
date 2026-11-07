@@ -15,9 +15,17 @@
    in integrations.css), which spans the page's side padding: --ig-detail-pad
    on .fd says how wide that is. */
 
-/* The head: title, then the byline with its state, then the status lines. */
+/* The item's state as a chip in the detail bar, after its reference: 16
+   high, 11/500 in --text on its tone's wash (14%, which holds AA in every
+   theme, as the chosen chips' does). */
+.fd-state { flex: none; display: inline-flex; align-items: center; height: 16px; margin-left: 4px; padding: 0 6px; box-sizing: border-box; border-radius: var(--r-tag); background: color-mix(in srgb, var(--text) 8%, var(--panel)); color: var(--text); font-size: calc(11px + var(--ui-text-increase, 0px)); font-weight: 500; line-height: 16px; white-space: nowrap; }
+.fd-state[data-tone="busy"] { background: color-mix(in srgb, var(--accent) 14%, var(--panel)); }
+.fd-state[data-tone="ok"] { background: color-mix(in srgb, var(--ok) 14%, var(--panel)); }
+.fd-state[data-tone="bad"] { background: color-mix(in srgb, var(--err) 14%, var(--panel)); }
+
+/* The head: the title, then the byline, then the status lines. */
 .fd-head { margin-top: 8px; }
-.fd-title { margin: 0; font-size: calc(16px + var(--ui-text-increase, 0px)); font-weight: 600; line-height: 1.4; overflow-wrap: anywhere; color: var(--text); }
+.fd-title { margin: 0; font-size: calc(14px + var(--ui-text-increase, 0px)); font-weight: 600; line-height: 20px; overflow-wrap: anywhere; color: var(--text); }
 /* A link inside a title is told from the words around it by more than its
    colour, which is under 3:1 against them in some themes. */
 .fd-title a { color: var(--accent); text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 3px; }
@@ -26,6 +34,9 @@
 }
 .fd-title-mono code { font-size: calc(16px + var(--ui-text-increase, 0px)); font-weight: 600; overflow-wrap: anywhere; }
 .fd-title-mono .fg-copyable { align-items: flex-start; max-width: 100%; }
+/* An issue's one line under its title: who opened it, when, its comments. */
+.fd-summary { margin: 10px 0 0; color: var(--muted); font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: 16px; overflow-wrap: anywhere; }
+.fd-summary time { white-space: nowrap; }
 /* A sentence, so it wraps like one: the chips in it are inline boxes. */
 .fd-byline { margin: 10px 0 0; color: var(--muted); font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: 2; overflow-wrap: anywhere; }
 .fd-byline > * { vertical-align: middle; }
@@ -92,6 +103,9 @@
 .fd-faces { list-style: none; display: flex; flex-wrap: wrap; align-items: center; gap: 4px; margin: 0; padding: 0; }
 .fd-faces-more { color: var(--muted); font: calc(11px + var(--ui-text-increase, 0px)) var(--font-mono); padding-left: 2px; }
 .fd-diverge { display: inline-flex; flex-wrap: wrap; align-items: baseline; gap: 4px 8px; color: var(--muted); }
+/* "0 behind · 3 ahead" is one line: the fact's value is a grid by default,
+   which stacked its three pieces. */
+.fd-fact dd.fd-diverge { display: flex; flex-wrap: nowrap; white-space: nowrap; }
 .fd-diverge strong { color: var(--text); font-family: var(--font-mono); font-weight: 600; font-variant-numeric: tabular-nums; }
 
 /* A label: the forge's colour is only the swatch, so the words keep the
@@ -103,21 +117,21 @@
 .fd-label-value { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 /* The section switch: the merge request page's tabs as V4's outlined pills (24
-   high, fully round, 12/400), with their counts kept, since a count is
-   information nothing else on the page shows. A pane too narrow for all four
-   wraps the last onto a second row, whole, rather than cutting its label. */
-.fd-sections { display: flex; flex-wrap: wrap; gap: 4px; width: max-content; max-width: 100%; box-sizing: border-box; padding: 0; border: 0; background: none; }
+   high, fully round, 12/400), their names alone, between the head and the
+   facts. A pane too narrow for all four wraps the last onto a second row,
+   whole, rather than cutting its label. */
+.fd-sections { display: flex; flex-wrap: wrap; gap: 4px; width: max-content; max-width: 100%; box-sizing: border-box; margin-top: 10px; padding: 0; border: 0; background: none; }
+.fd-sections + .fd-layout { margin-top: 10px; }
 .fd-sections .uh-range-btn { font-family: inherit; display: inline-flex; align-items: baseline; gap: 6px; min-height: 24px; height: 24px; box-sizing: border-box; padding: 0 8px; border: 1px solid var(--ctl-edge); border-radius: var(--r-pill); background: none; color: var(--text-secondary); font-size: calc(12px + var(--ui-text-increase, 0px)); font-weight: 400; line-height: 22px; white-space: nowrap; }
 .fd-sections .uh-range-btn[aria-selected="true"] { background: color-mix(in srgb, var(--accent) 14%, var(--panel)); border-color: var(--accent); color: var(--text); }
-.fd-section-count { font-size: calc(11px + var(--ui-text-increase, 0px)); font-variant-numeric: tabular-nums; }
-.fd-section-label { min-width: 0; }
-.fd-section { margin-top: 14px; min-width: 0; }
+.fd-section { min-width: 0; }
 /* A section is shown at once as it is chosen, as the panel's tabs are (tab
    content never animates: V4's motion rules). */
 
 /* Blocks and headings on a page. */
 .fd-block { margin-top: 20px; }
 .fd-heading { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; margin: 0; font-size: calc(13px + var(--ui-text-increase, 0px)); font-weight: 600; }
+.fd-heading + .fd-description { margin-top: 8px; }
 .fd-progress { color: var(--muted); font-size: calc(12px + var(--ui-text-increase, 0px)); font-weight: 400; }
 .fd-description { margin: 0; padding-bottom: 16px; border-bottom: 1px solid var(--line-soft); }
 .fd-discussions > .fg-empty { margin-top: 16px; }
@@ -235,8 +249,7 @@ a.fd-file:hover .fd-out-mark { color: var(--text); }
 .fd-log-line[data-tone=err] { color: var(--err); }
 .fd-log-line[data-tone=warn] { color: var(--warn); }
 
-/* Issues: comments wait behind a button. */
-button.btn.fd-show-comments { margin-top: 8px; }
+/* An issue's comments, listed under their heading. */
 .fd-issue-comments { margin-top: 8px; }
 
 /* WIDE: the side column beside the page, GitLab's sidebar. */
@@ -247,14 +260,12 @@ button.btn.fd-show-comments { margin-top: 8px; }
   .fd-side .fd-fact { grid-template-columns: minmax(0, 1fr); gap: 2px; padding: 6px; }
 }
 
-/* NARROW: the sections stay one row across the pane, each a label over its
-   count so all four fit a phone's pane whole; on a pane narrower still (a
-   360px phone, the pane beside the list at 900px) the last wraps to a
-   second row. No indents to spend width on. */
+/* NARROW: the sections share one row across the pane, each name whole; on a
+   pane narrower still (a 360px phone) the last wraps to a second row. No
+   indents to spend width on. */
 @container fd (max-width: 479px) {
-  .fd-sections { width: 100%; border-radius: var(--r-panel); }
-  .fd-sections .uh-range-btn { flex: 1 0 auto; flex-direction: column; align-items: center; justify-content: center; gap: 0; padding: 4px; border-radius: var(--r-ctl); line-height: 1.3; text-align: center; }
-  .fd-section-label { font-size: calc(11px + var(--ui-text-increase, 0px)); }
+  .fd-sections { width: 100%; }
+  .fd-sections .uh-range-btn { flex: 1 0 auto; justify-content: center; }
   .fd-fact { grid-template-columns: 84px minmax(0, 1fr); }
   .fd-comment-body { margin-left: 0; }
   /* The job's name takes the first line beside the chevron, so it keeps the

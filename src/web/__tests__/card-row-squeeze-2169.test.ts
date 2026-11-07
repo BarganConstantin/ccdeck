@@ -99,8 +99,8 @@ describe("the row the card draws", () => {
   // task line, and the task line is the one piece that is cut.
   it("puts a subagent's kind and folder on the task line, and the model in the head", () => {
     const html = card({ cwdBasename: "customer-onboarding", model: "claude-sonnet-5-5", effort: "medium" });
-    expect(html).toMatch(/<div class="task-line" title="subagent · customer-onboarding · Sonnet 5\.5">subagent · customer-onboarding<\/div>/);
-    expect(html).toMatch(/<span class="model-text"[^>]*>Sonnet 5\.5 · medium<\/span>/);
+    expect(html).toMatch(/<div class="task-line" title="subagent · customer-onboarding · sonnet 5\.5">subagent · customer-onboarding<\/div>/);
+    expect(html).toMatch(/<span class="model-text"[^>]*>sonnet 5\.5 · medium<\/span>/);
     expect(html.indexOf('class="model-text"')).toBeLessThan(html.indexOf('class="task-line"'));
   });
 
@@ -118,7 +118,7 @@ describe("the row the card draws", () => {
 
   it("still says the kind where the row has dropped it: in its tooltip and the card's name", () => {
     const a = { kind: "root", childCount: 1, model: "claude-opus-5-5", usage: NO_USAGE, tools: [], label: "billing-api", state: "active", startedAt: 0 } as unknown as AgentNodeData;
-    expect(subRowTitle(a)).toMatch(/^session · → 1 · Opus 5\.5/);
+    expect(subRowTitle(a)).toMatch(/^session · → 1 · opus 5\.5/);
     expect(agentAriaLabel(a, 0)).toContain("session");
   });
 
@@ -141,8 +141,16 @@ describe("the row the card draws", () => {
 });
 
 describe("the head's shrink order", () => {
-  it("keeps the name a floor of about eight characters", () => {
-    expect(body(".agent-node .title .label")).toMatch(/min-width:\s*min\(8ch,\s*100%\);/);
+  // CHANGED ON PURPOSE (V4's Agent / Card): this pinned a floor of about eight
+  // characters on the name. That floor held a short name's box open, so the
+  // model started a gap after "infra" rather than 6px after it. The name keeps
+  // its room another way: the model text gives way first (below) and stops at
+  // its own 6ch on a card at least 220px wide.
+  it("gives the name no floor of its own, so the model follows a short name closely", () => {
+    const label = body(".agent-node .title .label");
+    expect(label).toMatch(/min-width:\s*0;/);
+    expect(label).not.toMatch(/min\(8ch/);
+    expect(body(".agent-node")).toMatch(/min-width:\s*calc\(220px/);
   });
 
   it("gives the model text way first: a 6ch floor, a far larger shrink factor, its own ellipsis", () => {

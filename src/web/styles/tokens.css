@@ -527,6 +527,7 @@ optgroup {
 .aa-tab.on:focus-visible,
 .character-choice[aria-checked="true"]:focus-visible,
 button.btn.jr-chip[aria-pressed="true"]:focus-visible,
+button.btn.fgl-chip[aria-pressed="true"]:focus-visible,
 .radio-controls .radio-mute[aria-pressed="true"]:focus-visible,
 .radio-filter-trigger[data-filtered="true"]:focus-visible,
 button.btn.primary:focus-visible {
@@ -576,10 +577,6 @@ input[aria-invalid="true"]:focus-visible, textarea[aria-invalid="true"]:focus-vi
 }
 .app:has(.session-list) .canvas-wrap,
 .app:has(.accounts-panel) .canvas-wrap { grid-column: 2; }
-.app:has(.session-list) .conn-banner,
-.app:has(.accounts-panel) .conn-banner,
-.app:has(.session-list) .ver-banner,
-.app:has(.accounts-panel) .ver-banner { grid-column: 2; }
 .canvas-wrap { grid-column: 1; grid-row: 3; }
 .detail { grid-column: 2; grid-row: 2 / -1; }
 /* Either left panel adds a column, so either one moves the detail panel into

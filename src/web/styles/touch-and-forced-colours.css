@@ -212,8 +212,7 @@
   .bw-mode-dot,
   .bw-prof-dot { forced-color-adjust: none; background: GrayText; }
   .sl-dot.state-active::before,
-  .bw-mode-dot.on,
-  .topbar button.v .v-dot { forced-color-adjust: none; background: Highlight; }
+  .bw-mode-dot.on { forced-color-adjust: none; background: Highlight; }
   /* The live account's mark is the kit's done glyph, a stroke in the text colour,
      so it takes the highlight as its colour rather than as a fill. */
   .ap-live { forced-color-adjust: none; color: Highlight; }
@@ -377,8 +376,7 @@
   .switch:hover:not(:disabled) .switch-knob { forced-color-adjust: none; background: CanvasText; }
   }
   .switch[aria-checked="true"],
-  .switch[data-tone="warn"][aria-checked="true"],
-  .ver-banner .switch[aria-checked="true"] { forced-color-adjust: none; border-color: Highlight; background: Highlight; }
+  .switch[data-tone="warn"][aria-checked="true"] { forced-color-adjust: none; border-color: Highlight; background: Highlight; }
   @media (hover: hover) and (pointer: fine) {
   .switch[aria-checked="true"]:hover:not(:disabled) { forced-color-adjust: none; border-color: Highlight; background: Highlight; }
   }
@@ -487,8 +485,8 @@
   .ig-splitter { forced-color-adjust: none; background: CanvasText; }
   .ig-splitter::before { forced-color-adjust: none; background: transparent; }
   /* A row chosen with others: its square keeps a border and its tick is system ink, so it is not a fill alone. */
-  .jr-board[data-multi] .jr-row[data-picked] .jr-toggle-space::before { forced-color-adjust: none; border: 1px solid CanvasText; background: Canvas; }
-  .jr-board[data-multi] .jr-row[data-picked] .jr-toggle-space::after { forced-color-adjust: none; border-color: CanvasText; }
+  .jr-board[data-multi] .jr-row[data-picked] :is(.jr-toggle-space, .jr-toggle)::before { forced-color-adjust: none; border: 1px solid CanvasText; background: Canvas; }
+  .jr-board[data-multi] .jr-row[data-picked] :is(.jr-toggle-space, .jr-toggle)::after { forced-color-adjust: none; border-color: CanvasText; }
   .ig-splitter:focus-visible::before { background: Highlight; }
   @media (hover: hover) and (pointer: fine) {
   .ig-splitter:hover::before { background: Highlight; }

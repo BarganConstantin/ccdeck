@@ -228,7 +228,10 @@ export default function JiraPanel({ connection: conn, api, assetUrl, prefs, narr
 
   const toggleGroup = (group: GroupDef, open: boolean) => setExpanded(state => ({ ...state, [group.id]: open }));
   const filtered = mine || hideDone || attention || quick.length > 0 || search.trim() !== "";
-  const clearFilters = () => { setMine(false); setHideDone(false); setAttention(false); setQuick([]); setSearch(""); searchRef.current?.focus(); };
+  // Hide done is a standing view the reader keeps (it is remembered), not a
+  // filter to clear: V4 draws it on with no Clear filters beside it.
+  const clearable = mine || attention || quick.length > 0 || search.trim() !== "";
+  const clearFilters = () => { setMine(false); setAttention(false); setQuick([]); setSearch(""); searchRef.current?.focus(); };
   const rowFilter = useMemo(() => ({ search, hideDone, attention }), [search, hideDone, attention]);
 
   // The board's own quick filters, less its "Only My Issues" (the panel's
@@ -411,7 +414,7 @@ export default function JiraPanel({ connection: conn, api, assetUrl, prefs, narr
               </button>
             ))}
           </div>
-          {filtered && <button type="button" className="jr-link-btn jr-clear" onClick={clearFilters}>{t("integrations.panel.clearFilters")}</button>}
+          {clearable && <button type="button" className="jr-link-btn jr-clear" onClick={clearFilters}>{t("integrations.panel.clearFilters")}</button>}
         </div>
         {/* After a refresh that failed the rows on screen are the last
             answer, and the line says "Not updated", never "Updated". */}

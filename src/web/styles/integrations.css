@@ -1,6 +1,7 @@
 /* Integrations (#2178): Settings › Integrations, and the large modal a connected
-   tracker is drawn in. The modal is Tool activity's shell — 90vw × 90dvh on the
-   deck's ground — with one header the host draws (the provider, which
+   tracker is drawn in. The modal is Tool activity's shell — 90vw × 90dvh, on
+   the panel's surface from edge to edge (V4's Figma fills the list column
+   too) — with one header the host draws (the provider, which
    connection, Close) and everything under it the provider's own. Between a
    panel's list and its detail is the same splitter Tool activity has; under
    900px the detail is a screen of its own with a Back (integrations/layout.ts). */
@@ -35,7 +36,7 @@
   display: flex;
   flex-direction: column;
   color: var(--text);
-  background: var(--bg);
+  background: var(--panel);
   font-size: calc(13px + var(--ui-text-increase, 0px));
 }
 .ig-modal ::selection { background: var(--accent-dim); color: var(--text); }
@@ -209,7 +210,7 @@
 
 /* A failed read (IntegrationFailureNote), as V4's Figma draws it: a note filled
    as the panel on a --line-soft edge at --r-node, 12px inside and 12px between
-   its lines, and no mark. The heading is 13/600 in --text, the sentence 12px in
+   its lines, and no mark. The heading is 13/600 at 16 in --text, the sentence 12px in
    --text-secondary, the provider's own words 11px mono in --muted, and the way
    out under them. A note over rows that are the last answer is the same note,
    shorter. */
@@ -229,7 +230,7 @@
 .ig-failure[data-stale] { gap: 8px; padding: 8px 12px; }
 .ig-failure-text { align-self: stretch; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
 .ig-failure-text p { margin: 0; }
-.ig-failure-title { color: var(--text); font-size: calc(13px + var(--ui-text-increase, 0px)); line-height: 20px; overflow-wrap: anywhere; }
+.ig-failure-title { color: var(--text); font-size: calc(13px + var(--ui-text-increase, 0px)); line-height: 16px; overflow-wrap: anywhere; }
 .ig-failure-title strong { font-weight: 600; }
 .ig-failure-body { color: var(--text-secondary); font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: 16px; overflow-wrap: anywhere; text-wrap: pretty; }
 .ig-failure-said { color: var(--muted); font-family: var(--font-mono); font-size: calc(11px + var(--ui-text-increase, 0px)); line-height: 14px; overflow-wrap: anywhere; }
@@ -237,7 +238,33 @@
 .ig-failure-actions .btn[aria-disabled="true"] { opacity: var(--dim-off); cursor: default; }
 .ig-failure-actions .btn[aria-disabled="true"]:active { transform: none; }
 
-/* The list's search (IntegrationSearch): the deck's control height, the
+/* A write the deck could not confirm (IntegrationWriteBand), as V4's Figma
+   draws it: a band at --r-panel, 6/8 inside, the waiting glyph in --warn, the
+   sentence 12/16 in --text and its way out at the end, 28 high. The bed is the
+   warn colour at 16 % over the panel rather than Figma's 35 %: on 35 % --text
+   falls under 4.5:1 in three themes. A transparent outline is what a Contrast
+   theme draws when it drops the bed. */
+.ig-write-band {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  padding: 6px 8px;
+  box-sizing: border-box;
+  border-radius: var(--r-panel);
+  background: color-mix(in srgb, var(--warn) 16%, var(--panel));
+  outline: 1px solid transparent;
+  color: var(--text);
+  font-size: calc(12px + var(--ui-text-increase, 0px));
+  line-height: 16px;
+}
+.ig-write-band > svg { flex: none; color: var(--warn); }
+.ig-write-band > p { flex: 1; min-width: 0; margin: 0; color: var(--text); overflow-wrap: anywhere; }
+.ig-write-band-actions { flex: none; display: flex; align-items: center; gap: 8px; }
+.ig-write-band-actions .btn { --ctl-h: 28px; }
+
+/* The list's search (IntegrationSearch): V4's field, the deck's control
+   height sunk into the panel with 12px words, the
    magnifier inside its start and Clear inside its end. The browser's own
    cancel mark is hidden so there is one clear, drawn like every other glyph. */
 .ig-search { position: relative; flex: 1 1 220px; min-width: 0; display: flex; align-items: center; color: var(--muted); }
@@ -250,17 +277,17 @@
   padding: 0 8px 0 24px;
   border: 1px solid var(--ctl-edge);
   border-radius: var(--r-ctl);
-  background: var(--bg-soft);
+  background: var(--sunken);
   color: var(--text);
   caret-color: var(--accent);
   font: inherit;
-  font-size: calc(13px + var(--ui-text-increase, 0px));
+  font-size: calc(12px + var(--ui-text-increase, 0px));
   font-weight: 400;
-  line-height: var(--lh-body);
+  line-height: 16px;
   transition: border-color var(--dur-fast) var(--ease), background var(--dur-fast) var(--ease);
 }
 .ig-search[data-filled] .ig-search-input { padding-right: 32px; }
-.ig-search-input::placeholder { color: var(--muted); opacity: 1; } /* V4's field: --muted is 4.91:1+ on --bg-soft */
+.ig-search-input::placeholder { color: var(--muted); opacity: 1; } /* --muted is 5.12:1+ on --sunken */
 @media (hover: hover) and (pointer: fine) {
 .ig-search-input:hover { border-color: var(--text); }
 }
@@ -338,25 +365,23 @@
 .ig-detail-close { width: 24px; height: 24px; padding: 0; margin: 0 -4px 0 0; }
 
 /* A person's or a project's picture, and the initials that stand in for it
-   (IntegrationAvatar). A transparent outline is what a Contrast theme draws
-   round a face whose fill and inset edge it drops, so initials keep their
-   circle there. */
+   (IntegrationAvatar). V4's Figma: initials 11/500 in --text-secondary on the
+   control surface (--bg-soft, opaque, so a row's fill never changes them), no
+   ring. A transparent outline is what a Contrast theme draws round a face
+   whose fill it drops, so initials keep their circle there. */
 .ig-avatar { flex: none; display: block; box-sizing: border-box; border-radius: 50%; object-fit: cover; background: var(--ctl-fill); outline: 1px solid transparent; outline-offset: -1px; }
 .ig-avatar-initials {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  color: var(--text);
-  font-size: calc(9px + var(--ui-text-increase, 0px));
-  font-weight: 600;
+  background: var(--bg-soft);
+  color: var(--text-secondary);
+  font-size: calc(11px + var(--ui-text-increase, 0px));
+  font-weight: 500;
   line-height: 1;
-  box-shadow: inset 0 0 0 1px var(--line);
   user-select: none;
 }
 .ig-avatar-initials[data-large] { font-size: calc(13px + var(--ui-text-increase, 0px)); }
-/* On a chosen row the face's own fill would sit on the selection and take the
-   initials under 4.5:1 (Gruvbox Material, Omarchy); the row's fill is theirs. */
-.ig-row[data-selected] .ig-avatar-initials { background: transparent; }
 /* Nobody: the empty ring is all there is, so it takes the control edge, 3:1
    or better on every ground a row has. */
 .ig-avatar-none { display: inline-block; background: none; box-shadow: inset 0 0 0 1px var(--ctl-edge); }

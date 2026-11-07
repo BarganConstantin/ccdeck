@@ -9,7 +9,10 @@
 // the two-row update, the rating row wrapping, a resized window.
 import { useLayoutEffect, useRef } from "react";
 
-export const STRIP_SELECTOR = ".app > :is(.ver-banner, .conn-banner:has(> .banner-mark))";
+/** The strip's holder while it holds a banner with a mark or the question (DeckBanner.tsx), and
+ *  for as long as it is leaving: its height eases, and the panels under it follow. The phone's
+ *  "Can't reach your computer" card is not a strip, so it moves nothing. */
+export const STRIP_SELECTOR = ".app > .banner-strip:has(.ver-banner, .conn-banner > .banner-mark)";
 
 interface StripEl { getBoundingClientRect(): { height: number }; closest(sel: string): unknown }
 interface PageEl { style: { setProperty(k: string, v: string): void; removeProperty(k: string): void } }

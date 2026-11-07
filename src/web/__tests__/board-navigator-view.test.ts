@@ -147,7 +147,11 @@ describe("a tile says what the board's card says", () => {
     const line = textOf(tile(html, "pay"), "nav-signal")!;
     // CHANGED ON PURPOSE: the ask line lost its kind class with its kind
     // colour (V4 has one Waiting colour), so it is found by its own class.
-    const waited = textOf(card("pay"), "waiting-row")?.match(/(\d+(?:ms|s|m \d\ds|h \d+m))$/)?.[1];
+    // CHANGED ON PURPOSE (V4's Agent / Card): the ask line no longer prints a
+    // clock (the foot keeps the time); how long the card has been blocked is
+    // still said in that line's tooltip, so it is read from there.
+    const waited = /<div class="waiting-row" title="[^"]*Blocked for (\d+(?:ms|s|m \d\ds|h \d+m)) —/.exec(card("pay"))?.[1];
+    expect(waited, "the card says how long it has been blocked").toBeTruthy();
     expect(line).toBe(`waiting ${waited} · ${board}`);
     // And the triangle in the clock's place, as the face draws it.
     expect(tile(html, "pay")).toContain('class="alert-mark"');
@@ -160,7 +164,7 @@ describe("a tile says what the board's card says", () => {
   });
 
   it("names what runs a quiet session in the words of the card's model chip, or by the agent's name before it has one", () => {
-    expect(quietLine({ state: "active", model: "claude-opus-5-5", effort: "xhigh", provider: "claude" })).toBe("live · Opus 5.5 · xhigh");
+    expect(quietLine({ state: "active", model: "claude-opus-5-5", effort: "xhigh", provider: "claude" })).toBe("live · opus 5.5 · xhigh");
     expect(quietLine({ state: "done", model: "gpt-5.5-codex", provider: "codex" })).toBe(`done · ${modelChipText("gpt-5.5-codex")}`);
     expect(quietLine({ state: "active", provider: "codex" })).toBe("live · Codex");
     expect(quietLine({ state: "error" })).toBe("err · Claude Code");

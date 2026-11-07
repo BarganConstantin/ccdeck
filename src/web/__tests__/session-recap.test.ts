@@ -288,15 +288,14 @@ describe("where it is drawn", () => {
   });
 
   it("the card, the list and the detail panel all ask the one rule", () => {
-    const card = read("../components/AgentNode.tsx");
-    // The recap is one thing the session's note can say (session-note.ts), so
-    // the card asks the note's rule, which asks session-recap.ts's — through
-    // boardNote, which puts the session's plan on the same note (#2157).
-    expect(card).toContain("const board = boardNote(data);");
+    // The recap is one thing the session's note can say (session-note.ts), and
+    // the note beside the card asks the note's rule, which asks
+    // session-recap.ts's — through boardNote, which puts the session's plan on
+    // the same note (#2157). CHANGED ON PURPOSE (V4's Agent / Card draws no
+    // button in the foot): the card no longer carries the pin that toggled the
+    // note; the note opens by itself and its × puts it away.
     expect(read("../session-note.ts")).toMatch(/export function boardNote\([^)]*\)[^{]*\{\s*const note = sessionNoteShown\(a\);/);
-    expect(card).toMatch(/className="glyph-btn recap-pin"[\s\S]{0,300}aria-expanded=\{noteOpen\}/);
-    // Open by itself; the pin says so while it is.
-    expect(card).toContain("const noteOpen = board != null && !noteDismissed;");
+    expect(read("../components/AgentNode.tsx")).not.toContain("recap-pin");
     // The note is a node of its own, built beside the root while the recap is
     // true and not put away, and tied to it by an edge from note to root.
     // The two renderers are registered where <ReactFlow> is, in
@@ -330,14 +329,15 @@ describe("where it is drawn", () => {
   it("draws the terminal's ※ rather than typing it, so every platform gets the same figure", () => {
     // U+203B comes from whatever fallback font a platform has; the card and the
     // list share one authored mark instead.
-    // The mark is RecapMark.tsx's, lifted out of the card; the card draws it
-    // through NoteMark, which is the ※ whenever the note is the recap.
-    const card = read("../components/AgentNode.tsx");
+    // The mark is RecapMark.tsx's, lifted out of the card; the note and its
+    // peek draw it through NoteMark, which is the ※ whenever the note is the
+    // recap. CHANGED ON PURPOSE: the card's pin, its other user, is gone.
     const mark = read("../components/RecapMark.tsx");
+    const users = read("../components/RecapNoteNode.tsx") + "\n" + read("../components/SessionPeek.tsx");
     expect(mark).toContain('<svg className="recap-glyph" viewBox="0 0 12 12"');
     expect(mark).toContain("if (recap) return <RecapMark />;");
-    expect(card).toContain("<NoteMark recap={isRecap} />");
-    expect(card + "\n" + mark).not.toContain("※</");
+    expect(read("../components/SessionPeek.tsx")).toContain("<NoteMark recap={isRecap} />");
+    expect(users + "\n" + mark + "\n" + read("../components/AgentNode.tsx")).not.toContain("※</");
   });
 
   /** The body of the first rule whose selector list names `sel`. */
@@ -348,10 +348,8 @@ describe("where it is drawn", () => {
   }
 
   it("draws the note like a card and its tie as a thread with beads", () => {
-    // The pin is the card's only mark: a glyph button. CHANGED ON PURPOSE (V4's
-    // Figma, Agent / Card): at the foot's end, in --muted and not the session's
-    // colour, and --text while its note is open.
-    expect(body("\n.agent-node .recap-pin {")).toMatch(/color: var\(--muted\);/);
+    // CHANGED ON PURPOSE (V4's Figma, Agent / Card): the card carries no pin.
+    expect(SHEET).not.toContain(".recap-pin");
     const note = body("\n.recap-note {");
     // Outside the card, so it rebuilds the card's --accent itself.
     expect(note).toMatch(/--accent: hsl\(var\(--session-hue, 200\) 70% var\(--session-accent-l\)\);/);
@@ -377,8 +375,7 @@ describe("where it is drawn", () => {
     expect(body("\n.detail-recap {")).toMatch(/color: var\(--text-secondary\);/);
   });
 
-  it("keeps the pin at every zoom tier, and grows the card by nothing", () => {
-    expect(SHEET).not.toMatch(/data-lod="(compact|overview)"\][^{]*\.recap-pin/);
+  it("grows the card by nothing, at every zoom tier", () => {
     expect(SHEET).not.toMatch(/\.agent-node \.recap-row/);
     // At both distances the note is a face too: its own rows keep their box
     // and stop painting, and the face draws in their place.

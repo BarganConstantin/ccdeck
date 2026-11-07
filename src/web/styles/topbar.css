@@ -4,8 +4,7 @@
    claim about what is on either side of it:
 
      8px   one item to the next    .counts (the three pills), .tb-end (version
-           in a run of like ones   chip, Layout switch, Search, Feedback), the
-                                   ready chip and its press (.v-group)
+           in a run of like ones   chip, Layout switch, Search, Feedback)
      12px  one group's parts, and  .topbar .readout (the start group: the brand,
            the bar's two groups    the counts, the stream chip, the incident
                                    chip, 12 apart) and .topbar itself, the
@@ -153,21 +152,21 @@
    Under the pointer the wash steps up to 24%: --text on it stays well past AA in
    every theme, and the step is the pointer's feedback, as on every control
    here. */
-.topbar button.v:is(.stale, .ready, .v-update) {
+.topbar button.v:is(.stale, .ready) {
   color: var(--text);
   background: var(--accent-16);
   font-weight: 400;
 }
 @media (hover: hover) and (pointer: fine) {
-.topbar button.v:is(.stale, .ready, .v-update):hover {
+.topbar button.v:is(.stale, .ready):hover {
   background: color-mix(in srgb, var(--accent) 24%, transparent);
 }
 }
-/* The press itself, beside the chip, while the update is ready (owner's call,
-   2026-10-18): the chip says what is on offer and opens the notes; this one
-   does it. Same wash, so the two read as one family. Only while ready: it is
-   not the pill #712 tried, which stood here permanently for a dialog. */
-.topbar button.v.v-update[aria-busy="true"] { cursor: progress; }
+/* The ready chip is the press itself (owner's call, 2026-10-18, and V4's one
+   "Restart to finish" chip): while its request is out it says so, busy and
+   never disabled. Only while ready: it is not the pill #712 tried, which stood
+   here permanently for a dialog. */
+.topbar button.v.ready[aria-busy="true"] { cursor: progress; }
 /* #712 put a second pill here — "What's new", the way back into the release
    notes — and #715 took it away again. The chip beside it now opens them, so
    the words were two of topbar spent permanently on a dialog most people open
@@ -175,11 +174,12 @@
    the chip's own appearance changed with them; this comment is the only trace,
    and it is here so the next person to want a control in this corner knows it
    has been tried. */
-/* The chip leads with a 14px icon slot (V4's Figma) holding its one dot, in the
-   accent (amber left the chip) and with no glow. It holds still (Paused,
-   Lost and Version all hold a still dot): a newer version waiting is a
-   fact at rest, and a pulse on this bar would be the only thing moving while
-   nothing happens. `--pulse-live` stays for the Working glyph and the loader. */
+/* The chip leads with the kit's 14px icon (V4's Figma): Update on a newer
+   version, Restart on the app's ready update, in the accent (amber left the
+   chip) and with no glow. It holds still (Paused, Lost and Version all hold
+   still): a newer version waiting is a fact at rest, and a pulse on this bar
+   would be the only thing moving while nothing happens. `--pulse-live` stays
+   for the Working glyph and the loader. */
 .topbar button.v .v-icon {
   flex: none;
   display: inline-flex;
@@ -187,14 +187,9 @@
   justify-content: center;
   width: 14px;
   height: 14px;
+  color: var(--accent);
 }
-.topbar button.v .v-dot {
-  width: 6px; height: 6px;
-  border-radius: 50%;
-  background: var(--accent);
-}
-/* The ready chip and its Restart to update press, 8 apart (the end group's
-   gap). The chip's arrival and exit are its slot's (ChipPresence,
+/* The version chip's slot in the end group. The chip's arrival and exit are its slot's (ChipPresence,
    topbar-status.css). */
 .topbar .v-group { display: flex; align-items: center; gap: 8px; }
 /* Search and Feedback, the controls the bar still holds (Settings is at the
@@ -238,13 +233,6 @@
 @media (max-width: 480px) {
   .topbar .readout .chip-slot:has(> .provider-incident) { display: none; }
 }
-/* And the ready chip leaves when its Restart to update is beside it. Both,
-   228px, and a session waiting pushed the chip's left edge out of a 320px
-   bar; the button is the way into the update the chip was there to be, and
-   it names the version to a screen reader. */
-@media (max-width: 480px) {
-  .topbar button.v.ready:has(+ .v-update) { display: none; }
-}
 /* A phone or a narrow window (#849), at the sheet's one narrow breakpoint.
    Every control is in the dock along the bottom there (edge-rails.css), and
    the bar is the readout alone, on less padding. */
@@ -270,10 +258,10 @@
   /* The count the frame draws: a 28 pill, and a 44 target around it. */
   .topbar .counts .count-pill.waiting-stat { position: relative; height: 28px; }
   .topbar .counts .count-pill.waiting-stat::after { content: ""; position: absolute; inset: -8px -4px; }
-  /* Every other button the bar keeps (the version and update chips, the
-     incident chip) is a 24 to look at and a 44 to press. */
-  .topbar button.v, .topbar .v-update, .topbar .provider-incident { position: relative; }
-  .topbar button.v::after, .topbar .v-update::after, .topbar .provider-incident::after { content: ""; position: absolute; inset: -10px -4px; }
+  /* Every other button the bar keeps (the version chip, the incident chip) is
+     a 24 to look at and a 44 to press. */
+  .topbar button.v, .topbar .provider-incident { position: relative; }
+  .topbar button.v::after, .topbar .provider-incident::after { content: ""; position: absolute; inset: -10px -4px; }
   /* The counts are the waiting one alone, and only while something waits:
      the working and done pills, and the waiting pill at 0, are readouts a
      phone's bar has no room for (the cards and the list say the same). */

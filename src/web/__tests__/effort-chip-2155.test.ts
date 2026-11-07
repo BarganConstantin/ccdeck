@@ -178,9 +178,11 @@ describe("a null effort survives the folds that keep the newest enrichment", () 
 });
 
 describe("the chip's words", () => {
+  // CHANGED ON PURPOSE (V4's Agent / Card): the Claude family is written in
+  // lowercase ("opus 5.5"); the effort still follows it.
   it("put the effort after the model, and nothing when there is none", () => {
-    expect(modelChipText("claude-opus-5-5", "xhigh")).toBe("Opus 5.5 · xhigh");
-    expect(modelChipText("claude-opus-5-5")).toBe("Opus 5.5");
+    expect(modelChipText("claude-opus-5-5", "xhigh")).toBe("opus 5.5 · xhigh");
+    expect(modelChipText("claude-opus-5-5")).toBe("opus 5.5");
     expect(modelChipText("gpt-6.1-sol", "medium")).toMatch(/ · medium$/);
     expect(modelChipTitle("claude-opus-5-5", "xhigh")).toBe("claude-opus-5-5\neffort: xhigh");
     expect(modelChipTitle("claude-opus-5-5")).toBe("claude-opus-5-5");
@@ -198,7 +200,7 @@ describe("the card's chip", () => {
       { hook_event_name: "PreToolUse", session_id: "card", tool_name: "Read", tool_use_id: "c1", tool_input: {}, effort: { level: "high" } },
     ]);
     const html = card(state.agents.get("card"));
-    expect(html).toContain(">Opus 5.5 · high</span>");
+    expect(html).toContain(">opus 5.5 · high</span>");
     expect(html).toContain('title="claude-opus-5-5\neffort: high"');
   });
 

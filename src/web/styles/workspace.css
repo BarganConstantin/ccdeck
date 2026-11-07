@@ -51,12 +51,13 @@
   font-size: calc(12px + var(--ui-text-increase, 0px));
   line-height: 16px;
   font-weight: 500;
-  transition: color var(--dur-fast) var(--ease), background-color var(--dur-fast) var(--ease), box-shadow var(--dur-fast) var(--ease);
+  transition: color var(--dur-fast) var(--ease), background-color var(--dur-fast) var(--ease);
 }
 .view-opt .glyph { width: 14px; height: 14px; }
+/* The chosen segment is flat, --panel on the track (V4's Segmented): only
+   floating things cast a shadow. */
 .view-opt[aria-pressed="true"] {
   background: var(--panel);
-  box-shadow: var(--shadow-contact);
   color: var(--text);
 }
 @media (hover: hover) and (pointer: fine) {
@@ -285,7 +286,7 @@
 @media (max-width: 1099px) {
   body .app[data-view="workspace"],
   body .app[data-view="workspace"]:has(.left-column) { grid-template-columns: minmax(0, 1fr); }
-  .app[data-view="workspace"] :is(.canvas-wrap, .ws-cell, .stage-dock, .conn-banner, .ver-banner) { grid-column: 1; }
+  .app[data-view="workspace"] :is(.canvas-wrap, .ws-cell, .stage-dock, .banner-strip) { grid-column: 1; }
   .app[data-view="workspace"] .left-column {
     position: fixed;
     top: calc(var(--topbar-h) + var(--rating-h, 0px)); /* under the banner strip, so its dismiss stays reachable */
@@ -314,7 +315,7 @@
    crossfades over --dur-xfade. */
 body .app[data-view="workspace"][data-zoom],
 body .app[data-view="workspace"][data-zoom]:has(.left-column) { grid-template-columns: minmax(0, 1fr); }
-.app[data-view="workspace"][data-zoom] :is(.canvas-wrap, .ws-cell, .stage-dock, .conn-banner, .ver-banner) { grid-column: 1; }
+.app[data-view="workspace"][data-zoom] :is(.canvas-wrap, .ws-cell, .stage-dock, .banner-strip) { grid-column: 1; }
 .app[data-view="workspace"][data-zoom] .left-column {
   position: fixed;
   top: calc(var(--topbar-h) + var(--rating-h, 0px));

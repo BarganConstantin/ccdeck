@@ -187,9 +187,9 @@ describe("the collision table the fix was scoped to", () => {
     expect(collisions(CORPUS)).toEqual([
       ["GPT-5.1 Codex", ["gpt-5.1-codex", "gpt_5_1_codex"]],
       ["GPT-5.4 Nano", ["gpt-5.4-nano", "gpt_5_4_nano"]],
-      ["Opus 4.7", ["claude-opus-4-7", "claude-opus-4-7-20250101"]],
-      ["Opus 5", ["claude-opus-5", "claude-opus-5[1m]"]],
-      ["Sonnet 4.5", ["claude-sonnet-4-5", "claude-sonnet-4-5-20250929", "anthropic.claude-sonnet-4-5-20250929-v1:0"]],
+      ["opus 4.7", ["claude-opus-4-7", "claude-opus-4-7-20250101"]],
+      ["opus 5", ["claude-opus-5", "claude-opus-5[1m]"]],
+      ["sonnet 4.5", ["claude-sonnet-4-5", "claude-sonnet-4-5-20250929", "anthropic.claude-sonnet-4-5-20250929-v1:0"]],
     ]);
   });
 
@@ -272,13 +272,15 @@ describe("the pairs the issue is about", () => {
     expect(shortModel("gpt_5_1_codex")).toBe("GPT-5.1 Codex");
   });
 
-  it("leaves every Claude label exactly as it was", () => {
-    expect(shortModel("claude-opus-4-8")).toBe("Opus 4.8");
-    expect(shortModel("claude-sonnet-5")).toBe("Sonnet 5");
-    expect(shortModel("claude-opus-4-7-20250101")).toBe("Opus 4.7");
-    expect(shortModel("anthropic.claude-sonnet-4-5-20250929-v1:0")).toBe("Sonnet 4.5");
-    expect(shortModel("claude-haiku-4-5")).toBe("Haiku 4.5");
-    expect(shortModel("claude-fable-5")).toBe("Fable 5");
+  // CHANGED ON PURPOSE (V4's Agent / Card): the Claude family is now written in
+  // lowercase; each id still reads as the same family and version it did.
+  it("leaves every Claude label as it was, with the family in lowercase", () => {
+    expect(shortModel("claude-opus-4-8")).toBe("opus 4.8");
+    expect(shortModel("claude-sonnet-5")).toBe("sonnet 5");
+    expect(shortModel("claude-opus-4-7-20250101")).toBe("opus 4.7");
+    expect(shortModel("anthropic.claude-sonnet-4-5-20250929-v1:0")).toBe("sonnet 4.5");
+    expect(shortModel("claude-haiku-4-5")).toBe("haiku 4.5");
+    expect(shortModel("claude-fable-5")).toBe("fable 5");
   });
 
   it("still hands back an id whose shape it does not recognise", () => {

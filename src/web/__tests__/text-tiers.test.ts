@@ -326,13 +326,23 @@ describe("what was migrated to the secondary tier", () => {
       // the first 600 shown), a sprint's goal, the empty board's explanation,
       // and a quote inside an issue. Why a read failed is the integrations'
       // shared failure note's.
-      ".jr-board-note", ".jr-goal", ".jr-html blockquote", ".jr-state p",
+      // CHANGED ON PURPOSE (V4's Figma): the empty board's sentence is the
+      // state's own paragraph only, so the shared failure note inside a state
+      // keeps its heading in --text; an issue's description, its section
+      // heads and its Flagged chip are set in this tier too.
+      ".jr-board-note", ".jr-goal", ".jr-html blockquote", ".jr-state > p",
+      ".jr-detail-desc > .jr-html", ".jr-detail-section h3", ".jr-flag-chip",
+      // CHANGED ON PURPOSE (V4's Figma): the initials that stand in for a
+      // missing picture, on their own opaque surface.
+      ".ig-avatar-initials",
       // And around the backlog: how many issues are picked, the Move form's
       // field labels, a reading preview's version and epic, and Clear filters,
       // a worded action that steps up to --text under the pointer.
       ".jr-selection .btn", ".jr-selection-note", ".jr-move-pop label", ".jr-row-preview dd", ".jr-clear",
       // The explanation below an unsuccessful Jira comment.
-      '.jr-comment-compose [role="alert"]',
+      // CHANGED ON PURPOSE: the plain sentence only; an unconfirmed comment's
+      // words are the write band's, in --text.
+      '.jr-comment-compose > [role="alert"]',
       // Jira's labels and sprint totals: words on a --ctl-fill pill, kept
       // here by their bed rather than their role, as the shared field's
       // placeholder is — --muted is 4.05:1 on that fill in dark. A status
@@ -351,18 +361,22 @@ describe("what was migrated to the secondary tier", () => {
       // row, a branch row and a project in the picker take --ctl-fill under the
       // pointer and while chosen, where --muted is 4.05:1 in dark (#1789) — a
       // state's word beside its mark or in its chip, a row's meta line, a
-      // label, a branch's behind | ahead, and a project's group, there and in
-      // the picker's button. (Its search field is the integrations' shared
-      // one now, .ig-search-input.)
-      ".fg-badge", ".fg-mark-word", ".fgl-label", ".fgl-repo-group",
-      ".fgl-repo-option-group",
+      // label and a branch's behind | ahead. (Its search field is the
+      // integrations' shared one now, .ig-search-input.) CHANGED ON PURPOSE
+      // (V4's Figma): the picker's button names the project alone, and a
+      // project in the picker reads its whole path over when it last moved,
+      // so neither draws the group in this tier any more.
+      ".fg-badge", ".fg-mark-word", ".fgl-label",
       // CHANGED ON PURPOSE (V4's Figma): the integrations' controls and chips are written in
       // --text-secondary on their --line edge or soft fills (a branch's chips and change, the
       // repository trigger, the tabs and detail tabs, Jira's board button, filter chips, status
       // control, group heads, the compose label and the status words), and a row's meta line and
       // a branch's ahead and behind went to --muted, the tier the Figma draws them in.
       ".fd-sections .uh-range-btn", ".fg-tabs .uh-range-btn", ".fgl-branch-change", ".fgl-branch-name .fg-badge",
-      "button.btn.fgl-repo-trigger", ".jr-board-btn", ".jr-comment-compose label",
+      "button.btn.fgl-repo-trigger",
+      // The forge lists' state chips, as Jira's filter chips; the picker's
+      // group heads (Recent, All this token can see), V4's 12/600 Secondary.
+      "button.btn.fgl-chip", ".fgl-repo-head", ".jr-board-btn", ".jr-comment-compose label",
       ".jr-group-title", ".jr-group-toggle", ".jr-status, .jr-panel .jr-status.ig-chip",
       "button.btn.jr-chip", "button.btn.jr-status-btn",
       ".ns-form .uh-range-btn[aria-pressed=\"false\"]", ".ns-title",
@@ -448,6 +462,9 @@ describe("what was migrated to the secondary tier", () => {
       // stands alone now, under the mouse query, so it ends a line of its own.
       ".session-list .sl-row.selected .sl-model",
       ".session-list .sl-row:hover .sl-model",
+      // The words leading a removed row's second line, in the tool name's tier
+      // beside it: what pressing this row does differently.
+      ".session-list .sl-off",
       ".session-list .sl-time.quiet",
       ".session-list .sl-tool",
       // Rail / Usage: "5-hour limit" beside the account's name, the one

@@ -330,7 +330,7 @@ describe("the canvas wiring the pure halves depend on", () => {
   });
 
   it("draws the face in every card and hides it from assistive technology", () => {
-    expect(node).toContain('<NodeFace data={data} title={data.kind === "root" ? naming.face : undefined} />');
+    expect(node).toContain('<NodeFace data={data} title={data.kind === "root" ? rootTask?.face : undefined} />');
     expect(node).toMatch(/className="lod-face"[\s\S]{0,200}aria-hidden/);
     expect(css).toMatch(/\.lod-face \{ display: none; \}/);
   });

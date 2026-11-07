@@ -12,7 +12,7 @@
 import { readFileSync } from "node:fs";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 import { sheetText } from "./sheet-source";
 import shellEn from "../i18n/areas/shell/en";
 import boardEn from "../i18n/areas/board/en";
@@ -21,6 +21,9 @@ import RatingBanner from "../components/RatingBanner";
 import OldNameBanner from "../components/OldNameBanner";
 import ConnectionBanner from "../components/ConnectionBanner";
 import { TabCapHero, EmptyHero } from "../components/EmptyHero";
+import BannerMark from "../components/BannerMark";
+import { sentences } from "../banner-sentences";
+import { setLanguage, t, type MessageKey } from "../i18n";
 
 const read = (...p: string[]) => readFileSync(new URL(`../${p.join("/")}`, import.meta.url), "utf8");
 const sheet = sheetText().replace(/\/\*[\s\S]*?\*\//g, "");
@@ -46,10 +49,8 @@ const versionProps = (over: Record<string, unknown> = {}, notice = { kind: "upgr
   startUpgrade: noop,
   copyCommand: noop,
   cmdCopied: false,
-  autoRestart: false,
-  toggleAutoRestart: noop,
   askRestart: noop,
-  restartCopy: { label: "Restart now", clause: "nothing is running" } as never,
+  restartCopy: { label: "Restart now", clause: "Nothing is running.", risky: false } as never,
   restartFuseMs: null,
   restarting: false,
 });
@@ -71,11 +72,17 @@ describe("every banner starts with a 14px kit icon, not a dot", () => {
     expect(read("components/ConnectionBanner.tsx")).toContain('<BannerMark glyph="unreachable" tone="err" />');
     expect(read("components/OldNameBanner.tsx")).toContain('<BannerMark glyph="info" tone="info" />');
     expect(read("components/DeckBanner.tsx")).toContain('<BannerMark glyph="done" tone="ok" />');
-    expect(read("components/VersionBanner.tsx")).toContain('glyph={failed ? "error" : update ? "update" : "restart"}');
+    // CHANGED ON PURPOSE (V4's Figma): a version banner is news, in the Info tone; Waiting only where
+    // an agent would lose something, and a failed install takes the Unreachable mark in Error.
+    expect(read("components/VersionBanner.tsx")).toContain('glyph={failed ? "unreachable" : risky ? "warning" : "info"} tone={failed ? "err" : risky ? "warn" : "info"}');
     const lost = renderToStaticMarkup(createElement(ConnectionBanner, { restarting: false, restartMode: null as never, live: false, paused: false }));
     expect(lost).toContain('class="conn-banner"');
     expect(lost).toContain('class="banner-mark err"');
     expect(lost).toContain("Lost connection to the ccdeck server. Reconnecting…");
+    // A restart the reader asked for is news: the Info mark in muted, not the error one.
+    const restarting = renderToStaticMarkup(createElement(ConnectionBanner, { restarting: true, restartMode: null as never, live: false, paused: false }));
+    expect(restarting).toContain('class="banner-mark info"');
+    expect(restarting).toContain("Restarting ccdeck…");
   });
 });
 
@@ -83,7 +90,9 @@ describe("the strip spans the window and the dismiss is pinned at its right edge
   it("is 32 high with its rule, on --panel, across all the columns", () => {
     expect(decl(".conn-banner", "min-height")).toBe("var(--ctl-h-lg)");
     expect(decl(".ver-banner", "min-height")).toBe("var(--ctl-h-lg)");
-    expect(decl(".app.app.app :is(.ver-banner, .conn-banner:has(> .banner-mark))", "grid-column")).toBe("1 / -1");
+    // CHANGED ON PURPOSE (V4's motion rules): every banner is drawn in one holder whose height eases
+    // in and out, so the holder is what spans the columns, for the same banners as before.
+    expect(decl(".app.app.app > .banner-strip:has(.ver-banner, .conn-banner > .banner-mark)", "grid-column")).toBe("1 / -1");
   });
 
   it("makes the dismiss 24 x 24 with the control corner, pushed to the end of the row", () => {
@@ -135,14 +144,16 @@ describe("an update is two rows: the message, then the command in a box with Cop
     expect(body(".ver-banner.ver-stack")).toMatch(/border-bottom:\s*0/);
   });
 
-  it("renders the version, the install action and the command with Copy, still", () => {
+  // CHANGED ON PURPOSE (V4's Figma): under a working "Update now" the banner is one 32px row and
+  // the button is the way; the command it runs is still in its title. The box is for a command the
+  // reader has to run.
+  it("renders the version and the install action on one row, with the command in the button's title", () => {
     const out = html(versionProps());
-    expect(out).toContain("v3.52.0 is out");
-    expect(out).toContain("you are on v3.51.0");
+    expect(out).toContain("<strong>ccdeck v3.52.0 is out. You are on v3.51.0.</strong>");
     expect(out).toContain(">Update now<");
-    expect(out).toContain("ver-banner ver-stack");
-    expect(out).toMatch(/<div class="ver-cmd"[^>]*><code>npm install -g ccdeck@3.52.0<\/code>/);
-    expect(out).toMatch(/<button[^>]*class="ver-copy"[^>]*aria-label="Copy to clipboard"/);
+    expect(out).not.toContain("ver-stack");
+    expect(out).not.toContain("ver-cmd");
+    expect(out).toContain('title="Runs npm install -g ccdeck@3.52.0 here, then restarts once nothing is running."');
   });
 
   it("copies from the whole box, once, and says \"copied\" in the status region", () => {
@@ -151,17 +162,22 @@ describe("an update is two rows: the message, then the command in a box with Cop
     expect(src).toMatch(/className="ver-cmd" onClick=\{copyBox\}/);
     expect(src).not.toMatch(/className="ver-copy"[^>]*onClick/);
     expect(src).toContain("window.getSelection()?.toString()");
-    const idle = html(versionProps());
+    // CHANGED ON PURPOSE (V4's Figma): the box is drawn where the reader runs the command, here an
+    // install directory this user cannot write.
+    const blocked = { upgradeMode: null, upgradeBlocked: "not_writable", command: "sudo npm install -g ccdeck@3.52.0" };
+    const idle = html(versionProps(blocked));
     expect(idle).toContain('<span class="vis-hidden"></span>');
-    const done = renderToStaticMarkup(createElement(VersionBanner, { ...versionProps(), cmdCopied: true }));
+    const done = renderToStaticMarkup(createElement(VersionBanner, { ...versionProps(blocked), cmdCopied: true }));
     expect(done).toContain('<span class="vis-hidden">copied</span>');
     expect(done).toMatch(/role="status"/);
     expect(shellEn["shell.banner.copiedHint"]).toBe("copied");
   });
 
-  it("says the install failed in V4's words, keeps the retry and the command, and the version", () => {
+  // CHANGED ON PURPOSE (V4's Figma): the failed row says what failed and the command to run,
+  // nothing more; the release line it carried under the failure is gone from it.
+  it("says the install failed in V4's words, and keeps the retry and the command", () => {
     const out = renderToStaticMarkup(createElement(VersionBanner, {
-      // The server's real command is `@latest`: it names no version, so the version line has to be on the row.
+      // The server's real command is `@latest`.
       ...versionProps({ upgradeMode: "npx", canRestart: true, command: "npx -y ccdeck@latest", upgrade: { state: "failed", command: null, error: "EACCES" } }),
       upgradeState: "failed" as const,
     }));
@@ -169,18 +185,22 @@ describe("an update is two rows: the message, then the command in a box with Cop
     expect(out).toContain('class="banner-mark err"');
     expect(out).toContain(">Retry update<");
     expect(out).toContain("<code>npx -y ccdeck@latest</code>");
-    // Visible on the row, not only in a title.
-    expect(out).toContain('<span class="ver-sub">ccdeck v3.52.0 is out \u2014 you are on v3.51.0.</span>');
+    expect(out).toContain(renderToStaticMarkup(createElement(BannerMark, { glyph: "unreachable", tone: "err" })));
+    expect(out).not.toContain("is out");
+    expect(out).not.toContain("ver-sub");
     expect(shellEn["shell.banner.failedLine"]).toBe("{what}: {error}. Run it yourself:");
     expect(shellEn["shell.banner.installFailed"]).toBe("Install failed");
     expect(out).not.toContain("ver-sub fail");
     expect(out).toContain("Update failed: EACCES. Run it yourself:</strong>");
   });
 
-  it("says a checkout pulls instead in the words every language already has, keeps the version, and gives the command in the box", () => {
+  // CHANGED ON PURPOSE (V4's Figma): a checkout says only that, as a sentence of its own; a pull
+  // takes whatever the branch has, not this release, so the release line is not on the row.
+  it("says a checkout pulls instead in V4's words alone, and gives the command in the box", () => {
     const out = html(versionProps({ upgradeMode: null, upgradeBlocked: "git_checkout", command: "git pull && npm run build" }));
-    expect(out).toContain("<strong>ccdeck v3.52.0 is out \u2014 you are on v3.51.0.</strong>");
-    expect(out).toContain('<span class="ver-sub">' + shellEn["shell.banner.block.git_checkout"] + "</span>");
+    expect(out).toContain("<strong>" + shellEn["shell.banner.blockSentence.git_checkout"] + "</strong>");
+    expect(shellEn["shell.banner.blockSentence.git_checkout"]).toBe("This deck runs from a git checkout. Pull instead:");
+    expect(out).not.toContain("is out");
     expect(out).toContain("<code>git pull &amp;&amp; npm run build</code>");
     expect(out).not.toContain("Click to copy");
     expect(Object.keys(shellEn)).not.toContain("shell.banner.gitCheckout");
@@ -206,8 +226,10 @@ describe("an update is two rows: the message, then the command in a box with Cop
     const out = html(versionProps({}, { kind: "restart" as never, from: "3.51.0", to: "3.52.0" }));
     expect(out).not.toContain("ver-stack");
     expect(out).toContain("Restart now");
-    expect(out).toContain('role="switch"');
-    expect(out).toContain("v3.52.0 is installed");
+    // CHANGED ON PURPOSE (V4's Figma): no auto-restart switch in the banner; the preference is in
+    // Settings › Updates, and a countdown is said in the sentence.
+    expect(out).not.toContain('role="switch"');
+    expect(out).toContain("<strong>v3.52.0 is installed. This deck still runs v3.51.0. Nothing is running.</strong>");
   });
 });
 
@@ -360,5 +382,186 @@ describe("the strip height", () => {
 describe("the two notices still hide on a narrow canvas", () => {
   it("is in the container rule the hero has always had, so a 32px notice never shows", () => {
     expect(sheet).toMatch(/@container \(max-width: 260px\) \{\s*\.empty-hero, \.empty-hero\.empty-notice \{ display: none; \}/);
+  });
+});
+
+// ── the row's order, its tone, its command and its words (V4's Figma) ───────
+
+const mark = (glyph: string, tone: string) => renderToStaticMarkup(createElement(BannerMark, { glyph: glyph as never, tone: tone as never }));
+const RESTART = { kind: "restart" as never, from: "3.51.0", to: "3.52.0" };
+const NPX = { upgradeMode: "npx", command: "npx -y ccdeck@latest" };
+const CHECKOUT = { upgradeMode: null, upgradeBlocked: "git_checkout", command: "git pull && npm run build" };
+const failedInstall = () => renderToStaticMarkup(createElement(VersionBanner, {
+  ...versionProps({ upgrade: { state: "failed", command: null, error: "EACCES" } }), upgradeState: "failed" as const,
+}));
+const withCopy = (copy: { label: string; clause: string; risky: boolean }, fuse: number | null = null) =>
+  renderToStaticMarkup(createElement(VersionBanner, { ...versionProps({}, RESTART), restartCopy: copy as never, restartFuseMs: fuse as never }));
+
+describe("the row reads mark, message, space, action, ×", () => {
+  it("puts the space before the action, so the action sits just before the dismiss", () => {
+    expect(decl(".ver-banner .ver-act", "margin-left")).toBe("auto");
+    expect(decl(".ver-banner .ver-act ~ .ver-close", "margin-left")).toBe("0");
+    // With no action the dismiss takes the space itself.
+    expect(decl(".ver-banner .ver-close", "margin-left")).toBe("auto");
+  });
+
+  it("draws the action after the message and before the ×, on every row that has one", () => {
+    for (const out of [html(versionProps()), html(versionProps({}, RESTART)), html(versionProps(NPX))]) {
+      expect(out).toMatch(/<\/strong><button[^>]*class="ver-act"[^>]*>[^<]+<\/button><button[^>]*class="ver-close"/);
+    }
+  });
+});
+
+describe("a version banner is news, and waits only where an agent would lose something", () => {
+  it("wears the Info mark in muted on a release, an npx re-run, a checkout and an idle restart", () => {
+    for (const out of [html(versionProps()), html(versionProps(NPX)), html(versionProps(CHECKOUT)), html(versionProps({}, RESTART))]) {
+      expect(out).toContain(mark("info", "info"));
+    }
+  });
+
+  it("wears the Warning mark in Waiting while agents run or the canvas is paused, and drops the stale line", () => {
+    const agents = withCopy({ label: "Restart anyway", clause: t("shell.banner.clauseAgents", { count: 1 }), risky: true });
+    expect(agents).toContain(mark("warning", "warn"));
+    expect(agents).toContain("<strong>v3.52.0 is installed. 1 agent is running: their events during the restart are lost.</strong>");
+    expect(agents).toContain(">Restart anyway<");
+    const paused = withCopy({ label: "Restart anyway", clause: t("shell.banner.clausePaused"), risky: true });
+    expect(paused).toContain(mark("warning", "warn"));
+    expect(paused).toContain("<strong>v3.52.0 is installed. The canvas is paused: running agents cannot be seen.</strong>");
+  });
+
+  it("wears the Unreachable mark in Error when an install failed", () => {
+    const out = failedInstall();
+    expect(out).toContain(mark("unreachable", "err"));
+    expect(out).toContain('<strong title="Install failed: EACCES. Run it yourself:">Install failed: EACCES. Run it yourself:</strong>');
+  });
+});
+
+describe("a restart counting down says so in its sentence", () => {
+  it("shows the seconds, gives a reader a sentence that does not tick, and arms the mark", () => {
+    const out = withCopy({ label: "Restart now", clause: t("shell.banner.clauseIdle"), risky: false }, 18_000);
+    expect(out).toContain('<strong><span aria-hidden="true">v3.52.0 is installed. Restarting by itself in 18 s.</span>'
+      + '<span class="vis-hidden">v3.52.0 is installed. Restarting by itself when idle.</span></strong>');
+    expect(out).toContain('class="banner-mark info armed"');
+    expect(out).not.toContain('role="switch"');
+  });
+
+  it("keeps the paused clause in front of the clock", () => {
+    const out = withCopy({ label: "Restart anyway", clause: t("shell.banner.clausePaused"), risky: true }, 30_000);
+    expect(out).toContain("v3.52.0 is installed. The canvas is paused: running agents cannot be seen. Restarting by itself in 30 s.");
+  });
+});
+
+describe("the command has a row of its own only where the reader has to run it", () => {
+  it("draws the box for npx, a failed install, a checkout and a copy this deck cannot write over", () => {
+    const blocked = { upgradeMode: null, upgradeBlocked: "not_writable", command: "sudo npm install -g ccdeck@3.52.0" };
+    for (const out of [html(versionProps(NPX)), failedInstall(), html(versionProps(CHECKOUT)), html(versionProps(blocked))]) {
+      expect(out).toContain('class="ver-cmdrow"');
+    }
+  });
+
+  it("draws none under a working Update now, or on a restart", () => {
+    for (const out of [html(versionProps()), html(versionProps({}, RESTART))]) expect(out).not.toContain("ver-cmdrow");
+  });
+
+  it("says npx's re-run as V4 writes it, and keeps the press that does it", () => {
+    const out = html(versionProps(NPX));
+    expect(out).toContain("<strong>ccdeck v3.52.0 is out. npx cannot upgrade in place, so the deck re-runs:</strong>");
+    expect(out).toContain(">Update &amp; restart</button>");
+    expect(out).toContain("<code>npx -y ccdeck@latest</code>");
+  });
+});
+
+describe("the strip's other rows", () => {
+  const own = (restartMode: unknown, paused = false, restarting = true) =>
+    renderToStaticMarkup(createElement(ConnectionBanner, { restarting, restartMode: restartMode as never, live: false, paused }));
+
+  it("says a restart the reader asked for, and the npx fetch, under the Info mark", () => {
+    expect(own(null)).toContain(mark("info", "info"));
+    expect(own(null)).toContain("Restarting ccdeck…");
+    expect(own("npx")).toContain(mark("info", "info"));
+    expect(own("npx")).toContain("Fetching the new version with npx. This can take a minute…");
+  });
+
+  it("says a loss while paused in one run, under the error mark", () => {
+    const out = own(null, true, false);
+    expect(out).toContain(mark("unreachable", "err"));
+    expect(out).toContain("Lost connection. The canvas is paused as well: Space resumes it, but nothing new arrives until the stream is back.");
+    expect(out).not.toContain("conn-sub");
+  });
+
+  it("gives the finished restart its dismiss", () => {
+    const src = read("components/DeckBanner.tsx");
+    expect(src).toContain('className="ver-close" onClick={dismissRestarted}');
+    expect(src).toContain('sentences(t("shell.banner.restartedTo", { version: restartedTo }), t("shell.banner.replayed"))');
+    expect(read("use-auto-restart.ts")).toContain("const dismissRestarted = useCallback(() => setRestartedTo(null), []);");
+  });
+});
+
+describe("every banner's words are sentences with their own stops, in all ten languages", () => {
+  afterEach(() => setLanguage("en"));
+  const LANGS = ["en", "ro", "de", "fr", "es", "pt-BR", "ja", "ko", "zh-CN", "zh-TW"];
+  const SAID = [
+    "shell.banner.installedStale", "shell.banner.isInstalled", "shell.banner.isOut", "shell.banner.isOutShort",
+    "shell.banner.restartingIn", "shell.banner.restartingWhenIdle", "shell.banner.clausePaused", "shell.banner.clauseIdle",
+    "shell.banner.clauseAgents", "shell.banner.fetchingNpx", "shell.banner.restartedTo", "shell.banner.replayed",
+    "shell.banner.lostShort", "shell.banner.failedLine", "shell.banner.oldName", "shell.banner.npxRerun",
+    "shell.banner.cannotInstall", "shell.banner.blockSentence.git_checkout", "shell.banner.blockSentence.npx",
+    "shell.banner.blockSentence.one_off", "shell.banner.blockSentence.not_writable", "shell.banner.blockSentence.opted_out",
+    "shell.banner.blockSentence.retired_name", "shell.rating.thanks", "shell.rating.better", "board.pill.outage",
+  ] as MessageKey[];
+  const VARS = { to: "3.52.0", from: "3.51.0", product: "ccdeck", count: 2, seconds: 30, version: "3.52.0", old: "agents-deck", what: "X", error: "EACCES" };
+
+  it("writes no em dash between clauses, and ends each one on a stop", () => {
+    for (const code of LANGS) {
+      setLanguage(code);
+      for (const key of SAID) {
+        const said = t(key, VARS);
+        expect(said, `${code} ${key}`).not.toContain("\u2014");
+        expect(said, `${code} ${key}`).toMatch(/[.…:。：]$/);
+      }
+    }
+  });
+
+  it("sets a French colon after a no-break space", () => {
+    setLanguage("fr");
+    for (const key of SAID) expect(t(key, VARS), key).not.toMatch(/ :/);
+  });
+
+  it("joins two sentences with a space, and with none in Japanese and Chinese", () => {
+    for (const code of LANGS) {
+      setLanguage(code);
+      expect(sentences("A.", "B."), code).toBe(["ja", "zh-CN", "zh-TW"].includes(code) ? "A.B." : "A. B.");
+    }
+    setLanguage("en");
+    expect(sentences("A.", null, undefined, false, "", "B.")).toBe("A. B.");
+    expect(sentences()).toBe("");
+  });
+
+  it("names the low score's short offer by the sentence it is short for", () => {
+    for (const code of LANGS) {
+      setLanguage(code);
+      expect(t("shell.rating.better").toLocaleLowerCase(code), code).toContain(t("shell.rating.tellUs").toLocaleLowerCase(code));
+    }
+  });
+
+  it("says the English rows in the words V4 draws", () => {
+    setLanguage("en");
+    const drawn: Array<[string, string]> = [
+      [t("shell.banner.isOut", VARS), "ccdeck v3.52.0 is out. You are on v3.51.0."],
+      [sentences(t("shell.banner.installedStale", VARS), t("shell.banner.clauseIdle")), "v3.52.0 is installed. This deck still runs v3.51.0. Nothing is running."],
+      [sentences(t("shell.banner.isInstalled", VARS), t("shell.banner.clauseAgents", { count: 1 })), "v3.52.0 is installed. 1 agent is running: their events during the restart are lost."],
+      [sentences(t("shell.banner.isInstalled", VARS), t("shell.banner.clausePaused")), "v3.52.0 is installed. The canvas is paused: running agents cannot be seen."],
+      [sentences(t("shell.banner.isInstalled", VARS), t("shell.banner.restartingIn", { seconds: 30 })), "v3.52.0 is installed. Restarting by itself in 30 s."],
+      [sentences(t("shell.banner.isOutShort", VARS), t("shell.banner.npxRerun")), "ccdeck v3.52.0 is out. npx cannot upgrade in place, so the deck re-runs:"],
+      [t("shell.banner.failedLine", { what: t("shell.banner.installFailed"), error: "EACCES" }), "Install failed: EACCES. Run it yourself:"],
+      [t("shell.banner.blockSentence.git_checkout"), "This deck runs from a git checkout. Pull instead:"],
+      [sentences(t("shell.banner.lostShort"), t("board.pill.outage")), "Lost connection. The canvas is paused as well: Space resumes it, but nothing new arrives until the stream is back."],
+      [t("shell.banner.fetchingNpx"), "Fetching the new version with npx. This can take a minute…"],
+      [sentences(t("shell.banner.restartedTo", VARS), t("shell.banner.replayed")), "Restarted. Now running v3.52.0. The canvas replayed from the event log."],
+      [t("shell.rating.thanks"), "Thanks, that helps."],
+      [sentences(t("shell.rating.thanks"), t("shell.rating.better")), "Thanks, that helps. Tell us what would make it better."],
+      [t("shell.rating.tellUs"), "Tell us"],
+    ];
+    for (const [said, want] of drawn) expect(said).toBe(want);
   });
 });

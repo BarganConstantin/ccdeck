@@ -168,6 +168,9 @@
 /* A session "Remove from board" took off the canvas. Still listed, because the
    row is the way back; muted, because what it points at is not on the board. */
 .session-list .sl-row.removed .sl-label { color: var(--muted); }
+/* Its words lead the second line, in the tool name's ink, so the first line
+   keeps the session's name whole beside the model and the clock. */
+.session-list .sl-off { font-weight: 500; color: var(--text-secondary); }
 
 /* LAND: the row a jump arrived at says "here" once, --accent-16 fading to
    nothing over --dur-base. Opacity only, so reduced motion keeps it. */

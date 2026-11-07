@@ -1,15 +1,26 @@
 /* Electron shares the deck's existing toolbar with native window controls.
-   The CSS environment width follows the OS button area when the window resizes. */
+   The CSS environment width follows the OS button area when the window resizes.
+   V4 draws the start inset per platform: on Windows and Linux the app menu
+   stands 8 in and the wordmark 44 in; on macOS the traffic lights take the
+   first 80. */
 :root[data-desktop-chrome="true"] { --topbar-h: 40px; }
 :root[data-desktop-chrome="true"] .topbar {
   background: var(--panel);
   -webkit-app-region: drag;
   gap: 12px;
-  padding-left: max(6px, calc((var(--edge-w) - 28px) / 2));
+  padding-left: 8px;
   padding-right: calc(100vw - env(titlebar-area-width, calc(100vw - 144px)) + 6px);
 }
+/* The start group (the menu, the wordmark, the counts and the stream chip)
+   packs from the left and the end group goes to the right: the free space
+   stands only between the two. The bar's space-between alone spread its three
+   children and left a hole after the menu. */
+:root[data-desktop-chrome="true"] .topbar .tb-end { margin-left: auto; }
+/* The 80 is the OS's: macOS draws its traffic lights there, so it is named
+   for them rather than taken from the spacing ladder. */
 :root[data-desktop-chrome="true"][data-desktop-platform="darwin"] .topbar {
-  padding-left: calc(3 * 28px); /* macOS traffic lights */
+  --traffic-lights-w: 80px;
+  padding-left: var(--traffic-lights-w);
   padding-right: 6px;
 }
 /* Content and controls keep pointer events, focus and tooltips. The empty
@@ -17,15 +28,18 @@
 :root[data-desktop-chrome="true"] .topbar :is(.readout, .tb-end, .actions, button, a, input, select, [role="button"], [tabindex]) {
   -webkit-app-region: no-drag;
 }
+/* The kit's 28 icon button with the More glyph, in --muted. 8 to the wordmark
+   rather than the bar's 12, which puts the wordmark at 44 as V4 draws it. */
 .desktop-menu.btn {
   flex: none;
   display: grid;
   place-items: center;
   width: 28px;
   height: 28px;
+  margin-right: -4px;
   padding: 0;
   border: 0;
-  border-radius: 4px;
+  border-radius: var(--r-ctl);
   background: transparent;
   color: var(--muted);
 }

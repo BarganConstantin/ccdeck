@@ -406,12 +406,20 @@ export function timeLine(issue: { estimate: number | null; remaining: number | n
 /** Jira's timestamps (`2026-10-14T09:12:33.000+0300`) as a readable date. */
 export function jiraDate(iso: string | null | undefined, withTime = false): string {
   if (!iso) return "";
-  // Older Safari will not parse a +0300 offset without its colon.
-  const at = new Date(String(iso).replace(/([+-]\d{2})(\d{2})$/, "$1:$2"));
-  if (Number.isNaN(at.getTime())) return String(iso);
+  const ms = jiraInstant(iso);
+  if (ms == null) return String(iso);
+  const at = new Date(ms);
   return withTime
     ? at.toLocaleString(currentLanguage(), { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })
     : at.toLocaleDateString(currentLanguage(), { day: "numeric", month: "short", year: "numeric" });
+}
+
+/** The moment a Jira time names, in milliseconds, or null when it names none. */
+export function jiraInstant(iso: string | null | undefined): number | null {
+  if (!iso) return null;
+  // Older Safari will not parse a +0300 offset without its colon.
+  const ms = Date.parse(String(iso).replace(/([+-]\d{2})(\d{2})$/, "$1:$2"));
+  return Number.isNaN(ms) ? null : ms;
 }
 
 /** Bytes as a file list says them. */

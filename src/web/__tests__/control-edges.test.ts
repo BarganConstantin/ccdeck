@@ -584,6 +584,9 @@ const CONTROLS: Control[] = [
   // with the primary button's accent edge. Its search fields and its Open in
   // Jira link are the integrations' shared ones.
   { at: 'button.btn.jr-chip[aria-pressed="true"]', fillFrom: 'button.btn.jr-chip[aria-pressed="true"]', beds: ["--panel"] },
+  // The forge lists' state chips (#2179): the same chip, on the filter row
+  // over the list, and its accent edge when it is on.
+  { at: 'button.btn.fgl-chip[aria-pressed="true"]', fillFrom: 'button.btn.fgl-chip[aria-pressed="true"]', beds: ["--panel"] },
   // Move's native destination/position fields sit on the anchored panel.
   { at: ".jr-move-pop select", beds: ["--panel"] },
   // The workflow transition selector is drawn in Jira's detail panel.
@@ -645,9 +648,9 @@ const CONTROLS: Control[] = [
   // V4's banner: .ver-act is plain accent text with no edge, so it left this
   // sweep (a text control has no boundary to measure; its ink is held to 4.5:1
   // on --panel by v4-banner.test.ts).
-  // The auto-restart switch is the shared one since #886. Armed, it fills with
-  // the banner's warning colour, measured here on the banner's own beds.
-  { at: '.ver-banner .switch[aria-checked="true"]', beds: BANNER },
+  // CHANGED ON PURPOSE (V4's Figma): the banner draws no auto-restart switch any
+  // more; the countdown is said in its sentence and the preference is the
+  // shared switch in Settings › Updates, swept with every other switch.
   // The one question's scale, eleven numbered buttons on the calm `note` bed,
   // framed at rest like the version banner's command and louder on hover.
   { at: ".rating-banner .rating-pick", states: [".rating-banner .rating-pick:hover"], beds: BANNER },
@@ -1319,11 +1322,21 @@ describe("every control that draws a boundary draws one that can be seen (1.4.11
       // by "the text-field focus border" test below.
       // A DISABLED field or select: V4's kit draws it in --line, because an
       // inactive component owes no boundary (1.4.11 exempts it, as 1.4.3 does its text).
+      // A disabled button, of every kind, the same way (V4's kit: no fill, a
+      // --line-soft edge, the label in --muted-dim), and LAN's Unpair, whose
+      // own rules outrank the shared one, says it again.
+      "button.btn:disabled", "button.btn:disabled:hover", ".lan-peer-foot .btn.danger:disabled",
       ".ap-manage-input:disabled", ".ap-manage-input:disabled:hover:not(:focus-visible)",
       ".sm-select:disabled", ".sm-select:disabled:hover:not(:focus-visible)",
       // The checkbox's box: the same --ctl-edge the fields are swept for above,
       // recoloured to --accent when ticked (a state, as the period strip's).
       ".cbx > input", ".cbx > input:checked",
+      // A Jira row chosen with others draws the ticked box in its disclosure's
+      // place, the sub-tasks' toggle included: a state mark filled solid in the
+      // accent (its fill is its shape), as the checkbox's ticked state above.
+      // The toggle is named by its label and keeps opening the sub-tasks.
+      ".jr-board[data-multi] .jr-row[data-picked] :is(.jr-toggle-space, .jr-toggle)::before",
+      ".jr-board[data-multi] .jr-row[data-picked] :is(.jr-toggle-space, .jr-toggle)::after",
       // A key cap: named by the key written in it (and `.qo-esc` by its word);
       // V4's kit gives it the --line hairline, a label's rim and not a boundary.
       "kbd.qo-key", ".qo-esc", ".qo-foot kbd", ".fb-shortcut kbd",

@@ -28,6 +28,7 @@ import { queueEntryName, queueName, waitWhat } from "../waiting-queue";
 import AnchoredPopover from "./AnchoredPopover";
 import ChipPresence from "./ChipPresence";
 import { IncidentChips } from "./ProviderIncidents";
+import { Kbd } from "./Kbd";
 import { AlertMark, StateMark } from "./StateMark";
 import { elapsedShort } from "./SessionList";
 import { useHint } from "./use-hint";
@@ -59,34 +60,20 @@ export function StatusStrip({ live, paused, pauseGate }: {
           canvas verbs went in #527 — so one fact stopped being split
           across two ends of a row, and the pill, which already knew the
           number, says it.
-          The ghost below is what keeps that free. The pill's width is
-          upstream of everything after it in the readout — the blocked
-          count and any incident chip: a count going 9 → 10 would walk
-          them, which is #504 one bar over, and the count moves on its own
-          where a label never did. A copy of the
-          widest label this tone can reach sits in the same grid cell as
-          the live one, so the box measures its own worst case in whatever
-          font the platform hands it. The alternative was a min-width in
-          pixels, which is the wrong tool for a string — the number would
-          be measured in the face this machine renders and shipped to
-          Segoe UI and to whatever fontconfig picks, where a wider face
-          overruns it and the reflow is back.
-          aria-hidden AND visibility: hidden on the ghost, so it is out of
-          the accessible tree twice over. The pill has no name of its own
-          to protect — it is an unfocusable span, see the tab-stop note in
-          topbar-interaction.test.ts — but it does have a title, and a
-          reader that walks the markup should not find the word twice. */}
-      {/* Nothing at rest (#719). The ghost above explains why the box
-          measures its own worst case; this is the case where the box
-          itself is not earned. The slot is then gone and the readout
-          closes up without anything shifting on its own — the tone only
-          ever changes because Space was pressed or the stream died. */}
+          The pill hugs the label it shows (V4 draws "paused · 3" 84 wide).
+          It used to hold the widest label its tone could reach in an
+          invisible copy, so a count going 9 → 10 would not walk what came
+          after it (#504); the counts stand before it now, and only the
+          incident and notify chips follow, so the slack it cost the bar
+          bought almost nothing. The figures are tabular, so a count only moves
+          the pill when it gains a digit. */}
+      {/* Nothing at rest (#719): the box itself is not earned. The slot is
+          then gone and the readout closes up without anything shifting on
+          its own — the tone only ever changes because Space was pressed or
+          the stream died. */}
       {!pill.resting && (
         <span className={`pill ${pill.tone}`} title={pill.title}>
-          <span className="pill-box">
-            <span className="pill-widest" aria-hidden>{pill.widest}</span>
-            <span className="pill-label">{pill.label}</span>
-          </span>
+          <span className="pill-label">{pill.label}</span>
         </span>
       )}
       {/* WHAT IS LEFT IS THE ONE THING THE STRIP IS FOR: whether the stream
@@ -118,8 +105,8 @@ export function StatusStrip({ live, paused, pauseGate }: {
 
 /** One queued session's words: its name, how long it has waited, and what on
  *  — the session list row's order, "waiting 6m · Bash", so the two read the
- *  same. The wait is the line's number and stands in the foreground; what it
- *  is on is the annotation (DESIGN.md, duration beats description). */
+ *  same. V4 sets the name on the left and the wait with what it is on at the
+ *  row's right end, one quiet mono run. */
 function QueueEntryWords({ w, now }: { w: BlockedSession; now: number }) {
   const t = useT();
   return (
@@ -129,6 +116,18 @@ function QueueEntryWords({ w, now }: { w: BlockedSession; now: number }) {
       <span className="we-what">· {waitWhat(w.waiting, t)}</span>
     </>
   );
+}
+
+/** How many rows the list can show at once, read off the list itself: its
+ *  visible height over the step from one row to the next (a row and the gap
+ *  after it), taken from where the first two rows sit rather than from
+ *  getComputedStyle, which stays off the client's render paths. */
+function rowsInView(list: HTMLElement): number {
+  const [first, second] = Array.from(list.children) as HTMLElement[];
+  if (!first) return 0;
+  const step = second ? second.offsetTop - first.offsetTop : first.offsetHeight;
+  if (step <= 0) return list.children.length;
+  return Math.floor((list.clientHeight + step - first.offsetHeight) / step);
 }
 
 /** The waiting pill's id, which the queue popover hangs off and is named by. */
@@ -145,9 +144,14 @@ function keyDriven(): boolean {
 }
 
 /** The queue popover's face (V4's top bar: the old `.wait-names` row is this
- *  menu). One row per waiting session in the order W and N walk — the
- *  longest wait first — each the old name's words, and a row goes to that
- *  session. AnchoredPopover owns the placement under the pill, Escape, a press
+ *  menu). A muted "Waiting on you" over one row per waiting session in the
+ *  order W and N walk — the longest wait first — each the Waiting glyph, the
+ *  name, and the wait at the right end, and a row goes to that session.
+ *  Every waiting session keeps its row: when the window cannot show them all,
+ *  the rows scroll and a foot says how many are out of view, with N, the key
+ *  that walks them. The heading and the foot are seen, not read: the pill
+ *  names the menu, and every row is in it.
+ *  AnchoredPopover owns the placement under the pill, Escape, a press
  *  outside, and the arrows along the rows (role="menu"). ITS MOTION is
  *  transitions on a class: it mounts closed (opacity 0, scale --enter-scale from
  *  the pill's corner), a frame later `queue-pop-open` takes it to 1, and
@@ -162,30 +166,55 @@ function QueuePopover({ sessions, now, leaving, onPick, onClose }: {
   onClose: () => void;
 }) {
   const t = useT();
+  const singleKeys = useSingleKeyShortcuts();
   const [shown, setShown] = useState(false);
   useLayoutEffect(() => {
     if (keyDriven()) { setShown(true); return; }
     let frame = requestAnimationFrame(() => { frame = requestAnimationFrame(() => setShown(true)); });
     return () => cancelAnimationFrame(frame);
   }, []);
+  const listRef = useRef<HTMLDivElement>(null);
+  const scrolled = useRef(0);
+  const [unseen, setUnseen] = useState(0);
+  // After AnchoredPopover has placed the surface (its layout effect runs
+  // first): placing measures it uncapped, which takes the list's scroll back to
+  // the top, so the reader's scroll is handed back here, and the foot counts
+  // what the capped list cannot show.
+  useLayoutEffect(() => {
+    const list = listRef.current;
+    if (!list) return;
+    if (list.scrollHeight <= list.clientHeight + 1) { setUnseen(0); return; }
+    list.scrollTop = scrolled.current;
+    setUnseen(Math.max(0, sessions.length - rowsInView(list)));
+  });
   return (
     <AnchoredPopover
       anchorId={WAITING_PILL_ID} id={QUEUE_POP_ID} role="menu" labelledBy={WAITING_PILL_ID} align="start"
       className={leaving ? "queue-pop queue-pop-leaving" : shown ? "queue-pop queue-pop-open" : "queue-pop"}
       onClose={onClose}
     >
-      {sessions.map(w => (
-        <button
-          key={w.id}
-          type="button"
-          role="menuitem"
-          className="queue-row"
-          onClick={() => onPick(w.id)}
-          aria-label={queueEntryName(w.label, w.waiting, now - w.waiting.since, t)}
-        >
-          <QueueEntryWords w={w} now={now} />
-        </button>
-      ))}
+      <div className="queue-head" aria-hidden>{t("board.queue.title")}</div>
+      <div className="queue-rows" ref={listRef} onScroll={e => { scrolled.current = e.currentTarget.scrollTop; }}>
+        {sessions.map(w => (
+          <button
+            key={w.id}
+            type="button"
+            role="menuitem"
+            className="queue-row"
+            onClick={() => onPick(w.id)}
+            aria-label={queueEntryName(w.label, w.waiting, now - w.waiting.since, t)}
+          >
+            <AlertMark size={14} />
+            <QueueEntryWords w={w} now={now} />
+          </button>
+        ))}
+      </div>
+      {unseen > 0 && (
+        <div className="queue-foot" aria-hidden>
+          <span>{t("board.queue.more", { n: unseen })}</span>
+          {singleKeys && <Kbd>n</Kbd>}
+        </div>
+      )}
     </AnchoredPopover>
   );
 }
@@ -362,9 +391,9 @@ export function ReadoutGroup({
   const { notice, noticeOpen, showNotice } = versionCheck;
   const { chipVersion, openReleaseNotes } = welcome;
   const { readyAppUpdate, desktopUpdateRestarting, desktopUpdateFailure, askDesktopUpdateRestart } = desktopUpdate;
-  // A press of the topbar's Restart to update that came to nothing opens What's
-  // new, where the reason and the way out are already written (rn-update-said)
-  // — the button itself has nowhere to say a sentence. Only a press made HERE:
+  // A press of the ready chip (Restart to finish) that came to nothing opens
+  // What's new, where the reason and the way out are already written
+  // (rn-update-said) — the chip itself has nowhere to say a sentence. Only a press made HERE:
   // the dialog's own button fails into the dialog already on screen, and
   // reopening it would swap an upgrade's notes for the whole list. The ref is
   // let go when the press is over either way, so a later failure from the

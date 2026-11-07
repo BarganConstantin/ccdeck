@@ -21,12 +21,13 @@ import { useEffect, useRef } from "react";
 import { focusDropped } from "../panel-press";
 import type { RatingPhase } from "../use-rating-ask";
 import { t, useT } from "../i18n";
+import { sentences } from "../banner-sentences";
 import BannerMark from "./BannerMark";
 import { KitIcon } from "./kit-icons";
 
 /** What the thanks says, on the row and in DeckBanner's live region. */
 /** The English line; ratingThanks() is the translated one. */
-export const RATING_THANKS = "Thanks — that helps.";
+export const RATING_THANKS = "Thanks, that helps.";
 export const ratingThanks = (): string => t("shell.rating.thanks");
 
 const SCORES = Array.from({ length: 11 }, (_, i) => i);
@@ -86,6 +87,9 @@ export default function RatingBanner({ phase, score, onAnswer, onLater, onClose,
     go();
   };
   if (phase === "thanks") {
+    // A low score is asked what would make it better in the message itself,
+    // and the short "Tell us" at the row's end opens the dialog (V4's Figma).
+    const low = score !== null && score <= LOW_SCORE;
     return (
       // The same calm row the question was asked in, so the thanks reads as its
       // answer; `done`'s green and its amber button belong to a restart.
@@ -95,9 +99,12 @@ export default function RatingBanner({ phase, score, onAnswer, onLater, onClose,
         onBlur={e => { if (!e.currentTarget.contains(e.relatedTarget as Node | null)) onHold(false); }}
       >
         <BannerMark glyph="done" tone="ok" />
-        <strong>{ratingThanks()}</strong>
-        {score !== null && score <= LOW_SCORE ? (
-          <button ref={offerRef} type="button" className="ver-act" onClick={onFeedback}>{t("shell.rating.better")}</button>
+        <strong>{low ? sentences(ratingThanks(), t("shell.rating.better")) : ratingThanks()}</strong>
+        {low ? (
+          // Named by the whole sentence, which starts with the drawn words, so
+          // a screen reader hears what the short label is short for.
+          <button ref={offerRef} type="button" className="ver-act" onClick={onFeedback}
+            aria-label={t("shell.rating.better")}>{t("shell.rating.tellUs")}</button>
         ) : null}
         <button ref={closeRef} type="button" aria-label={t("shell.dismiss")} className="ver-close" onClick={() => leave(onClose)}><KitIcon name="close" /></button>
       </div>

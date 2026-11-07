@@ -156,7 +156,12 @@ describe("V4's Loader placements", () => {
   });
   it("shows beside 'Reading integrations…' only, not beside the error sentence", () => {
     const src = source("ExploreIntegrationsModal.tsx");
-    expect(src).toContain('<p className="explore-status" role="status">{integrations.error ? t("integrations.explore.statusUnavailable") : <span className="loader-line"><WaitingLoader busy />{t("integrations.explore.reading")}</span>}</p>');
+    // CHANGED ON PURPOSE: the two notes are separate bands now (the failure an
+    // alert in the error tone), so each is its own element; the loader is
+    // still beside the reading sentence alone.
+    expect(src).toContain('? <p className="explore-status" data-tone="err" role="alert" title={integrations.error}>{t("integrations.explore.statusUnavailable")}</p>');
+    expect(src).toContain(': <p className="explore-status" role="status"><span className="loader-line"><WaitingLoader busy />{t("integrations.explore.reading")}</span></p>');
+    expect(src.match(/<WaitingLoader busy \/>/g)).toHaveLength(1);
     expect([en["integrations.explore.statusUnavailable"], en["integrations.explore.reading"]]).toEqual(["Connection status is unavailable.", "Reading integrations…"]);
   });
   it("shows beside 'Reading boards…' in the Jira board picker", () => {

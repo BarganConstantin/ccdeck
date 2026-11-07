@@ -21,10 +21,14 @@ interface Props {
   onClose: () => void;
   error: string;
   initialView?: "menu" | "move";
+  /** One issue's menu: open it in the detail. */
+  onOpen?: () => void;
+  /** One issue's menu: copy its address in Jira. */
+  onCopyLink?: () => void;
 }
 
 /** The same move as a pointer drop, with named controls for touch/keyboard. */
-export default function JiraMovePopover({ items, groups, anchorId, portalId, boundaryId, busy, uncertain = false, outcome = "", onChecked, onMove, onClose, error, initialView = "move" }: Props) {
+export default function JiraMovePopover({ items, groups, anchorId, portalId, boundaryId, busy, uncertain = false, outcome = "", onChecked, onMove, onClose, error, initialView = "move", onOpen, onCopyLink }: Props) {
   const t = useT();
   const id = useId();
   const busyRef = useRef(busy);
@@ -34,6 +38,7 @@ export default function JiraMovePopover({ items, groups, anchorId, portalId, bou
   const [view, setView] = useState(initialView);
   const [destination, setDestination] = useState(items[0].group.id);
   const isMenu = view === "menu";
+  const single = items.length === 1;
   const targets = groups.filter(g => moveDestination(g));
   const to = targets.find(g => g.id === destination);
   const move = to ? (() => {
@@ -55,12 +60,20 @@ export default function JiraMovePopover({ items, groups, anchorId, portalId, bou
     <AnchoredPopover anchorId={anchorId} portalRootId={portalId} boundaryId={boundaryId ?? portalId}
       id={`${id}-popover`} className={isMenu ? "jr-actions-pop" : "jr-move-pop"} role={isMenu ? "menu" : "dialog"}
       labelledBy={isMenu ? anchorId : `${id}-title`} onClose={onClose}>
+      {/* One issue's menu reads first (Open), then moves, then Copy link
+          under a rule, as V4's Figma orders it; the writes it also draws
+          (status, assign, sub-task, delete) wait while writes are on hold. */}
       {isMenu ? <>
+        {single && onOpen && <button type="button" className="jr-action-item" role="menuitem" onClick={() => { onClose(); onOpen(); }}>{t("integrations.rowMenu.open")}</button>}
         <button type="button" className="jr-action-item" role="menuitem" aria-disabled={Boolean(problem) || busy}
           aria-describedby={problem ? `${id}-problem` : undefined} onClick={() => { if (!problem && selfPressAccepted(busyRef.current || submitting.current)) setView("move"); }}>
           {items.length === 1 ? t("integrations.movePop.move") : t("integrations.movePop.moveN", { count: items.length })}
         </button>
         {problem && <p id={`${id}-problem`} className="jr-action-hint">{problem}</p>}
+        {single && onCopyLink && <>
+          <div className="jr-action-sep" role="separator" />
+          <button type="button" className="jr-action-item" role="menuitem" onClick={() => { onClose(); onCopyLink(); }}>{t("integrations.rowMenu.copyLink")}</button>
+        </>}
       </> : <form onSubmit={e => { e.preventDefault(); void submit(); }}>
         <h3 id={`${id}-title`}>{t("integrations.movePop.title", { what: items.length === 1 ? items[0].issue.key : t("integrations.movePop.nIssues", { count: items.length }) })}</h3>
         <label htmlFor={`${id}-destination`}>{t("integrations.movePop.destination")}</label>

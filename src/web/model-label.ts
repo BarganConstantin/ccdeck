@@ -42,8 +42,8 @@
 
 import { bareModelId } from "./model-id";
 
-/** Family names and variant qualifiers are printed in one casing, whatever the
- *  id spells them in, so `GPT-5.3 Codex` and `GPT-5.3 Codex Spark` read as two
+/** GPT variant qualifiers are printed in one casing, whatever the id spells
+ *  them in, so `GPT-5.3 Codex` and `GPT-5.3 Codex Spark` read as two
  *  members of one family rather than two unrelated strings. The issue proposed
  *  `GPT-5.4 nano` beside `GPT-5.4 Pro`; that mixed casing would have made the
  *  suffix look like part of the version in one label and a word in the other,
@@ -53,10 +53,10 @@ function titleWord(word: string): string {
 }
 
 /** Render model ids into compact display labels:
- *    "claude-opus-4-7-20250101"            → "Opus 4.7"
- *    "claude-haiku-4-5"                    → "Haiku 4.5"
- *    "anthropic.claude-sonnet-4-5-…-v1:0"  → "Sonnet 4.5"
- *    "us.anthropic.claude-opus-5"          → "Opus 5"
+ *    "claude-opus-4-7-20250101"            → "opus 4.7"
+ *    "claude-haiku-4-5"                    → "haiku 4.5"
+ *    "anthropic.claude-sonnet-4-5-…-v1:0"  → "sonnet 4.5"
+ *    "us.anthropic.claude-opus-5"          → "opus 5"
  *    "gpt-5.3-codex"                       → "GPT-5.3 Codex"
  *    "gpt-5.3-codex-spark"                 → "GPT-5.3 Codex Spark"
  *    "gpt-5.4-nano"                        → "GPT-5.4 Nano"
@@ -76,7 +76,7 @@ function titleWord(word: string): string {
  *
  *  The date was being read as a third
  *  version component ever since this was written — "Opus 4.7.20250101", against
- *  the "Opus 4.7" promised right above — because eight digits satisfy the same
+ *  the "opus 4.7" promised right above — because eight digits satisfy the same
  *  `\d+` as the one or two a version number has. Length is what tells them
  *  apart. The usage-history modal used to carry a second labeller purely to
  *  strip both; one function now, so a family added here reaches every panel
@@ -137,7 +137,9 @@ export function shortModel(id: string): string {
   const bare = bareModelId(id).replace(/[-_]\d{8}(?!\d)/, "");
   const claude = bare.match(/^claude[-_](opus|sonnet|haiku|fable|mythos)[-_](\d+(?:[-_.]\d+)*)/i);
   if (claude) {
-    const family = titleWord(claude[1]);
+    // The Claude family word in lowercase ("sonnet 4.5"), as V4 draws the model
+    // on the card, the rail and every panel; the GPT label keeps its own casing.
+    const family = claude[1].toLowerCase();
     const version = claude[2].replace(/[-_]/g, ".");
     return `${family} ${version}`;
   }
@@ -176,7 +178,7 @@ export function modelFamily(id: string): string {
 
 /**
  * The model chip's words: the model's label, and the reasoning effort after it
- * when the session stated one (#2155) — "Opus 5.5 · xhigh". In the chip rather
+ * when the session stated one (#2155) — "opus 5.5 · xhigh". In the chip rather
  * than a chip of its own because the effort qualifies the model, and because
  * the card's sub row ellipsises at its width: a second chip is the first thing
  * a long subagent folder would push out of view. Without an effort the label

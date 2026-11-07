@@ -140,30 +140,33 @@ describe("the foot", () => {
     expect(decl(".agent-node .foot", "gap")).toBe("0 6px");
     expect(decl(".agent-node .foot", "font-family")).toBe("var(--font-mono)");
   });
-  it("ends with the sub-agent count and the Agents icon, then the recap pin", () => {
+  it("ends with the sub-agent count and the Agents icon", () => {
     expect(decl(".agent-node .foot .foot-end", "margin-left")).toBe("auto");
     const out = html({ childCount: 3 });
     expect(out).toMatch(/<span class="spawn-badge"[^>]*>3<svg/);
   });
 });
 
-describe("the recap pin", () => {
-  it("is in the foot's end group, a glyph button with a 24x24 hit area that does not grow the 14 row", () => {
-    expect(node.indexOf('className="foot-end"')).toBeLessThan(node.indexOf("glyph-btn recap-pin"));
-    expect(node.indexOf("glyph-btn recap-pin")).toBeGreaterThan(node.indexOf('className="foot"'));
-    const pin = body(".agent-node .recap-pin");
-    expect(pin).toMatch(/min-width:\s*24px/);
-    expect(pin).toMatch(/min-height:\s*24px/);
-    expect(pin).toMatch(/margin:\s*-5px 0/);
-    expect(pin).toMatch(/color:\s*var\(--muted\)/);
-    expect(pin).not.toMatch(/border-radius|background/);
-    expect(decl(".agent-node .recap-pin .recap-glyph", "width")).toBe("14px");
-    expect(decl(".agent-node .recap-pin[data-open]", "color")).toBe("var(--text)");
+// CHANGED ON PURPOSE (V4's Agent / Card draws no button in the foot): the ※ pin
+// that put a note away and brought it back is gone from the card. The note
+// still opens by itself, its × puts it away, and the Inspector's Recap section
+// reads the same note whole, so nothing the pin showed is out of reach.
+describe("no recap pin on the card", () => {
+  it("draws no pin in the foot, and the sheet holds no rule for one", () => {
+    expect(node).not.toContain("recap-pin");
+    expect(node).not.toContain("toggleRecapDismissed");
+    expect(sheet).not.toMatch(/\.recap-pin/);
+    const plan = { items: [{ text: "Read the spec", status: "in_progress" }, { text: "Ship it", status: "pending" }], at: 1 };
+    const out = html({ state: "done", recap: { text: "Rate limiting is in.", at: 5 }, plan } as never);
+    expect(out).not.toMatch(/recap-pin|glyph-btn|aria-expanded/);
   });
-  it("keeps its key and aria", () => {
-    expect(node).toContain("aria-expanded={noteOpen}");
-    expect(node).toContain("toggleRecapDismissed(noteKey)");
-    expect(node).toContain('t("board.node.recapLabel")');
+  it("leaves the note's own close on the note, and the note whole in the Inspector", () => {
+    const note = read("../components/RecapNoteNode.tsx");
+    expect(note).toContain('t("board.node.hideRecap")');
+    expect(note).toMatch(/dismissRecap\(/);
+    const detail = read("../components/Detail.tsx");
+    expect(detail).toMatch(/const note = sessionNoteShown\(agent\);/);
+    expect(detail).toContain('<p className="detail-recap" title={noteSource(note)}>{note.text}</p>');
   });
 });
 

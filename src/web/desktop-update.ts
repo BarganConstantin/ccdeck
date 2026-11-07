@@ -53,26 +53,23 @@ export function trayMenuName(ua: string = typeof navigator === "undefined" ? "" 
   return /\bMac OS X\b|\bMacintosh\b/.test(ua) ? t("shell.desktop.menuMac") : t("shell.desktop.menuTray");
 }
 
-/** The version chip while the app's update is ready (#1187).
- *
- *  The accessible name STARTS with what the chip prints (WCAG 2.5.3): it used
- *  to be a sentence that never said the from-version, so "click v1.63.0" from
- *  a voice-control user matched nothing on screen. The tooltip says what a
- *  click does — it opens What's new, with the update's action first — rather
- *  than promising the restart itself, which a click on the chip never did. */
-export function readyChipCopy(from: string, to: string): { text: string; label: string; title: string } {
-  const text = `v${from} → v${to}`;
+/** The top bar's chip while the app's update is ready (#1187), and pressing it
+ *  is the restart itself: V4 draws one chip, "Restart to finish", where the bar
+ *  had two (the versions, which opened What's new, and the press beside them).
+ *  The versions moved to its title, ahead of the two things a person deciding
+ *  whether to press wants to know: the app goes away for a moment, the agents
+ *  do not. Its name is what it prints (WCAG 2.5.3), and while its request is
+ *  out it prints "Restarting…". What's new stays in Settings › About. */
+export const RESTART_TO_FINISH_MSG = "shell.desktop.restartToFinish";
+export function readyChipCopy(from: string, to: string, busy = false): { text: string; title: string } {
   return {
-    text,
-    label: t("shell.desktop.chipLabel", { text }),
-    title: t("shell.desktop.chipTitle", { to, action: restartToUpdate() }),
+    text: busy ? t("shell.notes.restarting") : t(RESTART_TO_FINISH_MSG),
+    title: `v${from} → v${to} · ${t("shell.desktop.restartTitle", { to })}`,
   };
 }
 
-/** The topbar's own Restart to update, beside the ready chip. The chip opens
- *  What's new and leaves the press to the dialog; this is the press itself,
- *  for the person who wants the update now and not the notes first. Its
- *  printed words are the shared phrase, and its name starts with them and
+/** Settings › About's Restart to update, the same press as the top bar's chip.
+ *  Its printed words are the shared phrase, and its name starts with them and
  *  adds the version (WCAG 2.5.3). While its request is out it prints
  *  "Restarting…" and has no label of its own, so what is read is what is
  *  shown. The title says the two things a person deciding whether to press

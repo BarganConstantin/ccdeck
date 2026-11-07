@@ -501,6 +501,8 @@ const PRESSES: Press[] = [
   [".jr-board-item:active", "0.97", "transform"],
   [".jr-crumb:active", "0.97", "transform"],
   [".jr-link-btn:active", "0.97", "transform"],
+  // Show more under a sprint: a worded control, 0.97.
+  ['.jr-more:active:not([aria-disabled="true"])', "0.97", "transform"],
   // An issue's actions button on a touch screen (⋯, the only way to Move
   // there): a 28px glyph, so 0.94.
   [".jr-move-button:active:not(:disabled)", "0.94", "transform"],
@@ -829,7 +831,9 @@ const LIVE_PULSE = [
  *  are running, the health of the event stream and a tool in flight are one
  *  fact. A new pulse fails this suite until it is either in the family above or
  *  written down here with a reason. */
-const NEWER_VERSION_DOT = ".topbar button.v .v-dot";
+// CHANGED ON PURPOSE (V4's Figma): the version chip leads with the kit's
+// Update icon (Restart while the app holds an update ready), not a dot.
+const NEWER_VERSION_ICON = ".topbar button.v .v-icon";
 const OTHER_PULSES: [selector: string, meaning: string][] = [
   // `.armed`, not the dot itself: it is still at rest for as long as the
   // notice is only a notice, and pulses only once a restart is actually
@@ -884,16 +888,17 @@ describe("one tempo for one meaning: the live pulse", () => {
     }
   });
 
-  it("holds the top bar's dots still: the newer-version dot and the stream chip's", () => {
+  it("holds the top bar still: the version chip's icon and the stream chip", () => {
     // Since 2026-11-01 Live has no chip, and Paused, Lost and Version
-    // hold a still dot — nothing on the top bar pulses at rest. The version
-    // dot used to breathe on --pulse-live; a newer version waiting is a fact
-    // at rest, not something happening now. And no stream-chip dot pulses,
+    // hold still — nothing on the top bar pulses at rest. The version mark
+    // used to breathe on --pulse-live; a newer version waiting is a fact at
+    // rest, not something happening now. It is the kit's icon now, and it
+    // holds still as the dot did. And nothing in the stream chip pulses,
     // whichever state it is in.
-    expect(pulsing.map(r => r.selector).filter(s => s === NEWER_VERSION_DOT || s.startsWith(".topbar .status .pill"))).toEqual([]);
-    const dot = all.find(r => !r.reduced && r.selector === NEWER_VERSION_DOT)!;
-    expect(dot, "the version dot is still drawn").toBeDefined();
-    expect(decl(dot.body, "animation")).toBeNull();
+    expect(pulsing.map(r => r.selector).filter(s => s.startsWith(".topbar button.v") || s.startsWith(".topbar .status .pill"))).toEqual([]);
+    const icon = all.find(r => !r.reduced && r.selector === NEWER_VERSION_ICON)!;
+    expect(icon, "the version icon is still drawn").toBeDefined();
+    expect(decl(icon.body, "animation")).toBeNull();
   });
 
   it("earns its reduced-motion exemption on the keyframes, not on a promise", () => {

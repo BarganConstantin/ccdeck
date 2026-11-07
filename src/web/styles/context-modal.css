@@ -183,11 +183,13 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  /* THE NAME WINS THE HEAD: it keeps a floor of about 8 characters, and the
-     model text gives way first (below), so a tight head never shrinks the
-     name to a bare ellipsis. */
+  /* THE NAME WINS THE HEAD: the model text gives way first (below), with a
+     much larger shrink factor, so the name ellipsizes only once the model is
+     at its floor. No floor of its own: a minimum width held a short name's box
+     open, and the model started a gap after it rather than 6px (V4's Agent /
+     Card). */
   flex: 0 1 auto;
-  min-width: min(8ch, 100%);
+  min-width: 0;
 }
 .agent-node .title .model-text,
 .agent-node .title .synth-tag {
@@ -202,7 +204,7 @@
 /* The model text is what gives way first: a much larger shrink factor than the
    name's and its own ellipsis, but a visible floor of 6ch so "Opus…" stays
    readable on a long name (at 0 the box collapsed and no ellipsis showed). Past
-   that floor the name ellipsizes, down to its own 8ch. The restored and ? tags
+   that floor the name ellipsizes. The restored and ? tags
    stay whole (flex: none above). */
 .agent-node .title .model-text {
   flex: 0 100 auto;
@@ -229,9 +231,10 @@
    It does not replace the state word above it and must not read as if it did —
    a permission prompt lands on a session that is still live, an idle prompt on
    one that has finished, and both facts stay on the card.
-   The SENTENCE is what separates the two chores, and it is CC's own; the
-   pulse against the still dot is the second mark (isAlarming decides it, and
-   sound and notifications with it). The hue is one: --warn, how this app
+   It reads as the call a permission prompt is most likely about, the
+   question an asked block put, or "Your turn", with no dot and no clock (V4's
+   Agent / Card: the head's alert mark and the foot's clock say both). The hue
+   is one: --warn, how this app
    says "this one is on you", on every waiting card whichever kind (V4
    has one Waiting colour). No wash under it — 8% of --warn over the
    node's lower stop puts its own text at 4.47:1, a third of a point under
@@ -252,18 +255,14 @@
   min-width: 0;
   color: var(--warn);
 }
-/* The sentence yields first — the duration beside it is the number that decides
-   whether the user gets up, and the whole sentence is on the tooltip anyway. */
+/* The line ellipsizes at the card's width; the whole of it, and Claude Code's
+   own sentence, are on the tooltip. */
 .agent-node .waiting-said {
   flex: 1;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-.agent-node .waiting-row b {
-  font-weight: 400;
-  font-variant-numeric: tabular-nums;
 }
 /* The still twin of .ap-pulse's emitter — same 5px dot, no ping. A session
    that finished and is resting has not earned motion; the one that cannot
@@ -277,23 +276,6 @@
   flex-shrink: 0;
 }
 
-/* The ※ pin: the one mark a resting card carries when Claude Code has left it
-   a recap, at the foot's right end after the sub-agent count. A 14px glyph in
-   --muted with no box of its own at rest; the icon button's 24x24 hit area is
-   kept without growing the 14px row (-5px above and below). While its note is
-   open it wears the kit icon button's open state (--selected on --r-ctl,
-   panel-glyph.css) and the glyph goes to --text, so the card says which note
-   is its own. */
-.agent-node .recap-pin {
-  flex: none;
-  min-width: 24px;
-  min-height: 24px;
-  padding: 5px;
-  margin: -5px 0;
-  color: var(--muted);
-}
-.agent-node .recap-pin .recap-glyph { width: 14px; height: 14px; }
-.agent-node .recap-pin[data-open] { color: var(--text); }
 
 /* The recap itself: a node of its own beside the session root, open by itself
    once the session comes to rest (RecapNoteNode). A node like the cards — laid
@@ -838,9 +820,6 @@
    in ten other places here and that count is literally about running, and it
    is silent when it is zero. */
 .agent-node .foot .cost-meta { display: inline-flex; align-items: baseline; gap: 4px; }
-/* The one thing in this row somebody has to act on, in the one semantic colour
-   it has never been allowed to use. Silent at zero. */
-.agent-node .foot .failed-meta { color: var(--err); }
 /* The card's version of the same marker: there is no figure to print, said in
    the annotation tier because that is what it is. (It used to explain that it
    avoided .cost-meta so as not to be painted green; .cost-meta no longer
@@ -889,7 +868,7 @@
 .agent-node .foot .foot-tools { display: inline-flex; align-items: center; gap: 2px; color: var(--muted); }
 .agent-node .foot .foot-tools svg { flex: none; }
 /* The foot's end (V4): the sub-agent count with its Agents icon, 4px apart,
-   after a spacer, then the recap pin when the card has a note. */
+   after a spacer. */
 .agent-node .foot .foot-end { margin-left: auto; display: inline-flex; align-items: center; gap: 6px; }
 .agent-node .foot .spawn-badge {
   display: inline-flex;

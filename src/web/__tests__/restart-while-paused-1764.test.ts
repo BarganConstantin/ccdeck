@@ -146,14 +146,19 @@ describe("restartSafety — the button on a paused canvas", () => {
   it("does not say nothing is running when the canvas cannot see", () => {
     const paused = restartSafety(0, true);
     expect(paused.label).toBe("Restart anyway");
-    expect(paused.clause).not.toMatch(/nothing is running/);
+    // CHANGED ON PURPOSE (V4's Figma): the clauses are sentences, so they
+    // start with a capital; the claim is read case-blind.
+    expect(paused.clause).not.toMatch(/nothing is running/i);
     expect(paused.clause).toMatch(/paused/);
+    // It cannot tell, so the banner takes the Waiting tone as it would for a
+    // running agent.
+    expect(paused.risky).toBe(true);
   });
 
   it("still names what it can see, and is unchanged when not paused", () => {
-    expect(restartSafety(2, true).clause).toBe("2 agents are running — their events during the restart are lost");
-    expect(restartSafety(0, false)).toEqual({ label: "Restart now", clause: "nothing is running" });
-    expect(restartSafety(0)).toEqual({ label: "Restart now", clause: "nothing is running" });
+    expect(restartSafety(2, true).clause).toBe("2 agents are running: their events during the restart are lost.");
+    expect(restartSafety(0, false)).toEqual({ label: "Restart now", clause: "Nothing is running.", risky: false });
+    expect(restartSafety(0)).toEqual({ label: "Restart now", clause: "Nothing is running.", risky: false });
   });
 });
 
@@ -231,7 +236,7 @@ describe("useAutoRestart — a paused canvas and a turn sent from the terminal",
 
     // The button does not claim a quiet the page cannot see.
     expect(view.now.restart.restartCopy.label).not.toBe("Restart now");
-    expect(view.now.restart.restartCopy.clause).not.toMatch(/nothing is running/);
+    expect(view.now.restart.restartCopy.clause).not.toMatch(/nothing is running/i);
 
     // The page's own clock runs out at T0 + 30s. What it asks then is a
     // restart that only an idle server grants — the server hears the turn the

@@ -268,6 +268,38 @@ describe("field and select: disabled", () => {
   });
 });
 
+describe("button: disabled", () => {
+  it("draws a disabled button with no fill, a --line-soft edge and --muted-dim words, at full opacity, hover or not", () => {
+    // V4's kit: the disabled button is drawn, not faded, so its words stay
+    // crisp and every variant (primary, danger, quiet) reads as the same
+    // not-clickable thing.
+    for (const [sel, media] of [["button.btn:disabled", ""], ["button.btn:disabled:hover", POINTER]]) {
+      expect(decl(sel, "background", media), sel).toBe("transparent");
+      expect(decl(sel, "border-color", media), sel).toBe("var(--line-soft)");
+      expect(decl(sel, "color", media), sel).toBe("var(--muted-dim)");
+    }
+    expect(decl("button.btn:disabled", "cursor")).toBe("default");
+    expect(rules.filter(r => r.selectors.some(s => /^button\.btn:disabled/.test(s)) && "opacity" in r.decls)).toEqual([]);
+  });
+  it("outranks every variant's own colours, so a disabled primary or danger is not still painted", () => {
+    // `button.btn:disabled` ties `button.btn.primary` and `button.btn.danger`
+    // (0,2,1), and their :hover with its own, so it is written after them all.
+    // The one variant that can be disabled and outranks it, LAN's Unpair, says
+    // the same three things itself.
+    const sheet = readFileSync(new URL("../styles/topbar-controls.css", import.meta.url), "utf8");
+    const disabled = sheet.indexOf("button.btn:disabled {");
+    expect(disabled).toBeGreaterThan(-1);
+    expect(sheet.indexOf("button.btn:disabled:hover {")).toBeGreaterThan(disabled);
+    for (const variant of ["button.btn.primary {", "button.btn.danger {", "button.btn.danger:hover {"]) {
+      expect(sheet.indexOf(variant), variant).toBeGreaterThan(-1);
+      expect(sheet.indexOf(variant), variant).toBeLessThan(disabled);
+    }
+    expect(decl(".lan-peer-foot .btn.danger:disabled", "background")).toBe("transparent");
+    expect(decl(".lan-peer-foot .btn.danger:disabled", "border-color")).toBe("var(--line-soft)");
+    expect(decl(".lan-peer-foot .btn.danger:disabled", "color")).toBe("var(--muted-dim)");
+  });
+});
+
 describe("segmented control (.ap-sides)", () => {
   it("is the kit's box: 1px padding, 1px --line-soft, r8, --bg-soft", () => {
     expect(decl(".ap-sides", "padding")).toBe("1px");
@@ -333,6 +365,11 @@ describe("radio dot and checkbox", () => {
     // its colour in Fast, where the whole tile moved its border.
     expect(decl(".character-preview", "transition")).toContain("border-color var(--dur-fast) var(--ease)");
     expect(decl(".character-choice", "transition")).toContain("color var(--dur-fast) var(--ease)");
+  });
+  it("draws the box empty when off, and the tick at 1.5 in --bg on the accent when on", () => {
+    expect(decl(".cbx > input", "background")).toBe("transparent");
+    expect(decl(".cbx-tick", "stroke")).toBe("var(--bg)");
+    expect(decl(".cbx-tick", "stroke-width")).toBe("1.5");
   });
   it("fills the box in Fast and draws the tick by its dash offset in Fast", () => {
     expect(decl(".cbx > input", "transition")).toBe("background-color var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease)");
