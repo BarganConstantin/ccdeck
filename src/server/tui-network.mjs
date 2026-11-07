@@ -146,7 +146,9 @@ export function lanLines(state, width, look) {
     return tail && gap >= 2 ? `${left}${" ".repeat(gap)}${tail}` : left;
   };
   for (const item of items) {
-    if (item === sel) selected = lines.length;
+    // By id: lanSelected built its own list, so its row is never this one's
+    // object, and `===` left the selection undrawn and the list unscrolled.
+    if (sel && item.id === sel.id) selected = lines.length;
     if (item.kind === "switch") {
       const st = lanSectionState(s, now);
       const tail = item.on ? (st.text ? `${tone[TONE_OF[st.tone]] ?? ""}${oneLine(st.text)}${tone.reset}` : "")
