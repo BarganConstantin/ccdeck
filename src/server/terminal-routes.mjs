@@ -10,6 +10,15 @@
 //   POST /api/terminal/claim      is this new Codex the one a launch started?
 //   POST /api/terminal/hosts/end  end the sessions on one older host, as reviewed
 //
+// And the engine's own install, which the page offers where the engine is not
+// here (engine-install.mjs), under the same switch and the same gates:
+//
+//   GET  /api/terminal/engine               which engine is here, an install's progress
+//   POST /api/terminal/engine/install       download the pinned package and install it
+//   POST /api/terminal/engine/install-file  install a package file sent as the body
+//   POST /api/terminal/engine/cancel        cancel a download
+//   POST /api/terminal/engine/remove        remove the installed engine
+//
 // The two hosts routes are the Windows session host's: an engine with no
 // session host answers that it cannot (`no-terminal`), which the page reads
 // as nothing to show.
@@ -45,7 +54,8 @@
 import { PRODUCT } from "./brand.mjs";
 import { commandPanel } from "./command-panel-engine.mjs";
 import { terminalOn } from "./deck-prefs.mjs";
-import { readBody, send } from "./http-io.mjs";
+import { ENGINE_TARBALL_MAX } from "./engine-download.mjs";
+import { readBody, readBytes, send } from "./http-io.mjs";
 import { panelProvenance, withProvenance } from "./panel-provenance.mjs";
 import { heldPrefs } from "./prefs-state.mjs";
 import { engineRefusal } from "./pro-engine-terminal.mjs";
@@ -169,6 +179,42 @@ export async function handleTerminalAdopt(req, res, options) {
  *  name, ticket }`. The key makes asking again safe: one agent per key. */
 export async function handleTerminalLaunch(req, res, options) {
   return posted(req, res, options, "launch");
+}
+
+/** GET /api/terminal/engine → `{ ok: true, engine }`: the engine's install
+ *  state on this machine (engine-install.mjs' status, never the network), or
+ *  null for an engine handed in by a caller, which has no installer. */
+export async function handleEngineStatus(req, res, options) {
+  const d = terminalDeps(options);
+  if (!d.enabled()) return notFound(res);
+  const installer = d.engine?.installer;
+  return send(res, 200, { ok: true, engine: installer ? await installer.status() : null });
+}
+
+const ENGINE_ACTIONS = new Set(["install", "install-file", "cancel", "remove"]);
+
+/** POST /api/terminal/engine/<action> → `{ ok: true, id? }`, or 409 `{ ok:
+ *  false, code }` naming why not (engine-install.mjs). `install-file` takes
+ *  the package file as the body, up to the size a download may be. */
+export async function handleEngineAction(req, res, action, options) {
+  const d = terminalDeps(options);
+  if (!d.enabled() || !ENGINE_ACTIONS.has(action)) return notFound(res);
+  let bytes = null;
+  try {
+    if (action === "install-file") bytes = await readBytes(req, res, ENGINE_TARBALL_MAX, { ok: false, code: "too-large" });
+    else await readBody(req, res, BODY_LIMIT);
+  } catch {
+    return; // answered 413 already
+  }
+  // Off while the body came in: the route is not there.
+  if (!d.enabled()) return notFound(res);
+  const installer = d.engine?.installer;
+  if (!installer) return send(res, 409, { ok: false, code: "unavailable" });
+  const out = action === "install" ? await installer.install()
+    : action === "install-file" ? await installer.installFile(bytes)
+      : action === "cancel" ? installer.cancel()
+        : await installer.remove();
+  return send(res, out.ok ? 200 : 409, out);
 }
 
 // ---------------------------------------------------------------------------

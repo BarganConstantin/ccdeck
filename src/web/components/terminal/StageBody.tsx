@@ -33,6 +33,7 @@ import { CAUGHT_KEYS_ATTR } from "../../shortcuts";
 import type { TmuxProgress } from "../../terminal-api";
 import { LAUNCHED_UNREACHABLE_MSG, PROVENANCE_UNKNOWN_MSG, agentName, errorWords, frameRun, launchedUnreachable, provenanceUnknown, type FrameRun, type StagePhase } from "./stage-model";
 import { CopyGlyph, StageGlyph } from "./stage-icons";
+import EngineCard, { engineCardCode } from "./EngineCard";
 import type { WaitingCard } from "./stage-board";
 import { Kbd } from "../Kbd";
 import { t as tNow, useT } from "../../i18n";
@@ -293,7 +294,7 @@ export function StateCard(p: Omit<StageBodyProps, "hostRef"> & { held?: boolean;
       // nothing to check, and offers only Not now.
       const again = phase.code !== "unsupported";
       const check = !!phase.code;
-      return (
+      const plain = (
         <div className="ts-card">
           <p className="ts-text">{errorWords(phase.message)}</p>
           <div className="ts-acts">
@@ -306,6 +307,16 @@ export function StateCard(p: Omit<StageBodyProps, "hostRef"> & { held?: boolean;
           </div>
         </div>
       );
+      // No engine here, one that did not verify, one that did not start, or
+      // none for this platform: the engine's install says where it stands
+      // and offers the next step (EngineCard). Where the deck cannot say,
+      // the card above stands.
+      if (engineCardCode(phase.code)) {
+        return (
+          <EngineCard code={phase.code ?? ""} message={errorWords(phase.message)} busy={phase.busy} onRetry={p.onRetry} onNotNow={p.onNotNow} plain={plain} />
+        );
+      }
+      return plain;
     }
     default:
       return null;
