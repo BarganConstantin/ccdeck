@@ -49,12 +49,15 @@ describe("no filter re-rasterises over the live canvas (#882)", () => {
     expect(decl(inflight, "animation")).toMatch(/dashflow/);
   });
 
-  it("draws the filter bar as a solid slab in both themes", () => {
-    // One rule for both themes now: --panel is a token each theme declares,
-    // and the light override only existed to carry a different shadow, which
-    // the bar no longer has.
-    expect(decl(bodyOf(".cat-filter-bar"), "background")).toBe("var(--panel)");
-    expect(decl(bodyOf(".cat-filter-bar"), "backdrop-filter")).toBeNull();
+  it("draws the tool legend with no slab and no blur, in both themes", () => {
+    // CHANGED ON PURPOSE (V4's Figma): the bar was a solid --panel slab; the
+    // legend that replaced it has no box at rest, its words sit on the canvas.
+    // What has to hold is the #882 half: nothing behind it is blurred, in any
+    // state, so nothing re-rasterises under the live canvas.
+    expect(decl(bodyOf(".cat-filter-bar"), "background")).toBe("none");
+    for (const sel of [".cat-filter-bar", ".cat-filter-bar.occluded", ".cat-filter-bar.occluded:not(:hover):not(:focus-within)"]) {
+      expect(decl(bodyOf(sel), "backdrop-filter"), sel).toBeNull();
+    }
   });
 
   it("dims the page under a dialog with its fill alone", () => {

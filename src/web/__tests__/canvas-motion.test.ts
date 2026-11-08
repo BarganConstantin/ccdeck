@@ -398,6 +398,10 @@ const PRESSES: Press[] = [
   // sentence that opens the code field. A labelled control, so 0.97.
   [".aa-code > summary:active", "0.97", "transform"],
   [".cat-filter:active", "0.97", "transform"],
+  // The tool legend's "Show all" and, under 600px wide, the one button the
+  // legend folds into: labelled controls, so 0.97.
+  [".cat-filter-all:active", "0.97", "transform"],
+  [".cat-filter-tools:active", "0.97", "transform"],
   [".ctx-donut:active", "0.94", "transform"],
   [".uh-range-btn:active", "0.97", "transform"],
   [".ta-period-btn:active", "0.97", "transform"],
