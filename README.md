@@ -314,7 +314,15 @@ The machine panel shows a **Thermal** section only where the machine actually an
 | | reads | needs |
 | --- | --- | --- |
 | Linux | `/sys/class/hwmon`, then `/sys/class/thermal/thermal_zone*`; on Intel, `thermal_throttle/package_throttle_total_time_ms` for throttling — the share of time the clock was held down | nothing |
-| Windows | an ACPI thermal zone, through the `Thermal Zone Information` performance counter, then `MSAcpi_ThermalZoneTemperature` — drawn only once its value has changed; then LibreHardwareMonitor's web server if it happens to be running | nothing — where the machine has an ACPI thermal zone that measures something. Many do not; see below |
+| Windows | CPU performance limit from `Win32_PerfFormattedData_Counters_ProcessorInformation`; temperatures from an ACPI thermal zone, through the `Thermal Zone Information` counter, then `MSAcpi_ThermalZoneTemperature` — drawn only once its value has changed; then LibreHardwareMonitor's web server if it happens to be running | nothing for the CPU limit where Windows publishes it; temperature availability varies, see below |
+
+On Windows the throttling row can appear even without a temperature sensor. It
+shows the largest reported CPU performance reduction below nominal performance:
+a Windows limit of 62% appears as 38% held back. This counter includes power
+policy, firmware and thermal constraints; it does not identify overheating or
+measure lost turbo boost. A 0% row means Windows reports no cap below nominal,
+not that every hardware-level thermal restriction has been ruled out. Missing
+counters stay unavailable. No driver or administrator access is required.
 | macOS, Intel | `ioreg` for the GPU, `pmset -g therm` for throttling | nothing |
 | macOS, Apple Silicon | `macmon`, which the deck fetches for you | nothing |
 

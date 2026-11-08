@@ -2,6 +2,9 @@
 import type { Catalog } from "../../catalogs";
 
 const catalog: Catalog = {
+  "insights.machine.windowsLimit": "Windows CPU 제한: 정격 성능의 {pct}%",
+  "insights.machine.windowsNoLimit": "Windows가 정격 성능 미만의 CPU 제한을 보고하지 않습니다",
+  "insights.machine.windowsPastLimit": "Windows CPU 제한이 {pct}%였습니다 · {since}",
   "insights.cost.input": "입력",
   "insights.cost.output": "출력",
   "insights.cost.cacheRead": "캐시 읽기",
