@@ -148,12 +148,12 @@ export function OpensHistory({ group, title, action, label, value, hint, liveNot
  * The colour a meter's fill takes (V4's Figma): under 70 `--muted`, 70 to 89
  * `--text`, 90 and up `--err`. Never amber — amber means an agent waits.
  *
- * `alarm: false` is for the readings that never alarm (the CPU and its cores,
- * see the top of MachinePanel.tsx): they take `--muted` under 70 and `--text`
- * from 70 up, and never `--err`.
+ * Every meter left in the panel can alarm: memory, swap and the GPU. The CPU
+ * has none — its total is a figure and its cores are columns in the accent,
+ * which never take a level (see the top of MachinePanel.tsx).
  */
-export function meterLevel(pct: number, alarm = true): "muted" | "text" | "err" {
-  return pct >= 90 && alarm ? "err" : pct >= 70 ? "text" : "muted";
+export function meterLevel(pct: number): "muted" | "text" | "err" {
+  return pct >= 90 ? "err" : pct >= 70 ? "text" : "muted";
 }
 
 /**
@@ -165,12 +165,12 @@ export function meterLevel(pct: number, alarm = true): "muted" | "text" | "err" 
  * The colour comes from the figure as it is printed (rounded), so a reading of
  * 89.6 that says "90%" is also coloured as 90.
  */
-export function Meter({ pct, label, alarm = true }: { pct: number; label?: string; alarm?: boolean }) {
+export function Meter({ pct, label }: { pct: number; label?: string }) {
   return (
     <span className="sd-track" role={label ? "img" : undefined} aria-label={label}>
       <span
         className="sd-fill"
-        data-level={meterLevel(Math.round(pct), alarm)}
+        data-level={meterLevel(Math.round(pct))}
         style={{ transform: `scaleX(${pct <= 0 ? 0 : Math.max(1, Math.min(100, pct)) / 100})` }}
       />
     </span>

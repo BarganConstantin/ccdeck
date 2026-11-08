@@ -440,22 +440,23 @@ describe("the machine panel's core fills are composited, not laid out (#505)", (
     expect(eased).not.toContain("height");
   });
 
-  it("scales a full-size bar from its start, so the picture is the same as a width", () => {
-    // CHANGED ON PURPOSE (V4's Figma): each core is a 2-high meter now, filled
-    // left to right like every other meter, not a column filled from the
-    // bottom. The same rule holds turned on its side: a scaleX is the same
-    // picture as a width only if the box being scaled fills the track to begin
-    // with, and only if the origin is the track's start. The fill never grows
-    // past its track (the scale is at most 1), so the track needs no clipping.
+  it("scales a full-size column from its foot, so the picture is the same as a height", () => {
+    // CHANGED ON PURPOSE (the owner prefers main's columns): each core is a
+    // column filled from the bottom again, as main draws it. A scaleY is the
+    // same picture as a height only if the box being scaled fills the track to
+    // begin with, and only if the origin is the track's foot.
     expect(decl(FILL, "height")).toBe("100%");
     expect(decl(FILL, "width")).toBe("100%");
-    expect(decl(FILL, "transform-origin")).toBe("left center");
+    expect(decl(FILL, "transform-origin")).toBe("bottom");
   });
 
-  it("is written as a transform by the component too, with the 2% floor intact", () => {
-    // CHANGED ON PURPOSE (V4's Figma): scaleX for the horizontal meter.
-    expect(systemMeter).toMatch(/className="sd-core-fill"[^>]*style=\{\{ transform: `scaleX\(\$\{Math\.max\(2, v\) \/ 100\}\)` \}\}/);
+  it("is a transform of the reading, with the 2px floor kept by the sheet", () => {
+    // CHANGED ON PURPOSE: the component writes the reading as a number and the
+    // sheet turns it into the scale, so the floor can be 2px of whichever
+    // column height the core count gives (28, or 18 in rows of 32).
+    expect(systemMeter).toMatch(/className="sd-core-fill" style=\{\{ "--load": v \/ 100 \} as React\.CSSProperties\}/);
     expect(systemMeter).not.toMatch(/sd-core-fill[\s\S]{0,120}(?:height|width):/);
+    expect(decl(FILL, "transform")).toBe("scaleY(clamp(var(--core-floor), var(--load, 0), 1))");
   });
 
   it("now agrees with the sibling it was supposed to have been converted with", () => {

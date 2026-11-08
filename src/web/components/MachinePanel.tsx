@@ -22,11 +22,11 @@
 // the machine is doing the work you asked for. Colouring it would make this red
 // through every build and every parallel subagent run — precisely the sessions
 // this deck exists to watch — and an indicator that alarms during the normal
-// case teaches you to stop reading it. So the CPU meter and every per-core
-// meter use only `--muted` (under 70) and `--text` (70 and up), never `--err`.
-// Memory, swap and the GPU's meters keep the full thresholds (under 70
-// `--muted`, 70 to 89 `--text`, 90 and up `--err`), because near-exhaustion
-// there is real.
+// case teaches you to stop reading it. So the CPU total is a figure with no
+// meter under it, and every per-core column is drawn in the accent at every
+// load, never `--err`. Memory, swap and the GPU's meters keep the full
+// thresholds (under 70 `--muted`, 70 to 89 `--text`, 90 and up `--err`),
+// because near-exhaustion there is real.
 //
 // THE SAME "NO" NOW COVERS LOAD AVERAGE, which used to turn amber the moment
 // the 1-minute figure passed the core count. That is not a fault condition: a
@@ -50,7 +50,7 @@ import type { Memory, Snapshot, Swap, Thermal } from "../machine-snapshot";
 import { useSystem } from "../use-system";
 import ProcessListModal from "./ProcessListModal";
 import { DialogPresence } from "./Dialog";
-import { Fig, Meter, meterLevel, OpensHistory, PlainRow, Row } from "./MachineReadout";
+import { Fig, OpensHistory, PlainRow, Row } from "./MachineReadout";
 import { KitIcon } from "./kit-icons";
 import NetworkSection from "./MachineNetwork";
 import MachineGpu from "./MachineGpu";
@@ -206,23 +206,25 @@ function CpuSection({ cpu, perCore, loadavg, cores }: {
   const t = useT();
   const loadNote = loadQueueNote(loadavg?.[0], cores);
   const hasStrip = !!perCore && perCore.length > 0;
-  if (!hasStrip && !loadavg) return null;
+  // The total stands on its own where the machine gives no per-core reading
+  // (its core count changed between two samples, so no core has a pair to
+  // compare): the heading and its figure, nothing under them.
+  const hasCpu = hasStrip || cpu != null;
+  if (!hasCpu && !loadavg) return null;
   return (
     <div className="sd-section sd-cpu" role="group" aria-label="CPU">
-      {hasStrip && (
+      {hasCpu && (
         <OpensHistory group="cores" title={t("insights.machine.coreHistory")} action={t("insights.machine.showCore")} label="CPU"
           value={cpu == null ? null : `${Math.round(cpu)}%`}>
           {/* One column per logical core — what `os.cpus()` counts, which is
               threads on a machine with SMT and physical cores on one without.
               The aggregate beside the heading cannot tell a saturated machine
-              from one hot single-threaded job; this can.
+              from one hot single-threaded job; this can. The total is said
+              once, as the figure beside the heading, with no meter of its own.
 
-              No `--n` any more: the strip counted its own columns into a
-              custom property so the grid could repeat a 1fr track that many
-              times, and that had no minimum — at 64 threads a column measured
-              1.93px and at 128 it measured zero. The strip wraps now and the
-              count is the number of children, which the layout can see for
-              itself.
+              No count in a custom property: the columns share one row up to
+              32 and wrap into rows of 32 after that, and the sheet sees how
+              many there are from the children themselves (machine-panel.css).
 
               ONE ACCESSIBLE NAME FOR THE WHOLE STRIP, not one per column: a
               pointer gets the per-core figure from each column's own tooltip,
@@ -230,28 +232,27 @@ function CpuSection({ cpu, perCore, loadavg, cores }: {
               how many cores there are and how hard the busiest is working —
               without 64 nodes to step through. The chart behind the button has
               the rest. */}
-          {/* The CPU row's own meter (V4's Figma draws this one), and under it
-              one 2-high meter per core in the same look, wrapped into rows of
-              equal cells. */}
-          {cpu != null && <Meter pct={cpu} alarm={false} />}
-          <div
-            className="sd-cores"
-            role="img"
-            aria-label={t("insights.machine.coresAria", { count: perCore!.length, n: perCore!.length, pct: Math.round(Math.max(...perCore!)) })}
-          >
-            {perCore!.map((v, i) => (
-              <span key={i} className="sd-core" title={t("insights.machine.coreTitle", { n: i + 1, pct: v })}>
-                {/* A fraction of a full-height column, not a height (#505).
-                    One element per core, restyled every 3 seconds while this
-                    panel is open, so the difference between a composited
-                    transform and a relayout is multiplied by the core count.
-                    The 2% floor is unchanged and means the same thing it always
-                    did: an idle core still draws a sliver, so an empty column
-                    reads as "nothing running" rather than "no data". */}
-                <span className="sd-core-fill" data-level={meterLevel(Math.round(v), false)} style={{ transform: `scaleX(${Math.max(2, v) / 100})` }} />
-              </span>
-            ))}
-          </div>
+          {hasStrip && (
+            <div
+              className="sd-cores"
+              role="img"
+              aria-label={t("insights.machine.coresAria", { count: perCore!.length, n: perCore!.length, pct: Math.round(Math.max(...perCore!)) })}
+            >
+              {perCore!.map((v, i) => (
+                <span key={i} className="sd-core" title={t("insights.machine.coreTitle", { n: i + 1, pct: v })}>
+                  {/* A fraction of a full-height column, not a height (#505).
+                      One element per core, restyled every 3 seconds while this
+                      panel is open, so the difference between a composited
+                      transform and a relayout is multiplied by the core count.
+                      The reading goes in as a number and the sheet turns it
+                      into a scaleY with a floor of 2px, so an idle core still
+                      draws a sliver and an empty column reads as "nothing
+                      running" rather than "no data". */}
+                  <span className="sd-core-fill" style={{ "--load": v / 100 } as React.CSSProperties} />
+                </span>
+              ))}
+            </div>
+          )}
         </OpensHistory>
       )}
       {loadavg && (

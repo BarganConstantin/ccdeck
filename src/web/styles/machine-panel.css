@@ -184,7 +184,7 @@
   color: var(--text-secondary);
 }
 /* The section's own figure, at the far end of its heading. One section has one:
-   CPU, whose heading is a meter row (below): its value is mono 12/16 --text. */
+   CPU, whose total is said here and nowhere else: mono 12/16 --text. */
 .sd-h-val {
   margin-left: auto;
   color: var(--text);
@@ -192,52 +192,79 @@
   font-weight: 400;
   font-variant-numeric: tabular-nums;
 }
-/* CPU is a meter row in V4's Figma: the label 400 12/16 --text-secondary, the
-   value at the right, the meter 3 under it. */
+/* CPU's heading: the label 400 12/16 --text-secondary and the total at the
+   right. The columns sit 8 under it, the gap every heading here keeps
+   (`.sd-reading > .sd-open` below). Where there are no columns to draw, the
+   heading is the whole block and keeps no gap under itself. */
 .sd-reading[data-group="cores"] .sd-h { min-height: 16px; font-weight: 400; }
-.sysdetail .sd-reading[data-group="cores"] > .sd-open { margin-bottom: calc(3px - 4px); }
-.sd-reading[data-group="cores"] > .sd-track + .sd-cores { margin-top: 8px; }
+.sysdetail .sd-reading[data-group="cores"] > .sd-open:last-child { margin-bottom: calc(0px - 4px); }
 
-/* THE PER-CORE METERS (V4's Figma draws one CPU row; the cores are behaviour
-   and stay). One meter per logical core, in the CPU meter's own look: 2 high,
-   --r-tag, a --ctl-fill track, the fill scaled from the left and coloured by
-   the CPU's levels: under 70 --muted and 70 up --text. Cores never go --err (a
-   build at 90% CPU is doing its job; see MachinePanel.tsx).
-   They sit in a grid of equal cells, at least 32 wide, 4 apart each way, so a
-   16-thread machine makes two rows of eight (294 wide fits eight) and a
-   128-thread one wraps into rows of the same width instead of shrinking to
-   nothing: the track of a grid is the same on every row, so one width means
-   one thing. auto-fit, so a machine with fewer cores than fit in a row spreads
-   them across the width instead of leaving a stub under a full-width meter. */
+/* THE PER-CORE COLUMNS, the way main draws them: one column per logical core,
+   28 high and 2 apart, an accent fill rising from the bottom of a --line
+   track, 2px corners. The total is the figure beside the heading, so nothing
+   here is a meter of the whole machine and nothing takes a level: a build at
+   90% CPU is doing its job (see MachinePanel.tsx).
+
+   ONE ROW UP TO 32 CORES. The columns are implicit tracks laid side by side,
+   each at most 24 wide, and the row shares out its width until every column
+   reaches 24: sixteen cores make sixteen columns across the panel, and four
+   stay four columns at the left instead of four wide blocks.
+
+   ROWS OF 32 AFTER THAT, 18 high and 4 apart. The grid switches to 32 explicit
+   tracks the moment a 33rd core exists, so every row is cut into the same
+   widths — one reading in one width, whatever the count — and a 128-thread
+   machine draws four rows instead of columns too thin to see. The count comes
+   from the children themselves; nothing writes it into a property.
+
+   The block's height depends only on the core count: a reading moves a fill
+   inside its column and never the column itself. */
 .sd-cores {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(32px, 1fr));
-  align-content: start;
-  gap: 4px;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(0, 24px);
+  justify-content: start;
+  gap: 4px 2px;
 }
-/* The meter is 2 high, which is no target for the pointer's per-core tooltip:
-   the ::before reaches 2px past it on each side (6 in all) and draws nothing.
-   No clipping on the box, so the pseudo-element is not cut off; the fill is
-   full width with its own radius and needs none. */
+.sd-cores:has(> .sd-core:nth-child(33)) {
+  grid-auto-flow: row;
+  grid-template-columns: repeat(32, minmax(0, 24px));
+}
+/* `--core-floor` is the 2px sliver an idle core keeps, as a share of its own
+   column, so it changes with the column's height. */
 .sd-core {
-  position: relative;
   display: block;
-  height: 2px;
-  border-radius: var(--r-tag);
-  background: var(--ctl-fill);
+  height: 28px;
+  --core-floor: calc(2 / 28);
+  border-radius: 2px;
+  background: var(--line);
+  overflow: hidden;
 }
-.sd-core::before { content: ""; position: absolute; inset: -2px 0; }
+.sd-cores:has(> .sd-core:nth-child(33)) > .sd-core {
+  height: 18px;
+  --core-floor: calc(2 / 18);
+}
+/* scaleY, not height (#505): one element per core, restyled every 3 seconds
+   while the panel is open. The fill is the full column and the reading scales
+   it from the bottom, so the picture is the same as a height without a layout:
+   MachinePanel writes the reading as `--load` (0 to 1) and this clamps it
+   between the sliver and the full column. The track's radius and `overflow`
+   keep the corners the column's own at every scale. */
 .sysdetail .sd-core-fill {
   display: block;
   width: 100%;
   height: 100%;
-  border-radius: var(--r-tag);
-  background: var(--muted);
-  transform-origin: left center;
-  transition: transform var(--dur-slow) var(--ease);
+  border-radius: 2px;
+  background: var(--accent);
+  transform-origin: bottom;
+  transform: scaleY(clamp(var(--core-floor), var(--load, 0), 1));
+  transition: transform var(--dur-slow) var(--ease), opacity var(--dur-fast) var(--ease);
 }
-.sysdetail .sd-core-fill[data-level="text"] { background: var(--text); }
-.sysdetail .sd-core-fill[data-level="err"] { background: var(--err); }
+/* The core under the pointer stays bright and the rest dim, so the tooltip's
+   column is the one the eye is on. Keyed on a column being hovered, not on the
+   strip, so the 2px between two columns leaves every column as it was. */
+@media (hover: hover) and (pointer: fine) {
+.sysdetail .sd-cores:has(> .sd-core:hover) > .sd-core:not(:hover) > .sd-core-fill { opacity: 0.55; }
+}
 
 /* Rows: the label and the reading on one line, the meter 3 under it; rows sit 8
    apart, plain rows 2 apart. */
