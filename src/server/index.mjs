@@ -197,6 +197,7 @@ import { handleIntegrations } from "./integrations/routes.mjs";
 import {
   handleTerminalAdopt, handleTerminalClaim, handleTerminalEndHosts, handleTerminalHosts, handleTerminalLaunch, handleTerminalOpen,
   handleTerminalStatus, handleTerminalTarget, terminalUpgradeOptions,
+  handleEngineStatus, handleEngineAction,
 } from "./terminal-routes.mjs";
 import { installTerminalUpgrade } from "./terminal-socket.mjs";
 // Whether this deck's platform has the Command Panel, which Settings' switch
@@ -562,6 +563,10 @@ export async function startServer({ port = 4317, host = "127.0.0.1", persist = n
     if (req.method === "POST" && url.pathname === "/api/terminal/adopt")  return guard(handleTerminalAdopt(req, res, terminal), res);
     if (req.method === "POST" && url.pathname === "/api/terminal/launch") return guard(handleTerminalLaunch(req, res, terminal), res);
     if (req.method === "POST" && url.pathname === "/api/terminal/claim")  return guard(handleTerminalClaim(req, res, terminal), res);
+    // The engine's install, from the page (engine-install.mjs): its state, an
+    // install from the registry or from a file, a cancel and a remove.
+    if (req.method === "GET"  && url.pathname === "/api/terminal/engine") return guard(handleEngineStatus(req, res, terminal), res);
+    if (req.method === "POST" && url.pathname.startsWith("/api/terminal/engine/")) return guard(handleEngineAction(req, res, url.pathname.slice("/api/terminal/engine/".length), terminal), res);
     // The ccdeck account (account-flag.mjs). Switched off, each of these is
     // the 404 below, word for word, and nothing of the account is loaded. The
     // two reads are in GUARDED_READS; the POSTs are mutations like any other.
