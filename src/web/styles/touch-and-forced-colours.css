@@ -180,6 +180,13 @@
      maintenance (#1311). */
   [data-state="degraded"] .pi-dot { background: Canvas; box-shadow: inset 0 0 0 1.5px CanvasText; }
   [data-state="maintenance"] .pi-dot { background: GrayText; }
+  /* The tool legend's dot is the legend's own swatch and keeps its category's
+     colour; a hidden category's is a ring, kept as one in the text colour, so
+     the shape still says which categories the canvas is not showing. */
+  .cat-filter .cat-dot,
+  .cat-tools-item .cat-dot { forced-color-adjust: none; }
+  .cat-filter.off .cat-dot,
+  .cat-tools-item.off .cat-dot { background: Canvas; border-color: CanvasText; }
 
   /* The network map's marks keep their shapes — filled for on, hollow for
      away, dashed for not paired — in the theme's own inks, and its wires keep

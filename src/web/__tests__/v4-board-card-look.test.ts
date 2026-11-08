@@ -237,41 +237,48 @@ describe("the chips over the board", () => {
     expect(en).toContain('"board.trash.drop": "Drop here to remove from the board"');
     expect(en).toContain('"board.trash.keepsRunning": "The session keeps running"');
   });
-  it("category filter: a 32 bar and 24 round pills with a 6px dot in the category's colour", () => {
+  // CHANGED ON PURPOSE (V4's Figma): the category filter was a 32px bordered
+  // slab of accent-outlined pills; it is a legend on the canvas now. The new
+  // look is pinned whole in v4-tool-legend.test.ts; these keep the numbers
+  // this file has always held the board's chips to.
+  it("category legend: no box, 24 round items 2px apart, an 8px dot in the category's colour", () => {
     const bar = ".cat-filter-bar";
-    expect(decl(bar, "min-height")).toBe("32px");
-    expect(decl(bar, "border")).toBe("1px solid var(--line-soft)");
+    expect(decl(bar, "min-height")).toBeUndefined();
+    expect(decl(bar, "border")).toBe("0");
     expect(decl(bar, "border-radius")).toBe("var(--r-ctl)");
-    expect(decl(bar, "background")).toBe("var(--panel)");
-    expect(decl(bar, "gap")).toBe("4px");
-    const pill = ".cat-filter";
-    expect(decl(pill, "height")).toBe("var(--ctl-h-sm)");
-    expect(decl(pill, "border-radius")).toBe("var(--r-pill)");
-    expect(decl(pill, "gap")).toBe("4px");
-    expect(decl(pill, "font-size")).toBe(TEXT(12));
-    expect(decl(".cat-filter .cat-dot", "width")).toBe("6px");
-    expect(decl(".cat-filter .cat-dot", "height")).toBe("6px");
+    expect(decl(bar, "background")).toBe("none");
+    expect(decl(bar, "gap")).toBe("2px");
+    const item = ".cat-filter";
+    expect(decl(item, "height")).toBe("var(--ctl-h-sm)");
+    expect(decl(item, "border-radius")).toBe("var(--r-pill)");
+    expect(decl(item, "padding")).toBe("0 8px 0 6px");
+    expect(decl(item, "gap")).toBe("6px");
+    expect(decl(item, "font-size")).toBe(TEXT(12));
+    expect(decl(".cat-filter .cat-dot", "width")).toBe("8px");
+    expect(decl(".cat-filter .cat-dot", "height")).toBe("8px");
     for (const c of ["file", "shell", "web", "agent", "task", "plan", "mcp"]) {
       expect(decl(`.cat-filter.cat-${c} .cat-dot`, "background")).toBe(`var(--cat-${c})`);
     }
   });
-  it("category filter pills: showing is the accent wash and stroke in --text, off is bare in --text-secondary", () => {
-    expect(decl(".cat-filter", "background")).toBe("var(--accent-16)");
-    expect(decl(".cat-filter", "border")).toBe("1px solid var(--accent)");
-    expect(decl(".cat-filter", "color")).toBe("var(--text)");
-    expect(decl(".cat-filter.off", "background")).toBe("none");
-    expect(decl(".cat-filter.off", "border-color")).toBe("var(--line)");
-    expect(decl(".cat-filter.off", "color")).toBe("var(--text-secondary)");
+  it("category legend items: no fill and no stroke, shown in --text-secondary, hidden a hollow dot in --text-dim", () => {
+    expect(decl(".cat-filter", "background")).toBe("none");
+    expect(decl(".cat-filter", "border")).toBe("0");
+    expect(decl(".cat-filter", "color")).toBe("var(--text-secondary)");
+    expect(decl(".cat-filter.off", "color")).toBe("var(--text-dim)");
+    expect(decl(".cat-filter.off .cat-dot", "background")).toBe("transparent");
+    expect(decl(".cat-filter.off .cat-dot", "border")).toBe("1.5px solid var(--text-dim)");
+    expect(decl(".cat-filter:hover", "background")).toBe("var(--ctl-fill)");
+    expect(decl(".cat-filter:hover", "color")).toBe("var(--text)");
     const src = read("../components/CategoryFilterBar.tsx");
     expect(src).toContain("aria-pressed={!off}");
     expect(src).toContain('<span className="cat-dot" aria-hidden="true" />');
   });
   it("writes none of them with a colour literal, and every hover under the mouse query", () => {
-    for (const sel of [".autofit-chip", ".autofit-resume", ".rearrange-undo", ".rearrange-undo-act", ".drag-trash-zone", ".cat-filter-bar", ".cat-filter", ".cat-filter.off", ".cost-tip", ".recap-note"]) {
+    for (const sel of [".autofit-chip", ".autofit-resume", ".rearrange-undo", ".rearrange-undo-act", ".drag-trash-zone", ".cat-filter-bar", ".cat-filter", ".cat-filter.off", ".cat-filter.off .cat-dot", ".cat-filter-sep", ".cat-filter-all", ".cat-filter-tools", ".cost-tip", ".recap-note"]) {
       expect(body(sel), sel).not.toMatch(LITERAL);
     }
     const css = sheetText();
-    for (const sel of [".autofit-resume:hover", ".rearrange-undo-act:hover", ".cat-filter.off:hover"]) {
+    for (const sel of [".autofit-resume:hover", ".rearrange-undo-act:hover", ".cat-filter:hover", ".cat-filter-all:hover", ".cat-filter-tools:hover"]) {
       const at = css.indexOf(sel);
       expect(at, sel).toBeGreaterThan(-1);
       expect(css.lastIndexOf("@media (hover: hover) and (pointer: fine)", at), sel).toBeGreaterThan(css.lastIndexOf("\n}\n", at));

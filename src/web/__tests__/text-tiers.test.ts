@@ -257,16 +257,20 @@ describe("what was migrated to the secondary tier", () => {
       ".bw-row-detail",
       ".bw-settings-note",
       // The same recap, whole, in the detail panel.
-      // The canvas filter chips at rest, the one exception that is a label and
-      // not a sentence: a bar of categories that are all showing sits a tier
-      // under the foreground so the canvas stays the loudest thing, and the
-      // pointer lifts a chip to --text. Its floors are held in quiet-signals.
-      ".cat-filter.off",
+      // The canvas's tool legend at rest, the one exception that is a label
+      // and not a sentence: a legend of categories that are all showing sits
+      // a tier under the foreground so the canvas stays the loudest thing, and
+      // the pointer lifts an item to --text. Its floors are held in
+      // quiet-signals.
+      // CHANGED ON PURPOSE (V4's legend): a showing item is in this tier and a
+      // hidden one steps down to --text-dim beside a hollow dot (so
+      // `.cat-filter.off` left this list and `.cat-filter` came back), and the
+      // folded legend's "Tools" button below 600px wide says its word in it.
+      ".cat-filter",
+      ".cat-filter-tools",
       // CHANGED ON PURPOSE (V4's Figma): a companion tile's name is set in this tier, like a theme's.
       ".character-choice",
-      // CHANGED ON PURPOSE (V4's Figma): the off pill sits in --text-secondary,
-      // and the pills that show take --text (so `.cat-filter` left this list).
-      // The rest are V4's secondary-ink lines: the auto-fit chip and the
+      // CHANGED ON PURPOSE (V4's Figma): V4's secondary-ink lines: the auto-fit chip and the
       // re-arrange strip's status words, the drag trash's first line, the recap
       // note's body and the cost tooltip's model line.
       ".autofit-chip",

@@ -453,8 +453,9 @@ describe("one token per dimming decision, and two decisions (#379 §2)", () => {
     // there to fix: #368 dropped the fade entirely and carries "off" on the
     // colour tier, a greyed emoji and #370's strike-through instead.
     expect(decl(".cat-filter.off", "opacity")).toBeNull();
-    // CHANGED ON PURPOSE (V4's Figma): the off pill's label is --text-secondary.
-    expect(decl(".cat-filter.off", "color")).toBe("var(--text-secondary)");
+    // CHANGED ON PURPOSE (V4's legend): a hidden item's word is --text-dim, and
+    // its dot goes hollow; still no fade.
+    expect(decl(".cat-filter.off", "color")).toBe("var(--text-dim)");
     expect(css).not.toMatch(/opacity:\s*0\.38/);
   });
 
