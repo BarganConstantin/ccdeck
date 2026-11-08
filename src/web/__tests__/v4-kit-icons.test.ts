@@ -57,6 +57,32 @@ describe("the redrawn icons keep the export's geometry", () => {
     }
   });
 
+  it("settings is a cog with a hub, not the eight rays that read as a sun", () => {
+    const [cog, hub] = KIT_ICONS.settings.els as readonly [{ d: string }, { cx: number; cy: number; r: number }];
+    expect(KIT_ICONS.settings.els).toHaveLength(2);
+    expect(hub).toEqual({ cx: 7, cy: 7, r: 1.75 });
+    // One closed outline, drawn from the top tooth's right shoulder.
+    expect(cog.d.startsWith("M7.13 1.17L6.87 1.17C")).toBe(true);
+    expect(cog.d.match(/M/g)).toHaveLength(1);
+    expect(cog.d.endsWith("Z")).toBe(true);
+    // Six teeth, 60 degrees apart: the outline's far points (past 5.4 from the
+    // hub) fall in six directions and no others.
+    const nums = cog.d.match(/[\d.]+/g)!.map(Number);
+    const points = nums.flatMap((n, i) => i % 2 === 0 ? [[n - 7, nums[i + 1] - 7]] : []);
+    // The teeth point up, down and to the four diagonals 60 apart: at 30
+    // degrees plus a multiple of 60, measured from the right.
+    const tips = points.filter(([x, y]) => Math.hypot(x, y) > 5.4).map(([x, y]) => ((Math.atan2(y, x) * 180) / Math.PI - 30) / 60);
+    expect(new Set(tips.map(k => ((Math.round(k) % 6) + 6) % 6)).size).toBe(6);
+    for (const k of tips) expect(Math.abs(k - Math.round(k)) * 60).toBeLessThan(15);
+    // The ink stays inside the 14 box with the 1.5 stroke's half on every side.
+    expect(Math.min(...nums)).toBeGreaterThanOrEqual(0.75);
+    expect(Math.max(...nums)).toBeLessThanOrEqual(13.25);
+    // The old drawing's rays are gone.
+    expect(cog.d).not.toContain("M7 1.6V3.1");
+    const html = renderToStaticMarkup(createElement(KitIcon, { name: "settings" }));
+    expect(html).toContain('<circle cx="7" cy="7" r="1.75"></circle>');
+  });
+
   it("the five state glyphs are the export's, with its opacities and weights", () => {
     expect(KIT_STATE_GLYPHS.waiting.els).toEqual([
       { cx: 7, cy: 7, r: 6, o: 0.35 },

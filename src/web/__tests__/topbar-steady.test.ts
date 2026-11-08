@@ -37,7 +37,9 @@ const items = (watchUnseen: number) => railItems({
 
 describe("the bar holds nothing a panel changes", () => {
   it("draws no panel toggle: only Search, Settings and Feedback, which open dialogs", () => {
-    expect(header).toContain("<UtilityRun items={[rails.search, ...rails.topUtilities]} />");
+    // CHANGED ON PURPOSE (V4): Search in the end group, Feedback in the corner.
+    expect(header).toContain("<UtilityRun items={[rails.search]} />");
+    expect(header).toContain("<UtilityRun items={[rails.corner]} />");
     expect(header).not.toMatch(/rails\.left|rails\.right|<EdgeRail|<EdgeDock/);
     const utilities = items(0).utilities;
     expect(utilities.map(i => i.id)).toEqual(["settings", "feedback"]);

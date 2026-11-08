@@ -523,7 +523,7 @@ describe("the dock has five doors, and the rest are in More", () => {
 
   it("Accounts, Sessions, Usage and Machine, then More; Settings and the rest are in More", () => {
     expect(app).toContain("items={[...rails.left, ...rails.right[0]]");
-    expect(app).toContain("more={[rails.search, ...rails.capacity, ...rails.right.slice(1).flat(), ...rails.integrations, ...rails.explore, ...rails.utilities]}");
+    expect(app).toContain("more={[rails.search, ...rails.capacity, ...rails.right.slice(1).flat(), ...rails.integrations, ...rails.explore, ...rails.utilities.filter(item => item !== rails.corner)]}");
   });
 
   // CHANGED ON PURPOSE (the phone layout): Sessions reads not pressed while ANY

@@ -50,9 +50,10 @@ function rails({ claude = true, usageOpen = false, unread = 0, onHistory = noop 
 /** The dock exactly as App.tsx composes it from the rails. CHANGED ON PURPOSE
  *  (the owner's phone layout): five doors as the phone frame draws them
  *  (Accounts, Sessions, Usage, Machine, More), so Settings is in More with
- *  Feedback and the rest. */
+ *  the rest. CHANGED ON PURPOSE (V4): Feedback is in the bar's corner on a
+ *  phone too, so More has no row for it. */
 function dockFor(r: ReturnType<typeof rails>) {
-  return mount(EdgeDock, { items: [...r.left, ...r.right[0]], more: [...r.right.slice(1).flat(), ...r.utilities] });
+  return mount(EdgeDock, { items: [...r.left, ...r.right[0]], more: [...r.right.slice(1).flat(), ...r.utilities.filter(item => item !== r.corner)] });
 }
 
 /** The control elements the dock draws: its RailButtons, then its More. */
@@ -88,7 +89,7 @@ describe("the dock holds the four panels, then More", () => {
     expect(buttons(view.tree).map(b => (b.props.item as { id: string }).id))
       .toEqual(["accounts", "session-list", "usage", "machine"]);
     expect((moreOf(view.tree).props.items as { id: string }[]).map(i => i.id))
-      .toEqual(["history", "browser-watch", "settings", "feedback"]);
+      .toEqual(["history", "browser-watch", "settings"]);
   });
 
   it("puts Codex's own button where Claude's was on a machine without Claude Code", () => {
@@ -110,12 +111,12 @@ describe("the dock holds the four panels, then More", () => {
     // CHANGED ON PURPOSE (the owner's phone layout): the dock's five doors are
     // the left column's two and the right rail's first run; Settings, Feedback
     // and the rest are in More; the Machine door wears the offline dot.
-    expect(app).toMatch(/\{phone\s*(?:\/\/[^\n]*\s*)*\?\s*<EdgeDock\s+items=\{\[\.\.\.rails\.left, \.\.\.rails\.right\[0\]\]\.map\([^\n]*\)\}\s+more=\{\[rails\.search, \.\.\.rails\.capacity, \.\.\.rails\.right\.slice\(1\)\.flat\(\), \.\.\.rails\.integrations, \.\.\.rails\.explore, \.\.\.rails\.utilities\]\}\s+offline=\{everConnected && !live\} \/>\s*:\s*<EdgeRail side="left" label/);
+    expect(app).toMatch(/\{phone\s*(?:\/\/[^\n]*\s*)*\?\s*<EdgeDock\s+items=\{\[\.\.\.rails\.left, \.\.\.rails\.right\[0\]\]\.map\([^\n]*\)\}\s+more=\{\[rails\.search, \.\.\.rails\.capacity, \.\.\.rails\.right\.slice\(1\)\.flat\(\), \.\.\.rails\.integrations, \.\.\.rails\.explore, \.\.\.rails\.utilities\.filter\(item => item !== rails\.corner\)\]\}\s+offline=\{everConnected && !live\} \/>\s*:\s*<EdgeRail side="left" label/);
     // CHANGED ON PURPOSE (V4's Figma): two stripes again, the left one drawn in
     // the dock's place, the right one only where there is no phone dock.
     expect(app).toMatch(/<EdgeRail side="left" label/);
     expect(app).toMatch(/\{!phone && <EdgeRail side="right"/);
-    expect(app).toMatch(/\{!phone && <div className="actions"><UtilityRun items=\{\[rails\.search, \.\.\.rails\.topUtilities\]\} \/><\/div>\}/);
+    expect(app).toMatch(/\{!phone && <div className="actions"><UtilityRun items=\{\[rails\.search\]\} \/><\/div>\}/);
   });
 
   it("swaps at the sheet's own narrow breakpoint, so the dock is drawn exactly where it is mounted", () => {
@@ -177,13 +178,13 @@ describe("More is a menu button for the rare dialogs and Settings", () => {
     expect(button().props["aria-haspopup"]).toBe("menu");
     expect(button().props["aria-expanded"]).toBe(false);
     expect(button().props["aria-controls"]).toBeUndefined();
-    expect(button().props["aria-label"]).toBe("More: Usage history, Browser watch, not watching, Settings, Send feedback");
+    expect(button().props["aria-label"]).toBe("More: Usage history, Browser watch, not watching, Settings");
     expect(menu()).toBeNull();
   });
 
   it("opens a menu of them by their whole names, focus on the first", () => {
-    // CHANGED ON PURPOSE (the phone layout): the rows are the four More holds,
-    // Settings before Feedback.
+    // CHANGED ON PURPOSE (the phone layout): the rows are the ones More holds,
+    // Settings last now that Feedback is in the bar's corner (V4).
     const { button, menu } = openMore(dockFor(rails()).tree);
     (button().props.onClick as () => void)();
     expect(button().props["aria-expanded"]).toBe(true);
@@ -191,7 +192,7 @@ describe("More is a menu button for the rare dialogs and Settings", () => {
     expect(menu()!.props.role).toBe("menu");
     expect(menu()!.props.start).toBe("first");
     const rows = all(menu(), e => e.props.role === "menuitem");
-    expect(rows.map(r => textOf(r))).toEqual(["Usage history", "Browser watch", "Settings", "Send feedback"]);
+    expect(rows.map(r => textOf(r))).toEqual(["Usage history", "Browser watch", "Settings"]);
   });
 
   it("opens at either end from the keyboard, the way a native menu button does", () => {
@@ -205,7 +206,7 @@ describe("More is a menu button for the rare dialogs and Settings", () => {
   it("carries Browser watch's unread count, in the chrome's grey, while the row it stands for is folded", () => {
     // CHANGED ON PURPOSE (the phone layout): More's name lists Settings too.
     const { button, menu } = openMore(dockFor(rails({ unread: 2 })).tree);
-    expect(button().props["aria-label"]).toBe("More: Usage history, Browser watch, not watching, 2 unread, Settings, Send feedback");
+    expect(button().props["aria-label"]).toBe("More: Usage history, Browser watch, not watching, 2 unread, Settings");
     expect(textOf(one(button(), e => e.props.className === "rail-badge"))).toBe("2");
     (button().props.onClick as () => void)();
     expect(all(menu(), e => e.props.role === "menuitem").map(r => textOf(r))[1]).toBe("Browser watch · 2 unread");

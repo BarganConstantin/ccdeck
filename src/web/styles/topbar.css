@@ -192,8 +192,8 @@
 /* The version chip's slot in the end group. The chip's arrival and exit are its slot's (ChipPresence,
    topbar-status.css). */
 .topbar .v-group { display: flex; align-items: center; gap: 8px; }
-/* Search and Feedback, the controls the bar still holds (Settings is at the
-   Panel bar's foot).
+/* Search, the control the end group holds (Settings is at the Panel bar's
+   foot, Feedback in the corner cell below).
    `flex: none` is the deliberate half. Every flex item shrinks by default, so
    under compression the bar used to take width from whatever gave first, which
    included the controls. It never should: a readout that has been squeezed off
@@ -206,13 +206,37 @@
   flex: none;
 }
 /* The END group (V4's Figma): the version chip when there is one, the Layout
-   switch, Search and Feedback, 8 apart, right-aligned by the bar's own
-   space-between and never shrunk, for the reason above. */
+   switch and Search, 8 apart, never shrunk, for the reason above. The auto
+   margin takes the free space before it, so it stands against the corner cell
+   rather than halfway between the start group and the cell. */
 .topbar .tb-end {
   display: flex;
   align-items: center;
   gap: 8px;
   flex: none;
+  margin-left: auto;
+}
+/* FEEDBACK'S CORNER (V4): the bar's top-right corner is a cell of its own, as
+   wide as the right stripe under it, and the stripe's line rises through the
+   bar beside it, so Feedback never reads as part of Search. The button sits on
+   the stripe's column, 6 in from the line like every door below it (the 1px
+   on the right is the stripe's, which keeps its doors there too). The cell
+   reaches out over the bar's 8 of end padding to the window's edge and up over
+   its top pixel to meet the window's top, and gives that pixel back as padding
+   so the button stays centred on whole pixels. The end group stops 8 short of
+   the line, the group's own gap, not the bar's 12. Never shrunk: it is a
+   control's only way in. */
+.topbar .tb-corner {
+  flex: none;
+  align-self: stretch;
+  box-sizing: border-box;
+  width: var(--edge-w);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: -1px -8px 0 -4px;
+  padding: 1px 1px 0 0;
+  border-left: 1px solid var(--line);
 }
 /* Two providers in an incident at once (#1311). The readout gives from the
    left, so two chips in full — Claude's and Codex's, about 280px — cost the
@@ -234,10 +258,13 @@
   .topbar .readout .chip-slot:has(> .provider-incident) { display: none; }
 }
 /* A phone or a narrow window (#849), at the sheet's one narrow breakpoint.
-   Every control is in the dock along the bottom there (edge-rails.css), and
-   the bar is the readout alone, on less padding. */
+   Every other control is in the dock along the bottom there (edge-rails.css),
+   and the bar is the readout and Feedback's corner, on less padding. */
 @media (max-width: 640px) {
   .topbar { gap: 12px; padding: 1px 12px 0; }
+  /* Feedback's corner on the phone frame's bar: no stripe beside it, so no
+     line, and its button (edge-rails.css) 8 from the edge, the bar's 12 less 4. */
+  .topbar .tb-corner { width: auto; margin: 0 -4px 0 0; padding: 0; border-left: 0; }
   /* THE ALARM OUTLASTS THE NAME. `.readout` gives first and clips what it
      loses, and the blocked-session chip is its last child, so at 600px it was
      cut in half and at 400px it was gone while the wordmark still said "ccdec".

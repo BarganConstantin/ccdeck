@@ -16,6 +16,12 @@
    stands only between the two. The bar's space-between alone spread its three
    children and left a hole after the menu. */
 :root[data-desktop-chrome="true"] .topbar .tb-end { margin-left: auto; }
+/* Feedback's corner cell (topbar.css) reaches out over the bar's 6 of end
+   padding, as it does over the browser's 8: on Windows and Linux it stands just
+   before the OS's window buttons, which own the rest of the corner, and on
+   macOS, whose traffic lights are on the left, in the window's corner over the
+   right stripe. */
+:root[data-desktop-chrome="true"] .topbar .tb-corner { margin-right: -6px; }
 /* The 80 is the OS's: macOS draws its traffic lights there, so it is named
    for them rather than taken from the spacing ladder. */
 :root[data-desktop-chrome="true"][data-desktop-platform="darwin"] .topbar {

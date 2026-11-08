@@ -2,7 +2,8 @@
 // popover, the selected ribbon's removal). The bar is 40 tall on --panel over a
 // --line rule; the start group is the wordmark and three count pills, then the
 // chips only when needed; the end group is the version chip only when needed, the
-// Layout switch, Search and a 28x28 Feedback icon. No Settings, no ribbon.
+// Layout switch and Search, and a 28x28 Feedback icon stands in the corner cell
+// after it (feedback-corner.test.ts). No Settings, no ribbon.
 //
 // Read from the sheet and the sources, the way the suite reads them; the
 // popover is portalled, so its behaviour is pinned in the source and its look in
@@ -70,9 +71,10 @@ describe("the bar: 40 high, --panel, a rule under it, 12 and 8 at the sides", ()
     expect(existsSync(join(web, "components/SelectedRibbon.tsx"))).toBe(false);
     expect(existsSync(join(web, "styles/selection-ribbon.css"))).toBe(false);
     expect(css).not.toContain(".selected-ribbon");
-    expect(app).toMatch(/<UtilityRun items=\{\[rails\.search, \.\.\.rails\.topUtilities\]\}/);
-    // The top bar's utilities are Feedback alone; Settings is at the Panel bar's foot.
-    expect(sourceOf("rail-items.tsx")).toMatch(/topUtilities: \[feedback\]/);
+    // CHANGED ON PURPOSE (V4): Search alone in the end group and Feedback in
+    // the bar's corner cell; Settings is at the Panel bar's foot.
+    expect(app).toMatch(/<UtilityRun items=\{\[rails\.search\]\}/);
+    expect(sourceOf("rail-items.tsx")).toMatch(/corner: feedback,/);
   });
 });
 
