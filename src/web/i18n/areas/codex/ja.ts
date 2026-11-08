@@ -27,6 +27,8 @@ const catalog: Catalog = {
   "codex.share.copyFailed": "クリップボードを利用できません。上のコード全体を選択してコピーしてください。",
   // The row's voice (codex-accounts.ts CODEX_VOICE)
   "codex.row.liveTitle": "新しいセッションの既定アカウント",
+  "codex.row.defaultWord": "既定",
+  "codex.row.notChecked": "クォータは未確認です",
   "codex.row.liveSpoken": "既定のアカウント：",
   "codex.row.readBy": "ccdeck がこのアカウントの使用量を最後に読み取った時刻",
   "codex.row.readPlan": "ccdeck がこのアカウントの使用量を最後に読み取った時刻と、次に読み取る予定の時刻です。このパネルを開いている間、既定のアカウントは1分ごと、それ以外は5分ごとに読み取ります。Codex が報告するアカウントの上限を表示するため、枠が1つだけのプランではバーも1本です。",

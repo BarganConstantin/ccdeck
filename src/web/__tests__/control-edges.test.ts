@@ -749,8 +749,11 @@ const CONTROLS: Control[] = [
   // The Other accounts list's two controls (#1579), on the same terms: no
   // boundary at rest — the order is its words and the other is named — and the
   // edge they draw under the pointer and the keyboard measured on the column.
-  { at: ".ap-rest-sort select:hover:not(:focus-visible)", fillFrom: ".ap-rest-sort select:hover:not(:focus-visible)",
-    states: [".ap-rest-sort select:focus-visible", ".ap-rest-sort select[data-held]"], beds: ACCOUNTS },
+  // CHANGED ON PURPOSE (V4's Figma): the order is a menu button now, not a
+  // select. It draws no boundary at rest, under the pointer or with its menu
+  // open — a fill answers those — and the one edge it does draw, the dashed
+  // one while the list is held, is measured on the column.
+  { at: ".ap-rest-sort[data-held]", beds: ACCOUNTS },
   { at: ".ap-rest-all:hover", fillFrom: ".ap-rest-all:hover",
     states: [".ap-rest-all:focus-visible"], beds: ACCOUNTS },
   // The network map's way in, over Local network's row, on the same terms as
@@ -1349,6 +1352,10 @@ describe("every control that draws a boundary draws one that can be seen (1.4.11
       // pills — a --line rim at rest, and the chosen one filled with
       // --accent-16 and edged in --accent — each named by its own word.
       ".ap-chip", '.ap-chip[aria-pressed="true"]',
+      // CHANGED ON PURPOSE (V4's Figma): an account row's Switch and Sign in
+      // are the kit's quiet buttons — a --line rim on --bg-soft, like the
+      // phone's keys above — each named by the word written in it.
+      ".ap-switch", ".ap-sign-in",
       ".settings-filter-field:focus-visible", ".sm-select:focus-visible", ".ap-manage-input:focus-visible",
       ".aa-field input:focus-visible", ".tr-input:focus-visible", ".tr-select:focus-visible",
       ".qh-window select:focus-visible", ".jr-move-pop select:focus-visible", ".jr-transition select:focus-visible",

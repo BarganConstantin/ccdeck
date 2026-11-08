@@ -67,8 +67,9 @@ describe("an account whose 5-hour window has reset since it was read", () => {
     expect(text(figure)).toBe("reset");
     expect(html).not.toContain('data-level="hi"');
     expect(figure).toContain("5h has reset since this reading");
-    // Under "Most room" the number it was placed by is the window still running.
-    expect(/<span class="ap-q" data-sort-key=""[^]*?<\/span><\/span>/.exec(quick)?.[0]).toContain("7d");
+    // Under "Most room" the number it was placed by is the window still running
+    // — the second figure, at the end of the line under the name.
+    expect(/<span class="ap-fig ap-fig-2" data-sort-key=""[^]*?<\/span><\/span>/.exec(quick)?.[0]).toContain("7d");
   });
 
   it("keeps a window still running as it was", () => {

@@ -176,7 +176,18 @@ describe("what was migrated to the secondary tier", () => {
       // rather than a heading in --text. A label, not prose, kept in the list
       // because the kit draws it so.
       ".ap-reset-list-head h3.ap-reset-all-head",
-      ".ap-state-text b", ".ap-sum .ap-nav-name",
+      ".ap-state-text b",
+      // CHANGED ON PURPOSE (V4's Figma): the account row as V4 draws it. The
+      // second figure and a figure on line 2, the reset after the plan, the
+      // open row's values, a state line about something that clears on its
+      // own, the selected row's other quiet parts; and the group's head —
+      // its chevron, count, expand-all, how many can be switched to, the sort
+      // glyph — with "and N more" under the previews. The head's title moved
+      // up to --text, so it left this list.
+      ".ap-account.active :where(.ap-alias-domain, .ap-q-label, .ap-q-plan, .ap-marks, .ap-meta-key)",
+      ".ap-fig-2 .ap-q-pct", ".ap-issue-line", ".ap-lane-reset", ".ap-meta", ".ap-meta-value",
+      ".ap-preview-more", ".ap-q-pct", ".ap-q-reset", ".ap-rest-head > .ap-rest-all", ".ap-rest-ready",
+      ".ap-rest-sort-glyph", ".ap-sum .ap-nav-chev", ".ap-sum-count", ".ap-tag",
       // V4's Agent / Card sets its task line (the session's name or title, or a
       // subagent's kind and folder) in this tier, and its foot — cost · time …
       // and the sub-agent count — in the same ink as mono figures. The foot is

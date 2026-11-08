@@ -465,7 +465,11 @@ export default function CodexProfilesSection({ onClose, switcher, onNotice, away
           switched: liveNote ?? undefined,
           readPlan: plan ? t("codex.row.readPlanNamed", { plan: sentence(plan), rest: voice.readPlan ?? "" }) : voice.readPlan,
           waiting: reads ? t("codex.row.reading") : undefined,
+          noReading: t("codex.row.notChecked"),
         }}
+        // Codex says the plan of every account it has read, so every row says
+        // it, before the reset.
+        planLabel={plan ? sentence(plan) : null}
         opened={a.active ? liveOpen.includes(laneKey(a)) : isOpen(openness, a)}
         onToggleLanes={() => (a.active ? setLiveOpen(o => toggleLane(o, a)) : setOpenness(o => toggleOne(o, a)))}
         busy={busy} pressProps={pressProps} onSwitch={doSwitch}
@@ -578,6 +582,9 @@ export default function CodexProfilesSection({ onClose, switcher, onNotice, away
                   )}
                 </div>
               )}
+              {/* What every figure in the column is, said once over the rows
+                  rather than on each of them, as on Claude's side. */}
+              {head && <p className="ap-caption">{t("accounts.panel.caption")}</p>}
               <ul className="ap-list">{head && accountRow(head)}</ul>
               {rest.length > 0 && (
                 <OtherAccounts idPrefix="codex-"

@@ -55,8 +55,10 @@ const METERS = [".sysdetail .sd-fill", ".sysdetail .sd-core-fill", ".ctx-window-
 // Account capacity's state marks (#1713) are not here on purpose: they are
 // drawn as borders, which a Contrast theme repaints in CanvasText with no rule
 // of this block's, a filled mark staying filled and a hollow one hollow.
-const OWN_COLOUR = [".qb-fill", ".ap-lane-fill", ".ap-report-meter i", ".uh-bar-seg", ".uh-agent-seg", ".uh-legend-dot", ".cost-bar .cb-seg"];
-const TRACKS = [".qb-track", ".ap-lane-track", ".sd-track", ".sd-core", ".uh-agent-bar", ".cost-bar", ".ap-report-meter", ".ta-track"];
+// CHANGED ON PURPOSE (V4's Figma): an account row draws one meter, its last
+// line (`.ap-meter` and its fill), where the open row drew a bar per window.
+const OWN_COLOUR = [".qb-fill", ".ap-meter-fill", ".ap-report-meter i", ".uh-bar-seg", ".uh-agent-seg", ".uh-legend-dot", ".cost-bar .cb-seg"];
+const TRACKS = [".qb-track", ".ap-meter", ".sd-track", ".sd-core", ".uh-agent-bar", ".cost-bar", ".ap-report-meter", ".ta-track"];
 
 describe("the deck under a Windows Contrast theme (#871)", () => {
   it("answers forced colours in exactly one block", () => {

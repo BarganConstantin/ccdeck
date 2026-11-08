@@ -27,6 +27,8 @@ const catalog: Catalog = {
   "codex.share.copyFailed": "Área de transferência indisponível. Selecione e copie o código completo acima.",
   // The row's voice (codex-accounts.ts CODEX_VOICE)
   "codex.row.liveTitle": "Conta padrão para novas sessões",
+  "codex.row.defaultWord": "padrão",
+  "codex.row.notChecked": "Cota ainda não verificada",
   "codex.row.liveSpoken": "Conta padrão:",
   "codex.row.readBy": "Quando o ccdeck leu o uso desta conta pela última vez",
   "codex.row.readPlan": "Quando o ccdeck leu o uso desta conta pela última vez e quando pretende ler de novo: a cada minuto para a conta padrão e a cada cinco minutos para as outras, enquanto este painel estiver aberto. São os limites que o Codex informa para a conta, então um plano com uma só janela mostra uma só barra.",

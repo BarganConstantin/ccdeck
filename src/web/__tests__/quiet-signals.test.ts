@@ -386,7 +386,9 @@ describe("5. one focus language, and nothing quietly opting out of it", () => {
     expect(declOf(".jr-row:has(> .jr-row-main:focus-visible)", "outline")).toBe("var(--focus-w) solid var(--accent)");
     expect(killers).toEqual([
       // The text-field family (tokens.css): V4's Figma gives fields no ring, their border turns --accent.
-      ".settings-filter-field:focus-visible, .sm-select:focus-visible, .ap-manage-input:focus-visible,\n.aa-field input:focus-visible, .radio-filter-search input:focus-visible,\n.tr-input:focus-visible, .tr-select:focus-visible,\n.qh-window select:focus-visible, .jr-move-pop select:focus-visible, .jr-transition select:focus-visible,\n.jr-comment-compose textarea:focus-visible, .su-pricing select:focus-visible,\n.ap-field select:focus-visible, .ap-pop .ap-field select:focus-visible,\n.ap-rest-sort select:focus-visible, .bw-settings select:focus-visible",
+      // CHANGED ON PURPOSE (V4's Figma): the other accounts' order is a menu
+      // button now, not a select, so it left this family for the global ring.
+      ".settings-filter-field:focus-visible, .sm-select:focus-visible, .ap-manage-input:focus-visible,\n.aa-field input:focus-visible, .radio-filter-search input:focus-visible,\n.tr-input:focus-visible, .tr-select:focus-visible,\n.qh-window select:focus-visible, .jr-move-pop select:focus-visible, .jr-transition select:focus-visible,\n.jr-comment-compose textarea:focus-visible, .su-pricing select:focus-visible,\n.ap-field select:focus-visible, .ap-pop .ap-field select:focus-visible,\n.bw-settings select:focus-visible",
       ".qo-input:focus-visible",
       ".radio-pin",
       ".radio-search:focus-within",

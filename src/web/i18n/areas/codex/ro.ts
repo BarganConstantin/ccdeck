@@ -33,6 +33,8 @@ const catalog: Catalog = {
 
   // The row's voice (codex-accounts.ts CODEX_VOICE)
   "codex.row.liveTitle": "Contul implicit pentru sesiunile noi",
+  "codex.row.defaultWord": "implicit",
+  "codex.row.notChecked": "Cota nu a fost verificată încă",
   "codex.row.liveSpoken": "Cont implicit:",
   "codex.row.readBy": "Când a citit ccdeck ultima oară utilizarea acestui cont",
   "codex.row.readPlan": "Când a citit ccdeck ultima oară utilizarea acestui cont și când plănuiește s-o citească din nou: în fiecare minut pentru contul implicit și la cinci minute pentru celelalte, cât timp acest panou este deschis. Sunt limitele raportate de Codex pentru cont, deci un plan cu o singură fereastră arată o singură bară.",

@@ -551,8 +551,12 @@ describe("which half of the row is allowed to be loud", () => {
     // that. Two ambers on one row gave the louder half to the consequence:
     // "no stored login" in the dimmest tone the panel has, beside "collected
     // 22h ago · due" in the warning one.
-    expect(clientText()).toContain('`ap-age${a.stale && !issue ? " ap-stale" : ""}`');
-    expect(clientText()).toMatch(/\{a\.stale && !issue && \(\s*<span className="ap-q-age"/);
+    // CHANGED ON PURPOSE (V4's Figma): an old reading is a state line of its
+    // own, in the quiet ink, and it is drawn only when nothing is wrong with
+    // the account; the open row's age is plain.
+    expect(clientText()).toMatch(/\{!issue && !weekFull && a\.stale && state && \(\s*<p className="ap-issue-line" data-tone=\{state\.tone\}>/);
+    expect(clientText()).toContain('a.stale ? { tone: "quiet", glyph: "info" }');
+    expect(clientText()).not.toContain("ap-stale");
   });
 });
 

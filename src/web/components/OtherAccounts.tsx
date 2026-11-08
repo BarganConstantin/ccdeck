@@ -1,9 +1,8 @@
-// THE FOLD'S ROW, and the card that names what is behind it.
+// THE FOLD'S HEAD, and the card that names what is behind it.
 //
 // Why the accounts column has a fold at all, and why it unfolds in place
 // instead of leading to a view, is written in other-accounts.ts. This file is
-// the two surfaces: a row in Local network's idiom, and a peek in Local
-// network's shape.
+// the two surfaces: the group's head, and a peek in Local network's shape.
 //
 // IT BORROWS THAT SECTION'S TIMINGS RATHER THAN CHOOSING ITS OWN. Two hover
 // cards in one column that opened on different delays would be two behaviours
@@ -16,6 +15,7 @@ import { useT } from "../i18n";
 import { createPortal } from "react-dom";
 import { type Peer, foldPeek, foldPreview, restLine } from "../other-accounts";
 import { KitIcon } from "./kit-icons";
+import AnchoredPopover from "./AnchoredPopover";
 import { SLOT_ORDER, type OrderChoice } from "../other-accounts-order";
 import { placeBeside } from "../popover-place";
 import { PEEK_DELAY_MS, PEEK_GRACE_MS } from "./LanSyncSection";
@@ -102,13 +102,15 @@ function FoldPeek({ anchorId, id, peers, onHold, onLet }: {
 }
 
 /**
- * ONE ROW FOR EVERY ACCOUNT THAT IS NOT THE LIVE ONE.
+ * THE HEAD OF THE GROUP OF EVERY ACCOUNT THAT IS NOT THE LIVE ONE.
  *
- * Drawn as a destination in Local network's idiom — a glyph, a name, a state
- * and a chevron — but it goes nowhere: the press unfolds the list underneath
- * it, and the chevron turns to say which way. What it is standing in for is a
- * list the reader owns and switches between, so the switch stays in this
- * column rather than behind a view and a way back.
+ * Two lines. The first is the one toggle — the chevron, "Other accounts" and
+ * how many there are, as one button that unfolds the list underneath it — with
+ * every row opened or shut at once at its right end while the list is open.
+ * The second says how many of them a switch would reach, with the order the
+ * list is in at its right end. What it is standing in for is a list the reader
+ * owns and switches between, so the switch stays in this column rather than
+ * behind a view and a way back.
  */
 export default function OtherAccounts({
   peers, strained, armed, threshold, open, onToggle, order, choices, onOrder, allOpen, onToggleAll, held = false, idPrefix = "",
@@ -165,56 +167,92 @@ export default function OtherAccounts({
   // stand over the rows it had just been naming.
   const dropPeek = () => { window.clearTimeout(peekTimer.current); setPeek(false); };
 
-  // AND THE FREEST NUMBER ONLY WHILE THE LIST IS SHUT. It is there to answer
-  // "where do I go" before the reader unfolds anything; once they have, the
-  // rows underneath say it per account, and a summary repeating one of them
-  // makes a reader check whether the two are counting the same thing.
+  // The one alarm the head carries — a policy with nowhere to go — is
+  // restLine's verdict, in both states of the fold.
   const line = restLine(peers, { strained: strained && !open, armed, threshold }, t);
-  // V4's Figma says only how many are ready ("6 of 9 ready"); where auto-switch
-  // trips is the Auto-switch row's, and the one alarm the line has — nowhere to
-  // go — stays in the line.
-  const summary = line.tone === "bad" ? line.text : line.text.split(" · ")[0];
-  const previews = open ? [] : foldPreview(peers, t);
+  // HOW MANY A SWITCH WOULD REACH: signed in and not held out, the same two
+  // refusals a row withholds its own Switch for. A full window still counts —
+  // each row says its own limits — and the tooltip says so.
+  const ready = peers.filter(p => p.ready).length;
+  const readyText = ready > 0
+    ? t("accounts.other.canSwitch", { count: ready })
+    : t("accounts.other.noneCanSwitch", { total: peers.length });
+  // WHO IS BEHIND THE FOLD, while it is shut: the two with the most room and
+  // the count of the rest. Not beside the alarm, which is the line that has to
+  // be read there.
+  const previews = open || line.tone === "bad" ? [] : foldPreview(peers, t);
   return (
-    <div className="ap-rest">
-      <button type="button" id={`ap-${idPrefix}rest-entry`} className="ap-nav ap-sum"
-        aria-expanded={open}
-        // THE WHOLE BOX, not the list inside it: the list's own id is the one
-        // its rows' menus close against.
-        aria-controls={open ? `ap-${idPrefix}rest-panel` : undefined}
-        // Described by the card while the card is there, so a screen reader on
-        // this row is read the same names a pointer is shown.
-        aria-describedby={peek ? `ap-${idPrefix}rest-peek` : undefined}
-        onClick={() => { dropPeek(); onToggle(); }}
-        // A mouse only. Touch has no hover, and a pointerenter synthesised by a
-        // tap would open a card the tap is already replacing with the list.
-        onPointerEnter={e => { if (e.pointerType === "mouse") openPeek(PEEK_DELAY_MS); }}
-        onPointerLeave={shutPeek}
-        // A KEYBOARD'S FOCUS, NOT EVERY FOCUS — the rule Local network's way-in
-        // row (LanEntryRow.tsx) learned from a card that opened on a
-        // programmatic hand-back and then had nothing to close it.
-        // `:focus-visible` is the browser's own answer to which of the two
-        // happened.
-        onFocus={e => { if (e.target.matches(":focus-visible")) openPeek(0); }}
-        onBlur={shutPeek}>
-        {/* AND NO GLYPH. It had one — two stacked rows, for what is behind the
-            door — and it was the wrong borrowing. An icon in this column means
-            a DESTINATION: Local network wears one because pressing it takes the
-            column away. This row opens a list where it stands, and the icon
-            made the two read as two doors to somewhere else.
-            Dropping it also puts the name on the panel's own inset, which is
-            where `Claude accounts` above and `Auto-switch` below already start.
-            Those three left edges are the column's spine, and a 23px indent on
-            the middle one was the loudest thing in the block. */}
-        <KitIcon name="chevron-right" className="ap-nav-chev" />
-        <span className="ap-nav-text">
-          <span className="ap-nav-name">{t("accounts.other.title")}</span>
-          <span className="ap-nav-state" data-tone={line.tone}>{summary}</span>
+    <div className="ap-rest" data-open={open ? "" : undefined}>
+      <div className="ap-rest-head">
+        <button type="button" id={`ap-${idPrefix}rest-entry`} className="ap-nav ap-sum"
+          aria-expanded={open}
+          // THE WHOLE BOX, not the list inside it: the list's own id is the one
+          // its rows' menus close against.
+          aria-controls={open ? `ap-${idPrefix}rest-panel` : undefined}
+          // Described by the card while the card is there, so a screen reader on
+          // this row is read the same names a pointer is shown.
+          aria-describedby={peek ? `ap-${idPrefix}rest-peek` : undefined}
+          onClick={() => { dropPeek(); onToggle(); }}
+          // A mouse only. Touch has no hover, and a pointerenter synthesised by a
+          // tap would open a card the tap is already replacing with the list.
+          onPointerEnter={e => { if (e.pointerType === "mouse") openPeek(PEEK_DELAY_MS); }}
+          onPointerLeave={shutPeek}
+          // A KEYBOARD'S FOCUS, NOT EVERY FOCUS — the rule Local network's way-in
+          // row (LanEntryRow.tsx) learned from a card that opened on a
+          // programmatic hand-back and then had nothing to close it.
+          // `:focus-visible` is the browser's own answer to which of the two
+          // happened.
+          onFocus={e => { if (e.target.matches(":focus-visible")) openPeek(0); }}
+          onBlur={shutPeek}>
+          {/* A chevron and no other glyph: an icon in this column means a
+              DESTINATION, and this row opens a list where it stands. The
+              chevron turns down while the list is open. */}
+          <KitIcon name="chevron-right" className="ap-nav-chev" />
+          <span className="ap-nav-text">
+            {/* The title never wraps; the count is every other account. */}
+            <span className="ap-nav-name">{t("accounts.other.title")}</span>
+            <span className="ap-sum-count">{peers.length}</span>
+          </span>
+        </button>
+        {/* A toggle, named once and pressed or not: a name that changed under
+            the keyboard's focus is one most screen readers never announce. The
+            tooltip says what the next press does. Drawn only while the list is
+            open, because there is nothing to open while it is shut, and beside
+            the toggle rather than inside it — a control inside a button is not
+            a control. The glyph is arrows out of a line, and into it once
+            every row is open. */}
+        {open && (
+          <button type="button" className="ap-rest-all" aria-label={t("accounts.other.expandAll")} aria-pressed={allOpen}
+            aria-controls={`ap-${idPrefix}rest-list`} title={allOpen ? t("accounts.other.collapseAll") : t("accounts.other.expandAll")}
+            onClick={onToggleAll}>
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.25"
+              strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+              <path d={allOpen
+                ? "M1 7h1M5 7h1M8 7h1M12 7h1M7 1v4M7 9v4M5 3.2 7 5l2-1.8M5 10.8 7 9l2 1.8"
+                : "M1 7h1M5 7h1M8 7h1M12 7h1M7 1v4M7 9v4M5 3 7 1l2 2M5 11l2 2 2-2"} />
+            </svg>
+          </button>
+        )}
+      </div>
+      <div className="ap-rest-line">
+        <span className="ap-rest-ready" data-tone={ready > 0 ? "ok" : "idle"} title={t("accounts.other.countTip")}>
+          <i className="ap-rest-dot" aria-hidden />
+          <span className="ap-rest-ready-text">{readyText}</span>
         </span>
-      </button>
+        {open && <SortMenu order={order} choices={choices} onOrder={onOrder} held={held} idPrefix={idPrefix} />}
+      </div>
+      {/* THE ONE SENTENCE IN THE ERROR INK: auto-switch is on and there is no
+          account it could move to. Said open or shut, because neither the
+          meters nor the toggle can show it. */}
+      {line.tone === "bad" && (
+        <p className="ap-rest-alarm">
+          <KitIcon name="warning" className="ap-rest-alarm-glyph" />
+          <span>{line.text}</span>
+        </p>
+      )}
       {/* WHO IS BEHIND THE FOLD, in three lines while it is shut (V4's Figma):
           the two with the most room and the count of the rest. The fold opens
-          from the summary above; these are not controls. */}
+          from the head above; these are not controls. */}
       {previews.length > 0 && (
         <div className="ap-previews">
           {previews.map(p => p.kind === "more"
@@ -224,93 +262,77 @@ export default function OtherAccounts({
       )}
       {peek && <FoldPeek anchorId={`ap-${idPrefix}rest-entry`} id={`ap-${idPrefix}rest-peek`} peers={peers}
         onHold={holdPeek} onLet={shutPeek} />}
-      {open && <RestTools order={order} choices={choices} onOrder={onOrder}
-        allOpen={allOpen} onToggleAll={onToggleAll} held={held} listId={`ap-${idPrefix}rest-list`} />}
     </div>
   );
 }
 
 /**
- * THE LIST'S TWO CONTROLS, IN THE ROW THAT OPENS IT (#1579): the order, and
- * every row open or shut at once.
+ * THE LIST'S ORDER (#1579), AS ONE MENU: slot, most room, and fullest or
+ * emptiest first by each window — the direction is part of the choice, so
+ * there is no second button to reverse it.
  *
- * In the fold's own row, beside its chevron, rather than a row of buttons over
- * the list: the fold row is already the thing that governs the list, and a bar
- * of controls would be the one toolbar in a column that has none. Drawn only
- * while the list is open, because there is nothing to order or open while it
- * is shut, and siblings of the row's button rather than inside it — a control
- * inside a button is not a control. Their box is the height of the row, so a
- * press that misses one of them by a few pixels lands on nothing rather than
- * on the row, which would fold the list shut under the reader's hand.
- *
- * QUIET AT REST — no edge, --muted — and clear under the pointer and the
- * keyboard, with the neutral edge and fill every control in this column comes
- * up to. The order is a native select: the keyboard, a screen reader and a
- * touch screen all get the platform's own list, and what it shows closed is
- * the order the list is in. It is drawn at --text once it is anything but
- * slot, so a sorted list says so, and with a dashed edge while the list is
+ * A button that opens a menu over the column, so choosing an order moves
+ * nothing but the rows and the group stays open. What it shows closed is the
+ * order the list is in; under 240px the name leaves the button for its tooltip
+ * and the icon and the chevron stay. It is drawn at --text once it is anything
+ * but slot, so a sorted list says so, and with a dashed edge while the list is
  * holding the order the reader found — the deck's mark for "the last thing,
  * not the latest" — with the reason in its title.
- *
- * ITS WIDTH IS MEASURED, not reserved. The row's words stop short of the
- * controls, and a fixed reservation sized for the longest order cut "Auto-
- * switch has nowhere to go" in half beside "Slot", with sixty pixels unused.
  */
-function RestTools({ order, choices, onOrder, allOpen, onToggleAll, held, listId }: {
+function SortMenu({ order, choices, onOrder, held, idPrefix }: {
   order: string;
   choices: OrderChoice[];
   onOrder: (order: string) => void;
-  allOpen: boolean;
-  onToggleAll: () => void;
   held: boolean;
-  listId: string;
+  idPrefix: string;
 }) {
   const t = useT();
-  const ref = useRef<HTMLDivElement>(null);
-  useLayoutEffect(() => {
-    const el = ref.current;
-    const row = el?.parentElement;
-    if (!el || !row) return;
-    const measure = () => row.style.setProperty("--rest-tools-w", `${Math.ceil(el.offsetWidth)}px`);
-    measure();
-    if (typeof ResizeObserver === "undefined") return;
-    const ro = new ResizeObserver(measure);
-    ro.observe(el);
-    return () => { ro.disconnect(); row.style.removeProperty("--rest-tools-w"); };
-  }, []);
+  const [menu, setMenu] = useState<null | "first" | "last">(null);
+  const id = `ap-${idPrefix}rest-sort`;
   const label = choices.find(c => c.id === order)?.label ?? t("accounts.order.slot");
+  const choose = (next: string) => {
+    onOrder(next);
+    document.getElementById(id)?.focus();
+    setMenu(null);
+  };
   return (
-    <div className="ap-rest-tools" ref={ref}>
-      <span className="ap-rest-sort">
-        <select value={order} onChange={e => onOrder(e.target.value)}
-          aria-label={t("accounts.other.orderLabel")}
-          // The whole order, for a label the cap has cut; and while the list
-          // is held, why it does not match what the numbers now say.
-          title={held ? t("accounts.other.heldTip", { label }) : label}
-          data-sorted={order === SLOT_ORDER ? undefined : ""}
-          data-held={held ? "" : undefined}>
-          {choices.map(c => <option key={c.id} value={c.id}>{c.label}</option>)}
-        </select>
-        <svg width="9" height="9" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="1.3"
-          strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-          <path d="M2.5 3.8 5 6.3l2.5-2.5" />
+    <>
+      <button type="button" id={id} className="ap-rest-sort"
+        aria-haspopup="menu" aria-expanded={menu != null}
+        aria-controls={menu ? `${id}-menu` : undefined}
+        // The whole order, for a name the width has cut or hidden; and while
+        // the list is held, why it does not match what the numbers now say.
+        title={held ? t("accounts.other.heldTip", { label }) : label}
+        data-sorted={order === SLOT_ORDER ? undefined : ""}
+        data-held={held ? "" : undefined}
+        onClick={() => setMenu(m => (m ? null : "first"))}
+        onKeyDown={e => {
+          // Down opens at the first order and Up at the last, the way a native
+          // menu button does. Enter and Space are the click.
+          if (e.key !== "ArrowDown" && e.key !== "ArrowUp") return;
+          e.preventDefault();
+          setMenu(e.key === "ArrowUp" ? "last" : "first");
+        }}>
+        <svg className="ap-rest-sort-glyph" width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor"
+          strokeWidth="1.25" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+          <path d="M3.5 2v8M1.75 8.25 3.5 10l1.75-1.75M6.5 2.5h1.5M6.5 5h3M6.5 7.5h4" />
         </svg>
-      </span>
-      {/* A toggle, named once and pressed or not: a name that changed under
-          the keyboard's focus is one most screen readers never announce.
-          The glyph is unfold and fold — arrows away from a rule and towards
-          it — because two chevrons stacked are the platform's sign for sort
-          and for a list box, and this sits beside one. */}
-      <button type="button" className="ap-rest-all" aria-label={t("accounts.other.expandAll")} aria-pressed={allOpen}
-        aria-controls={listId} title={allOpen ? t("accounts.other.collapseAll") : t("accounts.other.expandAll")}
-        onClick={onToggleAll}>
-        <svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.3"
-          strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-          <path d={allOpen
-            ? "M2 7h10M7 1.5V5M5.2 3.2 7 5l1.8-1.8M7 12.5V9M5.2 10.8 7 9l1.8 1.8"
-            : "M2 7h10M7 1.5V5M5.2 3.3 7 1.5l1.8 1.8M7 12.5V9M5.2 10.7 7 12.5l1.8-1.8"} />
-        </svg>
+        <span className="vis-hidden">{t("accounts.other.orderLabel")}: </span>
+        <span className="ap-rest-sort-name">{label}</span>
+        <KitIcon name="chevron-down" className="ap-rest-sort-chev" />
       </button>
-    </div>
+      {menu && (
+        <AnchoredPopover anchorId={id} boundaryId={idPrefix ? `ap-${idPrefix}scroll` : "ap-scroll"} id={`${id}-menu`}
+          className="ap-pop ap-sort-pop" role="menu" labelledBy={id} start={menu} onClose={() => setMenu(null)}>
+          {choices.map(c => (
+            <button key={c.id} type="button" role="menuitemradio" aria-checked={c.id === order} className="ap-menu-item"
+              onClick={() => choose(c.id)}>
+              <span className="ap-menu-label">{c.label}</span>
+              {c.id === order && <span className="ap-menu-check" aria-hidden>✓</span>}
+            </button>
+          ))}
+        </AnchoredPopover>
+      )}
+    </>
   );
 }

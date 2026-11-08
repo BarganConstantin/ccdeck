@@ -354,7 +354,8 @@ describe("no font-size is declared where a shared rule outranks it (#379, #380)"
     // `.ap-switch` is no longer `.ap-manage-btn` with a class beside it that
     // nothing could win with: it is a control of its own, and its size is its
     // own rule's to say.
-    expect(decl(".ap-switch", "font-size")).toBe("11px");
+    // CHANGED ON PURPOSE (V4's Figma): the row's Switch is the kit's Small, 12.
+    expect(decl(".ap-switch", "font-size")).toBe("12px");
     expect(decl(".ap-add", "font-size")).toBeNull();
     // The colour is gone rather than dead. It was pinned here as the surviving
     // declaration when the font-size went, but it never rendered either:
@@ -559,16 +560,29 @@ describe("the accounts lane reads its name before its footnote (#379 §1)", () =
       .toBeLessThan(contrastRatio(rgb(light["--muted"]), rgb(light["--panel"])));
   });
 
-  it("never draws the 9px footnote stronger than the 10px name above it", () => {
-    const label = decl(".ap-lane-label", "color")!;
-    const reset = decl(".ap-lane-reset", "color")!;
-    const token = (v: string) => /var\((--[\w-]+)\)/.exec(v)![1];
+  // CHANGED ON PURPOSE (V4's Figma): the reset is no longer a footnote under the
+  // window's name. The open row says each window on one line, a key and a value
+  // ("7-day  49% · resets Thu 9:00 AM"), as it says when the account was read
+  // and what its organization sends: the key in the muted ink, and the value —
+  // the number and its reset — in the secondary ink. What the report fixed
+  // still holds: the window's name is never drawn in the weaker of the two
+  // tiers it was inverted against (--text-dim), and the reset is never louder
+  // than the number it belongs to.
+  const ink = (selector: string, theme: "dark" | "light", bed: ReturnType<typeof rgb>) =>
+    contrastRatio(rgb(TOKENS[theme][/var\((--[\w-]+)\)/.exec(decl(selector, "color")!)![1]]), bed);
+
+  it("draws the window's name in the key's ink and its reset in the value's", () => {
+    expect(decl(".ap-lane-label", "color")).toBe("var(--muted)");
+    expect(decl(".ap-lane-value", "color")).toBe("var(--text-secondary)");
+    expect(decl(".ap-lane-reset", "color")).toBe("var(--text-secondary)");
+    // The same pair as the open row's other lines.
+    expect(decl(".ap-meta-key", "color")).toBe("var(--muted)");
     for (const theme of ["dark", "light"] as const) {
       const bed = rgb(TOKENS[theme]["--panel"]);
-      const l = contrastRatio(rgb(TOKENS[theme][token(label)]), bed);
-      const r = contrastRatio(rgb(TOKENS[theme][token(reset)]), bed);
-      expect(l, `${theme}: label ${l.toFixed(2)}:1 vs reset ${r.toFixed(2)}:1`)
-        .toBeGreaterThanOrEqual(r);
+      expect(ink(".ap-lane-label", theme, bed), `${theme}: the name over --text-dim`)
+        .toBeGreaterThanOrEqual(contrastRatio(rgb(TOKENS[theme]["--text-dim"]), bed));
+      expect(ink(".ap-lane-reset", theme, bed), `${theme}: the reset no louder than the value`)
+        .toBeLessThanOrEqual(ink(".ap-lane-value", theme, bed));
     }
   });
 
@@ -580,20 +594,18 @@ describe("the accounts lane reads its name before its footnote (#379 §1)", () =
     const pct = 0.08;
     for (const theme of ["dark", "light"] as const) {
       const bed = over([...rgb(TOKENS[theme]["--text"]), pct], rgb(TOKENS[theme]["--panel"]));
-      const l = contrastRatio(rgb(TOKENS[theme][/var\((--[\w-]+)\)/.exec(decl(".ap-lane-label", "color")!)![1]]), bed);
-      const r = contrastRatio(rgb(TOKENS[theme][/var\((--[\w-]+)\)/.exec(decl(".ap-lane-reset", "color")!)![1]]), bed);
-      expect(l, `${theme} active row`).toBeGreaterThanOrEqual(r);
+      expect(ink(".ap-lane-label", theme, bed), `${theme} active row`)
+        .toBeGreaterThanOrEqual(contrastRatio(rgb(TOKENS[theme]["--text-dim"]), bed));
+      expect(ink(".ap-lane-reset", theme, bed), `${theme} active row`).toBeLessThanOrEqual(ink(".ap-lane-value", theme, bed));
     }
   });
 
-  it("raised the label rather than lowering the footnote", () => {
-    // The swap had two directions available and only one of them makes nothing
-    // on the row quieter than it already was. The label takes the stronger tier.
-    expect(decl(".ap-lane-label", "color")).toBe("var(--muted)");
-    expect(decl(".ap-lane-reset", "color")).toBe("var(--text-dim)");
-    // And the size step under it: the name is no smaller. CHANGED ON PURPOSE
-    // (nothing on screen under 11px): the reset moved up to the key's 11.
-    expect(parseFloat(decl(".ap-lane-label", "font-size")!)).toBe(11);
-    expect(parseFloat(decl(".ap-lane-reset", "font-size")!)).toBe(11);
+  it("sets the name, the number and the reset at the line's one size", () => {
+    // Nothing on the line sets a size of its own: the line is the kit's
+    // Small, 12, so no part of it can drift under the others.
+    expect(decl(".ap-lane-label", "font-size")).toBeNull();
+    expect(decl(".ap-lane-reset", "font-size")).toBeNull();
+    expect(decl(".ap-lane-pct", "font-size")).toBeNull();
+    expect(parseFloat(decl(".ap-lane", "font-size")!)).toBe(12);
   });
 });

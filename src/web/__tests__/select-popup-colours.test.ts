@@ -90,10 +90,8 @@ const SELECTS: Record<string, Array<{ name: string; chain: El[] }>> = {
     { name: "Browser Watch's quiet time", chain: [el("body"), el("div", ["bw-settings"]), el("label"), el("select")] },
     { name: "Browser Watch's reaction", chain: [el("body"), el("div", ["bw-settings"]), el("label"), el("select")] },
   ],
-  "components/OtherAccounts.tsx": [{
-    name: "the other accounts' order",
-    chain: [el("body"), el("aside", ["accounts-panel"]), el("div", ["ap-rest-tools"]), el("span", ["ap-rest-sort"]), el("select")],
-  }],
+  // CHANGED ON PURPOSE (V4's Figma): the other accounts' order is a menu
+  // button in the group's head now (OtherAccounts.tsx), not a select.
   // CHANGED ON PURPOSE (V4's Figma): the Auto-switch settings are chips and
   // options now, and the Move list is a list of rows; neither renders a select.
   // ADDED ON PURPOSE (V4's Figma): Text & density's two scales are selects now,

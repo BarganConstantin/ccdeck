@@ -66,22 +66,29 @@ export function orderKey(order: string): string | null {
 /**
  * Every order the menu offers for these accounts: slot, then fullest and
  * emptiest by 5h and by 7d, then the same for each model window any of them
- * has, then by room.
+ * has — after slot and room, which are the two orders a reader looking for
+ * where to go next reaches for first. The direction is part of each choice
+ * ("5-hour · fullest first"), so the menu is the only control the order needs.
+ * The two fixed windows are named in words; a model's by its label.
  *
  * The model entries come from the accounts in the list, so a store with no
- * Opus lane is not offered an Opus order that would sort nothing.
+ * Opus lane is not offered an Opus order that would sort nothing. The ids are
+ * what is stored, and they have not changed.
  */
 export function orderChoices(accounts: readonly Account[], t: TFunction = tNow): OrderChoice[] {
   const models = [...new Set(accounts.flatMap(a => (a.lanes ?? []).filter(isModelLane).map(l => l.label)))]
     .sort((x, y) => x.localeCompare(y));
-  const windows = [...WINDOWS.map(w => w.name), ...models];
+  const windows = [
+    ...WINDOWS.map(w => ({ id: w.name, said: t(`accounts.win.${w.lane}`) })),
+    ...models.map(m => ({ id: m, said: m })),
+  ];
   return [
     { id: SLOT_ORDER, label: t("accounts.order.slot") },
-    ...windows.flatMap(w => [
-      { id: `${w}:full`, label: t("accounts.order.full", { window: w }) },
-      { id: `${w}:empty`, label: t("accounts.order.empty", { window: w }) },
-    ]),
     { id: "room", label: t("accounts.order.room") },
+    ...windows.flatMap(w => [
+      { id: `${w.id}:full`, label: t("accounts.order.full", { window: w.said }) },
+      { id: `${w.id}:empty`, label: t("accounts.order.empty", { window: w.said }) },
+    ]),
   ];
 }
 

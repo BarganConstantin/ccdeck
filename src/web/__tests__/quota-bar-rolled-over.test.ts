@@ -18,6 +18,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import QuotaBar from "../components/QuotaBar";
 import AccountRow from "../components/AccountRow";
 import type { Account } from "../claude-accounts";
+import { sheetText } from "./sheet-source";
 
 const RESET = 18_000;
 const bar = (props: { pct: number | null; nowSec: number; limitReached?: boolean }) =>
@@ -85,32 +86,43 @@ describe("an open account row whose window has reset since its collection", () =
     onDismissRefusal: () => {}, switchedHere: false, swapped: null, displaced: undefined,
     issueExpanded: false, onOpenIssue: () => {},
   } as never));
-  /** The 5h lane's markup, from its label to the end of its reset slot. */
-  const fiveHour = (html: string) => /title="5h"[^]*?class="ap-lane-reset"[^]*?<\/span><\/div>/.exec(html)?.[0] ?? "";
+  /** The 5h lane's line, from its name to the end of its value. */
+  // CHANGED ON PURPOSE (V4's Figma): the open row says each window on a line
+  // of text and draws no bar of its own; its inks are classes, not styles.
+  const fiveHour = (html: string) => /<div class="ap-lane"[^>]*><span class="ap-lane-label" title="5h">[^]*?<\/div>/.exec(html)?.[0] ?? "";
+  const meter = (html: string) => /<div class="ap-meter"[^>]*>[^]*?<\/div>(?:<\/div>)?<\/li>/.exec(html)?.[0] ?? "";
 
   // Until accounts-open-row-reset the old number stayed on the face, muted,
   // with "reset" in the countdown's slot — and a frozen row printed only the
   // number. Now "reset" takes the number's place on every row, as the shut row
   // and the capacity report put it, and the number moves to the title.
   it("says reset where the old number was, in the record's ink, not the warning's", () => {
-    const lane = fiveHour(row(account(NOW - 600)));
-    expect(lane).toMatch(/<span class="ap-lane-pct" style="color:var\(--muted\)"[^>]*><span aria-hidden="true">reset<\/span>/);
-    expect(lane).not.toContain("var(--err)");
+    const html = row(account(NOW - 600));
+    const lane = fiveHour(html);
+    expect(lane).toMatch(/<span class="ap-lane-pct" data-reset=""[^>]*><span aria-hidden="true">reset<\/span>/);
+    expect(lane).not.toContain("data-level");
+    expect(sheetText()).toMatch(/\.ap-account\[data-frozen\] \.ap-lane-pct,\s*\.ap-lane-pct\[data-reset\] \{ color: var\(--muted\); \}/);
     expect(lane).not.toContain(">92%<");
-    expect(lane).not.toContain("ap-lane-fill");
+    // The row's meter draws this window, and draws it empty.
+    expect(meter(html)).not.toContain("ap-meter-fill");
   });
 
   it("keeps when it reset and what it read on hover and for a screen reader", () => {
     const lane = fiveHour(row(account(NOW - 600)));
     expect(lane).toContain('title="Reported reset time passed 10m ago, 92% when read 10m ago"');
     expect(lane).toContain('<span class="vis-hidden">Reported reset time passed 10m ago, 92% when read 10m ago</span>');
-    expect(lane).toContain('<span class="ap-lane-reset"></span>');
+    // And no countdown to a time that has passed.
+    expect(lane).not.toContain("ap-lane-reset");
   });
 
   it("keeps a window still running in its level's ink, with its countdown", () => {
-    const lane = fiveHour(row(account(NOW + 3600)));
-    expect(lane).toContain("var(--err)");
+    // CHANGED ON PURPOSE (V4's Figma): the waiting ink from 80%, the error ink
+    // only at 100% — 92% is the waiting ink.
+    const html = row(account(NOW + 3600));
+    const lane = fiveHour(html);
+    expect(lane).toContain('data-level="mid"');
     expect(text(lane)).toContain("resets in 1h");
     expect(text(lane)).not.toMatch(/\breset$/);
+    expect(meter(html)).toContain("width:92%;background:var(--warn)");
   });
 });

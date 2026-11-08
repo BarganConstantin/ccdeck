@@ -28,7 +28,9 @@ const text = (html: string) => html.replace(/<[^>]+>/g, " ").replace(/\s+/g, " "
 describe("an account read on a paired deck", () => {
   it("adds nothing to the row, and says which deck and why on hover", () => {
     const html = row(account({ sharedFrom: "iMac" }), true);
-    expect(text(html)).toContain("collected 3m ago");
+    // CHANGED ON PURPOSE (V4's Figma): the open row says when it was read as a
+    // key and a value ("Read 3m ago").
+    expect(text(html)).toContain("Read 3m ago");
     expect(text(html)).not.toContain("iMac");
     expect(html).toContain('title="Read on iMac, a paired deck. One deck reads each account you share');
   });
@@ -41,7 +43,9 @@ describe("an account read on a paired deck", () => {
 
   it("keeps a shut row's age alone, naming the deck only on hover", () => {
     const html = row(account({ active: false, stale: true, sharedFrom: "iMac" }), false);
-    expect(html).toMatch(/<span class="ap-q-age" title="Read on iMac, a paired deck">3m ago<\/span>/);
+    // CHANGED ON PURPOSE (V4's Figma): an old reading's age is the row's state
+    // line, said as a sentence ("Last read 3m ago").
+    expect(html).toMatch(/<span class="ap-issue-text ap-q-age" title="Read on iMac, a paired deck">Last read 3m ago<\/span>/);
     expect(text(html)).not.toContain("iMac");
   });
 });
