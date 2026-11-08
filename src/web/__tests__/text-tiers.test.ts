@@ -629,6 +629,13 @@ describe("what was migrated to the secondary tier", () => {
       ".ts-note",
       ".ts-resumed",
       ".ts-text",
+      // The engine card in the same place: the sentence that says where the
+      // terminal engine stands and what pressing the button will do (fetch,
+      // check, retry), and the steps of an install in progress — "Downloading",
+      // "Checking the signature" — read once to know how far it got. The step
+      // being done steps up to --text, the ones still to come down to --muted.
+      ".ts-eng-step",
+      ".ts-eng-text",
       // The keys bar's sentences that ask nothing of the eye but are read whole:
       // the end bar and the first-run line (V4 draws both in this tier, with
       // one Quiet button at the right), and the older hosts dialog's intro and

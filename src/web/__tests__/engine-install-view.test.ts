@@ -1,4 +1,4 @@
-// V4 follow-up 01 (Figma "Engine install", page 305:501): which of the
+// V4's engine install card (Figma "Engine install"): which of the
 // install card's states the stage draws for the deck's status, and the small
 // words the card and Settings print. The deck's side (download, checks, lock,
 // recovery, routes) is engine-install.test.ts.

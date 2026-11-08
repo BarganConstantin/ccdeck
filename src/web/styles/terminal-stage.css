@@ -393,11 +393,13 @@
 .ts-eng-acts { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 .ts-eng-acts .btn { display: inline-flex; align-items: center; gap: 6px; }
 .btn.ts-eng-back { border-color: transparent; background: none; padding-inline: 4px; font-weight: 500; color: var(--accent); }
-.btn.ts-eng-back:hover { border-color: transparent; background: none; text-decoration: underline; }
+@media (hover: hover) and (pointer: fine) {
+  .btn.ts-eng-back:hover { border-color: transparent; background: none; text-decoration: underline; }
+}
 .ts-eng-progress { display: flex; flex-direction: column; gap: 6px; align-self: stretch; }
 .ts-setup-bar.ts-eng-bar { height: 4px; }
 .ts-eng-bar .ts-setup-fill { background: var(--accent); }
-/* Where a download stopped (Figma state 7): the share it reached, in the error colour. */
+/* Where a download stopped: the share it reached, in the error colour. */
 .ts-eng-bar[data-tone="danger"] .ts-setup-fill { background: var(--err); }
 /* Figma's circled "!": the kit's info glyph turned over. */
 .ts-eng-alert { transform: rotate(180deg); }
