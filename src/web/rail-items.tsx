@@ -62,9 +62,10 @@ export interface RailItems {
    *  Machine, the three activity records, Browser watch and Telemetry Radar. It
    *  has no foot. */
   rightStripe: RailItem[][];
-  /** What the top bar keeps of the two utilities: Feedback. Settings moved to
-   *  the Panel bar's foot (its key is unchanged). */
-  topUtilities: RailItem[];
+  /** Feedback, alone in the top bar's right corner on every size: a cell of
+   *  its own, so it never reads as part of Search. Settings moved to the Panel
+   *  bar's foot (its key is unchanged). */
+  corner: RailItem;
   /** Quick open's door straight to Codex's side, where the panel has two sides
    *  and the rail one button. Empty when Codex's button is in `left`. */
   codexDoor: RailItem[];
@@ -75,10 +76,11 @@ export interface RailItems {
   /** The phone's grouping of the same doors: the two panels, the activity
    *  records, the watchers, then Radio. The desktop draws the two stripes. */
   right: RailItem[][];
-  /** Settings and Feedback, in the topbar's corner. */
+  /** Settings and Feedback: quick open lists both, and the phone's More
+   *  holds Settings (Feedback is in the bar's corner there too). */
   utilities: RailItem[];
-  /** Quick open (quick-open.ts): ahead of the two utilities on the bar, and
-   *  the first row under the phone's More. */
+  /** Quick open (quick-open.ts): the bar's search field, ahead of Feedback's
+   *  corner, and the first row under the phone's More. */
   search: RailItem;
   /** One per connected tracker kind (#2178) — Jira — under the left column's
    *  two, after a divider; on a phone, under More. Empty until a connection
@@ -174,8 +176,8 @@ export function railItems({
   /** A ccdeck account's conversations with an unread reply (feedback-unread.ts);
    *  absent, none. */
   feedbackUnread?: number;
-  /** Open the feedback dialog on Your conversations: Feedback's press while it
-   *  shows the dot. */
+  /** Open the feedback dialog on Your conversations: Feedback's press while a
+   *  reply is unread. */
   openFeedbackConversations?: () => void;
 }): RailItems {
   const settingsCap = settingsChordLabel(platformName());
@@ -274,6 +276,9 @@ export function railItems({
     ariaLabel: t("board.rail.feedback.menu"), glyph: <FeedbackGlyph />, kind: "dialog", onPress: onFeedback,
     barLook: "icon",
     ...feedbackUnreadDoor(feedbackUnread, openFeedbackConversations),
+    // Its corner has the room to say how many: the count stands where the dot
+    // would, in the same accent (edge-rails.css).
+    ...(feedbackUnread > 0 ? { badge: feedbackUnread } : {}),
   };
   // TOOLS AND SKILLS, ONE DOOR EACH. Skills were a tab inside Tool activity,
   // and users said they could not find them. Each door opens its own view,
@@ -339,7 +344,7 @@ export function railItems({
       named(t("board.rail.group.activity"), [history, ...activity]),
       named(t("board.rail.group.watchers"), [browserWatch, ...radar]),
     ].filter(group => group.length > 0),
-    topUtilities: [feedback],
+    corner: feedback,
     capacity: providers.claude ? capacity : [],
     right: [
       named(t("board.rail.group.usage"), [usage, machine]),

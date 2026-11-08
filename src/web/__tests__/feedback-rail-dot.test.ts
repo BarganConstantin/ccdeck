@@ -1,10 +1,12 @@
-// The Feedback button's dot (feedback conversations, design 4.5): while a
-// ccdeck account's conversations hold a reply nobody has read, the topbar's
-// Feedback wears a small dot where a badge would sit, says how many in its
-// name and its hint, and opens the dialog on Your conversations. On a phone the
-// dock's More wears the dot while no count shows, and Feedback's row says the
-// count. Without an account — or with nothing unread — it is the button it
-// always was. The dot is the accent; amber stays the waiting count's.
+// The Feedback button's unread mark (feedback conversations, design 4.5): while
+// a ccdeck account's conversations hold a reply nobody has read, the topbar's
+// Feedback says how many in its name and its hint, and opens the dialog on Your
+// conversations. CHANGED ON PURPOSE (V4): its corner cell has the room for the
+// number, so the mark is a 14px count in the accent where the dot sat, on
+// every size; the phone's More no longer lists Feedback. A dot behind More
+// still shows for any door that wears one. Without an account — or with
+// nothing unread — it is the button it always was. The mark is the accent;
+// amber stays the waiting count's.
 import { describe, expect, it } from "vitest";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
@@ -29,11 +31,16 @@ const items = (feedbackUnread?: number, watchUnseen = 0) => railItems({
   openSettings: noop, onFeedback: () => opened.push("write"), toggles: { sessionList: ref(), usage: ref(), accounts: ref(), machine: ref() },
   openQuickOpen: noop, feedbackUnread, openFeedbackConversations: () => opened.push("conversations"),
 });
-const bar = (unread?: number) => renderToStaticMarkup(createElement(UtilityRun, { items: items(unread).utilities }));
+// The corner cell as App.tsx draws it, on the desktop and the phone alike.
+const bar = (unread?: number) => renderToStaticMarkup(createElement(UtilityRun, { items: [items(unread).corner] }));
+// No door App puts behind More wears a dot today: Feedback, the one that did,
+// has its corner and its count. More still carries a dot for a door that does,
+// so this one is Feedback's dot without the count its corner adds.
 const dock = (unread?: number, watchUnseen = 0) => {
   const r = items(unread, watchUnseen);
+  const dotted = { ...r.corner, badge: undefined };
   return renderToStaticMarkup(createElement(EdgeDock, {
-    items: [...r.left, ...r.right[0], r.utilities[0]], more: [...r.right.slice(1).flat(), r.utilities[1]],
+    items: [...r.left, ...r.right[0], r.utilities[0]], more: [...r.right.slice(1).flat(), dotted],
   }));
 };
 const buttonNamed = (html: string, name: string) => {
@@ -52,11 +59,15 @@ describe("Feedback on the topbar", () => {
     expect(feedbackUnreadDoor(0)).toEqual({});
   });
 
-  it("wears the dot, hidden from the tree, and says the count in its name instead", () => {
+  it("wears the count, hidden from the tree, and says it in its name too", () => {
+    // CHANGED ON PURPOSE (V4): the count where the dot was, and no dot with it.
     const one = buttonNamed(bar(1), "Feedback, 1 unread conversation");
-    expect(one).toMatch(/<span class="rail-dot" aria-hidden="true"><\/span>$/);
-    expect(buttonNamed(bar(3), "Feedback, 3 unread conversations")).toContain("rail-dot");
-    expect(items(3).utilities[1].detail).toBe("3 unread");
+    expect(one).toMatch(/<span class="rail-badge" aria-hidden="true">1<\/span>$/);
+    expect(one).not.toContain("rail-dot");
+    expect(buttonNamed(bar(3), "Feedback, 3 unread conversations")).toMatch(/<span class="rail-badge" aria-hidden="true">3<\/span>$/);
+    expect(items(3).corner.detail).toBe("3 unread");
+    // The door it was keeps its dot and its words: the corner adds the number.
+    expect(feedbackUnreadDoor(3)).toMatchObject({ dot: true, detail: "3 unread" });
   });
 
   it("opens on Your conversations while it shows the dot, and on Write otherwise", () => {
@@ -68,8 +79,14 @@ describe("Feedback on the topbar", () => {
   });
 });
 
-describe("Feedback behind the phone's More", () => {
-  it("puts the dot on More while no count does, and says the count on Feedback's row", () => {
+describe("a dot behind the phone's More", () => {
+  it("is not Feedback's: More has no Feedback row, its corner on the bar is its one entry", () => {
+    const app = read("../App.tsx");
+    expect(app).toMatch(/\.\.\.rails\.utilities\.filter\(item => item !== rails\.corner\)\]\}/);
+    expect(app).toContain('<div className="tb-corner"><UtilityRun items={[rails.corner]} /></div>');
+  });
+
+  it("puts the dot on More while no count does, and says the count on the door's row", () => {
     const more = buttonNamed(dock(2), "More:");
     expect(more).toMatch(/aria-label="More: Usage history, Browser watch, not watching, Feedback, 2 unread conversations"/);
     expect(more).toMatch(/<span class="rail-dot" aria-hidden="true"><\/span>$/);
@@ -102,6 +119,19 @@ describe("the dot itself", () => {
     // CHANGED ON PURPOSE (V4's Figma phone frame): the glyph is 12 under the
     // dock's border now, so the dot on its corner is 10 down, not 8.
     expect(edges).toMatch(/\.rail-btn-dock \.rail-dot \{ top: 10px; left: calc\(50% \+ 5px\); \}/);
+  });
+
+  it("becomes a 14px count in the accent on Feedback's corner, never the resting grey or amber", () => {
+    const count = rule(".tb-corner .rail-badge");
+    expect(count).toMatch(/position: absolute;/);
+    expect(count).toMatch(/top: -1px;\s*right: -3px;/);
+    expect(count).toMatch(/min-width: 14px;\s*height: 14px;\s*padding: 0 4px;/);
+    expect(count).toMatch(/background: var\(--accent\);\s*color: var\(--bg\);/);
+    expect(count).toMatch(/font-size: calc\(11px \+ max\(-1px, var\(--ui-text-increase, 0px\)\)\);\s*font-weight: 400;/);
+    expect(count).toMatch(/line-height: calc\(14px \+ var\(--ui-text-increase, 0px\)\);/);
+    expect(count).not.toMatch(/--warn|--muted/);
+    // A forced-colours theme redraws every count, this one with them.
+    expect(read("../styles/touch-and-forced-colours.css")).toMatch(/\.rail-badge \{ forced-color-adjust: none; background: CanvasText; color: Canvas; \}/);
   });
 
   it("is redrawn in a forced-colours theme, in the one block that is last", () => {

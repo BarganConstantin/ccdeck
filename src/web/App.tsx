@@ -1202,13 +1202,18 @@ function Inner() {
               group: only where the Command Panel is on (use-view.ts), and never
               on a phone, where the Board is the whole of the deck. */}
           {!phone && stage.workspaceOffered && <ViewSwitch view={inWorkspace ? "workspace" : "board"} onChange={switchView} />}
-          {/* Search and Feedback, in the corner every product keeps them in
-              (Settings is at the Panel bar's foot). Who is waiting, by name, is
-              the waiting pill's popover, and the selected session is named by
-              the Inspector: the ribbon that used to sit between them is gone
+          {/* Search, at the end of the bar (Settings is at the Panel bar's
+              foot, Feedback in the corner after it). Who is waiting, by name,
+              is the waiting pill's popover, and the selected session is named
+              by the Inspector: the ribbon that used to sit between them is gone
               (V4's Figma) — Esc clears the selection, Z frames it. */}
-          {!phone && <div className="actions"><UtilityRun items={[rails.search, ...rails.topUtilities]} /></div>}
+          {!phone && <div className="actions"><UtilityRun items={[rails.search]} /></div>}
         </ReadoutGroup>
+        {/* Feedback's own cell, the bar's top-right corner, on every size: over
+            the right stripe with the stripe's line beside it, just before the
+            OS's window buttons in the desktop app, at the end of the phone's
+            bar. Next after Search in the Tab order. */}
+        <div className="tb-corner"><UtilityRun items={[rails.corner]} /></div>
       </header>
 
       {/* The left stripe, ahead of the column it opens so Tab reaches the
@@ -1216,13 +1221,14 @@ function Inner() {
           that stands in for both stripes and the utilities. */}
       {phone
         // Five doors, as the phone frame draws them: Accounts, Sessions, Usage,
-        // Machine and More. Settings and the rest are in More. One door is
+        // Machine and More. Settings and the rest are in More; Feedback is in
+        // the bar's corner, so More has no row for it. One door is
         // active at a time: Sessions gives way while a sheet is up over it, and
         // then its press means "go to Sessions" (the sheet closes, the list
         // stays), so the door never says closed and does the other thing.
         ? <EdgeDock
             items={[...rails.left, ...rails.right[0]].map(sessionsDoorUnderSheet)}
-            more={[rails.search, ...rails.capacity, ...rails.right.slice(1).flat(), ...rails.integrations, ...rails.explore, ...rails.utilities]}
+            more={[rails.search, ...rails.capacity, ...rails.right.slice(1).flat(), ...rails.integrations, ...rails.explore, ...rails.utilities.filter(item => item !== rails.corner)]}
             offline={everConnected && !live} />
         : <EdgeRail side="left" label={t("board.rail.tools")} groups={rails.leftStripe} foot={rails.leftFoot} />}
 

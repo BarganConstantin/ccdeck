@@ -324,7 +324,10 @@ describe("Pause is a canvas verb and lives on the canvas (#527's rule, applied l
     // Feedback, with Search (⌘K) ahead of both since quick open (2026-10-24).
     // Pause is in none of them, and no run is left holding nothing.
     expect(app).not.toMatch(/className="action-run/);
-    expect(app).toMatch(/<div className="actions"><UtilityRun items=\{\[rails\.search, \.\.\.rails\.topUtilities\]\} \/><\/div>/);
+    // CHANGED ON PURPOSE (V4): Feedback left Search's run for a cell of its
+    // own in the bar's corner, drawn by a UtilityRun of its own.
+    expect(app).toMatch(/<div className="actions"><UtilityRun items=\{\[rails\.search\]\} \/><\/div>/);
+    expect(app).toMatch(/<div className="tb-corner"><UtilityRun items=\{\[rails\.corner\]\} \/><\/div>/);
     expect(app).toMatch(/utilities: \[settings, feedback\]/);
     expect(app).toMatch(/ariaLabel: t\("board\.rail\.settings"\)/);
     // CHANGED ON PURPOSE (V4's Figma): two stripes, each its own toolbar; Radio

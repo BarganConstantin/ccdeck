@@ -226,7 +226,8 @@
 }
 
 /* ── Search and Feedback on the bar ──────────────────────────────────────── */
-/* 8 apart, the end group's gap (V4's Figma). */
+/* 8 apart, the end group's gap (V4's Figma). Search is the end group's and
+   Feedback stands alone in the bar's corner cell (topbar.css). */
 .utility-run {
   display: flex;
   align-items: center;
@@ -290,6 +291,24 @@
 }
 /* The unread dot on the 28px door's glyph corner, as the stripe's is. */
 .rail-btn-bar.rail-btn-icon .rail-dot { top: 4px; left: auto; right: 4px; }
+/* Feedback's unread replies in its corner cell (V4): the count on the button's
+   top right corner, 14 tall, in the accent with --bg on it at 11/14. The dot's
+   colour with the room to say how many: never the stripe's resting grey, which
+   would vanish on the grey glyph, and never amber, the waiting count's. */
+.tb-corner .rail-badge {
+  position: absolute;
+  top: -1px;
+  right: -3px;
+  min-width: 14px;
+  height: 14px;
+  padding: 0 4px;
+  background: var(--accent);
+  color: var(--bg);
+  font-size: calc(11px + max(-1px, var(--ui-text-increase, 0px)));
+  font-weight: 400;
+  line-height: calc(14px + var(--ui-text-increase, 0px));
+  pointer-events: none;
+}
 @media (hover: hover) and (pointer: fine) {
   .rail-btn-bar.rail-btn-field:hover { border-color: var(--line); background: var(--bg-soft); }
 }
@@ -391,6 +410,12 @@
     background: var(--err);
     pointer-events: none;
   }
+  /* Feedback in the phone bar's corner (topbar.css): the phone frame's 32
+     button, radius 8, a 44 target around it, and its count 1 down and 2 out
+     from the button's corner, as the frame draws it. */
+  .tb-corner .rail-btn-bar.rail-btn-icon { width: 32px; height: 32px; border-radius: var(--r-panel); }
+  .tb-corner .rail-btn-bar.rail-btn-icon::after { content: ""; position: absolute; inset: -6px; }
+  .tb-corner .rail-badge { top: 1px; right: -2px; }
 }
 
 @media (prefers-reduced-motion: reduce) {
