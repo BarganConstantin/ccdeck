@@ -26,11 +26,23 @@ function rule(css: string, selector: string): string {
 }
 
 describe("the modal's frame and header", () => {
-  it("is 1120 x 760, held to the window as it was", () => {
+  // CHANGED ON PURPOSE: the dialog is bigger and the reader can resize it. It
+  // opens at 88 % of the window up to 1680 x 1120 (it was a fixed
+  // min(1120px, 90vw) x min(760px, 90dvh)); a chosen size comes in --ig-w and
+  // --ig-h, and the sheet holds either to at least 720 x 480 and at most the
+  // window less 16 on each side.
+  it("opens at 88% of the window up to 1680 x 1120, held between 720 x 480 and the window less 16 a side", () => {
     const r = rule(integrations, ".modal.ig-modal");
-    expect(r).toMatch(/width:\s*min\(1120px, 90vw\)/);
-    expect(r).toMatch(/height:\s*min\(760px, 90dvh\)/);
-    expect(r).toMatch(/max-height:\s*90dvh/);
+    expect(r).toMatch(/--ig-room-w:\s*calc\(100vw - 32px\)/);
+    expect(r).toMatch(/--ig-room-h:\s*calc\(100dvh - 32px - var\(--ig-top\)\)/);
+    expect(r).toMatch(/--ig-shown-w:\s*min\(max\(var\(--ig-w, min\(88vw, 1680px\)\), min\(720px, var\(--ig-room-w\)\)\), var\(--ig-room-w\)\)/);
+    expect(r).toMatch(/--ig-shown-h:\s*min\(max\(var\(--ig-h, min\(88dvh, 1120px\)\), min\(480px, var\(--ig-room-h\)\)\), var\(--ig-room-h\)\)/);
+    expect(r).toMatch(/width:\s*var\(--ig-shown-w\)/);
+    expect(r).toMatch(/height:\s*var\(--ig-shown-h\)/);
+    expect(r).toMatch(/max-height:\s*none/);
+    // The handles reach outside the border, so the frame inside clips instead.
+    expect(r).toMatch(/overflow:\s*visible/);
+    expect(rule(integrations, ".ig-frame")).toMatch(/overflow:\s*hidden/);
   });
 
   it("has a 44 header with the title at 14/600 and the connection name in 11px mono", () => {
@@ -53,14 +65,18 @@ describe("the modal's frame and header", () => {
     expect(read("components/IntegrationFreshness.tsx")).toContain("createPortal(line, slot)");
   });
 
-  it("splits at a 1px divider with the list 640 beside Jira's detail and 480 beside a forge's", () => {
-    expect(integrations).toMatch(/\.ig-split\[data-detail\]:not\(\[data-drill-in\]\)\s*\{[^}]*minmax\(0, 1fr\) 1px min\(var\(--ig-detail-w\), calc\(100% - 421px\)\)/);
+  // CHANGED ON PURPOSE: the grid sizes the list now (the divider's value is
+  // the list's width, between 280px and 60 %), and the detail takes the rest.
+  // The providers' automatic shares are the same, so until a drag Jira's list
+  // is 57.23 % and a forge's 42.95 %: 641 and 481 in the old 1120 dialog,
+  // where the detail's share left 640 and 480 beside the 1px divider.
+  it("splits at a 1px divider with the list 57% beside Jira's detail and 43% beside a forge's", () => {
+    expect(integrations).toMatch(/\.ig-split\[data-detail\]:not\(\[data-drill-in\]\)\s*\{[^}]*grid-template-columns:\s*var\(--ig-list-w\) 1px minmax\(0, 1fr\)/);
     expect(read("integrations/layout.ts")).toMatch(/export const SPLITTER = 1;/);
-    // 1120 x 0.4277 = 479 (so the list is 640); 1120 x 0.5705 = 639 (so the list is 480).
     expect(read("components/JiraPanel.tsx")).toContain("automaticDetailShare={0.4277}");
     expect(read("components/forge/ForgePanel.tsx")).toContain("automaticDetailShare={0.5705}");
-    expect(Math.round(1120 * 0.4277)).toBe(479);
-    expect(Math.round(1120 * 0.5705)).toBe(639);
+    expect(Math.round(1120 * (1 - 0.4277))).toBe(641);
+    expect(Math.round(1120 * (1 - 0.5705))).toBe(481);
     expect(rule(integrations, ".ig-splitter")).toMatch(/background:\s*var\(--line-soft\)/);
   });
 });

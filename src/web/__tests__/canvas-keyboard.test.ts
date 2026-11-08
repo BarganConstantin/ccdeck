@@ -387,7 +387,7 @@ describe("nothing else in the deck invents a focus stop", () => {
     // Radar's activity list splitter is the same widget, its value the list's
     // share of the workspace.
     // The integrations modal's splitter, between a tracker's list and its
-    // detail (#2178), is the same widget, its value the list's share.
+    // detail (#2178), is the same widget, its value the list's width.
     // A Jira issue's code block and wide table, the GitHub and GitLab panel's
     // job log and a description's code block (#2178, #2179) scroll sideways
     // inside their own frame, as Radio's results scroll, so each is a stop
@@ -455,7 +455,11 @@ describe("nothing else in the deck invents a focus stop", () => {
     // item page takes focus when the row that opened it goes out of sight —
     // behind the drill-in screen, or on the page a link replaced
     // (forge/DetailParts.tsx).
-    expect(negatives).toEqual(["components/CanvasMain.tsx", "components/IntegrationConnectionDetails.tsx", "components/IntegrationsSection.tsx", "components/JiraBacklog.tsx", "components/JiraIssueDetail.tsx", "components/QuickOpen.tsx", "components/RadioFilter.tsx", "components/SettingsSearch.tsx", "components/SkillInspector.tsx", "components/TelemetryCapture.tsx", "components/ToolAuditInspector.tsx", "components/forge/DetailParts.tsx", "components/forge/RepoPicker.tsx"]);
+    // CHANGED ON PURPOSE: a tracker dialog's keyboard resize band
+    // (DialogResize.tsx) is a destination too. The Size menu's "Resize with the
+    // keyboard" moves focus onto it so the arrows reach it; it is never a Tab
+    // stop, and leaving it ends the mode.
+    expect(negatives).toEqual(["components/CanvasMain.tsx", "components/DialogResize.tsx", "components/IntegrationConnectionDetails.tsx", "components/IntegrationsSection.tsx", "components/JiraBacklog.tsx", "components/JiraIssueDetail.tsx", "components/QuickOpen.tsx", "components/RadioFilter.tsx", "components/SettingsSearch.tsx", "components/SkillInspector.tsx", "components/TelemetryCapture.tsx", "components/ToolAuditInspector.tsx", "components/forge/DetailParts.tsx", "components/forge/RepoPicker.tsx"]);
     expect(code(readFileSync(join(web, "components/forge/RepoPicker.tsx"), "utf8"))).toMatch(/role="option"[^>]*tabIndex=\{-1\}/);
     expect(code(readFileSync(join(web, "components/forge/DetailParts.tsx"), "utf8"))).toMatch(/<article ref=\{ref\} className="fd"[^>]*tabIndex=\{-1\}/);
     expect(code(readFileSync(join(web, "components/JiraIssueDetail.tsx"), "utf8"))).toMatch(/<h2 id="jira-detail-title" tabIndex=\{-1\}/);
@@ -464,6 +468,7 @@ describe("nothing else in the deck invents a focus stop", () => {
     expect(code(readFileSync(join(web, "components/QuickOpen.tsx"), "utf8"))).toMatch(/role="listbox"[^>]*tabIndex=\{-1\}/);
     expect(code(readFileSync(join(web, "components/CanvasMain.tsx"), "utf8"))).toMatch(/<main\n\s+id="canvas"\n\s+tabIndex=\{-1\}/);
     expect(code(readFileSync(join(web, "components/TelemetryCapture.tsx"), "utf8"))).toMatch(/<section className="tr-inspector"[^>]*tabIndex=\{-1\}/);
+    expect(code(readFileSync(join(web, "components/DialogResize.tsx"), "utf8"))).toMatch(/className="ig-rs-keys"[^>]*tabIndex=\{-1\}/);
   });
 
   it("has no role=\"button\" left that a keyboard cannot operate", () => {

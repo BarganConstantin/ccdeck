@@ -584,6 +584,9 @@ const CONTROLS: Control[] = [
   // with the primary button's accent edge. Its search fields and its Open in
   // Jira link are the integrations' shared ones.
   { at: 'button.btn.jr-chip[aria-pressed="true"]', fillFrom: 'button.btn.jr-chip[aria-pressed="true"]', beds: ["--panel"] },
+  // The Filters button the chips fold into in a dialog under 900 wide: the
+  // same chip, with the on chip's accent edge while any filter is on.
+  { at: "button.btn.jr-chip.jr-filter-fold-btn[data-on]", fillFrom: "button.btn.jr-chip.jr-filter-fold-btn[data-on]", beds: ["--panel"] },
   // The forge lists' state chips (#2179): the same chip, on the filter row
   // over the list, and its accent edge when it is on.
   { at: 'button.btn.fgl-chip[aria-pressed="true"]', fillFrom: 'button.btn.fgl-chip[aria-pressed="true"]', beds: ["--panel"] },
@@ -989,7 +992,10 @@ describe("what counts as an edge, which BORDER_PROPS decides (#655)", () => {
     // both are swept at the unchanged 3:1 floor, not exempted.
     // CHANGED ON PURPOSE (V4's Figma): the integrations' tabs, detail tabs and the New session
     // chips are outlined pills, a few rules more, so the ceiling moves from 166 to 172.
-    expect(EDGED_CONTROLS.length).toBeLessThan(172);
+    // CHANGED ON PURPOSE: Jira's Filters button, the chips folded in a dialog
+    // under 900 wide, adds one: its accent edge while a filter is on, swept
+    // above at the same 3:1 floor. The ceiling moves from 172 to 173.
+    expect(EDGED_CONTROLS.length).toBeLessThan(173);
     // The shapes #378 and #655 each added, still answered: a ring-only rule and
     // a `-color`-longhand-only rule both read as edges.
     expect(paintsAnEdge("outline: 1px solid var(--line);")).toBe(true);

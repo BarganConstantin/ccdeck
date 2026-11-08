@@ -16,7 +16,7 @@
 // nothing rather than starting a second read.
 // Lay it at the end of a toolbar row: it takes the free space and lets the
 // sentence shorten with an ellipsis before Refresh would move.
-import { createContext, useContext, useEffect, useRef, useState } from "react";
+import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { RefreshGlyph } from "./action-glyphs";
 import { WarnMark } from "./integration-glyphs";
@@ -26,6 +26,9 @@ import { selfPressAccepted, selfPressProps } from "../panel-press";
 /** Where the host wants the line and Refresh drawn (the modal header's end,
  *  V4's Figma); without one they stay in the row that renders them. */
 export const FreshnessSlot = createContext<HTMLElement | null>(null);
+/** What the host draws between the line and Refresh when they are in its slot:
+ *  the modal's Size button. */
+export const FreshnessTools = createContext<ReactNode>(null);
 
 export interface FreshnessState {
   /** When the answer on screen was read (ms), or null before the first one. */
@@ -99,6 +102,7 @@ export default function IntegrationFreshness({ loadedAt, loading, stale = false,
   const words = freshnessWords({ loadedAt, loading, stale }, now ?? Date.now(), t);
   const at = loadedAt != null ? new Date(loadedAt) : null;
   const slot = useContext(FreshnessSlot);
+  const tools = useContext(FreshnessTools);
   const line = (
     <div className="ig-freshness" data-tone={words.tone}>
       {words.tone !== "none" && (
@@ -110,6 +114,7 @@ export default function IntegrationFreshness({ loadedAt, loading, stale = false,
         </span>
       )}
       <span className="vis-hidden" role="status">{announcement(words.tone, seenRead, t)}</span>
+      {slot && tools}
       <button type="button" className="glyph-btn ig-refresh" aria-label={label} title={t("integrations.fresh.refresh")}
         {...selfPressProps(loading, disabled)} data-loading={loading || undefined}
         onClick={() => { if (!selfPressAccepted(loadingRef.current)) return; onRefresh(); }}>
