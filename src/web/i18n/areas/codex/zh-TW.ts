@@ -27,6 +27,8 @@ const catalog: Catalog = {
   "codex.share.copyFailed": "剪貼簿無法使用。請選取並複製上方的完整代碼。",
   // The row's voice (codex-accounts.ts CODEX_VOICE)
   "codex.row.liveTitle": "新工作階段的預設帳號",
+  "codex.row.defaultWord": "預設",
+  "codex.row.notChecked": "尚未查看額度",
   "codex.row.liveSpoken": "預設帳號：",
   "codex.row.readBy": "ccdeck 上次讀取此帳號用量的時間",
   "codex.row.readPlan": "ccdeck 上次讀取此帳號用量的時間，以及預計下次讀取的時間：此面板開啟時，預設帳號每分鐘一次，其他帳號每五分鐘一次。這些是 Codex 回報的帳號額度，因此只有一個區間的方案只會顯示一條進度條。",

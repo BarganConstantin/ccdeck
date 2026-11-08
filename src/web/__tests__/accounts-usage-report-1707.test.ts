@@ -459,7 +459,9 @@ describe("where it opens from", () => {
 describe("the sheet", () => {
   const css = sheetText();
   it("registers the account marks for contrast themes", () => {
-    expect(css).toMatch(/\.ap-lane-fill,\s*\.ap-report-meter i,/);
+    // CHANGED ON PURPOSE (V4's Figma): an account row draws one meter, its last
+    // line (`ap-meter-fill`), in place of a bar per window on the open row.
+    expect(css).toMatch(/\.ap-meter-fill,\s*\.ap-report-meter i,/);
     // CHANGED ON PURPOSE (V4's Figma): the state has no mark any more, only its
     // word. What a Contrast theme repaints is the row's bar, which gets an edge
     // outside its two pixels.

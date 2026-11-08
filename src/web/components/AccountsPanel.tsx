@@ -660,6 +660,10 @@ export default function AccountsPanel({ onClose, leaving, onReport, onRoster, la
                   heading navigation jumps from the panel's h2 straight past all of
                   them to Auto-switch. ShareAccountsDialog has used ul/li since the
                   day it was written; this is the same shape. */}
+              {/* WHAT THE FIGURES ARE, ONCE: every row's "5h 56%" is the
+                  percent of that window already used, said over the rows
+                  rather than on each of them. */}
+              {head.length > 0 && <p className="ap-caption">{t("accounts.panel.caption")}</p>}
               <ul className="ap-list">
               {head.map(accountRow)}
               </ul>

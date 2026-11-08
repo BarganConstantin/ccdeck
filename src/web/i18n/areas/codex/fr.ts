@@ -27,6 +27,8 @@ const catalog: Catalog = {
   "codex.share.copyFailed": "Presse-papiers indisponible. Sélectionnez et copiez le code complet ci-dessus.",
   // The row's voice (codex-accounts.ts CODEX_VOICE)
   "codex.row.liveTitle": "Compte par défaut des nouvelles sessions",
+  "codex.row.defaultWord": "par défaut",
+  "codex.row.notChecked": "Quota pas encore vérifié",
   "codex.row.liveSpoken": "Compte par défaut :",
   "codex.row.readBy": "Dernière lecture de l'utilisation de ce compte par ccdeck",
   "codex.row.readPlan": "Dernière lecture de l'utilisation de ce compte par ccdeck, et prochaine lecture prévue : chaque minute pour le compte par défaut et toutes les cinq minutes pour les autres, tant que ce panneau est ouvert. Ce sont les limites que Codex indique pour le compte ; un forfait à une seule fenêtre affiche donc une seule barre.",

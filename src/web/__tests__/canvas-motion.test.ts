@@ -458,6 +458,9 @@ const PRESSES: Press[] = [
   // The Other accounts list's expand-all (#1579): a glyph in a 24px box, but a
   // labelled control by its name, like the header's icon buttons — 0.97.
   [".ap-rest-all:active", "0.97", "transform"],
+  // The list's order beside it: a menu button with its order's name, so a
+  // labelled control — 0.97.
+  [".ap-rest-sort:active", "0.97", "transform"],
   // The network map's way in, over Local network's row: a glyph in a 26px box,
   // named "Show the network map" like the header's icon buttons — 0.97. And
   // a deck on the map, a 40px disc that opens that deck's own dialog: a
@@ -672,10 +675,9 @@ const EXEMPT: string[] = [
   // their own 0.97.
   ".ap-row-open",
   ".ap-nav",
-  // The Other accounts list's order (#1579), a native select. Its press is
-  // answered by the platform's own list opening over it; scaling the control
-  // in the same instant would shift the words the list is drawn against.
-  ".ap-rest-sort select",
+  // (The Other accounts list's order was a native select here, exempt because
+  // the platform's own list answered its press. It is a menu button now
+  // (V4's Figma), pressed like the controls listed above.)
   // A theme choice. Its press is answered by the whole deck changing theme and
   // the frame moving to it; a 118px preview scaled by 3% lurches rather than
   // clicks, and the hover plate under it already deepens.

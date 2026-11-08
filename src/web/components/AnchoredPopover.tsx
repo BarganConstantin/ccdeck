@@ -90,7 +90,9 @@ interface Props {
   children: ReactNode;
 }
 
-const ITEM = '[role="menuitem"]';
+// A menu's items, including the radio items of a menu that picks one of a set
+// (the accounts list's order).
+const ITEM = '[role="menuitem"], [role="menuitemradio"]';
 
 /** The items the arrows can land on, in order. A disabled button cannot take
  *  focus, so it is not a stop — the same rule isTabbable applies to Tab. */

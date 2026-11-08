@@ -2,6 +2,7 @@
 // on show: "3m ago", " · next in 2m", "A, B and C". shortAgoSec (relative-time.ts)
 // stays English for the other areas; these read the accounts.* catalog.
 import { currentLanguage, t as tNow, type TFunction } from "./i18n";
+import { resetCountdown } from "./relative-time";
 
 /** "just now" / "12m ago" / "3h ago" / "5d ago", from a time in milliseconds. */
 export function agoLabel(ms: number, nowSec: number, t: TFunction = tNow): string {
@@ -19,6 +20,19 @@ export function dueLabel(nextAt: number | null, nowSec: number, t: TFunction = t
   if (s <= 0) return t("accounts.due.now");
   if (s < 60) return t("accounts.due.seconds", { n: s });
   return t("accounts.due.minutes", { n: Math.round(s / 60) });
+}
+
+/** When a window resets, as the tail of a line: "resets in 4h 18m" inside a
+ *  day, and "resets Thu 9:00 AM" past one, where the day and the hour say more
+ *  than a countdown in days. Null for a reset that has already passed. */
+export function resetPhrase(resetAtSec: number, nowSec: number, t: TFunction = tNow): string | null {
+  const left = resetCountdown(resetAtSec, nowSec);
+  if (!left) return null;
+  if (resetAtSec - nowSec < 86400) return t("accounts.row.resetsInLower", { time: left });
+  const at = new Date(resetAtSec * 1000);
+  const lang = currentLanguage();
+  const when = `${at.toLocaleDateString(lang, { weekday: "short" })} ${at.toLocaleTimeString(lang, { hour: "numeric", minute: "2-digit" })}`;
+  return t("accounts.row.resetsOn", { when });
 }
 
 /** "A", "A and B", "A, B and C" — in the language's own way of joining. */

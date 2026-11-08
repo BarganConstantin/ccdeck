@@ -40,25 +40,31 @@ const px = (selector: string) => {
 describe("the accounts panel's reading sizes (#857)", () => {
   it("sets what an account is chosen by at the panel's 11px floor", () => {
     // CHANGED ON PURPOSE (V4's Figma): the row's name is the one name (`ap-alias`,
-    // 13), the address it stands for having left the row for its title.
-    for (const sel of [".ap-alias", ".ap-lane-label", ".ap-lane-pct"]) {
+    // 13), the address it stands for having left the row for its title. The
+    // open row's windows are lines of text (`ap-lane`) whose name and number
+    // take the line's size, and the two figures are mono 12 under an 11 name.
+    for (const sel of [".ap-alias", ".ap-lane", ".ap-fig .ap-q-pct", ".ap-fig .ap-q-label"]) {
       expect(px(sel), sel).toBeGreaterThanOrEqual(11);
     }
   });
 
   it("keeps the reset line off the floor, at the key's own size", () => {
-    // CHANGED ON PURPOSE (V4's motion-free text rule: nothing on screen under
-    // 11px): the open bar's reset was 10 and is 11, the size of its key.
-    expect(px(".ap-lane-reset")).toBe(11);
-    expect(px(".ap-lane-label")).toBe(11);
+    // CHANGED ON PURPOSE (V4's Figma): the open row says a window's reset on
+    // the window's own line, after its number, so the reset and the key are
+    // one size because neither sets one — the line's 12.
+    expect(decl(".ap-lane-reset", "font-size")).toBeNull();
+    expect(decl(".ap-lane-label", "font-size")).toBeNull();
+    expect(px(".ap-lane")).toBe(12);
   });
 
-  it("sets every line under the name, and every control on those lines, at one size, 11px", () => {
-    // CHANGED ON PURPOSE (V4's Figma): line 2 of the row (`ap-quota`) is the
-    // kit's Small, 12 on a 16 line, so it leaves this list for its own test.
-    const lines = [".ap-meta", ".ap-issue-line", ".ap-switch", ".ap-fix"];
-    expect(lines.map(px), lines.join(" ")).toEqual(lines.map(() => 11));
-    expect(px(".ap-quota")).toBe(12);
+  it("sets every line under the name, and every control on those lines, at one size", () => {
+    // CHANGED ON PURPOSE (V4's Figma): every line under the name — line 2
+    // (`ap-quota`), the state line, the open row's lines — and the Switch and
+    // Sign in on them are the kit's Small, 12 on a 16 line. The refusal's fix,
+    // which the empty state shares, keeps its 11.
+    const lines = [".ap-quota", ".ap-meta", ".ap-lane", ".ap-meta-line", ".ap-issue-line", ".ap-switch", ".ap-sign-in"];
+    expect(lines.map(px), lines.join(" ")).toEqual(lines.map(() => 12));
+    expect(px(".ap-fix")).toBe(11);
   });
 
   it("has no footnote under the roster any more — every row says when it was collected", () => {

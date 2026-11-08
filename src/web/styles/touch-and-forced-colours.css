@@ -126,7 +126,7 @@
   .qh-window select:focus-visible, .jr-move-pop select:focus-visible, .jr-transition select:focus-visible,
   .jr-comment-compose textarea:focus-visible, .su-pricing select:focus-visible,
   .ap-field select:focus-visible, .ap-pop .ap-field select:focus-visible,
-  .ap-rest-sort select:focus-visible, .bw-settings select:focus-visible {
+  .bw-settings select:focus-visible {
     outline: var(--focus-w) solid Highlight;
     outline-offset: calc(-1 * var(--focus-w));
   }
@@ -310,9 +310,9 @@
   .canvas-wrap[data-lod="detail"] .recap-note:hover,
   .canvas-wrap[data-lod] .recap-note:hover > .lod-face.recap-face { outline: 1px solid CanvasText; outline-offset: 2px; }
   }
-  /* The order's caret takes the select's own system colour rather than the
-     --muted it rests in, which a contrast theme does not repaint (#1579). */
-  .ap-rest-sort svg { color: ButtonText; }
+  /* The order's glyphs take the button's own system colour rather than the
+     --muted they rest in, which a contrast theme does not repaint (#1579). */
+  .ap-rest-sort-glyph, .ap-rest-sort-chev { color: ButtonText; }
   /* The count keeps its bubble, so the digits stay a badge on the corner
      rather than a stray number over the button's edge. */
   .rail-badge { forced-color-adjust: none; background: CanvasText; color: Canvas; }
@@ -339,7 +339,7 @@
   .insp-time-span { forced-color-adjust: none; background: CanvasText; }
   .insp-time-bar { outline: 1px solid CanvasText; }
   .qb-fill,
-  .ap-lane-fill,
+  .ap-meter-fill,
   .ap-report-meter i,
   .uh-bar-seg,
   .uh-agent-seg,
@@ -351,7 +351,7 @@
   .ap-proj-colseg,
   .ap-proj-dot { forced-color-adjust: none; }
   .qb-track,
-  .ap-lane-track,
+  .ap-meter,
   .sd-track,
   .up-bone,
   .up-quota-sub.up-quota-note,

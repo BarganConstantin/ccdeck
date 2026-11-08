@@ -183,11 +183,27 @@
   padding: 0 4px 8px;
   display: flex;
   flex-direction: column;
-  gap: 0;
+  gap: 2px;
 }
-/* V4's account row: 44 high (the kit's --row-rail), 8 in on each side with a
-   4 above, and the kit's panel radius. The text starts 22px in: the 14px mark
-   and an 8 gap. */
+/* The live account and the group's head under it: 2 between them, and the
+   head's own 8 above its toggle. */
+.ap-list:has(+ .ap-rest) { padding-bottom: 2px; }
+/* WHAT THE FIGURES ARE, said once over the rows: 11 on a 14 line in the muted
+   ink, on the rows' text column — the list's 4 inset and a row's 8 in, then
+   the row's indent (the 14 mark and its 8), which is a column and not a step
+   of spacing. */
+.ap-caption {
+  margin: 0 0 0 22px;
+  padding: 2px 8px 6px 12px;
+  font-size: calc(11px + var(--ui-text-increase, 0px));
+  line-height: calc(14px + var(--ui-text-increase, 0px));
+  color: var(--muted);
+}
+/* THE ACCOUNT ROW HAS ROOM TO READ: 14 between above and below (6 over the
+   name and 8 under the meter, the spacing ladder's two steps round the
+   design's 7 and 7), 8 in on each side, two lines and a 3px meter on a 2 gap
+   — 63 high — and a third line, 87, only for a state. The kit's panel radius.
+   The text starts 22px in: the 14px mark and an 8 gap. */
 .ap-account {
   /* The box the row's door is laid over, and a stacking context of its own so
      the row's controls can sit above the door without climbing over the
@@ -196,8 +212,12 @@
   position: relative;
   isolation: isolate;
   box-sizing: border-box;
+  /* Never shorter than what it says: the list it stands in scrolls inside
+     itself, and a flex item that shrank with it would draw its open lines
+     over the row under it. */
+  flex: none;
   min-height: 44px;
-  padding: 4px 8px 2px;
+  padding: 6px 8px 8px;
   border-radius: var(--r-panel);
 }
 /* A shut row is a door, and it answers the pointer with a tone rather than a
@@ -215,7 +235,7 @@
    it, and --muted clears 4.5:1 only against --panel, so on a lit row it is
    mixed toward the foreground — the rule the LAN rows already write down. */
 @media (hover: hover) and (pointer: fine) {
-.ap-account:has(> .ap-row-open):hover :is(.ap-num, .ap-q-label, .ap-issue-age, .ap-alias + .ap-email, .ap-shared, .ap-home) {
+.ap-account:has(> .ap-row-open):hover :is(.ap-num, .ap-q-label, .ap-issue-age, .ap-alias + .ap-email, .ap-shared, .ap-home, .ap-alias-domain, .ap-q-plan, .ap-marks, .ap-meta-key) {
   color: color-mix(in srgb, var(--muted) 65%, var(--text));
 }
 }
@@ -291,6 +311,11 @@
 .ap-account.active :where(.ap-plan, .ap-lane-label, .ap-lane-reset, .ap-meta, .ap-age:not(.ap-stale), .ap-more) {
   color: var(--text-secondary);
 }
+/* And the row's other quiet parts — the domain, a figure's window, the plan,
+   the marks and the open row's keys — on the same terms. */
+.ap-account.active :where(.ap-alias-domain, .ap-q-label, .ap-q-plan, .ap-marks, .ap-meta-key) {
+  color: var(--text-secondary);
+}
 
 /* Line 1 (V4's Figma): 20 high, the mark in a 14 box, then the name, the plan and
    the tag on a 6 gap, and the one figure at the far end. */
@@ -352,20 +377,75 @@
    about seventeen characters at this size — well past any alias the field's
    own `e.g. work` placeholder invites, so in the ordinary case the clamp never
    binds and the row renders exactly as it did. */
-/* V4's name: 13 on a 20 line, semibold, in the text ink. It is the only name on
-   the row — the address a name stands in for is on the door's title. */
+/* The name: 13 on a 20 line, medium, in the text ink. It is the only name on
+   the row — the address a name stands in for is on the door's title.
+   AN ADDRESS IS TWO PARTS, AND THE DOMAIN GOES FIRST. The part before the @ is
+   what tells two accounts at one company apart, so it is drawn in the text
+   ink and the domain after it in the muted one, and when the row is too
+   narrow for both the domain gives way first — its shrink weight dwarfs the
+   name's — and only once it has gone does the name before it take the
+   ellipsis. The whole address is the span's title and the door's. */
 .ap-alias {
+  display: flex;
   flex: 0 1 auto;
   font-size: calc(13px + var(--ui-text-increase, 0px));
   line-height: calc(20px + var(--ui-text-increase, 0px));
-  font-weight: 600;
+  font-weight: 500;
   color: var(--text);
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+.ap-alias-local,
+.ap-alias-domain {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ap-alias-local { flex: 0 1 auto; }
+.ap-alias-domain { flex: 0 100000 auto; font-weight: 400; color: var(--muted); }
 .ap-account:has(.ap-held) .ap-alias { color: var(--text-secondary); }
+/* THE MARKS: one grey set of 12px glyphs after the name, 4 apart — home,
+   telemetry, shared, and a provider's word for its live account. Each is
+   said in its tooltip and to a screen reader; none of them is a colour. */
+.ap-marks {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--muted);
+}
+.ap-marks :is(.ap-shared, .ap-home) { color: inherit; }
+/* Telemetry is a button, for its popover: a 12px glyph with its 24px target
+   drawn round it, so the mark sits in the set at the set's size. */
+.ap-marks .ap-more.ap-telemetry {
+  position: relative;
+  z-index: 1;
+  min-width: 12px;
+  min-height: 12px;
+  width: 12px;
+  height: 12px;
+  margin: 0;
+  color: inherit;
+}
+.ap-marks .ap-more.ap-telemetry::after { content: ""; position: absolute; inset: -6px; }
+@media (hover: hover) and (pointer: fine) {
+.ap-marks .ap-more.ap-telemetry:hover { background: none; color: var(--text); }
+}
+.ap-marks .ap-more.ap-telemetry[aria-expanded="true"] { background: none; color: var(--text); }
+/* A provider's word for its live account ("default"), as a grey tag. */
+.ap-tag {
+  flex: none;
+  padding: 1px 5px;
+  border-radius: var(--r-tag);
+  background: var(--ctl-fill);
+  font-size: calc(11px + var(--ui-text-increase, 0px));
+  line-height: calc(14px + var(--ui-text-increase, 0px));
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
 /* The plan, as plain text beside the name (V4's Figma: no fill, no edge): the
    mono 11 on a 14 line in the muted ink. */
 .ap-plan {
@@ -376,9 +456,7 @@
   color: var(--muted);
   white-space: nowrap;
 }
-/* The one figure at the end of line 1: the mono 12 on a 16 line (V4's Figma),
-   in the muted ink below 70%, the text ink from 70 and the error ink from 90.
-   Held out says so in the same place, in the same face. */
+/* Held out, in the figure's place and face: the mono 12 on a 16 line. */
 .ap-value {
   flex: none;
   margin-left: auto;
@@ -388,9 +466,38 @@
   font-variant-numeric: tabular-nums;
   color: var(--muted);
 }
-.ap-value.ap-q-pct[data-level="mid"] { color: var(--text); }
-.ap-value.ap-q-pct[data-level="hi"] { color: var(--err); }
-.ap-account[data-frozen] .ap-value.ap-q-pct { color: var(--muted); }
+/* THE TWO FIGURES, at the right end of lines 1 and 2, one column down the
+   list: the window's name in mono 11 on 14, muted, then 3, then how much of it
+   is used in mono 12 on 16 — the text ink on line 1, the secondary on line 2,
+   the waiting ink from 80% and the error ink at 100%. An old reading draws
+   both quiet, and a login that cannot be used a dash. */
+.ap-fig {
+  flex: none;
+  display: inline-flex;
+  align-items: baseline;
+  gap: 3px;
+  margin-left: auto;
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.ap-fig .ap-q-label {
+  font-size: calc(11px + var(--ui-text-increase, 0px));
+  line-height: calc(14px + var(--ui-text-increase, 0px));
+  color: var(--muted);
+}
+.ap-fig .ap-q-pct {
+  margin: 0;
+  font-size: calc(12px + var(--ui-text-increase, 0px));
+  line-height: calc(16px + var(--ui-text-increase, 0px));
+  color: var(--text);
+}
+.ap-fig-2 .ap-q-pct { color: var(--text-secondary); }
+.ap-fig .ap-q-pct[data-level="mid"] { color: var(--warn); }
+.ap-fig .ap-q-pct[data-level="hi"] { color: var(--err); }
+.ap-account[data-frozen] .ap-fig .ap-q-pct,
+.ap-fig[data-none] .ap-q-pct { color: var(--muted); }
+.ap-fig[data-sort-key] :is(.ap-q-label, .ap-q-pct) { font-weight: 700; }
 /* A state, said in a word and not in a pill. Held out stands where the figure
    stands; putting the account back is in its ⋯. */
 .ap-held { flex: none; font-size: calc(11px + var(--ui-text-increase, 0px)); color: var(--muted); }
@@ -398,30 +505,35 @@
 /* The row's two acts: the one verb and the ⋯. Under a fine pointer they take the
    figure's place while the row is hovered or focused, so the row never grows a
    column of buttons it does not need at rest; on touch, where there is no hover,
-   they stand beside the figure. */
+   they stand beside the figure. They take its place in the line, not over it:
+   the name gives up its domain to make room, and the marks after it — the
+   telemetry mark is a button — are never covered by the Switch. */
 .ap-acts { display: inline-flex; align-items: center; gap: 4px; flex: none; margin-left: auto; }
-.ap-value + .ap-acts { margin-left: 4px; }
+.ap-value + .ap-acts,
+.ap-fig + .ap-acts { margin-left: 4px; }
 @media (hover: hover) and (pointer: fine) {
   .ap-acts {
     position: absolute;
-    top: 4px;
+    top: 6px;
     right: 8px;
     height: 20px;
     margin: 0;
     opacity: 0;
     pointer-events: none;
   }
-  .ap-value + .ap-acts { margin-left: 0; }
-  .ap-account:hover .ap-acts { opacity: 1; pointer-events: auto; }
-  .ap-account:hover .ap-account-head > .ap-value { visibility: hidden; }
+  .ap-value + .ap-acts,
+  .ap-fig + .ap-acts { margin-left: 0; }
+  .ap-account:hover .ap-acts { position: static; margin-left: auto; opacity: 1; pointer-events: auto; }
+  .ap-account:hover .ap-account-head > :is(.ap-value, .ap-fig) { display: none; }
 }
 /* The same for the keyboard and for an open menu, outside the mouse query so
-   focus never depends on a pointer. */
+   focus never depends on a pointer. The telemetry mark's own popover is not
+   the row's menu. */
 @media (pointer: fine) {
   .ap-account:has(:focus-visible) .ap-acts,
-  .ap-account:has(.ap-more[aria-expanded="true"]) .ap-acts { opacity: 1; pointer-events: auto; }
-  .ap-account:has(:focus-visible) .ap-account-head > .ap-value,
-  .ap-account:has(.ap-more[aria-expanded="true"]) .ap-account-head > .ap-value { visibility: hidden; }
+  .ap-account:has(.ap-acts .ap-more[aria-expanded="true"]) .ap-acts { position: static; margin-left: auto; opacity: 1; pointer-events: auto; }
+  .ap-account:has(:focus-visible) .ap-account-head > :is(.ap-value, .ap-fig),
+  .ap-account:has(.ap-acts .ap-more[aria-expanded="true"]) .ap-account-head > :is(.ap-value, .ap-fig) { display: none; }
 }
 /* Shared on Local network (#2170): a 12px mark in the muted ink of the row's
    other secondary marks, at the 24px row's middle. It is a state, not a
@@ -439,17 +551,19 @@
    the pointer. */
 .ap-sign-in,
 .ap-switch {
-  /* V4's Switch button: 18 high, 6 in, the kit's tag radius. */
+  /* The row's Switch, in the figure's place: 20 high, 8 in, the control
+     surface with the default line round it, 12 medium. */
   position: relative;
   flex: none;
-  min-height: 18px;
-  padding: 0 6px;
-  border: 0;
-  border-radius: var(--r-tag);
-  background: var(--ctl-fill);
+  min-height: 20px;
+  padding: 0 8px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-ctl);
+  background: var(--bg-soft);
   color: var(--text);
   font: inherit;
-  font-size: calc(11px + var(--ui-text-increase, 0px));
+  font-size: calc(12px + var(--ui-text-increase, 0px));
+  line-height: calc(16px + var(--ui-text-increase, 0px));
   font-weight: 500;
   cursor: pointer;
   transition: background var(--dur-fast) var(--ease), transform var(--dur-fast) var(--ease);
@@ -460,72 +574,69 @@
 .ap-sign-in:active:not(:disabled), .ap-switch:active:not(:disabled) { transform: scale(var(--press)); }
 .ap-sign-in:disabled, .ap-switch:disabled { cursor: default; opacity: var(--dim-off); }
 
-/* EVERYTHING UNDER THE HEAD STARTS UNDER THE NAME. The slot's column — wide
-   enough for two digits, so slot 10 does not push its name off the line the
-   others start on — and the head's gap are 20px, and the lines below are
-   indented by them, so the eye
+/* EVERYTHING UNDER THE HEAD STARTS UNDER THE NAME. The mark's column and the
+   head's gap are 22px, and the lines below are indented by them, so the eye
    reads down from the account rather than from the row's edge. */
-.ap-detail { margin: 6px 0 4px var(--ap-indent); }
-/* One lane is one line: its key, its bar, how full, and when it rolls over. The
-   reset used to sit on a second line under every bar, which made the live row
-   five lines tall for two facts. It is a column at the far end now, dim and
-   tabular, so three resets read as one column. */
+/* OPEN: one key and one value to a line, 18 high on a 4 gap, 6 under line 2 —
+   every window with its reset, when it was read, what its organization sends
+   ("7-day  49% · resets Thu 9:00 AM"). The key is muted and the value is in
+   the secondary ink, both 12 on 16. */
+.ap-detail { margin: 6px 0 2px var(--ap-indent); }
 .ap-lanes {
   display: flex;
   flex-direction: column;
-  gap: calc(5px * var(--ui-space, 1));
+  gap: 4px;
 }
-.ap-lane {
-  display: grid;
-  /* The reset keeps 44px, which holds English's "2h 59m", and grows with a longer
-     language's "2 Std. 59 Min." or "2 小时 59 分钟" instead of being cut. */
-  grid-template-columns: 34px minmax(0, 1fr) 32px minmax(44px, max-content);
-  grid-template-areas: "label track pct reset";
-  align-items: center;
-  column-gap: 6px;
+.ap-lane,
+.ap-meta-line {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  min-width: 0;
+  min-height: 18px;
+  font-size: calc(12px + var(--ui-text-increase, 0px));
+  line-height: calc(16px + var(--ui-text-increase, 0px));
 }
-/* The key is the reading key for the row — "5h", "7d", the model name — at the
-   panel's 11px floor (#857), and the reset beside it a step under, because in
-   dark the two tiers are one colour and the size is what separates them. */
-.ap-lane-label {
-  grid-area: label;
-  font-size: calc(11px + var(--ui-text-increase, 0px));
+.ap-lane-label,
+.ap-meta-key {
+  flex: none;
   color: var(--muted);
-  overflow: hidden;
-  text-overflow: ellipsis;
   white-space: nowrap;
 }
-.ap-lane-track {
-  grid-area: track;
-  height: 4px;
-  border-radius: 2px;
-  background: var(--line-soft);
+.ap-lane-value,
+.ap-meta-value {
+  display: flex;
+  gap: 6px;
+  min-width: 0;
   overflow: hidden;
-}
-.ap-lane-fill { height: 100%; border-radius: 2px; }
-.ap-lane-pct { grid-area: pct; font-size: calc(11px + var(--ui-text-increase, 0px)); text-align: right; font-variant-numeric: tabular-nums; }
-.ap-lane-reset {
-  grid-area: reset;
-  font-size: calc(11px + var(--ui-text-increase, 0px));
-  color: var(--text-dim);
-  text-align: right;
   white-space: nowrap;
-  font-variant-numeric: tabular-nums;
+  color: var(--text-secondary);
 }
+.ap-lane-value > :not(:first-child)::before { content: "·"; margin-right: 6px; }
+.ap-lane-value > *,
+.ap-meta-value { overflow: hidden; text-overflow: ellipsis; }
+.ap-lane-pct { font-variant-numeric: tabular-nums; }
+.ap-lane-pct[data-level="mid"] { color: var(--warn); }
+.ap-lane-pct[data-level="hi"] { color: var(--err); }
+/* A record — an old reading, or a window that has reset since it was read —
+   in the quiet ink the row's figures take for it. */
+.ap-account[data-frozen] .ap-lane-pct,
+.ap-lane-pct[data-reset] { color: var(--muted); }
+.ap-lane-reset { color: var(--text-secondary); white-space: nowrap; }
 
-/* The open row's last line: when claude-swap last read the account and when it
-   plans to again. Right edge, under the numbers it dates. */
+/* The open row's reading: when claude-swap last read the account and when it
+   plans to again, and what its organization sends. */
 .ap-meta {
   display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: 4px 8px;
-  margin-top: 6px;
-  font-size: calc(11px + var(--ui-text-increase, 0px));
-  color: var(--muted);
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 4px;
+  font-size: calc(12px + var(--ui-text-increase, 0px));
+  line-height: calc(16px + var(--ui-text-increase, 0px));
+  color: var(--text-secondary);
 }
 /* The address a name stands in for, in the open detail as text: the secondary
-   ink, on its own line when it is too long to share one with the age. */
+   ink, on its own line. */
 .ap-meta-email {
   min-width: 0;
   max-width: 100%;
@@ -536,24 +647,24 @@
 }
 .ap-stale { color: var(--warn); }
 .ap-age {
-  margin-left: auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
   white-space: nowrap;
   cursor: help;
 }
 
-/* THE SHUT ROW'S LINE: the two numbers an account is chosen by, on the name's
-   left edge. Keys in the label tier, values in the secondary one — they only
-   take a colour once they are a reason not to switch, in the same inks the bars
-   use. Numbers that cannot move are drawn in one quiet ink, and the age that
-   says so takes the warning. */
-/* V4's line 2: sans 12 on a 16 line in the muted ink, on one line that ends in an
-   ellipsis, its parts joined by a middle dot ("Resets in 2h 09m · 7-day 31%"). */
+/* LINE 2: the plan in the muted ink and the first window's reset in the
+   secondary one, joined by a middle dot ("Max 5× · Resets in 4h 18m"), with
+   the second window's figure at the right end under the first. 12 on 16, on
+   an 18 line, 2 under line 1; the words end in an ellipsis before the figure
+   is ever cut. */
 .ap-quota {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   gap: 0 6px;
-  height: calc(16px + var(--ui-text-increase, 0px));
-  margin: 0 0 0 var(--ap-indent);
+  height: calc(18px + var(--ui-text-increase, 0px));
+  margin: 2px 0 0 var(--ap-indent);
   overflow: hidden;
   white-space: nowrap;
   font-size: calc(12px + var(--ui-text-increase, 0px));
@@ -561,26 +672,31 @@
   color: var(--muted);
   font-variant-numeric: tabular-nums;
 }
+.ap-q-plan { flex: none; color: var(--muted); }
 .ap-quota > :is(.ap-q-reset, .ap-q) { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
-/* The dot goes before a part that has a visible part before it: the screen-reader copy of the figure leads the line and is not one. */
-.ap-quota > :not(.vis-hidden) ~ :is(.ap-q-reset, .ap-q)::before { content: "·"; margin-right: 6px; }
+.ap-q-reset { color: var(--text-secondary); }
+/* The dot goes before a part that has a visible part before it: the
+   screen-reader copy of the figure leads the line and is not one, and the
+   figure at the end stands apart on its own. */
+.ap-quota > :not(.vis-hidden) ~ :is(.ap-q-reset, .ap-q)::before { content: "·"; margin-right: 6px; color: var(--muted); }
 .ap-q { white-space: nowrap; }
 .ap-q-label { color: var(--muted); }
-/* A figure is the muted ink below 70%, the text ink from 70 and the error ink
-   from 90: never the warning ink, which a quota is not. */
-.ap-q-pct { color: var(--muted); }
-.ap-q-pct[data-level="mid"] { color: var(--text); }
+/* A figure is in its line's ink, the waiting ink from 80% and the error ink
+   at 100%. */
+.ap-q-pct { color: var(--text-secondary); }
+.ap-q-pct[data-level="mid"] { color: var(--warn); }
 .ap-q-pct[data-level="hi"] { color: var(--err); }
-/* The first window's meter (V4's Figma): 2 high under line 2, on the text's
-   own column, the control fill for a track and the fill's ink by fullness. */
+/* The first window's meter, the row's last line: 3 high, the row's 2 gap and
+   4 more under the line over it, on the text's own column, the control fill
+   for a track and the fill's ink by fullness. */
 .ap-meter {
-  height: 2px;
-  margin: 0 0 0 var(--ap-indent);
-  border-radius: var(--r-tag);
+  height: 3px;
+  margin: 6px 0 0 var(--ap-indent);
+  border-radius: 999px;
   background: var(--ctl-fill);
   overflow: hidden;
 }
-.ap-meter-fill { height: 100%; border-radius: var(--r-tag); }
+.ap-meter-fill { height: 100%; border-radius: 999px; }
 .ap-account[data-frozen] .ap-q-pct { color: var(--muted); }
 .ap-q-age { margin-left: auto; color: var(--warn); white-space: nowrap; flex: none; }
 /* An account nobody has read yet is usually one added a minute ago: news, not
@@ -591,26 +707,37 @@
    accounts' slots. */
 .ap-note { margin: 2px 0 0 var(--ap-indent); font-size: calc(11px + var(--ui-text-increase, 0px)); }
 
-/* WHAT IS WRONG, AS A LINE ON THE ROW. A mark and a few words, never a banner
-   and never a pill, in the warning ink when it is the reader's to act on and in
-   the label tier when it clears or repairs on its own. The words are a button:
-   the why and the fix open from them (#856), with a 24px target drawn round
-   them so the line does not grow to hold it. The underline arrives with the
-   pointer — a dotted rule under every warning at rest was one more line of ink
-   on a row that is already saying the loudest thing in the column. */
+/* THE STATE LINE: what is wrong, a weekly limit, or an old reading, on a line
+   of its own under the name — 22 high, a 12px glyph and 6, then the words in
+   12 medium in the state's ink: the error ink for a login only a sign-in
+   brings back and for a weekly limit, the waiting ink for a rate limit and
+   anything else that is the reader's to fix, and the secondary ink for what
+   clears or repairs on its own and for an old reading. How old the reading
+   is stands at the right end in mono 11, and Sign in on the line when it is
+   the fix. The words of a problem are a button: the why and the fix open from
+   them (#856). The underline arrives with the pointer. */
 .ap-issue-line {
   display: flex;
   align-items: center;
-  gap: 8px;
-  min-height: 20px;
+  gap: 6px;
+  min-height: 22px;
   margin: 2px 0 0 var(--ap-indent);
-  font-size: calc(11px + var(--ui-text-increase, 0px));
+  font-size: calc(12px + var(--ui-text-increase, 0px));
+  line-height: calc(16px + var(--ui-text-increase, 0px));
+  font-weight: 500;
+  color: var(--text-secondary);
 }
+.ap-issue-line[data-tone="err"] { color: var(--err); }
+.ap-issue-line[data-tone="wait"] { color: var(--warn); }
+.ap-issue-line[data-tone] .ap-issue { color: inherit; font-weight: inherit; }
+.ap-issue-line .ap-q-age { margin-left: 0; color: inherit; }
+.ap-state-glyph,
+.ap-issue-line .ap-warn-glyph { flex: none; width: 12px; height: 12px; }
 .ap-issue {
   position: relative;
   display: inline-flex;
   align-items: center;
-  gap: 5px;
+  gap: 6px;
   min-width: 0;
   padding: 0;
   border: 0;
@@ -636,11 +763,19 @@
 }
 .ap-issue:active { transform: scale(var(--press)); }
 .ap-warn-glyph { flex: none; }
-.ap-issue-age { margin-left: auto; color: var(--muted); white-space: nowrap; }
+.ap-issue-age {
+  margin-left: auto;
+  font-family: var(--font-mono);
+  font-size: calc(11px + var(--ui-text-increase, 0px));
+  line-height: calc(14px + var(--ui-text-increase, 0px));
+  font-weight: 400;
+  color: var(--muted);
+  white-space: nowrap;
+}
+.ap-issue-line .ap-sign-in { margin-left: 6px; }
 
-/* Organization telemetry lives beside the name, using the existing header
-   control's hit area. Content export keeps its warning ink, including hover. */
-.ap-account .ap-more.ap-telemetry[data-tone="warn"] { color: var(--warn); }
+/* Organization telemetry is one of the row's grey marks; what goes out, and to
+   where, is its tooltip, its popover and the open row's Telemetry line. */
 .ap-telemetry-pop .ap-pop-note { overflow-wrap: anywhere; }
 .ap-peek.ap-account-hint { width: min(252px, calc(100vw - 16px)); overflow-wrap: anywhere; }
 
@@ -1036,31 +1171,169 @@
 
 /* ── V4's Figma, the rest of the roster ───────────────────────────────────── */
 /* The row's two acts at the row's own 20: the ⋯ keeps its 24 target but not the
-   room, and the Switch word its 18 with the target drawn round it. */
+   room, and the Switch its 20 with the target drawn round it. */
 .ap-acts > .ap-more { margin: -2px 0; }
 .ap-sign-in::after,
 .ap-switch::after { content: ""; position: absolute; inset: -3px -2px; }
 
-/* THE FOLD'S SUMMARY: 28 high, 8 in, a 14 chevron, the name in the secondary ink
-   at 12 medium and the count in mono 11 (V4's Figma). */
+/* THE GROUP'S HEAD: two lines, 8 above and 8 in, 4 under the last.
+   Line 1 is the one toggle, 28 high — a 14 chevron, "Other accounts" in 13
+   medium in the text ink (it never wraps) and the count of every other account
+   in a pill — with "Expand every account" at its right end, 24 square. */
+.ap-rest { container: ap-rest / inline-size; }
+.ap-rest-head {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 8px 8px 0;
+}
 .ap-rest .ap-nav.ap-sum {
-  width: 100%;
+  flex: 1 1 auto;
+  width: auto;
+  min-width: 0;
   min-height: 28px;
   margin: 0;
-  padding: 0 8px;
+  padding: 0 6px 0 4px;
   border-radius: var(--r-panel);
 }
-.ap-sum .ap-nav-text { flex-direction: row; align-items: baseline; gap: 6px; }
-.ap-sum .ap-nav-name { color: var(--text-secondary); line-height: calc(16px + var(--ui-text-increase, 0px)); }
-.ap-sum .ap-nav-state {
+@media (hover: hover) and (pointer: fine) {
+.ap-rest .ap-nav.ap-sum:hover { background: var(--ctl-fill); }
+}
+.ap-sum .ap-nav-text { flex: 0 1 auto; flex-direction: row; align-items: center; gap: 6px; }
+.ap-sum .ap-nav-name {
+  min-width: 0;
+  font-size: calc(13px + var(--ui-text-increase, 0px));
+  line-height: calc(20px + var(--ui-text-increase, 0px));
+  font-weight: 500;
+  color: var(--text);
+  white-space: nowrap;
+}
+.ap-sum-count {
+  flex: none;
+  box-sizing: border-box;
+  min-width: 18px;
+  height: 18px;
+  padding: 2px 6px;
+  border-radius: 999px;
+  background: var(--ctl-fill);
   font-family: var(--font-mono);
+  font-size: calc(11px + var(--ui-text-increase, 0px));
+  line-height: calc(14px + var(--ui-text-increase, 0px));
+  color: var(--text-secondary);
+  text-align: center;
+}
+.ap-sum .ap-nav-chev { order: -1; margin: 0; color: var(--text-secondary); }
+.ap-rest-head > .ap-rest-all { color: var(--text-secondary); }
+.ap-rest-all[aria-pressed="true"] { background: var(--ctl-fill); color: var(--text); }
+/* Line 2: 24 high, on the title's left edge — a 6px dot and how many a switch
+   would reach in 12 on 16 in the secondary ink (the dot is the done ink while
+   any can, and dim once none can) — with the order at its right end. */
+.ap-rest-line {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 24px;
+  padding: 0 8px 0 32px;
+}
+.ap-rest-ready {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  font-size: calc(12px + var(--ui-text-increase, 0px));
+  line-height: calc(16px + var(--ui-text-increase, 0px));
+  color: var(--text-secondary);
+  cursor: help;
+}
+.ap-rest-ready-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* Beside the order the count keeps its whole width, and only the order gives
+   way — down to its glyph and chevron (44 + the 6 gap = 50); past that the
+   count is cut too. */
+.ap-rest-line:has(.ap-rest-sort) > .ap-rest-ready { flex: none; max-width: calc(100% - 50px); }
+.ap-rest-dot { flex: none; width: 6px; height: 6px; border-radius: 50%; background: var(--ok); }
+.ap-rest-ready[data-tone="idle"] .ap-rest-dot { background: var(--muted-dim); }
+/* The order: 22 high, the sort glyph, the order's name in the text ink and a
+   chevron, quiet until the pointer, the keyboard or its open menu fills it.
+   On a short line its name is cut first, never below the glyph and the
+   chevron (44 = both, two gaps, its padding and edges); the name is always
+   in the tooltip. */
+.ap-rest-sort {
+  flex: 0 1 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 44px;
+  max-width: 60%;
+  height: 22px;
+  margin-left: auto;
+  padding: 0 4px 0 6px;
+  border: 1px solid transparent;
+  border-radius: var(--r-ctl);
+  background: none;
+  color: var(--text);
+  font: inherit;
+  font-size: calc(12px + var(--ui-text-increase, 0px));
+  line-height: calc(16px + var(--ui-text-increase, 0px));
+  cursor: pointer;
+  transition: background var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease),
+              transform var(--dur-fast) var(--ease);
+}
+.ap-rest-sort:active { transform: scale(var(--press)); }
+@media (prefers-reduced-motion: reduce) {
+  .ap-rest-sort:active { transform: none; }
+}
+.ap-rest-sort-glyph { flex: none; color: var(--text-secondary); }
+.ap-rest-sort-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ap-rest-sort-chev { flex: none; width: 12px; height: 12px; color: var(--muted); }
+@media (hover: hover) and (pointer: fine) {
+.ap-rest-sort:hover { background: var(--ctl-fill); }
+}
+.ap-rest-sort[aria-expanded="true"] { background: var(--ctl-fill); }
+/* Held: the order the reader found, not the latest — dashed, as the deck
+   draws everything it is showing as the last thing rather than the current
+   one, with the reason in its title. */
+.ap-rest-sort[data-held] { border-style: dashed; border-color: var(--ctl-edge); }
+/* UNDER 240 WIDE the order keeps its glyph and its chevron, and its name goes
+   to the tooltip (and stays the button's name for a screen reader). */
+@container ap-rest (width < 232px) {
+  .ap-rest-sort { min-width: auto; }
+  .ap-rest-sort-name {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+}
+/* The menu: 200 wide, rows of the kit's menu, the chosen order ticked. */
+.ap-pop.ap-sort-pop { width: 200px; }
+.ap-sort-pop .ap-menu-label { flex: 1 1 auto; min-width: 0; }
+.ap-sort-pop .ap-menu-check {
+  flex: none;
+  font-size: calc(11px + var(--ui-text-increase, 0px));
   line-height: calc(14px + var(--ui-text-increase, 0px));
   color: var(--muted);
 }
-.ap-sum .ap-nav-state[data-tone="bad"] { color: var(--warn); font-family: inherit; }
-.ap-sum .ap-nav-chev { order: -1; margin: 0; }
-.ap-rest:has(.ap-rest-tools) .ap-sum .ap-nav-chev { margin-left: 0; }
-/* The three lines under it while it is shut: 20 high, 28 in, 2 above and below. */
+/* The one sentence in the error ink: auto-switch is on and there is nowhere it
+   could go. On the title's edge, under line 2, open or shut. */
+.ap-rest-alarm {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 20px;
+  margin: 0;
+  padding: 2px 8px 2px 32px;
+  font-size: calc(12px + var(--ui-text-increase, 0px));
+  line-height: calc(16px + var(--ui-text-increase, 0px));
+  font-weight: 500;
+  color: var(--err);
+}
+.ap-rest-alarm-glyph { flex: none; width: 12px; height: 12px; }
+.ap-rest > :last-child:is(.ap-rest-line, .ap-rest-alarm) { margin-bottom: 4px; }
+/* The three lines under it while it is shut: 20 high on a 2 gap, on the
+   title's edge — the name in 12 medium in the secondary ink, how much room in
+   mono 11 muted. */
 .ap-previews { padding-bottom: 4px; }
 .ap-preview {
   display: flex;
@@ -1068,11 +1341,12 @@
   gap: 6px;
   min-height: 20px;
   margin: 0;
-  margin-left: 12px;
-  padding: 2px 8px 2px 16px;
+  margin-left: 8px;
+  padding: 2px 8px 2px 24px;
   box-sizing: border-box;
   font-size: calc(12px + var(--ui-text-increase, 0px));
   line-height: calc(16px + var(--ui-text-increase, 0px));
+  font-weight: 500;
   color: var(--text-secondary);
 }
 .ap-preview-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -1081,9 +1355,10 @@
   font-family: var(--font-mono);
   font-size: calc(11px + var(--ui-text-increase, 0px));
   line-height: calc(14px + var(--ui-text-increase, 0px));
+  font-weight: 400;
   color: var(--muted);
 }
-.ap-preview-more { color: var(--muted); }
+.ap-preview-more { color: var(--text-secondary); }
 
 /* THE PANEL'S STATES (V4's Figma): a title, plain words, then the one thing to do,
    on a 12 inset with an 8 gap. */

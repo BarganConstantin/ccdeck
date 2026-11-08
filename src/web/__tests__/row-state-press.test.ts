@@ -228,15 +228,23 @@ describe("three tiers, one per kind of thing a row says", () => {
     expect(clientText()).toMatch(/className="ap-switch"/);
     expect(surfaceCode).not.toMatch(/className="btn ap-switch"|className="ap-manage-btn ap-switch"/);
     expect(declOf(".ap-switch", "flex")).toBe("none");
-    expect(declOf(".ap-switch", "border")).toBe("0");
-    expect(declOf(".ap-switch", "background")).toBe("var(--ctl-fill)");
-    // CHANGED ON PURPOSE (V4's Figma): the Switch button is 18 high, with the
+    // CHANGED ON PURPOSE (V4's Figma): the Switch takes the figure's place under
+    // the pointer and the keyboard, so it is the kit's quiet button there — the
+    // control surface with the default line round it — rather than a word on
+    // the row's fill. Under a mouse it is not on the row at rest at all; the
+    // line is a rim, not a boundary it owes 3:1, since the word names it
+    // (control-edges names it with that reason).
+    expect(declOf(".ap-switch", "border")).toBe("1px solid var(--line)");
+    expect(declOf(".ap-switch", "background")).toBe("var(--bg-soft)");
+    // CHANGED ON PURPOSE (V4's Figma): the Switch button is 20 high, with the
     // 24px target drawn round it by its ::after.
-    expect(declOf(".ap-switch", "min-height")).toBe("18px");
+    expect(declOf(".ap-switch", "min-height")).toBe("20px");
     expect(bare).toMatch(/\.ap-switch::after \{ content: ""; position: absolute; inset: -3px -2px; \}/);
     for (const theme of themes) {
-      const fill = over(resolve("var(--ctl-fill)", theme), beds(theme).panel);
-      expect(contrastRatio(resolve("var(--text)", theme), fill), `${theme} the word on the fill`).toBeGreaterThanOrEqual(BODY);
+      for (const [name, bed] of [["panel", beds(theme).panel], ["active", beds(theme).active]] as const) {
+        const fill = over(resolve("var(--bg-soft)", theme), bed);
+        expect(contrastRatio(resolve("var(--text)", theme), fill), `${theme} the word on the fill, on the ${name} row`).toBeGreaterThanOrEqual(BODY);
+      }
     }
   });
 

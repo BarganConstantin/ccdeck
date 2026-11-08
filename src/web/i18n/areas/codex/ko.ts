@@ -26,6 +26,8 @@ const catalog: Catalog = {
   "codex.share.failed": "전송을 완료하지 못했습니다. 계정을 다시 불러오고 다시 시도하세요.",
   "codex.share.copyFailed": "클립보드를 사용할 수 없습니다. 위의 코드 전체를 선택해 복사하세요.",
   "codex.row.liveTitle": "새 세션의 기본 계정",
+  "codex.row.defaultWord": "기본",
+  "codex.row.notChecked": "아직 할당량 확인 안 함",
   "codex.row.liveSpoken": "기본 계정:",
   "codex.row.readBy": "ccdeck이 이 계정의 사용량을 마지막으로 읽은 시각",
   "codex.row.readPlan": "ccdeck이 이 계정의 사용량을 마지막으로 읽은 시각과 다음에 읽을 예정 시각입니다. 이 패널이 열려 있는 동안 기본 계정은 1분마다, 나머지는 5분마다 읽습니다. Codex가 계정에 대해 알려 주는 한도이므로, 구간이 하나인 플랜은 막대도 하나입니다.",
