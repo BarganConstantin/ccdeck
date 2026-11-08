@@ -18,7 +18,9 @@ export interface ThermalReading { label: string; celsius: number; warnAt: number
  *  ALLOWED; Linux's kernel gives the share of the last ten seconds the clock was
  *  HELD DOWN. Two keys rather than one number, because the two say different
  *  things and the sentence under the row has to know which it is saying. */
-export type Throttle = { speedLimit: number } | { timeHeld: number };
+// Windows' ceiling is relative to nominal performance and can be power/policy
+// related. Retain its source so the note does not claim thermal causation.
+export type Throttle = { speedLimit: number; source?: "windows-performance" } | { timeHeld: number };
 export interface Thermal {
   celsius: ThermalReading[];
   throttle: Throttle | null;

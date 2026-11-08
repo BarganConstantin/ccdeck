@@ -66,6 +66,7 @@ export function throttleRow(
 ): { pct: number; value: string; tone: Tone; note: string } {
   const held = heldShare(throttle);
   const byTime = "timeHeld" in throttle;
+  const windowsLimit = !byTime && throttle.source === "windows-performance";
   return {
     pct: held,
     // A number, never the word "none", and that was a bug report: a healthy
@@ -82,7 +83,13 @@ export function throttleRow(
     tone: held === 0 ? "calm" : held >= 30 ? "hot" : "warn",
     // Short enough to sit on one line in a 280px panel: the longer phrasings
     // wrapped and orphaned their last word.
-    note: held > 0
+    note: windowsLimit
+      ? held > 0
+        ? t("insights.machine.windowsLimit", { pct: throttle.speedLimit })
+        : past
+          ? t("insights.machine.windowsPastLimit", { pct: 100 - past.peak, since: sinceLabel(past.lastMs, now) })
+          : t("insights.machine.windowsNoLimit")
+      : held > 0
       ? byTime
         ? t("insights.machine.throttledTime", { pct: held })
         : t("insights.machine.heldTo", { pct: 100 - held })
@@ -139,6 +146,9 @@ export function attentionFlag(sys: Pick<Snapshot, "thermal" | "memory" | "networ
   const throttle = sys.thermal?.throttle;
   const held = throttle ? heldShare(throttle) : 0;
   if (throttle && held > 0) {
+    if ("speedLimit" in throttle && throttle.source === "windows-performance") {
+      return t("insights.machine.windowsLimit", { pct: throttle.speedLimit });
+    }
     return "timeHeld" in throttle ? t("insights.machine.flagTime", { pct: held }) : t("insights.machine.flagHeld", { pct: 100 - held });
   }
   if (sys.memory && sys.memory.usedPct >= 90) return t("insights.machine.flagMemory", { pct: Math.round(sys.memory.usedPct) });

@@ -66,8 +66,8 @@ export function readingsOf(snap) {
       warnAt: num(r.warnAt), critAt: num(r.critAt),
     });
   }
-  // Linux and Windows say how long the CPU was held back; a Mac says how much
-  // speed it still allows. One number either way, the deck's own (heldShare in
+  // Linux says how long the CPU was held back; macOS and Windows report a
+  // performance ceiling. One number either way, the deck's own (heldShare in
   // machine-live.ts): the share held back.
   const throttle = snap.thermal?.throttle;
   const speed = num(throttle?.speedLimit);
