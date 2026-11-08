@@ -19,6 +19,19 @@ const catalog: Catalog = {
   "shell.rail.right": "Utilizare și activitate",
   "shell.appMenu": "Meniul aplicației",
   "shell.dragToMove": "Trage pentru a muta · dublu clic pentru a-l pune la loc",
+  // ── Workspace's side column: Usage and This machine beside the pane ──
+  "shell.side.fold": "Strânge",
+  "shell.side.unfold": "Desfă",
+  "shell.side.popOut": "Scoate în afară",
+  "shell.side.dock": "Pune înapoi în coloană",
+  "shell.side.dragToDock": "Trage de antet · dublu clic pentru a-l pune înapoi",
+  "shell.side.split": "Împărțirea înălțimii între Utilizare și Acest computer",
+  "shell.side.splitHint": "Trage pentru a împărți înălțimea · tastele săgeți o mută",
+  "shell.side.width": "Lățimea coloanei laterale",
+  "shell.side.widthHint": "Trage pentru a lărgi sau îngusta coloana · tastele săgeți o mută",
+  "shell.side.usageSum": "{amount} {period}",
+  "shell.side.usageTokens": "{n} tokeni {period}",
+  "shell.side.machineSum": "CPU {cpu}% · {memory}",
 
   // ── relative ages used in the update lines and the version chip ──
   "shell.ago.now": "chiar acum",

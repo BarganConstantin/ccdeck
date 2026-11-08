@@ -19,6 +19,19 @@ const catalog: Catalog = {
   "shell.rail.right": "用量与活动",
   "shell.appMenu": "应用菜单",
   "shell.dragToMove": "拖动以移动 · 双击还原位置",
+  // ── Workspace's side column: Usage and This machine beside the pane ──
+  "shell.side.fold": "折叠",
+  "shell.side.unfold": "展开",
+  "shell.side.popOut": "弹出",
+  "shell.side.dock": "停靠到侧栏",
+  "shell.side.dragToDock": "拖动标题栏 · 双击停靠",
+  "shell.side.split": "“用量”与“这台电脑”的高度分配",
+  "shell.side.splitHint": "拖动以分配高度 · 方向键可移动",
+  "shell.side.width": "侧栏宽度",
+  "shell.side.widthHint": "拖动以加宽或收窄侧栏 · 方向键可移动",
+  "shell.side.usageSum": "{amount} {period}",
+  "shell.side.usageTokens": "{n} token {period}",
+  "shell.side.machineSum": "CPU {cpu}% · {memory}",
 
   // ── relative ages ──
   "shell.ago.now": "刚刚",

@@ -242,4 +242,12 @@ describe("a desktop window too narrow for both right panels", () => {
     windowAt(1556);
     expect(load().open.machine).toBe(true);
   });
+
+  it("holds nothing on a load in Workspace, where the two share one side column", () => {
+    windowAt(1440, { accounts: "1", usage: "1", machine: "1" });
+    let right!: ReturnType<typeof useRightPanels>;
+    mount(() => { const left = useLeftColumn(); right = useRightPanels(leftColumnWidth(left.panel), true); return null; }, {});
+    expect([right.usagePanelOpen, right.machinePanelOpen]).toEqual([true, true]);
+    expect(kept("machine")).toBe("1");
+  });
 });

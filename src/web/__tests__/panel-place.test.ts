@@ -3,18 +3,20 @@
 // The owner turned a dock beside the stripe down twice and asked for this
 // instead: the panels float over the board as before, and the reader can put
 // one where the board is empty. A place is kept from the nearer window edge,
-// clamped between the stripes and below the bar by the sheet, and a double
-// click or a drop near the home slot gives the slot back.
+// clamped by the sheet to the owner's room (2026-11-08: the whole view between
+// the top bar and the status bar, full width, the header always inside), and
+// a double click or a drop near the home slot gives the slot back. The drag
+// itself, against a home slot that is no bound, is panel-drag-room.test.ts.
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { boxOf, clamp, HOME_SNAP, LEAST_SHOWN, nearHome, parsePlace, placeOf, PLACE_KEYS, STACK_GAP, stackCap, type PanelRoom } from "../panel-place";
+import { boxOf, clamp, dragBox, HOME_SNAP, LEAST_SHOWN, nearHome, parsePlace, placeOf, PLACE_KEYS, STACK_GAP, stackCap, type PanelRoom } from "../panel-place";
 import { sheetText } from "./sheet-source";
 
 const source = (path: string) => readFileSync(fileURLToPath(new URL(path, import.meta.url)), "utf8");
 const sheet = sheetText();
-// 1440 x 900, 40px stripes, a 44px bar.
-const room: PanelRoom = { w: 1440, h: 900, side: 48, top: 52 };
+// 1440 x 900, a 40px bar, a 24px status bar, a 36px header in a 1px edge.
+const room: PanelRoom = { w: 1440, h: 876, top: 40, head: 38 };
 
 describe("where a moved panel is kept", () => {
   it("keeps a panel put down on the right from the right edge", () => {
@@ -37,19 +39,28 @@ describe("where a moved panel is kept", () => {
 });
 
 describe("the room a panel moves in", () => {
-  it("never goes under a stripe or the bar", () => {
-    expect(boxOf({ edge: "left", x: 0, y: 0 }, 280, room)).toEqual({ left: 48, top: 52 });
-    expect(boxOf({ edge: "right", x: 0, y: 300 }, 280, room).left).toBe(1440 - 48 - 280);
+  // CHANGED ON PURPOSE (owner, 2026-11-08): the room is the whole view between
+  // the top bar and the status bar at the window's full width, the header
+  // always inside. It was the window less the stripes and 8 at each side, under
+  // the bar, with 120 kept above the foot.
+  it("goes to the window's edges, never under the top bar", () => {
+    expect(boxOf({ edge: "left", x: -50, y: 0 }, 280, room)).toEqual({ left: 0, top: 40 });
+    expect(boxOf({ edge: "right", x: -50, y: 300 }, 280, room).left).toBe(1440 - 280);
   });
 
-  it("keeps its header and a first reading in the window", () => {
-    expect(boxOf({ edge: "left", x: 300, y: 5000 }, 280, room).top).toBe(900 - LEAST_SHOWN);
+  it("keeps its header whole above the status bar", () => {
+    expect(boxOf({ edge: "left", x: 300, y: 5000 }, 280, room).top).toBe(876 - 38);
   });
 
   it("pulls a far place in on a smaller window without rewriting it", () => {
     const place = { edge: "left" as const, x: 1100, y: 700 };
-    expect(boxOf(place, 280, { ...room, w: 1024, h: 600 })).toEqual({ left: 1024 - 48 - 280, top: 600 - LEAST_SHOWN });
+    expect(boxOf(place, 280, { ...room, w: 1024, h: 576 })).toEqual({ left: 1024 - 280, top: 576 - 38 });
     expect(boxOf(place, 280, room)).toEqual({ left: 1100, top: 700 });
+  });
+
+  it("is the drag's clamp too", () => {
+    expect(dragBox(-10, -10, 320, room)).toEqual({ left: 0, top: 40 });
+    expect(dragBox(5000, 5000, 320, room)).toEqual({ left: 1120, top: 838 });
   });
 
   it("lets the least win when the room is smaller than the panel, as CSS clamp does", () => {
@@ -116,24 +127,33 @@ describe("in the panels and the sheet", () => {
   it("moves each panel by its header", () => {
     const usage = source("../components/UsagePanel.tsx");
     const machine = source("../components/MachinePanel.tsx");
-    expect(usage).toContain("usePanelPlace(PLACE_KEYS.usage)");
+    // CHANGED ON PURPOSE: each passes its place in Workspace's side column,
+    // absent on the Board (side-column.ts), so a docked part has no grip.
+    expect(usage).toContain("usePanelPlace(PLACE_KEYS.usage, dock)");
     expect(usage).toMatch(/<div className="up-header" \{\.\.\.place\.grip\}>/);
-    expect(machine).toContain("usePanelPlace(PLACE_KEYS.machine)");
+    expect(machine).toContain("usePanelPlace(PLACE_KEYS.machine, dock)");
     expect(machine).toMatch(/<div className="sd-top" \{\.\.\.place\.grip\}>/);
   });
 
   it("clamps a placed panel in the sheet, from the edge it is kept from", () => {
-    expect(sheet).toMatch(/\[data-place\]\s*\{[^}]*--place-at:\s*clamp\(var\(--place-top\), var\(--place-y\), calc\(100vh - 120px - var\(--status-room, 0px\)\)\);/);
-    expect(sheet).toMatch(/\[data-place="right"\]\s*\{[^}]*left:\s*auto;[^}]*right:\s*clamp\(var\(--place-side\), var\(--place-x\)/);  // CHANGED ON PURPOSE (V4's Figma): both edges keep clear of their stripe, so the right edge clamps to the same --place-side
-    expect(sheet).toMatch(/\[data-place="left"\]\s*\{[^}]*right:\s*auto;[^}]*left:\s*clamp\(var\(--place-side\), var\(--place-x\)/);
-    // The sheet's 120 is the drag's LEAST_SHOWN.
-    expect(LEAST_SHOWN).toBe(120);
+    // CHANGED ON PURPOSE (owner, 2026-11-08): the header stays whole above the
+    // status bar (it kept 120 above the foot), and both edges go to the
+    // window's edge (they kept clear of their stripe, 8 to spare).
+    expect(sheet).toMatch(/\[data-place\]\s*\{[^}]*--place-head:\s*calc\(var\(--pane-head-h\) \+ 2px\);/);
+    expect(sheet).toMatch(/\[data-place\]\s*\{[^}]*--place-at:\s*clamp\(var\(--place-top\), var\(--place-y\), calc\(100vh - var\(--status-room, 0px\) - var\(--place-head\)\)\);/);
+    expect(sheet).toMatch(/\[data-place="right"\]\s*\{[^}]*left:\s*auto;[^}]*right:\s*clamp\(0px, var\(--place-x\), calc\(100vw - var\(--place-w\)\)\)/);
+    expect(sheet).toMatch(/\[data-place="left"\]\s*\{[^}]*right:\s*auto;[^}]*left:\s*clamp\(0px, var\(--place-x\), calc\(100vw - var\(--place-w\)\)\)/);
+    // The drag never measures the home slot for its room, nor the stripes.
+    const hook = source("../panel-place.ts");
+    expect(hook).toContain('document.querySelector(".topbar")');
+    expect(hook).not.toMatch(/top: home\.top/);
   });
 
-  it("keeps a placed panel under the rating row while it is shown", () => {
-    // The drag measures its least top from the home slot, which rating.css
-    // already moves down by the row; the sheet has to agree.
-    expect(sheet).toMatch(/\[data-place\]\s*\{[^}]*--place-top:\s*calc\(var\(--topbar-h\) \+ 8px \+ var\(--rating-h, 0px\)\);/);
+  it("starts the room at the top bar's foot, whatever is under it", () => {
+    // CHANGED ON PURPOSE (owner, 2026-11-08): "between the top bar and the
+    // status bar"; the least top was under the bar, 8 down, and under the
+    // rating row while it was shown.
+    expect(sheet).toMatch(/\[data-place\]\s*\{[^}]*--place-top:\s*var\(--topbar-h\);/);
   });
 
   it("comes after rating.css, whose top for the pair it overrides", () => {

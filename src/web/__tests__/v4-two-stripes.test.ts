@@ -332,7 +332,11 @@ describe("the 40 the right stripe takes, and the panels clear of it", () => {
   it("stands the Workspace column's panels, the 1100 to 1319 sheet and Zoom's Inspector clear of it too", () => {
     const css = strip(source("../styles/workspace.css"));
     const flat = css.replace(/\s+/g, " ");
-    expect(flat).toContain(':has(.detail) :is(.usage-panel, .sysdetail):not([data-place]) { top: var(--ws-head); right: var(--edge-w);');
+    // CHANGED ON PURPOSE (owner, 2026-11-08): the column's panels dock in a
+    // grid track, inside the padding the stripes keep free, so no right edge
+    // is written for them; zoomed, the column is an overlay --edge-w in.
+    expect(flat).toMatch(/\.app\[data-view="workspace"\] \.ws-side\[data-on\] \{ display: flex; flex-direction: column; grid-column: 2;/);
+    expect(flat).toMatch(/\.app\[data-view="workspace"\]\[data-zoom\] \.ws-side\[data-on\] \{ position: fixed; top: [^;]*; right: var\(--edge-w\);/);
     expect(flat).toMatch(/\.app\[data-view="workspace"\] \.detail \{ position: fixed; top: [^;]*; right: var\(--edge-w\);/);
     expect(flat).toMatch(/\.app\[data-view="workspace"\]\[data-zoom\] \.detail \{ position: fixed; top: [^;]*; right: var\(--edge-w\);/);
     // A sheet leaving rests off the window's edge, not over the stripe's door.
@@ -340,11 +344,15 @@ describe("the 40 the right stripe takes, and the panels clear of it", () => {
     expect(flat).not.toMatch(/(?<![-\w])right: 0;/);
   });
 
-  it("keeps a moved panel clear of both stripes, in the sheet and in the drag", () => {
-    expect(decl(".app :is(.usage-panel, .sysdetail)[data-place]", "--place-side")).toBe("calc(var(--edge-w) + 8px)");
+  // CHANGED ON PURPOSE (owner, 2026-11-08): a moved panel's room is the whole
+  // view at the window's full width, the stripes included; the header is what
+  // stays inside. It kept clear of both stripes with 8 to spare.
+  it("lets a moved panel go over either stripe, in the sheet and in the drag", () => {
+    expect(decl(".app :is(.usage-panel, .sysdetail)[data-place]", "--place-side")).toBeUndefined();
+    expect(decl('.app :is(.usage-panel, .sysdetail)[data-place="right"]', "right")).toBe("clamp(0px, var(--place-x), calc(100vw - var(--place-w)))");
     const place = source("../panel-place.ts");
-    expect(place).toContain('document.querySelector(".edge-rail-right")');
-    expect(place).toContain("sideRight: right + 8");
+    expect(place).not.toContain('document.querySelector(".edge-rail-right")');
+    expect(place).toContain("left: clamp(left, 0, room.w - width)");
   });
 });
 

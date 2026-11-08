@@ -400,12 +400,18 @@ describe("nothing else in the deck invents a focus stop", () => {
     // The card's cost chip is the one stop of V4's cost tooltip: the tooltip
     // opens on keyboard focus, so the chip it explains has to be reachable (the
     // native title it replaces was not).
+    // Workspace's side column has two window splitters: its left edge, whose
+    // value is the column's width, and the split between Usage and This
+    // machine, whose value is Usage's share; the arrow keys move each.
     // Sorted, so the order is the paths' and not the file system's.
     expect([...offenders].sort()).toEqual([
       "components/CostTip.tsx", "components/ForgeHtml.tsx", "components/IntegrationSplit.tsx", "components/RadarSplitter.tsx", "components/RadioMap.tsx",
-      "components/RadioPanel.tsx", "components/ReleaseNotesModal.tsx", "components/ToolAuditSplitter.tsx",
+      "components/RadioPanel.tsx", "components/ReleaseNotesModal.tsx", "components/SideColumn.tsx", "components/ToolAuditSplitter.tsx",
       "components/chat/ChatView.tsx", "components/forge/DetailJobs.tsx", "jira-html.tsx",
     ]);
+    const side = code(readFileSync(`${web}components/SideColumn.tsx`, "utf8"));
+    expect([...side.matchAll(/tabIndex=/g)], "two stops, one on each separator").toHaveLength(2);
+    expect([...side.matchAll(/role="separator" tabIndex=\{0\}/g)]).toHaveLength(2);
     // CHANGED ON PURPOSE: the region's name now comes from the catalog (board.chat.conversation), not a literal.
     expect(code(readFileSync(`${web}components/chat/ChatView.tsx`, "utf8"))).toMatch(/className="chat-body"\s+role="region"\s+aria-label=\{t\("board\.chat\.conversation"\)\}\s+tabIndex=\{0\}/);
     expect(code(readFileSync(`${web}components/ReleaseNotesModal.tsx`, "utf8"))).toMatch(/<section className="modal-body" role="region" aria-label=\{t\("shell\.notes\.region"\)\} tabIndex=\{0\}>/);

@@ -19,6 +19,19 @@ const catalog: Catalog = {
   "shell.rail.right": "사용량 및 활동",
   "shell.appMenu": "애플리케이션 메뉴",
   "shell.dragToMove": "끌어서 이동 · 두 번 클릭하면 원위치",
+  // ── Workspace's side column: Usage and This machine beside the pane ──
+  "shell.side.fold": "접기",
+  "shell.side.unfold": "펼치기",
+  "shell.side.popOut": "떼어내기",
+  "shell.side.dock": "열에 붙이기",
+  "shell.side.dragToDock": "헤더를 끌어 이동 · 두 번 클릭하면 열에 붙음",
+  "shell.side.split": "사용량과 이 컴퓨터의 높이 배분",
+  "shell.side.splitHint": "끌어서 높이 배분 · 화살표 키로 이동",
+  "shell.side.width": "사이드 열 너비",
+  "shell.side.widthHint": "끌어서 열을 넓히거나 좁히기 · 화살표 키로 이동",
+  "shell.side.usageSum": "{amount} {period}",
+  "shell.side.usageTokens": "토큰 {n}개 {period}",
+  "shell.side.machineSum": "CPU {cpu}% · {memory}",
 
   // ── relative ages used in the update lines and the version chip ──
   "shell.ago.now": "방금",

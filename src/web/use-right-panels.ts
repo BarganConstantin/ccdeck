@@ -72,8 +72,10 @@ function saveMachinePanelOpen(open: boolean): void {
 
 /** `leftColumnW` is the left column's width on this load (use-left-column.ts):
  *  whether the window has room for Usage and the machine panel side by side
- *  depends on it. */
-export function useRightPanels(leftColumnW = 0) {
+ *  depends on it. `inColumn` is a load that lands in Workspace, where the two
+ *  share one side column (side-column.ts) instead of standing side by side, so
+ *  the room rule is not theirs. */
+export function useRightPanels(leftColumnW = 0, inColumn = false) {
   /** Right detail panel visibility — persisted across refresh. */
   const [detailOpen, setDetailOpen] = useState<boolean>(loadDetailOpen);
   /** Shut for now, not by the reader: Workspace's sheet width (1100 to 1319)
@@ -110,7 +112,7 @@ export function useRightPanels(leftColumnW = 0) {
       machineHeldRef.current = true;
       return false;
     }
-    if (wanted && usagePanelOpen && rightPanelsCrowd(leftColumnW)) {
+    if (wanted && usagePanelOpen && !inColumn && rightPanelsCrowd(leftColumnW)) {
       machineHeldRef.current = true;
       return false;
     }
