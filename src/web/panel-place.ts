@@ -24,11 +24,17 @@
 //
 // A phone has no room to move anything in; there the two are sheets and a
 // stored place waits for the next desktop load.
+//
+// IN WORKSPACE the two dock in a side column instead (side-column.ts), and a
+// docked panel has no place and no grip. One popped out of the column floats
+// here again, with a place of its own: Workspace keeps its floating places
+// apart from the Board's (floatKey), and a double click on its header docks it.
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type MouseEvent, type PointerEvent } from "react";
 import { readStored, removeStored, writeStored } from "./storage";
 import { useMediaQuery } from "./use-media-query";
 import { PHONE_QUERY } from "./phone-load";
 import { t } from "./i18n";
+import type { PanelDock } from "./side-column";
 
 export type PanelPlace = {
   /** The window edge the panel is kept from. */
@@ -58,6 +64,16 @@ export const PLACE_KEYS = {
   usage: "agent-dag.usagePanelPlace",
   machine: "agent-dag.machinePanelPlace",
 } as const;
+
+/** Where a panel popped out of Workspace's column keeps its place: the Board's
+ *  key, for Workspace alone. */
+export function floatKey(key: string): string {
+  return `${key}.workspace`;
+}
+
+/** A docked panel is a part of the column: the stack, the held height and the
+ *  drag are the floating panels' alone. */
+const isDocked = (el: Element | null) => el?.getAttribute?.("data-dock") === "docked";
 
 /** Where each panel keeps the height it settled at (see useRememberedHeight). */
 const HEIGHT_KEYS: Record<string, string> = {
@@ -148,6 +164,9 @@ export function fitStack(): void {
   usage?.style.removeProperty("max-height");
   machine?.style.removeProperty("max-height");
   if (!usage || !machine || window.matchMedia(PHONE_QUERY).matches) return;
+  // A part of Workspace's column is not stacked with anything: the column
+  // shares its height.
+  if (isDocked(usage) || isDocked(machine)) return;
   const box = (el: HTMLElement): Box => ({ left: el.offsetLeft, top: el.offsetTop, width: el.offsetWidth });
   const fit = stackCap(box(usage), box(machine));
   if (fit) (fit.upper === "a" ? usage : machine).style.maxHeight = `${fit.cap}px`;
@@ -217,7 +236,8 @@ export function useRememberedHeight(panelRef: { readonly current: HTMLElement | 
       el.style.removeProperty("min-height");
     }, HEIGHT_HOLD_MS);
     let latest = 0;
-    const watch = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(() => { latest = el.offsetHeight; });
+    // Only a floating panel's height is its own: docked, it is the column's share.
+    const watch = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(() => { if (!isDocked(el)) latest = el.offsetHeight; });
     watch?.observe(el);
     const keep = () => { if (latest > 0) writeStored(heightKey, String(Math.round(latest))); };
     window.addEventListener("pagehide", keep);
@@ -233,16 +253,34 @@ export function useRememberedHeight(panelRef: { readonly current: HTMLElement | 
 
 /**
  * The place of one panel, and the props for the panel and its header.
- * `key` is one of PLACE_KEYS.
+ * `boardKey` is one of PLACE_KEYS. `dock` is the panel's place in Workspace's
+ * column (side-column.ts); absent, the panel is the Board's.
  */
-export function usePanelPlace(key: string) {
+export function usePanelPlace(boardKey: string, dock?: PanelDock) {
   const phone = useMediaQuery(PHONE_QUERY);
+  const mode = dock?.mode ?? "board";
+  const key = mode === "float" ? floatKey(boardKey) : boardKey;
   const [place, setPlace] = useState<PanelPlace | null>(() => parsePlace(readStored(key)));
   const panelRef = useRef<HTMLElement>(null);
   const drag = useRef<Drag | null>(null);
   const stopEscape = useRef<(() => void) | null>(null);
   useEffect(() => () => stopEscape.current?.(), []);
-  useRememberedHeight(panelRef, key);
+  useRememberedHeight(panelRef, boardKey);
+  // Each view keeps its own place: the Board's, or the one Workspace's floating
+  // panel was put at. Read again when the panel changes view or floats.
+  const keyRef = useRef(key);
+  useLayoutEffect(() => {
+    if (keyRef.current === key) return;
+    keyRef.current = key;
+    setPlace(parsePlace(readStored(key)));
+  }, [key]);
+  // A panel that docks takes nothing of its floating self into the column: no
+  // held height, no cap of the stack.
+  useLayoutEffect(() => {
+    if (mode !== "docked") return;
+    panelRef.current?.style.removeProperty("min-height");
+    panelRef.current?.style.removeProperty("max-height");
+  }, [mode]);
 
   const keep = (next: PanelPlace | null) => {
     if (next) writeStored(key, JSON.stringify(next));
@@ -329,7 +367,8 @@ export function usePanelPlace(key: string) {
     // The inline box comes off in the same task as the render that draws the
     // place through the sheet, so nothing paints between the two.
     draw(null);
-    keep(nearHome(d.at, d.home) ? null : placeOf(d.at.left, d.at.top, d.start.width, d.room!.w));
+    // A floating part has no home slot to snap to: the column is its home.
+    keep(mode !== "float" && nearHome(d.at, d.home) ? null : placeOf(d.at.left, d.at.top, d.start.width, d.room!.w));
   };
   const onPointerCancel = () => {
     if (!drag.current) return;
@@ -337,11 +376,27 @@ export function usePanelPlace(key: string) {
     finish();
   };
   const onDoubleClick = (event: MouseEvent<HTMLElement>) => {
-    if (interactive(event.target) || !place) return;
+    if (interactive(event.target)) return;
+    // Popped out of Workspace's column: back into it.
+    if (mode === "float") { dock?.dock(); return; }
+    if (!place) return;
     keep(null);
   };
+  /** Out of the column, over the view. Where it floated last in Workspace, or
+   *  the first time beside the column at the height it was docked at (left of
+   *  it while there is room), kept from the nearer edge as any place is. */
+  const popOut = () => {
+    const el = panelRef.current;
+    if (el && !parsePlace(readStored(floatKey(boardKey)))) {
+      const r = el.getBoundingClientRect();
+      const width = 320;
+      const left = r.left - width - 8 >= 0 ? r.left - width - 8 : r.left;
+      writeStored(floatKey(boardKey), JSON.stringify(placeOf(left, r.top, width, window.innerWidth)));
+    }
+    dock?.popOut();
+  };
 
-  const placed = place && !phone ? place : null;
+  const placed = place && !phone && mode !== "docked" ? place : null;
   // The pair is fitted when this panel arrives or is put somewhere, before it
   // paints; when it leaves; and when the room around them changes: the window,
   // or the canvas column, which the detail panel and the rating row resize and
@@ -361,12 +416,16 @@ export function usePanelPlace(key: string) {
   const panel = {
     ref: panelRef,
     "data-place": placed?.edge,
+    // "docked" or "float" in Workspace (workspace.css draws the column); none on the Board.
+    "data-dock": mode === "board" ? undefined : mode,
+    "data-fold": mode === "docked" && dock?.folded ? "" : undefined,
     style: placed ? ({ "--place-x": `${placed.x}px`, "--place-y": `${placed.y}px` } as CSSProperties) : undefined,
   };
-  const grip = phone ? {} : {
+  // A docked part does not move: its header holds its buttons and nothing else.
+  const grip = phone || mode === "docked" ? {} : {
     "data-grip": "",
-    title: t("shell.dragToMove"),
+    title: t(mode === "float" ? "shell.side.dragToDock" : "shell.dragToMove"),
     onPointerDown, onPointerMove, onPointerUp, onPointerCancel, onLostPointerCapture: onPointerCancel, onDoubleClick,
   };
-  return { place: placed, panel, grip };
+  return { place: placed, panel, grip, mode, popOut };
 }

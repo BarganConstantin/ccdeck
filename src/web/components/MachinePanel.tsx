@@ -55,6 +55,8 @@ import { KitIcon } from "./kit-icons";
 import NetworkSection from "./MachineNetwork";
 import MachineGpu from "./MachineGpu";
 import { PLACE_KEYS, usePanelPlace } from "../panel-place";
+import type { PanelDock } from "../side-column";
+import { DockButtons } from "./SideColumn";
 
 /**
  * The panel's frame: its slot in the rail, its landmark name, its title, the
@@ -72,7 +74,7 @@ import { PLACE_KEYS, usePanelPlace } from "../panel-place";
  * line of the body and sticks under the head the same way: a machine held below
  * full speed should not be a fact you have to scroll back up to find.
  */
-function Shell({ usageOpen, leaving, sub, flag, onClose, children }: {
+function Shell({ usageOpen, leaving, sub, flag, summary, dock, onClose, children }: {
   usageOpen: boolean;
   /** Asked to close, still on screen for the length of its exit. */
   leaving?: boolean;
@@ -80,11 +82,15 @@ function Shell({ usageOpen, leaving, sub, flag, onClose, children }: {
   sub?: string;
   /** The one condition worth saying at the top, or nothing at all. */
   flag?: string | null;
+  /** One line of the readings, for the header of a folded part. */
+  summary?: string;
+  /** Its place in Workspace's side column (side-column.ts); absent on the Board. */
+  dock?: PanelDock;
   onClose: () => void;
   children: React.ReactNode;
 }) {
   const t = useT();
-  const place = usePanelPlace(PLACE_KEYS.machine);
+  const place = usePanelPlace(PLACE_KEYS.machine, dock);
   return (
     // Named by its own heading (#879). The title was a styled <span>, so this
     // was the one panel a screen reader's heading list skipped: Usage and
@@ -98,6 +104,9 @@ function Shell({ usageOpen, leaving, sub, flag, onClose, children }: {
       <div className="sd-top" {...place.grip}>
         <div className="sd-head">
           <h2 className="sd-title" id="sd-title">{t("insights.machine.title")}</h2>
+          {/* Folded in Workspace's column, the header keeps the live line. */}
+          {dock?.folded && summary && <span className="side-sum">{summary}</span>}
+          <DockButtons dock={dock} popOut={place.popOut} />
           <button type="button" className="glyph-btn sd-close" onClick={onClose} aria-label={t("insights.usage.close")} title={t("insights.usage.close")}><KitIcon name="close" /></button>
         </div>
       </div>
@@ -137,11 +146,13 @@ function Shell({ usageOpen, leaving, sub, flag, onClose, children }: {
  * lost by stopping — the server samples on its own timers and keeps the
  * history, so a panel opened an hour from now still has the hour behind it.
  */
-export default function MachinePanel({ usageOpen, leaving, onClose }: {
+export default function MachinePanel({ usageOpen, leaving, onClose, dock }: {
   usageOpen: boolean;
   /** Asked to close, still on screen for the length of its exit. */
   leaving?: boolean;
   onClose: () => void;
+  /** Its place in Workspace's side column (side-column.ts); absent on the Board. */
+  dock?: PanelDock;
 }) {
   const t = useT();
   const sys = useSystem();
@@ -154,7 +165,7 @@ export default function MachinePanel({ usageOpen, leaving, onClose }: {
   // the same rule the sections below it keep.
   if (!sys || sys.cpu == null || !sys.memory) {
     return (
-      <Shell usageOpen={usageOpen} leaving={leaving} onClose={onClose}>
+      <Shell usageOpen={usageOpen} leaving={leaving} dock={dock} onClose={onClose}>
         <div className="sd-note">{t("insights.machine.reading")}</div>
       </Shell>
     );
@@ -168,6 +179,11 @@ export default function MachinePanel({ usageOpen, leaving, onClose }: {
       leaving={leaving}
       sub={t("insights.machine.sub", { up: uptime(uptimeSec), cores })}
       flag={attentionFlag(sys)}
+      summary={t("shell.side.machineSum", {
+        cpu: Math.round(cpu),
+        memory: t("insights.machine.of", { used: fmtBytes(memory.total - memory.available), total: fmtBytes(memory.total) }),
+      })}
+      dock={dock}
       onClose={onClose}
     >
       <CpuSection cpu={cpu} perCore={perCore} loadavg={loadavg} cores={cores} />

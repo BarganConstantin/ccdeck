@@ -42,3 +42,9 @@
 .app [data-moving] { user-select: none; }
 /* The one moved last stays on top where the two overlap. */
 .app :is(.usage-panel, .sysdetail)[data-front] { z-index: 21; }
+
+/* Workspace's side column (workspace.css) wraps the two panels in every view,
+   so a panel never remounts when it docks, floats or the view switches. On
+   the Board, and in Workspace with nothing docked, the wrapper is no box: the
+   panels are drawn as if it were not there. */
+.ws-side { display: contents; }

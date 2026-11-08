@@ -127,9 +127,11 @@ describe("in the panels and the sheet", () => {
   it("moves each panel by its header", () => {
     const usage = source("../components/UsagePanel.tsx");
     const machine = source("../components/MachinePanel.tsx");
-    expect(usage).toContain("usePanelPlace(PLACE_KEYS.usage)");
+    // CHANGED ON PURPOSE: each passes its place in Workspace's side column,
+    // absent on the Board (side-column.ts), so a docked part has no grip.
+    expect(usage).toContain("usePanelPlace(PLACE_KEYS.usage, dock)");
     expect(usage).toMatch(/<div className="up-header" \{\.\.\.place\.grip\}>/);
-    expect(machine).toContain("usePanelPlace(PLACE_KEYS.machine)");
+    expect(machine).toContain("usePanelPlace(PLACE_KEYS.machine, dock)");
     expect(machine).toMatch(/<div className="sd-top" \{\.\.\.place\.grip\}>/);
   });
 

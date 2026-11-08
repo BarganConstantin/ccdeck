@@ -298,7 +298,9 @@ describe("the six layouts are still the six the stylesheet declares", () => {
       .split("\n").filter(line => !/^\s*\/\//.test(line)).join("\n");
     expect(rightCode).toMatch(/function loadDetailOpen\(\): boolean \{\s*return readStored\(DETAIL_OPEN_KEY\) === "1";\s*\}/);
     expect(rightCode).toMatch(/useState<boolean>\(loadDetailOpen\)/);
-    expect(appCode).toMatch(/\bdetailOpen\b[^}]*\}\s*= useRightPanels\(leftColumnWidth\(leftPanel, railWidth\)\);/);
+    // CHANGED ON PURPOSE: App also says whether this load lands in Workspace,
+    // where Usage and This machine share a side column (side-column.ts).
+    expect(appCode).toMatch(/\bdetailOpen\b[^}]*\}\s*= useRightPanels\(leftColumnWidth\(leftPanel, railWidth\), readView\(\) === "workspace"\);/);
   });
 });
 

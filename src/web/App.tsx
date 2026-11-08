@@ -120,7 +120,9 @@ import { stageClaimsKeys, targetSession } from "./stage-shell";
 import { StageDockSlot, StageNavigatorSlot } from "./components/StageSlots";
 import ViewSwitch from "./components/ViewSwitch";
 import { EmptyInspector } from "./components/Inspector";
-import { useView, type View } from "./use-view";
+import { readView, useView, type View } from "./use-view";
+import { useSideColumn } from "./side-column";
+import SideColumn from "./components/SideColumn";
 import { SKIP_TO_PANE_MSG, WORKSPACE_PANE_ID, skipToPane } from "./workspace-pane";
 import { createChimePlayer } from "./chime-player";
 import type { AccountSwitch } from "./components/SettingsModal";
@@ -139,6 +141,8 @@ import type { Theme } from "./theme";
 const INSPECTOR_SHEET_QUERY = "(max-width: 1319px)";
 /** Under this width the Sessions list is a sheet in Workspace (workspace.css). */
 const WORKSPACE_LIST_SHEET_QUERY = "(max-width: 1099px)";
+/** Under this width Workspace's side column opens one part at a time (side-column.ts). */
+const ONE_PART_QUERY = "(max-width: 1023px)";
 /** Usage and Machine are held for their exit: --dur-fast, and --dur-xfade
  *  under reduced motion (machine-panel.css), read from the tokens. */
 const REDUCED_MOTION_QUERY = "(prefers-reduced-motion: reduce)";
@@ -190,9 +194,10 @@ function Inner() {
   const railWidth = useRailWidth();
   // The detail, Usage and Machine panels' open flags, each kept in the browser
   // across a refresh — use-right-panels.ts. Called ahead of the selection
-  // below, because a plain selection opens the detail panel (#814).
+  // below, because a plain selection opens the detail panel (#814). A load in
+  // Workspace has the two in one side column, not side by side over the board.
   const { detailOpen, setDetailOpen, usagePanelOpen, setUsagePanelOpen, machinePanelOpen, setMachinePanelOpen, hold: holdRight }
-    = useRightPanels(leftColumnWidth(leftPanel, railWidth));
+    = useRightPanels(leftColumnWidth(leftPanel, railWidth), readView() === "workspace");
 
   const { selectedIds, primarySelectedId, selectAgent, clearSelection, pruneSelectionToBoard } =
     useSelection(stateRef, setDetailOpen);
@@ -733,6 +738,32 @@ function Inner() {
     else pickSessionForInspector(stateRef.current, focusSession, stepAgent);
   }, [inWorkspace, inspectorColumn, inspectorSheet, inspectorOpen, foldInspector, showInspector, setDetailOpen, primarySelectedIdRef, stateRef, focusSession, stepAgent]);
   const sheetFoldRef = useMirroredRef<(() => void) | null>(inspectorSheet && detailShown ? foldInspector : null);
+  // Usage and Machine dock in a side column in Workspace, beside the pane, and
+  // float over the Board as before (side-column.ts). One open flag each for
+  // both views, so a panel open on one side of the switch is open on the other.
+  const onePart = useMediaQuery(ONE_PART_QUERY);
+  const side = useSideColumn({
+    workspace: inWorkspace && !phone,
+    open: { usage: usagePanelOpen, machine: machinePanelOpen },
+    mounted: { usage: isMounted(usagePhase), machine: isMounted(machinePhase) },
+    narrow: onePart,
+  });
+  // UNDER 1320 THE COLUMN TAKES THE INSPECTOR'S PLACE: an Inspector sheet up
+  // when the column arrives is held, and given back when the column goes (both
+  // parts closed or popped out). One opened while the column is up comes in
+  // over it, as the sheet always does.
+  const sideTookInspector = useRef(false);
+  useLayoutEffect(() => {
+    if (!inWorkspace || inspectorColumn) { sideTookInspector.current = false; return; }
+    if (side.on && detailShown) {
+      sideTookInspector.current = true;
+      holdRight.detail();
+    } else if (!side.on && sideTookInspector.current) {
+      sideTookInspector.current = false;
+      if (primarySelectedIdRef.current) setDetailOpen(true);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [side.on, inWorkspace, inspectorColumn]);
   // A click on the switch crossfades the two views on Fast; a key switches in
   // one frame (view-switch.ts). The Board's canvas is held at its box while
   // Workspace is up, so it neither narrows nor re-fits on the way in or out.
@@ -1149,7 +1180,7 @@ function Inner() {
     // data-view exists only in Workspace, so with the Command Panel off the
     // root is the root it was; data-zoom folds the list and the Inspector
     // (workspace.css); the switch between the views is view-switch.ts.
-    <div ref={appRef} className="app" data-view={inWorkspace ? "workspace" : undefined} data-zoom={zoomPhase}>
+    <div ref={appRef} className="app" data-view={inWorkspace ? "workspace" : undefined} data-zoom={zoomPhase} data-side={side.on ? "" : undefined}>
       {/* The deck's regions, and why each one is the element it is (#381).
           Before this the whole page was <div>s apart from the topbar, so a
           screen reader's landmark rotor listed one entry — Banner — for an
@@ -1369,6 +1400,10 @@ function Inner() {
           changes nothing on screen. */}
       {!phone && <EdgeRail side="right" label={t("shell.rail.right")} groups={rails.rightStripe} />}
 
+      {/* Both inside Workspace's side column, which is a track of the grid
+          there with a part docked and nothing on the Board (SideColumn.tsx), so
+          a panel never remounts when it docks, floats or the view switches. */}
+      <SideColumn on={side.on} split={side.split} width={side.width} share={side.share} onWidth={side.setWidth} onShare={side.setShare}>
       {isMounted(usagePhase) && (
         <UsagePanel
           state={stateRef.current}
@@ -1377,6 +1412,7 @@ function Inner() {
           incidents={incidents}
           liveSince={liveSince}
           leaving={usagePhase === "leaving"}
+          dock={side.dock.usage}
           onClose={sheetClose("usage", () => { panelReturn.usage(); setUsagePanelOpen(false); })}
         />
       )}
@@ -1386,9 +1422,10 @@ function Inner() {
           on behalf of a readout that is gone. `usageOpen` moves it one rail
           slot left when usage has the first one — see .sysdetail.shifted. */}
       {isMounted(machinePhase) && (
-        <MachinePanel usageOpen={usagePanelOpen} leaving={machinePhase === "leaving"}
+        <MachinePanel usageOpen={usagePanelOpen} leaving={machinePhase === "leaving"} dock={side.dock.machine}
           onClose={sheetClose("machine", () => { panelReturn.machine(); setMachinePanelOpen(false); })} />
       )}
+      </SideColumn>
 
       {/* NOTHING SELECTED, NO PANEL. It used to draw an `EmptyDetail` — a title,
           "Click an agent to see its tools", and a fifteen-row shortcut list —

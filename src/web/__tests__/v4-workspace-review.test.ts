@@ -205,12 +205,13 @@ describe("Usage and Machine over the Inspector (review 11)", () => {
 
   it("puts their right edge where the Board has no Inspector under them, from 1320 up, in Workspace only", () => {
     const wide = block(css, "@media (min-width: 1320px)");
-    // CHANGED ON PURPOSE (V4's motion spec): the right edge is written by the
-    // panels' own rule in the Inspector's column (while .detail exists), not by
-    // a --rail-r that nothing reads any more.
-    // CHANGED ON PURPOSE (V4's Figma): and it is --edge-w in, clear of the right
-    // stripe, where it was at the window's edge.
-    expect(wide.replace(/\s+/g, " ")).toContain('.app[data-view="workspace"]:has(.detail) :is(.usage-panel, .sysdetail):not([data-place]) { top: var(--ws-head); right: var(--edge-w);');
+    // CHANGED ON PURPOSE (owner, 2026-11-08): nothing is over the Inspector any
+    // more. The two dock in a side column, a grid track left of the
+    // Inspector's, which stays the last track; no right edge is written.
+    const flat = wide.replace(/\s+/g, " ");
+    expect(flat).toContain('body .app[data-view="workspace"][data-side]:not([data-zoom]):has(.detail) { grid-template-columns: minmax(0, 1fr) auto var(--inspector-w); }');
+    expect(flat).toContain('.app[data-view="workspace"][data-side]:not([data-zoom]) .detail { grid-column: -2 / -1; }');
+    expect(flat).not.toMatch(/:is\(\.usage-panel, \.sysdetail\)/);
   });
 
   it("states it nowhere else: under 1320 the Board's place stands", () => {
