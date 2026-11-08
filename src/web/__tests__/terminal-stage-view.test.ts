@@ -356,7 +356,7 @@ describe("the body's state cards, each at the terminal's origin", () => {
   });
 
   it("draws the engine's state with its sentence, checking again in place, and only Not now where there is nothing to check", () => {
-    // CHANGED ON PURPOSE (V4 follow-up 01, Figma "Engine install" 335:10282…):
+    // CHANGED ON PURPOSE (V4's engine install card):
     // a state the engine names is drawn by the EngineCard, which reads the
     // deck's install status and offers Install, progress and its fixes. The
     // card it drew before is handed to it as `plain`, and it still stands
@@ -476,7 +476,7 @@ describe("the body's state cards, each at the terminal's origin", () => {
       { kind: "error", message: "The Command Panel's engine is not installed on this machine.", code: "not-installed", busy: false },
       { kind: "error", message: "The Command Panel is not available on this platform yet.", code: "unsupported", busy: false },
     ];
-    // CHANGED ON PURPOSE (V4 follow-up 01): an engine state is the EngineCard,
+    // CHANGED ON PURPOSE (V4's engine install card): an engine state is the EngineCard,
     // whose own words come from the deck's status; the card it falls back to
     // must still say something.
     const words = (el: unknown) => {

@@ -28,7 +28,7 @@ export const OFFLINE_RETRY_MS = 15_000;
 /** The window the speed is measured over. */
 const SPEED_WINDOW_MS = 3_000;
 
-const JOB_KEY = "ccdeck.engineInstall.job";
+const JOB_KEY = "agent-dag.engineInstall.job";
 
 function readJob(): string | null {
   try { return sessionStorage.getItem(JOB_KEY); } catch { return null; }

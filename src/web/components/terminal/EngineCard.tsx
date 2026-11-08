@@ -43,7 +43,7 @@ function Steps({ items }: { items: Step[] }) {
             {s.state === "fail" && <KitStateGlyph name="error" size={14} />}
             {s.state === "todo" && <i className="ts-eng-ring" />}
           </span>
-          <span className="ts-eng-label">{s.label}</span>
+          <span>{s.label}</span>
           {s.aside && <span className="ts-eng-aside">{s.aside}</span>}
         </li>
       ))}
@@ -52,7 +52,7 @@ function Steps({ items }: { items: Step[] }) {
 }
 
 function Head({ glyph, title, tone }: { glyph: "terminal" | "lock" | "warning" | "update" | "alert"; title: string; tone?: "danger" }) {
-  // "alert" is Figma's circled "!" (state 7): the kit's info glyph turned
+  // "alert" is Figma's circled "!" where a download stopped: the kit's info glyph turned
   // over, since the kit holds no glyph of its own for it.
   return (
     <div className="ts-eng-head">
