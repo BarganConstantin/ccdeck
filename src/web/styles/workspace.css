@@ -192,11 +192,13 @@ body .app[data-view="workspace"][data-side]:not([data-zoom]):has(.left-column) {
   cursor: col-resize;
   touch-action: none;
 }
-.app[data-view="workspace"] .ws-split:hover::after,
 .app[data-view="workspace"] .ws-split:focus-visible::after,
 .app[data-view="workspace"] .ws-side[data-resizing] > .ws-split::after { background: var(--muted); }
-.app[data-view="workspace"] .ws-edge:hover,
 .app[data-view="workspace"] .ws-side[data-resizing] > .ws-edge { box-shadow: inset 2px 0 0 var(--accent); }
+@media (hover: hover) and (pointer: fine) {
+  .app[data-view="workspace"] .ws-split:hover::after { background: var(--muted); }
+  .app[data-view="workspace"] .ws-edge:hover { box-shadow: inset 2px 0 0 var(--accent); }
+}
 .app[data-view="workspace"] .ws-split:focus-visible,
 .app[data-view="workspace"] .ws-edge:focus-visible { outline: var(--focus-w) solid var(--accent); outline-offset: calc(-1 * var(--focus-w)); }
 .app[data-view="workspace"] .ws-side[data-resizing] { user-select: none; }

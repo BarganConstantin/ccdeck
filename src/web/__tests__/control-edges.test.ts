@@ -914,6 +914,11 @@ describe("what counts as an edge, which BORDER_PROPS decides (#655)", () => {
       // The Projects report's day column: its selection ring and its keyboard
       // focus ring are the whole of its boundary — the bar itself has no box.
       ".ap-proj-day.selected .ap-proj-col",
+      // Workspace's side column: its width edge and the split between its two
+      // panels are thin grab strips with no box of their own, so the keyboard
+      // ring drawn inside them is the whole of their boundary.
+      ".app[data-view=\"workspace\"] .ws-edge:focus-visible",
+      ".app[data-view=\"workspace\"] .ws-split:focus-visible",
       // The feedback dialog's kinds (#1853): the focused thing is a 1px radio,
       // so the card it stands for draws the ring, as the import card does.
       ".fb-kind:has(input:focus-visible)",
