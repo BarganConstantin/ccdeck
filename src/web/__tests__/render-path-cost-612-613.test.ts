@@ -403,8 +403,12 @@ describe("nothing on the render path reads a CSS custom property", () => {
     // not a render), and rail-motion.ts reads the motion tokens when the rail's
     // order changes, and a row's transform only while that row is mid-move,
     // inside a layout effect, for its FLIP.
+    // CHANGED ON PURPOSE: a tracker dialog's resize (DialogResize.tsx) reads
+    // the desktop title bar's band (--ig-top) once when a drag or keyboard
+    // mode starts, in the pointer or menu handler, never while rendering and
+    // nowhere near the canvas.
     expect(callers).toEqual([
-      "components/DesktopTitlebar.tsx", "components/use-modal-dismiss.ts", "rail-motion.ts", "use-appearance.ts", "use-left-column.ts",
+      "components/DesktopTitlebar.tsx", "components/DialogResize.tsx", "components/use-modal-dismiss.ts", "rail-motion.ts", "use-appearance.ts", "use-left-column.ts",
     ]);
   });
 

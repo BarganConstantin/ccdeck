@@ -1,10 +1,11 @@
 /* Integrations (#2178): Settings › Integrations, and the large modal a connected
-   tracker is drawn in. The modal is Tool activity's shell — 90vw × 90dvh, on
-   the panel's surface from edge to edge (V4's Figma fills the list column
-   too) — with one header the host draws (the provider, which
-   connection, Close) and everything under it the provider's own. Between a
-   panel's list and its detail is the same splitter Tool activity has; under
-   900px the detail is a screen of its own with a Back (integrations/layout.ts). */
+   tracker is drawn in. The modal is Tool activity's shell — 88 % of the window
+   until the reader resizes it, on the panel's surface from edge to edge (V4's
+   Figma fills the list column too) — with one header the host draws (the
+   provider, which connection, its size, Close) and everything under it the
+   provider's own. Between a panel's list and its detail is a divider the
+   reader drags; under 900px the detail is a screen of its own with a Back
+   (integrations/layout.ts). */
 
 /* A selected row in a panel's list, one rule for Jira and the forges: V4's
    Figma draws it neutral, the kit's --selected (a text-tinted step over the
@@ -25,20 +26,160 @@
   --ig-detail-pad: 16px;
 }
 
+/* THE SIZE (integrations/dialog-size.ts, DialogResize.tsx). Until the reader
+   chooses one, 88 % of the window each way, never past 1680 x 1120. A chosen
+   size arrives as --ig-w and --ig-h, and a place moved off centre as --ig-x
+   and --ig-y, an offset from the middle the scrim centres it in. Here they are
+   held to at least 720 x 480 and at most the window less 16 on each side, so a
+   window that shrinks takes the dialog with it, and the chosen size comes back
+   when it grows: no script runs for that. --ig-top is the band the desktop
+   app's title bar takes, where a press drags the window; the dialog stays
+   under it. */
 .modal.ig-modal {
-  /* V4's Figma: 1120 x 760, never past the window (90 % of it, as before). */
-  width: min(1120px, 90vw);
-  height: min(760px, 90dvh);
-  max-height: 90dvh;
+  --ig-top: 0px;
+  --ig-room-w: calc(100vw - 32px);
+  --ig-room-h: calc(100dvh - 32px - var(--ig-top));
+  --ig-shown-w: min(max(var(--ig-w, min(88vw, 1680px)), min(720px, var(--ig-room-w))), var(--ig-room-w));
+  --ig-shown-h: min(max(var(--ig-h, min(88dvh, 1120px)), min(480px, var(--ig-room-h))), var(--ig-room-h));
+  position: relative;
+  left: clamp(calc((var(--ig-shown-w) - 100vw) / 2 + 16px), var(--ig-x, 0px), calc((100vw - var(--ig-shown-w)) / 2 - 16px));
+  top: clamp(calc((var(--ig-shown-h) - 100dvh) / 2 + 16px + var(--ig-top)), var(--ig-y, calc(var(--ig-top) / 2)), calc((100dvh - var(--ig-shown-h)) / 2 - 16px));
+  width: var(--ig-shown-w);
+  height: var(--ig-shown-h);
+  max-height: none;
   min-width: 0;
   box-sizing: border-box;
-  overflow: hidden;
+  /* The handles reach past the border; the frame inside does the clipping. */
+  overflow: visible;
   display: flex;
   flex-direction: column;
   color: var(--text);
   background: var(--panel);
   font-size: calc(13px + var(--ui-text-increase, 0px));
 }
+:root[data-desktop-chrome="true"] .modal.ig-modal { --ig-top: var(--topbar-h); }
+.ig-frame {
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border-radius: calc(var(--r-overlay) - 1px);
+}
+.modal.ig-modal[data-resizing] { user-select: none; }
+/* Keyboard mode: the dialog's edge in the accent, a pixel off the border. */
+.modal.ig-modal[data-keyboard-resize] { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+/* The handles: an 8px zone outside the 1px border on every edge (the border
+   included), the corners over them, each with its direction's cursor. On
+   hover, or while it is dragged, an edge shows a 2px accent line over the
+   border. Positions are from the padding edge, inside the border. */
+.ig-rs { position: absolute; z-index: 5; touch-action: none; }
+.ig-rs[data-edge="n"] { top: -9px; left: 0; right: 0; height: 9px; cursor: ns-resize; }
+.ig-rs[data-edge="s"] { bottom: -9px; left: 0; right: 0; height: 9px; cursor: ns-resize; }
+.ig-rs[data-edge="e"] { right: -9px; top: 0; bottom: 0; width: 9px; cursor: ew-resize; }
+.ig-rs[data-edge="w"] { left: -9px; top: 0; bottom: 0; width: 9px; cursor: ew-resize; }
+.ig-rs[data-edge="nw"], .ig-rs[data-edge="ne"], .ig-rs[data-edge="sw"], .ig-rs[data-edge="se"] { z-index: 6; width: 16px; height: 16px; }
+.ig-rs[data-edge="nw"] { top: -9px; left: -9px; cursor: nwse-resize; }
+.ig-rs[data-edge="se"] { bottom: -9px; right: -9px; cursor: nwse-resize; }
+.ig-rs[data-edge="ne"] { top: -9px; right: -9px; cursor: nesw-resize; }
+.ig-rs[data-edge="sw"] { bottom: -9px; left: -9px; cursor: nesw-resize; }
+.ig-rs[data-edge="n"]::before, .ig-rs[data-edge="s"]::before,
+.ig-rs[data-edge="e"]::before, .ig-rs[data-edge="w"]::before {
+  content: "";
+  position: absolute;
+  background: var(--accent);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--dur-fast) var(--ease);
+}
+.ig-rs[data-edge="n"]::before { bottom: -1px; left: -1px; right: -1px; height: 2px; }
+.ig-rs[data-edge="s"]::before { top: -1px; left: -1px; right: -1px; height: 2px; }
+.ig-rs[data-edge="e"]::before { left: -1px; top: -1px; bottom: -1px; width: 2px; }
+.ig-rs[data-edge="w"]::before { right: -1px; top: -1px; bottom: -1px; width: 2px; }
+.ig-modal[data-resizing~="n"] > .ig-rs[data-edge="n"]::before,
+.ig-modal[data-resizing~="s"] > .ig-rs[data-edge="s"]::before,
+.ig-modal[data-resizing~="e"] > .ig-rs[data-edge="e"]::before,
+.ig-modal[data-resizing~="w"] > .ig-rs[data-edge="w"]::before { opacity: 1; }
+@media (hover: hover) and (pointer: fine) {
+.ig-modal:not([data-resizing]):has(> .ig-rs:is([data-edge="n"], [data-edge="nw"], [data-edge="ne"]):hover) > .ig-rs[data-edge="n"]::before,
+.ig-modal:not([data-resizing]):has(> .ig-rs:is([data-edge="s"], [data-edge="sw"], [data-edge="se"]):hover, > .ig-rs-grip:hover) > .ig-rs[data-edge="s"]::before,
+.ig-modal:not([data-resizing]):has(> .ig-rs:is([data-edge="e"], [data-edge="ne"], [data-edge="se"]):hover, > .ig-rs-grip:hover) > .ig-rs[data-edge="e"]::before,
+.ig-modal:not([data-resizing]):has(> .ig-rs:is([data-edge="w"], [data-edge="nw"], [data-edge="sw"]):hover) > .ig-rs[data-edge="w"]::before { opacity: 1; }
+}
+/* The grip, always drawn in the bottom-right corner, 4px in: V4's two strokes
+   in --muted. A double click on it goes back to the default size. */
+.ig-rs-grip {
+  position: absolute;
+  z-index: 5;
+  right: 4px;
+  bottom: 4px;
+  width: 12px;
+  height: 12px;
+  display: grid;
+  place-items: center;
+  color: var(--muted);
+  cursor: nwse-resize;
+  touch-action: none;
+}
+@media (hover: hover) and (pointer: fine) {
+.ig-rs-grip:hover { color: var(--text); }
+}
+/* The size while a drag runs: 11px mono in --text-secondary on --sunken, a
+   --line edge, under the bottom-right corner; inside the dialog's foot when
+   the window has no room below it. */
+.ig-rs-readout {
+  position: absolute;
+  z-index: 6;
+  top: calc(100% + 9px);
+  right: 8px;
+  padding: 2px 6px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-ctl);
+  background: var(--sunken);
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+  font-size: calc(11px + var(--ui-text-increase, 0px));
+  line-height: 14px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  pointer-events: none;
+}
+.ig-rs-readout[data-inside] { top: auto; bottom: 24px; }
+/* Keyboard mode's band, centred under the dialog: "Resizing" in the accent,
+   what the keys do, and the size, on the accent's 16 % wash with an accent
+   edge. Inside the dialog's foot when there is no room below it. */
+.ig-rs-keys {
+  position: absolute;
+  z-index: 6;
+  top: calc(100% + 12px);
+  left: 50%;
+  transform: translateX(-50%);
+  max-width: calc(100% - 16px);
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 3px 4px 3px 10px;
+  border: 1px solid var(--accent);
+  border-radius: var(--r-ctl);
+  background: color-mix(in srgb, var(--accent) 16%, var(--panel));
+  white-space: nowrap;
+}
+.ig-rs-keys[data-inside] { top: auto; bottom: 12px; }
+.ig-rs-keys-title { flex: none; color: var(--accent); font-size: calc(12px + var(--ui-text-increase, 0px)); font-weight: 500; line-height: 16px; }
+.ig-rs-keys-hint { min-width: 0; overflow: hidden; text-overflow: ellipsis; color: var(--text-secondary); font-family: var(--font-mono); font-size: calc(11px + var(--ui-text-increase, 0px)); line-height: 14px; }
+.ig-rs-readout[data-band] { position: static; flex: none; }
+
+/* The Size button, between the freshness line and Refresh, and its menu:
+   V4's 240 menu, each size's check at the row's end. */
+.ig-size { display: inline-flex; flex: none; }
+.ig-size-btn { width: 24px; height: 24px; padding: 0; margin-block: 0; flex: none; }
+.ap-pop.ig-size-pop { width: 240px; }
+.ig-size-item { justify-content: space-between; }
+.ig-size-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ig-size-check { display: inline-flex; flex: none; width: 13px; color: var(--text-dim); }
 .ig-modal ::selection { background: var(--accent-dim); color: var(--text); }
 @keyframes ig-fade-out { to { opacity: 0; } }
 .ig-head {
@@ -96,10 +237,11 @@
 .ig-body { flex: 1; min-height: 0; min-width: 0; display: flex; flex-direction: column; }
 
 /* The list and its detail, each with its own scroll. From 900px the detail sits
-   beside the list, at half the room until the reader drags it, and never takes
-   so much that the list goes under 420px. */
+   beside the list, which keeps between 280px and 60 % of the room (its own
+   clamp, --ig-list-w, from integrations/layout.ts) while the detail takes the
+   rest; a dialog resized keeps the list's width. */
 .ig-split { position: relative; flex: 1; min-height: 0; min-width: 0; display: grid; grid-template-columns: minmax(0, 1fr); }
-.ig-split[data-detail]:not([data-drill-in]) { grid-template-columns: minmax(0, 1fr) 1px min(var(--ig-detail-w), calc(100% - 421px)); }
+.ig-split[data-detail]:not([data-drill-in]) { grid-template-columns: var(--ig-list-w) 1px minmax(0, 1fr); }
 .ig-split[data-resizing] { cursor: col-resize; user-select: none; }
 /* Each pane is the containing block of what it scrolls, so a screen reader's
    absolutely placed words stay inside it instead of stretching the modal. */
@@ -108,13 +250,45 @@
 .ig-detail { overflow-y: auto; scrollbar-gutter: stable; scrollbar-color: var(--ctl-edge) transparent; background: var(--panel); }
 /* The divider is 1px (V4's Figma); the hand's target is wider than it looks. */
 .ig-splitter { position: relative; z-index: 1; cursor: col-resize; touch-action: none; background: var(--line-soft); }
-/* The 9px target runs into the detail, never over the list's own scrollbar; the splitter sits above the detail, which paints later. */
-.ig-splitter::after { content: ""; position: absolute; inset-block: 0; left: 0; width: 9px; }
-.ig-splitter::before { content: ""; position: absolute; inset-block: 0; left: 0; width: 3px; background: transparent; transition: background var(--dur-fast) var(--ease); }
+/* The 6px target runs into the detail, never over the list's own scrollbar; the splitter sits above the detail, which paints later. */
+.ig-splitter::after { content: ""; position: absolute; inset-block: 0; left: 0; width: 6px; }
+.ig-splitter::before { content: ""; position: absolute; inset-block: 0; left: 0; width: 2px; background: transparent; transition: background var(--dur-fast) var(--ease); }
+/* Its grip, half way down: V4's 8 x 28 pill on --bg-soft with a --line edge
+   and three dots in --muted, shown with the accent line. */
+.ig-splitter-grip {
+  position: absolute;
+  z-index: 1;
+  top: 50%;
+  left: -3.5px;
+  width: 8px;
+  height: 28px;
+  box-sizing: border-box;
+  transform: translateY(-50%);
+  border: 1px solid var(--line);
+  border-radius: var(--r-pill);
+  background: var(--bg-soft);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--dur-fast) var(--ease);
+}
+.ig-splitter-grip::before {
+  content: "";
+  position: absolute;
+  left: 2px;
+  top: 7px;
+  width: 2px;
+  height: 2px;
+  border-radius: 50%;
+  background: var(--muted);
+  box-shadow: 0 5px 0 var(--muted), 0 10px 0 var(--muted);
+}
 .ig-splitter:focus-visible::before,
 .ig-split[data-resizing] .ig-splitter::before { background: var(--accent); }
+.ig-splitter:focus-visible .ig-splitter-grip,
+.ig-split[data-resizing] .ig-splitter-grip { opacity: 1; }
 @media (hover: hover) and (pointer: fine) {
 .ig-splitter:hover::before { background: var(--accent); }
+.ig-splitter:hover .ig-splitter-grip { opacity: 1; }
 }
 .ig-back {
   align-self: flex-start;
@@ -519,12 +693,28 @@ button.btn.ig-manage.primary:hover { border-color: var(--text); }
   .ig-conn-head { flex-wrap: wrap; }
   .ig-conn-actions { flex-basis: 100%; justify-content: flex-start; }
 }
+/* A phone: the dialog is a full-screen sheet (V4's 390 and 320 frames), the
+   list first and an item a screen of its own with Back; nothing resizes it,
+   so neither the handles nor the Size button are drawn (DialogResize.tsx). */
+@media (max-width: 640px) {
+  .modal.ig-modal {
+    position: static;
+    width: 100vw;
+    height: 100dvh;
+    max-width: none;
+    padding: env(safe-area-inset-top) 0 env(safe-area-inset-bottom);
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
+  }
+  .ig-frame { border-radius: 0; }
+}
 @media (pointer: coarse) {
-  .ig-close, .ig-back, .ig-refresh, .ig-detail-close { min-width: 44px; min-height: 44px; }
+  .ig-close, .ig-back, .ig-refresh, .ig-detail-close, .ig-size-btn { min-width: 44px; min-height: 44px; }
   .ig-search-input { min-height: 40px; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .ig-splitter::before { transition: none; }
+  .ig-splitter::before, .ig-splitter-grip, .ig-rs::before { transition: none; }
   .ig-back:active { transform: none; }
   .ig-refresh[data-loading] svg { animation: none; }
   .ig-skeleton i { animation: none; }

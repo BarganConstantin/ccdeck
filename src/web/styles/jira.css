@@ -673,6 +673,23 @@ button.btn.jr-chip[aria-pressed="true"] { background: color-mix(in srgb, var(--a
   .jr-filters > .ig-search { flex: 1 1 100%; }
   .jr-filter-chips { flex: 1 1 0; }
 }
+/* A dialog under 900 wide (the panel is its width less the 1px border on
+   each side): the chips fold into one "Filters · n" button before the search,
+   its popover holding the same chips and Clear filters. A phone's sheet, a
+   panel 640 wide or less, keeps them in their row, which scrolls sideways
+   (V4's 390 and 320 frames). */
+.jr-filter-fold { display: none; }
+.jr-filter-fold-btn { gap: 4px; }
+.jr-filter-fold-btn .jr-chevron { transform: rotate(90deg); color: var(--muted); }
+.jr-filter-fold-btn .jr-chevron[data-open] { transform: rotate(-90deg); }
+button.btn.jr-chip.jr-filter-fold-btn[data-on] { background: color-mix(in srgb, var(--accent) 14%, var(--panel)); border-color: var(--accent); color: var(--text); }
+.jr-filter-pop { width: max-content; max-width: min(360px, calc(100vw - 32px)); padding: 8px; }
+.jr-filter-pop-chips { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+@container jira-panel (min-width: 640.5px) and (max-width: 897.98px) {
+  .jr-filters > .jr-filter-chips, .jr-filters > .jr-clear { display: none; }
+  .jr-filter-fold { display: inline-flex; flex: none; }
+  .jr-filters > .ig-search { flex: 1 1 200px; }
+}
 /* A sub-task in a narrow detail: its key, status and person on the first
    line and its summary under them, rather than cut at the frame's edge. The
    detail beside the list at the default width keeps one line. */

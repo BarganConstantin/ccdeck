@@ -491,6 +491,10 @@
   @media (hover: hover) and (pointer: fine) {
   .ig-splitter:hover::before { background: Highlight; }
   }
+  /* The divider's grip and the dialog's resize lines in system ink: their fills would be gone. */
+  .ig-splitter-grip { forced-color-adjust: none; background: Canvas; border-color: CanvasText; }
+  .ig-splitter-grip::before { forced-color-adjust: none; background: CanvasText; box-shadow: 0 5px 0 CanvasText, 0 10px 0 CanvasText; }
+  .ig-rs::before { forced-color-adjust: none; background: Highlight; }
   /* The chosen row of any integration panel: its fill is gone, its outline stays. */
   .ig-row[data-selected] { outline: 2px solid Highlight; outline-offset: -2px; }
   /* The reader's own face keeps its ring, in the highlight, apart from every other face's edge. */

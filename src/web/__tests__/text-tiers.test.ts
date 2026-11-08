@@ -600,6 +600,11 @@ describe("what was migrated to the secondary tier", () => {
       ".ig-leave-confirm p",
       ".ig-managed-identity p",
       ".ig-overview-info",
+      // CHANGED ON PURPOSE (V4's Figma): a tracker dialog's resize readout
+      // (its size while a drag or keyboard mode runs) and keyboard mode's line
+      // saying what the keys do are set in this tier, 11px mono.
+      ".ig-rs-keys-hint",
+      ".ig-rs-readout",
       ".ig-total",
       // CHANGED ON PURPOSE (V4's Figma): Keyboard's field label, its key rows' sentences
       // and the Note under a group are set in --text-secondary.
