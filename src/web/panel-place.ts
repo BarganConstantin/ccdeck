@@ -11,9 +11,16 @@
 // height, and a panel put down near the right stripe should stay near it when
 // the window widens, the way the home slot does; one put near the left stays
 // near the left. The top is kept from the top. The sheet does the clamping
-// (panel-place.css), so a narrower or shorter window keeps the panel between
-// the stripes and below the bar without a resize listener, and the place
-// itself is not rewritten: widen the window again and it is back.
+// (panel-place.css), so a narrower or shorter window keeps the panel's header
+// inside the view without a resize listener, and the place itself is not
+// rewritten: widen the window again and it is back.
+//
+// THE ROOM IS THE VIEW, NOTHING ELSE (owner, 2026-11-08): from under the top
+// bar to the status bar, the window's full width, with the header always
+// whole inside it. The home slot is not a bound: in Workspace the machine
+// panel's slot is the column's lower half, and measuring the least top from it
+// kept the panel from ever going higher than that half. Nor is the other
+// panel: the two may overlap, the one moved last on top.
 //
 // A phone has no room to move anything in; there the two are sheets and a
 // stored place waits for the next desktop load.
@@ -32,14 +39,14 @@ export type PanelPlace = {
   y: number;
 };
 
-/** The room a panel may be moved in: the window, less the stripes and an
- *  8px inset at each side, and below the bar. `side` is the left inset (the
- *  left stripe's width and 8); `sideRight` the right one (the right stripe's
- *  width and 8), `side` again when unset. */
-export type PanelRoom = { w: number; h: number; side: number; sideRight?: number; top: number };
+/** The room a panel may be moved in: the window's full width (`w`), from the
+ *  top bar's foot (`top`) to the status bar's top (`h`). `head` is how far the
+ *  header reaches below the panel's top edge (its border and the header), the
+ *  part that always stays inside. */
+export type PanelRoom = { w: number; h: number; top: number; head: number };
 
-/** How much of a panel stays above the window's foot, so its header and a
- *  first reading can always be reached and moved back. */
+/** The least a panel put above another keeps when the lower one shortens it
+ *  (stackCap): its header and a first reading. */
 export const LEAST_SHOWN = 120;
 /** A drop this close to the home slot, on both axes, is a drop home. */
 export const HOME_SNAP = 24;
@@ -77,9 +84,15 @@ export function placeOf(left: number, top: number, width: number, windowW: numbe
  *  numbers, for the drag that has to agree with it. */
 export function boxOf(place: PanelPlace, width: number, room: PanelRoom): { left: number; top: number } {
   const wanted = place.edge === "left" ? place.x : room.w - place.x - width;
+  return dragBox(wanted, place.y, width, room);
+}
+
+/** A panel's box at `left`/`top`, kept in the room: its header whole between
+ *  the top bar and the status bar, its sides inside the window. */
+export function dragBox(left: number, top: number, width: number, room: PanelRoom): { left: number; top: number } {
   return {
-    left: clamp(wanted, room.side, room.w - (room.sideRight ?? room.side) - width),
-    top: clamp(place.y, room.top, room.h - LEAST_SHOWN),
+    left: clamp(left, 0, room.w - width),
+    top: clamp(top, room.top, room.h - room.head),
   };
 }
 
@@ -165,15 +178,17 @@ function scheduleFit(): void {
 
 /** The room as the sheet sees it, measured rather than read from the tokens
  *  (nothing here calls getComputedStyle; see render-path-cost-612-613): the
- *  stripe's width, and the home slot's top, which is the sheet's least top,
- *  under the bar and under the rating row while it is shown. The window's
- *  height ends where the status bar begins (none on a phone, or before it is
- *  drawn: 0). */
-function roomOf(home: DOMRect): PanelRoom {
-  const left = document.querySelector(".edge-rail-left")?.getBoundingClientRect().width ?? 0;
-  const right = document.querySelector(".edge-rail-right")?.getBoundingClientRect().width ?? 0;
+ *  top bar's foot, where the status bar begins (none on a phone, or before it
+ *  is drawn: 0), the window's width, and how far the header reaches below the
+ *  panel's top. Nothing of the home slot: it is where the panel goes back to,
+ *  not a bound. */
+export function roomOf(panel: Element, header: Element): PanelRoom {
+  const bar = document.querySelector(".topbar")?.getBoundingClientRect().bottom ?? 0;
   const status = document.querySelector(".statusbar")?.getBoundingClientRect().height ?? 0;
-  return { w: window.innerWidth, h: window.innerHeight - status, side: left + 8, sideRight: right + 8, top: home.top };
+  // The header's foot from the panel's top, and the panel's own bottom border
+  // under it: the least the panel is drawn at (panel-place.css --place-head).
+  const head = header.getBoundingClientRect().bottom - panel.getBoundingClientRect().top + 1;
+  return { w: window.innerWidth, h: window.innerHeight - status, top: bar, head };
 }
 
 type Drag = {
@@ -288,7 +303,7 @@ export function usePanelPlace(key: string) {
       if (Math.hypot(dx, dy) < MOVE_START) return;
       d.moved = true;
       d.home = homeOf(el);
-      d.room = roomOf(d.home);
+      d.room = roomOf(el, event.currentTarget);
       // The one moved last is the one on top where the two overlap.
       document.querySelectorAll<HTMLElement>("[data-front]").forEach(other => other.removeAttribute("data-front"));
       el.setAttribute("data-front", "");
@@ -303,12 +318,7 @@ export function usePanelPlace(key: string) {
       window.addEventListener("keydown", escape, true);
       stopEscape.current = () => window.removeEventListener("keydown", escape, true);
     }
-    const width = d.start.width;
-    const room = d.room!;
-    d.at = {
-      left: clamp(d.start.left + dx, room.side, room.w - (room.sideRight ?? room.side) - width),
-      top: clamp(d.start.top + dy, room.top, room.h - LEAST_SHOWN),
-    };
+    d.at = dragBox(d.start.left + dx, d.start.top + dy, d.start.width, d.room!);
     draw(d.at);
   };
   const onPointerUp = (event: PointerEvent<HTMLElement>) => {

@@ -340,11 +340,15 @@ describe("the 40 the right stripe takes, and the panels clear of it", () => {
     expect(flat).not.toMatch(/(?<![-\w])right: 0;/);
   });
 
-  it("keeps a moved panel clear of both stripes, in the sheet and in the drag", () => {
-    expect(decl(".app :is(.usage-panel, .sysdetail)[data-place]", "--place-side")).toBe("calc(var(--edge-w) + 8px)");
+  // CHANGED ON PURPOSE (owner, 2026-11-08): a moved panel's room is the whole
+  // view at the window's full width, the stripes included; the header is what
+  // stays inside. It kept clear of both stripes with 8 to spare.
+  it("lets a moved panel go over either stripe, in the sheet and in the drag", () => {
+    expect(decl(".app :is(.usage-panel, .sysdetail)[data-place]", "--place-side")).toBeUndefined();
+    expect(decl('.app :is(.usage-panel, .sysdetail)[data-place="right"]', "right")).toBe("clamp(0px, var(--place-x), calc(100vw - var(--place-w)))");
     const place = source("../panel-place.ts");
-    expect(place).toContain('document.querySelector(".edge-rail-right")');
-    expect(place).toContain("sideRight: right + 8");
+    expect(place).not.toContain('document.querySelector(".edge-rail-right")');
+    expect(place).toContain("left: clamp(left, 0, room.w - width)");
   });
 });
 

@@ -5,33 +5,35 @@
    carries `data-place` with the edge it is kept from and `--place-x` /
    `--place-y`, and this sheet draws it there.
 
-   THE CLAMP LIVES HERE, not in a resize listener: between the stripes with
-   8px to spare, below the bar (and the rating row, when it is shown), and
-   never so low that less than 120px of it is left in the window, which is
-   LEAST_SHOWN in panel-place.ts and keeps the header in reach. The place
+   THE CLAMP LIVES HERE, not in a resize listener, and it is the owner's room
+   (2026-11-08): the whole view from under the top bar to the status bar, the
+   window's full width, with the header always whole inside it (--place-head:
+   the header and the panel's two borders, the least the panel is drawn at).
+   Nothing else bounds it: not the home slot, not the other panel. The place
    itself is never rewritten, so a window made smaller and then larger again
-   puts the panel back where it was put. The drag clamps with the same numbers.
+   puts the panel back where it was put; a smaller one pulls it in until its
+   header is whole. The drag clamps with the same numbers (panel-place.ts
+   dragBox).
 
    After rating.css, whose `top` for the pair this has to win over, and at the
-   same specificity plus the attribute. The rating row's height is in the
-   least top unconditionally: RatingBanner writes --rating-h while the row is
-   shown and takes it off with the row. No phone rule is needed: a phone never
+   same specificity plus the attribute. No phone rule is needed: a phone never
    gets `data-place`. */
 .app :is(.usage-panel, .sysdetail)[data-place] {
-  --place-top: calc(var(--topbar-h) + 8px + var(--rating-h, 0px));
-  --place-side: calc(var(--edge-w) + 8px);
+  --place-top: var(--topbar-h);
   --place-w: calc(320px + var(--ui-panel-increase, 0px));
-  --place-at: clamp(var(--place-top), var(--place-y), calc(100vh - 120px - var(--status-room, 0px)));
+  --place-head: calc(var(--pane-head-h) + 2px);
+  --place-at: clamp(var(--place-top), var(--place-y), calc(100vh - var(--status-room, 0px) - var(--place-head)));
   top: var(--place-at);
-  max-height: calc(100vh - var(--place-at) - 16px - var(--status-room, 0px));
+  /* Down to the status bar with 8 to spare, and never shorter than its header. */
+  max-height: max(var(--place-head), calc(100vh - var(--place-at) - 8px - var(--status-room, 0px)));
 }
 .app :is(.usage-panel, .sysdetail)[data-place="right"] {
   left: auto;
-  right: clamp(var(--place-side), var(--place-x), calc(100vw - var(--place-side) - var(--place-w)));
+  right: clamp(0px, var(--place-x), calc(100vw - var(--place-w)));
 }
 .app :is(.usage-panel, .sysdetail)[data-place="left"] {
   right: auto;
-  left: clamp(var(--place-side), var(--place-x), calc(100vw - var(--place-side) - var(--place-w)));
+  left: clamp(0px, var(--place-x), calc(100vw - var(--place-w)));
 }
 
 /* The header is the handle. Its buttons keep their own pointer. */
