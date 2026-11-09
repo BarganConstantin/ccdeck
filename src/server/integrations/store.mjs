@@ -92,7 +92,13 @@ export function createIntegrationsStore({ dir = () => join(deckDataDir(), STORE_
       // the user's tokens, and the next save would otherwise replace it with
       // an empty one. Its contents are never logged.
       const aside = `${path}.corrupt-${Date.now()}`;
-      await rename(path, aside).catch(() => {});
+      try { await rename(path, aside); }
+      catch (err) {
+        // Another reader may already have moved it. Any other refusal must
+        // stop the load: a later save must not overwrite unpreserved bytes.
+        if (err?.code === "ENOENT") return null;
+        throw err;
+      }
       warn(`${PRODUCT}: ${label} could not be read as JSON and was moved aside to ${aside}.`);
       return null;
     }
