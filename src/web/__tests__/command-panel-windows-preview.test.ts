@@ -346,7 +346,8 @@ describe("the published package and the desktop app", () => {
 
 describe("the deck's own verifier, asked about a Windows engine", () => {
   it("refuses it with the deck's keys, with a fresh key and with the key that signed it, on Windows and here", async () => {
-    expect(ENGINE_PUBLIC_KEYS).toEqual([]);
+    // The deck's one release key, which did not sign this test install.
+    expect(ENGINE_PUBLIC_KEYS).toHaveLength(1);
     expect(Object.isFrozen(ENGINE_PUBLIC_KEYS)).toBe(true);
     const install = windowsInstall();
     const other = pem(generateKeyPairSync("ed25519").publicKey);

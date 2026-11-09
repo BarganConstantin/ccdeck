@@ -16,6 +16,7 @@
 // prefs-routes reports; the file system is watched through fs.promises, which
 // is what both the panel's engine and the installer read through.
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
+import { createHash, createPublicKey } from "node:crypto";
 import { mkdirSync, mkdtempSync, promises as fsp, readFileSync } from "node:fs";
 import { request, type Server } from "node:http";
 import { tmpdir } from "node:os";
@@ -29,7 +30,11 @@ vi.mock("../../server/pro-engine-client.mjs", async (importOriginal) => {
 });
 vi.mock("../../server/command-panel-engine.mjs", async (importOriginal) => {
   const real: any = await importOriginal();
-  const panel = real.commandPanelEngine();
+  // The deck's own key, and an import that finds no package beside the deck:
+  // `npm ci` puts this machine's published engine package in the repository's
+  // node_modules, and this suite is about the install folder alone
+  // (engine-package.test.ts covers the import).
+  const panel = real.commandPanelEngine({ importPackage: async () => ({ status: "absent" }) });
   const commandPanel = Object.freeze({
     get enabled() { return panel.enabled; },
     route: (method: string, body: unknown) => { made.routes.push(method); return panel.route(method, body); },
@@ -111,8 +116,13 @@ const HANDLE = "ab".repeat(32);
 describe("the Command Panel's engine, made by the deck", () => {
   afterEach(() => { vi.useRealTimers(); });
 
-  it("trusts no key in this release, and nothing can add one", () => {
-    expect(cpe.ENGINE_PUBLIC_KEYS).toEqual([]);
+  it("trusts one key, the release key the engine packages are signed with, and nothing can add one", () => {
+    expect(cpe.ENGINE_PUBLIC_KEYS).toHaveLength(1);
+    const key = createPublicKey(cpe.ENGINE_PUBLIC_KEYS[0]);
+    expect(key.asymmetricKeyType).toBe("ed25519");
+    const der = key.export({ type: "spki", format: "der" });
+    expect(createHash("sha256").update(der).digest("hex")).toBe(cpe.ENGINE_RELEASE_KEY_SHA256);
+    expect(cpe.ENGINE_RELEASE_KEY_SHA256).toBe("98e8d4289655b4861bb8214cab575416086822757968935eeee639b1fcce16a9");
     expect(Object.isFrozen(cpe.ENGINE_PUBLIC_KEYS)).toBe(true);
     expect(() => cpe.ENGINE_PUBLIC_KEYS.push("k")).toThrow();
   });
@@ -200,7 +210,7 @@ describe("the Command Panel's engine, made by the deck", () => {
     ];
     for (const [lstat, code] of cases) {
       const looked = vi.fn(lstat);
-      const e = cpe.commandPanelEngine({ platform: "linux", env: { CCDECK_HOME: "/x/deck" }, lstat: looked, createClient });
+      const e = cpe.commandPanelEngine({ platform: "linux", env: { CCDECK_HOME: "/x/deck" }, keys: [], lstat: looked, createClient });
       const got = await e.route("launch", { agent: "claude" });
       expect([got.status, got.body.code]).toEqual([409, code]);
       expect(looked.mock.calls).toEqual([["/x/deck/engine"]]);

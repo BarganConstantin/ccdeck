@@ -19,10 +19,10 @@
 // `<deck data folder>/engine` (CCDECK_HOME when set; deck-home.mjs) and
 // nowhere else: not on PATH, and downloaded only when somebody presses
 // Install on the page (engine-install.mjs). Its manifest must
-// be signed by one of ENGINE_PUBLIC_KEYS, which is empty in this release — so
-// a folder that is there answers `not-verified` without the deck reading the
-// executable, and one that is not answers `not-installed`, without looking
-// for a package either. A deck that is handed an engine by its caller instead
+// be signed by one of ENGINE_PUBLIC_KEYS — the one release key the published
+// @ccdeck/engine-* packages are signed with — so a folder whose manifest that
+// key did not sign answers `not-verified` without the deck reading the
+// executable. A deck that is handed an engine by its caller instead
 // (startServer's `terminal.engine`) never uses this.
 //
 // WHERE THE FOLDER COMES FROM. Given keys, the first question that finds the
@@ -67,9 +67,16 @@ import { engineRefusal, engineTerminals } from "./pro-engine-terminal.mjs";
 import { RUNNING_VERSION } from "./running-version.mjs";
 
 /** The Ed25519 public keys an engine's manifest may be signed with, as PEM or
- *  KeyObjects. None in this release: no engine verifies yet. Frozen, so
- *  nothing at run time can add one. */
-export const ENGINE_PUBLIC_KEYS = Object.freeze([]);
+ *  KeyObjects. One: the release key the published @ccdeck/engine-* packages
+ *  are signed with (SHA-256 of its DER, ENGINE_RELEASE_KEY_SHA256, below).
+ *  Frozen, so nothing at run time can add one. */
+export const ENGINE_PUBLIC_KEYS = Object.freeze([
+  "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEA/ynXDN1fhh2GmedOCCRxR28YClWi+d9HycrnMfFAAmA=\n-----END PUBLIC KEY-----\n",
+]);
+
+/** SHA-256 of the release key's DER (SubjectPublicKeyInfo), so a test can tell
+ *  the key above is the one the packages are signed with and was not changed. */
+export const ENGINE_RELEASE_KEY_SHA256 = "98e8d4289655b4861bb8214cab575416086822757968935eeee639b1fcce16a9";
 
 /** How long after the switch goes off the engine is stopped: the time a
  *  relayed panel's socket is given to close once it has been told
