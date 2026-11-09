@@ -199,7 +199,10 @@ describe("the engine install's status", () => {
 });
 
 describe("installing from the registry", () => {
-  it("downloads, checks and installs the pinned package, with progress, and leaves nothing behind", async () => {
+  // A case that ends in an installed engine runs where the installer verifies one: macOS and Linux,
+  // as in engine-package.test.ts. On Windows the check reads the folders' ACLs, and a runner's temp
+  // folder never passes it, so those cases would test the runner rather than the install.
+  it.skipIf(!['darwin', 'linux'].includes(process.platform))("downloads, checks and installs the pinned package, with progress, and leaves nothing behind", async () => {
     const w = await world();
     const tgz = tgzOf(packageFiles(w));
     const seen: number[] = [];
@@ -290,7 +293,7 @@ describe("the package file is read strictly", () => {
 });
 
 describe("installing from a file", () => {
-  it("installs the package the person picked, with the same checks", async () => {
+  it.skipIf(!['darwin', 'linux'].includes(process.platform))("installs the package the person picked, with the same checks", async () => {
     const w = await world();
     const i = installer(w, { env: { AGENTS_DECK_NO_DOWNLOAD: "1" } });
     expect((await i.installFile(tgzOf(packageFiles(w)))).ok).toBe(true);
@@ -322,7 +325,7 @@ describe("installing from a file", () => {
     expect((await lstat(above)).mode & 0o777).toBe(0o775);
   });
 
-  it("says wrong-machine for another platform's package", async () => {
+  it.skipIf(!['darwin', 'linux'].includes(process.platform))("says wrong-machine for another platform's package", async () => {
     const w = await world();
     const otherName = NAME.endsWith("x64") ? NAME.replace("x64", "arm64") : NAME.replace("arm64", "x64");
     const i = installer(w);
@@ -330,7 +333,7 @@ describe("installing from a file", () => {
     expect((await settled(i)).last).toMatchObject({ outcome: "failed", code: "wrong-machine" });
   });
 
-  it("never goes below an engine already installed", async () => {
+  it.skipIf(!['darwin', 'linux'].includes(process.platform))("never goes below an engine already installed", async () => {
     const w = await world();
     const i = installer(w);
     await i.installFile(tgzOf(packageFiles(w, { version: "2.0.0", seed: "c" })));
@@ -343,7 +346,7 @@ describe("installing from a file", () => {
 });
 
 describe("one install at a time", () => {
-  it("leaves the folder alone while another live deck holds the lock, and takes over a stale one", async () => {
+  it.skipIf(!['darwin', 'linux'].includes(process.platform))("leaves the folder alone while another live deck holds the lock, and takes over a stale one", async () => {
     const w = await world();
     const tgz = tgzOf(packageFiles(w));
     await writeFile(join(w.data, installMod.LOCK_FILE), JSON.stringify({ pid: process.ppid, at: Date.now() }));
@@ -373,7 +376,7 @@ describe("one install at a time", () => {
 });
 
 describe("an install cut short", () => {
-  it("removes its folders and puts the previous engine back where none stands", async () => {
+  it.skipIf(!['darwin', 'linux'].includes(process.platform))("removes its folders and puts the previous engine back where none stands", async () => {
     const w = await world();
     const i = installer(w);
     await i.installFile(tgzOf(packageFiles(w)));
@@ -392,7 +395,7 @@ describe("an install cut short", () => {
 });
 
 describe("removing the engine", () => {
-  it("removes the folder and keeps the floor, so a removed engine never comes back older", async () => {
+  it.skipIf(!['darwin', 'linux'].includes(process.platform))("removes the folder and keeps the floor, so a removed engine never comes back older", async () => {
     const w = await world();
     const i = installer(w);
     await i.installFile(tgzOf(packageFiles(w, { version: "2.0.0", seed: "d" })));
@@ -449,7 +452,7 @@ describe("the routes", () => {
     expect(JSON.parse(d.body)).toEqual({ ok: true, engine: null });
   });
 
-  it("installs a file sent as the body", async () => {
+  it.skipIf(!['darwin', 'linux'].includes(process.platform))("installs a file sent as the body", async () => {
     const w = await world();
     const i = installer(w);
     const on = { enabled: () => true, engine: { enabled: true, installer: i } };
