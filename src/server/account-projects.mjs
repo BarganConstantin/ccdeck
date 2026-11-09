@@ -23,7 +23,7 @@
 // of a small on-disk tally rather than a walk of every transcript.
 import { open, stat, readdir, readFile, writeFile, mkdir } from "node:fs/promises";
 import { homedir } from "node:os";
-import { join, resolve, basename, dirname, relative } from "node:path";
+import { join, resolve, basename, dirname, relative, isAbsolute, sep } from "node:path";
 import { StringDecoder } from "node:string_decoder";
 import { renameWithRetry } from "./atomic-write.mjs";
 import { ccProjectSlug, claudeConfigDir } from "./claude-dir.mjs";
@@ -361,10 +361,12 @@ async function foldAppended(fh, start, size, onLine) {
 async function listTranscripts(roots) {
   const found = [];
   const seen = new Set();
+  const scanned = new Set();
   for (const root of roots) {
     let ents = null;
     try { ents = await readdir(root, { recursive: true, withFileTypes: true }); }
     catch { continue; }
+    scanned.add(root);
     for (const e of ents) {
       if (!e.isFile() || !e.name.endsWith(".jsonl")) continue;
       const dir = e.parentPath ?? e.path ?? root;
@@ -376,7 +378,15 @@ async function listTranscripts(roots) {
     }
   }
   found.sort((a, b) => a.depth - b.depth);
-  return new Map(found.map(f => [f.path, f]));
+  return { files: new Map(found.map(f => [f.path, f])), scanned };
+}
+
+/** Only a completed inventory proves a missing transcript was deleted.
+ *  Path components matter: a sibling named `projects-other` is not inside
+ *  `projects`, and a recursive scan failure says nothing about its files. */
+function insideRoot(path, root) {
+  const from = relative(root, path);
+  return from !== "" && from !== ".." && !from.startsWith(`..${sep}`) && !isAbsolute(from);
 }
 
 /** Drop day buckets older than the retention window and prune the empty
@@ -573,6 +583,16 @@ export function createProjectRollup({
     } catch { /* a failed persist just re-folds next time; cursors stay in memory */ }
   }
 
+  // Liveness is independent of transcript progress: a failed timeline read
+  // must not make a process that is still ticking look like it was shut down.
+  async function heartbeat(nowMs) {
+    if (dirty || !state.lastAlive || nowMs - state.lastAlive > HEARTBEAT_MS) {
+      state.lastAlive = nowMs;
+      dirty = true;
+    }
+    await persist();
+  }
+
   async function foldFile(path, slug, timeline, root) {
     let st = null;
     try { st = await stat(path); } catch { return; }
@@ -601,6 +621,17 @@ export function createProjectRollup({
     try {
       await load();
       const nowMs = now();
+      const defer = async () => {
+        // An old heartbeat already proving a gap must survive until the log
+        // can be read and its stop fence written. In particular, the first
+        // pass after a real restart may itself encounter an unreadable log.
+        if (!state.lastAlive || nowMs - state.lastAlive <= GAP_MS) await heartbeat(nowMs);
+      };
+      // A failed read is not evidence that nobody owned the new usage. Check
+      // before writing gap/seed entries, and again after those writes, so no
+      // transcript bytes are consumed from a fabricated empty timeline.
+      try { await readSwapLog(swapLog, { strict: true }); }
+      catch { await defer(); return; } // scheduled passes must defer without rejecting
       // The deck was down between the last heartbeat and this boot. Fence that
       // stretch off so work timestamped inside it is unattributed rather than
       // charged to whoever was active when the deck closed — the user may have
@@ -610,8 +641,10 @@ export function createProjectRollup({
         for (const root of gapRoots) await markGap(state.lastAlive + 1, swapLog, root);
       }
       await seedActive({ now, path: swapLog, root: storeRoot, projectsRoot: canonicalRoots[0] });   // anchor the current account, once, deduped
-      const timeline = await readSwapLog(swapLog);
-      const files = await listTranscripts(canonicalRoots);
+      let timeline;
+      try { timeline = await readSwapLog(swapLog, { strict: true }); }
+      catch { await defer(); return; }
+      const { files, scanned } = await listTranscripts(canonicalRoots);
       // Each root is attributed only by the entries that speak for it; an
       // unscoped legacy entry speaks for none unless its root is unambiguous
       // (timelineFor).
@@ -620,21 +653,16 @@ export function createProjectRollup({
       // Forget the cursors and request ledgers of files that are gone, and
       // the folders of project directories with no transcript left, so none of
       // the three maps grows forever.
-      for (const p of Object.keys(state.cursors)) if (!files.has(p)) { delete state.cursors[p]; dirty = true; }
-      for (const p of Object.keys(state.requests)) if (!files.has(p)) { delete state.requests[p]; dirty = true; }
+      const gone = p => !files.has(p) && [...scanned].some(root => insideRoot(p, root));
+      for (const p of Object.keys(state.cursors)) if (gone(p)) { delete state.cursors[p]; dirty = true; }
+      for (const p of Object.keys(state.requests)) if (gone(p)) { delete state.requests[p]; dirty = true; }
       for (const root of Object.keys(state.folders)) {
+        if (!scanned.has(root)) continue;
         const slugs = new Set([...files.values()].filter(f => f.root === root).map(f => f.slug));
         for (const s of Object.keys(state.folders[root])) if (!slugs.has(s)) { delete state.folders[root][s]; dirty = true; }
         if (!slugs.size) delete state.folders[root];
       }
-      // Heartbeat: record that the deck was alive now, so a later boot can see
-      // how long it was down. Cheap when nothing else changed — only bumped
-      // (and so only persisted) once every HEARTBEAT_MS while idle.
-      if (dirty || !state.lastAlive || nowMs - state.lastAlive > HEARTBEAT_MS) {
-        state.lastAlive = nowMs;
-        dirty = true;
-      }
-      await persist();
+      await heartbeat(nowMs);
     } finally { running = false; }
   }
 

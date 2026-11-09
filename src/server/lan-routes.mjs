@@ -133,9 +133,19 @@ export async function handleLanPeer(req, res) {
  *  than reporting a round that asked nobody. */
 export async function handleLanSync(req, res) {
   const raw = await readBody(req, res).catch(() => null);
-  let body = null;
-  try { body = JSON.parse(raw ?? ""); } catch { /* the whole-list press sends nothing to read */ }
-  const fp = body && typeof body.fp === "string" ? body.fp : null;
+  // A refused upload has already been answered. It must not become the empty
+  // request that deliberately asks every peer to sync.
+  if (raw == null) return;
+  let body = {};
+  if (raw !== "") {
+    try { body = JSON.parse(raw); }
+    catch { return send(res, 400, { ok: false, reason: "bad_request" }); }
+  }
+  if (!body || typeof body !== "object" || Array.isArray(body)
+    || ("fp" in body && (typeof body.fp !== "string" || !body.fp))) {
+    return send(res, 400, { ok: false, reason: "bad_request" });
+  }
+  const fp = body.fp;
   if (fp) {
     const done = await lanEngine.roundOne(fp);
     if (done == null) return send(res, 409, { ok: false, reason: "no_address" });

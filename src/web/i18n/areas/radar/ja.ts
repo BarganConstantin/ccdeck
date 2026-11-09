@@ -86,7 +86,7 @@ const catalog: Catalog = {
   "radar.cfg.destinations.other": "設定済みの送信先{count}件",
   "radar.cfg.noDestination": "読み取った設定ファイルに送信先がありません。テレメトリは動作している可能性があります。",
   "radar.cfg.observed": "Claude の接続を観測しました",
-  "radar.cfg.observedNote": "これらはアクティブな接続であり、確認済みのテレメトリメッセージではありません。設定ファイルに送信先がない間はレーダーがこれらを監視し、送信内容は「モニター」に表示されます。",
+  "radar.cfg.observedNote": "これらはアクティブな接続であり、確認済みのテレメトリメッセージではありません。設定ファイルに送信先がない間、レーダーが監視するのは OpenTelemetry コレクターが待ち受けるポート 4317 への IPv4 接続だけで、送信内容は「モニター」に表示されます。",
   "radar.cfg.readFailed": "設定を読み取れませんでした。再度サンプリングします。",
   "radar.cfg.readingLocal": "ローカルの設定を読み取り中…",
 

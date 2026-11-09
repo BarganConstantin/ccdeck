@@ -112,13 +112,8 @@
 @media (hover: hover) and (pointer: fine) {
 .ap-nav:hover .ap-nav-chev { color: var(--text); transform: translateX(1px); }
 }
-/* THE MAP, over the way-in row's right side, just short of its chevron — see
-   LanEntryRow. The row is one button, so the glyph cannot sit in it: the foot
-   lays the two in one grid cell instead, which centres the glyph on the row
-   whatever the row's height turns out to be. Edgeless at rest like the fold's
-   own controls, and the row keeps its tone while the pointer is on the map,
-   because the map is still this row's: leaving the row for its own control
-   should not look like leaving it. The row's words stop short of the glyph. */
+/* Settings and the network graph share the navigation row's centerline.
+   They remain separate buttons, with room reserved before the chevron. */
 .ap-foot:has(> .ap-lan-map) { display: grid; }
 .ap-foot:has(> .ap-lan-map) > :is(.ap-nav, .ap-lan-map) { grid-area: 1 / 1; }
 .ap-foot:has(> .ap-lan-map) .ap-nav-text { padding-right: 32px; }
@@ -129,12 +124,12 @@
   appearance: none;
   justify-self: end;
   align-self: center;
-  margin: 4px 19px 0 0;
+  margin: 0 21px 0 0;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 26px;
-  height: 26px;
+  width: 28px;
+  height: 28px;
   padding: 0;
   border: 1px solid transparent;
   border-radius: var(--r-ctl);
@@ -144,6 +139,8 @@
   transition: border-color var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease), background var(--dur-fast) var(--ease),
               transform var(--dur-fast) var(--ease);
 }
+.ap-foot:has(> .ap-lan-set) .ap-nav-text { margin-right: 32px; }
+.ap-lan-map.ap-lan-set { margin-right: 53px; }
 .ap-lan-map:focus-visible { border-color: var(--ctl-edge); color: var(--text); background: var(--ctl-fill); }
 @media (hover: hover) and (pointer: fine) {
 .ap-lan-map:hover { border-color: var(--ctl-edge); color: var(--text); background: var(--ctl-fill); }

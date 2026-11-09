@@ -403,7 +403,7 @@ const catalog: Catalog = {
   "accounts.rep.tableLabel": "Tabelle der Konto-Kapazität",
   "accounts.rep.caption": "Nutzung und Reset jedes Kontos je Fenster und was es jetzt leisten kann",
   "accounts.rep.how": "So wird die Nutzung berechnet",
-  "accounts.rep.howOne": "Jedes Konto hier mit seinem letzten Wert: <b>Genutzt</b> ist ihr Durchschnitt, <b>Übrig</b> der Rest – kein gemeinsames Kontingent. Ein verstrichener gemeldeter Reset-Zeitpunkt bestätigt keine erneuerte Kapazität. Der letzte Nutzungswert bleibt bis zur Aktualisierung stehen.",
+  "accounts.rep.howOne": "Jedes Konto hier mit seinem letzten Wert: <b>Genutzt</b> ist ihr Durchschnitt, <b>Übrig</b> der Rest – kein gemeinsames Kontingent. Ein verstrichener gemeldeter Reset-Zeitpunkt bestätigt keine erneuerte Kapazität. Der letzte Nutzungswert bleibt bis zur Aktualisierung stehen. Ein Konto am Wochenlimit trägt mit 0 % verbleibender Kapazität zum 5-Stunden-Durchschnitt bei.",
   "accounts.rep.howTwo": "<b>Am Limit</b> ist bei einem Fenster am Limit, <b>Erschöpft</b> bei beiden. <b>Bereit</b> hat in beiden Fenstern noch Spielraum. <b>Veraltet</b> wurde nie gelesen oder ist abgemeldet. „Bereit“ kann auf einem älteren Wert beruhen, dessen Reset-Zeitpunkt verstrichen ist; ausgenommene Konten zählen weiter mit, sind aber von der automatischen Rotation ausgeschlossen.",
   "accounts.rep.viewAccounts": "Konto-Kapazität",
   "accounts.rep.viewCalendar": "Reset-Kalender",

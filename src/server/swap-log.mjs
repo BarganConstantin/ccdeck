@@ -65,9 +65,14 @@ export async function currentActiveSlot(root = backupRoot()) {
 }
 
 /** Parse the log into swap entries sorted oldest-first. A truncated or garbage
- *  last line (a crash mid-append) is skipped, never fatal. */
-export async function readSwapLog(path = swapLogPath()) {
-  const text = await readFile(path, "utf8").catch(() => "");
+ *  last line (a crash mid-append) is skipped, never fatal. Strict readers make
+ *  irreversible attribution decisions: only ENOENT means an empty timeline;
+ *  other read failures must defer their work. Display callers stay best-effort. */
+export async function readSwapLog(path = swapLogPath(), { strict = false } = {}) {
+  const text = await readFile(path, "utf8").catch(error => {
+    if (strict && error?.code !== "ENOENT") throw error;
+    return "";
+  });
   const out = [];
   for (const line of text.split("\n")) {
     if (!line) continue;
@@ -142,7 +147,7 @@ export async function seedActive({ now = Date.now, root, path, projectsRoot } = 
     if (!slot) return null;
     const id = await identityForSlot(slot, root ?? backupRoot());
     if (!id) return null;
-    const entries = await readSwapLog(logPath);
+    const entries = await readSwapLog(logPath, { strict: true });
     const scope = await swapProjectsRoot(projectsRoot);
     const scoped = entries.filter(e => e.projectsRoot === scope);
     const last = scoped[scoped.length - 1];

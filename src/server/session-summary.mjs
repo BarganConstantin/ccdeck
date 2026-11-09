@@ -41,6 +41,8 @@ export const WAITING_KEEPERS = new Set([
  *  never the session's own traffic — the reducer's early returns, which stamp
  *  no provider and prove nothing about whether the session is alive. */
 const SCANS = new Set([...WAITING_KEEPERS].filter(n => n !== "Notification"));
+// Same session budget as parked-enrichment.ts; scans never grow a second ring.
+const PENDING_ENRICHMENT_MAX = 256;
 
 /** Two copies of one event inside this are the wire talking twice —
  *  HOOK_REDELIVERY_WINDOW_MS and PROMPT_REDELIVERY_WINDOW_MS in
@@ -85,6 +87,21 @@ function blankSession(id, at) {
   };
 }
 
+function enrichSummary(s, p, name) {
+  if (!s.cwd && typeof p.cwd === "string" && p.cwd) s.cwd = p.cwd;
+  if (typeof p.model === "string" && p.model && !subagentKeyOf(p)) s.model = p.model;
+  if (name === "SessionNamed") s.name = p.sessionTitle ?? p.sessionName ?? s.name;
+}
+
+/** Scanned facts can wait for a session, but cannot give it a provider, a
+ *  lifecycle or a start time. Only traffic or active recovery establishes it. */
+function establishSession(sessions, pending, id, at) {
+  const s = Object.assign(blankSession(id, at), pending.get(id));
+  pending.delete(id);
+  sessions.set(id, s);
+  return s;
+}
+
 /** A prompt, filed in time order unless it is a copy of one already filed —
  *  recordPrompt in redelivery.ts. Only the newest is ever read, as evidence. */
 function recordPrompt(s, at, text) {
@@ -99,7 +116,7 @@ function recordPrompt(s, at, text) {
 }
 
 /**
- * `Stop` or `SessionEnd`: the root's turn is over — applyTurnEnd in
+ * `Stop`, `StopFailure` or `SessionEnd`: the root's turn is over — applyTurnEnd in
  * session-lifecycle.ts, the parts of it a row can show.
  *
  * Refused whole when it is out of order (a boundary older than the prompt that
@@ -130,7 +147,7 @@ function endTurn(s, name, at) {
  * session's prompt back up, and the scan arrives every second and a half),
  * and a snapshot older than the session's own newest event says nothing.
  */
-function recover(sessions, p, at) {
+function recover(sessions, pending, p, at) {
   const id = p.session_id;
   if ((p.provider !== "codex" && p.provider !== "claude") || typeof id !== "string" || !id) return;
   const s = sessions.get(id);
@@ -140,8 +157,7 @@ function recover(sessions, p, at) {
     if (s) endTurn(s, p.recovery_session_closed === true ? "SessionEnd" : "Stop", at);
     return;
   }
-  const r = s ?? blankSession(id, at);
-  sessions.set(id, r);
+  const r = s ?? establishSession(sessions, pending, id, at);
   r.recoveryLiveAt ??= s?.lastEventAt ?? 0;
   r.provider = p.provider;
   r.closed = false;
@@ -168,18 +184,27 @@ function recover(sessions, p, at) {
  */
 export function summarizeSessions(envelopes, { now = Date.now(), staleMs = STALE_SESSION_MS } = {}) {
   let sessions = new Map();
+  const pending = new Map();
   for (const env of Array.isArray(envelopes) ? envelopes : []) {
     const p = env?.payload;
     if (!p || typeof p !== "object") continue;
     const name = p.hook_event_name ?? "Unknown";
     // POST /api/clear wipes the canvas with this; it wipes the list too.
-    if (name === "__clear") { sessions = new Map(); continue; }
+    if (name === "__clear") { sessions = new Map(); pending.clear(); continue; }
     const at = Number(env.receivedAt) || now;
-    if (name === "ClaudeSessionRecovered" || name === "CodexSessionRecovered") { recover(sessions, p, at); continue; }
+    if (name === "ClaudeSessionRecovered" || name === "CodexSessionRecovered") { recover(sessions, pending, p, at); continue; }
     const id = typeof p.session_id === "string" && p.session_id ? p.session_id : null;
     if (!id) continue;
     let s = sessions.get(id);
-    if (!s) { s = blankSession(id, at); sessions.set(id, s); }
+    if (!s && SCANS.has(name)) {
+      const facts = pending.get(id) ?? { cwd: null, model: null, name: null };
+      enrichSummary(facts, p, name);
+      pending.delete(id);
+      pending.set(id, facts);
+      if (pending.size > PENDING_ENRICHMENT_MAX) pending.delete(pending.keys().next().value);
+      continue;
+    }
+    if (!s) s = establishSession(sessions, pending, id, at);
     // A Codex child thread named by its parent: a session of its own, and
     // nothing the human did — linkCodexThread, which returns before any block
     // is read.
@@ -194,9 +219,7 @@ export function summarizeSessions(envelopes, { now = Date.now(), staleMs = STALE
       s.provider ??= p.provider === "codex" ? "codex" : "claude";
       if (at >= (s.recoveryLiveAt ?? 0)) s.recoveryLiveAt = at;
     }
-    if (!s.cwd && typeof p.cwd === "string" && p.cwd) s.cwd = p.cwd;
-    if (typeof p.model === "string" && p.model && !subagentKeyOf(p)) s.model = p.model;
-    if (name === "SessionNamed") s.name = p.sessionTitle ?? p.sessionName ?? s.name;
+    enrichSummary(s, p, name);
 
     switch (name) {
       case "SessionStart":
@@ -213,6 +236,7 @@ export function summarizeSessions(envelopes, { now = Date.now(), staleMs = STALE
         break;
       }
       case "Stop":
+      case "StopFailure":
       case "SessionEnd":
         endTurn(s, name, at);
         break;

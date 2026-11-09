@@ -99,7 +99,7 @@ const catalog: Catalog = {
   "codex.panel.liveSwitchFailed": "Contul implicit a fost salvat, dar aplicația Codex deschisă nu a putut schimba contul. Verifică-l cu /status.",
   "codex.panel.liveSwitchTimeout": "Contul implicit a fost salvat, dar Codex nu a citit autentificarea la timp. Reîncearcă conectarea contului selectat.",
   "codex.panel.retrySelected": "Reîncearcă contul selectat",
-  "codex.panel.liveSwitchPrivateLogin": "Contul implicit a fost salvat, dar folderul autentific?rii nu este suficient de privat pentru comutarea aplica?iei Codex. Folose?te + pentru a autentifica acest cont ?ntr-un profil separat. P?streaz? permisiunile existente ale sandboxului Codex.",
+  "codex.panel.liveSwitchPrivateLogin": "Contul implicit a fost salvat, dar folderul autentificării nu este suficient de privat pentru comutarea aplicației Codex. Folosește + pentru a autentifica acest cont într-un profil separat. Păstrează permisiunile existente ale sandboxului Codex.",
   "codex.panel.removed": "Cont eliminat. Autentificarea și istoricul lui sunt păstrate separat în folderul de date ccdeck, nu sunt șterse.",
   "codex.panel.removeFailed": "Contul nu a putut fi eliminat. Reîncarcă și încearcă din nou.",
   "codex.panel.badName": "Numele nu poate conține bară oblică (/).",

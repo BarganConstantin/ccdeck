@@ -7,7 +7,7 @@ const controllers: { close(): Promise<void> }[] = [];
 afterEach(async () => { for (const c of controllers.splice(0)) await c.close(); vi.restoreAllMocks(); });
 async function fixture({ saved = null as any, actual = A, readCredential = null as any, auto = false, persistError = false,
   initial = null as any, resolveEndpoint = null as any, active = false, savedHandoff = null as any,
-  delegationTimeoutMs = undefined as number | undefined } = {}) {
+  delegationTimeoutMs = undefined as number | undefined, beforeSelectionRead = null as any } = {}) {
   const selection = { originalHome: '/native-home', profileId: A, revision: 0, runningSelection: null as any,
     profiles: [{ id: A, available: true }, { id: B, available: true }] };
   const email = (id: string) => id === A ? 'first@example.test' : 'second@example.test';
@@ -48,7 +48,7 @@ async function fixture({ saved = null as any, actual = A, readCredential = null 
   const c = createCodexLiveAccountController({
     store: '/unused-fixture-store', pollMs: 1000_000, restoreRetryMs: 0,
     delegationTimeoutMs,
-    readSelection: async () => ({ ...selection }), readAuto: async () => autoSettings,
+    readSelection: async () => { await beforeSelectionRead?.(); return { ...selection }; }, readAuto: async () => autoSettings,
     loadState: async () => saved, persistState: async (m: any) => { if (persistError) throw Error('private disk detail'); persisted.push(m); },
     loadHandoff: async () => savedHandoff,
     persistHandoff: async (data: any) => { journals.push(structuredClone(data)); },
@@ -64,6 +64,189 @@ async function fixture({ saved = null as any, actual = A, readCredential = null 
     externalLogin: (id: string) => { account = { ...account, email: email(id) }; callbacks.onNotification({ method: 'account/updated' }); } };
 }
 describe('existing Codex session account engine', () => {
+  it.each(['removed', 'unavailable'] as const)('does not return cached renewal tokens if the active profile becomes %s after the credential read', async state => {
+    const f = await fixture(); await f.c.request({ id: A, revision: 1 });
+    const original = f.rpc.request.getMockImplementation()!;
+    f.rpc.request.mockImplementation(async (method, params) => {
+      const result = await original(method, params);
+      if (method === 'account/read') {
+        if (state === 'removed') f.selection.profiles = f.selection.profiles.filter(p => p.id !== A);
+        else f.selection.profiles.find(p => p.id === A)!.available = false;
+      }
+      return result;
+    });
+    await f.serverRequest({ id: 'renewal-profile', method: 'account/chatgptAuthTokens/refresh', params: { previousAccountId: 'first' } });
+    expect(f.sent.some(m => m.result?.accessToken)).toBe(false);
+    expect(f.sent).toMatchObject([{ id: 'renewal-profile', error: { code: -32000 } }]);
+    expect(f.c.status()).toMatchObject({ state: 'external_change', profileId: null, reason: 'profile_unavailable' });
+    await f.serverRequest({ id: 'later-renewal', method: 'account/chatgptAuthTokens/refresh', params: { previousAccountId: 'first' } });
+    expect(f.sent).toHaveLength(1);
+    expect(f.calls.filter(c => c.method === 'account/login/start')).toHaveLength(1);
+    expect(f.calls.some(c => ['turn/interrupt', 'turn/start'].includes(c.method))).toBe(false);
+  });
+
+  it('continues renewal after an unrelated registry revision changes while the active profile remains available', async () => {
+    const f = await fixture(); await f.c.request({ id: A, revision: 1 });
+    const original = f.rpc.request.getMockImplementation()!;
+    f.rpc.request.mockImplementation(async (method, params) => {
+      const result = await original(method, params);
+      if (method === 'account/read') {
+        f.selection.revision++;
+        f.selection.profiles = f.selection.profiles.map(p => p.id === A ? { ...p, label: 'Renamed account' } : p);
+      }
+      return result;
+    });
+    await f.serverRequest({ id: 'renewal-profile', method: 'account/chatgptAuthTokens/refresh', params: { previousAccountId: 'first' } });
+    expect(f.sent).toMatchObject([{ id: 'renewal-profile', result: { chatgptAccountId: 'first' } }]);
+    expect(f.c.status()).toMatchObject({ state: 'applied', profileId: A });
+    expect(f.calls.filter(c => c.method === 'account/login/start')).toHaveLength(1);
+  });
+
+  it('still checks the control lease after the final renewal profile lookup', async () => {
+    let checking = false;
+    const f = await fixture({ beforeSelectionRead: async () => {
+      if (checking) f.lease.valid.mockResolvedValue(false);
+    } });
+    await f.c.request({ id: A, revision: 1 }); checking = true;
+    await f.serverRequest({ id: 'renewal', method: 'account/chatgptAuthTokens/refresh', params: { previousAccountId: 'first' } });
+    expect(f.sent.some(m => m.result?.accessToken)).toBe(false);
+    expect(f.c.status()).toMatchObject({ state: 'external_change', reason: 'native_control_lost' });
+  });
+
+  it.each(['before', 'account-read'] as const)('does not return renewed credentials when the control lease is lost at %s', async when => {
+    const f = await fixture(); await f.c.request({ id: A, revision: 1 });
+    if (when === 'before') f.lease.valid.mockResolvedValue(false);
+    else {
+      // Let the renewal read finish, but revoke this controller's lease before
+      // it can supply refreshed credentials to the shared native server.
+      const original = f.rpc.request.getMockImplementation()!;
+      f.rpc.request.mockImplementation(async (method, params) => {
+        if (method === 'account/read') f.lease.valid.mockResolvedValue(false);
+        return original(method, params);
+      });
+    }
+    await f.serverRequest({ id: 'renewal-lease', method: 'account/chatgptAuthTokens/refresh', params: { previousAccountId: 'first' } });
+    expect(f.sent.some(m => m.result?.accessToken)).toBe(false);
+    expect(f.c.status()).toMatchObject({ state: 'external_change', profileId: null, reason: 'native_control_lost' });
+  });
+
+  it('stops renewal when the control lease is replaced during a credential read', async () => {
+    let renewing = false;
+    const f = await fixture({ readCredential: async (id: string) => {
+      if (renewing) f.lease.valid.mockResolvedValue(false);
+      return f.credential(id);
+    } });
+    await f.c.request({ id: A, revision: 1 }); renewing = true;
+    await f.serverRequest({ id: 'renewal', method: 'account/chatgptAuthTokens/refresh', params: { previousAccountId: 'first' } });
+    expect(f.sent.some(m => m.result?.accessToken)).toBe(false);
+    expect(f.c.status()).toMatchObject({ state: 'external_change', reason: 'native_control_lost' });
+    expect(f.rpc.close).toHaveBeenCalledOnce();
+    await f.c.request({ id: B, revision: 2 }, true);
+    expect(f.calls.filter(c => c.method === 'account/login/start')).toHaveLength(1);
+  });
+
+  it.each(['removed', 'unavailable'])('refuses a target profile made %s during credential reading before interrupting work', async state => {
+    let release!: () => void;
+    const gate = new Promise<void>(resolve => { release = resolve; });
+    const f = await fixture({ active: true, readCredential: async (id: string) => { await gate; return f.credential(id); } });
+    const pending = f.c.request({ id: B, revision: 1 });
+    await vi.waitFor(() => expect(f.rpc.request.mock.calls.some(([method]) => method === 'account/read')).toBe(true));
+    if (state === 'removed') f.selection.profiles = f.selection.profiles.filter(p => p.id !== B);
+    else f.selection.profiles.find(p => p.id === B)!.available = false;
+    release();
+    expect(await pending).toMatchObject({ state: 'failed', reason: 'profile_unavailable' });
+    expect(f.calls.some(c => ['account/login/start', 'turn/interrupt', 'turn/start'].includes(c.method))).toBe(false);
+  });
+
+  it('resumes the original account once if the target profile is removed after interruption', async () => {
+    const f = await fixture({ active: true });
+    const original = f.rpc.request.getMockImplementation()!;
+    f.rpc.request.mockImplementation(async (method, params) => {
+      const result = await original(method, params);
+      if (method === 'turn/interrupt') f.selection.profiles = f.selection.profiles.filter(p => p.id !== B);
+      return result;
+    });
+    expect(await f.c.request({ id: B, revision: 1 })).toMatchObject({ state: 'failed', reason: 'profile_unavailable' });
+    expect(f.calls.filter(c => c.method === 'turn/start')).toHaveLength(1);
+    expect(f.calls.some(c => c.method === 'account/login/start')).toBe(false);
+    expect(f.actual().email).toBe('first@example.test');
+    expect(f.journals.at(-1).phase).toBe('finished');
+  });
+
+  it('retains durable recovery if a removed-target cancellation cannot confirm resuming the original turn', async () => {
+    const f = await fixture({ active: true });
+    const original = f.rpc.request.getMockImplementation()!;
+    f.rpc.request.mockImplementation(async (method, params) => {
+      if (method === 'turn/start') throw Object.assign(Error('timeout'), { code: 'native_request_timeout' });
+      const result = await original(method, params);
+      if (method === 'turn/interrupt') f.selection.profiles = f.selection.profiles.filter(p => p.id !== B);
+      return result;
+    });
+    expect(await f.c.request({ id: B, revision: 1 })).toMatchObject({ continuation: 'manual_required', reason: 'native_continue_unconfirmed' });
+    await f.c.tick(); await f.c.request({ id: A, revision: 2 });
+    expect(f.rpc.request.mock.calls.filter(([method]) => method === 'turn/start')).toHaveLength(1);
+    expect(f.calls.some(c => c.method === 'account/login/start')).toBe(false);
+  });
+
+  it('allows a still-available profile after an unrelated label or registry revision change during the credential read', async () => {
+    let release!: () => void;
+    const gate = new Promise<void>(resolve => { release = resolve; });
+    const f = await fixture({ readCredential: async (id: string) => { await gate; return f.credential(id); } });
+    const pending = f.c.request({ id: B, revision: 1 });
+    await vi.waitFor(() => expect(f.rpc.request.mock.calls.some(([method]) => method === 'account/read')).toBe(true));
+    f.selection.revision++;
+    f.selection.profiles = f.selection.profiles.map(p => p.id === B ? { ...p, label: 'Renamed test account' } : p);
+    release();
+    expect(await pending).toMatchObject({ state: 'applied', profileId: B });
+    expect(f.calls.filter(c => c.method === 'account/login/start')).toHaveLength(1);
+  });
+
+  it('does not start an automatic handoff when Auto-switch is disabled during the credential read', async () => {
+    let release!: () => void;
+    const gate = new Promise<void>(resolve => { release = resolve; });
+    const f = await fixture({ auto: true, active: true, readCredential: async (id: string) => {
+      await gate; return f.credential(id);
+    } });
+    const pending = f.c.request({ id: B, revision: 1 }, true);
+    await vi.waitFor(() => expect(f.rpc.request.mock.calls.some(([method]) => method === 'account/read')).toBe(true));
+    f.autoSettings.enabled = false; release(); await pending;
+    expect(f.calls.some(c => ['account/login/start', 'turn/interrupt', 'turn/start'].includes(c.method))).toBe(false);
+    expect(f.c.status().reason).toBe('auto_switch_disabled');
+  });
+
+  it('resumes the original turn once if Auto-switch is disabled after interruption', async () => {
+    const f = await fixture({ auto: true, active: true });
+    const original = f.rpc.request.getMockImplementation()!;
+    f.rpc.request.mockImplementation(async (method, params) => {
+      const result = await original(method, params);
+      if (method === 'turn/interrupt') f.autoSettings.enabled = false;
+      return result;
+    });
+    expect(await f.c.request({ id: B, revision: 1 }, true)).toMatchObject({ state: 'idle', reason: 'auto_switch_disabled' });
+    await f.c.tick();
+    expect(f.calls.filter(c => c.method === 'turn/interrupt')).toHaveLength(1);
+    expect(f.calls.filter(c => c.method === 'turn/start')).toHaveLength(1);
+    expect(f.calls.some(c => c.method === 'account/login/start')).toBe(false);
+    expect(f.actual().email).toBe('first@example.test');
+    expect(f.journals.at(-1).phase).toBe('finished');
+  });
+
+  it('preserves recovery protection if a cancelled automatic switch cannot resume the original turn', async () => {
+    const f = await fixture({ auto: true, active: true });
+    const original = f.rpc.request.getMockImplementation()!;
+    f.rpc.request.mockImplementation(async (method, params) => {
+      if (method === 'turn/start') throw Object.assign(Error('timeout'), { code: 'native_request_timeout' });
+      const result = await original(method, params);
+      if (method === 'turn/interrupt') f.autoSettings.enabled = false;
+      return result;
+    });
+    expect(await f.c.request({ id: B, revision: 1 }, true)).toMatchObject({ continuation: 'manual_required', reason: 'native_continue_unconfirmed' });
+    await f.c.tick();
+    expect(await f.c.request({ id: B, revision: 2 })).toMatchObject({ continuation: 'manual_required' });
+    expect(f.rpc.request.mock.calls.filter(([method]) => method === 'turn/start')).toHaveLength(1);
+    expect(f.calls.some(c => c.method === 'account/login/start')).toBe(false);
+  });
+
   it('keeps a manual switch waiting when new activity appears before authentication, then applies it once quiet', async () => {
     const f = await fixture({ active: true });
     const original = f.rpc.request.getMockImplementation()!;

@@ -86,7 +86,7 @@ const catalog: Catalog = {
   "radar.cfg.destinations.other": "구성된 대상 {count}개",
   "radar.cfg.noDestination": "읽은 설정 파일에서 대상을 찾지 못했습니다. 텔레메트리는 여전히 실행 중일 수 있습니다.",
   "radar.cfg.observed": "관찰된 Claude 연결",
-  "radar.cfg.observedNote": "확인된 텔레메트리 메시지가 아니라 활성 연결입니다. 설정 파일에 대상이 없는 동안 레이더가 이를 감시하고, 모니터에서 전송 내용을 볼 수 있습니다.",
+  "radar.cfg.observedNote": "확인된 텔레메트리 메시지가 아니라 활성 연결입니다. 설정 파일에 대상이 없는 동안 레이더는 OpenTelemetry 수집기가 수신하는 4317 포트의 IPv4 연결만 감시하며, 모니터에서 전송 내용을 볼 수 있습니다.",
   "radar.cfg.readFailed": "설정을 읽지 못했습니다. 샘플링이 다시 시도합니다.",
   "radar.cfg.readingLocal": "로컬 설정 읽는 중…",
 

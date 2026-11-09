@@ -78,6 +78,9 @@ export default function JiraTokenHelp() {
         rank: <code>write:issue:jira-software</code>,
         sprint: <code>write:sprint:jira-software</code>,
         backlog: <code>write:board-scope:jira-software</code>,
+        // Atlassian's REST v3 asks this classic scope of both a new comment
+        // (POST …/comment) and a status change (POST …/transitions).
+        work: <code>write:jira-work</code>,
       })}</p>}
     </>
   );

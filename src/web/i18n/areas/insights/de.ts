@@ -2,6 +2,9 @@
 import type { Catalog } from "../../catalogs";
 
 const catalog: Catalog = {
+  "insights.machine.windowsLimit": "Windows-CPU-Limit: {pct}% der Nennleistung",
+  "insights.machine.windowsNoLimit": "Windows meldet keine CPU-Begrenzung unter der Nennleistung",
+  "insights.machine.windowsPastLimit": "Windows-CPU-Limit war {pct}% · {since}",
   "insights.cost.input": "Eingabe",
   "insights.cost.output": "Ausgabe",
   "insights.cost.cacheRead": "Cache gelesen",

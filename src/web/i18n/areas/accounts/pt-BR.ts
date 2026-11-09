@@ -403,7 +403,7 @@ const catalog: Catalog = {
   "accounts.rep.tableLabel": "Tabela de capacidade das contas",
   "accounts.rep.caption": "Uso e redefinição de cada janela por conta, e o que ela pode fazer agora",
   "accounts.rep.how": "Como o uso é calculado",
-  "accounts.rep.howOne": "Cada conta aqui, na última leitura: <b>usado</b> é a média delas, e <b>restante</b> é o resto, não uma cota combinada. Um horário de redefinição informado que passou não confirma capacidade renovada. A última leitura de uso permanece até ser atualizada.",
+  "accounts.rep.howOne": "Cada conta aqui, na última leitura: <b>usado</b> é a média delas, e <b>restante</b> é o resto, não uma cota combinada. Um horário de redefinição informado que passou não confirma capacidade renovada. A última leitura de uso permanece até ser atualizada. Uma conta no limite semanal contribui com 0% restante para a média de 5 horas.",
   "accounts.rep.howTwo": "<b>Pronta</b> tem folga nas duas janelas. <b>Limitada</b> está no limite de uma, e <b>Esgotada</b> de ambas. <b>Desatualizada</b> nunca foi lida, ou está desconectada. Pronta pode se basear em uma leitura antiga cujo horário de redefinição já passou; contas fora do rodízio continuam incluídas, mas ficam fora do rodízio automático.",
   "accounts.rep.viewAccounts": "Capacidade das contas",
   "accounts.rep.viewCalendar": "Calendário de redefinições",

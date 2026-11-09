@@ -2,6 +2,9 @@
 import type { Catalog } from "../../catalogs";
 
 const catalog: Catalog = {
+  "insights.machine.windowsLimit": "Windows CPU 限制：额定性能的 {pct}%",
+  "insights.machine.windowsNoLimit": "Windows 未报告低于额定性能的 CPU 限制",
+  "insights.machine.windowsPastLimit": "Windows CPU 限制曾为 {pct}% · {since}",
   "insights.cost.input": "输入",
   "insights.cost.output": "输出",
   "insights.cost.cacheRead": "缓存读取",

@@ -87,7 +87,7 @@ const catalog: Catalog = {
   "radar.cfg.destinations.other": "{count} de destinații configurate",
   "radar.cfg.noDestination": "Nicio destinație găsită în fișierele de setări citite. Telemetria poate totuși funcționa.",
   "radar.cfg.observed": "Conexiuni Claude observate",
-  "radar.cfg.observedNote": "Acestea sunt conexiuni active, nu mesaje de telemetrie confirmate. Radar le urmărește cât timp niciun fișier de setări nu indică o destinație, iar Monitorizare arată ce trimit.",
+  "radar.cfg.observedNote": "Acestea sunt conexiuni active, nu mesaje de telemetrie confirmate. Cât timp niciun fișier de setări nu indică o destinație, Radar urmărește doar conexiunile IPv4 pe portul 4317, unde ascultă colectoarele OpenTelemetry, iar Monitorizare arată ce trimit.",
   "radar.cfg.readFailed": "Setările nu au putut fi citite. Eșantionarea va reîncerca.",
   "radar.cfg.readingLocal": "Se citesc setările locale…",
 

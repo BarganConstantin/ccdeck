@@ -56,6 +56,8 @@ mkdirSync(CODEX, { recursive: true });
 // @ts-expect-error — plain .mjs server module, no types
 const { startServer, hookToken, markDeckReady } = await import("../../server/index.mjs");
 // @ts-expect-error — plain .mjs server module, no types
+const { activity, releaseRestart } = await import("../../server/lifecycle.mjs");
+// @ts-expect-error — plain .mjs server module, no types
 const { claudeConfigDir } = await import("../../server/claude-dir.mjs");
 // @ts-expect-error — plain .mjs server module, no types
 const { isNpxInstall } = await import("../../server/self-update.mjs");
@@ -109,6 +111,7 @@ describe("what /api/restart refuses, and in which words", () => {
     const old = server;
     server = null;
     if (old) await new Promise<void>(done => old.close(() => done()));
+    handed.length = 0;
     port = await portInBand();
     server = await (startServer as (o: Record<string, unknown>) => Promise<Server>)({
       port, persist, codex: false, claude: false, portRange: [port, port],
@@ -136,6 +139,34 @@ describe("what /api/restart refuses, and in which words", () => {
     expect((await res.json()).reason).toBe("no_persist");
     await settle();
     expect(handed, "the launcher was handed the restart anyway").toEqual([]);
+  });
+
+  it("never hands off a refused body as an unconditional restart while a turn is busy", async () => {
+    await boot(join(SANDBOX, "refused-body", "events.jsonl"));
+    const turn = { session_id: "busy-refused-restart", hook_event_name: "UserPromptSubmit" };
+    activity.note(turn, Date.now());
+    try {
+      const control = await restart(JSON.stringify({ whenIdle: true }));
+      expect(control.status).toBe(409);
+      expect((await control.json()).reason).toBe("busy");
+
+      for (const [body, status] of [
+        [JSON.stringify({ whenIdle: true, padding: "x".repeat(64_000) }), 413],
+        ['{"whenIdle":', 400],
+        ["null", 400],
+        ["[]", 400],
+        [JSON.stringify({ whenIdle: "true" }), 400],
+      ] as const) {
+        const res = await restart(body);
+        await res.text();
+        await settle();
+        expect(res.status).toBe(status);
+        expect(handed, "a refused body reached the launcher").toEqual([]);
+      }
+    } finally {
+      activity.note({ ...turn, hook_event_name: "Stop" }, Date.now());
+      releaseRestart();
+    }
   });
 
   it("refuses an npx upgrade on a copy that is not running out of npx", async () => {

@@ -47,16 +47,25 @@ export const BUCKET_MS = 60_000;
  * should be.
  */
 export function record(key, value, nowMs = Date.now()) {
-  if (!Number.isFinite(value)) return;
+  if (!Number.isFinite(value) || !Number.isFinite(nowMs)) return;
   const minute = Math.floor(nowMs / BUCKET_MS);
-  let last = history[history.length - 1];
-  if (!last || last.m !== minute) {
-    last = { m: minute, v: {} };
-    history.push(last);
-    while (history.length > HISTORY_MINUTES) history.shift();
+  let bucket = history[history.length - 1];
+  if (!bucket || bucket.m < minute) {
+    bucket = { m: minute, v: {} };
+    history.push(bucket);
+  } else if (bucket.m > minute) {
+    // A clock correction can revisit an existing minute or a gap. Keep one
+    // maximum per minute, in time order, without evicting newer data for it.
+    const index = history.findIndex(b => b.m >= minute);
+    bucket = history[index];
+    if (bucket.m !== minute) {
+      bucket = { m: minute, v: {} };
+      history.splice(index, 0, bucket);
+    }
   }
-  const prev = last.v[key];
-  last.v[key] = prev == null ? value : Math.max(prev, value);
+  while (history.length > HISTORY_MINUTES) history.shift();
+  const prev = bucket.v[key];
+  bucket.v[key] = prev == null ? value : Math.max(prev, value);
 }
 
 /** Every reading recorded under `key`, oldest first, one point per minute that

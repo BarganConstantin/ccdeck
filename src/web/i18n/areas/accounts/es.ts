@@ -403,7 +403,7 @@ const catalog: Catalog = {
   "accounts.rep.tableLabel": "Tabla de capacidad de las cuentas",
   "accounts.rep.caption": "El uso y el restablecimiento de cada ventana en cada cuenta, y lo que puede hacer ahora",
   "accounts.rep.how": "Cómo se calcula el uso",
-  "accounts.rep.howOne": "Todas las cuentas de aquí, en su última lectura: <b>usado</b> es su promedio y <b>restante</b> es el resto, no una cuota agrupada. Que pase la hora de restablecimiento informada no confirma que se haya renovado la capacidad. Su última lectura de uso permanece hasta que se actualice.",
+  "accounts.rep.howOne": "Todas las cuentas de aquí, en su última lectura: <b>usado</b> es su promedio y <b>restante</b> es el resto, no una cuota agrupada. Que pase la hora de restablecimiento informada no confirma que se haya renovado la capacidad. Su última lectura de uso permanece hasta que se actualice. Una cuenta que alcanza el límite semanal aporta un 0 % restante al promedio de 5 horas.",
   "accounts.rep.howTwo": "<b>Lista</b> tiene margen en ambas ventanas. <b>Limitada</b> está en el límite de una y <b>Agotada</b> de ambas. <b>Obsoleta</b> nunca se leyó o tiene la sesión cerrada. Lista puede basarse en una lectura antigua cuya hora de restablecimiento ya pasó; las cuentas excluidas siguen incluidas, pero quedan fuera de la rotación automática.",
   "accounts.rep.viewAccounts": "Capacidad de las cuentas",
   "accounts.rep.viewCalendar": "Calendario de restablecimientos",
