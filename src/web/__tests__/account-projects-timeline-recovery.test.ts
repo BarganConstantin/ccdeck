@@ -37,10 +37,13 @@ async function fixture() {
 
 async function blockTimeline(f: Awaited<ReturnType<typeof fixture>>) {
   const parked = join(f.dir, "parked-timeline");
-  await rename(f.timelineDir, parked);
-  await writeFile(f.timelineDir, "temporarily unavailable");
-  await expect(readFile(f.swapLog, "utf8")).rejects.toMatchObject({ code: "ENOTDIR" });
-  return async () => { await rm(f.timelineDir); await rename(parked, f.timelineDir); };
+  await rename(f.swapLog, parked);
+  // A non-directory ancestor reads as ENOENT on Windows, which legitimately
+  // means an empty timeline. Make the log itself a directory for a hard read
+  // refusal on every CI platform, preserving the real log bytes beside it.
+  await mkdir(f.swapLog);
+  await expect(readFile(f.swapLog, "utf8")).rejects.toMatchObject({ code: "EISDIR" });
+  return async () => { await rm(f.swapLog, { recursive: true }); await rename(parked, f.swapLog); };
 }
 
 describe("project rollup after its account timeline recovers", () => {
@@ -180,7 +183,7 @@ describe("project rollup after its account timeline recovers", () => {
       accounts: { "1": { email: "reader@example.test", organizationUuid: "synthetic-org" } } }));
     const original = await readFile(f.swapLog, "utf8");
     const restore = await blockTimeline(f);
-    await expect(readSwapLog(f.swapLog, { strict: true })).rejects.toMatchObject({ code: "ENOTDIR" });
+    await expect(readSwapLog(f.swapLog, { strict: true })).rejects.toMatchObject({ code: "EISDIR" });
     expect(await readSwapLog(f.swapLog)).toEqual([]);
     expect(await seedActive({ root: store, path: f.swapLog, projectsRoot: f.root })).toBeNull();
     expect(await recordSwap(1, "manual", { root: store, path: f.swapLog, projectsRoot: f.root })).toBeNull();
