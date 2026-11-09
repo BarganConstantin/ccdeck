@@ -101,3 +101,24 @@ describe("a session blocked on a human", () => {
   });
 });
 
+
+// Design recommendations (2026-11-09): a session not yet given a prompt is
+// Ready on its card and in the list, and quiet on the minimap, where it
+// painted Working's --inflight with nothing at work.
+describe("a Ready session on the minimap", () => {
+  const root = (data: Record<string, unknown>): MinimapNode =>
+    ({ type: "agent", data: { id: "a1", sessionId: "s1", kind: "root", state: "active", toolCount: 0, prompts: [], ...data } }) as unknown as MinimapNode;
+
+  it("paints a root never given a prompt in the quiet tone", () => {
+    expect(minimapNodeColor(root({}), token)).toBe("--muted");
+  });
+
+  it("paints it Working once a prompt or a tool has come", () => {
+    expect(minimapNodeColor(root({ prompts: [{ text: "go", at: 1 }] }), token)).toBe("--inflight");
+    expect(minimapNodeColor(root({ toolCount: 1 }), token)).toBe("--inflight");
+  });
+
+  it("keeps Working for a card whose data carries no prompts list", () => {
+    expect(minimapNodeColor(card("active"), token)).toBe("--inflight");
+  });
+});

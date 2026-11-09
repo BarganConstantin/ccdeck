@@ -39,7 +39,7 @@ export default function CanvasMain({ canvasRef, bubbling, dragging, trash, zoom,
    *  while it is anywhere but closed: the sheet hides the board under it
    *  (stage-shell.css). Absent with the flag off, so the attribute never is. */
   stagePhase?: string;
-  /** The board header's five figures, or absent where it is not drawn: an
+  /** The board header's two figures, or absent where it is not drawn: an
    *  empty board, a phone (board-header.ts boardHeadShown). It is the cell's
    *  first child, and its attribute below is what moves the overlays under it. */
   head?: BoardHeadFigures | null;

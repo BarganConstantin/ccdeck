@@ -145,6 +145,9 @@ describe("the state, from one mapping shared with the faces at a distance", () =
     ["err", { state: "err" }, "Failed", "err", "--err", "err"],
     ["a turn that stopped on an error", { state: "done", stopFailure: { kind: "other" } as never }, "Failed", "err", "--err", "err"],
     ["blocked on a permission", { state: "active", waiting: { kind: "permission", since: 1 } as never }, "Waiting", "waiting", "--warn", "alert"],
+    // Design recommendations (2026-11-09): a session never given a prompt is
+    // Ready, as its list group says, where it said Working with nothing at work.
+    ["never given a prompt", { state: "active", toolCount: 0, prompts: [] }, "Ready", "ready", "--muted", "idle"],
   ];
   // CHANGED ON PURPOSE: these read cardState().token. The token is gone (dead:
   // the CSS colours by data-tone), so they read the tone and check the colour
@@ -184,6 +187,31 @@ describe("the state, from one mapping shared with the faces at a distance", () =
     const out = html({ state: "active" });
     expect(out).toMatch(/<span class="state-line" data-tone="active"><svg class="state-mark" data-kind="live"[^>]*>[\s\S]*?<\/svg><span class="state-word">Working<\/span><\/span>/);
     expect(out).not.toContain("state-pill");
+  });
+});
+
+describe("Ready, a session not yet given a prompt", () => {
+  it("is Ready only before the first prompt and the first tool, and only on a root at rest", () => {
+    expect(cardState(T({ toolCount: 0, prompts: [] })).word).toBe("Ready");
+    expect(cardState(T({ toolCount: 0, prompts: [{ text: "go", at: 1 }] as never })).word).toBe("Working");
+    expect(cardState(T({ toolCount: 1, prompts: [] })).word).toBe("Working");
+    expect(cardState(T({ kind: "subagent", toolCount: 0, prompts: [] } as never)).word).toBe("Working");
+    expect(cardState(T({ toolCount: 0, prompts: [], job: { id: "j", state: "working", detail: "", updatedAt: 1 } } as never)).word).toBe("Working");
+    expect(cardState(T({ state: "done", toolCount: 0, prompts: [] })).word).toBe("Done");
+    expect(cardState(T({ toolCount: 0, prompts: [], waiting: { kind: "permission", since: 1 } as never })).word).toBe("Waiting");
+  });
+
+  it("draws the hollow ring and the word in --muted, nothing breathing", () => {
+    const out = html({ toolCount: 0, prompts: [] });
+    expect(out).toMatch(/<span class="state-line" data-tone="ready"><svg class="state-mark" data-kind="idle"[^>]*>[\s\S]*?<\/svg><span class="state-word">Ready<\/span><\/span>/);
+    expect(sheet).not.toMatch(/\.state-line\[data-tone="ready"\][^{]*\{[^}]*animation/);
+  });
+
+  it("wears the quiet edge, not Working's, on a variable the face's border reads before the state's", () => {
+    expect(html({ toolCount: 0, prompts: [] })).toMatch(/class="agent-node state-active ready"/);
+    expect(html({ toolCount: 1, prompts: [] })).not.toMatch(/class="agent-node[^"]*\bready\b/);
+    expect(decl(".agent-node.ready > .lod-face", "--lod-ready")).toBe("color-mix(in srgb, var(--muted) 60%, transparent)");
+    expect(sheet).toContain("border: 1px solid var(--lod-alarm, var(--lod-ready, var(--lod-edge, var(--line))));");
   });
 });
 
@@ -291,6 +319,7 @@ describe("review fixes", () => {
       [{ state: "err" }, "Failed"],
       [{ state: "done", stopFailure: { kind: "login", error: "authentication_failed", message: "", at: 1 } as never }, "Failed"],
       [{ state: "active", waiting: { kind: "permission", since: 1, message: "Claude needs your permission" } as never }, "Waiting"],
+      [{ state: "active", toolCount: 0, prompts: [] }, "Ready"],
     ];
     for (const [over, word] of cases) {
       expect(cardState(T(over)).word).toBe(word);
@@ -451,5 +480,69 @@ describe("the ask row and the stop row", () => {
     const stop = /<div class="stop-row"[^>]*>([\s\S]*?)<\/div>/.exec(out)![1];
     expect(stop).toMatch(/^<span class="stop-said">[^<]+<\/span>/);
     expect(stop).not.toContain("waiting-dot");
+  });
+});
+
+// Design recommendations (2026-11-09), R1: a fitted phone board puts every
+// card in the face's narrowest query, which drew a ring alone. It says the
+// state's word now, the card's own (cardState), with its mark only where both
+// fit: the word comes first in a reversed row that wraps, so a mark without
+// room drops to a second line the one-line height clips. How it measures is
+// checked in a browser; this pins the markup and the rules.
+describe("the narrowest face says the state", () => {
+  const face = (over: Partial<AgentNodeData>) => {
+    const out = html(over);
+    const at = out.indexOf('class="lod-face"');
+    return out.slice(out.lastIndexOf("<div", at));
+  };
+  const css = read("../styles/agent-node.css").replace(/\/\*[\s\S]*?\*\//g, "");
+  const narrow = (() => {
+    const at = css.indexOf("@container lod (max-width: 72px)");
+    return css.slice(at, css.indexOf("\n}\n", at)).replace(/,\s*\n\s*/g, ", ");
+  })();
+  const inNarrow = (selector: string) => {
+    const esc = selector.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    return new RegExp(`(?:^|[{}\\s])${esc}\\s*\\{([^}]*)\\}`).exec(narrow)?.[1].replace(/\s+/g, " ").trim();
+  };
+
+  it("draws the card's word on the face, in the line with its mark", () => {
+    expect(face({ state: "active" })).toMatch(/<div class="lod-id"><svg class="state-mark" data-kind="live"[\s\S]*?<span class="lod-state">Working<\/span><\/div>/);
+    expect(face({ state: "active", toolCount: 0 })).toContain('<span class="lod-state">Ready</span>');
+    expect(face({ state: "done" })).toContain('<span class="lod-state">Done</span>');
+    expect(face({ state: "err" })).toContain('<span class="lod-state" data-tone="err">Failed</span>');
+  });
+
+  it("says Needs you in the warn tone on a session blocked on you, the alert after the word in the markup", () => {
+    const out = face({ state: "active", waiting: { kind: "permission", since: 1, message: "Claude needs your permission to use Bash" } as never });
+    expect(out).toMatch(/<span class="lod-state" data-tone="warn">Needs you<\/span><svg class="alert-mark"/);
+  });
+
+  it("shows the word only in the narrowest query, cut with an ellipsis, and the name nowhere there", () => {
+    expect(decl(".lod-state", "display")).toBe("none");
+    expect(body(".lod-name, .lod-inline, .lod-state, .lod-title, .lod-signal")).toMatch(/text-overflow: ellipsis/);
+    expect(inNarrow(".lod-state")).toBe("display: block; order: -1;");
+    expect(inNarrow(".lod-name, .lod-inline, .lod-signal")).toBe("display: none;");
+  });
+
+  it("gives the word the line: a reversed row that wraps, one line high, so a mark without room is clipped and not the word", () => {
+    // Over the overview's own size for the line (three classes, later in the sheet).
+    const id = inNarrow(".canvas-wrap .lod-face > .lod-id")!;
+    expect(css).toMatch(/\.canvas-wrap\[data-lod="overview"\] \.lod-id \{[^}]*line-height: calc\(14px \+ var\(--ui-text-increase, 0px\)\)/);
+    expect(css.indexOf("@container lod (max-width: 72px)")).toBeGreaterThan(css.indexOf('.canvas-wrap[data-lod="overview"] .lod-id {'));
+    expect(id).toContain("flex-flow: row-reverse wrap;");
+    expect(id).toContain("justify-content: center;");
+    expect(id).toContain("align-content: flex-start;");
+    expect(id).toContain("gap: 0 4px;");
+    expect(id).toContain("overflow: hidden;");
+    // One 11px line, 12 high, that never shrinks: a 320-wide phone's face is
+    // 14 high with a content box of 6, and the line stands over its padding.
+    expect(id).toContain("flex: none;");
+    expect(id).toContain("font-size: calc(11px + var(--ui-text-increase, 0px));");
+    expect(id).toContain("line-height: calc(12px + var(--ui-text-increase, 0px));");
+    expect(id).toContain("height: calc(12px + var(--ui-text-increase, 0px));");
+    // A mark beside the word no taller than the line.
+    expect(inNarrow(".lod-id > .state-mark, .lod-id > .alert-mark")).toBe("width: 12px; height: 12px;");
+    // A session blocked on you shows the alert, never the ring beside it.
+    expect(inNarrow('.lod-face[data-alarm] .lod-id > .state-mark')).toBe("display: none;");
   });
 });

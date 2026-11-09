@@ -8,13 +8,14 @@ import { sessionSpendLabel } from "./board-usage";
 import { t } from "./i18n";
 import { noteSource, noteTag } from "./session-note";
 import { planSpoken } from "./agent-plan";
-import { salientInput } from "./tool-input";
+import { salientField } from "./tool-input";
 import type { Row } from "./components/SessionList";
 import { agoShort, elapsedShort } from "./elapsed-short";
 import type { RailGroup } from "./rail-model";
 
 /** Figma's Glyph: Waiting, Working, Done, Idle, Error. Background wears the
- *  Working mark, the session being at work while its turn has ended. */
+ *  Working mark, the session being at work while its turn has ended. The
+ *  hollow Idle ring is the Ready group's: a session not yet given a prompt. */
 export type RailGlyphKind = "waiting" | "working" | "done" | "idle" | "error";
 
 export function railGlyph(r: Row, group: RailGroup): RailGlyphKind {
@@ -22,10 +23,11 @@ export function railGlyph(r: Row, group: RailGroup): RailGlyphKind {
   if (group === 1) return "working";
   if (r.state === "err") return "error";
   if (r.neverPrompted) return "idle";
-  // Done · unseen is a turn that ended, whatever the root's state still says:
-  // a row marked active with an idle-prompt block is "your turn", and reads Done.
-  if (group === 2) return "done";
-  return r.state === "done" ? "done" : "idle";
+  // Done · new and Done are a turn that ended, whatever the root's state still
+  // says: a row marked active with an idle-prompt block is "your turn", and
+  // reads Done in both. CHANGED ON PURPOSE (design recommendations,
+  // 2026-11-09): once seen it wore the Idle ring, under a group named Idle.
+  return "done";
 }
 
 /** The row's second line. A `tool` line is the tool's name in the heavier
@@ -43,11 +45,11 @@ export function railLine(r: Row, group: RailGroup): RailLine | null {
   if (group === 0 && r.waiting) {
     const sentence = waitingSentence(r.waiting);
     if (r.waiting.kind === "asked") return { kind: "mono", text: t("board.row.asks", { sentence }) };
-    if (r.waiting.tool) return { kind: "tool", name: r.waiting.tool.name, rest: r.waiting.tool.preview };
+    if (r.waiting.tool) return { kind: "tool", name: r.waiting.tool.name, rest: toolRest(r.waiting.tool, r.cwd) };
     return { kind: "mono", text: sentence };
   }
   if (group === 1) {
-    if (r.tool) return { kind: "tool", name: r.tool.name, rest: r.tool.preview };
+    if (r.tool) return { kind: "tool", name: r.tool.name, rest: toolRest(r.tool, r.cwd) };
     // A turn that ended with a job still going: the job's own line, never a
     // count it does not carry.
     if (r.state !== "active" && r.job) {
@@ -58,6 +60,32 @@ export function railLine(r: Row, group: RailGroup): RailLine | null {
   }
   if (r.neverPrompted) return { kind: "sans", text: t("board.row.ready") };
   return note ? { kind: "mono", text: note } : null;
+}
+
+/** What a tool line prints after the tool's name: a path as rowPath shortens
+ *  it, anything else (a command, a URL) as it is. */
+function toolRest(tool: { preview: string; path?: true }, cwd: string | undefined): string {
+  return tool.path ? rowPath(tool.preview, cwd) : tool.preview;
+}
+
+/**
+ * A file's path as a row has room for it. A phone cut "Edit · /home/constantin/
+ * Deskt…" off long before the file's name, which is the part that tells two
+ * calls apart. Relative to the session's folder when the file is inside it
+ * ("docs/install.md"), else its last two segments after "…/"; a path of two
+ * segments or fewer is short already and stays as it is. A Windows path keeps
+ * its backslashes. The whole path stays in the row's tooltip (rowTooltip).
+ */
+export function rowPath(path: string, cwd?: string): string {
+  const base = cwd?.replace(/[\\/]+$/, "") ?? "";
+  if (base && path.startsWith(base) && /[\\/]/.test(path.charAt(base.length))) {
+    const inside = path.slice(base.length + 1);
+    if (inside) return inside;
+  }
+  const parts = path.split(/[\\/]+/).filter(Boolean);
+  if (parts.length <= 2) return path;
+  const sep = path.includes("\\") && !path.includes("/") ? "\\" : "/";
+  return `…${sep}${parts.slice(-2).join(sep)}`;
 }
 
 /** The clock at the row's right edge. Needs you counts the wait, in the warn
@@ -91,6 +119,9 @@ export function rowTooltip(r: Row, removed: boolean): string {
     );
   } else {
     lines.push(t("board.row.started", { started: new Date(r.startedAt).toLocaleString() }));
+    // The running call's path, whole, where the row's line shortened it. A
+    // waiting row has it already, in "Likely on" above.
+    if (r.tool?.path && rowPath(r.tool.preview, r.cwd) !== r.tool.preview) lines.push(`${r.tool.name} · ${r.tool.preview}`);
   }
   const tools = t("board.toolCount", { count: r.toolCount });
   lines.push(r.cost > 0 ? t("board.row.toolsSpend", { tools, cost: fmtCost(r.cost), label: sessionSpendLabel() }) : tools);
@@ -107,9 +138,11 @@ export function rowTooltip(r: Row, removed: boolean): string {
 /** The running call as a working row's second line has it: the tool's name and
  *  the line a person reads from its input (the command, the path), the same
  *  extraction the Needs you line uses (tool-input.ts). A tool with nothing
- *  worth reading stands on its name alone: never the JSON of its input. */
-export function runningTool(call: { name: string; input?: unknown }): { name: string; preview: string } {
-  return { name: call.name, preview: salientInput(call.input) ?? "" };
+ *  worth reading stands on its name alone: never the JSON of its input. A path
+ *  says it is one, for the row to shorten (rowPath). */
+export function runningTool(call: { name: string; input?: unknown }): { name: string; preview: string; path?: true } {
+  const field = salientField(call.input);
+  return { name: call.name, preview: field?.text ?? "", ...(field?.path ? { path: true as const } : {}) };
 }
 
 /** What the old row said that this one no longer draws, as words for a screen

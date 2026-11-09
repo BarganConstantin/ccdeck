@@ -999,13 +999,13 @@ function Inner() {
   // board-header.ts. Worked out here on the clock App already has, and handed
   // down as numbers and strings so the memoised strip re-renders only when one
   // changes. Where it is not drawn the canvas-size reading has nothing to take off.
-  // Everything but the longest wait holds still between two changes of the map,
-  // so it is kept on the revision `waitingSessions` is; only the wait reads the
-  // clock. The sessions waiting are handed in, not counted again.
+  // The spend holds still between two changes of the map, so it is kept on the
+  // map's revision; only the longest wait reads the clock, from the sessions
+  // waiting, handed in rather than counted again.
   const boardHeadOn = boardHeadShown(agentCount, phone);
   const boardHeadStill = useMemo(
-    () => boardHeadOn ? boardHeadBase(stateRef.current.agents.values(), Date.now(), singleKeys, waitingSessions) : null,
-    [boardHeadOn, singleKeys, waitingSessions, stateRef.current, stateRef.current.revision],
+    () => boardHeadOn ? boardHeadBase(stateRef.current.agents.values(), Date.now(), singleKeys) : null,
+    [boardHeadOn, singleKeys, stateRef.current, stateRef.current.revision],
   );
   const boardHead = boardHeadStill && { ...boardHeadStill, longestWait: boardHeadLongest(waitingSessions, now) };
   // Before paint, so the commit that mounts or removes the strip is packed once,

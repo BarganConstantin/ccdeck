@@ -25,8 +25,11 @@ const card = (over: Partial<AgentNodeData> = {}): AgentNodeData => ({
 } as unknown as AgentNodeData);
 
 describe("a card's spoken name (#853)", () => {
+  // CHANGED ON PURPOSE (design recommendations, 2026-11-09): a session with no prompt and no tool
+  // yet is Ready, the word its card shows (cardState), where it said Working.
   it("says name, kind and state first, separated so they can be heard apart", () => {
-    expect(agentAriaLabel(card())).toBe("agents-deck, session, Working, 0 tools");
+    expect(agentAriaLabel(card())).toBe("agents-deck, session, Ready, 0 tools");
+    expect(agentAriaLabel(card({ prompts: [{ text: "go", at: 1 }] } as Partial<AgentNodeData>))).toBe("agents-deck, session, Working, 0 tools");
     expect(agentAriaLabel(card({ kind: "subagent", state: "done" }))).toBe("agents-deck, subagent, Done, 0 tools");
   });
 
@@ -44,7 +47,7 @@ describe("a card's spoken name (#853)", () => {
   });
 
   it("announces selection in the focused card's existing name", () => {
-    expect(agentAriaLabel(card(), 0, true)).toBe("agents-deck, session, Working, 0 tools, selected");
+    expect(agentAriaLabel(card(), 0, true)).toBe("agents-deck, session, Ready, 0 tools, selected");
     expect(agentAriaLabel(card(), 0, false)).not.toContain("selected");
   });
 

@@ -1,6 +1,7 @@
 /* ---------------- the board header (V4's Figma, Board › bhead) ----------------
-   A strip across the top of the canvas cell: five figures, a number over its
-   label (components/BoardHeader.tsx, board-header.ts). Drawn only with
+   A strip across the top of the canvas cell: two figures, the longest wait and
+   the board's spend, a number over its label (components/BoardHeader.tsx,
+   board-header.ts); the counts of sessions are the top bar's. Drawn only with
    sessions on the board and off a phone; main carries `data-board-head` then,
    and that one attribute is everything below that moves. */
 
@@ -49,7 +50,6 @@
   font-weight: 600;
   color: var(--text);
 }
-.bh-num[data-tone="warn"] { color: var(--warn); }
 .bh-num[data-tone="none"] { color: var(--muted); }
 .bh-label {
   font-size: calc(12px + var(--ui-text-increase, 0px));
@@ -58,22 +58,12 @@
   color: var(--muted);
 }
 
-/* Narrow boards drop the right-hand stats, last first. The container is the
-   strip's content box, so the right panels' inset (the inline padding) counts
-   as taken. Measured in Chromium at Compact and Default alike: the first five,
-   four, three and two stats need 492, 364, 272 and 147px, and 636, 472, 356
-   and 195px with every label and number 30% longer (a translation, a larger
-   reading size). Each threshold below sits above the longer need, so the next
-   stat goes before anything clips. The first stat always stays. */
-@container board-head (max-width: 640px) {
-  .bh-stat:nth-child(5) { display: none; }
-}
-@container board-head (max-width: 500px) {
-  .bh-stat:nth-child(4) { display: none; }
-}
-@container board-head (max-width: 400px) {
-  .bh-stat:nth-child(3) { display: none; }
-}
-@container board-head (max-width: 200px) {
+/* A narrow board drops the right-hand stat. The container is the strip's
+   content box, so the right panels' inset (the inline padding) counts as
+   taken. Measured in Chromium at the default text size: the two stats need
+   204px, and 273px with every label and number 30% longer (a translation, a
+   larger reading size). The threshold sits above the longer need, so the
+   second stat goes before anything clips. The first stat always stays. */
+@container board-head (max-width: 280px) {
   .bh-stat:nth-child(2) { display: none; }
 }

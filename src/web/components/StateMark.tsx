@@ -27,7 +27,8 @@ export function StateMark({ kind, size = 14 }: { kind: StateMarkKind; size?: num
  * zoomed-out face, which has no word, it stands BESIDE the state mark, because
  * a permission prompt lands on a session that is still live and the reader
  * needs both. On the detail card the word "Waiting" names the state, so it
- * REPLACES the mark there (cardState, node-face.ts).
+ * REPLACES the mark there (cardState, node-face.ts), as it does on the
+ * narrowest face, beside "Needs you" where both fit (agent-node.css).
  */
 export function AlertMark({ size = 14 }: { size?: number }) {
   return <KitStateGlyph name="waiting" className="alert-mark" size={size} />;

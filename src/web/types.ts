@@ -140,6 +140,9 @@ export interface BlockedTool {
    *  a sidebar row, a tooltip and an OS notification, none of which can hold a
    *  file's worth of JSON, and two of which are drawn by somebody else. */
   preview: string;
+  /** The preview is a file's path (tool-input.ts salientField), kept whole:
+   *  the session list's row shortens it to fit, the tooltip keeps it whole. */
+  path?: true;
 }
 
 /** Claude Code is blocked on a human, and which chore that is. `Notification`

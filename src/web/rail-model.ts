@@ -2,14 +2,22 @@
 // under the pointer does with a session that joins or changes group, and which
 // motion each change gets. Pure, so a bare-node suite can call all of it.
 //
-// The four groups are SessionList.tsx's rank(): 0 Needs you, 1 Working,
-// 2 Done · unseen, 3 Idle.
+// The five groups are SessionList.tsx's rank(): 0 Needs you, 1 Working,
+// 2 Done · new, 3 Done, 4 Ready.
+//
+// CHANGED ON PURPOSE (design recommendations, 2026-11-09): 2 and 3 were "Done ·
+// unseen" and "Idle", so a finished turn the card calls Done sat under Idle
+// once seen, beside sessions never given a prompt, whose card said Working.
+// One state, one name: a finished turn is Done (new until looked at), and a
+// session waiting for its first prompt is Ready, in a group of its own.
 
 import { t } from "./i18n";
 
-export type RailGroup = 0 | 1 | 2 | 3;
-export const RAIL_GROUPS: readonly RailGroup[] = [0, 1, 2, 3];
-export const RAIL_GROUP_LABEL_MSGS = ["board.railGroup.needs", "board.railGroup.working", "board.railGroup.done", "board.railGroup.idle"] as const;
+export type RailGroup = 0 | 1 | 2 | 3 | 4;
+export const RAIL_GROUPS: readonly RailGroup[] = [0, 1, 2, 3, 4];
+export const RAIL_GROUP_LABEL_MSGS = [
+  "board.railGroup.needs", "board.railGroup.working", "board.railGroup.new", "board.railGroup.done", "board.railGroup.ready",
+] as const;
 
 /** Rows drawn before the rail folds. Needs you and Working are never part of
  *  the budget's cut: nobody waiting on you is ever hidden. */
@@ -25,7 +33,7 @@ export interface Slot { id: string; group: RailGroup }
 
 /** How many of a group's rows are drawn before its fold, and how many wait
  *  behind it. `counts` is rows per group, in group order. */
-export function foldPlan(counts: readonly [number, number, number, number]): { shown: number; rest: number }[] {
+export function foldPlan(counts: readonly [number, number, number, number, number]): { shown: number; rest: number }[] {
   let budget = Math.max(0, RAIL_FOLD_AT - counts[0] - counts[1]);
   return counts.map((n, g) => {
     if (g < 2) return { shown: n, rest: 0 };

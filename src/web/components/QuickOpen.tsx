@@ -23,7 +23,10 @@ import { isApplePlatform, platformName } from "../platform";
 import { SearchGlyph } from "./rail-glyphs";
 import { KitStateGlyph } from "./kit-icons";
 
-/** The groups that hold more than one kind of row, where the kind tag is drawn. */
+/** The groups that hold more than one kind of row, where the kind tag is
+ *  drawn. Not the pinned row (Settings): its title and its chord say what it
+ *  is, and a word more beside them is clutter; the tag stays in its spoken
+ *  text. */
 const MIXED_GROUPS: ReadonlySet<string> = new Set(["recent", "open"]);
 
 function Highlighted({ text, hits }: { text: string; hits: number[] }) {
@@ -168,9 +171,12 @@ export default function QuickOpen({ items, onClose, onRun }: {
             anywhere in it leaves focus there too, so the next key types. */}
         <div ref={listRef} className="qo-list" id="qo-list" role="listbox" aria-label={t("board.quick.results")} tabIndex={-1}
           onMouseDown={e => e.preventDefault()}>
+          {/* The pinned row (Settings) has no caption: one row, named by its
+              own title, set apart from the sessions above it by a rule. */}
           {groups.map(group => (
-            <div key={group.group} role="group" aria-labelledby={`qo-cap-${group.group}`}>
-              <div className="qo-caption" id={`qo-cap-${group.group}`} role="presentation">{group.title}</div>
+            <div key={group.group} role="group" className={group.title ? undefined : "qo-group-ruled"}
+              aria-labelledby={group.title ? `qo-cap-${group.group}` : undefined}>
+              {group.title && <div className="qo-caption" id={`qo-cap-${group.group}`} role="presentation">{group.title}</div>}
               {group.items.map((row, n) => {
                 index++;
                 const i = index;

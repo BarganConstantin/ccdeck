@@ -5,6 +5,7 @@
 // a pill and the card it counts can never name different states: a session
 // blocked on you is Waiting and nothing else, a running one Working, a finished
 // one Done. A session that failed is none of the three; its card says Failed.
+// Nor is one that has not had its first prompt: its card says Ready.
 // Pure and importing no DOM, like ambient-counts.ts, so a bare-node test calls
 // the rule the app runs.
 import { cardState } from "./node-face";

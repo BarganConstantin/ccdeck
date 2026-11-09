@@ -199,7 +199,8 @@ export function stateMarkKind(state: AgentNodeData["state"]): StateMarkKind {
 /** What the detail card says about its state, beside the mark (V4's Agent /
  *  Card): a sentence-case word and the glyph. One function so the card's head
  *  and the faces at a distance agree on which state a card is in: `mark` is the
- *  face's own stateMarkKind for the three states.
+ *  face's own stateMarkKind for the three states, and the hollow idle ring for
+ *  a session that is Ready for its first prompt.
  *
  *  A session blocked on you is the one case the two differ, on purpose. On the
  *  detail card the word "Waiting" names the state, so Figma's single Waiting
@@ -207,7 +208,7 @@ export function stateMarkKind(state: AgentNodeData["state"]): StateMarkKind {
  *  there is no word, so the alert triangle stands BESIDE the state mark (a
  *  permission prompt lands on a session that is still live and the reader needs
  *  both). The colour is the CSS's, from `data-tone`. */
-export type CardStateTone = "active" | "done" | "err" | "waiting";
+export type CardStateTone = "active" | "done" | "err" | "waiting" | "ready";
 export interface CardState {
   tone: CardStateTone;
   word: string;
@@ -215,10 +216,25 @@ export interface CardState {
   mark: StateMarkKind | "alert";
 }
 
-export function cardState(data: Pick<AgentNodeData, "kind" | "state" | "stopFailure" | "waiting">): CardState {
+/**
+ * A session that has started and not been given a prompt: no prompt, no call,
+ * nothing asked of you and no job going. Its reducer state is `active`, but
+ * nothing is at work, so the card says Ready, its row says "Ready for a first
+ * prompt" and the list holds it in a Ready group of its own, all from this one
+ * rule (SessionList.tsx buildRows). A root only: a subagent always has a task.
+ */
+export function neverPrompted(data: Pick<AgentNodeData, "kind" | "state" | "prompts" | "toolCount" | "waiting" | "job">): boolean {
+  return data.kind === "root" && data.state === "active" && !data.waiting && !data.job
+    && data.toolCount === 0 && data.prompts.length === 0;
+}
+
+export function cardState(data: Pick<AgentNodeData, "kind" | "state" | "stopFailure" | "waiting" | "prompts" | "toolCount" | "job">): CardState {
   if (data.kind === "root" && isAlarming(data.waiting)) {
     return { tone: "waiting", word: t("board.card.stateWaiting"), mark: "alert" };
   }
+  // Ready, not Working: the turn the reducer calls active has not begun. The
+  // hollow ring the rail's row and the list's Ready group draw for it.
+  if (neverPrompted(data)) return { tone: "ready", word: t("board.card.stateReady"), mark: "idle" };
   const shown = drawnState(data);
   const mark = stateMarkKind(shown);
   return shown === "active" ? { tone: "active", word: t("board.card.stateWorking"), mark }
