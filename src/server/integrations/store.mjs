@@ -71,7 +71,8 @@ function normaliseConnection(raw) {
  * @param {(msg: string) => void} [opts.warn]
  */
 export function createIntegrationsStore({ dir = () => join(deckDataDir(), STORE_DIR), warn = msg => console.warn(msg) } = {}) {
-  /** Every write, one at a time, so two pages saving at once cannot lose one. */
+  /** Loads can quarantine damaged files, so serialize them with mutations too:
+   *  a reader's stale parse must never move aside a freshly saved file. */
   let chain = Promise.resolve();
   const queued = job => {
     const run = chain.then(job, job);
@@ -92,7 +93,13 @@ export function createIntegrationsStore({ dir = () => join(deckDataDir(), STORE_
       // the user's tokens, and the next save would otherwise replace it with
       // an empty one. Its contents are never logged.
       const aside = `${path}.corrupt-${Date.now()}`;
-      await rename(path, aside).catch(() => {});
+      try { await rename(path, aside); }
+      catch (err) {
+        // Another reader may already have moved it. Any other refusal must
+        // stop the load: a later save must not overwrite unpreserved bytes.
+        if (err?.code === "ENOENT") return null;
+        throw err;
+      }
       warn(`${PRODUCT}: ${label} could not be read as JSON and was moved aside to ${aside}.`);
       return null;
     }
@@ -172,13 +179,13 @@ export function createIntegrationsStore({ dir = () => join(deckDataDir(), STORE_
      *  answers the connection to list: the routes take that secret out of what
      *  an earlier build kept (routes.mjs). */
     async list({ own } = {}) {
-      const { connections, secrets } = await load();
+      const { connections, secrets } = await queued(load);
       return connections.map(c => publicOf(own && secrets.has(c.id) ? own(c, secrets.get(c.id)) : c, secrets));
     },
 
     /** One connection, as a page may see it, or null. */
     async get(id) {
-      const { connections, secrets } = await load();
+      const { connections, secrets } = await queued(load);
       const conn = connections.find(c => c.id === id);
       return conn ? publicOf(conn, secrets) : null;
     },
@@ -186,7 +193,7 @@ export function createIntegrationsStore({ dir = () => join(deckDataDir(), STORE_
     /** The opaque secret for one connection, or null. The ONE read of the
      *  secrets file, and its only caller is the proxy that signs requests. */
     async secret(id) {
-      const { secrets } = await load();
+      const { secrets } = await queued(load);
       return secrets.get(id) ?? null;
     },
 

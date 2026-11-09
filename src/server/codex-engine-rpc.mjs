@@ -49,6 +49,7 @@ export function startEngineRpc(executable, args, home, { env = process.env, onMe
       if (!line.trim()) continue;
       let message;
       try { message = JSON.parse(line); } catch { protocolError('json'); return; }
+      if (!message || typeof message !== 'object' || Array.isArray(message)) { protocolError('envelope'); return; }
       const call = pending.get(message.id);
       if (call && !message.method) {
         clearTimeout(call.timer); pending.delete(message.id);
