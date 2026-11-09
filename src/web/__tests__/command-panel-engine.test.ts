@@ -159,6 +159,12 @@ describe("the Command Panel's engine, made by the deck", () => {
     }
   });
 
+  // The package this machine's npm installed is not these tests' business: since engine 0.1.1 there is
+  // one for Apple silicon too, so on an arm64 Mac the deck's own import found it, failed to verify it
+  // against the made-up key and turned "not-installed" into "not-verified". Each engine here is handed
+  // an import that finds nothing, so the answer is the same on every host.
+  const noPackage = async () => ({ status: "absent" });
+
   it("on macOS, as on Linux, reaches the engine only when its hello advertises a terminal backend", async () => {
     for (const platform of ["darwin", "linux"]) {
       for (const backend of ["unavailable", undefined, null, ""]) {
@@ -166,7 +172,7 @@ describe("the Command Panel's engine, made by the deck", () => {
         (client.capabilities.terminal as { backend: unknown }).backend = backend;
         const asked = vi.spyOn(client, "request");
         const createClient = vi.fn(() => client);
-        const e = cpe.commandPanelEngine({ platform, env: { CCDECK_HOME: "/x/deck" }, keys: ["K"], lstat: async () => ({}), createClient });
+        const e = cpe.commandPanelEngine({ platform, env: { CCDECK_HOME: "/x/deck" }, keys: ["K"], lstat: async () => ({}), importPackage: noPackage, createClient });
         for (const method of ["status", "launch"]) {
           const got = await e.route(method, method === "launch" ? { agent: "claude" } : null);
           expect([got.status, got.body.code], `${platform} ${String(backend)} ${method}`).toEqual([409, "no-terminal"]);
@@ -176,7 +182,7 @@ describe("the Command Panel's engine, made by the deck", () => {
       // Advertised: the same one client, made as on Linux, and every route asked of it.
       const client = fakeClient({ status: 200, body: { ok: true, platform } });
       const createClient = vi.fn(() => client);
-      const e = cpe.commandPanelEngine({ platform, env: { CCDECK_HOME: "/x/deck" }, keys: ["K"], lstat: async () => ({}), createClient });
+      const e = cpe.commandPanelEngine({ platform, env: { CCDECK_HOME: "/x/deck" }, keys: ["K"], lstat: async () => ({}), importPackage: noPackage, createClient });
       const got = await e.route("status", null);
       expect([got.status, got.body], platform).toEqual([200, { ok: true, platform }]);
       expect(createClient.mock.calls, platform).toEqual([[{ enabled: true, directory: "/x/deck/engine", publicKey: ["K"], hostVersion: RUNNING_VERSION ?? "0.0.0", terminal: true }]]);
@@ -192,7 +198,7 @@ describe("the Command Panel's engine, made by the deck", () => {
     ];
     for (const [lstat, keys, code] of cases) {
       const looked = vi.fn(lstat);
-      const e = cpe.commandPanelEngine({ platform: "darwin", env: { CCDECK_HOME: "/x/deck" }, keys, lstat: looked, createClient });
+      const e = cpe.commandPanelEngine({ platform: "darwin", env: { CCDECK_HOME: "/x/deck" }, keys, lstat: looked, importPackage: noPackage, createClient });
       const got = await e.route("status", null);
       expect([got.status, got.body.code], code).toEqual([409, code]);
       expect(looked.mock.calls).toEqual([["/x/deck/engine"]]);
