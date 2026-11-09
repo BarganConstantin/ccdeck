@@ -212,9 +212,12 @@ describe("the topbar's Feedback button", () => {
     expect(item).toMatch(/onPress: onFeedback/);
     // A modal behind it, so the button says so and holds no state.
     expect(rails).toMatch(/aria-haspopup=\{disclosure \? undefined : "dialog"\}/);
-    // On the bar, in the utility run beside the gear, at every desktop width.
+    // CHANGED ON PURPOSE (V4): on the bar in a corner cell of its own, at
+    // every width, so it never reads as part of Search.
     expect(items).toMatch(/utilities: \[settings, feedback\]/);
-    expect(app).toMatch(/\{!phone && <div className="actions"><UtilityRun items=\{\[rails\.search, \.\.\.rails\.topUtilities\]\} \/><\/div>\}/);
+    expect(items).toMatch(/corner: feedback,/);
+    expect(app).toMatch(/\{!phone && <div className="actions"><UtilityRun items=\{\[rails\.search\]\} \/><\/div>\}/);
+    expect(app).toMatch(/<div className="tb-corner"><UtilityRun items=\{\[rails\.corner\]\} \/><\/div>/);
   });
 
   it("draws its glyph on the chrome's one icon spec (#837), and is named and hinted by its word at every desktop width (V4's Figma draws the bar button icon-only)", () => {
@@ -241,15 +244,14 @@ describe("the topbar's Feedback button", () => {
     expect(edgeSheet).not.toMatch(/\.utility-run[^{]*\{[^}]*display:\s*none/);
   });
 
-  it("is in the phone's dock too, by its whole name, behind More", () => {
-    // Under 641px the dock stands in for the stripes and the utilities, and
-    // the three rare dialogs — History, Browser watch, Feedback — sit behind
-    // More, where a row has the room to say "Send feedback" whole.
+  it("is on the phone's bar too, in the same corner, and not behind More", () => {
+    // CHANGED ON PURPOSE (V4): under 641px the dock stands in for the stripes
+    // and Search, and Feedback keeps its corner of the bar, so there is one
+    // entry on every size: More drops its row (it says "Send feedback" whole
+    // wherever a menu still lists it, as quick open does).
     expect(item).toMatch(/menu: t\("board\.rail\.feedback\.menu"\)/);
-    // A connected tracker's row (#2178) comes before it; Feedback stays last.
-    // CHANGED ON PURPOSE (the owner's phone layout): the dock has five doors, so
-    // Settings (utilities[0]) joins Feedback in More, in the order they had.
-    expect(app).toMatch(/more=\{\[rails\.search, \.\.\.rails\.capacity, \.\.\.rails\.right\.slice\(1\)\.flat\(\), \.\.\.rails\.integrations, \.\.\.rails\.explore, \.\.\.rails\.utilities\]\}/);
+    expect(app).toMatch(/more=\{\[rails\.search, \.\.\.rails\.capacity, \.\.\.rails\.right\.slice\(1\)\.flat\(\), \.\.\.rails\.integrations, \.\.\.rails\.explore, \.\.\.rails\.utilities\.filter\(item => item !== rails\.corner\)\]\}/);
+    expect(app).not.toMatch(/\{!phone && <div className="tb-corner">/);
     expect(rails).toMatch(/item\.menu \?\? item\.label/);
   });
 

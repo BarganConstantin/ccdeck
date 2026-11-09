@@ -17,7 +17,8 @@
 //
 // ONE FOLDER, AND ONLY KEYS SHIPPED IN THIS FILE. The engine is looked for in
 // `<deck data folder>/engine` (CCDECK_HOME when set; deck-home.mjs) and
-// nowhere else: not on PATH, never downloaded by the deck. Its manifest must
+// nowhere else: not on PATH, and downloaded only when somebody presses
+// Install on the page (engine-install.mjs). Its manifest must
 // be signed by one of ENGINE_PUBLIC_KEYS, which is empty in this release — so
 // a folder that is there answers `not-verified` without the deck reading the
 // executable, and one that is not answers `not-installed`, without looking
@@ -29,7 +30,11 @@
 // package that came with the deck for this machine (engine-package.mjs):
 // verified, never downgrading, copied whole or not at all. A package that is
 // not there, or an import that is refused, leaves whatever is installed as it
-// was. Still only on a question, still only with the switch on.
+// was. Still only on a question, still only with the switch on. The page's
+// own Install (engine-install.mjs, `installer` below) is the third source:
+// the same package from the npm registry, or a package file, after a press.
+// Every change to the folder, from either, runs under one lock
+// (withEngineLock), and an install stops the running engine first.
 //
 // THE ENGINE IS TOLD IT MAY SERVE THE PANEL, and only this one. The client
 // made here is the only one constructed with `terminal: true`, which is what
@@ -56,6 +61,7 @@ import { promises as fsp } from "node:fs";
 import { posix as posixPath, win32 as winPath } from "node:path";
 import { deckDataDir } from "./deck-home.mjs";
 import { ENGINE_ON_WINDOWS, importEngine } from "./engine-package.mjs";
+import { createEngineInstaller, tightenDataFolder, withEngineLock } from "./engine-install.mjs";
 import { createProEngineClient } from "./pro-engine-client.mjs";
 import { engineRefusal, engineTerminals } from "./pro-engine-terminal.mjs";
 import { RUNNING_VERSION } from "./running-version.mjs";
@@ -104,24 +110,39 @@ function settlesWithin(promise, ms) {
   return Promise.race([promise.then(() => true, () => true), out]).finally(() => clearTimeout(timer));
 }
 
+/** The package that came with the deck, brought in (engine-package.mjs) once
+ *  the data folder is the owner's alone: nothing in a folder others may write
+ *  to verifies (tightenDataFolder). The default `importPackage` below, so a
+ *  test that hands in its own import touches no real folder. */
+async function importBesideDeck(options) {
+  await tightenDataFolder(deckDataDir(options.platform, options.env), options.platform);
+  return importEngine(options);
+}
+
 /**
  * The Command Panel's engine as the routes and the upgrade take it (the shape
  * engineTerminals gives, with `route` answering a refusal of its own while
  * there is no client), plus `switchedOff()`, `switchedOn()` and `stop()`.
  *
- * `platform`, `env`, `keys`, `lstat`, `importPackage`, `createClient`,
- * `graceMs` and `exitWaitMs` are there for tests; the deck uses the defaults
- * (`commandPanel`, below).
+ * `installer` is the page's Install (engine-install.mjs), made here with the
+ * same platform, keys and import unless one is given; it stops this engine
+ * before it changes the folder (`release`).
+ *
+ * `platform`, `arch`, `env`, `keys`, `lstat`, `importPackage`,
+ * `createClient`, `graceMs`, `exitWaitMs` and `installer` are there for
+ * tests; the deck uses the defaults (`commandPanel`, below).
  */
 export function commandPanelEngine({
   platform = process.platform,
+  arch = process.arch,
   env = process.env,
   keys = ENGINE_PUBLIC_KEYS,
   lstat = (path) => fsp.lstat(path),
-  importPackage = importEngine,
+  importPackage = importBesideDeck,
   createClient = createProEngineClient,
   graceMs = STOP_GRACE_MS,
   exitWaitMs = EXIT_WAIT_MS,
+  installer,
 } = {}) {
   let held = null; // { client, terminals, asking: the questions it is answering }
   let making = null; // the question that is making it, so two make one
@@ -148,7 +169,8 @@ export function commandPanelEngine({
       // Never one beside another: the one stopped last is let go first.
       if (exiting && !(await settlesWithin(exiting, exitWaitMs))) return { refusal: "restarting" };
       // With keys to verify against, bring the engine in from its package first.
-      const brought = keys.length > 0 ? await importPackage({ platform, env, keys: [...keys] }) : null;
+      // Under the folder's lock, so never beside an install from the page.
+      const brought = keys.length > 0 ? await withEngineLock(() => importPackage({ platform, env, keys: [...keys] })) : null;
       try {
         await lstat(directory);
       } catch (error) {
@@ -192,8 +214,21 @@ export function commandPanelEngine({
     drop();
   }
 
+  /** Stops the engine now and waits for its process to exit (an install is
+   *  about to replace or remove its folder). Answers whether it exited. */
+  async function release() {
+    cancelStop();
+    drop();
+    return exiting ? settlesWithin(exiting, exitWaitMs) : true;
+  }
+
+  const install = installer ?? createEngineInstaller({ platform, arch, env, keys: [...keys], importPackage, beforeChange: release });
+
   return Object.freeze({
     get enabled() { return true; },
+    /** The page's Install: status, install, a file, cancel, remove. */
+    installer: install,
+    release,
     async route(method, body) {
       cancelStop();
       const r = await ready();

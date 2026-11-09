@@ -249,12 +249,18 @@ describe("no setting the pages drew before went missing", () => {
   // Tool history draws its rows once the deck has answered how much it keeps, which a
   // static render cannot wait for: its ids are held to the component that draws them.
   const toolHistory = readFileSync(new URL("../components/ToolAuditSettings.tsx", import.meta.url), "utf8");
+  // CHANGED ON PURPOSE (V4's engine install rows): the terminal engine's row in
+  // General draws once the deck has said whether this machine can take an
+  // engine at all, for the same reason — so it is held to the component too.
+  const terminalSection = readFileSync(new URL("../components/TerminalSection.tsx", import.meta.url), "utf8");
+  const waitsForTheDeck = new Set(["terminal-engine", "terminal-engine-remove"]);
   it.each(SECTIONS)("%s still draws every place the search can land on", section => {
     const ids = expected(section);
     expect(ids.length, section).toBeGreaterThan(0);
     const drawn = settings(draw(section));
     for (const id of ids) {
       if (section === "data") expect(toolHistory, id).toContain(`settingId="${id}"`);
+      else if (waitsForTheDeck.has(id)) expect(terminalSection, id).toContain(`settingId="${id}"`);
       else expect(drawn, `${section}: ${id}`).toContain(id);
     }
   });

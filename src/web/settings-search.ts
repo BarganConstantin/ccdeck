@@ -143,6 +143,12 @@ function buildIndex(): SettingsEntry[] {
       entryOf({ id: "browser-watch", section: "general", group: L("settings.search.group.elsewhere"), label: L("settings.search.browserWatch") }),
       { id: "terminal", section: "general", get group() { return t("settings.experimental.group"); }, get label() { return t("settings.search.commandPanel"); },
         keywords: ["terminal", "tmux", "shell", "console", "command line", "cli", "pane", "attach", "type", "beta", "experimental", ...EXPERIMENTAL_WORDS] },
+      // The engine's rows under the switch (TerminalSection's EngineRows),
+      // drawn while the Command Panel is on.
+      entryOf({ id: "terminal-engine", section: "general", group: L("settings.experimental.group"), label: L("settings.terminal.engine.name"),
+        words: ["engine", "install", "update", "version", "download", "terminal", "native", ...EXPERIMENTAL_WORDS] }),
+      entryOf({ id: "terminal-engine-remove", section: "general", group: L("settings.experimental.group"), label: L("settings.terminal.engine.removeName"),
+        words: ["engine", "remove", "uninstall", "delete", "free space", "disk"] }),
     ],
     appearance: [
       entryOf({ id: "theme", section: "appearance", label: L("settings.theme.title") }),

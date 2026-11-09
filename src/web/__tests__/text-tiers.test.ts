@@ -176,7 +176,18 @@ describe("what was migrated to the secondary tier", () => {
       // rather than a heading in --text. A label, not prose, kept in the list
       // because the kit draws it so.
       ".ap-reset-list-head h3.ap-reset-all-head",
-      ".ap-state-text b", ".ap-sum .ap-nav-name",
+      ".ap-state-text b",
+      // CHANGED ON PURPOSE (V4's Figma): the account row as V4 draws it. The
+      // second figure and a figure on line 2, the reset after the plan, the
+      // open row's values, a state line about something that clears on its
+      // own, the selected row's other quiet parts; and the group's head —
+      // its chevron, count, expand-all, how many can be switched to, the sort
+      // glyph — with "and N more" under the previews. The head's title moved
+      // up to --text, so it left this list.
+      ".ap-account.active :where(.ap-alias-domain, .ap-q-label, .ap-q-plan, .ap-marks, .ap-meta-key)",
+      ".ap-fig-2 .ap-q-pct", ".ap-issue-line", ".ap-lane-reset", ".ap-meta", ".ap-meta-value",
+      ".ap-preview-more", ".ap-q-pct", ".ap-q-reset", ".ap-rest-head > .ap-rest-all", ".ap-rest-ready",
+      ".ap-rest-sort-glyph", ".ap-sum .ap-nav-chev", ".ap-sum-count", ".ap-tag",
       // V4's Agent / Card sets its task line (the session's name or title, or a
       // subagent's kind and folder) in this tier, and its foot — cost · time …
       // and the sub-agent count — in the same ink as mono figures. The foot is
@@ -257,16 +268,20 @@ describe("what was migrated to the secondary tier", () => {
       ".bw-row-detail",
       ".bw-settings-note",
       // The same recap, whole, in the detail panel.
-      // The canvas filter chips at rest, the one exception that is a label and
-      // not a sentence: a bar of categories that are all showing sits a tier
-      // under the foreground so the canvas stays the loudest thing, and the
-      // pointer lifts a chip to --text. Its floors are held in quiet-signals.
-      ".cat-filter.off",
+      // The canvas's tool legend at rest, the one exception that is a label
+      // and not a sentence: a legend of categories that are all showing sits
+      // a tier under the foreground so the canvas stays the loudest thing, and
+      // the pointer lifts an item to --text. Its floors are held in
+      // quiet-signals.
+      // CHANGED ON PURPOSE (V4's legend): a showing item is in this tier and a
+      // hidden one steps down to --text-dim beside a hollow dot (so
+      // `.cat-filter.off` left this list and `.cat-filter` came back), and the
+      // folded legend's "Tools" button below 600px wide says its word in it.
+      ".cat-filter",
+      ".cat-filter-tools",
       // CHANGED ON PURPOSE (V4's Figma): a companion tile's name is set in this tier, like a theme's.
       ".character-choice",
-      // CHANGED ON PURPOSE (V4's Figma): the off pill sits in --text-secondary,
-      // and the pills that show take --text (so `.cat-filter` left this list).
-      // The rest are V4's secondary-ink lines: the auto-fit chip and the
+      // CHANGED ON PURPOSE (V4's Figma): V4's secondary-ink lines: the auto-fit chip and the
       // re-arrange strip's status words, the drag trash's first line, the recap
       // note's body and the cost tooltip's model line.
       ".autofit-chip",
@@ -600,6 +615,11 @@ describe("what was migrated to the secondary tier", () => {
       ".ig-leave-confirm p",
       ".ig-managed-identity p",
       ".ig-overview-info",
+      // CHANGED ON PURPOSE (V4's Figma): a tracker dialog's resize readout
+      // (its size while a drag or keyboard mode runs) and keyboard mode's line
+      // saying what the keys do are set in this tier, 11px mono.
+      ".ig-rs-keys-hint",
+      ".ig-rs-readout",
       ".ig-total",
       // CHANGED ON PURPOSE (V4's Figma): Keyboard's field label, its key rows' sentences
       // and the Note under a group are set in --text-secondary.
@@ -629,6 +649,13 @@ describe("what was migrated to the secondary tier", () => {
       ".ts-note",
       ".ts-resumed",
       ".ts-text",
+      // The engine card in the same place: the sentence that says where the
+      // terminal engine stands and what pressing the button will do (fetch,
+      // check, retry), and the steps of an install in progress — "Downloading",
+      // "Checking the signature" — read once to know how far it got. The step
+      // being done steps up to --text, the ones still to come down to --muted.
+      ".ts-eng-step",
+      ".ts-eng-text",
       // The keys bar's sentences that ask nothing of the eye but are read whole:
       // the end bar and the first-run line (V4 draws both in this tier, with
       // one Quiet button at the right), and the older hosts dialog's intro and

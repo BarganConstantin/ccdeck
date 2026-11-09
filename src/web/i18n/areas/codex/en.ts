@@ -33,6 +33,8 @@ const catalog: Catalog = {
 
   // The row's voice (codex-accounts.ts CODEX_VOICE)
   "codex.row.liveTitle": "Default account for new sessions",
+  "codex.row.defaultWord": "default",
+  "codex.row.notChecked": "Quota not checked yet",
   "codex.row.liveSpoken": "Default account:",
   "codex.row.readBy": "When the deck last read this account's usage",
   "codex.row.readPlan": "When the deck last read this account's usage, and when it plans to read it again: each minute for the default account and every five for the others, while this panel is open. These are the limits Codex reports for the account, so a plan with one window shows one bar.",

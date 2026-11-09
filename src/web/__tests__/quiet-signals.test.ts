@@ -189,25 +189,25 @@ describe("the contrast maths, checked against the two ends everybody knows", () 
 });
 
 describe("1. the tool-category chip you switched off (#368.1)", () => {
-  /** The bar is translucent over the canvas, which is NOT --panel — the report
-   *  quoted --panel's numbers. Its own fill is what the chip actually sits on. */
+  /** What an item's word actually sits on. CHANGED ON PURPOSE (V4's Figma):
+   *  the bar was a slab with a fill of its own; the legend that replaced it
+   *  draws none at rest, so the bed is the canvas itself, --bg per theme. */
   function chipBar(theme: Theme): Rgba {
-    // One rule serves both themes now (the light override only ever carried a
-    // different shadow, and the bar has none); --panel resolves per theme.
-    const raw = declOf(".cat-filter-bar", "background")!;
-    return over(resolve(raw, theme), tok("--bg", theme));
+    expect(declOf(".cat-filter-bar", "background"), "the legend draws no slab at rest").toBe("none");
+    return tok("--bg", theme);
   }
 
   it("carries `off` on the colour tier alone — no opacity anywhere on the chip", () => {
     // This is the regression that matters: any alpha at all puts --muted under
     // AA in dark, because it only clears it by 0.30 at full strength.
     expect(declOf(".cat-filter.off", "opacity"), "resting").toBeNull();
-    expect(declOf(".cat-filter.off:hover", "opacity"), "hover").toBeNull();
+    // One hover rule serves both states now (V4's legend).
+    expect(declOf(".cat-filter:hover", "opacity"), "hover").toBeNull();
     // And the now-dead property is gone from the chip's transition list.
     expect(declOf(".cat-filter", "transition")).not.toMatch(/opacity/);
   });
 
-  it("reads the off label at 4.5:1 on the bar's own fill, in both themes", () => {
+  it("reads the off label at 4.5:1 on what it sits on, in both themes", () => {
     // Composites whatever `opacity` the rule declares, because that is the
     // mechanism: the fade applied to the chip applied to its label too.
     for (const theme of themes) {
@@ -225,7 +225,11 @@ describe("1. the tool-category chip you switched off (#368.1)", () => {
     // the demonstration is pinned to the --muted label it was written about;
     // it shows that fading a label cannot reach AA, whatever the label is.
     const fg = resolve("var(--muted)", "dark");
-    expect(contrastRatio(faded(fg, 0.75, bed), bed)).toBeLessThan(NON_TEXT + 0.3);
+    // CHANGED ON PURPOSE (V4's legend): measured on the bare canvas the legend
+    // sits on now, not the slab it replaced, 0.75 is 3.33:1 rather than 3.23:1,
+    // still nowhere near AA.
+    expect(contrastRatio(faded(fg, 0.75, bed), bed)).toBeCloseTo(3.33, 2);
+    expect(contrastRatio(faded(fg, 0.75, bed), bed)).toBeLessThan(BODY);
     expect(contrastRatio(faded(fg, 0.9, bed), bed)).toBeLessThan(BODY);
     expect(contrastRatio(fg, bed)).toBeGreaterThanOrEqual(BODY);
   });
@@ -234,9 +238,13 @@ describe("1. the tool-category chip you switched off (#368.1)", () => {
     for (const theme of themes) {
       const bed = chipBar(theme);
       const rest = contrastRatio(resolve(declOf(".cat-filter.off", "color")!, theme), bed);
-      const hover = contrastRatio(resolve(declOf(".cat-filter.off:hover", "color")!, theme), bed);
+      // CHANGED ON PURPOSE (V4's legend): one hover rule lifts every item's
+      // word to --text, a hidden one's too. It comes after `.off` at the same
+      // weight, which is what lets it outrank the dim tier.
+      const hover = contrastRatio(resolve(declOf(".cat-filter:hover", "color")!, theme), bed);
       expect(hover, `${theme} off:hover vs off`).toBeGreaterThan(rest);
     }
+    expect(css.indexOf("\n.cat-filter:hover"), "the hover rule follows .off").toBeGreaterThan(css.indexOf("\n.cat-filter.off {"));
   });
 
   it("still reads off as the quieter of the two states, and on as fully lit", () => {
@@ -247,10 +255,11 @@ describe("1. the tool-category chip you switched off (#368.1)", () => {
       expect(on, `${theme} on chip`).toBeGreaterThanOrEqual(BODY);
       expect(off, `${theme} off is quieter`).toBeLessThan(on);
     }
-    // The glyph is drawn in the label's own colour now, so it steps down with
-    // the word; the strike through the name stays the channel that is not a
-    // colour.
-    expect(declOf(".cat-filter.off .cat-name", "text-decoration")).toBe("line-through");
+    // CHANGED ON PURPOSE (V4's legend): the channel that is not a colour is
+    // the dot's shape now, a filled disc against a hollow ring, where it was a
+    // strike through the name.
+    expect(declOf(".cat-filter.off .cat-dot", "background")).toBe("transparent");
+    expect(declOf(".cat-filter.off .cat-dot", "border")).toBe("1.5px solid var(--text-dim)");
   });
 });
 
@@ -386,7 +395,9 @@ describe("5. one focus language, and nothing quietly opting out of it", () => {
     expect(declOf(".jr-row:has(> .jr-row-main:focus-visible)", "outline")).toBe("var(--focus-w) solid var(--accent)");
     expect(killers).toEqual([
       // The text-field family (tokens.css): V4's Figma gives fields no ring, their border turns --accent.
-      ".settings-filter-field:focus-visible, .sm-select:focus-visible, .ap-manage-input:focus-visible,\n.aa-field input:focus-visible, .radio-filter-search input:focus-visible,\n.tr-input:focus-visible, .tr-select:focus-visible,\n.qh-window select:focus-visible, .jr-move-pop select:focus-visible, .jr-transition select:focus-visible,\n.jr-comment-compose textarea:focus-visible, .su-pricing select:focus-visible,\n.ap-field select:focus-visible, .ap-pop .ap-field select:focus-visible,\n.ap-rest-sort select:focus-visible, .bw-settings select:focus-visible",
+      // CHANGED ON PURPOSE (V4's Figma): the other accounts' order is a menu
+      // button now, not a select, so it left this family for the global ring.
+      ".settings-filter-field:focus-visible, .sm-select:focus-visible, .ap-manage-input:focus-visible,\n.aa-field input:focus-visible, .radio-filter-search input:focus-visible,\n.tr-input:focus-visible, .tr-select:focus-visible,\n.qh-window select:focus-visible, .jr-move-pop select:focus-visible, .jr-transition select:focus-visible,\n.jr-comment-compose textarea:focus-visible, .su-pricing select:focus-visible,\n.ap-field select:focus-visible, .ap-pop .ap-field select:focus-visible,\n.bw-settings select:focus-visible",
       ".qo-input:focus-visible",
       ".radio-pin",
       ".radio-search:focus-within",

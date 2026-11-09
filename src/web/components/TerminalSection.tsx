@@ -22,9 +22,12 @@
 // the browser, since the panel runs where the deck does; until it has said, the
 // switch is offered as usual.
 
+import { useState, type ReactNode } from "react";
 import { workspaceOffered } from "../use-view";
 import { SettingRow, SettingsGroup } from "./SettingsParts";
 import { useT, type TFunction } from "../i18n";
+import { mb, olderVersion, platformLabel } from "../engine-install-api";
+import { useEngineInstall } from "../use-engine-install";
 
 export interface TerminalSwitch {
   /** The Command Panel is on now. */
@@ -53,6 +56,84 @@ export function offersWorkspace(terminal: TerminalSwitch | undefined): boolean {
 export function terminalNote(t: TFunction, supported: boolean | null, windows = false): string {
   if (supported === false) return t("settings.terminal.unsupported");
   return t(windows ? "settings.terminal.noteWindows" : "settings.terminal.note");
+}
+
+/**
+ * The engine under the switch, while it is on (Figma "Settings › Terminal"):
+ * which version is here and that it verified, Check for an update, Remove
+ * (it installs again the next time a terminal opens), Install where it is
+ * missing, and an install's progress with Cancel. The deck's status is read
+ * only while the switch is on: off, the route is not there.
+ */
+export function EngineRows() {
+  const t = useT();
+  const eng = useEngineInstall(true);
+  const [upToDate, setUpToDate] = useState(false);
+  const s = eng.status;
+  if (!s || !s.supported) return null;
+  const platform = platformLabel(s.platform);
+  const job = s.job;
+  const canDownload = s.blocked === null;
+  const newer = !!s.installed && !!s.pinned && olderVersion(s.installed.version, s.pinned);
+  const lastFailed = s.last?.outcome === "failed" && eng.watched.has(s.last.id);
+  let note: string;
+  let control: ReactNode = null;
+  let progress: ReactNode = null;
+  if (job) {
+    const ours = job.id === eng.mine;
+    note = !ours ? t("settings.terminal.engine.elsewhere")
+      : s.installed && s.pinned ? t("settings.terminal.engine.updating", { from: s.installed.version, to: s.pinned })
+        : t("settings.terminal.engine.installing", { version: s.pinned ?? "" });
+    if (job.phase === "downloading") {
+      const share = job.total ? Math.min(1, job.received / job.total) : null;
+      const line = job.total ? t("board.stage.setupProgress", { received: mb(job.received), total: mb(job.total) }) : t("board.stage.setupReceived", { received: mb(job.received) });
+      progress = (
+        <span className="settings-engine-progress">
+          <span className="ts-setup-bar ts-eng-bar" role="progressbar" aria-label={note} aria-valuemin={0} aria-valuemax={100}
+            aria-valuenow={share == null ? undefined : Math.round(share * 100)} aria-valuetext={line} data-unknown={share == null || undefined}>
+            <i className="ts-setup-fill" style={share == null ? undefined : { transform: `scaleX(${share})` }} />
+          </span>
+          <span className="ts-eng-mono">{line}</span>
+        </span>
+      );
+      if (ours) control = <button type="button" className="btn" aria-busy={eng.pending || undefined} onClick={() => { void eng.cancel(); }}>{t("common.cancel")}</button>;
+    }
+  } else if (s.elsewhere) {
+    note = t("settings.terminal.engine.elsewhere");
+  } else if (s.installed) {
+    note = t("settings.terminal.engine.verified", { version: s.installed.version, platform });
+    control = (
+      <button
+        type="button" className="btn" aria-busy={eng.pending || undefined}
+        onClick={() => {
+          if (newer && canDownload) { void eng.install(); return; }
+          void eng.refresh().then(() => { setUpToDate(true); setTimeout(() => setUpToDate(false), 2000); });
+        }}
+      >
+        {upToDate ? t("settings.terminal.engine.upToDate") : t("settings.terminal.engine.checkUpdate")}
+      </button>
+    );
+  } else if (s.blocked === "no-keys" || s.blocked === "not-published") {
+    note = t("settings.terminal.engine.notAvailable");
+  } else {
+    note = t("settings.terminal.engine.notInstalled");
+    if (canDownload) control = <button type="button" className="btn primary" aria-busy={eng.pending || undefined} onClick={() => { void eng.install(); }}>{t("settings.terminal.engine.install")}</button>;
+  }
+  if (lastFailed && !job) note = `${note} ${t("settings.terminal.engine.failed")}`;
+  return (
+    <>
+      <SettingRow as="div" settingId="terminal-engine" name={t("settings.terminal.engine.name")} nameId="settings-engine-label" note={note} noteId="settings-engine-note" control={control}>
+        {progress}
+      </SettingRow>
+      {s.installed && !job && (
+        <SettingRow
+          as="div" settingId="terminal-engine-remove" name={t("settings.terminal.engine.removeName")}
+          note={t("settings.terminal.engine.removeNote", { size: mb(s.installed.bytes) })}
+          control={<button type="button" className="btn" aria-busy={eng.pending || undefined} onClick={() => { void eng.remove(); }}>{t("settings.terminal.engine.remove")}</button>}
+        />
+      )}
+    </>
+  );
 }
 
 export default function TerminalSection({ terminal }: { terminal: TerminalSwitch }) {
@@ -85,8 +166,9 @@ export default function TerminalSection({ terminal }: { terminal: TerminalSwitch
             </button>
           }
         />
+        {terminal.on && !unsupported && <EngineRows />}
       </div>
-      {unsupported && <p className="settings-note" id="settings-terminal-unavailable">{t("settings.terminal.unsupported")}</p>}
+      {unsupported &&<p className="settings-note" id="settings-terminal-unavailable">{t("settings.terminal.unsupported")}</p>}
     </SettingsGroup>
   );
 }

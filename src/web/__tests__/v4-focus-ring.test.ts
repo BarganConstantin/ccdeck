@@ -80,7 +80,9 @@ const FIELDS = [
   ".radio-filter-search input", ".tr-input", ".tr-select", ".qh-window select",
   ".jr-move-pop select", ".jr-transition select", ".jr-comment-compose textarea",
   ".su-pricing select", ".ap-field select", ".ap-pop .ap-field select",
-  ".ap-rest-sort select", ".bw-settings select",
+  // CHANGED ON PURPOSE (V4's Figma): the other accounts' order was a select
+  // here; it is a menu button now and takes the global ring.
+  ".bw-settings select",
 ];
 
 describe("one focus ring (V4's Figma)", () => {

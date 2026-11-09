@@ -26,6 +26,8 @@ const catalog: Catalog = {
   "codex.share.failed": "Die Übertragung konnte nicht abgeschlossen werden. Lade die Konten neu und versuche es erneut.",
   "codex.share.copyFailed": "Zwischenablage nicht verfügbar. Markiere den gesamten Code oben und kopiere ihn.",
   "codex.row.liveTitle": "Standardkonto für neue Sitzungen",
+  "codex.row.defaultWord": "Standard",
+  "codex.row.notChecked": "Kontingent noch nicht geprüft",
   "codex.row.liveSpoken": "Standardkonto:",
   "codex.row.readBy": "Wann ccdeck die Nutzung dieses Kontos zuletzt gelesen hat",
   "codex.row.readPlan": "Wann ccdeck die Nutzung dieses Kontos zuletzt gelesen hat und wann es sie wieder liest: jede Minute beim Standardkonto, bei den anderen alle fünf, solange dieses Panel offen ist. Das sind die Limits, die Codex für das Konto meldet – hat ein Tarif nur ein Fenster, siehst du nur einen Balken.",

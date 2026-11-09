@@ -126,7 +126,7 @@
   .qh-window select:focus-visible, .jr-move-pop select:focus-visible, .jr-transition select:focus-visible,
   .jr-comment-compose textarea:focus-visible, .su-pricing select:focus-visible,
   .ap-field select:focus-visible, .ap-pop .ap-field select:focus-visible,
-  .ap-rest-sort select:focus-visible, .bw-settings select:focus-visible {
+  .bw-settings select:focus-visible {
     outline: var(--focus-w) solid Highlight;
     outline-offset: calc(-1 * var(--focus-w));
   }
@@ -180,6 +180,13 @@
      maintenance (#1311). */
   [data-state="degraded"] .pi-dot { background: Canvas; box-shadow: inset 0 0 0 1.5px CanvasText; }
   [data-state="maintenance"] .pi-dot { background: GrayText; }
+  /* The tool legend's dot is the legend's own swatch and keeps its category's
+     colour; a hidden category's is a ring, kept as one in the text colour, so
+     the shape still says which categories the canvas is not showing. */
+  .cat-filter .cat-dot,
+  .cat-tools-item .cat-dot { forced-color-adjust: none; }
+  .cat-filter.off .cat-dot,
+  .cat-tools-item.off .cat-dot { background: Canvas; border-color: CanvasText; }
 
   /* The network map's marks keep their shapes — filled for on, hollow for
      away, dashed for not paired — in the theme's own inks, and its wires keep
@@ -303,9 +310,9 @@
   .canvas-wrap[data-lod="detail"] .recap-note:hover,
   .canvas-wrap[data-lod] .recap-note:hover > .lod-face.recap-face { outline: 1px solid CanvasText; outline-offset: 2px; }
   }
-  /* The order's caret takes the select's own system colour rather than the
-     --muted it rests in, which a contrast theme does not repaint (#1579). */
-  .ap-rest-sort svg { color: ButtonText; }
+  /* The order's glyphs take the button's own system colour rather than the
+     --muted they rest in, which a contrast theme does not repaint (#1579). */
+  .ap-rest-sort-glyph, .ap-rest-sort-chev { color: ButtonText; }
   /* The count keeps its bubble, so the digits stay a badge on the corner
      rather than a stray number over the button's edge. */
   .rail-badge { forced-color-adjust: none; background: CanvasText; color: Canvas; }
@@ -320,8 +327,6 @@
   .sysdetail .sd-core-fill,
   .sysdetail .sd-fill[data-level="text"],
   .sysdetail .sd-fill[data-level="err"],
-  .sysdetail .sd-core-fill[data-level="text"],
-  .sysdetail .sd-core-fill[data-level="err"],
   .ctx-window-fill,
   .ctx-modal .ctx-window-fill,
   .ctx-modal .ctx-window-fill[data-level="high"],
@@ -334,7 +339,7 @@
   .insp-time-span { forced-color-adjust: none; background: CanvasText; }
   .insp-time-bar { outline: 1px solid CanvasText; }
   .qb-fill,
-  .ap-lane-fill,
+  .ap-meter-fill,
   .ap-report-meter i,
   .uh-bar-seg,
   .uh-agent-seg,
@@ -346,7 +351,7 @@
   .ap-proj-colseg,
   .ap-proj-dot { forced-color-adjust: none; }
   .qb-track,
-  .ap-lane-track,
+  .ap-meter,
   .sd-track,
   .up-bone,
   .up-quota-sub.up-quota-note,
@@ -491,6 +496,10 @@
   @media (hover: hover) and (pointer: fine) {
   .ig-splitter:hover::before { background: Highlight; }
   }
+  /* The divider's grip and the dialog's resize lines in system ink: their fills would be gone. */
+  .ig-splitter-grip { forced-color-adjust: none; background: Canvas; border-color: CanvasText; }
+  .ig-splitter-grip::before { forced-color-adjust: none; background: CanvasText; box-shadow: 0 5px 0 CanvasText, 0 10px 0 CanvasText; }
+  .ig-rs::before { forced-color-adjust: none; background: Highlight; }
   /* The chosen row of any integration panel: its fill is gone, its outline stays. */
   .ig-row[data-selected] { outline: 2px solid Highlight; outline-offset: -2px; }
   /* The reader's own face keeps its ring, in the highlight, apart from every other face's edge. */

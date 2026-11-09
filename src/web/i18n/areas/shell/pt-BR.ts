@@ -19,6 +19,19 @@ const catalog: Catalog = {
   "shell.rail.right": "Uso e atividade",
   "shell.appMenu": "Menu do aplicativo",
   "shell.dragToMove": "Arraste para mover · clique duas vezes para recolocar",
+  // ── Workspace's side column: Usage and This machine beside the pane ──
+  "shell.side.fold": "Recolher",
+  "shell.side.unfold": "Expandir",
+  "shell.side.popOut": "Destacar",
+  "shell.side.dock": "Encaixar na coluna",
+  "shell.side.dragToDock": "Arraste pelo cabeçalho · clique duas vezes para encaixar",
+  "shell.side.split": "Divisão da altura entre Uso e Esta máquina",
+  "shell.side.splitHint": "Arraste para dividir a altura · as setas a movem",
+  "shell.side.width": "Largura da coluna lateral",
+  "shell.side.widthHint": "Arraste para alargar ou estreitar a coluna · as setas a movem",
+  "shell.side.usageSum": "{amount} {period}",
+  "shell.side.usageTokens": "{n} tokens {period}",
+  "shell.side.machineSum": "CPU {cpu}% · {memory}",
 
   // ── relative ages used in the update lines and the version chip ──
   "shell.ago.now": "agora mesmo",

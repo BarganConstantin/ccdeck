@@ -26,6 +26,8 @@ const catalog: Catalog = {
   "codex.share.failed": "La transferencia no pudo completarse. Recarga las cuentas e inténtalo de nuevo.",
   "codex.share.copyFailed": "Portapapeles no disponible. Selecciona y copia el código completo de arriba.",
   "codex.row.liveTitle": "Cuenta predeterminada para las sesiones nuevas",
+  "codex.row.defaultWord": "predeterminada",
+  "codex.row.notChecked": "Cuota aún sin comprobar",
   "codex.row.liveSpoken": "Cuenta predeterminada:",
   "codex.row.readBy": "Cuándo leyó ccdeck por última vez el uso de esta cuenta",
   "codex.row.readPlan": "Cuándo leyó ccdeck por última vez el uso de esta cuenta y cuándo piensa volver a leerlo: cada minuto para la cuenta predeterminada y cada cinco para las demás, mientras este panel esté abierto. Son los límites que Codex informa para la cuenta, así que un plan con una sola ventana muestra una sola barra.",

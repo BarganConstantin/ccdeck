@@ -54,33 +54,37 @@ const seen = (html: string) => html
   .replace(/<span class="vis-hidden">[^<]*<\/span>/g, "")
   .replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
 
-/** One window's line on the open row, from its label to its reset slot. */
+/** One window's line on the open row, from its name to the end of its value. */
+// CHANGED ON PURPOSE (V4's Figma): the open row says each window on a line of
+// text — its name in words, then its number or "reset" and when it resets —
+// and the row's one meter, its last line, draws the first window.
 const laneOf = (html: string, label: string) =>
-  new RegExp(`<div class="ap-lane"[^>]*><span class="ap-lane-label" title="${label}">[^]*?class="ap-lane-reset"[^>]*>[^]*?</span></div>`)
+  new RegExp(`<div class="ap-lane"[^>]*><span class="ap-lane-label" title="${label}">[^]*?</div>`)
     .exec(html)?.[0] ?? "";
 
+/** The row's meter, the last thing on it. */
+const meterOf = (html: string) => /<div class="ap-meter"[^>]*>(?:<div class="ap-meter-fill"[^>]*><\/div>)?<\/div>/.exec(html)?.[0] ?? "";
+
 /** What the shut row says of one window, without its label. */
-// CHANGED ON PURPOSE (V4's Figma): the first window is the row's one figure at
-// the right of the name (`ap-value`), and the others are named in the line
-// under it (`ap-q`).
+// CHANGED ON PURPOSE (V4's Figma): the first two windows are the row's two
+// figures at its right edge (`ap-fig`), the first on the name's line and the
+// second under it.
 const shutSays = (html: string, label: string) =>
-  label === "5h"
-    ? seen(/<span class="ap-value ap-q-pct"[^>]*>[^]*?<\/span>/.exec(html)?.[0] ?? "")
-    : seen(new RegExp(`<span class="ap-q"[^>]*><span class="ap-q-label">${label}</span>[^]*?</span></span>`).exec(html)?.[0] ?? "")
-      .replace(label, "").trim();
+  seen(new RegExp(`<span class="ap-fig ap-fig-[12]"[^>]*><span class="ap-q-label">${label}</span>[^]*?</span></span>`).exec(html)?.[0] ?? "")
+    .replace(label, "").trim();
 
 const WINDOWS = [
-  { label: "5h", said: "Reported reset time passed 15h ago, 96% when read 18h ago" },
-  { label: "7d", said: "Reported reset time passed 17h ago, 84% when read 18h ago" },
+  { label: "5h", name: "5-hour", said: "Reported reset time passed 15h ago, 96% when read 18h ago" },
+  { label: "7d", name: "7-day", said: "Reported reset time passed 17h ago, 84% when read 18h ago" },
 ];
 
 describe("an open account row whose windows have reset since a reading that is frozen", () => {
   it("says reset where a frozen row's number was, once its window has reset", () => {
     const open = row(frozenAndReset, true);
-    for (const { label, said } of WINDOWS) {
+    for (const { label, name, said } of WINDOWS) {
       const lane = laneOf(open, label);
       expect(lane, `the ${label} line was not found`).not.toBe("");
-      expect(seen(lane)).toBe(`${label} reset`);
+      expect(seen(lane)).toBe(`${name} reset`);
       // When, and at what, on hover and for a screen reader — the report's words.
       expect(lane).toContain(`title="${said}"`);
       expect(lane).toContain(`<span class="vis-hidden">${said}</span>`);
@@ -90,11 +94,12 @@ describe("an open account row whose windows have reset since a reading that is f
   });
 
   it("draws a reset window's bar empty, not full to the reading before the reset", () => {
-    const open = row(frozenAndReset, true);
-    for (const { label } of WINDOWS) {
-      const lane = laneOf(open, label);
-      expect(lane).toContain('<div class="ap-lane-track"></div>');
-      expect(lane).not.toContain("ap-lane-fill");
+    // The row's one meter draws its first window, shut or open; the open
+    // lines are words and draw no bar of their own.
+    for (const opened of [false, true]) {
+      const html = row(frozenAndReset, opened);
+      expect(meterOf(html)).toBe('<div class="ap-meter" aria-hidden="true"></div>');
+      for (const { label } of WINDOWS) expect(laneOf(html, label)).not.toMatch(/ap-lane-(?:track|fill)|ap-meter/);
     }
   });
 
@@ -104,8 +109,10 @@ describe("an open account row whose windows have reset since a reading that is f
       lanes: [{ id: "five_hour", label: "5h", pct: 33, resetAt: NOW + 2 * HOUR }, frozenAndReset.lanes[1]],
     };
     const lane = laneOf(row(running, true), "5h");
-    expect(seen(lane)).toBe("5h 33%");
-    expect(lane).toContain('<div class="ap-lane-fill" style="width:33%;background:var(--muted);opacity:0.4"></div>');
+    expect(seen(lane)).toBe("5-hour 33%");
+    // In the record's one ink: no warning colour, and the meter in the muted ink.
+    expect(lane).not.toContain("data-level");
+    expect(meterOf(row(running, true))).toContain('<div class="ap-meter-fill" style="width:33%;background:var(--muted);opacity:1"></div>');
     expect(lane).not.toContain("title=\"Reported reset time passed");
   });
 
@@ -117,10 +124,10 @@ describe("an open account row whose windows have reset since a reading that is f
     // compares the figure each view gives for the window, as it always did.
     const cells = [...report(frozenAndReset).matchAll(/<td class="ap-report-cell"[^]*?<\/td>/g)].map(m => seen(m[0].replace(/<span class="ap-report-mobile-label"[^]*?<\/span>/g, "").replace(/<span class="ap-report-win-sub"[^]*$/, "")));
     expect(cells).toHaveLength(2);
-    WINDOWS.forEach(({ label }, i) => {
+    WINDOWS.forEach(({ label, name }, i) => {
       const views = {
         shut: shutSays(shut, label),
-        open: seen(laneOf(open, label)).replace(label, "").trim(),
+        open: seen(laneOf(open, label)).replace(name, "").trim(),
         report: cells[i],
       };
       expect(views, `the ${label} window`).toEqual({ shut: "reset", open: "reset", report: i === 0 ? "96%" : "84%" });

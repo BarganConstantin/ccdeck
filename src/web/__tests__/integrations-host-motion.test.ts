@@ -9,7 +9,7 @@
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
-import { AUTO_DETAIL_CSS, autoDetail, clampDetail, DETAIL_WIDTH, LIST_MIN, readDetailWidth, SPLITTER } from "../integrations/layout";
+import { autoList, clampList, LIST_WIDTH, listCss, listMost, readSplitWidth, SPLITTER } from "../integrations/layout";
 import { SETTINGS_SECTIONS } from "../settings";
 import { sheetText } from "./sheet-source";
 
@@ -101,29 +101,35 @@ describe("the split between a list and its detail", () => {
   });
 });
 
-describe("the detail's width before the reader drags it", () => {
-  it("takes half the workspace, with no 440px cap", () => {
-    expect(autoDetail(1726)).toBe(863);          // a 1920px window's modal
-    expect(autoDetail(1296)).toBe(648);          // 1440px
-    expect(autoDetail(1000)).toBe(500);
+// CHANGED ON PURPOSE: the divider measures the list now, not the detail. The
+// list is held between 280px and 60 % of the workspace (it was the detail,
+// between 320 and 1600 with the list at 420 or more), so a dialog the reader
+// makes bigger or smaller keeps the list where it was and the detail takes
+// the difference. Before any drag the list still takes what half the
+// workspace for the detail leaves.
+describe("the list's width before the reader drags it", () => {
+  it("takes what half the workspace for the detail leaves", () => {
+    expect(autoList(1726)).toBe(863);          // a 1920px window's default dialog, less its edges
+    expect(autoList(1266)).toBe(633);          // 1440px
+    expect(autoList(1000)).toBe(500);
   });
 
-  it("keeps the list at 420px or more, and itself at 320px or more", () => {
-    // A 900px window's modal: half would leave the list under its floor.
-    expect(autoDetail(810)).toBe(810 - LIST_MIN - SPLITTER);
-    expect(810 - SPLITTER - autoDetail(810)).toBe(LIST_MIN);
-    expect(autoDetail(700)).toBe(DETAIL_WIDTH.min);
-    expect(autoDetail(4000)).toBe(DETAIL_WIDTH.max);
+  it("keeps the list at 280px or more and at 60% or less", () => {
+    expect(autoList(400)).toBe(LIST_WIDTH.min);
+    expect(autoList(4000, 0.2)).toBe(listMost(4000));
+    expect(listMost(4000)).toBe(2400);
     // A dragged width is held to the same bounds.
-    expect(clampDetail(200, 1726)).toBe(DETAIL_WIDTH.min);
-    expect(clampDetail(1500, 1726)).toBe(1726 - LIST_MIN - SPLITTER);
-    expect(clampDetail(600, 1726)).toBe(600);
+    expect(clampList(200, 1726)).toBe(LIST_WIDTH.min);
+    expect(clampList(1500, 1726)).toBe(Math.floor(1726 * 0.6));
+    expect(clampList(600, 1726)).toBe(600);
+    expect(SPLITTER).toBe(1);
   });
 
   it("is the same rule in the sheet, and nothing is stored until the reader drags", () => {
-    expect(AUTO_DETAIL_CSS).toBe("clamp(320px, 50%, 1600px)");
-    expect(readDetailWidth("no-such-panel")).toBeNull();
-    expect(split).toMatch(/"--ig-detail-w": width == null \? autoDetailCss\(automaticDetailShare\) : `\$\{width\}px`/);
+    expect(listCss(null)).toBe("clamp(280px, 50%, 60%)");
+    expect(readSplitWidth("no-such-panel")).toBeNull();
+    expect(split).toMatch(/"--ig-list-w": splitCss\(width, automaticDetailShare\)/);
+    expect(host).toMatch(/\.ig-split\[data-detail\]:not\(\[data-drill-in\]\)\s*\{[^}]*grid-template-columns:\s*var\(--ig-list-w\) 1px minmax\(0, 1fr\)/);
     // Enter and a double click on the splitter go back to it.
     expect(split).toMatch(/if \(event\.key === "Enter"\) \{ event\.preventDefault\(\); commit\(null\); return; \}/);
     expect(split).toMatch(/onDoubleClick=\{\(\) => commit\(null\)\}/);

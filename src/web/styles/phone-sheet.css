@@ -83,6 +83,14 @@
   .app.app.app .accounts-panel[tabindex="-1"]:focus-visible {
     outline: none;
   }
+  /* Usage and This machine are full height, from the dock to under the top
+     bar, as Workspace's side column has them on a desktop: one at a time, the
+     sheet the whole room whatever it holds. */
+  .app.app.app .usage-panel,
+  .app.app.app .sysdetail {
+    height: var(--sheet-room);
+    max-height: var(--sheet-room);
+  }
   /* The Inspector is a column of its own scroll, so it takes a height. */
   .app.app.app .detail {
     height: min(80vh, var(--sheet-room));

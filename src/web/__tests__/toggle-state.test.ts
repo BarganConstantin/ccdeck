@@ -666,12 +666,14 @@ describe("the category filter chips, handed over from #368", () => {
   });
 
   it("carries `off` in a channel that is not colour", () => {
-    expect(decl(".cat-filter.off .cat-name", "text-decoration")).toBe("line-through");
-    // CHANGED ON PURPOSE (V4's Figma): the chip carries a 6px dot in the
-    // category's own colour in place of the drawn glyph, and an off pill loses
-    // its fill and its accent stroke as well as its ink.
+    // CHANGED ON PURPOSE (V4's legend): the channel is the dot's shape, a disc
+    // in the category's colour while it shows and a hollow ring in --text-dim
+    // once it is hidden, where it was a strike through the pill's name. Drawn
+    // as a border, so a Contrast theme keeps the ring.
     expect(markup("components/CategoryFilterBar.tsx")).toMatch(/<span className="cat-dot" aria-hidden="true" \/>/);
-    expect(decl(".cat-filter.off", "background")).toBe("none");
+    expect(decl(".cat-filter.off .cat-dot", "background")).toBe("transparent");
+    expect(decl(".cat-filter.off .cat-dot", "border")).toBe("1.5px solid var(--text-dim)");
+    expect(RULES.some(r => selectors(r.selector).includes(".cat-filter.off .cat-name")), "the strike is gone with the pill").toBe(false);
   });
 
   it("needed one — the two colour tiers alone are under 3:1 apart in both themes", () => {
@@ -685,12 +687,13 @@ describe("the category filter chips, handed over from #368", () => {
   });
 
   it("did not spend the contrast #368 just bought to get it", () => {
-    // The strike is geometry; both tiers stay exactly where that issue put them.
-    // CHANGED ON PURPOSE (V4's Figma, Category filter): a pill that is not
-    // showing reads in --text-secondary, a step above the --muted it had, with a
-    // --line stroke and no fill; the strike-through is kept.
-    expect(decl(".cat-filter.off", "color")).toBe("var(--text-secondary)");
-    expect(decl(".cat-filter.off:hover", "color")).toBe("var(--text)");
+    // The ring is geometry; neither tier is faded to get it.
+    // CHANGED ON PURPOSE (V4's legend): an item that shows reads in
+    // --text-secondary and a hidden one in --text-dim, the dim tier that still
+    // clears 4.5:1 (quiet-signals.test.ts); the pointer lifts either to --text.
+    expect(decl(".cat-filter", "color")).toBe("var(--text-secondary)");
+    expect(decl(".cat-filter.off", "color")).toBe("var(--text-dim)");
+    expect(decl(".cat-filter:hover", "color")).toBe("var(--text)");
     expect(declIn(bodyOf(".cat-filter.off"), "opacity")).toBeNull();
   });
 });

@@ -10,6 +10,10 @@
 // provider's panel (integrations/panels.tsx), handed the connection, a way to
 // read through it, its images, its own memory and whether the window is narrow.
 //
+// THE SIZE is the reader's (DialogResize.tsx): it opens at 88 % of the window,
+// never past 1680 x 1120, and every edge and corner resizes it; the size is
+// remembered per provider. On a phone it is a full-screen sheet.
+//
 // Loaded when it first opens, with every panel, through
 // IntegrationModalOnDemand.tsx: nothing here is in the page's own bundle.
 import { useCallback, useEffect, useId, useMemo, useRef, useState, type RefObject } from "react";
@@ -23,8 +27,9 @@ import type { IntegrationConnection, IntegrationKind } from "../integrations/typ
 import { useFeatureUse } from "../feature-use";
 import { isTabbable, TABBABLE_SELECTOR } from "../modal-dismiss";
 import { useDrillIn } from "./IntegrationSplit";
-import { FreshnessSlot } from "./IntegrationFreshness";
+import { FreshnessSlot, FreshnessTools } from "./IntegrationFreshness";
 import { Dialog } from "./Dialog";
+import { DialogResizeHandles, DialogSizeMenu, useDialogResize } from "./DialogResize";
 import { KitIcon } from "./kit-icons";
 import { useModalDismiss, useScrimDismiss } from "./use-modal-dismiss";
 
@@ -74,6 +79,7 @@ export default function IntegrationModal({ kind, connections, onClose, onReconne
   }), []);
   const dialogRef = useModalDismiss(close, { focusRef: firstControl });
   const scrimPress = useScrimDismiss(close);
+  const resize = useDialogResize(kind, dialogRef);
   // The provider's name, once a day, for the usage reports: never the
   // connection or anything read through it.
   useFeatureUse(kind);
@@ -99,11 +105,30 @@ export default function IntegrationModal({ kind, connections, onClose, onReconne
     assetUrl: connectionAssetUrl({ kind, id: connId }),
     prefs: connectionPrefs(kind, connId),
   } : null), [kind, connId]);
+  // The panel is drawn again only when what it is handed changes: a resize
+  // from the Size menu or the keyboard renders the host again, not the board.
+  const onReconnectRef = useRef(onReconnect);
+  onReconnectRef.current = onReconnect;
+  const panel = useMemo(() => (Panel && connection && helpers ? (
+    <Panel
+      key={connection.id}
+      connection={connection}
+      connections={connections}
+      api={helpers.api}
+      assetUrl={helpers.assetUrl}
+      prefs={helpers.prefs}
+      narrow={narrow}
+      onReconnect={() => { close(); onReconnectRef.current(connection.id); }}
+    />
+  ) : null), [Panel, connection, connections, helpers, narrow, close]);
   if (!def || !Panel || !connection || !helpers) return null;
 
   return createPortal(
     <Dialog scrim={scrimPress} dialogRef={dialogRef} id={`integration-${kind}-modal`} className="ig-modal" labelledBy="integration-modal-title"
-        data-kind={kind}>
+        data-kind={kind} style={resize.style} data-keyboard-resize={resize.keyboard ? "" : undefined}>
+        {/* The frame clips the content to the rounded corners; the resize
+            handles sit outside it, on and beyond the border. */}
+        <div className="ig-frame">
         {/* A div, not a <header>: the dialog's label already names it, and a
             second banner landmark is one too many (axe). */}
         <div className="ig-head">
@@ -125,18 +150,13 @@ export default function IntegrationModal({ kind, connections, onClose, onReconne
         </div>
         <div ref={bodyRef} className="ig-body">
           <FreshnessSlot.Provider value={freshSlot}>
-          <Panel
-            key={connection.id}
-            connection={connection}
-            connections={connections}
-            api={helpers.api}
-            assetUrl={helpers.assetUrl}
-            prefs={helpers.prefs}
-            narrow={narrow}
-            onReconnect={() => { close(); onReconnect(connection.id); }}
-          />
+          <FreshnessTools.Provider value={resize.enabled ? <DialogSizeMenu resize={resize} /> : null}>
+          {panel}
+          </FreshnessTools.Provider>
           </FreshnessSlot.Provider>
         </div>
+        </div>
+        {resize.enabled && <DialogResizeHandles resize={resize} />}
     </Dialog>,
     document.body,
   );

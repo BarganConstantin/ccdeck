@@ -92,12 +92,16 @@ describe("the topbar at a phone's width", () => {
     expect(sourceOf("App.tsx")).not.toContain("SelectedRibbon");
   });
 
-  it("draws no control on the bar under 641px: the dock holds them all, and the queue's names stay off it", () => {
-    // App.tsx mounts the topbar's utilities and the waiting queue's names only
-    // above a phone's width, and the dock below it — the swap
-    // edge-dock-phone.test.ts holds to the sheet's own breakpoint.
+  it("draws no control on the bar under 641px but Feedback's corner: the dock holds the rest, and the queue's names stay off it", () => {
+    // App.tsx mounts Search only above a phone's width, and the dock below
+    // it — the swap edge-dock-phone.test.ts holds to the sheet's own
+    // breakpoint. CHANGED ON PURPOSE (V4): Feedback's corner cell is drawn
+    // at every width, the phone's bar included, its one entry there.
     const app = sourceOf("App.tsx");
-    expect(app).toMatch(/\{!phone && <div className="actions"><UtilityRun items=\{\[rails\.search, \.\.\.rails\.topUtilities\]\} \/><\/div>\}/);
+    expect(app).toMatch(/\{!phone && <div className="actions"><UtilityRun items=\{\[rails\.search\]\} \/><\/div>\}/);
+    // The comment between the two is gone from the source as read (sourceOf),
+    // which leaves its braces.
+    expect(app).toMatch(/<\/ReadoutGroup>\s*(?:\{\s*\}\s*)?<div className="tb-corner"><UtilityRun items=\{\[rails\.corner\]\} \/><\/div>\s*<\/header>/);
     expect(app).not.toContain("WaitingNames");
     // The queue is the waiting pill's popover now; on a phone the working and
     // done pills and the pill at 0 (the spans) stay off the bar.

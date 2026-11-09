@@ -430,7 +430,9 @@ describe("the account alias in the accounts panel row", () => {
     // address. Both spans carry their own whole value now.
     // CHANGED ON PURPOSE (V4's Figma): one name, titled with the whole identity
     // (alias · address), so neither half of it is lost to the ellipsis.
-    expect(clientText()).toMatch(/<span className="ap-alias" title=\{identity\}>\{name\}<\/span>/);
+    // The name is drawn in two parts, an address's domain quieter than the
+    // name before it and cut first, and the title is on the whole of it.
+    expect(clientText()).toMatch(/<span className="ap-alias" title=\{identity\}>\s*<span className="ap-alias-local">\{local\}<\/span>\s*\{domain && <span className="ap-alias-domain">\{domain\}<\/span>\}\s*<\/span>/);
     // And the org is not quietly promoted into the same attribute: two values
     // in one tooltip is how the identifier lost it in the first place.
     expect(accountsFeature).not.toMatch(/className="ap-email"[^>]*a\.org/);

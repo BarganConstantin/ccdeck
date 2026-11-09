@@ -173,72 +173,10 @@
 .ap-rest { padding: 0 4px; }
 /* V4's summary row leads with its chevron, a 6 from the name. */
 .ap-rest .ap-nav { gap: 6px; }
-/* THE LIST'S TWO CONTROLS, beside the chevron while the list is open (#1579) —
-   see RestTools in OtherAccounts.tsx. Laid over the row's right side rather
-   than put in it, because the row is one button and a control cannot sit
-   inside a button. Their box runs the row's full height and a little either
-   side, so a press that misses them lands on nothing rather than folding the
-   list shut. The row's words stop short of them by their MEASURED width —
-   `--rest-tools-w`, set by the component — plus the 18px they stand off the
-   edge and a gap, and the chevron takes the auto margin the words gave up. */
+/* THE LIST'S TWO CONTROLS (#1579) — every row open or shut, and the order —
+   stand in the group's head beside the toggle, not inside it (a control cannot
+   sit inside a button); see accounts-panel.css for the head's two lines. */
 .ap-rest { position: relative; }
-.ap-rest:has(.ap-rest-tools) .ap-nav-text { max-width: calc(100% - var(--rest-tools-w, 170px) - 26px); }
-.ap-rest:has(.ap-rest-tools) .ap-nav-chev { margin-left: auto; }
-/* And the one line in the row that is an alarm wraps rather than being cut:
-   "Auto-switch has nowhere to go" is the sentence that must be read whole. */
-.ap-rest:has(.ap-rest-tools) .ap-nav-state[data-tone="bad"] { white-space: normal; }
-.ap-rest-tools {
-  position: absolute;
-  top: 4px;
-  bottom: 0;
-  right: calc(var(--panel-inset) + 18px);
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  padding: 0 4px;
-}
-.ap-rest-sort { position: relative; display: inline-flex; align-items: center; }
-/* `field-sizing: content` so the closed select is as wide as the order it
-   shows, not the longest one it offers; where a browser does not have it, the
-   cap keeps the widest in bounds, and the words beside it are measured
-   against whatever width it lands on. */
-.ap-rest-sort select {
-  appearance: none;
-  field-sizing: content;
-  max-width: 124px;
-  min-height: 24px;
-  padding: 0 18px 0 6px;
-  border: 1px solid transparent;
-  border-radius: var(--r-ctl);
-  background: none;
-  color: var(--muted);
-  font: inherit;
-  font-size: calc(11px + var(--ui-text-increase, 0px));
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  cursor: pointer;
-  transition: border-color var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease), background var(--dur-fast) var(--ease);
-}
-.ap-rest-sort select[data-sorted] { color: var(--text); }
-/* The keyboard lifts it the way the pointer does; its edge is the field's
-   accent (tokens.css), not the hover's neutral one. */
-.ap-rest-sort select:focus-visible { color: var(--text); background: var(--ctl-fill); }
-@media (hover: hover) and (pointer: fine) {
-.ap-rest-sort select:hover:not(:focus-visible) { border-color: var(--ctl-edge); color: var(--text); background: var(--ctl-fill); }
-}
-/* Held: the order the reader found, not the latest — dashed, as the deck
-   draws everything it is showing as the last thing rather than the current
-   one (the incident chip's stale edge, a stale card's). */
-.ap-rest-sort select[data-held] { border-style: dashed; border-color: var(--ctl-edge); }
-.ap-rest-sort svg {
-  position: absolute;
-  right: 6px;
-  color: var(--muted);
-  pointer-events: none;
-}
-@media (hover: hover) and (pointer: fine) {
-.ap-rest-sort:hover svg { color: var(--text); }
-}
 .ap-rest-all {
   appearance: none;
   display: inline-flex;

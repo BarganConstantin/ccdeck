@@ -584,6 +584,9 @@ const CONTROLS: Control[] = [
   // with the primary button's accent edge. Its search fields and its Open in
   // Jira link are the integrations' shared ones.
   { at: 'button.btn.jr-chip[aria-pressed="true"]', fillFrom: 'button.btn.jr-chip[aria-pressed="true"]', beds: ["--panel"] },
+  // The Filters button the chips fold into in a dialog under 900 wide: the
+  // same chip, with the on chip's accent edge while any filter is on.
+  { at: "button.btn.jr-chip.jr-filter-fold-btn[data-on]", fillFrom: "button.btn.jr-chip.jr-filter-fold-btn[data-on]", beds: ["--panel"] },
   // The forge lists' state chips (#2179): the same chip, on the filter row
   // over the list, and its accent edge when it is on.
   { at: 'button.btn.fgl-chip[aria-pressed="true"]', fillFrom: 'button.btn.fgl-chip[aria-pressed="true"]', beds: ["--panel"] },
@@ -749,8 +752,11 @@ const CONTROLS: Control[] = [
   // The Other accounts list's two controls (#1579), on the same terms: no
   // boundary at rest — the order is its words and the other is named — and the
   // edge they draw under the pointer and the keyboard measured on the column.
-  { at: ".ap-rest-sort select:hover:not(:focus-visible)", fillFrom: ".ap-rest-sort select:hover:not(:focus-visible)",
-    states: [".ap-rest-sort select:focus-visible", ".ap-rest-sort select[data-held]"], beds: ACCOUNTS },
+  // CHANGED ON PURPOSE (V4's Figma): the order is a menu button now, not a
+  // select. It draws no boundary at rest, under the pointer or with its menu
+  // open — a fill answers those — and the one edge it does draw, the dashed
+  // one while the list is held, is measured on the column.
+  { at: ".ap-rest-sort[data-held]", beds: ACCOUNTS },
   { at: ".ap-rest-all:hover", fillFrom: ".ap-rest-all:hover",
     states: [".ap-rest-all:focus-visible"], beds: ACCOUNTS },
   // The network map's way in, over Local network's row, on the same terms as
@@ -914,6 +920,11 @@ describe("what counts as an edge, which BORDER_PROPS decides (#655)", () => {
       // The Projects report's day column: its selection ring and its keyboard
       // focus ring are the whole of its boundary — the bar itself has no box.
       ".ap-proj-day.selected .ap-proj-col",
+      // Workspace's side column: its width edge and the split between its two
+      // panels are thin grab strips with no box of their own, so the keyboard
+      // ring drawn inside them is the whole of their boundary.
+      ".app[data-view=\"workspace\"] .ws-edge:focus-visible",
+      ".app[data-view=\"workspace\"] .ws-split:focus-visible",
       // The feedback dialog's kinds (#1853): the focused thing is a 1px radio,
       // so the card it stands for draws the ring, as the import card does.
       ".fb-kind:has(input:focus-visible)",
@@ -989,7 +1000,10 @@ describe("what counts as an edge, which BORDER_PROPS decides (#655)", () => {
     // both are swept at the unchanged 3:1 floor, not exempted.
     // CHANGED ON PURPOSE (V4's Figma): the integrations' tabs, detail tabs and the New session
     // chips are outlined pills, a few rules more, so the ceiling moves from 166 to 172.
-    expect(EDGED_CONTROLS.length).toBeLessThan(172);
+    // CHANGED ON PURPOSE: Jira's Filters button, the chips folded in a dialog
+    // under 900 wide, adds one: its accent edge while a filter is on, swept
+    // above at the same 3:1 floor. The ceiling moves from 172 to 173.
+    expect(EDGED_CONTROLS.length).toBeLessThan(173);
     // The shapes #378 and #655 each added, still answered: a ring-only rule and
     // a `-color`-longhand-only rule both read as edges.
     expect(paintsAnEdge("outline: 1px solid var(--line);")).toBe(true);
@@ -1340,15 +1354,22 @@ describe("every control that draws a boundary draws one that can be seen (1.4.11
       // A key cap: named by the key written in it (and `.qo-esc` by its word);
       // V4's kit gives it the --line hairline, a label's rim and not a boundary.
       "kbd.qo-key", ".qo-esc", ".qo-foot kbd", ".fb-shortcut kbd",
-      // The category filter's pills (V4's Figma): a --line rim at rest and the
-      // accent's while showing. Each is named by its dot and its word, the
-      // identification 1.4.11 accepts in place of a boundary, and the showing
-      // state is also filled with --accent-16.
-      ".cat-filter", ".cat-filter.off",
+      // CHANGED ON PURPOSE (V4's legend): the category filter's items draw no
+      // rim any more, so `.cat-filter` and `.cat-filter.off` left this list.
+      // What draws a border is a hidden category's dot: a 1.5px ring in
+      // --text-dim inside the item, a state mark (its shape is the state, as
+      // the ticked checkbox's fill is) and not the control's boundary. The
+      // item is named by that dot and its word, the identification 1.4.11
+      // accepts in place of a boundary.
+      ".cat-filter.off .cat-dot",
       // CHANGED ON PURPOSE (V4's Figma): the Auto-switch chips are the same
       // pills — a --line rim at rest, and the chosen one filled with
       // --accent-16 and edged in --accent — each named by its own word.
       ".ap-chip", '.ap-chip[aria-pressed="true"]',
+      // CHANGED ON PURPOSE (V4's Figma): an account row's Switch and Sign in
+      // are the kit's quiet buttons — a --line rim on --bg-soft, like the
+      // phone's keys above — each named by the word written in it.
+      ".ap-switch", ".ap-sign-in",
       ".settings-filter-field:focus-visible", ".sm-select:focus-visible", ".ap-manage-input:focus-visible",
       ".aa-field input:focus-visible", ".tr-input:focus-visible", ".tr-select:focus-visible",
       ".qh-window select:focus-visible", ".jr-move-pop select:focus-visible", ".jr-transition select:focus-visible",

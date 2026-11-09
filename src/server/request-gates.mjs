@@ -506,6 +506,9 @@ export const GUARDED_READS = new Set([
   "/api/terminal/status",
   "/api/terminal/target",
   "/api/terminal/hosts",
+  // The engine's install state (engine-install.mjs): which version is here,
+  // an install's progress and why one failed. The same one caller.
+  "/api/terminal/engine",
   "/api/radio-stations",
   "/api/radio-click",
   // The trackers this deck is connected to (#2178): the list of connections

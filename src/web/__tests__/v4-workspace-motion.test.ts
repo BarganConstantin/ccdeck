@@ -324,32 +324,62 @@ describe("Usage and Machine, arriving and leaving", () => {
 });
 
 describe("where Usage and Machine sit in Workspace", () => {
-  it("start below the strip rows and the pane's header, so no pane button or Inspector head is under them", () => {
+  // CHANGED ON PURPOSE (owner, 2026-11-08): in Workspace the two are a side
+  // column of their own, a grid track between the pane's cell and the
+  // Inspector, instead of floating over the Inspector's place; one popped out
+  // floats. The tests below pin the column; side-column.test.ts runs its state.
+  it("a popped-out part with no place yet starts below the strip rows and the pane's header, so no pane button is under it", () => {
     expect(workspace).toContain("--ws-head: calc(var(--topbar-h) + var(--rating-h, 0px) + var(--pane-head-h));");
-    const base = rule(workspace, '.app[data-view="workspace"] :is(.usage-panel, .sysdetail):not([data-place])');
+    const base = rule(workspace, '.app[data-view="workspace"] :is(.usage-panel, .sysdetail)[data-dock="float"]:not([data-place])');
     expect(decl(base, "top")).toBe("calc(var(--ws-head) + 8px)");
     expect(decl(base, "max-height")).toBe("calc(100vh - var(--ws-head) - 16px - var(--status-room, 0px))");
   });
 
-  // CHANGED ON PURPOSE (V4's Figma): the right edge is 40 in from the window's, clear of the right stripe.
-  it("are the Inspector's column from 1320 only while it exists: under its head, above the status bar, right edge clear of the right stripe", () => {
+  it("dock in a column of the grid, from under the top bar (or a strip banner) to the status bar, never over the Inspector or the pane", () => {
+    const col = rule(workspace, '.app[data-view="workspace"] .ws-side[data-on]');
+    expect(decl(col, "display")).toBe("flex");
+    expect(decl(col, "grid-column")).toBe("2");
+    expect(decl(col, "grid-row")).toBe("2 / -1");
+    expect(col).not.toMatch(/position:\s*fixed/);
+    expect(decl(rule(workspace, '.app[data-view="workspace"]:has(.left-column) .ws-side[data-on]'), "grid-column")).toBe("3");
+    expect(decl(rule(workspace, '.app[data-view="workspace"]:has(.banner-mark, .rating-banner) .ws-side[data-on]'), "grid-row")).toBe("3 / -1");
+    // The column is a track: the pane's cell gives it its width, and the
+    // Inspector stays the last track, after it.
+    expect(decl(rule(workspace, 'body .app[data-view="workspace"][data-side]:not([data-zoom])'), "grid-template-columns")).toBe("minmax(0, 1fr) auto");
+    expect(decl(rule(workspace, 'body .app[data-view="workspace"][data-side]:not([data-zoom]):has(.left-column)'), "grid-template-columns")).toBe("auto minmax(0, 1fr) auto");
     const wide = workspace.slice(workspace.indexOf("@media (min-width: 1320px)"));
-    const body = rule(wide, '.app[data-view="workspace"]:has(.detail) :is(.usage-panel, .sysdetail):not([data-place])');
-    expect(decl(body, "top")).toBe("var(--ws-head)");
-    expect(decl(body, "right")).toBe("var(--edge-w)");
-    expect(decl(body, "max-height")).toBe("var(--ws-col-h)");
-    expect(workspace).toContain("--ws-col-h: calc(100vh - var(--ws-head) - var(--status-room, 0px));");
-    // The column rule never reaches a folded Inspector: no .detail, no column.
-    expect(wide).not.toMatch(/\.app\[data-view=\"workspace\"\] :is\(\.usage-panel/);
+    expect(decl(rule(wide, 'body .app[data-view="workspace"][data-side]:not([data-zoom]):has(.detail)'), "grid-template-columns")).toBe("minmax(0, 1fr) auto var(--inspector-w)");
+    expect(decl(rule(wide, 'body .app[data-view="workspace"][data-side]:not([data-zoom]):has(.left-column):has(.detail)'), "grid-template-columns")).toBe("auto minmax(0, 1fr) auto var(--inspector-w)");
+    expect(decl(rule(wide, '.app[data-view="workspace"][data-side]:not([data-zoom]) .detail'), "grid-column")).toBe("-2 / -1");
+    // Under 1100 the list is a sheet, so the column is the second track.
+    const narrow = workspace.slice(workspace.indexOf("@media (max-width: 1099px)"));
+    expect(narrow).toContain('body .app[data-view="workspace"][data-side]:not([data-zoom]):has(.left-column) { grid-template-columns: minmax(0, 1fr) auto; }');
+    expect(decl(rule(narrow, '.app[data-view="workspace"]:has(.left-column) .ws-side[data-on]'), "grid-column")).toBe("2");
+    // No longer over the Inspector's place.
+    expect(workspace).not.toContain("--ws-col-h");
+    expect(workspace).not.toMatch(/:has\(\.detail\) :is\(\.usage-panel, \.sysdetail\):not\(\[data-place\]\)/);
   });
 
-  it("share the column when both are open: Usage above, Machine below, half each", () => {
-    const wide = workspace.slice(workspace.indexOf("@media (min-width: 1320px)"));
-    const machine = rule(wide, '.app[data-view="workspace"]:has(.detail) .sysdetail.shifted:not([data-place])');
-    expect(decl(machine, "top")).toBe("calc(var(--ws-head) + var(--ws-col-h) / 2)");
-    expect(decl(machine, "max-height")).toBe("calc(var(--ws-col-h) / 2)");
-    const usage = rule(wide, '.app[data-view="workspace"]:has(.detail):has(.sysdetail.shifted:not(.leaving):not([data-place])) .usage-panel:not([data-place])');
-    expect(decl(usage, "max-height")).toBe("calc(var(--ws-col-h) / 2 - 8px)");
+  it("share the column when both are open: Usage above, Machine below, at the split, each at least 120; folded, a part is its header", () => {
+    const part = rule(workspace, '.app[data-view="workspace"] .ws-side[data-on] > :is(.usage-panel, .sysdetail)[data-dock="docked"]');
+    expect(decl(part, "position")).toBe("relative");
+    expect(decl(part, "inset")).toBe("auto");
+    expect(decl(part, "flex")).toBe("1 1 0px");
+    expect(decl(part, "overflow-y")).toBe("auto");
+    expect(decl(part, "box-shadow")).toBe("none");
+    const usage = rule(workspace, '.app[data-view="workspace"] .ws-side[data-split] > .usage-panel[data-dock="docked"]');
+    expect(decl(usage, "flex-grow")).toBe("var(--split)");
+    expect(decl(usage, "min-height")).toBe("120px");
+    const machine = rule(workspace, '.app[data-view="workspace"] .ws-side[data-split] > .sysdetail[data-dock="docked"]');
+    expect(decl(machine, "flex-grow")).toBe("calc(1 - var(--split))");
+    expect(decl(machine, "min-height")).toBe("120px");
+    expect(decl(rule(workspace, '.app[data-view="workspace"] .ws-side[data-on] > [data-dock="docked"][data-fold]'), "flex")).toBe("0 0 auto");
+    expect(workspace).toContain('.app[data-view="workspace"] .ws-side > [data-fold] > :is(.up-body, .sd-body) { display: none; }');
+    // The split is 8 high; the edge is inside the column, nothing of the pane under it.
+    expect(decl(rule(workspace, '.app[data-view="workspace"] .ws-split'), "height")).toBe("8px");
+    const edge = rule(workspace, '.app[data-view="workspace"] .ws-edge');
+    expect(decl(edge, "left")).toBe("0");
+    expect(decl(edge, "cursor")).toBe("col-resize");
   });
 
   it("keep a place the reader gave them, and fold with Zoom", () => {

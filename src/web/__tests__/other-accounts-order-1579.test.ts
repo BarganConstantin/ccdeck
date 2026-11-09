@@ -41,16 +41,23 @@ const LIST = [acct(5, 12, 48, [["Opus", 30]]), acct(8, 97, 88), acct(9, 0, 5), a
 const nums = (xs: Account[]) => xs.map(a => a.num);
 
 describe("the orders on offer", () => {
-  it("are slot, fullest and emptiest by each window the accounts have, and room", () => {
+  // CHANGED ON PURPOSE (V4's Figma): the menu lists slot and room first, the two
+  // orders somebody looking for where to go next reaches for, and names each
+  // window in words with the direction inside the choice. The ids, which are
+  // what the browser keeps, are the same ones.
+  it("are slot, room, and fullest and emptiest by each window the accounts have", () => {
     expect(orderChoices(LIST).map(c => c.id)).toEqual([
-      "slot", "5h:full", "5h:empty", "7d:full", "7d:empty",
-      "Opus:full", "Opus:empty", "Sonnet:full", "Sonnet:empty", "room",
+      "slot", "room", "5h:full", "5h:empty", "7d:full", "7d:empty",
+      "Opus:full", "Opus:empty", "Sonnet:full", "Sonnet:empty",
     ]);
-    expect(orderChoices(LIST).find(c => c.id === "7d:empty")?.label).toBe("7d · emptiest");
+    expect(orderChoices(LIST).find(c => c.id === "7d:empty")?.label).toBe("7-day · emptiest first");
+    expect(orderChoices(LIST).find(c => c.id === "5h:full")?.label).toBe("5-hour · fullest first");
+    expect(orderChoices(LIST).find(c => c.id === "Opus:full")?.label).toBe("Opus · fullest first");
+    expect(orderChoices(LIST).find(c => c.id === "room")?.label).toBe("Most room");
   });
 
   it("offer no model a store does not have", () => {
-    expect(orderChoices([acct(1, 10, 10)]).map(c => c.id)).toEqual(["slot", "5h:full", "5h:empty", "7d:full", "7d:empty", "room"]);
+    expect(orderChoices([acct(1, 10, 10)]).map(c => c.id)).toEqual(["slot", "room", "5h:full", "5h:empty", "7d:full", "7d:empty"]);
   });
 });
 
@@ -266,23 +273,34 @@ describe("the controls, in the fold's own row", () => {
   });
   const html = (over: Record<string, unknown> = {}) => renderToStaticMarkup(createElement(OtherAccounts, props(over)));
 
+  // CHANGED ON PURPOSE (V4's Figma): the two controls are no longer one tools
+  // box. Expand-all stands at the right end of the toggle's line and the order
+  // at the right end of the line under it, and both are drawn only while the
+  // list is open.
   it("are drawn only while the list is open", () => {
-    expect(html()).toContain('class="ap-rest-tools"');
-    expect(html({ open: false })).not.toContain("ap-rest-tools");
+    expect(html()).toContain('class="ap-rest-all"');
+    expect(html()).toContain('class="ap-rest-sort"');
+    expect(html({ open: false })).not.toContain("ap-rest-all");
+    expect(html({ open: false })).not.toContain("ap-rest-sort");
   });
 
   it("are siblings of the row's button, never inside it", () => {
     const out = html();
     const button = out.slice(out.indexOf('<button type="button" id="ap-rest-entry"'), out.indexOf("</button>") + 9);
-    expect(button).not.toContain("ap-rest-tools");
-    expect(out.indexOf("ap-rest-tools")).toBeGreaterThan(out.indexOf("</button>"));
+    expect(button).not.toContain("ap-rest-all");
+    expect(button).not.toContain("ap-rest-sort");
+    expect(out.indexOf("ap-rest-all")).toBeGreaterThan(out.indexOf("</button>"));
+    expect(out.indexOf("ap-rest-sort")).toBeGreaterThan(out.indexOf("</button>"));
   });
 
+  // CHANGED ON PURPOSE (V4's Figma): the order is one menu button rather than a
+  // native select. Shut, it shows the order the list is in and says what it
+  // is; the orders on offer are the menu's, pinned in other-accounts-header.
   it("show the order the list is in, and every order on offer", () => {
     const out = html();
-    expect(out).toContain('aria-label="Order of the other accounts"');
-    expect(out).toContain('<option value="5h:full" selected="">5h · fullest</option>');
-    expect(out.match(/<option /g)).toHaveLength(orderChoices(LIST).length);
+    expect(out).toMatch(/<button type="button" id="ap-rest-sort" class="ap-rest-sort" aria-haspopup="menu" aria-expanded="false"/);
+    expect(out).toContain('<span class="vis-hidden">Order of the other accounts: </span><span class="ap-rest-sort-name">5-hour · fullest first</span>');
+    expect(out).not.toContain("<select");
     // Sorted is said at full contrast; slot is the quiet default.
     expect(out).toContain("data-sorted");
     expect(html({ order: SLOT_ORDER })).not.toContain("data-sorted");
@@ -296,9 +314,9 @@ describe("the controls, in the fold's own row", () => {
 
   it("mark the order held, and say why, while the reader is in the list", () => {
     expect(html({ held: true })).toContain("data-held");
-    expect(html({ held: true })).toContain('title="5h · fullest — held where it was while you are in the list"');
+    expect(html({ held: true })).toContain('title="5-hour · fullest first — held where it was while you are in the list"');
     expect(html({ held: false })).not.toContain("data-held");
-    expect(html({ held: false })).toContain('title="5h · fullest"');
+    expect(html({ held: false })).toContain('title="5-hour · fullest first"');
   });
 });
 
@@ -309,13 +327,19 @@ describe("the row marks the number it was placed by", () => {
     onDismissRefusal: () => {}, switchedHere: false, swapped: null, displaced: undefined,
     issueExpanded: false, onOpenIssue: () => {}, sortKey,
   } as never));
-  const marked = (html: string) => [...html.matchAll(/class="ap-(?:q|lane)" data-sort-key=""[^]*?(?:ap-q-label|ap-lane-label)[^>]*>([^<]+)</g)].map(m => m[1]);
+  // CHANGED ON PURPOSE (V4's Figma): the row's first two windows are its two
+  // figures at the right edge (`ap-fig`), and the open row names each window in
+  // words on a line of its own ("7-day"), so those are where the mark is.
+  const marked = (html: string) => [...html.matchAll(/class="ap-(?:q|lane|fig [^"]*)" data-sort-key=""[^]*?(?:ap-q-label|ap-lane-label)[^>]*>([^<]+)</g)].map(m => m[1]);
 
   it("in the shut line and on the bars", () => {
     expect(marked(row(LIST[3], "7d"))).toEqual(["7d"]);
-    // CHANGED ON PURPOSE (V4's Figma): the line under the name stays when a row
-    // opens, so the open row marks the number twice — in that line and on its bar.
-    expect(marked(row(LIST[3], "7d", true))).toEqual(["7d", "7d"]);
+    // The lines under the name stay when a row opens, so the open row marks the
+    // number twice — at its figure and on the window's own line.
+    expect(marked(row(LIST[3], "7d", true))).toEqual(["7d", "7-day"]);
+    // And the meter, which draws the first window, is marked when that is the key.
+    expect(row(LIST[3], "5h")).toMatch(/class="ap-meter-fill" data-sort-key=""/);
+    expect(row(LIST[3], "7d")).not.toMatch(/class="ap-meter-fill" data-sort-key=""/);
   });
 
   it("marks the tightest window under 'room', and nothing in slot order", () => {
@@ -361,17 +385,19 @@ describe("the panel's wiring", () => {
 describe("the sheet", () => {
   const css = sheetText();
   it("draws the controls quiet at rest and neutral under the pointer", () => {
-    expect(css).toMatch(/\.ap-rest-sort select \{[^}]*border: 1px solid transparent;[^}]*color: var\(--muted\);/);
+    // CHANGED ON PURPOSE (V4's Figma): the order is a menu button, not a field.
+    // At rest it has no edge and no fill; the pointer and its open menu fill it,
+    // and the keyboard gets the deck's one focus ring (v4-focus-ring).
+    expect(css).toMatch(/\.ap-rest-sort \{[^}]*height: 22px;[^}]*border: 1px solid transparent;[^}]*background: none;/);
+    const MOUSE = "@media (hover: hover) and (pointer: fine) {\n";
+    expect(css).toContain(`${MOUSE}.ap-rest-sort:hover { background: var(--ctl-fill); }\n}`);
+    expect(css).toContain('.ap-rest-sort[aria-expanded="true"] { background: var(--ctl-fill); }');
     // The keyboard's rule on its own, the pointer's under the mouse query
     // (hover is for mice), both the same neutral edge, text and fill.
     const NEUTRAL = "{ border-color: var(--ctl-edge); color: var(--text); background: var(--ctl-fill); }";
-    const MOUSE = "@media (hover: hover) and (pointer: fine) {\n";
-    // The select is a field: the keyboard lifts its text and fill as the pointer
-    // does, and its edge turns --accent with no ring (V4's text field).
-    expect(css).toContain(".ap-rest-sort select:focus-visible { color: var(--text); background: var(--ctl-fill); }");
-    expect(css).toMatch(/\.ap-rest-sort select:focus-visible, \.bw-settings select:focus-visible \{\s*outline: none;\s*border-color: var\(--accent\);/);
-    expect(css).toContain(`${MOUSE}.ap-rest-sort select:hover:not(:focus-visible) ${NEUTRAL}\n}`);
     expect(css).toContain(`.ap-rest-all:focus-visible ${NEUTRAL}`);
     expect(css).toContain(`${MOUSE}.ap-rest-all:hover ${NEUTRAL}\n}`);
+    // Pressed — every row open — keeps the fill.
+    expect(css).toContain('.ap-rest-all[aria-pressed="true"] { background: var(--ctl-fill); color: var(--text); }');
   });
 });

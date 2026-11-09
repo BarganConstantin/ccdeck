@@ -372,6 +372,52 @@
 .ts-cmd code { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: inherit; }
 .ts-cmd .glyph-btn { flex: none; box-sizing: border-box; width: 24px; height: 24px; margin: 0; padding: 0; border-radius: var(--r-ctl); }
 
+/* The engine's install (EngineCard.tsx, Figma "01 · Engine install"): the same
+   centred card, but its column reads left to right, 460 wide: the glyph in a
+   32 round chip beside the title, the paragraph, the bar or the steps, the
+   actions, then the note. 12 between its parts. */
+.ts-card.ts-engine { text-align: start; }
+.ts-eng { display: flex; flex-direction: column; align-items: flex-start; gap: 12px; box-sizing: border-box; width: 460px; max-width: 100%; }
+.ts-eng-head { display: flex; align-items: center; gap: 16px; }
+.ts-eng-chip {
+  display: inline-flex; align-items: center; justify-content: center; flex: none;
+  width: 32px; height: 32px; border-radius: 50%;
+  background: color-mix(in srgb, var(--accent) 16%, transparent); color: var(--accent);
+}
+.ts-eng-chip[data-tone="danger"] { background: color-mix(in srgb, var(--err) 16%, transparent); color: var(--err); }
+.ts-eng-title { margin: 0; font-size: 14px; font-weight: 600; line-height: 20px; color: var(--text); }
+.ts-eng-text { margin: 0; font-size: 13px; line-height: 20px; color: var(--text-secondary); }
+.ts-eng-said { margin: 0; font-size: 12px; line-height: 16px; color: var(--warn); }
+.ts-eng-mono { margin: 0; font: 400 11px/14px var(--font-mono); color: var(--muted); font-variant-numeric: tabular-nums; }
+.ts-eng-note { margin: 0; font-size: 11px; line-height: 16px; color: var(--muted); }
+.ts-eng-acts { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.ts-eng-acts .btn { display: inline-flex; align-items: center; gap: 6px; }
+.btn.ts-eng-back { border-color: transparent; background: none; padding-inline: 4px; font-weight: 500; color: var(--accent); }
+@media (hover: hover) and (pointer: fine) {
+  .btn.ts-eng-back:hover { border-color: transparent; background: none; text-decoration: underline; }
+}
+.ts-eng-progress { display: flex; flex-direction: column; gap: 6px; align-self: stretch; }
+.ts-setup-bar.ts-eng-bar { height: 4px; }
+.ts-eng-bar .ts-setup-fill { background: var(--accent); }
+/* Where a download stopped: the share it reached, in the error colour. */
+.ts-eng-bar[data-tone="danger"] .ts-setup-fill { background: var(--err); }
+/* Figma's circled "!": the kit's info glyph turned over. */
+.ts-eng-alert { transform: rotate(180deg); }
+.ts-eng-steps { display: flex; flex-direction: column; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.ts-eng-step { display: flex; align-items: center; gap: 8px; font-size: 13px; line-height: 18px; color: var(--text-secondary); }
+.ts-eng-step[data-state="now"] { color: var(--text); }
+.ts-eng-step[data-state="todo"] { color: var(--muted); }
+.ts-eng-mark { display: inline-flex; align-items: center; justify-content: center; width: 14px; height: 14px; }
+.ts-eng-step[data-state="done"] .ts-eng-mark { color: var(--ok); }
+.ts-eng-step[data-state="now"] .ts-eng-mark { color: var(--accent); }
+.ts-eng-step[data-state="fail"] .ts-eng-mark { color: var(--err); }
+.ts-eng-ring { box-sizing: border-box; width: 10px; height: 10px; border: 1.5px solid currentColor; border-radius: 50%; }
+.ts-eng-aside { font: 400 11px/14px var(--font-mono); color: var(--muted); }
+.ts-eng-step[data-state="fail"] .ts-eng-aside { color: var(--err); }
+/* Settings › General, the engine's row during an install: the bar and its
+   bytes under the note, 340 wide, in the name's column. */
+.settings-engine-progress { grid-column: 1; display: flex; flex-direction: column; gap: 4px; width: 340px; max-width: 100%; padding-top: 6px; }
+
 /* ── the keys bar: who has the keyboard, and the asks ────────────────────── */
 
 .ts-bar[hidden] { display: none; }

@@ -12,9 +12,10 @@
 // which open towards the canvas: right from the left stripe, left from the right
 // one. Phone controls and the topbar utilities keep their visible words.
 // The topbar keeps the identity, the stream's state, the waiting queue, Search
-// and Feedback (UtilityRun). Under 641px the stripes and the utilities become
-// one dock along the bottom: the four panels and Settings one tap away, and the
-// three rare dialogs — History, Browser watch, Feedback — behind a More.
+// (UtilityRun) and, in its own corner cell, Feedback. Under 641px the stripes
+// and Search become one dock along the bottom: the four panels one tap away and
+// the rarer doors, Settings among them, behind a More; Feedback stays in the
+// bar's corner, its one entry on every size.
 //
 // THESE ARE NOT TABS. A stripe button shows or hides a panel beside the canvas,
 // several can be open at once, and the canvas never leaves the screen: "One
@@ -69,7 +70,8 @@ export interface RailItem {
   controls?: string;
   onPress: () => void;
   buttonRef?: RefObject<HTMLButtonElement>;
-  /** Unread findings, drawn in the chrome's resting grey: never amber. */
+  /** Unread findings, drawn in the chrome's resting grey: never amber.
+   *  Feedback's unread replies, in its corner, are the accent's, as its dot. */
   badge?: number;
   /** Something unread with no number worth drawing — a ccdeck account's
    *  conversation with a reply: a small accent dot where the badge sits,
@@ -351,8 +353,9 @@ export function EdgeDock({ items, more, offline = false }: { items: RailItem[]; 
   );
 }
 
-/** Settings and Feedback, the two the topbar keeps. Two buttons are not a
- *  toolbar (the APG asks for three or more), so both stay in the Tab order. */
+/** The topbar's own buttons: Search in the end group, and Feedback alone in
+ *  the corner cell. Fewer than three buttons are not a toolbar (the APG asks
+ *  for three or more), so each stays in the Tab order. */
 export function UtilityRun({ items, side = "below" }: { items: RailItem[]; side?: HintSide }) {
   const hint = useHint(side);
   const ref = useRef<HTMLDivElement>(null);

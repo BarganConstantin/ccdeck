@@ -45,6 +45,8 @@ import { boardSessionNames, boardSessionStates, distinctSessionLabels } from "..
 import { withKey } from "../single-key-shortcuts";
 import { useSingleKeyShortcuts } from "../use-single-key-shortcuts";
 import { PLACE_KEYS, usePanelPlace } from "../panel-place";
+import type { PanelDock } from "../side-column";
+import { DockButtons } from "./SideColumn";
 
 // The rows of the two board tables, and UNKNOWN_MODEL, are board-usage.ts's,
 // with the folds that build them (#1175). The tables that draw them, and
@@ -85,15 +87,17 @@ interface Props {
   /** Asked to close, still on screen for the length of its exit. */
   leaving?: boolean;
   onClose: () => void;
+  /** Its place in Workspace's side column (side-column.ts); absent on the Board. */
+  dock?: PanelDock;
 }
 
-export default function UsagePanel({ state, now, providers, incidents = [], leaving, onClose, liveSince = null }: Props & {
+export default function UsagePanel({ state, now, providers, incidents = [], leaving, onClose, dock, liveSince = null }: Props & {
   /** When the stream's replay landed, or null while there is none — see App.tsx.
    *  The $/min counts only from here (#821). */
   liveSince?: number | null;
 }) {
   const singleKeys = useSingleKeyShortcuts();
-  const place = usePanelPlace(PLACE_KEYS.usage);
+  const place = usePanelPlace(PLACE_KEYS.usage, dock);
   const [inspectedSession, setInspectedSession] = useState<SessionSelection | null>(null);
   const [quotaHistoryOpen, setQuotaHistoryOpen] = useState<"pointer" | "keyboard" | null>(null);
   const boardProviders = useMemo(() => new Map(
@@ -326,6 +330,12 @@ export default function UsagePanel({ state, now, providers, incidents = [], leav
             titles, and the four `up-section-title`s below stepped from h4 to h3
             with it, so the panel reads h1 → h2 → h3 with nothing skipped. */}
         <h2>{t("usage.title")}</h2>
+        {/* Folded in Workspace's column, the header keeps the headline. */}
+        {dock?.folded && <span className="side-sum">{
+          hasCost ? t("shell.side.usageSum", { amount: fmtCost(figures.cost), period: periodWord })
+            : t("shell.side.usageTokens", { n: fmtTokens(totalTokenSum), period: periodWord })
+        }</span>}
+        <DockButtons dock={dock} popOut={place.popOut} />
         {/* ONE close (V4's Figma). The panel's two other header buttons went to
             its foot: the refresh as a quiet "Refresh" and the quota history as
             a quiet "Quota history", both still here and still pressable. */}

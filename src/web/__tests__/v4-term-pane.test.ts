@@ -343,7 +343,12 @@ describe("the state cards: centred in the pane", () => {
     expect(cls({ kind: "tmux-missing", reason: "missing", busy: false }, "Check again")).toBe("btn");
     expect(cls({ kind: "error", message: "x" }, "Try again")).toBe("btn");
     expect(cls({ kind: "error", message: "x" }, "Not now")).toBe("btn");
-    expect(cls({ kind: "error", message: "x", code: "not-installed", busy: false }, "Check again")).toBe("btn");
+    // CHANGED ON PURPOSE (V4's engine install card): an error the engine names
+    // is handed to the EngineCard, whose own buttons engine-install-view pins
+    // (Install Primary, the rest Quiet). The card it falls back to while the
+    // deck cannot say where the engine stands keeps Check again Quiet.
+    const engine = StateCard(bodyProps({ kind: "error", message: "x", code: "not-installed", busy: false })) as { props: { plain: unknown } };
+    expect(button(engine.props.plain, "Check again")?.props.className).toBe("btn");
     expect(cls({ kind: "empty" }, "New session")).toBe("btn primary");
     expect(cls({ kind: "tmux-installing" }, "Not now")).toBe("btn");
     // The cards set no size of their own for the kit's buttons.

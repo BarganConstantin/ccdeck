@@ -1,8 +1,8 @@
 // The colour a machine meter's fill takes: under 70 --muted, 70 to 89 --text,
-// 90 and up --err, never amber. The CPU and every per-core meter are the one
-// exception to the top step: a build at 90% CPU is doing its job, so they stop
-// at --text. The level follows the figure as it is printed, so 89.6, which
-// reads "90%", is coloured as 90.
+// 90 and up --err, never amber. The CPU has no meter at all: a build at 90% CPU
+// is doing its job, so its total is a figure and its cores are columns in the
+// accent, which take no level. The level follows the figure as it is printed,
+// so 89.6, which reads "90%", is coloured as 90.
 import { describe, it, expect, vi } from "vitest";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
@@ -49,10 +49,12 @@ describe("meterLevel", () => {
     expect(meterLevel(90)).toBe("err");
   });
 
-  it("never reaches --err when the reading does not alarm", () => {
-    expect(meterLevel(69, false)).toBe("muted");
-    expect(meterLevel(70, false)).toBe("text");
-    expect(meterLevel(100, false)).toBe("text");
+  it("is the same rule for every meter: there is no meter that cannot alarm", () => {
+    // CHANGED ON PURPOSE: the one reading that never alarmed, the CPU's total
+    // meter, is gone (the total is a figure), so the switch that kept it off
+    // --err went with it.
+    expect(meterLevel.length).toBe(1);
+    expect(meterLevel(100)).toBe("err");
   });
 });
 
@@ -66,14 +68,20 @@ describe("a meter takes its level from the rounded figure", () => {
 describe("the machine panel's meters", () => {
   const hot = draw(machine({ cpu: 95, perCore: [95, 99.6, 89.6, 69.6, 20], memory: { total: 32 * GIB, available: 2 * GIB, usedPct: 95 } }));
 
-  it("gives the CPU meter and every core --text at the top, never --err", () => {
-    const [cpu] = levels(hot, "sd-fill");
-    expect(cpu).toBe("text");
-    expect(levels(hot, "sd-core-fill")).toEqual(["text", "text", "text", "text", "muted"]);
+  it("draws no meter for the CPU and no level on any core, so nothing there turns --err", () => {
+    // CHANGED ON PURPOSE (the owner prefers main's columns): the total is the
+    // figure beside the heading and each core is an accent column, so a CPU at
+    // 95% has neither a --text nor an --err fill anywhere in its block.
+    const cpu = hot.slice(hot.indexOf('data-group="cores"'), hot.indexOf('data-group="load"'));
+    expect(cpu).toContain(">95%<");
+    expect(cpu).not.toContain("sd-track");
+    expect(cpu).not.toContain("data-level");
+    expect((cpu.match(/class="sd-core-fill"/g) ?? []).length).toBe(5);
+    expect(levels(hot, "sd-core-fill")).toEqual([]);
   });
 
   it("gives memory the full thresholds, so 95% is --err", () => {
-    // Order drawn: CPU, physical memory, swap.
-    expect(levels(hot, "sd-fill")).toEqual(["text", "err", "muted"]);
+    // Order drawn: physical memory, swap (the CPU drew the first meter once).
+    expect(levels(hot, "sd-fill")).toEqual(["err", "muted"]);
   });
 });

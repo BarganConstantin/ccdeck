@@ -60,7 +60,7 @@ const rails = railItems({
 // door on the side its panel opens; Settings at the left one's foot.
 const left = renderToStaticMarkup(createElement(EdgeRail, { side: "left", label: "Panels and tools", groups: rails.leftStripe, foot: rails.leftFoot }));
 const right = renderToStaticMarkup(createElement(EdgeRail, { side: "right", label: "Usage and activity", groups: rails.rightStripe }));
-const corner = renderToStaticMarkup(createElement(UtilityRun, { items: rails.topUtilities }));
+const corner = renderToStaticMarkup(createElement(UtilityRun, { items: [rails.corner] }));
 const dock = renderToStaticMarkup(createElement(EdgeDock, {
   items: [...rails.left, ...rails.right[0], rails.utilities[0]], more: [...rails.right.slice(1).flat(), rails.utilities[1]],
 }));
@@ -115,7 +115,10 @@ describe("every control in the chrome says its name (#836)", () => {
     expect(hiders.map(([sel]) => sel.trim())).toEqual([]);
     // Drawn on the stripes and in the corner whenever the window is not a
     // phone's — the dock takes over there, in the same breakpoint.
-    expect(app).toMatch(/\{!phone && <div className="actions"><UtilityRun items=\{\[rails\.search, \.\.\.rails\.topUtilities\]\} \/><\/div>\}/);
+    // CHANGED ON PURPOSE (V4): Search above a phone's width, and Feedback in
+    // its corner cell at every width.
+    expect(app).toMatch(/\{!phone && <div className="actions"><UtilityRun items=\{\[rails\.search\]\} \/><\/div>\}/);
+    expect(app).toMatch(/<div className="tb-corner"><UtilityRun items=\{\[rails\.corner\]\} \/><\/div>/);
     expect(app).toMatch(/: <EdgeRail side="left" label=\{t\("board\.rail\.tools"\)\} groups=\{rails\.leftStripe\} foot=\{rails\.leftFoot\} \/>\}/);
     expect(app).toMatch(/\{!phone && <EdgeRail side="right" label=\{t\("shell\.rail\.right"\)\} groups=\{rails\.rightStripe\} \/>\}/);
   });

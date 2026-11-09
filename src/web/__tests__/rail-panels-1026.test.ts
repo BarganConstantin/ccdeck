@@ -168,12 +168,17 @@ describe("the per-core strip keeps a column wide enough to be a bar (#1026)", ()
     // each of them, and `auto-fit` is what lets a machine with few threads
     // collapse the tracks it does not use and keep the full width.
     expect(decl(".sd-cores", "display")).toBe("grid");
-    // CHANGED ON PURPOSE (V4's Figma): each core is a 2-high meter in a cell at
-    // least 32 wide (an `auto-fit` grid, 4 apart), not a 3px column 26 high.
-    // The floor is still there, and still the same on every row.
-    expect(decl(".sd-cores", "grid-template-columns")).toBe("repeat(auto-fit, minmax(32px, 1fr))");
+    // CHANGED ON PURPOSE (the owner prefers main's columns): one row of columns
+    // up to 32 cores, each at most 24 wide, then 32 explicit tracks shared by
+    // every row. The floor is the row of 32 itself: a column is never narrower
+    // than a 32nd of the panel, at 64 threads or at 128.
+    expect(decl(".sd-cores", "grid-auto-flow")).toBe("column");
+    expect(decl(".sd-cores", "grid-auto-columns")).toBe("minmax(0, 24px)");
+    const many = ".sd-cores:has(> .sd-core:nth-child(33))";
+    expect(decl(many, "grid-auto-flow")).toBe("row");
+    expect(decl(many, "grid-template-columns")).toBe("repeat(32, minmax(0, 24px))");
     expect(decl(".sd-cores", "flex-wrap")).toBeNull();
-    expect(decl(".sd-core", "height")).toBe("2px");
+    expect(decl(".sd-core", "height")).toBe("28px");
   });
 
   it("stops counting its own columns through a custom property", () => {

@@ -26,6 +26,8 @@ const catalog: Catalog = {
   "codex.share.failed": "传输未能完成。请重新加载账号后再试。",
   "codex.share.copyFailed": "剪贴板不可用。请选中并复制上方的完整代码。",
   "codex.row.liveTitle": "新会话使用的默认账号",
+  "codex.row.defaultWord": "默认",
+  "codex.row.notChecked": "尚未查看额度",
   "codex.row.liveSpoken": "默认账号：",
   "codex.row.readBy": "ccdeck 上次读取此账号用量的时间",
   "codex.row.readPlan": "ccdeck 上次读取此账号用量的时间，以及计划再次读取的时间：此面板打开期间，默认账号每分钟一次，其他账号每五分钟一次。这些是 Codex 为该账号报告的限额，因此只有一个窗口的套餐只显示一条用量条。",

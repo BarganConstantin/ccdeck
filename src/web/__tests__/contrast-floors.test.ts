@@ -641,6 +641,14 @@ describe("the stacked cost bar and the key that reads it (#619)", () => {
 
 describe("the category filter bar when a card drifts under it (#622)", () => {
   const FADED = ".cat-filter-bar.occluded:not(:hover):not(:focus-within)";
+  /** CHANGED ON PURPOSE (V4's legend): the bar is a legend with no box at
+   *  rest. It lays a bed under its words only while something is under it —
+   *  solid while a reader is at it (ENGAGED), thinned while they are not
+   *  (FADED) — so those two are the fills this block measures. */
+  const ENGAGED = ".cat-filter-bar.occluded";
+  /** The slab the bar was when #622 was measured, a solid --panel. The first
+   *  two tests reproduce that history on it. */
+  const SLAB = "var(--panel)";
   const fillOf = (selector: string, theme: Theme) => {
     const light = decl(rule(`:root[data-color-scheme="light"] ${selector}`), "background");
     const base = decl(rule(selector), "background");
@@ -662,7 +670,7 @@ describe("the category filter bar when a card drifts under it (#622)", () => {
     // Group opacity composites the label AND the fill it sits on, which is why
     // the numbers land so far under: both ends of the ratio collapse together.
     const was = (theme: Theme, fg: string, backdrop: Rgba) => {
-      const fill = fillOf(".cat-filter-bar", theme);
+      const fill = resolve(SLAB, theme);
       const bed = over([fill[0], fill[1], fill[2], fill[3] * 0.2], backdrop);
       const text = resolve(fg, theme);
       return contrastRatio(over([text[0], text[1], text[2], 0.2], backdrop), bed);
@@ -680,7 +688,7 @@ describe("the category filter bar when a card drifts under it (#622)", () => {
     // fill by 0.20 at full strength, so there is no alpha left to spend. A lower
     // floor was never an available fix, which is why the fill fades and not the
     // group.
-    const fill = fillOf(".cat-filter-bar", "dark");
+    const fill = resolve(SLAB, "dark");
     const card = parseColor(TOK.dark["--panel"]);
     const muted = resolve("var(--muted)", "dark");
     const at = (o: number) => contrastRatio(
@@ -692,8 +700,8 @@ describe("the category filter bar when a card drifts under it (#622)", () => {
   });
 
   it("spends no opacity anywhere on the bar or its occluded state", () => {
-    // The bar is written as two rules six thousand lines apart — the slab up
-    // with the chips, the yielding down with the canvas motion — so this reads
+    // The bar is written as two rules six thousand lines apart — the legend up
+    // with the items, the yielding down with the canvas motion — so this reads
     // every body either of them or their occluded states declare, not the first
     // one a selector match happens to land on.
     const bodies = [...bare.matchAll(/^[^\n{}]*\.cat-filter-bar[^\n{}]*\{([^}]*)\}/gm)].map(m => m[1]);
@@ -712,20 +720,29 @@ describe("the category filter bar when a card drifts under it (#622)", () => {
     }
   });
 
-  it("fades the slab instead — a thinner fill, no blur, no border, no shadow", () => {
+  it("draws no box at rest, and thins the bed it lays under its words while nobody is at it", () => {
+    // CHANGED ON PURPOSE (V4's legend): "fades the slab" was the shape while
+    // the bar was a slab. With no slab at rest, the same yielding is a bed that
+    // exists only while something is under the legend: solid while a reader
+    // is at it, thinner while they are not, never a border, a shadow or a blur.
+    expect(decl(rule(".cat-filter-bar"), "background")).toBe("none");
+    expect(decl(rule(".cat-filter-bar"), "border")).toBe("0");
+    expect(decl(rule(".cat-filter-bar"), "box-shadow")).toBe("none");
     for (const theme of themes) {
-      const rest = fillOf(".cat-filter-bar", theme);
+      const engaged = fillOf(ENGAGED, theme);
       const faded = fillOf(FADED, theme);
-      expect(faded[3], `${theme} occluded fill`).toBeLessThan(rest[3]);
+      expect(engaged[3], `${theme} engaged bed`).toBe(1);
+      expect(faded[3], `${theme} occluded fill`).toBeLessThan(engaged[3]);
       // Some fill is left on purpose: it beds the labels rather than floating
       // them over whatever drifted under, which is what keeps the floor below a
       // floor and not a coincidence of what happened to be there.
       expect(faded[3], `${theme} occluded fill`).toBeGreaterThan(0);
     }
-    expect(decl(rule(FADED), "box-shadow")).toBe("none");
-    expect(decl(rule(FADED), "border-color")).toBe("transparent");
-    expect(decl(rule(FADED), "backdrop-filter")).toBe("none");
-    expect(decl(rule(FADED), "-webkit-backdrop-filter")).toBe("none");
+    for (const selector of [ENGAGED, FADED, `:root[data-color-scheme="light"] ${FADED}`]) {
+      for (const prop of ["border", "border-color", "box-shadow", "backdrop-filter", "-webkit-backdrop-filter"]) {
+        expect(decl(rule(selector), prop), `${selector} ${prop}`).toBeNull();
+      }
+    }
   });
 
   it("reads every chip label at 4.5:1 while the bar is yielding, in both themes", () => {
@@ -742,13 +759,17 @@ describe("the category filter bar when a card drifts under it (#622)", () => {
     }
   });
 
-  it("costs the bar nothing at rest — the faded state is the only thing that changed", () => {
+  it("costs the legend nothing at rest or while a reader is at it", () => {
+    // CHANGED ON PURPOSE (V4's legend): at rest nothing is under the words but
+    // the canvas; engaged over a card, the bed IS the canvas's ground.
     for (const theme of themes) {
-      const fill = fillOf(".cat-filter-bar", theme);
+      const canvas = parseColor(TOK[theme]["--bg"]);
+      const engaged = fillOf(ENGAGED, theme);
       for (const [state, selector] of Object.entries(labels)) {
         const fg = resolve(decl(rule(selector), "color")!, theme);
+        expect(contrastRatio(fg, canvas), `${theme} ${state} item on the canvas at rest`).toBeGreaterThanOrEqual(BODY);
         for (const [where, backdrop] of backdrops(theme)) {
-          expect(contrastRatio(fg, over(fill, backdrop)), `${theme} ${state} chip over ${where} at rest`)
+          expect(contrastRatio(fg, over(engaged, backdrop)), `${theme} ${state} item over ${where}, engaged`)
             .toBeGreaterThanOrEqual(BODY);
         }
       }
@@ -769,17 +790,30 @@ describe("the category filter bar when a card drifts under it (#622)", () => {
     }
     const rules = [...bare.matchAll(/^([^\n{}]*\.cat-filter-bar\.occluded[^\n{}]*?)\s*\{/gm)]
       .map(m => m[1].trim());
+    // CHANGED ON PURPOSE (V4's legend): the engaged bed is a rule of its own
+    // now, ahead of the two thinned ones it is restored from.
     expect(rules,
-      "the occluded state should be one rule per theme carrying both restore paths in its own selector")
-      .toEqual([FADED, `:root[data-color-scheme="light"] ${FADED}`]);
-    for (const selector of rules) {
+      "the occluded state should be the engaged bed, then one thinned rule per theme carrying both restore paths in its own selector")
+      .toEqual([ENGAGED, FADED, `:root[data-color-scheme="light"] ${FADED}`]);
+    for (const selector of rules.slice(1)) {
       expect(selector, "restores on a pointer of any kind").toContain(":not(:hover)");
       expect(selector, "restores once focus is inside").toContain(":not(:focus-within)");
     }
   });
 
-  it("keeps the strike, which is the channel that never depended on any of this", () => {
-    expect(decl(rule(".cat-filter.off .cat-name"), "text-decoration")).toBe("line-through");
+  it("keeps the hollow dot, which is the channel that never depended on any of this", () => {
+    // CHANGED ON PURPOSE (V4's legend): it was the strike through the name.
+    expect(decl(rule(".cat-filter.off .cat-dot"), "background")).toBe("transparent");
+    expect(decl(rule(".cat-filter.off .cat-dot"), "border")).toBe("1.5px solid var(--text-dim)");
+    // A ring is a graphic that carries the state, so 1.4.11's 3:1 applies to it
+    // on every bed the words are held to.
+    for (const theme of themes) {
+      const ring = resolve("var(--text-dim)", theme);
+      expect(contrastRatio(ring, parseColor(TOK[theme]["--bg"])), `${theme} ring on the canvas`).toBeGreaterThanOrEqual(NON_TEXT);
+      for (const [where, backdrop] of backdrops(theme)) {
+        expect(contrastRatio(ring, over(fillOf(FADED, theme), backdrop)), `${theme} ring over ${where} while occluded`).toBeGreaterThanOrEqual(NON_TEXT);
+      }
+    }
   });
 });
 

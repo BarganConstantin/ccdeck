@@ -20,6 +20,7 @@ import { sheetText } from "./sheet-source";
 import TerminalStage, { endView, stageName, subjectOf, type StageShow, type TerminalStageProps } from "../components/terminal/TerminalStage";
 import StageHeader, { BACK_EMPTY_LABEL_MSG, BACK_LABEL_MSG, CLOSE_EMPTY_LABEL_MSG, CLOSE_LABEL_MSG, FULL_LABEL_MSG, FULL_LEAVE_LABEL_MSG, type StageHeaderProps } from "../components/terminal/StageHeader";
 import StageBody, { EMPTY_NEW_SESSION_ID, STILL_RUNNING_NOTE_MSG, StateCard, downloadNote, setupLine, setupShare, tmuxFact, type StageBodyProps } from "../components/terminal/StageBody";
+import EngineCard from "../components/terminal/EngineCard";
 import { en } from "../i18n/en";
 import KeysBar, { ArrivalNote, AsksTrack, type KeysBarProps } from "../components/terminal/KeysBar";
 import { ASSUMED_CELL, stageGeometry } from "../stage-geometry";
@@ -355,17 +356,31 @@ describe("the body's state cards, each at the terminal's origin", () => {
   });
 
   it("draws the engine's state with its sentence, checking again in place, and only Not now where there is nothing to check", () => {
+    // CHANGED ON PURPOSE (V4's engine install card):
+    // a state the engine names is drawn by the EngineCard, which reads the
+    // deck's install status and offers Install, progress and its fixes. The
+    // card it drew before is handed to it as `plain`, and it still stands
+    // wherever the deck cannot say (an older deck, the status route off), so
+    // that card's words and buttons are checked here unchanged.
     const sentence = "The Command Panel's engine is not installed on this machine.";
     const props = bodyProps({ kind: "error", message: sentence, code: "not-installed", busy: false });
-    expect(textOf(StateCard(props))).toContain(sentence);
-    expect(all(StateCard(props), el => el.type === "button").map(b => textOf(b))).toEqual(["Check again", "Not now"]);
-    press(button(StateCard(props), "Check again"));
+    const card = StateCard(props) as unknown as Drawn;
+    expect(card.type, "the engine's own card").toBe(EngineCard);
+    expect(card.props.code).toBe("not-installed");
+    expect(card.props.onRetry).toBe(props.onRetry);
+    expect(card.props.onNotNow).toBe(props.onNotNow);
+    const plain = card.props.plain;
+    expect(textOf(plain)).toContain(sentence);
+    expect(all(plain, el => el.type === "button").map(b => textOf(b))).toEqual(["Check again", "Not now"]);
+    press(button(plain, "Check again"));
     expect(props.onRetry).toHaveBeenCalled();
-    const busy = button(StateCard(bodyProps({ kind: "error", message: sentence, code: "not-installed", busy: true })), "Checking…")!;
+    const busyCard = StateCard(bodyProps({ kind: "error", message: sentence, code: "not-installed", busy: true })) as unknown as Drawn;
+    expect(busyCard.props.busy).toBe(true);
+    const busy = button(busyCard.props.plain, "Checking…")!;
     expect(busy.props["aria-busy"]).toBe(true);
     expect(busy.props.disabled, "busy, never disabled (#620)").toBeUndefined();
 
-    const elsewhere = StateCard(bodyProps({ kind: "error", message: "The Command Panel is not available on this platform yet.", code: "unsupported", busy: false }));
+    const elsewhere = (StateCard(bodyProps({ kind: "error", message: "The Command Panel is not available on this platform yet.", code: "unsupported", busy: false })) as unknown as Drawn).props.plain;
     const buttons = all(elsewhere, el => el.type === "button");
     expect(buttons.map(b => textOf(b)), "nothing to check on a platform with no panel").toEqual(["Not now"]);
     expect(buttons[0].props["data-stage-land"], "and the keys land on it").toBe(true);
@@ -461,7 +476,14 @@ describe("the body's state cards, each at the terminal's origin", () => {
       { kind: "error", message: "The Command Panel's engine is not installed on this machine.", code: "not-installed", busy: false },
       { kind: "error", message: "The Command Panel is not available on this platform yet.", code: "unsupported", busy: false },
     ];
-    for (const phase of phases) expect(textOf(StateCard(bodyProps(phase))).trim(), phase.kind).not.toBe("");
+    // CHANGED ON PURPOSE (V4's engine install card): an engine state is the EngineCard,
+    // whose own words come from the deck's status; the card it falls back to
+    // must still say something.
+    const words = (el: unknown) => {
+      const d = el as Drawn;
+      return d && d.type === EngineCard ? textOf(d.props.plain) : textOf(el);
+    };
+    for (const phase of phases) expect(words(StateCard(bodyProps(phase))).trim(), phase.kind).not.toBe("");
   });
 });
 

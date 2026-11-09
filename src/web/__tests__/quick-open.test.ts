@@ -380,7 +380,9 @@ describe("a session's line", () => {
 describe("where the deck draws it", () => {
   it("is a door on the bar ahead of Settings, and the first row under the phone's More", () => {
     const app = sourceOf("App.tsx");
-    expect(app).toContain("<UtilityRun items={[rails.search, ...rails.topUtilities]} />");
+    // CHANGED ON PURPOSE (V4): Search ends the bar's end group; Feedback has
+    // the corner cell after it.
+    expect(app).toContain("<UtilityRun items={[rails.search]} />");
     expect(app).toMatch(/more=\{\[rails\.search, /);
     expect(app).toMatch(/\{quickOpenOpen && \(\s*<QuickOpen /);
   });
