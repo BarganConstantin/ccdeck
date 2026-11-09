@@ -583,6 +583,16 @@ export function createProjectRollup({
     } catch { /* a failed persist just re-folds next time; cursors stay in memory */ }
   }
 
+  // Liveness is independent of transcript progress: a failed timeline read
+  // must not make a process that is still ticking look like it was shut down.
+  async function heartbeat(nowMs) {
+    if (dirty || !state.lastAlive || nowMs - state.lastAlive > HEARTBEAT_MS) {
+      state.lastAlive = nowMs;
+      dirty = true;
+    }
+    await persist();
+  }
+
   async function foldFile(path, slug, timeline, root) {
     let st = null;
     try { st = await stat(path); } catch { return; }
@@ -611,6 +621,17 @@ export function createProjectRollup({
     try {
       await load();
       const nowMs = now();
+      const defer = async () => {
+        // An old heartbeat already proving a gap must survive until the log
+        // can be read and its stop fence written. In particular, the first
+        // pass after a real restart may itself encounter an unreadable log.
+        if (!state.lastAlive || nowMs - state.lastAlive <= GAP_MS) await heartbeat(nowMs);
+      };
+      // A failed read is not evidence that nobody owned the new usage. Check
+      // before writing gap/seed entries, and again after those writes, so no
+      // transcript bytes are consumed from a fabricated empty timeline.
+      try { await readSwapLog(swapLog, { strict: true }); }
+      catch { await defer(); return; } // scheduled passes must defer without rejecting
       // The deck was down between the last heartbeat and this boot. Fence that
       // stretch off so work timestamped inside it is unattributed rather than
       // charged to whoever was active when the deck closed — the user may have
@@ -620,7 +641,9 @@ export function createProjectRollup({
         for (const root of gapRoots) await markGap(state.lastAlive + 1, swapLog, root);
       }
       await seedActive({ now, path: swapLog, root: storeRoot, projectsRoot: canonicalRoots[0] });   // anchor the current account, once, deduped
-      const timeline = await readSwapLog(swapLog);
+      let timeline;
+      try { timeline = await readSwapLog(swapLog, { strict: true }); }
+      catch { await defer(); return; }
       const { files, scanned } = await listTranscripts(canonicalRoots);
       // Each root is attributed only by the entries that speak for it; an
       // unscoped legacy entry speaks for none unless its root is unambiguous
@@ -639,14 +662,7 @@ export function createProjectRollup({
         for (const s of Object.keys(state.folders[root])) if (!slugs.has(s)) { delete state.folders[root][s]; dirty = true; }
         if (!slugs.size) delete state.folders[root];
       }
-      // Heartbeat: record that the deck was alive now, so a later boot can see
-      // how long it was down. Cheap when nothing else changed — only bumped
-      // (and so only persisted) once every HEARTBEAT_MS while idle.
-      if (dirty || !state.lastAlive || nowMs - state.lastAlive > HEARTBEAT_MS) {
-        state.lastAlive = nowMs;
-        dirty = true;
-      }
-      await persist();
+      await heartbeat(nowMs);
     } finally { running = false; }
   }
 
