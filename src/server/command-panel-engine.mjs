@@ -110,6 +110,15 @@ function settlesWithin(promise, ms) {
   return Promise.race([promise.then(() => true, () => true), out]).finally(() => clearTimeout(timer));
 }
 
+/** The package that came with the deck, brought in (engine-package.mjs) once
+ *  the data folder is the owner's alone: nothing in a folder others may write
+ *  to verifies (tightenDataFolder). The default `importPackage` below, so a
+ *  test that hands in its own import touches no real folder. */
+async function importBesideDeck(options) {
+  await tightenDataFolder(deckDataDir(options.platform, options.env), options.platform);
+  return importEngine(options);
+}
+
 /**
  * The Command Panel's engine as the routes and the upgrade take it (the shape
  * engineTerminals gives, with `route` answering a refusal of its own while
@@ -129,7 +138,7 @@ export function commandPanelEngine({
   env = process.env,
   keys = ENGINE_PUBLIC_KEYS,
   lstat = (path) => fsp.lstat(path),
-  importPackage = importEngine,
+  importPackage = importBesideDeck,
   createClient = createProEngineClient,
   graceMs = STOP_GRACE_MS,
   exitWaitMs = EXIT_WAIT_MS,
@@ -161,8 +170,6 @@ export function commandPanelEngine({
       if (exiting && !(await settlesWithin(exiting, exitWaitMs))) return { refusal: "restarting" };
       // With keys to verify against, bring the engine in from its package first.
       // Under the folder's lock, so never beside an install from the page.
-      // The data folder first made the owner's alone, or nothing in it verifies (tightenDataFolder).
-      if (keys.length > 0) await tightenDataFolder(deckDataDir(platform, env), platform);
       const brought = keys.length > 0 ? await withEngineLock(() => importPackage({ platform, env, keys: [...keys] })) : null;
       try {
         await lstat(directory);

@@ -256,10 +256,16 @@ export const GATES = [
   // The install's tightening of the deck's own data folder before it checks
   // an engine there: a folder made 0775 under a 0002 umask ends 0755, and a
   // writable folder above it is left alone and makes the check fail. Both read
-  // and set POSIX mode bits on real folders, which Windows does not have; the
-  // rest of that file — download, cancel, offline, wrong signer — runs on all
-  // three legs.
+  // and set POSIX mode bits on real folders, which Windows does not have.
   { file: "engine-install.test.ts", gate: "it.skipIf", condition: 'process.platform === "win32"', sites: 2, cases: 2 },
+  // The install cases that end in an installed engine — from the registry,
+  // from a file, the floor, the lock, a swap cut short, removing, the route
+  // that takes a file — run where the installer verifies an engine, on the
+  // same two platforms as engine-package. A Windows runner's temp folder never
+  // passes the ACL check. The rest of that file — status, download refusals,
+  // cancel, offline, wrong signer, the strict package reader, the routes'
+  // refusals — runs on all three legs.
+  { file: "engine-install.test.ts", gate: "it.skipIf", condition: "!['darwin', 'linux'].includes(process.platform)", sites: 8, cases: 8 },
   { file: "pro-engine-client.test.ts", gate: "describe.skipIf", condition: "!['darwin', 'linux'].includes(process.platform)", sites: 1, cases: 21 },
   // The panel's routes answered by the same signed double started as the
   // engine, on a real deck, on the same two platforms. What a deck with no
