@@ -158,8 +158,10 @@ describe("the short list that used to sit in the detail rail", () => {
     expect([...app.matchAll(/<kbd className="hint-key">/g)]).toHaveLength(1);
     const named = [...app.matchAll(/key: \{ cap: "([A-Z])", aria: "\1", single: true \}/g)].map(m => m[1]);
     // CHANGED ON PURPOSE (V4's Figma): D, the Inspector's door on the right stripe,
-    // names its key too, one the sheet already lists.
-    expect(named.sort()).toEqual(["A", "B", "D", "H", "L", "S", "U"]);
+    // names its key too, one the sheet already lists. A twice: the Accounts
+    // door's, and the Codex accounts door's on a deck with Codex alone, where
+    // that door stands in its place. Never both on one deck (rail-items.tsx).
+    expect(named.sort()).toEqual(["A", "A", "B", "D", "H", "L", "S", "U"]);
     const documented = documentedKeys();
     for (const k of named) expect(documented, k).toContain(k.toLowerCase());
     expect(app).toMatch(/key: \{ cap: settingsCap, aria: "Control\+, Meta\+,", single: false \}/);

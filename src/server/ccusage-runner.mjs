@@ -10,6 +10,7 @@ import { createRequire } from "node:module";
 import { spawn } from "node:child_process";
 import { existsSync } from "node:fs";
 import { killTree, pathLookup, spawnSpec } from "./exec.mjs";
+import { watchChild } from "./exec-children.mjs";
 import { note, stamp, tagged } from "./ccusage-failure.mjs";
 import {
   discardDamagedInstall, installsDisabled, lastInstallError, maybeBackgroundUpdate, npmAvailable,
@@ -232,7 +233,9 @@ function runOnce(runner, args) {
       ? userSpec(runner.file, args)
       : fallbackSpec(args);
   return new Promise((resolve, reject) => {
-    const child = spawn(file, full, { windowsHide: true, ...opts });
+    const processGroup = process.platform !== "win32";
+    const child = watchChild(spawn(file, full, { windowsHide: true, ...opts,
+      ...(processGroup ? { detached: true } : {}) }), { processGroup });
     let out = "", err = "";
     const timer = setTimeout(() => {
       // The npx fallback goes through cmd.exe on Windows, so `child` is the

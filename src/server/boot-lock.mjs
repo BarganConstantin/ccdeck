@@ -128,7 +128,12 @@ export async function takeBootLock({
     }
     const holder = readHolder(file, fs);
     if (holderIsGone(holder, { now: now(), alive, staleMs, mtime: modifiedAt(file, fs), self: pid })) {
-      try { fs.unlinkSync(file); } catch { /* another start cleared it first */ }
+      try { fs.unlinkSync(file); }
+      catch (err) {
+        // A competing start may have cleared it. Other refusals cannot be
+        // fixed by retrying synchronously: let startup proceed unguarded.
+        if (err?.code !== "ENOENT") return { held: false, waited, reason: err?.code ?? "unlink_failed", release: () => false };
+      }
       continue;
     }
     waited = true;

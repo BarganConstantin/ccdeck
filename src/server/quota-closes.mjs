@@ -79,8 +79,11 @@ export function createQuotaCloses({ load = async () => null, save = async () => 
   const flush = async () => {
     prune(state, now());
     if (!dirty) return;
-    dirty = false;
-    try { await save({ v: 1, open: state.open, closed: state.closed }); storageOk = true; }
+    try {
+      await save({ v: 1, open: state.open, closed: state.closed });
+      dirty = false;
+      storageOk = true;
+    }
     catch { storageOk = false; } // the record cannot fail a quota read
   };
   const run = fn => (queue = queue.then(async () => { await ready(); await fn(); await flush(); }).catch(() => { storageOk = false; }));

@@ -415,7 +415,7 @@ const catalog: Catalog = {
   "accounts.rep.tableLabel": "Tabelul capacității conturilor",
   "accounts.rep.caption": "Utilizarea și resetarea fiecărui cont pe fiecare fereastră și ce poate face acum",
   "accounts.rep.how": "Cum se calculează utilizarea",
-  "accounts.rep.howOne": "Fiecare cont de aici, la ultima citire: <b>folosit</b> este media lor, iar <b>rămas</b> este restul, nu cotă comună. O oră de resetare raportată care a trecut nu confirmă o capacitate reînnoită. Ultima citire de utilizare rămâne până la reîmprospătare.",
+  "accounts.rep.howOne": "Fiecare cont de aici, la ultima citire: <b>folosit</b> este media lor, iar <b>rămas</b> este restul, nu cotă comună. O oră de resetare raportată care a trecut nu confirmă o capacitate reînnoită. Ultima citire de utilizare rămâne până la reîmprospătare. Un cont care a atins limita săptămânală contribuie cu 0% rămas la media pe 5 ore.",
   "accounts.rep.howTwo": "<b>Gata</b> are loc în ambele ferestre. <b>Limitat</b> este la limita uneia, iar <b>Epuizat</b> la a ambelor. <b>Învechit</b> nu a fost citit niciodată sau este deconectat. Starea Gata se poate baza pe o citire mai veche a cărei oră de resetare a trecut; conturile scoase din rotație rămân incluse, dar sunt excluse din rotația automată.",
   "accounts.rep.viewAccounts": "Capacitatea conturilor",
   "accounts.rep.viewCalendar": "Calendarul resetărilor",

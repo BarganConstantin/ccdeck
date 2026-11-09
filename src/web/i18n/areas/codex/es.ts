@@ -93,7 +93,7 @@ const catalog: Catalog = {
   "codex.share.protectionFailed": "Windows no pudo proteger un perfil seleccionado. Cierra los programas que usan su archivo de inicio de sesión, ejecuta ccdeck sin derechos de administrador e inténtalo de nuevo. Puede que algunos permisos ya se hayan restringido.",
   "codex.panel.liveSwitchTimeout": "Cuenta predeterminada guardada, pero Codex tardó demasiado en leer este inicio de sesión. Vuelve a intentar conectar la cuenta seleccionada.",
   "codex.panel.retrySelected": "Reintentar la cuenta seleccionada",
-  "codex.panel.liveSwitchPrivateLogin": "Se guard? la cuenta predeterminada, pero la carpeta de inicio de sesi?n no es lo bastante privada para cambiar la app Codex abierta. Usa + para iniciar sesi?n con esta cuenta en un perfil separado. Conserva los permisos del sandbox de Codex.",
+  "codex.panel.liveSwitchPrivateLogin": "Cuenta predeterminada guardada, pero la carpeta de este inicio de sesión no es lo bastante privada para cambiar la aplicación Codex abierta. Usa + para iniciar sesión con esta cuenta en un perfil separado. Conserva los permisos actuales del sandbox de Codex.",
   "codex.panel.removed": "Cuenta eliminada. Su inicio de sesión y su historial quedan aparte en la carpeta de datos de ccdeck, no se borran.",
   "codex.panel.removeFailed": "No se pudo eliminar la cuenta. Recarga e inténtalo de nuevo.",
   "codex.panel.badName": "Un nombre no puede contener una barra diagonal.",

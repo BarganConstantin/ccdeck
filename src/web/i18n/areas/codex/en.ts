@@ -99,7 +99,7 @@ const catalog: Catalog = {
   "codex.panel.liveSwitchFailed": "Default saved, but the open Codex app could not switch. Check its account with /status.",
   "codex.panel.liveSwitchTimeout": "Default saved, but Codex took too long to read this login. Retry connecting the selected account.",
   "codex.panel.retrySelected": "Retry selected account",
-  "codex.panel.liveSwitchPrivateLogin": "Default saved, but this login?s folder is not private enough to switch the open Codex app. Use + to sign this account into a separate profile. Keep the existing Codex sandbox permissions.",
+  "codex.panel.liveSwitchPrivateLogin": "Default saved, but this login's folder is not private enough to switch the open Codex app. Use + to sign this account into a separate profile. Keep the existing Codex sandbox permissions.",
   "codex.panel.removed": "Account removed. Its sign-in and history are kept aside in the deck's data folder, not deleted.",
   "codex.panel.removeFailed": "Could not remove the account. Reload and try again.",
   "codex.panel.badName": "A name cannot hold a slash.",
