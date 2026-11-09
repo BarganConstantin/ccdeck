@@ -93,7 +93,7 @@ describe("the waiting rule is the canvas's own", () => {
     ])).toEqual(["null", "null", "idle", "null"]);
   });
 
-  it("a background subagent's prompt, raised after the root's turn ended and cleared by its own result", () => {
+  it.each(["Stop", "StopFailure"])("a background subagent survives %s and answers its own prompt", (ending) => {
     // The root's `Stop` settles the root's calls and leaves the subagent's in
     // flight, so the prompt that follows is the subagent's — and only its own
     // traffic answers it.
@@ -101,7 +101,7 @@ describe("the waiting rule is the canvas's own", () => {
       { hook_event_name: "UserPromptSubmit", prompt: "fan out" },
       { hook_event_name: "PreToolUse", tool_name: "Task", tool_use_id: "task-a" },
       { hook_event_name: "PreToolUse", tool_name: "Bash", tool_use_id: "a-1", agent_id: "agent-a" },
-      { hook_event_name: "Stop" },
+      { hook_event_name: ending },
       PERMISSION,
       { hook_event_name: "PostToolUse", tool_name: "Bash", tool_use_id: "a-1", agent_id: "agent-a" },
     ])).toEqual(["null", "null", "null", "null", "permission", "null"]);
@@ -128,17 +128,17 @@ describe("the waiting rule is the canvas's own", () => {
     expect(summarizeSessions(envs, { now: T0 + 2000 })[0].state).toBe("ended");
   });
 
-  it("a Stop that is a copy of the last one, or older than the turn now running, ends nothing", () => {
+  it.each(["Stop", "StopFailure"])("a %s ends its turn but a stale copy cannot end the next one", (ending) => {
     agreeThroughout([
       { hook_event_name: "UserPromptSubmit", prompt: "one", at: 0 },
-      { hook_event_name: "Stop", at: 5000 },
+      { hook_event_name: ending, at: 5000 },
       { hook_event_name: "UserPromptSubmit", prompt: "two", at: 6000 },
       // a fresh copy of turn one's ending, inside the re-delivery window
-      { hook_event_name: "Stop", at: 6500 },
+      { hook_event_name: ending, at: 6500 },
       // a replayed copy, stamped when the original was
-      { hook_event_name: "Stop", at: 5000 },
+      { hook_event_name: ending, at: 5000 },
       // turn two's own
-      { hook_event_name: "Stop", at: 20_000 },
+      { hook_event_name: ending, at: 20_000 },
     ], { turns: true });
   });
 

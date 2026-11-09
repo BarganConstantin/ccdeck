@@ -99,7 +99,7 @@ function recordPrompt(s, at, text) {
 }
 
 /**
- * `Stop` or `SessionEnd`: the root's turn is over — applyTurnEnd in
+ * `Stop`, `StopFailure` or `SessionEnd`: the root's turn is over — applyTurnEnd in
  * session-lifecycle.ts, the parts of it a row can show.
  *
  * Refused whole when it is out of order (a boundary older than the prompt that
@@ -213,6 +213,7 @@ export function summarizeSessions(envelopes, { now = Date.now(), staleMs = STALE
         break;
       }
       case "Stop":
+      case "StopFailure":
       case "SessionEnd":
         endTurn(s, name, at);
         break;
