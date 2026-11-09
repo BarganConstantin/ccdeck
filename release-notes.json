@@ -1,4 +1,22 @@
 {
+  "3.82.3": [
+    {
+      "title": "Windows CPU performance limits",
+      "body": "Machine now shows CPU performance limits reported by Windows, even when no CPU temperature sensor is available.",
+      "priority": "highlight",
+      "notice": "The reading includes power-policy and firmware limits. It does not identify overheating or rule out every hardware thermal restriction."
+    },
+    {
+      "title": "More reliable session status",
+      "body": "Failed turns stop appearing active, and background scans no longer create phantom sessions.",
+      "priority": "highlight"
+    },
+    {
+      "title": "Usage history recovers from temporary errors",
+      "body": "Project usage, quota history and tool history recover more reliably after temporary read or save failures.",
+      "priority": "highlight"
+    }
+  ],
   "//": [
     "What a user would NOTICE. One key per version that has something to say,",
     "and no key at all for a version that has nothing — which is most of them.",
@@ -84,8 +102,9 @@
     "without one."
   ],
   "//summaries": {
+    "3.82.3": "Windows CPU limits and more reliable session and usage history",
     "3.82.2": "Arrow keys show the selected row on ccdeck tui's Network tab",
-    "3.82.1":"Clearer network shortcuts, accurate account capacity and Codex recovery fixes",
+    "3.82.1": "Clearer network shortcuts, accurate account capacity and Codex recovery fixes",
     "3.82.0": "Steadier Codex switching, and uninstall cleans up Codex's terminal selection",
     "3.81.4": "Codex account switching works with Windows sandbox logins",
     "3.81.3": "More reliable Codex switching and quieter account rows",
