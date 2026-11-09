@@ -23,7 +23,7 @@
 // of a small on-disk tally rather than a walk of every transcript.
 import { open, stat, readdir, readFile, writeFile, mkdir } from "node:fs/promises";
 import { homedir } from "node:os";
-import { join, resolve, basename, dirname, relative } from "node:path";
+import { join, resolve, basename, dirname, relative, isAbsolute, sep } from "node:path";
 import { StringDecoder } from "node:string_decoder";
 import { renameWithRetry } from "./atomic-write.mjs";
 import { ccProjectSlug, claudeConfigDir } from "./claude-dir.mjs";
@@ -361,10 +361,12 @@ async function foldAppended(fh, start, size, onLine) {
 async function listTranscripts(roots) {
   const found = [];
   const seen = new Set();
+  const scanned = new Set();
   for (const root of roots) {
     let ents = null;
     try { ents = await readdir(root, { recursive: true, withFileTypes: true }); }
     catch { continue; }
+    scanned.add(root);
     for (const e of ents) {
       if (!e.isFile() || !e.name.endsWith(".jsonl")) continue;
       const dir = e.parentPath ?? e.path ?? root;
@@ -376,7 +378,15 @@ async function listTranscripts(roots) {
     }
   }
   found.sort((a, b) => a.depth - b.depth);
-  return new Map(found.map(f => [f.path, f]));
+  return { files: new Map(found.map(f => [f.path, f])), scanned };
+}
+
+/** Only a completed inventory proves a missing transcript was deleted.
+ *  Path components matter: a sibling named `projects-other` is not inside
+ *  `projects`, and a recursive scan failure says nothing about its files. */
+function insideRoot(path, root) {
+  const from = relative(root, path);
+  return from !== "" && from !== ".." && !from.startsWith(`..${sep}`) && !isAbsolute(from);
 }
 
 /** Drop day buckets older than the retention window and prune the empty
@@ -611,7 +621,7 @@ export function createProjectRollup({
       }
       await seedActive({ now, path: swapLog, root: storeRoot, projectsRoot: canonicalRoots[0] });   // anchor the current account, once, deduped
       const timeline = await readSwapLog(swapLog);
-      const files = await listTranscripts(canonicalRoots);
+      const { files, scanned } = await listTranscripts(canonicalRoots);
       // Each root is attributed only by the entries that speak for it; an
       // unscoped legacy entry speaks for none unless its root is unambiguous
       // (timelineFor).
@@ -620,9 +630,11 @@ export function createProjectRollup({
       // Forget the cursors and request ledgers of files that are gone, and
       // the folders of project directories with no transcript left, so none of
       // the three maps grows forever.
-      for (const p of Object.keys(state.cursors)) if (!files.has(p)) { delete state.cursors[p]; dirty = true; }
-      for (const p of Object.keys(state.requests)) if (!files.has(p)) { delete state.requests[p]; dirty = true; }
+      const gone = p => !files.has(p) && [...scanned].some(root => insideRoot(p, root));
+      for (const p of Object.keys(state.cursors)) if (gone(p)) { delete state.cursors[p]; dirty = true; }
+      for (const p of Object.keys(state.requests)) if (gone(p)) { delete state.requests[p]; dirty = true; }
       for (const root of Object.keys(state.folders)) {
+        if (!scanned.has(root)) continue;
         const slugs = new Set([...files.values()].filter(f => f.root === root).map(f => f.slug));
         for (const s of Object.keys(state.folders[root])) if (!slugs.has(s)) { delete state.folders[root][s]; dirty = true; }
         if (!slugs.size) delete state.folders[root];
