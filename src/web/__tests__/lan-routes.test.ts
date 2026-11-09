@@ -12,7 +12,7 @@
 // work around: an engine that is off is a state the panel really meets, and
 // every refusal below is the one it gets there. The pairing paths that need a
 // second deck on the wire are prefs-update-1041's, against two real engines.
-import { describe, it, expect, beforeAll, afterAll } from "vitest";
+import { describe, it, expect, beforeAll, afterAll, vi } from "vitest";
 import { mkdtempSync } from "node:fs";
 import { rmTempDir } from "./rm-temp-dir";
 import { request, type Server } from "node:http";
@@ -39,6 +39,8 @@ for (const p of [process.env.HOME, process.env.USERPROFILE, process.env.CLAUDE_C
 
 // @ts-expect-error — plain .mjs module, no types
 const { startServer } = await import("../../server/index.mjs");
+// @ts-expect-error — plain .mjs module, no types
+const { lanEngine } = await import("../../server/lan-deck.mjs");
 // @ts-expect-error — plain .mjs module, no types
 const { readPrefs, deckDataDir } = await import("../../server/deck-prefs.mjs").then(async m => ({
   ...m,
@@ -206,6 +208,29 @@ describe("naming another deck", () => {
 });
 
 describe("POST /api/lan/sync", () => {
+  it.each([
+    { name: "an oversized body", body: JSON.stringify({ fp: "synthetic-peer", padding: "x".repeat(64_000) }), status: 413 },
+    { name: "malformed JSON", body: '{"fp":', status: 400 },
+    { name: "a null body", body: "null", status: 400 },
+    { name: "an array body", body: "[]", status: 400 },
+    { name: "a non-string peer", body: { fp: 42 }, status: 400 },
+  ])("does not start any sync after refusing $name", async ({ body, status }) => {
+    const all = vi.spyOn(lanEngine, "round").mockResolvedValue([]);
+    const one = vi.spyOn(lanEngine, "roundOne").mockResolvedValue([]);
+    try {
+      const r = await post("/api/lan/sync", body);
+      // A 413 is written by the reader before its rejection reaches the route.
+      // Let that continuation run too: the response alone cannot prove no sync.
+      await new Promise<void>(done => setImmediate(done));
+      expect(r.status).toBe(status);
+      expect(all).not.toHaveBeenCalled();
+      expect(one).not.toHaveBeenCalled();
+    } finally {
+      all.mockRestore();
+      one.mockRestore();
+    }
+  });
+
   it("says a deck it holds no address for has none, rather than reporting a round that asked nobody", async () => {
     const r = await post("/api/lan/sync", { fp: "nobody" });
     expect(r.status).toBe(409);
@@ -217,6 +242,12 @@ describe("POST /api/lan/sync", () => {
     expect(r.status).toBe(200);
     expect(r.body.ok).toBe(true);
     expect(r.body.done).toEqual([]);
+  });
+
+  it("also accepts the empty object sent by the panel's whole-list button", async () => {
+    const r = await post("/api/lan/sync", {});
+    expect(r.status).toBe(200);
+    expect(r.body).toMatchObject({ ok: true, done: [] });
   });
 });
 

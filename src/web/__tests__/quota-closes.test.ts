@@ -25,6 +25,35 @@ function setup(load: () => Promise<unknown> = async () => null) {
 }
 
 describe("how full each quota window was at its reset", () => {
+  it("retries a failed close save on an ordinary sweep without another observation", async () => {
+    let clock = START;
+    let failSave = false;
+    let persisted: any = null;
+    const save = vi.fn(async (raw: unknown) => {
+      if (failSave) throw new Error("synthetic write failure");
+      persisted = structuredClone(raw);
+    });
+    const closes = createQuotaCloses({ now: () => clock, save });
+    const reset = START / 1000 + 60;
+    await closes.observe("claude", ACCOUNT, [week(72, reset)], START);
+    expect(persisted.open[0].pct).toBe(72);
+
+    clock += 61_000;
+    failSave = true;
+    await closes.observe("claude", ACCOUNT, [week(90, reset)], START + 50_000);
+    expect((await closes.report("claude", ACCOUNT)).storageOk).toBe(false);
+    expect(persisted.closed).toEqual([]);
+
+    failSave = false;
+    await closes.sweep();
+    expect(persisted.open).toEqual([]);
+    expect(persisted.closed).toEqual([expect.objectContaining({ pct: 90, ended: "reset" })]);
+    expect((await closes.report("claude", ACCOUNT)).storageOk).toBe(true);
+    const saved = save.mock.calls.length;
+    await closes.sweep();
+    expect(save).toHaveBeenCalledTimes(saved);
+  });
+
   it("closes a window with its last reading once its reset passes, keeping the peak", async () => {
     const { closes, save, see, at } = setup();
     await see("claude", ACCOUNT, [week(40), session(10)], START);

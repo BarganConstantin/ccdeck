@@ -37,7 +37,8 @@ export function send(res, status, body, headers = {}) {
 export const OVERSIZE_DRAIN_MS = 10_000;
 
 /**
- * Collect a request body as a string, capped so a bad client can't fill memory.
+ * Collect a request body as a string, capped in wire bytes before UTF-8
+ * decoding so the same limit applies to every language.
  *
  * IT ANSWERS BEFORE IT HANGS UP, which it did not. `req.destroy()` ran ahead of
  * the reject, so the caller's own `send(res, 400, ...)` had no socket left to
@@ -63,24 +64,7 @@ export const OVERSIZE_DRAIN_MS = 10_000;
  * gone out.
  */
 export function readBody(req, res = null, limit = 64_000) {
-  return new Promise((resolve, reject) => {
-    let body = "";
-    let refused = false;
-    req.setEncoding("utf8");
-    req.on("data", c => {
-      if (refused) return;
-      body += c;
-      if (body.length > limit) {
-        refused = true;
-        body = "";
-        if (res) send(res, 413, { error: "body too large" });
-        drainRefused(req);
-        reject(new Error("body too large"));
-      }
-    });
-    req.on("end", () => { if (!refused) resolve(body); });
-    req.on("error", reject);
-  });
+  return readBytes(req, res, limit).then(body => body.toString("utf8"));
 }
 
 /** Keep reading a refused upload and throw it away, for a bounded while — see readBody. */

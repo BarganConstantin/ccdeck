@@ -208,11 +208,19 @@ async function handleRestart(req, res) {
   let whenIdle = false;
   if (req.method === "POST") {
     const body = await readBody(req, res).catch(() => null);
-    try {
-      const ask = JSON.parse(body ?? "");
-      wantUpgrade = ask?.upgrade === true;
-      whenIdle = ask?.whenIdle === true;
-    } catch { /* a plain restart */ }
+    if (body == null) return;
+    let ask = {};
+    if (body !== "") {
+      try { ask = JSON.parse(body); }
+      catch { return send(res, 400, { ok: false, reason: "bad_request" }); }
+    }
+    if (!ask || typeof ask !== "object" || Array.isArray(ask)
+      || ("upgrade" in ask && typeof ask.upgrade !== "boolean")
+      || ("whenIdle" in ask && typeof ask.whenIdle !== "boolean")) {
+      return send(res, 400, { ok: false, reason: "bad_request" });
+    }
+    wantUpgrade = ask.upgrade === true;
+    whenIdle = ask.whenIdle === true;
   }
   let mode = null;
   if (wantUpgrade) {
