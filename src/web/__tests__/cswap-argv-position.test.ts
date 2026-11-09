@@ -176,7 +176,7 @@ vi.mock("node:child_process", async () => {
   // through it is not a nicety here — see the stub's own note below.
   const { spawnedArgv } = await import("./spawned-argv");
 
-  // What `run` uses. The callback shape is execFile's: (err, stdout, stderr).
+  // What `run` uses on Windows. The callback shape is execFile's: (err, stdout, stderr).
   // Answering asynchronously matters — exec.mjs attaches its stdio listeners and
   // its deadline after execFile returns.
   function execFile(cmd: string, args: string[], _opts: unknown, cb?: Function) {
@@ -190,7 +190,7 @@ vi.mock("node:child_process", async () => {
     return cp;
   }
 
-  // What `runInteractive` uses. No `pid`, deliberately: killTree only reaches
+  // Both buffered POSIX runs and interactive runs use spawn. No `pid`, deliberately: killTree only reaches
   // for taskkill when the child has one, and a recorded taskkill would be a
   // spawn in this file's log that has nothing to do with what was asked for.
   function spawn(cmd: string, args: string[] = []) {
@@ -217,6 +217,14 @@ vi.mock("node:child_process", async () => {
     // vector has to read that vector the same way the test does.
     if (isLoginSpawn(spawnedArgv({ cmd, args }).slice(1))) {
       setImmediate(() => proc.stdout.emit("data", `${LOGIN_URL}\n`));
+    } else {
+      // Alias/config commands complete; only sign-in waits for user input.
+      // Buffered runs collect these streams and settle on close, whereas the
+      // Windows execFile stub answers through its callback above.
+      setImmediate(() => {
+        proc.stdout.emit("data", "ok");
+        proc.emit("close", 0);
+      });
     }
     return proc;
   }

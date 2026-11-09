@@ -26,6 +26,7 @@
 // launched by its full path where one can be found; see shimPath and
 // candidateSpec.
 import { execFile, spawn } from "node:child_process";
+import { StringDecoder } from "node:string_decoder";
 // Which spelling of a command to try, whether it goes through cmd.exe, and the
 // exact file, argv and options spawn is handed for it — all of it decided
 // before anything is spawned, and all of it platform-parameterised so the
@@ -80,6 +81,46 @@ export const tryNext = (err) =>
 // to execFile's callback, which a timed-out run never waits for, and the tail is
 // where a tool puts the line that explains itself.
 const TIMEOUT_TAIL = 8 << 10;
+
+/** execFile does not forward `detached` to spawn. POSIX buffered commands
+ *  therefore need their own spawn to establish a private group. Keep the
+ *  execFile contract: UTF-8 output, separate byte limits, and one callback
+ *  after both pipes close. Windows keeps its existing execFile path. */
+function execCommand(file, args, opts, callback) {
+  if (process.platform === "win32") return watchChild(execFile(file, args, opts, callback));
+  const cp = watchChild(spawn(file, args, { ...opts, detached: true }), { processGroup: true });
+  const output = { stdout: "", stderr: "" };
+  const bytes = { stdout: 0, stderr: 0 };
+  let error = null, finished = false;
+  const finish = (err) => {
+    if (finished) return;
+    finished = true;
+    callback(err, output.stdout, output.stderr);
+  };
+  for (const name of ["stdout", "stderr"]) {
+    cp[name].setEncoding?.("utf8");
+    cp[name].on("data", text => {
+      if (error) return;
+      const size = Buffer.byteLength(text);
+      const remaining = Math.max(0, opts.maxBuffer - bytes[name]);
+      output[name] += size > remaining
+        ? new StringDecoder("utf8").write(Buffer.from(text).subarray(0, remaining)) : text;
+      bytes[name] += size;
+      if (bytes[name] > opts.maxBuffer) {
+        error = Object.assign(new Error(`${name} maxBuffer length exceeded`), {
+          code: "ERR_CHILD_PROCESS_STDIO_MAXBUFFER", killed: true,
+        });
+        killTree(cp);
+      }
+    });
+    cp[name].on("error", err => { error ??= err; killTree(cp); });
+  }
+  cp.on("error", finish);
+  cp.on("close", (code, signal) => finish(error ?? (code === 0 ? null : {
+    code, signal, killed: Boolean(signal),
+  })));
+  return cp;
+}
 
 /**
  * Run a command and collect its output. Never rejects, and never throws —
@@ -169,8 +210,8 @@ export function run(cmd, args, { timeout = 20_000, maxBuffer = 4 << 20, env, cwd
         // watchChild: this run's deadline lives in the timer below, in THIS
         // process, so a shutdown that does not reap it leaves the child with
         // no deadline at all. See `live` in exec-children.mjs, and #1012.
-        const cp = watchChild(execFile(file, argv,
-          { timeout: 0, shell: false, windowsHide: true, maxBuffer, ...(env ? { env } : {}), ...(cwd ? { cwd } : {}), ...opts }, done));
+        const cp = execCommand(file, argv,
+          { timeout: 0, shell: false, windowsHide: true, maxBuffer, ...(env ? { env } : {}), ...(cwd ? { cwd } : {}), ...opts }, done);
         // Give the child EOF on stdin straight away, which is what this
         // function's contract has always claimed ("run closes stdin", says
         // runInteractive's header) and what execFile does not do: it leaves the
@@ -314,7 +355,9 @@ export function runInteractive(cmd, args, { timeout = 300_000, maxOutput = 256 <
       // this one's deadline is five minutes and it is a `claude auth login`
       // blocked on a stdin pipe only this process holds. See `live` in
       // exec-children.mjs.
-      proc = watchChild(spawn(file, argv, { stdio: ["pipe", "pipe", "pipe"], shell: false, windowsHide: true, ...opts }));
+      const processGroup = process.platform !== "win32";
+      proc = watchChild(spawn(file, argv, { stdio: ["pipe", "pipe", "pipe"], shell: false, windowsHide: true, ...opts,
+        ...(processGroup ? { detached: true } : {}) }), { processGroup });
     } catch (err) {
       return tryNext(err) ? attempt(i + 1) : finish(-1, err);
     }

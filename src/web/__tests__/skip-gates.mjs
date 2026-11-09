@@ -216,6 +216,7 @@ export const GATES = [
   // its quoting is executed through cmd.exe by no-shell-hook-commands.
   { file: "hook-command-node-fallback.test.ts", gate: "describe.skipIf", condition: 'process.platform === "win32"', sites: 1, cases: 3 },
   { file: "exec-timeout.test.ts", gate: "it.skipIf", condition: 'process.platform === "win32"', sites: 2, cases: 2 },
+  { file: "exec-descendants.test.ts", gate: "describe.skipIf", condition: 'process.platform === "win32"', sites: 1, cases: 7 },
   { file: "exec-windows.test.ts", gate: "it.skipIf", condition: 'process.platform === "win32"', sites: 3, cases: 3 },
   // A real deck sent SIGHUP, to see its shutdown run, and four more signalled
   // between writing their record and the end of the boot — SIGHUP, SIGTERM,
