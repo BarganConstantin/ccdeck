@@ -79,7 +79,14 @@ import { run } from "./metrics-run.mjs";
 //            for it, and the deck fetches its release binary itself — see
 //            macmon.mjs.
 //
-//   Windows  The performance counter `\Thermal Zone Information(*)\High
+//   Windows  CPU performance caps come from the invariant CIM class
+//            Win32_PerfFormattedData_Counters_ProcessorInformation. Its
+//            PercentPerformanceLimit reports guaranteed performance relative
+//            to nominal, including power-policy and firmware constraints.
+//            It is not a temperature or a complete hardware thermal detector.
+//            The source tag keeps the UI from claiming that every cap is heat.
+//
+//            Temperatures use `\Thermal Zone Information(*)\High
 //            Precision Temperature`, in TENTHS OF A KELVIN, read through
 //            Get-Counter.
 //
@@ -472,6 +479,9 @@ export const WIN_THERMAL_PS = [
     + "| ForEach-Object { @{ i = $_.InstanceName; v = $_.CookedValue } }) } "
     + "} catch {} }",
   "if (-not $r.perf) { try { $r.acpi = @(Get-CimInstance -Namespace root/wmi -ClassName MSAcpi_ThermalZoneTemperature -EA Stop | ForEach-Object { @{ i = $_.InstanceName; v = $_.CurrentTemperature } }) } catch {} }",
+  // CIM names are invariant across display languages. This is a performance
+  // ceiling, not proof of heat: Windows also applies policy/firmware limits.
+  "try { $r.cpuLimit = @(Get-CimInstance -ClassName Win32_PerfFormattedData_Counters_ProcessorInformation -EA Stop | ForEach-Object { @{ v = $_.PercentPerformanceLimit } }) } catch {}",
   // Depth matters: the default of 2 turns the inner hashtables into the string
   // "System.Collections.Hashtable" and this parser would see nothing at all.
   "$r | ConvertTo-Json -Compress -Depth 4",
@@ -634,11 +644,12 @@ export async function readWindowsThermal(since = null, deps = {}) {
     ?? (async () => (await import("./hwmonitor.mjs")).readHwMonitorTemps());
 
   const out = await powershell();
+  const throttle = throttleFromWindows(out);
   const zones = out ? parseWinThermal(out.trim()) : [];
   const zonesSeen = zonesSeenAfter(zones, since?.zonesSeen);
   const memory = Object.keys(zonesSeen).length ? { zonesSeen } : {};
   const moved = zones.filter(z => zonesSeen[z.label].moved);
-  if (moved.length) return { celsius: moved, throttle: null, ...memory };
+  if (moved.length) return { celsius: moved, throttle, ...memory };
 
   // Windows had no zone that has moved, which on a modern Intel laptop is
   // every time: the firmware declares no ACPI thermal zone, or declares one
@@ -651,13 +662,30 @@ export async function readWindowsThermal(since = null, deps = {}) {
   const rows = [];
   if (t.cpu != null) rows.push({ label: "CPU", celsius: t.cpu, warnAt: WARN_C, critAt: CRIT_C });
   if (t.gpu != null) rows.push({ label: "GPU", celsius: t.gpu, warnAt: WARN_C, critAt: CRIT_C });
-  if (rows.length) return { celsius: rows, throttle: null, ...memory };
+  if (rows.length) return { celsius: rows, throttle, ...memory };
+  if (throttle) return { celsius: [], throttle, ...memory };
 
   // A zone that has not moved yet is still a zone, so this is an answer with
   // nothing to draw rather than null. Null would let the sampler give up after
   // three readings, and a real zone that idled on one value for half a minute
   // would then never be drawn. thermalSnapshot keeps it off the panel.
   return zones.length ? { celsius: [], throttle: null, zonesSeen } : null;
+}
+
+/** Windows' guaranteed performance relative to nominal performance. Taking
+ * the lowest published processor limit keeps a limited core visible instead
+ * of averaging it away. Boost/clock frequency is deliberately not consulted.
+ * Values above 100 mean no cap below nominal, not negative throttling.
+ * Source: Windows Processor Information / % Performance Limit counter help. */
+export function throttleFromWindows(json) {
+  let r;
+  try { r = typeof json === "string" ? JSON.parse(json) : json; }
+  catch { return null; }
+  if (!Array.isArray(r?.cpuLimit)) return null;
+  const limits = r.cpuLimit.map(x => x?.v)
+    .filter(v => typeof v === "number" && Number.isFinite(v) && v >= 0);
+  if (!limits.length) return null;
+  return { speedLimit: Math.min(100, ...limits), source: "windows-performance" };
 }
 
 /**

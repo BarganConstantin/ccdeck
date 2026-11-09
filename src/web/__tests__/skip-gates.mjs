@@ -106,6 +106,10 @@ export const CONDITIONS = {
     holdsOn: (platform) => platform === "win32",
     why: "chmod 0555 does not block writes on Windows (nor for root), so the case cannot fail the write without also failing the read it needs first.",
   },
+  "!permissionChecks": {
+    holdsOn: platform => platform === "win32",
+    why: "Real directory-permission refusals require POSIX and an unprivileged user. The Linux and macOS CI runners must run these cases; root would silently bypass the refusal.",
+  },
   "!hasNodeSqlite": {
     // Node 22.5+ ships `node:sqlite`, and every leg of the matrix runs 22 — so
     // like the dist gate this is satisfied by a decision in the workflow rather
@@ -216,6 +220,7 @@ export const GATES = [
   // its quoting is executed through cmd.exe by no-shell-hook-commands.
   { file: "hook-command-node-fallback.test.ts", gate: "describe.skipIf", condition: 'process.platform === "win32"', sites: 1, cases: 3 },
   { file: "exec-timeout.test.ts", gate: "it.skipIf", condition: 'process.platform === "win32"', sites: 2, cases: 2 },
+  { file: "exec-descendants.test.ts", gate: "describe.skipIf", condition: 'process.platform === "win32"', sites: 1, cases: 7 },
   { file: "exec-windows.test.ts", gate: "it.skipIf", condition: 'process.platform === "win32"', sites: 3, cases: 3 },
   // A real deck sent SIGHUP, to see its shutdown run, and four more signalled
   // between writing their record and the end of the boot — SIGHUP, SIGTERM,
@@ -272,6 +277,11 @@ export const GATES = [
   // /Applications — which it must not stage an update for, or the swap above
   // is where it ends up. The same probe, for the same reason.
   { file: "desktop-update-unreplaceable-app.test.ts", gate: "it.skipIf", condition: "!readOnlyDirBlocksWrites", sites: 1, cases: 1 },
+
+  // Real EACCES recovery on owned directories. CI runs as an unprivileged
+  // user on POSIX; Windows cannot produce these refusals with chmod.
+  { file: "boot-lock-recovery.test.ts", gate: "it.skipIf", condition: "!permissionChecks", sites: 1, cases: 1 },
+  { file: "integrations-store-quarantine.test.ts", gate: "it.skipIf", condition: "!permissionChecks", sites: 1, cases: 2 },
 
   { file: "browser-history.test.ts", gate: "describe.skipIf", condition: "!hasNodeSqlite", sites: 1, cases: 3 },
 
@@ -467,8 +477,12 @@ export function scanSource(file, src) {
     if (src.slice(lineStart, m.index).includes("//")) continue;
     const gate = `${m[1]}.${m[2]}`;
     const open = m.index + m[0].length - 1;
-    const condition = balanced(src, open).trim().replace(/\s+/g, " ");
-    const cases = m[1] === "describe" ? casesInBlock(src, m.index) : 1;
+    const argument = balanced(src, open);
+    const condition = argument.trim().replace(/\s+/g, " ");
+    const after = open + argument.length + 2;
+    const each = /^\s*\.each\s*\(/.exec(src.slice(after));
+    const cases = m[1] === "describe" ? casesInBlock(src, m.index)
+      : each ? eachRows(balanced(src, after + each[0].length - 1)) : 1;
     found.push({ file, gate, condition, cases });
   }
   return found;

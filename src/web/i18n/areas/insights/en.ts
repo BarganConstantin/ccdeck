@@ -2,6 +2,9 @@
 import type { Catalog } from "../../catalogs";
 
 const catalog: Catalog = {
+  "insights.machine.windowsLimit": "Windows CPU limit: {pct}% of nominal performance",
+  "insights.machine.windowsNoLimit": "Windows reports no CPU cap below nominal performance",
+  "insights.machine.windowsPastLimit": "Windows CPU limit was {pct}% · {since}",
   "insights.cost.input": "input",
   "insights.cost.output": "output",
   "insights.cost.cacheRead": "cache read",

@@ -14,8 +14,12 @@ import { spawn } from "node:child_process";
 /**
  * Stop a child AND everything it started.
  *
- * On POSIX the child is the tool, so a signal to it is the whole job and this
- * is exactly the `child.kill()` it replaces. On Windows a .cmd or .bat runs
+ * On POSIX an explicitly owned process group receives the signal as a group:
+ * wrappers can start ordinary descendants which outlive a signal to the
+ * wrapper alone. Only callers that spawned with `detached: true` may mark that
+ * ownership in watchChild; an arbitrary child's inherited group could include
+ * the deck and the user's shell. Unmarked children keep the plain kill.
+ * On Windows a .cmd or .bat runs
  * THROUGH cmd.exe (see viaCmd), so the tool — node, for the claude and npm
  * shims — is a grandchild, and a kill is one TerminateProcess against the
  * wrapper. Windows terminates no descendants and libuv's job object lets them
@@ -37,7 +41,13 @@ import { spawn } from "node:child_process";
  */
 export function killTree(child, signal) {
   const plain = () => { try { child?.kill(signal); } catch { /* already gone */ } };
-  if (process.platform !== "win32" || !child?.pid) return plain();
+  if (process.platform !== "win32") {
+    if (ownedGroups.has(child) && Number.isInteger(child.pid) && child.pid > 1 && child.pid !== process.pid) {
+      try { process.kill(-child.pid, signal); return; } catch { /* gone, or no group: try the child */ }
+    }
+    return plain();
+  }
+  if (!child?.pid) return plain();
   try {
     const root = process.env.SystemRoot || process.env.systemroot;
     const exe = root ? `${root}\\System32\\taskkill.exe` : "taskkill";
@@ -84,12 +94,17 @@ export function killTree(child, signal) {
  * purpose. Killing those on the way out would be this set overreaching.
  */
 const live = new Set();
+const ownedGroups = new WeakSet();
 
-/** Track one child until it ends. Returns it, so it can wrap a spawn inline. */
-export function watchChild(cp) {
+/** Track one child until it ends. `processGroup` may only be true when this
+ *  caller just spawned a dedicated POSIX group with `detached: true`.
+ *  Tracking alone (e.g. a native account probe) never grants group ownership. */
+export function watchChild(cp, { processGroup = false } = {}) {
   if (!cp) return cp;
+  if (processGroup && process.platform !== "win32") ownedGroups.add(cp);
   live.add(cp);
-  const forget = () => { live.delete(cp); };
+  // A stale ChildProcess must never signal a later process reusing its PID.
+  const forget = () => { live.delete(cp); ownedGroups.delete(cp); };
   cp.once?.("close", forget);
   cp.once?.("error", forget);
   return cp;

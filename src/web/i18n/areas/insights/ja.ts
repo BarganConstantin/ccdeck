@@ -2,6 +2,9 @@
 import type { Catalog } from "../../catalogs";
 
 const catalog: Catalog = {
+  "insights.machine.windowsLimit": "Windows CPU制限：定格性能の{pct}%",
+  "insights.machine.windowsNoLimit": "Windowsは定格性能未満のCPU制限を報告していません",
+  "insights.machine.windowsPastLimit": "Windows CPU制限は{pct}%でした · {since}",
   "insights.cost.input": "入力",
   "insights.cost.output": "出力",
   "insights.cost.cacheRead": "キャッシュ読込",

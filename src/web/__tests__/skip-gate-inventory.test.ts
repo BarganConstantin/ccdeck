@@ -155,7 +155,7 @@ describe("the register of conditionally-skipped cases", () => {
     expect(expectedSkips("darwin")).toEqual(expected);
   });
 
-  it("expects the ninety-nine platform-gated cases to skip on Windows, file by file", () => {
+  it("expects the registered platform-gated cases to skip on Windows, file by file", () => {
     // Fifty-seven behind `process.platform === "win32"`, eight behind the posix
     // runIf family, and the three read-only-directory cases — sound-hook-park's,
     // the swap script's in desktop-updater and the macOS updater's in
@@ -165,10 +165,11 @@ describe("the register of conditionally-skipped cases", () => {
     // than as a total, so a change that moves a case from one gate to another is
     // a mismatch rather than an arithmetic coincidence.
     expect(expectedSkips("win32")).toEqual({
-      total: 99,
+      total: 109,
       byFile: {
         "append-deadline.test.ts": 1,
         "backup-root-shared.test.ts": 1,
+        "boot-lock-recovery.test.ts": 1,
         "codex-auth-rename-retry.test.ts": 1,
         "codex-engine-adapter.test.ts": 1,
         "codex-engine-rpc.test.ts": 1,
@@ -183,10 +184,12 @@ describe("the register of conditionally-skipped cases", () => {
         "discovery-live.test.ts": 3,
         "desktop-updater.test.ts": 7,
         "exec-shim-callers.test.ts": 5,
+        "exec-descendants.test.ts": 7,
         "exec-timeout.test.ts": 2,
         "exec-windows.test.ts": 3,
         "hangup-shuts-down.test.ts": 5,
         "hook-command-node-fallback.test.ts": 3,
+        "integrations-store-quarantine.test.ts": 2,
         "no-shell-hook-commands.test.ts": 2,
         "prefs-corrupt-1002.test.ts": 2,
         "relay-guard.test.ts": 6,
@@ -252,6 +255,14 @@ describe("the register of conditionally-skipped cases", () => {
 });
 
 describe("the scanner the register is checked against", () => {
+  it("counts literal each rows chained after an individual gate", () => {
+    const src = `${gate("it.skipIf", "!permissionChecks")}.each([META_FILE, SECRETS_FILE])("case", () => {});`;
+    expect(scanSource("fake.test.ts", src)).toEqual([
+      { file: "fake.test.ts", gate: "it.skipIf", condition: "!permissionChecks", cases: 2 },
+    ]);
+    expect(() => scanSource("fake.test.ts", src.replace('[META_FILE, SECRETS_FILE]', 'uninspectedRows()'))).toThrow('literal table');
+  });
+
   it("counts literal each rows inside a gated describe without running its source", () => {
     const src = [
       `${gate("describe.skipIf", 'process.platform === "win32"')}("block", () => {`,
@@ -402,7 +413,7 @@ describe("the workflow the register is enforced from", () => {
     const win32Sites = gates()
       .filter((g) => g.condition === 'process.platform === "win32"')
       .reduce((n, g) => n + g.sites, 0);
-    expect(win32Sites).toBe(34);
+    expect(win32Sites).toBe(35);
 
     const stated = publishYml().match(/the (\d+) sites gated `skipIf\(process\.platform === "win32"\)`/);
     expect(stated, "publish.yml no longer states the win32 gate count in the form this reads").not.toBeNull();

@@ -36,18 +36,30 @@ export function createToolAudit({ dir, now = Date.now, runReport = workerReport 
   // they did: that is what tells a wait for approval from hooks starting the tool.
   const running = new Map();
   const enqueue = fn => { const task = serial.then(fn); serial = task.catch(() => {}); return task; };
-  const ready = () => readyPromise ??= (async () => {
-    await mkdir(dir, { recursive: true });
-    try { meta = JSON.parse(await readFile(join(dir, 'settings.json'), 'utf8')); }
-    catch (e) { if (e.code !== 'ENOENT') throw e; }
-    if (meta && !validMeta(meta)) throw new Error('Unreadable tool history settings');
-    if (!meta) { meta = { v: 1, deviceId: randomUUID(), epoch: randomUUID(), retentionDays: 90, startedAt: now(), skillsSince: now(), turnsSince: now() }; await saveMeta(); }
-    // A journal from before skills were counted: its Skill calls never named the skill.
-    if (!Number.isFinite(meta.skillsSince)) { meta.skillsSince = now(); await saveMeta(); }
-    // Nor did it hold turns, so the split of the time starts here.
-    if (!Number.isFinite(meta.turnsSince)) { meta.turnsSince = now(); await saveMeta(); }
-    await prune();
-  })();
+  const ready = () => {
+    if (readyPromise) return readyPromise;
+    const attempt = (async () => {
+      await mkdir(dir, { recursive: true });
+      try { meta = JSON.parse(await readFile(join(dir, 'settings.json'), 'utf8')); }
+      catch (e) { if (e.code !== 'ENOENT') throw e; }
+      if (meta && !validMeta(meta)) throw new Error('Unreadable tool history settings');
+      if (!meta) { meta = { v: 1, deviceId: randomUUID(), epoch: randomUUID(), retentionDays: 90, startedAt: now(), skillsSince: now(), turnsSince: now() }; await saveMeta(); }
+      // A journal from before skills were counted: its Skill calls never named the skill.
+      if (!Number.isFinite(meta.skillsSince)) { meta.skillsSince = now(); await saveMeta(); }
+      // Nor did it hold turns, so the split of the time starts here.
+      if (!Number.isFinite(meta.turnsSince)) { meta.turnsSince = now(); await saveMeta(); }
+      await prune();
+    })();
+    readyPromise = attempt;
+    void attempt.catch(() => {
+      if (readyPromise !== attempt) return;
+      readyPromise = null;
+      // A failed migration or prune may have populated meta already. The
+      // retry must read disk again, never reuse that partial initialization.
+      meta = undefined;
+    });
+    return attempt;
+  };
   const saveMeta = () => writeFileAtomic(join(dir, 'settings.json'), JSON.stringify(meta));
   const files = async () => (await readdir(dir)).filter(n => /^\d{4}-\d{2}-\d{2}\.jsonl$/.test(n)).sort();
   const prune = async () => {
