@@ -6,7 +6,7 @@
 // registry is a fetch stand-in serving a tarball built in the test; the
 // package's executable is only a header for this machine (it is never run)
 // and its manifest is signed by a throwaway Ed25519 key handed in as the
-// deck's key: the deck's own key list is empty and stays so. Every folder is
+// deck's key: the deck's own release key signs none of them. Every folder is
 // a temporary one.
 import { afterEach, describe, expect, it } from "vitest";
 import { chmod, lstat, mkdir, mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
@@ -160,8 +160,8 @@ async function settled(i: { status(): Promise<{ job: unknown }> }) {
 const leftovers = async (w: World) => (await readdir(w.data)).filter((n) => /^engine-(download|import|previous)-/.test(n) || n === "engine.lock");
 
 describe("the engine install's status", () => {
-  it("offers nothing without keys, which is today: the deck's own key list is empty", async () => {
-    expect(ENGINE_PUBLIC_KEYS).toEqual([]);
+  it("offers nothing without keys (the deck's own list holds the one release key)", async () => {
+    expect(ENGINE_PUBLIC_KEYS).toHaveLength(1);
     const w = await world();
     const s = await installer(w, { keys: [] }).status();
     expect(s.blocked).toBe("no-keys");

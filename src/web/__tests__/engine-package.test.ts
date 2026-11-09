@@ -5,7 +5,7 @@
 // The package is a folder made here under a temporary directory, with an
 // executable that is only a header for this machine (it is never run) and a
 // manifest signed by a throwaway Ed25519 key handed in as the deck's key: the
-// deck's own key list is empty and stays so. Windows is exercised on Linux and
+// deck's own release key signs none of them. Windows is exercised on Linux and
 // macOS by handing the installer a mocked ACL reader and a Windows-shaped
 // package, so the rules are covered, not Windows itself (NOT TESTED there).
 import { afterEach, describe, expect, it, vi } from "vitest";

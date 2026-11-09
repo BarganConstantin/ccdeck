@@ -11,9 +11,9 @@ only while the Command Panel's switch in Settings is on (off by default), on
 Linux or macOS, once a route asks. It looks in `<deck data folder>/engine` (the
 `CCDECK_HOME` folder when set) and nowhere else: not on `PATH`, never
 downloaded or installed. It trusts only the Ed25519 keys shipped with the deck,
-a frozen list that is empty in this release, so a missing folder answers
-`not-installed` and a present one `not-verified`, and the executable is never
-read. Off Linux and macOS (on Windows) every route answers `unsupported`
+a frozen list holding the one release key the `@ccdeck/engine-*` packages are
+signed with, so a missing folder answers `not-installed` and a present one that
+key did not sign `not-verified`, and its executable is never read. Off Linux and macOS (on Windows) every route answers `unsupported`
 without looking; on both, a route reaches the engine only when its hello
 advertises a terminal backend, and answers `no-terminal` otherwise. The client
 it makes is the only one constructed with `terminal: true` (Terminal opt-in,

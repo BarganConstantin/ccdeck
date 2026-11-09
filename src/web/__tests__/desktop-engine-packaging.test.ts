@@ -8,11 +8,11 @@
 // engine-packages.cjs, and left byte for byte as published by the Mac signing
 // (sign-mac.cjs).
 //
-// The packages are not published yet, so the root package.json lists none and
-// all of this has to be DORMANT: nothing added to the app, nothing checked,
-// nothing fetched. Every case below runs against a repository root made here in
-// a temporary folder, once listing no engine package and once listing them, so
-// both halves are proved today. Nothing touches the network or runs rcodesign:
+// A root package.json that lists no engine package (a platform or arch with no
+// published package) leaves all of this DORMANT: nothing added to the app,
+// nothing checked, nothing fetched. Every case below runs against a repository
+// root made here in a temporary folder, once listing no engine package and once
+// listing them, so both halves are proved. Nothing touches the network or runs rcodesign:
 // the fetch is a stand-in serving a tarball made here with `tar -czf`, and the
 // signing is a stand-in that writes down its argv.
 import { afterEach, describe, expect, it, vi } from "vitest";
