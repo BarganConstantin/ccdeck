@@ -1,6 +1,6 @@
 // The attention rail: the left column's list of every session on the canvas,
-// grouped by what each one wants of you — Needs you, Working, Done · unseen,
-// Idle — in V4's Board window. Click a row to fit-view to that session and
+// grouped by what each one wants of you — Needs you, Working, Done · new,
+// Done, Ready — in V4's Board window. Click a row to fit-view to that session and
 // select its root agent. Toggle visibility with the L key (see App.tsx). The
 // topbar's ☰ used to open it too and has been removed; L is the way in, and
 // the × below and L itself are the two ways out.
@@ -15,7 +15,7 @@ import { agentCost } from "../usage-models";
 import type { GraphState } from "../reducer";
 import type { BackgroundJob, SessionRecap, WaitingBlock } from "../types";
 import { sessionNoteShown, type SessionNote } from "../session-note";
-import { drawnState } from "../node-face";
+import { drawnState, neverPrompted } from "../node-face";
 import { isAgentVisible } from "../visibility";
 import { withKey } from "../single-key-shortcuts";
 import { useSingleKeyShortcuts } from "../use-single-key-shortcuts";
@@ -74,17 +74,22 @@ export interface Row {
   /** When the current turn began: the newest prompt. */
   turnStartedAt?: number;
   /** The call in flight right now, for a working row's second line. */
-  tool?: { name: string; preview: string } | null;
+  tool?: { name: string; preview: string; path?: true } | null;
+  /** The session's folder: a path the row prints is shortened against it
+   *  (rail-row-copy.ts rowPath). */
+  cwd?: string;
 }
 
-/** Where a row sorts, as the rail's four groups, before activity is looked at:
+/** Where a row sorts, as the rail's five groups, before activity is looked at:
  *  0 Needs you, a session blocked on a permission prompt or a question; 1
- *  Working, a turn running or a background job still going; 2 Done · unseen,
- *  a turn that ended since you last looked; 3 Idle, everything else.
+ *  Working, a turn running or a background job still going; 2 Done · new, a
+ *  turn that ended since you last looked; 3 Done, a turn that ended and has
+ *  been seen; 4 Ready, a session not yet given a prompt (node-face.ts
+ *  neverPrompted), which its card calls Ready too.
  *
  *  A blocked session is the only row on this list that is asking for something,
  *  so it is first. "Your turn" is a different thing from a decision you are
- *  stalled on: V4 puts it below Working, and once you have seen it, in Idle.
+ *  stalled on: V4 puts it below Working, and once you have seen it, in Done.
  *  Waiting is not the row's `state`: an idle_prompt sits on a session that is
  *  legitimately done and still reads `done` two columns to the left.
  *
@@ -99,13 +104,13 @@ export function rank(r: Row): RailGroup {
   // A job still going wears the Working mark even though its turn has ended.
   if (r.job && (r.job.state === "working" || r.job.state === "blocked")) return 1;
   const turnEnded = r.state !== "active" || r.waiting?.kind === "idle";
-  if (!turnEnded) return r.neverPrompted ? 3 : 1;
+  if (!turnEnded) return r.neverPrompted ? 4 : 1;
   return r.unseen ? 2 : 3;
 }
 
 /** The newest call still running on an active agent. The reducer appends, so
  *  the last open one; scanning from the end stops at the first open call. */
-function inFlightCall(a: GraphState["agents"] extends Map<string, infer A> ? A : never): { name: string; preview: string } | null {
+function inFlightCall(a: GraphState["agents"] extends Map<string, infer A> ? A : never): Row["tool"] {
   if (a.state !== "active") return null;
   for (let i = a.tools.length - 1; i >= 0; i--) {
     const t = a.tools[i];
@@ -116,7 +121,7 @@ function inFlightCall(a: GraphState["agents"] extends Map<string, infer A> ? A :
 
 /** `watching` are the sessions you are looking at (selected, or open on the
  *  stage): their finished turn is seen as it ends, so they never pass through
- *  Done · unseen on the way to the effect that writes the marker. */
+ *  Done · new on the way to the effect that writes the marker. */
 export function buildRows(state: GraphState, now: number, watching?: ReadonlySet<string>): Row[] {
   const rows: Row[] = [];
   for (const a of state.agents.values()) {
@@ -163,9 +168,10 @@ export function buildRows(state: GraphState, now: number, watching?: ReadonlySet
       turnEndedAt: ended,
       unseen: ended != null && !watching?.has(a.sessionId) && isUnseen(a.sessionId, ended),
       job: a.job ?? null,
-      neverPrompted: a.state === "active" && a.prompts.length === 0 && a.toolCount === 0 && !a.waiting && !a.job,
+      neverPrompted: neverPrompted(a),
       turnStartedAt: a.prompts.at(-1)?.at ?? a.startedAt,
       tool: inFlightCall(a),
+      cwd: a.cwd,
     });
   }
   // Sort: by group, then, among the blocked rows, the LONGEST-blocked first —
@@ -174,8 +180,8 @@ export function buildRows(state: GraphState, now: number, watching?: ReadonlySet
   // session has been stuck. Working goes by when the current turn began
   // (the newest prompt), newest first, then by id: the one key that does not
   // move during a turn, where lastActivity moves on every tool call and would
-  // reshuffle the group under your eyes. Done · unseen goes by the turn's end,
-  // newest first; Idle by the latest activity.
+  // reshuffle the group under your eyes. Done · new goes by the turn's end,
+  // newest first; Done and Ready by the latest activity.
   rows.sort((x, y) => {
     const rx = rank(x), ry = rank(y);
     if (rx !== ry) return rx - ry;
@@ -263,7 +269,7 @@ export default function SessionList({ state, now, selectedIds, onSelect, onClose
   // it was a clock with nothing to do with whether the state changed, and the
   // day someone gives these rows a cheaper refresh rule the bug arrives with no
   // edit to this line to explain it. The seen version is the other input: a
-  // session looked at moves out of Done · unseen.
+  // session looked at moves out of Done · new.
   const seenVersion = useSessionsSeenVersion();
   const watchKey = watching ? [...watching].sort().join("\n") : "";
   const rows = useMemo(() => buildRows(state, now, watching), [state, state.revision, now, seenVersion, watchKey]);
@@ -339,7 +345,7 @@ export default function SessionList({ state, now, selectedIds, onSelect, onClose
   const onToggle = (g: RailGroup, rowsInside: number) => (e: MouseEvent) => toggleFold(g, rowsInside, e.detail === 0);
 
   const slotsOf = (g: RailGroup) => layout.filter(s => s.group === g);
-  const counts = RAIL_GROUPS.map(g => slotsOf(g).length) as [number, number, number, number];
+  const counts = RAIL_GROUPS.map(g => slotsOf(g).length) as [number, number, number, number, number];
   const plan = foldPlan(counts);
 
   /** A group's entries in drawn order, the rows that have just left among them. */

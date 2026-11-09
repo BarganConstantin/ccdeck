@@ -30,12 +30,32 @@
  *  and Write are the rest of it. */
 const KEYS = ["command", "cmd", "file_path", "path", "url", "pattern", "notebook_path"] as const;
 
+/** The keys whose value names a file or a folder. */
+const PATH_KEYS: ReadonlySet<string> = new Set(["file_path", "path", "notebook_path"]);
+
 /** Longer than the sidebar can show and shorter than a notification body will
  *  hold, so both callers can trim further without this having thrown anything
  *  away that they wanted. */
 const MAX = 120;
 
 const clip = (s: string): string => (s.length > MAX ? `${s.slice(0, MAX - 1)}…` : s);
+
+/** A path is kept whole up to this, which no real one reaches; past it, it
+ *  loses its start and keeps its name, so a notification never carries an
+ *  unbounded string. */
+const PATH_MAX = 512;
+
+const clipPath = (s: string): string => (s.length > PATH_MAX ? `…${s.slice(-(PATH_MAX - 1))}` : s);
+
+/** The salient string, and whether it is a path. */
+export interface SalientField {
+  text: string;
+  /** The string names a file or a folder: a row shortens it from the front
+   *  (rail-row-copy.ts rowPath), so it is kept whole here. Clipped at the end
+   *  like a command, a long path lost the one part that tells files apart,
+   *  its name. */
+  path: boolean;
+}
 
 /**
  * The salient string in a tool input, or null when there is not one.
@@ -48,19 +68,27 @@ const clip = (s: string): string => (s.length > MAX ? `${s.slice(0, MAX - 1)}…
  * every unrecognised shape a clean line.
  */
 export function salientInput(input: unknown): string | null {
-  if (typeof input === "string") return input.trim() ? clip(input.trim()) : null;
+  return salientField(input)?.text ?? null;
+}
+
+/** salientInput, saying whether the string is a path (see SalientField). */
+export function salientField(input: unknown): SalientField | null {
+  if (typeof input === "string") return input.trim() ? { text: clip(input.trim()), path: false } : null;
   if (!input || typeof input !== "object" || Array.isArray(input)) return null;
   const obj = input as Record<string, unknown>;
   for (const key of KEYS) {
     const v = obj[key];
-    if (typeof v === "string" && v.trim()) return clip(v.trim());
+    if (typeof v === "string" && v.trim()) {
+      const path = PATH_KEYS.has(key);
+      return { text: path ? clipPath(v.trim()) : clip(v.trim()), path };
+    }
     // The Codex `shell` tool passes an argv array. Joined rather than picked
     // apart: unwrapping the interpreter is skin work, and a human reading
     // "powershell.exe -NoProfile -Command git status" has still been told what
     // is about to run.
     if (Array.isArray(v) && v.length > 0 && v.every(x => typeof x === "string")) {
       const joined = (v as string[]).join(" ").trim();
-      if (joined) return clip(joined);
+      if (joined) return { text: clip(joined), path: false };
     }
   }
   return null;

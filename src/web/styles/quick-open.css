@@ -133,6 +133,14 @@ kbd.qo-key, .qo-esc, .qo-foot kbd, .fb-shortcut kbd {
   font-weight: 600;
   line-height: 16px;
 }
+/* A group with no caption — the one Settings row an empty field lists after
+   the sessions — is set apart by the menus' own rule (.ap-menu-sep's line and
+   4px), so it reads as its own entry and not as one more session. */
+.qo-group-ruled {
+  margin-top: 4px;
+  padding-top: 4px;
+  border-top: 1px solid var(--line-soft);
+}
 .qo-row {
   display: flex;
   align-items: center;

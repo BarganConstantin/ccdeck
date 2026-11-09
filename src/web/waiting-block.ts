@@ -7,7 +7,7 @@
 // on the way into `applyEvent`, except the transcript scans in `WAITING_KEEPERS`.
 import { ensureRoot, explicitSubagentKey } from "./agent-attribution";
 import { rootAgentId, subagentIdFor, type GraphState } from "./graph-state";
-import { salientInput } from "./tool-input";
+import { salientField } from "./tool-input";
 import type { BlockedTool, HookPayload, ToolCall, WaitingBlock } from "./types";
 
 /** The two `notification_type` values Claude Code emits, as the chore each one
@@ -144,8 +144,10 @@ function blockedToolOf(call: ToolCall | null, now: number): BlockedTool | undefi
   // `{"command":"rm -rf node_modules"}` buries the four words that decide the
   // answer inside punctuation. tool-input.ts returns the line a person reads,
   // and null for a shape with nothing worth reading, which leaves the tool name
-  // standing on its own rather than beside a fragment of JSON.
-  return { name: call.name, preview: salientInput(call.input) ?? "" };
+  // standing on its own rather than beside a fragment of JSON. A path is said
+  // as one, so the session list's row can shorten it and nothing else does.
+  const field = salientField(call.input);
+  return { name: call.name, preview: field?.text ?? "", ...(field?.path ? { path: true as const } : {}) };
 }
 
 /** A fresh block, attributed. Only a `permission` block is ever about one agent:

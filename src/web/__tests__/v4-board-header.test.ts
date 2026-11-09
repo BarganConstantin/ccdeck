@@ -1,12 +1,16 @@
 // V4's board header (its Figma Board › bhead): the strip across the top
-// of the canvas cell with five figures. The CSS is read the way v4-bars.test.ts
-// reads it; the figures are driven through the pure module with made-up agents,
-// so no DOM is needed. Tokens only: no hex or rgba in the new sheet.
+// of the canvas cell. CHANGED ON PURPOSE (design recommendations, 2026-11-09):
+// five figures became two. Waiting on you, Working and Done on this board
+// repeated the top bar's three counts a line above, and its Done counted other
+// sessions than the top bar's; the strip keeps the longest wait and the board's
+// spend. The CSS is read the way v4-bars.test.ts reads it; the figures are
+// driven through the pure module with made-up agents, so no DOM is needed.
+// Tokens only: no hex or rgba in the new sheet.
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import {
-  BOARD_HEAD_LABEL_MSGS, BOARD_HEAD_NONE, boardHeadFigures, boardHeadShown, doneToday, startOfLocalDay,
+  BOARD_HEAD_LABEL_MSGS, BOARD_HEAD_NONE, boardHeadFigures, boardHeadShown,
 } from "../board-header";
 import { boardRect } from "../board-rect";
 import { heldReading } from "../use-canvas-size";
@@ -34,7 +38,6 @@ const INC = (px: number) => `calc(${px}px + var(--ui-text-increase, 0px))`;
 
 const NOW = new Date(2026, 10, 1, 15, 30, 0).getTime(); // Sunday 1 Nov, 15:30 local
 const TODAY = new Date(2026, 10, 1, 9, 0, 0).getTime();
-const YESTERDAY = new Date(2026, 9, 31, 23, 59, 0).getTime();
 
 const usage = (over: Partial<TokenUsage> = {}): TokenUsage => ({
   inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheCreateTokens: 0, ...over,
@@ -84,9 +87,9 @@ describe("the strip's geometry, word for word from the Figma", () => {
     expect(label["font-weight"]).toBe("400");
     expect(label["color"]).toBe("var(--muted)");
   });
-  it("colours a waiting count --warn and a dash --muted, by attribute", () => {
-    expect(decls('.bh-num[data-tone="warn"]', own)["color"]).toBe("var(--warn)");
+  it("colours a dash --muted, by attribute, and has no waiting count left to colour --warn", () => {
     expect(decls('.bh-num[data-tone="none"]', own)["color"]).toBe("var(--muted)");
+    expect(own).not.toContain('[data-tone="warn"]');
   });
   it("has no hex or rgba of its own, and no motion", () => {
     expect(own).not.toMatch(/#[0-9a-fA-F]{3,8}\b|rgba?\(/);
@@ -94,26 +97,23 @@ describe("the strip's geometry, word for word from the Figma", () => {
   });
 });
 
-describe("narrow boards drop stats, last first, in a container query on the strip", () => {
-  it("drops the fifth below 640, the fourth below 500, the third below 400, the second below 200, never the first", () => {
+describe("a narrow board drops the second stat, in a container query on the strip", () => {
+  it("drops the second below 280, never the first", () => {
     const queries = [...own.matchAll(/@container\s+board-head\s*\(max-width:\s*(\d+)px\)\s*\{([^]*?)\}\s*\}/g)]
       .map(m => [Number(m[1]), m[2].match(/nth-child\((\d)\)/)![1]]);
-    expect(queries).toEqual([[640, "5"], [500, "4"], [400, "3"], [200, "2"]]);
+    expect(queries).toEqual([[280, "2"]]);
     expect(decls(".board-head", own)["container-type"]).toBe("inline-size");
-    expect(own).toMatch(/\.bh-stat:nth-child\(5\)\s*\{\s*display:\s*none/);
+    expect(own).toMatch(/\.bh-stat:nth-child\(2\)\s*\{\s*display:\s*none/);
     expect(own).not.toMatch(/\.bh-stat:nth-child\(1\)/);
   });
-  it("keeps each threshold above what the stats it keeps need with 30% longer text", () => {
-    // The widths the browser check measured (cpjob probe-bhead-sweep, Chromium,
-    // Compact and Default alike) for the first five, four, three and two stats,
-    // as drawn and with every label and number 30% longer. The stylesheet's
-    // comment quotes the same numbers (this test reads the sheet without its
-    // comments); a change to the labels re-measures them.
+  it("keeps the threshold above what the two stats need with 30% longer text", () => {
+    // The widths the browser check measured (Chromium, the isolated deck of the
+    // 2026-11-09 design recommendations) for the two stats, as drawn and with
+    // every label and number 30% longer. The stylesheet's comment quotes the
+    // same numbers (this test reads the sheet without its comments); a change
+    // to the labels re-measures them.
     const measured = [
-      { limit: 640, need: 492, longer: 636 },
-      { limit: 500, need: 364, longer: 472 },
-      { limit: 400, need: 272, longer: 356 },
-      { limit: 200, need: 147, longer: 195 },
+      { limit: 280, need: 204, longer: 273 },
     ];
     for (const { limit, need, longer } of measured) {
       expect(limit).toBeGreaterThan(longer);
@@ -149,60 +149,24 @@ describe("what is moved under the strip, through one custom property", () => {
 });
 
 describe("the labels", () => {
-  it("are the five, in order; the last is the board's, not the day's", () => {
+  it("are the two, in order; the last is the board's, not the day's", () => {
     // CHANGED ON PURPOSE (the UI in every language): the labels are keys, and
-    // English maps them to the same five words.
-    expect([...BOARD_HEAD_LABEL_MSGS]).toEqual(["board.header.waiting", "board.header.working", "board.header.done", "board.header.longest", "board.header.spent"]);
-    expect(BOARD_HEAD_LABEL_MSGS.map(key => en[key])).toEqual(["Waiting on you", "Working", "Done on this board", "Longest wait", "Spent on this board"]);
+    // English maps them to the same words.
+    expect([...BOARD_HEAD_LABEL_MSGS]).toEqual(["board.header.longest", "board.header.spent"]);
+    expect(BOARD_HEAD_LABEL_MSGS.map(key => en[key])).toEqual(["Longest wait", "Spent on this board"]);
+  });
+  it("no longer count sessions: the top bar's counts are the one place they are said", () => {
+    const keys = Object.keys(en);
+    for (const gone of ["board.header.waiting", "board.header.working", "board.header.done"]) expect(keys).not.toContain(gone);
+    const f = boardHeadFigures([agent("a", { waiting: block("permission", NOW - 60_000) }), agent("d"), agent("e", { state: "done", endedAt: TODAY })], NOW, true);
+    expect(Object.keys(f).sort()).toEqual(["longestWait", "spent", "spentTitle"]);
   });
 });
 
-describe("Waiting on you and Working", () => {
-  it("count permission and question blocks, not idle prompts, as sessions", () => {
-    const agents = [
-      agent("a", { waiting: block("permission", NOW - 60_000) }),
-      agent("b", { waiting: block("asked", NOW - 30_000) }),
-      agent("c", { state: "done", waiting: block("idle", NOW - 90_000) }),
-      agent("d"),
-    ];
-    const f = boardHeadFigures(agents, NOW, true);
-    expect(f.waiting).toBe(2);
-    // a and b are active but already counted as waiting; c is done; d works.
-    expect(f.working).toBe(1);
-  });
-  it("count a session with a background job and subagents once", () => {
-    const agents = [
-      agent("s"),
-      agent("s::t1", { kind: "subagent", sessionId: "s" }),
-      agent("s::t2", { kind: "subagent", sessionId: "s", state: "done" }),
-    ];
-    expect(boardHeadFigures(agents, NOW, true).working).toBe(1);
-  });
-});
-
-describe("Done on this board", () => {
-  it("counts roots whose turn ended today, local time", () => {
-    const agents = [
-      agent("t1", { state: "done", endedAt: TODAY }),
-      agent("t2", { state: "done", endedAt: NOW - 1000 }),
-      agent("y", { state: "done", endedAt: YESTERDAY }),
-      agent("e", { state: "err", endedAt: TODAY }),
-      agent("r", { state: "active", endedAt: TODAY }),
-      agent("sub", { kind: "subagent", state: "done", endedAt: TODAY }),
-      agent("noend", { state: "done" }),
-    ];
-    expect(doneToday(agents, NOW)).toBe(2);
-  });
-  it("starts the day at local midnight", () => {
-    expect(new Date(startOfLocalDay(NOW)).getHours()).toBe(0);
-    expect(startOfLocalDay(NOW)).toBeLessThanOrEqual(NOW);
-    expect(NOW - startOfLocalDay(NOW)).toBeLessThan(24 * 3600_000 + 3600_000);
-    expect(doneToday([agent("m", { state: "done", endedAt: startOfLocalDay(NOW) })], NOW)).toBe(1);
-    expect(doneToday([agent("m", { state: "done", endedAt: startOfLocalDay(NOW) - 1 })], NOW)).toBe(0);
-  });
-  it("carries the board-scope tooltip the usage panel carries", () => {
-    expect(boardHeadFigures([agent("a")], NOW, true).scopeTitle).toBe(boardScopeTitle(true));
-    expect(boardHeadFigures([agent("a")], NOW, false).scopeTitle).toBe(boardScopeTitle(false));
+describe("the board-scope tooltip", () => {
+  it("is the one the usage panel carries, on Spent", () => {
+    expect(boardHeadFigures([agent("a")], NOW, true).spentTitle).toBe(boardScopeTitle(true));
+    expect(boardHeadFigures([agent("a")], NOW, false).spentTitle).toBe(boardScopeTitle(false));
   });
 });
 
@@ -230,12 +194,12 @@ describe("Spent on this board", () => {
     const f = boardHeadFigures([agent("a", PRICED), agent("b", PRICED)], NOW, true);
     expect(f.spent).toMatch(/^\$\d/);
     expect(f.spent).not.toContain("+");
-    expect(f.spentTitle).toBe(f.scopeTitle);
+    expect(f.spentTitle).toBe(boardScopeTitle(true));
   });
   it("is a floor, with the unpriced note, where one model has no rate", () => {
     const f = boardHeadFigures([agent("a", PRICED), agent("b", UNPRICED)], NOW, true);
     expect(f.spent).toMatch(/\+$/);
-    expect(f.spentTitle).toBe(`${f.scopeTitle}\n${MISSING_PRICE_NOTE}`);
+    expect(f.spentTitle).toBe(`${boardScopeTitle(true)}\n${MISSING_PRICE_NOTE}`);
   });
   it("is null (a dash) where every model is unpriced, with the same note", () => {
     const f = boardHeadFigures([agent("b", UNPRICED)], NOW, true);
@@ -248,7 +212,7 @@ describe("Spent on this board", () => {
     const f = boardHeadFigures([agent("a", PRICED), fresh], NOW, true);
     expect(f.spent).toMatch(/^\$\d/);
     expect(f.spent).not.toContain("+");
-    expect(f.spentTitle).toBe(f.scopeTitle);
+    expect(f.spentTitle).toBe(boardScopeTitle(true));
   });
   it("is null with no tokens at all", () => {
     expect(boardHeadFigures([agent("a")], NOW, true).spent).toBeNull();
@@ -314,9 +278,9 @@ describe("the memo, the layout effect and the inset in App", () => {
   it("remeasures before paint", () => {
     expect(app).toMatch(/useLayoutEffect\(\(\) => \{ remeasureCanvas\(\); \}, \[boardHeadOn, remeasureCanvas\]\)/);
   });
-  it("keeps the still figures on the map's revision and hands in the waiting sessions", () => {
-    expect(app).toMatch(/boardHeadBase\(.*singleKeys, waitingSessions\)/);
-    expect(app).toMatch(/\[boardHeadOn, singleKeys, waitingSessions, stateRef\.current, stateRef\.current\.revision\]/);
+  it("keeps the still figure on the map's revision and hands the waiting sessions to the longest wait", () => {
+    expect(app).toMatch(/boardHeadBase\(stateRef\.current\.agents\.values\(\), Date\.now\(\), singleKeys\)/);
+    expect(app).toMatch(/\[boardHeadOn, singleKeys, stateRef\.current, stateRef\.current\.revision\]/);
     expect(app).toMatch(/boardHeadLongest\(waitingSessions, now\)/);
   });
   it("hands the right inset to the strip, the way the heroes get it", () => {
@@ -332,10 +296,12 @@ describe("when it is drawn", () => {
     expect(boardHeadShown(3, true)).toBe(false);
     expect(boardHeadShown(1, false)).toBe(true);
   });
-  it("a zero is the resting number: --warn is set from the count, above zero only", () => {
+  it("draws the longest wait and the spend, a dash where either has nothing to say", () => {
     const src = read("../components/BoardHeader.tsx");
-    expect(src).toMatch(/tone=\{waiting > 0 \? "warn" : undefined\}/);
-    expect(boardHeadFigures([agent("a")], NOW, true).waiting).toBe(0);
+    expect(src).toMatch(/<Stat value=\{longestWait \?\? BOARD_HEAD_NONE\} label=\{lLongest\} tone=\{longestWait == null \? "none" : undefined\} \/>/);
+    expect(src).toMatch(/<Stat value=\{spent \?\? BOARD_HEAD_NONE\} label=\{lSpent\} tone=\{spent == null \? "none" : undefined\} title=\{spentTitle\} \/>/);
+    expect((src.match(/<Stat /g) ?? []).length).toBe(2);
+    expect(src).not.toMatch(/"warn"/);
   });
   it("is the canvas cell's first child, and App hands the cell plain figures", () => {
     const main = read("../components/CanvasMain.tsx");

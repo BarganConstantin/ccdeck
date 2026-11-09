@@ -322,12 +322,16 @@ function DockMore({ items, tabbable, onFocusIndex, index }: {
       {open && (
         <AnchoredPopover anchorId={DOCK_MORE_ID} id={DOCK_MENU_ID} className="ap-pop dock-more-pop" role="menu"
           labelledBy={DOCK_MORE_ID} start={menu} onClose={() => setMenu(null)}>
-          {items.map(item => (
+          {/* Settings, last, set apart from the dialogs above it by the menus'
+              own rule, so the one way into Settings on a phone is found at a
+              glance rather than read for. */}
+          {items.flatMap(item => [
+            ...(item.id === "settings" ? [<div key="settings-rule" role="separator" className="ap-menu-sep" />] : []),
             <button key={item.id} type="button" role="menuitem" className="ap-menu-item" data-rail-item={item.id}
               onFocus={() => { handover = item.id; }} onClick={pick(item)}>
               {item.dot && item.detail ? `${item.menu ?? item.label} · ${item.detail}` : item.badge ? t("board.rail.unread", { label: item.menu ?? item.label, n: item.badge }) : item.menu ?? item.label}
-            </button>
-          ))}
+            </button>,
+          ])}
         </AnchoredPopover>
       )}
     </>

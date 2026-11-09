@@ -15,18 +15,26 @@ import { readStored, writeStored } from "./storage";
 import { t, type TFunction } from "./i18n";
 import type { RailGlyphKind } from "./rail-row-copy";
 
-/** The sections, in the order an empty field lists them. */
-export type QuickSection = "recent" | "sessions" | "start" | "open" | "settings" | "actions" | "themes";
+/** The sections, in the order an empty field lists them. `pinned` is the row
+ *  an empty field always shows after the sessions (QuickItem.pinned). */
+export type QuickSection = "recent" | "sessions" | "pinned" | "start" | "open" | "settings" | "actions" | "themes";
 
-/** The section titles in the language on show. */
-export const sectionTitle = (key: QuickSection, tr: TFunction = t): string => tr(`board.quick.section.${key}`);
+/** The section titles in the language on show. The pinned row has none: it
+ *  is one row, its own title says what it is, and a rule sets it apart. */
+export const sectionTitle = (key: QuickSection, tr: TFunction = t): string => key === "pinned" ? "" : tr(`board.quick.section.${key}`);
 
-const SECTION_ORDER: readonly QuickSection[] = ["recent", "sessions", "start", "open", "settings", "actions", "themes"];
+const SECTION_ORDER: readonly QuickSection[] = ["recent", "sessions", "pinned", "start", "open", "settings", "actions", "themes"];
 
 export interface QuickItem {
   /** Stable across loads: what the recent list stores. */
   id: string;
-  section: Exclude<QuickSection, "recent">;
+  section: Exclude<QuickSection, "recent" | "pinned">;
+  /** A row an empty field lists on its own, right after the sessions and
+   *  never as the chosen row, so Enter still goes where it went: Settings,
+   *  which V4 keeps behind a cog at the foot of the left stripe, named with its
+   *  chord. Out of its own section then; ranked in it like any row once
+   *  something is typed, and in Recent like any row once opened. */
+  pinned?: true;
   title: string;
   /** One muted line after the title: a session's state, a door's purpose. */
   subtitle?: string;
@@ -155,12 +163,13 @@ export const RECENT_MAX = 5;
  * The list to draw for a query.
  *
  * Empty: what was opened recently, then the sessions (waiting first, as the
- * caller orders them), the doors, Settings' sections and the actions, each
- * section in its own order; the themes and the single settings wait for a
- * query (queryOnly), since dozens of them would bury the rest. Recent lists
- * them all the same. Typed: every item that matches its title or a keyword,
- * best first inside each section, and the sections in the order of their best match, so
- * the top row is the best answer whatever kind it is.
+ * caller orders them), the pinned row (Settings), the doors, Settings'
+ * sections and the actions, each section in its own order; the themes and the
+ * single settings wait for a query (queryOnly), since dozens of them would
+ * bury the rest. Recent lists them all the same. Typed: every item that
+ * matches its title or a keyword, best first inside each section, and the
+ * sections in the order of their best match, so the top row is the best answer
+ * whatever kind it is.
  */
 export function rankQuick(items: readonly QuickItem[], query: string, recent: readonly string[] = []): RankedSection[] {
   const q = query.trim();
@@ -172,7 +181,9 @@ export function rankQuick(items: readonly QuickItem[], query: string, recent: re
     if (recentItems.length) sections.push(section("recent", recentItems.map(item => ({ item, hits: [] }))));
     for (const key of SECTION_ORDER) {
       if (key === "recent") continue;
-      let rows = items.filter(item => item.section === key && !item.queryOnly && !shownRecently.has(item.id));
+      let rows = key === "pinned"
+        ? items.filter(item => item.pinned && !shownRecently.has(item.id))
+        : items.filter(item => item.section === key && !item.queryOnly && !item.pinned && !shownRecently.has(item.id));
       if (key === "sessions") rows = rows.slice(0, EMPTY_SESSIONS);
       if (rows.length) sections.push(section(key, rows.map(item => ({ item, hits: [] }))));
     }
@@ -202,13 +213,14 @@ function section(key: QuickSection, items: RankedItem[]): RankedSection {
   return { section: key, title: sectionTitle(key), items };
 }
 
-/** The groups V4's menu draws, in its order. Recent is the one extra, first
- *  when something was opened lately; Start is there only where the deck can
- *  start a session; Panels and dialogs, Settings and Themes follow Do, so a
- *  long list of them cannot bury the actions. */
-export type QuickGroup = "recent" | "needs" | "sessions" | "start" | "do" | "open" | "settings" | "themes";
+/** The groups V4's menu draws, in its order. Recent is one extra, first when
+ *  something was opened lately; the pinned row (Settings) is the other, right
+ *  after the sessions; Start is there only where the deck can start a
+ *  session; Panels and dialogs, Settings and Themes follow Do, so a long list
+ *  of them cannot bury the actions. */
+export type QuickGroup = "recent" | "needs" | "sessions" | "pinned" | "start" | "do" | "open" | "settings" | "themes";
 
-export const GROUP_ORDER: readonly QuickGroup[] = ["recent", "needs", "sessions", "start", "do", "open", "settings", "themes"];
+export const GROUP_ORDER: readonly QuickGroup[] = ["recent", "needs", "sessions", "pinned", "start", "do", "open", "settings", "themes"];
 
 export interface RankedGroup {
   group: QuickGroup;
@@ -228,7 +240,7 @@ export function groupOf(item: QuickItem, section: QuickSection): QuickGroup {
   return section;
 }
 
-/** The group captions in the language on show. */
+/** The group captions in the language on show; the pinned row has none. */
 export const groupTitle = (group: QuickGroup, tr: TFunction = t): string =>
   group === "needs" || group === "do" ? tr(`board.quick.group.${group}`) : sectionTitle(group, tr);
 
@@ -245,7 +257,13 @@ export function groupQuick(sections: readonly RankedSection[], typed: boolean, t
     into.items.push(row);
   };
   for (const s of sections) for (const row of s.items) add(groupOf(row.item, s.section), row);
-  if (!typed) groups.sort((a, b) => GROUP_ORDER.indexOf(a.group) - GROUP_ORDER.indexOf(b.group));
+  if (!typed) {
+    groups.sort((a, b) => GROUP_ORDER.indexOf(a.group) - GROUP_ORDER.indexOf(b.group));
+    // The pinned row is never the chosen row an empty field opens on: with no
+    // session and nothing recent it follows the first group, so Enter does
+    // what it did before Settings was listed.
+    if (groups.length > 1 && groups[0].group === "pinned") groups.splice(1, 0, groups.shift()!);
+  }
   return groups;
 }
 

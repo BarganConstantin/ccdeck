@@ -188,8 +188,10 @@ function item(id: string, section: QuickItem["section"], title: string, extra: P
 describe("the groups", () => {
   // CHANGED ON PURPOSE (V4's Figma): Start is a group again, between Sessions and Do, now that
   // the deck can start a session from the menu (where the Command Panel is on).
+  // CHANGED ON PURPOSE (design recommendations, 2026-11-09): Settings, pinned, right after the
+  // sessions (quick-open.test.ts holds where it goes and that it is never the chosen row).
   it("are Needs you, Sessions, Start, Do, with the rest after Do", () => {
-    expect(GROUP_ORDER).toEqual(["recent", "needs", "sessions", "start", "do", "open", "settings", "themes"]);
+    expect(GROUP_ORDER).toEqual(["recent", "needs", "sessions", "pinned", "start", "do", "open", "settings", "themes"]);
     expect(en).toContain('"board.quick.group.needs": "Needs you"');
     expect(en).toContain('"board.quick.section.start": "Start"');
     expect(en).toContain('"board.quick.group.do": "Do"');
@@ -392,14 +394,16 @@ describe("every command and result kind is still found", () => {
     const sections = rankQuick(all, "");
     const groups = groupQuick(sections, false);
     expect(flatGroupRows(groups).map(r => r.item.id).sort()).toEqual(sections.flatMap(s => s.items.map(r => r.item.id)).sort());
-    expect(groups.map(g => g.group)).toEqual(["needs", "sessions", "do", "open", "settings"]);
+    expect(groups.map(g => g.group)).toEqual(["needs", "sessions", "pinned", "do", "open", "settings"]);
+    expect(groups.find(g => g.group === "pinned")?.items.map(r => r.item.id)).toEqual(["door:settings"]);
+    expect(groups.find(g => g.group === "open")?.items.map(r => r.item.id)).not.toContain("door:settings");
   });
 
   it("draws the kind as secondary text where a group mixes kinds (Recent, Panels and dialogs), and a state anywhere", () => {
     const html = renderToStaticMarkup(createElement(QuickOpen, { items: all, onClose: noop, onRun: noop }));
     const tagsIn = (caption: string) => {
       const start = html.indexOf(`>${caption}</div>`);
-      const end = html.indexOf("qo-caption", start + 1);
+      const end = html.indexOf('role="group"', start + 1);
       return [...html.slice(start, end < 0 ? undefined : end).matchAll(/class="(qo-tag[^"]*)"/g)].map(m => m[1]);
     };
     expect(tagsIn("Sessions")).not.toHaveLength(0);
@@ -408,6 +412,28 @@ describe("every command and result kind is still found", () => {
     expect(tagsIn("Panels and dialogs")).not.toHaveLength(0);
     expect(tagsIn("Panels and dialogs").every(c => c === "qo-tag state")).toBe(true);
     expect(html).toContain('aria-keyshortcuts="Tab Shift+Tab"');
+  });
+
+  it("draws Settings after the sessions with no caption, a rule above it and its chord, its kind spoken only, and opens on the session that waits", () => {
+    const withKey = all.map(i => i.id === "door:settings" ? { ...i, keyCap: "Ctrl+," } : i);
+    const html = renderToStaticMarkup(createElement(QuickOpen, { items: withKey, onClose: noop, onRun: noop }));
+    const groups = [...html.matchAll(/<div role="group"[^>]*>/g)].map(m => m[0]);
+    const pinned = groups.findIndex(g => g.includes('class="qo-group-ruled"'));
+    expect(pinned).toBe(2);
+    expect(groups[pinned]).not.toContain("aria-labelledby");
+    const at = html.indexOf('class="qo-group-ruled"');
+    const body = html.slice(at, html.indexOf('role="group"', at + 1));
+    expect(body).not.toContain("qo-caption");
+    expect(body).toContain(">Settings<");
+    // The kind is read aloud and not drawn: the title and the chord say it.
+    expect(body).toContain('class="qo-tag">Dialog<');
+    expect(body).not.toContain("qo-tag state");
+    expect(body).toContain('<kbd class="qo-key">Ctrl+,</kbd>');
+    expect(html.indexOf(">Sessions</div>")).toBeLessThan(at);
+    expect(html.match(/<div id="qo-opt-0"[^>]*>/)?.[0]).toContain('aria-selected="true"');
+    expect(html.indexOf('id="qo-opt-0"')).toBeLessThan(html.indexOf(">web-api<"));
+    expect(html.indexOf(">web-api<")).toBeLessThan(html.indexOf('id="qo-opt-1"'));
+    expect(decl(".qo-group-ruled", "border-top")).toBe("1px solid var(--line-soft)");
   });
 
   it("sends the session that waits on you to Needs you, as the rail's signal says", () => {

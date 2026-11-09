@@ -325,7 +325,6 @@
 
   .sysdetail .sd-fill,
   .sysdetail .sd-core-fill,
-  .sysdetail .sd-fill[data-level="text"],
   .sysdetail .sd-fill[data-level="err"],
   .ctx-window-fill,
   .ctx-modal .ctx-window-fill,

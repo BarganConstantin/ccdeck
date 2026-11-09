@@ -195,6 +195,18 @@ describe("More is a menu button for the rare dialogs and Settings", () => {
     expect(rows.map(r => textOf(r))).toEqual(["Usage history", "Browser watch", "Settings"]);
   });
 
+  // Design recommendations (2026-11-09): Settings was the last of a run of
+  // dialogs, found by reading every row. The menus' own rule sets it apart.
+  it("sets Settings, still last, apart from the dialogs above it with the menus' rule", () => {
+    const { button, menu } = openMore(dockFor(rails()).tree);
+    (button().props.onClick as () => void)();
+    const parts = all(menu(), e => e.props.role === "menuitem" || e.props.role === "separator");
+    expect(parts.map(e => e.props.role === "separator" ? "—" : textOf(e))).toEqual(["Usage history", "Browser watch", "—", "Settings"]);
+    expect(parts[2].props.className).toBe("ap-menu-sep");
+    // One rule, before Settings only: the separator is no row the arrows land on.
+    expect(parts.filter(e => e.props.role === "separator")).toHaveLength(1);
+  });
+
   it("opens at either end from the keyboard, the way a native menu button does", () => {
     for (const [key, start] of [["ArrowDown", "first"], ["ArrowUp", "last"]] as const) {
       const { button, menu } = openMore(dockFor(rails()).tree);

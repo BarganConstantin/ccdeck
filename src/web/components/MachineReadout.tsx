@@ -145,19 +145,21 @@ export function OpensHistory({ group, title, action, label, value, hint, liveNot
 }
 
 /**
- * The colour a meter's fill takes (V4's Figma): under 70 `--muted`, 70 to 89
- * `--text`, 90 and up `--err`. Never amber — amber means an agent waits.
+ * The colour a meter's fill takes: `--accent`, the cores' own fill, below 90,
+ * and `--err` from 90. Two levels and no step between them: a 70-89 band in
+ * the text colour read as neither normal nor a warning. Never amber — amber
+ * means an agent waits.
  *
  * Every meter left in the panel can alarm: memory, swap and the GPU. The CPU
  * has none — its total is a figure and its cores are columns in the accent,
  * which never take a level (see the top of MachinePanel.tsx).
  */
-export function meterLevel(pct: number): "muted" | "text" | "err" {
-  return pct >= 90 ? "err" : pct >= 70 ? "text" : "muted";
+export function meterLevel(pct: number): "accent" | "err" {
+  return pct >= 90 ? "err" : "accent";
 }
 
 /**
- * A meter 2 high on a --ctl-fill track, the fill scaled from the left.
+ * A meter 8 high on a --ctl-fill track, the fill scaled from the left.
  *
  * A floor of 1%, so a reading that is present but tiny still draws a sliver
  * rather than reading as "no data" — but only ABOVE zero: zero draws nothing.

@@ -24,9 +24,9 @@
 // this deck exists to watch — and an indicator that alarms during the normal
 // case teaches you to stop reading it. So the CPU total is a figure with no
 // meter under it, and every per-core column is drawn in the accent at every
-// load, never `--err`. Memory, swap and the GPU's meters keep the full
-// thresholds (under 70 `--muted`, 70 to 89 `--text`, 90 and up `--err`),
-// because near-exhaustion there is real.
+// load, never `--err`. Memory, swap and the GPU's meters keep the alarm
+// (the accent below 90, `--err` from 90), because near-exhaustion there is
+// real.
 //
 // THE SAME "NO" NOW COVERS LOAD AVERAGE, which used to turn amber the moment
 // the 1-minute figure passed the core count. That is not a fault condition: a

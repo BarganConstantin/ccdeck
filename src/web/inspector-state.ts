@@ -30,7 +30,7 @@ export interface InspectorStatus {
  *  agent on the Board, and of a session until the pane's sentence has loaded. */
 export function cardStatus(agent: AgentNodeData): InspectorStatus {
   const state = cardState(agent);
-  const glyph: KitStateName = state.tone === "active" ? "working" : state.tone === "waiting" ? "waiting" : state.tone === "err" ? "error" : "done";
+  const glyph: KitStateName = state.tone === "active" ? "working" : state.tone === "waiting" ? "waiting" : state.tone === "err" ? "error" : state.tone === "ready" ? "idle" : "done";
   return { glyph, phrase: state.word.toLowerCase() };
 }
 

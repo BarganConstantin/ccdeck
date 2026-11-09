@@ -24,7 +24,7 @@ import {
   nobodyWaitingText, railHeld, releaseMotion,
   type Slot,
 } from "../rail-model";
-import { railGlyph, railLine, railTime, rowSpoken, rowTooltip, runningTool } from "../rail-row-copy";
+import { railGlyph, railLine, railTime, rowPath, rowSpoken, rowTooltip, runningTool } from "../rail-row-copy";
 import { cancelFlights, durationMs } from "../rail-motion";
 import { en } from "../i18n/en";
 import { baselineSeen, mergeSeen, syncSeenFromStorage } from "../session-seen";
@@ -393,7 +393,10 @@ function board(): GraphState {
 beforeEach(() => { seq = 0; resetSessionsSeen(); });
 afterEach(() => { vi.unstubAllGlobals(); });
 
-describe("the four groups, in order", () => {
+// CHANGED ON PURPOSE (design recommendations, 2026-11-09): five groups, not four. A finished
+// turn is Done whether or not it was looked at (new until it was), and a session never given a
+// prompt is Ready, in its own group after Done, as its card says; both sat under Idle.
+describe("the five groups, in order", () => {
   const rowsOf = () => {
     const s = board();
     markSeen("done-seen", s.agents.get("done-seen")!.endedAt);
@@ -412,17 +415,25 @@ describe("the four groups, in order", () => {
     expect(groups(rowsOf())).toMatchObject({ work: 1, bg: 1 });
   });
 
-  it("puts an ended turn you have not looked at in Done · unseen: idle block, failure and done alike", () => {
+  it("puts an ended turn you have not looked at in Done · new: idle block, failure and done alike", () => {
     expect(groups(rowsOf())).toMatchObject({ "idle-unseen": 2, failed: 2, "done-unseen": 2 });
   });
 
-  it("puts a turn you have seen, and a session never prompted, in Idle", () => {
-    expect(groups(rowsOf())).toMatchObject({ "done-seen": 3, fresh: 3 });
+  it("puts a turn you have seen in Done", () => {
+    expect(groups(rowsOf())).toMatchObject({ "done-seen": 3 });
   });
 
-  it("orders Done · unseen by the turn's end, newest first, and fills the rest by group", () => {
+  it("puts a session never given a prompt in Ready, after Done", () => {
     const rows = rowsOf();
-    // Idle goes by the latest activity: the ended turn, else the start. Working
+    expect(groups(rows)).toMatchObject({ fresh: 4 });
+    expect(rows.find(r => r.sessionId === "fresh")?.neverPrompted).toBe(true);
+    // Once prompted it is at work, like any other turn.
+    expect(rank({ ...rows.find(r => r.sessionId === "fresh")!, neverPrompted: false })).toBe(1);
+  });
+
+  it("orders Done · new by the turn's end, newest first, and fills the rest by group", () => {
+    const rows = rowsOf();
+    // Done goes by the latest activity: the ended turn, else the start. Working
     // goes by when its turn began (newest first, then id), checked on its own below;
     // bg and work began together here, so the id decides.
     expect(rows.map(r => r.sessionId))
@@ -440,13 +451,14 @@ describe("the four groups, in order", () => {
     expect(turnEndedAt({ state: "done", endedAt: 5, waiting: { kind: "idle", since: 7, message: "" } })).toBe(5);
   });
 
-  it("draws each state's glyph: Waiting, Working (Background too), Done, Error, Idle", () => {
+  it("draws each state's glyph: Waiting, Working (Background too), Done (seen too), Error, and Ready's hollow ring", () => {
     const rows = rowsOf();
     const glyph = (id: string) => railGlyph(rows.find(r => r.sessionId === id)!, rank(rows.find(r => r.sessionId === id)!));
     expect(glyph("perm")).toBe("waiting");
     expect(glyph("work")).toBe("working");
     expect(glyph("bg")).toBe("working");
     expect(glyph("done-unseen")).toBe("done");
+    expect(glyph("done-seen")).toBe("done");
     expect(glyph("failed")).toBe("error");
     expect(glyph("fresh")).toBe("idle");
   });
@@ -548,23 +560,45 @@ describe("the seen marker", () => {
 // ── the fold, the hold and the motion, as rules ─────────────────────────────
 
 describe("the fold past 8", () => {
-  it("draws 8 rows of 14 sessions (2 + 4 + 4 + 4): all of Needs you and Working, 2 of Done, Idle folded", () => {
+  it("draws 8 rows of 14 sessions (2 + 4 + 4 + 4): all of Needs you and Working, 2 of Done · new, Done folded", () => {
     expect(RAIL_FOLD_AT).toBe(8);
-    expect(foldPlan([2, 4, 4, 4])).toEqual([
-      { shown: 2, rest: 0 }, { shown: 4, rest: 0 }, { shown: 2, rest: 2 }, { shown: 0, rest: 4 },
+    expect(foldPlan([2, 4, 4, 4, 0])).toEqual([
+      { shown: 2, rest: 0 }, { shown: 4, rest: 0 }, { shown: 2, rest: 2 }, { shown: 0, rest: 4 }, { shown: 0, rest: 0 },
+    ]);
+    // Ready is last in line for the budget: Done's rows are drawn before it.
+    expect(foldPlan([2, 4, 1, 1, 3])).toEqual([
+      { shown: 2, rest: 0 }, { shown: 4, rest: 0 }, { shown: 1, rest: 0 }, { shown: 1, rest: 0 }, { shown: 0, rest: 3 },
     ]);
   });
 
   it("never cuts Needs you or Working, however many there are", () => {
-    expect(foldPlan([3, 9, 5, 5])).toEqual([
-      { shown: 3, rest: 0 }, { shown: 9, rest: 0 }, { shown: 0, rest: 5 }, { shown: 0, rest: 5 },
+    expect(foldPlan([3, 9, 5, 5, 2])).toEqual([
+      { shown: 3, rest: 0 }, { shown: 9, rest: 0 }, { shown: 0, rest: 5 }, { shown: 0, rest: 5 }, { shown: 0, rest: 2 },
     ]);
-    expect(foldPlan([0, 0, 3, 3])).toEqual([
-      { shown: 0, rest: 0 }, { shown: 0, rest: 0 }, { shown: 3, rest: 0 }, { shown: 3, rest: 0 },
+    expect(foldPlan([0, 0, 3, 3, 1])).toEqual([
+      { shown: 0, rest: 0 }, { shown: 0, rest: 0 }, { shown: 3, rest: 0 }, { shown: 3, rest: 0 }, { shown: 1, rest: 0 },
     ]);
   });
 
-  it("renders 2 more and a folded Idle row at 14 sessions", () => {
+  it("names a session never prompted Ready, in a group drawn only when it has one", () => {
+    const draw = (s: GraphState) => renderToStaticMarkup(createElement(SessionList, {
+      state: s, now: T0 + 60_000, selectedIds: new Set<string>(), onSelect: () => {}, onClose: () => {},
+    }));
+    let s = initialState();
+    s = begin(s, "d1", 0);
+    s = stop(s, "d1", 1_000);
+    markSeen("d1", s.agents.get("d1")!.endedAt);
+    const without = draw(s);
+    expect(without).toContain('<span class="sl-group-label">Done</span>');
+    expect(without).not.toContain('<span class="sl-group-label">Ready</span>');
+    s = begin(s, "fresh", 2_000, false);
+    const withReady = draw(s);
+    expect(withReady).toContain('<span class="sl-group-label">Ready</span><span class="sl-group-count">1</span>');
+    expect(withReady.indexOf('sl-group-label">Done<')).toBeLessThan(withReady.indexOf('sl-group-label">Ready<'));
+    expect(withReady).not.toContain('sl-group-label">Idle<');
+  });
+
+  it("renders 2 more and a folded Done row at 14 sessions", () => {
     let s = initialState();
     for (const id of ["w1", "w2"]) { s = begin(s, id, 0); s = notify(s, id, "permission_prompt", "ok?", 500); }
     for (const id of ["r1", "r2", "r3", "r4"]) s = begin(s, id, 0);
@@ -576,11 +610,13 @@ describe("the fold past 8", () => {
     expect((html.match(/<li class="sl-row-item"/g) ?? []).length).toBe(8);
     expect(html).toContain("2 more");
     expect(html).toMatch(/<button type="button" class="sl-more" aria-expanded="false">2 more/);
-    expect(html).toMatch(/<button type="button" class="sl-fold-btn" aria-expanded="false" data-motion="animate">[\s\S]*?<span class="sl-group-label">Idle<\/span><span class="sl-group-count">4<\/span>/);
-    // CHANGED ON PURPOSE (the UI in every language): the labels are keys,
-    // and English maps them to the same four words.
-    expect([...RAIL_GROUP_LABEL_MSGS]).toEqual(["board.railGroup.needs", "board.railGroup.working", "board.railGroup.done", "board.railGroup.idle"]);
-    expect(RAIL_GROUP_LABEL_MSGS.map(key => en[key])).toEqual(["Needs you", "Working", "Done · unseen", "Idle"]);
+    expect(html).toMatch(/<button type="button" class="sl-fold-btn" aria-expanded="false" data-motion="animate">[\s\S]*?<span class="sl-group-label">Done<\/span><span class="sl-group-count">4<\/span>/);
+    // CHANGED ON PURPOSE (the UI in every language): the labels are keys.
+    // CHANGED ON PURPOSE (design recommendations, 2026-11-09): the words the cards say.
+    expect([...RAIL_GROUP_LABEL_MSGS]).toEqual([
+      "board.railGroup.needs", "board.railGroup.working", "board.railGroup.new", "board.railGroup.done", "board.railGroup.ready",
+    ]);
+    expect(RAIL_GROUP_LABEL_MSGS.map(key => en[key])).toEqual(["Needs you", "Working", "Done · new", "Done", "Ready"]);
   });
 });
 
@@ -749,17 +785,49 @@ describe("review fixes: what the rows sort and say", () => {
     expect(railGlyph({ ...row, state: "active" }, 2)).toBe("done");
     expect(railGlyph({ ...row, state: "err" }, 2)).toBe("error");
     expect(railGlyph({ ...row, state: "done" }, 2)).toBe("done");
+    // Seen, it is still Done, where it wore the Idle ring.
+    expect(railGlyph({ ...row, state: "active" }, 3)).toBe("done");
+    expect(railGlyph({ ...row, state: "done" }, 3)).toBe("done");
   });
 
   it("reads the Working line as the command or the path, never as JSON", () => {
     expect(runningTool({ name: "Bash", input: { command: "npm test -- rate-limit" } })).toEqual({ name: "Bash", preview: "npm test -- rate-limit" });
-    expect(runningTool({ name: "Read", input: { file_path: "/repo/src/a.ts" } })).toEqual({ name: "Read", preview: "/repo/src/a.ts" });
+    expect(runningTool({ name: "Read", input: { file_path: "/repo/src/a.ts" } })).toEqual({ name: "Read", preview: "/repo/src/a.ts", path: true });
     const unknown = runningTool({ name: "mcp__thing", input: { depth: 3, options: { a: 1 } } });
     expect(unknown).toEqual({ name: "mcp__thing", preview: "" });
     expect(runningTool({ name: "Bash" }).preview).toBe("");
     for (const t of [{ name: "Bash", input: { command: "ls" } }, { name: "x", input: { q: [1] } }]) expect(runningTool(t).preview).not.toMatch(/[{}"]/);
     const row = buildRows(board(), T0 + 100_000).find(r => r.sessionId === "work")!;
     expect(railLine(row, 1)).toEqual({ kind: "tool", name: "Edit", rest: "src/a.ts" });
+  });
+
+  // Design recommendations (2026-11-09): a phone cut "Edit · /home/constantin/Deskt…" before the
+  // file's name. The row says the path from the session's folder; the tooltip keeps it whole.
+  it("says a file's path from the session's folder, else its last two segments, whole in the tooltip", () => {
+    expect(rowPath("/home/me/work/docs-site/docs/install.md", "/home/me/work/docs-site")).toBe("docs/install.md");
+    expect(rowPath("/home/me/work/docs-site/docs/install.md", "/home/me/work/docs-site/")).toBe("docs/install.md");
+    expect(rowPath("/home/me/work/docs-site-old/a/b.md", "/home/me/work/docs-site")).toBe("…/a/b.md");
+    expect(rowPath("/etc/nginx/sites/default.conf", "/home/me/api")).toBe("…/sites/default.conf");
+    expect(rowPath("/etc/hosts", "/home/me/api")).toBe("/etc/hosts");
+    expect(rowPath("src/a.ts")).toBe("src/a.ts");
+    expect(rowPath("C:\\Users\\me\\proj\\src\\main.rs", "C:\\Users\\me\\proj")).toBe("src\\main.rs");
+    expect(rowPath("C:\\Users\\me\\other\\src\\main.rs", "C:\\Users\\me\\proj")).toBe("…\\src\\main.rs");
+
+    const long = `/home/me/${"deep/".repeat(30)}docs/install.md`;
+    let s = initialState();
+    s = send(s, "docs", { hook_event_name: "SessionStart", cwd: "/home/me/elsewhere" }, 0);
+    s = send(s, "docs", { hook_event_name: "UserPromptSubmit", prompt: "go" }, 1);
+    s = send(s, "docs", { hook_event_name: "PreToolUse", tool_name: "Edit", tool_use_id: "e1", tool_input: { file_path: long } }, 2);
+    const row = buildRows(s, T0 + 10_000).find(r => r.sessionId === "docs")!;
+    expect(row.tool).toEqual({ name: "Edit", preview: long, path: true });
+    expect(railLine(row, 1)).toEqual({ kind: "tool", name: "Edit", rest: "…/docs/install.md" });
+    expect(rowTooltip(row, false)).toContain(`Edit · ${long}`);
+    // A command is not a path: as it is, and not repeated in the tooltip.
+    s = send(s, "docs", { hook_event_name: "PostToolUse", tool_name: "Edit", tool_use_id: "e1" } as HookPayload, 3);
+    s = send(s, "docs", { hook_event_name: "PreToolUse", tool_name: "Bash", tool_use_id: "b1", tool_input: { command: "npm run build -- --mode a/b/c" } }, 4);
+    const bash = buildRows(s, T0 + 10_000).find(r => r.sessionId === "docs")!;
+    expect(railLine(bash, 1)).toEqual({ kind: "tool", name: "Bash", rest: "npm run build -- --mode a/b/c" });
+    expect(rowTooltip(bash, false)).not.toContain("Bash · ");
   });
 
   it("keeps in the button what the tooltip alone would lose: the plan, the tag, the tool count, the cost, the suggested reply", () => {

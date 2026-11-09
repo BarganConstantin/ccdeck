@@ -196,7 +196,7 @@
   overflow: hidden;
   padding: 5px 8px 5px 10px;
   background: var(--node-grad);
-  border: 1px solid var(--lod-alarm, var(--lod-edge, var(--line)));
+  border: 1px solid var(--lod-alarm, var(--lod-ready, var(--lod-edge, var(--line))));
   border-radius: 6px;
   color: var(--text);
   font-size: calc(11px + var(--ui-text-increase, 0px));
@@ -226,6 +226,10 @@
 :root[data-color-scheme="light"] .agent-node.state-done > .lod-face { --lod-edge: var(--ok); }
 :root[data-color-scheme="light"] .agent-node.state-err > .lod-face { --lod-edge: var(--err); }
 .lod-face[data-alarm] { --lod-alarm: var(--warn); padding-inline: 6px; }
+/* Ready for a first prompt: the reducer calls it active, so the rules above
+   give it Working's edge. Its own variable, read before the state's, gives it
+   the quiet one in every theme, the hollow ring's colour beside the word. */
+.agent-node.ready > .lod-face { --lod-ready: color-mix(in srgb, var(--muted) 60%, transparent); }
 .agent-node.synthetic > .lod-face { border-style: dashed; }
 @media (hover: hover) and (pointer: fine) {
 .react-flow__node:hover .lod-face {
@@ -259,6 +263,7 @@
 }
 .lod-name,
 .lod-inline,
+.lod-state,
 .lod-title,
 .lod-signal {
   min-width: 0;
@@ -268,6 +273,8 @@
 }
 .lod-name { flex: 1 1 auto; }
 .lod-inline { display: none; flex: 1 1 auto; font-weight: 600; }
+/* The state's word, drawn only on the narrowest face (below). */
+.lod-state { display: none; flex: 0 1 auto; font-weight: 600; }
 /* The title in the voice the card's own session-name row uses for it. */
 .lod-title {
   font-family: var(--font-mono);
@@ -315,16 +322,46 @@
   .lod-face[data-kind="root"][data-signal] .lod-name { display: none; }
   .lod-face[data-kind="root"][data-signal] .lod-inline { display: block; }
 }
-/* Narrower than a mark and a short word: the mark alone, centred. Nothing is
-   truncated to three letters — the peek beside the pointer has the name, and
-   the shape of the branch is what reads at this size. */
+/* Too narrow for a name: the state's word, one line, centred, with its mark
+   ahead of it where both fit. The name is on the cluster's tag above a root,
+   and in the peek beside the pointer.
+   CHANGED ON PURPOSE (design recommendations, 2026-11-09): this face drew the
+   mark alone, so a fitted phone board, where every card lands here, showed a
+   column of rings with nothing to say which one needed you. A session blocked
+   on you draws the alert in place of the state mark, as the detail card does
+   beside its word.
+   The word wins the line: it comes first in a reversed row that wraps, so a
+   mark with no room left beside it drops to a second line the line's own
+   height clips, rather than cutting the word ("Needs you" and the alert do not
+   fit 72px at 11px). The face's edge keeps the state's colour without it. A
+   word too long on its own is cut with an ellipsis.
+   One 11px line 12 high, and 12px marks so a mark beside the word does not
+   make it taller: a 320-wide phone fits the board to a face 14 high, whose
+   content box is 6, so the line keeps its height (no shrinking, which its
+   overflow would allow) and stands centred over the face's padding, inside
+   the edge. (.canvas-wrap .lod-face > .lod-id outranks the overview's own
+   size for the line.) */
 @container lod (max-width: 72px) {
   .lod-name,
   .lod-inline,
   .lod-signal { display: none; }
   .lod-face[data-kind="root"][data-signal] .lod-inline { display: none; }
-  .lod-id { justify-content: center; }
+  .lod-state { display: block; order: -1; }
+  .canvas-wrap .lod-face > .lod-id {
+    flex: none;
+    flex-flow: row-reverse wrap;
+    justify-content: center;
+    align-content: flex-start;
+    gap: 0 4px;
+    font-size: calc(11px + var(--ui-text-increase, 0px));
+    line-height: calc(12px + var(--ui-text-increase, 0px));
+    height: calc(12px + var(--ui-text-increase, 0px));
+    overflow: hidden;
+  }
+  .lod-id > .state-mark,
+  .lod-id > .alert-mark { width: 12px; height: 12px; }
   .alert-mark { margin-left: 0; }
+  .lod-face[data-alarm] .lod-id > .state-mark { display: none; }
 }
 
 /* Parent-to-child edges hold a readable stroke at a distance. Each edge's own
@@ -385,6 +422,9 @@
 .agent-node .state-line[data-tone="done"] .state-word { color: var(--ok); }
 .agent-node .state-line[data-tone="err"] .state-word { color: var(--err); }
 .agent-node .state-line[data-tone="waiting"] .state-word { color: var(--warn); }
+/* Ready for a first prompt: quiet, in the --muted its hollow ring is drawn in
+   (.state-mark[data-kind="idle"]). Nothing is at work and nothing is asked. */
+.agent-node .state-line[data-tone="ready"] .state-word { color: var(--muted); }
 .agent-node .state-line[data-tone="done"] .state-mark { color: var(--ok); }
 .agent-node .state-line[data-tone="err"] .state-mark { color: var(--err); }
 .agent-node .state-line[data-tone="waiting"] .state-mark { color: var(--warn); }

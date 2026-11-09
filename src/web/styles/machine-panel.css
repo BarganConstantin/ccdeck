@@ -427,17 +427,18 @@
 }
 
 /* A METER ROW (V4's Figma): the label 400 12/16 --text-secondary, the reading
-   in mono 12/16 --text at the right, and the meter 2 high under them, 3 apart.
-   The fill follows the deck's one rule: under 70 --muted, 70 to 89 --text, 90
-   and up --err, never amber. */
+   in mono 12/16 --text at the right, and the meter under them, 3 apart. The
+   meter is a bar 8 high with the cores' 2px corners, so memory reads at a
+   glance the way the cores do; the fill is the cores' --accent below 90 and
+   --err from 90, never amber (meterLevel). */
 .sd-row-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin-bottom: 3px; }
 .sd-row-label { color: var(--text-secondary); }
 .sd-row-val { font-family: var(--font-mono); font-variant-numeric: tabular-nums; color: var(--text); }
 .sd-track {
   position: relative;
   display: block;
-  height: 2px;
-  border-radius: var(--r-tag);
+  height: 8px;
+  border-radius: 2px;
   background: var(--ctl-fill);
   overflow: hidden;
 }
@@ -445,12 +446,11 @@
   display: block;
   width: 100%;
   height: 100%;
-  border-radius: var(--r-tag);
-  background: var(--muted);
+  border-radius: 2px;
+  background: var(--accent);
   transform-origin: left center;
   transition: transform var(--dur-slow) var(--ease), background var(--dur-base) var(--ease);
 }
-.sysdetail .sd-fill[data-level="text"] { background: var(--text); }
 .sysdetail .sd-fill[data-level="err"] { background: var(--err); }
 .sd-row > .sd-note { margin-top: 3px; }
 

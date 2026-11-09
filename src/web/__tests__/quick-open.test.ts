@@ -14,8 +14,8 @@ vi.mock("react", async (orig) => ({ ...(await orig<typeof import("react")>()), u
 const { mountDeckKeys } = await import("./deck-keys-harness");
 const { modalStack } = await import("../modal-dismiss");
 const {
-  EMPTY_SESSIONS, RECENT_KEY, SECTION_CAP, fuzzyMatch, isQuickOpenChord, quickOpenChordLabel, rankQuick,
-  readRecent, rememberRecent, stepRow, withRecent,
+  EMPTY_SESSIONS, RECENT_KEY, SECTION_CAP, flatGroupRows, fuzzyMatch, groupQuick, isQuickOpenChord, quickOpenChordLabel,
+  rankQuick, readRecent, rememberRecent, stepRow, withRecent,
 } = await import("../quick-open");
 const { quickOpenItems, sessionLine, startFolder } = await import("../quick-open-items");
 const { indexFor } = await import("../settings-search");
@@ -84,6 +84,64 @@ describe("the list an empty field shows", () => {
     expect(list[0].section).toBe("recent");
     expect(list[0].items.map(r => r.item.id)).toEqual(["door:usage", "theme:rider-black"]);
     expect(list.find(s => s.section === "open")).toBeUndefined();
+  });
+});
+
+// Design recommendations (2026-11-09): V4 keeps Settings behind a cog at the
+// foot of the left stripe, so an empty field names it, with its chord, on its
+// own after the sessions. It is never the row Enter runs on an empty field:
+// that stays the first session (the one waiting) or what was opened last.
+describe("Settings, listed on its own in an empty field", () => {
+  const settings = item("door:settings", "open", "Settings", { pinned: true, keyCap: "Ctrl+,", tag: "Dialog" });
+  const waiting = item("session:w", "sessions", "web-api", { tone: "waiting" });
+  const working = item("session:k", "sessions", "docs-site", { tone: "working" });
+  const doors = [item("door:usage", "open", "Usage"), settings];
+  const actions = [item("action:fit", "actions", "Fit every agent on screen")];
+  const empty = (items: QuickItem[], recent: string[] = []) => groupQuick(rankQuick(items, "", recent), false);
+  const ids = (groups: ReturnType<typeof empty>) => groups.map(g => [g.group, g.items.map(r => r.item.id)]);
+
+  it("follows the sessions, in a group of its own with no caption, and leaves the doors", () => {
+    const groups = empty([waiting, working, ...doors, ...actions]);
+    expect(ids(groups)).toEqual([
+      ["needs", ["session:w"]],
+      ["sessions", ["session:k"]],
+      ["pinned", ["door:settings"]],
+      ["do", ["action:fit"]],
+      ["open", ["door:usage"]],
+    ]);
+    const pinned = groups.find(g => g.group === "pinned")!;
+    expect(pinned.title).toBe("");
+    expect(pinned.items[0].item.keyCap).toBe("Ctrl+,");
+  });
+
+  it("leaves the chosen row where it was: the first session, or what was opened last", () => {
+    const before = (items: QuickItem[], recent: string[] = []) =>
+      flatGroupRows(empty(items.map(i => ({ ...i, pinned: undefined })), recent))[0].item.id;
+    const now = (items: QuickItem[], recent: string[] = []) => flatGroupRows(empty(items, recent))[0].item.id;
+    for (const [items, recent] of [
+      [[waiting, working, ...doors, ...actions], []],
+      [[working, ...doors, ...actions], []],
+      [[waiting, working, ...doors, ...actions], ["door:usage"]],
+      [[...doors, ...actions], []],
+      [[settings], []],
+    ] as Array<[QuickItem[], string[]]>) {
+      expect(now(items, recent)).toBe(before(items, recent));
+    }
+    expect(now([waiting, working, ...doors, ...actions])).toBe("session:w");
+  });
+
+  it("is never the first row, even with no session and nothing opened lately", () => {
+    const groups = empty([...doors, ...actions]);
+    expect(groups.map(g => g.group)).toEqual(["do", "pinned", "open"]);
+    expect(flatGroupRows(groups)[0].item.id).toBe("action:fit");
+  });
+
+  it("is listed once: in Recent when it was opened lately, and ranked like any row once something is typed", () => {
+    const recent = empty([waiting, ...doors, ...actions], ["door:settings"]);
+    expect(ids(recent)[0]).toEqual(["recent", ["door:settings"]]);
+    expect(recent.find(g => g.group === "pinned")).toBeUndefined();
+    const typed = rankQuick([waiting, ...doors, ...actions], "sett");
+    expect(typed.map(s => [s.section, s.items.map(r => r.item.id)])).toEqual([["open", ["door:settings"]]]);
   });
 });
 
@@ -264,6 +322,11 @@ describe("the rows the deck offers", () => {
     expect(byId(items, "door:settings")?.keyCap).toBe("Ctrl+,");
   });
 
+  it("pin Settings, and only Settings, for an empty field", () => {
+    const { items } = sources();
+    expect(items.filter(i => i.pinned).map(i => i.id)).toEqual(["door:settings"]);
+  });
+
   it("open Settings at a section, or land on the one setting that was asked for", () => {
     const { src, items } = sources();
     byId(items, "settings:section:sounds")!.run();
@@ -353,19 +416,26 @@ describe("a session's line", () => {
   const row = (o: Partial<Row>) => ({ state: "active" as const, label: "fix login", cwdBasename: "api", waiting: null, startedAt: 0, ...o }) as Row;
 
   // CHANGED ON PURPOSE (V4's Figma): the hint is the ask while it waits, the turn's time while it
-  // works, the summary once done and "idle" otherwise, lowercase; the state is the rail row's glyph.
-  it("says what it asks, how long it has worked, what it did, or that it is idle, and where it runs", () => {
+  // works, the summary once done, lowercase; the state is the rail row's glyph.
+  // CHANGED ON PURPOSE (design recommendations, 2026-11-09): a session never given a prompt says
+  // "ready", as its card and its list group do, where it said "idle".
+  it("says what it asks, how long it has worked, what it did, or that it is ready, and where it runs", () => {
     const ask = { kind: "permission", since: 40_000, tool: { name: "Bash", preview: "npm test -- rate-limit" } } as Row["waiting"];
     expect(sessionLine(row({ waiting: ask }), 100_000)).toEqual({ line: "Bash · npm test -- rate-limit · api", tone: "waiting" });
     expect(sessionLine(row({ turnStartedAt: 28_000 }), 300_000)).toEqual({ line: "working 4m 32s · api", tone: "working" });
     expect(sessionLine(row({ state: "done", unseen: true, recap: { text: "Both deploy keys rotated, old ones revoked", at: 1 } }), 100_000))
       .toEqual({ line: "Both deploy keys rotated, old ones revoked · api", tone: "done" });
-    expect(sessionLine(row({ neverPrompted: true }), 100_000)).toEqual({ line: "idle · api", tone: "idle" });
+    expect(sessionLine(row({ neverPrompted: true }), 100_000)).toEqual({ line: "ready · api", tone: "idle" });
     expect(sessionLine(row({ state: "err" }), 100_000)).toEqual({ line: "failed · api", tone: "error" });
   });
 
   it("falls back on the state's own word when there is nothing more to say", () => {
     expect(sessionLine(row({ state: "done", unseen: true }), 100_000).line).toBe("done · api");
+    // A finished turn already seen is Done too, with the Done glyph, as the
+    // card and the list's Done group say it (it said "idle" under a ring).
+    expect(sessionLine(row({ state: "done" }), 100_000)).toEqual({ line: "done · api", tone: "done" });
+    expect(sessionLine(row({ waiting: { kind: "idle", since: 40_000 } as Row["waiting"] }), 100_000))
+      .toEqual({ line: "done · api", tone: "done" });
     // A permission wait with no tool to name says what its rail row says.
     expect(sessionLine(row({ waiting: { kind: "permission", since: 40_000 } as Row["waiting"] }), 100_000).line).toBe("Needs your permission · api");
   });

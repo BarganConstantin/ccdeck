@@ -77,6 +77,11 @@ function doorItem(door: RailItem, singleKeys: boolean): QuickItem {
     verb: panel ? (door.open ? t("board.quick.verb.hidePanel") : t("board.quick.verb.showPanel")) : t("board.quick.verb.open"),
     keyCap: liveKey(door.key, singleKeys)?.cap,
     glyph: door.glyph,
+    // Settings is listed on its own in an empty field, after the sessions,
+    // with its chord beside it: V4 keeps it as a cog at the foot of the left
+    // stripe, and this is where it is found by name without a word added to
+    // the top bar.
+    ...(door.id === "settings" ? { pinned: true as const } : {}),
     run: door.onPress,
   };
 }
@@ -84,8 +89,9 @@ function doorItem(door: RailItem, singleKeys: boolean): QuickItem {
 /** A session's state as its rail row draws it (the same 14px glyph, from the
  *  same rule), with one short lowercase hint after the name: the ask while it
  *  waits on you, how long the turn has run while it works, its summary once
- *  done, "idle" when it has nothing going. A state with nothing more to say
- *  falls back on its own word. The folder follows where it is not the name. */
+ *  done, "ready" while it waits for its first prompt (the word its card and
+ *  its list group say). A state with nothing more to say falls back on its own
+ *  word. The folder follows where it is not the name. */
 export function sessionLine(row: Row, now: number): { line: string; tone: RailGlyphKind } {
   const group = rank(row);
   const tone = railGlyph(row, group);
@@ -103,7 +109,7 @@ function sessionHint(row: Row, group: RailGroup, tone: RailGlyphKind, now: numbe
   if (tone === "working") return t("board.quick.hint.working", { time: elapsedShort(row.turnStartedAt ?? row.startedAt ?? now, undefined, now) });
   if (tone === "done") return note || t("board.quick.hint.done");
   if (tone === "error") return note || t("board.quick.hint.failed");
-  return t("board.quick.hint.idle");
+  return t("board.quick.hint.ready");
 }
 
 /** Where the Start rows put a new session: the folder of the session in focus,

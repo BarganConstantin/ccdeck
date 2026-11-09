@@ -1,11 +1,15 @@
-// The colour a machine meter's fill takes: under 70 --muted, 70 to 89 --text,
-// 90 and up --err, never amber. The CPU has no meter at all: a build at 90% CPU
-// is doing its job, so its total is a figure and its cores are columns in the
-// accent, which take no level. The level follows the figure as it is printed,
-// so 89.6, which reads "90%", is coloured as 90.
+// The colour a machine meter's fill takes: the cores' --accent below 90, --err
+// from 90, never amber. CHANGED ON PURPOSE (design recommendations, 2026-11-09):
+// the 70-89 band in --text read as neither normal nor a warning, and the 2px
+// line it filled was hard to see; the meter is an 8px bar now. The CPU has no
+// meter at all: a build at 90% CPU is doing its job, so its total is a figure
+// and its cores are columns in the accent, which take no level. The level
+// follows the figure as it is printed, so 89.6, which reads "90%", is coloured
+// as 90.
 import { describe, it, expect, vi } from "vitest";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
+import { declared, sheetRules } from "./sheet-cascade";
 
 import type { Snapshot } from "../machine-snapshot";
 
@@ -42,10 +46,11 @@ const levels = (html: string, cls: "sd-fill" | "sd-core-fill") =>
   [...html.matchAll(new RegExp(`class="${cls}" data-level="(\\w+)"`, "g"))].map(m => m[1]);
 
 describe("meterLevel", () => {
-  it("steps at 70 and at 90", () => {
-    expect(meterLevel(69)).toBe("muted");
-    expect(meterLevel(70)).toBe("text");
-    expect(meterLevel(89)).toBe("text");
+  it("is the accent below 90 and --err from 90, with no step between", () => {
+    expect(meterLevel(0)).toBe("accent");
+    expect(meterLevel(69)).toBe("accent");
+    expect(meterLevel(70)).toBe("accent");
+    expect(meterLevel(89)).toBe("accent");
     expect(meterLevel(90)).toBe("err");
   });
 
@@ -61,7 +66,34 @@ describe("meterLevel", () => {
 describe("a meter takes its level from the rounded figure", () => {
   it("colours 89.6, which reads 90%, as 90", () => {
     expect(renderToStaticMarkup(createElement(Meter, { pct: 89.6 }))).toContain('data-level="err"');
-    expect(renderToStaticMarkup(createElement(Meter, { pct: 89.4 }))).toContain('data-level="text"');
+    expect(renderToStaticMarkup(createElement(Meter, { pct: 89.4 }))).toContain('data-level="accent"');
+  });
+});
+
+describe("a meter is a bar the eye finds without reading the figure", () => {
+  /** The last declaration of `prop` on exactly this selector, outside any @media. */
+  const decl = (selector: string, prop: string): string | undefined => {
+    let found: string | undefined;
+    for (const r of sheetRules()) {
+      if (r.media !== null || !r.selectors.includes(selector)) continue;
+      found = declared(r.body, prop) ?? found;
+    }
+    return found;
+  };
+
+  it("is 8 high with the cores' 2px corners, on the track token", () => {
+    expect(decl(".sd-track", "height")).toBe("8px");
+    expect(decl(".sd-core", "border-radius")).toBe("2px");
+    expect(decl(".sd-track", "border-radius")).toBe(decl(".sd-core", "border-radius"));
+    expect(decl(".sysdetail .sd-fill", "border-radius")).toBe(decl(".sd-core", "border-radius"));
+    expect(decl(".sd-track", "background")).toBe("var(--ctl-fill)");
+  });
+
+  it("fills in the cores' accent, turns --err only at the alarm level, and has no level between", () => {
+    expect(decl(".sysdetail .sd-fill", "background")).toBe("var(--accent)");
+    expect(decl(".sysdetail .sd-fill", "background")).toBe(decl(".sysdetail .sd-core-fill", "background"));
+    expect(decl('.sysdetail .sd-fill[data-level="err"]', "background")).toBe("var(--err)");
+    expect(sheetRules().some(r => r.selectors.some(s => s.includes('.sd-fill[data-level="text"]')))).toBe(false);
   });
 });
 
@@ -82,6 +114,6 @@ describe("the machine panel's meters", () => {
 
   it("gives memory the full thresholds, so 95% is --err", () => {
     // Order drawn: physical memory, swap (the CPU drew the first meter once).
-    expect(levels(hot, "sd-fill")).toEqual(["err", "muted"]);
+    expect(levels(hot, "sd-fill")).toEqual(["err", "accent"]);
   });
 });

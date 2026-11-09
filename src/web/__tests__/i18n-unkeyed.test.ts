@@ -161,12 +161,12 @@ describe("English left in V4's files outside the components folder (--logic)", (
 // The scan cannot see single words or exported constants. These hold each one
 // to the key it reads through, and the key to the English it has always shown.
 describe("the words the scan cannot see read through a key", () => {
-  it("the board header's five labels, the top bar's count pills and search field", async () => {
+  it("the board header's two labels, the top bar's count pills and search field", async () => {
     const { BOARD_HEAD_LABEL_MSGS } = await import("../board-header");
     const { WORKING_WORD_MSG, DONE_WORD_MSG } = await import("../topbar-counts");
     const { QUICK_OPEN_PLACEHOLDER_MSG } = await import("../rail-items");
     const { en } = await import("../i18n/en");
-    expect(BOARD_HEAD_LABEL_MSGS.map(key => en[key])).toEqual(["Waiting on you", "Working", "Done on this board", "Longest wait", "Spent on this board"]);
+    expect(BOARD_HEAD_LABEL_MSGS.map(key => en[key])).toEqual(["Longest wait", "Spent on this board"]);
     expect([en[WORKING_WORD_MSG], en[DONE_WORD_MSG]]).toEqual(["working", "done"]);
     expect(QUICK_OPEN_PLACEHOLDER_MSG).toBe("board.quick.placeholder");
     expect(en[QUICK_OPEN_PLACEHOLDER_MSG]).toBe("Open a session or run a command");

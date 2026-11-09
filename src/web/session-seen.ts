@@ -1,6 +1,6 @@
 // Which finished turns you have looked at.
 //
-// The rail's "Done · unseen" group is the one thing the deck cannot know from
+// The rail's "Done · new" group is the one thing the deck cannot know from
 // its stream: a turn ends, and whether you were there is a fact about you, not
 // about the session. So the deck remembers it here, on this browser only. No
 // route, no account, nothing another deck is told.
@@ -15,7 +15,7 @@
 // is still news when you come back. Pointing at a row does not count.
 //
 // Two more rules keep the group honest. A first run has no memory at all, which
-// would put every session the deck already knew about in Done · unseen, so the
+// would put every session the deck already knew about in Done · new, so the
 // first state to arrive is taken as a baseline (baselineSeen). And several tabs
 // share one key: each write re-reads the stored map and merges, the later turn
 // end winning per session, and a `storage` event from another tab merges in

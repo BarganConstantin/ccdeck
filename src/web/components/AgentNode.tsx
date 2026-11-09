@@ -87,6 +87,9 @@ export function AgentCard({ data, handles = false }: { data: CardData; handles?:
   const cls = [
     "agent-node",
     `state-${shown}`,
+    // Ready for a first prompt: the reducer's state is active, but nothing is
+    // at work, so the edge is the quiet one and not Working's (agent-node.css).
+    state.tone === "ready" ? "ready" : "",
     data.synthetic ? "synthetic" : "",
   ].filter(Boolean).join(" ");
 
@@ -497,6 +500,13 @@ function NodeFace({ data, title }: { data: AgentNodeData & { branch?: BranchSumm
     sayWaiting: w => waitingLabel(w, tr),
     describeCall: call => ({ name: primaryDisplayFor(call.name).label, subject: toolSubject(call.name, call.input) }),
   }, tr);
+  // The state in a word, for a face too narrow for its name (the sheet shows it
+  // only there): the card's own word, or the face's "Needs you" / "Asked you"
+  // for a session blocked on you. The mark beside it is the card's mark too, so
+  // a session not yet given a prompt draws the hollow ring by "Ready".
+  const state = cardState(data);
+  const word = alarm && signal ? signal.short : state.word;
+  const wordTone = alarm ? "warn" : state.tone === "err" ? "err" : undefined;
   return (
     <div
       className="lod-face"
@@ -506,9 +516,10 @@ function NodeFace({ data, title }: { data: AgentNodeData & { branch?: BranchSumm
       aria-hidden
     >
       <div className="lod-id">
-        <StateMark kind={stateMarkKind(drawnState(data))} />
+        <StateMark kind={state.mark === "alert" ? stateMarkKind(drawnState(data)) : state.mark} />
         <span className="lod-name">{data.label}</span>
         {signal && <span className="lod-inline" data-tone={signal.tone}>{signal.short}</span>}
+        <span className="lod-state" data-tone={wordTone}>{word}</span>
         {alarm && <AlertMark />}
       </div>
       {title && <div className="lod-title">{title}</div>}
@@ -546,7 +557,7 @@ function Elapsed({ start, end }: { start: number; end?: number }) {
  *  the state's token (V4). The mark is decoration beside the word, so the word
  *  is the channel that carries the state to a reader (1.4.1) and to the card's
  *  accessible name (agentAriaLabel). */
-const STATE_GLYPH: Record<CardState["tone"], KitStateName> = { active: "working", waiting: "waiting", done: "done", err: "error" };
+const STATE_GLYPH: Record<CardState["tone"], KitStateName> = { active: "working", waiting: "waiting", done: "done", err: "error", ready: "idle" };
 
 function StateLine({ state, under }: { state: CardState; under: StateMarkKind }) {
   return (
