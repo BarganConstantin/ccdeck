@@ -64,14 +64,44 @@ export function normalizeHistory(raw, now) {
   return prune(out, now);
 }
 
+/** Keep observations collected during a read failure when the file recovers.
+ *  The same window match and reset tolerance as record(), without replacing
+ *  points that were already persisted at the same timestamp. */
+function mergeBufferedHistory(stored, buffered, now) {
+  for (const pending of buffered) {
+    const row = stored.find(s => s.provider === pending.provider && s.account === pending.account
+      && s.id === pending.id && s.windowSec === pending.windowSec && Math.abs(s.resetAt - pending.resetAt) <= 120);
+    if (!row) { stored.push(pending); continue; }
+    row.resetAt = Math.max(row.resetAt, pending.resetAt);
+    const points = new Map([...pending.points, ...row.points].map(p => [p.t, p]));
+    row.points = [...points.values()].sort((a, b) => a.t - b.t);
+  }
+  return prune(stored, now);
+}
+
 export function createQuotaHistory({ load = async () => null, save = async () => {}, now = Date.now } = {}) {
-  let series = [], loading = null, storageOk = true;
+  let series = [], loaded = false, storageOk = true, dirty = false;
   const active = new Map();
   let queue = Promise.resolve();
-  const ready = () => loading ??= (async () => {
-    try { series = normalizeHistory(await load(), now()); }
+  // Every read and write runs in the queue. A failed load is retried by the
+  // next operation; buffered readings never authorize replacing unread data.
+  const ready = async () => {
+    if (loaded) return;
+    try {
+      const stored = normalizeHistory(await load(), now());
+      series = mergeBufferedHistory(stored, series, now());
+      loaded = true;
+      storageOk = true;
+    }
     catch { storageOk = false; }
-  })();
+  };
+  const flush = async () => {
+    if (!loaded || !dirty) return;
+    try { await save({ v: 1, series }); dirty = false; storageOk = true; }
+    catch { storageOk = false; } // history cannot fail a quota request
+  };
+  const run = fn => (queue = queue.then(async () => { await ready(); await fn(); await flush(); })
+    .catch(() => { storageOk = false; }));
   return {
     activate(provider, account) {
       if (!providers.has(provider)) return null;
@@ -80,8 +110,7 @@ export function createQuotaHistory({ load = async () => null, save = async () =>
       return key;
     },
     record(provider, account, reading) {
-      queue = queue.then(async () => {
-        await ready();
+      return run(() => {
         if (!providers.has(provider) || !/^[a-f0-9]{64}$/.test(account ?? "") || !reading?.ok || reading.stale
             || !finite(reading.fetchedAt) || reading.fetchedAt > now() + 60_000) return;
         let changed = false;
@@ -105,20 +134,14 @@ export function createQuotaHistory({ load = async () => null, save = async () =>
           changed = true;
         }
         series = prune(series, now());
-        if (changed) {
-          try { await save({ v: 1, series }); storageOk = true; }
-          catch { storageOk = false; } // history cannot fail a quota request
-        }
-      }).catch(() => { storageOk = false; });
-      return queue;
+        if (changed) dirty = true;
+      });
     },
     async report(provider, account) {
-      await queue;
-      await ready();
+      await run(() => { series = prune(series, now()); });
       // A delayed request for an account that was switched away from cannot
       // display its history beside the new account's current quota.
       if (!account || active.get(provider) !== account) return { ok: true, account: null, series: [], storageOk };
-      series = prune(series, now());
       return { ok: true, account, storageOk, series: series.filter(s => s.provider === provider && s.account === account)
         .map(({ account: _account, provider: _provider, ...s }) => ({ ...s, points: s.points.map(p => ({ ...p })) })) };
     },
