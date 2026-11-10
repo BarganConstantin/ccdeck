@@ -629,8 +629,6 @@ const catalog: Catalog = {
   "insights.machine.minutesAgo": "vor {n} Minuten",
   "insights.machine.hoursAgo.one": "vor einer Stunde",
   "insights.machine.hoursAgo.other": "vor {n} Stunden",
-  "insights.machine.flagTime": "zu {pct}% der Zeit gedrosselt",
-  "insights.machine.flagHeld": "auf {pct}% der vollen Geschwindigkeit gedrosselt",
   "insights.machine.flagMemory": "physischer Speicher zu {pct}% belegt",
   "insights.machine.flagApi": "die Claude-API antwortet nicht",
   "insights.machine.exitNode": "Tailscale-Exit-Node {node}",

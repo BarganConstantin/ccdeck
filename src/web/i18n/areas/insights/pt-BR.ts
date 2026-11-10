@@ -630,8 +630,6 @@ const catalog: Catalog = {
   "insights.machine.minutesAgo": "há {n} minutos",
   "insights.machine.hoursAgo.one": "há uma hora",
   "insights.machine.hoursAgo.other": "há {n} horas",
-  "insights.machine.flagTime": "limitada em {pct}% do tempo",
-  "insights.machine.flagHeld": "limitada a {pct}% da velocidade total",
   "insights.machine.flagMemory": "memória física {pct}% cheia",
   "insights.machine.flagApi": "a API do Claude não está respondendo",
   "insights.machine.exitNode": "Exit node do Tailscale {node}",

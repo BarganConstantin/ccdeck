@@ -36,7 +36,7 @@ import type { AgentNodeData, PlanItem, WaitingBlock } from "../types";
 import { useNow } from "../use-now";
 import { useLanguage, useT } from "../i18n";
 import { promptLine } from "../session-note";
-import { cardState, drawnState, faceSignal, stateMarkKind, type BranchSummary, type CardState, type StateMarkKind } from "../node-face";
+import { cardState, drawnState, faceSignal, markBesideFailures, stateMarkKind, type BranchSummary, type CardState, type StateMarkKind } from "../node-face";
 // The agent's own checklist, as one line (#2157). See agent-plan.ts.
 import { planSummary, planTitle, type PlanSummary } from "../agent-plan";
 import { primaryDisplayFor, toolSubject } from "../tool-skin";
@@ -505,8 +505,16 @@ function NodeFace({ data, title }: { data: AgentNodeData & { branch?: BranchSumm
   // for a session blocked on you. The mark beside it is the card's mark too, so
   // a session not yet given a prompt draws the hollow ring by "Ready".
   const state = cardState(data);
-  const word = alarm && signal ? signal.short : state.word;
-  const wordTone = alarm ? "warn" : state.tone === "err" ? "err" : undefined;
+  // The mark sits beside "1 failed" on this face, so a finished card whose
+  // calls failed draws the cross, not done's tick (markBesideFailures). Where
+  // the face is too narrow for that line the word says the count instead of
+  // "Done": a cross beside "Done" would be the same contradiction turned round.
+  const failed = data.toolErrorCount ?? 0;
+  const under = state.mark === "alert" ? stateMarkKind(drawnState(data)) : state.mark;
+  const mark = markBesideFailures(under, failed);
+  const failedWord = mark !== under;
+  const word = alarm && signal ? signal.short : failedWord ? tr("board.failedCount", { n: failed }) : state.word;
+  const wordTone = alarm ? "warn" : state.tone === "err" || failedWord ? "err" : undefined;
   return (
     <div
       className="lod-face"
@@ -516,7 +524,7 @@ function NodeFace({ data, title }: { data: AgentNodeData & { branch?: BranchSumm
       aria-hidden
     >
       <div className="lod-id">
-        <StateMark kind={state.mark === "alert" ? stateMarkKind(drawnState(data)) : state.mark} />
+        <StateMark kind={mark} />
         <span className="lod-name">{data.label}</span>
         {signal && <span className="lod-inline" data-tone={signal.tone}>{signal.short}</span>}
         <span className="lod-state" data-tone={wordTone}>{word}</span>

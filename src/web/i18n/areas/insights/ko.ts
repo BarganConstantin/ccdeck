@@ -629,8 +629,6 @@ const catalog: Catalog = {
   "insights.machine.minutesAgo": "{n}분 전",
   "insights.machine.hoursAgo.one": "1시간 전",
   "insights.machine.hoursAgo.other": "{n}시간 전",
-  "insights.machine.flagTime": "시간의 {pct}% 동안 스로틀링됨",
-  "insights.machine.flagHeld": "최대 속도의 {pct}%로 스로틀링됨",
   "insights.machine.flagMemory": "물리 메모리 {pct}% 사용 중",
   "insights.machine.flagApi": "Claude API가 응답하지 않음",
   "insights.machine.exitNode": "Tailscale 출구 노드 {node}",

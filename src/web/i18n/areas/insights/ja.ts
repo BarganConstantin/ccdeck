@@ -629,8 +629,6 @@ const catalog: Catalog = {
   "insights.machine.minutesAgo": "{n}分前",
   "insights.machine.hoursAgo.one": "1時間前",
   "insights.machine.hoursAgo.other": "{n}時間前",
-  "insights.machine.flagTime": "時間の{pct}% スロットリング",
-  "insights.machine.flagHeld": "全速の{pct}% にスロットリング",
   "insights.machine.flagMemory": "物理メモリの{pct}% を使用中",
   "insights.machine.flagApi": "Claude API が応答していません",
   "insights.machine.exitNode": "Tailscale の出口ノード {node}",

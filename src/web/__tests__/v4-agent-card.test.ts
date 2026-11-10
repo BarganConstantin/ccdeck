@@ -11,7 +11,7 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { ReactFlowProvider } from "reactflow";
 import AgentNode from "../components/AgentNode";
-import { cardState, stateMarkKind } from "../node-face";
+import { cardState, markBesideFailures, stateMarkKind } from "../node-face";
 import { agentAriaLabel } from "../agent-copy";
 import { footDropped, footDroppable, footNotchOnResize, nextFootNotch, nextSqueeze } from "../card-row-squeeze";
 import type { AgentNodeData } from "../types";
@@ -544,5 +544,38 @@ describe("the narrowest face says the state", () => {
     expect(inNarrow(".lod-id > .state-mark, .lod-id > .alert-mark")).toBe("width: 12px; height: 12px;");
     // A session blocked on you shows the alert, never the ring beside it.
     expect(inNarrow('.lod-face[data-alarm] .lod-id > .state-mark')).toBe("display: none;");
+  });
+});
+
+// Owner 2026-11-10 critique: a finished card whose calls failed drew done's
+// green tick beside "1 failed", the mark saying success and the words failure.
+// Where the face can say the count, the mark follows the worst state.
+describe("a face never draws the tick beside a failure count", () => {
+  const face = (over: Partial<AgentNodeData>) => {
+    const out = html(over);
+    const at = out.indexOf('class="lod-face"');
+    return out.slice(out.lastIndexOf("<div", at));
+  };
+  const mark = (out: string) => /<div class="lod-id"><svg class="state-mark" data-kind="(\w+)"/.exec(out)?.[1];
+
+  it("draws the cross on a finished card whose calls failed, and the count where the word goes", () => {
+    const out = face({ state: "done", toolErrorCount: 1 });
+    expect(mark(out)).toBe("err");
+    expect(out).toContain('<span class="lod-inline" data-tone="err">1 failed</span>');
+    // The narrowest face draws the word beside the mark: never "Done" beside the cross.
+    expect(out).toContain('<span class="lod-state" data-tone="err">1 failed</span>');
+  });
+
+  it("keeps the tick when nothing failed, and the live ring on a card still at work", () => {
+    expect(mark(face({ state: "done" }))).toBe("done");
+    expect(mark(face({ state: "active", toolErrorCount: 2 }))).toBe("live");
+    expect(face({ state: "active", toolErrorCount: 2 })).toContain('<span class="lod-state">Working</span>');
+  });
+
+  it("is one rule, shared with the navigator", () => {
+    expect(markBesideFailures("done", 1)).toBe("err");
+    expect(markBesideFailures("done", 0)).toBe("done");
+    expect(markBesideFailures("live", 3)).toBe("live");
+    expect(markBesideFailures("idle", 0)).toBe("idle");
   });
 });

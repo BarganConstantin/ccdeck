@@ -650,8 +650,6 @@ const catalog: Catalog = {
   "insights.machine.hoursAgo.one": "acum o oră",
   "insights.machine.hoursAgo.few": "acum {n} ore",
   "insights.machine.hoursAgo.other": "acum {n} de ore",
-  "insights.machine.flagTime": "limitat {pct}% din timp",
-  "insights.machine.flagHeld": "limitat la {pct}% din viteza maximă",
   "insights.machine.flagMemory": "memoria fizică e ocupată {pct}%",
   "insights.machine.flagApi": "API-ul Claude nu răspunde",
   "insights.machine.exitNode": "nod de ieșire Tailscale {node}",

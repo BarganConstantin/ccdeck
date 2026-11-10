@@ -71,8 +71,8 @@ import { DockButtons } from "./SideColumn";
  * taller than its slot, and everything that scrolled away first was the part
  * that says what you are looking at and how to close it. It is sticky against
  * the panel's own scrollport, on the panel's own ground. The flag is the first
- * line of the body and sticks under the head the same way: a machine held below
- * full speed should not be a fact you have to scroll back up to find.
+ * line of the body and sticks under the head the same way: memory nearly out or
+ * an API that does not answer should not be a fact you scroll back up to find.
  */
 function Shell({ usageOpen, leaving, sub, flag, summary, dock, onClose, children }: {
   usageOpen: boolean;
@@ -393,10 +393,15 @@ function ThermalSection({ thermal }: { thermal: Thermal | null }) {
         ))}
         {/* No flag and no bar: a plain Thermal row, the clock share the machine
             has lost, in --text and --err only at the third the deck already
-            calls hot. Its sentence is always there: at 0% it says when the
-            machine last was held back, or that it never has been. */}
+            calls hot. The figure is said once, here (owner's critique,
+            2026-11-10): while the machine is held back, the sentence that
+            explains it is the row's hint, not a second line repeating the
+            figure. At 0% it stays under the row, because there it says what
+            the figure cannot: when the machine last was held back, or that it
+            never has been (a bare 0% was reported as a broken readout). */}
         {held && (
-          <PlainRow label={t("insights.machine.throttling")} value={held.value} err={held.tone === "hot"} note={held.note} />
+          <PlainRow label={t("insights.machine.throttling")} value={held.value} err={held.tone === "hot"}
+            hint={held.pct > 0 ? held.note : undefined} note={held.pct > 0 ? undefined : held.note} />
         )}
       </OpensHistory>
     </div>

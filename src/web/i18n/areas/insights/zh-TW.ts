@@ -629,8 +629,6 @@ const catalog: Catalog = {
   "insights.machine.minutesAgo": "{n} 分鐘前",
   "insights.machine.hoursAgo.one": "1 小時前",
   "insights.machine.hoursAgo.other": "{n} 小時前",
-  "insights.machine.flagTime": "有 {pct}% 的時間被降頻",
-  "insights.machine.flagHeld": "被降頻至全速的 {pct}%",
   "insights.machine.flagMemory": "實體記憶體已用 {pct}%",
   "insights.machine.flagApi": "Claude API 沒有回應",
   "insights.machine.exitNode": "Tailscale 出口節點 {node}",

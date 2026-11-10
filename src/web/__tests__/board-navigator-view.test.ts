@@ -215,6 +215,25 @@ describe("a tile says what the board's card says", () => {
   it("is named for a screen reader by the card's own accessible name", () => {
     expect(tile(html, "read")).toMatch(/aria-label="vcrm-core, session, Working/);
   });
+
+  it("draws the cross, as the board's face does, over a line that says calls failed", () => {
+    // Owner 2026-11-10 critique: done's tick beside "1 failed". The finished
+    // session and one finished subagent are given a failed call each.
+    const sub = [...state.agents.values()].find(a => a.sessionId === "boom" && a.kind === "subagent")!;
+    const failing = nodes.map(n => n.data?.id === "quiet" ? { ...n, data: { ...n.data!, toolErrorCount: 1 } }
+      : n.data?.id === sub.id ? { ...n, data: { ...n.data!, state: "done" as const, toolErrorCount: 1 } } : n);
+    const out = renderToStaticMarkup(createElement(NavigatorView, {
+      clusters: clusterBounds(failing), sessions: navigatorSessions(failing), width: 436, density: "tiles", attachedId: null, onOpen: () => {},
+    }));
+    const face = renderToStaticMarkup(createElement(ReactFlowProvider, null,
+      createElement(AgentNode as any, { id: "quiet", data: failing.find(n => n.data?.id === "quiet")!.data, selected: false })));
+    const mark = /class="state-mark" data-kind="(\w+)"/;
+    expect(mark.exec(face.slice(face.indexOf('class="lod-face"')))?.[1]).toBe("err");
+    expect(mark.exec(tile(out, "quiet"))?.[1]).toBe("err");
+    expect(textOf(tile(out, "quiet"), "nav-signal")).toBe("1 tool call failed");
+    const row = /<div class="nav-row" data-state="done"[^>]*>([\s\S]*?)<\/div>/.exec(tile(out, "boom"))?.[1] ?? "";
+    expect(mark.exec(row)?.[1]).toBe("err");
+  });
 });
 
 describe("the socket", () => {

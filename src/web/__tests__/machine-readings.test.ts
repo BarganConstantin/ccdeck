@@ -24,13 +24,8 @@ describe("the one condition worth saying at the top", () => {
     expect(attentionFlag({ thermal: null, memory: null, network: null })).toBeNull();
   });
 
-  it("says each of the three measured conditions", () => {
-    expect(attentionFlag({ ...calm, thermal: { celsius: [], throttle: { speedLimit: 62 } } }))
-      .toBe("throttled to 62% of full speed");
-    // Linux counts time held down, not speed allowed, and says so.
-    expect(attentionFlag({ ...calm, thermal: { celsius: [], throttle: { timeHeld: 57 } } }))
-      .toBe("throttled 57% of the time");
-    expect(attentionFlag({ ...calm, thermal: { celsius: [], throttle: { timeHeld: 0 } } })).toBeNull();
+  // CHANGED ON PURPOSE (owner 2026-11-10 critique): throttling left the flag, so two conditions, not three.
+  it("says each of the two measured conditions", () => {
     expect(attentionFlag({ ...calm, memory: { total: 32, available: 2, usedPct: 93.6 } }))
       .toBe("physical memory 94% full");
     expect(attentionFlag({ ...calm, network: { ...calm.network, api: { host: "api.anthropic.com", ms: null } } }))
@@ -42,15 +37,24 @@ describe("the one condition worth saying at the top", () => {
     expect(attentionFlag({ ...calm, memory: { total: 32, available: 3.2, usedPct: 90 } })).toBe("physical memory 90% full");
   });
 
+  it("leaves throttling to the Thermal row, which says it once", () => {
+    // CHANGED ON PURPOSE (owner 2026-11-10 critique): the flag said "throttled 43%"
+    // above the Thermal row's "Throttling 43%" and its sentence; the row alone says it.
+    for (const throttle of [{ speedLimit: 62 }, { timeHeld: 57 }, { speedLimit: 62, source: "windows-performance" as const }]) {
+      const sys = { ...calm, thermal: { celsius: [], throttle } };
+      expect(attentionFlag(sys), JSON.stringify(throttle)).toBeNull();
+    }
+  });
+
   it("says one at a time, worst first", () => {
     const all = {
       thermal: { celsius: [], throttle: { speedLimit: 70 } },
       memory: { total: 32, available: 1, usedPct: 97 },
       network: { ...calm.network, api: { host: "api.anthropic.com", ms: null } },
     };
-    expect(attentionFlag(all)).toBe("throttled to 70% of full speed");
-    expect(attentionFlag({ ...all, thermal: null })).toBe("physical memory 97% full");
-    expect(attentionFlag({ ...all, thermal: null, memory: calm.memory })).toBe("the Claude API is not answering");
+    // CHANGED ON PURPOSE (owner 2026-11-10 critique): a throttled machine no longer leads the flag.
+    expect(attentionFlag(all)).toBe("physical memory 97% full");
+    expect(attentionFlag({ ...all, memory: calm.memory })).toBe("the Claude API is not answering");
   });
 
   it("does not take an API nobody has asked yet for one that did not answer", () => {
