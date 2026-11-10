@@ -336,6 +336,7 @@ export default function UsagePanel({ state, now, providers, incidents = [], leav
             : t("shell.side.usageTokens", { n: fmtTokens(totalTokenSum), period: periodWord })
         }</span>}
         <DockButtons dock={dock} popOut={place.popOut} />
+        <FilmLink film="usage" />
         {/* ONE close (V4's Figma). The panel's two other header buttons went to
             its foot: the refresh as a quiet "Refresh" and the quota history as
             a quiet "Quota history", both still here and still pressable. */}
@@ -547,9 +548,6 @@ export default function UsagePanel({ state, now, providers, incidents = [], leav
             : <>{t("usage.empty.none")}<br />{t("usage.empty.start")}</>}
         </div>
       )}
-      {/* The panel's last line, whatever is above it: the header's row is
-          already the title, the burn rate and two acts. */}
-      <div className="film-foot"><FilmLink film="usage" /></div>
       {/* The two acts the header lost (V4's Figma draws one close there). The
           refresh is named after what is below it and gone when neither quota
           section is: with both CLIs absent it would refresh nothing, and on a

@@ -99,19 +99,19 @@ describe("the row's shape", () => {
 describe("the inks of a filling window", () => {
   const at = (pct: number, active = false) => row(account({ active, lanes: [{ id: "five_hour", label: "5h", pct, resetAt: NOW + HOUR }, account().lanes[1]] }));
 
-  it("draws a figure in the waiting ink from 80% and the error ink at 100%", () => {
-    expect(figure(at(79), 1)).not.toContain("data-level");
-    expect(figure(at(80), 1)).toContain('data-level="mid"');
-    expect(figure(at(99), 1)).toContain('data-level="mid"');
-    expect(figure(at(100), 1)).toContain('data-level="hi"');
+  it("draws a figure in the waiting ink from 70% and the error ink at 90%", () => {
+    expect(figure(at(69), 1)).not.toContain("data-level");
+    expect(figure(at(70), 1)).toContain('data-level="mid"');
+    expect(figure(at(89), 1)).toContain('data-level="mid"');
+    expect(figure(at(90), 1)).toContain('data-level="hi"');
     const css = sheetText();
     expect(css).toContain('.ap-fig .ap-q-pct[data-level="mid"] { color: var(--warn); }');
     expect(css).toContain('.ap-fig .ap-q-pct[data-level="hi"] { color: var(--err); }');
   });
 
-  it("fills the meter in the same inks, the live row's quiet part in the secondary ink", () => {
-    expect(meter(at(40))).toContain("width:40%;background:var(--muted)");
-    expect(meter(at(40, true))).toContain("width:40%;background:var(--text-secondary)");
+  it("fills normal meters with accent and keeps warning and error thresholds", () => {
+    expect(meter(at(40))).toContain("width:40%;background:var(--accent)");
+    expect(meter(at(40, true))).toContain("width:40%;background:var(--accent)");
     expect(meter(at(85))).toContain("background:var(--warn)");
     expect(meter(at(100))).toContain("width:100%;background:var(--err)");
     expect(sheetText()).toMatch(/\.ap-meter \{\s*height: 3px;/);
@@ -213,7 +213,7 @@ describe("a long name", () => {
 
   it("is whole in the door's tooltip and in what a screen reader is told", () => {
     const html = row(account({ email: LONG }));
-    expect(html).toMatch(new RegExp(`class="ap-row-open" id="ap-row-3" title="${LONG.replace(/[.]/g, "\\.")}\\n`));
+    expect(html).toMatch(new RegExp(`class="ap-row-open" id="ap-row-3" title="${LONG.replace(/[.]/g, "\\.")}"`));
     expect(html).toContain(`<span class="vis-hidden">${LONG}, details</span>`);
   });
 });

@@ -52,15 +52,16 @@ describe("the link itself", () => {
   const html = renderToStaticMarkup(createElement(FilmLink, { film: "usage" }));
 
   it("is a plain link to a new tab, holding nothing of this page", () => {
-    expect(html).toMatch(/^<a class="film-link" /);
+    expect(html).toMatch(/^<a class="film-link film-icon" /);
     expect(html).toContain(linkTo("usage"));
     expect(html).toContain('target="_blank"');
     expect(html).toContain('rel="noopener noreferrer"');
   });
 
-  it("starts its name with the words on screen and says where the press goes", () => {
-    const name = html.replace(/<[^>]+>/g, "");
-    expect(name.startsWith("Watch · 30 s")).toBe(true);
+  it("uses an icon with a full accessible name and destination", () => {
+    const name = /aria-label="([^"]+)"/.exec(html)![1];
+    expect(html).toContain("<svg");
+    expect(html).not.toContain("Watch · 30 s");
     expect(name).toContain("ccdeck.dev");
     expect(name).toContain("opens in your browser");
   });
@@ -82,12 +83,12 @@ describe("each place draws its film", () => {
     expect(html).not.toContain("film-link");
   });
 
-  it("the Usage panel, on its last line", () => {
+  it("the Usage panel, in its header", () => {
     const html = renderToStaticMarkup(createElement(UsagePanel, {
       state: initialState(), now: 0, providers: ASSUMED, onClose: noop,
     }));
     expect(html).toContain(linkTo("usage"));
-    expect(html.indexOf(linkTo("usage"))).toBeGreaterThan(html.indexOf('class="up-empty"'));
+    expect(html.indexOf(linkTo("usage"))).toBeLessThan(html.indexOf('class="up-body"'));
   });
 
   it("the Claude accounts column, before any roster has arrived", () => {

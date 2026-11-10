@@ -40,16 +40,15 @@ import { telemetryLine } from "../org-telemetry";
 type RequestSlot = ReturnType<typeof useRequestSlot>;
 
 /** How full a window is, in the inks its figure and meter use: the waiting ink
- *  from 80% and the error ink at 100%. Below that a figure keeps its line's
+ *  from 70% and the error ink at 90%. Below that a figure keeps its line's
  *  own ink — a quota is not a problem until it is nearly spent. */
 function fullness(pct: number): "mid" | "hi" | undefined {
-  return pct >= 100 ? "hi" : pct >= 80 ? "mid" : undefined;
+  return pct >= 90 ? "hi" : pct >= 70 ? "mid" : undefined;
 }
 
-/** The ink a meter fill is drawn in at this percentage: the live row's in the
- *  secondary ink, every other row's in the muted one, until it is nearly full. */
-function meterInk(pct: number, live = false): string {
-  return pct >= 100 ? "var(--err)" : pct >= 80 ? "var(--warn)" : live ? "var(--text-secondary)" : "var(--muted)";
+/** Match main's quota colours for every account, independent of selection. */
+function meterInk(pct: number): string {
+  return pct >= 90 ? "var(--err)" : pct >= 70 ? "var(--warn)" : "var(--accent)";
 }
 
 /** An address as the row draws it: the part before the @ in the text ink and
@@ -280,19 +279,6 @@ export default function AccountRow({
   // passed says nothing, so an old reading whose reset is over has none.
   const primaryReset = primary?.resetAt && !primaryRolled && !blocked ? resetCountdown(primary.resetAt, nowSec) : null;
   const age = a.fetchedAt ? ago(a.fetchedAt, nowSec, t) : null;
-  // What the row no longer draws stays on the row: the whole identity, the slot
-  // and every window with its reset, and when it was read, in the title of the
-  // row's door and in what a screen reader is told.
-  const detailTitle = [
-    identity,
-    a.active ? t("accounts.row.activeTitle", { n: a.num }) : t("accounts.row.slotTitle", { n: a.num }),
-    ...a.lanes.map(l => {
-      const left = !lapsed(l, nowSec) && l.resetAt ? resetCountdown(l.resetAt, nowSec) : null;
-      const said = `${laneLabel(l.label, t)} ${lapsed(l, nowSec) ? t("accounts.row.resetWord") : `${Math.round(l.pct)}%`}`;
-      return left ? `${said} · ${t("accounts.row.resetsIn", { time: left })}` : said;
-    }),
-    a.fetchedAt ? `${t("accounts.row.collected", { ago: ago(a.fetchedAt, nowSec, t) })}${issue?.blocksSwitch ? "" : due(a.nextAt, nowSec, t)}` : null,
-  ].filter(Boolean).join("\n");
   // Every row says only the age; whose read it was waits in its tooltip.
   const ageTitle = a.sharedFrom
     ? t("accounts.row.readOn", { from: a.sharedFrom })
@@ -354,7 +340,7 @@ export default function AccountRow({
           email in its description when the name it is called by is the
           alias. */}
         <button type="button" className="ap-row-open" id={`ap-${ids}row-${a.num}`}
-          title={detailTitle}
+          title={identity}
           aria-expanded={open}
           aria-controls={open ? `ap-${ids}detail-${a.num}` : undefined}
           aria-describedby={[
@@ -558,7 +544,7 @@ export default function AccountRow({
               aria-label={t("accounts.row.fixAs", { fix: issue.fix, name: a.email ?? name })} title={issue.hint}
               onClick={() => onSignIn(a.email)}>{t("accounts.row.signIn")}</button>
           )}
-          {!open && figure(second, "7d", "ap-fig-2", !!second && second.id === keyLane?.id)}
+          {figure(second, "7d", "ap-fig-2", !!second && second.id === keyLane?.id)}
         </div>
       )}
       {!issue && weekFull && state && (
@@ -567,7 +553,7 @@ export default function AccountRow({
           <span className="ap-issue-text">
             {weekReset ? t("accounts.row.weeklyLimitAt", { reset: weekReset }) : t("accounts.row.weeklyLimit")}
           </span>
-          {!open && figure(second, "7d", "ap-fig-2", !!second && second.id === keyLane?.id)}
+          {figure(second, "7d", "ap-fig-2", !!second && second.id === keyLane?.id)}
         </p>
       )}
       {/* AN OLD READING: nothing collected for a quarter of an hour. The
@@ -579,14 +565,14 @@ export default function AccountRow({
           <span className="ap-issue-text ap-q-age" data-never={age ? undefined : ""} title={ageTitle}>
             {age ? t("accounts.row.lastReadAgo", { ago: age }) : sentence(t("accounts.row.ageNever"))}
           </span>
-          {!open && figure(second, "7d", "ap-fig-2", !!second && second.id === keyLane?.id)}
+          {figure(second, "7d", "ap-fig-2", !!second && second.id === keyLane?.id)}
         </p>
       )}
 
       {/* LINE 2: the plan and when the first window resets, and the second
           window's figure at the right edge, under the first. A held-out
           account says what that means for it instead of its reset. */}
-      <p className={state && !open ? "ap-quota vis-hidden" : "ap-quota"} id={`ap-${ids}quota-${a.num}`}>
+      <p className={state ? "ap-quota vis-hidden" : "ap-quota"} id={`ap-${ids}quota-${a.num}`}>
         {primary && !blocked && (
           /* The first figure is in the head, and the head is not what this
              line is read from: the door is described by this line, so the
@@ -632,7 +618,7 @@ export default function AccountRow({
             {/* ONE ATTENTION COLOUR PER ROW, ON THE CAUSE: an old reading is
                 said by its own state line, quietly, and a problem takes the
                 ink on its line, so the age here is plain. */}
-            {a.fetchedAt
+            {a.stale && !issue && !weekFull ? null : a.fetchedAt
               ? <span className="ap-meta-line">
                   <span className="ap-meta-key">{t("accounts.row.readKey")}</span>
                   <span className="ap-age"
@@ -662,7 +648,7 @@ export default function AccountRow({
           hand. An old reading draws it in the quiet ink. */}
       <div className="ap-meter" aria-hidden>
         {primary && !blocked && !primaryRolled && <div className="ap-meter-fill" data-sort-key={primary.id === keyLane?.id ? "" : undefined}
-          style={{ width: `${primaryPct === 0 ? 1.5 : primaryPct}%`, background: frozen ? "var(--muted)" : meterInk(primaryPct, a.active), opacity: primaryPct === 0 ? 0.4 : 1 }} />}
+          style={{ width: `${primaryPct === 0 ? 1.5 : primaryPct}%`, background: frozen ? "var(--muted)" : meterInk(primaryPct), opacity: primaryPct === 0 ? 0.4 : 1 }} />}
       </div>
     </li>
   );

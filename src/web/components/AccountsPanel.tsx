@@ -17,7 +17,6 @@ import AccountRow from "./AccountRow";
 import AccountsEmptyState from "./AccountsEmptyState";
 import AccountsHeader from "./AccountsHeader";
 import AutoSwitchPolicy from "./AutoSwitchPolicy";
-import FilmLink from "./FilmLink";
 import AddAccountDialog from "./AddAccountDialog";
 import AccountMenuPopover from "./AccountMenuPopover";
 import OtherAccounts from "./OtherAccounts";
@@ -28,10 +27,10 @@ import { lanAccounts, type SharedMark } from "../account-lan";
 import type { LanAccount } from "../lan-types";
 import { laneKey, toggleLane } from "../lane-open";
 import {
-  allOpen, holdOrder, isOpen, orderChoices, orderKey, sortAccounts, toggleAll, toggleOne, trimOpenness, validOrder,
+  NONE_OPEN, allOpen, holdOrder, isOpen, orderChoices, orderKey, sortAccounts, toggleAll, toggleOne, trimOpenness, validOrder,
   type Openness,
 } from "../other-accounts-order";
-import { loadOpenness, loadOrder, saveOpenness, saveOrder } from "../accounts-prefs";
+import { loadOrder, saveOrder } from "../accounts-prefs";
 import { focusDropped, rescueSelectors } from "../panel-press";
 import { copyText } from "../copy-text";
 import { accountIssue } from "../account-issue";
@@ -144,13 +143,9 @@ export default function AccountsPanel({ onClose, leaving, onReport, onRoster, la
   // lane-open.ts, which also says why a fifth ManageState field would not have
   // been enough.
   //
-  // KEPT BETWEEN RELOADS, AND AS A MODE (#1579). Comparing nine accounts meant
-  // opening nine rows, and every one of them shut again when the panel closed.
-  // "Expand all" is a mode rather than a list of whoever was there when it was
-  // pressed, so it holds for an account signed in later, and each row's own
-  // press still works after it — see other-accounts-order.ts. What is stored,
-  // and where, is accounts-prefs.ts's.
-  const [openness, setOpenness] = useState<Openness>(loadOpenness);
+  // Details open only after a press during this visit. Sorting remains saved,
+  // but a remembered expansion must not turn the compact roster into a report.
+  const [openness, setOpenness] = useState<Openness>(NONE_OPEN);
   // The live row's own press, apart from the mode above: "Expand all" is the
   // fold's control and speaks for the accounts behind it, as it did when the
   // live row was open by what it is. Not remembered between visits.
@@ -268,7 +263,6 @@ export default function AccountsPanel({ onClose, leaving, onReport, onRoster, la
   // What the fold remembers is written back as it changes (#1579) — after the
   // clock, like every effect in this panel, so the roster's poll and the tick
   // keep the order they have always started in.
-  useEffect(() => { saveOpenness(openness); }, [openness]);
   useEffect(() => { saveOrder(order); }, [order]);
 
   // WHAT LOCAL NETWORK KNOWS about each account's copies elsewhere, from the
@@ -766,9 +760,6 @@ export default function AccountsPanel({ onClose, leaving, onReport, onRoster, la
               })()}
             </>
           )}
-          {/* Under the roster and the policy over it, in every state the
-              column is in: the header has no room left beside its five acts. */}
-          <div className="film-foot"><FilmLink film="claudeAccounts" /></div>
         </div>
       )}
 
