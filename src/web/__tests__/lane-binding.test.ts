@@ -205,9 +205,12 @@ describe("the row renders the windows, and the panel reads the same function", (
   });
 
   it("opens the live row, and every other row only when the reader opens it", () => {
-    // Shut until the reader opens it — one row, or all of them — and remembered
-    // since #1579, which is other-accounts-order.ts's and accounts-prefs.ts's.
-    expect(panelCode).toMatch(/useState<Openness>\(loadOpenness\)/);
+    // Shut until the reader opens it — one row, or all of them. CHANGED ON
+    // PURPOSE (compact accounts, #2539): the openness is no longer remembered
+    // (#1579 kept it), so a past "Expand all" does not open the roster as a
+    // report on the next visit; every visit starts with every row folded.
+    expect(panelCode).toMatch(/useState<Openness>\(NONE_OPEN\)/);
+    expect(panelCode).not.toMatch(/loadOpenness|saveOpenness/);
     // Whether the reader opened it is read off the set by account, once.
     // The live row is read off its own list, which "Expand all" (a mode of
     // that set, for the accounts behind the fold) never touches, as it never

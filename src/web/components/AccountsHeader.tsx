@@ -14,6 +14,7 @@ import { type ReactNode } from "react";
 import { PRODUCT } from "../brand";
 import { useT } from "../i18n";
 import { KitIcon } from "./kit-icons";
+import FilmLink from "./FilmLink";
 import { type useRequestSlot } from "../use-request-slot";
 
 type RequestSlot = ReturnType<typeof useRequestSlot>;
@@ -57,6 +58,7 @@ export default function AccountsHeader({
       <h2 className={switcher ? "vis-hidden" : undefined}>{t("accounts.header.title")}</h2>
       {switcher}
       <div className="ap-header-right">
+        <FilmLink film="claudeAccounts" />
         {/* The `+` is one glyph, so `title` was its whole accessible name.
             A last-resort name source that a touch user never sees and that
             some readers are configured to ignore is not a name; this is the

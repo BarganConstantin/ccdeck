@@ -9,7 +9,6 @@
 // comes in as children, so none of it is relayed through here.
 import type { MutableRefObject, ReactNode } from "react";
 
-import type { BoardHeadFigures } from "../board-header";
 import { isCanvasNodeElement } from "../canvas-node-element";
 import { releasePointerFocus } from "../canvas-pointer-focus";
 import { isMounted } from "../panel-exit";
@@ -18,11 +17,10 @@ import type { useCanvasViewport } from "../use-canvas-viewport";
 import type { useDragTrash } from "../use-drag-trash";
 import type { usePeekReaders } from "../use-peek-readers";
 import type { useZoomLod } from "../use-zoom-lod";
-import BoardHeader from "./BoardHeader";
 import DragTrashZone from "./DragTrashZone";
 import SessionPeek, { hidePeek, showPeek } from "./SessionPeek";
 
-export default function CanvasMain({ canvasRef, bubbling, dragging, trash, zoom, viewport, stateRef, peek, stagePhase, head, headInset, joins, closing, children }: {
+export default function CanvasMain({ canvasRef, bubbling, dragging, trash, zoom, viewport, stateRef, peek, stagePhase, joins, closing, children }: {
   canvasRef: MutableRefObject<HTMLElement | null>;
   /** A session's bubbles are animating out, which the sheet softens the canvas for. */
   bubbling: boolean;
@@ -39,13 +37,6 @@ export default function CanvasMain({ canvasRef, bubbling, dragging, trash, zoom,
    *  while it is anywhere but closed: the sheet hides the board under it
    *  (stage-shell.css). Absent with the flag off, so the attribute never is. */
   stagePhase?: string;
-  /** The board header's two figures, or absent where it is not drawn: an
-   *  empty board, a phone (board-header.ts boardHeadShown). It is the cell's
-   *  first child, and its attribute below is what moves the overlays under it. */
-  head?: BoardHeadFigures | null;
-  /** The rail of floating panels' width, as the heroes take it: the strip would
-   *  run under them otherwise, and its container query measures the content box. */
-  headInset?: number;
   /** The log has replayed and the cards have settled: a card that mounts from now on is a session joining and arrives with a fade (agent-node.css). Absent while the board is opening, when nothing arrives. */
   joins?: boolean;
   /** A card has just left: its neighbours close the gap after a hold (canvas-motion.css). */
@@ -81,7 +72,6 @@ export default function CanvasMain({ canvasRef, bubbling, dragging, trash, zoom,
       data-lod={lod}
       data-live={joins ? "" : undefined}
       data-stage={stagePhase}
-      data-board-head={head ? "" : undefined}
       ref={canvasRef}
       onMouseDownCapture={releasePointerFocus}
       /* The three that say a human is working this canvas right now. They
@@ -119,7 +109,6 @@ export default function CanvasMain({ canvasRef, bubbling, dragging, trash, zoom,
         if (id) hidePeek(id);
       }}
     >
-      {head && <BoardHeader {...head} reservedRight={headInset} />}
       {children}
       {isMounted(trashPhase) && (
         <DragTrashZone trashZoneRef={trashZoneRef} trashState={trashState} trashPhase={trashPhase} trashLabel={trashLabel} />

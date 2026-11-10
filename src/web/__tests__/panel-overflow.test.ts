@@ -404,10 +404,11 @@ describe("the account alias in the accounts panel row", () => {
     expect(clientText()).toMatch(/const identity = a\.alias && a\.email \? `\$\{a\.alias\} · \$\{a\.email\}` : name;/);
     const door = /<button type="button" className="ap-row-open"[^>]*>/.exec(accountRow)?.[0] ?? "";
     expect(door, "the door button was not found").not.toBe("");
-    // CHANGED ON PURPOSE (V4's Figma): the title also carries the slot, every
-    // window and when it was read — what the row no longer draws.
-    expect(door).toMatch(/title=\{detailTitle\}/);
-    expect(clientText()).toMatch(/const detailTitle = \[\s*identity,/);
+    // CHANGED ON PURPOSE (compact accounts, #2539): the title is the identity
+    // alone again. Every window, its reset and the age of the reading are drawn
+    // in the open row now, so the title no longer stands in for them.
+    expect(door).toMatch(/title=\{identity\}/);
+    expect(clientText()).not.toMatch(/detailTitle/);
     // A title reaches neither a keyboard nor a screen reader (WCAG 1.4.13), and
     // the door is NAMED by the alias when there is one — so the email rides in
     // its description, pointed at by the id the (screen-reader-only) email span

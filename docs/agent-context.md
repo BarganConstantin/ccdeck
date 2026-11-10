@@ -357,3 +357,26 @@ typecheck and production build. Browser smoke checks on port 4329 confirmed
 the merged v3.40.2 UI has the simplified Monitor and individual Configuration
 switches. The only merge conflict was the switch-count regression test:
 development removed the Music switch, so the combined source contains 17.
+
+## Local v4 UI and terminal investigation — 2026-11-10
+
+The owner requested the v4 preview and compact account/usage UI. The local
+runtime worktree is `v4-runtime-20261110`, branch
+`feature/v4-compact-account-cards`, based on `next/v4` at `843eb0768`.
+It serves rebuilt `dist/web` on `http://127.0.0.1:4317/`; recheck the serving
+process before restarting it. The desktop wrapper points to that worktree.
+The package still reports 3.82.2; this preview is not a published v4 release.
+
+Local UI commits through `364f690b0` compact account cards and disclosed
+details, restore quota colors, simplify the Other accounts header, move
+video help to header icons, and put the version at the bottom right.
+`657277ae6` makes Check again use target lookup for a known live external
+session before offering Reopen, and explains uncertain terminal identity.
+The focused terminal/i18n suite passed 145 tests, with typecheck and build
+passing. An isolated browser tab confirmed the displayed refusal copy.
+No existing personal session was stopped or resumed during verification.
+
+An active terminal in another app cannot be transferred by this change.
+The installed terminal engine has not been replaced; do not claim this
+preview resolves every unsupported external-session case. No new changes
+from this work have been pushed, merged, tagged or published.

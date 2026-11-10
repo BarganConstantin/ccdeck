@@ -43,10 +43,10 @@ describe("the quota bar's percentage (#1804)", () => {
     const html = bar(89.6);
     expect(label(html)).toBe("90%");
     expect(fill(html)).toBeCloseTo(0.896, 6);
-    // CHANGED ON PURPOSE (V4's Figma): the Usage panel's meter follows its own rule (under 70
-    // --muted, 70 to 89 --text, 90 and up --err, never amber); 89.6 is under the red line, so --text.
-    expect(html).toContain("background:var(--text)");
-    expect(html).not.toContain("var(--warn)");
+    // CHANGED ON PURPOSE (compact accounts, #2539): main's quota colours (under 70 --accent,
+    // 70 to 89 --warn, 90 and up --err); 89.6 is under the red line, so --warn and not --err.
+    expect(html).toContain("background:var(--warn)");
+    expect(html).not.toContain("var(--err)");
   });
 
   it("prints the Codex spend cap as a whole percentage", () => {

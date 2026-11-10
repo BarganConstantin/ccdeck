@@ -58,6 +58,7 @@
   flex: 1 1 auto;
   min-height: 0;
   overflow: hidden auto;
+  padding-top: 8px;
 }
 .ap-scroll > * { flex: none; }
 .ap-codex { padding: 14px var(--panel-inset); border-top: 1px solid var(--line-soft); }
@@ -581,11 +582,11 @@
    every window with its reset, when it was read, what its organization sends
    ("7-day  49% · resets Thu 9:00 AM"). The key is muted and the value is in
    the secondary ink, both 12 on 16. */
-.ap-detail { margin: 6px 0 2px var(--ap-indent); }
+.ap-detail { margin: 4px 0 0 var(--ap-indent); }
 .ap-lanes {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 0;
 }
 .ap-lane,
 .ap-meta-line {
@@ -593,7 +594,7 @@
   align-items: baseline;
   gap: 6px;
   min-width: 0;
-  min-height: 18px;
+  min-height: 16px;
   font-size: calc(12px + var(--ui-text-increase, 0px));
   line-height: calc(16px + var(--ui-text-increase, 0px));
 }
@@ -629,7 +630,7 @@
 .ap-meta {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 0;
   margin-top: 4px;
   font-size: calc(12px + var(--ui-text-increase, 0px));
   line-height: calc(16px + var(--ui-text-increase, 0px));
@@ -773,6 +774,20 @@
   white-space: nowrap;
 }
 .ap-issue-line .ap-sign-in { margin-left: 6px; }
+
+/* A folded account always has two lines and a meter. Its state takes the
+   reset line's place; expanding the row reveals the resets and read time. */
+.ap-account .ap-issue-line {
+  min-height: calc(18px + var(--ui-text-increase, 0px));
+  height: calc(18px + var(--ui-text-increase, 0px));
+}
+.ap-account .ap-issue-line .ap-sign-in {
+  min-height: 18px;
+  padding: 0 5px;
+  margin-left: 0;
+}
+.ap-account .ap-issue-line .ap-q-age { flex: 0 1 auto; }
+.ap-quota.vis-hidden { height: 1px; margin: -1px; }
 
 /* Organization telemetry is one of the row's grey marks; what goes out, and to
    where, is its tooltip, its popover and the open row's Telemetry line. */
@@ -1185,7 +1200,9 @@
   display: flex;
   align-items: center;
   gap: 4px;
-  padding: 8px 8px 0;
+  margin-top: 8px;
+  padding: 0 8px;
+  border-radius: var(--r-panel);
 }
 .ap-rest .ap-nav.ap-sum {
   flex: 1 1 auto;
@@ -1197,7 +1214,8 @@
   border-radius: var(--r-panel);
 }
 @media (hover: hover) and (pointer: fine) {
-.ap-rest .ap-nav.ap-sum:hover { background: var(--ctl-fill); }
+.ap-rest-head:hover { background: var(--ctl-fill); }
+.ap-rest .ap-nav.ap-sum:hover { background: none; }
 }
 .ap-sum .ap-nav-text { flex: 0 1 auto; flex-direction: row; align-items: center; gap: 6px; }
 .ap-sum .ap-nav-name {
@@ -1252,6 +1270,11 @@
 .ap-rest-line:has(.ap-rest-sort) > .ap-rest-ready { flex: none; max-width: calc(100% - 50px); }
 .ap-rest-dot { flex: none; width: 6px; height: 6px; border-radius: 50%; background: var(--ok); }
 .ap-rest-ready[data-tone="idle"] .ap-rest-dot { background: var(--muted-dim); }
+.ap-rest-head > .ap-rest-ready { flex: none; margin-left: auto; }
+.ap-rest-head .ap-nav.ap-sum { flex: 1 1 auto; padding: 0; gap: 8px; }
+.ap-rest-head .ap-nav-name { overflow: hidden; text-overflow: ellipsis; }
+.ap-rest-head > .ap-rest-sort { flex: none; min-width: 28px; margin-left: 0; padding: 0 2px; gap: 2px; }
+.ap-rest-head .ap-rest-sort-name { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
 /* The order: 22 high, the sort glyph, the order's name in the text ink and a
    chevron, quiet until the pointer, the keyboard or its open menu fills it.
    On a short line its name is cut first, never below the glyph and the

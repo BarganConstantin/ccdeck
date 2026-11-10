@@ -192,10 +192,10 @@ describe("the stripes' look", () => {
     expect(decl(".rail-btn-stripe .glyph", "width")).toBe("14px");
   });
 
-  it("draws the rule 16x1 in --line-soft, and the open line 2x16-ish at the bar's edge", () => {
-    expect(decl(".rail-doors .rail-group + .rail-group::before", "width")).toBe("16px");
+  it("draws the rule 28x1 in --line, and the open line 2x16-ish at the bar's edge", () => {
+    expect(decl(".rail-doors .rail-group + .rail-group::before", "width")).toBe("28px");
     expect(decl(".rail-doors .rail-group + .rail-group::before", "height")).toBe("1px");
-    expect(decl(".rail-doors .rail-group + .rail-group::before", "background")).toBe("var(--line-soft)");
+    expect(decl(".rail-doors .rail-group + .rail-group::before", "background")).toBe("var(--line)");
     expect(decl(".rail-btn-stripe::before", "width")).toBe("2px");
     expect(decl(".rail-btn-stripe::before", "border-radius")).toBe("1px");
     expect(decl(".rail-btn-stripe::before", "background")).toBe("var(--text)");

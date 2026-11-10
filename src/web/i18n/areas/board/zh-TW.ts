@@ -628,6 +628,7 @@ const catalog: Catalog = {
   "board.stage.downloadUntrusted": "ccdeck 已下載自己的 tmux，但它不是 ccdeck 信任的組建，因此未使用。",
   "board.stage.downloadWontRun": "ccdeck 自己的 tmux 無法在這台電腦上執行。",
   "board.stage.downloadOther": "ccdeck 無法設定自己的 tmux。",
+  "board.stage.identityUncertain": "ccdeck 無法可靠地識別此工作階段的終端機。它可能仍在其他應用程式中執行。你可以在這裡啟動新工作階段；此對話尚未重新開啟。",
   "board.stage.stillRunning": "它仍在該終端機中執行。重新開啟前必須先停止它：請在那裡完成或結束它，然後重新檢查。",
   "board.stage.wsEmptyTitle": "沒有任何待處理項目",
   "board.stage.wsEmptyLine": "從清單開啟一個工作階段，或啟動新的。",

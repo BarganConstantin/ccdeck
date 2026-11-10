@@ -628,6 +628,7 @@ const catalog: Catalog = {
   "board.stage.downloadUntrusted": "ccdeck 下载了自己的 tmux，但它不是此 ccdeck 信任的构建，因此未使用。",
   "board.stage.downloadWontRun": "ccdeck 自带的 tmux 无法在这台电脑上运行。",
   "board.stage.downloadOther": "ccdeck 无法设置自己的 tmux。",
+  "board.stage.identityUncertain": "ccdeck 无法可靠地识别此会话的终端。它可能仍在其他应用中运行。你可以在这里启动新会话；此对话尚未重新打开。",
   "board.stage.stillRunning": "它仍在那个终端中运行。重新打开前需要先停止它：请在那里完成或退出，然后再检查一次。",
   "board.stage.wsEmptyTitle": "没有等待处理的内容",
   "board.stage.wsEmptyLine": "从列表中打开一个会话，或新建一个。",

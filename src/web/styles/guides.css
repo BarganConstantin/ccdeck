@@ -242,3 +242,20 @@
 @media (prefers-reduced-motion: reduce) {
   .empty-hero .film-action { transition: background var(--dur-fast) var(--ease); }
 }
+
+/* Panel videos share the header's icon row rather than taking a text row. */
+.film-link.film-icon {
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  width: 24px;
+  height: 24px;
+  min-height: 24px;
+  margin: 0;
+  border-radius: var(--r-ctl);
+  color: var(--muted);
+}
+@media (hover: hover) and (pointer: fine) {
+.film-link.film-icon:hover { color: var(--text); background: var(--ctl-fill); text-decoration: none; }
+}
+.film-icon .glyph { width: 14px; height: 14px; }

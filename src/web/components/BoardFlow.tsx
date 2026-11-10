@@ -29,7 +29,6 @@ import AutoFitChip from "./AutoFitChip";
 import CanvasControls from "./CanvasControls";
 import RadioExperience from "./RadioExperience";
 import RecapNoteNode from "./RecapNoteNode";
-import RearrangeUndo from "./RearrangeUndo";
 import RecapTieEdge from "./RecapTieEdge";
 import SessionClusters from "./SessionClusters";
 import SessionGroupNode from "./SessionGroupNode";
@@ -191,7 +190,6 @@ export default function BoardFlow({
         {/* Re-arrange's way back, for a few seconds after R — beside the
             chip when both are up, since a board built by hand is one
             auto-fit has usually stood down on. */}
-        <RearrangeUndo undo={rearrangeUndo} />
       </div>
       {/* No React Flow fit-view button (#840). Recenter below does the same
           fit and also turns autofit back on, so two near-identical buttons

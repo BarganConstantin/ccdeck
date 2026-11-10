@@ -157,7 +157,8 @@ describe("every control in the chrome says its name (#836)", () => {
     expect(right).toContain('<div class="rail-group" role="group" aria-label="Usage and machine">');
     expect(body(".rail-foot") /* shares the rule with .rail-doors */).toMatch(/gap: 2px;/);
     expect(body(".rail-group")).toMatch(/gap: 2px;/);
-    expect(body(".rail-doors .rail-group + .rail-group::before")).toMatch(/width: 16px;[^}]*height: 1px;[^}]*background: var\(--line-soft\);/);
+    // CHANGED ON PURPOSE (#2539): the rule between runs is 28 wide in --line, so the runs read apart.
+    expect(body(".rail-doors .rail-group + .rail-group::before")).toMatch(/width: 28px;[^}]*height: 1px;[^}]*background: var\(--line\);/);
   });
 });
 

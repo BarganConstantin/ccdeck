@@ -628,6 +628,7 @@ const catalog: Catalog = {
   "board.stage.downloadUntrusted": "O ccdeck baixou o seu próprio tmux, mas não era a build em que ele confia, então não foi usado.",
   "board.stage.downloadWontRun": "O tmux próprio do ccdeck não rodou nesta máquina.",
   "board.stage.downloadOther": "O ccdeck não conseguiu configurar o seu próprio tmux.",
+  "board.stage.identityUncertain": "O ccdeck não conseguiu identificar com segurança o terminal desta sessão. Ela pode estar em execução em outro aplicativo. Você pode iniciar uma nova sessão aqui; esta conversa não foi reaberta.",
   "board.stage.stillRunning": "Ela ainda está rodando naquele terminal. Para reabrir, ela precisa estar parada: termine-a ou saia dela lá, e verifique de novo.",
   "board.stage.wsEmptyTitle": "Nada aguardando",
   "board.stage.wsEmptyLine": "Abra uma sessão da lista, ou inicie uma nova.",

@@ -11,9 +11,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { codexLanAccounts, type SharedMark } from "../account-lan";
 import type { LanAccount } from "../lan-types";
-import { allOpen, isOpen, orderChoices, orderKey, SLOT_ORDER, sortAccounts, toggleAll, toggleOne, validOrder, type Openness } from "../other-accounts-order";
+import { NONE_OPEN, allOpen, isOpen, orderChoices, orderKey, SLOT_ORDER, sortAccounts, toggleAll, toggleOne, validOrder, type Openness } from "../other-accounts-order";
 import { laneKey, toggleLane } from "../lane-open";
-import { loadOpenness, loadOrder, saveOpenness, saveOrder } from "../accounts-prefs";
+import { loadOrder, saveOrder } from "../accounts-prefs";
 import { sentence } from "../account-issue";
 import { isAutoArmed, pastThreshold } from "../account-fold";
 import { codexHomeTitle } from "../auto-choice";
@@ -135,14 +135,13 @@ export default function CodexProfilesSection({ onClose, switcher, onNotice, away
   // Local network took the column (#2472): a menu or a warning left open
   // would hang from a row that is no longer drawn.
   useEffect(() => { if (away) { setMenu(null); setIssueOpen(null); } }, [away]);
-  const [openness, setOpenness] = useState<Openness>(() => loadOpenness(SCOPE));
+  const [openness, setOpenness] = useState<Openness>(NONE_OPEN);
   /** The default account's own press, apart from "Expand all", which speaks for
    *  the accounts behind the fold. */
   const [liveOpen, setLiveOpen] = useState<string[]>([]);
   const [order, setOrder] = useState<string>(() => loadOrder(SCOPE));
   const [auto, setAuto] = useState<AutoStatus | null>(null);
 
-  useEffect(() => { saveOpenness(openness, SCOPE); }, [openness]);
   useEffect(() => { saveOrder(order, SCOPE); }, [order]);
 
   /** Put focus back when a press took the control it was on: a switch replaces
@@ -582,9 +581,6 @@ export default function CodexProfilesSection({ onClose, switcher, onNotice, away
                   )}
                 </div>
               )}
-              {/* What every figure in the column is, said once over the rows
-                  rather than on each of them, as on Claude's side. */}
-              {head && <p className="ap-caption">{t("accounts.panel.caption")}</p>}
               <ul className="ap-list">{head && accountRow(head)}</ul>
               {rest.length > 0 && (
                 <OtherAccounts idPrefix="codex-"

@@ -587,6 +587,10 @@ const EXEMPT: string[] = [
   ".radio-panel .icon-btn", ".radio-pin", ".radio-play",
   ".radio-regions .radio-region", ".radio-reset", ".radio-station-pick",
 
+  // The version at the status bar's end (opens the release notes). The status
+  // bar moves nothing (v4-status-bar.test.ts: no transition, animation or
+  // transform in its sheet), so the version answers with the hover fill only.
+  ".statusbar-version",
   // Companion selection answers through its radio check and chosen preview.
   ".character-choice",
   // A day column in the Projects report's chart, clickable to reveal that day's
@@ -649,6 +653,10 @@ const EXEMPT: string[] = [
   ".ap-reset-next-account > summary",
   // Coverage links open and focus native disclosures without moving text.
   ".ap-reset-coverage-link",
+  // The version at the status bar's end (opens the release notes). The status
+  // bar moves nothing (v4-status-bar.test.ts: no transition, animation or
+  // transform in its sheet), so the version answers with the hover fill only.
+  ".statusbar-version",
   // Companion selection answers through its radio check and chosen preview.
   ".character-choice",
   // The file input is an invisible hit target stretched over its visible label.

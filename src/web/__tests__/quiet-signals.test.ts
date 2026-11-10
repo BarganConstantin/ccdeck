@@ -266,15 +266,15 @@ describe("1. the tool-category chip you switched off (#368.1)", () => {
 describe("2. the quota pace marker (#368.2)", () => {
   // The fill and the marker are coloured in the component, not the sheet, so
   // the token sets come from there — a new state added to either is caught.
-  // CHANGED ON PURPOSE (V4's Figma): the fill wears the Usage panel's meter
-  // rule, --muted, --text from 70, --err from 90, never amber.
+  // CHANGED ON PURPOSE (compact accounts, #2539): the fill wears main's quota
+  // colours for every account, --accent below 70, --warn from 70, --err from 90.
   const FILLS = [...(/export function quotaMeterColor[^{]*\{\s*return\s+([^;]+);/.exec(quotaBar)![1])
     .matchAll(/var\((--[\w-]+)\)/g)].map(m => m[1]);
   const MARKERS = [...(/className="qb-pace-marker"[\s\S]*?\/>/.exec(quotaBar)![0])
     .matchAll(/var\((--[\w-]+)\)/g)].map(m => m[1]);
 
   it("still draws both ends from the tokens this test knows about", () => {
-    expect(new Set(FILLS)).toEqual(new Set(["--err", "--text", "--muted"]));
+    expect(new Set(FILLS)).toEqual(new Set(["--err", "--warn", "--accent"]));
     expect(new Set(MARKERS)).toEqual(new Set(["--err", "--ok"]));
   });
 

@@ -351,9 +351,12 @@ describe("the row marks the number it was placed by", () => {
 describe("the panel's wiring", () => {
   const panel = sourceOf("components/AccountsPanel.tsx");
 
-  it("reads the rows' openness and the order from the browser's store, and writes them back", () => {
-    expect(panel).toContain("useState<Openness>(loadOpenness)");
-    expect(panel).toContain("useEffect(() => { saveOpenness(openness); }, [openness]);");
+  it("keeps the order in the browser's store, and starts every visit with the rows folded", () => {
+    // CHANGED ON PURPOSE (compact accounts, #2539): the order is still read and
+    // written back; the openness is not, so every visit opens folded.
+    expect(panel).toContain("useState<Openness>(NONE_OPEN)");
+    expect(panel).not.toContain("loadOpenness");
+    expect(panel).not.toContain("saveOpenness");
     expect(panel).toContain("useState<string>(loadOrder)");
     expect(panel).toContain("useEffect(() => { saveOrder(order); }, [order]);");
   });

@@ -318,7 +318,7 @@ describe("opening a session: write before reveal", () => {
     r.open.mockResolvedValueOnce({ ok: false, target });
     ctl.show({ kind: "session", ref: REF });
     await flush();
-    expect(r.last().phase).toEqual({ kind: "not-attachable", target, stillRunning: false, busy: false });
+    expect(r.last().phase).toEqual({ kind: "not-attachable", target, stillRunning: true, busy: false });
     expect(r.sockets, "no socket for a session that has no pane").toHaveLength(0);
   });
 
@@ -529,6 +529,26 @@ describe("a deck whose sessions run in the Windows session host", () => {
   });
 });
 
+describe("checking an external terminal", () => {
+  it("checks whether the original stopped before offering to resume", async () => {
+    const { r, ctl } = rig();
+    const external = { kind: "C" as const, label: "running elsewhere", adoptable: true };
+    r.open.mockResolvedValueOnce({ ok: false, target: external });
+    ctl.show({ kind: "session", ref: REF });
+    await flush();
+    expect(r.last().phase).toMatchObject({ kind: "not-attachable", stillRunning: true });
+    r.open.mockResolvedValueOnce({ ok: false, target: { kind: "gone", label: "ended", adoptable: true } });
+    ctl.adopt();
+    await flush();
+    expect(r.adopt).not.toHaveBeenCalled();
+    expect(r.last().phase).toMatchObject({ kind: "not-attachable", target: { kind: "gone" }, stillRunning: false });
+    ctl.adopt();
+    await flush();
+    expect(r.adopt).toHaveBeenCalledTimes(1);
+    expect(r.sockets[0].url).toMatch(/ticket=adopted$/);
+  });
+});
+
 describe("how a session ends", () => {
   it("freezes the last frame when the session itself ends, and reopens it here on request", async () => {
     const { r, ctl } = rig();
@@ -558,7 +578,7 @@ describe("how a session ends", () => {
 
   it("refuses a second Reopen here while the first is still asking — the button stays enabled (#620)", async () => {
     const { r, ctl } = rig();
-    r.open.mockResolvedValueOnce({ ok: false, target: { kind: "C", label: "started outside the deck", adoptable: true } });
+    r.open.mockResolvedValueOnce({ ok: false, target: { kind: "gone", label: "ended", adoptable: true } });
     ctl.show({ kind: "session", ref: REF });
     await flush();
     ctl.adopt();
@@ -592,21 +612,22 @@ describe("how a session ends", () => {
     expect(r.last().phase).toEqual({ kind: "detached" });
   });
 
-  it("answers adopt's 409 in place, and checks again when asked", async () => {
+  it("rechecks a refusal caused by the original restarting before adopt", async () => {
     const { r, ctl } = rig();
-    const target = { kind: "C" as const, label: "started outside the deck", adoptable: true };
+    const target = { kind: "gone" as const, label: "ended", adoptable: true };
     r.open.mockResolvedValueOnce({ ok: false, target });
     ctl.show({ kind: "session", ref: REF });
     await flush();
     r.adopt.mockResolvedValueOnce(failure(409, "still-running"));
     ctl.adopt();
-    expect(r.last().phase).toMatchObject({ kind: "not-attachable", busy: true });
     await flush();
-    expect(r.last().phase).toEqual({ kind: "not-attachable", target, stillRunning: true, busy: false });
+    expect(r.last().phase).toMatchObject({ kind: "not-attachable", stillRunning: true, busy: false });
+    r.open.mockResolvedValueOnce({ ok: false, target: { kind: "C", label: "running elsewhere", adoptable: true } });
     ctl.adopt();
     await flush();
-    expect(r.adopt).toHaveBeenCalledTimes(2);
-    expect(r.sockets[0].url).toMatch(/ticket=adopted$/);
+    expect(r.adopt).toHaveBeenCalledTimes(1);
+    expect(r.open).toHaveBeenCalledTimes(2);
+    expect(r.sockets).toHaveLength(0);
   });
 });
 

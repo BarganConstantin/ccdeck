@@ -283,13 +283,13 @@ describe("V4's stripes", () => {
     expect(has(".edge-rail-right")).toBe(true);
     expect(decl(".edge-rail", "width")).toBe("var(--edge-w)");
   });
-  it("draws between two groups a 16x1 --line-soft rule as the next group's first flex item", () => {
+  it("draws between two groups a 28x1 --line rule with space between groups as the next group's first flex item", () => {
     const sel = ".rail-doors .rail-group + .rail-group::before";
     expect(decl(sel, "content")).toBe('""');
     expect(decl(sel, "flex")).toBe("none");
-    expect(decl(sel, "width")).toBe("16px");
+    expect(decl(sel, "width")).toBe("28px");
     expect(decl(sel, "height")).toBe("1px");
-    expect(decl(sel, "background")).toBe("var(--line-soft)");
+    expect(decl(sel, "background")).toBe("var(--line)");
     // No second rule: the old padding and border-top are gone, the Explore group's too.
     expect(decl(".rail-doors .rail-group + .rail-group", "border-top")).toBeUndefined();
     expect(decl(".rail-doors .rail-group + .rail-group", "padding-top")).toBeUndefined();

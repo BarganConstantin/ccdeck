@@ -93,12 +93,12 @@ export function quotaPctText(capped: number): string {
   return capped < 1 ? "< 1%" : `${Math.round(capped)}%`;
 }
 
-/** The Usage panel's meter rule (V4's Figma): under 70 the fill is --muted, from
- *  70 to 89 it is --text, from 90 (or at a reached limit) --err, never amber.
+/** Usage meters use the same thresholds as main: accent below 70, warning
+ *  from 70, and error from 90 or when a limit has been reached.
  *  The rail's meter keeps its bar one colour and tones its figure instead
  *  (figureLevel in rail-usage.ts). */
 export function quotaMeterColor(capped: number, isErr = capped >= 90): string {
-  return isErr || capped >= 90 ? "var(--err)" : capped >= 70 ? "var(--text)" : "var(--muted)";
+  return isErr || capped >= 90 ? "var(--err)" : capped >= 70 ? "var(--warn)" : "var(--accent)";
 }
 
 // ── Quota bar ──────────────────────────────────────────────────────────────
@@ -187,9 +187,8 @@ export default function QuotaBar({ pct, label, reset, resetAt, windowSec, limitR
           <button
             type="button"
             className="qb-pace"
-            // A note on the pace is --muted (V4's Figma); one that is over
-            // pace or used up keeps the colour that says so.
-            style={pace.isDeficit ? { color: pace.color } : undefined}
+            // Keep the pace colour visible alongside the meter.
+            style={{ color: pace.color }}
             aria-expanded={why}
             aria-controls={why ? whyId : undefined}
             onClick={() => setWhy(w => !w)}

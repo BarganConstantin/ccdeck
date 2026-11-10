@@ -336,6 +336,7 @@ export default function UsagePanel({ state, now, providers, incidents = [], leav
             : t("shell.side.usageTokens", { n: fmtTokens(totalTokenSum), period: periodWord })
         }</span>}
         <DockButtons dock={dock} popOut={place.popOut} />
+        <FilmLink film="usage" />
         {/* ONE close (V4's Figma). The panel's two other header buttons went to
             its foot: the refresh as a quiet "Refresh" and the quota history as
             a quiet "Quota history", both still here and still pressable. */}
@@ -349,6 +350,22 @@ export default function UsagePanel({ state, now, providers, incidents = [], leav
       </div>
 
       <div className="up-body">
+      {/* ── Claude quota ── */}
+      {providers.claude && (
+        <ClaudeQuotaSection quota={quota} quotaLoading={quotaLoading} nowSec={nowSec} weekEnds={claudeWeekEnds}
+          incident={incidents.find(i => i.provider === "claude")} />
+      )}
+
+      {/* ── Codex quota ──
+          The mirror of the accounts panel, and fixed by the same fact arriving
+          from /api/health: a Claude-only machine used to carry "Quota
+          unavailable. / Run codex login to authenticate." permanently, for a
+          CLI it has no reason to install. */}
+      {providers.codex && (
+        <CodexQuotaSection codexQuota={codexQuota} codexLoading={codexLoading} nowSec={nowSec} weekEnds={codexWeekEnds}
+          incident={incidents.find(i => i.provider === "codex")} />
+      )}
+
       {/* ── Cost + tokens ──
           Gated on TOKENS, not on cost. The two tables used to live inside a
           `hasCost` branch, which meant a deck of nothing but unpriced sessions
@@ -450,22 +467,6 @@ export default function UsagePanel({ state, now, providers, incidents = [], leav
         </>
       )}
 
-      {/* ── Claude quota ── (under the figures, as V4's Figma orders them) */}
-      {providers.claude && (
-        <ClaudeQuotaSection quota={quota} quotaLoading={quotaLoading} nowSec={nowSec} weekEnds={claudeWeekEnds}
-          incident={incidents.find(i => i.provider === "claude")} />
-      )}
-
-      {/* ── Codex quota ──
-          The mirror of the accounts panel, and fixed by the same fact arriving
-          from /api/health: a Claude-only machine used to carry "Quota
-          unavailable. / Run codex login to authenticate." permanently, for a
-          CLI it has no reason to install. */}
-      {providers.codex && (
-        <CodexQuotaSection codexQuota={codexQuota} codexLoading={codexLoading} nowSec={nowSec} weekEnds={codexWeekEnds}
-          incident={incidents.find(i => i.provider === "codex")} />
-      )}
-
       {showSkeleton ? null : totalTokenSum > 0 ? (
         <>
 
@@ -547,9 +548,6 @@ export default function UsagePanel({ state, now, providers, incidents = [], leav
             : <>{t("usage.empty.none")}<br />{t("usage.empty.start")}</>}
         </div>
       )}
-      {/* The panel's last line, whatever is above it: the header's row is
-          already the title, the burn rate and two acts. */}
-      <div className="film-foot"><FilmLink film="usage" /></div>
       {/* The two acts the header lost (V4's Figma draws one close there). The
           refresh is named after what is below it and gone when neither quota
           section is: with both CLIs absent it would refresh nothing, and on a
