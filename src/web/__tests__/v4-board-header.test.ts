@@ -273,20 +273,11 @@ describe("a remeasure goes through the held reading", () => {
   });
 });
 
-describe("the memo, the layout effect and the inset in App", () => {
-  const app = read("../App.tsx");
-  it("remeasures before paint", () => {
-    expect(app).toMatch(/useLayoutEffect\(\(\) => \{ remeasureCanvas\(\); \}, \[boardHeadOn, remeasureCanvas\]\)/);
-  });
-  it("keeps the still figure on the map's revision and hands the waiting sessions to the longest wait", () => {
-    expect(app).toMatch(/boardHeadBase\(stateRef\.current\.agents\.values\(\), Date\.now\(\), singleKeys\)/);
-    expect(app).toMatch(/\[boardHeadOn, singleKeys, stateRef\.current, stateRef\.current\.revision\]/);
-    expect(app).toMatch(/boardHeadLongest\(waitingSessions, now\)/);
-  });
-  it("hands the right inset to the strip, the way the heroes get it", () => {
-    expect(app).toContain("headInset={railInsetRef.current}");
-    expect(read("../components/CanvasMain.tsx")).toContain("<BoardHeader {...head} reservedRight={headInset} />");
-    expect(read("../components/BoardHeader.tsx")).toContain("paddingRight: `calc(24px + ${reservedRight}px)`");
+describe("the board without its summary strip", () => {
+  it("leaves the canvas free of the summary and its reserved space", () => {
+    expect(read("../components/CanvasMain.tsx")).not.toContain("<BoardHeader");
+    expect(read("../components/CanvasMain.tsx")).not.toContain("data-board-head=");
+    expect(read("../App.tsx")).not.toContain("boardHeadBase(");
   });
 });
 
@@ -303,13 +294,7 @@ describe("when it is drawn", () => {
     expect((src.match(/<Stat /g) ?? []).length).toBe(2);
     expect(src).not.toMatch(/"warn"/);
   });
-  it("is the canvas cell's first child, and App hands the cell plain figures", () => {
-    const main = read("../components/CanvasMain.tsx");
-    expect(main.indexOf("<BoardHeader")).toBeGreaterThan(0);
-    expect(main.indexOf("<BoardHeader")).toBeLessThan(main.indexOf("{children}"));
-    expect(main).toContain('data-board-head={head ? "" : undefined}');
-    expect(read("../App.tsx")).toMatch(/boardHeadShown\(agentCount, phone\)/);
-  });
+
 });
 
 describe("the component", () => {

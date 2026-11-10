@@ -228,10 +228,9 @@ describe("the marks after the name", () => {
   });
 });
 
-describe("the caption over the rows", () => {
-  it("is said once in each column, over its first list", () => {
-    expect(sourceOf("components/AccountsPanel.tsx")).toContain('{head.length > 0 && <p className="ap-caption">{t("accounts.panel.caption")}</p>}');
-    expect(sourceOf("components/CodexProfilesSection.tsx")).toContain('{head && <p className="ap-caption">{t("accounts.panel.caption")}</p>}');
-    expect(sheetText()).toMatch(/\.ap-caption \{[^}]*font-size: calc\(11px/);
+describe("the account column", () => {
+  it("does not add the redundant usage caption above the cards", () => {
+    for (const file of ["components/AccountsPanel.tsx", "components/CodexProfilesSection.tsx"])
+      expect(sourceOf(file)).not.toContain('<p className="ap-caption">');
   });
 });

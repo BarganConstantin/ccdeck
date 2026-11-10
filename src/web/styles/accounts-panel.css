@@ -1266,6 +1266,11 @@
 .ap-rest-line:has(.ap-rest-sort) > .ap-rest-ready { flex: none; max-width: calc(100% - 50px); }
 .ap-rest-dot { flex: none; width: 6px; height: 6px; border-radius: 50%; background: var(--ok); }
 .ap-rest-ready[data-tone="idle"] .ap-rest-dot { background: var(--muted-dim); }
+.ap-rest-head > .ap-rest-ready { flex: none; margin-left: auto; }
+.ap-rest-head .ap-nav.ap-sum { flex: 0 1 auto; padding-right: 0; }
+.ap-rest-head .ap-nav-name { overflow: hidden; text-overflow: ellipsis; }
+.ap-rest-head > .ap-rest-sort { flex: none; min-width: 28px; margin-left: 0; padding: 0 2px; gap: 2px; }
+.ap-rest-head .ap-rest-sort-name { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
 /* The order: 22 high, the sort glyph, the order's name in the text ink and a
    chevron, quiet until the pointer, the keyboard or its open menu fills it.
    On a short line its name is cut first, never below the glyph and the

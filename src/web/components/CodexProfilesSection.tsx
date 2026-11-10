@@ -582,9 +582,6 @@ export default function CodexProfilesSection({ onClose, switcher, onNotice, away
                   )}
                 </div>
               )}
-              {/* What every figure in the column is, said once over the rows
-                  rather than on each of them, as on Claude's side. */}
-              {head && <p className="ap-caption">{t("accounts.panel.caption")}</p>}
               <ul className="ap-list">{head && accountRow(head)}</ul>
               {rest.length > 0 && (
                 <OtherAccounts idPrefix="codex-"

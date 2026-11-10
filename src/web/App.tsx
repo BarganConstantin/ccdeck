@@ -110,7 +110,6 @@ import { useWelcomeAndNotes } from "./use-welcome-and-notes";
 import { useReports } from "./use-reports";
 import { blockedSessions } from "./ambient-counts";
 import { sessionCounts } from "./topbar-counts";
-import { boardHeadBase, boardHeadLongest, boardHeadShown } from "./board-header";
 import { initialState } from "./reducer";
 import { useSoundSwitch } from "./use-sound-switch";
 import { useSettingsMenus } from "./use-settings-menus";
@@ -995,22 +994,6 @@ function Inner() {
   // lives in — rail-items.tsx; drawn by components/EdgeRails.tsx. Under 641px
   // the two stripes and the utilities are one dock along the bottom. (`phone`
   // is asked above, ahead of the stage.)
-  // The strip across the top of the board, as the plain figures it draws —
-  // board-header.ts. Worked out here on the clock App already has, and handed
-  // down as numbers and strings so the memoised strip re-renders only when one
-  // changes. Where it is not drawn the canvas-size reading has nothing to take off.
-  // The spend holds still between two changes of the map, so it is kept on the
-  // map's revision; only the longest wait reads the clock, from the sessions
-  // waiting, handed in rather than counted again.
-  const boardHeadOn = boardHeadShown(agentCount, phone);
-  const boardHeadStill = useMemo(
-    () => boardHeadOn ? boardHeadBase(stateRef.current.agents.values(), Date.now(), singleKeys) : null,
-    [boardHeadOn, singleKeys, stateRef.current, stateRef.current.revision],
-  );
-  const boardHead = boardHeadStill && { ...boardHeadStill, longestWait: boardHeadLongest(waitingSessions, now) };
-  // Before paint, so the commit that mounts or removes the strip is packed once,
-  // for the board's height and not the cell's.
-  useLayoutEffect(() => { remeasureCanvas(); }, [boardHeadOn, remeasureCanvas]);
   const [radioOpen, setRadioOpen] = useState(false);
   // Tool activity, on the view its door names: tools or skills.
   const [toolAuditView, setToolAuditView] = useState<ToolActivityView | null>(null);
@@ -1325,7 +1308,6 @@ function Inner() {
         canvasRef={canvasRef} bubbling={bubbling} dragging={dragging} trash={trash} zoom={zoom}
         viewport={viewport} stateRef={stateRef} peek={peek}
         stagePhase={stage.enabled && stage.shell.phase !== "closed" ? stage.shell.phase : undefined}
-        head={boardHead} headInset={railInsetRef.current}
         joins={historyReplayed && settled} closing={closing}
       >
         {!heroInList && emptyHero(phone ? 0 : railInsetRef.current)}

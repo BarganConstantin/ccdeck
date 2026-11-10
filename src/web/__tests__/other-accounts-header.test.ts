@@ -72,7 +72,7 @@ describe("expand every account", () => {
     const open = html({ open: true });
     expect(all(open)).not.toBe("");
     expect(open.indexOf('class="ap-rest-all"')).toBeGreaterThan(open.indexOf(toggle(open)) + toggle(open).length - 1);
-    expect(open).toMatch(/<div class="ap-rest-head"><button type="button" id="ap-rest-entry"[^]*?<\/button><button type="button" class="ap-rest-all"/);
+    expect(open).not.toContain('class="ap-rest-line"');
   });
 
   it("is a toggle with one name, pressed while every row is open, its tooltip the next press", () => {
@@ -88,12 +88,15 @@ describe("expand every account", () => {
 describe("line 2, how many a switch would reach", () => {
   it("counts the accounts that are signed in and not held out, with a green dot and a tooltip", () => {
     const out = html();
-    expect(out).toContain('<span class="ap-rest-ready" data-tone="ok" title="Signed in and not held out. Each row says its limits."><i class="ap-rest-dot" aria-hidden="true"></i><span class="ap-rest-ready-text">2 can be switched to</span></span>');
+    expect(out).toContain('aria-label="2 can be switched to"');
+    expect(out).toContain('<span class="ap-rest-ready-text" aria-hidden="true">2</span>');
+    expect(out).not.toContain('class="ap-rest-line"');
+    expect(out).not.toContain('class="ap-previews"');
   });
 
   it("says none of them can, with a dim dot, when none can", () => {
     const out = html({ peers: [peer("a", false), peer("b", false), peer("c", false)] });
-    expect(out).toMatch(/<span class="ap-rest-ready" data-tone="idle"[^>]*>[^]*None of 3 can be switched to/);
+    expect(out).toContain('data-tone="idle" role="img" aria-label="None of 3 can be switched to"');
     const css = sheetText();
     expect(css).toMatch(/\.ap-rest-dot \{[^}]*width: 6px;[^}]*background: var\(--ok\);/);
     expect(css).toContain('.ap-rest-ready[data-tone="idle"] .ap-rest-dot { background: var(--muted-dim); }');
@@ -101,10 +104,9 @@ describe("line 2, how many a switch would reach", () => {
 
   it("counts reach, not room: a full account still counts, and no line says how many have room", () => {
     const full = html({ peers: [peer("a", true, 0), peer("b", true, 0)] });
-    expect(text(full)).toContain("2 can be switched to");
+    expect(full).toContain('aria-label="2 can be switched to"');
     expect(text(full)).not.toMatch(/with room|ready/);
-    // What room each has is the previews' to say, one per name, while shut.
-    expect(full).toMatch(/<p class="ap-preview"><span class="ap-preview-name"[^>]*>a@northwind\.example<\/span><span class="ap-preview-state">/);
+    expect(full).not.toContain('class="ap-preview"');
   });
 
   it("carries the alarm in the error ink when auto-switch has nowhere to go", () => {
@@ -121,7 +123,8 @@ describe("the order", () => {
   it("stands at the right end of line 2 while the list is open, showing the order the list is in", () => {
     expect(sort(html())).toBe("");
     const out = html({ open: true, order: "7d:empty" });
-    expect(out).toMatch(/<div class="ap-rest-line"><span class="ap-rest-ready"[^]*?<\/span><\/span><button type="button" id="ap-rest-sort"/);
+    expect(out).not.toContain('class="ap-rest-line"');
+    expect(out.indexOf('id="ap-rest-sort"')).toBeLessThan(out.indexOf('class="ap-rest-all"'));
     expect(sort(out)).toMatch(/aria-haspopup="menu" aria-expanded="false" title="7-day · emptiest first" data-sorted=""/);
     expect(text(sort(out))).toBe("7-day · emptiest first");
     // Its name to a screen reader says what it orders.

@@ -13,7 +13,7 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useT } from "../i18n";
 import { createPortal } from "react-dom";
-import { type Peer, foldPeek, foldPreview, restLine } from "../other-accounts";
+import { type Peer, foldPeek, restLine } from "../other-accounts";
 import { KitIcon } from "./kit-icons";
 import AnchoredPopover from "./AnchoredPopover";
 import { SLOT_ORDER, type OrderChoice } from "../other-accounts-order";
@@ -104,13 +104,8 @@ function FoldPeek({ anchorId, id, peers, onHold, onLet }: {
 /**
  * THE HEAD OF THE GROUP OF EVERY ACCOUNT THAT IS NOT THE LIVE ONE.
  *
- * Two lines. The first is the one toggle — the chevron, "Other accounts" and
- * how many there are, as one button that unfolds the list underneath it — with
- * every row opened or shut at once at its right end while the list is open.
- * The second says how many of them a switch would reach, with the order the
- * list is in at its right end. What it is standing in for is a list the reader
- * owns and switches between, so the switch stays in this column rather than
- * behind a view and a way back.
+ * One line: the fold, total count, switchable count and, while expanded,
+ * the order and expand-all controls. The names stay inside the list or peek.
  */
 export default function OtherAccounts({
   peers, strained, armed, threshold, open, onToggle, order, choices, onOrder, allOpen, onToggleAll, held = false, idPrefix = "",
@@ -177,10 +172,6 @@ export default function OtherAccounts({
   const readyText = ready > 0
     ? t("accounts.other.canSwitch", { count: ready })
     : t("accounts.other.noneCanSwitch", { total: peers.length });
-  // WHO IS BEHIND THE FOLD, while it is shut: the two with the most room and
-  // the count of the rest. Not beside the alarm, which is the line that has to
-  // be read there.
-  const previews = open || line.tone === "bad" ? [] : foldPreview(peers, t);
   return (
     <div className="ap-rest" data-open={open ? "" : undefined}>
       <div className="ap-rest-head">
@@ -214,6 +205,12 @@ export default function OtherAccounts({
             <span className="ap-sum-count">{peers.length}</span>
           </span>
         </button>
+        <span className="ap-rest-ready" data-tone={ready > 0 ? "ok" : "idle"}
+          role="img" aria-label={readyText} title={`${readyText}. ${t("accounts.other.countTip")}`}>
+          <i className="ap-rest-dot" aria-hidden />
+          <span className="ap-rest-ready-text" aria-hidden>{ready}</span>
+        </span>
+        {open && <SortMenu order={order} choices={choices} onOrder={onOrder} held={held} idPrefix={idPrefix} />}
         {/* A toggle, named once and pressed or not: a name that changed under
             the keyboard's focus is one most screen readers never announce. The
             tooltip says what the next press does. Drawn only while the list is
@@ -234,13 +231,6 @@ export default function OtherAccounts({
           </button>
         )}
       </div>
-      <div className="ap-rest-line">
-        <span className="ap-rest-ready" data-tone={ready > 0 ? "ok" : "idle"} title={t("accounts.other.countTip")}>
-          <i className="ap-rest-dot" aria-hidden />
-          <span className="ap-rest-ready-text">{readyText}</span>
-        </span>
-        {open && <SortMenu order={order} choices={choices} onOrder={onOrder} held={held} idPrefix={idPrefix} />}
-      </div>
       {/* THE ONE SENTENCE IN THE ERROR INK: auto-switch is on and there is no
           account it could move to. Said open or shut, because neither the
           meters nor the toggle can show it. */}
@@ -249,16 +239,6 @@ export default function OtherAccounts({
           <KitIcon name="warning" className="ap-rest-alarm-glyph" />
           <span>{line.text}</span>
         </p>
-      )}
-      {/* WHO IS BEHIND THE FOLD, in three lines while it is shut (V4's Figma):
-          the two with the most room and the count of the rest. The fold opens
-          from the head above; these are not controls. */}
-      {previews.length > 0 && (
-        <div className="ap-previews">
-          {previews.map(p => p.kind === "more"
-            ? <p key="more" className="ap-preview ap-preview-more">{p.text}</p>
-            : <p key={p.key} className="ap-preview"><span className="ap-preview-name" title={p.name}>{p.name}</span><span className="ap-preview-state">{p.state}</span></p>)}
-        </div>
       )}
       {peek && <FoldPeek anchorId={`ap-${idPrefix}rest-entry`} id={`ap-${idPrefix}rest-peek`} peers={peers}
         onHold={holdPeek} onLet={shutPeek} />}
