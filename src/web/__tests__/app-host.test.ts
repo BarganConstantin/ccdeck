@@ -11,7 +11,7 @@ import { describe, it, expect, afterAll } from "vitest";
 import { spawn } from "node:child_process";
 import { randomBytes } from "node:crypto";
 import {
-  chmodSync, copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, statSync,
+  chmodSync, copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync,
   symlinkSync, writeFileSync,
 } from "node:fs";
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
@@ -74,6 +74,19 @@ describe("the hook launcher", () => {
     expect(cmd.split("\r\n")[0]).toBe("@echo off");
     expect(cmd).toContain("where node >nul 2>nul && (node %* & exit /b)");
     expect(cmd).toContain('"C:\\Program Files\\ccdeck\\ccdeck.exe" %*');
+  });
+
+  it("ends quietly, before the app is asked, when the app is gone and PATH has no node", () => {
+    // The uninstalled app: its launcher and hook command outlive it. The check
+    // comes after the node branch and before the app is run, on both shapes.
+    const cmd = launcherScript("C:\\Program Files\\ccdeck\\ccdeck.exe", "win32").split("\r\n");
+    const gone = cmd.indexOf('if not exist "C:\\Program Files\\ccdeck\\ccdeck.exe" exit /b 0');
+    expect(gone, "no check for a missing app").toBeGreaterThan(cmd.indexOf("where node >nul 2>nul && (node %* & exit /b)"));
+    expect(gone).toBeLessThan(cmd.indexOf('"C:\\Program Files\\ccdeck\\ccdeck.exe" %*'));
+    const sh = launcherScript("/Applications/ccdeck.app/Contents/MacOS/ccdeck", "darwin").split("\n");
+    const missing = sh.indexOf("[ -x '/Applications/ccdeck.app/Contents/MacOS/ccdeck' ] || exit 0");
+    expect(missing, "no check for a missing app").toBeGreaterThan(sh.indexOf('if command -v node >/dev/null 2>&1; then exec node "$@"; fi'));
+    expect(missing).toBeLessThan(sh.indexOf("ELECTRON_RUN_AS_NODE=1 exec '/Applications/ccdeck.app/Contents/MacOS/ccdeck' \"$@\""));
   });
 
   it("lives in the Claude config directory, and reads CLAUDE_CONFIG_DIR exactly as the deck does", () => {
@@ -168,7 +181,7 @@ async function honestDeck() {
  * becomes a real Node, so the fallback can be told from the other branch by
  * evidence rather than by timing.
  */
-async function throughLauncher({ onPath }: { onPath: boolean }) {
+async function throughLauncher({ onPath, appGone = false }: { onPath: boolean; appGone?: boolean }) {
   const dir = mkdtempSync(join(ROOT, onPath ? "sysnode-" : "appnode-"));
   const binDir = join(dir, "bin");
   mkdirSync(binDir, { recursive: true });
@@ -191,6 +204,8 @@ async function throughLauncher({ onPath }: { onPath: boolean }) {
   const path = WIN ? `${binDir};${join(process.env.SystemRoot ?? "C:\\Windows", "System32")}` : binDir;
 
   const launcher = writeLauncher(app, { env: { CLAUDE_CONFIG_DIR: dir }, platform: process.platform });
+  // The app uninstalled after it wrote the launcher: the launcher and the hook stay.
+  if (appGone) rmSync(app);
   const deck = await honestDeck();
   // Our own pid, so the liveness check keeps the record; an empty workspace
   // matches any cwd.
@@ -299,6 +314,18 @@ describe("the launcher the desktop app writes", () => {
     expect(r.code).toBe(0);
     expect(r.ranAsNode, "the app binary was not told to behave as Node").toBe("1");
     expect(r.seen).toEqual(["/api/event"]);
+  }, 30_000);
+
+  it("says nothing and exits 0 once the app is uninstalled, when PATH has no node", async () => {
+    // Seen on a clean Windows install: after the uninstaller, every hook ran
+    // `"...\ccdeck.exe"` and cmd answered "The system cannot find the path
+    // specified." with exit 1 — a hook error on every tool call from then on.
+    const r = await throughLauncher({ onPath: false, appGone: true });
+    expect(r.stderr, "the launcher put something in the host CLI's transcript").toBe("");
+    expect(r.code, "a non-zero exit is a hook error in front of the user").toBe(0);
+    expect(r.stdout).toBe("");
+    expect(r.ranAsNode).toBe(null);
+    expect(r.seen).toEqual([]);
   }, 30_000);
 });
 
