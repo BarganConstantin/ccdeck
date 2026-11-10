@@ -610,10 +610,12 @@ describe("the phone's top bar and empty states", () => {
     expect(read("App.tsx")).toContain("emptyNotice={heroInList ? emptyHero(0) : undefined}");
   });
 
-  it("the Sessions rows are 8 in from each edge and 62 high", () => {
+  // CHANGED ON PURPOSE (owner 2026-11-10 critique): a row with no second line held 62 of mostly empty space; it is 44 now, two-line rows stay 62.
+  it("the Sessions rows are 8 in from each edge, 62 high with a second line and 44 without", () => {
     const list = squash(phoneOf(strip(read("styles/session-list.css"))));
     expect(list).toContain(".session-list.sl-rows{padding-inline:8px;}");
     expect(list).toContain(".session-list.sl-row{min-height:62px;}");
+    expect(list).toContain(".session-list.sl-row[data-one-line]{min-height:44px;}");
   });
 
   it("a Sessions row names its session at 14/20 on a phone, 13/20 above it", () => {

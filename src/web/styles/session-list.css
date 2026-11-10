@@ -268,6 +268,19 @@
 }
 .session-list .sl-line2.mono { font-family: var(--font-mono); }
 .session-list .sl-tool { font-weight: 500; color: var(--text-secondary); }
+/* What tells a row from others of its name (rail-row-copy.ts rowTells), in the
+   line's own quiet ink. Ahead of a live line it keeps to half the width, so
+   the tool or the note after it still shows; alone it has the whole line. */
+.session-list .sl-tell.lead {
+  display: inline-block;
+  max-width: 50%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  vertical-align: top;
+}
+/* Words stay in the interface's face (tokens.css html, body) on a mono line:
+   mono is for figures and ids, and an id tell keeps it. */
+.session-list .sl-tell.words { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; }
 
 /* ── groups ───────────────────────────────────────────────────────────────── */
 /* Rail / Group header: --row-group tall, label and count at the two
@@ -503,6 +516,10 @@
 @media (max-width: 640px) {
   .session-list .sl-usage-btn { min-height: 44px; }
   .session-list .sl-row { min-height: 62px; }
+  /* A row with nothing under its name holds no empty second line: 44, the
+     touch floor. Either way about 20 is left under the words, so the list
+     keeps one rhythm (owner, 2026-11-10). */
+  .session-list .sl-row[data-one-line] { min-height: 44px; }
   .session-list .sl-more, .session-list .sl-fold-btn { min-height: 44px; }
   /* Rows at 8 in from each edge: the 374 the phone frame draws in a 390 panel. */
   .session-list .sl-rows { padding-inline: 8px; }

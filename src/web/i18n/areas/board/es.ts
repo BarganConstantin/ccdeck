@@ -832,6 +832,7 @@ const catalog: Catalog = {
   "board.row.blockedSince": "Bloqueada desde {time} · iniciada {started}",
   "board.row.yourTurnSince": "Tu turno desde {time} · iniciada {started}",
   "board.row.started": "Iniciada {started}",
+  "board.row.startedAt": "Iniciada a las {time}",
   "board.row.toolsSpend": "{tools} · {cost} {label}",
   "board.row.suggestedReply": "Respuesta sugerida: {reply}",
   "board.row.spokenReply": ", respuesta sugerida: {reply}",

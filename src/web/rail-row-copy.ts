@@ -5,13 +5,14 @@ import { isAlarming } from "./ambient-counts";
 import { blockedToolTooltip, waitingSentence } from "./agent-copy";
 import { fmtCost } from "./pricing";
 import { sessionSpendLabel } from "./board-usage";
-import { t } from "./i18n";
+import { currentLanguage, t } from "./i18n";
 import { noteSource, noteTag } from "./session-note";
 import { planSpoken } from "./agent-plan";
 import { salientField } from "./tool-input";
 import type { Row } from "./components/SessionList";
 import { agoShort, elapsedShort } from "./elapsed-short";
 import type { RailGroup } from "./rail-model";
+import { distinctIdTail } from "./session-id-tail";
 
 /** Figma's Glyph: Waiting, Working, Done, Idle, Error. Background wears the
  *  Working mark, the session being at work while its turn has ended. The
@@ -60,6 +61,77 @@ export function railLine(r: Row, group: RailGroup): RailLine | null {
   }
   if (r.neverPrompted) return { kind: "sans", text: t("board.row.ready") };
   return note ? { kind: "mono", text: note } : null;
+}
+
+/** What tells a row from the others of its name. `task` and `started` are
+ *  words, `id` is a fragment of the session id, drawn in the mono face. */
+export interface RowTell { kind: "task" | "started" | "id"; text: string }
+
+/**
+ * A row's name is its folder's, so four sessions in one repo read the same
+ * four times on a phone, one under another (owner, 2026-11-10). Only rows whose
+ * names collide get a tell, and each takes the first of these that no other
+ * row of its name still in question shares: the session's own words (what
+ * Claude Code calls it, else its first prompt) when they are more than the
+ * folder's name again; the clock time it started; as much of its id as it
+ * takes. Two sessions given the same first prompt fall through to when they
+ * started, and two started in the same minute to the id. No session carries its git branch,
+ * so there is no branch step between the words and the start.
+ */
+export function rowTells(rows: readonly Row[], now: number): Map<string, RowTell> {
+  const byName = new Map<string, Row[]>();
+  for (const r of rows) {
+    const same = byName.get(r.label);
+    if (same) same.push(r);
+    else byName.set(r.label, [r]);
+  }
+  const tells = new Map<string, RowTell>();
+  for (const peers of byName.values()) {
+    if (peers.length < 2) continue;
+    let open = peers;
+    for (const tellOf of [taskTell, (r: Row) => startedTell(r, now)]) {
+      const said = open.map(tellOf);
+      open = open.filter((r, i) => {
+        const mine = said[i];
+        if (!mine || said.some((other, j) => j !== i && other?.text === mine.text)) return true;
+        tells.set(r.sessionId, mine);
+        return false;
+      });
+    }
+    const ids = peers.map(r => r.sessionId);
+    for (const r of open) tells.set(r.sessionId, { kind: "id", text: distinctIdTail(r.sessionId, ids) });
+  }
+  return tells;
+}
+
+/** The session's own words, unless they only say the folder's name again. */
+function taskTell(r: Row): RowTell | null {
+  const task = r.task?.trim();
+  return task && task.toLowerCase() !== r.label.trim().toLowerCase() ? { kind: "task", text: task } : null;
+}
+
+/** When the session started, by the reader's clock, so the tell never changes
+ *  while you look at it; a relative age ticked, and two of them rounding alike
+ *  flipped both rows to the id. An earlier day leads with its weekday, so
+ *  yesterday's 14:32 is not today's. */
+function startedTell(r: Row, now: number): RowTell {
+  const lang = currentLanguage();
+  const at = new Date(r.startedAt);
+  const day = at.toDateString() === new Date(now).toDateString() ? "" : `${at.toLocaleDateString(lang, { weekday: "short" })} `;
+  const time = `${day}${at.toLocaleTimeString(lang, { hour: "2-digit", minute: "2-digit" })}`;
+  return { kind: "started", text: t("board.row.startedAt", { time }) };
+}
+
+/** The second line as it follows the row's tell: none when it only says the
+ *  tell again, as a first turn's note does (its prompt is the tell). The deck
+ *  keeps the first prompt cut shorter than the note cuts it, so one may be the
+ *  other with an ellipsis. */
+export function lineAfterTell(line: RailLine | null, tell: RowTell | undefined): RailLine | null {
+  if (!line || !tell || line.kind === "tool") return line;
+  const cut = (s: string) => (s.endsWith("…") ? s.slice(0, -1).trimEnd() : "");
+  const [note, own] = [cut(line.text), cut(tell.text)];
+  const echo = line.text === tell.text || (!!own && line.text.startsWith(own)) || (!!note && tell.text.startsWith(note));
+  return echo ? null : line;
 }
 
 /** What a tool line prints after the tool's name: a path as rowPath shortens

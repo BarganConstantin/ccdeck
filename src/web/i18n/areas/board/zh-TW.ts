@@ -832,6 +832,7 @@ const catalog: Catalog = {
   "board.row.blockedSince": "自 {time}起受阻 · 開始於 {started}",
   "board.row.yourTurnSince": "自 {time}起輪到您 · 開始於 {started}",
   "board.row.started": "開始於 {started}",
+  "board.row.startedAt": "{time}開始",
   "board.row.toolsSpend": "{tools} · {cost} {label}",
   "board.row.suggestedReply": "建議回覆：{reply}",
   "board.row.spokenReply": "，建議回覆：{reply}",

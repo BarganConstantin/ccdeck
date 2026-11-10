@@ -27,7 +27,9 @@ import {
 } from "../rail-model";
 import { leaveHoldMs, useRailFlip, useRailMembership } from "../rail-motion";
 import { prefersReducedMotion } from "../viewport-motion";
-import { runningTool } from "../rail-row-copy";
+import { rowTells, runningTool, type RowTell } from "../rail-row-copy";
+import { sessionDisplay } from "../session-display";
+import { promptLine } from "../session-note";
 import { PauseGlyph } from "./rail-glyphs";
 import { CloseGlyph, FoldBody, GroupHead, MoreLine, PlusGlyph, RailGlyph, RailRow, RailUsage, type FoldMode } from "./RailParts";
 
@@ -78,6 +80,12 @@ export interface Row {
   /** The session's folder: a path the row prints is shortened against it
    *  (rail-row-copy.ts rowPath). */
   cwd?: string;
+  /** The session's own words, as its card's task line has them: what Claude
+   *  Code calls it, else its first prompt's line. */
+  task?: string;
+  /** What tells this row from another of the same name (rail-row-copy.ts
+   *  rowTells). Absent while no other row reads its name. */
+  tell?: RowTell;
 }
 
 /** Where a row sorts, as the rail's five groups, before activity is looked at:
@@ -145,6 +153,7 @@ export function buildRows(state: GraphState, now: number, watching?: ReadonlySet
     const recap = note?.kind === "recap" ? { text: note.text, at: note.at } : null;
     const status = note && note.kind !== "recap" ? note : null;
     const ended = turnEndedAt(a);
+    const task = sessionDisplay(a.sessionName, a.sessionTitle).face ?? (a.firstPrompt ? promptLine(a.firstPrompt) : "");
     rows.push({
       sessionId: a.sessionId,
       label: a.label || a.cwdBasename || translate("board.kind.session"),
@@ -172,6 +181,7 @@ export function buildRows(state: GraphState, now: number, watching?: ReadonlySet
       turnStartedAt: a.prompts.at(-1)?.at ?? a.startedAt,
       tool: inFlightCall(a),
       cwd: a.cwd,
+      ...(task ? { task } : null),
     });
   }
   // Sort: by group, then, among the blocked rows, the LONGEST-blocked first —
@@ -190,6 +200,12 @@ export function buildRows(state: GraphState, now: number, watching?: ReadonlySet
     if (rx === 2) return (y.turnEndedAt ?? 0) - (x.turnEndedAt ?? 0);
     return y.lastActivity - x.lastActivity;
   });
+  // On the row, so a row that leaves keeps saying it while it fades.
+  const tells = rowTells(rows, now);
+  for (const r of rows) {
+    const tell = tells.get(r.sessionId);
+    if (tell) r.tell = tell;
+  }
   return rows;
 }
 

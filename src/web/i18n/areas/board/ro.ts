@@ -862,6 +862,7 @@ const catalog: Catalog = {
   "board.row.blockedSince": "Blocată din {time} · pornită {started}",
   "board.row.yourTurnSince": "Rândul tău din {time} · pornită {started}",
   "board.row.started": "Pornită {started}",
+  "board.row.startedAt": "Pornită la {time}",
   "board.row.toolsSpend": "{tools} · {cost} {label}",
   "board.row.suggestedReply": "Răspuns sugerat: {reply}",
   "board.row.spokenReply": ", răspuns sugerat: {reply}",

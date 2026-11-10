@@ -832,6 +832,7 @@ const catalog: Catalog = {
   "board.row.blockedSince": "{time}から停止中 · 開始 {started}",
   "board.row.yourTurnSince": "{time}からあなたの番 · 開始 {started}",
   "board.row.started": "開始 {started}",
+  "board.row.startedAt": "{time}に開始",
   "board.row.toolsSpend": "{tools} · {cost} {label}",
   "board.row.suggestedReply": "返信案：{reply}",
   "board.row.spokenReply": "、返信案：{reply}",
