@@ -90,7 +90,18 @@ function blankSession(id, at) {
 function enrichSummary(s, p, name) {
   if (!s.cwd && typeof p.cwd === "string" && p.cwd) s.cwd = p.cwd;
   if (typeof p.model === "string" && p.model && !subagentKeyOf(p)) s.model = p.model;
-  if (name === "SessionNamed") s.name = p.sessionTitle ?? p.sessionName ?? s.name;
+  if (name === "SessionNamed") nameSummary(s, p);
+}
+
+/** The session's name as its card and rail row say it (sessionDisplay in
+ *  session-display.ts): the name, the user's or else Claude Code's, over the
+ *  title. Each is kept until an event says it again, as applySessionNamed in
+ *  transcript-events.ts keeps them, so a pass carrying only one wipes neither. */
+function nameSummary(s, p) {
+  const said = v => (typeof v === "string" ? v.trim() : "");
+  if (said(p.sessionName)) s.sessionName = said(p.sessionName);
+  if (said(p.sessionTitle)) s.sessionTitle = said(p.sessionTitle);
+  s.name = s.sessionName || s.sessionTitle || s.name;
 }
 
 /** Scanned facts can wait for a session, but cannot give it a provider, a

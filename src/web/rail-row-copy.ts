@@ -5,13 +5,14 @@ import { isAlarming } from "./ambient-counts";
 import { blockedToolTooltip, waitingSentence } from "./agent-copy";
 import { fmtCost } from "./pricing";
 import { sessionSpendLabel } from "./board-usage";
-import { t } from "./i18n";
+import { currentLanguage, t } from "./i18n";
 import { noteSource, noteTag } from "./session-note";
 import { planSpoken } from "./agent-plan";
 import { salientField } from "./tool-input";
 import type { Row } from "./components/SessionList";
 import { agoShort, elapsedShort } from "./elapsed-short";
 import type { RailGroup } from "./rail-model";
+import { distinctIdTail } from "./session-id-tail";
 
 /** Figma's Glyph: Waiting, Working, Done, Idle, Error. Background wears the
  *  Working mark, the session being at work while its turn has ended. The
@@ -62,6 +63,90 @@ export function railLine(r: Row, group: RailGroup): RailLine | null {
   return note ? { kind: "mono", text: note } : null;
 }
 
+/** The quiet lead of a row's second line. `folder`, `task` and `started` are
+ *  words, `id` is a fragment of the session id, drawn in the mono face. */
+export interface RowTell { kind: "folder" | "task" | "started" | "id"; text: string }
+
+/**
+ * At most one quiet lead per row, ahead of what the session is doing (owner,
+ * 2026-11-10). A row is titled by the session's name, so a named row leads
+ * with its folder, to still say where it runs; a row titled by its folder has
+ * nothing to add. Rows whose titles collide lead instead with what tells them
+ * apart, each taking the first of these that no other row of its title still
+ * in question shares: its folder; its first prompt, when the title is not
+ * already those words; the clock time it started; as much of its id as it
+ * takes. Four unnamed sessions in one repo read by what each was asked to do,
+ * two given the same prompt fall through to when they started, and two started
+ * in the same minute to the id. No session carries its git branch, so there is
+ * no branch step.
+ */
+export function rowTells(rows: readonly Row[], now: number): Map<string, RowTell> {
+  const byName = new Map<string, Row[]>();
+  for (const r of rows) {
+    const same = byName.get(r.label);
+    if (same) same.push(r);
+    else byName.set(r.label, [r]);
+  }
+  const tells = new Map<string, RowTell>();
+  for (const peers of byName.values()) {
+    if (peers.length < 2) {
+      const folder = folderTell(peers[0]);
+      if (folder) tells.set(peers[0].sessionId, folder);
+      continue;
+    }
+    let open = peers;
+    for (const tellOf of [folderTell, taskTell, (r: Row) => startedTell(r, now)]) {
+      const said = open.map(tellOf);
+      open = open.filter((r, i) => {
+        const mine = said[i];
+        if (!mine || said.some((other, j) => j !== i && other?.text === mine.text)) return true;
+        tells.set(r.sessionId, mine);
+        return false;
+      });
+    }
+    const ids = peers.map(r => r.sessionId);
+    for (const r of open) tells.set(r.sessionId, { kind: "id", text: distinctIdTail(r.sessionId, ids) });
+  }
+  return tells;
+}
+
+/** The folder, on a row whose title is something else (buildRows sets it only there). */
+function folderTell(r: Row): RowTell | null {
+  return r.folder ? { kind: "folder", text: r.folder } : null;
+}
+
+/** The session's first prompt, on a row whose title is something else (buildRows sets it only there). */
+function taskTell(r: Row): RowTell | null {
+  return r.task ? { kind: "task", text: r.task } : null;
+}
+
+/** Two names a reader takes for one: case and the space around them aside. */
+export function sameWords(a: string, b: string): boolean {
+  return a.trim().toLowerCase() === b.trim().toLowerCase();
+}
+
+/** When the session started, by the reader's clock, so the tell never changes
+ *  while you look at it; a relative age ticked, and two of them rounding alike
+ *  flipped both rows to the id. An earlier day leads with its weekday, so
+ *  yesterday's 14:32 is not today's. */
+function startedTell(r: Row, now: number): RowTell {
+  const lang = currentLanguage();
+  const at = new Date(r.startedAt);
+  const day = at.toDateString() === new Date(now).toDateString() ? "" : `${at.toLocaleDateString(lang, { weekday: "short" })} `;
+  const time = `${day}${at.toLocaleTimeString(lang, { hour: "2-digit", minute: "2-digit" })}`;
+  return { kind: "started", text: t("board.row.startedAt", { time }) };
+}
+
+/** The second line as it follows the row's lead: none when it only says the
+ *  lead again. Either may be the other cut short with an ellipsis. */
+export function lineAfterTell(line: RailLine | null, tell: RowTell | undefined): RailLine | null {
+  if (!line || !tell || line.kind === "tool") return line;
+  const cut = (s: string) => (s.endsWith("…") ? s.slice(0, -1).trimEnd() : "");
+  const [note, own] = [cut(line.text), cut(tell.text)];
+  const echo = line.text === tell.text || (!!own && line.text.startsWith(own)) || (!!note && tell.text.startsWith(note));
+  return echo ? null : line;
+}
+
 /** What a tool line prints after the tool's name: a path as rowPath shortens
  *  it, anything else (a command, a URL) as it is. */
 function toolRest(tool: { preview: string; path?: true }, cwd: string | undefined): string {
@@ -108,6 +193,7 @@ export function railTime(r: Row, group: RailGroup, now: number): { text: string;
  *  tooltip is where a clamped line and the dropped figures stay readable. */
 export function rowTooltip(r: Row, removed: boolean): string {
   const lines: string[] = [removed ? t("board.row.bringBack", { label: r.label }) : t("board.row.focus", { label: r.label })];
+  if (r.folder) lines.push(t("board.row.inFolder", { folder: r.folder }));
   if (r.waiting) {
     lines.push(
       waitingSentence(r.waiting),
@@ -151,6 +237,8 @@ export function runningTool(call: { name: string; input?: unknown }): { name: st
  *  the row's button as visually hidden text; the tooltip stays as well. */
 export function rowSpoken(r: Row): string {
   const parts: string[] = [];
+  // The folder where the row does not draw it: rows of one name lead with a clock or an id.
+  if (r.folder && r.tell?.kind !== "folder") parts.push(t("board.row.inFolder", { folder: r.folder }));
   if (r.plan) parts.push(planSpoken(r.plan));
   if (r.status) parts.push(`${noteTag(r.status.kind)}${r.status.reply ? t("board.row.spokenReply", { reply: r.status.reply }) : ""}`);
   else if (r.recap) parts.push(noteTag("recap"));

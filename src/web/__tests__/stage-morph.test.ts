@@ -30,7 +30,8 @@ describe("the window", () => {
   it("is exactly the card on the first frame of an open, with the card's corner", () => {
     const f = morphFrame(opening, 0);
     expect(f.clip).toBe(clipInset(card, W, H, MORPH_RADIUS));
-    expect(f.clip).toBe(`inset(180px ${W - 760}px ${H - 272}px 520px round 10px)`);
+    // CHANGED ON PURPOSE (owner 2026-11-10 critique: type scale 11/12/13/16/22, radii 4/8/pill): a card's corner is the panel's 8.
+    expect(f.clip).toBe(`inset(180px ${W - 760}px ${H - 272}px 520px round 8px)`);
     expect(f.edge.opacity, "the window's edge is drawn in full as it leaves the card").toBe(1);
   });
 

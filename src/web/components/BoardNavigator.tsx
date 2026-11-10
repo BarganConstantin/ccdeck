@@ -7,7 +7,7 @@ import { agentAriaLabel, stateLabel } from "../agent-copy";
 import { isAlarming } from "../ambient-counts";
 import { elapsed } from "../duration";
 import { modelChipText } from "../model-label";
-import { drawnState, stateMarkKind, type FaceSignal } from "../node-face";
+import { drawnState, markBesideFailures, stateMarkKind, type FaceSignal } from "../node-face";
 import { useNow } from "../use-now";
 import {
   FACE_H, ROW_H, TILE_PAD, navigatorClusters, navigatorFrame, navigatorSessions, navSignal, neighbourTile,
@@ -332,10 +332,12 @@ function Tile({ tile, cluster, session, density, attached, flash, tabbable, onFo
           onFocus={() => onFocus(id)}
         >
           {/* The state the card draws (drawnState): a turn that stopped on an
-              error is Failed here as on the card, never a finished ✓. */}
+              error is Failed here as on the card, never a finished ✓. Nor
+              over a line that says calls failed: the mark the board's face
+              draws there (markBesideFailures). */}
           <span className="nav-face" data-state={root ? drawnState(root) : undefined} data-alarm={alarm ? "" : undefined}>
             <span className="nav-id">
-              {root ? <StateMark kind={stateMarkKind(drawnState(root))} /> : null}
+              {root ? <StateMark kind={markBesideFailures(stateMarkKind(drawnState(root)), root.toolErrorCount ?? 0)} /> : null}
               <span className="nav-name">
                 {cluster.label}
                 {cluster.shortId ? <span className="nav-sid">{SEP + cluster.shortId}</span> : null}
@@ -382,7 +384,7 @@ function SubRow({ sub, top }: { sub: NavAgent; top: number }) {
   const said = navSignal(sub);
   return (
     <div className="nav-row" data-state={sub.state} style={{ top }}>
-      <StateMark kind={stateMarkKind(sub.state)} />
+      <StateMark kind={markBesideFailures(stateMarkKind(sub.state), sub.toolErrorCount ?? 0)} />
       <span className="nav-row-name">{sub.label}</span>
       {said ? <span className="nav-row-said" data-tone={said.tone}>{said.long}</span> : null}
     </div>

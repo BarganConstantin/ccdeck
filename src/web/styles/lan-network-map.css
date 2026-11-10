@@ -46,7 +46,7 @@
 }
 .nm-head { gap: 16px; }
 .nm-heading { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
-.nm-title { margin: 0; font-size: calc(14px + var(--ui-text-increase, 0px)); font-weight: 600; }
+.nm-title { margin: 0; font-size: calc(16px + var(--ui-text-increase, 0px)); font-weight: 600; }
 /* The caption under the picture: V4's 12/16 in the muted ink, 24 in from the
    edge. It can wrap on a narrow stage rather than be cut. */
 .nm-sub {
@@ -131,7 +131,7 @@
 .nm-zone-label {
   fill: var(--muted);
   font-family: var(--font-mono);
-  font-size: calc(9px + max(0px, var(--ui-text-increase, 0px)));
+  font-size: calc(11px + max(0px, var(--ui-text-increase, 0px)));
   letter-spacing: 0.06em;
   text-transform: uppercase;
 }
@@ -224,7 +224,7 @@
   width: 5px;
   height: 5px;
   margin-top: -2.5px;
-  border-radius: 50%;
+  border-radius: var(--r-pill);
   background: var(--glint);
   /* A ring of the stage's ground around the light, so it separates from the
      line it runs on — the accent at the centre, the green at the far end —
@@ -241,7 +241,7 @@
   content: "";
   position: absolute;
   inset: 0;
-  border-radius: 50%;
+  border-radius: var(--r-pill);
   background: var(--ok);
   box-shadow: 0 0 0 1px var(--bg);
   opacity: 0;
@@ -281,7 +281,7 @@
   display: grid;
   place-items: center;
   color: var(--bg);
-  border-radius: 50%;
+  border-radius: var(--r-pill);
   background: var(--hero-core);
   box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 35%, transparent), 0 0 28px color-mix(in srgb, var(--accent) 22%, transparent);
 }
@@ -292,7 +292,7 @@
   content: "";
   position: absolute;
   inset: -1px;
-  border-radius: 50%;
+  border-radius: var(--r-pill);
   border: 1px solid color-mix(in srgb, var(--accent) 60%, transparent);
   opacity: 0;
 }
@@ -345,7 +345,7 @@
   display: grid;
   place-items: center;
   border: 1px solid var(--ctl-edge);
-  border-radius: 50%;
+  border-radius: var(--r-pill);
   background: var(--panel);
   color: var(--muted);
   font: inherit;
@@ -406,7 +406,7 @@
 .nm-halo {
   position: absolute;
   inset: -1px;
-  border-radius: 50%;
+  border-radius: var(--r-pill);
   pointer-events: none;
 }
 .nm-halo[data-tier="offline"] { box-shadow: 0 0 0 1px color-mix(in srgb, var(--nm-away) 55%, transparent); }
@@ -444,7 +444,7 @@
   bottom: 3px;
   width: 10px;
   height: 10px;
-  border-radius: 50%;
+  border-radius: var(--r-pill);
   box-sizing: border-box;
   box-shadow: 0 0 0 2px var(--panel);
   background: var(--panel);
@@ -461,7 +461,7 @@
   content: "";
   position: absolute;
   inset: -1.5px;
-  border-radius: 50%;
+  border-radius: var(--r-pill);
   border: 1px solid var(--accent);
 }
 
@@ -509,7 +509,7 @@
 /* An address nothing has answered at: named by its host in the data voice,
    and drawn as a point rather than a machine, because it is not one yet. */
 .nm-node[data-kind="dialling"] .nm-name { font-family: var(--font-mono); font-size: calc(11px + var(--ui-text-increase, 0px)); font-variant-numeric: tabular-nums; }
-.nm-addr-dot { width: 4px; height: 4px; border-radius: 50%; background: var(--muted); }
+.nm-addr-dot { width: 4px; height: 4px; border-radius: var(--r-pill); background: var(--muted); }
 .nm-cap {
   max-width: 100%;
   overflow: hidden;
@@ -572,7 +572,7 @@
 .nm-key-mark {
   width: 10px;
   height: 10px;
-  border-radius: 50%;
+  border-radius: var(--r-pill);
   box-sizing: border-box;
   border: 1.5px solid var(--muted);
 }
@@ -586,7 +586,7 @@
   width: 12px;
   height: 12px;
   box-sizing: border-box;
-  border-bottom-right-radius: 999px;
+  border-bottom-right-radius: var(--r-pill);
   background: color-mix(in srgb, var(--accent) 8%, transparent);
   border: 1px solid color-mix(in srgb, var(--accent) 22%, transparent);
 }
@@ -627,7 +627,7 @@
   gap: 8px;
   margin: 0;
   min-width: 0;
-  font-size: calc(14px + var(--ui-text-increase, 0px));
+  font-size: calc(16px + var(--ui-text-increase, 0px));
   font-weight: 600;
   color: var(--text);
   overflow-wrap: anywhere;
@@ -666,7 +666,7 @@
 .nm-counts li { display: grid; grid-template-columns: 10px 24px minmax(0, 1fr); align-items: center; gap: 8px; }
 .nm-count-n {
   font-family: var(--font-mono);
-  font-size: calc(14px + var(--ui-text-increase, 0px));
+  font-size: calc(13px + var(--ui-text-increase, 0px));
   font-weight: 600;
   text-align: right;
   color: var(--text);
@@ -686,10 +686,10 @@
 /* One line each: the mark, the email, and whatever is wrong with it at the
    end of the same line — the email gives way first, the state never does. */
 .nm-lane { display: flex; align-items: baseline; gap: 6px; min-width: 0; font-size: calc(11px + var(--ui-text-increase, 0px)); }
-.nm-lane-said { flex: none; margin-left: auto; font-size: calc(10px + max(-1px, var(--ui-text-increase, 0px))); color: var(--muted); white-space: nowrap; }
+.nm-lane-said { flex: none; margin-left: auto; font-size: calc(11px + max(-1px, var(--ui-text-increase, 0px))); color: var(--muted); white-space: nowrap; }
 .nm-lane[data-tone="bad"] .nm-lane-said { color: var(--warn); }
 .nm-lane[data-tone="wait"] .nm-lane-said { color: var(--accent); }
-.nm-lane-dot { flex: none; align-self: center; width: 5px; height: 5px; border-radius: 50%; background: var(--muted); }
+.nm-lane-dot { flex: none; align-self: center; width: 5px; height: 5px; border-radius: var(--r-pill); background: var(--muted); }
 .nm-lane[data-tone="ok"] .nm-lane-dot { background: var(--ok); }
 .nm-lane[data-tone="wait"] .nm-lane-dot { background: var(--accent); }
 .nm-lane[data-tone="bad"] .nm-lane-dot { background: var(--warn); }
@@ -706,7 +706,7 @@
    need a look, so those still lead. */
 .nm-lane[data-tone="ok"] .nm-lane-email { color: var(--muted); }
 .nm-lane .lan-kind { flex: none; margin-left: 0; }
-.nm-lane-used { flex: none; margin-left: auto; font-size: calc(10px + max(-1px, var(--ui-text-increase, 0px))); color: var(--accent); white-space: nowrap; }
+.nm-lane-used { flex: none; margin-left: auto; font-size: calc(11px + max(-1px, var(--ui-text-increase, 0px))); color: var(--accent); white-space: nowrap; }
 .nm-lane-said + .nm-lane-used { margin-left: 0; }
 .btn.nm-open { flex: none; min-height: 24px; padding: 0 10px; font-size: calc(11px + var(--ui-text-increase, 0px)); }
 

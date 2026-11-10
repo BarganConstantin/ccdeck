@@ -87,7 +87,8 @@ describe("the card's cost slot", () => {
     const data = card({ model: "claude-opus-5", usageByModel: { "claude-sonnet-5": SPENT } });
     const chip = costChip(data);
     expect(chip?.tt).toContain("model: claude-sonnet-5\n");
-    expect(chip?.tt.trimEnd().split("\n").pop()).toBe(`total                                 = ${fmtCost(agentCost(data).total)}`);
+    // CHANGED ON PURPOSE (owner 2026-11-10 critique): "cache write 5m" (14) is the widest English label now, so the label column and the sum under it are 5 wider.
+    expect(chip?.tt.trimEnd().split("\n").pop()).toBe(`${"total".padEnd(43)}= ${fmtCost(agentCost(data).total)}`);
   });
 
   it("adds the burn rate to the tooltip of a live card, as of the render", () => {

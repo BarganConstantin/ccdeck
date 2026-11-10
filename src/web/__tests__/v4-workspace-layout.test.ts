@@ -183,7 +183,8 @@ describe("tokens only", () => {
 
   it("styles the switch as the Inspector's tab pill: --bg-soft track, --panel chip, 24px buttons", () => {
     expect(decl(ruleFor(css, ".view-switch").body, "background")).toBe("var(--bg-soft)");
-    expect(decl(ruleFor(css, ".view-switch").body, "border-radius")).toBe("var(--r-panel)");
+    // CHANGED ON PURPOSE (owner 2026-11-10 critique: type scale 11/12/13/16/22, radii 4/8/pill): a segmented control is a control, at 4.
+    expect(decl(ruleFor(css, ".view-switch").body, "border-radius")).toBe("var(--r-ctl)");
     expect(decl(ruleFor(css, ".view-opt").body, "height")).toBe("24px");
     expect(decl(ruleFor(css, '.view-opt[aria-pressed="true"]').body, "background")).toBe("var(--panel)");
   });

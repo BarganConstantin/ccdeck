@@ -68,13 +68,13 @@
 .topbar .status .pill.paused { border-color: var(--warn); }
 .topbar .status .pill.paused::before {
   content: ""; display: inline-block;
-  width: 6px; height: 6px; border-radius: 50%;
+  width: 6px; height: 6px; border-radius: var(--r-pill);
   background: var(--warn);
 }
 .topbar .status .pill.dead { border-color: var(--err); }
 .topbar .status .pill.dead::before {
   content: ""; display: inline-block;
-  width: 6px; height: 6px; border-radius: 50%;
+  width: 6px; height: 6px; border-radius: var(--r-pill);
   background: var(--err);
 }
 /* How many sessions are blocked on you (#337) — the only number in this bar
@@ -398,11 +398,11 @@
   flex: none;
   width: 7px;
   height: 7px;
-  border-radius: 50%;
+  border-radius: var(--r-pill);
   background: var(--err);
 }
 [data-state="degraded"] .pi-dot { background: transparent; box-shadow: inset 0 0 0 1.5px var(--err); }
-[data-state="maintenance"] .pi-dot { background: var(--muted); border-radius: 1px; }
+[data-state="maintenance"] .pi-dot { background: var(--muted); border-radius: 0; }
 
 @keyframes pulse {
   0%, 100% { opacity: 1; } 50% { opacity: 0.35; }
@@ -425,8 +425,8 @@
 
    `inline-flex` is what centres the label inside a box whose height it no
    longer sets. */
-/* V4's button (Quiet): corner 8, which is the ladder's --r-panel (--r-ctl, 6,
-   stays for the icon button and the dialog close), label 13px on a 20px line at
+/* V4's button (Quiet): the control's corner, --r-ctl (V4 drew 8; the deck has
+   three radii, 2026-11-10), label 13px on a 20px line at
    weight 500 in --text-secondary. The edge stays --ctl-edge, not the kit's
    --line: control-edges.test.ts holds a button's boundary to WCAG 1.4.11's 3:1
    and --line is 1.14:1 Dark / 1.60:1 Light. */
@@ -436,7 +436,7 @@ button.btn {
   border: 1px solid var(--ctl-edge);
   min-height: var(--ctl-h);
   padding: 0 12px;
-  border-radius: var(--r-panel);
+  border-radius: var(--r-ctl);
   cursor: pointer;
   display: inline-flex;
   align-items: center;

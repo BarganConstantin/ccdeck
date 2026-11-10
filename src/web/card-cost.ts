@@ -17,9 +17,21 @@ import type { AgentNodeData, TokenUsage } from "./types";
 import { t } from "./i18n";
 import { fmtTokens } from "./token-format";
 
+/** Every label a rate row can carry. The label column is as wide as the longest
+ *  of them in the reader's language (9 at least, the width it always had), so
+ *  the × and the = stay in one column now that "cache read" and "cache write"
+ *  are spelled out rather than "cache r" and "cache w". */
+const ROW_LABELS = [
+  "insights.cost.input", "board.cost.uncached", "insights.cost.output",
+  "board.cost.cacheR", "board.cost.cacheW", "board.cost.cacheW5m", "board.cost.cacheW1h",
+] as const;
+const labelWidth = (): number => Math.max(9, ...ROW_LABELS.map(key => t(key).length));
+/** A rule across a block, as long as its rows. */
+const rule = (char: string): string => char.repeat(labelWidth() + 32);
+
 /** A row of the sum at the foot of a block: the label padded to the column the
  *  `=` sits in, in whichever language the label is. */
-const sumRow = (label: string, value: string): string => `${label.padEnd(38)}= ${value}`;
+const sumRow = (label: string, value: string): string => `${label.padEnd(labelWidth() + 29)}= ${value}`;
 
 /** Multi-line breakdown for the cost chip tooltip — shows the actual
  *  multiplication so the user can verify pricing is sane.
@@ -45,7 +57,7 @@ function usageCostTooltip(usage: TokenUsage, modelId: string | undefined): strin
   if (shares.length === 1) return rateCardTooltip(shares[0].usage, modelId, shares[0].speed);
   return [
     ...shares.map(s => rateCardTooltip(s.usage, modelId, s.speed)),
-    `═════════════════════════════════════════`,
+    rule("═"),
     sumRow(t("board.cost.allSpeeds"), fmtCost(costForUsage(usage, modelId).total)),
   ].join("\n");
 }
@@ -83,7 +95,7 @@ function singleRateTooltip(usage: TokenUsage, modelId: string | undefined, speed
   const fmtN = (n: number) => n.toLocaleString();
   const fmtR = (r: number) => `$${r}/MTok`;
   const row = (label: string, tokens: number, rate: string, usd: number) =>
-    `${label.padEnd(9)}${fmtN(tokens).padStart(14)}  × ${rate.padEnd(11)} = ${fmtCost(usd)}`;
+    `${label.padEnd(labelWidth())}${fmtN(tokens).padStart(14)}  × ${rate.padEnd(11)} = ${fmtCost(usd)}`;
   const c = costAtSpeed(long ? { ...usage, longContext: usage } : { ...usage, longContext: undefined }, modelId, speed);
   const cw = cacheWriteBreakdown(usage, rates);
   // Cache writes are billed per TTL — 2× input for a 1-hour entry, 1.25× for a
@@ -110,7 +122,7 @@ function singleRateTooltip(usage: TokenUsage, modelId: string | undefined, speed
     row(t("insights.cost.output"), usage.outputTokens, fmtR(rates.output), c.output),
     row(t("board.cost.cacheR"), usage.cacheReadTokens, fmtR(rates.cacheRead), c.cacheRead),
     ...cacheWriteRows,
-    `─────────────────────────────────────────`,
+    rule("─"),
     sumRow(t("board.cost.total"), fmtCost(c.total)),
   ].join("\n");
 }
@@ -137,7 +149,7 @@ export function agentCostTooltip(a: UsageBearing): string {
   if (entries.length <= 1) return costBreakdownTooltip(only.usage, only.model);
   return [
     ...entries.map(e => costBreakdownTooltip(e.usage, e.model)),
-    `═════════════════════════════════════════`,
+    rule("═"),
     sumRow(t("board.cost.allModels"), fmtCost(agentCost(a).total)),
   ].join("\n");
 }

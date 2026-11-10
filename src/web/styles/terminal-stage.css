@@ -133,8 +133,8 @@
      characters of ellipsis: the name keeps that room instead. */
   .ts-head:has(.ts-ctxchip) .ts-meta-rest { display: none; }
 }
-.ts-ctxbar { display: block; width: 28px; height: 4px; border-radius: 2px; background: var(--line); overflow: hidden; }
-.ts-ctxbar i { display: block; height: 100%; border-radius: 2px; background: var(--text-secondary); }
+.ts-ctxbar { display: block; width: 28px; height: 4px; border-radius: var(--r-pill); background: var(--line); overflow: hidden; }
+.ts-ctxbar i { display: block; height: 100%; border-radius: var(--r-pill); background: var(--text-secondary); }
 
 .ts-ctl { flex: none; display: flex; align-items: center; gap: 4px; }
 /* The controls are the deck's header glyphs (.glyph-btn), as 24px squares at
@@ -381,11 +381,11 @@
 .ts-eng-head { display: flex; align-items: center; gap: 16px; }
 .ts-eng-chip {
   display: inline-flex; align-items: center; justify-content: center; flex: none;
-  width: 32px; height: 32px; border-radius: 50%;
+  width: 32px; height: 32px; border-radius: var(--r-pill);
   background: color-mix(in srgb, var(--accent) 16%, transparent); color: var(--accent);
 }
 .ts-eng-chip[data-tone="danger"] { background: color-mix(in srgb, var(--err) 16%, transparent); color: var(--err); }
-.ts-eng-title { margin: 0; font-size: 14px; font-weight: 600; line-height: 20px; color: var(--text); }
+.ts-eng-title { margin: 0; font-size: 16px; font-weight: 600; line-height: 20px; color: var(--text); }
 .ts-eng-text { margin: 0; font-size: 13px; line-height: 20px; color: var(--text-secondary); }
 .ts-eng-said { margin: 0; font-size: 12px; line-height: 16px; color: var(--warn); }
 .ts-eng-mono { margin: 0; font: 400 11px/14px var(--font-mono); color: var(--muted); font-variant-numeric: tabular-nums; }
@@ -411,7 +411,7 @@
 .ts-eng-step[data-state="done"] .ts-eng-mark { color: var(--ok); }
 .ts-eng-step[data-state="now"] .ts-eng-mark { color: var(--accent); }
 .ts-eng-step[data-state="fail"] .ts-eng-mark { color: var(--err); }
-.ts-eng-ring { box-sizing: border-box; width: 10px; height: 10px; border: 1.5px solid currentColor; border-radius: 50%; }
+.ts-eng-ring { box-sizing: border-box; width: 10px; height: 10px; border: 1.5px solid currentColor; border-radius: var(--r-pill); }
 .ts-eng-aside { font: 400 11px/14px var(--font-mono); color: var(--muted); }
 .ts-eng-step[data-state="fail"] .ts-eng-aside { color: var(--err); }
 /* Settings › General, the engine's row during an install: the bar and its
@@ -570,7 +570,7 @@
   width: 8px;
   height: 36px;
   box-sizing: border-box;
-  border-radius: 999px;
+  border-radius: var(--r-pill);
   border: 1px solid var(--ctl-edge);
   background: var(--panel);
   opacity: 0;
@@ -633,10 +633,10 @@
   color: var(--text-secondary);
 }
 .ns-label { display: block; margin: 0 0 6px; font-size: 12px; line-height: 16px; color: var(--muted); }
-/* The strips are V4's chips here: 26 high, r8, --bg-soft on a --line-soft edge,
+/* The strips are V4's chips here: 26 high, the control radius, --bg-soft on a --line-soft edge,
    12/500 in --text-secondary; the chosen one keeps the deck's solid accent state. */
 .ns-form .uh-range { gap: 6px; padding: 0; border: 0; background: none; }
-.ns-form .uh-range-btn { font-family: inherit; height: 26px; min-height: 26px; box-sizing: border-box; padding: 0 10px; border-radius: var(--r-panel); font-size: 12px; font-weight: 500; line-height: 24px; }
+.ns-form .uh-range-btn { font-family: inherit; height: 26px; min-height: 26px; box-sizing: border-box; padding: 0 10px; border-radius: var(--r-ctl); font-size: 12px; font-weight: 500; line-height: 24px; }
 .ns-form .uh-range-btn[aria-pressed="false"] { border: 1px solid var(--ctl-edge); background: var(--bg-soft); color: var(--text-secondary); }
 @media (hover: hover) and (pointer: fine) {
 .ns-form .uh-range-btn[aria-pressed="false"]:hover { background: var(--ctl-fill); color: var(--text); }
@@ -651,7 +651,7 @@
    trigger: no float shadow, and a little taller. */
 .appearance-source-list.ns-list { max-height: 228px; margin: 0 0 8px; box-shadow: none; }
 .appearance-source-option.ns-option { justify-content: flex-start; }
-.ns-dot { flex: none; width: 7px; height: 7px; border-radius: 50%; background: hsl(var(--ns-hue, 200) 70% var(--session-accent-l)); }
+.ns-dot { flex: none; width: 7px; height: 7px; border-radius: var(--r-pill); background: hsl(var(--ns-hue, 200) 70% var(--session-accent-l)); }
 .ns-name { flex: none; max-width: 48%; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-weight: 600; }
 .ns-path { margin-left: auto; white-space: nowrap; font: 400 11px/1 var(--font-mono); color: var(--muted); }
 /* The station list holds its second span to its width; a path gives way. */

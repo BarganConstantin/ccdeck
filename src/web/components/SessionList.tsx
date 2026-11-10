@@ -14,7 +14,7 @@ import { t as translate, useT } from "../i18n";
 import { agentCost } from "../usage-models";
 import type { GraphState } from "../reducer";
 import type { BackgroundJob, SessionRecap, WaitingBlock } from "../types";
-import { sessionNoteShown, type SessionNote } from "../session-note";
+import { promptLine, sessionNoteShown, type SessionNote } from "../session-note";
 import { drawnState, neverPrompted } from "../node-face";
 import { isAgentVisible } from "../visibility";
 import { withKey } from "../single-key-shortcuts";
@@ -27,7 +27,8 @@ import {
 } from "../rail-model";
 import { leaveHoldMs, useRailFlip, useRailMembership } from "../rail-motion";
 import { prefersReducedMotion } from "../viewport-motion";
-import { runningTool } from "../rail-row-copy";
+import { rowTells, runningTool, sameWords, type RowTell } from "../rail-row-copy";
+import { sessionListName } from "../session-display";
 import { PauseGlyph } from "./rail-glyphs";
 import { CloseGlyph, FoldBody, GroupHead, MoreLine, PlusGlyph, RailGlyph, RailRow, RailUsage, type FoldMode } from "./RailParts";
 
@@ -38,6 +39,8 @@ import type { MeterQuota } from "../use-quota";
 
 export interface Row {
   sessionId: string;
+  /** The row's title: the session's name as its card draws it (the user's
+   *  name, else Claude Code's title), else its folder (owner, 2026-11-10). */
   label: string;
   cwdBasename?: string;
   state: "active" | "done" | "err";
@@ -78,6 +81,15 @@ export interface Row {
   /** The session's folder: a path the row prints is shortened against it
    *  (rail-row-copy.ts rowPath). */
   cwd?: string;
+  /** The session's folder, when the title is something else: a named row
+   *  still says where it runs. Absent when the title is the folder. */
+  folder?: string;
+  /** The first line of the session's first prompt, when the title is something
+   *  else: what tells unnamed sessions in one folder apart (rowTells). */
+  task?: string;
+  /** The second line's one quiet lead (rail-row-copy.ts rowTells): the folder
+   *  under a name of its own, or what tells this row from another of its name. */
+  tell?: RowTell;
 }
 
 /** Where a row sorts, as the rail's five groups, before activity is looked at:
@@ -145,9 +157,15 @@ export function buildRows(state: GraphState, now: number, watching?: ReadonlySet
     const recap = note?.kind === "recap" ? { text: note.text, at: note.at } : null;
     const status = note && note.kind !== "recap" ? note : null;
     const ended = turnEndedAt(a);
+    // Named as its card is, so the row reads what Claude Code's prompt shows
+    // rather than "Desktop" four times; the folder only when there is no name.
+    const label = sessionListName(a) ?? translate("board.kind.session");
+    const folder = a.cwdBasename && !sameWords(a.cwdBasename, label) ? a.cwdBasename : "";
+    const asked = a.firstPrompt ? promptLine(a.firstPrompt) : "";
+    const task = asked && !sameWords(asked, label) ? asked : "";
     rows.push({
       sessionId: a.sessionId,
-      label: a.label || a.cwdBasename || translate("board.kind.session"),
+      label,
       cwdBasename: a.cwdBasename,
       // A turn that stopped on an error is drawn as a failure here as on its
       // card (#2185); it sorts with the ended ones either way.
@@ -172,6 +190,8 @@ export function buildRows(state: GraphState, now: number, watching?: ReadonlySet
       turnStartedAt: a.prompts.at(-1)?.at ?? a.startedAt,
       tool: inFlightCall(a),
       cwd: a.cwd,
+      ...(task ? { task } : null),
+      ...(folder ? { folder } : null),
     });
   }
   // Sort: by group, then, among the blocked rows, the LONGEST-blocked first —
@@ -190,6 +210,12 @@ export function buildRows(state: GraphState, now: number, watching?: ReadonlySet
     if (rx === 2) return (y.turnEndedAt ?? 0) - (x.turnEndedAt ?? 0);
     return y.lastActivity - x.lastActivity;
   });
+  // On the row, so a row that leaves keeps saying it while it fades.
+  const tells = rowTells(rows, now);
+  for (const r of rows) {
+    const tell = tells.get(r.sessionId);
+    if (tell) r.tell = tell;
+  }
   return rows;
 }
 

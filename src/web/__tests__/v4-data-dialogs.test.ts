@@ -52,7 +52,8 @@ describe("Tool activity", () => {
     expect(decl(".ta-period", "padding")).toBe("3px");
     expect(decl(".ta-period", "gap")).toBe("2px");
     expect(decl(".ta-period", "border")).toBe("1px solid var(--line-soft)");
-    expect(decl(".ta-period", "border-radius")).toBe("var(--r-panel)");
+    // CHANGED ON PURPOSE (owner 2026-11-10 critique: type scale 11/12/13/16/22, radii 4/8/pill): a segmented control is a control, at 4.
+    expect(decl(".ta-period", "border-radius")).toBe("var(--r-ctl)");
     expect(decl(".ta-period", "background")).toBe("var(--bg-soft)");
     expect(decl(".ta-period-btn", "min-height")).toBe("var(--ctl-h-sm)");
     expect(decl(".ta-period-btn", "padding")).toBe("0 10px");
@@ -74,10 +75,11 @@ describe("Tool activity", () => {
     expect(decl(".ta-list:not(.sa-list) .ta-op", "white-space")).toBe("nowrap");
     expect(decl(".ta-list-head, .ta-row", "grid-template-columns")).toBe("minmax(0, 1fr) 150px 60px 72px 84px 76px");
     expect(decl(".ta-track", "height")).toBe("6px");
-    expect(decl(".ta-track", "border-radius")).toBe("3px");
+    // CHANGED ON PURPOSE (owner 2026-11-10 critique: type scale 11/12/13/16/22, radii 4/8/pill): a 6-high bar at 3 is a capsule, the pill token.
+    expect(decl(".ta-track", "border-radius")).toBe("var(--r-pill)");
     expect(decl(".ta-track", "background")).toBe("var(--bg-soft)");
     expect(decl(".ta-track > .ta-bar", "background")).toBe("var(--muted)");
-    expect(decl(".ta-track > .ta-bar", "border-radius")).toBe("3px");
+    expect(decl(".ta-track > .ta-bar", "border-radius")).toBe("var(--r-pill)");
     expect(decl(":where(.ta-list:not(.sa-list)) .ta-cell[data-col=calls]", "color")).toBe("var(--muted)");
     expect(decl(":where(.ta-list:not(.sa-list)) .ta-cell[data-col=time]", "color")).toBe("var(--text)");
   });
@@ -256,7 +258,8 @@ describe("Usage history", () => {
   it("draws the stats bare: the value over the label, 32 apart, mono 18/24 over sans 12/16", () => {
     expect(decl(".uh-totals", "gap")).toBe("4px 32px");
     expect(decl(".uh-stat-val", "font-family")).toBe("var(--font-mono)");
-    expect(px(decl(".uh-stat-val", "font-size"))).toBe(18);
+    // CHANGED ON PURPOSE (owner 2026-11-10 critique: type scale 11/12/13/16/22, radii 4/8/pill): a figure at 16.
+    expect(px(decl(".uh-stat-val", "font-size"))).toBe(16);
     expect(decl(".uh-stat-val", "font-weight")).toBe("600");
     expect(decl(".uh-stat-val", "line-height")).toBe("calc(24px + var(--ui-text-increase, 0px))");
     expect(px(decl(".uh-stat-label", "font-size"))).toBe(12);
@@ -363,7 +366,8 @@ describe("Session usage", () => {
     expect(decl(".su-totals", "gap")).toBe("8px 32px");
     expect(decl(".su-totals > div", "flex-direction")).toBe("column-reverse");
     expect(decl(".su-totals dd", "font-family")).toBe("var(--font-mono)");
-    expect(px(decl(".su-totals dd", "font-size"))).toBe(18);
+    // CHANGED ON PURPOSE (owner 2026-11-10 critique: type scale 11/12/13/16/22, radii 4/8/pill): a figure at 16.
+    expect(px(decl(".su-totals dd", "font-size"))).toBe(16);
     expect(decl(".su-totals dd", "font-weight")).toBe("600");
     expect(decl(".su-totals dt, .su-tokens dt, .su-dates dt", "color")).toBe("var(--muted)");
     expect(decl(".su-totals", "border-bottom")).toBeNull();
@@ -516,7 +520,8 @@ describe("Session recap", () => {
   it("draws the figures bare, in one row: mono 18/24 over a 12/16 muted label, 32 apart", () => {
     expect(decl(".session-summary .ss-stats", "gap")).toBe("8px 32px");
     expect(decl(".session-summary .ss-stat-value", "font-family")).toBe("var(--font-mono)");
-    expect(px(decl(".session-summary .ss-stat-value", "font-size"))).toBe(18);
+    // CHANGED ON PURPOSE (owner 2026-11-10 critique: type scale 11/12/13/16/22, radii 4/8/pill): a figure at 16.
+    expect(px(decl(".session-summary .ss-stat-value", "font-size"))).toBe(16);
     expect(decl(".session-summary .ss-stat-value", "font-weight")).toBe("600");
     expect(decl(".session-summary .ss-stat-label", "color")).toBe("var(--muted)");
     expect(decl(".session-summary .ss-stat", "background")).toBeNull();

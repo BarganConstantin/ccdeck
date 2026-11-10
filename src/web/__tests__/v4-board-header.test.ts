@@ -77,7 +77,8 @@ describe("the strip's geometry, word for word from the Figma", () => {
     expect(decls(".bh-stat", own)["gap"]).toBe("0");
     const num = decls(".bh-num", own);
     expect(num["font-family"]).toBe("var(--font-mono)");
-    expect(num["font-size"]).toBe(INC(18));
+    // CHANGED ON PURPOSE (owner 2026-11-10 critique: type scale 11/12/13/16/22, radii 4/8/pill): a figure at 16.
+    expect(num["font-size"]).toBe(INC(16));
     expect(num["line-height"]).toBe("24px");
     expect(num["font-weight"]).toBe("600");
     expect(num["color"]).toBe("var(--text)");

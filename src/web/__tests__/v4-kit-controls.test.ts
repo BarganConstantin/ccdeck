@@ -305,7 +305,8 @@ describe("segmented control (.ap-sides)", () => {
     expect(decl(".ap-sides", "padding")).toBe("1px");
     expect(decl(".ap-sides", "border")).toBe("1px solid var(--line-soft)");
     expect(decl(".ap-sides", "background")).toBe("var(--bg-soft)");
-    expect(decl(".ap-sides", "border-radius")).toBe("var(--r-panel)");
+    // CHANGED ON PURPOSE (owner 2026-11-10 critique: type scale 11/12/13/16/22, radii 4/8/pill): a segmented control is a control, at 4.
+    expect(decl(".ap-sides", "border-radius")).toBe("var(--r-ctl)");
     expect(decl(".ap-sides", "box-sizing")).toBe("border-box");
     // 24 outside: 1 + 1 + 20 + 1 + 1.
     expect(decl(".ap-side", "padding")).toBe("2px 8px");

@@ -18,7 +18,7 @@
 .explore-caption > :first-child { font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: 16px; font-weight: 600; color: var(--text-secondary); }
 .explore-caption > :last-child:not(:first-child) { font-family: var(--font-mono); }
 .explore-providers { list-style: none; margin: 0; padding: 0; display: grid; gap: 12px; }
-/* V4's row: 58 tall, r10, a 1px --line-soft stroke and no fill, its content
+/* V4's row: 58 tall, the card radius (8), a 1px --line-soft stroke and no fill, its content
    10/12 in from the outer edge, 12 apart; no icon. Figma's stroke sits inside
    the frame, so it is an outline drawn a pixel in, over the padding, rather
    than a border that would add to it. */
@@ -43,7 +43,7 @@
 /* A note (V4's Figma): a 28 band at --r-panel, 6/8 inside, 12/16; neutral on
    the control fill in --text-secondary, a failure on the error wash in --text.
    A transparent outline is what a Contrast theme draws when it drops the fill. */
-.explore-status { margin: 0; min-height: 28px; box-sizing: border-box; padding: 6px 8px; border-radius: var(--r-panel); background: var(--ctl-fill); outline: 1px solid transparent; color: var(--text-secondary); font-size: calc(12px + var(--ui-text-increase, 0px)); font-weight: 400; line-height: 16px; overflow-wrap: anywhere; }
+.explore-status { margin: 0; min-height: 28px; box-sizing: border-box; padding: 6px 8px; border-radius: var(--r-ctl); background: var(--ctl-fill); outline: 1px solid transparent; color: var(--text-secondary); font-size: calc(12px + var(--ui-text-increase, 0px)); font-weight: 400; line-height: 16px; overflow-wrap: anywhere; }
 .explore-status[data-tone="err"] { background: var(--err-12); color: var(--text); }
 @media (max-width: 640px) {
   .explore-body { padding: 12px; }

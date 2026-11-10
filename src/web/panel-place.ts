@@ -188,11 +188,67 @@ export function roomBelow(el: HTMLElement): number {
   return Math.max(0, window.innerHeight - status - el.offsetTop - 8);
 }
 
+/** The air the minimap keeps from the canvas's edges: react-flow.css's
+ *  --board-controls-edge, as a number, since nothing here reads the sheet. It
+ *  keeps the same from a panel beside it. */
+export const BOARD_EDGE = 12;
+
+type Span = { left: number; right: number };
+
+/**
+ * NO PANEL STANDS OVER THE MINIMAP OR THE CHARACTER ON IT (owner, 2026-11-10).
+ * Both stand at the canvas's bottom right, under the panels' home slots, and an
+ * open Usage panel covered the minimap and half the character. Now they step
+ * in past every panel their span meets, BOARD_EDGE clear of it, and are not
+ * drawn when what the panels leave of the canvas cannot hold them.
+ *
+ * A panel counts at its full height, as railCover counts it for the fit: its
+ * foot moves as its readings arrive, and a minimap that jumped each time would
+ * be worse than one that stands clear. A panel the reader put on the left is
+ * met only if it is in the way, so it pushes nothing.
+ *
+ * How much further in than BOARD_EDGE the minimap's right edge stands, or null
+ * for no room. `width` is the minimap's.
+ */
+export function minimapInset(panels: readonly Span[], canvas: Span, width: number): number | null {
+  let inset = 0;
+  // Each pass steps past at least one panel for good, so one more pass than
+  // there are panels always ends on a span nothing meets.
+  for (let pass = 0; pass <= panels.length; pass++) {
+    const right = canvas.right - BOARD_EDGE - inset;
+    const met = panels.filter(p => p.left < right + BOARD_EDGE && p.right > right - width);
+    if (met.length === 0) break;
+    inset = canvas.right - Math.min(...met.map(p => p.left));
+  }
+  return canvas.right - BOARD_EDGE - inset - width < canvas.left + BOARD_EDGE ? null : inset;
+}
+
+/** Applies minimapInset to the panels as they stand: `--minimap-in` on the
+ *  canvas, which the minimap and the character read (react-flow.css,
+ *  claude-fm.css), and `data-minimap="off"` when there is no room. Offsets for
+ *  the panels, as fitStack, so an arriving panel's 12px of travel does not
+ *  count. A docked part is in its column, not over the canvas; a phone's
+ *  sheets are not beside the minimap, so a phone keeps it where it was. */
+export function fitMinimap(): void {
+  const canvas = document.querySelector<HTMLElement>(".canvas-wrap");
+  const map = canvas?.querySelector<HTMLElement>(".react-flow__minimap");
+  if (!canvas || !map) return;
+  const panels = window.matchMedia(PHONE_QUERY).matches ? [] : Array.from(
+    document.querySelectorAll<HTMLElement>(".usage-panel:not(.leaving), .sysdetail:not(.leaving)"),
+    el => (isDocked(el) || !(el.offsetWidth > 0) ? null : { left: el.offsetLeft, right: el.offsetLeft + el.offsetWidth }),
+  ).filter((span): span is Span => span !== null);
+  const box = canvas.getBoundingClientRect();
+  const inset = minimapInset(panels, { left: box.left, right: box.right }, map.offsetWidth);
+  canvas.style.setProperty("--minimap-in", `${inset ?? 0}px`);
+  if (inset === null) canvas.setAttribute("data-minimap", "off");
+  else canvas.removeAttribute("data-minimap");
+}
+
 let fitFrame = 0;
-/** fitStack once in the next frame, however many things asked for it. */
+/** fitStack and fitMinimap once in the next frame, however many things asked. */
 function scheduleFit(): void {
   if (fitFrame) return;
-  fitFrame = requestAnimationFrame(() => { fitFrame = 0; fitStack(); });
+  fitFrame = requestAnimationFrame(() => { fitFrame = 0; fitStack(); fitMinimap(); });
 }
 
 /** The room as the sheet sees it, measured rather than read from the tokens
@@ -400,8 +456,9 @@ export function usePanelPlace(boardKey: string, dock?: PanelDock) {
   // The pair is fitted when this panel arrives or is put somewhere, before it
   // paints; when it leaves; and when the room around them changes: the window,
   // or the canvas column, which the detail panel and the rating row resize and
-  // whose arrival moves a home slot.
-  useLayoutEffect(() => { fitStack(); }, [placed?.edge, placed?.x, placed?.y]);
+  // whose arrival moves a home slot. The minimap with them, at the same times,
+  // but not while one is dragged: it would dodge the panel at every step.
+  useLayoutEffect(() => { fitStack(); fitMinimap(); }, [placed?.edge, placed?.x, placed?.y]);
   useEffect(() => {
     window.addEventListener("resize", scheduleFit);
     const main = document.querySelector(".app main");

@@ -310,7 +310,7 @@ describe("the cost tooltip", () => {
     expect(tip.sections).toHaveLength(1);
     expect(tip.sections[0].title).toBe("model: claude-opus-5-5");
     const labels = tip.sections[0].rows.map(r => r.label);
-    expect(labels.slice(0, 3)).toEqual(["input", "output", "cache r"]);
+    expect(labels.slice(0, 3)).toEqual(["input", "output", "cache read"]); // CHANGED ON PURPOSE (owner 2026-11-10 critique): spelled out, not "cache r"
     for (const r of tip.sections[0].rows) expect(r.value).toMatch(/^[\d.]+[kM]? × \$[\d.]+\/MTok = .+$/);
     const out = renderToStaticMarkup(createElement(CostTipBody, { tip }));
     expect(out).toContain("cost-tip-rule");

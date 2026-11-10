@@ -15,6 +15,7 @@ import type { HookEnvelope, HookPayload } from "../types";
 // @ts-expect-error — plain .mjs module, no types
 const { summarizeSessions, STALE_SESSION_MS: SERVER_STALE } = await import("../../server/session-summary.mjs");
 import { STALE_SESSION_MS } from "../board-sweeps";
+import { sessionDisplay } from "../session-display";
 
 const SID = "sess-mirror";
 const T0 = 2_000_000;
@@ -198,5 +199,23 @@ describe("what the summary adds", () => {
       env(2, { session_id: "a", hook_event_name: "SessionNamed", sessionTitle: "Fix the cart", sessionName: null }),
     ], { now: T0 + 3000 });
     expect(rows[0]).toMatchObject({ project: "shop", name: "Fix the cart", model: "claude-sonnet-4-5" });
+  });
+
+  // CHANGED ON PURPOSE (owner 2026-11-10): the name, the user's or else Claude
+  // Code's, goes ahead of the title, as the card and the rail row draw it.
+  it("names a session by its name ahead of its title, the name the card and the rail row show", () => {
+    const steps = [
+      env(1, { session_id: "a", cwd: "/home/me/Desktop", hook_event_name: "UserPromptSubmit" }),
+      env(2, { session_id: "a", hook_event_name: "SessionNamed", sessionName: "loroloop", sessionTitle: "Fix the cart" }),
+      // A later pass carrying only a title keeps the name, as the canvas keeps it.
+      env(3, { session_id: "a", hook_event_name: "SessionNamed", sessionName: null, sessionTitle: "Fix the cart, again" }),
+    ];
+    const name = () => summarizeSessions(steps, { now: T0 + 4000 })[0].name;
+    expect(name()).toBe("loroloop");
+    const root = steps.reduce((s, e) => applyEvent(s, e as HookEnvelope), initialState()).agents.get("a")!;
+    expect(name()).toBe(sessionDisplay(root.sessionName, root.sessionTitle).face);
+    // A rename is the newest name.
+    steps.push(env(4, { session_id: "a", hook_event_name: "SessionNamed", sessionName: "ccdeck v4", sessionTitle: "Fix the cart" }));
+    expect(name()).toBe("ccdeck v4");
   });
 });

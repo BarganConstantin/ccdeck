@@ -123,7 +123,8 @@ describe("an issue's page", () => {
     const sub = rule(jira, ".jr-detail-sub");
     expect(sub).toMatch(/min-height:\s*32px/);
     expect(sub).toMatch(/padding:\s*0 8px/);
-    expect(sub).toMatch(/border-radius:\s*var\(--r-panel\)/);
+    // CHANGED ON PURPOSE (owner 2026-11-10 critique: type scale 11/12/13/16/22, radii 4/8/pill): a list row is a control, at 4.
+    expect(sub).toMatch(/border-radius:\s*var\(--r-ctl\)/);
     expect(jira).toContain("@container jira-detail (max-width: 360px)");
     expect(jira).not.toContain("@container jira-detail (max-width: 440px)");
   });

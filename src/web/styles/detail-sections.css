@@ -1,7 +1,7 @@
 /* ---------------- detail panel: hero + sections ---------------- */
 
 /* THE TITLE BLOCK (V4's Figma): the 14px state glyph and the name at 600
-   14/20, the meta line at 400 12/16, the spend figure in mono 600 18/24 with
+   16/20, the meta line at 400 12/16, the spend figure in mono 600 16/24 with
    its word. No rule under it and no box round the spend: the body's 12px gap
    is the spacing. */
 .detail-hero {
@@ -21,7 +21,7 @@
 .detail-hero .hero-state[data-state="working"] { color: var(--inflight); }
 .detail-hero .hero-title {
   margin: 0;
-  font-size: calc(14px + var(--ui-text-increase, 0px));
+  font-size: calc(16px + var(--ui-text-increase, 0px));
   line-height: 20px;
   font-weight: 600;
   color: var(--text);
@@ -67,7 +67,7 @@
 }
 .detail-hero .hero-cost-value {
   font-family: var(--font-mono);
-  font-size: calc(18px + var(--ui-text-increase, 0px));
+  font-size: calc(16px + var(--ui-text-increase, 0px));
   line-height: 24px;
   font-weight: 600;
   color: var(--text);
@@ -81,7 +81,7 @@
 }
 /* The verbs about the card (Recap, Export JSON, Remove from board) close the
    body, 8 apart, as V4's Quiet button draws them: `button.btn` as it is, 28
-   high, 13/500 --text-secondary, r8, 12 in. The edge stays the button's
+   high, 13/500 --text-secondary, the control radius, 12 in. The edge stays the button's
    --ctl-edge (control-edges.test.ts holds every control to 3:1), and the row
    stays on a running session too: each is something the card can do then. */
 .detail .hero-actions {
@@ -95,7 +95,7 @@
   display: flex;
   height: 8px;
   width: 100%;
-  border-radius: 4px;
+  border-radius: var(--r-pill);
   overflow: hidden;
   background: var(--line);
 }
@@ -347,7 +347,7 @@ button.btn.detail-continue-btn {
   margin: 6px 0 0;
   padding: 6px 8px;
   border: 1px solid var(--line-soft);
-  border-radius: 6px;
+  border-radius: var(--r-ctl);
   background: var(--bg-soft);
   font-family: var(--font-mono);
   font-size: calc(11px + var(--ui-text-increase, 0px));
@@ -405,7 +405,7 @@ button.btn.detail-continue-btn {
   top: 1px;
   width: 9px;
   height: 9px;
-  border-radius: 50%;
+  border-radius: var(--r-pill);
   border: 1.5px solid var(--muted);
   box-sizing: border-box;
 }
@@ -427,7 +427,7 @@ button.btn.detail-continue-btn {
 .plan-now {
   flex: none;
   font-family: var(--font-mono);
-  font-size: calc(10px + max(-1px, var(--ui-text-increase, 0px)));
+  font-size: calc(11px + max(-1px, var(--ui-text-increase, 0px)));
   color: var(--accent);
 }
 /* THE INSPECTOR'S PLAN (V4's Figma): a step is 22 high, a 14px kit state glyph
@@ -467,11 +467,14 @@ button.btn.detail-continue-btn {
 
 /* A background task's notice, which Claude Code submits through the same hook
    as a human's typing (#834). It keeps its place in time but reads as an event,
-   not as words the reader wrote: no fill, a dashed edge, one line until opened. */
+   not as words the reader wrote: the quietest row in the list, one muted line
+   until opened. Quiet, not decorated: the dashed edge it wore (a bare
+   border-style, so 3px in currentColor) read as a drop zone and was the
+   loudest thing in the panel (owner, 2026-11-10). */
 .prompt-injected {
   background: none;
-  border-style: dashed;
-  padding: 6px 10px;
+  border: 0;
+  padding: 0;
 }
 .prompt-injected > summary {
   display: flex;
@@ -503,7 +506,7 @@ button.tool.clickable {
   align-items: center;
   gap: 8px;
   justify-content: space-between;
-  border-radius: 4px;
+  border-radius: var(--r-ctl);
   transition: background var(--dur-fast) var(--ease), transform var(--dur-fast) var(--ease);
 }
 /* A tool row (V4's Figma): the name 500 12/16 in --text, what it ran on in

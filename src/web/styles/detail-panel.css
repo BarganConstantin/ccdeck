@@ -38,7 +38,7 @@
   padding: 1px;
   background: var(--bg-soft);
   border: 1px solid var(--line-soft);
-  border-radius: var(--r-panel);
+  border-radius: var(--r-ctl);
 }
 .insp-tab {
   position: relative;
@@ -76,7 +76,7 @@
 .insp-tab:hover:not([aria-selected="true"]),
 .insp-tab:hover:not([aria-selected="true"]) .glyph { color: var(--text); }
 }
-/* Fold: one quiet 24x24 icon button, radius 6 (the rail's close, on the right). */
+/* Fold: one quiet 24x24 icon button at the control radius (the rail's close, on the right). */
 .detail .insp-fold {
   display: inline-flex;
   align-items: center;
@@ -86,7 +86,7 @@
   padding: 0;
   margin: 0;
   border: 0;
-  border-radius: 6px;
+  border-radius: var(--r-ctl);
   background: transparent;
 }
 @media (hover: hover) and (pointer: fine) {
@@ -150,7 +150,7 @@
 .insp-time-stat dd {
   margin: 0;
   font-family: var(--font-mono);
-  font-size: calc(14px + var(--ui-text-increase, 0px));
+  font-size: calc(13px + var(--ui-text-increase, 0px));
   line-height: 20px;
   font-weight: 500;
   color: var(--text);
@@ -174,7 +174,7 @@
 .insp-time-bar {
   display: flex;
   height: 6px;
-  border-radius: 3px;
+  border-radius: var(--r-pill);
   overflow: hidden;
   background: color-mix(in srgb, var(--text) 6%, transparent);
 }
@@ -258,10 +258,10 @@
   top: 7px;
   height: 10px;
   min-width: 2px;
-  border-radius: 3px;
+  border-radius: var(--r-ctl);
   background: color-mix(in srgb, var(--text) 16%, transparent);
 }
-.insp-time-span[data-thin] { border-radius: 1px; }
+.insp-time-span[data-thin] { border-radius: 0; }
 /* A subagent's span: --accent at 14% with an inset 1px edge of it at 40%. */
 .insp-time-span[data-group] {
   background: color-mix(in srgb, var(--accent) 14%, transparent);
@@ -273,7 +273,7 @@
   max-width: 100%;
   box-sizing: border-box;
   padding: 0 4px;
-  border-radius: 3px;
+  border-radius: var(--r-ctl);
   background: var(--panel);
   font-family: var(--font-mono);
   font-size: calc(11px + var(--ui-text-increase, 0px));
@@ -497,7 +497,7 @@
 .detail .tool .name .status-dot::before {
   content: "";
   width: 6px; height: 6px;
-  border-radius: 50%;
+  border-radius: var(--r-pill);
   background: currentColor;
 }
 .detail .tool .name .status-dot.inflight { color: var(--inflight); }

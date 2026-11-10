@@ -11,7 +11,7 @@
    the hover rule. It is also the one of the seven that should stay dead on its
    own merits: 16px would make "+" the loudest glyph in a 288px panel, which is
    the argument `.ap-failure-x` makes against sizing a control like a control
-   when it lives inside 10px text.
+   when it lives inside 11px text.
    It was the one control in an `ap-`, `up-`, `uh-` or `modal-` header kept as a
    `.btn` box when the rest went bare, on the argument that it is the panel's one
    affirmative action and that the sheet already spent a colour saying so. Both
@@ -242,7 +242,7 @@
   min-height: 28px;
   padding: 0 8px;
   border: 0;
-  border-radius: var(--r-panel);
+  border-radius: var(--r-ctl);
   background: none;
   font: inherit;
   font-size: calc(12px + var(--ui-text-increase, 0px));
@@ -386,7 +386,7 @@
   background: var(--ctl-fill);
   color: var(--text);
   font: inherit;
-  font-size: calc(10px + max(-1px, var(--ui-text-increase, 0px)));
+  font-size: calc(11px + max(-1px, var(--ui-text-increase, 0px)));
   cursor: pointer;
   transition: border-color var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease), background var(--dur-fast) var(--ease),
               transform var(--dur-fast) var(--ease);
@@ -430,11 +430,11 @@
   overflow-wrap: anywhere;
   padding: 6px 8px;
   border: 1px solid var(--line);
-  border-radius: 6px;
+  border-radius: var(--r-ctl);
   background: var(--bg-soft);
   color: var(--muted);
   font-family: var(--font-mono);
-  font-size: calc(9px + max(0px, var(--ui-text-increase, 0px)));
+  font-size: calc(11px + max(0px, var(--ui-text-increase, 0px)));
   line-height: 1.4;
   user-select: all;
 }
@@ -442,7 +442,7 @@
    The row's own share used to wear these too, before it moved into the ⋯
    popover and took the popover's buttons. */
 .ap-share-foot { display: flex; align-items: center; gap: 8px; }
-.ap-manage-hint { color: var(--text-dim); font-size: calc(10px + max(-1px, var(--ui-text-increase, 0px))); min-width: 0; }
+.ap-manage-hint { color: var(--text-dim); font-size: calc(11px + max(-1px, var(--ui-text-increase, 0px))); min-width: 0; }
 /* Copy is the point of that foot, so it looks like it. The border is the
    accent itself rather than --accent-dim: at 1.91:1 dark / 1.39:1 light the dim
    edge was an invisible boundary. */

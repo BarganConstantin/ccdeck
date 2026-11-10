@@ -83,7 +83,8 @@ describe("a meter is a bar the eye finds without reading the figure", () => {
 
   it("is 8 high with the cores' 2px corners, on the track token", () => {
     expect(decl(".sd-track", "height")).toBe("8px");
-    expect(decl(".sd-core", "border-radius")).toBe("2px");
+    // CHANGED ON PURPOSE (owner 2026-11-10 critique: type scale 11/12/13/16/22, radii 4/8/pill): the cores' corners are the control's.
+    expect(decl(".sd-core", "border-radius")).toBe("var(--r-ctl)");
     expect(decl(".sd-track", "border-radius")).toBe(decl(".sd-core", "border-radius"));
     expect(decl(".sysdetail .sd-fill", "border-radius")).toBe(decl(".sd-core", "border-radius"));
     expect(decl(".sd-track", "background")).toBe("var(--ctl-fill)");

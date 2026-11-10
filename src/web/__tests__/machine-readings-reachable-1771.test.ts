@@ -127,6 +127,16 @@ describe("the whole panel, drawn from one snapshot", () => {
     expect(html).toMatch(/aria-describedby="([^"]+)"[^>]*>(?:(?!<\/div>)[\s\S])*?<span id="\1" class="vis-hidden">critical at 90 °C<\/span>/);
   });
 
+  it("says a throttled machine's figure once, on the Thermal row, with its sentence as the row's hint", () => {
+    // Owner 2026-11-10 critique: "throttled 20%" at the top, "Throttling 20%" and
+    // "CPU held to 80% of full speed to cool down" under it said one thing three times.
+    const row = /<div class="sd-plain"[^>]*>(?:(?!<\/div>)[\s\S])*?Throttling(?:(?!<\/div>)[\s\S])*?<\/div>/.exec(html)?.[0] ?? "";
+    expect(row).toContain('title="CPU held to 80% of full speed to cool down"');
+    expect(row).toContain('<span class="sd-plain-val">20%</span>');
+    expect(row).not.toContain("sd-plain-note");
+    expect(html).not.toMatch(/class="sd-flag">[^<]*(?:throttl|held to)/i);
+  });
+
   it("keeps the throttle note on the row when nothing is throttled right now", () => {
     // At 0% the note is where "it did happen, 25 minutes ago" lives; the row
     // used to print it only while throttling was above zero.

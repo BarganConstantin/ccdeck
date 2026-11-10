@@ -200,7 +200,7 @@
   align-items: center;
   gap: 8px;
   flex: none;
-  font-size: calc(14px + var(--ui-text-increase, 0px));
+  font-size: calc(16px + var(--ui-text-increase, 0px));
   font-weight: 600;
   line-height: 20px;
 }
@@ -278,7 +278,7 @@
   top: 7px;
   width: 2px;
   height: 2px;
-  border-radius: 50%;
+  border-radius: var(--r-pill);
   background: var(--muted);
   box-shadow: 0 5px 0 var(--muted), 0 10px 0 var(--muted);
 }
@@ -486,7 +486,7 @@
   outline: 1px solid transparent;
 }
 .ig-skeleton i::before, .ig-skeleton i::after, .ig-skeleton i b { content: ""; flex: none; display: block; background: var(--ctl-fill); outline: 1px solid transparent; }
-.ig-skeleton i::before { width: 14px; height: 14px; border-radius: 50%; }
+.ig-skeleton i::before { width: 14px; height: 14px; border-radius: var(--r-pill); }
 .ig-skeleton i b { width: 120px; max-width: 40%; height: 8px; border-radius: var(--r-tag); }
 .ig-skeleton i::after { width: 48px; height: 8px; margin-left: auto; border-radius: var(--r-tag); }
 .ig-skeleton[data-variant="lines"] { gap: 10px; margin: 0; border: 0; border-radius: 0; background: none; }
@@ -543,7 +543,7 @@
    control surface (--bg-soft, opaque, so a row's fill never changes them), no
    ring. A transparent outline is what a Contrast theme draws round a face
    whose fill it drops, so initials keep their circle there. */
-.ig-avatar { flex: none; display: block; box-sizing: border-box; border-radius: 50%; object-fit: cover; background: var(--ctl-fill); outline: 1px solid transparent; outline-offset: -1px; }
+.ig-avatar { flex: none; display: block; box-sizing: border-box; border-radius: var(--r-pill); object-fit: cover; background: var(--ctl-fill); outline: 1px solid transparent; outline-offset: -1px; }
 .ig-avatar-initials {
   display: inline-flex;
   align-items: center;
@@ -629,7 +629,7 @@ button.btn.ig-manage.primary:hover { border-color: var(--text); }
 .ig-detail-facts { padding-block: 16px; border-block: 1px solid var(--line); line-height: 1.5; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 24px; margin: 0; }
 .ig-detail-facts > div { min-width: 0; display: flex; flex-direction: column; gap: 4px; }
 .ig-detail-facts dt { color: var(--text-secondary); font-size: calc(12px + var(--ui-text-increase, 0px)); }
-.ig-detail-facts dd { margin: 0; min-width: 0; color: var(--text); font-size: calc(14px + var(--ui-text-increase, 0px)); overflow-wrap: anywhere; }
+.ig-detail-facts dd { margin: 0; min-width: 0; color: var(--text); font-size: calc(13px + var(--ui-text-increase, 0px)); overflow-wrap: anywhere; }
 .ig-manage-actions { display: flex; flex-wrap: wrap; gap: 8px; }
 .ig-manage-navigation { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px 12px; }
 .ig-disconnect-section { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; padding-top: 16px; border-top: 1px solid var(--line); }

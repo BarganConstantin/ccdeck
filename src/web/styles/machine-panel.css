@@ -139,7 +139,7 @@
 /* The one condition worth saying at the top of the body, and nothing when there
    is none. A sentence in --text — no dot, no pill, no badge, and no amber: the
    words are the state. It stays in view under the head while the body scrolls
-   (a machine held back should not be a fact you scroll up to find): sticky at
+   (memory nearly out should not be a fact you scroll up to find): sticky at
    the head's own height, on the panel's ground, under the head's z-index. The
    6px of padding is given back by the equal negative margin, so it sits exactly
    where a plain line would and covers the gap under it as it passes. */
@@ -201,7 +201,7 @@
 
 /* THE PER-CORE COLUMNS, the way main draws them: one column per logical core,
    28 high and 2 apart, an accent fill rising from the bottom of a --line
-   track, 2px corners. The total is the figure beside the heading, so nothing
+   track, the control's corners. The total is the figure beside the heading, so nothing
    here is a meter of the whole machine and nothing takes a level: a build at
    90% CPU is doing its job (see MachinePanel.tsx).
 
@@ -235,7 +235,7 @@
   display: block;
   height: 28px;
   --core-floor: calc(2 / 28);
-  border-radius: 2px;
+  border-radius: var(--r-ctl);
   background: var(--line);
   overflow: hidden;
 }
@@ -253,7 +253,7 @@
   display: block;
   width: 100%;
   height: 100%;
-  border-radius: 2px;
+  border-radius: var(--r-ctl);
   background: var(--accent);
   transform-origin: bottom;
   transform: scaleY(clamp(var(--core-floor), var(--load, 0), 1));
@@ -428,7 +428,7 @@
 
 /* A METER ROW (V4's Figma): the label 400 12/16 --text-secondary, the reading
    in mono 12/16 --text at the right, and the meter under them, 3 apart. The
-   meter is a bar 8 high with the cores' 2px corners, so memory reads at a
+   meter is a bar 8 high with the cores' control corners, so memory reads at a
    glance the way the cores do; the fill is the cores' --accent below 90 and
    --err from 90, never amber (meterLevel). */
 .sd-row-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin-bottom: 3px; }
@@ -438,7 +438,7 @@
   position: relative;
   display: block;
   height: 8px;
-  border-radius: 2px;
+  border-radius: var(--r-ctl);
   background: var(--ctl-fill);
   overflow: hidden;
 }
@@ -446,7 +446,7 @@
   display: block;
   width: 100%;
   height: 100%;
-  border-radius: 2px;
+  border-radius: var(--r-ctl);
   background: var(--accent);
   transform-origin: left center;
   transition: transform var(--dur-slow) var(--ease), background var(--dur-base) var(--ease);
@@ -472,12 +472,12 @@
 .sd-plain-note { flex: 0 0 100%; color: var(--muted); }
 
 /* THE LOAD AVERAGE (V4's Figma): three cells 24 apart, the value in mono 600
-   18/24 --text over its caption 400 11/14 --muted. */
+   16/24 --text over its caption 400 11/14 --muted. */
 .sd-figs { display: flex; gap: 24px; }
 .sd-fig { display: flex; flex-direction: column; font-variant-numeric: tabular-nums; }
 /* 5ch of the mono face holds 99.99, so a figure gaining a digit does not slide
    the ones after it. */
-.sd-fig b { min-width: 5ch; font-family: var(--font-mono); font-size: calc(18px + var(--ui-text-increase, 0px)); line-height: 24px; font-weight: 600; color: var(--text); }
+.sd-fig b { min-width: 5ch; font-family: var(--font-mono); font-size: calc(16px + var(--ui-text-increase, 0px)); line-height: 24px; font-weight: 600; color: var(--text); }
 .sd-fig-cap { color: var(--muted); font-size: calc(11px + var(--ui-text-increase, 0px)); line-height: 14px; white-space: nowrap; }
 
 /* The sentences — "reading this machine…", why a reading is missing: 12/16. */
@@ -577,15 +577,15 @@
   align-items: center;
   gap: 3px;
   width: 100%;
-  /* SC 2.5.8. The ink is a 10px word and the target is not the ink; the short
+  /* SC 2.5.8. The ink is an 11px word and the target is not the ink; the short
      side is the one that needed arguing, since the columns are 40px wide. */
   min-height: 24px;
   padding: 0;
   border: 0;
-  border-radius: 4px;
+  border-radius: var(--r-ctl);
   background: none;
   font: inherit;
-  font-size: calc(10px + max(-1px, var(--ui-text-increase, 0px)));
+  font-size: calc(11px + max(-1px, var(--ui-text-increase, 0px)));
   font-weight: 500;
   line-height: 1;
   color: var(--muted);

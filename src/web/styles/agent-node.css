@@ -152,7 +152,7 @@
   visibility: hidden;
 }
 /* The card's own chrome is drawn in layout units, so at 0.3 its 1px border is
-   a third of a pixel and its 10px radius is three. The face draws the chrome
+   a third of a pixel and its 8px radius under three. The face draws the chrome
    instead, in screen pixels, and the card underneath lets go of its own. Its
    ring is MOVED rather than removed: the selection's and the keyboard's ring
    are drawn on the face below at 2px on screen, so the card's layout-unit
@@ -197,7 +197,7 @@
   padding: 5px 8px 5px 10px;
   background: var(--node-grad);
   border: 1px solid var(--lod-alarm, var(--lod-ready, var(--lod-edge, var(--line))));
-  border-radius: 6px;
+  border-radius: var(--r-panel);
   color: var(--text);
   font-size: calc(11px + var(--ui-text-increase, 0px));
   line-height: calc(14px + var(--ui-text-increase, 0px));
@@ -442,7 +442,7 @@
   padding: 0;
   cursor: pointer;
   line-height: 0;
-  border-radius: 50%;
+  border-radius: var(--r-pill);
   transition: transform var(--dur-fast) var(--ease);
 }
 @media (hover: hover) and (pointer: fine) {
@@ -522,8 +522,12 @@
   gap: 16px;
   min-height: 18px;
 }
-.cost-tip-label { color: var(--muted); white-space: nowrap; }
-.cost-tip-value { margin-left: auto; color: var(--text); text-align: right; font-variant-numeric: tabular-nums; }
+/* The tip is 320 wide, and a label spelled out in full ("citire din cache",
+   "Cache geschrieben 5m") beside a long multiplication does not fit it: the
+   label wraps between its words and the sum stays one line, rather than the
+   sum breaking at its × or =. */
+.cost-tip-label { min-width: 0; color: var(--muted); overflow-wrap: anywhere; }
+.cost-tip-value { flex: none; margin-left: auto; color: var(--text); text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
 .cost-tip-rule { margin: 0; border: 0; border-top: 1px solid var(--line-soft); height: 0; }
 /* The no-rate variant: the model line, then the sentence in the sans stack. */
 .cost-tip-norate {

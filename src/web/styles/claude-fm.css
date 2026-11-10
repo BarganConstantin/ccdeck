@@ -18,8 +18,9 @@
   --minimap-w: 142px;    /* its 140 drawing, the same 1px edge each side */
   position: absolute;
   /* The minimap's right edge lines up with the control bar's under it, 12px
-     in (react-flow.css), so the ledge's does too. */
-  right: var(--board-controls-edge);
+     in (react-flow.css), so the ledge's does too; and it steps in past an open
+     panel with the minimap (--minimap-in, panel-place.ts fitMinimap). */
+  right: calc(var(--board-controls-edge) + var(--minimap-in, 0px));
   /* THE SCENE SITS ON THE CANVAS FLOOR, NOT ON THE LEDGE, and the ledge is a
      height within it. It used to be pinned to the minimap's top border, which
      made that border the only place in the world — there was no way to express
@@ -71,7 +72,9 @@
    exactly as valid as they were, and only the amount of floor changes. */
 .fm[data-place="floor"] {
   /* The same gutter as the right, which floorReach (use-fm-scene.ts) reads
-     once and assumes on both sides. */
+     once and assumes on both sides. With the minimap stepped in past a panel
+     the right one is wider, so the walk stops that much short of the left
+     edge: shorter, never past it. */
   left: var(--board-controls-edge);
   width: auto;
 }

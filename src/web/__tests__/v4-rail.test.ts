@@ -102,7 +102,8 @@ describe("Rail / Header", () => {
   it("ends in quiet 24x24 icon buttons with radius 6: the Plus and the phone's close (no Group)", () => {
     expect(decl(".session-list .sl-icon-btn", "width")).toBe("24px");
     expect(decl(".session-list .sl-icon-btn", "height")).toBe("24px");
-    expect(decl(".session-list .sl-icon-btn", "border-radius")).toBe("6px");
+    // CHANGED ON PURPOSE (owner 2026-11-10 critique: type scale 11/12/13/16/22, radii 4/8/pill): an icon button is a control, at 4.
+    expect(decl(".session-list .sl-icon-btn", "border-radius")).toBe("var(--r-ctl)");
     expect(decl(".session-list .sl-icon-btn", "background")).toBe("transparent");
     const list = code("../components/SessionList.tsx");
     expect((list.match(/<button type="button" className="sl-icon-btn sl-close"/g) ?? []).length).toBe(1);
@@ -156,7 +157,8 @@ describe("Rail / Row", () => {
   it("is --row-rail tall at least, 4 and 8 in, --r-panel round, 8 between, nothing at rest", () => {
     expect(decl(".session-list .sl-row", "min-height")).toBe("var(--row-rail)");
     expect(decl(".session-list .sl-row", "padding")).toBe("4px 8px");
-    expect(decl(".session-list .sl-row", "border-radius")).toBe("var(--r-panel)");
+    // CHANGED ON PURPOSE (owner 2026-11-10 critique: type scale 11/12/13/16/22, radii 4/8/pill): a list row is a control, at 4.
+    expect(decl(".session-list .sl-row", "border-radius")).toBe("var(--r-ctl)");
     expect(decl(".session-list .sl-row", "gap")).toBe("8px");
     expect(decl(".session-list .sl-row", "align-items")).toBe("flex-start");
     expect(decl(".session-list .sl-row", "background")).toBe("transparent");
@@ -240,7 +242,8 @@ describe("Rail / Row", () => {
     expect(decl(".session-list .sl-row:focus-visible", "outline-offset")).toBeUndefined();
     expect(decl(".session-list .sl-row:focus-visible", "border-radius")).toBeUndefined();
     expect(decl(".session-list .sl-row:focus-visible", "outline")).toBeUndefined();
-    expect(decl(".session-list .sl-row", "border-radius")).toBe("var(--r-panel)");
+    // CHANGED ON PURPOSE (owner 2026-11-10 critique: type scale 11/12/13/16/22, radii 4/8/pill): a list row is a control, at 4.
+    expect(decl(".session-list .sl-row", "border-radius")).toBe("var(--r-ctl)");
   });
 });
 
@@ -257,7 +260,8 @@ describe("Rail / Nobody waiting and the Order held line", () => {
   // list. It is now an overlay on the header's box and takes no space in the list.
   it("sits on --bg-soft, radius 6, 6 and 8 in, 8 between, over the header's box and out of the list's flow", () => {
     expect(decl(".session-list .sl-held", "background")).toBe("var(--bg-soft)");
-    expect(decl(".session-list .sl-held", "border-radius")).toBe("6px");
+    // CHANGED ON PURPOSE (owner 2026-11-10 critique: type scale 11/12/13/16/22, radii 4/8/pill): a note strip is a control-sized chip, at 4.
+    expect(decl(".session-list .sl-held", "border-radius")).toBe("var(--r-ctl)");
     expect(decl(".session-list .sl-held", "padding")).toBe("6px 8px");
     expect(decl(".session-list .sl-held", "gap")).toBe("8px");
     expect(decl(".session-list .sl-held", "color")).toBe("var(--muted)");

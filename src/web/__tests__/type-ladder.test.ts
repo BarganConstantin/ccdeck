@@ -127,7 +127,16 @@ const FONT_SIZES: FontSize[] = RULES.flatMap(r => {
  *  step of this ladder (v4-tokens.test.ts). */
 // CHANGED ON PURPOSE (V4's Figma): the recap's 34px spend left with the box it sat in
 // (the spend is the first of the recap's bare figures, at 18), so 34 is no longer a step.
-const LADDER = [9, 10, 11, 12, 13, 14, 16, 18, 22, 26];
+// CHANGED ON PURPOSE (owner 2026-11-10 critique: type scale 11/12/13/16/22, radii 4/8/pill): the
+// ladder is the five-step scale, 11 the floor; type-scale.test.ts holds it over every sheet.
+const LADDER = [11, 12, 13, 16, 22];
+
+/** Icon glyphs set as text characters (×, ›, + and −): a glyph's size is an
+ *  icon's, not a step of the type, so the ladder does not read them
+ *  (type-scale.test.ts names the same four, with their reasons). The selector
+ *  is as FONT_SIZES splits it, at its commas. */
+const GLYPHS = new Set([":where(.modal-head", ".modal-actions) .glyph-btn", ".fd-jump-arrow", ".ig-close", ".radio-map-tools .radio-map-button"]);
+const TEXT_SIZES = FONT_SIZES.filter(f => !GLYPHS.has(f.selector));
 
 /** The resolution floor the report measured and this issue acts on: a step
  *  smaller than this is not a rank, it is two spellings of one size. */
@@ -144,7 +153,7 @@ describe("the type ladder is a closed set (#379 §3)", () => {
     expect(named.map(m => Number(m[2]) - 13)).toEqual([-2, -1, 0, 2, 4]);
   });
   it("sets every font-size in the sheet to a step on the ladder", () => {
-    const off = FONT_SIZES.filter(f => !LADDER.includes(f.px));
+    const off = TEXT_SIZES.filter(f => !LADDER.includes(f.px));
     expect(off.map(f => `${f.selector} → ${f.value}`)).toEqual([]);
   });
 
@@ -155,10 +164,11 @@ describe("the type ladder is a closed set (#379 §3)", () => {
     for (const f of FONT_SIZES) expect(f.value, f.selector).toMatch(/^\d+px$/);
   });
 
-  it("uses no more than eleven distinct sizes, down from the eighteen counted", () => {
-    const distinct = [...new Set(FONT_SIZES.map(f => f.px))].sort((a, b) => a - b);
+  // CHANGED ON PURPOSE (owner 2026-11-10 critique: type scale 11/12/13/16/22, radii 4/8/pill): five, down from eleven.
+  it("uses no more than five distinct sizes, down from the eighteen counted", () => {
+    const distinct = [...new Set(TEXT_SIZES.map(f => f.px))].sort((a, b) => a - b);
     expect(distinct).toEqual(LADDER);
-    expect(distinct.length).toBeLessThanOrEqual(11);
+    expect(distinct.length).toBeLessThanOrEqual(5);
   });
 
   it("leaves no two steps closer together than a reader can resolve", () => {
@@ -194,8 +204,9 @@ describe("the type ladder is a closed set (#379 §3)", () => {
     expect(decl(".session-list .sl-label", "font-size", true)).toBe("13px"); // was 12.5, then 12; V4's rail row names at 13/20
     expect(decl(".uh-stat-label", "font-size")).toBe("12px");       // was 9.5, then 9; V4's Figma: the history stats' labels at 12/16
     expect(decl(".uh-bar-label", "font-size")).toBe("11px");        // was 8, then 9; V4's Figma: a day's name under its bar at 11/14
-    expect(decl(".modal-tool-name", "font-size")).toBe("14px");     // the context title's was 15; every dialog title's since 2026-10-23
-    expect(decl(".detail-hero .hero-title", "font-size")).toBe("14px");   // was 17, then 18; V4's Figma: 14/20 600
+    // CHANGED ON PURPOSE (owner 2026-11-10 critique: type scale 11/12/13/16/22, radii 4/8/pill): a title is 16.
+    expect(decl(".modal-tool-name", "font-size")).toBe("16px");     // the context title's was 15, then 14; every dialog title's since 2026-10-23
+    expect(decl(".detail-hero .hero-title", "font-size")).toBe("16px");   // was 17, then 18, then V4's 14
     expect(FONT_SIZES.length).toBeGreaterThan(150);
   });
 
@@ -211,13 +222,15 @@ describe("the type ladder is a closed set (#379 §3)", () => {
     expect(decl(".agent-node .task-line", "font-size")).toBe("12px");
     expect(11 / 10).toBeGreaterThan(RESOLVABLE);
     expect(12 / 11).toBeGreaterThan(RESOLVABLE);
-    // And the three big money numbers stay three sizes apart, on three surfaces
-    // of very different size.
+    // And the big money numbers: the Usage panel's hero is the one at 22, the
+    // Inspector's and the recap's spends are figures at 16.
     // CHANGED ON PURPOSE (V4's Figma): the Inspector's spend is 18 and the Usage panel's hero 22 (were 22 and 26).
-    expect(decl(".detail-hero .hero-cost-value", "font-size")).toBe("18px");
+    // CHANGED ON PURPOSE (owner 2026-11-10 critique: type scale 11/12/13/16/22, radii 4/8/pill): 18 went to 16.
+    expect(decl(".detail-hero .hero-cost-value", "font-size")).toBe("16px");
     expect(decl(".up-total-value", "font-size")).toBe("22px");
     // CHANGED ON PURPOSE (V4's Figma): the recap's spend is the first bare figure, 18/24 mono.
-    expect(decl(".session-summary .ss-stat-value", "font-size")).toBe("18px");
+    // CHANGED ON PURPOSE (owner 2026-11-10 critique: type scale 11/12/13/16/22, radii 4/8/pill): 18 went to 16.
+    expect(decl(".session-summary .ss-stat-value", "font-size")).toBe("16px");
   });
 });
 

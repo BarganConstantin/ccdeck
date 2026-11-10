@@ -23,7 +23,8 @@ const decl = (selector: string, prop: string): string | undefined => {
 
 describe("V4's Quiet button", () => {
   it("draws the corner at the ladder's 8, not the icon button's 6", () => {
-    expect(decl("button.btn", "border-radius")).toBe("var(--r-panel)");
+    // CHANGED ON PURPOSE (owner 2026-11-10 critique: type scale 11/12/13/16/22, radii 4/8/pill): a button is a control, at 4.
+    expect(decl("button.btn", "border-radius")).toBe("var(--r-ctl)");
   });
   it("sets a 13px label (plus the text increase) on the 20px body line at weight 500", () => {
     expect(decl("button.btn", "font-size")).toBe("calc(13px + var(--ui-text-increase, 0px))");

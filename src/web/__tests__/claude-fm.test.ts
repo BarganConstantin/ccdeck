@@ -528,7 +528,8 @@ describe("the character", () => {
     expect(decl(".fm", "--fm-y")).toBe("calc(-1 * (var(--minimap-h) + var(--board-controls-room) - var(--flow-gutter)))");
     // Its right edge is the minimap's, which V4 lines up with the control bar
     // under it, 12px in (v4-board-controls.test.ts).
-    expect(decl(".fm", "right")).toBe("var(--board-controls-edge)");
+    // CHANGED ON PURPOSE (owner 2026-11-10 critique): it steps in with the minimap past an open panel.
+    expect(decl(".fm", "right")).toBe("calc(var(--board-controls-edge) + var(--minimap-in, 0px))");
     expect(decl(".fm", "--flow-gutter")).toBe("15px");
     // 54px is 18 columns at exactly 3px. A width that does not divide by the
     // grid puts every cell boundary on a fraction of a pixel, and a pixel

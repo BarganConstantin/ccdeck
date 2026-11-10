@@ -67,31 +67,24 @@
   --topbar-h: 44px;
   --edge-w: 40px;
   --dock-h: 56px;
-  /* THE RADIUS HIERARCHY: three steps, one meaning each. A tag or a chip inside
-     a control group, a control, a surface. The chrome used to be 10px panels,
-     a 12px dialog, an 18px bar and 999px pills on most small things, which is
-     most of what made it read as a generic dashboard. Pills stay where the
-     shape is the meaning: an atomic state (active, expired), a count, and the
-     switch's own track.
-     AND A SECOND TIER, FOR THE CANVAS (#1288). A card and a recap note are
-     10px and a session's cluster 16px, rounder than any panel on purpose: a
-     canvas object reads as a thing you can pick up, and chrome reads as the
-     frame around it. That was true and unwritten, so the first reader of the
-     three steps above would have brought the node down to 8px. The tier is
-     named now, and nothing in the chrome may read it.
-     V4'S SIX RADII (2026-10-31) are these values, one job each in its Figma
-     foundations: 4 keys (--r-tag), 6 inputs, segments and number keys
-     (--r-ctl), 8 rows, options and controls (--r-panel), 10 cards, the
-     decision and the usage card (--r-node), 12 overlays, dialogs and your
-     message (--r-overlay, below), and the pill for a count. Where V4 gives a
-     job a different step than today, a button at 8 or the usage card at 10,
-     that component's PR moves it. */
+  /* THREE RADII (owner, 2026-11-10): a control at 4, a panel at 8, and the
+     pill. V4 had grown six (4 keys, 6 inputs, 8 rows, 10 cards, 12 dialogs,
+     16 clusters) and the sheet a dozen literals beside them, and side by side
+     they read as noise, not rank. A control, chip, tag, input, small button
+     or list row is --r-ctl; a panel, card, dialog, popover, sheet or tooltip
+     is --r-panel; whatever is fully round (a pill, a dot, an avatar, a
+     capsule bar) is --r-pill, below. 0 is the fourth value, for an edge that
+     meets another. The older names stay as aliases, so no rule moved for the
+     change: --r-tag is a control, and --r-node (a card), --r-cluster (a
+     session's cluster) and --r-overlay (a dialog) are panels. The canvas's
+     rounder tier (#1288) is retired with them: a card is a panel.
+     radius-scale.test.ts holds every border-radius to this set. */
   --focus-w: 1.5px; /* the one focus stroke, inside the box (V4's Figma) */
-  --r-tag: 4px;
-  --r-ctl: 6px;
+  --r-ctl: 4px;
   --r-panel: 8px;
-  --r-node: 10px;
-  --r-cluster: 16px;
+  --r-tag: var(--r-ctl);
+  --r-node: var(--r-panel);
+  --r-cluster: var(--r-panel);
   /* ONE DIALOG FRAME (2026-10-23). Every dialog is one of three widths, and
      its header is `.modal-head` (dialogs.css): a user who said the deck has a
      lot in it but is not organized was opening nine widths from 440 to 1296px
@@ -133,9 +126,9 @@
   --ctl-h-lg: 36px;
   --ctl-h-sm: 26px;
   --dialog-foot-h: 56px;
-  /* The overlay step of the radius hierarchy above — a dialog, a menu, a
-     popover — and the pill, which keeps 999px for the shapes that are pills. */
-  --r-overlay: 12px;
+  /* A dialog, a menu, a popover: a panel (the three radii above). And the
+     pill, 999px, for every shape that is fully round. */
+  --r-overlay: var(--r-panel);
   --r-pill: 999px;
 }
 
@@ -192,18 +185,28 @@
   --dim-stale: 0.45;
 }
 
-/* The space and radius ladders (#887), closed the way the type ladder below is
-   and held by spacing-ladder-887.test.ts:
+/* The space ladder (#887), closed the way the type ladder below is and held by
+   spacing-ladder-887.test.ts:
      space   0 · 1 · 2 · 3 · 4 · 5 · 6 · 8 · 10 · 12 · 14 · 16 · 18 · 20 · 24 · 32 · 40
-     radius  0 · 1 · 2 · 3 · 4 · 6 · 8 · 10 · 12 · 16 · 18, 999px for a pill, 50% for a circle
-   Every gap and padding sits on the first and every border-radius on the
-   second. Below 6px every pixel is a step, because in 10 and 11px type a
-   one-pixel pad or a two-pixel hairline gap is an optical choice; from 6px up
-   it is even pixels. A var() or calc() is its token's business, not the
-   ladder's. */
+   Every gap and padding sits on it. Below 6px every pixel is a step, because
+   in 11px type a one-pixel pad or a two-pixel hairline gap is an optical
+   choice; from 6px up it is even pixels. A var() or calc() is its token's
+   business, not the ladder's. Radius had a ladder of eleven steps beside it;
+   it is the three tokens in the geometry block now (2026-11-10). */
 
-/* The type ladder: 9 · 10 · 11 · 12 · 13 · 14 · 16 · 18 · 22 · 26 · 34.
-   Eleven steps, and no font-size in this file may be anything else.
+/* THE TYPE SCALE (owner, 2026-11-10): 11 · 12 · 13 · 16 · 22, and 11 is the
+   floor. Meta and keys at 11, secondary text at 12, body at 13, a title (a
+   dialog's, a panel's, a section's) at 16, and a page's headline or its one
+   big figure at 22. It replaced the eleven-step ladder below, whose 8 to 10px
+   steps were too small to read and whose 14, 18 and 26 sat close enough to
+   their neighbours to read as drift: 9 and 10 went to 11, 14 to 13 for a body
+   or a label and to 16 for a title, 17 and 18 to 16 and 26 to 22.
+   type-scale.test.ts holds every font-size to it, and names the few kept
+   off it (icon glyphs, which are not text, and the terminal's own face).
+   What follows is the ladder's history, kept for its argument about tokens.
+
+   The old type ladder: 9 · 10 · 11 · 12 · 13 · 14 · 16 · 18 · 22 · 26 · 34.
+   Eleven steps, and no font-size in this file could be anything else.
 
    It is a comment and a test rather than eleven --fs-* tokens, and that is the
    considered choice, not the lazy one. A token earns its keep when two rules
@@ -243,8 +246,9 @@
    about drift, and a step you can resolve is not drift. Express secondary rank
    with --muted at one size before reaching for a twelfth. */
 
-/* V4'S TYPE ROLES (2026-10-31), V4's Figma text styles: six sizes, each a step
-   of the ladder above, and the line height that goes with each. The argument
+/* V4'S TYPE ROLES (2026-10-31), V4's Figma text styles: each a step of the
+   scale above, and the line height that goes with each. Title is 16 and Card
+   title is a title (both were 18 and 14 before the scale). The argument
    above still holds for every rule that keeps its literal. These are the case
    it names as the exception, sizes that MUST move together: every Body in the
    V4 components is one decision, and so is every Title. Raw pixels, because a
@@ -258,9 +262,9 @@
 :root {
   --fs-hero: 22px;
   --lh-hero: 28px;
-  --fs-title: 18px;
+  --fs-title: 16px;
   --lh-title: 24px;
-  --fs-card-title: 14px;
+  --fs-card-title: var(--fs-title);
   --lh-card-title: 20px;
   --fs-body: 13px;
   --lh-body: 20px;
@@ -465,7 +469,7 @@ optgroup {
   background-color: transparent;
   border: 2px solid transparent;
   background-clip: padding-box;
-  border-radius: 999px;
+  border-radius: var(--r-pill);
   transition: background-color var(--dur-base) var(--ease);
 }
 /* `:focus-within` beside `:hover` because a scroller can be driven from the

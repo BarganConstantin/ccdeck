@@ -101,7 +101,8 @@ describe("one panel put below the other", () => {
   it("is fitted while one is dragged, and when either arrives, moves or leaves", () => {
     const hook = source("../panel-place.ts");
     expect(hook).toMatch(/const draw = [\s\S]*?fitStack\(\);\s*\};/);
-    expect(hook).toContain("useLayoutEffect(() => { fitStack(); }, [placed?.edge, placed?.x, placed?.y]);");
+    // CHANGED ON PURPOSE (owner 2026-11-10 critique): the minimap steps clear of the panels at the same times.
+    expect(hook).toContain("useLayoutEffect(() => { fitStack(); fitMinimap(); }, [placed?.edge, placed?.x, placed?.y]);");
     expect(hook).toMatch(/return \(\) => \{[\s\S]*?scheduleFit\(\);\s*\};/);
   });
 });

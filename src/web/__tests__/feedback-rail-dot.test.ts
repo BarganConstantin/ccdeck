@@ -108,7 +108,8 @@ describe("the dot itself", () => {
     const dot = rule(".rail-dot");
     expect(dot).toMatch(/width: 6px;/);
     expect(dot).toMatch(/height: 6px;/);
-    expect(dot).toMatch(/border-radius: 50%;/);
+    // CHANGED ON PURPOSE (owner 2026-11-10 critique: type scale 11/12/13/16/22, radii 4/8/pill): a dot is the pill token.
+    expect(dot).toMatch(/border-radius: var\(--r-pill\);/);
     expect(dot).toMatch(/background: var\(--accent\);/);
     expect(dot).not.toMatch(/--warn|--muted/);
     expect(edges).not.toMatch(/--warn/);

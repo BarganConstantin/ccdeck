@@ -196,6 +196,17 @@ export function stateMarkKind(state: AgentNodeData["state"]): StateMarkKind {
   return state === "active" ? "live" : state === "done" ? "done" : "err";
 }
 
+/**
+ * The mark a face draws when its line can say "1 failed" beside it. The worst
+ * state wins (owner's critique, 2026-11-10): done's green tick next to a failure
+ * count said success and failure at once, so a finished card whose calls failed
+ * draws the cross. A live card keeps its ring: it is still at work, and the
+ * count says what has gone wrong so far.
+ */
+export function markBesideFailures(mark: StateMarkKind, failed: number): StateMarkKind {
+  return mark === "done" && failed > 0 ? "err" : mark;
+}
+
 /** What the detail card says about its state, beside the mark (V4's Agent /
  *  Card): a sentence-case word and the glyph. One function so the card's head
  *  and the faces at a distance agree on which state a card is in: `mark` is the

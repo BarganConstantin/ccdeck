@@ -64,9 +64,11 @@ describe("the outcome rows", () => {
 
   // CHANGED ON PURPOSE (V4's Figma): the frame draws the outcome box 9 round,
   // and no token is 9, so the corner is V4's literal rather than --r-panel (8).
-  it("draws the box 9 round", () => {
-    expect(rule(dc, ".dc-out")).toContain("border-radius: 9px;");
-    expect(rule(dc, ".dc-out")).not.toContain("var(--r-panel)");
+  // CHANGED ON PURPOSE (owner 2026-11-10 critique: type scale 11/12/13/16/22, radii 4/8/pill): three
+  // radii, so the box is a panel at 8 rather than V4's 9.
+  it("draws the box at the panel's radius", () => {
+    expect(rule(dc, ".dc-out")).toContain("border-radius: var(--r-panel);");
+    expect(rule(dc, ".dc-out")).not.toContain("9px");
   });
 });
 

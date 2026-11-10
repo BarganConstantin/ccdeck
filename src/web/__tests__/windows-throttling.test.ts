@@ -37,8 +37,9 @@ describe("Windows CPU performance limits without thermal sensors", () => {
   it("does not describe a power-policy limit as overheating or claim to measure turbo speed", () => {
     const throttle = { speedLimit: 62, source: "windows-performance" as const };
     expect(throttleRow(throttle)).toMatchObject({ pct: 38, value: "38%", note: "Windows CPU limit: 62% of nominal performance" });
-    expect(attentionFlag({ thermal: { celsius: [], throttle }, memory: null, network: null }))
-      .toBe("Windows CPU limit: 62% of nominal performance");
+    // CHANGED ON PURPOSE (owner 2026-11-10 critique): the limit is said once, on the Thermal row, not flagged at the top too.
+    const sys = { thermal: { celsius: [], throttle }, memory: null, network: null };
+    expect(attentionFlag(sys)).toBeNull();
     expect(throttleRow({ ...throttle, speedLimit: 100 }).note).toBe("Windows reports no CPU cap below nominal performance");
     expect(throttleRow({ ...throttle, speedLimit: 100 }, { peak: 38, lastMs: 0 }, 60_000).note)
       .toContain("Windows CPU limit was 62%");

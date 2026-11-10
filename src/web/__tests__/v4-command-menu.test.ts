@@ -72,7 +72,8 @@ describe("the field", () => {
   });
 
   it("types 14 on a 20 line, with the muted placeholder V4 words", () => {
-    expect(decl(".qo-input", "font-size")).toBe("calc(14px + var(--ui-text-increase, 0px))");
+    // CHANGED ON PURPOSE (owner 2026-11-10 critique: type scale 11/12/13/16/22, radii 4/8/pill): the field types at the body's 13.
+    expect(decl(".qo-input", "font-size")).toBe("calc(13px + var(--ui-text-increase, 0px))");
     expect(decl(".qo-input", "line-height")).toBe("20px");
     expect(decl(".qo-input::placeholder", "color")).toBe("var(--muted)");
     expect(en).toContain('"board.quick.placeholder": "Open a session or run a command"');

@@ -174,7 +174,7 @@
   /* The body's padding is the bar's inset now, so it carries no margin. */
   margin: 0;
   width: auto;
-  border-radius: 3px;
+  border-radius: var(--r-ctl);
 }
 
 /* The tokens row (V4's Figma), a gap of 16: the value in mono 400 12/16
@@ -527,7 +527,7 @@
   left: 0;
   width: 2px;
   margin-left: -1px;
-  border-radius: 1px;
+  border-radius: var(--r-ctl);
   box-shadow: 0 0 0 1px var(--panel);
   pointer-events: auto;
 }
@@ -563,7 +563,7 @@
   width: 2px;
   height: 9px;
   margin-right: 5px;
-  border-radius: 1px;
+  border-radius: var(--r-ctl);
   vertical-align: -1px;
 }
 /* The note opens the one number it is measured against (#856): "stay near N%
@@ -669,7 +669,7 @@ button.qb-pace::after {
   padding: 0 8px;
 }
 .up-bone { display: block; flex: none; background: var(--ctl-fill); border-radius: var(--r-tag); }
-.up-bone-dot  { width: 14px; height: 14px; border-radius: 50%; }
+.up-bone-dot  { width: 14px; height: 14px; border-radius: var(--r-pill); }
 .up-bone-name { width: 120px; height: 8px; }
 .up-bone-cost { width: 48px; height: 8px; margin-left: auto; }
 /* A chip that paints --line under itself has to pay for it. This one inherits
@@ -686,7 +686,7 @@ button.qb-pace::after {
   background: var(--line);
   color: var(--text);
   padding: 0 3px;
-  border-radius: 3px;
+  border-radius: var(--r-ctl);
   font-size: calc(11px + var(--ui-text-increase, 0px));
 }
 /* A provider's incident, under its quota heading (#1311): a link to the status

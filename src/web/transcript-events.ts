@@ -195,8 +195,9 @@ export function applyContextObserved(state: GraphState, p: HookPayload, sessionI
   }
 }
 
-/** SessionNamed carries the name Claude Code gave the session, off the same
- *  transcript cursor the three *Observed scans ride. Session root only — the
+/** SessionNamed carries the session's name (the one the user gave it, else
+ *  the one Claude Code did), off the same transcript cursor the three
+ *  *Observed scans ride. Session root only — the
  *  records name a session and say nothing about any subagent inside it.
  *
  *  ADDITIVE, like ContextObserved and for the same reason: the server sends

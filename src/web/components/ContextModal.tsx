@@ -331,7 +331,7 @@ export function ContextDonut({ currentContextTokens, modelId, contextWindow, siz
       onClick={e => { e.stopPropagation(); onClick?.(); }}
       title={t("insights.context.donutTitle", { current: currentContextTokens.toLocaleString(currentLanguage()), window: window.toLocaleString(currentLanguage()), pct: fmt1(pct * 100) })}
       /* THE NUMBER, not only the verb. `aria-label` on a button overrides its
-         contents, so the <text> percentage inside the svg was never read, and
+         contents, so the percentage the svg used to print was never read, and
          `title` is not consulted once a label is present — leaving a screen
          reader with "Show context breakdown, button" on every root card and no
          way to tell a session at 12% from one at 94%, including the amber and
@@ -356,9 +356,10 @@ export function ContextDonut({ currentContextTokens, modelId, contextWindow, siz
           // under that preference, and the arc simply is its new length.
           style={{ transition: "var(--ctx-arc-transition)" }}
         />
-        <text x={c} y={c + 3} textAnchor="middle" fontSize="8" fill="var(--text)" fontWeight="600">
-          {Math.round(pct * 100)}
-        </text>
+        {/* NO FIGURE INSIDE (owner, 2026-11-10). It was 8px, under the deck's
+            11px floor, and 11px does not fit: the ring's clear middle is 17px
+            across and "100" is wider than that. The arc and its colour say how
+            full the window is; the title and the label above say the number. */}
       </svg>
     </button>
   );

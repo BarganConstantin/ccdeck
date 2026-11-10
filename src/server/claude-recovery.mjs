@@ -8,7 +8,7 @@ import { run } from "./exec.mjs";
 import { heldPrefs, prefsRead } from "./prefs-state.mjs";
 import { pushEvent } from "./event-sink.mjs";
 import { outputWatch, touchSession } from "./session-tracking.mjs";
-import { maybeResolveContext, maybeResolveModel, maybeResolveUsage } from "./session-enrichment.mjs";
+import { maybeResolveContext, maybeResolveModel, maybeResolveSessionName, maybeResolveUsage } from "./session-enrichment.mjs";
 
 const FILE_LIMIT = 128;
 const REGISTRY_BYTES = 64 * 1024;
@@ -76,7 +76,9 @@ export function createClaudeRecovery({ workspace = "", home = claudeConfigDir(),
   enrich = raw => {
     outputWatch.note(raw.session_id, raw.transcript_path);
     touchSession(raw.session_id);
-    maybeResolveModel(raw); maybeResolveUsage(raw); maybeResolveContext(raw);
+    // The name too: a recovered session sends no hook until its next turn, and
+    // its row would read as its folder until then.
+    maybeResolveModel(raw); maybeResolveUsage(raw); maybeResolveContext(raw); maybeResolveSessionName(raw);
   }, enabled = () => heldPrefs.current().recoverClaudeSessions !== false } = {}) {
   let stopped = false, pending = null, startupEnabled, startupFiles;
   const startupIdentities = new Map();

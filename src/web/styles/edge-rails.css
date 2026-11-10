@@ -161,7 +161,7 @@
   top: 6px;
   bottom: 6px;
   width: 2px;
-  border-radius: 1px;
+  border-radius: var(--r-ctl);
   background: var(--text);
   opacity: 0;
 }
@@ -188,10 +188,10 @@
   height: 16px;
   padding: 0 4px;
   box-sizing: border-box;
-  border-radius: 999px;
+  border-radius: var(--r-pill);
   background: var(--muted);
   color: var(--bg);
-  font-size: calc(10px + max(-1px, var(--ui-text-increase, 0px)));
+  font-size: calc(11px + max(-1px, var(--ui-text-increase, 0px)));
   font-weight: 700;
   line-height: calc(16px + var(--ui-text-increase, 0px));
   text-align: center;
@@ -206,7 +206,7 @@
   position: absolute;
   width: 6px;
   height: 6px;
-  border-radius: 50%;
+  border-radius: var(--r-pill);
   background: var(--accent);
   pointer-events: none;
 }
@@ -259,7 +259,7 @@
   height: 28px;
   gap: 8px;
   padding: 0 4px 0 8px;
-  border-radius: var(--r-panel);
+  border-radius: var(--r-ctl);
   background: var(--bg-soft);
   border: 1px solid var(--line-soft);
   color: var(--muted);
@@ -275,7 +275,7 @@
   line-height: calc(16px + var(--ui-text-increase, 0px));
 }
 .rail-btn-field .kbd { flex: none; }
-/* Feedback (V4's Figma): a 28x28 icon button, radius 6, the glyph centred at
+/* Feedback (V4's Figma): a 28x28 icon button, the control radius, the glyph centred at
    14px; its name and its hint keep the word "Feedback". */
 .rail-btn-bar.rail-btn-icon {
   box-sizing: border-box;
@@ -364,7 +364,7 @@
   .rail-btn-dock .glyph { width: 14px; height: 14px; }
   .rail-btn-dock[aria-expanded="true"] { background: transparent; }
   /* The open door's line: the stripe's open-door line, turned to lie on the
-     seam that faces the panel the door opened. 2 × 24 in --text, radius 1, over
+     seam that faces the panel the door opened. 2 × 24 in --text, round-ended, over
      the dock's top border and centred on the glyph. The word's --text against
      --muted is a difference of colour alone, and the state is held to 3:1
      (#370), so the line carries it. At once, like the desktop door. */
@@ -375,7 +375,7 @@
     left: calc(50% - 12px);
     width: 24px;
     height: 2px;
-    border-radius: 1px;
+    border-radius: var(--r-ctl);
     background: var(--text);
     pointer-events: none;
   }
@@ -403,14 +403,14 @@
     left: calc(50% + 9px);
     width: 7px;
     height: 7px;
-    border-radius: 4px;
+    border-radius: var(--r-pill);
     background: var(--err);
     pointer-events: none;
   }
   /* Feedback in the phone bar's corner (topbar.css): the phone frame's 32
-     button, radius 8, a 44 target around it, and its count 1 down and 2 out
+     button, the control radius, a 44 target around it, and its count 1 down and 2 out
      from the button's corner, as the frame draws it. */
-  .tb-corner .rail-btn-bar.rail-btn-icon { width: 32px; height: 32px; border-radius: var(--r-panel); }
+  .tb-corner .rail-btn-bar.rail-btn-icon { width: 32px; height: 32px; border-radius: var(--r-ctl); }
   .tb-corner .rail-btn-bar.rail-btn-icon::after { content: ""; position: absolute; inset: -6px; }
   .tb-corner .rail-badge { top: 1px; right: -2px; }
 }

@@ -3,6 +3,12 @@
 // so the difference between a canvas object and a panel was true and nowhere
 // written, and a reader of the three chrome tokens would have brought the node
 // down to 8px. Both tiers are named in the geometry block now.
+//
+// CHANGED ON PURPOSE (owner 2026-11-10 critique: type scale 11/12/13/16/22, radii 4/8/pill): the
+// deck keeps three radii, a control at 4, a panel at 8 and the pill, so the
+// canvas's rounder tier is retired: --r-node and --r-cluster are aliases of
+// --r-panel, as --r-tag is of --r-ctl. The canvas objects still read their own
+// names, so a tier of their own would again be one line in tokens.css.
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
@@ -13,10 +19,10 @@ const css = sheetText()
 
 /** The one bare :root block that declares the chrome's radius steps. */
 const geometry = /:root\s*\{([^}]*--r-panel[^}]*)\}/.exec(css)![1];
-const px = (name: string) => {
-  const m = new RegExp(`${name}\\s*:\\s*(\\d+)px\\s*;`).exec(geometry);
+const val = (name: string) => {
+  const m = new RegExp(`${name}\\s*:\\s*([^;]+);`).exec(geometry);
   if (!m) throw new Error(`the geometry block declares no ${name}`);
-  return +m[1];
+  return m[1].trim();
 };
 /** The border-radius of the first rule written for exactly this selector. */
 const radiusOf = (selector: string) => {
@@ -30,14 +36,11 @@ const radiusOf = (selector: string) => {
 const CANVAS = { ".agent-node": "--r-node", ".recap-note": "--r-node", ".drag-trash-zone": "--r-node", ".cluster-card": "--r-cluster" };
 
 describe("the canvas's radius tier is named beside the chrome's (#1288)", () => {
-  it("declares both tiers in the one geometry block, at the values the sheet drew", () => {
-    expect([px("--r-tag"), px("--r-ctl"), px("--r-panel")]).toEqual([4, 6, 8]);
-    expect([px("--r-node"), px("--r-cluster")]).toEqual([10, 16]);
-  });
-
-  it("keeps the canvas rounder than the chrome, which is the whole of the distinction", () => {
-    expect(px("--r-node")).toBeGreaterThan(px("--r-panel"));
-    expect(px("--r-cluster")).toBeGreaterThan(px("--r-node"));
+  // CHANGED ON PURPOSE (owner 2026-11-10 critique: type scale 11/12/13/16/22, radii 4/8/pill): the tiers are named, not rounder.
+  it("declares both tiers in the one geometry block, the canvas's as the panel's", () => {
+    expect([val("--r-ctl"), val("--r-panel")]).toEqual(["4px", "8px"]);
+    expect(val("--r-tag")).toBe("var(--r-ctl)");
+    expect([val("--r-node"), val("--r-cluster")]).toEqual(["var(--r-panel)", "var(--r-panel)"]);
   });
 
   it("draws every canvas object from its tier rather than a literal", () => {

@@ -27,7 +27,8 @@
 // That the two surfaces then WIRE these strings up is a render question and was
 // checked in a browser against the built bundle, not here.
 import { describe, it, expect } from "vitest";
-import { sessionDisplay } from "../session-display";
+import { sessionDisplay, sessionListName } from "../session-display";
+import { sourceOf } from "./client-source";
 import { clusterBounds, type ClusterNode } from "../cluster-bounds";
 import { clusterHeader, truncateName, NAME_COLUMNS, SEP } from "../cluster-header";
 import { applyEvent, initialState } from "../reducer";
@@ -312,5 +313,28 @@ describe("the SessionNamed payloads a live deck emits", () => {
   it("leaves a session with no SessionNamed event with nothing to draw", () => {
     const root = rooted("s11").agents.get("s11")!;
     expect(sessionDisplay(root.sessionName, root.sessionTitle).face).toBeUndefined();
+  });
+});
+
+// One name everywhere a session is listed by name (owner, 2026-11-10): the rail
+// row, the top bar's waiting queue and Skill activity ask one function.
+describe("the name a session is listed by (sessionListName)", () => {
+  it("is the card's face, else the label, else the folder", () => {
+    expect(sessionListName({ sessionName: "loroloop", sessionTitle: "Fix login", label: "Desktop", cwdBasename: "Desktop" })).toBe("loroloop");
+    expect(sessionListName({ sessionTitle: "Add Codex accounts", label: "constantin" })).toBe("Add Codex accounts");
+    expect(sessionListName({ sessionName: "  ", sessionTitle: null, label: "api" })).toBe("api");
+    expect(sessionListName({ label: "", cwdBasename: "web" })).toBe("web");
+    expect(sessionListName({ label: "" })).toBeUndefined();
+  });
+
+  // CHANGED ON PURPOSE (owner 2026-11-10): Skill activity named a session by its
+  // folder (card.label || card.cwdBasename); it says the rail row's name now.
+  it("is what Skill activity names a session by", () => {
+    const app = sourceOf("App.tsx");
+    const at = app.indexOf("const toolAuditSessionLabel");
+    expect(at).toBeGreaterThan(-1);
+    const body = app.slice(at, app.indexOf("}, []);", at));
+    expect(body).toContain("sessionListName(card)");
+    expect(body).not.toContain("card.label");
   });
 });

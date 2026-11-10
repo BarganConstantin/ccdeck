@@ -82,7 +82,8 @@ describe("V4's top bar", () => {
     expect(decl(".topbar .tb-end", "gap")).toBe("8px");
   });
   it("sets the brand at 14 on 20, Semibold, 6 from the mark; the mark stays 16 tall", () => {
-    expect(decl(".topbar .brand", "font-size")).toBe(INC(14));
+    // CHANGED ON PURPOSE (owner 2026-11-10 critique: type scale 11/12/13/16/22, radii 4/8/pill): the scale has no 14; the name is at 13.
+    expect(decl(".topbar .brand", "font-size")).toBe(INC(13));
     expect(decl(".topbar .brand", "line-height")).toBe("20px");
     expect(decl(".topbar .brand", "font-weight")).toBe("600");
     expect(decl(".topbar .brand", "gap")).toBe("6px");

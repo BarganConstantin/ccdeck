@@ -27,7 +27,7 @@
 /* A wait on a person runs the same wave at half the speed. */
 .loader[data-pace="person"] { --pass: var(--loop-loader-person); }
 .loader i {
-  border-radius: 1px;
+  border-radius: 0;
   background: currentColor;
   opacity: 0.2;
   transform: scale(0.8);

@@ -53,7 +53,7 @@
 .dc-dq[data-outcome="sent"],
 .dc-dq[data-outcome="ended"],
 .dc-dq[data-outcome="elsewhere"] { border-color: var(--line); }
-.dc-title { margin: 0; font-size: calc(14px + var(--ui-text-increase, 0px)); line-height: 20px; font-weight: 600; color: var(--text); }
+.dc-title { margin: 0; font-size: calc(16px + var(--ui-text-increase, 0px)); line-height: 20px; font-weight: 600; color: var(--text); }
 .dc-cmd {
   display: block;
   box-sizing: border-box;
@@ -211,13 +211,13 @@
   align-items: flex-start;
   gap: 8px;
   /* 61 high as drawn: 36 of text, 2 of border, 11.5 above and below. The frame's
-     corner is 9, V4's literal (no token is 9). The glyph and the link are not
+     corner is the panel's 8 (V4 drew 9; the deck has three radii). The glyph and the link are not
      centred on the box: the glyph is level with the first line, the link with
      the line under it. */
   padding: 11.5px 12px;
   background: var(--panel);
   border: 1px solid var(--line-soft);
-  border-radius: 9px;
+  border-radius: var(--r-panel);
   box-shadow: var(--shadow-contact);
   animation: dc-swap var(--dur-fast) var(--ease);
 }

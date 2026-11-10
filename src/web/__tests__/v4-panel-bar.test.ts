@@ -197,7 +197,8 @@ describe("the stripes' look", () => {
     expect(decl(".rail-doors .rail-group + .rail-group::before", "height")).toBe("1px");
     expect(decl(".rail-doors .rail-group + .rail-group::before", "background")).toBe("var(--line)");
     expect(decl(".rail-btn-stripe::before", "width")).toBe("2px");
-    expect(decl(".rail-btn-stripe::before", "border-radius")).toBe("1px");
+    // CHANGED ON PURPOSE (owner 2026-11-10 critique: type scale 11/12/13/16/22, radii 4/8/pill): the hairline's 1px is the control token; on a 2px line it draws the same round end.
+    expect(decl(".rail-btn-stripe::before", "border-radius")).toBe("var(--r-ctl)");
     expect(decl(".rail-btn-stripe::before", "background")).toBe("var(--text)");
     expect(decl(".rail-btn[aria-expanded=\"true\"]", "background")).toBe("var(--selected)");
   });
@@ -217,8 +218,9 @@ describe("the stripes' look", () => {
 });
 
 describe("V4's Tooltip", () => {
-  it("is one 24-high line: --r-ctl corners, --panel, a 1px --line edge, 4 8 to its outer edge, --shadow-overlay", () => {
-    expect(decl(".hint", "border-radius")).toBe("var(--r-ctl)");
+  it("is one 24-high line: --r-panel corners, --panel, a 1px --line edge, 4 8 to its outer edge, --shadow-overlay", () => {
+    // CHANGED ON PURPOSE (owner 2026-11-10 critique: type scale 11/12/13/16/22, radii 4/8/pill): a tooltip is a panel, at 8.
+    expect(decl(".hint", "border-radius")).toBe("var(--r-panel)");
     expect(decl(".hint", "background")).toBe("var(--panel)");
     // V4's 4 8 counts its stroke, drawn inside: the 1px --line edge is an inset
     // shadow over the padding, so a line of 16 makes 24, with or without a key,
@@ -242,7 +244,8 @@ describe("V4's Tooltip", () => {
     expect(decl(".hint-key", "height")).toBe("16px");
     // Its 5 across counts the 1px edge, as V4 draws it.
     expect(decl(".hint-key", "padding")).toBe("0 4px");
-    expect(decl(".hint-key", "border-radius")).toBe("4px");
+    // CHANGED ON PURPOSE (owner 2026-11-10 critique: type scale 11/12/13/16/22, radii 4/8/pill): the 4px is the control token.
+    expect(decl(".hint-key", "border-radius")).toBe("var(--r-ctl)");
     expect(decl(".hint-key", "background")).toBe("var(--bg-soft)");
     expect(decl(".hint-key", "border")).toBe("1px solid var(--line)");
     expect(decl(".hint-key", "color")).toBe("var(--muted)");

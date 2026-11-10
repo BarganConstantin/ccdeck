@@ -30,13 +30,15 @@ button.btn.fgl-chip[aria-pressed="true"] { background: color-mix(in srgb, var(--
 .fgl-scope-seg, .fgl-scope { margin-left: auto; }
 .fgl-seg { flex: none; max-width: 100%; overflow-x: auto; scrollbar-width: none; }
 .fgl-seg .uh-range-btn { display: inline-flex; align-items: center; gap: 6px; min-height: 24px; white-space: nowrap; }
-.fgl-controls button.btn.fgl-sort { gap: 6px; padding: 0 10px; font-family: var(--font-mono); font-size: calc(11px + var(--ui-text-increase, 0px)); }
+/* The order and the which-ones menu are words on the strip's row, so they keep
+   the strip's sans; mono stays for the counts (owner, 2026-11-10). */
+.fgl-controls button.btn.fgl-sort { gap: 6px; padding: 0 10px; font-size: calc(11px + var(--ui-text-increase, 0px)); }
 .fgl-controls-note { color: var(--muted); font-size: calc(12px + var(--ui-text-increase, 0px)); }
 /* All / Mine / Review requests as one menu button, for a list too narrow for
    the strip: drawn always, shown only there (below). Its words are the strip's
    own type, the current choice and a chevron. */
 .fgl-scope { display: none; }
-.fgl-controls button.btn.fgl-scope-trigger { gap: 6px; padding: 0 10px; font-family: var(--font-mono); font-size: calc(11px + var(--ui-text-increase, 0px)); white-space: nowrap; }
+.fgl-controls button.btn.fgl-scope-trigger { gap: 6px; padding: 0 10px; font-size: calc(11px + var(--ui-text-increase, 0px)); white-space: nowrap; }
 .fgl-scope-trigger[aria-expanded="true"] .fgl-chevron { transform: rotate(180deg); }
 .ap-pop.fgl-scope-pop { width: auto; min-width: 180px; }
 .fgl-scope-item { gap: 8px; }
@@ -68,18 +70,18 @@ button.btn.fgl-chip[aria-pressed="true"] { background: color-mix(in srgb, var(--
 /* Labels: the forge's colour is a dot beside the name — data drawn small, so
    a label coloured like a state never reads as one. */
 .fgl-labels { display: inline-flex; flex-wrap: wrap; gap: 4px; margin-left: 8px; vertical-align: 1px; }
-.fgl-label { display: inline-flex; align-items: center; gap: 5px; max-width: 24ch; padding: 0 8px 0 6px; box-sizing: border-box; border: 1px solid var(--line); border-radius: 999px; font-size: calc(11px + var(--ui-text-increase, 0px)); font-weight: 400; line-height: 18px; color: var(--text-secondary); white-space: nowrap; }
+.fgl-label { display: inline-flex; align-items: center; gap: 5px; max-width: 24ch; padding: 0 8px 0 6px; box-sizing: border-box; border: 1px solid var(--line); border-radius: var(--r-pill); font-size: calc(11px + var(--ui-text-increase, 0px)); font-weight: 400; line-height: 18px; color: var(--text-secondary); white-space: nowrap; }
 .fgl-label-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 /* A scoped label's scope, ruled off from its value as on the item's page; the
    value gives way first. */
 .fgl-label-scope { flex: none; max-width: 12ch; overflow: hidden; text-overflow: ellipsis; padding-right: 5px; border-right: 1px solid var(--line); }
-.fgl-label-dot { flex: none; width: 7px; height: 7px; border-radius: 50%; box-shadow: 0 0 0 1px color-mix(in srgb, var(--text) 18%, transparent); }
+.fgl-label-dot { flex: none; width: 7px; height: 7px; border-radius: var(--r-pill); box-shadow: 0 0 0 1px color-mix(in srgb, var(--text) 18%, transparent); }
 
 /* People, comments, child items. */
 .fgl-people { display: inline-flex; align-items: center; gap: 3px; }
 .fgl-people-more { margin-left: 2px; font-family: var(--font-mono); font-size: calc(11px + var(--ui-text-increase, 0px)); color: var(--muted); }
 .fgl-reviewer { position: relative; display: inline-flex; }
-.fgl-reviewer-mark { position: absolute; right: -4px; bottom: -4px; display: grid; place-items: center; width: 13px; height: 13px; border-radius: 50%; background: var(--panel); color: var(--muted); }
+.fgl-reviewer-mark { position: absolute; right: -4px; bottom: -4px; display: grid; place-items: center; width: 13px; height: 13px; border-radius: var(--r-pill); background: var(--panel); color: var(--muted); }
 .fgl-reviewer[data-tone="ok"] .fgl-reviewer-mark { color: var(--ok); }
 .fgl-reviewer[data-tone="bad"] .fgl-reviewer-mark { color: var(--err); }
 .fgl-comments, .fgl-children { display: inline-flex; align-items: center; gap: 4px; font-family: var(--font-mono); font-size: calc(12px + var(--ui-text-increase, 0px)); font-variant-numeric: tabular-nums; color: var(--muted); }
@@ -109,10 +111,10 @@ button.btn.fgl-chip[aria-pressed="true"] { background: color-mix(in srgb, var(--
   min-height: 40px;
   padding: 0 8px 0 16px;
   box-sizing: border-box;
-  border-radius: var(--r-panel);
+  border-radius: var(--r-ctl);
   transition: background var(--dur-fast) var(--ease);
 }
-.fgl-hit { position: absolute; inset: 0; margin: 0; padding: 0; border: 0; border-radius: var(--r-panel); background: transparent; cursor: pointer; }
+.fgl-hit { position: absolute; inset: 0; margin: 0; padding: 0; border: 0; border-radius: var(--r-ctl); background: transparent; cursor: pointer; }
 /* Pressed, the branch row deepens as a list row does; the hit area itself
    draws nothing. */
 .fg-rows > li.fgl-branch:has(> .fgl-hit:active) { background: color-mix(in srgb, var(--text) 10%, transparent); }
@@ -143,7 +145,7 @@ button.btn.fgl-chip[aria-pressed="true"] { background: color-mix(in srgb, var(--
 /* The button is the deck's .btn; this only lays its words out and keeps it
    filled while its list is open. */
 /* V4: 28 high, 13/500 in --text-secondary on a --line edge. */
-button.btn.fgl-repo-trigger { justify-content: flex-start; gap: 6px; min-width: 0; max-width: min(100%, 320px); --ctl-h: 28px; padding: 0 12px; box-sizing: border-box; border-radius: var(--r-panel); font-weight: 500; color: var(--text-secondary); }
+button.btn.fgl-repo-trigger { justify-content: flex-start; gap: 6px; min-width: 0; max-width: min(100%, 320px); --ctl-h: 28px; padding: 0 12px; box-sizing: border-box; border-radius: var(--r-ctl); font-weight: 500; color: var(--text-secondary); }
 .fgl-repo-trigger > .fgl-glyph { display: none; }
 button.btn.fgl-repo-trigger[aria-expanded="true"] { background: var(--ctl-fill); }
 .fgl-glyph, .fgl-chevron { flex: none; color: var(--muted); }

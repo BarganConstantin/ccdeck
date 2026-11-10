@@ -23,7 +23,7 @@
 /* The trigger takes only its content width; the picker keeps its own width.
    V4's Figma: "Board: <name>", 28 high, 13/500 in --text-secondary on a --line edge. */
 .jr-board-layer { --jr-pop-w: min(360px, calc(100vw - 32px)); flex: 0 1 auto; width: auto; max-width: 200px; min-width: 0; display: inline-flex; align-items: center; }
-.jr-board-btn { gap: 4px; min-width: 0; max-width: min(420px, 100%); min-height: 28px; padding-inline: 12px; border-radius: var(--r-panel); font-weight: 500; color: var(--text-secondary); }
+.jr-board-btn { gap: 4px; min-width: 0; max-width: min(420px, 100%); min-height: 28px; padding-inline: 12px; border-radius: var(--r-ctl); font-weight: 500; color: var(--text-secondary); }
 .jr-board-btn-label { color: inherit; }
 .jr-board-btn-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 500; }
 .jr-chevron { flex: none; transition: transform var(--dur-fast) var(--ease); }
@@ -172,7 +172,7 @@ button.btn.jr-chip[aria-pressed="true"] { background: color-mix(in srgb, var(--a
   min-width: 24px;
   box-sizing: border-box;
   padding: 0 6px;
-  border-radius: 999px;
+  border-radius: var(--r-pill);
   background: var(--ctl-fill);
   color: var(--text-secondary);
   font-size: calc(11px + var(--ui-text-increase, 0px));
@@ -226,7 +226,7 @@ button.btn.jr-chip[aria-pressed="true"] { background: color-mix(in srgb, var(--a
    its disclosure triangle beside it when it has sub-tasks. */
 .jr-rows, .jr-subrows { margin: 0; padding: 0; list-style: none; }
 .jr-item { min-width: 0; }
-.jr-row { position: relative; display: flex; align-items: stretch; min-width: 0; min-height: 32px; border-radius: var(--r-panel); }
+.jr-row { position: relative; display: flex; align-items: stretch; min-width: 0; min-height: 32px; border-radius: var(--r-ctl); }
 /* A row chosen with others (the board is in selection mode with more than one chosen; a plain click that only opens a row draws nothing) wears V4's checkbox (14 x 14, on) in its disclosure's place:
    the room a row without sub-tasks keeps, or the chevron itself, which still
    opens the sub-tasks; unchosen rows have none. */
@@ -351,7 +351,7 @@ button.btn.jr-chip[aria-pressed="true"] { background: color-mix(in srgb, var(--a
    button or its disclosure triangle is pressed. Selected and dragged rows
    retain the batch fill while pressed, so every member stays included. */
 .jr-rows .jr-row:active:not([data-selected]):not([data-dragging]) { background: color-mix(in srgb, var(--text) 10%, transparent); }
-.jr-icon { width: 16px; height: 16px; flex: none; display: block; border-radius: 2px; }
+.jr-icon { width: 16px; height: 16px; flex: none; display: block; border-radius: var(--r-ctl); }
 .jr-key { color: var(--muted); font-family: var(--font-mono); font-size: calc(12px + var(--ui-text-increase, 0px)); font-weight: 400; line-height: 16px; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .jr-key[data-done] { text-decoration: line-through; }
 .jr-summary { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text); font-size: calc(13px + var(--ui-text-increase, 0px)); line-height: 20px; }
@@ -526,7 +526,7 @@ button.btn.jr-chip[aria-pressed="true"] { background: color-mix(in srgb, var(--a
 .jr-crumb:active { transform: scale(var(--press)); }
 .jr-crumb-text { color: var(--muted); }
 .jr-detail-head { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
-.jr-detail-title { margin: 0; font-size: calc(14px + var(--ui-text-increase, 0px)); font-weight: 600; line-height: 20px; overflow-wrap: anywhere; }
+.jr-detail-title { margin: 0; font-size: calc(16px + var(--ui-text-increase, 0px)); font-weight: 600; line-height: 20px; overflow-wrap: anywhere; }
 .jr-detail-state { margin: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; font-size: calc(12px + var(--ui-text-increase, 0px)); }
 /* Flagged, beside the status (V4's Figma): a neutral chip, 16 high at 11/500. */
 .jr-flag-chip { flex: none; padding: 0 6px; border-radius: var(--r-tag); background: var(--ctl-fill); color: var(--text-secondary); font-size: calc(11px + var(--ui-text-increase, 0px)); font-weight: 500; line-height: 16px; white-space: nowrap; }
@@ -573,7 +573,7 @@ button.btn.jr-chip[aria-pressed="true"] { background: color-mix(in srgb, var(--a
   gap: 8px;
   padding: 0 8px;
   border: 0;
-  border-radius: var(--r-panel);
+  border-radius: var(--r-ctl);
   background: transparent;
   color: inherit;
   font: inherit;
@@ -619,7 +619,7 @@ button.btn.jr-chip[aria-pressed="true"] { background: color-mix(in srgb, var(--a
 .jr-image-link { color: var(--accent); }
 .jr-mention { color: var(--accent); font-weight: 500; }
 .jr-html-error { color: var(--err); }
-.jr-html-panel { margin: 0 0 8px; overflow: hidden; border: 1px solid var(--line); border-radius: var(--r-ctl); }
+.jr-html-panel { margin: 0 0 8px; overflow: hidden; border: 1px solid var(--line); border-radius: var(--r-panel); }
 .jr-html-panel-head { padding: 6px 10px; border-bottom: 1px solid var(--line); background: var(--ctl-fill); font-weight: 600; }
 .jr-html-panel-body { padding: 8px 10px; }
 .jr-html-code pre, .jr-html-pre pre { margin: 0; border-radius: 0; }
@@ -720,7 +720,7 @@ button.btn.jr-chip.jr-filter-fold-btn[data-on] { background: color-mix(in srgb, 
 /* Workflow actions stay beside the current status, wrapping on narrow screens. */
 .jr-transition, .jr-transition-controls { display: inline-flex; align-items: center; flex-wrap: wrap; gap: 6px; }
 /* The status is the control that changes it (V4's Figma): its name on a --line edge, 13/500. */
-button.btn.jr-status-btn { --ctl-h: 28px; padding: 0 12px; border-radius: var(--r-panel); font-weight: 500; color: var(--text-secondary); }
+button.btn.jr-status-btn { --ctl-h: 28px; padding: 0 12px; border-radius: var(--r-ctl); font-weight: 500; color: var(--text-secondary); }
 .jr-transition select { max-width: 100%; color: var(--text); background: var(--ctl-fill); border: 1px solid var(--ctl-edge); border-radius: var(--r-ctl); padding: 4px 6px; }
 .jr-transition [role="alert"] { flex-basis: 100%; }
 

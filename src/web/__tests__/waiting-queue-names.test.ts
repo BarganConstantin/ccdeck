@@ -160,9 +160,24 @@ describe("what each name says", () => {
 
   it("draws each row as the old name's words, as a menu item with the whole name", () => {
     const src = sourceOf("components/TopbarReadouts.tsx");
-    expect(src).toContain("aria-label={queueEntryName(w.label, w.waiting, now - w.waiting.since, t)}");
+    // CHANGED ON PURPOSE (owner 2026-11-10): the queue says the rail row's name, not the folder.
+    expect(src).toContain("aria-label={queueEntryName(w.name ?? w.label, w.waiting, now - w.waiting.since, t)}");
     // The session list row's order, "waiting 6m · Bash": name, wait, what on.
-    expect(src).toMatch(/<span className="we-name">\{queueName\(w\.label\)\}<\/span>\s*<span className="we-wait">[^]*?<span className="we-what">· \{waitWhat\(w\.waiting, t\)\}<\/span>/);
+    // CHANGED ON PURPOSE (owner 2026-11-10): the queue says the rail row's name, not the folder.
+    expect(src).toMatch(/<span className="we-name">\{queueName\(w\.name \?\? w\.label\)\}<\/span>\s*<span className="we-wait">[^]*?<span className="we-what">· \{waitWhat\(w\.waiting, t\)\}<\/span>/);
+  });
+
+  it("names each session as its rail row does: its name, else Claude Code's title, else its folder", () => {
+    const named = [
+      { id: "n", sessionId: "n", kind: "root", label: "Desktop", cwdBasename: "Desktop", sessionName: "loroloop", sessionTitle: "Fix login", waiting: block({ since: 1 }) },
+      { id: "t", sessionId: "t", kind: "root", label: "constantin", cwdBasename: "constantin", sessionTitle: "Add Codex accounts", waiting: block({ since: 2 }) },
+      { id: "f", sessionId: "f", kind: "root", label: "api", cwdBasename: "api", waiting: block({ since: 3 }) },
+    ] as unknown as AgentNodeData[];
+    const q = blockedSessions(named);
+    expect(q.map(w => w.name)).toEqual(["loroloop", "Add Codex accounts", "api"]);
+    // The label stays the folder for every other surface that reads it.
+    expect(q.map(w => w.label)).toEqual(["Desktop", "constantin", "api"]);
+    expect(queueEntryName(q[0].name!, q[0].waiting, 60_000)).toBe("loroloop, waiting 1 minute for permission; go to session");
   });
 });
 

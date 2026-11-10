@@ -55,7 +55,8 @@ describe("Clear the deck", () => {
     const bullet = css.match(/\.cc-col dd > span::before\s*\{([^}]*)\}/)![1];
     expect(bullet).toMatch(/width:\s*4px/);
     expect(bullet).toMatch(/height:\s*4px/);
-    expect(bullet).toMatch(/border-radius:\s*2px/);
+    // CHANGED ON PURPOSE (owner 2026-11-10 critique: type scale 11/12/13/16/22, radii 4/8/pill): 2 on a 4x4 bullet is a circle, the pill token.
+    expect(bullet).toMatch(/border-radius:\s*var\(--r-pill\)/);
     expect(bullet).toMatch(/background:\s*var\(--muted\)/);
     expect(decl(".cc-final", "color")).toBe("var(--muted)");
     expect(decl(".cc-col dd > span.cc-none", "color")).toBe("var(--muted)");
@@ -178,7 +179,8 @@ describe("What's new", () => {
   it("shows the version as a bordered pill without the v", () => {
     expect(notes).toContain("isVersion(running) ? running :");
     expect(decl(".release-notes .rn-pill", "border")).toBe("1px solid var(--line)");
-    expect(decl(".release-notes .rn-pill", "border-radius")).toBe("10px");
+    // CHANGED ON PURPOSE (owner 2026-11-10 critique: type scale 11/12/13/16/22, radii 4/8/pill): a pill is the pill token.
+    expect(decl(".release-notes .rn-pill", "border-radius")).toBe("var(--r-pill)");
     expect(decl(".release-notes .rn-pill", "padding")).toBe("1px 6px");
     expect(decl(".release-notes .rn-pill", "color")).toBe("var(--text-secondary)");
   });
@@ -233,7 +235,8 @@ describe("Quota history, Browser watch and Radio", () => {
     expect(quota).toContain("onClick={onClose}>{t(\"shell.done\")}");
     expect(decl(".qh-providers", "background")).toBe("var(--bg-soft)");
     expect(decl(".qh-providers", "border")).toBe("1px solid var(--line-soft)");
-    expect(decl(".qh-providers", "border-radius")).toBe("var(--r-panel)");
+    // CHANGED ON PURPOSE (owner 2026-11-10 critique: type scale 11/12/13/16/22, radii 4/8/pill): a segmented control is a control, at 4.
+    expect(decl(".qh-providers", "border-radius")).toBe("var(--r-ctl)");
     expect(decl(".qh-provider[aria-pressed=\"true\"]", "background")).toBe("var(--panel)");
     expect(decl(".qh-provider", "color")).toBe("var(--muted)");
     expect(decl(".qh-summary strong", "font-family")).toBe("var(--font-mono)");
@@ -287,10 +290,11 @@ describe("Explore integrations", () => {
     expect(decl(".explore-caption > :first-child", "font-family")).toBeNull();
     expect(decl(".explore-caption > :last-child:not(:first-child)", "font-family")).toBe("var(--font-mono)");
   });
-  it("draws its notes as 28-high bands at --r-panel, 12/400, neutral or in the error wash", () => {
+  it("draws its notes as 28-high bands at --r-ctl, 12/400, neutral or in the error wash", () => {
     expect(decl(".explore-status", "min-height")).toBe("28px");
     expect(decl(".explore-status", "padding")).toBe("6px 8px");
-    expect(decl(".explore-status", "border-radius")).toBe("var(--r-panel)");
+    // CHANGED ON PURPOSE (owner 2026-11-10 critique: type scale 11/12/13/16/22, radii 4/8/pill): a control-high band is a control, at 4.
+    expect(decl(".explore-status", "border-radius")).toBe("var(--r-ctl)");
     expect(decl(".explore-status", "background")).toBe("var(--ctl-fill)");
     expect(decl(".explore-status", "color")).toBe("var(--text-secondary)");
     expect(px(decl(".explore-status", "font-size"))).toBe("12px");

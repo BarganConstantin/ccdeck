@@ -17,11 +17,11 @@
   background: var(--sunken);
   animation: fadeIn var(--dur-base) var(--ease);
 }
-/* The tip: 14px medium --text over a 13px --muted second line. */
+/* The tip: 13px medium --text over a 13px --muted second line. */
 .guide-line {
   margin: 0;
   min-height: 2.9em;
-  font-size: calc(14px + var(--ui-text-increase, 0px));
+  font-size: calc(13px + var(--ui-text-increase, 0px));
   line-height: var(--lh-card-title);
   font-weight: 500;
   color: var(--text);
@@ -54,7 +54,7 @@
   flex: none;
   width: 6px;
   height: 6px;
-  border-radius: 50%;
+  border-radius: var(--r-pill);
   background: var(--muted-dim);
 }
 .guide-dot[aria-current="step"]::before { background: var(--accent); }
@@ -73,9 +73,9 @@
 .ga-track { fill: color-mix(in srgb, var(--text) 12%, transparent); }
 .ga-bed-warn { fill: color-mix(in srgb, var(--warn) 10%, transparent); }
 .ga-t { font-size: calc(11px + var(--ui-text-increase, 0px)); fill: var(--text); }
-.ga-s { font-size: calc(10px + max(-1px, var(--ui-text-increase, 0px))); fill: var(--muted); }
-.ga-cap { font-size: calc(9px + max(0px, var(--ui-text-increase, 0px))); font-weight: 600; letter-spacing: 0.06em; fill: var(--muted); }
-.ga-big { font-size: calc(26px + var(--ui-text-increase, 0px)); font-weight: 600; fill: var(--text); }
+.ga-s { font-size: calc(11px + max(-1px, var(--ui-text-increase, 0px))); fill: var(--muted); }
+.ga-cap { font-size: calc(11px + max(0px, var(--ui-text-increase, 0px))); font-weight: 600; letter-spacing: 0.06em; fill: var(--muted); }
+.ga-big { font-size: calc(22px + var(--ui-text-increase, 0px)); font-weight: 600; fill: var(--text); }
 .ga-strong { font-weight: 600; }
 .ga-mono { font-family: var(--font-mono); }
 /* The four states, after the text rules so a coloured line wins the tie. */
@@ -178,7 +178,7 @@
   margin-top: 10px;
   padding: 10px 10px 10px;
   border: 1px solid var(--ctl-edge);
-  border-radius: 8px;
+  border-radius: var(--r-panel);
   background: var(--ctl-fill);
   font: inherit;
   text-align: left;
@@ -190,13 +190,13 @@
 }
 .ap-lan-intro:active:not(:disabled) { transform: scale(var(--press)); }
 .ap-lan-intro-text { font-size: calc(11px + var(--ui-text-increase, 0px)); line-height: 1.45; color: var(--text-secondary); }
-.ap-lan-intro-go { font-size: calc(10px + max(-1px, var(--ui-text-increase, 0px))); color: var(--accent); }
+.ap-lan-intro-go { font-size: calc(11px + max(-1px, var(--ui-text-increase, 0px))); color: var(--accent); }
 .ap-lan-how { color: var(--accent); }
 
 /* The welcome's way back, on the empty canvas: the hero is pointer-transparent
    so a drag starting on it still pans, and this is the one thing on it a
    pointer is meant to land on. */
-.empty-hero .empty-tour { pointer-events: auto; min-height: 36px; padding: 0 16px; font-size: calc(12px + var(--ui-text-increase, 0px)); font-weight: 500; border-radius: 6px; }
+.empty-hero .empty-tour { pointer-events: auto; min-height: 36px; padding: 0 16px; font-size: calc(12px + var(--ui-text-increase, 0px)); font-weight: 500; border-radius: var(--r-ctl); }
 
 /* The way from a panel to its 30-second video on ccdeck.dev (FilmLink.tsx).
    Quiet: the accent's small words, the ink of the LAN card's `See how it
@@ -223,12 +223,12 @@
 /* Beside the card's `See how it works`, on its line, at its size: the card is
    one button, so the link stands over its corner rather than inside it. */
 .ap-lan-intro-row { position: relative; }
-.ap-lan-intro-row > .film-link { position: absolute; right: 10px; bottom: 7px; font-size: calc(10px + max(-1px, var(--ui-text-increase, 0px))); }
+.ap-lan-intro-row > .film-link { position: absolute; right: 10px; bottom: 7px; font-size: calc(11px + max(-1px, var(--ui-text-increase, 0px))); }
 .ap-lan-how + .film-link { margin-left: 12px; font-size: calc(11px + var(--ui-text-increase, 0px)); }
 /* Beside the hero's tour button, and given its pointer back like it. */
 .empty-hero .empty-actions { display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 8px; margin-top: 22px; }
 .empty-hero .film-link { pointer-events: auto; margin-left: 0; }
-.empty-hero .film-action { min-height: 36px; padding: 0 12px; gap: 8px; border-radius: 6px; font-size: calc(12px + var(--ui-text-increase, 0px)); color: var(--text-secondary); transition: background var(--dur-fast) var(--ease), transform var(--dur-fast) var(--ease); }
+.empty-hero .film-action { min-height: 36px; padding: 0 12px; gap: 8px; border-radius: var(--r-ctl); font-size: calc(12px + var(--ui-text-increase, 0px)); color: var(--text-secondary); transition: background var(--dur-fast) var(--ease), transform var(--dur-fast) var(--ease); }
 @media (hover: hover) and (pointer: fine) {
 .empty-hero .film-action:hover { background: var(--ctl-fill); color: var(--text); text-decoration: none; }
 }

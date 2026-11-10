@@ -134,15 +134,24 @@ const LADDER: Record<string, [number, number]> = {
   "ctl-h-lg": [32, 36],
   "ctl-h": [28, 30],
   "ctl-h-sm": [24, 26],
+  // CHANGED ON PURPOSE (owner 2026-11-10 critique: type scale 11/12/13/16/22, radii 4/8/pill): three
+  // radii; --r-tag is the control's, --r-node and --r-overlay the panel's (aliases, resolved below).
   "r-tag": [4, 4],
-  "r-ctl": [6, 6],
+  "r-ctl": [4, 4],
   "r-panel": [8, 8],
-  "r-node": [10, 10],
-  "r-overlay": [12, 12],
+  "r-node": [8, 8],
+  "r-overlay": [8, 8],
   "r-pill": [999, 999],
   "dialog-head-h": [44, 52],
   "dialog-foot-h": [48, 56],
 };
+
+/** A token's value with any var() alias followed to the value it names. */
+function resolved(vals: Record<string, string>, name: string): string | undefined {
+  let v = vals[name];
+  for (let hops = 0; v?.startsWith("var(--") && hops < 4; hops++) v = vals[v.slice(6, -1)];
+  return v;
+}
 
 describe("V4's sizes", () => {
   const base = sizes("tokens.css", ":root");
@@ -150,8 +159,15 @@ describe("V4's sizes", () => {
   const comfortable = { ...base, ...sizes("reading.css", ':root[data-density="comfortable"]') };
 
   it.each(Object.entries(LADDER))("--%s is Figma's at Default and at Compact", (name, [atCompact, atDefault]) => {
-    expect(base[name]).toBe(`${atDefault}px`);
-    expect(compact[name]).toBe(`${atCompact}px`);
+    expect(resolved(base, name)).toBe(`${atDefault}px`);
+    expect(resolved(compact, name)).toBe(`${atCompact}px`);
+  });
+
+  it("spells the older radius names as aliases of the three, so they cannot drift", () => {
+    expect(base["r-tag"]).toBe("var(--r-ctl)");
+    expect(base["r-node"]).toBe("var(--r-panel)");
+    expect(base["r-cluster"]).toBe("var(--r-panel)");
+    expect(base["r-overlay"]).toBe("var(--r-panel)");
   });
 
   it("the two steps tighter than Compact keep Compact's chrome and rows", () => {
@@ -176,21 +192,24 @@ describe("V4's sizes", () => {
 /** V4's text styles: each role's size and line height, in px. */
 const TYPE_ROLES: Record<string, [number, number]> = {
   hero: [22, 28],
-  title: [18, 24],
-  "card-title": [14, 20],
+  // CHANGED ON PURPOSE (owner 2026-11-10 critique: type scale 11/12/13/16/22, radii 4/8/pill): a title
+  // is 16, and the card title is a title (an alias of --fs-title, resolved below).
+  title: [16, 24],
+  "card-title": [16, 20],
   body: [13, 20],
   small: [12, 16],
   code: [12, 16],
   meta: [11, 14],
 };
 /** The sheet's type ladder, as type-ladder.test.ts holds every font-size to it. */
-const TYPE_LADDER = [9, 10, 11, 12, 13, 14, 16, 18, 22, 26, 34];
+// CHANGED ON PURPOSE (owner 2026-11-10 critique: type scale 11/12/13/16/22, radii 4/8/pill): the scale (type-scale.test.ts).
+const TYPE_LADDER = [11, 12, 13, 16, 22];
 
 describe("V4's type roles", () => {
   const base = sizes("tokens.css", ":root");
 
   it.each(Object.entries(TYPE_ROLES))("--fs-%s and its line height are Figma's", (role, [size, leading]) => {
-    expect(base[`fs-${role}`]).toBe(`${size}px`);
+    expect(resolved(base, `fs-${role}`)).toBe(`${size}px`);
     expect(base[`lh-${role}`]).toBe(`${leading}px`);
   });
 

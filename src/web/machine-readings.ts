@@ -131,26 +131,20 @@ export function uptime(sec: number): string {
  * NOT A HEALTH SCORE, and not a badge that says "all good" on a quiet machine:
  * a permanent green word is read once and then stops being read, and it would
  * have to be computed from thresholds this app does not have for most of what
- * it measures. Three conditions qualify, all of them measured rather than
- * inferred, and each is already a warning colour in the section it comes from:
+ * it measures. Two conditions qualify, both measured rather than inferred, and
+ * each is already a warning colour in the section it comes from:
  *
- *   1. the machine is being held below full speed — `pmset` reports the limit,
- *      the Linux kernel the time;
- *   2. physical memory is at the 90% the memory meter already turns --err at;
- *   3. the API host was asked and did not answer.
+ *   1. physical memory is at the 90% the memory meter already turns --err at;
+ *   2. the API host was asked and did not answer.
+ *
+ * Throttling is not one of them any more (owner's critique, 2026-11-10): the
+ * panel said it three times, here, as the Thermal row's figure and in the
+ * sentence under it. The Thermal row says it once now.
  *
  * One at a time, worst first. A stack of flags at the top of a 280px panel is
  * a second panel, and the section each one comes from says it again in place.
  */
-export function attentionFlag(sys: Pick<Snapshot, "thermal" | "memory" | "network">): string | null {
-  const throttle = sys.thermal?.throttle;
-  const held = throttle ? heldShare(throttle) : 0;
-  if (throttle && held > 0) {
-    if ("speedLimit" in throttle && throttle.source === "windows-performance") {
-      return t("insights.machine.windowsLimit", { pct: throttle.speedLimit });
-    }
-    return "timeHeld" in throttle ? t("insights.machine.flagTime", { pct: held }) : t("insights.machine.flagHeld", { pct: 100 - held });
-  }
+export function attentionFlag(sys: Pick<Snapshot, "memory" | "network">): string | null {
   if (sys.memory && sys.memory.usedPct >= 90) return t("insights.machine.flagMemory", { pct: Math.round(sys.memory.usedPct) });
   if (sys.network?.api && sys.network.api.ms == null) return t("insights.machine.flagApi");
   return null;

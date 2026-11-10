@@ -35,8 +35,9 @@ const lineOf = (at: number) => css.slice(0, at).split("\n").length;
 // CHANGED ON PURPOSE: 13 is V4's Figma gap between the theme cards and between
 // the companion tiles in Settings, four 128px tiles to a row (no token).
 const SPACE_LADDER = [0, 1, 2, 3, 4, 5, 6, 8, 10, 12, 13, 14, 16, 18, 20, 24, 32, 40];
-// 9 is V4's Figma literal for the rail's usage meter and the decision outcome box (no token).
-const RADIUS_LADDER = [0, 1, 2, 3, 4, 6, 8, 9, 10, 12, 16, 18];
+// CHANGED ON PURPOSE (owner 2026-11-10 critique: type scale 11/12/13/16/22, radii 4/8/pill): the
+// ladder is the three tokens now (radius-scale.test.ts); a literal may only be 0 or a token's value.
+const RADIUS_LADDER = [0, 4, 8];
 const RADIUS_SHAPES = ["999px", "50%", "inherit"];
 
 const SPACE_PROP = /^(?:row-|column-)?gap$|^padding(?:-[a-z-]+)?$/;
@@ -108,10 +109,11 @@ describe("radius is a closed ladder (#887)", () => {
   });
 
   it("draws the small pills as pills, and the controls' 6px where 5px was", () => {
-    expect(DECLS.find(d => d.sel === ".cost-bar.cost-bar-lg" && d.prop === "border-radius")?.value).toBe("999px");
+    // CHANGED ON PURPOSE (owner 2026-11-10 critique: type scale 11/12/13/16/22, radii 4/8/pill): a pill is the pill token, a control the control's.
+    expect(DECLS.find(d => d.sel === ".cost-bar.cost-bar-lg" && d.prop === "border-radius")?.value).toBe("var(--r-pill)");
     // Browser watch's unread badge, 14px on the topbar's button when #887 was
     // cut and 16px on its stripe since (2026-10-08): a pill still, not 7px.
-    expect(DECLS.find(d => d.sel === ".rail-badge" && d.prop === "border-radius")?.value).toBe("999px");
-    expect(DECLS.find(d => d.sel === ".ap-field select" && d.prop === "border-radius")?.value).toBe("6px");
+    expect(DECLS.find(d => d.sel === ".rail-badge" && d.prop === "border-radius")?.value).toBe("var(--r-pill)");
+    expect(DECLS.find(d => d.sel === ".ap-field select" && d.prop === "border-radius")?.value).toBe("var(--r-ctl)");
   });
 });

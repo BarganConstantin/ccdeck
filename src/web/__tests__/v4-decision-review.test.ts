@@ -394,7 +394,8 @@ describe("layout: the empty outcome takes no row", () => {
     const at = css.indexOf("\n.dc-out {");
     const rule = css.slice(at, css.indexOf("}", at));
     expect(rule).toContain("padding: 11.5px 12px;");
-    expect(rule).toContain("border-radius: 9px;");
+    // CHANGED ON PURPOSE (owner 2026-11-10 critique: type scale 11/12/13/16/22, radii 4/8/pill): the box is a panel at 8, not V4's 9.
+    expect(rule).toContain("border-radius: var(--r-panel);");
     expect(36 + 2 + 11.5 * 2).toBe(61);
   });
 });

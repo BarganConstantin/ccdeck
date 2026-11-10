@@ -67,7 +67,7 @@
   background: transparent;
   color: var(--text);
   font: inherit;
-  font-size: calc(14px + var(--ui-text-increase, 0px));
+  font-size: calc(13px + var(--ui-text-increase, 0px));
   line-height: 20px;
   caret-color: var(--accent);
 }
@@ -185,7 +185,7 @@ kbd.qo-key, .qo-esc, .qo-foot kbd, .fb-shortcut kbd {
   width: 14px;
   height: 14px;
   border: 1px solid var(--tp-rule);
-  border-radius: 4px;
+  border-radius: var(--r-ctl);
   background: var(--tp-canvas);
 }
 .qo-icon > .qo-swatch::after {
@@ -195,7 +195,7 @@ kbd.qo-key, .qo-esc, .qo-foot kbd, .fb-shortcut kbd {
   bottom: 2px;
   width: 5px;
   height: 5px;
-  border-radius: 50%;
+  border-radius: var(--r-pill);
   background: var(--tp-accent);
 }
 

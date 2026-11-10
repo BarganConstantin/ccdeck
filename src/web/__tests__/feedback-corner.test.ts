@@ -144,7 +144,8 @@ describe("the cell on a phone", () => {
     expect(side(bar("padding", W), 1) + side(cell("margin", W), 1)).toBe(8);
     expect(button("width", W)).toBe("32px");
     expect(button("height", W)).toBe("32px");
-    expect(button("border-radius", W)).toBe("var(--r-panel)");
+    // CHANGED ON PURPOSE (owner 2026-11-10 critique: type scale 11/12/13/16/22, radii 4/8/pill): a button is a control, at 4.
+    expect(button("border-radius", W)).toBe("var(--r-ctl)");
   });
 
   it("is a 44 target around the 32 button", () => {
