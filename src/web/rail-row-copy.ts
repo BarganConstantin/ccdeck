@@ -63,9 +63,9 @@ export function railLine(r: Row, group: RailGroup): RailLine | null {
   return note ? { kind: "mono", text: note } : null;
 }
 
-/** The quiet lead of a row's second line. `folder` and `started` are words,
- *  `id` is a fragment of the session id, drawn in the mono face. */
-export interface RowTell { kind: "folder" | "started" | "id"; text: string }
+/** The quiet lead of a row's second line. `folder`, `task` and `started` are
+ *  words, `id` is a fragment of the session id, drawn in the mono face. */
+export interface RowTell { kind: "folder" | "task" | "started" | "id"; text: string }
 
 /**
  * At most one quiet lead per row, ahead of what the session is doing (owner,
@@ -73,11 +73,12 @@ export interface RowTell { kind: "folder" | "started" | "id"; text: string }
  * with its folder, to still say where it runs; a row titled by its folder has
  * nothing to add. Rows whose titles collide lead instead with what tells them
  * apart, each taking the first of these that no other row of its title still
- * in question shares: its folder; the clock time it started; as much of its id
- * as it takes. Two sessions of one name in one folder fall through to when they
- * started, and two started in the same minute to the id. The session's own
- * words are no step: they are the title. No session carries its git branch, so
- * there is no branch step either.
+ * in question shares: its folder; its first prompt, when the title is not
+ * already those words; the clock time it started; as much of its id as it
+ * takes. Four unnamed sessions in one repo read by what each was asked to do,
+ * two given the same prompt fall through to when they started, and two started
+ * in the same minute to the id. No session carries its git branch, so there is
+ * no branch step.
  */
 export function rowTells(rows: readonly Row[], now: number): Map<string, RowTell> {
   const byName = new Map<string, Row[]>();
@@ -94,7 +95,7 @@ export function rowTells(rows: readonly Row[], now: number): Map<string, RowTell
       continue;
     }
     let open = peers;
-    for (const tellOf of [folderTell, (r: Row) => startedTell(r, now)]) {
+    for (const tellOf of [folderTell, taskTell, (r: Row) => startedTell(r, now)]) {
       const said = open.map(tellOf);
       open = open.filter((r, i) => {
         const mine = said[i];
@@ -112,6 +113,11 @@ export function rowTells(rows: readonly Row[], now: number): Map<string, RowTell
 /** The folder, on a row whose title is something else (buildRows sets it only there). */
 function folderTell(r: Row): RowTell | null {
   return r.folder ? { kind: "folder", text: r.folder } : null;
+}
+
+/** The session's first prompt, on a row whose title is something else (buildRows sets it only there). */
+function taskTell(r: Row): RowTell | null {
+  return r.task ? { kind: "task", text: r.task } : null;
 }
 
 /** Two names a reader takes for one: case and the space around them aside. */

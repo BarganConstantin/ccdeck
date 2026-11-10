@@ -14,7 +14,7 @@ import { t as translate, useT } from "../i18n";
 import { agentCost } from "../usage-models";
 import type { GraphState } from "../reducer";
 import type { BackgroundJob, SessionRecap, WaitingBlock } from "../types";
-import { sessionNoteShown, type SessionNote } from "../session-note";
+import { promptLine, sessionNoteShown, type SessionNote } from "../session-note";
 import { drawnState, neverPrompted } from "../node-face";
 import { isAgentVisible } from "../visibility";
 import { withKey } from "../single-key-shortcuts";
@@ -84,6 +84,9 @@ export interface Row {
   /** The session's folder, when the title is something else: a named row
    *  still says where it runs. Absent when the title is the folder. */
   folder?: string;
+  /** The first line of the session's first prompt, when the title is something
+   *  else: what tells unnamed sessions in one folder apart (rowTells). */
+  task?: string;
   /** The second line's one quiet lead (rail-row-copy.ts rowTells): the folder
    *  under a name of its own, or what tells this row from another of its name. */
   tell?: RowTell;
@@ -158,6 +161,8 @@ export function buildRows(state: GraphState, now: number, watching?: ReadonlySet
     // rather than "Desktop" four times; the folder only when there is no name.
     const label = sessionListName(a) ?? translate("board.kind.session");
     const folder = a.cwdBasename && !sameWords(a.cwdBasename, label) ? a.cwdBasename : "";
+    const asked = a.firstPrompt ? promptLine(a.firstPrompt) : "";
+    const task = asked && !sameWords(asked, label) ? asked : "";
     rows.push({
       sessionId: a.sessionId,
       label,
@@ -185,6 +190,7 @@ export function buildRows(state: GraphState, now: number, watching?: ReadonlySet
       turnStartedAt: a.prompts.at(-1)?.at ?? a.startedAt,
       tool: inFlightCall(a),
       cwd: a.cwd,
+      ...(task ? { task } : null),
       ...(folder ? { folder } : null),
     });
   }

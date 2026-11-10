@@ -8,7 +8,7 @@
 // the phone row name (#2449) gave it. Its second line carries at most one
 // quiet lead before the live line (rail-row-copy.ts rowTells): the folder
 // under a name of its own, or, where titles collide, what tells the rows apart
-// (the folder, the clock time it started, the short id), on the phone and the
+// (the folder, the first prompt, the clock time it started, the short id), on the phone and the
 // desktop rail alike, since both draw SessionList. A row with no second line
 // is 44 on a phone, the touch floor, where a two-line row stays 62.
 import { beforeEach, describe, expect, it } from "vitest";
@@ -28,11 +28,11 @@ const NOW = new Date(2026, 10, 10, 15, 0, 30).getTime();
 const MIN = 60_000;
 const PHONE = "(max-width: 640px)";
 
-/** A bare row titled `label`, started `ago` ms before NOW; `folder` is set
- *  only when the title is something else, as buildRows sets it. */
-const row = (sessionId: string, label: string, ago: number, folder?: string): Row => ({
+/** A bare row titled `label`, started `ago` ms before NOW; `folder` and `task`
+ *  are set only when the title is something else, as buildRows sets them. */
+const row = (sessionId: string, label: string, ago: number, folder?: string, task?: string): Row => ({
   sessionId, label, state: "done", toolCount: 0, cost: 0, startedAt: NOW - ago, lastActivity: NOW - ago,
-  plan: null, planTitle: "", ...(folder ? { folder } : {}),
+  plan: null, planTitle: "", ...(folder ? { folder } : {}), ...(task ? { task } : {}),
 });
 const tellsOf = (rows: Row[], now = NOW) => Object.fromEntries([...rowTells(rows, now)].map(([id, tell]) => [id, tell.text]));
 /** "Started 14:55": the hour and minute, `ago` before NOW, in the reader's language. */
@@ -121,6 +121,25 @@ describe("the one quiet lead of a row's second line", () => {
       "t2-0000-b2b2": "b2b2",
       "t3-0000-c3c3": "c3c3",
       "t4-0000-d4d4": "constantin",
+    });
+  });
+
+  it("four unnamed rows in one repo: what each was asked to do, else the clock, else the id", () => {
+    const rows = [
+      row("u1-0000-a1a1", "api", 10 * MIN, undefined, "Fix login"),
+      row("u2-0000-b2b2", "api", 40 * MIN, undefined, "Add tests"),
+      row("u3-0000-c3c3", "api", 10 * MIN, undefined, "Add tests"),
+      row("u4-0000-d4d4", "api", 40 * MIN, undefined, "Add tests"),
+      row("u5-0000-e5e5", "api", 3 * MIN),
+    ];
+    // u1's prompt is its own; u3's start is no longer held against u1's, which
+    // its prompt already told apart; u5 was never asked anything.
+    expect(Object.fromEntries([...rowTells(rows, NOW)].map(([id, tell]) => [id, [tell.kind, tell.text]]))).toEqual({
+      "u1-0000-a1a1": ["task", "Fix login"],
+      "u2-0000-b2b2": ["id", "b2b2"],
+      "u3-0000-c3c3": ["started", started(10 * MIN)],
+      "u4-0000-d4d4": ["id", "d4d4"],
+      "u5-0000-e5e5": ["started", started(3 * MIN)],
     });
   });
 
@@ -260,16 +279,25 @@ describe("the rail draws the lead", () => {
   });
 
   // CHANGED ON PURPOSE (owner 2026-11-10): rail rows show the session's name
-  it("keeps the first turn's prompt as the live line, after the lead that tells the rows apart", () => {
+  // CHANGED ON PURPOSE (owner 2026-11-10): unnamed rows in one folder read by their first prompt, not an id
+  it("tells unnamed rows in one folder apart by what each was asked, and draws the prompt once", () => {
     let s = initialState();
     s = begin(s, "one-0000-aaaa", "/home/me/api", 0, "Fix login");
     s = begin(s, "two-0000-bbbb", "/home/me/api", 0, "Fix logout");
-    const one = buildRows(s, NOW + MIN).find(r => r.sessionId === "one-0000-aaaa")!;
+    s = begin(s, "three-000-cccc", "/home/me/api", 0, "api");
+    const rows = byId(buildRows(s, NOW + MIN));
+    const one = rows["one-0000-aaaa"];
     // The running turn's note is the prompt that started it (session-note.ts).
     expect(railLine(one, 1)).toEqual({ kind: "mono", text: "Fix login" });
-    expect(one.tell).toEqual({ kind: "id", text: "aaaa" });
+    expect(one.tell).toEqual({ kind: "task", text: "Fix login" });
+    expect(rows["two-0000-bbbb"].tell).toEqual({ kind: "task", text: "Fix logout" });
+    // A prompt that only says the title again is no tell.
+    expect(rows["three-000-cccc"].task).toBeUndefined();
+    expect(rows["three-000-cccc"].tell?.kind).toBe("started");
+    // The live line only said the prompt again, so it is left out: the prompt
+    // is drawn once, as words, in the interface's face.
     const b = button(draw(s, NOW + MIN), "one-0000-aaaa");
-    expect(b.slice(b.indexOf('class="sl-line2'))).toMatch(/^class="sl-line2 mono"><span class="sl-tell lead">aaaa<\/span> · Fix login<\/span>/);
+    expect(b.slice(b.indexOf('class="sl-line2'))).toMatch(/^class="sl-line2 sans"><span class="sl-tell words">Fix login<\/span><\/span>/);
     // A line that only says the lead again is left out; one that says more is kept.
     expect(lineAfterTell({ kind: "mono", text: "Desktop" }, { kind: "folder", text: "Desktop" })).toBeNull();
     expect(lineAfterTell({ kind: "mono", text: "Fix the login form…" }, { kind: "folder", text: "Fix the login form and its tests" })).toBeNull();
