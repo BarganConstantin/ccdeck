@@ -442,12 +442,14 @@ describe("markup, read as source", () => {
     expect(surface).not.toMatch(/title="[^"]*month/i);
   });
 
-  it("shows the selector only when there is a source with periods in it", () => {
-    // The board has exactly one span — now — so three chips over a board-only
-    // panel would be three words for the same figure.
-    // Two links, one per file: the panel mounts the strip behind the gate, and
-    // the strip is the chips.
-    expect(panel).toMatch(/\{fromRange && <UsagePeriodStrip /);
+  it("shows the selector from the first paint, before the logs have answered", () => {
+    // CHANGED ON PURPOSE (owner 2026-11-10): no board headline; chips from first paint; logs-unread sentence.
+    // The panel used to mount the chips only once ccusage had answered, over a
+    // board-only body. That body is gone: the figures come from the logs or not
+    // at all, so the chips are there from the start and say a read is out
+    // (`firstRead`) until the first one comes back.
+    expect(panel).toContain("<UsagePeriodStrip period={period} rangePending={rangePending || firstRead} setPeriod={setPeriod} />");
+    expect(panel).not.toMatch(/\{fromRange && <UsagePeriodStrip /);
     expect(strip).toMatch(/<div\s+className="uh-range up-period"/);
   });
 
@@ -458,7 +460,10 @@ describe("markup, read as source", () => {
     expect(panel.indexOf("<UsagePeriodStrip")).toBeGreaterThan(-1);
     // CHANGED ON PURPOSE (V4's Figma): the gate follows the skeleton's own
     // branch, which also sits after the strip.
-    expect(panel.indexOf("<UsagePeriodStrip")).toBeLessThan(panel.indexOf("{showSkeleton ? null : totalTokenSum > 0 ? ("));
+    // CHANGED ON PURPOSE (owner 2026-11-10): no board headline; chips from first paint; logs-unread sentence.
+    const gate = "{showSkeleton || !fromRange ? null : totalTokenSum > 0 ? (";
+    expect(panel.indexOf(gate), "the token gate is gone or renamed").toBeGreaterThan(-1);
+    expect(panel.indexOf("<UsagePeriodStrip")).toBeLessThan(panel.indexOf(gate));
     // Every period but `all`, which has no longer one to offer (#1806).
     expect(panel).toContain(`: <>{t("usage.empty.period", { period: periodWord })}<br />{t("usage.empty.longer")}</>`);
   });
@@ -510,16 +515,16 @@ describe("markup, read as source", () => {
     expect(models).not.toMatch(/staleCls|up-stale/);
     expect(sessions).not.toMatch(/staleCls|up-stale/);
     expect(css).not.toMatch(/\.up-stale\b/);
-    // The scope sentence is boardScopeTitle's since Settings › General's
-    // single-key switch: the sentence pointing at H while H opens the history, the same
-    // sentence naming Usage history once it does not (WCAG 2.1.4).
-    expect(panel).toContain('<div className="up-total" title={fromRange ? undefined : boardScopeTitle(singleKeys)}>');
-    expect(panel).toContain('<div className="up-tokens-row" title={fromRange ? undefined : boardScopeTitle(singleKeys)}>');
+    // CHANGED ON PURPOSE (owner 2026-11-10): no board headline; chips from first paint; logs-unread sentence.
+    // The board's scope sentence hung on these two as a title; with no board
+    // figure left in the panel there is no scope to explain, and no title.
+    expect(panel).toContain('<div className="up-total">');
+    expect(panel).toContain('<div className="up-tokens-row">');
     expect(models).toContain('<section className="up-section">');
     expect(sessions).toContain('<section className="up-section">');
     // The words that carry it: the noun of the period SHOWN, not the one pressed.
     expect(panel).toContain("const periodNoun = nounFor(shownPeriod, period);");
-    expect(panel).toContain('<span className="up-total-label">{fromRange ? periodWord : boardSpendLabel()}</span>');
+    expect(panel).toContain('<span className="up-total-label">{periodWord}</span>');
   });
 
   it("reads the seam through the functions rather than re-deciding it here", () => {
@@ -528,7 +533,10 @@ describe("markup, read as source", () => {
     // test can reach it, and every case above would still pass.
     expect(panel).toContain("const figures = panelFigures(range,");
     expect(panel).toContain("const periodNoun = nounFor(shownPeriod, period);");
-    expect(rangeHook).toContain("return { ...rangeView(landed, period), loading };");
+    // CHANGED ON PURPOSE (owner 2026-11-10): no board headline; chips from first paint; logs-unread sentence.
+    // `tried` joins `loading`: whether any read has come back, so the panel can
+    // tell "still reading" from "could not read".
+    expect(rangeHook).toContain("return { ...rangeView(landed, period), loading, tried };");
     for (const gone of ["fromRange ? rangeSum.cost +", "fromRange ? rangeSum.tokens", "landed.period !== period,"]) {
       expect(surface, `${gone} is decided in the component again`).not.toContain(gone);
     }

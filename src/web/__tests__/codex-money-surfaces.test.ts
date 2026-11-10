@@ -263,7 +263,9 @@ describe("a model with no rate says so instead of vanishing", () => {
     // unpriced model got a two-number strip and no breakdown whatsoever.
     // CHANGED ON PURPOSE (V4's Figma): the token gate follows the skeleton's own
     // gate, `{showSkeleton ? null : totalTokenSum > 0 ? (`; the rule is the same.
-    expect(panel).toMatch(/\{showSkeleton \? null : totalTokenSum > 0 \? \(/);
+    // CHANGED ON PURPOSE (owner 2026-11-10): no board headline; chips from first paint; logs-unread sentence.
+    // The gate also waits for the logs (`|| !fromRange`): no board breakdown stands in.
+    expect(panel).toMatch(/\{showSkeleton \|\| !fromRange \? null : totalTokenSum > 0 \? \(/);
     expect(panel).toMatch(/\{hasCost && \(/);
     expect(panelSurface).not.toMatch(/\{hasCost \? \(/);
   });

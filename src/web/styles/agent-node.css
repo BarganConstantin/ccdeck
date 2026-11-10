@@ -436,6 +436,7 @@
   animation: pulse var(--pulse-live) infinite;
 }
 .ctx-donut {
+  position: relative;
   background: transparent;
   border: none;
   padding: 0;
@@ -452,6 +453,24 @@
    scale the pointer sees. 26px of donut, so 0.94 like the other icon targets —
    0.97 of 26px is under a pixel. */
 .ctx-donut:active { transform: scale(var(--press-small)); }
+/* ITS TARGET ON SCREEN (WCAG 2.5.8). The donut is 26px in the card, but the
+   card is drawn at the canvas's zoom, so on screen it is 26 x zoom: 23px at
+   0.88, 16px at 0.6, where the full card gives way to its face and the donut
+   goes. An invisible box makes up the difference: 24px / --zoom (written on
+   the canvas, use-canvas-viewport.ts) wide and tall, centred on the donut, so
+   it is 24 on screen at every zoom the donut is drawn at; at 1 and above it is
+   the donut's own box. At most 7px out each side at 0.6, inside the card's
+   padding (7px at the tightest density, 9px by default), so the card's
+   `overflow: hidden` clips none of it. */
+.ctx-donut::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: max(100%, calc(24px / var(--zoom, 1)));
+  height: max(100%, calc(24px / var(--zoom, 1)));
+  transform: translate(-50%, -50%);
+}
 
 
 /* THE COST TOOLTIP (V4): 320 wide on --panel with a --line edge and the

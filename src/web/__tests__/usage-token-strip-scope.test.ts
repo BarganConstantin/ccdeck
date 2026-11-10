@@ -5,8 +5,8 @@
 // both sources. Under ccusage that is false: the strip is ccusage's reading for
 // the period on screen (today, this month, all time), read from the logs on
 // disk, and the canvas is not what it counts. The caption takes the same word
-// the headline's label takes when there is money, the period's noun, and keeps
-// "on this board" for the board's own figures, where it is true.
+// the headline's label takes when there is money, the period's noun. Since
+// 2026-11-10 the panel has no board figures at all, so "on this board" is gone.
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
@@ -14,9 +14,9 @@ import { renderToStaticMarkup } from "react-dom/server";
 const reading = vi.hoisted(() => ({ data: null as unknown, shown: "today" as string }));
 
 // What ccusage answered, and for which period — or null, which is a ccusage
-// that failed or is absent, and leaves the panel on the board's live figures.
+// that failed or is absent: a read has come back (`tried`) with nothing.
 vi.mock("../use-usage-range", () => ({
-  useUsageRange: () => ({ data: reading.data, shown: reading.shown, stale: false, loading: false, baseline: null }),
+  useUsageRange: () => ({ data: reading.data, shown: reading.shown, stale: false, loading: false, baseline: null, tried: true }),
 }));
 
 const { default: UsagePanel } = await import("../components/UsagePanel");
@@ -110,18 +110,22 @@ describe("the token strip's caption under ccusage", () => {
   });
 });
 
-describe("the token strip's caption on the live board (ccusage failing)", () => {
+// CHANGED ON PURPOSE (owner 2026-11-10): no board headline; chips from first paint; logs-unread sentence.
+// These cases pinned "on this board" on the strip when ccusage had failed and
+// the panel fell back to the canvas. There is no fallback any more: with no
+// reading from the logs there is no token strip at all, whatever the board holds.
+describe("the token strip when the logs could not be read (ccusage failing)", () => {
   beforeEach(() => { reading.data = null; reading.shown = "today"; });
 
-  it("names the board when nothing on it is priced", () => {
-    expect(strip([unknown])).toEqual({ caption: BOARD_SCOPE_LABEL });
+  it("draws no strip when nothing on the board is priced", () => {
+    expect(strip([unknown])).toBeNull();
   });
 
-  it("names the board when every cost on it is a known zero", () => {
-    expect(strip([free])).toEqual({ caption: BOARD_SCOPE_LABEL });
+  it("draws no strip when every cost on the board is a known zero", () => {
+    expect(strip([free])).toBeNull();
   });
 
-  it("says it once: no caption when the headline above carries the board's label", () => {
-    expect(strip([paid])).toEqual({ caption: null });
+  it("draws no strip over a priced board either", () => {
+    expect(strip([paid])).toBeNull();
   });
 });
