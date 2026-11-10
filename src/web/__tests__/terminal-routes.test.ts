@@ -13,7 +13,7 @@
 // tmux, the target resolver and the session launcher are stand-ins passed
 // through startServer's `terminal` option, beside the backend itself. terminal-target.test.ts and terminal-sessions.test.ts pin those
 // modules; terminal-socket-tmux.test.ts runs the whole path on real tmux.
-import { describe, it, expect, afterAll, beforeAll, beforeEach, vi } from "vitest";
+import { describe, it, expect, afterAll, afterEach, beforeAll, beforeEach, vi } from "vitest";
 import { mkdirSync, mkdtempSync } from "node:fs";
 import { request, type Server } from "node:http";
 import { EventEmitter } from "node:events";
@@ -436,13 +436,15 @@ describe("POST /api/terminal/open", () => {
     expect(got.raw).not.toContain("ccdeck-claude-00000002");
   });
 
-  it("reaches a background session through its live attach wrapper, starting nothing, at the size it has", async () => {
+  it("reaches a background session through its live attach wrapper, starting nothing, sized by the panel", async () => {
     // Every view of a background session shares one pty, which takes the size
-    // of the latest attach: a panel that sized it drew the user's own
-    // `claude agents` view for the stage's width.
+    // of the latest attach: the panel fits it, and the size it had before is
+    // put back as the wrapper closes (see "a background session fitted to the
+    // stage" below).
     target = { kind: "D", attachId: "b02a39b7", wrapper: { name: "ccdeck-att-0b9f3c1e", pane: "%21" } };
     const got = await opened();
-    expect(got.binding).toMatchObject({ kind: "D", socket: DECK_SOCKET, target: "ccdeck-att-0b9f3c1e", pane: "%21", ignoreSize: true });
+    // CHANGED ON PURPOSE (owner 2026-11-10): a background session fits the stage, its size put back on close
+    expect(got.binding).toMatchObject({ kind: "D", socket: DECK_SOCKET, target: "ccdeck-att-0b9f3c1e", pane: "%21", ignoreSize: false });
     expect(launches).toEqual([]);
   });
 
@@ -1024,7 +1026,8 @@ describe("tmuxStatus", () => {
 describe("a background session's attach wrapper", () => {
   // terminalUpgradeOptions' bridge, on a fake connection and control: what is
   // pinned is when the wrapper is closed, not what the bridge says.
-  const BINDING = { kind: "D", socket: DECK_SOCKET, target: "ccdeck-att-0b9f3c1e", pane: "%21", ignoreSize: true, tmux: "/secret/bin/tmux" };
+  // CHANGED ON PURPOSE (owner 2026-11-10): a background session fits the stage, its size put back on close
+  const BINDING = { kind: "D", socket: DECK_SOCKET, target: "ccdeck-att-0b9f3c1e", pane: "%21", ignoreSize: false, tmux: "/secret/bin/tmux" };
   const conn = () => ({ sendText() {}, sendBinary() {}, close() {}, bufferedAmount: 0 });
   const options = () => routes.terminalUpgradeOptions({
     jsBackend: js.jsTerminalBackend,
@@ -1076,12 +1079,198 @@ describe("a background session's attach wrapper", () => {
     try {
       const o = options();
       show(o, { ...BINDING, kind: "A", target: "ccdeck-claude-0a1b2c3d", ignoreSize: false }).closed(1000, "");
-      show(o, { ...BINDING, kind: "B", target: "%3", socket: { path: "/tmp/tmux-1000/default" } }).closed(1000, "");
+      show(o, { ...BINDING, kind: "B", target: "%3", socket: { path: "/tmp/tmux-1000/default" }, ignoreSize: true }).closed(1000, "");
       vi.advanceTimersByTime(60_000);
       expect(killed).toEqual([]);
     } finally {
       vi.useRealTimers();
     }
+  });
+});
+
+describe("a background session fitted to the stage, its own size put back", () => {
+  // The open route called as terminal-routes calls it, and the bridge as the
+  // upgrade starts it, on fake timers. The fake terminal reads what the case
+  // sets; a resize the wrapper's `claude attach` passes on is what it reads
+  // next (`forwards`), as every view shares that one pty.
+  const WRAPPER = "ccdeck-att-0b9f3c1e";
+  const TTY = "/dev/pts/7";
+  // How often a closing wrapper asks the session's terminal for its size.
+  const POLL = 100;
+  let tty: { cols: number; rows: number } | null;
+  let forwards: boolean;
+  let events: string[];
+  let resized: any[];
+  const deps = (): any => ({
+    jsBackend: js.jsTerminalBackend, deckSocket: DECK_SOCKET, tickets,
+    findTmux: async () => TMUX_OK,
+    resolveTarget: async () => target,
+    claudeBin: () => "/opt/claude/bin/claude",
+    launchSession: async (o: any) => { events.push(`launch ${o.cols}x${o.rows}`); return { name: WRAPPER, sessionId: SID, pane: "%40" }; },
+    listDeckSessions: async () => [],
+    killDeckSession: async (o: any) => { killed.push(o); events.push(`kill ${o.name}`); return true; },
+    resizeWrapper: async (o: any) => {
+      resized.push(o);
+      events.push(`resize ${o.name} ${o.cols}x${o.rows}`);
+      if (forwards) tty = { cols: o.cols, rows: o.rows };
+      return true;
+    },
+    ttySize: async (t: string) => { sized.push(t); return tty; },
+    openControl: (o: any) => { const c = new FakeControl(o); controls.push(c); return c; },
+  });
+  const conn = () => ({ sendText() {}, sendBinary() {}, close() {}, bufferedAmount: 0 });
+  /** POST /api/terminal/open's handler, answered into a stand-in response. */
+  const open = async (d: any) => {
+    let body: any = null;
+    const res = { headersSent: false, writeHead() {}, end(raw: string) { body = JSON.parse(raw); } };
+    await js.jsTerminalBackend.open({ headers: {} }, res, session(), d);
+    return body;
+  };
+  /** A panel on what `open` answered, and the call that closes it. */
+  const show = (d: any, answer: any) => {
+    const bridge = routes.terminalUpgradeOptions(d).openBridge({ conn: conn(), socket: {}, binding: tickets.redeem(answer.ticket) });
+    return () => bridge.closed(1000, "");
+  };
+  /** The background session on TTY, read at `before` as it is opened and
+   *  shown, and then fitted by the panel to `fitted`. */
+  const fittedOnStage = async (d: any, before: { cols: number; rows: number }, fitted: { cols: number; rows: number }) => {
+    target = { kind: "D", attachId: "b02a39b7", tty: TTY };
+    tty = before;
+    const close = show(d, await open(d));
+    tty = fitted;
+    return close;
+  };
+  const closing = () => events.filter(e => e.startsWith("resize") || e.startsWith("kill"));
+
+  beforeEach(() => {
+    tty = null;
+    forwards = true;
+    events = [];
+    resized = [];
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+  });
+  afterEach(() => { vi.useRealTimers(); });
+
+  it("tells the stage the dock owns the size, and attaches the panel without ignore-size", async () => {
+    vi.useRealTimers();
+    target = { kind: "D", attachId: "b02a39b7", wrapper: { name: WRAPPER, pane: "%21" } };
+    const got = await ask("POST", "/api/terminal/open", session());
+    const c = await openWs({
+      port, path: `/api/terminal/attach?ticket=${got.body.ticket}`,
+      headers: { Host: `127.0.0.1:${port}`, Origin: `http://127.0.0.1:${port}`, "Sec-Fetch-Site": "same-origin" },
+    });
+    expect(c.status).toBe(101);
+    try {
+      // CHANGED ON PURPOSE (owner 2026-11-10): a background session fits the stage, its size put back on close
+      expect(json(await c.next())).toEqual({ t: "hello", kind: "D", sizeOwner: "dock", readOnly: false });
+      expect(controls.at(-1)!.opts).toMatchObject({ target: WRAPPER, pane: "%21", ignoreSize: false });
+    } finally {
+      c.sendClose();
+      await c.closed;
+    }
+  });
+
+  it("keeps the session's size read at open, and puts it back before the wrapper is killed", async () => {
+    // The October case: the user's terminal had the session at 123x58, the
+    // stage fitted it to 174x66, and the stage closes.
+    const d = deps();
+    const close = await fittedOnStage(d, { cols: 123, rows: 58 }, { cols: 174, rows: 66 });
+    expect(events, "the wrapper starts at the session's size").toEqual(["launch 123x58"]);
+    close();
+    await vi.advanceTimersByTimeAsync(js.WRAPPER_GRACE_MS - 1);
+    expect(closing()).toEqual([]);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(closing(), "put back while its claude attach still runs").toEqual([`resize ${WRAPPER} 123x58`]);
+    // One poll later the session reads it, and the wrapper goes.
+    await vi.advanceTimersByTimeAsync(POLL);
+    expect(closing()).toEqual([`resize ${WRAPPER} 123x58`, `kill ${WRAPPER}`]);
+    expect(resized[0]).toMatchObject({ name: WRAPPER, cols: 123, rows: 58, socket: DECK_SOCKET, tmux: "/secret/bin/tmux" });
+    expect(tty, "the terminal beside it has its own size back").toEqual({ cols: 123, rows: 58 });
+  });
+
+  it("waits for the size to reach the session before the kill, but not for ever", async () => {
+    forwards = false;
+    const d = deps();
+    const close = await fittedOnStage(d, { cols: 100, rows: 35 }, { cols: 174, rows: 66 });
+    close();
+    await vi.advanceTimersByTimeAsync(js.WRAPPER_GRACE_MS);
+    expect(closing()).toEqual([`resize ${WRAPPER} 100x35`]);
+    await vi.advanceTimersByTimeAsync(js.RESTORE_WAIT_MS - 200);
+    expect(closing(), "closed before the size could reach the session").toEqual([`resize ${WRAPPER} 100x35`]);
+    await vi.advanceTimersByTimeAsync(400);
+    expect(closing()).toEqual([`resize ${WRAPPER} 100x35`, `kill ${WRAPPER}`]);
+  });
+
+  it("resizes nothing the session does not need: at its own size still, its terminal gone, or none known", async () => {
+    const d = deps();
+    // At its own size still.
+    let close = await fittedOnStage(d, { cols: 100, rows: 35 }, { cols: 100, rows: 35 });
+    close();
+    await vi.advanceTimersByTimeAsync(js.WRAPPER_GRACE_MS);
+    // Its terminal gone by the close.
+    close = await fittedOnStage(d, { cols: 100, rows: 35 }, { cols: 174, rows: 66 });
+    tty = null;
+    close();
+    await vi.advanceTimersByTimeAsync(js.WRAPPER_GRACE_MS);
+    // No terminal known: nothing is ever read.
+    sized = [];
+    target = { kind: "D", attachId: "b02a39b7" };
+    show(d, await open(d))();
+    await vi.advanceTimersByTimeAsync(js.WRAPPER_GRACE_MS);
+    expect(closing()).toEqual([`kill ${WRAPPER}`, `kill ${WRAPPER}`, `kill ${WRAPPER}`]);
+    expect(sized).toEqual([]);
+  });
+
+  it("puts back the size read before a panel fitted the session, never one read while a panel shows it", async () => {
+    const d = deps();
+    const a = await fittedOnStage(d, { cols: 100, rows: 35 }, { cols: 174, rows: 66 });
+    // A second open finds the wrapper, at the panel's size by now.
+    target = { kind: "D", attachId: "b02a39b7", tty: TTY, wrapper: { name: WRAPPER, pane: "%40" } };
+    const b = show(d, await open(d));
+    a();
+    b();
+    // Reopened inside the grace, as a reload does: still not a reading.
+    await vi.advanceTimersByTimeAsync(js.WRAPPER_GRACE_MS / 2);
+    const c = show(d, await open(d));
+    await vi.advanceTimersByTimeAsync(js.WRAPPER_GRACE_MS * 2);
+    expect(closing(), "a panel shows it").toEqual([]);
+    c();
+    await vi.advanceTimersByTimeAsync(js.WRAPPER_GRACE_MS + POLL);
+    expect(closing()).toEqual([`resize ${WRAPPER} 100x35`, `kill ${WRAPPER}`]);
+  });
+
+  it("keeps the wrapper, and the size to put back, for a panel back while the size is being put back", async () => {
+    forwards = false;
+    const d = deps();
+    const close = await fittedOnStage(d, { cols: 100, rows: 35 }, { cols: 174, rows: 66 });
+    close();
+    await vi.advanceTimersByTimeAsync(js.WRAPPER_GRACE_MS);
+    expect(closing()).toEqual([`resize ${WRAPPER} 100x35`]);
+    target = { kind: "D", attachId: "b02a39b7", tty: TTY, wrapper: { name: WRAPPER, pane: "%40" } };
+    const back = show(d, await open(d));
+    await vi.advanceTimersByTimeAsync(js.RESTORE_WAIT_MS + 1_000);
+    expect(closing()).toEqual([`resize ${WRAPPER} 100x35`]);
+    // The panel fits it again; when it goes, the same size goes back.
+    tty = { cols: 174, rows: 66 };
+    forwards = true;
+    back();
+    await vi.advanceTimersByTimeAsync(js.WRAPPER_GRACE_MS + POLL);
+    expect(closing()).toEqual([`resize ${WRAPPER} 100x35`, `resize ${WRAPPER} 100x35`, `kill ${WRAPPER}`]);
+  });
+
+  it("takes neither the wrapper's start nor the size put back from the page", async () => {
+    const d = deps();
+    target = { kind: "D", attachId: "b02a39b7", tty: TTY };
+    tty = { cols: 100, rows: 35 };
+    let body: any = null;
+    const res = { headersSent: false, writeHead() {}, end(raw: string) { body = JSON.parse(raw); } };
+    await js.jsTerminalBackend.open({ headers: {} }, res, session({ cols: 9999, rows: 1 }), d);
+    expect(events).toEqual(["launch 100x35"]);
+    const close = show(d, body);
+    tty = { cols: 174, rows: 66 };
+    close();
+    await vi.advanceTimersByTimeAsync(js.WRAPPER_GRACE_MS);
+    expect(resized.map(r => `${r.cols}x${r.rows}`)).toEqual(["100x35"]);
   });
 });
 
