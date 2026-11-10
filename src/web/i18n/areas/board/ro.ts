@@ -648,6 +648,7 @@ const catalog: Catalog = {
   "board.stage.downloadUntrusted": "ccdeck a descărcat propriul tmux, dar nu era versiunea în care are încredere, deci nu a fost folosit.",
   "board.stage.downloadWontRun": "Propriul tmux al ccdeck-ului nu a pornit pe acest computer.",
   "board.stage.downloadOther": "ccdeck nu a putut configura propriul tmux.",
+  "board.stage.identityUncertain": "ccdeck nu a putut identifica sigur terminalul acestei sesiuni. Poate rula în altă aplicație. Poți porni o sesiune nouă aici; această conversație nu a fost redeschisă.",
   "board.stage.stillRunning": "Încă rulează în acel terminal. Redeschiderea cere să fie oprită mai întâi: încheie-o acolo, apoi verifică din nou.",
   "board.stage.wsEmptyTitle": "Nu așteaptă nimic",
   "board.stage.wsEmptyLine": "Deschide o sesiune din listă sau pornește una nouă.",

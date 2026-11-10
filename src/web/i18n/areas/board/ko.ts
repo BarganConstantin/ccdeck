@@ -628,6 +628,7 @@ const catalog: Catalog = {
   "board.stage.downloadUntrusted": "ccdeck이 자체 tmux를 다운로드했지만 ccdeck이 신뢰하는 빌드가 아니어서 사용하지 않았습니다.",
   "board.stage.downloadWontRun": "ccdeck 자체의 tmux가 이 컴퓨터에서 실행되지 않았습니다.",
   "board.stage.downloadOther": "ccdeck이 자체 tmux를 설정하지 못했습니다.",
+  "board.stage.identityUncertain": "ccdeck이 이 세션의 터미널을 확실하게 식별하지 못했습니다. 다른 앱에서 실행 중일 수 있습니다. 여기서 새 세션을 시작할 수 있으며, 이 대화는 다시 열리지 않았습니다.",
   "board.stage.stillRunning": "해당 터미널에서 아직 실행 중입니다. 다시 열려면 먼저 중지해야 합니다. 그곳에서 끝내거나 종료한 다음 다시 확인하세요.",
   "board.stage.wsEmptyTitle": "대기 중인 항목이 없습니다",
   "board.stage.wsEmptyLine": "목록에서 세션을 열거나 새 세션을 시작하세요.",

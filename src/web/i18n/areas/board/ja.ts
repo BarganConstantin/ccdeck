@@ -628,6 +628,7 @@ const catalog: Catalog = {
   "board.stage.downloadUntrusted": "ccdeck 専用の tmux をダウンロードしましたが、信頼しているビルドではなかったため使用しませんでした。",
   "board.stage.downloadWontRun": "ccdeck 専用の tmux はこのマシンで動作しませんでした。",
   "board.stage.downloadOther": "ccdeck 専用の tmux を準備できませんでした。",
+  "board.stage.identityUncertain": "ccdeck はこのセッションのターミナルを確実に特定できませんでした。別のアプリで実行中の可能性があります。ここで新しいセッションを開始できます。この会話は再開されていません。",
   "board.stage.stillRunning": "そのターミナルでまだ動いています。開き直すには、先に停止する必要があります。そちらで終了してから、再確認してください。",
   "board.stage.wsEmptyTitle": "待機中のものはありません",
   "board.stage.wsEmptyLine": "一覧からセッションを開くか、新しく起動してください。",

@@ -877,10 +877,10 @@ export function createTerminalSession(deps: SessionDeps, callbacks: SessionCallb
       return;
     }
     if (answer.target.kind === "unsupported") {
-      await tmuxOr(my, { kind: "error", message: answer.target.label });
+      await tmuxOr(my, { kind: "error", message: answer.target.reason === "uncertain" ? tr("board.stage.identityUncertain") : answer.target.label });
       return;
     }
-    setPhase({ kind: "not-attachable", target: answer.target, stillRunning: false, busy: false });
+    setPhase({ kind: "not-attachable", target: answer.target, stillRunning: answer.target.kind === "C", busy: false });
   };
 
   const launchFlow = async (agent: TerminalProvider, cwd: string, key: string, my: number, options?: LaunchOptions) => {
@@ -1084,6 +1084,12 @@ export function createTerminalSession(deps: SessionDeps, callbacks: SessionCallb
       dropConnection();
       if (phase.kind === "not-attachable") setPhase({ ...phase, busy: true });
       else setPhase({ kind: "attaching", reconnect: true });
+      // Check again is a read. Only a target confirmed as ended may offer
+      // Reopen here; repeatedly adopting a live external session just fails.
+      if (phase.kind === "not-attachable" && phase.stillRunning) {
+        void openFlow(ref, my, false);
+        return;
+      }
       void deps.api.adopt(ref, {}, { ...want }, paneColours()).then(answer => {
         if (my !== gen) return;
         if (answer.ok) { connect(answer.ticket, my); return; }
