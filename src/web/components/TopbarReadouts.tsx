@@ -103,15 +103,15 @@ export function StatusStrip({ live, paused, pauseGate }: {
   );
 }
 
-/** One queued session's words: its name, how long it has waited, and what on
- *  — the session list row's order, "waiting 6m · Bash", so the two read the
- *  same. V4 sets the name on the left and the wait with what it is on at the
- *  row's right end, one quiet mono run. */
+/** One queued session's words: its name, the one its rail row shows, how long
+ *  it has waited, and what on — the session list row's order, "waiting 6m ·
+ *  Bash", so the two read the same. V4 sets the name on the left and the wait
+ *  with what it is on at the row's right end, one quiet mono run. */
 function QueueEntryWords({ w, now }: { w: BlockedSession; now: number }) {
   const t = useT();
   return (
     <>
-      <span className="we-name">{queueName(w.label)}</span>
+      <span className="we-name">{queueName(w.name ?? w.label)}</span>
       <span className="we-wait">{elapsedShort(w.waiting.since, undefined, now)}</span>
       <span className="we-what">· {waitWhat(w.waiting, t)}</span>
     </>
@@ -202,7 +202,7 @@ function QueuePopover({ sessions, now, leaving, onPick, onClose }: {
             role="menuitem"
             className="queue-row"
             onClick={() => onPick(w.id)}
-            aria-label={queueEntryName(w.label, w.waiting, now - w.waiting.since, t)}
+            aria-label={queueEntryName(w.name ?? w.label, w.waiting, now - w.waiting.since, t)}
           >
             <AlertMark size={14} />
             <QueueEntryWords w={w} now={now} />

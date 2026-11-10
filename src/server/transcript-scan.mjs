@@ -356,6 +356,7 @@ function newTranscriptState() {
     subagentModels: {},
     aiTitle: null,      // newest "ai-title" entry, the session's sentence title
     agentName: null,    // newest "agent-name" entry, the session's short name
+    customTitle: null,  // newest "custom-title" entry, the name the user gave it
     recap: null,        // newest "away_summary" no later turn retired — session-recap.mjs
     usage: newUsageTotals(),
     // The same totals, split by the model that produced them (#686). The flat
@@ -376,11 +377,17 @@ function newTranscriptState() {
 }
 
 // ─── Session naming ──────────────────────────────────────────────────────
-// CC writes two whole-line records that name the session, and nothing else in
-// the transcript carries either fact:
+// CC writes three whole-line records that name the session, and nothing else in
+// the transcript carries any of them:
 //
 //   {"type":"ai-title","aiTitle":"Inspect repository to understand current state","sessionId":"…"}
 //   {"type":"agent-name","agentName":"account-management-oauth-flow","sessionId":"…"}
+//   {"type":"custom-title","customTitle":"loroloop","sessionId":"…"}
+//
+// The third is the name the USER gave the session, with /rename or `--name`:
+// the one Claude Code prints in its prompt separator, so it is the one the deck
+// shows ahead of the other two. A rename appends a new record, so the last one
+// wins here too.
 //
 // Both are re-emitted on roughly every turn rather than only when they change.
 // Measured on the two largest transcripts on this machine: 685 `ai-title`
@@ -398,15 +405,14 @@ function newTranscriptState() {
 // would repeat the card.
 const AI_TITLE_MARK = '"ai-title"';
 const AGENT_NAME_MARK = '"agent-name"';
+const CUSTOM_TITLE_MARK = '"custom-title"';
 
 /** Fold one line's naming records into `out`. Last value wins. Pure: `out` is
- *  the only thing written, and a line that is not one of the two records — or
- *  is a truncated fragment of one — leaves it untouched. */
+ *  the only thing written, and a line that is not one of the three records —
+ *  or is a truncated fragment of one — leaves it untouched. */
 export function foldSessionNamingLine(out, line) {
   if (!line) return;
-  const hasTitle = line.includes(AI_TITLE_MARK);
-  const hasName = line.includes(AGENT_NAME_MARK);
-  if (!hasTitle && !hasName) return;
+  if (!line.includes(AI_TITLE_MARK) && !line.includes(AGENT_NAME_MARK) && !line.includes(CUSTOM_TITLE_MARK)) return;
   let obj = null;
   try { obj = JSON.parse(line); } catch { return; }
   if (!obj || typeof obj !== "object") return;
@@ -414,6 +420,8 @@ export function foldSessionNamingLine(out, line) {
     out.aiTitle = obj.aiTitle;
   } else if (obj.type === "agent-name" && typeof obj.agentName === "string" && obj.agentName) {
     out.agentName = obj.agentName;
+  } else if (obj.type === "custom-title" && typeof obj.customTitle === "string" && obj.customTitle.trim()) {
+    out.customTitle = obj.customTitle;
   }
 }
 

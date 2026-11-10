@@ -276,10 +276,12 @@ export interface AgentNodeData {
    *  the subagent is for. Absent when no such call reached the deck; the card
    *  then says the kind and the folder. See subagent-lifecycle.ts. */
   spawnCall?: { id: string; description?: string };
-  /** The name Claude Code gave this session, from the transcript's `agent-name`
-   *  records — e.g. "account-management-oauth-flow". Session root only, and
-   *  Claude only: a Codex rollout carries no such record, so the field stays
-   *  undefined there and the card renders exactly what it always did.
+  /** The session's name: the one the user gave it (/rename, `--name`), from
+   *  the transcript's `custom-title` records, else the one Claude Code gave it,
+   *  from its `agent-name` records — e.g. "account-management-oauth-flow". The
+   *  server picks (session-enrichment.mjs). Session root only, and Claude only:
+   *  a Codex rollout carries no such record, so the field stays undefined there
+   *  and the card renders exactly what it always did.
    *
    *  RARE. Present on 18 of the 7,743 transcripts under ~/.claude/projects on
    *  this machine — 0.2%, and 1.1% of the ones over 50 KB. Nothing may be built

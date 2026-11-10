@@ -112,7 +112,7 @@ export function RailRow({ row: r, group, now, selected, removed, leaving, landNo
   const tell = r.tell;
   const line = lineAfterTell(railLine(r, group), tell);
   const lined = !!(line || removed || tell);
-  // A tell alone is words in the UI face, or an id in the mono one.
+  // A lead alone is words in the UI face (a folder, a clock), or an id in the mono one.
   const face = line ? (line.kind === "sans" ? "sans" : "mono") : tell && tell.kind !== "id" ? "sans" : "mono";
   const time = railTime(r, group, now);
   // The highlight is the row's own once it has been handed over, so it plays
@@ -157,7 +157,8 @@ export function RailRow({ row: r, group, now, selected, removed, leaving, landNo
                     line whole: the press on this row does something different. */}
                 {removed && <span className="sl-off">{t("board.rail.offBoard")}</span>}
                 {removed && (tell || line) ? " · " : ""}
-                {/* Which of the rows of this name it is, before what it is doing. */}
+                {/* The one quiet lead, before what it is doing: the folder under
+                    a name, or which of the rows of this name it is. */}
                 {tell && <span className={`sl-tell${tell.kind === "id" ? "" : " words"}${line ? " lead" : ""}`}>{tell.text}</span>}
                 {tell && line ? " · " : ""}
                 {line && (line.kind === "tool"

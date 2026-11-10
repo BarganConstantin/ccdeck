@@ -833,6 +833,7 @@ const catalog: Catalog = {
   "board.row.yourTurnSince": "{time}부터 사용자 차례 · {started} 시작",
   "board.row.started": "{started} 시작",
   "board.row.startedAt": "{time} 시작",
+  "board.row.inFolder": "폴더: {folder}",
   "board.row.toolsSpend": "{tools} · {cost} {label}",
   "board.row.suggestedReply": "추천 답장: {reply}",
   "board.row.spokenReply": ", 추천 답장: {reply}",

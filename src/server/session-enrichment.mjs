@@ -417,7 +417,7 @@ function maybeResolveUsage(payload) {
 // The emit is what is actually kept rare, and it is gated on a CHANGE: with 685
 // records carrying 2 distinct values, a per-pass emit would be ~683 events
 // saying nothing. Sessions that never get named emit nothing at all.
-const nameBySession = new Map();        // sid -> `${agentName}\0${aiTitle}`
+const nameBySession = new Map();        // sid -> `${sessionName}\0${aiTitle}`
 const nameReads = sessionReadGate(MODEL_READ_THROTTLE_MS);
 
 /** The naming the cursor has folded so far, or null when the scan has nothing.
@@ -435,8 +435,11 @@ const nameReads = sessionReadGate(MODEL_READ_THROTTLE_MS);
 async function readSessionNamingFromTranscript(path) {
   const state = await scanTranscript(path);
   if (!state) return null;
-  const naming = (state.agentName || state.aiTitle)
-    ? { agentName: state.agentName, aiTitle: state.aiTitle }
+  // The name the user gave the session (/rename, `--name`) is the one Claude
+  // Code prints in its prompt, so it outranks the name CC made up for it.
+  const name = state.customTitle || state.agentName;
+  const naming = (name || state.aiTitle)
+    ? { name: name ?? null, aiTitle: state.aiTitle }
     : null;
   return { naming, recap: state.recap ?? null };
 }
@@ -451,13 +454,13 @@ function maybeResolveSessionName(payload) {
       noteRecap(sid, read.recap);
       const naming = read.naming;
       if (!naming) return;
-      const sig = `${naming.agentName ?? ""}\u0000${naming.aiTitle ?? ""}`;
+      const sig = `${naming.name ?? ""}\u0000${naming.aiTitle ?? ""}`;
       if (nameBySession.get(sid) === sig) return;
       nameBySession.set(sid, sig);
       pushEvent({
         hook_event_name: "SessionNamed",
         session_id: sid,
-        sessionName: naming.agentName ?? null,
+        sessionName: naming.name ?? null,
         sessionTitle: naming.aiTitle ?? null,
       }, "internal");
     }));

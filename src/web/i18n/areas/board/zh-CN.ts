@@ -833,6 +833,7 @@ const catalog: Catalog = {
   "board.row.yourTurnSince": "自 {time}起轮到您 · 开始于 {started}",
   "board.row.started": "开始于 {started}",
   "board.row.startedAt": "{time}开始",
+  "board.row.inFolder": "文件夹：{folder}",
   "board.row.toolsSpend": "{tools} · {cost} {label}",
   "board.row.suggestedReply": "建议回复：{reply}",
   "board.row.spokenReply": "，建议回复：{reply}",

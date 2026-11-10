@@ -833,6 +833,7 @@ const catalog: Catalog = {
   "board.row.yourTurnSince": "À vous depuis {time} · démarrée {started}",
   "board.row.started": "Démarrée {started}",
   "board.row.startedAt": "Démarrée à {time}",
+  "board.row.inFolder": "Dans {folder}",
   "board.row.toolsSpend": "{tools} · {cost} {label}",
   "board.row.suggestedReply": "Réponse suggérée : {reply}",
   "board.row.spokenReply": ", réponse suggérée : {reply}",

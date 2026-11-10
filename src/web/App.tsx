@@ -109,6 +109,7 @@ import { useVersionCheck } from "./use-version-check";
 import { useWelcomeAndNotes } from "./use-welcome-and-notes";
 import { useReports } from "./use-reports";
 import { blockedSessions } from "./ambient-counts";
+import { sessionListName } from "./session-display";
 import { sessionCounts } from "./topbar-counts";
 import { initialState } from "./reducer";
 import { useSoundSwitch } from "./use-sound-switch";
@@ -998,10 +999,11 @@ function Inner() {
   // Tool activity, on the view its door names: tools or skills.
   const [toolAuditView, setToolAuditView] = useState<ToolActivityView | null>(null);
   const closeToolAudit = useCallback(() => setToolAuditView(null), []);
-  // Skill activity names a session by its card, and opens it there, while the card is still drawn.
+  // Skill activity names a session as its rail row does, and opens it on its
+  // card, while the card is still drawn.
   const toolAuditSessionLabel = useCallback((sessionId: string) => {
     const card = stateRef.current.agents.get(sessionId);
-    return card ? card.label || card.cwdBasename || "session" : null;
+    return card ? sessionListName(card) ?? "session" : null;
   }, []);
   const openToolAuditSession = useCallback((sessionId: string) => { setToolAuditView(null); openSession(sessionId); }, [openSession]);
   const closeRadio = useCallback(() => setRadioOpen(false), []);

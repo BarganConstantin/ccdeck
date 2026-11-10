@@ -63,20 +63,21 @@ export function railLine(r: Row, group: RailGroup): RailLine | null {
   return note ? { kind: "mono", text: note } : null;
 }
 
-/** What tells a row from the others of its name. `task` and `started` are
- *  words, `id` is a fragment of the session id, drawn in the mono face. */
-export interface RowTell { kind: "task" | "started" | "id"; text: string }
+/** The quiet lead of a row's second line. `folder` and `started` are words,
+ *  `id` is a fragment of the session id, drawn in the mono face. */
+export interface RowTell { kind: "folder" | "started" | "id"; text: string }
 
 /**
- * A row's name is its folder's, so four sessions in one repo read the same
- * four times on a phone, one under another (owner, 2026-11-10). Only rows whose
- * names collide get a tell, and each takes the first of these that no other
- * row of its name still in question shares: the session's own words (what
- * Claude Code calls it, else its first prompt) when they are more than the
- * folder's name again; the clock time it started; as much of its id as it
- * takes. Two sessions given the same first prompt fall through to when they
- * started, and two started in the same minute to the id. No session carries its git branch,
- * so there is no branch step between the words and the start.
+ * At most one quiet lead per row, ahead of what the session is doing (owner,
+ * 2026-11-10). A row is titled by the session's name, so a named row leads
+ * with its folder, to still say where it runs; a row titled by its folder has
+ * nothing to add. Rows whose titles collide lead instead with what tells them
+ * apart, each taking the first of these that no other row of its title still
+ * in question shares: its folder; the clock time it started; as much of its id
+ * as it takes. Two sessions of one name in one folder fall through to when they
+ * started, and two started in the same minute to the id. The session's own
+ * words are no step: they are the title. No session carries its git branch, so
+ * there is no branch step either.
  */
 export function rowTells(rows: readonly Row[], now: number): Map<string, RowTell> {
   const byName = new Map<string, Row[]>();
@@ -87,9 +88,13 @@ export function rowTells(rows: readonly Row[], now: number): Map<string, RowTell
   }
   const tells = new Map<string, RowTell>();
   for (const peers of byName.values()) {
-    if (peers.length < 2) continue;
+    if (peers.length < 2) {
+      const folder = folderTell(peers[0]);
+      if (folder) tells.set(peers[0].sessionId, folder);
+      continue;
+    }
     let open = peers;
-    for (const tellOf of [taskTell, (r: Row) => startedTell(r, now)]) {
+    for (const tellOf of [folderTell, (r: Row) => startedTell(r, now)]) {
       const said = open.map(tellOf);
       open = open.filter((r, i) => {
         const mine = said[i];
@@ -104,10 +109,14 @@ export function rowTells(rows: readonly Row[], now: number): Map<string, RowTell
   return tells;
 }
 
-/** The session's own words, unless they only say the folder's name again. */
-function taskTell(r: Row): RowTell | null {
-  const task = r.task?.trim();
-  return task && task.toLowerCase() !== r.label.trim().toLowerCase() ? { kind: "task", text: task } : null;
+/** The folder, on a row whose title is something else (buildRows sets it only there). */
+function folderTell(r: Row): RowTell | null {
+  return r.folder ? { kind: "folder", text: r.folder } : null;
+}
+
+/** Two names a reader takes for one: case and the space around them aside. */
+export function sameWords(a: string, b: string): boolean {
+  return a.trim().toLowerCase() === b.trim().toLowerCase();
 }
 
 /** When the session started, by the reader's clock, so the tell never changes
@@ -122,10 +131,8 @@ function startedTell(r: Row, now: number): RowTell {
   return { kind: "started", text: t("board.row.startedAt", { time }) };
 }
 
-/** The second line as it follows the row's tell: none when it only says the
- *  tell again, as a first turn's note does (its prompt is the tell). The deck
- *  keeps the first prompt cut shorter than the note cuts it, so one may be the
- *  other with an ellipsis. */
+/** The second line as it follows the row's lead: none when it only says the
+ *  lead again. Either may be the other cut short with an ellipsis. */
 export function lineAfterTell(line: RailLine | null, tell: RowTell | undefined): RailLine | null {
   if (!line || !tell || line.kind === "tool") return line;
   const cut = (s: string) => (s.endsWith("…") ? s.slice(0, -1).trimEnd() : "");
@@ -180,6 +187,7 @@ export function railTime(r: Row, group: RailGroup, now: number): { text: string;
  *  tooltip is where a clamped line and the dropped figures stay readable. */
 export function rowTooltip(r: Row, removed: boolean): string {
   const lines: string[] = [removed ? t("board.row.bringBack", { label: r.label }) : t("board.row.focus", { label: r.label })];
+  if (r.folder) lines.push(t("board.row.inFolder", { folder: r.folder }));
   if (r.waiting) {
     lines.push(
       waitingSentence(r.waiting),
@@ -223,6 +231,8 @@ export function runningTool(call: { name: string; input?: unknown }): { name: st
  *  the row's button as visually hidden text; the tooltip stays as well. */
 export function rowSpoken(r: Row): string {
   const parts: string[] = [];
+  // The folder where the row does not draw it: rows of one name lead with a clock or an id.
+  if (r.folder && r.tell?.kind !== "folder") parts.push(t("board.row.inFolder", { folder: r.folder }));
   if (r.plan) parts.push(planSpoken(r.plan));
   if (r.status) parts.push(`${noteTag(r.status.kind)}${r.status.reply ? t("board.row.spokenReply", { reply: r.status.reply }) : ""}`);
   else if (r.recap) parts.push(noteTag("recap"));
