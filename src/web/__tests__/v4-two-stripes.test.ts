@@ -300,8 +300,9 @@ describe("the stripes' look", () => {
     expect(decl(".edge-rail-right", "border-left")).toMatch(/^1px solid /);
   });
 
-  it("runs both stripes' doors 2 apart with a 16 x 1 rule between runs, on either stripe", () => {
-    expect(decl(".rail-doors .rail-group + .rail-group::before", "width")).toBe("16px");
+  // CHANGED ON PURPOSE (#2539): the rule between runs is 28 x 1 in --line (it was 16 x 1 in --line-soft).
+  it("runs both stripes' doors 2 apart with a 28 x 1 rule between runs, on either stripe", () => {
+    expect(decl(".rail-doors .rail-group + .rail-group::before", "width")).toBe("28px");
     expect(decl(".rail-doors .rail-group + .rail-group::before", "height")).toBe("1px");
     expect(decl(".edge-rail .rail-group", "flex-shrink")).toBe("0");
     expect(decl(".edge-rail-right", "overflow-y")).toBe("auto");

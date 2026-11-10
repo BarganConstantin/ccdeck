@@ -255,5 +255,7 @@
   border-radius: var(--r-ctl);
   color: var(--muted);
 }
+@media (hover: hover) and (pointer: fine) {
 .film-link.film-icon:hover { color: var(--text); background: var(--ctl-fill); text-decoration: none; }
+}
 .film-icon .glyph { width: 14px; height: 14px; }

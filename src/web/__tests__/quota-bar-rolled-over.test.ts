@@ -116,13 +116,14 @@ describe("an open account row whose window has reset since its collection", () =
   });
 
   it("keeps a window still running in its level's ink, with its countdown", () => {
-    // CHANGED ON PURPOSE (V4's Figma): the waiting ink from 80%, the error ink
-    // only at 100% — 92% is the waiting ink.
+    // CHANGED ON PURPOSE (compact accounts, #2539): main's quota colours for
+    // every account, the warning ink from 70%, the error ink from 90% — 92% is
+    // the error ink, on the figure and on the meter alike.
     const html = row(account(NOW + 3600));
     const lane = fiveHour(html);
-    expect(lane).toContain('data-level="mid"');
+    expect(lane).toContain('data-level="hi"');
     expect(text(lane)).toContain("resets in 1h");
     expect(text(lane)).not.toMatch(/\breset$/);
-    expect(meter(html)).toContain("width:92%;background:var(--warn)");
+    expect(meter(html)).toContain("width:92%;background:var(--err)");
   });
 });

@@ -62,7 +62,6 @@
   font-size: calc(11px + var(--ui-text-increase, 0px));
   cursor: pointer;
 }
-.statusbar-version:hover { color: var(--text); background: var(--ctl-fill); }
 /* Who has the keys. */
 .statusbar-who {
   flex: none;
@@ -123,4 +122,11 @@
 @media (max-width: 640px) {
   .app { --status-room: 0px; }
   .statusbar { display: none; }
+}
+
+/* The version answers a mouse with a fill; the bar moves nothing, so it takes no
+   press scale (canvas-motion's EXEMPT). Kept last: the bar's own rules above stay
+   at the top level. */
+@media (hover: hover) and (pointer: fine) {
+  .statusbar-version:hover { color: var(--text); background: var(--ctl-fill); }
 }
