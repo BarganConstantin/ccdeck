@@ -62,18 +62,15 @@
   align-items: center;
   gap: 2px;
 }
-/* A rule between two groups, the same on both stripes: V4 draws it 16 wide and
-   1 tall in --line-soft as the first child of the next group, so a door, 2px,
-   the rule, 2px, the next door. A gap alone would read as one run, and a press
-   on History then dropped a dialog where the stripe had promised a panel. It is
-   a flex item and not a border so the 16px stays 16 whatever the stripe's
-   width, and the group's own 2px gap spaces it from the door under it. */
+/* Match main's distinct groups: a rule across the icon width, with space
+   above and below so panel toggles and activity dialogs read separately. */
 .rail-doors .rail-group + .rail-group::before {
   content: "";
   flex: none;
-  width: 16px;
+  width: 28px;
   height: 1px;
-  background: var(--line-soft);
+  margin-block: 10px;
+  background: var(--line);
 }
 
 /* Short windows can scroll a stripe rather than clipping actions. */

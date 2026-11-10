@@ -135,8 +135,8 @@ describe("the hero and the tokens", () => {
     expect(decl(".up-k", "line-height")).toBe("14px");
     expect(decl(".up-k", "color")).toBe("var(--muted)");
   });
-  it("orders the blocks as the frame does: periods, hero, tokens, quotas, models, sessions", () => {
-    const order = ["<UsagePeriodStrip", 'className="up-total"', 'className="up-tokens-row"', "<ClaudeQuotaSection", "<CodexQuotaSection", "<UsageModelTable", "<UsageSessionBreakdown"]
+  it("shows quotas before the period spend and its breakdown", () => {
+    const order = ["<ClaudeQuotaSection", "<CodexQuotaSection", "<UsagePeriodStrip", 'className="up-total"', 'className="up-tokens-row"', "<UsageModelTable", "<UsageSessionBreakdown"]
       .map(s => panel.indexOf(s));
     expect(order.every(i => i > 0)).toBe(true);
     expect([...order].sort((a, b) => a - b)).toEqual(order);
@@ -179,14 +179,13 @@ describe("the quota sections", () => {
     expect(decl(".up-quota-sub", "font-size")).toBe(INC(12));
     expect(decl(".up-quota-sub", "color")).toBe("var(--muted)");
   });
-  it("fills the meter by the rule: under 70 --muted, 70 to 89 --text, 90 and up --err, never amber", () => {
-    expect(quotaMeterColor(0)).toBe("var(--muted)");
-    expect(quotaMeterColor(69.9)).toBe("var(--muted)");
-    expect(quotaMeterColor(70)).toBe("var(--text)");
-    expect(quotaMeterColor(89)).toBe("var(--text)");
+  it("uses the main meter colours: accent, warning and error", () => {
+    expect(quotaMeterColor(0)).toBe("var(--accent)");
+    expect(quotaMeterColor(69.9)).toBe("var(--accent)");
+    expect(quotaMeterColor(70)).toBe("var(--warn)");
+    expect(quotaMeterColor(89)).toBe("var(--warn)");
     expect(quotaMeterColor(90)).toBe("var(--err)");
     expect(quotaMeterColor(10, true)).toBe("var(--err)");
-    for (const pct of [0, 30, 60, 75, 95, 100]) expect(quotaMeterColor(pct)).not.toMatch(/warn|amber/);
     expect(readFileSync(join(WEB_DIR, "components/QuotaBar.tsx"), "utf8")).toContain("const color    = quotaMeterColor(capped, isErr);");
   });
 });

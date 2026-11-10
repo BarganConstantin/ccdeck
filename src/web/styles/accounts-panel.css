@@ -774,6 +774,20 @@
 }
 .ap-issue-line .ap-sign-in { margin-left: 6px; }
 
+/* A folded account always has two lines and a meter. Its state takes the
+   reset line's place; expanding the row reveals the resets and read time. */
+.ap-account:not([data-open]) .ap-issue-line {
+  min-height: calc(18px + var(--ui-text-increase, 0px));
+  height: calc(18px + var(--ui-text-increase, 0px));
+}
+.ap-account:not([data-open]) .ap-issue-line .ap-sign-in {
+  min-height: 18px;
+  padding: 0 5px;
+  margin-left: 0;
+}
+.ap-account:not([data-open]) .ap-issue-line .ap-q-age { flex: 0 1 auto; }
+.ap-quota.vis-hidden { height: 1px; margin: -1px; }
+
 /* Organization telemetry is one of the row's grey marks; what goes out, and to
    where, is its tooltip, its popover and the open row's Telemetry line. */
 .ap-telemetry-pop .ap-pop-note { overflow-wrap: anywhere; }

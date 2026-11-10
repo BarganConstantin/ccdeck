@@ -29,6 +29,13 @@
   padding-left: var(--traffic-lights-w);
   padding-right: 6px;
 }
+/* Native fullscreen hides the traffic lights, so their space is no longer
+   needed. Keep the normal inset while the window controls are visible. */
+@media (display-mode: fullscreen) {
+  :root[data-desktop-chrome="true"][data-desktop-platform="darwin"] .topbar {
+    padding-left: 12px;
+  }
+}
 /* Content and controls keep pointer events, focus and tooltips. The empty
    toolbar space remains a native drag/double-click region. */
 :root[data-desktop-chrome="true"] .topbar :is(.readout, .tb-end, .actions, button, a, input, select, [role="button"], [tabindex]) {

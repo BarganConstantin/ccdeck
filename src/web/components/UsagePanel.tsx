@@ -349,6 +349,22 @@ export default function UsagePanel({ state, now, providers, incidents = [], leav
       </div>
 
       <div className="up-body">
+      {/* ── Claude quota ── */}
+      {providers.claude && (
+        <ClaudeQuotaSection quota={quota} quotaLoading={quotaLoading} nowSec={nowSec} weekEnds={claudeWeekEnds}
+          incident={incidents.find(i => i.provider === "claude")} />
+      )}
+
+      {/* ── Codex quota ──
+          The mirror of the accounts panel, and fixed by the same fact arriving
+          from /api/health: a Claude-only machine used to carry "Quota
+          unavailable. / Run codex login to authenticate." permanently, for a
+          CLI it has no reason to install. */}
+      {providers.codex && (
+        <CodexQuotaSection codexQuota={codexQuota} codexLoading={codexLoading} nowSec={nowSec} weekEnds={codexWeekEnds}
+          incident={incidents.find(i => i.provider === "codex")} />
+      )}
+
       {/* ── Cost + tokens ──
           Gated on TOKENS, not on cost. The two tables used to live inside a
           `hasCost` branch, which meant a deck of nothing but unpriced sessions
@@ -448,22 +464,6 @@ export default function UsagePanel({ state, now, providers, incidents = [], leav
             {!hasCost && <span className="up-tok up-scope">{fromRange ? periodWord : boardScopeLabel()}</span>}
           </div>
         </>
-      )}
-
-      {/* ── Claude quota ── (under the figures, as V4's Figma orders them) */}
-      {providers.claude && (
-        <ClaudeQuotaSection quota={quota} quotaLoading={quotaLoading} nowSec={nowSec} weekEnds={claudeWeekEnds}
-          incident={incidents.find(i => i.provider === "claude")} />
-      )}
-
-      {/* ── Codex quota ──
-          The mirror of the accounts panel, and fixed by the same fact arriving
-          from /api/health: a Claude-only machine used to carry "Quota
-          unavailable. / Run codex login to authenticate." permanently, for a
-          CLI it has no reason to install. */}
-      {providers.codex && (
-        <CodexQuotaSection codexQuota={codexQuota} codexLoading={codexLoading} nowSec={nowSec} weekEnds={codexWeekEnds}
-          incident={incidents.find(i => i.provider === "codex")} />
       )}
 
       {showSkeleton ? null : totalTokenSum > 0 ? (

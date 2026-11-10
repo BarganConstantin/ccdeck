@@ -15,13 +15,9 @@
 // the row never reads another account's part of that state. The writes it
 // makes are callbacks the panel spells.
 //
-// THE ROW HAS ROOM TO READ. Two lines and a 3px meter for every account, and a
-// third line only when the account is in a state: the name and its marks with
-// the first window's figure at the right edge, then the plan and the reset with
-// the second window's figure under the first, so the figures make one column
-// down the list. A state — a rate limit, a weekly limit, a login that needs
-// signing in again, a reading that has gone old — gets a line of its own under
-// the name, with its own glyph and colour, rather than squeezing into the two.
+// Every folded account has two lines and a 3px meter. A problem takes the
+// reset line's place, alongside the weekly figure and its sign-in action.
+// Expanding reveals all windows, resets and the age of the reading.
 import { WarnGlyph } from "./AccountIssuePopover";
 import { KitIcon, KitStateGlyph, type KitIconName } from "./kit-icons";
 import AccountTelemetry from "./AccountTelemetry";
@@ -311,7 +307,7 @@ export default function AccountRow({
   const week = live.find(l => l.id === "seven_day");
   const weekFull = !issue && !frozen && !!week && week.pct >= 100;
   const weekReset = weekFull && week?.resetAt ? resetPhrase(week.resetAt, nowSec, t) : null;
-  // The one state the row is in, on its own line: what is wrong first, then a
+  // The state on the second line: what is wrong first, then a
   // weekly limit, then a reading that has gone old.
   const state: RowState | null = issue ? issueState(issue)
     : weekFull ? { tone: "err", glyph: "calendar" }
@@ -562,13 +558,7 @@ export default function AccountRow({
               aria-label={t("accounts.row.fixAs", { fix: issue.fix, name: a.email ?? name })} title={issue.hint}
               onClick={() => onSignIn(a.email)}>{t("accounts.row.signIn")}</button>
           )}
-          {/* How old the last reading is. On an open row the Read line says
-              it, so it is said once. */}
-          {!open && (age || !voice.waiting) && (
-            <span className="ap-issue-age" title={ageTitle}>
-              {age ?? t("accounts.row.ageNever")}
-            </span>
-          )}
+          {!open && figure(second, "7d", "ap-fig-2", !!second && second.id === keyLane?.id)}
         </div>
       )}
       {!issue && weekFull && state && (
@@ -577,6 +567,7 @@ export default function AccountRow({
           <span className="ap-issue-text">
             {weekReset ? t("accounts.row.weeklyLimitAt", { reset: weekReset }) : t("accounts.row.weeklyLimit")}
           </span>
+          {!open && figure(second, "7d", "ap-fig-2", !!second && second.id === keyLane?.id)}
         </p>
       )}
       {/* AN OLD READING: nothing collected for a quarter of an hour. The
@@ -588,13 +579,14 @@ export default function AccountRow({
           <span className="ap-issue-text ap-q-age" data-never={age ? undefined : ""} title={ageTitle}>
             {age ? t("accounts.row.lastReadAgo", { ago: age }) : sentence(t("accounts.row.ageNever"))}
           </span>
+          {!open && figure(second, "7d", "ap-fig-2", !!second && second.id === keyLane?.id)}
         </p>
       )}
 
       {/* LINE 2: the plan and when the first window resets, and the second
           window's figure at the right edge, under the first. A held-out
           account says what that means for it instead of its reset. */}
-      <p className="ap-quota" id={`ap-${ids}quota-${a.num}`}>
+      <p className={state && !open ? "ap-quota vis-hidden" : "ap-quota"} id={`ap-${ids}quota-${a.num}`}>
         {primary && !blocked && (
           /* The first figure is in the head, and the head is not what this
              line is read from: the door is described by this line, so the

@@ -119,15 +119,18 @@ describe("the inks of a filling window", () => {
 });
 
 describe("the state line", () => {
-  it("says a rate limit with a clock in the waiting ink, and how old the reading is at its end", () => {
+  it("keeps the rate limit and weekly figure on the same compact line", () => {
     const html = row(account({ error: "http-429", fetchedAt: (NOW - 5 * 60) * 1000 }));
     expect(stateLines(html)).toEqual(["wait"]);
     const line = /<div class="ap-issue-line"[^]*?<\/div>/.exec(html)![0];
     expect(line).toContain(glyph("time"));
-    expect(line).toMatch(/<span class="ap-issue-age"[^>]*>5m ago<\/span>/);
+    expect(line).not.toContain("ap-issue-age");
+    expect(text(figure(line, 2))).toBe("7d 21%");
+    expect(html).toContain('class="ap-quota vis-hidden"');
+    expect(text(row(account({ error: "http-429", fetchedAt: (NOW - 5 * 60) * 1000 }), true))).toContain("Read 5m ago");
     expect(line).not.toContain("ap-sign-in");
     // It sits between the name and line 2, and marks the row.
-    expect(html.indexOf("ap-issue-line")).toBeLessThan(html.indexOf('class="ap-quota"'));
+    expect(html.indexOf("ap-issue-line")).toBeLessThan(html.indexOf('class="ap-quota vis-hidden"'));
     expect(html).toContain("data-state");
   });
 
@@ -159,12 +162,12 @@ describe("the state line", () => {
     expect(stateLines(html)).toEqual(["quiet"]);
     const line = /<p class="ap-issue-line"[^]*?<\/p>/.exec(html)![0];
     expect(line).toContain(glyph("info"));
-    expect(text(line)).toBe("Last read 42m ago");
+    expect(text(line)).toBe("Last read 42m ago 7d 21%");
     expect(figure(html, 1)).not.toContain("data-level");
     expect(meter(html)).toContain("background:var(--muted)");
     expect(sheetText()).toContain(".ap-account[data-frozen] .ap-fig .ap-q-pct,");
     // The reset is still said.
-    expect(text(/<p class="ap-quota"[^]*?<\/p>/.exec(html)![0])).toContain("Resets in 1h");
+    expect(text(/<p class="ap-quota vis-hidden"[^]*?<\/p>/.exec(html)![0])).toContain("Resets in 1h");
   });
 
   it("is a line of 22 in 12 medium, on the name's column, in the state's ink", () => {
