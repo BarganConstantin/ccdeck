@@ -42,13 +42,15 @@ const toggle = (out: string) => /<button type="button" id="ap-rest-entry"[^]*?<\
 const text = (s: string) => s.replace(/<span class="vis-hidden">[^<]*<\/span>/g, "").replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
 
 describe("line 1, the one toggle", () => {
-  it("is a chevron, the title and a count of every other account, in one button", () => {
+  it("is a chevron and title without account counts", () => {
     const shut = html();
     expect(toggle(shut)).toMatch(/^<button type="button" id="ap-rest-entry" class="ap-nav ap-sum" aria-expanded="false">/);
     expect(toggle(shut)).toContain('class="ap-nav-chev"');
-    expect(toggle(shut)).toContain('<span class="ap-nav-name">Other accounts</span><span class="ap-sum-count">3</span>');
-    // Every other account, not only the ones a switch reaches.
-    expect(text(toggle(html({ peers: [peer("a", false), peer("b", false)] })))).toBe("Other accounts 2");
+    expect(toggle(shut)).toContain('<span class="ap-nav-name">Other accounts</span>');
+    expect(shut).not.toContain('class="ap-sum-count"');
+    expect(shut).not.toContain('class="ap-rest-ready"');
+    // The heading remains the same when none can be switched to.
+    expect(text(toggle(html({ peers: [peer("a", false), peer("b", false)] })))).toBe("Other accounts");
   });
 
   it("says it is open, and names the box it opens only while that box is there", () => {
@@ -85,30 +87,7 @@ describe("expand every account", () => {
   });
 });
 
-describe("line 2, how many a switch would reach", () => {
-  it("counts the accounts that are signed in and not held out, with a green dot and a tooltip", () => {
-    const out = html();
-    expect(out).toContain('aria-label="2 can be switched to"');
-    expect(out).toContain('<span class="ap-rest-ready-text" aria-hidden="true">2</span>');
-    expect(out).not.toContain('class="ap-rest-line"');
-    expect(out).not.toContain('class="ap-previews"');
-  });
-
-  it("says none of them can, with a dim dot, when none can", () => {
-    const out = html({ peers: [peer("a", false), peer("b", false), peer("c", false)] });
-    expect(out).toContain('data-tone="idle" role="img" aria-label="None of 3 can be switched to"');
-    const css = sheetText();
-    expect(css).toMatch(/\.ap-rest-dot \{[^}]*width: 6px;[^}]*background: var\(--ok\);/);
-    expect(css).toContain('.ap-rest-ready[data-tone="idle"] .ap-rest-dot { background: var(--muted-dim); }');
-  });
-
-  it("counts reach, not room: a full account still counts, and no line says how many have room", () => {
-    const full = html({ peers: [peer("a", true, 0), peer("b", true, 0)] });
-    expect(full).toContain('aria-label="2 can be switched to"');
-    expect(text(full)).not.toMatch(/with room|ready/);
-    expect(full).not.toContain('class="ap-preview"');
-  });
-
+describe("auto-switch warning", () => {
   it("carries the alarm in the error ink when auto-switch has nowhere to go", () => {
     const out = html({ armed: true, peers: [peer("a", false), peer("b", false), peer("c", false)] });
     expect(out).toMatch(/<p class="ap-rest-alarm"><svg class="ap-rest-alarm-glyph"[^]*Auto-switch has nowhere to go/);

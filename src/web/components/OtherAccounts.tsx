@@ -104,7 +104,7 @@ function FoldPeek({ anchorId, id, peers, onHold, onLet }: {
 /**
  * THE HEAD OF THE GROUP OF EVERY ACCOUNT THAT IS NOT THE LIVE ONE.
  *
- * One line: the fold, total count, switchable count and, while expanded,
+ * One line: the fold title and, while expanded,
  * the order and expand-all controls. The names stay inside the list or peek.
  */
 export default function OtherAccounts({
@@ -168,10 +168,6 @@ export default function OtherAccounts({
   // HOW MANY A SWITCH WOULD REACH: signed in and not held out, the same two
   // refusals a row withholds its own Switch for. A full window still counts —
   // each row says its own limits — and the tooltip says so.
-  const ready = peers.filter(p => p.ready).length;
-  const readyText = ready > 0
-    ? t("accounts.other.canSwitch", { count: ready })
-    : t("accounts.other.noneCanSwitch", { total: peers.length });
   return (
     <div className="ap-rest" data-open={open ? "" : undefined}>
       <div className="ap-rest-head">
@@ -200,16 +196,10 @@ export default function OtherAccounts({
               chevron turns down while the list is open. */}
           <KitIcon name="chevron-right" className="ap-nav-chev" />
           <span className="ap-nav-text">
-            {/* The title never wraps; the count is every other account. */}
+            {/* The title stays on one line. */}
             <span className="ap-nav-name">{t("accounts.other.title")}</span>
-            <span className="ap-sum-count">{peers.length}</span>
           </span>
         </button>
-        <span className="ap-rest-ready" data-tone={ready > 0 ? "ok" : "idle"}
-          role="img" aria-label={readyText} title={`${readyText}. ${t("accounts.other.countTip")}`}>
-          <i className="ap-rest-dot" aria-hidden />
-          <span className="ap-rest-ready-text" aria-hidden>{ready}</span>
-        </span>
         {open && <SortMenu order={order} choices={choices} onOrder={onOrder} held={held} idPrefix={idPrefix} />}
         {/* A toggle, named once and pressed or not: a name that changed under
             the keyboard's focus is one most screen readers never announce. The

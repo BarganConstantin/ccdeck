@@ -58,6 +58,7 @@
   flex: 1 1 auto;
   min-height: 0;
   overflow: hidden auto;
+  padding-top: 8px;
 }
 .ap-scroll > * { flex: none; }
 .ap-codex { padding: 14px var(--panel-inset); border-top: 1px solid var(--line-soft); }
