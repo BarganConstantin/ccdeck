@@ -164,8 +164,10 @@ describe("the room the minimap and the character leave for it", () => {
   it("is read by the minimap's bottom offset, and the minimap's right edge is the bar's", () => {
     const m = decls(".react-flow__panel.react-flow__minimap");
     expect(m["margin-bottom"]).toBe("var(--board-controls-room)");
-    expect(m["margin-right"]).toBe("var(--board-controls-edge)");
-    expect(decls(".fm")["right"]).toBe("var(--board-controls-edge)");
+    // CHANGED ON PURPOSE (owner 2026-11-10 critique): both step in past an open panel by --minimap-in (0 with none).
+    expect(m["margin-right"]).toBe("calc(var(--board-controls-edge) + var(--minimap-in, 0px))");
+    // CHANGED ON PURPOSE (owner 2026-11-10 critique): the ledge follows the minimap in.
+    expect(decls(".fm")["right"]).toBe("calc(var(--board-controls-edge) + var(--minimap-in, 0px))");
   });
   it("lifts only the character's ledge: its floor stays the canvas's, the same gutter both sides", () => {
     const fm = decls(".fm");

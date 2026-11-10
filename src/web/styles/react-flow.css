@@ -234,9 +234,16 @@
 }
 /* Over the control bar, not beside it (see its room at the top of this block),
    and right edge on right edge with it. Two classes, like the bar's own
-   margin, to outrank the panel's 15px. */
+   margin, to outrank the panel's 15px.
+   UNLESS A PANEL STANDS THERE (owner, 2026-11-10): an open Usage or machine
+   panel floats over the canvas's right edge, so the minimap, and the character
+   on it, step in past it by --minimap-in, and are not drawn when the canvas
+   has no room left for them (panel-place.ts fitMinimap). The control bar
+   stays where it is: unlike these two it can never be left out. No motion:
+   they are where they stand. */
 .react-flow__panel.react-flow__minimap {
-  margin-right: var(--board-controls-edge);
+  margin-right: calc(var(--board-controls-edge) + var(--minimap-in, 0px));
   margin-bottom: var(--board-controls-room);
 }
+.canvas-wrap[data-minimap="off"] :is(.react-flow__minimap, .fm) { visibility: hidden; }
 
