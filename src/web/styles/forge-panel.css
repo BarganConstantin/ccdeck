@@ -81,7 +81,7 @@
 /* V4: rows stand alone (44 high, rounded), not in a box. */
 .fg-rows { list-style: none; margin: 4px 0 0; padding: 0; }
 .fg-rows > li { display: grid; }
-.fg-row { display: grid; gap: 0 16px; align-items: center; min-height: 44px; padding: 4px 8px; border-radius: var(--r-panel); box-sizing: border-box; border: 0; background: transparent; color: var(--text); font: inherit; text-align: left; cursor: pointer; transition: background var(--dur-fast) var(--ease); }
+.fg-row { display: grid; gap: 0 16px; align-items: center; min-height: 44px; padding: 4px 8px; border-radius: var(--r-ctl); box-sizing: border-box; border: 0; background: transparent; color: var(--text); font: inherit; text-align: left; cursor: pointer; transition: background var(--dur-fast) var(--ease); }
 @media (hover: hover) and (pointer: fine) {
 .fg-row:hover { background: var(--ctl-fill); }
 }
@@ -102,7 +102,7 @@
 .fg-mark[data-tone=warn] { color: var(--warn); }
 .fg-mark[data-tone=idle] { color: var(--muted); }
 .fg-mark-word { color: var(--text-secondary); }
-.fg-badge { display: inline-flex; align-items: center; gap: 4px; padding: 1px 8px; border-radius: 999px; border: 1px solid var(--line); font-size: calc(11px + var(--ui-text-increase, 0px)); font-weight: 500; white-space: nowrap; color: var(--text-secondary); }
+.fg-badge { display: inline-flex; align-items: center; gap: 4px; padding: 1px 8px; border-radius: var(--r-pill); border: 1px solid var(--line); font-size: calc(11px + var(--ui-text-increase, 0px)); font-weight: 500; white-space: nowrap; color: var(--text-secondary); }
 .fg-badge[data-tone=ok] { color: var(--ok); border-color: color-mix(in srgb, var(--ok) 45%, var(--line)); }
 .fg-badge[data-tone=bad] { color: var(--err); border-color: color-mix(in srgb, var(--err) 45%, var(--line)); }
 .fg-badge[data-tone=busy] { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 45%, var(--line)); }
@@ -126,25 +126,25 @@
 
 /* A forge's rendered description (ForgeHtml.tsx), on the page's 13px. Its
    headings and code take steps on the deck's type ladder rather than the
-   forge's own ems: 18, 16 and 14px for the three heading levels, 12px code. */
+   forge's own ems: 16, 16 and 13px for the three heading levels, 12px code. */
 .forge-html { line-height: 1.6; overflow-wrap: anywhere; color: var(--text); }
 .forge-html > :first-child { margin-top: 0; }
 .forge-html h1, .forge-html h2, .forge-html h3, .forge-html h4 { margin: 1.2em 0 0.5em; font-weight: 600; line-height: 1.3; }
-.forge-html h1 { font-size: calc(18px + var(--ui-text-increase, 0px)); }
+.forge-html h1 { font-size: calc(16px + var(--ui-text-increase, 0px)); }
 .forge-html h2 { font-size: calc(16px + var(--ui-text-increase, 0px)); padding-bottom: 4px; border-bottom: 1px solid var(--line); }
-.forge-html h3 { font-size: calc(14px + var(--ui-text-increase, 0px)); }
+.forge-html h3 { font-size: calc(13px + var(--ui-text-increase, 0px)); }
 .forge-html p, .forge-html ul, .forge-html ol, .forge-html pre, .forge-html blockquote, .forge-html table, .forge-html details { margin: 0 0 0.8em; }
 .forge-html ul, .forge-html ol { padding-left: 20px; }
 .forge-html li + li { margin-top: 0.2em; }
 .forge-html a { color: var(--accent); }
-.forge-html code { padding: 1px 4px; border-radius: 4px; background: var(--ctl-fill); font-size: calc(12px + var(--ui-text-increase, 0px)); }
+.forge-html code { padding: 1px 4px; border-radius: var(--r-ctl); background: var(--ctl-fill); font-size: calc(12px + var(--ui-text-increase, 0px)); }
 .forge-html pre { padding: 10px 12px; border-radius: var(--r-ctl); background: var(--ctl-fill); overflow-x: auto; }
 .forge-html pre code { padding: 0; background: none; }
 .forge-html blockquote { padding-left: 12px; border-left: 3px solid var(--line); color: var(--text-secondary); }
 .forge-html table { border-collapse: collapse; display: block; max-width: 100%; overflow-x: auto; }
 .forge-html th, .forge-html td { padding: 4px 10px; border: 1px solid var(--line); }
 .forge-html hr { border: 0; border-top: 1px solid var(--line); margin: 1.2em 0; }
-.forge-html img { max-width: 100%; height: auto; border-radius: 4px; }
+.forge-html img { max-width: 100%; height: auto; border-radius: var(--r-ctl); }
 .forge-html .fh-image { display: inline-block; }
 /* An image that would not load is the link it stood for, drawn as the
    panel's other links out are: its words and ↗, underlined under the pointer. */
@@ -162,7 +162,7 @@
 .fg-token-help ul { padding-left: 14px; }
 .fg-token-help li + li { margin-top: 4px; }
 .fg-token-help strong { color: var(--text); font-weight: 600; }
-.fg-token-help code { font-family: var(--font-mono); font-size: calc(11px + var(--ui-text-increase, 0px)); color: var(--text); background: var(--ctl-fill); border: 1px solid var(--line-soft); border-radius: 4px; padding: 0 4px; }
+.fg-token-help code { font-family: var(--font-mono); font-size: calc(11px + var(--ui-text-increase, 0px)); color: var(--text); background: var(--ctl-fill); border: 1px solid var(--line-soft); border-radius: var(--r-ctl); padding: 0 4px; }
 /* A link inside the help's sentences: underlined, since its colour alone is
    under 3:1 against the words around it. */
 .fg-token-link { color: var(--accent); text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 2px; white-space: nowrap; }

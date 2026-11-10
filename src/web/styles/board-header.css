@@ -45,7 +45,7 @@
 }
 .bh-num {
   font-family: var(--font-mono);
-  font-size: calc(18px + var(--ui-text-increase, 0px));
+  font-size: calc(16px + var(--ui-text-increase, 0px));
   line-height: 24px;
   font-weight: 600;
   color: var(--text);

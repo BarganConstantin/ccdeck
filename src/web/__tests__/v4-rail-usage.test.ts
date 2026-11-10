@@ -68,7 +68,8 @@ describe("Rail / Usage box", () => {
     expect(decl(".session-list .sl-usage-btn", "flex-direction")).toBe("column");
     expect(decl(".session-list .sl-usage-btn", "gap")).toBe("4px");
     expect(decl(".session-list .sl-usage-btn", "padding")).toBe("8px 12px");
-    expect(decl(".session-list .sl-usage-btn", "border-radius")).toBe("9px");
+    // CHANGED ON PURPOSE (owner 2026-11-10 critique: type scale 11/12/13/16/22, radii 4/8/pill): the box is a panel at 8, not V4's 9.
+    expect(decl(".session-list .sl-usage-btn", "border-radius")).toBe("var(--r-panel)");
     expect(decl(".session-list .sl-usage-btn", "background")).toBe("transparent");
     expect(decl(".session-list .sl-usage-btn", "border")).toBe("0");
     expect(decl(".session-list .sl-usage-btn", "width")).toBe("100%");

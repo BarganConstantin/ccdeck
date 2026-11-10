@@ -309,7 +309,8 @@ describe("every state now draws a mark, and the mark is the canvas's own", () =>
   it("keeps the running state a dot — a shape that is neither mark", () => {
     for (const { base, states } of FAMILIES) {
       expect(contentOf(base, states[0]), `${base} running`).toBe('""');
-      expect(declIn(bodyOf(`${base}::before`), "border-radius"), base).toBe("50%");
+      // CHANGED ON PURPOSE (owner 2026-11-10 critique: type scale 11/12/13/16/22, radii 4/8/pill): a dot is the pill token.
+      expect(declIn(bodyOf(`${base}::before`), "border-radius"), base).toBe("var(--r-pill)");
     }
   });
 

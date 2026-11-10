@@ -48,7 +48,7 @@
   left: 8px;
   z-index: 100;
   padding: 8px 14px;
-  border-radius: 8px;
+  border-radius: var(--r-ctl);
   background: var(--panel);
   border: 1px solid var(--accent);
   color: var(--text);

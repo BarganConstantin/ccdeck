@@ -225,7 +225,7 @@
   box-sizing: content-box;
   background: var(--chrome-bg);
   border: 1px solid var(--chrome-edge);
-  border-radius: var(--r-ctl);
+  border-radius: var(--r-panel);
   overflow: hidden;
   transition: border-color var(--dur-fast) var(--ease);
 }

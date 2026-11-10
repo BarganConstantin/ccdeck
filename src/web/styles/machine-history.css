@@ -26,7 +26,7 @@
 /* `<i>` for the unit and the word, which are not emphasis but the caption a
    figure needs; the sheet un-italicises it because the slant would be the only
    slanted text in the panel. */
-.hist-stats i { font-style: normal; font-size: calc(10px + max(-1px, var(--ui-text-increase, 0px))); color: var(--muted); margin-right: 8px; }
+.hist-stats i { font-style: normal; font-size: calc(11px + max(-1px, var(--ui-text-increase, 0px))); color: var(--muted); margin-right: 8px; }
 /* The peak, pressable: it pins its own minute under the chart. Drawn exactly
    as the figure beside it, because it is the same kind of figure — only the
    pointer and the underline on hover say it does something. */
@@ -59,7 +59,7 @@
 .hist-rule, .pl-rule { stroke-width: 1; opacity: 0.6; vector-effect: non-scaling-stroke; }
 .hist-rule.warn, .pl-rule.warn { stroke: var(--warn); stroke-dasharray: 6 4; }
 .hist-rule.hot, .pl-rule.hot { stroke: var(--err); stroke-dasharray: 2 3; opacity: 0.75; }
-.hist-rule-tag { font-size: calc(9px + max(0px, var(--ui-text-increase, 0px))); fill: var(--muted); font-variant-numeric: tabular-nums; }
+.hist-rule-tag { font-size: calc(11px + max(0px, var(--ui-text-increase, 0px))); fill: var(--muted); font-variant-numeric: tabular-nums; }
 .hist-rule-tag.warn { fill: var(--warn); }
 .hist-rule-tag.hot { fill: var(--err); }
 .hist-cross { stroke: var(--muted); stroke-width: 1; stroke-dasharray: 2 3; }
@@ -72,7 +72,7 @@
   display: flex;
   justify-content: space-between;
   margin-top: 4px;
-  font-size: calc(10px + max(-1px, var(--ui-text-increase, 0px)));
+  font-size: calc(11px + max(-1px, var(--ui-text-increase, 0px)));
   color: var(--muted);
   font-variant-numeric: tabular-nums;
   /* Held open so the strip does not collapse when the pointer leaves and the
@@ -92,7 +92,7 @@
   margin: -8px -4px -4px 8px;
   font-size: calc(13px + var(--ui-text-increase, 0px));
 }
-.hist-note { margin-top: 5px; font-size: calc(10px + max(-1px, var(--ui-text-increase, 0px))); color: var(--muted); }
+.hist-note { margin-top: 5px; font-size: calc(11px + max(-1px, var(--ui-text-increase, 0px))); color: var(--muted); }
 .hist-load-summary { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 4px 16px; margin: 16px 0 0; font-size: calc(12px + var(--ui-text-increase, 0px)); color: var(--text); line-height: 1.5; }
 .hist-load-summary > span { font-size: calc(11px + var(--ui-text-increase, 0px)); color: var(--muted); }
 .hist-load-summary > strong { font-weight: 600; }
@@ -266,7 +266,7 @@
 .pl-pid-h {
   width: 72px;
   text-align: right;
-  font-size: calc(10px + max(-1px, var(--ui-text-increase, 0px)));
+  font-size: calc(11px + max(-1px, var(--ui-text-increase, 0px)));
   font-weight: 500;
   color: var(--muted);
 }
@@ -431,7 +431,7 @@
    findable — the cell's title has it in full — where a number pushed out of its
    own cell is the reading itself going missing. */
 .pl-cell-label {
-  font-size: calc(10px + max(-1px, var(--ui-text-increase, 0px)));
+  font-size: calc(11px + max(-1px, var(--ui-text-increase, 0px)));
   color: var(--muted);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -456,7 +456,7 @@
 .pl-spark {
   display: block;
   background: var(--line-soft);
-  border-radius: 2px;
+  border-radius: var(--r-ctl);
 }
 .pl-spark-floor { stroke: var(--line-soft); stroke-width: 1; vector-effect: non-scaling-stroke; }
 /* Quieter than the full chart's, and deliberately so: .hist-line is the subject

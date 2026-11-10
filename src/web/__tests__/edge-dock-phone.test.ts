@@ -283,7 +283,8 @@ describe("the page around the dock", () => {
     expect(before(open, "background")).toBe("var(--text)");
     expect(before(open, "width")).toBe("24px");
     expect(before(open, "height")).toBe("2px");
-    expect(before(open, "border-radius")).toBe("1px");
+    // CHANGED ON PURPOSE (owner 2026-11-10 critique: type scale 11/12/13/16/22, radii 4/8/pill): the hairline's 1px is the control token; on a 2px line it draws the same round end.
+    expect(before(open, "border-radius")).toBe("var(--r-ctl)");
     expect(before(open, "top"), "over the dock's 1px top border").toBe("-1px");
     expect(before(open, "left"), "centred on the glyph, which is centred in the cell").toBe("calc(50% - 12px)");
     expect(before(open, "transition"), "the line moves at once").toBeNull();

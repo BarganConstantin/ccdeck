@@ -8,7 +8,7 @@
 .sa-step h4 {
   margin: 0;
   color: var(--muted);
-  font-size: calc(10px + max(-1px, var(--ui-text-increase, 0px)));
+  font-size: calc(11px + max(-1px, var(--ui-text-increase, 0px)));
   font-weight: 600;
   letter-spacing: 0.06em;
   text-transform: uppercase;
@@ -38,7 +38,7 @@
   align-items: baseline;
   gap: 8px;
   padding: 6px 8px;
-  border-radius: 6px;
+  border-radius: var(--r-ctl);
   cursor: pointer;
   /* The whole row is the hit area, not the 13px box: a checkbox list where only
      the box answers is a list that misses on touch and on a hurried mouse. */
@@ -61,7 +61,7 @@
   gap: 4px;
   padding: 8px 10px;
   border: 1px solid color-mix(in srgb, var(--warn) 45%, transparent);
-  border-radius: 6px;
+  border-radius: var(--r-panel);
 }
 .sa-failed-head { margin: 0; color: var(--warn); font-size: calc(12px + var(--ui-text-increase, 0px)); }
 .sa-failed .sa-list { gap: 4px; }
@@ -92,7 +92,7 @@
   gap: 8px;
   flex-wrap: wrap;
   padding: 5px 8px;
-  border-radius: 6px;
+  border-radius: var(--r-ctl);
   font-size: calc(12px + var(--ui-text-increase, 0px));
 }
 .aa-result-who { color: var(--text); overflow-wrap: anywhere; }
@@ -112,11 +112,11 @@
 .aa-result-fix {
   padding: 2px 8px;
   border: 1px solid var(--ctl-edge);
-  border-radius: 999px;
+  border-radius: var(--r-pill);
   background: none;
   color: var(--muted);
   font: inherit;
-  font-size: calc(10px + max(-1px, var(--ui-text-increase, 0px)));
+  font-size: calc(11px + max(-1px, var(--ui-text-increase, 0px)));
   cursor: pointer;
   transition: color var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease), transform var(--dur-fast) var(--ease);
 }

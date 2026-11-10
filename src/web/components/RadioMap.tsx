@@ -135,7 +135,7 @@ const RadioMap = memo(function RadioMap({ stations, selected, current, playing, 
             <circle className="radio-pin-hit" r={(touchTargets ? 22 : 14) / scale} />
             {audible && <circle className="radio-pin-playing" r={(grouped ? 14 : 8) / scale} />}
             <circle className="radio-pin-dot" r={(grouped ? 11 : active ? 5 : 3.2) / scale} />
-            {grouped && <text textAnchor="middle" dominantBaseline="central" fontSize={10 / scale}>{marker.stations.length}</text>}
+            {grouped && <text textAnchor="middle" dominantBaseline="central" fontSize={11 / scale}>{marker.stations.length}</text>}
           </g>;
         })}</g>
       </svg>

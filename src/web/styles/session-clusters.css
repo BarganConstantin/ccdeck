@@ -100,12 +100,12 @@
    drags. */
 .cluster-label {
   font-family: var(--font-mono);
-  font-size: calc(10px + max(-1px, var(--ui-text-increase, 0px)));
+  font-size: calc(11px + max(-1px, var(--ui-text-increase, 0px)));
   font-weight: 600;
   letter-spacing: 0.08em;
   text-transform: uppercase;
   padding: 3px 10px;
-  border-radius: 999px;
+  border-radius: var(--r-pill);
   /* NO PLATE. It filled itself with --bg — a colour DARKER than the canvas it
      floats on — so a caption for a frame was punched out as a solid object in
      front of it. A hue-bordered pill on a hue-washed card does not need to be

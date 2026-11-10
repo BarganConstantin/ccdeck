@@ -81,7 +81,8 @@ describe("the topbar mark is the kit's small mark", () => {
     expect(height % 4, "the mark's height is not a multiple of 4, so its strokes miss whole pixels").toBe(0);
     expect(height, "the mark is redrawn").toBe(16);
     expect(logo, "the mark is not sized by height alone").toMatch(/width:\s*auto/);
-    expect(px(brand, "font-size"), "the name is not V4's 14px card title").toBe(14);
+    // CHANGED ON PURPOSE (owner 2026-11-10 critique: type scale 11/12/13/16/22, radii 4/8/pill): the scale has no 14; the name is at 13.
+    expect(px(brand, "font-size"), "the name is not the scale's 13px").toBe(13);
     expect(px(brand, "line-height"), "the name is not on V4's 20px line").toBe(20);
     expect(px(brand, "gap"), "the gap is not V4's 6px").toBe(6);
     expect(brand).toMatch(/font-weight:\s*600/);

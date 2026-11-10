@@ -279,7 +279,8 @@ describe("the rating ask is a 40px row of outlined pills", () => {
   it("draws \"Not now\" as an outlined 28px button with the radius 8 at the right edge", () => {
     const later = ".rating-banner .rating-later";
     expect(decl(later, "height")).toBe("28px");
-    expect(decl(later, "border-radius")).toBe("8px");
+    // CHANGED ON PURPOSE (owner 2026-11-10 critique: type scale 11/12/13/16/22, radii 4/8/pill): a button is a control, at 4.
+    expect(decl(later, "border-radius")).toBe("var(--r-ctl)");
     expect(decl(later, "padding")).toBe("4px 12px");
     expect(decl(later, "margin-left")).toBe("auto");
     expect(decl(later, "background")).toBe("none");
@@ -318,7 +319,8 @@ describe("the two notices on the empty canvas are a 360px block with a 24px icon
     expect(decl(block, "gap")).toBe("4px");
     expect(decl(".empty-hero.empty-notice .empty-symbol", "width")).toBe("24px");
     expect(decl(".empty-hero.empty-notice .empty-symbol", "height")).toBe("24px");
-    expect(decl(".empty-hero.empty-notice h2", "font-size")).toBe("calc(14px + var(--ui-text-increase, 0px))");
+    // CHANGED ON PURPOSE (owner 2026-11-10 critique: type scale 11/12/13/16/22, radii 4/8/pill): a notice's title is a title, at 16.
+    expect(decl(".empty-hero.empty-notice h2", "font-size")).toBe("calc(16px + var(--ui-text-increase, 0px))");
     expect(decl(".empty-hero.empty-notice h2", "line-height")).toBe("20px");
     expect(decl(".empty-hero.empty-notice p", "line-height")).toBe("20px");
     expect(decl(".empty-hero p", "font-size")).toBe("calc(13px + var(--ui-text-increase, 0px))");

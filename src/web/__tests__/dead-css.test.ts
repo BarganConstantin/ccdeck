@@ -84,7 +84,8 @@ const V4_AHEAD_OF_READERS = [
   // V4's banner: --ctl-h-lg is read now (the banner strip's min-height).
   // V4's bars: --r-pill is read now (the top bar's chips).
   // V4's category filter: --ctl-h-sm is read now (the pills' height).
-  "--fs-hero", "--lh-hero", "--fs-title", "--lh-title", "--fs-card-title",
+  // CHANGED ON PURPOSE (owner 2026-11-10 critique: type scale 11/12/13/16/22, radii 4/8/pill): --fs-title is read now, by --fs-card-title, which is a title at 16.
+  "--fs-hero", "--lh-hero", "--lh-title", "--fs-card-title",
   "--fs-body", "--fs-small", "--lh-small", "--fs-code", "--lh-code", "--fs-meta", "--lh-meta",
   // V4's motion rules: --dur-stage-in, --dur-slow, --delay-step and --press-small are read now.
   // --dur-stage-out is read by Zoom's fold now (workspace.css).

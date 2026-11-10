@@ -67,14 +67,14 @@ button.btn.nav-new { flex: none; gap: 6px; padding: 0 12px 0 10px; }
 }
 /* The rim and the wash are the cluster's (.cluster-card), on a layer of their
    own so the fold can scale the geometry without scaling a word. The radius is
-   the cluster's 16px written out: the canvas tier (--r-cluster) is read only by
-   the canvas's own objects (radius-tiers-1288), and this one is drawn outside
-   React Flow. The wash is mixed from the session's accent, which carries the
+   the cluster's, which is the panel's since the deck kept three radii
+   (--r-cluster is an alias of --r-panel); this one is drawn outside React
+   Flow, so it names the panel directly. The wash is mixed from the session's accent, which carries the
    theme's tier, so it answers to data-theme as the rim does. */
 .nav-rim {
   position: absolute;
   inset: 0;
-  border-radius: 16px;
+  border-radius: var(--r-panel);
   border: 1px solid hsl(var(--session-hue, 200) 65% var(--session-rim-l) / 0.32);
   background: color-mix(in srgb, var(--accent) 4%, transparent);
   transform-origin: 0 0;
@@ -92,11 +92,11 @@ button.btn.nav-new { flex: none; gap: 6px; padding: 0 12px 0 10px; }
   box-sizing: border-box;
   max-width: calc(100% - 20px);
   padding: 3px 10px;
-  border-radius: 999px;
+  border-radius: var(--r-pill);
   border: 1px solid hsl(var(--session-hue, 200) 65% var(--session-rim-l) / 0.5);
   background: var(--bg);
   color: var(--muted);
-  font: 400 10px/1 var(--font-mono);
+  font: 400 11px/1 var(--font-mono);
   letter-spacing: 0.02em;
   white-space: nowrap;
   overflow: hidden;
@@ -117,7 +117,7 @@ button.btn.nav-new { flex: none; gap: 6px; padding: 0 12px 0 10px; }
   margin: 0;
   padding: 0;
   border: 0;
-  border-radius: 6px;
+  border-radius: var(--r-panel);
   background: transparent;
   color: inherit;
   font: inherit;
@@ -142,7 +142,7 @@ button.btn.nav-new { flex: none; gap: 6px; padding: 0 12px 0 10px; }
   color: var(--text);
   background: var(--node-grad);
   border: 1px solid var(--nav-alarm, var(--nav-edge, var(--line)));
-  border-radius: 6px;
+  border-radius: var(--r-panel);
   transition: background-color var(--dur-fast) var(--ease), border-color var(--dur-base) var(--ease), box-shadow var(--dur-base) var(--ease);
 }
 .nav-face::before {
@@ -188,7 +188,7 @@ button.btn.nav-new { flex: none; gap: 6px; padding: 0 12px 0 10px; }
 .nav-sid { font-weight: 400; color: var(--muted); }
 .nav-right { flex: none; margin-left: auto; display: inline-flex; align-items: center; }
 .nav-el {
-  font: 400 10px/1 var(--font-mono);
+  font: 400 11px/1 var(--font-mono);
   color: var(--muted);
   font-variant-numeric: tabular-nums;
 }
@@ -227,7 +227,7 @@ button.btn.nav-new { flex: none; gap: 6px; padding: 0 12px 0 10px; }
   align-items: center;
   gap: 6px;
   padding: 0 8px 0 6px;
-  border-radius: 6px;
+  border-radius: var(--r-ctl);
   overflow: hidden;
   color: var(--text);
   font-size: 11px;

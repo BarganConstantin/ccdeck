@@ -62,7 +62,8 @@ describe("line 1, the one toggle", () => {
     const css = sheetText();
     expect(css).toMatch(/\.ap-rest \.ap-nav\.ap-sum \{[^}]*min-height: 28px;/);
     expect(css).toMatch(/\.ap-sum \.ap-nav-name \{[^}]*font-size: calc\(13px[^}]*font-weight: 500;[^}]*color: var\(--text\);[^}]*white-space: nowrap;/);
-    expect(css).toMatch(/\.ap-sum-count \{[^}]*height: 18px;[^}]*border-radius: 999px;[^}]*font-family: var\(--font-mono\);/);
+    // CHANGED ON PURPOSE (owner 2026-11-10 critique: type scale 11/12/13/16/22, radii 4/8/pill): a pill is the pill token.
+    expect(css).toMatch(/\.ap-sum-count \{[^}]*height: 18px;[^}]*border-radius: var\(--r-pill\);[^}]*font-family: var\(--font-mono\);/);
   });
 });
 

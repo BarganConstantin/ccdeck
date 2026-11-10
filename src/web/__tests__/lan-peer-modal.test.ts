@@ -389,7 +389,8 @@ describe("the row is the door", () => {
     expect(CSS).toMatch(/\.ap-lan-who > \.ap-manage-btn \{ position: relative; z-index: 1; \}/);
     // Laid over the row on the tone's own box, so the keyboard's ring is the
     // row's shape rather than a ring round one word of it.
-    expect(CSS).toMatch(/\.ap-lan-who-open \{[^}]*position: absolute;\s*inset: 0 -4px;[^}]*border-radius: 4px;/);
+    // CHANGED ON PURPOSE (owner 2026-11-10 critique: type scale 11/12/13/16/22, radii 4/8/pill): the 4px is the control token.
+    expect(CSS).toMatch(/\.ap-lan-who-open \{[^}]*position: absolute;\s*inset: 0 -4px;[^}]*border-radius: var\(--r-ctl\);/);
     // The name, and beside it the route when that is the tailnet — both hidden
     // from a screen reader, which the button tells once.
     expect(LIST).toMatch(/<span className="ap-lan-who-name" aria-hidden>\s*\{p\.name\}/);
@@ -399,7 +400,8 @@ describe("the row is the door", () => {
     const tone = /\.ap-lan-who::before \{([^}]*)\}/.exec(CSS)?.[1] ?? "";
     // The row's own box, not past its top and bottom, where it read as a card.
     expect(tone).toMatch(/inset: 0 -4px;/);
-    expect(tone).toMatch(/border-radius: 4px;/);
+    // CHANGED ON PURPOSE (owner 2026-11-10 critique: type scale 11/12/13/16/22, radii 4/8/pill): the 4px is the control token.
+    expect(tone).toMatch(/border-radius: var\(--r-ctl\);/);
     // On at once and off at once: a fade left a trail behind a sweeping pointer.
     expect(tone).not.toMatch(/transition/);
     expect(CSS).toMatch(/\.ap-lan-who:hover::before \{ background: color-mix\(in srgb, var\(--text\) 4%, transparent\); \}/);

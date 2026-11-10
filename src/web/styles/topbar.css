@@ -65,7 +65,7 @@
      and this moves nothing. */
   justify-content: flex-end;
 }
-/* V4 pairs the 16px mark with the 14/20 Semibold card title: the name in the UI
+/* V4 pairs the 16px mark with a 13/20 Semibold name (V4 drew 14; the type scale has no 14): the name in the UI
    font at weight 600, 6px from the mark, no tracking. The mark keeps its own
    height (below); it is never redrawn to follow the type. */
 .topbar .brand {
@@ -75,7 +75,7 @@
   display: flex;
   align-items: center;
   gap: 6px;
-  font-size: calc(14px + var(--ui-text-increase, 0px));
+  font-size: calc(13px + var(--ui-text-increase, 0px));
   line-height: 20px;
   /* The version chip grows when it carries a drift warning; the product name
      must not break onto two lines to make room for it. */

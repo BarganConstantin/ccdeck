@@ -146,7 +146,8 @@ describe("the header", () => {
     // 1px inside the 1px edge = the frame's 2px padding with the stroke inside it.
     expect(decl(".insp-tabs", "padding")).toBe("1px");
     expect(decl(".insp-tabs", "gap")).toBe("2px");
-    expect(decl(".insp-tabs", "border-radius")).toBe("var(--r-panel)");
+    // CHANGED ON PURPOSE (owner 2026-11-10 critique: type scale 11/12/13/16/22, radii 4/8/pill): a segmented control is a control, at 4.
+    expect(decl(".insp-tabs", "border-radius")).toBe("var(--r-ctl)");
   });
   it("draws a tab 20 tall, padding 0 8 0 6, gap 4, --r-ctl, a 14px glyph, the label 12/16 500 --muted", () => {
     expect(decl(".insp-tab", "height")).toBe("20px");
@@ -175,7 +176,8 @@ describe("the header", () => {
   it("ends in Fold, a quiet 24x24 icon button of radius 6", () => {
     expect(decl(".detail .insp-fold", "width")).toBe("24px");
     expect(decl(".detail .insp-fold", "height")).toBe("24px");
-    expect(decl(".detail .insp-fold", "border-radius")).toBe("6px");
+    // CHANGED ON PURPOSE (owner 2026-11-10 critique: type scale 11/12/13/16/22, radii 4/8/pill): an icon button is a control, at 4.
+    expect(decl(".detail .insp-fold", "border-radius")).toBe("var(--r-ctl)");
     expect(decl(".detail .insp-fold", "background")).toBe("transparent");
   });
 });
@@ -522,9 +524,10 @@ describe("the Context tab", () => {
   });
   it("draws the meter 6px, the track --ctl-fill and both parts radius 3, the captions 600 12/16 --text-secondary", () => {
     expect(decl(".ctx-window-bar", "height")).toBe("6px");
-    expect(decl(".ctx-window-bar", "border-radius")).toBe("3px");
+    // CHANGED ON PURPOSE (owner 2026-11-10 critique: type scale 11/12/13/16/22, radii 4/8/pill): a 6-high bar at 3 is a capsule, the pill token.
+    expect(decl(".ctx-window-bar", "border-radius")).toBe("var(--r-pill)");
     expect(decl(".ctx-window-bar", "background")).toBe("var(--ctl-fill)");
-    expect(decl(".ctx-window-fill", "border-radius")).toBe("3px");
+    expect(decl(".ctx-window-fill", "border-radius")).toBe("var(--r-pill)");
     expect(decl(".ctx-window-fill", "background")).toBe("var(--accent)");
     expect(decl(".ctx-window-row", "gap")).toBe("6px");
     expect(decl(".ctx-view", "gap")).toBe("12px");
@@ -765,17 +768,20 @@ describe("the Time tab", () => {
       expect(decl(".insp-time-span", "min-width")).toBe("2px");
       expect(decl(".insp-time-wait", "color")).toBe("var(--warn)");
       expect(decl(".insp-time-wait", "background")).toBe("var(--panel)");
-      expect(decl(".insp-time-wait", "border-radius")).toBe("3px");
+      // CHANGED ON PURPOSE (owner 2026-11-10 critique: type scale 11/12/13/16/22, radii 4/8/pill): a chip is a control, at 4.
+      expect(decl(".insp-time-wait", "border-radius")).toBe("var(--r-ctl)");
     });
-    it("sets the stats 2 x 2 with a 6 and 12 gap, the bar 6px radius 3, the rows 24 and the axis 20", () => {
+    it("sets the stats 2 x 2 with a 6 and 12 gap, the bar 6px and pill-round, the rows 24 and the axis 20", () => {
       expect(decl(".insp-time-stats", "grid-template-columns")).toBe("minmax(0, 1fr) minmax(0, 1fr)");
       expect(decl(".insp-time-stats", "gap")).toBe("6px 12px");
       expect(decl(".insp-time-stat dd", "font-weight")).toBe("500");
-      expect(decl(".insp-time-stat dd", "font-size")).toBe(INC(14));
+      // CHANGED ON PURPOSE (owner 2026-11-10 critique: type scale 11/12/13/16/22, radii 4/8/pill): a value at the body's 13.
+      expect(decl(".insp-time-stat dd", "font-size")).toBe(INC(13));
       expect(decl(".insp-time-stat dd", "line-height")).toBe("20px");
       expect(decl('.insp-time-stat[data-tone="warn"] dd', "color")).toBe("var(--warn)");
       expect(decl(".insp-time-bar", "height")).toBe("6px");
-      expect(decl(".insp-time-bar", "border-radius")).toBe("3px");
+      // CHANGED ON PURPOSE (owner 2026-11-10 critique: type scale 11/12/13/16/22, radii 4/8/pill): 3 on a 6px bar is a capsule, the pill token.
+      expect(decl(".insp-time-bar", "border-radius")).toBe("var(--r-pill)");
       expect(decl(".insp-time-row", "height")).toBe("24px");
       expect(decl(".insp-time-axis", "height")).toBe("20px");
       expect(decl(".insp-time-axis", "border-bottom")).toBe("1px solid var(--line-soft)");

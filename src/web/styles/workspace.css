@@ -35,7 +35,7 @@
   padding: 1px;
   background: var(--bg-soft);
   border: 1px solid var(--line-soft);
-  border-radius: var(--r-panel);
+  border-radius: var(--r-ctl);
 }
 .view-opt {
   display: inline-flex;
@@ -177,7 +177,7 @@ body .app[data-view="workspace"][data-side]:not([data-zoom]):has(.left-column) {
   width: 24px;
   height: 2px;
   margin: -1px 0 0 -12px;
-  border-radius: 1px;
+  border-radius: var(--r-ctl);
   background: var(--line);
 }
 /* The edge: the column's first 6 px, inside it, so nothing of the pane is
@@ -253,7 +253,7 @@ body .app[data-view="workspace"][data-side]:not([data-zoom]):has(.left-column) {
 /* The empty pane's words (Figma, "Empty workspace"). Someone waiting is one
    row: the waiting glyph, 8 before who waits, then how long, 12 after. */
 .ts-ws-empty { gap: 8px; }
-.ts-ws-title { margin: 0; font-size: 14px; font-weight: 600; line-height: 20px; color: var(--text); }
+.ts-ws-title { margin: 0; font-size: 16px; font-weight: 600; line-height: 20px; color: var(--text); }
 .ts-ws-head { display: flex; align-items: baseline; gap: 8px; }
 .ts-ws-head > .ts-glyph { align-self: center; }
 .ts-ws-wait { margin-left: 4px; font: 500 13px/20px var(--font-mono); font-variant-numeric: tabular-nums; color: var(--warn); }

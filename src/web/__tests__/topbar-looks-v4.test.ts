@@ -141,7 +141,8 @@ describe("the right group", () => {
     expect(field).toMatch(/height: 28px/);
     expect(field).toMatch(/var\(--bg-soft\)/);
     expect(field).toMatch(/var\(--line-soft\)/);
-    expect(field).toMatch(/var\(--r-panel\)/);
+    // CHANGED ON PURPOSE (owner 2026-11-10 critique: type scale 11/12/13/16/22, radii 4/8/pill): a field is a control, at 4.
+    expect(field).toMatch(/var\(--r-ctl\)/);
     expect(field).not.toMatch(/#[0-9a-f]{3,8}\b/i);
     expect(strip(read("../styles/edge-rails.css")).match(/\.rail-btn-bar\.rail-btn-icon \{([^}]*)\}/)![1]).toMatch(/width: 28px;[\s\S]*height: 28px/);
     expect(css).toMatch(/@media \(max-width: 1279px\) \{\s*\.rail-btn-bar\.rail-btn-field \{ width: 200px/);

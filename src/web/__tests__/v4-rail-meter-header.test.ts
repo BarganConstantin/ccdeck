@@ -28,8 +28,9 @@ const tokens = source("../styles/tokens.css");
 const token = (name: string) => new RegExp(`${name}:\\s*(\\d+)ms`).exec(tokens)?.[1];
 
 describe("the meter's box and bar (V4's Figma)", () => {
-  it("is 9 round, padded 8 and 12, 4 between lines; the foot gives back the list's 1px border", () => {
-    expect(decl(".session-list .sl-usage-btn", "border-radius")).toBe("9px");
+  it("is a panel's round, padded 8 and 12, 4 between lines; the foot gives back the list's 1px border", () => {
+    // CHANGED ON PURPOSE (owner 2026-11-10 critique: type scale 11/12/13/16/22, radii 4/8/pill): the box is a panel at 8, not V4's 9.
+    expect(decl(".session-list .sl-usage-btn", "border-radius")).toBe("var(--r-panel)");
     expect(decl(".session-list .sl-usage-btn", "padding")).toBe("8px 12px");
     expect(decl(".session-list .sl-usage-btn", "gap")).toBe("4px");
     expect(decl(".session-list .sl-usage", "padding")).toBe("4px");
@@ -94,7 +95,8 @@ describe("the header", () => {
     expect(decl(".session-list .sl-header-end", "gap")).toBe("2px");
     expect(decl(".session-list .sl-icon-btn", "width")).toBe("24px");
     expect(decl(".session-list .sl-icon-btn", "height")).toBe("24px");
-    expect(decl(".session-list .sl-icon-btn", "border-radius")).toBe("6px");
+    // CHANGED ON PURPOSE (owner 2026-11-10 critique: type scale 11/12/13/16/22, radii 4/8/pill): an icon button is a control, at 4.
+    expect(decl(".session-list .sl-icon-btn", "border-radius")).toBe("var(--r-ctl)");
     expect(decl(".session-list .sl-icon-btn", "background")).toBe("transparent");
   });
   it("wires the Plus to the Command Panel's own new-session launch, only where it exists", () => {
@@ -121,8 +123,9 @@ describe("the decision card", () => {
   it("keeps an unselected option's label --text after a pick", () => {
     expect(css).not.toMatch(/aria-checked="false"\]\s+\.dc-opt-label\s*\{[^}]*color/);
   });
-  it("draws the outcome box with a 9 corner", () => {
-    expect(/\.dc-out \{[^}]*border-radius: 9px/.test(css)).toBe(true);
+  it("draws the outcome box with a panel's corner", () => {
+    // CHANGED ON PURPOSE (owner 2026-11-10 critique: type scale 11/12/13/16/22, radii 4/8/pill): the box is a panel at 8, not V4's 9.
+    expect(/\.dc-out \{[^}]*border-radius: var\(--r-panel\)/.test(css)).toBe(true);
   });
 });
 

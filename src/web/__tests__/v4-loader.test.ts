@@ -49,8 +49,9 @@ describe("V4's Loader geometry", () => {
     expect(decl('.loader[data-size="m"]', "height")).toBe("24px");
     expect(decl('.loader[data-size="m"]', "grid-template")).toBe("repeat(5, 3px) / repeat(5, 3px)");
   });
-  it("draws a pixel as currentColor with radius 1, resting at 0.2 and 0.8", () => {
-    expect(decl(".loader i", "border-radius")).toBe("1px");
+  it("draws a pixel as currentColor, square, resting at 0.2 and 0.8", () => {
+    // CHANGED ON PURPOSE (owner 2026-11-10 critique: type scale 11/12/13/16/22, radii 4/8/pill): a 1px radius on a 3px pixel is a hairline radius; the pixel is square.
+    expect(decl(".loader i", "border-radius")).toBe("0");
     expect(decl(".loader i", "background")).toBe("currentColor");
     expect(decl(".loader i", "opacity")).toBe("0.2");
     expect(decl(".loader i", "transform")).toBe("scale(0.8)");

@@ -17,13 +17,13 @@
   gap: 2px;
   padding: 3px;
   border: 1px solid var(--line-soft);
-  border-radius: 8px;
+  border-radius: var(--r-ctl);
   background: var(--bg-soft);
 }
 .aa-tab {
   padding: 4px 10px;
   border: 0;
-  border-radius: 6px;
+  border-radius: var(--r-ctl);
   background: none;
   color: var(--muted);
   font: inherit;
@@ -82,7 +82,7 @@
   height: 20px;
   box-sizing: border-box;
   border: 1px solid var(--line);
-  border-radius: 999px;
+  border-radius: var(--r-pill);
   font-family: var(--font-mono);
   font-size: calc(11px + var(--ui-text-increase, 0px));
   line-height: calc(14px + var(--ui-text-increase, 0px));
@@ -101,7 +101,7 @@
   gap: 12px;
   padding: 8px 10px;
   border: 1px solid var(--ctl-edge);
-  border-radius: 8px;
+  border-radius: var(--r-ctl);
   background: var(--ctl-fill);
   color: var(--accent);
   font-size: calc(12px + var(--ui-text-increase, 0px));
@@ -128,7 +128,7 @@
   min-width: 0;
   padding: 8px 12px;
   border: 1px solid var(--ctl-edge);
-  border-radius: 8px;
+  border-radius: var(--r-ctl);
   /* --bg-soft, not --ctl-fill: the placeholder here is --text-dim. */
   background: var(--bg-soft);
   color: var(--text);
@@ -389,7 +389,7 @@
   color: var(--warn);
   border: 1px solid color-mix(in srgb, var(--warn) 85%, transparent);
   background: color-mix(in srgb, var(--warn) 10%, transparent);
-  border-radius: 8px;
+  border-radius: var(--r-panel);
   padding: 8px 10px;
   text-align: left;
 }
@@ -443,7 +443,7 @@
   width: 6px;
   height: 9px;
   margin: -4px 0 0 -3px;
-  border-radius: 2px;
+  border-radius: 0;
   background: var(--accent);
   opacity: 0;
   /* Two animations, not one: a single timing function governs every property
@@ -455,7 +455,7 @@
     aa-burst-move 1100ms cubic-bezier(0.16, 0.9, 0.3, 1) both,
     aa-burst-fade 1100ms linear both;
 }
-.confetti-bit.round { width: 6px; height: 6px; border-radius: 50%; }
+.confetti-bit.round { width: 6px; height: 6px; border-radius: var(--r-pill); }
 .confetti-bit[data-hue="1"] { background: var(--ok); }
 /* Not --warn: amber is the deck's "a session is waiting on you", and a burst
    that wears it borrows the one colour that has to stay unambiguous. */
@@ -556,7 +556,7 @@
   padding: 0;
   list-style: none;
   border: 1px solid var(--line-soft);
-  border-radius: var(--r-ctl);
+  border-radius: var(--r-panel);
   max-height: min(42vh, 280px);
   overflow-y: auto;
 }
@@ -590,7 +590,7 @@
   background: var(--panel);
   color: var(--text);
   font-family: var(--font-mono);
-  font-size: calc(18px + var(--ui-text-increase, 0px));
+  font-size: calc(16px + var(--ui-text-increase, 0px));
   letter-spacing: 0.12em;
   text-align: center;
   user-select: all;

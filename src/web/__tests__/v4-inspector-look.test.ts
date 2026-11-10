@@ -128,7 +128,8 @@ describe("the body and the title block", () => {
     expect(decl(".insp-b", "gap")).toBe("8px");
   });
   it("sets the name 600 14/20 --text, the meta line 400 12/16 --muted, the spend mono 600 18/24 --text", () => {
-    expect(decl(".detail-hero .hero-title", "font-size")).toBe(INC(14));
+    // CHANGED ON PURPOSE (owner 2026-11-10 critique: type scale 11/12/13/16/22, radii 4/8/pill): the title at 16, the spend a figure at 16.
+    expect(decl(".detail-hero .hero-title", "font-size")).toBe(INC(16));
     expect(decl(".detail-hero .hero-title", "line-height")).toBe("20px");
     expect(decl(".detail-hero .hero-title", "font-weight")).toBe("600");
     expect(decl(".detail-hero .hero-title", "color")).toBe("var(--text)");
@@ -136,7 +137,7 @@ describe("the body and the title block", () => {
     expect(decl(".detail-hero .hero-meta", "line-height")).toBe("16px");
     expect(decl(".detail-hero .hero-meta", "color")).toBe("var(--muted)");
     expect(decl(".detail-hero .hero-cost-value", "font-family")).toBe("var(--font-mono)");
-    expect(decl(".detail-hero .hero-cost-value", "font-size")).toBe(INC(18));
+    expect(decl(".detail-hero .hero-cost-value", "font-size")).toBe(INC(16));
     expect(decl(".detail-hero .hero-cost-value", "line-height")).toBe("24px");
     expect(decl(".detail-hero .hero-cost-value", "font-weight")).toBe("600");
     expect(decl(".detail-hero .hero-cost-label", "font-size")).toBe(INC(12));
@@ -162,7 +163,8 @@ describe("the body and the title block", () => {
     expect(decl("button.btn", "font-weight")).toBe("500");
     expect(decl("button.btn", "color")).toBe("var(--text-secondary)");
     expect(decl("button.btn", "padding")).toBe("0 12px");
-    expect(decl("button.btn", "border-radius")).toBe("var(--r-panel)");
+    // CHANGED ON PURPOSE (owner 2026-11-10 critique: type scale 11/12/13/16/22, radii 4/8/pill): a button is a control, at 4.
+    expect(decl("button.btn", "border-radius")).toBe("var(--r-ctl)");
     expect(decl(".detail .hero-actions", "gap")).toBe("8px");
   });
   it("sets the empty Inspector 600 13/20 --text-secondary over 400 12/16 --muted, centred, padded 8 12 12 with a gap of 4", () => {
@@ -296,13 +298,15 @@ describe("the Time tab", () => {
     expect(decl(".insp-time-stats", "gap")).toBe("6px 12px");
     expect(decl(".insp-time-stat dt", "color")).toBe("var(--muted)");
     expect(decl(".insp-time-stat dd", "font-family")).toBe("var(--font-mono)");
-    expect(decl(".insp-time-stat dd", "font-size")).toBe(INC(14));
+    // CHANGED ON PURPOSE (owner 2026-11-10 critique: type scale 11/12/13/16/22, radii 4/8/pill): a value at the body's 13.
+    expect(decl(".insp-time-stat dd", "font-size")).toBe(INC(13));
     expect(decl(".insp-time-stat dd", "font-weight")).toBe("500");
     expect(decl('.insp-time-stat[data-tone="warn"] dd', "color")).toBe("var(--warn)");
   });
   it("draws the split bar 6 high, radius 3, the track --text at 6%, the lanes in the deck's order at --warn 55%, --accent 34% and 14%", () => {
     expect(decl(".insp-time-bar", "height")).toBe("6px");
-    expect(decl(".insp-time-bar", "border-radius")).toBe("3px");
+    // CHANGED ON PURPOSE (owner 2026-11-10 critique: type scale 11/12/13/16/22, radii 4/8/pill): a 6-high bar at 3 is a capsule, the pill token.
+    expect(decl(".insp-time-bar", "border-radius")).toBe("var(--r-pill)");
     expect(decl(".insp-time-bar", "background")).toBe("color-mix(in srgb, var(--text) 6%, transparent)");
     expect(decl('.insp-time-bar i[data-lane="you"]', "background")).toBe("color-mix(in srgb, var(--warn) 55%, transparent)");
     expect(decl('.insp-time-bar i[data-lane="claude"]', "background")).toBe("color-mix(in srgb, var(--accent) 34%, transparent)");
@@ -349,8 +353,9 @@ describe("the Time tab", () => {
   it("draws the turn-span bar 10 high, --text at 16%, radius 3 (1 for a thin one), the subagent --accent at 14% with an inset edge at 40%", () => {
     expect(decl(".insp-time-span", "height")).toBe("10px");
     expect(decl(".insp-time-span", "background")).toBe("color-mix(in srgb, var(--text) 16%, transparent)");
-    expect(decl(".insp-time-span", "border-radius")).toBe("3px");
-    expect(decl(".insp-time-span[data-thin]", "border-radius")).toBe("1px");
+    // CHANGED ON PURPOSE (owner 2026-11-10 critique: type scale 11/12/13/16/22, radii 4/8/pill): a span is a control's 4; a thin one square, its 1px was not visible.
+    expect(decl(".insp-time-span", "border-radius")).toBe("var(--r-ctl)");
+    expect(decl(".insp-time-span[data-thin]", "border-radius")).toBe("0");
     expect(decl(".insp-time-span[data-group]", "background")).toBe("color-mix(in srgb, var(--accent) 14%, transparent)");
     expect(decl(".insp-time-span[data-group]", "box-shadow")).toBe("inset 0 0 0 1px color-mix(in srgb, var(--accent) 40%, transparent)");
     expect(out).toContain("data-thin");
@@ -363,7 +368,8 @@ describe("the Time tab", () => {
   it("labels the waiting row with a chip: --panel, radius 3, mono 11/14 --warn", () => {
     expect(out).toContain("waiting on you · 6.0s");
     expect(decl(".insp-time-wait", "background")).toBe("var(--panel)");
-    expect(decl(".insp-time-wait", "border-radius")).toBe("3px");
+    // CHANGED ON PURPOSE (owner 2026-11-10 critique: type scale 11/12/13/16/22, radii 4/8/pill): a chip is a control, at 4.
+    expect(decl(".insp-time-wait", "border-radius")).toBe("var(--r-ctl)");
     expect(decl(".insp-time-wait", "color")).toBe("var(--warn)");
   });
   it("wears the kit's icon by kind of tool", () => {

@@ -152,7 +152,7 @@
   visibility: hidden;
 }
 /* The card's own chrome is drawn in layout units, so at 0.3 its 1px border is
-   a third of a pixel and its 10px radius is three. The face draws the chrome
+   a third of a pixel and its 8px radius under three. The face draws the chrome
    instead, in screen pixels, and the card underneath lets go of its own. Its
    ring is MOVED rather than removed: the selection's and the keyboard's ring
    are drawn on the face below at 2px on screen, so the card's layout-unit
@@ -197,7 +197,7 @@
   padding: 5px 8px 5px 10px;
   background: var(--node-grad);
   border: 1px solid var(--lod-alarm, var(--lod-ready, var(--lod-edge, var(--line))));
-  border-radius: 6px;
+  border-radius: var(--r-panel);
   color: var(--text);
   font-size: calc(11px + var(--ui-text-increase, 0px));
   line-height: calc(14px + var(--ui-text-increase, 0px));
@@ -442,7 +442,7 @@
   padding: 0;
   cursor: pointer;
   line-height: 0;
-  border-radius: 50%;
+  border-radius: var(--r-pill);
   transition: transform var(--dur-fast) var(--ease);
 }
 @media (hover: hover) and (pointer: fine) {

@@ -193,7 +193,8 @@ describe("the Layout switch: 170x28, Medium on both, the selected one flat on --
     expect(decl(".view-switch", "height")).toBe("28px");
     expect(decl(".view-switch", "padding")).toBe("1px");
     expect(decl(".view-switch", "border")).toBe("1px solid var(--line-soft)");
-    expect(decl(".view-switch", "border-radius")).toBe("var(--r-panel)");
+    // CHANGED ON PURPOSE (owner 2026-11-10 critique: type scale 11/12/13/16/22, radii 4/8/pill): a segmented control is a control, at 4.
+    expect(decl(".view-switch", "border-radius")).toBe("var(--r-ctl)");
     expect(decl(".view-switch", "background")).toBe("var(--bg-soft)");
     expect(decl(".view-switch", "gap")).toBe("2px");
     // 1px of padding inside a 1px edge = the frame's 2px; two 24px segments
@@ -282,7 +283,8 @@ describe("the queue popover", () => {
     // CHANGED ON PURPOSE (V4's Figma): the popover is 320 wide on the overlay
     // corner (12), padded 12, with 8 between its heading, rows and foot.
     expect(decl(".anchored-popover.queue-pop", "border-radius")).toBe("var(--r-overlay)");
-    expect(tokens).toMatch(/--r-overlay:\s*12px;/);
+    // CHANGED ON PURPOSE (owner 2026-11-10 critique: type scale 11/12/13/16/22, radii 4/8/pill): the overlay corner is the panel's 8.
+    expect(tokens).toMatch(/--r-overlay:\s*var\(--r-panel\);/);
     expect(decl(".anchored-popover.queue-pop", "width")).toBe("320px");
     expect(decl(".anchored-popover.queue-pop", "padding")).toBe("12px");
     expect(decl(".anchored-popover.queue-pop", "gap")).toBe("8px");

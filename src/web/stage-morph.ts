@@ -42,8 +42,8 @@ export interface MorphRect { x: number; y: number; w: number; h: number }
  */
 export const HEADER_LATE = 0.97;
 
-/** The corner the window starts with: a card's radius. The column has none. */
-export const MORPH_RADIUS = 10;
+/** The corner the window starts with: a card's radius, the panel's 8 (--r-node). The column has none. */
+export const MORPH_RADIUS = 8;
 /** When a card was not on screen the stage grows out of its own column, from
  *  this far inside it — a short grow rather than nothing at all, so the stage
  *  never appears without saying where it came from. */

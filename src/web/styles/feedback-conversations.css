@@ -61,7 +61,7 @@
   right: 6px;
   bottom: -1px;
   height: 2px;
-  border-radius: 1px;
+  border-radius: var(--r-ctl);
   background: var(--accent);
 }
 .fc-tab:active { transform: scale(var(--press)); }
@@ -71,10 +71,10 @@
   height: 16px;
   padding: 0 4px;
   box-sizing: border-box;
-  border-radius: 999px;
+  border-radius: var(--r-pill);
   background: var(--muted);
   color: var(--bg);
-  font-size: calc(10px + max(-1px, var(--ui-text-increase, 0px)));
+  font-size: calc(11px + max(-1px, var(--ui-text-increase, 0px)));
   font-weight: 700;
   line-height: calc(16px + var(--ui-text-increase, 0px));
   text-align: center;
@@ -173,7 +173,7 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.fc-dot { flex: none; width: 6px; height: 6px; border-radius: 50%; background: var(--accent); }
+.fc-dot { flex: none; width: 6px; height: 6px; border-radius: var(--r-pill); background: var(--accent); }
 .fc-more,
 .fc-earlier { align-self: center; }
 /* An empty list, a loading line, what could not be reached: a sentence and,
@@ -195,7 +195,7 @@
   align-items: center;
   min-height: 18px;
   padding: 0 6px;
-  border-radius: 999px;
+  border-radius: var(--r-pill);
   background: var(--ctl-fill);
   color: var(--text);
   font-size: calc(11px + var(--ui-text-increase, 0px));
@@ -222,7 +222,7 @@
 .fc-thread-title {
   margin: 0;
   color: var(--text);
-  font-size: calc(14px + var(--ui-text-increase, 0px));
+  font-size: calc(16px + var(--ui-text-increase, 0px));
   font-weight: 600;
   line-height: calc(20px + var(--ui-text-increase, 0px));
   overflow-wrap: anywhere;
@@ -289,7 +289,7 @@
 .fc-bubble {
   margin: 0;
   padding: 8px 12px;
-  border-radius: 12px;
+  border-radius: var(--r-panel);
   background: var(--ctl-fill);
   color: var(--text);
   font-size: calc(13px + var(--ui-text-increase, 0px));

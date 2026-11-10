@@ -25,7 +25,7 @@
 
 /* The head: the title, then the byline, then the status lines. */
 .fd-head { margin-top: 8px; }
-.fd-title { margin: 0; font-size: calc(14px + var(--ui-text-increase, 0px)); font-weight: 600; line-height: 20px; overflow-wrap: anywhere; color: var(--text); }
+.fd-title { margin: 0; font-size: calc(16px + var(--ui-text-increase, 0px)); font-weight: 600; line-height: 20px; overflow-wrap: anywhere; color: var(--text); }
 /* A link inside a title is told from the words around it by more than its
    colour, which is under 3:1 against them in some themes. */
 .fd-title a { color: var(--accent); text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 3px; }
@@ -111,8 +111,8 @@
 /* A label: the forge's colour is only the swatch, so the words keep the
    theme's own contrast whatever the colour is. */
 .fd-labels { display: flex; flex-wrap: wrap; gap: 4px; }
-.fd-label { display: inline-flex; align-items: center; gap: 6px; max-width: 100%; box-sizing: border-box; padding: 1px 8px 1px 6px; border: 1px solid var(--line); border-radius: 999px; color: var(--text); font-size: calc(11px + var(--ui-text-increase, 0px)); line-height: 1.6; }
-.fd-swatch { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--muted-dim); box-shadow: 0 0 0 1px color-mix(in srgb, var(--text) 30%, transparent); }
+.fd-label { display: inline-flex; align-items: center; gap: 6px; max-width: 100%; box-sizing: border-box; padding: 1px 8px 1px 6px; border: 1px solid var(--line); border-radius: var(--r-pill); color: var(--text); font-size: calc(11px + var(--ui-text-increase, 0px)); line-height: 1.6; }
+.fd-swatch { flex: none; width: 8px; height: 8px; border-radius: var(--r-pill); background: var(--muted-dim); box-shadow: 0 0 0 1px color-mix(in srgb, var(--text) 30%, transparent); }
 .fd-label-scope { padding-right: 6px; border-right: 1px solid var(--line); color: var(--muted); white-space: nowrap; }
 .fd-label-value { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 

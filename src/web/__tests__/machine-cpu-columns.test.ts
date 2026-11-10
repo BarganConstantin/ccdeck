@@ -81,7 +81,8 @@ describe("the per-core columns' geometry", () => {
   it("draws each core as a column 28 high on a --line track with 2px corners", () => {
     expect(decl(".sd-core", "height")).toBe("28px");
     expect(decl(".sd-core", "background")).toBe("var(--line)");
-    expect(decl(".sd-core", "border-radius")).toBe("2px");
+    // CHANGED ON PURPOSE (owner 2026-11-10 critique: type scale 11/12/13/16/22, radii 4/8/pill): a column's corners are the control's.
+    expect(decl(".sd-core", "border-radius")).toBe("var(--r-ctl)");
     // The track clips the fill, so a scaled fill keeps the column's corners.
     expect(decl(".sd-core", "overflow")).toBe("hidden");
   });

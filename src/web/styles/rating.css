@@ -73,7 +73,7 @@
   height: 28px;
   padding: 4px 12px;
   border: 1px solid var(--ctl-edge);
-  border-radius: 8px;
+  border-radius: var(--r-ctl);
   background: none;
   color: var(--text-secondary);
   font: inherit;

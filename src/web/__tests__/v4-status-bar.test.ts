@@ -87,7 +87,8 @@ describe("the bar's geometry, from Figma", () => {
     const dot = rule(".statusbar-dot");
     expect(dot["width"]).toBe("6px");
     expect(dot["height"]).toBe("6px");
-    expect(dot["border-radius"]).toBe("50%");
+    // CHANGED ON PURPOSE (owner 2026-11-10 critique: type scale 11/12/13/16/22, radii 4/8/pill): a dot is the pill token.
+    expect(dot["border-radius"]).toBe("var(--r-pill)");
   });
 
   it("colours the dot by layer: muted on the board and the deck, accent in the terminal", () => {
@@ -111,7 +112,8 @@ describe("the bar's geometry, from Figma", () => {
     expect(kbd["border"]).toBe("1px solid var(--line)");
     // Figma pads 1 by 5 with the stroke INSIDE it: 0 by 4 plus the 1px edge, 16 tall.
     expect(kbd["padding"]).toBe("0 4px");
-    expect(kbd["border-radius"]).toBe("4px");
+    // CHANGED ON PURPOSE (owner 2026-11-10 critique: type scale 11/12/13/16/22, radii 4/8/pill): the 4px is the control token.
+    expect(kbd["border-radius"]).toBe("var(--r-ctl)");
     expect(kbd["font-family"]).toBe("var(--font-mono)");
     expect(kbd["font-size"]).toBe("calc(11px + var(--ui-text-increase, 0px))");
     expect(kbd["line-height"]).toBe("calc(14px + var(--ui-text-increase, 0px))");

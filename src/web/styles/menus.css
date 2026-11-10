@@ -110,7 +110,7 @@
   scroll-padding: 16px 0 16px;
 
 }
-/* THE PANE'S HEAD (V4's Page head): the section's name, 14/20 and 600, and
+/* THE PANE'S HEAD (V4's Page head): the section's name, 16/20 and 600, and
    under it, 4px off, the line saying what the section holds (#2176) in 12/16
    --muted, with the section's own action on the right where it has one (Text &
    density's Reset). The first group's caption stands 8px under it, so it heads
@@ -128,7 +128,7 @@
 .settings-pane-title {
   margin: 0;
   color: var(--text);
-  font-size: calc(14px + var(--ui-text-increase, 0px));
+  font-size: calc(16px + var(--ui-text-increase, 0px));
   font-weight: 600;
   line-height: calc(20px + var(--ui-text-increase, 0px));
 }
@@ -832,7 +832,7 @@ button.settings-link {
   left: 1px;
   width: 14px;
   height: 14px;
-  border-radius: 50%;
+  border-radius: var(--r-pill);
   background: var(--muted);
   transform: translateY(-50%);
   transition: transform var(--dur-base) var(--ease), width var(--dur-base) var(--ease), background-color var(--dur-base) var(--ease);
@@ -1058,7 +1058,7 @@ button.btn.sm-hear {
   }
   .sm-row input[type="range"]::-webkit-slider-runnable-track {
     height: 3px;
-    border-radius: 999px;
+    border-radius: var(--r-pill);
     background: linear-gradient(
       to right,
       var(--accent) 0 var(--sm-level, 0%),
@@ -1071,7 +1071,7 @@ button.btn.sm-hear {
     width: 11px;
     height: 11px;
     margin-top: -4px;
-    border-radius: 50%;
+    border-radius: var(--r-pill);
     background: var(--accent);
   }
 }
@@ -1079,19 +1079,19 @@ button.btn.sm-hear {
   .sm-row input[type="range"] { appearance: none; background: transparent; }
   .sm-row input[type="range"]::-moz-range-track {
     height: 3px;
-    border-radius: 999px;
+    border-radius: var(--r-pill);
     background: color-mix(in srgb, var(--text) 14%, transparent);
   }
   .sm-row input[type="range"]::-moz-range-progress {
     height: 3px;
-    border-radius: 999px;
+    border-radius: var(--r-pill);
     background: var(--accent);
   }
   .sm-row input[type="range"]::-moz-range-thumb {
     width: 11px;
     height: 11px;
     border: none;
-    border-radius: 50%;
+    border-radius: var(--r-pill);
     background: var(--accent);
   }
 }
@@ -1244,8 +1244,8 @@ button.btn.sm-custom-action { align-self: flex-start; padding: 0 10px; font-size
   gap: 6px;
   padding: calc(8px * var(--ui-space, 1)) 14px;
 }
-.sm-custom-item > span { color: var(--muted); font-size: calc(10px + max(-1px, var(--ui-text-increase, 0px))); font-variant-numeric: tabular-nums; }
-button.btn.sm-custom-icon { padding: 0 6px; font-size: calc(10px + max(-1px, var(--ui-text-increase, 0px))); }
+.sm-custom-item > span { color: var(--muted); font-size: calc(11px + max(-1px, var(--ui-text-increase, 0px))); font-variant-numeric: tabular-nums; }
+button.btn.sm-custom-icon { padding: 0 6px; font-size: calc(11px + max(-1px, var(--ui-text-increase, 0px))); }
 /* Armed is the second press of the one act here nothing can undo, and it
    takes the error colour for the four seconds it waits — the LAN unpair's. */
 button.btn.sm-custom-icon.armed { color: var(--bg); background: var(--err); }
@@ -1298,7 +1298,7 @@ button.btn.sm-custom-icon.armed { color: var(--bg); background: var(--err); }
 .account-code {
   color: var(--text);
   font-family: var(--font-mono);
-  font-size: calc(18px + var(--ui-text-increase, 0px));
+  font-size: calc(16px + var(--ui-text-increase, 0px));
   font-weight: 600;
   letter-spacing: 0.08em;
   white-space: nowrap;

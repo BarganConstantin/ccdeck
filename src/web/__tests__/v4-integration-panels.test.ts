@@ -50,7 +50,8 @@ describe("the modal's frame and header", () => {
     expect(head).toMatch(/min-height:\s*44px/);
     expect(head).toMatch(/border-bottom:\s*1px solid var\(--line-soft\)/);
     const title = rule(integrations, ".ig-title");
-    expect(title).toMatch(/font-size:\s*calc\(14px/);
+    // CHANGED ON PURPOSE (owner 2026-11-10 critique: type scale 11/12/13/16/22, radii 4/8/pill): a dialog's title at 16.
+    expect(title).toMatch(/font-size:\s*calc\(16px/);
     expect(title).toMatch(/font-weight:\s*600/);
     const name = rule(integrations, ".ig-head .ig-conn-name");
     expect(name).toMatch(/font-family:\s*var\(--font-mono\)/);
@@ -129,7 +130,8 @@ describe("the failure note and the skeleton", () => {
   it("draws five rows 28 high 12 apart, each a 14 dot and a 120 x 8 bone and a 48 x 8 bone", () => {
     expect(rule(integrations, ".ig-skeleton")).toMatch(/gap:\s*12px/);
     expect(rule(integrations, ".ig-skeleton i")).toMatch(/height:\s*28px/);
-    expect(rule(integrations, ".ig-skeleton i::before")).toMatch(/width:\s*14px;\s*height:\s*14px;\s*border-radius:\s*50%/);
+    // CHANGED ON PURPOSE (owner 2026-11-10 critique: type scale 11/12/13/16/22, radii 4/8/pill): a dot is the pill token.
+    expect(rule(integrations, ".ig-skeleton i::before")).toMatch(/width:\s*14px;\s*height:\s*14px;\s*border-radius:\s*var\(--r-pill\)/);
     expect(rule(integrations, ".ig-skeleton i b")).toMatch(/width:\s*120px;[^}]*height:\s*8px/);
     expect(rule(integrations, ".ig-skeleton i::after")).toMatch(/width:\s*48px;\s*height:\s*8px/);
     expect(integrations).toMatch(/\.ig-skeleton i::before, \.ig-skeleton i::after, \.ig-skeleton i b\s*\{[^}]*var\(--ctl-fill\)/);
@@ -156,7 +158,8 @@ describe("Jira", () => {
     expect(rule(jira, ".jr-group-toggle")).toMatch(/min-height:\s*28px/);
     const row = rule(jira, ".jr-row");
     expect(row).toMatch(/min-height:\s*32px/);
-    expect(row).toMatch(/border-radius:\s*var\(--r-panel\)/);
+    // CHANGED ON PURPOSE (owner 2026-11-10 critique: type scale 11/12/13/16/22, radii 4/8/pill): a list row is a control, at 4.
+    expect(row).toMatch(/border-radius:\s*var\(--r-ctl\)/);
     expect(rule(integrations, ".modal.ig-modal") + integrations).not.toMatch(/--ig-sel-fill:\s*var\(--accent-dim\)/);
     expect(integrations).toMatch(/--ig-sel-fill:\s*var\(--selected\)/);
   });
@@ -189,7 +192,8 @@ describe("Jira", () => {
 
   it("gives the detail a 24 bar, a 14/600 title, plain 28 field rows, unboxed comments and a 28 compose field", () => {
     expect(rule(integrations, ".ig-detail-bar")).toMatch(/min-height:\s*24px/);
-    expect(rule(jira, ".jr-detail-title")).toMatch(/font-size:\s*calc\(14px[^;]*;\s*font-weight:\s*600/);
+    // CHANGED ON PURPOSE (owner 2026-11-10 critique: type scale 11/12/13/16/22, radii 4/8/pill): a detail's title at 16.
+    expect(rule(jira, ".jr-detail-title")).toMatch(/font-size:\s*calc\(16px[^;]*;\s*font-weight:\s*600/);
     expect(rule(jira, ".jr-fields")).toMatch(/grid-template-columns:\s*84px minmax\(0, 1fr\)/);
     expect(rule(jira, ".jr-field dd")).toMatch(/min-height:\s*28px/);
     expect(rule(jira, ".jr-comment")).not.toMatch(/box-shadow|border/);
@@ -321,7 +325,8 @@ describe("the forge panel", () => {
     const tabs = detail.indexOf('className="uh-range fd-sections"');
     expect(tabs).toBeGreaterThan(detail.indexOf("<ChangeHead change={c}"));
     expect(tabs).toBeLessThan(detail.indexOf("<ChangeSide change={c} />"));
-    expect(rule(forgeDetail, ".fd-title")).toMatch(/font-size:\s*calc\(14px/);
+    // CHANGED ON PURPOSE (owner 2026-11-10 critique: type scale 11/12/13/16/22, radii 4/8/pill): a detail's title at 16.
+    expect(rule(forgeDetail, ".fd-title")).toMatch(/font-size:\s*calc\(16px/);
   });
 
   it("draws pull request rows 44 high with a leading state glyph, and detail fields as plain rows", () => {

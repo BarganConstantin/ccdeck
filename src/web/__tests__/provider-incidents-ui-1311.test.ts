@@ -417,7 +417,8 @@ describe("the sheet", () => {
 
   it("gives each state its own shape, in a contrast theme too", () => {
     expect(css).toContain('[data-state="degraded"] .pi-dot { background: transparent; box-shadow: inset 0 0 0 1.5px var(--err); }');
-    expect(css).toContain('[data-state="maintenance"] .pi-dot { background: var(--muted); border-radius: 1px; }');
+    // CHANGED ON PURPOSE (owner 2026-11-10 critique: type scale 11/12/13/16/22, radii 4/8/pill): the square's 1px hairline radius was not visible; it is square.
+    expect(css).toContain('[data-state="maintenance"] .pi-dot { background: var(--muted); border-radius: 0; }');
     expect(css).toContain('[data-state="degraded"] .pi-dot { background: Canvas; box-shadow: inset 0 0 0 1.5px CanvasText; }');
     expect(css).toContain('[data-state="maintenance"] .pi-dot { background: GrayText; }');
   });

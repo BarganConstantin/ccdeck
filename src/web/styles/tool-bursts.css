@@ -82,7 +82,7 @@
   align-items: center;
   gap: 6px;
   padding: 5px 12px 5px 12px;
-  border-radius: 999px;
+  border-radius: var(--r-pill);
   background: var(--panel);
   border: 1px solid var(--line);
   font-size: calc(11px + var(--ui-text-increase, 0px));
@@ -125,7 +125,7 @@
 }
 .tool-burst .tb-spin {
   width: 8px; height: 8px;
-  border-radius: 50%;
+  border-radius: var(--r-pill);
   background: radial-gradient(circle at 30% 30%, var(--inflight), transparent 70%);
   box-shadow: none;
   animation: pulse var(--pulse-live) infinite;
@@ -198,7 +198,7 @@
   top: 6px;
   bottom: 6px;
   width: 1px;
-  border-radius: 1px;
+  border-radius: var(--r-ctl);
   background: var(--cat-accent, transparent);
   opacity: 0.85;
 }
@@ -244,7 +244,7 @@
    the other has to follow, and the lane has 2px left for it (#978). */
 .tool-burst.sub {
   max-width: 140px;
-  font-size: calc(10px + max(-1px, var(--ui-text-increase, 0px)));
+  font-size: calc(11px + max(-1px, var(--ui-text-increase, 0px)));
   padding: 4px 10px 4px 12px;
   opacity: 0.94;
   animation: burst-rise var(--dur-base) var(--ease) var(--delay-step) backwards;

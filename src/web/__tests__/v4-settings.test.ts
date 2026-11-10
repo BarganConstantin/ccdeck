@@ -115,7 +115,8 @@ describe("V4's page head", () => {
     expect(decl(".settings-pane-heading", "display")).toBe("flex");
     expect(decl(".settings-pane-heading", "flex-direction")).toBe("column");
     expect(decl(".settings-pane-heading", "gap")).toBe("4px");
-    expect(decl(".settings-pane-title", "font-size")).toBe(INC(14));
+    // CHANGED ON PURPOSE (owner 2026-11-10 critique: type scale 11/12/13/16/22, radii 4/8/pill): a pane's title at 16.
+    expect(decl(".settings-pane-title", "font-size")).toBe(INC(16));
     expect(decl(".settings-pane-title", "line-height")).toBe(INC(20));
     expect(decl(".settings-pane-title", "font-weight")).toBe("600");
     expect(decl(".settings-pane-title", "color")).toBe("var(--text)");

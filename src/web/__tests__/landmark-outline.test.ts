@@ -483,18 +483,20 @@ describe("promoting the headings changed no pixels (#381)", () => {
     // child combinator keeps the caption rule off the name, and the name is the larger.
     expect(decl(".detail > h2", "font-size")).toBe("12px");
     expect(decl(".detail > h2", "text-transform")).toBe("none");
-    expect(decl(".detail-hero .hero-title", "font-size")).toBe("14px");
+    // CHANGED ON PURPOSE (owner 2026-11-10 critique: type scale 11/12/13/16/22, radii 4/8/pill): the Inspector's title is a title, at 16.
+    expect(decl(".detail-hero .hero-title", "font-size")).toBe("16px");
     expect(css.replace(/\/\*[\s\S]*?\*\//g, "")).not.toMatch(/(^|[,\s])\.detail h2\b/);
   });
 
-  it("holds the wordmark at V4's 14px against the UA sheet's 2em", () => {
+  it("holds the wordmark at the scale's 13px against the UA sheet's 2em", () => {
     // 14px, then 16px under the brand kit, and 14px again under V4, whose
     // card title is 14/20 Semibold beside the 16px mark (topbar-mark.test.ts
     // holds the relation); what this case is for is unchanged — the heading
     // inherits the bar's size and never the UA sheet's 2em.
     expect(decl(".topbar .brand h1", "font")).toBe("inherit");
     expect(decl(".topbar .brand h1", "margin")).toBe("0");
-    expect(decl(".topbar .brand", "font-size")).toBe("14px");
+    // CHANGED ON PURPOSE (owner 2026-11-10 critique: type scale 11/12/13/16/22, radii 4/8/pill): the scale has no 14; the wordmark is a name, at 13.
+    expect(decl(".topbar .brand", "font-size")).toBe("13px");
   });
 });
 

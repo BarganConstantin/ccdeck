@@ -396,7 +396,7 @@
   box-sizing: border-box;
   width: 8px;
   height: 8px;
-  border-radius: 50%;
+  border-radius: var(--r-pill);
   background: var(--cat-other);
 }
 .cat-filter.cat-file .cat-dot { background: var(--cat-file); }
@@ -503,7 +503,7 @@
   box-sizing: border-box;
   width: 8px;
   height: 8px;
-  border-radius: 50%;
+  border-radius: var(--r-pill);
   background: var(--cat-other);
 }
 .cat-tools-item.cat-file .cat-dot { background: var(--cat-file); }

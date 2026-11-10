@@ -21,8 +21,9 @@
 }
 /* The one dialog header (dialogs.css), drawn out to the dialog's edges over
    the padding the rest of this dialog keeps. Its title is `.modal-tool-name`,
-   14px/600: this one wrote 15px once, and 15 against 14 is a 7% step below
-   anything a reader can resolve, so the size retired. */
+   at the dialog title's 16px/600: this one wrote 15px once, beside a 14px
+   title, and 15 against 14 is a 7% step below anything a reader can resolve,
+   so the size retired. */
 .ctx-modal-body { min-height: 0; gap: 12px; }
 /* V4's first line in the body: what kind of number the window figure is. */
 .ctx-approx { margin: 0; font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: calc(16px + var(--ui-text-increase, 0px)); color: var(--muted); }
@@ -60,7 +61,7 @@
 .ctx-window-bar {
   position: relative;
   height: 6px;
-  border-radius: 3px;
+  border-radius: var(--r-pill);
   background: var(--ctl-fill);
   overflow: hidden;
 }
@@ -71,7 +72,7 @@
 .ctx-window-fill {
   position: absolute;
   inset: 0;
-  border-radius: 3px;
+  border-radius: var(--r-pill);
   background: var(--accent);
   transform-origin: left center;
   transition: transform var(--dur-slow) var(--ease);
@@ -271,7 +272,7 @@
 .waiting-dot {
   width: 5px;
   height: 5px;
-  border-radius: 50%;
+  border-radius: var(--r-pill);
   background: currentColor;
   flex-shrink: 0;
 }
@@ -618,7 +619,7 @@
   align-items: center;
   gap: 6px;
   padding: 3px 8px;
-  font-size: calc(10px + max(-1px, var(--ui-text-increase, 0px)));
+  font-size: calc(11px + max(-1px, var(--ui-text-increase, 0px)));
   font-weight: 600;
   min-width: 0;
   color: var(--muted);
@@ -636,7 +637,7 @@
 .approval-blind-dot {
   width: 5px;
   height: 5px;
-  border-radius: 50%;
+  border-radius: var(--r-pill);
   border: 1px solid currentColor;
   flex-shrink: 0;
 }
@@ -679,7 +680,7 @@
   padding: 0 8px;
   margin: -2px -5px -2px 0;
   border: 1px solid color-mix(in srgb, var(--err) 85%, transparent);
-  border-radius: 4px;
+  border-radius: var(--r-ctl);
   background: transparent;
   color: var(--text);
   font: inherit;
@@ -701,8 +702,8 @@
   gap: 6px;
   padding: 3px 8px;
   border: 1px solid var(--line);
-  border-radius: 6px;
-  font-size: calc(10px + max(-1px, var(--ui-text-increase, 0px)));
+  border-radius: var(--r-ctl);
+  font-size: calc(11px + max(-1px, var(--ui-text-increase, 0px)));
   font-weight: 600;
   min-width: 0;
   color: var(--muted);
@@ -755,7 +756,7 @@
   position: relative;
   width: 24px;
   height: 4px;
-  border-radius: 2px;
+  border-radius: var(--r-pill);
   background: var(--line);
   overflow: hidden;
 }
@@ -900,11 +901,11 @@
   align-items: center;
   padding: 1px 8px;
   margin-left: 6px;
-  border-radius: 999px;
+  border-radius: var(--r-pill);
   border: 1px solid var(--line);
   color: var(--text);
   background: var(--bg-soft);
-  font-size: calc(10px + max(-1px, var(--ui-text-increase, 0px)));
+  font-size: calc(11px + max(-1px, var(--ui-text-increase, 0px)));
   font-family: var(--font-mono);
   font-weight: 600;
   letter-spacing: 0.02em;
@@ -944,7 +945,7 @@
    carried to clear AA — and the word is the hue a fifth of the way to --text,
    which is where every light literal's ink already sat (#6b21a8 against the
    band's #7e22ce, #075985 against #0369a1): a band colour dark enough for a
-   3:1 bar is not dark enough for 10px words on its own wash. The sweep in
+   3:1 bar is not dark enough for 11px words on its own wash. The sweep in
    usage-series-contrast.test.ts measures the word on every bed. */
 :root[data-color-scheme="light"] .model-chip:is([data-family="opus"], [data-family="sonnet"], [data-family="haiku"], [data-family="fable"], [data-family="mythos"]) {
   color: color-mix(in srgb, var(--chip-hue) 80%, var(--text));
@@ -954,5 +955,5 @@
 
 /* React Flow edge label background — match theme */
 .react-flow__edge-textbg { fill: var(--bg-soft); fill-opacity: 0.9; }
-.react-flow__edge-text { font-family: var(--font-mono); font-size: calc(10px + max(-1px, var(--ui-text-increase, 0px))); fill: var(--text); }
+.react-flow__edge-text { font-family: var(--font-mono); font-size: calc(11px + max(-1px, var(--ui-text-increase, 0px))); fill: var(--text); }
 

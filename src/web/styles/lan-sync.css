@@ -84,7 +84,7 @@
   height: 5px;
   margin-right: 6px;
   vertical-align: 1px;
-  border-radius: 50%;
+  border-radius: var(--r-pill);
   background: var(--ok);
 }
 /* LOCAL NETWORK'S WAY IN, as V4's Figma draws it: 44 high on two lines, the name
@@ -542,12 +542,12 @@
   margin-top: 8px;
 }
 /* Fixed, so `appear as` and `passphrase` put their fields on one left edge.
-   Measured off the longer of the two at 10px, rounded up to the panel's step. */
+   Measured off the longer of the two at 11px, rounded up to the panel's step. */
 .ap-lan-label {
   flex: none;
   width: 66px;
   color: var(--muted);
-  font-size: calc(10px + max(-1px, var(--ui-text-increase, 0px)));
+  font-size: calc(11px + max(-1px, var(--ui-text-increase, 0px)));
 }
 .ap-lan-input { flex: 1 1 auto; min-width: 0; }
 
@@ -566,7 +566,7 @@
   gap: 8px;
   padding: 3px 4px;
   margin: 0 -4px;
-  border-radius: 6px;
+  border-radius: var(--r-ctl);
   cursor: pointer;
   font-size: calc(11px + var(--ui-text-increase, 0px));
   color: var(--text);
@@ -603,7 +603,7 @@
 .ap-lan-group {
   margin: 6px 0 1px;
   color: var(--muted);
-  font-size: calc(10px + max(-1px, var(--ui-text-increase, 0px)));
+  font-size: calc(11px + max(-1px, var(--ui-text-increase, 0px)));
   font-weight: 600;
 }
 .ap-lan-group:first-child { margin-top: 0; }
@@ -613,18 +613,18 @@
 .lan-kind {
   margin-left: 6px;
   color: var(--muted);
-  font-size: calc(9px + max(0px, var(--ui-text-increase, 0px)));
+  font-size: calc(11px + max(0px, var(--ui-text-increase, 0px)));
   font-weight: 600;
   letter-spacing: 0.02em;
 }
-.ap-lan-dead { flex: none; margin-left: auto; color: var(--muted); font-size: calc(9px + max(0px, var(--ui-text-increase, 0px))); }
+.ap-lan-dead { flex: none; margin-left: auto; color: var(--muted); font-size: calc(11px + max(0px, var(--ui-text-increase, 0px))); }
 
 /* The machine a request is about, named in the sentence that asks about it. */
 .ap-lan-peer-name { color: var(--text); }
 
 /* Both empty states — no accounts yet, and no other deck yet. The second one
    carries the two things worth checking, so it wraps rather than truncating. */
-.ap-lan-empty { color: var(--muted); font-size: calc(10px + max(-1px, var(--ui-text-increase, 0px))); line-height: 1.45; }
+.ap-lan-empty { color: var(--muted); font-size: calc(11px + max(-1px, var(--ui-text-increase, 0px))); line-height: 1.45; }
 
 /* Takes a typed address off the list. `margin-left: auto` puts it at the far
    edge of its row, away from the name it removes — the same distance the panel
@@ -777,7 +777,7 @@
   margin: 0;
   padding: 0;
   border: 0;
-  border-radius: 4px;
+  border-radius: var(--r-ctl);
   background: none;
   font: inherit;
   color: inherit;
@@ -789,7 +789,7 @@
    row's top and bottom and 5px round — on a healthy row a 33px rounded block
    round a 14px name, which reads as a card arriving rather than a row
    answering. It is the row's own box now and no more: 4px past the column on
-   each side so the name is not flush to its edge, 4px corners, and 4% — the
+   each side so the name is not flush to its edge, the control's corners, and 4% — the
    same step as --panel to --bg-soft, there when you look at the row and gone
    from across the room.
 
@@ -803,7 +803,7 @@
   position: absolute;
   inset: 0 -4px;
   z-index: -1;
-  border-radius: 4px;
+  border-radius: var(--r-ctl);
   background: transparent;
   pointer-events: none;
 }
@@ -878,7 +878,7 @@
   margin-top: 10px;
   padding: 10px;
   border: 1px solid var(--line);
-  border-radius: 6px;
+  border-radius: var(--r-panel);
   background: var(--bg-soft);
 }
 .ap-lan-invite-head {
@@ -906,7 +906,7 @@
   display: block;
   margin-top: 8px;
   padding: 8px 8px;
-  border-radius: 6px;
+  border-radius: var(--r-ctl);
   background: color-mix(in srgb, var(--text) 6%, transparent);
   font-family: var(--font-mono);
   font-size: calc(11px + var(--ui-text-increase, 0px));
@@ -919,7 +919,7 @@
    this token actually lets somebody do. */
 .ap-lan-fine {
   margin: 8px 0 0;
-  font-size: calc(10px + max(-1px, var(--ui-text-increase, 0px)));
+  font-size: calc(11px + max(-1px, var(--ui-text-increase, 0px)));
   line-height: 1.5;
   color: var(--text-dim);
 }
@@ -961,14 +961,14 @@
   margin-top: 10px;
   padding: 8px;
   border: 1px solid color-mix(in srgb, var(--accent) 55%, transparent);
-  border-radius: 6px;
+  border-radius: var(--r-panel);
   background: color-mix(in srgb, var(--accent) 7%, transparent);
 }
 .ap-lan-ask { display: flex; flex-direction: column; gap: 6px; }
 .ap-lan-ask-what { font-size: calc(11px + var(--ui-text-increase, 0px)); color: var(--text); line-height: 1.45; }
 /* The value to compare against the other person's screen, at the size of a
    reading rather than of the sentence above it. */
-.ap-lan-ask-fp { font-size: calc(10px + max(-1px, var(--ui-text-increase, 0px))); color: var(--text-dim); }
+.ap-lan-ask-fp { font-size: calc(11px + max(-1px, var(--ui-text-increase, 0px))); color: var(--text-dim); }
 .ap-lan-ask-acts { display: flex; gap: 6px; }
 
 .ap-lan-code {
@@ -993,7 +993,7 @@
   position: relative;
   width: 5px;
   height: 5px;
-  border-radius: 50%;
+  border-radius: var(--r-pill);
   background: currentColor;
   flex-shrink: 0;
 }
@@ -1001,7 +1001,7 @@
   content: "";
   position: absolute;
   inset: 0;
-  border-radius: 50%;
+  border-radius: var(--r-pill);
   border: 1px solid currentColor;
   /* Ease-out cubic, not expo. An exponential curve puts the whole expansion
      in the first fifth of the cycle, so the ring hits full scale at zero
@@ -1023,7 +1023,7 @@
    item, which split the inline <code> onto its own line mid-sentence. */
 .ap-auto-note {
   margin: 9px 0 0;
-  font-size: calc(9px + max(0px, var(--ui-text-increase, 0px)));
+  font-size: calc(11px + max(0px, var(--ui-text-increase, 0px)));
   line-height: 1.6;
   color: var(--muted);
 }
@@ -1035,7 +1035,7 @@
 }
 .ap-auto-note code {
   font-family: var(--font-mono);
-  font-size: calc(9px + max(0px, var(--ui-text-increase, 0px)));
+  font-size: calc(11px + max(0px, var(--ui-text-increase, 0px)));
   color: var(--text);
   white-space: nowrap;   /* "cswap auto" is one name; never break it in half */
 }
@@ -1071,7 +1071,7 @@
   background: var(--ctl-fill);
   color: var(--text);
   border: 1px solid var(--ctl-edge);
-  border-radius: 6px;
+  border-radius: var(--r-ctl);
   padding: 2px 20px 2px 8px;
   /* The 24px target floor (#884): it measured 53x23. */
   min-height: 24px;

@@ -141,9 +141,10 @@ describe("the pane's header and footer as the phone frame draws them", () => {
   it("each key is 38 high with the frame's radius, fill and edge, a 44 target, and presses on the way down", () => {
     expect(phone).toContain(".ts-key{flex:110;min-width:0;height:38px;}");
     // The look is the key's own, outside the query (the row is not drawn there at all):
-    // the frame's literal 7 is held to the radius ladder as --r-panel (8).
+    // the frame's literal 7 is held to the deck's three radii as a control's (4).
+    // CHANGED ON PURPOSE (owner 2026-11-10 critique: type scale 11/12/13/16/22, radii 4/8/pill): a key is a control, at 4.
     const own = squash(outsideMedia(stage));
-    expect(own).toContain("border-radius:var(--r-panel);");
+    expect(own).toContain("border-radius:var(--r-ctl);");
     expect(own).toContain("background:var(--bg-soft);");
     expect(own).toContain("color:var(--text-secondary);");
     expect(phone).toContain(squash(".ts-key::after { content: \"\"; position: absolute; inset: -3px 0; }"));
@@ -507,7 +508,8 @@ describe("the offline card is inside Sessions, with the last news time", () => {
     const banners = strip(read("styles/search-and-banners.css"));
     expect(squash(phoneOf(banners))).toContain(squash(".session-list .conn-banner-phone { flex: none; margin: 14px 12px 0; }"));
     const dock = squash(phoneOf(strip(read("styles/edge-rails.css"))));
-    expect(dock).toContain("width:7px;height:7px;border-radius:4px;background:var(--err);");
+    // CHANGED ON PURPOSE (owner 2026-11-10 critique: type scale 11/12/13/16/22, radii 4/8/pill): a dot is the pill token.
+    expect(dock).toContain("width:7px;height:7px;border-radius:var(--r-pill);background:var(--err);");
     expect(read("components/EdgeRails.tsx")).toContain('offlineDot={offline && item.id === "machine"}');
     // CHANGED ON PURPOSE (the phone layout): the last news is the moment the
     // link dropped, taken from the stream's own open and error (last-news.ts).
@@ -618,16 +620,18 @@ describe("the phone's top bar and empty states", () => {
     expect(list).toContain(".session-list.sl-row[data-one-line]{min-height:44px;}");
   });
 
-  it("a Sessions row names its session at 14/20 on a phone, 13/20 above it", () => {
+  it("a Sessions row names its session at 13/20 on a phone, as above it", () => {
     const sheet = strip(read("styles/session-list.css"));
-    expect(squash(phoneOf(sheet))).toContain(".session-list.sl-label{font-size:calc(14px+var(--ui-text-increase,0px));}");
+    // CHANGED ON PURPOSE (owner 2026-11-10 critique: type scale 11/12/13/16/22, radii 4/8/pill): the scale has no 14; a row's name is at 13.
+    expect(squash(phoneOf(sheet))).toContain(".session-list.sl-label{font-size:calc(13px+var(--ui-text-increase,0px));}");
     const base = squash(sheet.replace(/@media[^{]*\{(?:[^{}]*\{[^{}]*\})*[^{}]*\}/g, ""));
     expect(base).toMatch(/\.session-list\.sl-label\{[^}]*font-size:calc\(13px\+var\(--ui-text-increase,0px\)\);[^}]*line-height:20px;/);
   });
 });
 
 describe("the desktop layout is unchanged: no phone rule is outside the phone query", () => {
-  const KEY_LOOK = `.ts-key { position: relative; padding: 0; border: 1px solid var(--line); border-radius: var(--r-panel); background: var(--bg-soft); color: var(--text-secondary); font: 500 12px/16px var(--font-mono); transition: transform var(--dur-fast) var(--ease); }`;
+  // CHANGED ON PURPOSE (owner 2026-11-10 critique: type scale 11/12/13/16/22, radii 4/8/pill): a key is a control, at 4.
+  const KEY_LOOK = `.ts-key { position: relative; padding: 0; border: 1px solid var(--line); border-radius: var(--r-ctl); background: var(--bg-soft); color: var(--text-secondary); font: 500 12px/16px var(--font-mono); transition: transform var(--dur-fast) var(--ease); }`;
   // CHANGED ON PURPOSE (the phone layout): the old guard let a rule outside the
   // query pass when "display: none" happened to stand within 60 characters
   // before it, so a rule next to a hide passed on its neighbour's account. Now

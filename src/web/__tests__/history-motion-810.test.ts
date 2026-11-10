@@ -63,7 +63,8 @@ describe("the wait is V4's reading state, and the chart keeps its own height", (
     expect(row).toMatch(/padding: 0 8px/);
     expect(row).toMatch(/gap: 8px/);
     expect(block(".uh-skel-row i")).toMatch(/background: var\(--ctl-fill\)/);
-    expect(block(".uh-skel-dot")).toMatch(/width: 14px; height: 14px; border-radius: 50%/);
+    // CHANGED ON PURPOSE (owner 2026-11-10 critique: type scale 11/12/13/16/22, radii 4/8/pill): a dot is the pill token.
+    expect(block(".uh-skel-dot")).toMatch(/width: 14px; height: 14px; border-radius: var\(--r-pill\)/);
     expect(block(".uh-skel-bar")).toMatch(/width: 120px; height: 8px; border-radius: var\(--r-tag\)/);
     expect(block(".uh-skel-end")).toMatch(/width: 48px/);
     expect(modal).toMatch(/\[0, 1\]\.map\(row => <span key=\{row\} className="uh-skel-row">/);

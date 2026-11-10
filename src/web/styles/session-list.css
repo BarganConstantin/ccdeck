@@ -54,7 +54,7 @@
 /* The header's end: two 24x24 icon buttons, 2 apart (V4's Plus, and the ×
    that only a phone's drawer shows). */
 .session-list .sl-header-end { display: flex; align-items: center; gap: 2px; }
-/* Quiet 24x24 icon buttons, radius 6, no fill or stroke at rest. */
+/* Quiet 24x24 icon buttons at the control radius, no fill or stroke at rest. */
 .session-list .sl-icon-btn {
   display: inline-flex;
   align-items: center;
@@ -63,7 +63,7 @@
   height: 24px;
   padding: 0;
   border: 0;
-  border-radius: 6px;
+  border-radius: var(--r-ctl);
   background: transparent;
   color: var(--muted);
   cursor: pointer;
@@ -111,7 +111,7 @@
 .session-list .sl-row-in {
   min-height: 0;
   overflow: hidden;
-  border-radius: var(--r-panel);
+  border-radius: var(--r-ctl);
 }
 /* A ROW JOINS (its space opens and it fades in, --dur-base on --ease) and A ROW
    LEAVES (it fades over --dur-exit, then its space closes over --dur-base after
@@ -141,7 +141,7 @@
   box-sizing: border-box;
   padding: 4px 8px;
   border: 0;
-  border-radius: var(--r-panel);
+  border-radius: var(--r-ctl);
   background: transparent;
   cursor: pointer;
   text-align: left;
@@ -319,7 +319,7 @@
   box-sizing: border-box;
   padding: 0 8px 0 6px;
   border: 0;
-  border-radius: var(--r-panel);
+  border-radius: var(--r-ctl);
   background: transparent;
   color: var(--muted);
   cursor: pointer;
@@ -344,7 +344,7 @@
   box-sizing: border-box;
   padding: 0 8px 0 32px;
   border: 0;
-  border-radius: var(--r-panel);
+  border-radius: var(--r-ctl);
   background: transparent;
   color: var(--muted);
   font: inherit;
@@ -403,7 +403,7 @@
   align-items: center;
   gap: 8px;
   padding: 6px 8px;
-  border-radius: 6px;
+  border-radius: var(--r-ctl);
   background: var(--bg-soft);
   color: var(--muted);
   font-size: calc(12px + var(--ui-text-increase, 0px));
@@ -425,8 +425,8 @@
 /* Rail / Usage: the foot of the rail, below the list that scrolls and
    the removed cards' line. Padding 4 round the box, like the list's. The box is
    one button: a column of the account and the 5-hour limit, the bar, and the
-   reset, padding 8 12. The radius is 9, V4's literal for this box (the kit has
-   no step for it). 256 x 61 inside the 4px padding: the list's border takes
+   reset, padding 8 12. The radius is the panel's 8 (V4 drew 9; the deck has
+   three radii). 256 x 61 inside the 4px padding: the list's border takes
    1px, which the foot gives back with its negative right margin. No fill or border at rest; hover is the rows'
    wash, the press their scale, and the ring the deck's, drawn inside. */
 .session-list .sl-usage { flex: none; padding: 4px; margin-right: -1px; }
@@ -438,7 +438,7 @@
   box-sizing: border-box;
   padding: 8px 12px;
   border: 0;
-  border-radius: 9px;
+  border-radius: var(--r-panel);
   background: transparent;
   color: var(--text);
   font: inherit;
@@ -523,9 +523,9 @@
   .session-list .sl-more, .session-list .sl-fold-btn { min-height: 44px; }
   /* Rows at 8 in from each edge: the 374 the phone frame draws in a 390 panel. */
   .session-list .sl-rows { padding-inline: 8px; }
-  /* The phone frame names a row at 14/20, one step up from the desktop's 13/20;
-     the line stays 20, so the row stays 62. */
-  .session-list .sl-label { font-size: calc(14px + var(--ui-text-increase, 0px)); }
+  /* The phone frame names a row at 13/20, as the desktop does since the type
+     scale has no 14; the line stays 20, so the row stays 62. */
+  .session-list .sl-label { font-size: calc(13px + var(--ui-text-increase, 0px)); }
   /* Above the list, so the header buttons' 44 targets reach down over its top. */
   .session-list .sl-header { position: relative; z-index: 1; }
   .session-list .sl-close { display: inline-flex; }
@@ -570,7 +570,7 @@
 .sl-dot::before {
   content: "";
   width: 8px; height: 8px;
-  border-radius: 50%;
+  border-radius: var(--r-pill);
   background: currentColor;
 }
 /* The usage panel's rows are centred and one line tall, so the 5px that drops
