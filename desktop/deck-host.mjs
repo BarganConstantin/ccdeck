@@ -107,16 +107,32 @@ export function withShellSettings(env, shell) {
   return env;
 }
 
-/** The launcher's text for this platform. `app` is the binary to fall back to. */
+/**
+ * The launcher's text for this platform. `app` is the binary to fall back to.
+ *
+ * WHEN THE APP IS GONE. The launcher and the hook command that names it stay in
+ * the Claude config directory after the app is uninstalled — the uninstaller
+ * does not edit settings.json — and Claude Code runs that command on every tool
+ * call of every session. With a node on PATH that is harmless: hook.js finds no
+ * deck and says nothing. Without one the fallback ran a binary that is no longer
+ * there, which is "The system cannot find the path specified" and exit 1 on
+ * Windows, exit 127 elsewhere, and a hook error in front of the user from then
+ * on. So with no node and no app it ends at once, exit 0 and no output, which
+ * Claude Code does not report: the rule installer.mjs's NODE_FALLBACK already
+ * keeps for a node that went away. Reinstalling the app writes the launcher and
+ * the hook again.
+ */
 export function launcherScript(app, platform = process.platform) {
   if (platform === "win32") {
     // cmd: `where` finds node on PATH; %* passes the hook's arguments through.
+    const exe = `"${app.replace(/"/g, '""')}"`;
     return [
       "@echo off",
       "rem Written by the ccdeck app: runs the Claude Code hook with a Node it can find.",
       "where node >nul 2>nul && (node %* & exit /b)",
+      `if not exist ${exe} exit /b 0`,
       "set ELECTRON_RUN_AS_NODE=1",
-      `"${app.replace(/"/g, '""')}" %*`,
+      `${exe} %*`,
       "",
     ].join("\r\n");
   }
@@ -125,6 +141,7 @@ export function launcherScript(app, platform = process.platform) {
     "#!/bin/sh",
     "# Written by the ccdeck app: runs the Claude Code hook with a Node it can find.",
     'if command -v node >/dev/null 2>&1; then exec node "$@"; fi',
+    `[ -x ${quoted} ] || exit 0`,
     `ELECTRON_RUN_AS_NODE=1 exec ${quoted} "$@"`,
     "",
   ].join("\n");
