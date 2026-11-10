@@ -324,7 +324,10 @@ describe("a part's header buttons", () => {
 
   it("are in both panels' headers, before the close, and a folded part keeps a live line", () => {
     const usage = code("components/UsagePanel.tsx");
-    expect(usage).toMatch(/<h2>\{t\("usage\.title"\)\}<\/h2>(?:\s|\{\})*\{dock\?\.folded && <span className="side-sum">/);
+    // CHANGED ON PURPOSE (owner 2026-11-10): no board headline; chips from first paint; logs-unread sentence.
+    // The folded line carries the logs' figure only: before ccusage answered it
+    // printed the board's sum beside the period word.
+    expect(usage).toMatch(/<h2>\{t\("usage\.title"\)\}<\/h2>(?:\s|\{\})*\{dock\?\.folded && fromRange && <span className="side-sum">/);
     expect(usage).toMatch(/<DockButtons dock=\{dock\} popOut=\{place\.popOut\} \/>[\s\S]{0,200}?up-close/);
     const machine = code("components/MachinePanel.tsx");
     expect(machine).toMatch(/<h2 className="sd-title" id="sd-title">[^<]*<\/h2>(?:\s|\{\})*\{dock\?\.folded && summary && <span className="side-sum">\{summary\}<\/span>\}\s*<DockButtons dock=\{dock\} popOut=\{place\.popOut\} \/>\s*<button type="button" className="glyph-btn sd-close"/);

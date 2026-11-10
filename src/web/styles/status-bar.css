@@ -50,6 +50,7 @@
   overflow: hidden;
 }
 .statusbar-version {
+  position: relative;
   flex: none;
   margin-left: auto;
   padding: 0 4px;
@@ -62,6 +63,10 @@
   font-size: calc(11px + var(--ui-text-increase, 0px));
   cursor: pointer;
 }
+/* Its target (WCAG 2.5.8): the words are 16 tall, so an invisible box 4px
+   above and below makes it 24, the Compact bar's whole height, and the bar's
+   overflow clips none of it. Nothing painted and nothing moved. */
+.statusbar-version::after { content: ""; position: absolute; inset: -4px 0; }
 /* Who has the keys. */
 .statusbar-who {
   flex: none;

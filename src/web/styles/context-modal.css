@@ -463,6 +463,21 @@
   margin-left: auto;
   margin-right: -4px;
 }
+/* ITS TARGET ON SCREEN (WCAG 2.5.8). `.glyph-btn` draws a 28 x 32 target
+   round its 24px box, but the note is drawn at the canvas's zoom: 24 x zoom
+   on screen, 21px at 0.88. The same target, centred, grows to 24px / --zoom
+   (use-canvas-viewport.ts writes it on the canvas), so it is never under 24 on
+   screen at a zoom the note is drawn at (down to 0.6, where the note gives way
+   to its face): 40 x 40 there, 8px past the box each way, which ends at the
+   note's edge above and 2px past it on the right. The note does not clip. */
+.recap-note-close::after {
+  inset: auto;
+  top: 50%;
+  left: 50%;
+  width: max(calc(100% + 4px), calc(24px / var(--zoom, 1)));
+  height: max(calc(100% + 8px), calc(24px / var(--zoom, 1)));
+  transform: translate(-50%, -50%);
+}
 .recap-note-text {
   margin: 0;
   color: var(--text-secondary);

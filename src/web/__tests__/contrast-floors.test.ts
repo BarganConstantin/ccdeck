@@ -1310,8 +1310,9 @@ describe("an opacity over text is a contrast ratio too (#1289)", () => {
     // CHANGED ON PURPOSE (V4's Figma): the line is a span in the toolbar, in the muted step.
     expect(declFor(".uh-sub", "color")).toBe("var(--muted)");
     // The usage panel: the headline names the period its figures are from.
+    // CHANGED ON PURPOSE (owner 2026-11-10): no board headline; chips from first paint; logs-unread sentence.
     expect(src("components/UsagePanel.tsx"))
-      .toContain('<span className="up-total-label">{fromRange ? periodWord : boardSpendLabel()}</span>');
+      .toContain('<span className="up-total-label">{periodWord}</span>');
     // The share dialog's heading, and the popover's countdown.
     expect(src("components/ShareAccountsDialog.tsx")).toContain('t("accounts.sd.expired")');
     expect(src("components/AccountMenuPopover.tsx")).toContain("<span className={`ap-share-expiry ${exp.tone}`}>{exp.text}</span>");

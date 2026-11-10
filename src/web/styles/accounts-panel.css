@@ -139,6 +139,10 @@
 }
 .ap-side[aria-checked="true"] { color: var(--text); }
 .ap-side:active { transform: scale(var(--press)); }
+/* Its target (WCAG 2.5.8): a side is 20 tall, so an invisible box 2px above
+   and below reaches the group's outer edge, 24. Not wider: the two sides touch,
+   and one side's target must not eat the other's. */
+.ap-side::after { content: ""; position: absolute; inset: -2px 0; }
 /* The side out of sight has an account that needs attention. Colour alone would
    not say it to a reader: the button's name does (AccountsSwitch.tsx). */
 .ap-side-dot {

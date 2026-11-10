@@ -41,6 +41,7 @@
   border-radius: var(--r-panel);
 }
 .insp-tab {
+  position: relative;
   display: inline-flex;
   align-items: center;
   gap: 4px;
@@ -55,6 +56,11 @@
   line-height: 16px;
   font-weight: 500;
 }
+/* Its target (WCAG 2.5.8): the tab is 20 tall, so an invisible box 2px above
+   and below reaches the pill's outer edge, 24, and 1px each side meets the
+   next tab's in the middle of their 2px gap. The phone's own, larger target
+   (phone-sheet.css) comes later and wins there. */
+.insp-tab::after { content: ""; position: absolute; inset: -2px -1px; }
 /* An unselected tab's icon is a step brighter than its label (V4's Figma:
    Text/Secondary over Text/Muted); the selected tab's takes the text colour. */
 .insp-tab .glyph { width: 14px; height: 14px; color: var(--text-secondary); }

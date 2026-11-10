@@ -21,7 +21,7 @@ const reading = vi.hoisted(() => ({ data: null as unknown }));
 // What ccusage answered — or null, which is a ccusage that failed or is absent,
 // and leaves the panel on the board's live figures.
 vi.mock("../use-usage-range", () => ({
-  useUsageRange: () => ({ data: reading.data, shown: "today", stale: false, loading: false, baseline: null }),
+  useUsageRange: () => ({ data: reading.data, shown: "today", stale: false, loading: false, baseline: null, tried: true }),
 }));
 
 const { default: UsagePanel } = await import("../components/UsagePanel");
@@ -111,28 +111,58 @@ describe("the usage headline under ccusage", () => {
   });
 });
 
-describe("the usage headline on the live board (ccusage failing)", () => {
+// CHANGED ON PURPOSE (owner 2026-11-10): no board headline; chips from first paint; logs-unread sentence.
+// These cases used to pin the board's own headline — "$2.00 spend on this
+// board", "$2.00+", "not priced", a known zero — for a deck whose ccusage read
+// had failed. The panel no longer has a board headline at all: before the logs
+// answer it shows that it is reading, and once a read has come back empty it
+// says so in words. Whatever the board holds, no figure stands in for the logs.
+describe("the usage panel when the logs could not be read (ccusage failing)", () => {
   beforeEach(() => { reading.data = null; });
 
-  it("is exact, with no '+', when every cost is known — a known $0 session included", () => {
-    expect(headline([paid, free])).toEqual({ value: fmtCost(2), label: "spend on this board", muted: false });
+  /** The sentence the panel shows in place of figures, or null. */
+  function unread(agents: object[] = [], claude = false): string | null {
+    const state = initialState();
+    for (const a of agents) state.agents.set((a as { id: string }).id, a as never);
+    const html = renderToStaticMarkup(createElement(UsagePanel, {
+      state, now: 0, providers: { ...ASSUMED, claude, codex: false }, onClose: () => {},
+    })).replace(/<!-- -->/g, "");
+    const m = /<div class="up-empty">(.*?)<\/div>/s.exec(html);
+    return m ? m[1].replace(/<br\/?>/g, " ").replace(/&#x27;/g, "'").trim() : null;
+  }
+
+  // With neither CLI the Refresh button is not drawn, so the sentence does not point at it.
+  const SENTENCE = "Couldn't read today from the transcripts on this machine.";
+
+  it("asks for Refresh only where the Refresh button is drawn", () => {
+    expect(unread([], true)).toBe(`${SENTENCE} Press Refresh to try again.`);
+    expect(unread([])).toBe(SENTENCE);
   });
 
-  it("is a floor, '$X+', when some session's model has no rate", () => {
-    expect(headline([paid, unknown])).toEqual({ value: `${fmtCost(2)}+`, label: "spend on this board", muted: false });
+  it("prints no board headline when every cost on the board is known", () => {
+    expect(headline([paid, free])).toBeNull();
+    expect(unread([paid, free])).toBe(SENTENCE);
   });
 
-  it("says 'not priced', not a bare zero, when nothing on the board can be priced", () => {
-    expect(headline([unknown])).toEqual({ value: UNPRICED_LABEL, label: null, muted: true });
+  it("prints no board headline when some session's model has no rate", () => {
+    expect(headline([paid, unknown])).toBeNull();
+    expect(unread([paid, unknown])).toBe(SENTENCE);
   });
 
-  it("shows a known zero as a known zero, not as unknown", () => {
-    expect(headline([free])).toEqual({ value: fmtCost(0), label: null, muted: false });
+  it("prints no board headline when nothing on the board can be priced", () => {
+    expect(headline([unknown])).toBeNull();
+    expect(unread([unknown])).toBe(SENTENCE);
+  });
+
+  it("prints no board headline for a known zero either", () => {
+    expect(headline([free])).toBeNull();
+    expect(unread([free])).toBe(SENTENCE);
   });
 
   it("prints no figure at all when there is no usage to total", () => {
-    // ccusage failing and nothing on the board: the empty state, and no $0.
+    // ccusage failing and nothing on the board: the same sentence, and no $0.
     expect(headline()).toBeNull();
+    expect(unread()).toBe(SENTENCE);
   });
 });
 

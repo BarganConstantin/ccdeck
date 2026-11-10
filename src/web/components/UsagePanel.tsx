@@ -5,7 +5,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { fmtCost } from "../pricing";
 import { boardBySession, liveDelta, NO_DELTA, type SessionUsage } from "../live-delta";
 import {
-  boardScopeTitle, boardSessionTable, boardScopeLabel, boardSpendLabel,
+  boardSessionTable,
   type BoardSessionRow,
 } from "../board-usage";
 import {
@@ -162,9 +162,17 @@ export default function UsagePanel({ state, now, providers, incidents = [], leav
   boardNowRef.current = () => (liveSince == null ? null : boardBySession(state.agents.values(), now));
   const takeBaseline = useCallback(() => boardNowRef.current(), []);
 
-  const { data: range, shown: shownPeriod, stale: rangeStale, loading: rangeLoading, baseline } =
+  const { data: range, shown: shownPeriod, stale: rangeStale, loading: rangeLoading, baseline, tried: rangeTried } =
     useUsageRange(period, rangeRefresh, takeBaseline);
   const fromRange = range != null;
+  // NO BOARD HEADLINE, EVER (owner, 2026-11-10). Before the logs answer, the
+  // panel used to open on the canvas's own sum — "$1150 spend on this board" —
+  // and then jump to "$29.25 today" once ccusage landed: one figure, two
+  // meanings, forty times apart. Now the period chips are there from the first
+  // paint and the figures wait for the logs: reading until the first read comes
+  // back, a plain sentence if it came back with nothing.
+  const firstRead = !fromRange && !rangeTried;
+  const readFailed = !fromRange && rangeTried;
 
   // `loading` on its own is not a state this panel shows, and that has not
   // changed: a refresh of the range already on screen moves no figure the
@@ -200,7 +208,10 @@ export default function UsagePanel({ state, now, providers, incidents = [], leav
   // figures stay for the first SKELETON_AFTER_MS and the skeleton follows.
   // The hook is false in the very render the answer lands (use-skeleton-delay.ts).
   const skeleton = useSkeletonDelay(rangePending, SKELETON_AFTER_MS);
-  const showSkeleton = fromRange && skeleton;
+  // The first read takes the same skeleton, after the same short wait: the
+  // server answers a range it already holds in about 10ms.
+  const firstSkeleton = useSkeletonDelay(firstRead, SKELETON_AFTER_MS);
+  const showSkeleton = (fromRange && skeleton) || firstSkeleton;
 
   // The board's own names and states, by session id — the two halves of the
   // join between ccusage's session rows and the canvas. The folds are
@@ -331,7 +342,7 @@ export default function UsagePanel({ state, now, providers, incidents = [], leav
             with it, so the panel reads h1 → h2 → h3 with nothing skipped. */}
         <h2>{t("usage.title")}</h2>
         {/* Folded in Workspace's column, the header keeps the headline. */}
-        {dock?.folded && <span className="side-sum">{
+        {dock?.folded && fromRange && <span className="side-sum">{
           hasCost ? t("shell.side.usageSum", { amount: fmtCost(figures.cost), period: periodWord })
             : t("shell.side.usageTokens", { n: fmtTokens(totalTokenSum), period: periodWord })
         }</span>}
@@ -375,12 +386,12 @@ export default function UsagePanel({ state, now, providers, incidents = [], leav
           conditional now: the headline and the bar appear when there is money
           to report, and the breakdown appears whenever there is anything to
           break down. */}
-      {/* WHICH SPAN, when there is a source that has spans at all.
-              The board has exactly one — right now — so the strip appears only
-              under ccusage, and the panel is silently the old panel when
-              ccusage is absent rather than showing three chips that all mean
-              the same thing. */}
-      {fromRange && <UsagePeriodStrip period={period} rangePending={rangePending} setPeriod={setPeriod} />}
+      {/* WHICH SPAN, from the first paint (owner, 2026-11-10). The chips no
+              longer wait for ccusage: the figures under them come only from
+              the logs, so the chips are the panel's question from the moment
+              it opens, and the reader can pick a period while the first read
+              is still out. */}
+      <UsagePeriodStrip period={period} rangePending={rangePending || firstRead} setPeriod={setPeriod} />
 
       {showSkeleton ? (
         <>
@@ -397,19 +408,24 @@ export default function UsagePanel({ state, now, providers, incidents = [], leav
             ))}
           </div>
         </>
+      ) : !fromRange ? (
+        // Nothing from the logs: still reading (blank for the first short
+        // wait), or the read came back empty-handed. No board figure stands
+        // in for it. "Press Refresh" only where the Refresh below is drawn:
+        // it is gone on a deck with neither CLI (see .up-acts).
+        readFailed && (
+          <div className="up-empty">
+            {t("usage.period.unread", { period: periodWord })}
+            {(providers.claude || providers.codex) && <><br />{t("usage.period.unreadRetry")}</>}
+          </div>
+        )
       ) : totalTokenSum > 0 && (
         <>
-          {/* The headline says whose spend it is (#687).
-              It read "total spend", and it is not a total of anything: it walks
-              the agents on the canvas, and `pruneDoneSessions` takes finished
-              sessions off the canvas two minutes after they end, six at a time.
-              Ten finished sessions reading $75.00 read $45.00 one 250ms tick
-              later with nothing refunded — a correct number under a word that
-              claims a period it does not cover, which is the worst kind of wrong
-              number because nothing on screen looks broken.
-              The label carries the scope and the tooltip carries the rest: why
-              the figure falls, and that H opens the one surface which answers
-              "what has today cost me" from the logs on disk. */}
+          {/* The headline says whose spend it is (#687): the period's, read
+              from the logs. It once summed the agents on the canvas, which
+              evicts finished sessions on a timer, so the figure fell with
+              nothing refunded; since 2026-11-10 the canvas's sum is not a
+              headline here at all, before or after ccusage answers. */}
           {/* THE HEADLINE IS ALWAYS THERE, in one of four states, by the rule
               History's total and the model table's rows print with
               (reportedCost), on the note's own test (hasUnpriced):
@@ -422,17 +438,17 @@ export default function UsagePanel({ state, now, providers, incidents = [], leav
               were the whole. `hasCost` is the source's own, not the counted
               figure, so a count passing through zero cannot flip the state.
               Without money the value stands alone: the strip below says the
-              scope there, the period under ccusage and the board's otherwise. "not priced" takes the rows' muted italic
+              period there. "not priced" takes the rows' muted italic
               (.up-unpriced), not the money green. */}
-          <div className="up-total" title={fromRange ? undefined : boardScopeTitle(singleKeys)}>
+          <div className="up-total">
             <span className={!hasCost && hasUnpriced ? "up-total-value up-unpriced" : "up-total-value"}>
               {hasCost ? <>{fmtCost(shownCost)}{hasUnpriced && "+"}</> : reportedCost(0, hasUnpriced)}
             </span>
-            {hasCost && <span className="up-total-label">{fromRange ? periodWord : boardSpendLabel()}</span>}
+            {hasCost && <span className="up-total-label">{periodWord}</span>}
           </div>
           {hasCost && (
             <>
-              <p className="up-source">{t("usage.estimate", { source: fromRange ? "ccusage" : t("usage.source.live") })}</p>
+              <p className="up-source">{t("usage.estimate", { source: "ccusage" })}</p>
               {/* NO BAR OVER A ccusage HEADLINE, and it is not an omission.
                   The bar splits a total across input / output / cache, and
                   ccusage publishes one cost per model rather than that split —
@@ -447,7 +463,7 @@ export default function UsagePanel({ state, now, providers, incidents = [], leav
             </>
           )}
 
-          <div className="up-tokens-row" title={fromRange ? undefined : boardScopeTitle(singleKeys)}>
+          <div className="up-tokens-row">
             <span className="up-tok"><span className="up-k">{t("usage.tokens.in")}</span>{fmtTokens(shownIn)}</span>
             <span className="up-tok"><span className="up-k">{t("usage.tokens.out")}</span>{fmtTokens(shownOut)}</span>
             {/* Gated on the TRUE value, not the counted one: a strip that
@@ -462,12 +478,12 @@ export default function UsagePanel({ state, now, providers, incidents = [], leav
                 The same word the headline's label takes, on the same rule:
                 under ccusage the strip is the period's reading from the logs,
                 and "on this board" there named a canvas it does not count. */}
-            {!hasCost && <span className="up-tok up-scope">{fromRange ? periodWord : boardScopeLabel()}</span>}
+            {!hasCost && <span className="up-tok up-scope">{periodWord}</span>}
           </div>
         </>
       )}
 
-      {showSkeleton ? null : totalTokenSum > 0 ? (
+      {showSkeleton || !fromRange ? null : totalTokenSum > 0 ? (
         <>
 
           {/* NO BOARD FIGURE UNDER A ccusage HEADLINE.
@@ -480,8 +496,7 @@ export default function UsagePanel({ state, now, providers, incidents = [], leav
               could never win: $7,385 on the board under $170 for today reads as
               a contradiction until you have read a tooltip.
               The board's own figures are still on the topbar, where they carry
-              the same sentence, and the board branch below still prints them
-              when ccusage has not answered at all. */}
+              the same sentence. */}
 
           {(fromRange ? rangeModelRows.length : boardModelRows.length) > 0 && (
             <UsageModelTable
@@ -541,11 +556,9 @@ export default function UsagePanel({ state, now, providers, incidents = [], leav
               are above this block now, so the way out — month, all — is on
               screen either way. On `all` there is no way out to point at, and
               "No usage all time" is not a sentence (#1806). */}
-          {fromRange
-            ? (shownPeriod ?? period) === "all"
-              ? <>{t("usage.empty.all")}</>
-              : <>{t("usage.empty.period", { period: periodWord })}<br />{t("usage.empty.longer")}</>
-            : <>{t("usage.empty.none")}<br />{t("usage.empty.start")}</>}
+          {(shownPeriod ?? period) === "all"
+            ? <>{t("usage.empty.all")}</>
+            : <>{t("usage.empty.period", { period: periodWord })}<br />{t("usage.empty.longer")}</>}
         </div>
       )}
       {/* The two acts the header lost (V4's Figma draws one close there). The

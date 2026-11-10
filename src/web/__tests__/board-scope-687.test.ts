@@ -402,28 +402,20 @@ describe("every surface that prints one of these figures prints the shared label
     expect(offenders).toEqual([]);
   });
 
-  it("labels the usage panel's headline and its token strip", () => {
-    // The panel has two sources now — ccusage for a period, the canvas when
-    // ccusage did not answer — and only the second one is a board figure. So
-    // the label and the sentence are on the board BRANCH of each conditional
-    // rather than unconditional: `fromRange ? <period word> : <board word>`.
-    // Asserted as the whole expression, because the half that matters is the
-    // one after the colon and a bare `toContain(BOARD_SPEND_LABEL)` would pass
-    // on a panel that had stopped rendering it at all.
-    expect(panel).toContain(`<span className="up-total-label">{fromRange ? periodWord : boardSpendLabel()}</span>`);
-    // The title is what this issue is about — asserted as the whole attribute
-    // so the board branch cannot quietly lose its sentence. (The class carried
-    // a stale dim as a template literal until #1289 took the dim off words.)
-    // Through boardScopeTitle since Settings › General's single-key switch: the
-    // same sentence, pointing at Usage history by name rather than by H while
-    // the letters are off (WCAG 2.1.4).
-    expect(panel).toContain('<div className="up-total" title={fromRange ? undefined : boardScopeTitle(singleKeys)}>');
-    expect(panel).toContain('<div className="up-tokens-row" title={fromRange ? undefined : boardScopeTitle(singleKeys)}>');
-    // The unpriced deck: no headline renders there, so the strip says it itself
-    // — on the same rule, the board word on the board branch only. Under
-    // ccusage it said "on this board" of the period's reading until
-    // usage-token-strip-scope.test.ts, which checks the rendered caption.
-    expect(panel).toContain(`{!hasCost && <span className="up-tok up-scope">{fromRange ? periodWord : boardScopeLabel()}</span>}`);
+  it("labels the usage panel's headline and its token strip with the period only", () => {
+    // CHANGED ON PURPOSE (owner 2026-11-10): no board headline; chips from first paint; logs-unread sentence.
+    // The panel had two sources — ccusage for a period, the canvas when ccusage
+    // had not answered — and the second opened the panel on "$1150 spend on this
+    // board" before it jumped to "$29.25 today". The board branch is gone: the
+    // figures here come from the logs or not at all, so the label is the period
+    // word on every branch and no board sentence hangs on the headline.
+    expect(panel).toContain(`<span className="up-total-label">{periodWord}</span>`);
+    expect(panel).toContain('<div className="up-total">');
+    expect(panel).toContain('<div className="up-tokens-row">');
+    // The unpriced deck: no headline renders there, so the strip says the period itself.
+    expect(panel).toContain(`{!hasCost && <span className="up-tok up-scope">{periodWord}</span>}`);
+    // And no board word anywhere in the panel's markup.
+    expect(panel).not.toMatch(/boardSpendLabel\(|boardScopeLabel\(|boardScopeTitle\(/);
   });
 
   it("prints no board figure at all under a ccusage headline", () => {
@@ -436,8 +428,8 @@ describe("every surface that prints one of these figures prints the shared label
     // as a contradiction until you have opened a tooltip.
     //
     // So the line is gone, and this is what keeps it gone. The board figures
-    // are still on the topbar, with the sentence, and the board BRANCH below
-    // still prints them when ccusage has not answered at all.
+    // are still on the topbar, with the sentence; since 2026-11-10 the panel
+    // has no board branch either (the case above).
     expect(panelSurface).not.toContain('className="up-live"');
     expect(panelSurface).not.toMatch(/\{BOARD_SCOPE_LABEL\} now/);
     // And the sheet lost its rules with it — a selector nothing emits is the
