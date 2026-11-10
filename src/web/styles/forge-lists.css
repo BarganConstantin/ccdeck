@@ -30,13 +30,15 @@ button.btn.fgl-chip[aria-pressed="true"] { background: color-mix(in srgb, var(--
 .fgl-scope-seg, .fgl-scope { margin-left: auto; }
 .fgl-seg { flex: none; max-width: 100%; overflow-x: auto; scrollbar-width: none; }
 .fgl-seg .uh-range-btn { display: inline-flex; align-items: center; gap: 6px; min-height: 24px; white-space: nowrap; }
-.fgl-controls button.btn.fgl-sort { gap: 6px; padding: 0 10px; font-family: var(--font-mono); font-size: calc(11px + var(--ui-text-increase, 0px)); }
+/* The order and the which-ones menu are words on the strip's row, so they keep
+   the strip's sans; mono stays for the counts (owner, 2026-11-10). */
+.fgl-controls button.btn.fgl-sort { gap: 6px; padding: 0 10px; font-size: calc(11px + var(--ui-text-increase, 0px)); }
 .fgl-controls-note { color: var(--muted); font-size: calc(12px + var(--ui-text-increase, 0px)); }
 /* All / Mine / Review requests as one menu button, for a list too narrow for
    the strip: drawn always, shown only there (below). Its words are the strip's
    own type, the current choice and a chevron. */
 .fgl-scope { display: none; }
-.fgl-controls button.btn.fgl-scope-trigger { gap: 6px; padding: 0 10px; font-family: var(--font-mono); font-size: calc(11px + var(--ui-text-increase, 0px)); white-space: nowrap; }
+.fgl-controls button.btn.fgl-scope-trigger { gap: 6px; padding: 0 10px; font-size: calc(11px + var(--ui-text-increase, 0px)); white-space: nowrap; }
 .fgl-scope-trigger[aria-expanded="true"] .fgl-chevron { transform: rotate(180deg); }
 .ap-pop.fgl-scope-pop { width: auto; min-width: 180px; }
 .fgl-scope-item { gap: 8px; }

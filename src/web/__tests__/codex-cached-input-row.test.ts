@@ -32,7 +32,7 @@ interface Row { label: string; tokens: number; rate: number; usd: string }
  *  through toLocaleString, whose group separator follows the runtime locale
  *  (`1,000,000` here, `1.000.000` on a de-DE box), so its digits are recovered
  *  by dropping every non-digit rather than by assuming a comma — and only from
- *  the count, since the `cache w5m` label carries a digit of its own. */
+ *  the count, since the `cache write 5m` label carries a digit of its own. */
 function rowsOf(tooltip: string): Row[] {
   return tooltip.split("\n").filter(l => l.includes("×")).map(line => {
     const [lhs, rhs] = line.split("×");

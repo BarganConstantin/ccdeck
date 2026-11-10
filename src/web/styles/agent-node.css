@@ -522,8 +522,12 @@
   gap: 16px;
   min-height: 18px;
 }
-.cost-tip-label { color: var(--muted); white-space: nowrap; }
-.cost-tip-value { margin-left: auto; color: var(--text); text-align: right; font-variant-numeric: tabular-nums; }
+/* The tip is 320 wide, and a label spelled out in full ("citire din cache",
+   "Cache geschrieben 5m") beside a long multiplication does not fit it: the
+   label wraps between its words and the sum stays one line, rather than the
+   sum breaking at its × or =. */
+.cost-tip-label { min-width: 0; color: var(--muted); overflow-wrap: anywhere; }
+.cost-tip-value { flex: none; margin-left: auto; color: var(--text); text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
 .cost-tip-rule { margin: 0; border: 0; border-top: 1px solid var(--line-soft); height: 0; }
 /* The no-rate variant: the model line, then the sentence in the sans stack. */
 .cost-tip-norate {
