@@ -29,6 +29,7 @@ import { rmTempDir } from "./rm-temp-dir";
 import { findTmux, resetTmuxCache, runTmux } from "../../server/tmux.mjs";
 import {
   findDeckSession, findLaunchedSession, killDeckSession, labelDeckSession, launchSession, listDeckSessions, pruneDeadDeckSessions,
+  resizeWrapper,
 } from "../../server/terminal-sessions.mjs";
 
 type Found = { ok: boolean; path?: string; reason?: string; install?: string; version?: [number, number] | null };
@@ -292,6 +293,28 @@ describe("a deck session on a real tmux", () => {
     expect(await killDeckSession({ ...opts(), name: s.name })).toBe(false);
     expect((await listDeckSessions(opts())).some(x => x.name === s.name)).toBe(false);
     await expect(killDeckSession({ ...opts(), name: "main" })).rejects.toMatchObject({ code: "bad-name" });
+  });
+
+  it("resizes an attach wrapper's window and leaves its size to its clients again", async () => {
+    if (!found.ok) return expectNoTmux();
+    const id = randomUUID();
+    const w = await launchSession({ ...opts(), agent: "claude", kind: "attach", sessionId: id, cwd: PROJECT, argv: ["cat"], cols: 174, rows: 66 });
+    const windowSize = async () => {
+      const r = await runTmux(found, socket, ["show-options", "-w", "-v", "-t", `=${w.name}:`, "window-size"], { env });
+      expect(r.ok, r.stderr).toBe(true);
+      return r.stdout.trim();
+    };
+    // What resize-window alone leaves behind: the window pinned, so a panel
+    // back on the wrapper could not fit it.
+    const pinned = await runTmux(found, socket, ["resize-window", "-t", `=${w.name}:`, "-x", "150", "-y", "40"], { env });
+    expect(pinned.ok, pinned.stderr).toBe(true);
+    expect(await windowSize()).toBe("manual");
+    expect(await resizeWrapper({ ...opts(), name: w.name, cols: 123, rows: 58 })).toBe(true);
+    expect((await listDeckSessions(opts())).find(x => x.name === w.name)).toMatchObject({ cols: 123, rows: 58 });
+    expect(await windowSize(), "the option unset: the window's clients size it again").toBe("");
+    await killDeckSession({ ...opts(), name: w.name });
+    expect(await resizeWrapper({ ...opts(), name: w.name, cols: 123, rows: 58 }), "gone is an answer, not an error").toBe(false);
+    await expect(resizeWrapper({ ...opts(), name: "made-by-hand", cols: 80, rows: 24 })).rejects.toMatchObject({ code: "bad-name" });
   });
 
   it("leaves a session nobody else made on its server alone", async () => {

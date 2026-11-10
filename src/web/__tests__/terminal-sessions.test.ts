@@ -15,7 +15,7 @@ import { rmTempDir } from "./rm-temp-dir";
 import {
   AGENTS, DEAD_KEEP, KINDS, LAUNCH_MODELS, PANE_HISTORY, paneTerm, LAUNCH_PERMISSION_MODES, SESSION_OPTIONS, TerminalSessionError, agentArgv, launchOptionArgs, checkCwd, clampSize, deadDeckSessions,
   deckSessionName, findDeckSession, findLaunchedSession, isDeckSessionName, isLaunchKey, killDeckSession, labelDeckSession, launchCommand, launchSession, paneColours,
-  listDeckSessions, parseDeckPanes, pruneDeadDeckSessions, resolveAgentBin, staleDeadSessions,
+  listDeckSessions, parseDeckPanes, pruneDeadDeckSessions, resizeWrapper, resolveAgentBin, staleDeadSessions,
 } from "../../server/terminal-sessions.mjs";
 // @ts-expect-error — plain .mjs server module, no types
 import { DECK_SOCKET } from "../../server/tmux.mjs";
@@ -597,6 +597,48 @@ describe("closing a session", () => {
     expect(await killDeckSession({ tmux: "t", run: tmux.run, name: "ccdeck-claude-0123abcd" })).toBe(false);
     expect(tmux.calls[0].args, "`=` so a prefix of another session's name can never match")
       .toEqual(["kill-session", "-t", "=ccdeck-claude-0123abcd"]);
+  });
+});
+
+describe("putting a background session back to its own size through its wrapper", () => {
+  it("sizes the exact wrapper's window, then leaves its size to its clients, in one invocation", async () => {
+    const tmux = fakeTmux({ ok: true });
+    expect(await resizeWrapper({ tmux: "t", run: tmux.run, name: "ccdeck-att-0123abcd", cols: 123, rows: 58 })).toBe(true);
+    expect(tmux.calls).toHaveLength(1);
+    expect(tmux.calls[0].socket, "the deck's own server unless told otherwise").toEqual(DECK_SOCKET);
+    // Without the unset, resize-window leaves the window at window-size
+    // manual, and a panel back on the wrapper could no longer fit it.
+    expect(tmux.calls[0].args).toEqual([
+      "resize-window", "-t", "=ccdeck-att-0123abcd:", "-x", "123", "-y", "58",
+      ";", "set-option", "-w", "-u", "-t", "=ccdeck-att-0123abcd:", "window-size",
+    ]);
+  });
+
+  it("refuses all but a wrapper, and a size that is not one, before tmux is asked anything", async () => {
+    const tmux = fakeTmux();
+    for (const name of ["ccdeck-claude-0123abcd", "ccdeck-codex-0123abcd", "=ccdeck-att-0123abcd", "ccdeck-att-0123abc", "main", "", undefined]) {
+      const err = await failure(resizeWrapper({ tmux: "t", run: tmux.run, name, cols: 80, rows: 24 }));
+      expect([err.code, err.message], String(name)).toEqual(["bad-name", "The deck only resizes the wrappers it started."]);
+    }
+    for (const [cols, rows] of [[0, 24], [80, 0], [10_001, 24], [80, 10_001], [80.5, 24], ["80", 24], [undefined, 24]]) {
+      const err = await failure(resizeWrapper({ tmux: "t", run: tmux.run, name: "ccdeck-att-0123abcd", cols, rows }));
+      expect(err.code, `${cols}x${rows}`).toBe("bad-size");
+    }
+    expect(tmux.calls).toEqual([]);
+  });
+
+  it("says false when the wrapper has gone, and keeps tmux's own words out of the sentence otherwise", async () => {
+    const tmux = fakeTmux(
+      { ok: false, stderr: "can't find session: ccdeck-att-0123abcd\n" },
+      { ok: false, stderr: "no server running on /tmp/tmux-1000/ccdeck\n" },
+      { ok: false, stderr: "lost server /tmp/tmux-1000/ccdeck\n" },
+    );
+    const opts = { tmux: "t", run: tmux.run, name: "ccdeck-att-0123abcd", cols: 123, rows: 58 };
+    expect(await resizeWrapper(opts)).toBe(false);
+    expect(await resizeWrapper(opts)).toBe(false);
+    const err = await failure(resizeWrapper(opts));
+    expect([err.code, err.message]).toEqual(["tmux-failed", "tmux could not resize the session."]);
+    expect(err.detail).toContain("/tmp/tmux-1000/ccdeck");
   });
 });
 

@@ -23,7 +23,7 @@
 // branching inside the case, so skip-gate-inventory has nothing to register.
 import { describe, it, expect, afterAll, beforeAll, vi } from "vitest";
 import { execFileSync } from "node:child_process";
-import { existsSync, mkdirSync, mkdtempSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { randomBytes, randomUUID } from "node:crypto";
 import { request, type Server } from "node:http";
 import { tmpdir } from "node:os";
@@ -59,7 +59,7 @@ const SOCKET = Object.freeze({ name: `ccdeck-test-ts-${process.pid}-${randomByte
 // @ts-expect-error — plain .mjs server module, no types
 const mod = await import("../../server/index.mjs");
 // @ts-expect-error — plain .mjs server module, no types
-const { jsTerminalBackend } = await import("../../server/terminal-js-routes.mjs");
+const { jsTerminalBackend, ttySize, WRAPPER_GRACE_MS, RESTORE_WAIT_MS } = await import("../../server/terminal-js-routes.mjs");
 // @ts-expect-error — plain .mjs server module, no types
 const { findTmux, runTmux } = await import("../../server/tmux.mjs");
 // @ts-expect-error — plain .mjs server module, no types
@@ -88,14 +88,14 @@ afterAll(async () => {
   rmTempDir(DIR);
 }, 30_000);
 
-const page = () => ({ host: `127.0.0.1:${port}`, origin: `http://127.0.0.1:${port}`, "sec-fetch-site": "same-origin" });
+const page = (at = port) => ({ host: `127.0.0.1:${at}`, origin: `http://127.0.0.1:${at}`, "sec-fetch-site": "same-origin" });
 
-function ask(method: string, path: string, body?: unknown): Promise<{ status: number; body: any }> {
+function ask(method: string, path: string, body?: unknown, at = port): Promise<{ status: number; body: any }> {
   return new Promise((resolve_, reject) => {
     const payload = body === undefined ? undefined : JSON.stringify(body);
     const req = request({
-      host: "127.0.0.1", port, path, method,
-      headers: { ...page(), ...(payload ? { "content-type": "application/json", "content-length": String(Buffer.byteLength(payload)) } : {}) },
+      host: "127.0.0.1", port: at, path, method,
+      headers: { ...page(at), ...(payload ? { "content-type": "application/json", "content-length": String(Buffer.byteLength(payload)) } : {}) },
     }, res => {
       let raw = "";
       res.setEncoding("utf8");
@@ -190,4 +190,103 @@ describe("the terminal socket on real tmux", () => {
     expect(after.dead).toBe(false);
     expect(existsSync(join(process.env.TMUX_TMPDIR!, `tmux-${process.getuid?.() ?? 0}`, SOCKET.name)), "on this run's own socket").toBe(true);
   }, 30_000);
+});
+
+// The October case, kept with the stage now fitting a background session: the
+// user's own terminal had sized the session, the stage fits it to itself, and
+// once the stage closes the session has the user's size back. The session's
+// pty and the user's terminal are panes of a tmux server of this run's own
+// (beside SOCKET, in the same TMUX_TMPDIR), and both `claude attach`es are a
+// stand-in that passes its own terminal's size on to the session's, as the
+// real one does. Nothing here reaches a terminal this run did not make.
+describe("a background session on real tmux", () => {
+  it("is fitted to the stage, and given back to the terminal beside it when the stage closes", async () => {
+    if (!tmux.ok) {
+      expect(process.platform === "win32" ? ["unsupported-platform"] : ["missing", "too-old"]).toContain(tmux.reason);
+      return;
+    }
+    const USER = Object.freeze({ name: `${SOCKET.name}-u` });
+    const on = (socket: object, args: string[]) => runTmux(tmux, socket, args);
+    /** What `tty` reads once it reads `want`, else after `ms`. */
+    const sizeOf = async (tty: string, want: { cols: number; rows: number }, ms = 5_000) => {
+      const end = Date.now() + ms;
+      for (;;) {
+        const now = await ttySize(tty);
+        if ((now?.cols === want.cols && now?.rows === want.rows) || Date.now() > end) return now;
+        await new Promise(r => setTimeout(r, 50));
+      }
+    };
+    let server2: Server | null = null;
+    try {
+      // The session's own pty, at the size its host started it at.
+      const made = await on(USER, ["-f", "/dev/null", "new-session", "-d", "-s", "bg", "-x", "200", "-y", "50", "--", "sleep", "300"]);
+      expect(made.ok, made.stderr).toBe(true);
+      const bg = (await on(USER, ["list-panes", "-t", "=bg:", "-F", "#{pane_tty}"])).stdout.trim();
+      expect(bg, "a pty of this run's own server").toMatch(/^\/dev\/(?:pts\/\d+|ttys\d+)$/);
+      writeFileSync(join(DIR, "bg-tty"), bg, { mode: 0o600 });
+      const claude = join(DIR, "claude-attach");
+      writeFileSync(claude, [
+        "#!/bin/sh",
+        "# Stand-in for `claude attach`: passes its terminal's size on to the session's.",
+        `d='${DIR}'`,
+        'bg=$(cat "$d/bg-tty"); f=-F; [ "$(uname)" = Darwin ] && f=-f; was=; i=0',
+        'while [ -d "$d" ] && [ "$i" -lt 3000 ]; do',
+        "  now=$(stty size 2>/dev/null)",
+        '  if [ -n "$now" ] && [ "$now" != "$was" ]; then',
+        '    stty "$f" "$bg" rows "${now% *}" cols "${now#* }" 2>/dev/null && was=$now',
+        "  fi",
+        "  i=$((i+1)); sleep 0.1",
+        "done",
+        "",
+      ].join("\n"), { mode: 0o755 });
+      // The user's terminal beside it, whose `claude attach` sizes it.
+      const job = `job-${randomBytes(4).toString("hex")}`;
+      const term = await on(USER, ["new-session", "-d", "-s", "term", "-x", "123", "-y", "58", "--", claude, "attach", job]);
+      expect(term.ok, term.stderr).toBe(true);
+      const theirs = { cols: 123, rows: 58 };
+      expect(await sizeOf(bg, theirs), "the user's terminal sizes the session").toEqual(theirs);
+
+      server2 = await mod.startServer({
+        port: 0, persist: false, claude: false, codex: false,
+        terminal: {
+          enabled: () => true, jsBackend: jsTerminalBackend, deckSocket: SOCKET, downloadBlocked: () => "download_disabled",
+          resolveTarget: async () => ({ kind: "D", attachId: job, tty: bg }),
+          claudeBin: () => claude,
+        },
+      });
+      const at = (server2!.address() as { port: number }).port;
+      const sessionId = randomUUID();
+      const name = `ccdeck-att-${sessionId.slice(0, 8)}`;
+      const opened = await ask("POST", "/api/terminal/open", { sessionId, provider: "claude", cwd: PROJECT }, at);
+      expect([opened.status, opened.body.ok, opened.body.target?.kind], JSON.stringify(opened.body)).toEqual([200, true, "D"]);
+      const row = () => listDeckSessions({ tmux, socket: SOCKET }).then((l: any[]) => l.find(s => s.name === name));
+      expect(await row(), "the wrapper starts at the session's size").toMatchObject(theirs);
+
+      // The stage opens on it at its own size...
+      const c = await openWs({
+        port: at,
+        path: `/api/terminal/attach?ticket=${encodeURIComponent(opened.body.ticket)}`,
+        headers: { Host: `127.0.0.1:${at}`, Origin: `http://127.0.0.1:${at}`, "Sec-Fetch-Site": "same-origin" },
+      });
+      expect(c.status, c.head).toBe(101);
+      expect(json(await c.next())).toEqual({ t: "hello", kind: "D", sizeOwner: "dock", readOnly: false });
+      c.sendText(JSON.stringify({ t: "size", cols: 174, rows: 66 }));
+      await c.until((f: Frame) => f.op === OPS.text && json(f).t === "reset", 10_000);
+      const fitted = { cols: 174, rows: 66 };
+      expect(await sizeOf(bg, fitted), "the session is fitted to the stage").toEqual(fitted);
+      expect(await row()).toMatchObject(fitted);
+
+      // ...and closes: the session gets the user's size back, then the wrapper
+      // goes; the session runs on.
+      c.sendClose(1000);
+      await c.closed;
+      await vi.waitFor(async () => expect(await row(), "the wrapper no panel shows was closed").toBeUndefined(),
+        { timeout: WRAPPER_GRACE_MS + RESTORE_WAIT_MS + 5_000, interval: 100 });
+      expect(await sizeOf(bg, theirs), "the terminal beside it has its size back").toEqual(theirs);
+      expect((await on(USER, ["has-session", "-t", "=bg"])).ok, "the background session runs on").toBe(true);
+    } finally {
+      await on(USER, ["kill-server"]);
+      if (server2) await new Promise(r => server2!.close(r));
+    }
+  }, 40_000);
 });

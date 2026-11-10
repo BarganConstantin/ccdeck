@@ -64,7 +64,7 @@ const LAUNCH_KEY = /^[A-Za-z0-9_-]{1,96}$/;
  * said, for the log only.
  *
  * Codes: bad-agent, bad-kind, bad-cwd, bad-session-id, bad-argv, bad-name,
- * agent-missing, tmux-unavailable, exists, tmux-failed.
+ * bad-size, agent-missing, tmux-unavailable, exists, tmux-failed.
  */
 export class TerminalSessionError extends Error {
   constructor(code, message, detail = "") {
@@ -710,4 +710,37 @@ export async function killDeckSession({ tmux, name, socket = DECK_SOCKET, env = 
   if (r.ok) return true;
   if (tmuxHasNoServer(r.stderr) || /can't find session|no such session/i.test(r.stderr)) return false;
   throw new TerminalSessionError("tmux-failed", "tmux could not close the session.", r.stderr.trim());
+}
+
+/** The largest side resizeWrapper takes: what tmux itself allows a window. */
+const WRAPPER_SIDE_MAX = 10_000;
+
+/**
+ * Size an attach wrapper's window to `cols` x `rows`, which its `claude
+ * attach` passes on to the background session. True when it was done, false
+ * when the wrapper has already gone.
+ *
+ * One invocation: resize-window pins the window (window-size manual), so the
+ * option is unset in the same sequence, and a panel back on the wrapper can
+ * still fit it. With no client sizing it, the window keeps the size given.
+ * Only a wrapper, refused before tmux is asked: a deck agent's own session is
+ * never resized behind its panel.
+ */
+export async function resizeWrapper({ tmux, name, cols, rows, socket = DECK_SOCKET, env = process.env, run = runTmux } = {}) {
+  if (!isDeckSessionName(name) || !name.startsWith("ccdeck-att-")) {
+    throw new TerminalSessionError("bad-name", "The deck only resizes the wrappers it started.");
+  }
+  const side = (n) => Number.isInteger(n) && n >= 1 && n <= WRAPPER_SIDE_MAX;
+  if (!side(cols) || !side(rows)) {
+    throw new TerminalSessionError("bad-size", "A size is two whole numbers up to 10000.");
+  }
+  const bin = tmux ?? await requireTmux(env);
+  const at = `=${name}:`;
+  const r = await run(bin, socket, tmuxSequence([
+    ["resize-window", "-t", at, "-x", String(cols), "-y", String(rows)],
+    ["set-option", "-w", "-u", "-t", at, "window-size"],
+  ]), { env });
+  if (r.ok) return true;
+  if (tmuxHasNoServer(r.stderr) || /can't find session|no such session/i.test(r.stderr)) return false;
+  throw new TerminalSessionError("tmux-failed", "tmux could not resize the session.", r.stderr.trim());
 }
