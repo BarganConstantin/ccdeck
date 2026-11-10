@@ -41,6 +41,28 @@
   /* Items clip at the right edge, never wrap and never push a scrollbar. */
   white-space: nowrap;
 }
+.statusbar-start {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+}
+.statusbar-version {
+  flex: none;
+  margin-left: auto;
+  padding: 0 4px;
+  border: 0;
+  border-radius: var(--r-ctl);
+  background: none;
+  color: var(--muted);
+  font: inherit;
+  font-family: var(--font-mono);
+  font-size: calc(11px + var(--ui-text-increase, 0px));
+  cursor: pointer;
+}
+.statusbar-version:hover { color: var(--text); background: var(--ctl-fill); }
 /* Who has the keys. */
 .statusbar-who {
   flex: none;

@@ -1455,7 +1455,7 @@ function Inner() {
       {/* The foot of the shell: the grid's fourth row, under the canvas, the
           columns and the stripes (not drawn on a phone, where the dock is) —
           components/StatusBar.tsx. */}
-      {!phone && <StatusBar stageOpen={stage.enabled && stageClaimsKeys(stage.shell.phase)} zoomedOut={zoom.lod !== "detail"} viewChord={stage.workspaceOffered ? (inWorkspace ? "board" : "workspace") : null} waiting={waitingSessions.length > 0} />}
+      {!phone && <StatusBar stageOpen={stage.enabled && stageClaimsKeys(stage.shell.phase)} zoomedOut={zoom.lod !== "detail"} viewChord={stage.workspaceOffered ? (inWorkspace ? "board" : "workspace") : null} waiting={waitingSessions.length > 0} version={version?.running ?? null} onVersion={welcome.openReleaseNotes} />}
 
       {/* The dialogs, in the order they paint over one another — components/DeckDialogs.tsx. */}
       <DeckDialogs

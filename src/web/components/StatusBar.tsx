@@ -65,9 +65,11 @@ function useFocusPlace(stageOpen: boolean): FocusPlace {
 
 /** Memoised: App re-renders on its clock several times a second, and the bar's
  *  only inputs are its two props, focus and the single-key switch. */
-export default memo(function StatusBar({ stageOpen, zoomedOut, viewChord = null, waiting = true, extra }: {
+export default memo(function StatusBar({ stageOpen, zoomedOut, viewChord = null, waiting = true, extra, version = null, onVersion }: {
   stageOpen: boolean;
   zoomedOut: boolean;
+  version?: string | null;
+  onVersion?: () => void;
   /** A session waits on an answer: n has somewhere to go (status-hints.ts). */
   waiting?: boolean;
   /** A layer the caller names while a screen has the keys (the Decision card's,
@@ -84,15 +86,24 @@ export default memo(function StatusBar({ stageOpen, zoomedOut, viewChord = null,
   const view = extra && pane == null ? extra : standard;
   return (
     <footer className="statusbar" aria-label={t("board.keys.statusBar")} data-layer={view.layer}>
-      <span className="statusbar-who"><span className="statusbar-dot" aria-hidden />{view.label}</span>
-      {view.hints.map(h => (
-        <span className="statusbar-hint" key={h.word}>
-          <span className="statusbar-caps">
-            {h.caps.map(c => <Kbd key={c.text} label={c.spoken}>{c.text}</Kbd>)}
+      <div className="statusbar-start">
+        <span className="statusbar-who"><span className="statusbar-dot" aria-hidden />{view.label}</span>
+        {view.hints.map(h => (
+          <span className="statusbar-hint" key={h.word}>
+            <span className="statusbar-caps">
+              {h.caps.map(c => <Kbd key={c.text} label={c.spoken}>{c.text}</Kbd>)}
+            </span>
+            {h.word}
           </span>
-          {h.word}
-        </span>
-      ))}
+        ))}
+      </div>
+      {version && (
+        <button type="button" className="statusbar-version" onClick={onVersion}
+          aria-label={t("shell.chip.label", { running: version })}
+          title={t("shell.chip.label", { running: version })} aria-haspopup="dialog">
+          v{version}
+        </button>
+      )}
     </footer>
   );
 });
