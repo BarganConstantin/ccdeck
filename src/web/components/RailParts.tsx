@@ -8,7 +8,7 @@ import { AlertMark, StateMark } from "./StateMark";
 import { stateLabel } from "../agent-copy";
 import { modelChipText, modelChipTitle } from "../model-label";
 import { RAIL_GROUP_LABEL_MSGS, type RailGroup } from "../rail-model";
-import { lineAfterTell, railGlyph, railLine, railTime, rowSpoken, rowTooltip, type RailGlyphKind } from "../rail-row-copy";
+import { railGlyph, railLine, railTime, rowSpoken, rowTooltip, type RailGlyphKind } from "../rail-row-copy";
 import { fadeIn, tokenMs } from "../rail-motion";
 import type { UsageMeter } from "../rail-usage";
 import { FadeFigure, useFillJump } from "./FadeFigure";
@@ -109,11 +109,10 @@ export function openKeysOnEnter(
 
 export function RailRow({ row: r, group, now, selected, removed, leaving, landNonce, onSelect, onOpenKeys }: RailRowProps) {
   const t = useT();
-  const tell = r.tell;
-  const line = lineAfterTell(railLine(r, group), tell);
-  const lined = !!(line || removed || tell);
-  // A lead alone is words in the UI face (a folder, a clock), or an id in the mono one.
-  const face = line ? (line.kind === "sans" ? "sans" : "mono") : tell && tell.kind !== "id" ? "sans" : "mono";
+  // What it waits on, Ready, or "folder · task" (rail-row-copy.ts railLine);
+  // none, and the row is one line.
+  const line = railLine(r, group);
+  const lined = !!(line || removed);
   const time = railTime(r, group, now);
   // The highlight is the row's own once it has been handed over, so it plays
   // out its fade; a row drawn again later has no nonce and does not replay it.
@@ -152,15 +151,11 @@ export function RailRow({ row: r, group, now, selected, removed, leaving, landNo
               {time && <span className={`sl-time ${time.tone}`}><span className="vis-hidden">{time.spoken}</span>{time.text}</span>}
             </span>
             {lined && (
-              <span className={`sl-line2 ${face}`}>
+              <span className={`sl-line2${line?.kind === "tool" ? " mono" : ""}`}>
                 {/* Words, leading the second line, so the name keeps the first
                     line whole: the press on this row does something different. */}
                 {removed && <span className="sl-off">{t("board.rail.offBoard")}</span>}
-                {removed && (tell || line) ? " · " : ""}
-                {/* The one quiet lead, before what it is doing: the folder under
-                    a name, or which of the rows of this name it is. */}
-                {tell && <span className={`sl-tell${tell.kind === "id" ? "" : " words"}${line ? " lead" : ""}`}>{tell.text}</span>}
-                {tell && line ? " · " : ""}
+                {removed && line ? " · " : ""}
                 {line && (line.kind === "tool"
                   ? <><b className="sl-tool">{line.name}</b>{line.rest ? ` · ${line.rest}` : ""}</>
                   : line.text)}

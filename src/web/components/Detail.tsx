@@ -19,7 +19,8 @@ import PathText from "./PathText";
 // tier shorter than the agent card's, and a tool duration a decimal place
 // coarser than the dialog the same row opens (#374). See duration.ts.
 import { elapsed, toolDuration } from "../duration";
-import { injectedPrompt, typedPrompts } from "../injected-prompt";
+import { typedPrompts } from "../injected-prompt";
+import { sessionNames, startedHover } from "../rail-row-copy";
 import { modelChipText, modelChipTitle, modelFamily } from "../model-label";
 import { fmtCost } from "../pricing";
 import { promptTime } from "../relative-time";
@@ -88,6 +89,7 @@ export default function Detail({
   // when there are none, and the chip stays the generic category chip. Asked
   // of every tool the chip counts, not only the window's.
   const mcpChip = catCounts.has("mcp") ? mcpChipIdentity(agent.toolCountByName?.keys() ?? []) : null;
+  const typed = typedPrompts(agent.prompts);
 
   return (
     <>
@@ -102,7 +104,11 @@ export default function Detail({
             aria-label={status?.phrase ?? cardState(agent).word} title={status?.phrase ?? cardState(agent).word}>
             <KitStateGlyph name={status?.glyph ?? (agent.state === "active" ? "working" : agent.state === "err" ? "error" : "done")} />
           </span>
-          <h2 className="hero-title" title={agent.cwd ?? agent.label}>{agent.label}</h2>
+          {/* A session by the title every surface names it by (sessionNames);
+              its folder, when it started and its id's tail in the hover. */}
+          <h2 className="hero-title" title={agent.kind === "root" ? [agent.cwd ?? agent.label, startedHover(agent.startedAt, agent.sessionId, undefined, now, t)].join("\n") : agent.cwd ?? agent.label}>
+            {agent.kind === "root" ? sessionNames(agent).title : agent.label}
+          </h2>
         </div>
         <div className="hero-meta">
           {/* The card's word for it, not the reducer's (#833): "root" is
@@ -271,26 +277,15 @@ export default function Detail({
         </div>
       </section>
 
-      {agent.prompts.length > 0 && (
+      {typed.length > 0 && (
         <section className="detail-section">
-          {/* The count is what was typed (#834). A background task's notice
-              is listed as the event it is, collapsed, in its place in time. */}
-          <h3>{t("board.detail.prompts")} <span className="section-count">{typedPrompts(agent.prompts).length}</span></h3>
+          {/* What a person typed, listed and counted (#834). A background
+              task's notice arrives on the same hook and is neither: it is not
+              a prompt (owner's critique, 2026-11-11). */}
+          <h3>{t("board.detail.prompts")} <span className="section-count">{typed.length}</span></h3>
           <div className="prompts">
-            {promptKeys(agent.prompts).reverse().map(({ pr, key }) => {
+            {promptKeys(typed).reverse().map(({ pr, key }) => {
               const when = promptTime(pr.at, now);
-              const injected = injectedPrompt(pr.text);
-              if (injected) {
-                return (
-                  <details className="prompt-entry prompt-injected" key={key}>
-                    <summary>
-                      <span className="prompt-time" title={when.title}>{when.label}</span>
-                      <span className="prompt-injected-label">{injected.label}</span>
-                    </summary>
-                    {injected.detail && <div className="prompt-injected-detail">{injected.detail}</div>}
-                  </details>
-                );
-              }
               return (
                 <div className="prompt-entry" key={key}>
                   <div className="prompt-time" title={when.title}>{when.label}</div>

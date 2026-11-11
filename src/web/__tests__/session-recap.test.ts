@@ -316,9 +316,8 @@ describe("where it is drawn", () => {
     // Through the note's rule, which decides between the recap and the status
     // line that shares its slot — still the one rule, asked the same way.
     expect(read("../components/SessionList.tsx")).toContain("const note = sessionNoteShown(a);");
-    // The rail (V4's Attention rail) says the note on its row's second line and
-    // keeps the full recap in the row's tooltip; it asks the rule once, in buildRows.
-    expect(read("../rail-row-copy.ts")).toContain("const note = r.recap?.text ?? r.status?.text ?? \"\";");
+    // The rail (V4's Attention rail) keeps the full note in its row's tooltip;
+    // its second line is folder · task (owner's critique, 2026-11-11).
     expect(read("../rail-row-copy.ts")).toContain("if (r.recap) lines.push(r.recap.text);");
     // The detail panel moved to components/Detail.tsx; App.tsx and it are read as one.
     const app = read("../App.tsx") + "\n" + read("../components/Detail.tsx");

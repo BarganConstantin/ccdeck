@@ -8,13 +8,13 @@ import { fmtCost } from "../pricing";
 import { fmtTokens } from "../token-format";
 import { elapsed } from "../duration";
 import { modelChipText } from "../model-label";
-import { sessionDisplay } from "../session-display";
+import { namesLine, sessionNames, startedHover } from "../rail-row-copy";
 import { useNow } from "../use-now";
-import { branchLong, drawnState, stateMarkKind, type BranchSummary } from "../node-face";
+import { branchLong, faceStatus, type BranchSummary } from "../node-face";
 import { promptTime } from "../relative-time";
 import type { AgentNodeData, AgentPlan } from "../types";
 import { planLine, planSummary, planTitle } from "../agent-plan";
-import { stateLabel, waitingLabel } from "../agent-copy";
+import { waitingLabel } from "../agent-copy";
 import { codexApprovalTell } from "../codex-approval";
 import { noteSource, noteTag, type SessionNote } from "../session-note";
 import { NoteMark } from "./RecapMark";
@@ -108,6 +108,9 @@ interface SessionPeekProps {
   recapFor: (id: string) => PeekRecap | undefined;
   /** The label of a subagent's parent, for "subagent of …". */
   labelFor: (id: string) => string | undefined;
+  /** Every session's id on the board, read when the card opens: what the id's
+   *  tail in "Started 14:32 · 4efa" has to tell this session apart from. */
+  peers: () => readonly string[];
   /** The part of the window the peek may use: the canvas, less the rail of
    *  floating panels on its right. */
   bounds: () => { width: number; height: number };
@@ -129,7 +132,7 @@ interface SessionPeekProps {
  * anything. At the detail distance it never opens: the card itself says all of
  * this at a readable size, and a copy of it over the top would be noise.
  */
-export default function SessionPeek({ agentFor, recapFor, labelFor, bounds }: SessionPeekProps) {
+export default function SessionPeek({ agentFor, recapFor, labelFor, peers, bounds }: SessionPeekProps) {
   const t = useSyncExternalStore(subscribe, snapshot, snapshot);
   const a = t ? agentFor(t.id) : undefined;
   const r = t && !a ? recapFor(t.id) : undefined;
@@ -138,7 +141,7 @@ export default function SessionPeek({ agentFor, recapFor, labelFor, bounds }: Se
   const orphaned = t != null && ((!a && !r) || !t.anchor.isConnected);
   useEffect(() => { if (orphaned && t) hidePeek(t.id); }, [orphaned, t]);
   if (!t || orphaned) return null;
-  if (a) return <PeekCard key={t.id} a={a} anchor={t.anchor} parentLabel={a.parentId ? labelFor(a.parentId) : undefined} bounds={bounds} />;
+  if (a) return <PeekCard key={t.id} a={a} anchor={t.anchor} parentLabel={a.parentId ? labelFor(a.parentId) : undefined} peers={a.kind === "root" ? peers() : []} bounds={bounds} />;
   if (r) return <RecapPeek key={t.id} r={r} anchor={t.anchor} bounds={bounds} />;
   return null;
 }
@@ -198,10 +201,11 @@ function RecapPeek({ r, anchor, bounds }: { r: PeekRecap; anchor: Element; bound
   );
 }
 
-function PeekCard({ a, anchor, parentLabel, bounds }: {
+function PeekCard({ a, anchor, parentLabel, peers, bounds }: {
   a: AgentNodeData & { branch?: BranchSummary };
   anchor: Element;
   parentLabel?: string;
+  peers: readonly string[];
   bounds: () => { width: number; height: number };
 }) {
   const t = useT();
@@ -209,7 +213,13 @@ function PeekCard({ a, anchor, parentLabel, bounds }: {
   // Its own beat: the clock and the waiting duration count while it is open.
   const now = useNow(1000);
 
-  const naming = sessionDisplay(a.sessionName, a.sessionTitle);
+  // A session named as every surface names it: the title, then folder · task,
+  // and when it started with its id's tail (rail-row-copy.ts sessionNames). A
+  // subagent keeps its own label.
+  const names = a.kind === "root" ? sessionNames(a) : null;
+  const name = names?.title ?? a.label;
+  const line = names ? namesLine(names) : "";
+  const status = faceStatus(a, t);
   // Over the agent's whole life, like the card's "err" (#1809).
   const failed = a.toolErrorCount ?? 0;
   const inflight = a.tools.filter(x => !x.endedAt).length;
@@ -230,17 +240,19 @@ function PeekCard({ a, anchor, parentLabel, bounds }: {
   return createPortal(
     <div ref={ref} className="ap-peek node-peek" role="tooltip" id="node-peek">
       <div className="node-peek-head">
-        <span className="node-peek-name" title={a.label}>{a.label}</span>
+        <span className="node-peek-name" title={name}>{name}</span>
         <span className="node-peek-time">{a.synthetic ? "≥ " : ""}{elapsed(a.startedAt, a.endedAt, now)}</span>
       </div>
       <div className="node-peek-kind">
-        <span className="node-peek-state" data-kind={stateMarkKind(drawnState(a))}>
-          <StateMark kind={stateMarkKind(drawnState(a))} />{stateLabel(drawnState(a))}
+        {/* The face's own mark and word (faceStatus), for a face too narrow
+            to draw the word. */}
+        <span className="node-peek-state" data-kind={status.mark}>
+          {status.mark === "alert" ? <AlertMark /> : <StateMark kind={status.mark} />}{status.word}
         </span>
         <span>{kind}</span>
         {a.model ? <span>{modelChipText(a.model, a.effort)}</span> : null}
       </div>
-      {a.kind === "root" && naming.face && <p className="node-peek-title" title={naming.face}>{naming.face}</p>}
+      {line && <p className="node-peek-title" title={line}>{line}</p>}
       {a.kind === "root" && a.waiting && (
         <p className={`node-peek-wait${alarm ? " warn" : ""}`}>
           {alarm && <AlertMark />}
@@ -254,6 +266,7 @@ function PeekCard({ a, anchor, parentLabel, bounds }: {
         {facts}
         {failed > 0 && <span className="node-peek-failed"> · {t("insights.peek.failed", { n: failed })}</span>}
       </p>
+      {a.kind === "root" && <p className="node-peek-facts">{startedHover(a.startedAt, a.sessionId, peers, now)}</p>}
       {a.branch && a.branch.total > 0 && <p className="node-peek-branch">{branchLong(a.branch)}</p>}
       <p className="node-peek-hint">{t("insights.peek.hint")}</p>
     </div>,

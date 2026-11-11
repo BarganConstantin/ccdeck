@@ -36,10 +36,10 @@ import type { AgentNodeData, PlanItem, WaitingBlock } from "../types";
 import { useNow } from "../use-now";
 import { useLanguage, useT } from "../i18n";
 import { promptLine } from "../session-note";
-import { cardState, drawnState, faceSignal, markBesideFailures, stateMarkKind, type BranchSummary, type CardState, type StateMarkKind } from "../node-face";
+import { cardState, drawnState, faceStatus, stateMarkKind, type BranchSummary, type CardState, type StateMarkKind } from "../node-face";
+import { sessionNames, sessionTask } from "../rail-row-copy";
 // The agent's own checklist, as one line (#2157). See agent-plan.ts.
 import { planSummary, planTitle, type PlanSummary } from "../agent-plan";
-import { primaryDisplayFor, toolSubject } from "../tool-skin";
 // The tool kinds the foot draws as icons, from the calls the card holds.
 import { recentToolKinds, TOOL_KIT_ICON } from "../card-tool-icons";
 import { AlertMark, StateMark } from "./StateMark";
@@ -439,7 +439,7 @@ export function AgentCard({ data, handles = false }: { data: CardData; handles?:
         )}
       </div>
 
-      <NodeFace data={data} title={data.kind === "root" ? rootTask?.face : undefined} />
+      <NodeFace data={data} task={data.kind === "root" ? sessionTask(data) || sessionNames(data).title : spawnTask || data.label} />
 
       {handles && <Handle type="source" position={Position.Right} style={{ background: "transparent", border: "none" }} />}
     </div>
@@ -485,58 +485,37 @@ function PlanRow({ plan, items }: { plan: PlanSummary; items: readonly PlanItem[
  *
  * Always in the tree, and `display: none` at the detail tier: the mode is an
  * attribute on the canvas, so changing it re-renders no card. What it draws is
- * the card's own data, picked down — the name, a state MARK, and the one line
- * faceSignal decides is worth an interruption. Which lines fit is the sheet's
- * call, per card, by container query against the face's own on-screen size.
+ * one task line and the card's status (owner's critique, 2026-11-11): what a
+ * person last asked the session (the Sessions list's task), else its title; a
+ * subagent's own task, else its name. Then the mark and the word, Working,
+ * Done, Waiting or "1 failed" (faceStatus). The cluster's pill above names the
+ * session. Compact and overview draw the same face.
+ *
+ * The word is never cut: where it does not fit whole, the sheet lets it wrap
+ * to a line the face clips, and the mark says the state alone, by its shape
+ * and its colour. Where the face is tall enough the task has a line of its
+ * own and the status the one under it.
  *
  * Hidden from assistive technology like the rows it stands in for: the node's
  * accessible name is agentAriaLabel, composed from the data, and says all of
- * this at every zoom.
+ * this at every zoom. The peek beside the pointer says the word too.
  */
-function NodeFace({ data, title }: { data: AgentNodeData & { branch?: BranchSummary }; title?: string }) {
+function NodeFace({ data, task }: { data: AgentNodeData & { branch?: BranchSummary }; task: string }) {
   const tr = useT();
   const alarm = data.kind === "root" && isAlarming(data.waiting);
-  const signal = faceSignal(data, data.branch, {
-    sayWaiting: w => waitingLabel(w, tr),
-    describeCall: call => ({ name: primaryDisplayFor(call.name).label, subject: toolSubject(call.name, call.input) }),
-  }, tr);
-  // The state in a word, for a face too narrow for its name (the sheet shows it
-  // only there): the card's own word, or the face's "Needs you" / "Asked you"
-  // for a session blocked on you. The mark beside it is the card's mark too, so
-  // a session not yet given a prompt draws the hollow ring by "Ready".
-  const state = cardState(data);
-  // The mark sits beside "1 failed" on this face, so a finished card whose
-  // calls failed draws the cross, not done's tick (markBesideFailures). Where
-  // the face is too narrow for that line the word says the count instead of
-  // "Done": a cross beside "Done" would be the same contradiction turned round.
-  const failed = data.toolErrorCount ?? 0;
-  const under = state.mark === "alert" ? stateMarkKind(drawnState(data)) : state.mark;
-  const mark = markBesideFailures(under, failed);
-  const failedWord = mark !== under;
-  const word = alarm && signal ? signal.short : failedWord ? tr("board.failedCount", { n: failed }) : state.word;
-  const wordTone = alarm ? "warn" : state.tone === "err" || failedWord ? "err" : undefined;
+  const status = faceStatus(data, tr);
   return (
     <div
       className="lod-face"
       data-kind={data.kind}
       data-alarm={alarm ? "" : undefined}
-      data-signal={signal ? "" : undefined}
       aria-hidden
     >
-      <div className="lod-id">
-        <StateMark kind={mark} />
-        <span className="lod-name">{data.label}</span>
-        {signal && <span className="lod-inline" data-tone={signal.tone}>{signal.short}</span>}
-        <span className="lod-state" data-tone={wordTone}>{word}</span>
-        {alarm && <AlertMark />}
+      <div className="lod-line" data-status={status.tone}>
+        {status.mark === "alert" ? <AlertMark /> : <StateMark kind={status.mark} />}
+        <span className="lod-name">{task}</span>
+        <span className="lod-state">{status.word}</span>
       </div>
-      {title && <div className="lod-title">{title}</div>}
-      {signal && (
-        <div className="lod-signal" data-tone={signal.tone}>
-          <span className="lod-long">{signal.long}</span>
-          <span className="lod-short">{signal.short}</span>
-        </div>
-      )}
     </div>
   );
 }

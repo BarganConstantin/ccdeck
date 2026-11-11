@@ -150,7 +150,7 @@ describe("a zoomed-out card, where the deck's hover card opens", () => {
     const data = card();
     const html = renderToStaticMarkup(createElement(ReactFlowProvider, null,
       createElement(AgentNode as any, { id: data.id, data, selected: false })));
-    expect(html).toContain('class="lod-title"');
+    expect(html).toContain('class="lod-line"');
     expect(titledAroundFace(html)).toEqual([]);
   });
 });

@@ -343,6 +343,18 @@
 .canvas-wrap[data-lod="overview"] .recap-note > :not(.lod-face) {
   visibility: hidden;
 }
+/* CHANGED ON PURPOSE (owner's critique, 2026-11-11): below the full card the
+   card's own face carries the task and the status, and a "• now" note beside
+   every face said it a second time. The note and its tie are not drawn there.
+   Hidden rather than taken off the board, so the note keeps its box and
+   nothing moves when the distance changes; hidden, it takes no pointer and no
+   focus. */
+.canvas-wrap[data-lod="compact"] .react-flow__node-recapNote,
+.canvas-wrap[data-lod="overview"] .react-flow__node-recapNote,
+.canvas-wrap[data-lod="compact"] .react-flow__edge-recapTie,
+.canvas-wrap[data-lod="overview"] .react-flow__edge-recapTie {
+  visibility: hidden;
+}
 :root .canvas-wrap[data-lod="compact"] .react-flow__node .recap-note,
 :root .canvas-wrap[data-lod="overview"] .react-flow__node .recap-note {
   background: transparent;

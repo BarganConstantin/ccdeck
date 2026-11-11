@@ -190,7 +190,7 @@ export function clusterLabelStyle(c: Cluster, zoom: number, hue: number, maxWidt
  * bug came from, not the arithmetic.
  */
 export function clusterBounds(nodes: Iterable<ClusterNode>): Cluster[] {
-  const bySession = new Map<string, { minX: number; minY: number; maxX: number; maxY: number; label: string; name?: string; alarm?: boolean; branch?: string; plan?: string; planLine?: string }>();
+  const bySession = new Map<string, { minX: number; minY: number; maxX: number; maxY: number; label: string; name?: string; alarm?: boolean; branch?: string; plan?: string; planLine?: string; startedAt?: number }>();
   for (const n of nodes) {
     // Only agent cards define a session's bounds. The invisible per-session
     // drag handle is a React Flow node like any other and its data carries the
@@ -228,6 +228,7 @@ export function clusterBounds(nodes: Iterable<ClusterNode>): Cluster[] {
         branch: root?.branch,
         plan: root?.plan,
         planLine: root?.planLine,
+        startedAt: root?.startedAt,
       });
     } else {
       existing.minX = Math.min(existing.minX, x1);
@@ -241,29 +242,20 @@ export function clusterBounds(nodes: Iterable<ClusterNode>): Cluster[] {
         existing.branch = root.branch;
         existing.plan = root.plan;
         existing.planLine = root.planLine;
+        existing.startedAt = root.startedAt;
       }
     }
   }
 
-  // When multiple sessions resolve to the same label (e.g. two Claude sessions
-  // running in the same cwd both pick the basename as their label), append a
-  // short session-id suffix so the user can tell them apart at a glance.
-  // The ids themselves rather than a count of them, so the suffix can be made
-  // long enough to differ from every other session under the label (#1732).
-  const idsByLabel = new Map<string, string[]>();
-  for (const [sessionId, b] of bySession) {
-    const ids = idsByLabel.get(b.label);
-    if (ids) ids.push(sessionId);
-    else idsByLabel.set(b.label, [sessionId]);
-  }
+  // Every session's id, so the tail each tooltip names is long enough to differ
+  // from all the others on the board (#1732).
+  const peers = [...bySession.keys()];
 
   const out: Cluster[] = [];
   for (const [sessionId, b] of bySession) {
-    const peers = idsByLabel.get(b.label) ?? [];
-    const needsSuffix = peers.length > 1;
     out.push({
       sessionId,
-      ...clusterHeader(b.label, b.name, sessionId, needsSuffix, peers, { branch: b.branch, plan: b.planLine, alarm: b.alarm }),
+      ...clusterHeader(b.label, b.name, sessionId, peers, { branch: b.branch, plan: b.planLine, alarm: b.alarm, startedAt: b.startedAt }),
       x: b.minX - PAD,
       y: b.minY - PAD - HEADER_H,
       w: b.maxX - b.minX + PAD * 2,
@@ -287,7 +279,7 @@ export function clusterBounds(nodes: Iterable<ClusterNode>): Cluster[] {
  * field off whichever node arrived first would leave the header waiting on
  * iteration order for a field the root has had all along.
  */
-function rootFields(d: AgentNodeData): { label?: string; name?: string; alarm: boolean; branch?: string; plan?: string; planLine?: string } | null {
+function rootFields(d: AgentNodeData): { label?: string; name?: string; alarm: boolean; branch?: string; plan?: string; planLine?: string; startedAt: number } | null {
   if (d.kind !== "root") return null;
   const b = (d as AgentNodeData & { branch?: BranchSummary }).branch;
   const plan = planSummary(d.plan);
@@ -311,6 +303,7 @@ function rootFields(d: AgentNodeData): { label?: string; name?: string; alarm: b
     // The root's plan, which for the Task tools is the session's (agent-plan.ts).
     plan: plan ? `plan ${plan.done}/${plan.total}` : undefined,
     planLine: plan ? planLine(plan) : undefined,
+    startedAt: d.startedAt,
   };
 }
 
@@ -326,7 +319,8 @@ export function shallowEqualClusters(a: Cluster[], b: Cluster[]): boolean {
       // tooltip serves, so skipping it would hold a stale one behind a header
       // that had already settled.
       x.name !== y.name ||
-      x.shortId !== y.shortId ||
+      x.idTail !== y.idTail ||
+      x.startedAt !== y.startedAt ||
       x.alarm !== y.alarm ||
       x.branch !== y.branch ||
       x.plan !== y.plan ||

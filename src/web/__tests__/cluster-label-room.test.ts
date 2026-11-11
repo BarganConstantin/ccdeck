@@ -32,6 +32,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { clusterLabelStyle, labelMaxWidth, type Cluster } from "../cluster-bounds";
 import { clusterHeader, SEP } from "../cluster-header";
+import { startedLine } from "../rail-row-copy";
 import { LABEL_EDGE, LABEL_H, LABEL_MIN_W, PANE_CHROME, labelRoom, sameBoxes, type PaneBox } from "../cluster-label-room";
 import { sheetRules } from "./sheet-cascade";
 
@@ -192,13 +193,16 @@ describe("the layer draws what the room says", () => {
 describe("the pill's tooltip", () => {
   it("says everything the pill says, whole and in its order, then what a press does", () => {
     const name = "Make the invoice builder understand every field the agent writes";
-    const h = clusterHeader("shop-api-auth", name, "e3200d5a-1f4e", true, ["e3200d5a-1f4e", "498737ff-5b94"], { branch: "→ 1 · 1 live" });
-    expect(h.title.split("\n")[0]).toBe(`shop-api-auth${SEP}→ 1 · 1 live${SEP}${name}${SEP}${h.shortId}`);
-    expect(h.title.split("\n").slice(1)).toEqual(["Zoom to this session", "drag the wrapper to move the whole session"]);
+    // CHANGED ON PURPOSE (owner's critique, 2026-11-11): no id on the pill, so
+    // none at the end of its run; when it started and the id's tail come next.
+    const h = clusterHeader("shop-api-auth", name, "e3200d5a-1f4e", ["e3200d5a-1f4e", "498737ff-5b94"], { branch: "→ 1 · 1 live", startedAt: 1_700_000_000_000 });
+    expect(h.title.split("\n")[0]).toBe(`shop-api-auth${SEP}→ 1 · 1 live${SEP}${name}`);
+    expect(h.title.split("\n")[1]).toBe(startedLine(1_700_000_000_000, "1f4e"));
+    expect(h.title.split("\n").slice(2)).toEqual(["Zoom to this session", "drag the wrapper to move the whole session"]);
   });
 
   it("leads with the words a screen reader hears for a session waiting on you", () => {
-    const h = clusterHeader("shop-api-auth", undefined, "e3200d5a-1f4e", false, [], { alarm: true });
+    const h = clusterHeader("shop-api-auth", undefined, "e3200d5a-1f4e", [], { alarm: true });
     expect(h.title.split("\n")[0]).toBe("waiting on you: shop-api-auth");
     expect(component).toContain('<span className="cluster-label-said">{t("board.cluster.waitingOnYou")}</span>');
   });

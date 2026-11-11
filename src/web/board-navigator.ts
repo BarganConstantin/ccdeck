@@ -41,21 +41,21 @@ export interface NavRect { x: number; y: number; w: number; h: number }
 
 /** Space left and right of the tiles. */
 export const NAV_PAD_X = 14;
-/** Space above the first tile: its task pill sits 9px above the rim, and needs
- *  the rest to clear the header. */
+/** Space above the first tile, clear of the header. The tile once wore a task
+ *  pill 9px above its rim; the numbers stayed, so no tile moved when it went. */
 export const NAV_PAD_TOP = 18;
 /** Space under the last tile, so a scrolled-to-the-end list does not end on a
  *  rim pressed against the window's edge. */
 export const NAV_PAD_BOTTOM = 24;
 /** Between two navigator columns. */
 export const NAV_COL_GAP = 12;
-/** Between two tiles in one column; the next tile's pill lives in it. */
+/** Between two tiles in one column. */
 export const NAV_TILE_GAP = 26;
 /** Between two faces in the rail, which carry no rows and read tighter. */
 export const NAV_RAIL_GAP = 24;
 /** The rim's inset round the face. */
 export const TILE_PAD = 7;
-/** The face: name and elapsed on one line, the signal on the next. */
+/** The face: title and elapsed on one line, folder · task on the next. */
 export const FACE_H = 50;
 /** A subagent row. Never under 22px: it is a line of 11.5px text with a mark,
  *  and the trunk edge needs the gap between two of them to read as a branch. */

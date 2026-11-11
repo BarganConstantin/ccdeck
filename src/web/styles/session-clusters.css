@@ -159,11 +159,6 @@
   font-weight: 400;
   color: var(--muted);
 }
-.cluster-label-id {
-  font-weight: 400;
-  font-variant-numeric: tabular-nums;
-  color: var(--muted);
-}
 /* The name is the pill's only when the card cannot say it. At `detail` the
    root card prints the same name on a row of its own, and the pill — held at
    its own size since #846 while the cards shrink — drew the second copy larger

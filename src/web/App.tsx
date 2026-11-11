@@ -1380,7 +1380,7 @@ function Inner() {
           the chrome draws, so it can never offer something the deck does not. */}
       {quickOpenOpen && (
         <QuickOpen onClose={closeQuickOpen} onRun={runQuick} items={quickOpenItems({
-          rails: quickRails, sessions: buildRows(stateRef.current, now), now, openSession: pickSession,
+          rails: quickRails, sessions: buildRows(stateRef.current, now), openSession: pickSession,
           settings: indexFor(providers.claude, integrationsReach(integrations), offeredKinds(integrations)), openSettings,
           singleKeys, fit: handleFit, rearrange: handleRelayout, paused, togglePause,
           clear: agentCount > 0 ? () => requestClear("button") : undefined,
