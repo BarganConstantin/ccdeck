@@ -78,9 +78,13 @@ const cpuBlock = (html: string) => {
 const cores = (n: number, at = (i: number) => (i * 37) % 101) => Array.from({ length: n }, (_, i) => at(i));
 
 describe("the per-core columns' geometry", () => {
-  it("draws each core as a column 28 high on a --line track with 2px corners", () => {
+  it("draws each core as a column 28 high on the meters' --ctl-fill track with the control's corners", () => {
     expect(decl(".sd-core", "height")).toBe("28px");
-    expect(decl(".sd-core", "background")).toBe("var(--line)");
+    // CHANGED ON PURPOSE (light-theme review): the track every other meter in
+    // the panel and in Usage draws on. On --line the accent fill measured
+    // 1.54:1 against its track on White Contrast and 2.13:1 on Black Contrast.
+    expect(decl(".sd-core", "background")).toBe("var(--ctl-fill)");
+    expect(decl(".sd-core", "background")).toBe(decl(".sd-track", "background"));
     // CHANGED ON PURPOSE (owner 2026-11-10 critique: type scale 11/12/13/16/22, radii 4/8/pill): a column's corners are the control's.
     expect(decl(".sd-core", "border-radius")).toBe("var(--r-ctl)");
     // The track clips the fill, so a scaled fill keeps the column's corners.

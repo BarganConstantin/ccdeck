@@ -203,7 +203,7 @@
 .sysdetail .sd-reading[data-group="cores"] > .sd-open:last-child { margin-bottom: calc(0px - 4px); }
 
 /* THE PER-CORE COLUMNS, the way main draws them: one column per logical core,
-   28 high and 2 apart, an accent fill rising from the bottom of a --line
+   28 high and 2 apart, an accent fill rising from the bottom of a --ctl-fill
    track, the control's corners. The total is the figure beside the heading, so nothing
    here is a meter of the whole machine and nothing takes a level: a build at
    90% CPU is doing its job (see MachinePanel.tsx).
@@ -234,12 +234,20 @@
 }
 /* `--core-floor` is the 2px sliver an idle core keeps, as a share of its own
    column, so it changes with the column's height. */
+/* The track is --ctl-fill, the one every other meter in this panel and in
+   Usage draws on (`.sd-track`, `.qb-track`). It was --line, a boundary token:
+   in the contrast themes that is a mid grey (#686868 on White Contrast, #858585
+   on Black Contrast), and the accent fill against it measured 1.54:1 and
+   2.13:1, so the top of each reading — the one thing a column says — was lost
+   in a block of solid grey. On --ctl-fill the fill clears 4.9:1 against its
+   track on every palette, and in Rider Black and Dark the two tokens are the
+   same grey to a step. */
 .sd-core {
   display: block;
   height: 28px;
   --core-floor: calc(2 / 28);
   border-radius: var(--r-ctl);
-  background: var(--line);
+  background: var(--ctl-fill);
   overflow: hidden;
 }
 .sd-cores:has(> .sd-core:nth-child(33)) > .sd-core {
