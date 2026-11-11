@@ -446,7 +446,10 @@ describe("the note is a node the layout, the frame and the caches can see", () =
     // for a new session's block; both put the note far from its card.
     const flowSrc = read("../canvas-flow.ts");
     expect(flowSrc).toContain('new Set(missing.filter(n => n.type !== "recapNote").map(n => n.id)), lanes,');
-    expect(flowSrc).toMatch(/fillGapsWithNewSessions\([\s\S]*?\);[\s\S]{0,1200}recordPlacement\(n\.id, \{ x: root\.x - RECAP_NOTE_GAP - nw/);
+    expect(flowSrc).toMatch(/fillGapsWithNewSessions\([\s\S]*?\);[\s\S]{0,1200}recordPlacement\(n\.id, noteSpot\(n\.id, rootId, root, measured\)/);
+    // The spot is left of the card by the rank gap, centred on its height —
+    // and kept there after every pass (recap-note-follows-card.test.ts).
+    expect(read("../note-tether.ts")).toContain("return { x: card.x - RECAP_NOTE_GAP - nw, y: card.y + (rh - nh) / 2 };");
     // And a note that was closed forgets its laid-out spot unless it was dragged
     // — once the log has replayed, since until then it may simply not be back
     // yet (#1333).

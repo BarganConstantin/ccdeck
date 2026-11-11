@@ -24,7 +24,8 @@ import { type Edge, type Node } from "reactflow";
 import { canvasSessions } from "./canvas-session";
 import { agentAriaLabel } from "./agent-copy";
 import { autoLayout, bubblePush, fillGapsWithNewSessions, joinSessions, laneSignature, separateOverlaps } from "./layout";
-import { footprint, NODE_W, RECAP_NOTE_GAP, RECAP_NOTE_H, RECAP_NOTE_W, sessionOfNode } from "./layout-geometry";
+import { footprint, NODE_W, sessionOfNode } from "./layout-geometry";
+import { noteSpot, tetherRecapNotes } from "./note-tether";
 import { branchSummaries, type BranchSummary } from "./node-face";
 import { isUnplaced, needsLayout, recordPlacement, stampPlaceholder, type Provisional } from "./placement";
 import { liveNodeIds, measuredNodeIds, pruneStaleEntries } from "./prune";
@@ -551,15 +552,18 @@ export function snapshotToFlow(
         if (!rootId) continue;
         const root = pinned.get(rootId) ?? (isUnplaced(rootId, positions, provisional) ? undefined : positions.get(rootId));
         if (!root) continue;
-        const nw = measured.get(n.id)?.width ?? RECAP_NOTE_W;
-        const nh = measured.get(n.id)?.height ?? RECAP_NOTE_H;
-        const rh = measured.get(rootId)?.height ?? RECAP_NOTE_H;
-        recordPlacement(n.id, { x: root.x - RECAP_NOTE_GAP - nw, y: root.y + (rh - nh) / 2 }, positions, provisional);
+        recordPlacement(n.id, noteSpot(n.id, rootId, root, measured), positions, provisional);
       }
     }
     separateOverlaps(nodes, positions, pinned, measured, lanes, holding ? restored : undefined);
     lastLayoutSigRef.current = sig;
   }
+  // A note goes where its card went. The overlap repair above slides cards one
+  // by one, and a note covering nothing stayed behind each time its card slid —
+  // see note-tether.ts for the board that made. Every frame, not only after a
+  // layout: a card or a note measuring a new size moves the spot too. Not while
+  // a restored board is held still (#1333); the hold lifting runs this.
+  if (!holding) tetherRecapNotes(nodes, positions, provisional, pinned, measured);
   // A session that just fanned out subagents is wider and taller than it was a
   // frame ago, and is now sitting on whatever was beside it. separateOverlaps
   // would clear that by sliding the covered session down past the whole grown

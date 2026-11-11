@@ -89,11 +89,21 @@ const TOUR: Spec[] = [
 
 const sizeOf = (n: Node, measured: Map<string, { width: number; height: number }>) => measured.get(n.id)!;
 
-/** Each column's left edge, read off the sessions' left edges. */
+/** Each session's root card: the card with no parent (a node with no type is
+ *  a card, as the frame tests below hand them in). */
+const rootsOf = (out: Node[]) => out.filter(n => (n.type ?? "agent") === "agent" && !(n.data as { parentId?: string } | undefined)?.parentId);
+
+/** Each column's card line, read off the sessions' root cards: a column stands
+ *  its cards on one line, a note beside them or not (columns-note-room.test.ts),
+ *  so a session's left edge is its note's where it has one. */
 function columnsOf(out: Node[]): number[] {
-  const left = new Map<string, number>();
-  for (const n of out) left.set(sessionOfNode(n), Math.min(left.get(sessionOfNode(n)) ?? Infinity, n.position.x));
-  return [...new Set(left.values())].sort((p, q) => p - q);
+  return [...new Set(rootsOf(out).map(n => n.position.x))].sort((p, q) => p - q);
+}
+
+/** The column each session was cut into, by its root card's line. */
+function columnOfSession(out: Node[]): Map<string, number> {
+  const cols = columnsOf(out);
+  return new Map(rootsOf(out).map(n => [sessionOfNode(n), cols.indexOf(n.position.x)]));
 }
 
 /** The zoom fitLeft shows this board at (use-camera.ts). */
@@ -107,13 +117,13 @@ function fitShows(out: Node[], measured: Map<string, { width: number; height: nu
 
 /** Sessions in the order the board reads them: by column, then down it. */
 function readingOrder(out: Node[]): string[] {
-  const cols = columnsOf(out);
+  const colOf = columnOfSession(out);
   const box = new Map<string, { col: number; top: number }>();
   for (const n of out) {
     const sid = sessionOfNode(n);
-    const b = box.get(sid) ?? { col: Infinity, top: Infinity };
-    const col = cols.filter(x => x <= n.position.x).length - 1;
-    box.set(sid, { col: Math.min(b.col, col), top: Math.min(b.top, n.position.y) });
+    if (!colOf.has(sid)) continue;
+    const b = box.get(sid) ?? { col: colOf.get(sid)!, top: Infinity };
+    box.set(sid, { col: b.col, top: Math.min(b.top, n.position.y) });
   }
   return [...box].sort((p, q) => p[1].col - q[1].col || p[1].top - q[1].top).map(([sid]) => sid);
 }
@@ -129,10 +139,13 @@ describe("the board flows into columns that fill the frame", () => {
       const single = autoLayout(nodes, edges, { measured, lanes });
       expect(columnsOf(single)).toHaveLength(1);
       expect(fitShows(out, measured, frame)).toBeGreaterThan(fitShows(single, measured, frame) * 1.2);
-      // Nothing of one column reaches the next, its bubbles at full size included.
+      // Nothing of one column reaches the next — its notes included — its
+      // bubbles at full size included.
+      const colOf = columnOfSession(out);
+      const leftOf = (c: number) => Math.min(...out.filter(n => colOf.get(sessionOfNode(n)) === c).map(n => n.position.x));
       for (const n of out) {
-        const following = cols[cols.filter(x => x <= n.position.x).length];
-        if (following != null) expect(n.position.x + sizeOf(n, measured).width + TOOL_LANE_W).toBeLessThan(following);
+        const c = colOf.get(sessionOfNode(n))!;
+        if (c + 1 < cols.length) expect(n.position.x + sizeOf(n, measured).width + TOOL_LANE_W).toBeLessThan(leftOf(c + 1));
       }
     });
   }
