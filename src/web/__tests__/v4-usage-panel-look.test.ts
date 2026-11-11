@@ -49,6 +49,10 @@ function decl(selector: string, prop: string, media = ""): string | undefined {
   for (const r of rules) if (r.media === media && r.selectors.includes(selector) && prop in r.decls) found = r.decls[prop];
   return found;
 }
+// CHANGED ON PURPOSE (light-theme review): a line height grows with the
+// reader's text size as the size does, as V4's type roles say a reader's
+// increase is added to both (tokens.css). At Largest a 16px word sat in a 16px
+// line and two lines of a note touched; at Default nothing moves.
 const INC = (px: number) => `calc(${px}px + var(--ui-text-increase, 0px))`;
 const panel = readFileSync(join(WEB_DIR, "components/UsagePanel.tsx"), "utf8");
 const header = /<div className="up-header"[\s\S]*?<div className="up-body">/.exec(panel)![0];
@@ -74,7 +78,7 @@ describe("the header", () => {
     expect(decl(".up-header", "padding")).toBe("0 4px 0 12px");
     expect(decl(".up-header", "gap")).toBe("6px");
     expect(decl(".usage-panel .up-header h2", "font-size")).toBe(INC(13));
-    expect(decl(".usage-panel .up-header h2", "line-height")).toBe("20px");
+    expect(decl(".usage-panel .up-header h2", "line-height")).toBe(INC(20));
     expect(decl(".usage-panel .up-header h2", "font-weight")).toBe("600");
     expect(decl(".usage-panel .up-header h2", "color")).toBe("var(--text)");
   });
@@ -105,7 +109,7 @@ describe("the period chips", () => {
     expect(decl(".up-period .uh-range-btn", "padding")).toBe("0 8px");
     expect(decl(".up-period .uh-range-btn", "border")).toBe("1px solid var(--line)");
     expect(decl(".up-period .uh-range-btn", "font-size")).toBe(INC(12));
-    expect(decl(".up-period .uh-range-btn", "line-height")).toBe("16px");
+    expect(decl(".up-period .uh-range-btn", "line-height")).toBe(INC(16));
     expect(decl(".up-period .uh-range-btn", "color")).toBe("var(--text-secondary)");
     expect(decl('.up-period .uh-range-btn[aria-pressed="true"]', "background")).toBe("var(--accent-16)");
     expect(decl('.up-period .uh-range-btn[aria-pressed="true"]', "border-color")).toBe("var(--accent)");
@@ -120,7 +124,7 @@ describe("the hero and the tokens", () => {
   it("sets the figure mono 600 22/28 --text and the words 400 12/16 --muted", () => {
     expect(decl(".up-total-value", "font-family")).toBe("var(--font-mono)");
     expect(decl(".up-total-value", "font-size")).toBe(INC(22));
-    expect(decl(".up-total-value", "line-height")).toBe("28px");
+    expect(decl(".up-total-value", "line-height")).toBe(INC(28));
     expect(decl(".up-total-value", "font-weight")).toBe("600");
     expect(decl(".up-total-value", "color")).toBe("var(--text)");
     expect(decl(".up-total-label", "font-size")).toBe(INC(12));
@@ -132,7 +136,7 @@ describe("the hero and the tokens", () => {
     expect(decl(".up-tok", "font-size")).toBe(INC(12));
     expect(decl(".up-tok", "color")).toBe("var(--text)");
     expect(decl(".up-k", "font-size")).toBe(INC(11));
-    expect(decl(".up-k", "line-height")).toBe("14px");
+    expect(decl(".up-k", "line-height")).toBe(INC(14));
     expect(decl(".up-k", "color")).toBe("var(--muted)");
   });
   it("shows quotas before the period spend and its breakdown", () => {
@@ -146,7 +150,7 @@ describe("the hero and the tokens", () => {
 describe("the quota sections", () => {
   it("sets a title 600 12/16 --text-secondary in a 16-high row, in the case it is written in; the plan and age mono 11/14 --muted", () => {
     expect(decl(".up-section-title", "font-size")).toBe(INC(12));
-    expect(decl(".up-section-title", "line-height")).toBe("16px");
+    expect(decl(".up-section-title", "line-height")).toBe(INC(16));
     expect(decl(".up-section-title", "min-height")).toBe("16px");
     expect(decl(".up-section-title", "font-weight")).toBe("600");
     expect(decl(".up-section-title", "color")).toBe("var(--text-secondary)");
@@ -155,7 +159,7 @@ describe("the quota sections", () => {
     for (const sel of [".up-plan-badge", ".up-section-age"]) {
       expect(decl(sel, "font-family")).toBe("var(--font-mono)");
       expect(decl(sel, "font-size")).toBe(INC(11));
-      expect(decl(sel, "line-height")).toBe("14px");
+      expect(decl(sel, "line-height")).toBe(INC(14));
       expect(decl(sel, "color")).toBe("var(--muted)");
     }
   });

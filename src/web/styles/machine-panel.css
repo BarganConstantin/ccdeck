@@ -25,8 +25,11 @@
   border: 1px solid var(--line-soft);
   border-radius: var(--r-node);
   box-shadow: var(--shadow-overlay);
+  /* Every line height in this panel and in Usage adds the reader's text
+     increase, as its size does (V4's type roles, tokens.css): a literal 16px
+     line under a 16px word at Largest set two lines of a note touching. */
   font-size: calc(12px + var(--ui-text-increase, 0px));
-  line-height: 16px;
+  line-height: calc(16px + var(--ui-text-increase, 0px));
   color: var(--text);
   text-align: left;
   cursor: default;
@@ -152,10 +155,10 @@
   background: var(--panel);
   color: var(--text);
   font-size: calc(12px + var(--ui-text-increase, 0px));
-  line-height: 16px;
+  line-height: calc(16px + var(--ui-text-increase, 0px));
 }
 /* An <h2> since #879; the margin reset keeps the tag from moving the title. */
-.sd-title { margin: 0; font-size: calc(13px + var(--ui-text-increase, 0px)); line-height: 20px; font-weight: 600; color: var(--text); }
+.sd-title { margin: 0; font-size: calc(13px + var(--ui-text-increase, 0px)); line-height: calc(20px + var(--ui-text-increase, 0px)); font-weight: 600; color: var(--text); }
 /* "up 12d 4h · 16 cores": 400 12/16 --muted. */
 .sd-sub { margin: 0; color: var(--muted); font-variant-numeric: tabular-nums; }
 /* The bare glyph the rest of the deck's header closes have come to — the whole
@@ -179,7 +182,7 @@
   min-height: 20px;
   margin: 0;
   font-size: calc(12px + var(--ui-text-increase, 0px));
-  line-height: 16px;
+  line-height: calc(16px + var(--ui-text-increase, 0px));
   font-weight: 600;
   color: var(--text-secondary);
 }
@@ -366,7 +369,7 @@
   justify-content: space-between;
   gap: 8px;
   font-size: calc(12px + var(--ui-text-increase, 0px));
-  line-height: 16px;
+  line-height: calc(16px + var(--ui-text-increase, 0px));
   font-weight: 600;
   color: var(--text-secondary);
 }
@@ -374,7 +377,7 @@
    12px and the secondary tier. --muted on the plate's composite measured 4.34:1
    in dark (#859) — the 4% tint lifts the ground under it, and the token pairs
    the contrast tests check never saw that ground. */
-.sd-door-sub { display: block; margin-top: 0; color: var(--text-secondary); font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: 16px; }
+.sd-door-sub { display: block; margin-top: 0; color: var(--text-secondary); font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: calc(16px + var(--ui-text-increase, 0px)); }
 /* THE BOX THE BUTTON USED TO BE, now that only the heading is one (#1771). A
    section's readings sat inside its history button, and a button's contents
    are presentational: a screen reader heard the button's name and not one
@@ -497,11 +500,11 @@
 .sd-fig { display: flex; flex-direction: column; font-variant-numeric: tabular-nums; }
 /* 5ch of the mono face holds 99.99, so a figure gaining a digit does not slide
    the ones after it. */
-.sd-fig-val { min-width: 5ch; font-family: var(--font-mono); font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: 16px; font-weight: 400; color: var(--text); }
-.sd-fig-cap { color: var(--muted); font-size: calc(11px + var(--ui-text-increase, 0px)); line-height: 14px; white-space: nowrap; }
+.sd-fig-val { min-width: 5ch; font-family: var(--font-mono); font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: calc(16px + var(--ui-text-increase, 0px)); font-weight: 400; color: var(--text); }
+.sd-fig-cap { color: var(--muted); font-size: calc(11px + var(--ui-text-increase, 0px)); line-height: calc(14px + var(--ui-text-increase, 0px)); white-space: nowrap; }
 
 /* The sentences — "reading this machine…", why a reading is missing: 12/16. */
-.sd-note { margin: 0; color: var(--muted); font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: 16px; }
+.sd-note { margin: 0; color: var(--muted); font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: calc(16px + var(--ui-text-increase, 0px)); }
 /* A reading that could not be taken ("Can't reach Claude", the one network
    state that is a fault) says so in --err, never amber. */
 .sd-note.sd-note-err { color: var(--err); }
@@ -528,7 +531,7 @@
   background: none;
   font: inherit;
   font-size: calc(12px + var(--ui-text-increase, 0px));
-  line-height: 16px;
+  line-height: calc(16px + var(--ui-text-increase, 0px));
   color: var(--muted);
   text-align: left;
   cursor: pointer;
@@ -647,4 +650,4 @@
   .sysdetail .sd-detail:active { transform: none; }
 }
 
-.sd-gpu-name { display: flex; align-items: center; min-height: 20px; margin: 0 0 8px; font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: 16px; font-weight: 600; color: var(--text-secondary); overflow-wrap: anywhere; }
+.sd-gpu-name { display: flex; align-items: center; min-height: 20px; margin: 0 0 8px; font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: calc(16px + var(--ui-text-increase, 0px)); font-weight: 600; color: var(--text-secondary); overflow-wrap: anywhere; }
