@@ -1,9 +1,10 @@
 // What a phone opens by itself when the deck loads.
 //
 // Each panel's open flag is restored from the browser (use-right-panels.ts,
-// use-left-column.ts), and a first run opens Accounts, Usage and the machine
-// panel. Beside a canvas that is the layout the deck was drawn for. Under 641px
-// nothing is beside anything: the left column is a drawer over the canvas
+// use-left-column.ts); a first run opens none of them, and a reader may leave
+// Accounts, Usage and the machine panel all open. Beside a canvas that is a
+// layout the deck was drawn for. Under 641px nothing is beside anything: the
+// left column is a drawer over the canvas
 // (left-column.css), Usage takes the top of the screen and the machine panel
 // its foot (machine-panel.css). A 390px load opened all three, the accounts
 // drawer over Usage and both sheets over the canvas, with no part of the board

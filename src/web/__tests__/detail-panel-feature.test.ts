@@ -89,6 +89,9 @@ afterEach(() => { vi.unstubAllGlobals(); });
 describe("the detail panel's feature", () => {
   it("is not said on a load with the flag stored open and nothing selected", async () => {
     stored["agent-dag.detailOpen"] = "1";
+    // Left open by the reader: a first run opens neither (CHANGED ON PURPOSE, 2026-11-11).
+    stored["agent-dag.usagePanelOpen"] = "1";
+    stored["agent-dag.systemPanelOpen"] = "1";
     const { useRightPanels } = await import("../use-right-panels");
     const deck = hooks.mount(() => useRightPanels());
 

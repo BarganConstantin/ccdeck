@@ -1,12 +1,15 @@
 import { createRoot } from "react-dom/client";
 import App from "./App";
-import { pruneStaleState } from "./storage";
+import { pruneStaleState, settlePanelDefaults } from "./storage";
 import { installInputModality } from "./input-modality";
 import { applyDocumentLanguage } from "./i18n";
 import { startLanguageReport } from "./report-language";
 import "reactflow/dist/style.css";
 import "./styles.css";
 
+// The panel flags a first run used to open, settled before App reads them, and
+// before the prune below stamps the schema key that tells an earlier load apart.
+try { settlePanelDefaults(window.localStorage); } catch { /* private mode */ }
 // Before anything reads it: App restores the layout and viewport inside useState
 // initialisers, so state written by an incompatible version has to be gone by
 // the time the component exists.

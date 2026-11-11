@@ -323,8 +323,8 @@ export function railItems({
   }));
   return {
     // Accounts first, at the top of the stripe and the start of the dock: the
-    // owner's call (2026-10-08), the panel a first run opens and the one read
-    // before choosing where to start a session.
+    // owner's call (2026-10-08), the panel read before choosing where to start
+    // a session.
     left: providers.claude ? [accounts, sessionList] : providers.codex ? [codex, sessionList] : [sessionList],
     codexDoor: providers.claude && providers.codex ? [codex] : [],
     // The owner's order (2026-10-22): Accounts, Account capacity, Reset

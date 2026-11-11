@@ -13,7 +13,10 @@ vi.mock("react", async () => (await import("./fake-react")).react);
 
 let store: Map<string, string>;
 beforeEach(() => {
-  store = new Map();
+  // CHANGED ON PURPOSE (owner, 2026-11-11): a fresh profile opens no panel now,
+  // so the column these cases start from, Accounts open, is a reader's choice
+  // on record. A case about an empty column stores "0" over it.
+  store = new Map([["agent-dag.accountsPanelOpen", "1"]]);
   (globalThis as Record<string, unknown>).window = {
     innerWidth: 1440,
     matchMedia: () => ({ matches: false }),
@@ -39,7 +42,7 @@ const setup = (props: Props) => {
   return { view, col, go: (next: Partial<Props>) => view.rerender({ ...props, ...next }) };
 };
 
-describe("entering Workspace at 1440 on a fresh profile (accounts open)", () => {
+describe("entering Workspace at 1440 with Accounts left open", () => {
   it("shows the Sessions list, and leaving shows accounts again", () => {
     const { col, go } = setup({ workspace: false, wide: true });
     expect(col().panel).toBe("accounts");

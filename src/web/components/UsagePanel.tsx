@@ -303,10 +303,10 @@ export default function UsagePanel({ state, now, providers, incidents = [], leav
 
   const anyLoading = quotaLoading || codexLoading;
 
-  // The header's ↻ means "everything on this panel", and the range is now part
-  // of everything. `refresh=1` on that path is what forces a new ccusage child
-  // rather than the 2-minute cached reading — a manual press is the one moment
-  // paying for a fresh run is right.
+  // The foot's Refresh means "everything on this panel": both quotas and the
+  // period's figures, the panel's one way to try again. `refresh=1` on that
+  // path is what forces a new ccusage child rather than the 2-minute cached
+  // reading — a manual press is the one moment paying for a fresh run is right.
   const refreshAll = () => { refreshQuota(); refreshCodex(); setRangeRefresh(n => n + 1); };
 
   // One string, used as both the ↻'s tooltip and its accessible name (#381).
@@ -411,13 +411,10 @@ export default function UsagePanel({ state, now, providers, incidents = [], leav
       ) : !fromRange ? (
         // Nothing from the logs: still reading (blank for the first short
         // wait), or the read came back empty-handed. No board figure stands
-        // in for it. "Press Refresh" only where the Refresh below is drawn:
-        // it is gone on a deck with neither CLI (see .up-acts).
+        // in for it. Said once; the Refresh at the foot is the way to try
+        // again, so no line here points at it (owner, 2026-11-11).
         readFailed && (
-          <div className="up-empty">
-            {t("usage.period.unread", { period: periodWord })}
-            {(providers.claude || providers.codex) && <><br />{t("usage.period.unreadRetry")}</>}
-          </div>
+          <div className="up-empty">{t("usage.period.unread", { period: periodWord })}</div>
         )
       ) : totalTokenSum > 0 && (
         <>

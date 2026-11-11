@@ -50,8 +50,10 @@ describe("the first view of a connected account", () => {
     expect(posts).toHaveLength(1);
     expect(posts[0].path).toBe("/api/account/ui");
     expect(posts[0].body.reason).toBe("initial");
-    // Nothing stored for density reads as Compact, the density the page draws.
-    expect(posts[0].body.values).toMatchObject({ theme: "light", sound: false, textSize: "default", density: "compact", "panels.accounts": true });
+    // Nothing stored for density reads as Compact, the density the page draws,
+    // and nothing stored for Accounts as shut (a first run opens no panel since
+    // 2026-11-11, CHANGED ON PURPOSE).
+    expect(posts[0].body.values).toMatchObject({ theme: "light", sound: false, textSize: "default", density: "compact", "panels.accounts": false });
     expect(Object.keys(posts[0].body.values)).toHaveLength(UI_FIELDS.length);
   });
 

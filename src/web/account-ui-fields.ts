@@ -42,10 +42,10 @@ export const UI_FIELDS: readonly UiField[] = [
   // this file imports nothing (the mirror test holds the two together).
   { key: "density", kind: "choice", choices: DENSITIES, storage: "agent-dag.density", fallback: "compact" },
   { key: "panels.sessionList", kind: "bool", storage: "agent-dag.sessionListOpen", fallback: false },
-  { key: "panels.accounts", kind: "bool", storage: "agent-dag.accountsPanelOpen", fallback: true },
+  { key: "panels.accounts", kind: "bool", storage: "agent-dag.accountsPanelOpen", fallback: false },
   { key: "panels.detail", kind: "bool", storage: "agent-dag.detailOpen", fallback: false },
-  { key: "panels.usage", kind: "bool", storage: "agent-dag.usagePanelOpen", fallback: true },
-  { key: "panels.machine", kind: "bool", storage: "agent-dag.systemPanelOpen", fallback: true },
+  { key: "panels.usage", kind: "bool", storage: "agent-dag.usagePanelOpen", fallback: false },
+  { key: "panels.machine", kind: "bool", storage: "agent-dag.systemPanelOpen", fallback: false },
   { key: "singleKeyShortcuts", kind: "bool", storage: "agent-dag.single-key-shortcuts", fallback: true },
   { key: "hideFinishedAfter", kind: "minutes", choices: HIDE_FINISHED_CHOICES, storage: "agent-dag.hide-finished-after", fallback: 0 },
   { key: "character", kind: "bool", storage: "agent-dag.character-enabled", fallback: true },

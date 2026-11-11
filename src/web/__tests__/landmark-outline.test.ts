@@ -686,7 +686,7 @@ describe("no control is named by its title attribute alone (#381)", () => {
     // The sentence is usage-panel-rules.ts's since it left the render, so it is
     // asked for rather than matched, and the panel is checked to use it.
     expect(code(usage)).toContain("const refreshLabel = quotaRefreshLabel(providers, t);");
-    expect(quotaRefreshLabel({ kind: "reported", claude: true, codex: true })).toBe("Refresh Claude + Codex quota");
+    expect(quotaRefreshLabel({ kind: "reported", claude: true, codex: true })).toBe("Refresh Claude + Codex quota and usage");
   });
 
   it("names the + and keeps its longer tooltip as the hint", () => {

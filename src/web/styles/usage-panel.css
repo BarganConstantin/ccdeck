@@ -637,6 +637,34 @@ button.qb-pace::after {
    9 between the sentence and its hint. */
 .up-section-title[data-down] { margin-bottom: 12px; }
 .up-quota-na > .up-quota-down + .up-quota-hint { margin-top: 9px; }
+/* WHY IT IS DOWN (QuotaSections.tsx). With a mouse: an info mark beside the
+   line, the reason its hover hint and still read out where it stands. Without
+   one: the reason under the line, and no mark. A 24 target round the 14 icon,
+   held to the line's 20. */
+.up-quota-why { display: none; }
+@media (hover: hover) and (pointer: fine) {
+  .up-quota-why {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    margin: -2px 0 -2px 2px;
+    vertical-align: middle;
+    border-radius: var(--r-ctl);
+    color: var(--muted);
+    cursor: help;
+  }
+  .up-quota-why:hover { color: var(--text); }
+  .up-quota-na > .up-quota-hint {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+}
 .up-section-title[data-down] .up-section-age { margin-left: auto; }
 .up-section-title[data-down] .up-section-age::before { content: none; }
 /* A partial reading's note: a box on --ctl-fill, --r-panel, padding 6 8, 400
