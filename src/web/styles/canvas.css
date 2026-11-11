@@ -124,71 +124,47 @@
   .react-flow__node.dragging .agent-node { transition: none; }
 }
 
-/* Auto-fit is off (#820): said on the canvas, bottom centre, clear of the
-   filter bar above and the controls and minimap in the corners. A status and
-   an action in one small strip, on the surface and edge the canvas's other
-   instruments wear (the control stack, the minimap, the filter bar): the words
-   say the state in --muted and are not a control, and Resume is the only
-   thing that presses. It used to be one pill-shaped button with the action in
-   the accent, which read as a call to action floating over the sessions.
-   Centred by auto margins, not a translate. */
+/* Fit all (#820), while auto-fit is off: one quiet button on the canvas, on
+   the surface and edge the canvas's other instruments wear (the control stack,
+   the minimap, the re-arrange strip). The canvas controls' recenter glyph in
+   --muted, then the word in the secondary ink; the pointer lifts both. It
+   used to be a status and an action ("Auto-fit off · Resume"), which named a
+   mechanism instead of what the press does. Centred by auto margins, and
+   pressed with `scale`, not `transform`: the notices row sets
+   `transform: none` on it. */
 .autofit-chip {
   position: absolute;
   left: 0;
   right: 0;
   bottom: 14px;
   z-index: 6;
-  /* V4's auto-fit chip: 24 tall, the control radius on --panel, a --line-soft
-     edge, 8px between the status and the action. Its padding is V4's 4 and 10
-     less the 1px edge, which Figma draws inside the box. */
+  /* 24 tall, the control radius on --panel, a --line-soft edge, 6px between
+     the glyph and the word. Padding is 8 and 10 less the 1px edge. */
   box-sizing: border-box;
   height: 24px;
   width: max-content;
   margin: 0 auto;
   display: inline-flex;
   align-items: center;
-  gap: 8px;
-  padding: 3px 3px 3px calc(10px - 1px);
+  gap: 6px;
+  padding: 0 calc(10px - 1px) 0 calc(8px - 1px);
   border: 1px solid var(--line-soft);
   border-radius: var(--r-ctl);
   background: var(--panel);
   color: var(--text-secondary);
+  font: inherit;
   font-size: calc(12px + var(--ui-text-increase, 0px));
   line-height: calc(16px + var(--ui-text-increase, 0px));
-}
-/* The action: a quiet text button in the accent, the word alone and 16 tall as
-   V4 draws it. Its 24px target, and the wash under a mouse, are ::after, so
-   the strip does not grow. */
-.autofit-resume {
-  position: relative;
-  z-index: 0;
-  height: 16px;
-  padding: 0;
-  border: none;
-  border-radius: var(--r-tag);
-  background: transparent;
-  color: var(--accent);
-  font: inherit;
-  font-weight: 500;
-  line-height: calc(16px + var(--ui-text-increase, 0px));
+  white-space: nowrap;
   cursor: pointer;
-  transition: background var(--dur-fast) var(--ease), transform var(--dur-fast) var(--ease);
+  transition: background var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease), scale var(--dur-fast) var(--ease);
 }
-.autofit-resume::after {
-  content: "";
-  position: absolute;
-  z-index: -1;
-  inset: -4px -4px;
-  border-radius: var(--r-tag);
-  transition: background var(--dur-fast) var(--ease);
-}
+.autofit-chip svg { flex: none; color: var(--muted); }
 @media (hover: hover) and (pointer: fine) {
-.autofit-resume:hover::after { background: var(--ctl-fill); }
+.autofit-chip:hover { background: color-mix(in srgb, var(--text) 8%, var(--panel)); color: var(--text); }
+.autofit-chip:hover svg { color: var(--text); }
 }
-/* The status stays one phrase, never broken across two lines of a strip this
-   small. */
-.autofit-state { white-space: nowrap; }
-.autofit-resume:active { transform: scale(var(--press)); }
+.autofit-chip:active { scale: var(--press); }
 
 /* Re-arrange's way back (rearrange-undo.ts): for a few seconds after R the
    canvas offers the board it replaced. The auto-fit chip's strip, because it
@@ -334,10 +310,10 @@
   }
 }
 
-/* The tool legend over the canvas — a dot and a word per tool category on the
-   board, each a toggle that shows or hides that category's calls when the
-   canvas gets busy. Only appears when ≥2 categories are present, so a
-   single-tool session stays uncluttered. */
+/* The tool filter over the canvas (CategoryFilterBar.tsx): one "Tools" button
+   whose menu shows or hides each category's calls when the canvas gets busy.
+   Only appears when ≥2 categories are present, so a single-tool session stays
+   uncluttered. */
 .cat-filter-bar {
   position: absolute;
   /* Under the board header when there is one (board-header.css). */
@@ -346,21 +322,13 @@
   z-index: 6;
   display: flex;
   align-items: center;
-  /* WRAPS, AND STAYS INSIDE THE CANVAS (#848). It was one row with no limit,
-     inside a canvas that clips: at 640px — a 1280 laptop at 200% zoom — "mcp"
-     and "other" sat past the edge, cut off, and a keyboard reader's focus went
-     to chips nobody could see. The limit keeps every item inside the canvas.
-     Under 600px wide the legend folds into one button anyway (the Tools menu
-     below); the wrap is for a canvas squeezed by the columns beside it.
-     The radius is a surface's, not a half-height capsule: when something
-     drifts under the legend it takes a bed (add-account.css), and that bed is
-     a small panel that still reads as one on two rows. */
+  /* STAYS INSIDE THE CANVAS (#848): the canvas clips, and a control past its
+     edge is one a keyboard reader's focus lands on unseen. The radius is a
+     surface's: when something drifts under the button the bar takes a bed
+     (add-account.css). */
   flex-wrap: wrap;
   max-width: calc(100% - 28px);
-  /* V4's legend: no box, no edge, no fill, the items 2px apart on the canvas
-     itself. The six outlined pills in a bordered slab were a second frame on
-     the canvas, every pill in the accent at once; a legend is quieter than
-     the board it keys, and the canvas stays the loudest thing. */
+  /* No box, no edge, no fill of its own: the button is the only thing drawn. */
   gap: 2px;
   padding: 0;
   background: none;
@@ -368,104 +336,10 @@
   border-radius: var(--r-ctl);
   box-shadow: none;
 }
-/* V4's legend item: 24 tall (the small control, 26 at Default), an 8px dot in
-   the category's own colour 6px in from the left, 6px, then the 12/16 word in
-   the secondary ink, 8px to the right. No fill and no stroke at rest: the
-   pointer's pill and the keyboard's ring (the global one, which follows the
-   item's round radius) are the only boxes it ever draws. */
-.cat-filter {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  box-sizing: border-box;
-  height: var(--ctl-h-sm);
-  padding: 0 8px 0 6px;
-  border-radius: var(--r-pill);
-  border: 0;
-  background: none;
-  color: var(--text-secondary);
-  font: inherit;
-  font-size: calc(12px + var(--ui-text-increase, 0px));
-  line-height: calc(16px + var(--ui-text-increase, 0px));
-  cursor: pointer;
-  transition: background var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease),
-              transform var(--dur-fast) var(--ease);
-}
-.cat-filter .cat-dot {
-  flex: none;
-  box-sizing: border-box;
-  width: 8px;
-  height: 8px;
-  border-radius: var(--r-pill);
-  background: var(--cat-other);
-}
-.cat-filter.cat-file .cat-dot { background: var(--cat-file); }
-.cat-filter.cat-shell .cat-dot { background: var(--cat-shell); }
-.cat-filter.cat-web .cat-dot { background: var(--cat-web); }
-.cat-filter.cat-agent .cat-dot { background: var(--cat-agent); }
-.cat-filter.cat-task .cat-dot { background: var(--cat-task); }
-.cat-filter.cat-plan .cat-dot { background: var(--cat-plan); }
-.cat-filter.cat-mcp .cat-dot { background: var(--cat-mcp); }
-.cat-filter .cat-name { text-transform: lowercase; }
-/* A hidden category: the dot goes hollow and the word steps down to --text-dim.
-   THE SHAPE CHANGES, NOT ONLY THE COLOUR. --text-secondary against --text-dim
-   is well under 3:1 in both themes, so a reader who cannot separate those two
-   greys — or is looking at a screen in sunlight — would have a legend whose
-   job is to say what the canvas is NOT showing and no way to read it. A filled
-   disc against a ring is geometry, not hue: it survives greyscale and every
-   CVD, the channel the strike through the old pill's name used to be.
-   Never opacity. `opacity: 0.38` once faded the whole chip, its label
-   included, to 1.72:1 in dark and 1.87:1 on white — so the one item you could
-   not read was the one you click to bring a category back, which is not the
-   inactive control 1.4.3 excuses. --text-dim clears 4.5:1 on the canvas in
-   both themes (quiet-signals.test.ts), and the ring is the same ink at 1.5px,
-   drawn as a border so a Windows Contrast theme keeps it. */
-.cat-filter.off { color: var(--text-dim); }
-.cat-filter.off .cat-dot {
-  background: transparent;
-  border: 1.5px solid var(--text-dim);
-}
-/* The pointer's pill: 8% of the foreground behind the item, and the word lifts
-   to --text — on a hidden item too, whose ring still says it is hidden. After
-   `.off`, so the lift outranks the dim tier at the same weight. */
-@media (hover: hover) and (pointer: fine) {
-.cat-filter:hover { background: var(--ctl-fill); color: var(--text); }
-}
-.cat-filter:active { transform: scale(var(--press)); }
-/* "Show all", only while something is hidden: a 1px --line-soft rule 14 high,
-   then a word in the accent, padded like an item so the pointer's pill is the
-   same shape. It shows every category again. */
-.cat-filter-sep {
-  flex: none;
-  width: 1px;
-  height: 14px;
-  background: var(--line-soft);
-}
-.cat-filter-all {
-  display: inline-flex;
-  align-items: center;
-  box-sizing: border-box;
-  height: var(--ctl-h-sm);
-  padding: 0 8px;
-  border: 0;
-  border-radius: var(--r-pill);
-  background: none;
-  color: var(--accent);
-  font: inherit;
-  font-size: calc(12px + var(--ui-text-increase, 0px));
-  line-height: calc(16px + var(--ui-text-increase, 0px));
-  cursor: pointer;
-  transition: background var(--dur-fast) var(--ease), transform var(--dur-fast) var(--ease);
-}
-@media (hover: hover) and (pointer: fine) {
-.cat-filter-all:hover { background: var(--ctl-fill); }
-}
-.cat-filter-all:active { transform: scale(var(--press)); }
-/* THE FOLDED LEGEND, under 600px wide (CategoryFilterBar.tsx): one round
-   button on the control fill, 28 tall at Compact — "Tools" in the secondary
-   ink, how many of the categories show in the muted mono, a chevron — and the
-   same toggles as checkboxes in the kit's menu under it. One button wide at
-   390 and at 320, so nothing on the canvas scrolls sideways. */
+/* The button, the same at every width: round on the control fill, 28 tall at
+   Compact — "Tools" in the secondary ink, how many categories show in the muted
+   mono while some are hidden, a chevron. One button wide at 390 and at 320, so
+   nothing on the canvas scrolls sideways. */
 .cat-filter-tools {
   display: inline-flex;
   align-items: center;
@@ -496,8 +370,11 @@
 }
 .cat-filter-tools:active { transform: scale(var(--press)); }
 /* The menu's rows are the kit's menu item, each a label around the kit's
-   checkbox, the category's dot and its word; a hidden one wears the legend's
-   hollow dot and dim word. "Show all" is a row in the accent under a rule. */
+   checkbox, the category's dot and its word. A hidden category: the box is
+   unticked, the dot goes hollow and the word steps down to --text-dim — a tick
+   and a shape, not only a colour, and never opacity, which faded the word under
+   4.5:1 (#368). The ring is a border, so a Windows Contrast theme keeps it.
+   "Show all" is a row in the accent under a rule. */
 .cat-tools-item .cat-dot {
   flex: none;
   box-sizing: border-box;
@@ -518,6 +395,11 @@
 .cat-tools-item.off .cat-dot {
   background: transparent;
   border: 1.5px solid var(--text-dim);
+}
+/* Under the pointer the row takes the menu's --selected bed, where --text-dim
+   is 3.95:1 in dark; the word lifts a tier, and the ring still says hidden. */
+@media (hover: hover) and (pointer: fine) {
+.cat-tools-item.off:hover { color: var(--text-secondary); }
 }
 .ap-menu-item.cat-tools-all { color: var(--accent); }
 

@@ -154,8 +154,6 @@ const catalog: Catalog = {
   "board.cat.mcp": "mcp",
   "board.cat.other": "기타",
   "board.cat.filter": "카테고리별 도구 필터",
-  "board.cat.show": "{cat} 도구 표시",
-  "board.cat.hide": "{cat} 도구 숨기기",
   "board.cat.showAll": "모두 표시",
   "board.cat.tools": "도구",
   "board.cat.count": "{total}개 중 {shown}개",

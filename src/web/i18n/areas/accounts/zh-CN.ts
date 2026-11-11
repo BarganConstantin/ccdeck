@@ -3,11 +3,8 @@ import type { Catalog } from "../../catalogs";
 
 const catalog: Catalog = {
   "accounts.sort.by": "按“{label}”排序",
-  "accounts.autoFit.offTip": "您自行移动画布时，新会话不会自动移入视野",
-  "accounts.autoFit.off": "自动适应视图已关闭",
-  "accounts.autoFit.resumeTip": "再次将新会话移入视野",
-  "accounts.autoFit.resumeLabel": "恢复自动适应视图",
-  "accounts.autoFit.resume": "恢复",
+  "accounts.autoFit.fitAll": "全部显示",
+  "accounts.autoFit.fitAllTip": "让所有会话重新显示在屏幕内",
   "accounts.projLoading.title": "正在读取项目活动",
   "accounts.projLoading.note": "正在按项目汇总此账号的工作…",
   "accounts.telemetry.label": "{name} 的组织遥测",

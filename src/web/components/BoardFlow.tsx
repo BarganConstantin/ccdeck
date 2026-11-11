@@ -1,7 +1,7 @@
 // The board React Flow draws: the nodes and edges it is handed and the terms
 // it is handed them on — no edge a keyboard stop, a drag threshold, the zoom
 // range, the opening fit — and what shares its pane: the grid, the session
-// labels, the tool bubbles, the auto-fit chip, the command stack, the minimap
+// labels, the tool bubbles, Fit all, the command stack, the minimap
 // and Claude FM.
 //
 // Moved out of App.tsx's markup unchanged, with nodeTypes, edgeTypes and the
@@ -180,11 +180,8 @@ export default function BoardFlow({
       />
       {/* The state the recenter tint used to be the only sign of (#820).
           While the reader's own pan or zoom holds the view, new sessions
-          can land off-screen; this says so on the canvas they would be
-          looked for on, with the way back in the same place. */}
-      {/* A status and an action, not one big button. The words say what
-          the state is and are not a control; Resume is the one thing here
-          that can be pressed, and it does what the whole chip used to. */}
+          can land off-screen; Fit all is the way back, on the canvas they
+          would be looked for on. */}
       <div className="canvas-notices">
         {autoFitDisabled && <AutoFitChip enableAutoFitAndRefit={enableAutoFitAndRefit} />}
         {/* Re-arrange's way back, for a few seconds after R — beside the

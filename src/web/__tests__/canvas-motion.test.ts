@@ -397,10 +397,8 @@ const PRESSES: Press[] = [
   // The sign-in's "Paste a code, if the page shows one" disclosure: a
   // sentence that opens the code field. A labelled control, so 0.97.
   [".aa-code > summary:active", "0.97", "transform"],
-  [".cat-filter:active", "0.97", "transform"],
-  // The tool legend's "Show all" and, under 600px wide, the one button the
-  // legend folds into: labelled controls, so 0.97.
-  [".cat-filter-all:active", "0.97", "transform"],
+  // CHANGED ON PURPOSE: the tool legend's items and its "Show all" are gone;
+  // the one "Tools" button stands at every width. A labelled control, so 0.97.
   [".cat-filter-tools:active", "0.97", "transform"],
   [".ctx-donut:active", "0.94", "transform"],
   [".uh-range-btn:active", "0.97", "transform"],
@@ -441,9 +439,11 @@ const PRESSES: Press[] = [
   // 0.97 like every other labelled control rather than the 0.94 the round
   // glyphs take.
   [".aa-result-fix:active", "0.97", "transform"],
-  // #820's Resume, the one pressable part of the auto-fit strip. A labelled
-  // control, so 0.97 like every other one.
-  [".autofit-resume:active", "0.97", "transform"],
+  // #820's way back, "Fit all": a labelled control, so 0.97 like every other
+  // one. CHANGED ON PURPOSE: it was Resume, inside a strip; the whole chip is
+  // the button now, and it presses with `scale` because the notices row sets
+  // `transform: none` on it.
+  [".autofit-chip:active", "0.97", "scale"],
   // Re-arrange's Undo, the one pressable part of its strip, and Resume's twin
   // beside it. A labelled control, so 0.97.
   [".rearrange-undo-act:active", "0.97", "transform"],

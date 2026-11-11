@@ -3,11 +3,8 @@ import type { Catalog } from "../../catalogs";
 
 const catalog: Catalog = {
   "accounts.sort.by": "Ordenar por {label}",
-  "accounts.autoFit.offTip": "As novas sessões não são trazidas à vista enquanto você mesmo move a tela",
-  "accounts.autoFit.off": "Ajuste automático desativado",
-  "accounts.autoFit.resumeTip": "Voltar a trazer as novas sessões à vista",
-  "accounts.autoFit.resumeLabel": "Retomar ajuste automático",
-  "accounts.autoFit.resume": "Retomar",
+  "accounts.autoFit.fitAll": "Ajustar tudo",
+  "accounts.autoFit.fitAllTip": "Mostrar de novo todas as sessões na tela",
   "accounts.projLoading.title": "Lendo a atividade dos projetos",
   "accounts.projLoading.note": "Reunindo o trabalho desta conta por projeto…",
   "accounts.telemetry.label": "Telemetria da organização para {name}",

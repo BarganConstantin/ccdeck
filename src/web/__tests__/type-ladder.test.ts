@@ -466,10 +466,10 @@ describe("one token per dimming decision, and two decisions (#379 §2)", () => {
     // The opacity table lists `.cat-filter.off { opacity: 0.38 }`. It is not
     // there to fix: #368 dropped the fade entirely and carries "off" on the
     // colour tier, a greyed emoji and #370's strike-through instead.
-    expect(decl(".cat-filter.off", "opacity")).toBeNull();
-    // CHANGED ON PURPOSE (V4's legend): a hidden item's word is --text-dim, and
-    // its dot goes hollow; still no fade.
-    expect(decl(".cat-filter.off", "color")).toBe("var(--text-dim)");
+    // CHANGED ON PURPOSE: the legend's items are gone; a hidden category is a
+    // row of the Tools menu, its word --text-dim and its dot hollow; still no fade.
+    expect(decl(".cat-tools-item.off", "opacity")).toBeNull();
+    expect(decl(".cat-tools-item.off", "color")).toBe("var(--text-dim)");
     expect(css).not.toMatch(/opacity:\s*0\.38/);
   });
 

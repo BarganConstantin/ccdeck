@@ -3,11 +3,8 @@ import type { Catalog } from "../../catalogs";
 
 const catalog: Catalog = {
   "accounts.sort.by": "{label}で並べ替え",
-  "accounts.autoFit.offTip": "自分で動かしている間は、新しいセッションを表示範囲に入れません",
-  "accounts.autoFit.off": "自動フィットはオフ",
-  "accounts.autoFit.resumeTip": "新しいセッションを再び表示範囲に入れる",
-  "accounts.autoFit.resumeLabel": "自動フィットを再開",
-  "accounts.autoFit.resume": "再開",
+  "accounts.autoFit.fitAll": "全体を表示",
+  "accounts.autoFit.fitAllTip": "すべてのセッションをもう一度画面に収めます",
   "accounts.projLoading.title": "プロジェクトの作業を読み込み中",
   "accounts.projLoading.note": "このアカウントの作業をプロジェクト別に集計しています…",
   "accounts.telemetry.label": "{name} の組織テレメトリ",

@@ -546,7 +546,7 @@ const catalog: Catalog = {
   "insights.context.codex.uncounted": "Codex는 집계되지 않습니다. ccdeck는 롤아웃 파일에서 세션을 재구성하며 연결되기 전에 기록된 내용은 건너뛰므로, 여기서 메시지와 도구 호출 내역을 보여 주면 알 수 없는 만큼 모자랄 것입니다. 위의 컨텍스트 창 수치는 CLI 자체의 값이므로 영향이 없습니다.",
   "insights.context.codex.memory": "적용 범위의 AGENTS.md 파일",
   "insights.context.codex.memoryEmpty": "cwd에서 파일 시스템 루트까지의 경로와 $CODEX_HOME에서 AGENTS.md 파일을 찾지 못했습니다.",
-  "insights.context.claude.subtitle": "근사치 — CC의 /context는 훅으로 노출되지 않음",
+  "insights.context.claude.subtitle": "트랜스크립트에서 추정한 값입니다.",
   "insights.context.claude.scope": "현재 턴",
   "insights.context.claude.memory": "적용 범위의 CLAUDE.md 파일",
   "insights.context.claude.memoryEmpty": "cwd에서 ~/.claude까지의 경로에서 CLAUDE.md 파일을 찾지 못했습니다.",

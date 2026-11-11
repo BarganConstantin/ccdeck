@@ -3,11 +3,8 @@ import type { Catalog } from "../../catalogs";
 
 const catalog: Catalog = {
   "accounts.sort.by": "Sort by {label}",
-  "accounts.autoFit.offTip": "New sessions are not brought into view while you are moving it yourself",
-  "accounts.autoFit.off": "Auto-fit off",
-  "accounts.autoFit.resumeTip": "Bring new sessions into view again",
-  "accounts.autoFit.resumeLabel": "Resume auto-fit",
-  "accounts.autoFit.resume": "Resume",
+  "accounts.autoFit.fitAll": "Fit all",
+  "accounts.autoFit.fitAllTip": "Fit every session on screen again",
   "accounts.projLoading.title": "Reading project activity",
   "accounts.projLoading.note": "Gathering this account’s work by project…",
   "accounts.telemetry.label": "Organization telemetry for {name}",

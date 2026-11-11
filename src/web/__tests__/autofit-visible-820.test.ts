@@ -6,11 +6,17 @@
 //
 // A pan is a decision about this look at the board, not a setting: the flag is
 // no longer stored, the key older builds wrote is cleared, and while it is off
-// the canvas shows "Auto-fit off · Resume" with the way back in the same pill.
+// the canvas shows the way back: one "Fit all" button.
 import { describe, it, expect } from "vitest";
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
+import AutoFitChip from "../components/AutoFitChip";
+import { KitIcon } from "../components/kit-icons";
 import { sheetText } from "./sheet-source";
+
+const LANGS = ["en", "ro", "de", "fr", "es", "pt-BR", "ja", "ko", "zh-CN", "zh-TW"];
 
 const read = (rel: string) => readFileSync(fileURLToPath(new URL(rel, import.meta.url)), "utf8");
 const app = read("../App.tsx");
@@ -38,20 +44,46 @@ describe("auto-fit off is a moment, not a setting (#820)", () => {
   });
 });
 
-describe("the canvas says when auto-fit is off (#820)", () => {
-  it("shows a status and an action while it is off, and resumes from the action", () => {
-    // Not one big button any more: the words say the state and are not a
-    // control, and Resume does what the whole chip used to.
+describe("the canvas offers Fit all while auto-fit is off (#820)", () => {
+  // CHANGED ON PURPOSE: "Auto-fit off · Resume" named a mechanism. It is one
+  // quiet button now, "Fit all" with the canvas controls' recenter glyph, that
+  // does what Resume did: fit the board and turn auto-fit back on.
+  const chipSrc = read("../components/AutoFitChip.tsx");
+  const html = renderToStaticMarkup(createElement(AutoFitChip, { enableAutoFitAndRefit: () => {} }));
+
+  it("is mounted only while auto-fit is off, and resumes it when pressed", () => {
     // Three links: App.tsx hands BoardFlow the switch, BoardFlow mounts the
-    // chip only while auto-fit is off, and the chip is components/AutoFitChip.tsx.
-    const chip = read("../components/AutoFitChip.tsx");
+    // button only while auto-fit is off, and the button is components/AutoFitChip.tsx.
     const board = read("../components/BoardFlow.tsx");
     expect(app).toMatch(/<BoardFlow\b[^>]*\bautoFit=\{autoFit\}/);
     expect(board).toMatch(/\{autoFitDisabled && <AutoFitChip enableAutoFitAndRefit=\{enableAutoFitAndRefit\} \/>\}/);
-    expect(chip).toMatch(/return \(\s*<div className="autofit-chip">/);
-    expect(chip).toMatch(/<span className="autofit-state"[^>]*>\s*\{t\("accounts\.autoFit\.off"\)\}\s*<\/span>/);
-    expect(chip).toMatch(/<button\s+type="button"\s+className="autofit-resume"\s+onClick=\{enableAutoFitAndRefit\}/);
-    expect(chip).toMatch(/aria-label=\{t\("accounts\.autoFit\.resumeLabel"\)\}/);
+    expect(chipSrc).toMatch(/<button\s+type="button"\s+className="autofit-chip"\s+onClick=\{enableAutoFitAndRefit\}/);
+  });
+
+  it("is one button that says Fit all, with its hint, and no status words beside it", () => {
+    expect(html).toMatch(/^<button type="button" class="autofit-chip" title="Fit every session on screen again"><svg[^>]*>[\s\S]*<\/svg>Fit all<\/button>$/);
+    // Named by its word, so no aria-label of its own.
+    expect(html).not.toContain("aria-label");
+    expect(html).not.toMatch(/Auto-fit|Resume|autofit-state|autofit-resume/);
+  });
+
+  it("wears the same glyph the canvas controls fit and recenter with", () => {
+    expect(chipSrc).toContain('<KitIcon name="recenter" />');
+    expect(read("../components/CanvasControls.tsx")).toContain('<KitIcon name="recenter" />');
+    expect(html).toContain(renderToStaticMarkup(createElement(KitIcon, { name: "recenter" })));
+  });
+
+  it("says Fit all in all ten languages, and the old words are gone", () => {
+    for (const lang of LANGS) {
+      const src = read(`../i18n/areas/accounts/${lang}.ts`);
+      expect(src, lang).toMatch(/"accounts\.autoFit\.fitAll": "[^"]+"/);
+      expect(src, lang).toMatch(/"accounts\.autoFit\.fitAllTip": "[^"]+"/);
+      expect(src, lang).not.toMatch(/"accounts\.autoFit\.(off|offTip|resume|resumeTip|resumeLabel)"/);
+      if (lang !== "en") expect(src, lang).not.toContain('"accounts.autoFit.fitAll": "Fit all"');
+    }
+    const en = read("../i18n/areas/accounts/en.ts");
+    expect(en).toContain('"accounts.autoFit.fitAll": "Fit all"');
+    expect(en).toContain('"accounts.autoFit.fitAllTip": "Fit every session on screen again"');
   });
 
   it("draws it on the canvas, clear of the corners, on the canvas chrome's surface", () => {
@@ -64,16 +96,28 @@ describe("the canvas says when auto-fit is off (#820)", () => {
     expect(chip).toMatch(/bottom:\s*14px/);
     // CHANGED ON PURPOSE (V4's Figma, Auto-fit chip): --panel with a --line-soft
     // edge in place of the chrome's translucent slab; the control radius stays;
-    // still no pill, no shadow, and no pointer on the container.
+    // still no pill and no shadow. CHANGED ON PURPOSE: the whole chip is the
+    // button now, so it takes the pointer.
     expect(chip).toMatch(/background:\s*var\(--panel\)/);
     expect(chip).toMatch(/border:\s*1px solid var\(--line-soft\)/);
     expect(chip).toMatch(/border-radius:\s*var\(--r-ctl\)/);
-    expect(chip).not.toMatch(/box-shadow|999px|cursor/);
+    expect(chip).not.toMatch(/box-shadow|999px/);
+    expect(chip).toMatch(/cursor:\s*pointer/);
   });
 
-  it("centres by margins, so the press on Resume is the only transform", () => {
+  it("is a 24px target, 32px under a fingertip", () => {
+    const chip = /(?:^|\n)\.autofit-chip\s*\{([^}]*)\}/.exec(css)?.[1] ?? "";
+    expect(chip).toMatch(/height:\s*24px/);
+    expect(chip).toMatch(/box-sizing:\s*border-box/);
+    expect(read("../styles/touch-and-forced-colours.css")).toMatch(/\.autofit-chip,\s*\.rearrange-undo-act \{ min-height: 32px; \}/);
+  });
+
+  it("centres by margins, and presses with scale, which the notices row leaves alone", () => {
     const chip = /(?:^|\n)\.autofit-chip\s*\{([^}]*)\}/.exec(css)?.[1] ?? "";
     expect(chip).not.toMatch(/transform:\s*translate/);
-    expect(css).toMatch(/\.autofit-resume:active\s*\{\s*transform:\s*scale\(var\(--press\)\);\s*\}/); // --press is .97 (V4's motion rules)
+    // `.canvas-notices .autofit-chip` sets `transform: none` at the same weight,
+    // later in the sheet, so a transform press would never show.
+    expect(css).toMatch(/\.autofit-chip:active\s*\{\s*scale:\s*var\(--press\);\s*\}/); // --press is .97 (V4's motion rules)
+    expect(chip).toMatch(/transition:[^;]*\bscale var\(--dur-fast\)/);
   });
 });

@@ -71,7 +71,7 @@
      with them. */
   .glyph-btn:active:not(:disabled):not(:focus-visible),
   .react-flow__controls-button:active:not(:disabled):not([aria-disabled="true"]):not(:focus-visible),
-  .cat-filter:active, .cat-filter-all:active, .cat-filter-tools:active, .uh-range-btn:active,
+  .cat-filter-tools:active, .uh-range-btn:active,
   .ver-banner .ver-copy:active,
   .ver-banner .ver-close:active,
   .topbar button.v:active,
@@ -89,7 +89,6 @@
   button.qb-pace:active,
   .aa-tab:active,
   .aa-result-fix:active,
-  .autofit-resume:active,
   .rearrange-undo-act:active,
   .bw-ep-head:active,
   /* The usage panel's one section that opens. Its chevron turns as well, and a
@@ -104,9 +103,10 @@
      the commands it runs in the detail panel (#2193). */
   .agent-node .stop-continue:active:not(:disabled), .detail-continue-how > summary:active,
   .bw-settings select:active:not(:disabled) { transform: none; }
-  /* One that cannot join the list above: the bubble's press is the independent
-     `scale` property, so `transform: none` never reaches it. */
-  .tool-burst.clickable:active { scale: none; }
+  /* Two that cannot join the list above: the bubble's press and Fit all's are
+     the independent `scale` property, so `transform: none` never reaches them. */
+  .tool-burst.clickable:active,
+  .autofit-chip:active { scale: none; }
   /* The chevron's rotation is a state, not an entrance: it still turns, it
      just stops travelling. `transform: none` would have frozen it pointing
      down over an open section, which is the one thing it must never do. */

@@ -154,8 +154,6 @@ const catalog: Catalog = {
   "board.cat.mcp": "mcp",
   "board.cat.other": "其他",
   "board.cat.filter": "按类别筛选工具",
-  "board.cat.show": "显示{cat}工具",
-  "board.cat.hide": "隐藏{cat}工具",
   "board.cat.showAll": "全部显示",
   "board.cat.tools": "工具",
   "board.cat.count": "{shown} / {total}",

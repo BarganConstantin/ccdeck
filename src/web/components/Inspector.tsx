@@ -24,6 +24,7 @@ import { contextFigure, contextFill } from "../context-figure";
 import type { AgentNodeData } from "../types";
 import { AgentCard } from "./AgentNode";
 import { ContextView } from "./ContextModal";
+import HoverHint from "./HoverHint";
 import InspectorTime from "./InspectorTime";
 import { KitIcon } from "./kit-icons";
 import { useT } from "../i18n";
@@ -149,16 +150,31 @@ export function EmptyInspector() {
   );
 }
 
-/** The head row every tab starts with: a title, what it is about, and a figure
- *  at the far end. */
-function InspectorHead({ title, qualifier, figure }: { title: string; qualifier?: string | null; figure?: string | null }) {
+/** The head row every tab starts with: a title, an info mark when the tab has
+ *  something to explain, what it is about, and a figure at the far end. */
+function InspectorHead({ title, info, qualifier, figure }: { title: string; info?: string; qualifier?: string | null; figure?: string | null }) {
   return (
     <div className="insp-head">
       <span className="insp-title">{title}</span>
+      {info && <InfoMark detail={info} />}
       {qualifier && <span className="insp-qual">{qualifier}</span>}
       <span className="insp-spacer" />
       {figure && <span className="insp-fig">{figure}</span>}
     </div>
+  );
+}
+
+/** The kit's info mark beside a tab's title, its sentence in the deck's hover
+ *  hint, as the account rows' marks carry theirs. It opens on hover and on
+ *  focus (a tap focuses it), and the sentence is also its name, so a screen
+ *  reader has it without opening anything. */
+function InfoMark({ detail }: { detail: string }) {
+  return (
+    <HoverHint className="ap-peek insp-hint" detail={detail}>
+      <span className="insp-info" role="img" aria-label={detail}>
+        <KitIcon name="info" />
+      </span>
+    </HoverHint>
   );
 }
 
@@ -179,13 +195,13 @@ function AgentsTab({ selected, agents, revision, onSelectAgent, detail }: {
     <>
       <InspectorHead
         title={tr("board.inspector.agents")}
+        info={tr("board.inspector.agentsNote")}
         qualifier={subagentCount(rows)}
         figure={rows.length > 0 ? sessionCostLabel(rows[0].agent) : null}
       />
       <ul className="insp-tree">
         {rows.map(row => <TreeItem key={row.agent.id} row={row} revision={revision} current={row.agent.id === selected.id} onSelectAgent={onSelectAgent} />)}
       </ul>
-      <p className="insp-note">{tr("board.inspector.agentsNote")}</p>
       <div className="insp-detail">{detail}</div>
     </>
   );

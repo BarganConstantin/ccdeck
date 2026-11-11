@@ -3,11 +3,8 @@ import type { Catalog } from "../../catalogs";
 
 const catalog: Catalog = {
   "accounts.sort.by": "{label} 기준으로 정렬",
-  "accounts.autoFit.offTip": "직접 보기를 움직이는 동안에는 새 세션을 화면에 맞추지 않습니다",
-  "accounts.autoFit.off": "자동 맞춤 꺼짐",
-  "accounts.autoFit.resumeTip": "새 세션을 다시 화면에 맞춥니다",
-  "accounts.autoFit.resumeLabel": "자동 맞춤 재개",
-  "accounts.autoFit.resume": "재개",
+  "accounts.autoFit.fitAll": "모두 맞춤",
+  "accounts.autoFit.fitAllTip": "모든 세션을 다시 화면에 맞춥니다",
   "accounts.projLoading.title": "프로젝트 활동 읽는 중",
   "accounts.projLoading.note": "이 계정의 작업을 프로젝트별로 모으는 중…",
   "accounts.telemetry.label": "{name}의 조직 텔레메트리",

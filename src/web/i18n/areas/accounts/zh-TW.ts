@@ -3,11 +3,8 @@ import type { Catalog } from "../../catalogs";
 
 const catalog: Catalog = {
   "accounts.sort.by": "依「{label}」排序",
-  "accounts.autoFit.offTip": "您自行移動畫布時，新工作階段不會自動移入視野",
-  "accounts.autoFit.off": "自動縮放已關閉",
-  "accounts.autoFit.resumeTip": "再次將新工作階段移入視野",
-  "accounts.autoFit.resumeLabel": "恢復自動縮放",
-  "accounts.autoFit.resume": "恢復",
+  "accounts.autoFit.fitAll": "全部顯示",
+  "accounts.autoFit.fitAllTip": "讓所有工作階段重新顯示在畫面內",
   "accounts.projLoading.title": "正在讀取專案活動",
   "accounts.projLoading.note": "正在依專案彙整此帳號的工作…",
   "accounts.telemetry.label": "{name} 的組織遙測",

@@ -184,8 +184,8 @@
 .react-flow__controls-button[aria-disabled="true"]:hover { background: transparent; color: var(--muted); }
 }
 /* Recenter while auto-fit is off: the press would do something, so the glyph
-   steps up to the foreground, and the canvas's own "Auto-fit off · Resume"
-   chip says why. Not the accent: this is a hint, not data or focus. */
+   steps up to the foreground, beside the canvas's own Fit all. Not the
+   accent: this is a hint, not data or focus. */
 .react-flow__controls-button[data-nudge] { color: var(--text); }
 /* Clear asks before it destroys anything, so at rest it is as neutral as its
    neighbours and only the pointer warms it. */

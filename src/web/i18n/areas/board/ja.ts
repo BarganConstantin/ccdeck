@@ -154,8 +154,6 @@ const catalog: Catalog = {
   "board.cat.mcp": "MCP",
   "board.cat.other": "その他",
   "board.cat.filter": "ツールをカテゴリで絞り込み",
-  "board.cat.show": "{cat}のツールを表示",
-  "board.cat.hide": "{cat}のツールを非表示",
   "board.cat.showAll": "すべて表示",
   "board.cat.tools": "ツール",
   "board.cat.count": "{shown}/{total}",

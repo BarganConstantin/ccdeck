@@ -165,8 +165,6 @@ const catalog: Catalog = {
   "board.cat.other": "altele",
   "board.cat.few": "altele",
   "board.cat.filter": "Filtrează uneltele după categorie",
-  "board.cat.show": "Arată uneltele {cat}",
-  "board.cat.hide": "Ascunde uneltele {cat}",
   "board.cat.showAll": "Arată tot",
   "board.cat.tools": "Unelte",
   "board.cat.count": "{shown} din {total}",
