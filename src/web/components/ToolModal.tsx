@@ -9,6 +9,7 @@ import { useModalDismiss, useScrimDismiss } from "./use-modal-dismiss";
 import { dialogDuration } from "../duration";
 import { copyText } from "../copy-text";
 import { KitIcon, KitStateGlyph } from "./kit-icons";
+import PathText from "./PathText";
 // What a call IS rather than its JSON (#816): an Edit as a change, a Bash call
 // as its command and output, a Read or Write as a file and its text, anything
 // else as its values with real newlines. See tool-view.ts.
@@ -16,9 +17,12 @@ import { clip, copyOf, linesOf, moreControl, toolView, type Block } from "../too
 
 export default function ToolModal({
   tool,
+  cwd,
   onClose,
 }: {
   tool: ToolCall;
+  /** The folder of the session that made the call, which its file is read from. */
+  cwd?: string;
   onClose: () => void;
 }) {
   // No focusRef: the × is the first control in the dialog, so the hook's own
@@ -59,12 +63,12 @@ export default function ToolModal({
   const drawn = useMemo(() => {
     const view = toolView(tool.name, input, response);
     return {
-      input: view.input.map((b, n) => <ToolBlock key={n} block={b} />),
-      response: view.response.map((b, n) => <ToolBlock key={n} block={b} />),
+      input: view.input.map((b, n) => <ToolBlock key={n} block={b} cwd={cwd} />),
+      response: view.response.map((b, n) => <ToolBlock key={n} block={b} cwd={cwd} />),
       copyInput: copyOf(tool.name, "input", input),
       copyResponse: copyOf(tool.name, "response", response),
     };
-  }, [tool.name, input, response]);
+  }, [tool.name, input, response, cwd]);
 
   return (
     // The scrim is the dismiss gesture, not the dialog: with role="dialog" on
@@ -126,13 +130,13 @@ const TONE_CLASS = { del: "tm-del", add: "tm-add", ctx: "tm-ctx" } as const;
  * the clip budget until "show all" — a response can run to 95,000 characters.
  * Exported for the test that draws it open.
  */
-export function ToolBlock({ block }: { block: Block }) {
+export function ToolBlock({ block, cwd }: { block: Block; cwd?: string }) {
   const [open, setOpen] = useState(false);
   if (block.inline) {
     return (
       <p className="tm-inline">
         {block.label && <span className="tm-label">{block.label}</span>}
-        <code>{block.text}</code>
+        {block.path ? <PathText path={block.text} cwd={cwd} /> : <code>{block.text}</code>}
       </p>
     );
   }

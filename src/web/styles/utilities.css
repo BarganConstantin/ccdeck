@@ -58,6 +58,21 @@
   transform: translateY(calc(-100% - 16px));
 }
 .skip-link:focus { transform: none; }
+/* A path cut in the middle (PathText.tsx): the head gives way first, with its
+   own ellipsis, and the last segment keeps its width, so the file's name stays.
+   A name wider than the whole box is cut too, at its end. Mono, as paths are.
+   No `direction`: see .ctx-md-path. */
+.path-text {
+  display: inline-flex;
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  white-space: nowrap;
+  font-family: var(--font-mono);
+}
+.path-head { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.path-tail { flex: none; max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
+
 /* The canvas is the skip link's target and takes focus programmatically, so it
    does get a ring — landing somewhere with no sign you landed is the failure
    this link exists to fix, one step later. Inset, because .canvas-wrap fills

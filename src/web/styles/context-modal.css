@@ -144,9 +144,9 @@
    POSIX path a bidi-neutral at the boundary, so the bidi algorithm reorders it
    to the far end: /Users/x/CLAUDE.md drew as Users/x/CLAUDE.md/ — wrong on
    screen and wrong when copied, and invisible on Windows because a drive
-   letter is a strong-LTR first character. The head is cut in
-   truncatePathStart() instead; the ellipsis here is only the backstop for a
-   modal narrower than the character budget. */
+   letter is a strong-LTR first character. PathText cuts the middle instead,
+   keeping the file and the folder above it (.path-text, utilities.css); the
+   ellipsis here is only the backstop for a box that is not one. */
 .ctx-md-path {
   min-width: 0;
   color: var(--muted);

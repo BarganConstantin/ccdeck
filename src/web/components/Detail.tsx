@@ -12,8 +12,9 @@ import CostBar from "./CostBar";
 import { mcpChipIdentity } from "../tool-skin";
 import { detailCategoryFor, type DetailCategory } from "../detail-category";
 import type { InspectorStatus } from "../inspector-state";
-import { callArg } from "../inspector-time";
+import { argIsPath, callArg } from "../inspector-time";
 import { KitStateGlyph } from "./kit-icons";
+import PathText from "./PathText";
 // The detail panel used to spell both of these out inline — an elapsed clock a
 // tier shorter than the agent card's, and a tool duration a decimal place
 // coarser than the dialog the same row opens (#374). See duration.ts.
@@ -263,7 +264,8 @@ export default function Detail({
       <section className="detail-section">
         <h3>{t("board.detail.identity")}</h3>
         <div>
-          {agent.cwd && <div className="row"><span className="k">cwd</span><span className="v" title={agent.cwd}>{agent.cwd}</span></div>}
+          {/* From "~", and cut in the middle so the folder's own name stays. */}
+          {agent.cwd && <div className="row"><span className="k">cwd</span><PathText className="v" path={agent.cwd} /></div>}
           <div className="row"><span className="k">{t("board.kind.session")}</span><span className="v">{agent.sessionId.slice(0, 12)}…</span></div>
           {agent.parentId && <div className="row"><span className="k">{t("board.detail.parent")}</span><span className="v">{agent.parentId.slice(0, 12)}…</span></div>}
         </div>
@@ -305,7 +307,7 @@ export default function Detail({
         {agent.tools.length === 0 && <div className="empty">{t("board.detail.noTools")}</div>}
         <div>
           {agent.tools.slice().reverse().map(call => (
-            <ToolRow key={call.id} call={call} onClick={() => onOpenTool(agent.id, call.id)} />
+            <ToolRow key={call.id} call={call} cwd={agent.cwd} onClick={() => onOpenTool(agent.id, call.id)} />
           ))}
         </div>
       </section>
@@ -380,7 +382,7 @@ const TOOL_STATUS_LABEL = { inflight: "board.toolStatus.inflight", done: "board.
 // ever used it on the branch it then threw away — an open call prints a
 // sentinel, and a finished one carries both of its own timestamps. The row is
 // not memoised, so the tick that re-renders the panel still re-renders it.
-function ToolRow({ call, onClick }: { call: ToolCall; onClick: () => void }) {
+function ToolRow({ call, cwd, onClick }: { call: ToolCall; cwd?: string; onClick: () => void }) {
   const t = useT();
   const status = call.endedAt == null ? "inflight" : call.ok === false ? "err" : "done";
   // This row is the button that opens ToolModal for this exact call, and the
@@ -390,8 +392,11 @@ function ToolRow({ call, onClick }: { call: ToolCall; onClick: () => void }) {
   const durLabel = toolDuration(call, "…");
   // What it ran on, never the JSON it was sent as (inspector-time.ts).
   const arg = callArg(call);
+  // A path is read from the session's folder and cut in the middle, so the rows
+  // under one long folder no longer all read the same; the row's hover has it whole.
+  const path = argIsPath(call, arg);
   return (
-    <button className="tool clickable" title={call.inputPreview || call.name} onClick={onClick}>
+    <button className="tool clickable" title={path ? arg : call.inputPreview || call.name} onClick={onClick}>
       <span className="name">
         {/* The dot said nothing here — an empty <span> that was not even marked
             decorative — so a failed call and a finished one both announced
@@ -406,7 +411,7 @@ function ToolRow({ call, onClick }: { call: ToolCall; onClick: () => void }) {
         <span className={`status-dot ${status}`} aria-hidden />
         <span className="vis-hidden">{t(TOOL_STATUS_LABEL[status])}</span>
         <span className="tool-name">{call.name}</span>
-        {arg && <span className="tool-arg">{arg}</span>}
+        {arg && (path ? <PathText className="tool-arg" path={arg} cwd={cwd} hint={false} /> : <span className="tool-arg">{arg}</span>)}
       </span>
       <span className="tool-dur">{durLabel}</span>
     </button>

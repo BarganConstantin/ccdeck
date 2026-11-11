@@ -9,7 +9,7 @@
 // two timestamps, and a turn starts at the last prompt the session was given.
 import { elapsed } from "./duration";
 import { sessionRoot } from "./inspector-tree";
-import { skinFor } from "./tool-skin";
+import { isFileTool, skinFor } from "./tool-skin";
 import type { AgentNodeData, ToolCall, WaitingBlock } from "./types";
 
 export interface SessionTurn { open: boolean; totalMs: number; claudeMs: number; machineMs: number; youMs: number }
@@ -17,6 +17,12 @@ export interface SessionTurn { open: boolean; totalMs: number; claudeMs: number;
 /** What a call ran on, as the board's sub-bubble says it (the command, the file),
  *  else the raw input preview: a Bash row reads "npm test", not its JSON. */
 export const callArg = (call: ToolCall): string => skinFor(call.name, call.input)?.detail ?? plainArg(call.inputPreview ?? "");
+
+/** Whether a call's argument is a path a row shortens (PathText): a file tool's,
+ *  with a folder in it, and whole. One read off a preview that was cut short
+ *  ends in "…", and its last segment is not the file's name. */
+export const argIsPath = (call: ToolCall, arg: string): boolean =>
+  isFileTool(call.name) && /[\\/]/.test(arg) && !arg.endsWith("…");
 
 /** A call's argument without its braces: a tool with no skin of its own keeps
  *  its input as JSON, and a row reads the first string in it (the URL, the path,
@@ -113,6 +119,8 @@ export interface SpanRow {
   key: string;
   name: string;
   arg: string;
+  /** The argument is a file or folder path (argIsPath). */
+  path?: boolean;
   /** 0 for a call of the session's root, one more for each agent it sits under. */
   depth: number;
   /** A call that started a subagent: it holds that agent's calls below it. */
@@ -126,7 +134,11 @@ export interface SpanRow {
   waitingSince: number | null;
 }
 
-export interface SpanTable { rows: SpanRow[]; start: number; end: number }
+export interface SpanTable {
+  rows: SpanRow[]; start: number; end: number;
+  /** The session's folder, which a path argument is read from. */
+  cwd?: string;
+}
 
 const HOLDERS = new Set(["Task", "Agent"]);
 
@@ -187,8 +199,9 @@ export function spanTable(opts: {
         });
         add(kid, depth + 1, [...under, key]);
       } else if (call) {
+        const arg = callArg(call);
         rows.push({
-          key: `c:${agent.id}:${call.id}`, name: call.name, arg: callArg(call), depth, group: false, under,
+          key: `c:${agent.id}:${call.id}`, name: call.name, arg, ...(argIsPath(call, arg) ? { path: true } : {}), depth, group: false, under,
           from: at, to: call.endedAt ?? null, waitingSince: null,
         });
       }
@@ -198,7 +211,7 @@ export function spanTable(opts: {
   markWaiting(rows, root.waiting);
   let end = opts.end;
   for (const row of rows) end = Math.max(end, row.to ?? Math.min(now, end));
-  return { rows, start, end };
+  return { rows, start, end, ...(root.cwd ? { cwd: root.cwd } : {}) };
 }
 
 /** The call a permission prompt or a question is holding: the newest call still

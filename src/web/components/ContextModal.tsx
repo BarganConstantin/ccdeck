@@ -22,6 +22,7 @@ import { fmtTokens } from "../token-format";
 import { agentCost } from "../usage-models";
 import { Dialog } from "./Dialog";
 import { useModalDismiss, useScrimDismiss } from "./use-modal-dismiss";
+import PathText from "./PathText";
 
 /** Every line in this modal whose truth depends on which CLI the session is.
  *
@@ -78,27 +79,6 @@ export function contextCopy(provider: Provider | undefined): ContextCopy {
 function fmtN(n: number): string { return n.toLocaleString(currentLanguage()); }
 /** One decimal in the language's own separator: 12.0 reads "12,0" in German. */
 const fmt1 = (n: number): string => n.toLocaleString(currentLanguage(), { minimumFractionDigits: 1, maximumFractionDigits: 1 });
-
-/** Widest path the row can print. `.ctx-md-path` is 12px monospace inside a
- *  560px modal, sharing the row with the size column, so ~60 columns is what
- *  fits before CSS starts clipping. */
-const PATH_MAX_CHARS = 60;
-
-/** Cuts the head off an over-long path and marks the cut with a leading
- *  ellipsis, so the tail survives — every file in this list has the same name
- *  (CLAUDE.md for a Claude session, AGENTS.md for a Codex one), so the trailing
- *  directories are the only thing telling two rows apart. This
- *  used to be `direction: rtl` in styles.css, which got the left-side ellipsis
- *  by flipping the paragraph to RTL and, with it, moved the leading '/' of
- *  every POSIX path to the end of the line. Cutting at a separator keeps half a
- *  directory name off the screen; '\' counts as one because a Windows path
- *  reads C:\Users\… Exported for tests. */
-export function truncatePathStart(path: string, max = PATH_MAX_CHARS): string {
-  if (path.length <= max) return path;
-  const tail = path.slice(path.length - (max - 1)); // one column pays for the ellipsis
-  const sep = tail.search(/[/\\]/);
-  return "…" + (sep === -1 ? tail : tail.slice(sep));
-}
 
 interface Props {
   agent: AgentNodeData;
@@ -265,7 +245,10 @@ export function ContextView({ agent, meta = false }: {
           <ul className="ctx-md-list">
             {ctx!.memoryFiles.map(f => (
               <li key={f.path}>
-                <span className="ctx-md-path" title={f.path}>{truncatePathStart(f.path)}</span>
+                {/* Every file here has one name (CLAUDE.md, or AGENTS.md for Codex),
+                    so the folder above it is kept whole too: that is what tells two
+                    rows apart. */}
+                <PathText className="ctx-md-path" path={f.path} cwd={agent.cwd} keep={2} />
                 <span className="ctx-md-size">{fmtBytes(f.bytes)}</span>
               </li>
             ))}

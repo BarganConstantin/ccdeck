@@ -100,7 +100,7 @@ export default function DeckDialogs({
   const { openedTool, setOpenedToolKey, usageHistoryOpen, setUsageHistoryOpen, browserWatchOpen,
           setBrowserWatchOpen, contextAgent, setContextFor, summaryFor, setSummaryFor, keyHelpOpen,
           setKeyHelpOpen, feedbackOpen, setFeedbackOpen, feedbackPrefill, setFeedbackPrefill, openFeedback } = dialogs;
-  const { trafficRadarOpen, setTrafficRadarOpen } = dialogs;
+  const { trafficRadarOpen, setTrafficRadarOpen, openedToolCwd } = dialogs;
   const { tourOpen, openTour, closeTour, releaseNotes, closeReleaseNotes, chipVersion, openReleaseNotes } = welcome;
   const { desktopUpdateRestarting, desktopUpdateFailure, readyAppUpdate, askDesktopUpdateRestart } = desktopUpdate;
   const { version, showNotice } = versionCheck;
@@ -112,7 +112,7 @@ export default function DeckDialogs({
   const { settingsOpen, settingsSection, settingsLandOn, showSection, closeSettings, openSettings } = menus;
   return (
     <>
-      <DialogPresence when={openedTool}>{tool => <ToolModal tool={tool} onClose={() => setOpenedToolKey(null)} />}</DialogPresence>
+      <DialogPresence when={openedTool}>{tool => <ToolModal tool={tool} cwd={openedToolCwd} onClose={() => setOpenedToolKey(null)} />}</DialogPresence>
       {/* `providers` is what the modal's subtitle falls back to until a ccusage
           run has said whose logs are actually in the figures (#431). It is not
           a gate: ccusage reads the logs on this machine rather than this deck's
