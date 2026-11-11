@@ -448,6 +448,10 @@ describe("what was migrated to the secondary tier", () => {
       ".sd-door-name",
       ".sd-gpu-name",
       ".sd-h",
+      // A plain row's label is the meter row's label beside it, and Usage's
+      // row label, in the same tier: it was --muted, a step greyer than
+      // Physical and Swap for the same kind of word.
+      ".sd-plain-label",
       ".sd-row-label",
       ".up-quota-sub.up-quota-note",
       // V4's status bar: who has the keys, in the one weight-500 label of a

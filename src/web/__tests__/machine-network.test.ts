@@ -243,11 +243,13 @@ describe("the panel gives it a section of its own", () => {
   // left three readings looking like one connection measured three ways.
   it("names each column for what it measures", () => {
     // CHANGED ON PURPOSE (V4's Figma): the three are plain rows now, the name
-    // at the left in --muted and the value with its unit in mono at the right.
+    // at the left and the value with its unit in mono at the right.
     expect(panel).toContain('<PlainRow key={name} label={t(name === "download" ? "insights.machine.download" : "insights.machine.upload")} value={figureText(rateFigure(v))} />');
     expect(panel).toContain('<PlainRow label={t("insights.machine.claudeApi")} value={figureText(latency)} />');
     expect(panel).toContain('[["download", down!], ["upload", up!]]');
-    expect(css).toMatch(/\.sd-plain-label \{ color: var\(--muted\); \}/);
+    // CHANGED ON PURPOSE (light-theme review): the name is in the row-label
+    // tier, --text-secondary, like the meter rows above it and Usage's rows.
+    expect(css).toMatch(/\.sd-plain-label \{ color: var\(--text-secondary\); \}/);
     expect(css).toMatch(/\.sd-plain-val \{[^}]*font-family: var\(--font-mono\)/);
   });
 

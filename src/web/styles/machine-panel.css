@@ -192,11 +192,14 @@
   font-weight: 400;
   font-variant-numeric: tabular-nums;
 }
-/* CPU's heading: the label 400 12/16 --text-secondary and the total at the
-   right. The columns sit 8 under it, the gap every heading here keeps
-   (`.sd-reading > .sd-open` below). Where there are no columns to draw, the
-   heading is the whole block and keeps no gap under itself. */
-.sd-reading[data-group="cores"] .sd-h { min-height: 16px; font-weight: 400; }
+/* CPU's heading: the label and the total at the right, the label 600 like
+   every other heading in this panel and in Usage. It was 400, the one heading
+   on either panel at a body weight, which read as a row label rather than as
+   the first section. 16 high rather than 20: the columns sit 8 under it, the
+   gap every heading here keeps (`.sd-reading > .sd-open` below). Where there
+   are no columns to draw, the heading is the whole block and keeps no gap
+   under itself. */
+.sd-reading[data-group="cores"] .sd-h { min-height: 16px; }
 .sysdetail .sd-reading[data-group="cores"] > .sd-open:last-child { margin-bottom: calc(0px - 4px); }
 
 /* THE PER-CORE COLUMNS, the way main draws them: one column per logical core,
@@ -343,10 +346,12 @@
   border-top: 0;
 }
 .sysdetail .sd-door .sd-door-plate { display: block; }
-/* The name, in the reading colour rather than the heading's, with the chevron
-   pushed to the far edge — the width IS the affordance here: a chevron beside
-   the word reads as a footnote, a chevron across the panel reads as a row you
-   go through. */
+/* The name, a heading like the four above it (600 12/16 --text-secondary, the
+   weight of Usage's "By session", which is the same thing: a section named by
+   a control with its chevron at the far edge). It was 500, a third weight
+   neither panel uses anywhere else. The chevron is pushed to the far edge —
+   the width IS the affordance here: a chevron beside the word reads as a
+   footnote, a chevron across the panel reads as a row you go through. */
 .sd-door-name {
   display: flex;
   align-items: center;
@@ -354,7 +359,7 @@
   gap: 8px;
   font-size: calc(12px + var(--ui-text-increase, 0px));
   line-height: 16px;
-  font-weight: 500;
+  font-weight: 600;
   color: var(--text-secondary);
 }
 /* The only line that says what the door opens, so it is read, not glanced at:
@@ -454,10 +459,13 @@
 .sysdetail .sd-fill[data-level="err"] { background: var(--err); }
 .sd-row > .sd-note { margin-top: 3px; }
 
-/* A PLAIN ROW (V4's Figma): 24 high, the label in --muted and the reading in
-   mono --text at the right, 12 apart across the row (rows themselves sit 2
-   apart). A reading the deck already calls an error
-   is --err; a sentence under it is 12/16 --muted. */
+/* A PLAIN ROW (V4's Figma): 24 high, the label in --text-secondary and the
+   reading in mono --text at the right, 12 apart across the row (rows
+   themselves sit 2 apart). The label is the meter row's label and Usage's row
+   label ("5-hour window", a model's name) in the same tier: it was --muted,
+   so GPU, Throttling and the network's three read a step greyer than Physical
+   and Swap above them. A reading the deck already calls an error is --err; a
+   sentence under it is 12/16 --muted. */
 .sd-plain {
   display: flex;
   flex-wrap: wrap;
@@ -466,18 +474,22 @@
   column-gap: 12px;
   min-height: 24px;
 }
-.sd-plain-label { color: var(--muted); }
+.sd-plain-label { color: var(--text-secondary); }
 .sd-plain-val { margin-left: auto; font-family: var(--font-mono); font-variant-numeric: tabular-nums; color: var(--text); }
 .sd-plain-val[data-err] { color: var(--err); }
 .sd-plain-note { flex: 0 0 100%; color: var(--muted); }
 
-/* THE LOAD AVERAGE (V4's Figma): three cells 24 apart, the value in mono 600
-   16/24 --text over its caption 400 11/14 --muted. */
-.sd-figs { display: flex; gap: 24px; }
+/* THE LOAD AVERAGE: three cells 16 apart, the value in mono 400 12/16 --text
+   over its caption 400 11/14 --muted — Usage's tokens row (`.up-tok`,
+   `.up-k`), which is the same thing: a row of figures, each with the word for
+   what it counts under it. The value was 600 16/24, a size and weight Usage
+   gives none of its figures, so three load samples outranked every reading in
+   the panel and read as its headline. */
+.sd-figs { display: flex; gap: 16px; }
 .sd-fig { display: flex; flex-direction: column; font-variant-numeric: tabular-nums; }
 /* 5ch of the mono face holds 99.99, so a figure gaining a digit does not slide
    the ones after it. */
-.sd-fig b { min-width: 5ch; font-family: var(--font-mono); font-size: calc(16px + var(--ui-text-increase, 0px)); line-height: 24px; font-weight: 600; color: var(--text); }
+.sd-fig-val { min-width: 5ch; font-family: var(--font-mono); font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: 16px; font-weight: 400; color: var(--text); }
 .sd-fig-cap { color: var(--muted); font-size: calc(11px + var(--ui-text-increase, 0px)); line-height: 14px; white-space: nowrap; }
 
 /* The sentences — "reading this machine…", why a reading is missing: 12/16. */

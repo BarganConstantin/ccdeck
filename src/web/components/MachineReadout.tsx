@@ -15,12 +15,14 @@ import { useT } from "../i18n";
 /**
  * One figure: the number in the panel's reading weight, and what it is under
  * it — three samples of one reading, where the numbers are what you compare.
- * (The network's three are plain rows now, one measurement each.)
+ * (The network's three are plain rows now, one measurement each.) A span, not
+ * a <b>: the figure is set like Usage's token figures, at the reading weight,
+ * and nothing about it is offset from the text around it.
  */
 export function Fig({ value, cap }: { value: string; cap: string }) {
   return (
     <span className="sd-fig">
-      <b>{value}</b>
+      <span className="sd-fig-val">{value}</span>
       <span className="sd-fig-cap">{cap}</span>
     </span>
   );
@@ -204,8 +206,8 @@ export function Row({ label, value, pct, note }: {
 }
 
 /**
- * A plain reading, 24 high: the label on the left in --muted, the value on the
- * right in mono. `err` is for a reading the deck already treats as an error
+ * A plain reading, 24 high: the label on the left in --text-secondary, the
+ * value on the right in mono. `err` is for a reading the deck already treats as an error
  * (a sensor past its own critical point, a clock held down hard); anything else
  * is --text, never amber. `note` is the sentence that explains it, under.
  * `hint` is a fact about the reading that the frame has no room to draw (a

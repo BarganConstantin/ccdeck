@@ -28,7 +28,7 @@ import { KitIcon } from "./kit-icons";
  * them says both scopes in words.
  *
  * Each figure is a plain row, as the thermal readings are: its name on the left
- * in --muted and the value with its unit at the right in mono. Bytes rather
+ * in --text-secondary and the value with its unit at the right in mono. Bytes rather
  * than bits, like the memory above (net-format.ts).
  */
 export default function NetworkSection({ network }: { network: Network }) {
