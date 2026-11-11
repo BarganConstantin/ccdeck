@@ -199,6 +199,10 @@ describe("what was migrated to the secondary tier", () => {
       ".agent-node .foot .spawn-badge",
       ".agent-node .task-line",
       ".agent-node .time",
+      // CHANGED ON PURPOSE (V4's Figma, critique 2 C4): below 40% the face
+      // names the card's project ("api", "site") in this ink beside the mark.
+      // A label, not prose, kept in the list because the frame draws it so.
+      ".canvas-wrap[data-far] .agent-node .lod-short",
       ".cat-chip",
       ".cat-chip .cat-server",
       ".detail .plan-item",

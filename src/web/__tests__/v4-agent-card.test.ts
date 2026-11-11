@@ -521,7 +521,7 @@ describe("the face below the detail tier", () => {
 
   it("draws one line: the mark, the task, the word", () => {
     expect(face({ state: "active", prompts: [{ at: 1, text: "Add rate limiting" }] }))
-      .toMatch(/<div class="lod-line" data-status="active"><svg class="state-mark" data-kind="live"[\s\S]*?<\/svg><span class="lod-name">Add rate limiting<\/span><span class="lod-state">Working<\/span><\/div><\/div>/);
+      .toMatch(/<div class="lod-line" data-status="active"><svg class="state-mark" data-kind="live"[\s\S]*?<\/svg><span class="lod-name">Add rate limiting<\/span><span class="lod-state">Working<\/span><span class="lod-short">billing-api<\/span><\/div><\/div>/);
     expect(face({ state: "active", toolCount: 0 })).toContain('<span class="lod-state">Ready</span>');
     expect(face({ state: "done" })).toContain('<span class="lod-state">Done</span>');
     expect(face({ state: "err" })).toMatch(/data-status="err"[\s\S]*<span class="lod-state">Failed<\/span>/);
@@ -567,6 +567,19 @@ describe("the face below the detail tier", () => {
     // Owner's critique 2026-11-11, point 3: "W…" and "A…" on the far faces,
     // "below 40% a dot only, never a cut word".
     expect(css).toMatch(/\.canvas-wrap\[data-far\] \.agent-node \.lod-name \{ display: none; \}/);
+    // V4 critique 2, C4 (V4's Figma): the short name at the left, the mark
+    // at the right, one line at any height, the word in the peek. The name is
+    // a value: never cut, it wraps to the clipped line instead.
+    expect(css).toMatch(/\n\.lod-short \{ display: none; \}/);
+    expect(css).toMatch(/\.canvas-wrap\[data-far\] \.agent-node \.lod-state \{ display: none; \}/);
+    const far = (sel: string) => {
+      const at = css.indexOf(`.canvas-wrap[data-far] .agent-node ${sel} {`);
+      expect(at, sel).toBeGreaterThan(-1);
+      return css.slice(at, css.indexOf("}", at));
+    };
+    for (const d of ["flex-direction: row-reverse;", "height: calc(14px + var(--ui-text-increase, 0px));"]) expect(far(".lod-line")).toContain(d);
+    for (const d of ["display: block;", "flex: none;", "margin-right: auto;", "white-space: nowrap;"]) expect(far(".lod-short")).toContain(d);
+    expect(far(".lod-short")).not.toMatch(/text-overflow|overflow:/);
     // Nearer, the overview and compact faces keep the task.
     expect(css).not.toMatch(/data-lod="(?:overview|compact)"\] \.agent-node \.lod-name/);
     const zoom = readFileSync(fileURLToPath(new URL("../semantic-zoom.ts", import.meta.url)), "utf8");

@@ -488,6 +488,12 @@ function PlanRow({ plan, items }: { plan: PlanSummary; items: readonly PlanItem[
  * and its colour. Where the face is tall enough the task has a line of its
  * own and the status the one under it.
  *
+ * Below 40% the face is the board seen whole (V4 critique 2, C4, as V4's
+ * Figma draws it): the card's short name at its left, whole or not at all, and the
+ * mark at its right. The word moves to the peek. The short name is the card's
+ * label — the project a root is in, a subagent's own name — which is what
+ * tells two cards in one session apart from that far.
+ *
  * Hidden from assistive technology like the rows it stands in for: the node's
  * accessible name is agentAriaLabel, composed from the data, and says all of
  * this at every zoom. The peek beside the pointer says the word too.
@@ -507,6 +513,7 @@ function NodeFace({ data, task }: { data: AgentNodeData & { branch?: BranchSumma
         {status.mark === "alert" ? <AlertMark /> : <StateMark kind={status.mark} />}
         <span className="lod-name">{task}</span>
         <span className="lod-state">{status.word}</span>
+        <span className="lod-short">{data.label}</span>
       </div>
     </div>
   );

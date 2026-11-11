@@ -292,6 +292,25 @@
    beside the pointer and the accessible name say the task at every distance,
    and nearer than 40% the face draws it again. */
 .canvas-wrap[data-far] .agent-node .lod-name { display: none; }
+/* There the face is the board seen whole (V4 critique 2, C4, as V4's Figma
+   draws it): the card's short name at the left and the mark at the right, on
+   one line at any face height. The word goes to the peek. The name is a value
+   like the word, whole or not at all: drawn after the mark (row-reverse), it
+   wraps to the line the face clips where it does not fit, and the mark says
+   the state alone. Nearer than 40% the short name is not drawn. */
+.lod-short { display: none; }
+.canvas-wrap[data-far] .agent-node .lod-state { display: none; }
+.canvas-wrap[data-far] .agent-node .lod-line {
+  flex-direction: row-reverse;
+  height: calc(14px + var(--ui-text-increase, 0px));
+}
+.canvas-wrap[data-far] .agent-node .lod-short {
+  display: block;
+  flex: none;
+  margin-right: auto;
+  white-space: nowrap;
+  color: var(--text-secondary);
+}
 /* Room for two lines (28px of content): the task on a line of its own, the
    mark and the word under it. */
 @container lod (min-height: 28px) {
