@@ -224,9 +224,25 @@ describe("the task line", () => {
     expect(decl(t, "white-space")).toBe("nowrap");
     expect(decl(t, "text-overflow")).toBe("ellipsis");
   });
-  it("says what the session-name row said for a root, and what the sub row said for a subagent", () => {
-    expect(html({ sessionName: "Billing rewrite" })).toContain('<div class="task-line" title="Billing rewrite">Billing rewrite</div>');
+  // Owner's critique, 2026-11-11, point 2: one name rule on every surface. The
+  // card read "api / retention job" while the Sessions list beside it read
+  // "retention job / api · Add a retention job…".
+  it("puts a root's name in the head and what was asked under it, and the sub row for a subagent", () => {
+    const named = html({ label: "api", cwdBasename: "api", sessionName: "Billing rewrite", firstPrompt: "Move billing to the new API" });
+    expect(named).toMatch(/<span class="label"[^>]*>Billing rewrite<\/span>/);
+    expect(named).toContain('<div class="task-line" title="Move billing to the new API">Move billing to the new API</div>');
+    // A name and nothing asked yet: the name, and no line under it.
+    expect(html({ sessionName: "Billing rewrite" })).not.toContain("task-line");
+    // Neither a name nor a title: the folder, as before.
+    expect(html({ label: "api", cwdBasename: "api", firstPrompt: "Add a job" })).toMatch(/<span class="label"[^>]*>api<\/span>/);
     expect(html({ kind: "subagent", cwdBasename: "shop" })).toContain(">subagent · shop</div>");
+  });
+  it("says the newest typed prompt, never a background task's notice", () => {
+    const out = html({
+      firstPrompt: "Add rate limiting",
+      prompts: [{ at: 1, text: "Add rate limiting" }, { at: 2, text: "Now cover it with tests" }],
+    });
+    expect(out).toContain('<div class="task-line" title="Now cover it with tests">Now cover it with tests</div>');
   });
   it("is absent for a root with neither a name, a title nor a prompt", () => {
     expect(html({})).not.toContain("task-line");
@@ -238,8 +254,10 @@ describe("the task line", () => {
       .toContain('<div class="task-line" title="Add rate limiting to the public API">Add rate limiting to the public API</div>');
     const two = html({ firstPrompt: "Fix the flaky test\nIt fails on CI only" });
     expect(two).toMatch(/<div class="task-line" title="Fix the flaky test\nIt fails on CI only">Fix the flaky test<\/div>/);
-    // A name or a title still wins over the prompt.
-    expect(html({ sessionTitle: "Rate limits", firstPrompt: "Add rate limiting" })).toContain(">Rate limits</div>");
+    // A title is the head's word, and the prompt stays on the task line.
+    const titled = html({ sessionTitle: "Rate limits", firstPrompt: "Add rate limiting" });
+    expect(titled).toMatch(/<span class="label"[^>]*>Rate limits<\/span>/);
+    expect(titled).toContain(">Add rate limiting</div>");
     // The far face's one line says the same (CHANGED ON PURPOSE, owner's
     // critique 2026-11-11: it was the face's title line).
     expect(html({ firstPrompt: "Add rate limiting" })).toContain('<span class="lod-name">Add rate limiting</span>');
@@ -545,6 +563,20 @@ describe("the face below the detail tier", () => {
     expect(css).toMatch(/\.lod-line\[data-status="err"\] \.lod-state \{ color: var\(--err\); \}/);
   });
 
+  it("draws no cut task below 40%: the mark, and the word where it fits whole", () => {
+    // Owner's critique 2026-11-11, point 3: "W…" and "A…" on the far faces,
+    // "below 40% a dot only, never a cut word".
+    expect(css).toMatch(/\.canvas-wrap\[data-far\] \.agent-node \.lod-name \{ display: none; \}/);
+    // Nearer, the overview and compact faces keep the task.
+    expect(css).not.toMatch(/data-lod="(?:overview|compact)"\] \.agent-node \.lod-name/);
+    const zoom = readFileSync(fileURLToPath(new URL("../semantic-zoom.ts", import.meta.url)), "utf8");
+    expect(zoom).toContain("export const FAR_ZOOM = 0.4;");
+    // Written beside data-lod on every move, read off the element itself.
+    const lod = readFileSync(fileURLToPath(new URL("../use-zoom-lod.ts", import.meta.url)), "utf8");
+    expect(lod).toContain("const far = zoom < FAR_ZOOM;");
+    expect(lod).toContain('if (el && el.hasAttribute("data-far") !== far) el.toggleAttribute("data-far", far);');
+  });
+
   it("gives the task a line of its own and the status the one under it where the face has room for two", () => {
     const at = css.indexOf("@container lod (min-height: 28px)");
     expect(at).toBeGreaterThan(-1);
@@ -556,8 +588,10 @@ describe("the face below the detail tier", () => {
   });
 
   it("draws no \"now\" note and no dotted tie beside the face, and both at the detail tier", () => {
-    const hidden = /\.canvas-wrap\[data-lod="compact"\] \.react-flow__node-recapNote, \.canvas-wrap\[data-lod="overview"\] \.react-flow__node-recapNote, \.canvas-wrap\[data-lod="compact"\] \.react-flow__edge-recapTie, \.canvas-wrap\[data-lod="overview"\] \.react-flow__edge-recapTie \{\s*visibility: hidden;\s*\}/;
+    const hidden = /\.canvas-wrap\[data-lod="compact"\] \.react-flow__node-recapNote, \.canvas-wrap\[data-lod="overview"\] \.react-flow__node-recapNote, \.canvas-wrap\[data-lod="compact"\] \.react-flow__edge-recapTie, \.canvas-wrap\[data-lod="overview"\] \.react-flow__edge-recapTie \{\s*visibility: hidden !important;\s*\}/;
     expect(sheet).toMatch(hidden);
+    // Important: React Flow writes `visibility: visible` inline on every
+    // measured node, which beat the plain rule and left the note on screen.
     // Hidden, not removed: the note keeps its box, so nothing moves with the distance.
     expect(sheet).not.toMatch(/react-flow__(?:node-recapNote|edge-recapTie)[^{]*\{[^}]*display: none/);
     expect(sheet).not.toMatch(/data-lod="detail"\][^{]*react-flow__(?:node-recapNote|edge-recapTie)/);

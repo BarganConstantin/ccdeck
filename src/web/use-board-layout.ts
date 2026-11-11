@@ -186,18 +186,26 @@ export function useBoardLayout({ fitLeft, moveCamera, currentViewport }: Pick<Ca
 
 /** Keeps the stored layout in step with the board: moved out of App.tsx
  *  unchanged, and called there once layoutSig has been worked out. */
-export function useLayoutAutosave(layoutSig: string, layout: ReturnType<typeof useBoardLayout>): void {
+export function useLayoutAutosave(layoutSig: string, layout: ReturnType<typeof useBoardLayout>): { saveSoon: () => void } {
   // Persist the arrangement whenever it changes, not only when the user drags.
   // Auto-placed nodes are part of what gets restored on reload, so a session
   // that was never touched still comes back where it was. Debounced: layoutSig
   // moves on every structural change and localStorage writes are synchronous.
   const { positionsRef, pinnedRef } = layout;
   const layoutSaveTimerRef = useRef<number | null>(null);
-  useEffect(() => {
+  const saveSoon = useCallback(() => {
     if (layoutSaveTimerRef.current != null) window.clearTimeout(layoutSaveTimerRef.current);
     layoutSaveTimerRef.current = window.setTimeout(() => {
       saveLayout(positionsRef.current, pinnedRef.current);
     }, 1500);
+  }, []);
+  useEffect(() => {
+    saveSoon();
     return () => { if (layoutSaveTimerRef.current != null) window.clearTimeout(layoutSaveTimerRef.current); };
   }, [layoutSig]);
+  // The board's first flow (canvas-flow.ts BoardFlow) moves the cards without
+  // moving the signature, so the board stored was the one from before it: a
+  // reload brought back that board, kept it as somebody's arrangement, and the
+  // overlap pass spread its columns down past the pane. The flow calls this.
+  return { saveSoon };
 }

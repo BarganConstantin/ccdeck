@@ -46,6 +46,7 @@ const edgeTypes = { recapTie: RecapTieEdge };
 export default function BoardFlow({
   graph, layout, viewport, clicks, drag, appearance, fm, radioOpen, onRadioClose, autoFit, pause,
   stateRef, measuredRef, hiddenCats, now, openTool, focusAgent, requestClear, setKeyHelpOpen, zoomBy, zoomReset, onTerminal,
+  notesDrawn = true,
 }: {
   /** What is drawn: the nodes with a drag patched over them, the edges, and
    *  the visibility and spotlight sets the bubbles gate on. */
@@ -76,6 +77,9 @@ export default function BoardFlow({
   /** The control stack's Terminal button, handed the button it was pressed
    *  on; absent with the terminal flag off, and so is the button. */
   onTerminal?: (button: Element | null) => void;
+  /** Whether the canvas draws the full card, and with it the sessions' notes:
+   *  the session frames go round what is drawn. */
+  notesDrawn?: boolean;
 }) {
   const t = useT();
   const { allNodes, edges, visibleAgentIds, spotlightSet } = graph;
@@ -166,7 +170,7 @@ export default function BoardFlow({
           the user grabbing the canvas — see the note on the component
           (#785). Same line use-agent-focus.ts's focusSession runs after its
           fitView. */}
-      <SessionClusters onFocusSession={focusAgent} />
+      <SessionClusters onFocusSession={focusAgent} notes={notesDrawn} />
       <ToolBursts
         agents={stateRef.current.agents}
         visibleAgentIds={visibleAgentIds}

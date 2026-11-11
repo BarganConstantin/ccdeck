@@ -149,7 +149,7 @@ describe("#785 — a camera move the deck made itself", () => {
     expect(clusters).toContain("onFocusSession?.(sessionId)");
     // App.tsx hands BoardFlow focusAgent, and BoardFlow mounts the labels on it.
     expect(app).toMatch(/<BoardFlow\b[^>]*\bfocusAgent=\{focusAgent\}/);
-    expect(board).toContain("<SessionClusters onFocusSession={focusAgent} />");
+    expect(board).toContain("<SessionClusters onFocusSession={focusAgent} notes={notesDrawn} />");
   });
 
   it("stamps the move before synchronous callbacks can report it", () => {

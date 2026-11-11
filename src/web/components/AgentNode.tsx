@@ -27,17 +27,12 @@ import { fmtTokens } from "../token-format";
 // The card's elapsed clock, which used to be declared in this file and which
 // the detail panel wrote out again, one tier short. See duration.ts.
 import { elapsed } from "../duration";
-// Which naming record reaches the face of the card and which stays in the
-// tooltip. Shared with the cluster header rather than decided twice, because
-// the column cap in #521 is only sound while both surfaces show the same field.
-import { sessionDisplay } from "../session-display";
 import { ContextDonut } from "./ContextModal";
 import type { AgentNodeData, PlanItem, WaitingBlock } from "../types";
 import { useNow } from "../use-now";
 import { useLanguage, useT } from "../i18n";
-import { promptLine } from "../session-note";
 import { cardState, drawnState, faceStatus, stateMarkKind, type BranchSummary, type CardState, type StateMarkKind } from "../node-face";
-import { sessionNames, sessionTask } from "../rail-row-copy";
+import { lastTypedPrompt, sessionNames, sessionTask } from "../rail-row-copy";
 // The agent's own checklist, as one line (#2157). See agent-plan.ts.
 import { planSummary, planTitle, type PlanSummary } from "../agent-plan";
 // The tool kinds the foot draws as icons, from the calls the card holds.
@@ -138,6 +133,17 @@ export function AgentCard({ data, handles = false }: { data: CardData; handles?:
   const labelRef = useRef<HTMLSpanElement>(null);
   const modelRef = useRef<HTMLSpanElement>(null);
   const squeezeMax = maxSqueeze(data);
+  // A root's two lines keep the one name rule every surface keeps (owner's
+  // critique, 2026-11-11, point 2; rail-row-copy.ts sessionNames): the head is
+  // the session's name — the name it was given, else Claude Code's title, else
+  // the folder — and the task line is what a person last asked it, the
+  // Sessions list's second line. The card had the folder in its head and the
+  // name or title on its task line, so one session read "api / retention job"
+  // here and "retention job / api · Add a retention job…" in the list beside
+  // it. Most sessions have no name or title (0.2% and 4.1% of the transcripts
+  // on this machine, session-display.ts): their head is still the folder.
+  const names = data.kind === "root" ? sessionNames(data) : null;
+  const headName = names ? names.title : data.label;
   const [squeeze, setSqueeze] = useState(0);
   // The name's width as last observed: a state, so a name that has narrowed is
   // measured again by the render the change causes.
@@ -145,7 +151,7 @@ export function AgentCard({ data, handles = false }: { data: CardData; handles?:
   // Set when the effort is dropped, so the widening that causes is not read as
   // room coming back from elsewhere.
   const droppedByMeasure = useRef(false);
-  useBeforePaint(() => { setSqueeze(0); }, [data.effort, data.model, otherModels.length, data.label, data.kind, squeezeMax]);
+  useBeforePaint(() => { setSqueeze(0); }, [data.effort, data.model, otherModels.length, headName, data.kind, squeezeMax]);
   useBeforePaint(() => {
     // No layout read once there is nothing left to give up.
     if (squeeze >= squeezeMax) return;
@@ -190,20 +196,9 @@ export function AgentCard({ data, handles = false }: { data: CardData; handles?:
   const modelChipTitle = data.model && (otherModels.length > 0
     ? `${chipTitle(data.model, data.effort)}\n${t("board.node.modelCovers")}\n${otherModels.join("\n")}`
     : chipTitle(data.model, data.effort));
-  // Two strings for the name row, chosen once. `face` is the name when the
-  // session has one and the sentence when it does not, which is the common
-  // case rather than the fallback: 0.2% of the transcripts on this machine
-  // carry an agent-name and 4.1% carry an ai-title, and not one of them
-  // carries a name without a title. See session-display.ts for the sweep.
-  const naming = sessionDisplay(data.sessionName, data.sessionTitle);
-  // A root's task line (V4's Agent / Card): the name or the title, and the
-  // session's first prompt before Claude Code has given it either, which is
-  // most sessions and every Codex one. The prompt's first line on the face,
-  // as much of it as the deck keeps on hover.
-  const promptFace = data.firstPrompt ? promptLine(data.firstPrompt) : "";
-  const rootTask = naming.face
-    ? { face: naming.face, tooltip: naming.tooltip }
-    : promptFace ? { face: promptFace, tooltip: data.firstPrompt } : null;
+  // The prompt's first line on the face, the whole prompt on hover. Absent
+  // rather than empty when nothing was asked, or when the task is the name.
+  const rootTask = names?.task ? { face: names.task, tooltip: lastTypedPrompt(data) } : null;
   // What the call that started a subagent said it is for (subagent-lifecycle.ts).
   const spawnTask = data.spawnCall?.description;
   // The cost slot at the end of the meta row, decided once (card-cost.ts).
@@ -268,7 +263,7 @@ export function AgentCard({ data, handles = false }: { data: CardData; handles?:
 
       <div className="head">
         <div className="title">
-          <span className="label" title={cardTooltip} ref={labelRef}>{data.label}</span>
+          <span className="label" title={cardTooltip} ref={labelRef}>{headName}</span>
           {/* The model as plain mono text after the name (V4): no pill, no
               tint — the word already names the family. A Codex session with no
               model yet says Codex in the same place (#404), and only "codex"
@@ -302,17 +297,14 @@ export function AgentCard({ data, handles = false }: { data: CardData; handles?:
           the secondary ink, cut with an ellipsis and carrying its whole text on
           hover.
 
-          A root says what Claude Code calls the session: the NAME when it has
-          one, the TITLE when it does not, the same line either way. #520 drew
-          the name alone, which measured across every transcript on this machine
-          renders for 0.2% of them; the title reaches 4.1%, and 25.3% of the
-          transcripts big enough to be a real session. It does NOT replace the
-          id: both records are rewritten as the session moves and two sessions
-          can hold the same one, so this is a description, not an address — the
-          short id in the cluster header stays the thing that still means this
-          node in five minutes. Without either (a Codex rollout carries no such
-          record and a young Claude session has not been given one yet) it is
-          the first prompt, and ABSENT rather than empty when there is none.
+          A root says what a person last asked it, the task line the Sessions
+          list draws under the same name (rail-row-copy.ts sessionTask). The
+          session's NAME or TITLE is the head's word, not this line's (owner's
+          critique, 2026-11-11, point 2). Neither is an address: both records
+          are rewritten as the session moves and two sessions can hold the same
+          one, so the short id stays in the cluster header's hover. ABSENT
+          rather than empty when nothing was asked, or when the task is the
+          name itself.
 
           A subagent has neither record (copying the parent's naming onto every
           child would print the same string five times on one canvas), so it

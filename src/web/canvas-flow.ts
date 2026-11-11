@@ -178,6 +178,23 @@ export interface BoardFlow {
   /** The board's sessions in reading order, the rail's (board-order.ts).
    *  Asked only when the layout runs. */
   order: () => readonly string[];
+  /** Told when a pass moved cards with the layout signature unmoved: the first
+   *  flow, a push (bubblePush), or a restored board's hold lifting onto cards
+   *  that had grown since it was stored. The signature is what the auto-fit
+   *  and the autosave wait on, so without this the camera kept framing the
+   *  board from before the move (two columns drawn at the zoom of one, in the
+   *  left half of the canvas; a pushed card below the pane) and a reload
+   *  brought back the board from before it, for the same move to run again
+   *  (use-auto-fit.ts fitSoon, use-board-layout.ts saveSoon). */
+  onMoved?: () => void;
+}
+
+/** Where the board's cards stand, as one string to compare across a pass. */
+function placesKey(nodes: readonly Node[], positions: ReadonlyMap<string, { x: number; y: number }>): string {
+  return nodes.map(n => {
+    const p = positions.get(n.id);
+    return p ? `${n.id}@${Math.round(p.x)},${Math.round(p.y)}` : n.id;
+  }).join("|");
 }
 
 /** The sessions whose cards a pass moved: what the board carries across with
@@ -435,6 +452,9 @@ export function snapshotToFlow(
   if (!holding) restored.clear();
   const ancestry = nodes.filter(n => n.data.provider === "codex" && n.data.parentId).map(n => `${n.id}:${sessionOfNode(n)}:${n.data.parentId}`).sort().join("|");
   const sig = `${layoutSig}${ancestry ? `#codex:${ancestry}` : ""}#lanes:${laneSignature(lanes)}${holding ? "#held" : ""}`;
+  // The pass the hold lifts on repairs a restored board against the cards as
+  // they measure now; where that moves one, the board moved (BoardFlow onMoved).
+  const placesBeforeLift = !holding && lastLayoutSigRef.current.endsWith("#held") ? placesKey(nodes, positions) : null;
   // A node holding a placeholder counts as missing however real its entry in
   // `positions` looks — see placement.ts. Without that, the one write that
   // exists to keep a node on screen for a frame was also the write that told
@@ -552,6 +572,8 @@ export function snapshotToFlow(
   // their own easing included.
   const carried = beforeFlow ? [...new Set([...movedSessions(nodes, beforeFlow, positions), ...bubbled])] : bubbled;
   if (carried.length > 0) onBubble(carried);
+  const liftMoved = placesBeforeLift !== null && placesBeforeLift !== placesKey(nodes, positions);
+  if (flowing || carried.length > 0 || liftMoved) flow?.onMoved?.();
   // Evict cached positions for agents that aren't in state.agents anymore.
   // Stale positions for invisible-but-still-tracked agents are KEPT so a
   // transient flicker out of visibleIds (e.g. one frame where isAgentVisible

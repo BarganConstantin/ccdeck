@@ -189,7 +189,13 @@ export function clusterLabelStyle(c: Cluster, zoom: number, hue: number, maxWidt
  * Pure so the geometry can be pinned without a store: the store is where the
  * bug came from, not the arithmetic.
  */
-export function clusterBounds(nodes: Iterable<ClusterNode>): Cluster[] {
+export function clusterBounds(nodes: Iterable<ClusterNode>, { notes = true }: {
+  /** Whether a session's note is drawn, which it is only at the full card
+   *  (context-modal.css). Where it is not, the frame goes round the cards: a
+   *  frame round the note's empty place was the left half of every working
+   *  session's box, drawn empty at every distance a fitted board is seen at. */
+  notes?: boolean;
+} = {}): Cluster[] {
   const bySession = new Map<string, { minX: number; minY: number; maxX: number; maxY: number; label: string; name?: string; alarm?: boolean; branch?: string; plan?: string; planLine?: string; startedAt?: number }>();
   for (const n of nodes) {
     // Only agent cards define a session's bounds. The invisible per-session
@@ -203,6 +209,7 @@ export function clusterBounds(nodes: Iterable<ClusterNode>): Cluster[] {
     // session (RecapNoteNode), so the frame — which traces what a session drag
     // moves — goes round it as well as round the cards.
     if (n.type !== "agent" && n.type !== "recapNote") continue;
+    if (n.type === "recapNote" && !notes) continue;
     const d = n.data as AgentNodeData;
     if (!d?.sessionId) continue;
     // Skip retiring agents — they're fading out. Including them keeps the

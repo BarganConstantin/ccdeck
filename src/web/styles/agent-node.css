@@ -285,6 +285,13 @@
 .lod-state { flex: none; white-space: nowrap; }
 .lod-line[data-status="waiting"] .lod-state { color: var(--warn); }
 .lod-line[data-status="err"] .lod-state { color: var(--err); }
+/* Below 40% (FAR_ZOOM) the face is under a hundred pixels wide and the task
+   was a few letters and an ellipsis, "W…" (owner's critique, 2026-11-11,
+   point 3: below 40% the state alone, never a cut word). The mark, and the
+   word where it fits whole. The cluster's pill names the session; the peek
+   beside the pointer and the accessible name say the task at every distance,
+   and nearer than 40% the face draws it again. */
+.canvas-wrap[data-far] .agent-node .lod-name { display: none; }
 /* Room for two lines (28px of content): the task on a line of its own, the
    mark and the word under it. */
 @container lod (min-height: 28px) {

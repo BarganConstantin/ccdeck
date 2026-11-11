@@ -5,7 +5,7 @@
 //
 // Moved out of App.tsx unchanged, with the two refs only the signature trigger
 // reads. The fit itself is use-camera's fitLeft.
-import { useEffect, useRef, type MutableRefObject } from "react";
+import { useCallback, useEffect, useRef, type MutableRefObject } from "react";
 import type { ReactFlowInstance } from "reactflow";
 import { shouldRefit, type NodeBox, type PaneSize } from "./drift";
 import { signatureHasAgents } from "./layout-signature";
@@ -47,7 +47,7 @@ export function useAutoFit({
   autoFitDisabledRef: MutableRefObject<boolean>;
   lastFitTimeRef: ReturnType<typeof useCamera>["lastFitTimeRef"];
   fitLeft: ReturnType<typeof useCamera>["fitLeft"];
-}): void {
+}): { fitSoon: () => void } {
   // The auto-fit's trailing timer (see the layout-signature effect below).
   const fitTimerRef = useRef<number | null>(null);
 
@@ -127,4 +127,19 @@ export function useAutoFit({
       fit();
     }, 280);
   }, [layoutSig, rf, fitLeft]);
+
+  // A board that moved under the camera with its signature unmoved: the first
+  // flow into columns (canvas-flow.ts BoardFlow). The same trailing timer as
+  // the signature's fit, so the two land as one, after the moved cards have
+  // their places — fitLeft frames where the cards are going, from the store.
+  // Stands down like every other fit while the user has the wheel.
+  const fitSoon = useCallback(() => {
+    if (autoFitDisabledRef.current) return;
+    if (fitTimerRef.current) window.clearTimeout(fitTimerRef.current);
+    fitTimerRef.current = window.setTimeout(() => {
+      if (autoFitDisabledRef.current) return;
+      fit();
+    }, 280);
+  }, [fitLeft]);
+  return { fitSoon };
 }

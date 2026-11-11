@@ -24,6 +24,8 @@
 //     home (hide-finished-place-2291.test.ts). A dragged card keeps its place,
 //     a stored board keeps its places, and R's Undo still puts the old board
 //     back.
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import type { Edge, Node } from "reactflow";
 import { attentionOrder } from "../board-order";
@@ -207,7 +209,9 @@ function deck(ids: string[], order: string[] = ids) {
   const measured = new Map<string, { width: number; height: number }>();
   const sigRef = { current: "" };
   const hidden = new Set<string>();
-  const flow: BoardFlow = { flowed: { current: false }, order: () => order };
+  /** How many times the flow told the camera to frame the board it drew. */
+  const framed = { count: 0 };
+  const flow: BoardFlow = { flowed: { current: false }, order: () => order, onMoved: () => { framed.count++; } };
   /** The sessions each frame handed the board's motion (onBubble). */
   const carried: string[][] = [];
   const draw = (o: { width?: number; dragging?: boolean; settled?: boolean; restored?: Set<string> } = {}) => {
@@ -222,7 +226,7 @@ function deck(ids: string[], order: string[] = ids) {
   };
   /** R (use-board-layout.ts handleRelayout): every place and pin thrown away. */
   const rearrange = () => { positions.clear(); pinned.clear(); sigRef.current = ""; };
-  return { state, add, positions, pinned, hidden, flow, carried, draw, rearrange, setOrder: (next: string[]) => { order = next; } };
+  return { state, add, positions, pinned, hidden, flow, carried, framed, draw, rearrange, setOrder: (next: string[]) => { order = next; } };
 }
 
 /** The board a first layout of these sessions draws. */
@@ -310,6 +314,81 @@ describe("when the whole board flows into its columns", () => {
     for (const [id, p] of kept) d.positions.set(id, p);
     expect(d.draw()).toEqual(joined);
     for (const id of SEVEN.slice(0, 5)) expect(joined.get(id)).toEqual(first.get(id));
+  });
+
+  // Seen in the round-2 tour: the flow moved seven sessions from one column
+  // into two, the layout signature the auto-fit watches did not move, and the
+  // camera kept the zoom it had fitted one column at — 38%, the board in the
+  // left half of the canvas. The flow says when it has drawn the board.
+  it("tells the camera once, on the first flow, to frame the board it drew", () => {
+    const d = deck(SEVEN.slice(0, 4));
+    SEVEN.slice(0, 4).forEach((id, i) => d.positions.set(id, { x: i * 1_000, y: i * 700 }));
+    d.draw({ settled: false });
+    expect(d.framed.count).toBe(0);
+    d.draw();
+    expect(d.framed.count).toBe(1);
+    d.draw();
+    d.add("s5");
+    d.draw();
+    expect(d.framed.count).toBe(1);
+  });
+
+  it("does not move the camera for a board a reload brought back", () => {
+    const d = deck(SEVEN.slice(0, 4));
+    const stored = new Map(SEVEN.slice(0, 4).map((id, i) => [id, { x: i * 1_000, y: i * 700 }]));
+    for (const [id, p] of stored) d.positions.set(id, p);
+    d.draw({ restored: new Set(stored.keys()) });
+    expect(d.flow.flowed.current).toBe(true);
+    expect(d.framed.count).toBe(0);
+  });
+
+  it("frames and stores a restored board again when its hold lifts onto cards that have to move", () => {
+    // Stored on top of each other, as a board saved before its cards grew: the
+    // pass the hold lifts on slides one off the other, and the camera and the
+    // stored board have to follow, or the slid card sits below the pane and a
+    // reload runs the same slide again.
+    const d = deck(["s1", "s2"]);
+    d.positions.set("s1", { x: 0, y: 0 });
+    d.positions.set("s2", { x: 0, y: 10 });
+    const restored = new Set(["s1", "s2"]);
+    d.draw({ restored, settled: false });
+    expect(d.framed.count).toBe(0);
+    d.draw({ restored, settled: true });
+    expect(d.framed.count).toBe(1);
+  });
+
+  it("leaves the camera alone when a restored board's hold lifts and nothing moves", () => {
+    const d = deck(["s1", "s2"]);
+    d.positions.set("s1", { x: 0, y: 0 });
+    d.positions.set("s2", { x: 2_000, y: 1_400 });
+    const restored = new Set(["s1", "s2"]);
+    d.draw({ restored, settled: false });
+    d.draw({ restored, settled: true });
+    expect(d.framed.count).toBe(0);
+  });
+
+  it("is wired to the auto-fit's trailing fit, which stands down while the user has the wheel", () => {
+    const app = readFileSync(fileURLToPath(new URL("../App.tsx", import.meta.url)), "utf8");
+    const autoFit = readFileSync(fileURLToPath(new URL("../use-auto-fit.ts", import.meta.url)), "utf8");
+    expect(app).toMatch(/const \{ fitSoon \} = useAutoFit\(/);
+    expect(app).toMatch(/const boardMoved = useCallback\(\(\) => \{ fitSoon\(\); saveSoon\(\); \}, \[fitSoon, saveSoon\]\);/);
+    expect(app).toMatch(/useBoardGraph\(\{[\s\S]*?onMoved: boardMoved[\s\S]*?\}\);/);
+    const body = autoFit.slice(autoFit.indexOf("const fitSoon"));
+    expect(body).toMatch(/if \(autoFitDisabledRef\.current\) return;/);
+  });
+
+  it("stores the flowed board, so a reload brings back the columns rather than the board before them", () => {
+    // The flow moves the cards without moving the signature the autosave
+    // waits on: the board stored was the one from before the flow, a reload
+    // kept it as somebody's arrangement and the overlap pass spread its
+    // columns down past the pane.
+    const app = readFileSync(fileURLToPath(new URL("../App.tsx", import.meta.url)), "utf8");
+    const layout = readFileSync(fileURLToPath(new URL("../use-board-layout.ts", import.meta.url)), "utf8");
+    expect(app).toMatch(/const \{ saveSoon \} = useLayoutAutosave\(layoutSig, layout\);/);
+    const body = layout.slice(layout.indexOf("export function useLayoutAutosave"));
+    expect(body).toMatch(/const saveSoon = useCallback\(\(\) => \{[\s\S]*?saveLayout\(positionsRef\.current, pinnedRef\.current\);[\s\S]*?\}, \[\]\);/);
+    expect(body).toMatch(/useEffect\(\(\) => \{\s*saveSoon\(\);/);
+    expect(body).toMatch(/return \{ saveSoon \};/);
   });
 
   it("moves no card when only the frame changes: a panel, a window resize, a zoom", () => {

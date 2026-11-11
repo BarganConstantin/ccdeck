@@ -104,10 +104,12 @@ describe("the first paint is still", () => {
     expect(code).toMatch(/if \(!openedAtRef\.current && signatureHasAgents\(layoutSig\)\) openedAtRef\.current = Date\.now\(\);/);
   });
 
-  it("sends both triggers' fits through the opening's duration", () => {
+  // Three triggers since the round-2 critique: the drift watchdog, a layout
+  // signature that moved, and the first flow into columns (fitSoon).
+  it("sends every trigger's fit through the opening's duration", () => {
     const code = stripped("use-auto-fit.ts").split("\n").filter(l => !/^\s*\/\//.test(l)).join("\n");
     expect(code).toMatch(/const fit = \(\) => fitLeft\(fitDuration\(openedAtRef\.current, Date\.now\(\)\)\);/);
-    expect(code.match(/\bfit\(\);/g)).toHaveLength(3);
+    expect(code.match(/\bfit\(\);/g)).toHaveLength(4);
     expect(code).not.toMatch(/fitLeft\(\);/);
   });
 });

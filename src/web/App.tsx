@@ -527,12 +527,12 @@ function Inner() {
   const layoutSig = useLayoutSig({ stateRef, now, removedAgentIds, sizeVersion, domSizeVersion });
 
   // Stored whenever the arrangement's signature moves — use-board-layout.ts.
-  useLayoutAutosave(layoutSig, layout);
+  const { saveSoon } = useLayoutAutosave(layoutSig, layout);
 
   // The two things that bring the board back into view on their own — a
   // layout that changed shape, and a board that drifted off the pane — both
   // stand down while the user has the wheel: use-auto-fit.ts.
-  useAutoFit({
+  const { fitSoon } = useAutoFit({
     layoutSig, rf, stateRef, measuredRef, pinnedRef, positionsRef, paneSizeRef, lastInteractRef,
     autoFitDisabledRef, lastFitTimeRef, fitLeft,
   });
@@ -592,12 +592,16 @@ function Inner() {
   const { railInsetRef, availableWidth, availableHeight } =
     useLayoutFrame({ canvasRef, canvasSize, machinePhase, usagePhase, usagePanelOpen, detailShown, folds: inspectorFold.folds });
 
+  // A layout pass moved the cards with the signature unmoved (the first flow,
+  // a push, a restored board's hold lifting): the camera frames the board
+  // again and the stored board becomes the moved one.
+  const boardMoved = useCallback(() => { fitSoon(); saveSoon(); }, [fitSoon, saveSoon]);
   // Which agents are drawn and which are spotlit, and the arrays React Flow is
   // handed, a drag in flight patched over them — use-board-graph.ts.
   const graph = useBoardGraph({
     stateRef, now, availableWidth, availableHeight, layout, measuredRef, onBubble, settled, dragging,
     layoutSig, selectedIds, openContext, historyReplayed, removedNodes, removedAgentIds,
-    dragTick, dragPatchRef, dragMoveTick,
+    dragTick, dragPatchRef, dragMoveTick, onMoved: boardMoved,
   });
   const { nodes, edges } = graph;
   // A card has just left: its neighbours close the gap after a hold (canvas-motion.css).
@@ -1350,6 +1354,7 @@ function Inner() {
           openTool={openTool} focusAgent={focusAgent} requestClear={requestClear} setKeyHelpOpen={setKeyHelpOpen}
           zoomBy={camera.zoomBy} zoomReset={camera.zoomReset}
           onTerminal={stage.enabled ? stage.openFromButton : undefined}
+          notesDrawn={zoom.lod === "detail"}
         />
         {/* The board's compact form while the stage is open, in the canvas's
             place and inside <main> with the board it stands for — components/

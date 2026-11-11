@@ -348,12 +348,14 @@
    every face said it a second time. The note and its tie are not drawn there.
    Hidden rather than taken off the board, so the note keeps its box and
    nothing moves when the distance changes; hidden, it takes no pointer and no
-   focus. */
+   focus. `!important` because React Flow writes `visibility: visible` inline on
+   every node it has measured, and an inline style beats this sheet: without it
+   the edge hid and the note stayed, "• now" beside every far face. */
 .canvas-wrap[data-lod="compact"] .react-flow__node-recapNote,
 .canvas-wrap[data-lod="overview"] .react-flow__node-recapNote,
 .canvas-wrap[data-lod="compact"] .react-flow__edge-recapTie,
 .canvas-wrap[data-lod="overview"] .react-flow__edge-recapTie {
-  visibility: hidden;
+  visibility: hidden !important;
 }
 :root .canvas-wrap[data-lod="compact"] .react-flow__node .recap-note,
 :root .canvas-wrap[data-lod="overview"] .react-flow__node .recap-note {

@@ -167,7 +167,7 @@ describe("the fit's padding", () => {
     // cover of its right edge (railCover) and a margin each side; the board's
     // left edge lands on the left margin, so no card is cut there.
     expect(camera).toContain("const railWidth = railCover(pane);");
-    expect(camera).toContain("((paneRect.width - railWidth - MARGIN * 2) / (w + lane)) * FILL");
+    expect(camera).toContain("((paneRect.width - railWidth - MARGIN * 2) / (box.w + lane)) * FILL");
     expect(camera).toContain("x: MARGIN - minX * zoom,");
     expect(camera).toContain("MARGIN : Math.max(MARGIN, (paneRect.height - h * zoom) / 2)) - minY * zoom,");
   });
