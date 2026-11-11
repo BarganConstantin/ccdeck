@@ -48,3 +48,71 @@
    the Board, and in Workspace with nothing docked, the wrapper is no box: the
    panels are drawn as if it were not there. */
 .ws-side { display: contents; }
+
+/* ---------------- folded by the Inspector, on the Board ----------------
+   While the Inspector is open on the Board (inspector-fold.ts) the wrapper is
+   one column in the home slots beside it: Usage, then This machine, 8 apart
+   (panel-place.ts STACK_GAP), and the column shares its height between them.
+   A panel the Inspector folded is its header there, one button with the
+   title, one line of its readings and a chevron (the folded look of
+   Workspace's column); pressed, the panel opens in its slot. One with a place
+   of its own floats there once open, and one being moved leaves the column
+   for the drag. The column's width is Workspace's (SideColumn.tsx writes it),
+   so the panels keep their own and stand at its right. Never on a phone. */
+.app[data-fold-stack] .ws-side {
+  position: fixed;
+  top: calc(var(--topbar-h) + 8px + var(--rating-h, 0px));
+  right: var(--rail-r);
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+  max-height: calc(100vh - var(--topbar-h) - 24px - var(--status-room, 0px) - var(--rating-h, 0px));
+  pointer-events: none;
+}
+.app[data-fold-stack] .ws-side > :is(.usage-panel, .sysdetail):not([data-place]):not([data-moving]) {
+  position: relative;
+  inset: auto;
+  z-index: auto;
+  min-height: 0;
+  max-height: none;
+  flex: 0 1 auto;
+}
+.app[data-fold-stack] .ws-side > :not(.leaving) { pointer-events: auto; }
+.app [data-fold="inspector"] { flex: none; overflow: hidden; }
+.app [data-fold="inspector"] > :is(.up-body, .sd-body) { display: none; }
+.app [data-fold="inspector"] :is(.up-header, .sd-top) { padding: 0; border-bottom: 0; }
+.app [data-fold="inspector"] :is(.up-header, .sd-head) > h2 { display: flex; flex: 1 1 auto; min-width: 0; margin: 0; }
+.fold-head {
+  display: flex;
+  flex: 1 1 auto;
+  min-width: 0;
+  align-items: center;
+  gap: 8px;
+  height: var(--pane-head-h);
+  padding: 0 8px 0 12px;
+  border: 0;
+  background: none;
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.fold-head > .fold-title { flex: none; font-size: calc(13px + var(--ui-text-increase, 0px)); line-height: 20px; font-weight: 600; }
+.fold-head > .side-sum {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: calc(11px + var(--ui-text-increase, 0px));
+  line-height: 16px;
+  font-weight: 400;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+.fold-head > svg { flex: none; margin-left: auto; color: var(--muted); }
+@media (hover: hover) and (pointer: fine) {
+  .fold-head:hover { background: var(--line-soft); }
+}

@@ -57,6 +57,7 @@ import MachineGpu from "./MachineGpu";
 import { PLACE_KEYS, usePanelPlace } from "../panel-place";
 import type { PanelDock } from "../side-column";
 import { DockButtons } from "./SideColumn";
+import PanelFoldHead from "./PanelFoldHead";
 
 /**
  * The panel's frame: its slot in the rail, its landmark name, its title, the
@@ -102,6 +103,12 @@ function Shell({ usageOpen, leaving, sub, flag, summary, dock, onClose, children
       {...place.panel}>
       <SheetHandle />
       <div className="sd-top" {...place.grip}>
+        {/* Folded by the Inspector on the Board: one button that opens it. */}
+        {place.tucked && dock ? (
+          <div className="sd-head">
+            <PanelFoldHead title={t("insights.machine.title")} titleId="sd-title" headingClass="sd-title" summary={summary} onOpen={dock.unfold} />
+          </div>
+        ) : (
         <div className="sd-head">
           <h2 className="sd-title" id="sd-title">{t("insights.machine.title")}</h2>
           {/* Folded in Workspace's column, the header keeps the live line. */}
@@ -109,6 +116,7 @@ function Shell({ usageOpen, leaving, sub, flag, summary, dock, onClose, children
           <DockButtons dock={dock} popOut={place.popOut} />
           <button type="button" className="glyph-btn sd-close" onClick={onClose} aria-label={t("insights.usage.close")} title={t("insights.usage.close")}><KitIcon name="close" /></button>
         </div>
+        )}
       </div>
       <div className="sd-body">
         {/* The uptime and the core count open the body (V4's Figma), and the

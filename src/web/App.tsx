@@ -122,6 +122,7 @@ import ViewSwitch from "./components/ViewSwitch";
 import { EmptyInspector } from "./components/Inspector";
 import { readView, useView, type View } from "./use-view";
 import { useSideColumn } from "./side-column";
+import { useInspectorFold, withInspectorFold } from "./inspector-fold";
 import SideColumn from "./components/SideColumn";
 import { SKIP_TO_PANE_MSG, WORKSPACE_PANE_ID, skipToPane } from "./workspace-pane";
 import { createChimePlayer } from "./chime-player";
@@ -582,10 +583,14 @@ function Inner() {
     accountsShown: accountsDrawn && providers.claude, codexShown: accountsDrawn && !providers.claude, detailShown, primarySelectedId, canvasRef,
   });
 
+  // The Inspector open folds the open floating panels to their header, and
+  // closing it gives them back (inspector-fold.ts). Workspace keeps its own.
+  const inspectorFold = useInspectorFold(!phone && detailShown, { usage: usagePanelOpen, machine: machinePanelOpen });
+
   // What the floating panels cover of the canvas, and the frame the layout and
   // every fit pack the board for: see use-layout-frame.ts.
   const { railInsetRef, availableWidth, availableHeight } =
-    useLayoutFrame({ canvasRef, canvasSize, machinePhase, usagePhase, usagePanelOpen, detailShown });
+    useLayoutFrame({ canvasRef, canvasSize, machinePhase, usagePhase, usagePanelOpen, detailShown, folds: inspectorFold.folds });
 
   // Which agents are drawn and which are spotlit, and the arrays React Flow is
   // handed, a drag in flight patched over them — use-board-graph.ts.
@@ -748,6 +753,14 @@ function Inner() {
     mounted: { usage: isMounted(usagePhase), machine: isMounted(machinePhase) },
     narrow: onePart,
   });
+  // On the Board each panel's dock carries the Inspector's fold, and while the
+  // Inspector is open the home slots are one column beside it (inspector-fold.ts,
+  // panel-place.css). Workspace's column and a phone's sheets are left as they are.
+  const docks = {
+    usage: withInspectorFold(side.dock.usage, inspectorFold.folds.usage, () => inspectorFold.unfold("usage")),
+    machine: withInspectorFold(side.dock.machine, inspectorFold.folds.machine, () => inspectorFold.unfold("machine")),
+  };
+  const foldStack = !phone && !inWorkspace && detailShown;
   // UNDER 1320 THE COLUMN TAKES THE INSPECTOR'S PLACE: an Inspector sheet up
   // when the column arrives is held, and given back when the column goes (both
   // parts closed or popped out). One opened while the column is up comes in
@@ -1165,7 +1178,7 @@ function Inner() {
     // data-view exists only in Workspace, so with the Command Panel off the
     // root is the root it was; data-zoom folds the list and the Inspector
     // (workspace.css); the switch between the views is view-switch.ts.
-    <div ref={appRef} className="app" data-view={inWorkspace ? "workspace" : undefined} data-zoom={zoomPhase} data-side={side.on ? "" : undefined}>
+    <div ref={appRef} className="app" data-view={inWorkspace ? "workspace" : undefined} data-zoom={zoomPhase} data-side={side.on ? "" : undefined} data-fold-stack={foldStack ? "" : undefined}>
       {/* The deck's regions, and why each one is the element it is (#381).
           Before this the whole page was <div>s apart from the topbar, so a
           screen reader's landmark rotor listed one entry — Banner — for an
@@ -1402,7 +1415,7 @@ function Inner() {
           incidents={incidents}
           liveSince={liveSince}
           leaving={usagePhase === "leaving"}
-          dock={side.dock.usage}
+          dock={docks.usage}
           onClose={sheetClose("usage", () => { panelReturn.usage(); setUsagePanelOpen(false); })}
         />
       )}
@@ -1412,7 +1425,7 @@ function Inner() {
           on behalf of a readout that is gone. `usageOpen` moves it one rail
           slot left when usage has the first one — see .sysdetail.shifted. */}
       {isMounted(machinePhase) && (
-        <MachinePanel usageOpen={usagePanelOpen} leaving={machinePhase === "leaving"} dock={side.dock.machine}
+        <MachinePanel usageOpen={usagePanelOpen} leaving={machinePhase === "leaving"} dock={docks.machine}
           onClose={sheetClose("machine", () => { panelReturn.machine(); setMachinePanelOpen(false); })} />
       )}
       </SideColumn>

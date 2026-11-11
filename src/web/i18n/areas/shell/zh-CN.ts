@@ -32,6 +32,8 @@ const catalog: Catalog = {
   "shell.side.usageSum": "{amount} {period}",
   "shell.side.usageTokens": "{n} token {period}",
   "shell.side.machineSum": "CPU {cpu}% · {memory}",
+  "shell.side.quotaSum": "5 小时 {five} · 7 天 {week}",
+  "shell.side.quota5h": "5 小时 {five}",
 
   // ── relative ages ──
   "shell.ago.now": "刚刚",

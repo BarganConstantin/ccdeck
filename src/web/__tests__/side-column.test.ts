@@ -344,7 +344,11 @@ describe("App's wiring", () => {
     // A load in Workspace opens both as they were left: they share the column,
     // so the Board's side-by-side room rule does not hold This machine.
     expect(app).toContain('useRightPanels(leftColumnWidth(leftPanel, railWidth), readView() === "workspace")');
-    expect(app).toMatch(/<SideColumn on=\{side\.on\} split=\{side\.split\} width=\{side\.width\} share=\{side\.share\} onWidth=\{side\.setWidth\} onShare=\{side\.setShare\}>[\s\S]*?dock=\{side\.dock\.usage\}[\s\S]*?dock=\{side\.dock\.machine\}[\s\S]*?<\/SideColumn>/);
+    // CHANGED ON PURPOSE (owner, 2026-11-11 critique): each dock goes through
+    // withInspectorFold, which hands Workspace's on as it is and carries the
+    // Inspector's fold on the Board (inspector-fold.test.ts).
+    expect(app).toMatch(/usage: withInspectorFold\(side\.dock\.usage,[\s\S]*?machine: withInspectorFold\(side\.dock\.machine,/);
+    expect(app).toMatch(/<SideColumn on=\{side\.on\} split=\{side\.split\} width=\{side\.width\} share=\{side\.share\} onWidth=\{side\.setWidth\} onShare=\{side\.setShare\}>[\s\S]*?dock=\{docks\.usage\}[\s\S]*?dock=\{docks\.machine\}[\s\S]*?<\/SideColumn>/);
   });
 
   it("under 1320 the column takes the Inspector's place, and closing both brings the Inspector back", () => {

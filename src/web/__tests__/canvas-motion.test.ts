@@ -563,6 +563,10 @@ const EXEMPT: string[] = [
   ".switch",
   // Quick open has no motion (V4's motion rules): its esc chip neither eases nor presses.
   ".qo-esc",
+  // A panel's header folded by the Inspector is one button the panel's width:
+  // it answers with the hover fill and opens the panel; a 320px row scaled on
+  // press would shift its title and figures under the pointer.
+  ".fold-head",
   // Native Settings disclosures answer through expanded state, without moving labels.
   ".ig-access summary", ".ig-token-help summary", ".settings-row-details summary",
   // What's new's disclosures are full-width reading rows: they answer through
