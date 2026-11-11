@@ -81,29 +81,6 @@ button.btn.nav-new { flex: none; gap: 6px; padding: 0 12px 0 10px; }
 }
 .nav-body { position: absolute; inset: 0; transform-origin: 0 0; }
 
-/* The task, on the rim's top edge. On a plate of the canvas ground, because it
-   sits ON the rim's line and the line would otherwise strike its words. In the
-   metadata ink: it is a label read at a glance, not a sentence. */
-.nav-pill {
-  position: absolute;
-  left: 12px;
-  top: -9px;
-  z-index: 1;
-  box-sizing: border-box;
-  max-width: calc(100% - 20px);
-  padding: 3px 10px;
-  border-radius: var(--r-pill);
-  border: 1px solid hsl(var(--session-hue, 200) 65% var(--session-rim-l) / 0.5);
-  background: var(--bg);
-  color: var(--muted);
-  font: 400 11px/1 var(--font-mono);
-  letter-spacing: 0.02em;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.nav-pill[data-alarm] { border-color: var(--warn); }
-
 /* The face's press target: a plain button the size of the face, with nothing
    of its own to draw but the deck's one focus ring — which, inside a tile, is
    the session's accent, exactly as a focused card's is. */
@@ -178,22 +155,20 @@ button.btn.nav-new { flex: none; gap: 6px; padding: 0 12px 0 10px; }
   line-height: 15px;
 }
 .nav-name,
-.nav-signal {
+.nav-line {
   min-width: 0;
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
 }
 .nav-name { flex: 1 1 auto; }
-.nav-sid { font-weight: 400; color: var(--muted); }
 .nav-right { flex: none; margin-left: auto; display: inline-flex; align-items: center; }
 .nav-el {
   font: 400 11px/1 var(--font-mono);
   color: var(--muted);
   font-variant-numeric: tabular-nums;
 }
-.nav-signal { color: var(--muted); }
-.nav-signal b { font-weight: 700; font-variant-numeric: tabular-nums; }
+.nav-line { color: var(--muted); }
 .board-nav [data-tone="warn"] { color: var(--warn); }
 .board-nav [data-tone="err"] { color: var(--err); }
 .board-nav [data-tone="idle"] { color: var(--accent); }
@@ -259,9 +234,9 @@ button.btn.nav-new { flex: none; gap: 6px; padding: 0 12px 0 10px; }
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 22%, transparent);
 }
 .nav-tile[data-attached] .nav-face::before { opacity: 0; }
-/* On the hue wash --muted keeps little headroom in dark, so the signal steps
-   up to the text's own ink on the socket. A warning keeps its colour. */
-.nav-tile[data-attached] .nav-signal:not([data-tone="warn"]) { color: var(--text); }
+/* On the hue wash --muted keeps little headroom in dark, so the second line
+   steps up to the text's own ink on the socket. */
+.nav-tile[data-attached] .nav-line { color: var(--text); }
 .nav-socket {
   position: absolute;
   right: 6px;

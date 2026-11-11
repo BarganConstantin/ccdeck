@@ -1,17 +1,17 @@
 // The navigator has to say exactly what the board says. It stands in for the
 // board while a session has the stage, and a reader who glances from a tile to
-// the stage header and back must not meet a second vocabulary: a face that
-// reads "Needs you" on the board and something else here, a clock a second
-// apart from the card's, a hue a few degrees off. So the tiles are built from
-// the board's own helpers — faceSignal with the card's words, elapsed(),
-// StateMark, sessionHue, the cluster header — and these cases hold them to it
-// by rendering the board's real card (AgentNode) and the navigator from the
-// same reducer state and comparing what each one prints.
+// the stage header and back must not meet a second vocabulary: a clock a
+// second apart from the card's, a hue a few degrees off, a session named one
+// way here and another in the Sessions list. So the tiles are built from the
+// deck's own helpers — elapsed(), StateMark, sessionHue, sessionNames — and
+// these cases hold them to it by rendering the board's real card (AgentNode)
+// and the navigator from the same reducer state and comparing what each one
+// prints.
 //
 // The rest pins the parts of the v3 design a reader acts on: the socket (the
 // tile of the session on the stage, with its chevron and aria-current), one
-// tab stop for the whole navigator, the rail as faces only, the task on the
-// rim, and the sheet drawing at exactly the sizes board-navigator.ts lays out.
+// tab stop for the whole navigator, the rail as faces only, and the sheet
+// drawing at exactly the sizes board-navigator.ts lays out.
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
@@ -19,12 +19,12 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { ReactFlowProvider } from "reactflow";
 import AgentNode from "../components/AgentNode";
-import { NavigatorView, quietLine } from "../components/BoardNavigator";
-import { modelChipText } from "../model-label";
+import { NavigatorView } from "../components/BoardNavigator";
+import { namesLine, sessionNames, startedLine } from "../rail-row-copy";
 import { applyEvent, initialState, type GraphState } from "../reducer";
 import { nodeDataFor } from "../canvas-flow";
 import { clusterBounds, type Cluster, type ClusterNode } from "../cluster-bounds";
-import { FACE_H, ROW_H, TILE_PAD, navigatorClusters, navigatorFrame, navigatorSessions, type NavDensity } from "../board-navigator";
+import { FACE_H, ROW_H, TILE_PAD, navigatorClusters, navigatorFrame, navigatorSessions, navSignal, type NavAgent, type NavDensity } from "../board-navigator";
 import { sessionHue } from "../session-hue";
 import { sheetText } from "./sheet-source";
 import { withoutComments } from "./tsx-scan";
@@ -132,42 +132,50 @@ function tile(html: string, sessionId: string): string {
 describe("a tile says what the board's card says", () => {
   const html = navigator();
 
-  it("puts the board face's own signal on its second line", () => {
-    // A working session with subagents, and one running a call: the card's
-    // distance face and the tile print the same sentence.
-    for (const id of ["boom", "read"]) {
-      const board = textOf(card(id), "lod-long");
-      expect(board, `${id} has a signal on the board`).toBeTruthy();
-      expect(textOf(tile(html, id), "nav-signal"), id).toBe(board);
+  // CHANGED ON PURPOSE (owner's critique, 2026-11-11): the second line was the
+  // board face's signal, "waiting 2m · …" or the state and model. It is the
+  // Sessions list's folder · task line now, under the same title, so one
+  // session reads alike on every surface (rail-row-copy.ts sessionNames).
+  it("names the session as the Sessions list does: the title on the face, folder · task under it", () => {
+    expect(textOf(tile(html, "boom"), "nav-name")).toBe("Migrate billing to per-model pricing");
+    expect(textOf(tile(html, "boom"), "nav-line")).toBe("boom-next-gen · migrate billing");
+    // A title that is the folder says it once, and the task alone under it.
+    expect(textOf(tile(html, "read"), "nav-name")).toBe("vcrm-core");
+    expect(textOf(tile(html, "read"), "nav-line")).toBe("look");
+    for (const id of ["pay", "boom", "read", "quiet"]) {
+      const names = sessionNames(state.agents.get(id)!);
+      expect(textOf(tile(html, id), "nav-name"), id).toBe(names.title);
+      expect(textOf(tile(html, id), "nav-line"), id).toBe(namesLine(names));
     }
   });
 
-  it("leads a blocked session's line with 'waiting' and how long, then the face's sentence", () => {
-    const board = textOf(card("pay"), "lod-long")!;
-    const line = textOf(tile(html, "pay"), "nav-signal")!;
-    // CHANGED ON PURPOSE: the ask line lost its kind class with its kind
-    // colour (V4 has one Waiting colour), so it is found by its own class.
-    // CHANGED ON PURPOSE (V4's Agent / Card): the ask line no longer prints a
-    // clock (the foot keeps the time); how long the card has been blocked is
-    // still said in that line's tooltip, so it is read from there.
-    const waited = /<div class="waiting-row" title="[^"]*Blocked for (\d+(?:ms|s|m \d\ds|h \d+m)) —/.exec(card("pay"))?.[1];
-    expect(waited, "the card says how long it has been blocked").toBeTruthy();
-    expect(line).toBe(`waiting ${waited} · ${board}`);
-    // And the triangle in the clock's place, as the face draws it.
+  it("floats no name tag on the rim and draws no id, keeping when it started and the id's tail for the hover", () => {
+    expect(html).not.toContain("nav-pill");
+    expect(html).not.toContain("nav-sid");
+    const boom = clusters.find(c => c.sessionId === "boom")!;
+    const title = /class="nav-open"[^>]*title="([^"]*)"/.exec(tile(html, "boom"))?.[1] ?? "";
+    expect(decode(title)).toBe(`Migrate billing to per-model pricing\nboom-next-gen · migrate billing\n${startedLine(boom.startedAt!, boom.idTail)}`);
+  });
+
+  it("keeps the triangle in the clock's place for a session stopped on a human", () => {
     expect(tile(html, "pay")).toContain('class="alert-mark"');
     expect(tile(html, "pay")).not.toContain('class="nav-el"');
   });
 
-  it("says a quiet session's state in the card's own word, and what runs it, when the face has nothing to say", () => {
-    expect(textOf(card("quiet"), "lod-long"), "the board's face is silent").toBeNull();
-    expect(textOf(tile(html, "quiet"), "nav-signal")).toBe("done · Claude Code");
-  });
-
-  it("names what runs a quiet session in the words of the card's model chip, or by the agent's name before it has one", () => {
-    expect(quietLine({ state: "active", model: "claude-opus-5-5", effort: "xhigh", provider: "claude" })).toBe("live · opus 5.5 · xhigh");
-    expect(quietLine({ state: "done", model: "gpt-5.5-codex", provider: "codex" })).toBe(`done · ${modelChipText("gpt-5.5-codex")}`);
-    expect(quietLine({ state: "active", provider: "codex" })).toBe("live · Codex");
-    expect(quietLine({ state: "error" })).toBe("err · Claude Code");
+  it("reads the prompt before a background task's notice, and has no second line under notices alone", () => {
+    const notice = "<task-notification>\n<status>completed</status>\n<summary>Background command finished</summary>\n</task-notification>";
+    const noticed = nodes.map(n => n.data?.id === "read"
+      ? { ...n, data: { ...n.data!, prompts: [...n.data!.prompts, { text: notice, at: T0 + 9_000 }] } }
+      : n.data?.id === "quiet"
+        ? { ...n, data: { ...n.data!, prompts: [{ text: notice, at: T0 + 9_000 }], firstPrompt: notice } }
+        : n);
+    const out = renderToStaticMarkup(createElement(NavigatorView, {
+      clusters: clusterBounds(noticed), sessions: navigatorSessions(noticed), width: 436, density: "tiles", attachedId: null, onOpen: () => {},
+    }));
+    expect(textOf(tile(out, "read"), "nav-line")).toBe("look");
+    expect(textOf(tile(out, "quiet"), "nav-name")).toBe("vicinae");
+    expect(tile(out, "quiet")).not.toContain("nav-line");
+    expect(out).not.toContain("task-notification");
   });
 
   it("shows the card's clock, to the second", () => {
@@ -185,35 +193,29 @@ describe("a tile says what the board's card says", () => {
     }
   });
 
-  it("lists each subagent with its mark, its name and its own face's words", () => {
+  it("lists each subagent with its mark, its name and its face signal's words", () => {
+    // CHANGED ON PURPOSE: the board's face below the detail tier draws the task
+    // now, so the row is held to the signal (navSignal) rather than the face.
     const t = tile(html, "boom");
     const subs = [...state.agents.values()].filter(a => a.sessionId === "boom" && a.kind === "subagent");
     expect(subs).toHaveLength(2);
     expect((t.match(/class="nav-row"/g) ?? []).length).toBe(2);
     const said = [...t.matchAll(/<span class="nav-row-said"[^>]*>([^<]*)<\/span>/g)].map(m => decode(m[1]));
-    const boardSaid = subs.map(sub => textOf(card(sub.id), "lod-long")).filter(Boolean);
-    expect(boardSaid.length, "a subagent on the board has something to say").toBeGreaterThan(0);
-    expect(said).toEqual(boardSaid);
+    const signalSaid = subs.map(sub => navSignal(nodes.find(n => n.data?.id === sub.id)!.data as NavAgent)?.long ?? "").filter(Boolean);
+    expect(signalSaid.length, "a subagent has something to say").toBeGreaterThan(0);
+    expect(said).toEqual(signalSaid);
     for (const sub of subs) expect(t, sub.label).toContain(`<span class="nav-row-name">${sub.label}</span>`);
     // The trunk in the board's edge classes, one branch per row, live ones flowing.
     expect((t.match(/class="sess-edge sess-(?:live|idle)"/g) ?? []).length).toBe(2);
   });
 
-  it("names the workspace on the face and the task on the rim, as the board's pill does", () => {
-    expect(clusters.filter(c => c.name).map(c => c.sessionId), "the fixture has a named session").toEqual(["boom"]);
-    // Cut where the board's pill cuts it, which is never past the card's row.
-    expect(textOf(card("boom"), "task-line")).toBe("Migrate billing to per-model pricing");
-    expect(textOf(tile(html, "boom"), "nav-pill")).toBe("Migrate billing to per-model pr…");
-    for (const c of clusters) {
-      const t = tile(html, c.sessionId);
-      expect(textOf(t, "nav-name"), c.sessionId).toBe(c.label);
-      if (c.name) expect(textOf(t, "nav-pill"), c.sessionId).toBe(c.name);
-      else expect(t, c.sessionId).not.toContain("nav-pill");
-    }
-  });
-
-  it("is named for a screen reader by the card's own accessible name", () => {
+  it("is named for a screen reader by the card's own accessible name, led by the title it draws", () => {
     expect(tile(html, "read")).toMatch(/aria-label="vcrm-core, session, Working/);
+    expect(tile(html, "boom")).toMatch(/aria-label="Migrate billing to per-model pricing, session, Working[^"]*, boom-next-gen · migrate billing, open in the Command Panel"/);
+    // Worded in the board's catalogs, never in the component.
+    const src = withoutComments(readFileSync(fileURLToPath(new URL("../components/BoardNavigator.tsx", import.meta.url)), "utf8"));
+    expect(src).toContain('tr("board.nav.openHere")');
+    expect(src).not.toContain("open in the Command Panel");
   });
 
   it("draws the cross, as the board's face does, over a line that says calls failed", () => {
@@ -230,7 +232,6 @@ describe("a tile says what the board's card says", () => {
     const mark = /class="state-mark" data-kind="(\w+)"/;
     expect(mark.exec(face.slice(face.indexOf('class="lod-face"')))?.[1]).toBe("err");
     expect(mark.exec(tile(out, "quiet"))?.[1]).toBe("err");
-    expect(textOf(tile(out, "quiet"), "nav-signal")).toBe("1 tool call failed");
     const row = /<div class="nav-row" data-state="done"[^>]*>([\s\S]*?)<\/div>/.exec(tile(out, "boom"))?.[1] ?? "";
     expect(mark.exec(row)?.[1]).toBe("err");
   });

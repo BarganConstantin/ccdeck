@@ -190,6 +190,7 @@ export default function QuickOpen({ items, onClose, onRun }: {
                     aria-selected={i === active}
                     data-index={i}
                     data-first={n === 0 ? "true" : undefined}
+                    title={item.hint}
                     onMouseMove={e => onRowMove(e, item.id)}
                     onClick={() => run(row)}
                   >

@@ -235,9 +235,9 @@ const LAYOUTS: Layout[] = [
   { name: "detail only", columns: "1fr 360px", panels: 360 },
   { name: "sessions + detail", columns: "288px 1fr 360px", panels: 648 },
   { name: "accounts + detail", columns: "288px 1fr 360px", panels: 648 },
-  { name: "neither panel", columns: "1fr", panels: 0 },
+  { name: "neither panel (the deck's first run)", columns: "1fr", panels: 0 },
   { name: "sessions only", columns: "288px 1fr", panels: 288 },
-  { name: "accounts only (the deck's first run)", columns: "288px 1fr", panels: 288 },
+  { name: "accounts only", columns: "288px 1fr", panels: 288 },
 ];
 
 const paneFor = (l: Layout): PaneSize => ({ width: WINDOW_W - EDGES_W - l.panels, height: WINDOW_H - TOPBAR_H });
@@ -284,13 +284,13 @@ describe("the six layouts are still the six the stylesheet declares", () => {
     expect(css).toMatch(/\.app > \.banner-strip\s*\{[^}]*grid-row:\s*2;/);
   });
 
-  it("opens with the accounts panel and without the detail panel", () => {
-    // Which is `288px 1fr` — a pane 72px wider than the guess believed, on
-    // every deck that has never had its panels touched.
+  it("opens with neither the accounts panel nor the detail panel", () => {
+    // CHANGED ON PURPOSE (owner, 2026-11-11): a first run opens no panel, which
+    // is `1fr` — it used to open Accounts, `288px 1fr`.
     // The accounts panel's default moved with the left column, and the detail
     // panel's below with the right-hand panels, to use-right-panels.ts, which
     // App.tsx calls.
-    expect(clientText()).toMatch(/ACCOUNTS_PANEL_OPEN_KEY\);\s*return stored === null \? true : stored === "1";/);
+    expect(clientText()).toMatch(/return readStored\(ACCOUNTS_PANEL_OPEN_KEY\) === "1";/);
     // Open only on a stored "1": nothing stored, and a store that refuses, both
     // read as null through readStored, and null is closed.
     const rightCode = readFileSync(fileURLToPath(new URL("../use-right-panels.ts", import.meta.url)), "utf8")
@@ -323,7 +323,7 @@ describe("a graph past the pane's right edge is recovered in every layout", () =
     // read as visible and the failsafe stayed asleep — and since the edge
     // stripes, 60px of them in the layout the guess was written for as well.
     const tooWide = LAYOUTS.filter(l => paneFor(l).width < GUESS.width);
-    expect(tooWide.map(l => l.name)).toEqual(["detail only", "sessions + detail", "accounts + detail", "sessions only", "accounts only (the deck's first run)"]);
+    expect(tooWide.map(l => l.name)).toEqual(["detail only", "sessions + detail", "accounts + detail", "sessions only", "accounts only"]);
     for (const layout of tooWide) {
       const pane = paneFor(layout);
       const boxes = [cardAtScreen(pane.width + Math.min(20, (GUESS.width - pane.width) / 2), 100)];
@@ -364,7 +364,7 @@ describe("a card on the canvas is never mistaken for a drifted one", () => {
     // happened to sit in that strip was a fit the user did not ask for.
     const tooNarrow = LAYOUTS.filter(l => paneFor(l).width > GUESS.width);
     expect(tooNarrow.map(l => l.name)).toEqual([
-      "neither panel",
+      "neither panel (the deck's first run)",
     ]);
     for (const layout of tooNarrow) {
       const pane = paneFor(layout);

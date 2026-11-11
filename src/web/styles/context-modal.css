@@ -144,9 +144,9 @@
    POSIX path a bidi-neutral at the boundary, so the bidi algorithm reorders it
    to the far end: /Users/x/CLAUDE.md drew as Users/x/CLAUDE.md/ — wrong on
    screen and wrong when copied, and invisible on Windows because a drive
-   letter is a strong-LTR first character. The head is cut in
-   truncatePathStart() instead; the ellipsis here is only the backstop for a
-   modal narrower than the character budget. */
+   letter is a strong-LTR first character. PathText cuts the middle instead,
+   keeping the file and the folder above it (.path-text, utilities.css); the
+   ellipsis here is only the backstop for a box that is not one. */
 .ctx-md-path {
   min-width: 0;
   color: var(--muted);
@@ -342,6 +342,20 @@
 .canvas-wrap[data-lod="compact"] .recap-note > :not(.lod-face),
 .canvas-wrap[data-lod="overview"] .recap-note > :not(.lod-face) {
   visibility: hidden;
+}
+/* CHANGED ON PURPOSE (owner's critique, 2026-11-11): below the full card the
+   card's own face carries the task and the status, and a "• now" note beside
+   every face said it a second time. The note and its tie are not drawn there.
+   Hidden rather than taken off the board, so the note keeps its box and
+   nothing moves when the distance changes; hidden, it takes no pointer and no
+   focus. `!important` because React Flow writes `visibility: visible` inline on
+   every node it has measured, and an inline style beats this sheet: without it
+   the edge hid and the note stayed, "• now" beside every far face. */
+.canvas-wrap[data-lod="compact"] .react-flow__node-recapNote,
+.canvas-wrap[data-lod="overview"] .react-flow__node-recapNote,
+.canvas-wrap[data-lod="compact"] .react-flow__edge-recapTie,
+.canvas-wrap[data-lod="overview"] .react-flow__edge-recapTie {
+  visibility: hidden !important;
 }
 :root .canvas-wrap[data-lod="compact"] .react-flow__node .recap-note,
 :root .canvas-wrap[data-lod="overview"] .react-flow__node .recap-note {

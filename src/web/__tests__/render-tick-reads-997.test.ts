@@ -188,7 +188,11 @@ describe("the rail inset is measured when something can have moved it", () => {
     //   canvasSize.w               the canvas box the cover is measured against,
     //                              and the only way the accounts panel and a
     //                              window resize reach this.
-    expect(deps).toEqual(["machinePhase", "usagePhase", "usagePanelOpen", "detailShown", "canvasSize.w"]);
+    //   folds.usage / folds.machine  CHANGED ON PURPOSE (owner, 2026-11-11 critique):
+    //                              a panel the Inspector folded to its header
+    //                              is not counted, and the fold lands a render
+    //                              after detailShown moves.
+    expect(deps).toEqual(["machinePhase", "usagePhase", "usagePanelOpen", "detailShown", "canvasSize.w", "folds.usage", "folds.machine"]);
   });
 
   it("derives detailShown from the same condition that mounts the panel", () => {

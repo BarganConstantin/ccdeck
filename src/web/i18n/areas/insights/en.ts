@@ -546,7 +546,7 @@ const catalog: Catalog = {
   "insights.context.codex.uncounted": "Not counted for Codex — the deck reconstructs the session from its rollout file and skips whatever was written before it attached, so a message and tool-call breakdown here would be short by an unknown amount. The window figure above is the CLI's own and is unaffected.",
   "insights.context.codex.memory": "AGENTS.md files in scope",
   "insights.context.codex.memoryEmpty": "No AGENTS.md files found on the path from cwd to the filesystem root, or in $CODEX_HOME.",
-  "insights.context.claude.subtitle": "approximation — CC's /context isn't hook-exposed",
+  "insights.context.claude.subtitle": "Estimated from the transcript.",
   "insights.context.claude.scope": "current turn",
   "insights.context.claude.memory": "CLAUDE.md files in scope",
   "insights.context.claude.memoryEmpty": "No CLAUDE.md files found on the path from cwd to ~/.claude.",

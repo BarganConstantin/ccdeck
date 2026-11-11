@@ -171,27 +171,23 @@ describe("no recap pin on the card", () => {
 });
 
 describe("the chips over the board", () => {
-  it("auto-fit: 124 x 24, the control radius, --panel on --line-soft, 8px apart", () => {
+  // CHANGED ON PURPOSE: "Auto-fit off · Resume" was a status and an accent
+  // action in one strip; it is one quiet "Fit all" button now, the recenter
+  // glyph in --muted and the word in the secondary ink, the strip's surface kept.
+  it("fit all: 24 tall, the control radius, --panel on --line-soft, the glyph 6px from the word", () => {
     const chip = ".autofit-chip";
     expect(decl(chip, "height")).toBe("24px");
     expect(decl(chip, "box-sizing")).toBe("border-box");
     expect(decl(chip, "border-radius")).toBe("var(--r-ctl)");
     expect(decl(chip, "background")).toBe("var(--panel)");
     expect(decl(chip, "border")).toBe("1px solid var(--line-soft)");
-    expect(decl(chip, "gap")).toBe("8px");
-    expect(decl(chip, "padding")).toBe("3px 3px 3px calc(10px - 1px)");
+    expect(decl(chip, "gap")).toBe("6px");
+    expect(decl(chip, "padding")).toBe("0 calc(10px - 1px) 0 calc(8px - 1px)");
     expect(decl(chip, "color")).toBe("var(--text-secondary)");
     expect(decl(chip, "font-size")).toBe(TEXT(12));
-    expect(decl(".autofit-resume", "color")).toBe("var(--accent)");
-    expect(decl(".autofit-resume", "font-weight")).toBe("500");
-    expect(decl(".autofit-resume", "height")).toBe("16px");
-    // The label sits on the strip's own padding, so the button adds none; its
-    // hit area (and hover wash) is the ::after, 4px past the text on each side.
-    expect(decl(".autofit-resume", "padding")).toBe("0");
-    expect(decl(".autofit-resume::after", "inset")).toBe("-4px -4px");
-    expect(decl(".autofit-resume::after", "z-index")).toBe("-1");
-    // 58 + 8 + 44 inside 10 + 4 and the two edges.
-    expect(58 + 8 + 44 + 10 + 4).toBe(124);
+    expect(decl(chip, "cursor")).toBe("pointer");
+    expect(decl(".autofit-chip svg", "color")).toBe("var(--muted)");
+    expect(decl(".autofit-chip:hover", "color")).toBe("var(--text)");
   });
   it("re-arrange undo: 189 x 24, Undo as a quiet accent button, then the key cap", () => {
     const strip = ".rearrange-undo";
@@ -238,47 +234,41 @@ describe("the chips over the board", () => {
     expect(en).toContain('"board.trash.keepsRunning": "The session keeps running"');
   });
   // CHANGED ON PURPOSE (V4's Figma): the category filter was a 32px bordered
-  // slab of accent-outlined pills; it is a legend on the canvas now. The new
-  // look is pinned whole in v4-tool-legend.test.ts; these keep the numbers
-  // this file has always held the board's chips to.
-  it("category legend: no box, 24 round items 2px apart, an 8px dot in the category's colour", () => {
+  // slab of accent-outlined pills, then a legend on the canvas. CHANGED ON
+  // PURPOSE: it is one "Tools" button at every width now, its toggles in a
+  // menu; the whole look is pinned in v4-tool-legend.test.ts. These keep the
+  // numbers this file has always held the board's chips to.
+  it("tool filter: no box around one round Tools button on the control fill", () => {
     const bar = ".cat-filter-bar";
     expect(decl(bar, "min-height")).toBeUndefined();
     expect(decl(bar, "border")).toBe("0");
     expect(decl(bar, "border-radius")).toBe("var(--r-ctl)");
     expect(decl(bar, "background")).toBe("none");
-    expect(decl(bar, "gap")).toBe("2px");
-    const item = ".cat-filter";
-    expect(decl(item, "height")).toBe("var(--ctl-h-sm)");
-    expect(decl(item, "border-radius")).toBe("var(--r-pill)");
-    expect(decl(item, "padding")).toBe("0 8px 0 6px");
-    expect(decl(item, "gap")).toBe("6px");
-    expect(decl(item, "font-size")).toBe(TEXT(12));
-    expect(decl(".cat-filter .cat-dot", "width")).toBe("8px");
-    expect(decl(".cat-filter .cat-dot", "height")).toBe("8px");
-    for (const c of ["file", "shell", "web", "agent", "task", "plan", "mcp"]) {
-      expect(decl(`.cat-filter.cat-${c} .cat-dot`, "background")).toBe(`var(--cat-${c})`);
-    }
+    const tools = ".cat-filter-tools";
+    expect(decl(tools, "height")).toBe("var(--ctl-h)");
+    expect(decl(tools, "border-radius")).toBe("var(--r-pill)");
+    expect(decl(tools, "background")).toBe("var(--bg-soft)");
+    expect(decl(tools, "font-size")).toBe(TEXT(12));
   });
-  it("category legend items: no fill and no stroke, shown in --text-secondary, hidden a hollow dot in --text-dim", () => {
-    expect(decl(".cat-filter", "background")).toBe("none");
-    expect(decl(".cat-filter", "border")).toBe("0");
-    expect(decl(".cat-filter", "color")).toBe("var(--text-secondary)");
-    expect(decl(".cat-filter.off", "color")).toBe("var(--text-dim)");
-    expect(decl(".cat-filter.off .cat-dot", "background")).toBe("transparent");
-    expect(decl(".cat-filter.off .cat-dot", "border")).toBe("1.5px solid var(--text-dim)");
-    expect(decl(".cat-filter:hover", "background")).toBe("var(--ctl-fill)");
-    expect(decl(".cat-filter:hover", "color")).toBe("var(--text)");
+  it("tool filter menu: an 8px dot in the category's colour, a hidden one a hollow dot in --text-dim", () => {
+    expect(decl(".cat-tools-item .cat-dot", "width")).toBe("8px");
+    expect(decl(".cat-tools-item .cat-dot", "height")).toBe("8px");
+    for (const c of ["file", "shell", "web", "agent", "task", "plan", "mcp"]) {
+      expect(decl(`.cat-tools-item.cat-${c} .cat-dot`, "background")).toBe(`var(--cat-${c})`);
+    }
+    expect(decl(".cat-tools-item.off", "color")).toBe("var(--text-dim)");
+    expect(decl(".cat-tools-item.off .cat-dot", "background")).toBe("transparent");
+    expect(decl(".cat-tools-item.off .cat-dot", "border")).toBe("1.5px solid var(--text-dim)");
     const src = read("../components/CategoryFilterBar.tsx");
-    expect(src).toContain("aria-pressed={!off}");
+    expect(src).toContain("<Checkbox checked={!off} onChange={() => toggleCat(c)} />");
     expect(src).toContain('<span className="cat-dot" aria-hidden="true" />');
   });
   it("writes none of them with a colour literal, and every hover under the mouse query", () => {
-    for (const sel of [".autofit-chip", ".autofit-resume", ".rearrange-undo", ".rearrange-undo-act", ".drag-trash-zone", ".cat-filter-bar", ".cat-filter", ".cat-filter.off", ".cat-filter.off .cat-dot", ".cat-filter-sep", ".cat-filter-all", ".cat-filter-tools", ".cost-tip", ".recap-note"]) {
+    for (const sel of [".autofit-chip", ".rearrange-undo", ".rearrange-undo-act", ".drag-trash-zone", ".cat-filter-bar", ".cat-filter-tools", ".cat-tools-item.off", ".cat-tools-item.off .cat-dot", ".cost-tip", ".recap-note"]) {
       expect(body(sel), sel).not.toMatch(LITERAL);
     }
     const css = sheetText();
-    for (const sel of [".autofit-resume:hover", ".rearrange-undo-act:hover", ".cat-filter:hover", ".cat-filter-all:hover", ".cat-filter-tools:hover"]) {
+    for (const sel of [".autofit-chip:hover", ".rearrange-undo-act:hover", ".cat-filter-tools:hover"]) {
       const at = css.indexOf(sel);
       expect(at, sel).toBeGreaterThan(-1);
       expect(css.lastIndexOf("@media (hover: hover) and (pointer: fine)", at), sel).toBeGreaterThan(css.lastIndexOf("\n}\n", at));

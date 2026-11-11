@@ -220,7 +220,7 @@ describe("the card's chip", () => {
     // against the effort's width (the effort goes only when that can uncut the
     // name), and the width trigger is the label's, not the head's.
     expect(src).toMatch(/overflow: label\.scrollWidth - label\.clientWidth,/);
-    expect(src).toMatch(/useBeforePaint\(\(\) => \{ setSqueeze\(0\); \}, \[data\.effort, data\.model, otherModels\.length, data\.label, data\.kind, squeezeMax\]\)/);
+    expect(src).toMatch(/useBeforePaint\(\(\) => \{ setSqueeze\(0\); \}, \[data\.effort, data\.model, otherModels\.length, headName, data\.kind, squeezeMax\]\)/);
     expect(src).toMatch(/modelChipText\(data\.model, row\.effort \? data\.effort : undefined\)/);
     expect(src).toMatch(/className="label" title=\{cardTooltip\} ref=\{labelRef\}/);
   });

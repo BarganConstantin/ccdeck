@@ -122,6 +122,7 @@ import ViewSwitch from "./components/ViewSwitch";
 import { EmptyInspector } from "./components/Inspector";
 import { readView, useView, type View } from "./use-view";
 import { useSideColumn } from "./side-column";
+import { useInspectorFold, withInspectorFold } from "./inspector-fold";
 import SideColumn from "./components/SideColumn";
 import { SKIP_TO_PANE_MSG, WORKSPACE_PANE_ID, skipToPane } from "./workspace-pane";
 import { createChimePlayer } from "./chime-player";
@@ -526,12 +527,12 @@ function Inner() {
   const layoutSig = useLayoutSig({ stateRef, now, removedAgentIds, sizeVersion, domSizeVersion });
 
   // Stored whenever the arrangement's signature moves — use-board-layout.ts.
-  useLayoutAutosave(layoutSig, layout);
+  const { saveSoon } = useLayoutAutosave(layoutSig, layout);
 
   // The two things that bring the board back into view on their own — a
   // layout that changed shape, and a board that drifted off the pane — both
   // stand down while the user has the wheel: use-auto-fit.ts.
-  useAutoFit({
+  const { fitSoon } = useAutoFit({
     layoutSig, rf, stateRef, measuredRef, pinnedRef, positionsRef, paneSizeRef, lastInteractRef,
     autoFitDisabledRef, lastFitTimeRef, fitLeft,
   });
@@ -582,28 +583,35 @@ function Inner() {
     accountsShown: accountsDrawn && providers.claude, codexShown: accountsDrawn && !providers.claude, detailShown, primarySelectedId, canvasRef,
   });
 
+  // The Inspector open folds the open floating panels to their header, and
+  // closing it gives them back (inspector-fold.ts). Workspace keeps its own.
+  const inspectorFold = useInspectorFold(!phone && detailShown, { usage: usagePanelOpen, machine: machinePanelOpen });
+
   // What the floating panels cover of the canvas, and the frame the layout and
   // every fit pack the board for: see use-layout-frame.ts.
   const { railInsetRef, availableWidth, availableHeight } =
-    useLayoutFrame({ canvasRef, canvasSize, machinePhase, usagePhase, usagePanelOpen, detailShown });
+    useLayoutFrame({ canvasRef, canvasSize, machinePhase, usagePhase, usagePanelOpen, detailShown, folds: inspectorFold.folds });
 
+  // A layout pass moved the cards with the signature unmoved (the first flow,
+  // a push, a restored board's hold lifting): the camera frames the board
+  // again and the stored board becomes the moved one.
+  const boardMoved = useCallback(() => { fitSoon(); saveSoon(); }, [fitSoon, saveSoon]);
   // Which agents are drawn and which are spotlit, and the arrays React Flow is
   // handed, a drag in flight patched over them — use-board-graph.ts.
   const graph = useBoardGraph({
     stateRef, now, availableWidth, availableHeight, layout, measuredRef, onBubble, settled, dragging,
     layoutSig, selectedIds, openContext, historyReplayed, removedNodes, removedAgentIds,
-    dragTick, dragPatchRef, dragMoveTick,
+    dragTick, dragPatchRef, dragMoveTick, onMoved: boardMoved,
   });
   const { nodes, edges } = graph;
   // A card has just left: its neighbours close the gap after a hold (canvas-motion.css).
   const closing = useClosingGap(graph.visibleAgentIds);
 
-  // Re-column when the frame changes enough to change the answer, keeping what
-  // the reader was looking at — use-reframe.ts.
+  // Frame the board again when the canvas changes size, moving no card —
+  // use-reframe.ts.
   const primarySelectedIdRef = useMirroredRef(primarySelectedId);
   useReframe({
-    nodes, edges, settled, dragging, availableWidth, availableHeight, layout, camera, rf,
-    measuredRef, stateRef, lastFocusRef, primarySelectedIdRef, focusAgentRef, autoFitDisabledRef,
+    settled, dragging, availableWidth, availableHeight, layout, camera, lastFocusRef, focusAgentRef, autoFitDisabledRef,
   });
 
   // `selected` is declared with the rail measurement further up this file,
@@ -748,6 +756,14 @@ function Inner() {
     mounted: { usage: isMounted(usagePhase), machine: isMounted(machinePhase) },
     narrow: onePart,
   });
+  // On the Board each panel's dock carries the Inspector's fold, and while the
+  // Inspector is open the home slots are one column beside it (inspector-fold.ts,
+  // panel-place.css). Workspace's column and a phone's sheets are left as they are.
+  const docks = {
+    usage: withInspectorFold(side.dock.usage, inspectorFold.folds.usage, () => inspectorFold.unfold("usage")),
+    machine: withInspectorFold(side.dock.machine, inspectorFold.folds.machine, () => inspectorFold.unfold("machine")),
+  };
+  const foldStack = !phone && !inWorkspace && detailShown;
   // UNDER 1320 THE COLUMN TAKES THE INSPECTOR'S PLACE: an Inspector sheet up
   // when the column arrives is held, and given back when the column goes (both
   // parts closed or popped out). One opened while the column is up comes in
@@ -1165,7 +1181,7 @@ function Inner() {
     // data-view exists only in Workspace, so with the Command Panel off the
     // root is the root it was; data-zoom folds the list and the Inspector
     // (workspace.css); the switch between the views is view-switch.ts.
-    <div ref={appRef} className="app" data-view={inWorkspace ? "workspace" : undefined} data-zoom={zoomPhase} data-side={side.on ? "" : undefined}>
+    <div ref={appRef} className="app" data-view={inWorkspace ? "workspace" : undefined} data-zoom={zoomPhase} data-side={side.on ? "" : undefined} data-fold-stack={foldStack ? "" : undefined}>
       {/* The deck's regions, and why each one is the element it is (#381).
           Before this the whole page was <div>s apart from the topbar, so a
           screen reader's landmark rotor listed one entry — Banner — for an
@@ -1338,6 +1354,7 @@ function Inner() {
           openTool={openTool} focusAgent={focusAgent} requestClear={requestClear} setKeyHelpOpen={setKeyHelpOpen}
           zoomBy={camera.zoomBy} zoomReset={camera.zoomReset}
           onTerminal={stage.enabled ? stage.openFromButton : undefined}
+          notesDrawn={zoom.lod === "detail"}
         />
         {/* The board's compact form while the stage is open, in the canvas's
             place and inside <main> with the board it stands for — components/
@@ -1367,7 +1384,7 @@ function Inner() {
           the chrome draws, so it can never offer something the deck does not. */}
       {quickOpenOpen && (
         <QuickOpen onClose={closeQuickOpen} onRun={runQuick} items={quickOpenItems({
-          rails: quickRails, sessions: buildRows(stateRef.current, now), now, openSession: pickSession,
+          rails: quickRails, sessions: buildRows(stateRef.current, now), openSession: pickSession,
           settings: indexFor(providers.claude, integrationsReach(integrations), offeredKinds(integrations)), openSettings,
           singleKeys, fit: handleFit, rearrange: handleRelayout, paused, togglePause,
           clear: agentCount > 0 ? () => requestClear("button") : undefined,
@@ -1402,7 +1419,7 @@ function Inner() {
           incidents={incidents}
           liveSince={liveSince}
           leaving={usagePhase === "leaving"}
-          dock={side.dock.usage}
+          dock={docks.usage}
           onClose={sheetClose("usage", () => { panelReturn.usage(); setUsagePanelOpen(false); })}
         />
       )}
@@ -1412,7 +1429,7 @@ function Inner() {
           on behalf of a readout that is gone. `usageOpen` moves it one rail
           slot left when usage has the first one — see .sysdetail.shifted. */}
       {isMounted(machinePhase) && (
-        <MachinePanel usageOpen={usagePanelOpen} leaving={machinePhase === "leaving"} dock={side.dock.machine}
+        <MachinePanel usageOpen={usagePanelOpen} leaving={machinePhase === "leaving"} dock={docks.machine}
           onClose={sheetClose("machine", () => { panelReturn.machine(); setMachinePanelOpen(false); })} />
       )}
       </SideColumn>

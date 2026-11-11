@@ -90,11 +90,11 @@ describe("what the header's ↻ is called", () => {
   const providers = (claude: boolean, codex: boolean) => ({ kind: "reported" as const, claude, codex });
 
   it("names both quota sections only when both are drawn", () => {
-    expect(quotaRefreshLabel(providers(true, true))).toBe("Refresh Claude + Codex quota");
+    expect(quotaRefreshLabel(providers(true, true))).toBe("Refresh Claude + Codex quota and usage");
   });
 
   it("names only the section that is there on a one-CLI deck", () => {
-    expect(quotaRefreshLabel(providers(false, true))).toBe("Refresh Codex quota");
-    expect(quotaRefreshLabel(providers(true, false))).toBe("Refresh Claude quota");
+    expect(quotaRefreshLabel(providers(false, true))).toBe("Refresh Codex quota and usage");
+    expect(quotaRefreshLabel(providers(true, false))).toBe("Refresh Claude quota and usage");
   });
 });

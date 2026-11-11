@@ -148,6 +148,13 @@ describe("Tour", () => {
     expect(decl(".guide-stage", "border-radius")).toBe("var(--r-panel)");
     expect(decl(".guide-stage", "padding")).toBe("16px");
   });
+  it("fits the drawing inside the box: one definite cell, the drawing at its full height", () => {
+    // Seen in the browser (tour on a first visit, 1440x900): with an auto
+    // track the drawing was 223px tall in a 148px box and covered the line
+    // under it on all eight steps. A definite cell lets 100% resolve.
+    expect(decl(".guide-stage", "grid-template")).toBe("minmax(0, 1fr) / minmax(0, 1fr)");
+    expect(decl(".guide-stage > .guide-art", "height")).toBe("100%");
+  });
   it("sets the tip 14/20 500 --text over a 13/20 --muted second line", () => {
     expect(decl(".guide-line", "font-weight")).toBe("500");
     expect(decl(".guide-line", "line-height")).toBe("var(--lh-card-title)");

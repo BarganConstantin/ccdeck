@@ -21,12 +21,13 @@ const USAGE_PANEL_OPEN_KEY = "agent-dag.usagePanelOpen";
  *  survived the button changing: this key was written by a topbar meter that
  *  no longer exists, and a tab that had the panel open still finds it open. */
 const MACHINE_PANEL_OPEN_KEY = "agent-dag.systemPanelOpen";
-// First-run layout: Usage and Accounts open, everything else closed. Those two
-// answer "how much have I got left, and on which account" — the questions you
-// have before you have a graph worth looking at. The session list and detail
-// panel are for navigating work that already exists, so they stay shut until
-// asked for, and the canvas gets the width. A phone's load opens one sheet of
-// these at most, and stores nothing for the rest: phone-load.ts.
+// First-run layout: no panel open (owner, 2026-11-11). Accounts and Usage used
+// to open on a first run, and on a machine with nothing set up yet each opened
+// on what was missing — two failures before the first session. Every panel
+// waits for its door now, and the board gets the width. A profile an earlier
+// load wrote to keeps what it had: settlePanelDefaults (storage.ts) pins the
+// flags it never stored to the open they read as. A phone's load opens one
+// sheet of these at most, and stores nothing for the rest: phone-load.ts.
 //
 // All three panels read and write through storage.ts rather than
 // window.localStorage directly: the loaders run inside useState initialisers,
@@ -39,8 +40,7 @@ function saveDetailOpen(open: boolean): void {
   writeStored(DETAIL_OPEN_KEY, open ? "1" : "0");
 }
 function loadUsagePanelOpen(): boolean {
-  const stored = readStored(USAGE_PANEL_OPEN_KEY);
-  return stored === null ? true : stored === "1";
+  return readStored(USAGE_PANEL_OPEN_KEY) === "1";
 }
 function saveUsagePanelOpen(open: boolean): void {
   writeStored(USAGE_PANEL_OPEN_KEY, open ? "1" : "0");
@@ -48,23 +48,13 @@ function saveUsagePanelOpen(open: boolean): void {
 /**
  * Whether the machine panel was open when this tab was last looked at.
  *
- * OPEN ON A FIRST RUN, and never reopened after that — the same shape the
- * usage and accounts panels already use. This used to default to closed, on
- * the argument that "a machine readout that reopens itself on every refresh
- * would be occupying the rail on behalf of a decision nobody made". That
- * argument is about REOPENING, and the null check is exactly what prevents it:
- * a tab that has never expressed a preference gets the panel, and a tab that
- * has closed it once has expressed one and keeps it closed for good.
- *
- * The two cases were worth separating because they answer different people. A
- * first run is somebody who has not met the deck yet and cannot ask for a
- * panel they do not know is there; every run after that is somebody who has,
- * and whose answer is on record. Opening it starts the /api/system poll, which
- * stops with the panel and while the tab is hidden.
+ * Shut on a first run, like Usage and Accounts: its door is on the rail, and a
+ * panel nobody asked for is not opened on their behalf. Once opened or closed,
+ * that choice is kept. Opening it starts the /api/system poll, which stops
+ * with the panel and while the tab is hidden.
  */
 function loadMachinePanelOpen(): boolean {
-  const stored = readStored(MACHINE_PANEL_OPEN_KEY);
-  return stored === null ? true : stored === "1";
+  return readStored(MACHINE_PANEL_OPEN_KEY) === "1";
 }
 function saveMachinePanelOpen(open: boolean): void {
   writeStored(MACHINE_PANEL_OPEN_KEY, open ? "1" : "0");

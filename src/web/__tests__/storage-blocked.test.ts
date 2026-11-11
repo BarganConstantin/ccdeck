@@ -67,13 +67,13 @@ describe("readStored", () => {
   });
 
   it("gives the deck its first-run defaults when the store is blocked", () => {
-    // The two initialisers that used to throw: the usage panel opens on a fresh
-    // profile, and the theme stays dark. Both derive from a null read, so a
-    // refused store lands on the same answer as a browser that has never seen
-    // the deck — no blank page, just an unremembered preference.
+    // The two initialisers that used to throw: the usage panel's flag (shut on
+    // a fresh profile since 2026-11-11, CHANGED ON PURPOSE) and the theme, which
+    // stays dark. Both derive from a null read, so a refused store lands on the
+    // same answer as a browser that has never seen the deck — no blank page,
+    // just an unremembered preference.
     browser({ get: refuse });
-    const stored = readStored("agent-dag.usagePanelOpen");
-    expect(stored === null ? true : stored === "1").toBe(true);
+    expect(readStored("agent-dag.usagePanelOpen") === "1").toBe(false);
     expect((readStored("agent-dag.theme") as "dark" | "light" | null) ?? "dark").toBe("dark");
   });
 });

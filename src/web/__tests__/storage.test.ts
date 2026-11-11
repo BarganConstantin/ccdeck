@@ -5,7 +5,7 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { pruneStaleState, SCHEMA_KEY, SHAPE_KEYS, STATE_SCHEMA } from "../storage";
+import { FIRST_RUN_PANEL_KEYS, PANEL_DEFAULTS_KEY, pruneStaleState, SCHEMA_KEY, settlePanelDefaults, SHAPE_KEYS, STATE_SCHEMA } from "../storage";
 
 function store(initial: Record<string, string> = {}) {
   const map = new Map(Object.entries(initial));
@@ -90,8 +90,70 @@ describe("pruneStaleState", () => {
   });
 });
 
+// A first run opens no panel now; Accounts, Usage and the machine panel used
+// to open on one. Nobody who has loaded the deck before may lose a panel to
+// that: a flag they never stored read as open, and is pinned open once.
+describe("settlePanelDefaults", () => {
+  const [ACCOUNTS, USAGE, MACHINE] = FIRST_RUN_PANEL_KEYS;
+
+  it("names the three panels the first run used to open", () => {
+    expect(FIRST_RUN_PANEL_KEYS).toEqual(["agent-dag.accountsPanelOpen", "agent-dag.usagePanelOpen", "agent-dag.systemPanelOpen"]);
+  });
+
+  it("leaves a fresh profile empty, so it gets the closed default", () => {
+    const s = store();
+    expect(settlePanelDefaults(s)).toEqual([]);
+    for (const key of FIRST_RUN_PANEL_KEYS) expect(s.getItem(key), key).toBeNull();
+    expect(s.getItem(PANEL_DEFAULTS_KEY)).toBe("1");
+  });
+
+  it("pins open what an earlier load never stored, and keeps what it did", () => {
+    // A phone that never opened Usage, a window always too narrow for the
+    // machine panel, a reader who closed Accounts: only the first two change.
+    const s = store({ "agent-dag.detailOpen": "0", [ACCOUNTS]: "0" });
+    expect(settlePanelDefaults(s).sort()).toEqual([USAGE, MACHINE].sort());
+    expect(s.getItem(ACCOUNTS)).toBe("0");
+    expect(s.getItem(USAGE)).toBe("1");
+    expect(s.getItem(MACHINE)).toBe("1");
+  });
+
+  it("knows an earlier load by any flag it wrote, or by the schema stamp", () => {
+    for (const seen of [SCHEMA_KEY, "agent-dag.detailOpen", "agent-dag.sessionListOpen", USAGE]) {
+      const s = store({ [seen]: "1" });
+      settlePanelDefaults(s);
+      expect(s.getItem(ACCOUNTS), seen).toBe("1");
+    }
+  });
+
+  it("runs once, so a flag a later load left unwritten keeps the closed default", () => {
+    // A first load that lands in Workspace does not write Accounts' flag; the
+    // next boot must not take the profile for an old one and open the panel.
+    const s = store();
+    settlePanelDefaults(s);
+    s.setItem("agent-dag.detailOpen", "0");
+    expect(settlePanelDefaults(s)).toEqual([]);
+    expect(s.getItem(ACCOUNTS)).toBeNull();
+  });
+
+  it("survives a storage that throws", () => {
+    const dead = {
+      getItem() { throw new Error("denied"); },
+      setItem() { throw new Error("denied"); },
+      removeItem() { throw new Error("denied"); },
+    };
+    expect(settlePanelDefaults(dead)).toEqual([]);
+  });
+});
+
 describe("boot", () => {
   const main = readFileSync(fileURLToPath(new URL("../main.tsx", import.meta.url)), "utf8");
+
+  it("settles the panel flags before the prune stamps the schema, and before App mounts", () => {
+    const settle = main.search(/try \{ settlePanelDefaults\(window\.localStorage\); \} catch/);
+    expect(settle, "main.tsx no longer settles the panel flags inside a try").toBeGreaterThan(-1);
+    expect(main.search(/try \{ pruneStaleState\(window\.localStorage\); \} catch/)).toBeGreaterThan(settle);
+    expect(main.indexOf(".render(")).toBeGreaterThan(settle);
+  });
 
   it("prunes before App mounts, since App reads the layout and viewport while it does", () => {
     // Moved after render — or dropped — the new canvas reads the old shape in

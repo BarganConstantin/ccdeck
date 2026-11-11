@@ -11,7 +11,9 @@
 // line and ONE second line, cut with an ellipsis at the row's width, so what
 // is rewritten can never change how tall the row is. The whole text, and who
 // wrote it, is the row's tooltip, so a cut line loses nothing a reader cannot
-// reach.
+// reach. Since the owner's critique of 2026-11-11 that line is what a waiting
+// row waits on, else folder · task (rail-row-copy.ts railLine), and the note
+// is the tooltip's alone.
 import { describe, it, expect } from "vitest";
 import { cascade, el, selects, sheetRules } from "./sheet-cascade";
 import { railLine, rowTooltip } from "../rail-row-copy";
@@ -21,7 +23,7 @@ import type { Row } from "../components/SessionList";
 const LINE = [
   el("html", [], { states: ["root"] }), el("body"), el("div", ["app"]),
   el("aside", ["session-list"]), el("ul", ["sl-rows"]), el("li", ["sl-row-item"]), el("div", ["sl-row-in"]),
-  el("button", ["sl-row"]), el("span", ["sl-text"]), el("span", ["sl-line2", "mono"]),
+  el("button", ["sl-row"]), el("span", ["sl-text"]), el("span", ["sl-line2"]),
 ];
 const got = (chain: ReturnType<typeof el>[], prop: string, width = 1440) => cascade(s => selects(s, chain), prop, width);
 
@@ -47,7 +49,8 @@ describe("a rail row's second line", () => {
   });
 
   it("says the whole note in the row's tooltip, with who wrote it", () => {
-    expect(railLine(working, 1)).toEqual({ kind: "mono", text: LONG });
+    // CHANGED ON PURPOSE (owner's critique, 2026-11-11): never the row's line.
+    expect(railLine(working, 1)).toBeNull();
     const title = rowTooltip(working, false);
     expect(title).toContain(LONG);
     expect(title.split("\n").length).toBeGreaterThan(2);
@@ -58,9 +61,8 @@ describe("a rail row's second line", () => {
     expect(rowTooltip(asking, false)).toContain("Suggested reply: postgres");
   });
 
-  it("keeps the recap's whole text in the tooltip, and its first line as the row's", () => {
+  it("keeps the recap's whole text in the tooltip", () => {
     const recapped: Row = { ...base, state: "done", recap: { text: "Shipped the login route", at: 1 } };
-    expect(railLine(recapped, 3)).toEqual({ kind: "mono", text: "Shipped the login route" });
     expect(rowTooltip(recapped, false)).toContain("Shipped the login route");
   });
 

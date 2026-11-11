@@ -96,7 +96,10 @@ describe("what the server publishes when the CLI prints no windows", () => {
 describe("what the panel says about it", () => {
   it("carries the reason it used to drop on the floor", () => {
     expect(quotaReads).toMatch(/reason\?: string;/);
-    expect(panel).toContain('<span className="up-quota-hint">{claudeQuotaHint(t, quota.reason)}</span>');
+    // CHANGED ON PURPOSE (owner, 2026-11-11): the reason is the info mark's hint
+    // beside the line, still in the page for a screen reader and a touch screen.
+    expect(panel).toContain("why={claudeQuotaHint(t, quota.reason)}");
+    expect(panel).toContain('<span className="up-quota-hint" id={whyId}>{why}</span>');
   });
 
   it("does not tell an API-key install to run /usage", () => {
@@ -104,7 +107,8 @@ describe("what the panel says about it", () => {
     // whose CLI has not printed the lines yet — and no longer for the one it
     // does not.
     expect(panel).toContain('t("usage.quota.hint.runUsage")');
-    expect(en["usage.quota.hint.runUsage"]).toBe("Run /usage in a claude session, then click ↻");
+    // No "then click ↻" (owner, 2026-11-11): the foot's Refresh is the one retry.
+    expect(en["usage.quota.hint.runUsage"]).toBe("Run /usage in a Claude session.");
     const hint = panel.slice(panel.indexOf("function claudeQuotaHint"), panel.indexOf("function codexHint"));
     expect(hint).toContain('case "no_subscription":');
     expect(hint).toContain('t("usage.quota.hint.noSubscription")');
@@ -114,6 +118,6 @@ describe("what the panel says about it", () => {
   });
 
   it("changes the headline too, because 'unavailable' implies a retry", () => {
-    expect(panel).toContain('{quota.reason === "no_subscription" ? t("usage.quota.none") : t("usage.quota.unavailable")}');
+    expect(panel).toContain('headline={quota.reason === "no_subscription" ? t("usage.quota.none") : t("usage.quota.unavailable")}');
   });
 });

@@ -664,7 +664,10 @@ describe("the category filter bar when a card drifts under it (#622)", () => {
    *  the backdrop that matters; the empty canvas is given too. */
   const backdrops = (theme: Theme): Array<[string, Rgba]> =>
     [["a card", parseColor(TOK[theme]["--panel"])], ["the canvas", parseColor(TOK[theme]["--bg"])]];
-  const labels = { on: ".cat-filter", off: ".cat-filter.off" } as const;
+  /** CHANGED ON PURPOSE: the legend's items ("on" and "off") are gone; the one
+   *  label in the bar is the Tools button's word. Measured against the bar's
+   *  bed rather than the button's own --bg-soft, the stricter of the two. */
+  const labels = { tools: ".cat-filter-tools" } as const;
 
   it("reproduces what `opacity: 0.2` on the group was worth, in both themes", () => {
     // Group opacity composites the label AND the fill it sits on, which is why
@@ -745,7 +748,7 @@ describe("the category filter bar when a card drifts under it (#622)", () => {
     }
   });
 
-  it("reads every chip label at 4.5:1 while the bar is yielding, in both themes", () => {
+  it("reads the bar's label at 4.5:1 while the bar is yielding, in both themes", () => {
     for (const theme of themes) {
       const fill = fillOf(FADED, theme);
       for (const [state, selector] of Object.entries(labels)) {
@@ -759,7 +762,7 @@ describe("the category filter bar when a card drifts under it (#622)", () => {
     }
   });
 
-  it("costs the legend nothing at rest or while a reader is at it", () => {
+  it("costs the filter nothing at rest or while a reader is at it", () => {
     // CHANGED ON PURPOSE (V4's legend): at rest nothing is under the words but
     // the canvas; engaged over a card, the bed IS the canvas's ground.
     for (const theme of themes) {
@@ -803,16 +806,15 @@ describe("the category filter bar when a card drifts under it (#622)", () => {
 
   it("keeps the hollow dot, which is the channel that never depended on any of this", () => {
     // CHANGED ON PURPOSE (V4's legend): it was the strike through the name.
-    expect(decl(rule(".cat-filter.off .cat-dot"), "background")).toBe("transparent");
-    expect(decl(rule(".cat-filter.off .cat-dot"), "border")).toBe("1.5px solid var(--text-dim)");
-    // A ring is a graphic that carries the state, so 1.4.11's 3:1 applies to it
-    // on every bed the words are held to.
+    // CHANGED ON PURPOSE: the dot lives in the Tools menu's rows now, on the
+    // popover's --panel, not on the canvas under the bar.
+    expect(decl(rule(".cat-tools-item.off .cat-dot"), "background")).toBe("transparent");
+    expect(decl(rule(".cat-tools-item.off .cat-dot"), "border")).toBe("1.5px solid var(--text-dim)");
+    expect(decl(rule(".anchored-popover"), "background")).toBe("var(--panel)");
+    // A ring is a graphic that carries the state, so 1.4.11's 3:1 applies to it.
     for (const theme of themes) {
       const ring = resolve("var(--text-dim)", theme);
-      expect(contrastRatio(ring, parseColor(TOK[theme]["--bg"])), `${theme} ring on the canvas`).toBeGreaterThanOrEqual(NON_TEXT);
-      for (const [where, backdrop] of backdrops(theme)) {
-        expect(contrastRatio(ring, over(fillOf(FADED, theme), backdrop)), `${theme} ring over ${where} while occluded`).toBeGreaterThanOrEqual(NON_TEXT);
-      }
+      expect(contrastRatio(ring, parseColor(TOK[theme]["--panel"])), `${theme} ring on the menu`).toBeGreaterThanOrEqual(NON_TEXT);
     }
   });
 });

@@ -15,6 +15,7 @@ import type { AgentNodeData } from "../types";
 import { useNow } from "../use-now";
 import { KitIcon } from "./kit-icons";
 import { WaitingLoader } from "./Loader";
+import PathText from "./PathText";
 import { useT } from "../i18n";
 
 interface Reading { session: string; turn: SessionTurn | null; readAt: number }
@@ -184,7 +185,9 @@ function SpanLine({ row, table, now, folded, onToggle }: {
         </span>
         <span className="insp-time-icon" data-icon={toolIconName(row.name, row.group)}><KitIcon name={toolIconName(row.name, row.group)} /></span>
         <span className="insp-time-op">{row.name}</span>
-        {row.arg && <span className="insp-time-arg" title={row.arg}>{row.arg}</span>}
+        {row.arg && (row.path
+          ? <PathText className="insp-time-arg" path={row.arg} cwd={table.cwd} />
+          : <span className="insp-time-arg" title={row.arg}>{row.arg}</span>)}
       </span>
       <span className="insp-time-lane" role="cell">
         {row.waitingSince !== null ? (

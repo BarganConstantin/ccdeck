@@ -1,18 +1,22 @@
 // What a rail row says, as data: its glyph, its clock, its second line and its
-// tooltip. Pure, so the suite can ask each state what it reads without drawing
-// the rail. components/RailParts.tsx only lays these out.
+// tooltip, and what a session is called on every surface that names one. Pure,
+// so the suite can ask each state what it reads without drawing the rail.
+// components/RailParts.tsx only lays these out.
 import { isAlarming } from "./ambient-counts";
 import { blockedToolTooltip, waitingSentence } from "./agent-copy";
 import { fmtCost } from "./pricing";
 import { sessionSpendLabel } from "./board-usage";
-import { currentLanguage, t } from "./i18n";
-import { noteSource, noteTag } from "./session-note";
+import { currentLanguage, t, type TFunction } from "./i18n";
+import { noteSource, noteTag, promptLine } from "./session-note";
 import { planSpoken } from "./agent-plan";
 import { salientField } from "./tool-input";
 import type { Row } from "./components/SessionList";
 import { agoShort, elapsedShort } from "./elapsed-short";
 import type { RailGroup } from "./rail-model";
 import { distinctIdTail } from "./session-id-tail";
+import { sessionListName } from "./session-display";
+import { injectedPrompt } from "./injected-prompt";
+import type { AgentNodeData, PromptEntry } from "./types";
 
 /** Figma's Glyph: Waiting, Working, Done, Idle, Error. Background wears the
  *  Working mark, the session being at work while its turn has ended. The
@@ -31,93 +35,81 @@ export function railGlyph(r: Row, group: RailGroup): RailGlyphKind {
   return "done";
 }
 
-/** The row's second line. A `tool` line is the tool's name in the heavier
- *  weight and what it works on after it; `mono` is one run of text in the
- *  mono face; `sans` is a sentence in the UI face. Null leaves the line out. */
-export type RailLine =
-  | { kind: "tool"; name: string; rest: string }
-  | { kind: "mono" | "sans"; text: string };
-
-/** The line under a row's name. What the old row printed besides this (the
- *  tool count, the cost, the plan, the recap, the suggested reply) is in
- *  rowTooltip below. */
-export function railLine(r: Row, group: RailGroup): RailLine | null {
-  const note = r.recap?.text ?? r.status?.text ?? "";
-  if (group === 0 && r.waiting) {
-    const sentence = waitingSentence(r.waiting);
-    if (r.waiting.kind === "asked") return { kind: "mono", text: t("board.row.asks", { sentence }) };
-    if (r.waiting.tool) return { kind: "tool", name: r.waiting.tool.name, rest: toolRest(r.waiting.tool, r.cwd) };
-    return { kind: "mono", text: sentence };
-  }
-  if (group === 1) {
-    if (r.tool) return { kind: "tool", name: r.tool.name, rest: toolRest(r.tool, r.cwd) };
-    // A turn that ended with a job still going: the job's own line, never a
-    // count it does not carry.
-    if (r.state !== "active" && r.job) {
-      const said = (r.job.state === "blocked" && r.job.needs) || r.job.detail;
-      return { kind: "sans", text: said ? t("board.row.turnEndedJob", { said }) : t("board.row.turnEnded") };
-    }
-    return note ? { kind: "mono", text: note } : null;
-  }
-  if (r.neverPrompted) return { kind: "sans", text: t("board.row.ready") };
-  return note ? { kind: "mono", text: note } : null;
+/**
+ * WHAT A SESSION IS CALLED, ONE RULE FOR EVERY SURFACE THAT NAMES IT (owner's
+ * critique, 2026-11-11): the board's pill and hover card, the navigator's
+ * tile, the Sessions list, the Inspector's head, the command menu and the
+ * stage. One session read "CCDECK · 2886" on the board, "ccdeck" over "7d4a"
+ * in the list and "ccdeck · 2886" under a floating "retention job" in the
+ * navigator.
+ *
+ * `title` is the session's name, else Claude Code's title, else its folder
+ * (session-display.ts sessionListName). `folder` is there only when the title
+ * is something else. `task` is what a person last asked it (sessionTask), left
+ * out when it only says the title again.
+ */
+export interface SessionNames {
+  title: string;
+  folder?: string;
+  task?: string;
 }
 
-/** The quiet lead of a row's second line. `folder`, `task` and `started` are
- *  words, `id` is a fragment of the session id, drawn in the mono face. */
-export interface RowTell { kind: "folder" | "task" | "started" | "id"; text: string }
+type Nameable = Pick<AgentNodeData, "label" | "cwdBasename" | "sessionName" | "sessionTitle" | "prompts" | "firstPrompt">;
+
+export function sessionNames(a: Nameable): SessionNames {
+  const title = sessionListName(a) ?? t("board.kind.session");
+  const folder = a.cwdBasename && !sameWords(a.cwdBasename, title) ? a.cwdBasename : "";
+  const asked = sessionTask(a);
+  const task = asked && !sameWords(asked, title) ? asked : "";
+  return { title, ...(folder ? { folder } : null), ...(task ? { task } : null) };
+}
 
 /**
- * At most one quiet lead per row, ahead of what the session is doing (owner,
- * 2026-11-10). A row is titled by the session's name, so a named row leads
- * with its folder, to still say where it runs; a row titled by its folder has
- * nothing to add. Rows whose titles collide lead instead with what tells them
- * apart, each taking the first of these that no other row of its title still
- * in question shares: its folder; its first prompt, when the title is not
- * already those words; the clock time it started; as much of its id as it
- * takes. Four unnamed sessions in one repo read by what each was asked to do,
- * two given the same prompt fall through to when they started, and two started
- * in the same minute to the id. No session carries its git branch, so there is
- * no branch step.
+ * The session's task: the newest prompt a person typed, else the first one the
+ * deck kept, as its first line. A background task's notice arrives on the hook
+ * a person's typing does and is skipped (injected-prompt.ts), so a session whose
+ * latest prompt is a notice reads by the prompt before it, and one with only
+ * notices has no task. Empty when nothing was asked.
  */
-export function rowTells(rows: readonly Row[], now: number): Map<string, RowTell> {
-  const byName = new Map<string, Row[]>();
-  for (const r of rows) {
-    const same = byName.get(r.label);
-    if (same) same.push(r);
-    else byName.set(r.label, [r]);
-  }
-  const tells = new Map<string, RowTell>();
-  for (const peers of byName.values()) {
-    if (peers.length < 2) {
-      const folder = folderTell(peers[0]);
-      if (folder) tells.set(peers[0].sessionId, folder);
-      continue;
-    }
-    let open = peers;
-    for (const tellOf of [folderTell, taskTell, (r: Row) => startedTell(r, now)]) {
-      const said = open.map(tellOf);
-      open = open.filter((r, i) => {
-        const mine = said[i];
-        if (!mine || said.some((other, j) => j !== i && other?.text === mine.text)) return true;
-        tells.set(r.sessionId, mine);
-        return false;
-      });
-    }
-    const ids = peers.map(r => r.sessionId);
-    for (const r of open) tells.set(r.sessionId, { kind: "id", text: distinctIdTail(r.sessionId, ids) });
-  }
-  return tells;
+export function sessionTask(a: Pick<AgentNodeData, "prompts" | "firstPrompt">): string {
+  const text = lastTypedPrompt(a);
+  return text ? promptLine(text) : "";
 }
 
-/** The folder, on a row whose title is something else (buildRows sets it only there). */
-function folderTell(r: Row): RowTell | null {
-  return r.folder ? { kind: "folder", text: r.folder } : null;
+/** sessionTask's prompt whole, every line of it: for a surface that cuts it to
+ *  a measure of its own. */
+export function lastTypedPrompt(a: Pick<AgentNodeData, "prompts" | "firstPrompt">): string {
+  let newest: PromptEntry | undefined;
+  for (const p of a.prompts) if (!injectedPrompt(p.text) && (!newest || p.at >= newest.at)) newest = p;
+  return newest?.text ?? (a.firstPrompt && !injectedPrompt(a.firstPrompt) ? a.firstPrompt : "");
 }
 
-/** The session's first prompt, on a row whose title is something else (buildRows sets it only there). */
-function taskTell(r: Row): RowTell | null {
-  return r.task ? { kind: "task", text: r.task } : null;
+/** The second line where sessions are listed (the Sessions list, the
+ *  navigator's tile, the command menu): "folder · task", the task alone under a
+ *  title that is the folder, the folder alone before anything was asked. Empty
+ *  when there is neither, and the row is one line. */
+export function namesLine(n: SessionNames): string {
+  return [n.folder, n.task].filter(Boolean).join(" · ");
+}
+
+/**
+ * What tells two sessions of one name apart, kept for the hover rather than
+ * drawn: when it started, by the reader's clock so it never ticks while you
+ * look at it, and as much of its id's tail as `peers` (the other sessions' ids)
+ * leave it needing. An earlier day leads with its weekday, so yesterday's 14:32
+ * is not today's.
+ */
+export function startedHover(startedAt: number, sessionId: string, peers: Iterable<string> = [], now = Date.now(), tr: TFunction = t): string {
+  return startedLine(startedAt, distinctIdTail(sessionId, peers), now, tr);
+}
+
+/** startedHover with the id's tail already cut ("Started 14:32 · 4efa"). */
+export function startedLine(startedAt: number, idTail: string, now = Date.now(), tr: TFunction = t): string {
+  const lang = currentLanguage();
+  const at = new Date(startedAt);
+  const day = at.toDateString() === new Date(now).toDateString() ? "" : `${at.toLocaleDateString(lang, { weekday: "short" })} `;
+  const time = `${day}${at.toLocaleTimeString(lang, { hour: "2-digit", minute: "2-digit" })}`;
+  return `${tr("board.row.startedAt", { time })} · ${idTail}`;
 }
 
 /** Two names a reader takes for one: case and the space around them aside. */
@@ -125,26 +117,30 @@ export function sameWords(a: string, b: string): boolean {
   return a.trim().toLowerCase() === b.trim().toLowerCase();
 }
 
-/** When the session started, by the reader's clock, so the tell never changes
- *  while you look at it; a relative age ticked, and two of them rounding alike
- *  flipped both rows to the id. An earlier day leads with its weekday, so
- *  yesterday's 14:32 is not today's. */
-function startedTell(r: Row, now: number): RowTell {
-  const lang = currentLanguage();
-  const at = new Date(r.startedAt);
-  const day = at.toDateString() === new Date(now).toDateString() ? "" : `${at.toLocaleDateString(lang, { weekday: "short" })} `;
-  const time = `${day}${at.toLocaleTimeString(lang, { hour: "2-digit", minute: "2-digit" })}`;
-  return { kind: "started", text: t("board.row.startedAt", { time }) };
-}
+/** A Sessions list row's second line. A `tool` line is the tool's name in the
+ *  heavier weight and what it works on (a path, a command) after it, in the
+ *  mono face; `words` are in the UI face. Null leaves the line out. */
+export type RailLine =
+  | { kind: "tool"; name: string; rest: string }
+  | { kind: "words"; text: string };
 
-/** The second line as it follows the row's lead: none when it only says the
- *  lead again. Either may be the other cut short with an ellipsis. */
-export function lineAfterTell(line: RailLine | null, tell: RowTell | undefined): RailLine | null {
-  if (!line || !tell || line.kind === "tool") return line;
-  const cut = (s: string) => (s.endsWith("…") ? s.slice(0, -1).trimEnd() : "");
-  const [note, own] = [cut(line.text), cut(tell.text)];
-  const echo = line.text === tell.text || (!!own && line.text.startsWith(own)) || (!!note && tell.text.startsWith(note));
-  return echo ? null : line;
+/**
+ * The line under a row's name. The list is for triage, so a row waiting on you
+ * says what it waits on: the question it asks, the blocked tool and what it
+ * works on, or the waiting sentence. A row never given a prompt says it is
+ * Ready. Every other row reads "folder · task" (namesLine), and a row with
+ * neither is one line.
+ */
+export function railLine(r: Row, group: RailGroup): RailLine | null {
+  if (group === 0 && r.waiting) {
+    const sentence = waitingSentence(r.waiting);
+    if (r.waiting.kind === "asked") return { kind: "words", text: t("board.row.asks", { sentence }) };
+    if (r.waiting.tool) return { kind: "tool", name: r.waiting.tool.name, rest: toolRest(r.waiting.tool, r.cwd) };
+    return { kind: "words", text: sentence };
+  }
+  const task = r.task || (r.neverPrompted ? t("board.row.ready") : "");
+  const text = namesLine({ title: r.label, folder: r.folder, task });
+  return text ? { kind: "words", text } : null;
 }
 
 /** What a tool line prints after the tool's name: a path as rowPath shortens
@@ -159,7 +155,7 @@ function toolRest(tool: { preview: string; path?: true }, cwd: string | undefine
  * calls apart. Relative to the session's folder when the file is inside it
  * ("docs/install.md"), else its last two segments after "…/"; a path of two
  * segments or fewer is short already and stays as it is. A Windows path keeps
- * its backslashes. The whole path stays in the row's tooltip (rowTooltip).
+ * its backslashes.
  */
 export function rowPath(path: string, cwd?: string): string {
   const base = cwd?.replace(/[\\/]+$/, "") ?? "";
@@ -189,25 +185,29 @@ export function railTime(r: Row, group: RailGroup, now: number): { text: string;
   };
 }
 
-/** Everything the row no longer draws, whole, and who wrote the note: the
- *  tooltip is where a clamped line and the dropped figures stay readable. */
+/** Everything the row does not draw, whole, and who wrote the note: the
+ *  tooltip is where a cut task, what it waits on or runs, when it started and
+ *  its id stay readable. */
 export function rowTooltip(r: Row, removed: boolean): string {
   const lines: string[] = [removed ? t("board.row.bringBack", { label: r.label }) : t("board.row.focus", { label: r.label })];
   if (r.folder) lines.push(t("board.row.inFolder", { folder: r.folder }));
+  if (r.task) lines.push(r.task);
+  lines.push(r.hover ?? startedHover(r.startedAt, r.sessionId));
   if (r.waiting) {
     lines.push(
       waitingSentence(r.waiting),
       blockedToolTooltip(r.waiting, waitingSentence(r.waiting)) ?? "",
       t(isAlarming(r.waiting) ? "board.row.blockedSince" : "board.row.yourTurnSince", {
         time: new Date(r.waiting.since).toLocaleTimeString(),
-        started: new Date(r.startedAt).toLocaleString(),
       }),
     );
-  } else {
-    lines.push(t("board.row.started", { started: new Date(r.startedAt).toLocaleString() }));
-    // The running call's path, whole, where the row's line shortened it. A
-    // waiting row has it already, in "Likely on" above.
-    if (r.tool?.path && rowPath(r.tool.preview, r.cwd) !== r.tool.preview) lines.push(`${r.tool.name} · ${r.tool.preview}`);
+  } else if (r.tool) {
+    // The call it is running, whole.
+    lines.push(r.tool.preview ? `${r.tool.name} · ${r.tool.preview}` : r.tool.name);
+  } else if (r.job) {
+    // A turn that ended with a job still going: the job's own line.
+    const said = (r.job.state === "blocked" && r.job.needs) || r.job.detail;
+    if (said) lines.push(said);
   }
   const tools = t("board.toolCount", { count: r.toolCount });
   lines.push(r.cost > 0 ? t("board.row.toolsSpend", { tools, cost: fmtCost(r.cost), label: sessionSpendLabel() }) : tools);
@@ -221,24 +221,22 @@ export function rowTooltip(r: Row, removed: boolean): string {
   return lines.filter(Boolean).join("\n");
 }
 
-/** The running call as a working row's second line has it: the tool's name and
- *  the line a person reads from its input (the command, the path), the same
- *  extraction the Needs you line uses (tool-input.ts). A tool with nothing
- *  worth reading stands on its name alone: never the JSON of its input. A path
- *  says it is one, for the row to shorten (rowPath). */
+/** The running call, for the row's tooltip: the tool's name and the line a
+ *  person reads from its input (the command, the path), the same extraction
+ *  the Needs you line uses (tool-input.ts). A tool with nothing worth reading
+ *  stands on its name alone: never the JSON of its input. */
 export function runningTool(call: { name: string; input?: unknown }): { name: string; preview: string; path?: true } {
   const field = salientField(call.input);
   return { name: call.name, preview: field?.text ?? "", ...(field?.path ? { path: true as const } : {}) };
 }
 
-/** What the old row said that this one no longer draws, as words for a screen
- *  reader and for touch, where a tooltip is not reached: the plan's progress,
- *  the note's tag, the tool count, the spend and the suggested reply. Kept in
- *  the row's button as visually hidden text; the tooltip stays as well. */
+/** What the row does not draw, as words for a screen reader and for touch,
+ *  where a tooltip is not reached: what it waits on, the plan's progress, the
+ *  note's tag, the tool count, the spend and the suggested reply. Kept in the
+ *  row's button as visually hidden text; the tooltip stays as well. */
 export function rowSpoken(r: Row): string {
   const parts: string[] = [];
-  // The folder where the row does not draw it: rows of one name lead with a clock or an id.
-  if (r.folder && r.tell?.kind !== "folder") parts.push(t("board.row.inFolder", { folder: r.folder }));
+  if (r.waiting) parts.push(waitingSentence(r.waiting));
   if (r.plan) parts.push(planSpoken(r.plan));
   if (r.status) parts.push(`${noteTag(r.status.kind)}${r.status.reply ? t("board.row.spokenReply", { reply: r.status.reply }) : ""}`);
   else if (r.recap) parts.push(noteTag("recap"));

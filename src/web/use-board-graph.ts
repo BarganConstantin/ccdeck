@@ -12,7 +12,8 @@
 // the auto-fit key off it, and App.tsx calls them before the frame the rest is
 // packed for has been measured.
 import { useMemo, useRef, type MutableRefObject } from "react";
-import { snapshotToFlow } from "./canvas-flow";
+import { attentionOrder } from "./board-order";
+import { snapshotToFlow, type BoardFlow } from "./canvas-flow";
 import { layoutSignature } from "./layout-signature";
 import { useRecapNotesVersion } from "./recap-note";
 import type { GraphState } from "./reducer";
@@ -44,7 +45,7 @@ export function useLayoutSig({ stateRef, now, removedAgentIds, sizeVersion, domS
 export function useBoardGraph({
   stateRef, now, availableWidth, availableHeight, layout, measuredRef, onBubble, settled, dragging,
   layoutSig, selectedIds, openContext, historyReplayed, removedNodes, removedAgentIds,
-  dragTick, dragPatchRef, dragMoveTick,
+  dragTick, dragPatchRef, dragMoveTick, onMoved,
 }: {
   stateRef: MutableRefObject<GraphState>;
   now: number;
@@ -72,8 +73,20 @@ export function useBoardGraph({
   /** Live positions of whatever is being dragged, and the counter that moves with them. */
   dragPatchRef: MutableRefObject<Map<string, { x: number; y: number }> | null>;
   dragMoveTick: number;
+  /** The board moved under the camera with its signature unmoved: frame it again and store it (canvas-flow.ts BoardFlow). */
+  onMoved?: () => void;
 }) {
-  const { pinnedRef, positionsRef, provisionalRef, returningRef, lastLayoutSigRef, restoredLayout, layoutEpoch } = layout;
+  const { pinnedRef, positionsRef, provisionalRef, returningRef, lastLayoutSigRef, restoredLayout, layoutEpoch, flowedRef } = layout;
+
+  // The order the board reads in, the rail's, asked only when the layout runs,
+  // and whether a fresh board has had its first flow into its columns
+  // (canvas-flow.ts BoardFlow).
+  const onMovedRef = useRef(onMoved);
+  onMovedRef.current = onMoved;
+  const boardFlow = useMemo<BoardFlow>(
+    () => ({ flowed: flowedRef, order: () => attentionOrder(stateRef.current), onMoved: () => onMovedRef.current?.() }),
+    [flowedRef, stateRef],
+  );
 
   // Union spotlight set — lineage of every selected agent merged. Multi-
   // select widens the spotlight without losing the "follow the chain"
@@ -120,7 +133,7 @@ export function useBoardGraph({
       measuredRef.current, prevSessionSizeRef.current, onBubble, settled, dragging,
       positionsRef.current, provisionalRef.current, layoutSig, lastLayoutSigRef,
       selectedIds, spotlightSet, visibleAgentIds, openContext, historyReplayed,
-      restoredLayout.restored, returningRef.current,
+      restoredLayout.restored, returningRef.current, boardFlow,
       );
       return visibleBoard(flow.nodes, flow.edges, removedNodes);
     },

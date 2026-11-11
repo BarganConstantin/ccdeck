@@ -130,7 +130,15 @@ describe("the fit keeps room for the bubbles only where they are drawn", () => {
   });
 
   it("is what fitLeft frames with", () => {
-    expect(read("../use-camera.ts")).toContain("const zoom = fitZoomForDrawnLanes(fitWith(TOOL_LANE_ALLOWANCE), fitWith(0), cardBodyPx(TEXT_SIZE_INCREASE[currentTextSize()]));");
+    const camera = read("../use-camera.ts");
+    expect(camera).toContain("const bodyPx = cardBodyPx(TEXT_SIZE_INCREASE[currentTextSize()]);");
+    // The full card's box with its lane, the cards alone without one (the
+    // notes go with the bubbles: drawn at the full card only).
+    expect(camera).toContain("const zoom = fitZoomForDrawnLanes(fitWith(all, TOOL_LANE_ALLOWANCE), fitWith(cards, 0), bodyPx);");
+    // And the frame that zoom shows: everything at the full card, the cards
+    // in their handle's padding below it, where the notes are not drawn.
+    expect(camera).toContain("const cards = agents.length > 0 ? boxOf(agents, GROUP_PAD) : all;");
+    expect(camera).toContain("const { minX, minY, h } = zoom * bodyPx >= DETAIL_EXIT_PX ? all : cards;");
   });
 });
 
@@ -330,7 +338,7 @@ describe("the canvas wiring the pure halves depend on", () => {
   });
 
   it("draws the face in every card and hides it from assistive technology", () => {
-    expect(node).toContain('<NodeFace data={data} title={data.kind === "root" ? rootTask?.face : undefined} />');
+    expect(node).toContain('<NodeFace data={data} task={data.kind === "root" ? sessionTask(data) || sessionNames(data).title : spawnTask || data.label} />');
     expect(node).toMatch(/className="lod-face"[\s\S]{0,200}aria-hidden/);
     expect(css).toMatch(/\.lod-face \{ display: none; \}/);
   });

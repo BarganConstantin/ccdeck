@@ -546,7 +546,7 @@ const catalog: Catalog = {
   "insights.context.codex.uncounted": "Codex では集計されません。ccdeck は rollout ファイルからセッションを再構築し、接続前に書き込まれた内容を読み飛ばすため、ここでのメッセージとツール呼び出しの内訳は不明な量だけ少なくなります。上のコンテキストウィンドウの値は CLI 自身のもので、影響を受けません。",
   "insights.context.codex.memory": "対象範囲の AGENTS.md ファイル",
   "insights.context.codex.memoryEmpty": "cwd からファイルシステムのルートまでのパスにも $CODEX_HOME にも、AGENTS.md ファイルは見つかりませんでした。",
-  "insights.context.claude.subtitle": "概算値 — CC の /context はフックでは取得できません",
+  "insights.context.claude.subtitle": "トランスクリプトからの推定値です。",
   "insights.context.claude.scope": "現在のターン",
   "insights.context.claude.memory": "対象範囲の CLAUDE.md ファイル",
   "insights.context.claude.memoryEmpty": "cwd から ~/.claude までのパスに CLAUDE.md ファイルは見つかりませんでした。",

@@ -6,7 +6,7 @@
 // a different thing from the reader, so each gets its own sentence. V4's Figma
 // draws four of them the same way: a title, a line of plain words, and then the
 // one thing to do, which is a command to copy or a button to press.
-import { useState } from "react";
+import { useId, useState } from "react";
 import { type AccountsData } from "../claude-accounts";
 import { t as tNow, type TFunction, useT } from "../i18n";
 import { Rich } from "../accounts-rich";
@@ -45,6 +45,33 @@ function CommandBox({ command }: { command: string }) {
   );
 }
 
+/**
+ * claude-swap not installed: a step not taken yet, said calmly rather than as
+ * a fault (owner, 2026-11-11). What it does for the reader, then "Set up",
+ * which shows the command and what comes after it. The steps stay in the page
+ * while shut, so the button has something to point at.
+ */
+function CswapSetup({ hint }: { hint?: string }) {
+  const t = useT();
+  const [open, setOpen] = useState(false);
+  const stepsId = `${useId()}-steps`;
+  return (
+    <>
+      <span className="ap-state-title">{t("accounts.empty.noCswap")}</span>
+      <span className="ap-state-text">{t("accounts.empty.noCswapHint")}</span>
+      <button type="button" className="btn primary ap-state-btn" aria-expanded={open} aria-controls={stepsId}
+        onClick={() => setOpen(was => !was)}>
+        {t("accounts.empty.setUp")}
+      </button>
+      <div className="ap-state-steps" id={stepsId} hidden={!open}>
+        <span className="ap-state-text">{t("accounts.empty.noCswapAbout")}</span>
+        {hint && <CommandBox command={hint} />}
+        <span className="ap-state-text"><Rich text={t("accounts.empty.thenAdd")} /></span>
+      </div>
+    </>
+  );
+}
+
 export default function AccountsEmptyState({ data, onAdd, onRetry, retrying = false, pressProps }: {
   data: Pick<AccountsData, "reason" | "hint" | "version" | "want">;
   /** Opens the sign-in dialog: the "No accounts" state's one button. */
@@ -69,12 +96,7 @@ export default function AccountsEmptyState({ data, onAdd, onRetry, retrying = fa
           <span className="ap-state-text">{t("accounts.empty.installingHint")}</span>
         </>
       ) : data.reason === "no_cswap" ? (
-        <>
-          <span className="ap-state-title">{t("accounts.empty.noCswap")}</span>
-          <span className="ap-state-text">{t("accounts.empty.noCswapHint")}</span>
-          {data.hint && <CommandBox command={data.hint} />}
-          <span className="ap-state-text"><Rich text={t("accounts.empty.thenAdd")} /></span>
-        </>
+        <CswapSetup hint={data.hint} />
       ) : data.reason === "cswap_refused" ? (
         <>
           {/* #1799: the deck installed claude-swap and a different version

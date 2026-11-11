@@ -249,9 +249,76 @@
   outline-offset: calc(-1 * var(--focus-w));
 }
 
-/* The lines. The name leads at the card's own 12px weight; the title and the
-   signal are the 11px tier under it, the title in the secondary ink and the
-   signal in whatever its tone says. Each ellipsises on its own line. */
+/* A CARD'S FACE: one task line and its status (owner's critique, 2026-11-11),
+   the same at compact and overview. The cluster's pill names the session.
+
+   One line by default: the mark, the task, the word. The row is one line tall,
+   wraps, and clips what wraps. The task keeps at least half of it, so a word
+   with no room left beside the task wraps to the clipped line, whole or not at
+   all, and the mark says the state alone, by its shape and its colour. The row
+   never shrinks: a fitted phone board draws faces 14 high, whose content box is
+   6, and the line stands centred over the padding inside the edge. */
+.lod-line {
+  flex: none;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  align-content: flex-start;
+  column-gap: 6px;
+  min-width: 0;
+  height: calc(14px + var(--ui-text-increase, 0px));
+  overflow: hidden;
+  font-size: calc(11px + var(--ui-text-increase, 0px));
+  line-height: calc(14px + var(--ui-text-increase, 0px));
+}
+.lod-line > .state-mark,
+.lod-line > .alert-mark { flex: none; width: 12px; height: 12px; margin-left: 0; }
+.lod-name {
+  flex: 1 1 0;
+  min-width: 50%;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-weight: 600;
+}
+/* A value, so it is drawn whole or not at all. */
+.lod-state { flex: none; white-space: nowrap; }
+.lod-line[data-status="waiting"] .lod-state { color: var(--warn); }
+.lod-line[data-status="err"] .lod-state { color: var(--err); }
+/* Below 40% (FAR_ZOOM) the face is under a hundred pixels wide and the task
+   was a few letters and an ellipsis, "W…" (owner's critique, 2026-11-11,
+   point 3: below 40% the state alone, never a cut word). The mark, and the
+   word where it fits whole. The cluster's pill names the session; the peek
+   beside the pointer and the accessible name say the task at every distance,
+   and nearer than 40% the face draws it again. */
+.canvas-wrap[data-far] .agent-node .lod-name { display: none; }
+/* There the face is the board seen whole (V4 critique 2, C4, as V4's Figma
+   draws it): the card's short name at the left and the mark at the right, on
+   one line at any face height. The word goes to the peek. The name is a value
+   like the word, whole or not at all: drawn after the mark (row-reverse), it
+   wraps to the line the face clips where it does not fit, and the mark says
+   the state alone. Nearer than 40% the short name is not drawn. */
+.lod-short { display: none; }
+.canvas-wrap[data-far] .agent-node .lod-state { display: none; }
+.canvas-wrap[data-far] .agent-node .lod-line {
+  flex-direction: row-reverse;
+  height: calc(14px + var(--ui-text-increase, 0px));
+}
+.canvas-wrap[data-far] .agent-node .lod-short {
+  display: block;
+  flex: none;
+  margin-right: auto;
+  white-space: nowrap;
+  color: var(--text-secondary);
+}
+/* Room for two lines (28px of content): the task on a line of its own, the
+   mark and the word under it. */
+@container lod (min-height: 28px) {
+  .lod-line { height: calc(2 * (14px + var(--ui-text-increase, 0px))); }
+  .lod-name { order: -1; flex-basis: 100%; }
+}
+
+/* A session note's face (RecapNoteNode): its mark row at the card's 12px weight. */
 .lod-id {
   display: flex;
   align-items: center;
@@ -261,30 +328,6 @@
   font-weight: 600;
   line-height: calc(15px + var(--ui-text-increase, 0px));
 }
-.lod-name,
-.lod-inline,
-.lod-state,
-.lod-title,
-.lod-signal {
-  min-width: 0;
-  overflow: hidden;
-  white-space: nowrap;
-  text-overflow: ellipsis;
-}
-.lod-name { flex: 1 1 auto; }
-.lod-inline { display: none; flex: 1 1 auto; font-weight: 600; }
-/* The state's word, drawn only on the narrowest face (below). */
-.lod-state { display: none; flex: 0 1 auto; font-weight: 600; }
-/* The title in the voice the card's own session-name row uses for it. */
-.lod-title {
-  font-family: var(--font-mono);
-  color: var(--text);
-}
-.lod-signal { color: var(--muted); }
-.lod-short { display: none; }
-.lod-face [data-tone="warn"] { color: var(--warn); }
-.lod-face [data-tone="err"] { color: var(--err); }
-.lod-face [data-tone="idle"] { color: var(--accent); }
 .state-mark { flex: none; }
 /* The recap's ※ and the dot that stands in for it keep their size in a flex row. */
 .recap-glyph { flex: none; }
@@ -294,75 +337,9 @@
 .state-mark[data-kind="err"] { color: var(--err); }
 .alert-mark { flex: none; margin-left: auto; color: var(--warn); }
 
-/* OVERVIEW is a smaller face with less in it: one line of 11px, a second only
-   where the card is tall enough, no title, and the short form of the signal. */
+/* OVERVIEW is the same face with less padding round it. */
 .canvas-wrap[data-lod="overview"] .lod-face { padding: 3px 6px 3px 8px; gap: 1px; }
 .canvas-wrap[data-lod="overview"] .lod-id { font-size: calc(11px + var(--ui-text-increase, 0px)); line-height: calc(14px + var(--ui-text-increase, 0px)); }
-.canvas-wrap[data-lod="overview"] .lod-title,
-.canvas-wrap[data-lod="overview"] .lod-long { display: none; }
-.canvas-wrap[data-lod="overview"] .lod-short { display: inline; }
-
-/* Read off the face's content box: three lines need 47px of it, and below 57
-   the title is the first to go, so a third line never sits against the edge —
-   but only from a face that has a signal to keep. A card with nothing to say
-   under its name keeps its title on the second line. */
-@container lod (max-height: 56px) {
-  .lod-face[data-signal] .lod-title { display: none; }
-}
-/* One line only. A root card gives its line to the signal rather than its
-   name, because the name is already on the cluster's label at 1×, directly
-   above it — and "Needs you" or "→ 5 · 3 live" is the thing the overview is
-   for. A subagent keeps its name: it has no label above it. */
-@container lod (max-height: 36px) {
-  .lod-id { gap: 4px; }
-  .lod-inline { font-size: calc(11px + var(--ui-text-increase, 0px)); }
-  .lod-id .alert-mark { margin-left: 0; }
-  .lod-signal,
-  .lod-title { display: none; }
-  .lod-face[data-kind="root"][data-signal] .lod-name { display: none; }
-  .lod-face[data-kind="root"][data-signal] .lod-inline { display: block; }
-}
-/* Too narrow for a name: the state's word, one line, centred, with its mark
-   ahead of it where both fit. The name is on the cluster's tag above a root,
-   and in the peek beside the pointer.
-   CHANGED ON PURPOSE (design recommendations, 2026-11-09): this face drew the
-   mark alone, so a fitted phone board, where every card lands here, showed a
-   column of rings with nothing to say which one needed you. A session blocked
-   on you draws the alert in place of the state mark, as the detail card does
-   beside its word.
-   The word wins the line: it comes first in a reversed row that wraps, so a
-   mark with no room left beside it drops to a second line the line's own
-   height clips, rather than cutting the word ("Needs you" and the alert do not
-   fit 72px at 11px). The face's edge keeps the state's colour without it. A
-   word too long on its own is cut with an ellipsis.
-   One 11px line 12 high, and 12px marks so a mark beside the word does not
-   make it taller: a 320-wide phone fits the board to a face 14 high, whose
-   content box is 6, so the line keeps its height (no shrinking, which its
-   overflow would allow) and stands centred over the face's padding, inside
-   the edge. (.canvas-wrap .lod-face > .lod-id outranks the overview's own
-   size for the line.) */
-@container lod (max-width: 72px) {
-  .lod-name,
-  .lod-inline,
-  .lod-signal { display: none; }
-  .lod-face[data-kind="root"][data-signal] .lod-inline { display: none; }
-  .lod-state { display: block; order: -1; }
-  .canvas-wrap .lod-face > .lod-id {
-    flex: none;
-    flex-flow: row-reverse wrap;
-    justify-content: center;
-    align-content: flex-start;
-    gap: 0 4px;
-    font-size: calc(11px + var(--ui-text-increase, 0px));
-    line-height: calc(12px + var(--ui-text-increase, 0px));
-    height: calc(12px + var(--ui-text-increase, 0px));
-    overflow: hidden;
-  }
-  .lod-id > .state-mark,
-  .lod-id > .alert-mark { width: 12px; height: 12px; }
-  .alert-mark { margin-left: 0; }
-  .lod-face[data-alarm] .lod-id > .state-mark { display: none; }
-}
 
 /* Parent-to-child edges hold a readable stroke at a distance. Each edge's own
    width — live, settled, selected — is multiplied by `--edge-k` inline (see

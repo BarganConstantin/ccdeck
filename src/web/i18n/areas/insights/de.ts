@@ -546,7 +546,7 @@ const catalog: Catalog = {
   "insights.context.codex.uncounted": "Für Codex nicht gezählt – ccdeck rekonstruiert die Sitzung aus der Rollout-Datei und überspringt alles, was vor dem Verbinden geschrieben wurde, deshalb wäre eine Aufschlüsselung nach Nachrichten und Tool-Aufrufen hier um einen unbekannten Betrag zu niedrig. Der Fensterwert oben stammt vom CLI selbst und ist davon nicht betroffen.",
   "insights.context.codex.memory": "AGENTS.md-Dateien im Geltungsbereich",
   "insights.context.codex.memoryEmpty": "Auf dem Pfad von cwd bis zur Wurzel des Dateisystems und in $CODEX_HOME wurden keine AGENTS.md-Dateien gefunden.",
-  "insights.context.claude.subtitle": "Näherung – CCs /context ist per Hook nicht abrufbar",
+  "insights.context.claude.subtitle": "Aus dem Transkript geschätzt.",
   "insights.context.claude.scope": "aktueller Durchgang",
   "insights.context.claude.memory": "CLAUDE.md-Dateien im Geltungsbereich",
   "insights.context.claude.memoryEmpty": "Auf dem Pfad von cwd bis ~/.claude wurden keine CLAUDE.md-Dateien gefunden.",

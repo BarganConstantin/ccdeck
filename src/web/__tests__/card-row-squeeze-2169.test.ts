@@ -135,7 +135,7 @@ describe("the row the card draws", () => {
     // the head's reset on its width. The measurement is the label's overflow
     // against the effort's width, and the reset on data no longer lists width.
     expect(src).toMatch(/overflow: label\.scrollWidth - label\.clientWidth,/);
-    expect(src).toMatch(/useBeforePaint\(\(\) => \{ setSqueeze\(0\); \}, \[data\.effort, data\.model, otherModels\.length, data\.label, data\.kind, squeezeMax\]\)/);
+    expect(src).toMatch(/useBeforePaint\(\(\) => \{ setSqueeze\(0\); \}, \[data\.effort, data\.model, otherModels\.length, headName, data\.kind, squeezeMax\]\)/);
     expect(src).not.toMatch(/folderCut/);
   });
 });

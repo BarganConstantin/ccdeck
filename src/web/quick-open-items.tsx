@@ -6,9 +6,8 @@
 // teaches the deck's shortcuts as it is used.
 import { liveKey, type RailItem } from "./components/EdgeRails";
 import type { RailItems } from "./rail-items";
-import { elapsedShort, rank, type Row } from "./components/SessionList";
-import { railGlyph, railLine, type RailGlyphKind } from "./rail-row-copy";
-import type { RailGroup } from "./rail-model";
+import { rank, type Row } from "./components/SessionList";
+import { namesLine, railGlyph, type RailGlyphKind } from "./rail-row-copy";
 import { homeRelativePath } from "./account-project-paths";
 import type { TerminalProvider } from "./terminal-api";
 import type { AgentNodeData } from "./types";
@@ -87,29 +86,11 @@ function doorItem(door: RailItem, singleKeys: boolean): QuickItem {
 }
 
 /** A session's state as its rail row draws it (the same 14px glyph, from the
- *  same rule), with one short lowercase hint after the name: the ask while it
- *  waits on you, how long the turn has run while it works, its summary once
- *  done, "ready" while it waits for its first prompt (the word its card and
- *  its list group say). A state with nothing more to say falls back on its own
- *  word. The folder follows where it is not the name. */
-export function sessionLine(row: Row, now: number): { line: string; tone: RailGlyphKind } {
-  const group = rank(row);
-  const tone = railGlyph(row, group);
-  const where = row.cwdBasename && row.cwdBasename !== row.label ? ` · ${row.cwdBasename}` : "";
-  return { line: `${sessionHint(row, group, tone, now)}${where}`, tone };
-}
-
-function sessionHint(row: Row, group: RailGroup, tone: RailGlyphKind, now: number): string {
-  const note = row.recap?.text || row.status?.text;
-  if (tone === "waiting") {
-    const ask = railLine(row, group);
-    if (ask) return ask.kind === "tool" ? (ask.rest ? `${ask.name} · ${ask.rest}` : ask.name) : ask.text;
-    return t("board.quick.hint.needsYou", { time: elapsedShort(row.waiting?.since ?? now, undefined, now) });
-  }
-  if (tone === "working") return t("board.quick.hint.working", { time: elapsedShort(row.turnStartedAt ?? row.startedAt ?? now, undefined, now) });
-  if (tone === "done") return note || t("board.quick.hint.done");
-  if (tone === "error") return note || t("board.quick.hint.failed");
-  return t("board.quick.hint.ready");
+ *  same rule), and its row's second line under the name: "folder · task", the
+ *  task alone under a folder's name, nothing before anything was asked
+ *  (rail-row-copy.ts namesLine). The state is the glyph's to say. */
+export function sessionLine(row: Row): { line: string; tone: RailGlyphKind } {
+  return { line: namesLine({ title: row.label, folder: row.folder, task: row.task }), tone: railGlyph(row, rank(row)) };
 }
 
 /** Where the Start rows put a new session: the folder of the session in focus,
@@ -140,7 +121,6 @@ export interface QuickOpenSources {
   rails: RailItems;
   /** In the session list's order: who needs you first. */
   sessions: readonly Row[];
-  now: number;
   openSession: (sessionId: string) => void;
   /** Settings' search index as this deck draws it (indexFor): its sections,
    *  and every row a search can land on. */
@@ -175,13 +155,14 @@ export function quickOpenItems(src: QuickOpenSources): QuickItem[] {
   const items: QuickItem[] = [];
 
   for (const row of src.sessions) {
-    const { line, tone } = sessionLine(row, src.now);
+    const { line, tone } = sessionLine(row);
     items.push({
       id: `session:${row.sessionId}`,
       section: "sessions",
       title: row.label,
-      subtitle: line,
-      keywords: [row.cwdBasename ?? "", row.modelId ?? ""].filter(Boolean),
+      ...(line ? { subtitle: line } : null),
+      ...(row.hover ? { hint: row.hover } : null),
+      keywords: [row.cwdBasename ?? "", row.task ?? "", row.modelId ?? ""].filter(Boolean),
       tag: t("board.quick.tag.session"),
       verb: t("board.quick.verb.goSession"),
       tone,

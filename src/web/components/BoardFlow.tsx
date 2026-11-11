@@ -1,7 +1,7 @@
 // The board React Flow draws: the nodes and edges it is handed and the terms
 // it is handed them on — no edge a keyboard stop, a drag threshold, the zoom
 // range, the opening fit — and what shares its pane: the grid, the session
-// labels, the tool bubbles, the auto-fit chip, the command stack, the minimap
+// labels, the tool bubbles, Fit all, the command stack, the minimap
 // and Claude FM.
 //
 // Moved out of App.tsx's markup unchanged, with nodeTypes, edgeTypes and the
@@ -46,6 +46,7 @@ const edgeTypes = { recapTie: RecapTieEdge };
 export default function BoardFlow({
   graph, layout, viewport, clicks, drag, appearance, fm, radioOpen, onRadioClose, autoFit, pause,
   stateRef, measuredRef, hiddenCats, now, openTool, focusAgent, requestClear, setKeyHelpOpen, zoomBy, zoomReset, onTerminal,
+  notesDrawn = true,
 }: {
   /** What is drawn: the nodes with a drag patched over them, the edges, and
    *  the visibility and spotlight sets the bubbles gate on. */
@@ -76,6 +77,9 @@ export default function BoardFlow({
   /** The control stack's Terminal button, handed the button it was pressed
    *  on; absent with the terminal flag off, and so is the button. */
   onTerminal?: (button: Element | null) => void;
+  /** Whether the canvas draws the full card, and with it the sessions' notes:
+   *  the session frames go round what is drawn. */
+  notesDrawn?: boolean;
 }) {
   const t = useT();
   const { allNodes, edges, visibleAgentIds, spotlightSet } = graph;
@@ -166,7 +170,7 @@ export default function BoardFlow({
           the user grabbing the canvas — see the note on the component
           (#785). Same line use-agent-focus.ts's focusSession runs after its
           fitView. */}
-      <SessionClusters onFocusSession={focusAgent} />
+      <SessionClusters onFocusSession={focusAgent} notes={notesDrawn} />
       <ToolBursts
         agents={stateRef.current.agents}
         visibleAgentIds={visibleAgentIds}
@@ -180,11 +184,8 @@ export default function BoardFlow({
       />
       {/* The state the recenter tint used to be the only sign of (#820).
           While the reader's own pan or zoom holds the view, new sessions
-          can land off-screen; this says so on the canvas they would be
-          looked for on, with the way back in the same place. */}
-      {/* A status and an action, not one big button. The words say what
-          the state is and are not a control; Resume is the one thing here
-          that can be pressed, and it does what the whole chip used to. */}
+          can land off-screen; Fit all is the way back, on the canvas they
+          would be looked for on. */}
       <div className="canvas-notices">
         {autoFitDisabled && <AutoFitChip enableAutoFitAndRefit={enableAutoFitAndRefit} />}
         {/* Re-arrange's way back, for a few seconds after R — beside the

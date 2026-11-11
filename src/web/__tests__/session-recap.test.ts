@@ -316,9 +316,8 @@ describe("where it is drawn", () => {
     // Through the note's rule, which decides between the recap and the status
     // line that shares its slot — still the one rule, asked the same way.
     expect(read("../components/SessionList.tsx")).toContain("const note = sessionNoteShown(a);");
-    // The rail (V4's Attention rail) says the note on its row's second line and
-    // keeps the full recap in the row's tooltip; it asks the rule once, in buildRows.
-    expect(read("../rail-row-copy.ts")).toContain("const note = r.recap?.text ?? r.status?.text ?? \"\";");
+    // The rail (V4's Attention rail) keeps the full note in its row's tooltip;
+    // its second line is folder · task (owner's critique, 2026-11-11).
     expect(read("../rail-row-copy.ts")).toContain("if (r.recap) lines.push(r.recap.text);");
     // The detail panel moved to components/Detail.tsx; App.tsx and it are read as one.
     const app = read("../App.tsx") + "\n" + read("../components/Detail.tsx");
@@ -447,7 +446,10 @@ describe("the note is a node the layout, the frame and the caches can see", () =
     // for a new session's block; both put the note far from its card.
     const flowSrc = read("../canvas-flow.ts");
     expect(flowSrc).toContain('new Set(missing.filter(n => n.type !== "recapNote").map(n => n.id)), lanes,');
-    expect(flowSrc).toMatch(/fillGapsWithNewSessions\([\s\S]*?\);[\s\S]{0,1200}recordPlacement\(n\.id, \{ x: root\.x - RECAP_NOTE_GAP - nw/);
+    expect(flowSrc).toMatch(/fillGapsWithNewSessions\([\s\S]*?\);[\s\S]{0,1200}recordPlacement\(n\.id, noteSpot\(n\.id, rootId, root, measured\)/);
+    // The spot is left of the card by the rank gap, centred on its height —
+    // and kept there after every pass (recap-note-follows-card.test.ts).
+    expect(read("../note-tether.ts")).toContain("return { x: card.x - RECAP_NOTE_GAP - nw, y: card.y + (rh - nh) / 2 };");
     // And a note that was closed forgets its laid-out spot unless it was dragged
     // — once the log has replayed, since until then it may simply not be back
     // yet (#1333).

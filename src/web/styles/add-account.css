@@ -496,24 +496,23 @@
   .aa-code-chev { transition: none; }
 }
 
-/* The legend yields to whatever is under it. Panning is the user's decision
-   and nothing re-frames a viewport they chose, so a card or a tool bubble can
-   end up beneath the legend and stay there — reported with a screenshot of a
-   Bash bubble half-eaten by the bar it used to be.
+/* The tool filter yields to whatever is under it. Panning is the user's
+   decision and nothing re-frames a viewport they chose, so a card or a tool
+   bubble can end up beneath the filter and stay there — reported with a
+   screenshot of a Bash bubble half-eaten by the bar it used to be.
    What yields is the BED, never the group. `opacity: 0.2` on .cat-filter-bar
    made a stacking context and took every label down with the fill: the
    on-chips composited to 1.55:1 on white and 1.67:1 in dark, the off-chips to
    1.37:1 and 1.29:1, against the 4.5:1 SC 1.4.3 asks of 11px text (#622). The
-   legend stays clickable while it yields — `.cat-filter` keeps its handler,
-   its aria-pressed and its tab stop throughout — so the exception 1.4.3 makes
-   for an inactive component does not apply to any of those numbers, and no
-   fade of the group would have worked: quiet-signals.test.ts has been
-   asserting since that no alpha rescues these labels.
-   V4's legend has no box at rest, so with nothing under it there is nothing
-   to thin: its words sit on the canvas. With something under it, it keeps the
-   shape the slab had. While a reader is at it — the pointer on it, or focus
-   inside — it lays the canvas's own ground behind its words, so a card's text
-   never runs through the item being chosen. Left alone, that bed thins to
+   filter stays clickable while it yields — the Tools button keeps its handler
+   and its tab stop throughout — so the exception 1.4.3 makes for an inactive
+   component does not apply to any of those numbers, and no fade of the group
+   would have worked.
+   The bar has no box at rest, so with nothing under it there is nothing to
+   thin. With something under it, it keeps the shape the slab had. While a
+   reader is at it — the pointer on it, or focus inside — it lays the canvas's
+   own ground behind the button, so a card's text never runs through the
+   control being pressed. Left alone, that bed thins to
    0.35: the card shows through, and the words keep their full ink on what is
    left, which pulls whatever is underneath a third of the way back to the
    canvas and keeps the labels' 4.5:1 a floor rather than a coincidence of

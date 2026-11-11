@@ -3,8 +3,8 @@
 // 5. A background task's notice in the Inspector's Prompts list wore a thick
 //    dashed edge: a bare `border-style: dashed`, so 3px in currentColor once V4
 //    took the box off a prompt. It read as a drop zone and was the loudest row
-//    in the panel while being the least important. It is the quietest row now,
-//    told from a typed prompt by its muted step, not by a decoration.
+//    in the panel while being the least important. Since the critique of
+//    2026-11-11 it is not listed at all.
 // 8. Segmented controls in two faces: the shared .uh-range-btn was mono, so
 //    "All agents | Claude | Codex" and "Most used | Latest | Name" did not match
 //    "24 hours | 7 days". Every segmented control is the interface's sans; mono
@@ -32,23 +32,20 @@ const rulesFor = (selector: string) => rules.filter(r => r.selectors.includes(se
 const subjectHas = (selector: string, cls: string) =>
   new RegExp(`\\.${cls}(?![\\w-])`).test(selector.split(/\s*[\s>+~]\s*/).pop() ?? "");
 
-describe("an automatic prompt is the quietest row in the Prompts list (point 5)", () => {
-  it("draws no dashed edge, nor any edge or fill of its own", () => {
-    const own = rules.filter(r => r.selectors.some(s => /\.prompt-(?:injected|entry)(?![\w-])/.test(s)));
+// CHANGED ON PURPOSE (owner's critique, 2026-11-11): a background task's notice
+// is not a prompt, so the Prompts list no longer draws it at all, quiet or not.
+describe("an automatic prompt is not in the Prompts list (point 5, then the 2026-11-11 critique)", () => {
+  it("draws no dashed edge on a prompt, and keeps no style for a notice", () => {
+    const own = rules.filter(r => r.selectors.some(s => /\.prompt-entry(?![\w-])/.test(s)));
     expect(own.length).toBeGreaterThan(0);
     for (const r of own) expect(r.body, r.selectors.join(", ")).not.toMatch(/dashed/);
-    const [base] = rulesFor(".prompt-injected");
-    expect(base.body).toMatch(/(?:^|[;\s])border:\s*0;/);
-    expect(base.body).toMatch(/(?:^|[;\s])background:\s*none;/);
-    expect(base.body).toMatch(/(?:^|[;\s])padding:\s*0;/);
+    expect(rules.filter(r => r.selectors.some(s => /\.prompt-injected/.test(s)))).toEqual([]);
+    expect(read("components/Detail.tsx")).not.toMatch(/prompt-injected|injectedPrompt\(/);
   });
 
-  it("is told from a typed prompt by a quieter step, not a decoration", () => {
-    const label = rulesFor(".prompt-injected-label")[0].body;
+  it("sets a typed prompt in its own step", () => {
     const typed = rulesFor(".prompt-text")[0].body;
-    expect(label).toMatch(/color:\s*var\(--muted\)/);
     expect(typed).toMatch(/color:\s*var\(--text-secondary\)/);
-    expect(label).toMatch(/font-size:\s*calc\(11px/);
     expect(typed).toMatch(/font-size:\s*calc\(12px/);
   });
 });

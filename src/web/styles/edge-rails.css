@@ -1,7 +1,8 @@
 /* ---------------- the stripes: a door on the side its panel opens ------------
    components/EdgeRails.tsx says why. The geometry is two tokens in the
    geometry block (tokens.css): --topbar-h, the bar these hang under,
-   and --edge-w, their width, with upright icons.
+   and --edge-w, their width: 40 with upright icons, --edge-words-w with each
+   door's word beside its glyph (the words block below).
 
    The stripes are fixed to the window's edges; `.app` keeps their width free
    with its own inline padding, so every grid column, banner and panel inside
@@ -221,6 +222,66 @@
   line-height: calc(14px + var(--ui-text-increase, 0px));
   pointer-events: none;
 }
+
+/* ── the words ───────────────────────────────────────────────────────────── */
+/* A new profile's stripes say each door's word beside its glyph (stripe-words.ts):
+   both stripes --edge-words-w, which `.app` takes as its --edge-w, so its
+   padding, the bars reaching across it, the corner cell and every panel that
+   keeps clear of a stripe move with them and nothing is drawn under one.
+   Opening, the width grows on the column's own tempo (left-column.css); folding
+   away, it is gone at once, like everything that leaves this chrome; under
+   reduced motion it never moves. Under 1100px the board needs the room: the
+   stripes draw no words there (stripe-words.ts), and this asks for none. */
+@media (min-width: 1100px) {
+  .app:has(> .edge-rail[data-words]) {
+    --edge-w: var(--edge-words-w);
+    transition: --edge-w var(--dur-move) var(--ease-stage);
+  }
+}
+@media (min-width: 641px) {
+  /* Feedback keeps the window's corner, 6 in from its edge, at either width of
+     the cell above the right stripe: its centre on a 40 one, its end on a 156. */
+  .topbar .tb-corner > .utility-run { margin-left: auto; margin-right: 5px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .app:has(> .edge-rail[data-words]) { transition: none; }
+}
+/* Each door a row, 7 in from either side of the stripe: the glyph keeps the
+   place it has on a 40 stripe, 13 in, the word follows 8 after it, and a word
+   the row cannot hold ends in an ellipsis, whole in its hint. The open line
+   stays against the stripe's border. */
+.edge-rail[data-words],
+.edge-rail[data-words] .rail-group { align-items: stretch; }
+.edge-rail[data-words] .rail-doors,
+.edge-rail[data-words] .rail-foot { align-items: stretch; padding-inline: 6px; }
+.edge-rail[data-words] .rail-btn-stripe {
+  width: auto;
+  justify-content: flex-start;
+  gap: 8px;
+  padding: 0 6px;
+}
+.edge-rail-left[data-words] .rail-btn-stripe::before { right: -6px; }
+.edge-rail-right[data-words] .rail-btn-stripe::before { left: -6px; }
+.edge-rail[data-words] .rail-doors .rail-group + .rail-group::before { width: auto; }
+.rail-btn-stripe .rail-word {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: start;
+  line-height: calc(16px + var(--ui-text-increase, 0px));
+}
+/* A count at the row's end, after the word, rather than on the glyph's corner. */
+.edge-rail[data-words] .rail-btn-stripe .rail-badge { position: static; flex: none; }
+/* The dot keeps the glyph's top right corner, now at the row's start. */
+.edge-rail[data-words] .rail-btn-stripe .rail-dot { left: 17px; right: auto; }
+/* A door with its word presses as a labelled control does (0.97). */
+@media (prefers-reduced-motion: no-preference) {
+  .edge-rail[data-words] .rail-btn-stripe:active { transform: scale(var(--press)); }
+}
+/* The switch is not a door: set a step apart below the foot's doors. */
+.rail-foot .rail-words-btn:not(:first-child) { margin-top: 8px; }
 
 /* ── Search and Feedback on the bar ──────────────────────────────────────── */
 /* 8 apart, the end group's gap (V4's Figma). Search is the end group's and

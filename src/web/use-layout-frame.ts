@@ -9,6 +9,7 @@
 import { useEffect, useState, type RefObject } from "react";
 
 import type { PanelPhase } from "./panel-exit";
+import { NO_FOLDS, type Folds } from "./inspector-fold";
 import { useMirroredRef } from "./use-mirrored-ref";
 
 /** The margin and fill fitLeft frames the board with. The layout packs the
@@ -25,19 +26,22 @@ export const FIT_FILL = 0.86;
  *  sideways must never do. Measured rather than derived from the panel flags,
  *  like the canvas itself, so it stays right whether one panel is open or both
  *  are, and wherever the detail panel has pushed the rail. A panel on its way
- *  out is already gone as far as the board is concerned. */
+ *  out is already gone as far as the board is concerned, and so is one the
+ *  Inspector folded to its header (inspector-fold.ts): the fit and the zoom to
+ *  a card use the board the open panels leave. */
 export function railCover(canvas: Element | null): number {
   if (!canvas) return 0;
   const box = canvas.getBoundingClientRect();
   let left = box.right;
-  for (const el of document.querySelectorAll(".sysdetail:not(.leaving), .usage-panel:not(.leaving)")) {
+  const open = ':not(.leaving):not([data-fold="inspector"])';
+  for (const el of document.querySelectorAll(`.sysdetail${open}, .usage-panel${open}`)) {
     const r = el.getBoundingClientRect();
     if (r.width > 0 && r.left > box.left) left = Math.min(left, r.left);
   }
   return Math.max(0, box.right - left);
 }
 
-export function useLayoutFrame({ canvasRef, canvasSize, machinePhase, usagePhase, usagePanelOpen, detailShown }: {
+export function useLayoutFrame({ canvasRef, canvasSize, machinePhase, usagePhase, usagePanelOpen, detailShown, folds = NO_FOLDS }: {
   canvasRef: RefObject<HTMLElement | null>;
   /** The canvas box, quantised to 40px — see use-canvas-size.ts. */
   canvasSize: { w: number; h: number };
@@ -46,6 +50,8 @@ export function useLayoutFrame({ canvasRef, canvasSize, machinePhase, usagePhase
   usagePanelOpen: boolean;
   /** Whether `.detail` is in the DOM, which moves the rail by 360px. */
   detailShown: boolean;
+  /** The panels the Inspector folded to their header (inspector-fold.ts). */
+  folds?: Folds;
 }) {
   // What the rail covers of the canvas — see railCover. Kept only when it moves
   // by more than the canvas's own 40px quantum.
@@ -72,11 +78,15 @@ export function useLayoutFrame({ canvasRef, canvasSize, machinePhase, usagePhase
   //     measured against. Already quantised to 40px, the same quantum as the
   //     deadband below, and it is the only way the accounts panel and a window
   //     resize reach this: both change the canvas column's width.
+  //   · folds.usage / folds.machine — a panel the Inspector folded is not
+  //     counted, and one opened from its folded header is again. The Inspector
+  //     folds them a render after detailShown moves, so detailShown alone
+  //     would measure them open.
   const [railInset, setRailInset] = useState(0);
   useEffect(() => {
     const cover = railCover(canvasRef.current);
     setRailInset(prev => (Math.abs(prev - cover) > 40 ? cover : prev));
-  }, [machinePhase, usagePhase, usagePanelOpen, detailShown, canvasSize.w]);
+  }, [machinePhase, usagePhase, usagePanelOpen, detailShown, canvasSize.w, folds.usage, folds.machine]);
   // The same reading for the handlers that frame a card or place its peek:
   // they run on a press or a hover, and asking the document again there would
   // be a third query of what this effect has just measured.

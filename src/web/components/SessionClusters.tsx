@@ -10,9 +10,8 @@ import { createFocusHold } from "../focus-hold";
 import { prefersReducedMotion } from "../viewport-motion";
 import { AlertMark } from "./StateMark";
 
-function selectClusters(s: ReactFlowState): Cluster[] {
-  return clusterBounds(s.nodeInternals.values());
-}
+const selectClusters = (s: ReactFlowState): Cluster[] => clusterBounds(s.nodeInternals.values());
+const selectCardClusters = (s: ReactFlowState): Cluster[] => clusterBounds(s.nodeInternals.values(), { notes: false });
 const selectPaneWidth = (s: ReactFlowState) => s.width;
 const selectPaneHeight = (s: ReactFlowState) => s.height;
 /** React Flow's viewport: the element its nodes are drawn in, which carries
@@ -31,10 +30,15 @@ const selectViewport = (s: ReactFlowState) => s.domNode?.querySelector<HTMLEleme
  * routine every "go to this card" shares (focus-camera.ts), which frames the
  * session clear of the floating panels at a readable zoom and stamps after it.
  */
-export default function SessionClusters({ onFocusSession }: { onFocusSession?: (sessionId: string) => void }) {
+export default function SessionClusters({ onFocusSession, notes = true }: {
+  onFocusSession?: (sessionId: string) => void;
+  /** Whether the sessions' notes are drawn (the full card only): the frames
+   *  go round them where they are, round the cards where they are not. */
+  notes?: boolean;
+}) {
   const t = useT();
   const { x, y, zoom } = useViewport();
-  const clusters = useStore(selectClusters, shallowEqualClusters);
+  const clusters = useStore(notes ? selectClusters : selectCardClusters, shallowEqualClusters);
   // The pane's size, from the store React Flow measures it into, and the
   // chrome drawn over it, from the page: where each pill has room to be drawn
   // whole (cluster-label-room.ts). The chrome is read after every render and
@@ -192,15 +196,13 @@ export default function SessionClusters({ onFocusSession }: { onFocusSession?: (
                 zoom, so it is the one place a blocked session can always be
                 found from — the tile under it may be twenty pixels wide. */}
             {c.alarm ? <><AlertMark /><span className="cluster-label-said">{t("board.cluster.waitingOnYou")}</span></> : null}
-            {/* THREE FIELDS, THREE RANKS. They were one run of identical
-                uppercase hue text, so the workspace, the session's own name
-                and the four-character address all asked for the eye equally
-                and the caption ended up louder than the node it labels. The
-                workspace keeps the hue and the capitals — it is the address,
-                and the only field the session colour needs to mark. The other
-                two step down to the annotation tier and to normal weight; the
-                separators go with them, so the run reads as one strong word
-                followed by its qualifiers rather than as three equals.
+            {/* THE FOLDER, THEN ITS QUALIFIERS. The workspace keeps the hue
+                and the capitals — it is the address, and the only field the
+                session colour needs to mark. The plan, the branch and the
+                session's title step down to the annotation tier and to normal
+                weight; the separators go with them, so the run reads as one
+                strong word followed by its qualifiers. No id: when it started
+                and its id's tail are in the tooltip (clusterTooltip).
 
                 THE NAME IS THERE ONLY WHEN THE CARD CANNOT SAY IT. The root
                 card prints the same name on its own row, so at a zoom where
@@ -212,7 +214,7 @@ export default function SessionClusters({ onFocusSession }: { onFocusSession?: (
                 `overview` the card is a face that gives the title up first,
                 and the pill is the one place that always reads it. Its
                 separator lives inside the span so the two leave together.
-                The tooltip keeps all three fields. */}
+                The tooltip keeps every field whole. */}
             {c.label}
             {/* The plan's count (#2157), first after the address: what the
                 session is FOR, and the one surface that still reads it once
@@ -226,7 +228,6 @@ export default function SessionClusters({ onFocusSession }: { onFocusSession?: (
                 own cards and the root's face say it. */}
             {c.branch ? <span className="cluster-label-branch">{SEP + c.branch}</span> : null}
             {c.name ? <span className="cluster-label-name">{SEP + c.name}</span> : null}
-            {c.shortId ? <span className="cluster-label-id">{SEP + c.shortId}</span> : null}
           </button>
         );
       })}

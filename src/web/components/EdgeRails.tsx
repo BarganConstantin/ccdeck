@@ -8,9 +8,11 @@
 // Browser watch, Radar, with no foot. rail-items.tsx lists them; each run
 // between two rules is a named group.
 //
-// The stripes use upright icons, with names and shortcuts in their tooltips,
-// which open towards the canvas: right from the left stripe, left from the right
-// one. Phone controls and the topbar utilities keep their visible words.
+// A new profile's stripes say each door's word beside its glyph, 156 wide; a
+// "Hide words" at the left stripe's foot folds both to 40 and icons, the names
+// and shortcuts then in their tooltips (stripe-words.ts). Tooltips open towards
+// the canvas: right from the left stripe, left from the right one. Phone
+// controls and the topbar utilities keep their visible words.
 // The topbar keeps the identity, the stream's state, the waiting queue, Search
 // (UtilityRun) and, in its own corner cell, Feedback. Under 641px the stripes
 // and Search become one dock along the bottom: the four panels one tap away and
@@ -37,6 +39,8 @@ import { Kbd } from "./Kbd";
 import { useHint, type HintSide, type HintSpec } from "./use-hint";
 import { useSingleKeyShortcuts } from "../use-single-key-shortcuts";
 import { useT } from "../i18n";
+import { setStripeWords, useStripeWords, useStripeWordsRoom } from "../stripe-words";
+import { StripeWordsGlyph } from "./rail-glyphs";
 
 /** The key a control answers: its keycap, its aria-keyshortcuts spelling, and
  *  whether it is one character — which the single-key switch silences — or a
@@ -53,6 +57,10 @@ export interface RailItem {
   label: string;
   /** The word under the glyph in the phone's dock, where a column is 60px wide. */
   short: string;
+  /** The word beside the glyph on a stripe showing its words, where `short`
+   *  alone would not say which door it is: "Reset calendar", not "Calendar".
+   *  `short`, when unset. */
+  stripeWord?: string;
   key?: RailKey;
   /** The hint's name, when it says more than the word: "Usage history". */
   hint?: string;
@@ -97,12 +105,25 @@ export function liveKey(key: RailKey | undefined, singleKeys: boolean): RailKey 
 }
 
 /** What the hint says for a control, or null when it would only repeat a word
- *  the control already shows and has no key to add. */
-export function railHint(item: RailItem, singleKeys: boolean, wordShown: boolean): HintSpec | null {
+ *  the control already shows and has no key to add. `word` is the word shown,
+ *  where it is not the label: a stripe's shorter one. */
+export function railHint(item: RailItem, singleKeys: boolean, wordShown: boolean, word: string = item.label): HintSpec | null {
   const keys = liveKey(item.key, singleKeys)?.cap;
   const label = item.hint ?? item.label;
-  const addsSomething = keys != null || item.detail != null || label !== item.label || !wordShown;
+  const addsSomething = keys != null || item.detail != null || label !== word || !wordShown;
   return addsSomething ? { label, keys, detail: item.detail } : null;
+}
+
+/** A stripe door's hint while its word shows: only what the word does not say,
+ *  the longer name, the key and the help line, or null when that is nothing. */
+export function stripeHint(item: RailItem, singleKeys: boolean, word: string): HintSpec | null {
+  const spec = railHint(item, singleKeys, true, word);
+  return spec && spec.label === word ? { ...spec, label: "" } : spec;
+}
+
+/** The word a stripe shows for a door while its words are on. */
+export function stripeWordOf(item: RailItem): string {
+  return item.stripeWord ?? item.short;
 }
 
 /** Each placement's classes, written out whole so every class the markup can
@@ -165,7 +186,15 @@ function useFocusHandover(ref: RefObject<HTMLElement>) {
   }, [ref]);
 }
 
-function RailButton({ item, index, tabbable, onFocusIndex, hint, variant, offlineDot = false }: {
+/** A door's name while a stripe shows `word` beside it: its own name when that
+ *  holds the word ("Browser watch, not watching"), the word when it does not
+ *  ("Sessions" for "Session list"), so what the eye reads is what voice control
+ *  can say (WCAG 2.5.3). */
+export function stripeDoorName(ariaLabel: string, word: string): string {
+  return ariaLabel.toLocaleLowerCase().includes(word.toLocaleLowerCase()) ? ariaLabel : word;
+}
+
+function RailButton({ item: given, index, tabbable, onFocusIndex, hint, variant, offlineDot = false, word = null }: {
   item: RailItem;
   index: number;
   tabbable: boolean;
@@ -174,7 +203,11 @@ function RailButton({ item, index, tabbable, onFocusIndex, hint, variant, offlin
   variant: "stripe" | "dock" | "bar";
   /** The phone dock's red dot: the deck cannot reach the computer. */
   offlineDot?: boolean;
+  /** A stripe's word beside the glyph, while its words are on. */
+  word?: string | null;
 }) {
+  const stripeWord = variant === "stripe" ? word : null;
+  const item = stripeWord != null ? { ...given, ariaLabel: stripeDoorName(given.ariaLabel, stripeWord) } : given;
   const singleKeys = useSingleKeyShortcuts();
   // V4's top bar draws Search as a field (its sentence and its chord): looks
   // only, on the same button with the same handler. A field is named by the
@@ -185,10 +218,13 @@ function RailButton({ item, index, tabbable, onFocusIndex, hint, variant, offlin
   // An icon-only bar button (Feedback) shows no word, so its hint is what says
   // the word: the tooltip keeps "Feedback".
   const iconOnly = look === "icon";
-  const spec = railHint(hinted, singleKeys, variant !== "stripe" && !iconOnly);
-  // V4's door tooltip is one line, the name and its key: the longer help line
-  // stays for assistive tech as the door's description.
-  const oneLine = variant === "stripe" && spec != null && spec.detail != null;
+  const spec = stripeWord != null
+    ? stripeHint(hinted, singleKeys, stripeWord)
+    : railHint(hinted, singleKeys, variant !== "stripe" && !iconOnly);
+  // V4's door tooltip on an icon stripe is one line, the name and its key; with
+  // the word on the door it is what the word does not say, its key and its help
+  // line. The help line stays for assistive tech as the door's description.
+  const oneLine = variant === "stripe" && stripeWord == null && spec != null && spec.detail != null;
   const hintHandlers = hint.bind(oneLine ? { ...spec, detail: undefined } : spec);
   const disclosure = item.kind === "panel";
   return (
@@ -200,7 +236,7 @@ function RailButton({ item, index, tabbable, onFocusIndex, hint, variant, offlin
       tabIndex={variant === "bar" ? undefined : tabbable ? 0 : -1}
       aria-label={fieldText ?? item.ariaLabel}
       aria-keyshortcuts={liveKey(item.key, singleKeys)?.aria}
-      aria-description={oneLine ? spec.detail : undefined}
+      aria-description={variant === "stripe" ? spec?.detail : undefined}
       aria-expanded={disclosure ? item.open === true : undefined}
       aria-controls={disclosure && item.open ? item.controls : undefined}
       aria-haspopup={disclosure ? undefined : "dialog"}
@@ -212,7 +248,8 @@ function RailButton({ item, index, tabbable, onFocusIndex, hint, variant, offlin
       {fieldText != null ? <>
         <span className="rail-field-text">{fieldText}</span>
         {item.key && <Kbd>{item.key.cap}</Kbd>}
-      </> : variant !== "stripe" && !iconOnly && <span className="rail-word">{variant === "dock" ? item.short : item.label}</span>}
+      </> : stripeWord != null ? <span className="rail-word">{stripeWord}</span>
+        : variant !== "stripe" && !iconOnly && <span className="rail-word">{variant === "dock" ? item.short : item.label}</span>}
       {item.badge != null && item.badge > 0 && <span className="rail-badge" aria-hidden>{item.badge}</span>}
       {item.dot && !(item.badge != null && item.badge > 0) && <span className="rail-dot" aria-hidden />}
       {offlineDot && <span className="rail-offline-dot" aria-hidden />}
@@ -223,12 +260,18 @@ function RailButton({ item, index, tabbable, onFocusIndex, hint, variant, offlin
 /** A stripe: on the window's left or right edge, under the topbar. Its doors
  *  are runs between rules at the top; its foot (utilities, no rule), if it has
  *  one, is pushed to the bottom. Its hint opens towards the canvas: to its right
- *  on the left stripe, to its left on the right one. */
+ *  on the left stripe, to its left on the right one. The left one's foot ends
+ *  in the switch between words and icons, which both stripes follow. */
 export function EdgeRail({ side, label, groups, foot = [] }: { side: "left" | "right"; label: string; groups: RailItem[][]; foot?: RailItem[] }) {
   const t = useT();
   const hint = useHint(RAIL_HINT_SIDE[side]);
+  const words = useStripeWords();
+  const room = useStripeWordsRoom();
   const items = groups.filter(g => g.length > 0);
-  const roving = useRoving(items.flat().length + foot.length, "vertical");
+  // Not drawn where the window has no room for words: there is nothing to switch.
+  const switchHere = side === "left" && room;
+  const switchIndex = items.flat().length + foot.length;
+  const roving = useRoving(switchIndex + (switchHere ? 1 : 0), "vertical");
   const ref = useRef<HTMLDivElement>(null);
   useFocusHandover(ref);
   let index = 0;
@@ -236,12 +279,17 @@ export function EdgeRail({ side, label, groups, foot = [] }: { side: "left" | "r
     const i = index++;
     return (
       <RailButton key={item.id} item={item} index={i} tabbable={i === roving.active}
-        onFocusIndex={roving.setCurrent} hint={hint} variant="stripe" />
+        onFocusIndex={roving.setCurrent} hint={hint} variant="stripe" word={words ? stripeWordOf(item) : null} />
     );
   };
+  // "Hide words" says itself while the words show; the » alone is named in its hint.
+  const switchLabel = words ? t("board.rail.words.hide") : t("board.rail.words.show");
+  const switchHint = hint.bind(words ? null : { label: switchLabel });
+  // The foot is named by everything in it, the switch too.
+  const footNames = [...foot.map(item => item.label), ...(switchHere ? [switchLabel] : [])];
   return (
     <div ref={ref} className={RAIL_CLASS[side]} role="toolbar" aria-label={label}
-      aria-orientation="vertical" onKeyDown={roving.onKeyDown}>
+      aria-orientation="vertical" data-words={words || undefined} onKeyDown={roving.onKeyDown}>
       <div className="rail-doors">
       {items.map(group => {
         // A run of two or more is a named group, so a screen reader moving
@@ -256,16 +304,29 @@ export function EdgeRail({ side, label, groups, foot = [] }: { side: "left" | "r
         );
       })}
       </div>
-      {foot.length > 0 && (
-        <div className="rail-foot" role="group"
-          aria-label={foot.map(item => item.label).join(t("board.listSep"))}>
+      {footNames.length > 0 && (
+        <div className="rail-foot" role="group" aria-label={footNames.join(t("board.listSep"))}>
           {foot.map(door)}
+          {switchHere && (
+            <button type="button" data-rail-item={STRIPE_WORDS_ID} className={STRIPE_WORDS_CLASS}
+              tabIndex={switchIndex === roving.active ? 0 : -1} aria-label={switchLabel}
+              {...switchHint}
+              onFocus={e => { roving.setCurrent(switchIndex); switchHint.onFocus(e); }}
+              onClick={() => setStripeWords(!words)}>
+              <StripeWordsGlyph shown={words} />
+              {words && <span className="rail-word">{switchLabel}</span>}
+            </button>
+          )}
         </div>
       )}
       {hint.node}
     </div>
   );
 }
+
+/** The switch between words and icons, on the stripe's arrows like a door. */
+const STRIPE_WORDS_ID = "stripe-words";
+const STRIPE_WORDS_CLASS = "rail-btn rail-btn-stripe rail-words-btn";
 
 const DOCK_MORE_ID = "dock-more";
 const DOCK_MENU_ID = "dock-more-menu";

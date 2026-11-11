@@ -8,6 +8,7 @@
 // panel under the names the markup already used, and whether a section is
 // drawn at all is still the panel's call, from which CLIs the deck watches
 // (#402).
+import { useId } from "react";
 import { PRODUCT } from "../brand";
 import { useT, type TFunction } from "../i18n";
 import { resetCreditsText } from "../reset-credits";
@@ -17,6 +18,8 @@ import { weekEndsLine, weekEndsTitle, type QuotaClose } from "../quota-closes";
 import { QuotaIncident } from "./ProviderIncidents";
 import QuotaBar from "./QuotaBar";
 import { WaitingLoader } from "./Loader";
+import HoverHint from "./HoverHint";
+import { KitIcon } from "./kit-icons";
 
 /** "just now" / "40s ago" / "17m ago" / "2h ago", or null when never fetched.
  *
@@ -94,6 +97,32 @@ function codexHint(t: TFunction, reason?: string): string {
     case "profile_changed":  return t("usage.quota.hint.codexProfileChanged");
     default:                 return t("usage.quota.hint.codexUnreachable");
   }
+}
+
+/**
+ * A quota that is down, said once (owner, 2026-11-11): the bold line, and why
+ * on a small info mark beside it — shown on hover or focus by the hover hint
+ * the accounts panel uses, and handed to a screen reader. No line asks for a
+ * press: the panel's one Refresh, at its foot, reads both quotas and the
+ * period again. A screen with no hover prints the reason under the line
+ * instead (usage-panel.css).
+ */
+function QuotaDown({ headline, why }: { headline: string; why: string }) {
+  const t = useT();
+  const whyId = `${useId()}-why`;
+  return (
+    <div className="up-quota-na">
+      <span className="up-quota-down">
+        {headline}
+        <HoverHint className="ap-peek ap-account-hint" detail={why}>
+          <span className="up-quota-why" role="img" aria-label={t("usage.quota.why")} aria-describedby={whyId}>
+            <KitIcon name="info" />
+          </span>
+        </HoverHint>
+      </span>
+      <span className="up-quota-hint" id={whyId}>{why}</span>
+    </div>
+  );
 }
 
 /** How full the account's last weeks ended, under the bars. A footnote, so it is
@@ -202,10 +231,8 @@ export function ClaudeQuotaSection({ quota, quotaLoading, nowSec, incident, week
           )}
         </div>
       ) : quota?.ok === false ? (
-        <div className="up-quota-na">
-          <span className="up-quota-down">{quota.reason === "no_subscription" ? t("usage.quota.none") : t("usage.quota.unavailable")}</span>
-          <span className="up-quota-hint">{claudeQuotaHint(t, quota.reason)}</span>
-        </div>
+        <QuotaDown headline={quota.reason === "no_subscription" ? t("usage.quota.none") : t("usage.quota.unavailable")}
+          why={claudeQuotaHint(t, quota.reason)} />
       ) : (
         <div className="up-quota-na up-quota-loading loader-line"><WaitingLoader busy /><span role="status">{t("usage.quota.checking")}</span></div>
       )}
@@ -308,10 +335,7 @@ export function CodexQuotaSection({ codexQuota, codexLoading, nowSec, incident, 
           )}
         </div>
       ) : codexQuota?.ok === false ? (
-        <div className="up-quota-na">
-          <span className="up-quota-down">{t("usage.quota.unavailable")}</span>
-          <span className="up-quota-hint">{codexHint(t, codexQuota.reason)}</span>
-        </div>
+        <QuotaDown headline={t("usage.quota.unavailable")} why={codexHint(t, codexQuota.reason)} />
       ) : (
         <div className="up-quota-na up-quota-loading loader-line"><WaitingLoader busy /><span role="status">{t("usage.quota.checking")}</span></div>
       )}

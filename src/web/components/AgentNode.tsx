@@ -27,19 +27,14 @@ import { fmtTokens } from "../token-format";
 // The card's elapsed clock, which used to be declared in this file and which
 // the detail panel wrote out again, one tier short. See duration.ts.
 import { elapsed } from "../duration";
-// Which naming record reaches the face of the card and which stays in the
-// tooltip. Shared with the cluster header rather than decided twice, because
-// the column cap in #521 is only sound while both surfaces show the same field.
-import { sessionDisplay } from "../session-display";
 import { ContextDonut } from "./ContextModal";
 import type { AgentNodeData, PlanItem, WaitingBlock } from "../types";
 import { useNow } from "../use-now";
 import { useLanguage, useT } from "../i18n";
-import { promptLine } from "../session-note";
-import { cardState, drawnState, faceSignal, markBesideFailures, stateMarkKind, type BranchSummary, type CardState, type StateMarkKind } from "../node-face";
+import { cardState, drawnState, faceStatus, stateMarkKind, type BranchSummary, type CardState, type StateMarkKind } from "../node-face";
+import { lastTypedPrompt, sessionNames, sessionTask } from "../rail-row-copy";
 // The agent's own checklist, as one line (#2157). See agent-plan.ts.
 import { planSummary, planTitle, type PlanSummary } from "../agent-plan";
-import { primaryDisplayFor, toolSubject } from "../tool-skin";
 // The tool kinds the foot draws as icons, from the calls the card holds.
 import { recentToolKinds, TOOL_KIT_ICON } from "../card-tool-icons";
 import { AlertMark, StateMark } from "./StateMark";
@@ -138,6 +133,17 @@ export function AgentCard({ data, handles = false }: { data: CardData; handles?:
   const labelRef = useRef<HTMLSpanElement>(null);
   const modelRef = useRef<HTMLSpanElement>(null);
   const squeezeMax = maxSqueeze(data);
+  // A root's two lines keep the one name rule every surface keeps (owner's
+  // critique, 2026-11-11, point 2; rail-row-copy.ts sessionNames): the head is
+  // the session's name — the name it was given, else Claude Code's title, else
+  // the folder — and the task line is what a person last asked it, the
+  // Sessions list's second line. The card had the folder in its head and the
+  // name or title on its task line, so one session read "api / retention job"
+  // here and "retention job / api · Add a retention job…" in the list beside
+  // it. Most sessions have no name or title (0.2% and 4.1% of the transcripts
+  // on this machine, session-display.ts): their head is still the folder.
+  const names = data.kind === "root" ? sessionNames(data) : null;
+  const headName = names ? names.title : data.label;
   const [squeeze, setSqueeze] = useState(0);
   // The name's width as last observed: a state, so a name that has narrowed is
   // measured again by the render the change causes.
@@ -145,7 +151,7 @@ export function AgentCard({ data, handles = false }: { data: CardData; handles?:
   // Set when the effort is dropped, so the widening that causes is not read as
   // room coming back from elsewhere.
   const droppedByMeasure = useRef(false);
-  useBeforePaint(() => { setSqueeze(0); }, [data.effort, data.model, otherModels.length, data.label, data.kind, squeezeMax]);
+  useBeforePaint(() => { setSqueeze(0); }, [data.effort, data.model, otherModels.length, headName, data.kind, squeezeMax]);
   useBeforePaint(() => {
     // No layout read once there is nothing left to give up.
     if (squeeze >= squeezeMax) return;
@@ -190,20 +196,9 @@ export function AgentCard({ data, handles = false }: { data: CardData; handles?:
   const modelChipTitle = data.model && (otherModels.length > 0
     ? `${chipTitle(data.model, data.effort)}\n${t("board.node.modelCovers")}\n${otherModels.join("\n")}`
     : chipTitle(data.model, data.effort));
-  // Two strings for the name row, chosen once. `face` is the name when the
-  // session has one and the sentence when it does not, which is the common
-  // case rather than the fallback: 0.2% of the transcripts on this machine
-  // carry an agent-name and 4.1% carry an ai-title, and not one of them
-  // carries a name without a title. See session-display.ts for the sweep.
-  const naming = sessionDisplay(data.sessionName, data.sessionTitle);
-  // A root's task line (V4's Agent / Card): the name or the title, and the
-  // session's first prompt before Claude Code has given it either, which is
-  // most sessions and every Codex one. The prompt's first line on the face,
-  // as much of it as the deck keeps on hover.
-  const promptFace = data.firstPrompt ? promptLine(data.firstPrompt) : "";
-  const rootTask = naming.face
-    ? { face: naming.face, tooltip: naming.tooltip }
-    : promptFace ? { face: promptFace, tooltip: data.firstPrompt } : null;
+  // The prompt's first line on the face, the whole prompt on hover. Absent
+  // rather than empty when nothing was asked, or when the task is the name.
+  const rootTask = names?.task ? { face: names.task, tooltip: lastTypedPrompt(data) } : null;
   // What the call that started a subagent said it is for (subagent-lifecycle.ts).
   const spawnTask = data.spawnCall?.description;
   // The cost slot at the end of the meta row, decided once (card-cost.ts).
@@ -268,7 +263,7 @@ export function AgentCard({ data, handles = false }: { data: CardData; handles?:
 
       <div className="head">
         <div className="title">
-          <span className="label" title={cardTooltip} ref={labelRef}>{data.label}</span>
+          <span className="label" title={cardTooltip} ref={labelRef}>{headName}</span>
           {/* The model as plain mono text after the name (V4): no pill, no
               tint — the word already names the family. A Codex session with no
               model yet says Codex in the same place (#404), and only "codex"
@@ -302,17 +297,14 @@ export function AgentCard({ data, handles = false }: { data: CardData; handles?:
           the secondary ink, cut with an ellipsis and carrying its whole text on
           hover.
 
-          A root says what Claude Code calls the session: the NAME when it has
-          one, the TITLE when it does not, the same line either way. #520 drew
-          the name alone, which measured across every transcript on this machine
-          renders for 0.2% of them; the title reaches 4.1%, and 25.3% of the
-          transcripts big enough to be a real session. It does NOT replace the
-          id: both records are rewritten as the session moves and two sessions
-          can hold the same one, so this is a description, not an address — the
-          short id in the cluster header stays the thing that still means this
-          node in five minutes. Without either (a Codex rollout carries no such
-          record and a young Claude session has not been given one yet) it is
-          the first prompt, and ABSENT rather than empty when there is none.
+          A root says what a person last asked it, the task line the Sessions
+          list draws under the same name (rail-row-copy.ts sessionTask). The
+          session's NAME or TITLE is the head's word, not this line's (owner's
+          critique, 2026-11-11, point 2). Neither is an address: both records
+          are rewritten as the session moves and two sessions can hold the same
+          one, so the short id stays in the cluster header's hover. ABSENT
+          rather than empty when nothing was asked, or when the task is the
+          name itself.
 
           A subagent has neither record (copying the parent's naming onto every
           child would print the same string five times on one canvas), so it
@@ -439,7 +431,7 @@ export function AgentCard({ data, handles = false }: { data: CardData; handles?:
         )}
       </div>
 
-      <NodeFace data={data} title={data.kind === "root" ? rootTask?.face : undefined} />
+      <NodeFace data={data} task={data.kind === "root" ? sessionTask(data) || sessionNames(data).title : spawnTask || data.label} />
 
       {handles && <Handle type="source" position={Position.Right} style={{ background: "transparent", border: "none" }} />}
     </div>
@@ -485,58 +477,44 @@ function PlanRow({ plan, items }: { plan: PlanSummary; items: readonly PlanItem[
  *
  * Always in the tree, and `display: none` at the detail tier: the mode is an
  * attribute on the canvas, so changing it re-renders no card. What it draws is
- * the card's own data, picked down — the name, a state MARK, and the one line
- * faceSignal decides is worth an interruption. Which lines fit is the sheet's
- * call, per card, by container query against the face's own on-screen size.
+ * one task line and the card's status (owner's critique, 2026-11-11): what a
+ * person last asked the session (the Sessions list's task), else its title; a
+ * subagent's own task, else its name. Then the mark and the word, Working,
+ * Done, Waiting or "1 failed" (faceStatus). The cluster's pill above names the
+ * session. Compact and overview draw the same face.
+ *
+ * The word is never cut: where it does not fit whole, the sheet lets it wrap
+ * to a line the face clips, and the mark says the state alone, by its shape
+ * and its colour. Where the face is tall enough the task has a line of its
+ * own and the status the one under it.
+ *
+ * Below 40% the face is the board seen whole (V4 critique 2, C4, as V4's
+ * Figma draws it): the card's short name at its left, whole or not at all, and the
+ * mark at its right. The word moves to the peek. The short name is the card's
+ * label — the project a root is in, a subagent's own name — which is what
+ * tells two cards in one session apart from that far.
  *
  * Hidden from assistive technology like the rows it stands in for: the node's
  * accessible name is agentAriaLabel, composed from the data, and says all of
- * this at every zoom.
+ * this at every zoom. The peek beside the pointer says the word too.
  */
-function NodeFace({ data, title }: { data: AgentNodeData & { branch?: BranchSummary }; title?: string }) {
+function NodeFace({ data, task }: { data: AgentNodeData & { branch?: BranchSummary }; task: string }) {
   const tr = useT();
   const alarm = data.kind === "root" && isAlarming(data.waiting);
-  const signal = faceSignal(data, data.branch, {
-    sayWaiting: w => waitingLabel(w, tr),
-    describeCall: call => ({ name: primaryDisplayFor(call.name).label, subject: toolSubject(call.name, call.input) }),
-  }, tr);
-  // The state in a word, for a face too narrow for its name (the sheet shows it
-  // only there): the card's own word, or the face's "Needs you" / "Asked you"
-  // for a session blocked on you. The mark beside it is the card's mark too, so
-  // a session not yet given a prompt draws the hollow ring by "Ready".
-  const state = cardState(data);
-  // The mark sits beside "1 failed" on this face, so a finished card whose
-  // calls failed draws the cross, not done's tick (markBesideFailures). Where
-  // the face is too narrow for that line the word says the count instead of
-  // "Done": a cross beside "Done" would be the same contradiction turned round.
-  const failed = data.toolErrorCount ?? 0;
-  const under = state.mark === "alert" ? stateMarkKind(drawnState(data)) : state.mark;
-  const mark = markBesideFailures(under, failed);
-  const failedWord = mark !== under;
-  const word = alarm && signal ? signal.short : failedWord ? tr("board.failedCount", { n: failed }) : state.word;
-  const wordTone = alarm ? "warn" : state.tone === "err" || failedWord ? "err" : undefined;
+  const status = faceStatus(data, tr);
   return (
     <div
       className="lod-face"
       data-kind={data.kind}
       data-alarm={alarm ? "" : undefined}
-      data-signal={signal ? "" : undefined}
       aria-hidden
     >
-      <div className="lod-id">
-        <StateMark kind={mark} />
-        <span className="lod-name">{data.label}</span>
-        {signal && <span className="lod-inline" data-tone={signal.tone}>{signal.short}</span>}
-        <span className="lod-state" data-tone={wordTone}>{word}</span>
-        {alarm && <AlertMark />}
+      <div className="lod-line" data-status={status.tone}>
+        {status.mark === "alert" ? <AlertMark /> : <StateMark kind={status.mark} />}
+        <span className="lod-name">{task}</span>
+        <span className="lod-state">{status.word}</span>
+        <span className="lod-short">{data.label}</span>
       </div>
-      {title && <div className="lod-title">{title}</div>}
-      {signal && (
-        <div className="lod-signal" data-tone={signal.tone}>
-          <span className="lod-long">{signal.long}</span>
-          <span className="lod-short">{signal.short}</span>
-        </div>
-      )}
     </div>
   );
 }

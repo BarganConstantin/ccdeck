@@ -14,8 +14,9 @@ const css = sheetText().replace(/\/\*[\s\S]*?\*\//g, "");
 describe("the tool dialog shows a call as what it is (#816)", () => {
   it("renders tool-view's blocks and no longer stringifies the payload", () => {
     expect(code).toMatch(/const view = toolView\(tool\.name, input, response\);/);
-    expect(code).toMatch(/view\.input\.map\(\(b, n\) => <ToolBlock key=\{n\} block=\{b\} \/>\)/);
-    expect(code).toMatch(/view\.response\.map\(\(b, n\) => <ToolBlock key=\{n\} block=\{b\} \/>\)/);
+    // CHANGED ON PURPOSE: a block is handed the session's folder too, which a file's path is read from (PathText).
+    expect(code).toMatch(/view\.input\.map\(\(b, n\) => <ToolBlock key=\{n\} block=\{b\} cwd=\{cwd\} \/>\)/);
+    expect(code).toMatch(/view\.response\.map\(\(b, n\) => <ToolBlock key=\{n\} block=\{b\} cwd=\{cwd\} \/>\)/);
     expect(code).not.toMatch(/JSON\.stringify|safeJson/);
   });
 

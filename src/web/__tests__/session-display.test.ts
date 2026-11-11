@@ -187,16 +187,17 @@ describe("the cluster header falls back to the title too", () => {
     expect(c.fullLabel).not.toContain("…");
   });
 
-  // The id keeps the condition #521 gave it. A title does not earn it and does
-  // not excuse it, exactly as a name does not.
-  it("does not let a title summon or dismiss the short id", () => {
+  // CHANGED ON PURPOSE (owner's critique, 2026-11-11): the pill draws no id;
+  // the tail is the tooltip's, title or not.
+  it("draws no id on the pill and keeps each tail for the tooltip, title or not", () => {
     const alone = clusterBounds([card("s1", 0, { sessionTitle: TITLE })]);
-    expect(alone[0].shortId).toBeUndefined();
+    expect(alone[0].fullLabel).toBe(`vcrm-core${SEP}${TITLE}`);
     const colliding = clusterBounds([
       card("11110000-0000-4000-8000-000000004efa", 0, { sessionTitle: TITLE }),
       card("22220000-0000-4000-8000-000000009bd7", 900, { sessionTitle: TITLE }),
     ]);
-    expect(colliding.map(c => c.shortId)).toEqual(["4efa", "9bd7"]);
+    expect(colliding.map(c => c.idTail)).toEqual(["4efa", "9bd7"]);
+    expect(colliding.map(c => c.fullLabel)).toEqual([`vcrm-core${SEP}${TITLE}`, `vcrm-core${SEP}${TITLE}`]);
   });
 
   it("ignores a title on a subagent, whichever order the store hands them over", () => {
@@ -212,7 +213,7 @@ describe("the cluster header falls back to the title too", () => {
   it("never shows more of the field than the card does", () => {
     for (const [n, t] of [[NAME, TITLE], [null, TITLE], [NAME, null]] as const) {
       const face = sessionDisplay(n, t).face!;
-      const h = clusterHeader("vcrm-core", face, "s1", false);
+      const h = clusterHeader("vcrm-core", face, "s1");
       expect([...h.name!].length).toBeLessThanOrEqual([...face].length);
       expect(face.startsWith(h.name!.replace(/…$/, ""))).toBe(true);
     }
@@ -231,7 +232,8 @@ describe("a session with no naming at all is left exactly as it was", () => {
       card("11110000-0000-4000-8000-000000004efa", 0, {}),
       card("22220000-0000-4000-8000-000000009bd7", 900, {}),
     ]);
-    expect(two.map(c => c.fullLabel)).toEqual(["vcrm-core · 4efa", "vcrm-core · 9bd7"]);
+    // CHANGED ON PURPOSE (owner's critique, 2026-11-11): no id on the pill.
+    expect(two.map(c => c.fullLabel)).toEqual(["vcrm-core", "vcrm-core"]);
   });
 
   it("gives a Codex root no face for the card to draw", () => {
