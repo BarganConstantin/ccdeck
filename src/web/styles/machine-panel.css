@@ -25,8 +25,11 @@
   border: 1px solid var(--line-soft);
   border-radius: var(--r-node);
   box-shadow: var(--shadow-overlay);
+  /* Every line height in this panel and in Usage adds the reader's text
+     increase, as its size does (V4's type roles, tokens.css): a literal 16px
+     line under a 16px word at Largest set two lines of a note touching. */
   font-size: calc(12px + var(--ui-text-increase, 0px));
-  line-height: 16px;
+  line-height: calc(16px + var(--ui-text-increase, 0px));
   color: var(--text);
   text-align: left;
   cursor: default;
@@ -152,10 +155,10 @@
   background: var(--panel);
   color: var(--text);
   font-size: calc(12px + var(--ui-text-increase, 0px));
-  line-height: 16px;
+  line-height: calc(16px + var(--ui-text-increase, 0px));
 }
 /* An <h2> since #879; the margin reset keeps the tag from moving the title. */
-.sd-title { margin: 0; font-size: calc(13px + var(--ui-text-increase, 0px)); line-height: 20px; font-weight: 600; color: var(--text); }
+.sd-title { margin: 0; font-size: calc(13px + var(--ui-text-increase, 0px)); line-height: calc(20px + var(--ui-text-increase, 0px)); font-weight: 600; color: var(--text); }
 /* "up 12d 4h · 16 cores": 400 12/16 --muted. */
 .sd-sub { margin: 0; color: var(--muted); font-variant-numeric: tabular-nums; }
 /* The bare glyph the rest of the deck's header closes have come to — the whole
@@ -179,7 +182,7 @@
   min-height: 20px;
   margin: 0;
   font-size: calc(12px + var(--ui-text-increase, 0px));
-  line-height: 16px;
+  line-height: calc(16px + var(--ui-text-increase, 0px));
   font-weight: 600;
   color: var(--text-secondary);
 }
@@ -192,15 +195,18 @@
   font-weight: 400;
   font-variant-numeric: tabular-nums;
 }
-/* CPU's heading: the label 400 12/16 --text-secondary and the total at the
-   right. The columns sit 8 under it, the gap every heading here keeps
-   (`.sd-reading > .sd-open` below). Where there are no columns to draw, the
-   heading is the whole block and keeps no gap under itself. */
-.sd-reading[data-group="cores"] .sd-h { min-height: 16px; font-weight: 400; }
+/* CPU's heading: the label and the total at the right, the label 600 like
+   every other heading in this panel and in Usage. It was 400, the one heading
+   on either panel at a body weight, which read as a row label rather than as
+   the first section. 16 high rather than 20: the columns sit 8 under it, the
+   gap every heading here keeps (`.sd-reading > .sd-open` below). Where there
+   are no columns to draw, the heading is the whole block and keeps no gap
+   under itself. */
+.sd-reading[data-group="cores"] .sd-h { min-height: 16px; }
 .sysdetail .sd-reading[data-group="cores"] > .sd-open:last-child { margin-bottom: calc(0px - 4px); }
 
 /* THE PER-CORE COLUMNS, the way main draws them: one column per logical core,
-   28 high and 2 apart, an accent fill rising from the bottom of a --line
+   28 high and 2 apart, an accent fill rising from the bottom of a --ctl-fill
    track, the control's corners. The total is the figure beside the heading, so nothing
    here is a meter of the whole machine and nothing takes a level: a build at
    90% CPU is doing its job (see MachinePanel.tsx).
@@ -231,12 +237,20 @@
 }
 /* `--core-floor` is the 2px sliver an idle core keeps, as a share of its own
    column, so it changes with the column's height. */
+/* The track is --ctl-fill, the one every other meter in this panel and in
+   Usage draws on (`.sd-track`, `.qb-track`). It was --line, a boundary token:
+   in the contrast themes that is a mid grey (#686868 on White Contrast, #858585
+   on Black Contrast), and the accent fill against it measured 1.54:1 and
+   2.13:1, so the top of each reading — the one thing a column says — was lost
+   in a block of solid grey. On --ctl-fill the fill clears 4.9:1 against its
+   track on every palette, and in Rider Black and Dark the two tokens are the
+   same grey to a step. */
 .sd-core {
   display: block;
   height: 28px;
   --core-floor: calc(2 / 28);
   border-radius: var(--r-ctl);
-  background: var(--line);
+  background: var(--ctl-fill);
   overflow: hidden;
 }
 .sd-cores:has(> .sd-core:nth-child(33)) > .sd-core {
@@ -343,25 +357,27 @@
   border-top: 0;
 }
 .sysdetail .sd-door .sd-door-plate { display: block; }
-/* The name, in the reading colour rather than the heading's, with the chevron
-   pushed to the far edge — the width IS the affordance here: a chevron beside
-   the word reads as a footnote, a chevron across the panel reads as a row you
-   go through. */
+/* The name, a heading like the four above it (600 12/16 --text-secondary, the
+   weight of Usage's "By session", which is the same thing: a section named by
+   a control with its chevron at the far edge). It was 500, a third weight
+   neither panel uses anywhere else. The chevron is pushed to the far edge —
+   the width IS the affordance here: a chevron beside the word reads as a
+   footnote, a chevron across the panel reads as a row you go through. */
 .sd-door-name {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 8px;
   font-size: calc(12px + var(--ui-text-increase, 0px));
-  line-height: 16px;
-  font-weight: 500;
+  line-height: calc(16px + var(--ui-text-increase, 0px));
+  font-weight: 600;
   color: var(--text-secondary);
 }
 /* The only line that says what the door opens, so it is read, not glanced at:
    12px and the secondary tier. --muted on the plate's composite measured 4.34:1
    in dark (#859) — the 4% tint lifts the ground under it, and the token pairs
    the contrast tests check never saw that ground. */
-.sd-door-sub { display: block; margin-top: 0; color: var(--text-secondary); font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: 16px; }
+.sd-door-sub { display: block; margin-top: 0; color: var(--text-secondary); font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: calc(16px + var(--ui-text-increase, 0px)); }
 /* THE BOX THE BUTTON USED TO BE, now that only the heading is one (#1771). A
    section's readings sat inside its history button, and a button's contents
    are presentational: a screen reader heard the button's name and not one
@@ -454,10 +470,13 @@
 .sysdetail .sd-fill[data-level="err"] { background: var(--err); }
 .sd-row > .sd-note { margin-top: 3px; }
 
-/* A PLAIN ROW (V4's Figma): 24 high, the label in --muted and the reading in
-   mono --text at the right, 12 apart across the row (rows themselves sit 2
-   apart). A reading the deck already calls an error
-   is --err; a sentence under it is 12/16 --muted. */
+/* A PLAIN ROW (V4's Figma): 24 high, the label in --text-secondary and the
+   reading in mono --text at the right, 12 apart across the row (rows
+   themselves sit 2 apart). The label is the meter row's label and Usage's row
+   label ("5-hour window", a model's name) in the same tier: it was --muted,
+   so GPU, Throttling and the network's three read a step greyer than Physical
+   and Swap above them. A reading the deck already calls an error is --err; a
+   sentence under it is 12/16 --muted. */
 .sd-plain {
   display: flex;
   flex-wrap: wrap;
@@ -466,22 +485,26 @@
   column-gap: 12px;
   min-height: 24px;
 }
-.sd-plain-label { color: var(--muted); }
+.sd-plain-label { color: var(--text-secondary); }
 .sd-plain-val { margin-left: auto; font-family: var(--font-mono); font-variant-numeric: tabular-nums; color: var(--text); }
 .sd-plain-val[data-err] { color: var(--err); }
 .sd-plain-note { flex: 0 0 100%; color: var(--muted); }
 
-/* THE LOAD AVERAGE (V4's Figma): three cells 24 apart, the value in mono 600
-   16/24 --text over its caption 400 11/14 --muted. */
-.sd-figs { display: flex; gap: 24px; }
+/* THE LOAD AVERAGE: three cells 16 apart, the value in mono 400 12/16 --text
+   over its caption 400 11/14 --muted — Usage's tokens row (`.up-tok`,
+   `.up-k`), which is the same thing: a row of figures, each with the word for
+   what it counts under it. The value was 600 16/24, a size and weight Usage
+   gives none of its figures, so three load samples outranked every reading in
+   the panel and read as its headline. */
+.sd-figs { display: flex; gap: 16px; }
 .sd-fig { display: flex; flex-direction: column; font-variant-numeric: tabular-nums; }
 /* 5ch of the mono face holds 99.99, so a figure gaining a digit does not slide
    the ones after it. */
-.sd-fig b { min-width: 5ch; font-family: var(--font-mono); font-size: calc(16px + var(--ui-text-increase, 0px)); line-height: 24px; font-weight: 600; color: var(--text); }
-.sd-fig-cap { color: var(--muted); font-size: calc(11px + var(--ui-text-increase, 0px)); line-height: 14px; white-space: nowrap; }
+.sd-fig-val { min-width: 5ch; font-family: var(--font-mono); font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: calc(16px + var(--ui-text-increase, 0px)); font-weight: 400; color: var(--text); }
+.sd-fig-cap { color: var(--muted); font-size: calc(11px + var(--ui-text-increase, 0px)); line-height: calc(14px + var(--ui-text-increase, 0px)); white-space: nowrap; }
 
 /* The sentences — "reading this machine…", why a reading is missing: 12/16. */
-.sd-note { margin: 0; color: var(--muted); font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: 16px; }
+.sd-note { margin: 0; color: var(--muted); font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: calc(16px + var(--ui-text-increase, 0px)); }
 /* A reading that could not be taken ("Can't reach Claude", the one network
    state that is a fault) says so in --err, never amber. */
 .sd-note.sd-note-err { color: var(--err); }
@@ -508,7 +531,7 @@
   background: none;
   font: inherit;
   font-size: calc(12px + var(--ui-text-increase, 0px));
-  line-height: 16px;
+  line-height: calc(16px + var(--ui-text-increase, 0px));
   color: var(--muted);
   text-align: left;
   cursor: pointer;
@@ -627,4 +650,4 @@
   .sysdetail .sd-detail:active { transform: none; }
 }
 
-.sd-gpu-name { display: flex; align-items: center; min-height: 20px; margin: 0 0 8px; font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: 16px; font-weight: 600; color: var(--text-secondary); overflow-wrap: anywhere; }
+.sd-gpu-name { display: flex; align-items: center; min-height: 20px; margin: 0 0 8px; font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: calc(16px + var(--ui-text-increase, 0px)); font-weight: 600; color: var(--text-secondary); overflow-wrap: anywhere; }

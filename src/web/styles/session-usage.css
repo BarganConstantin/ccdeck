@@ -61,7 +61,12 @@
 .su-footer { border-top: 0; padding-top: 0; font-size: calc(12px + var(--ui-text-increase, 0px)); }
 .su-footer > .su-note { margin-bottom: 6px; }
 .su-assumptions .su-note { padding-block: 6px 12px; }
-.up-session-open { width: 100%; min-height: 28px; text-align: left; background: transparent; border: 0; color: inherit; font: inherit; cursor: pointer; border-radius: var(--r-ctl); transition: transform var(--dur-fast) var(--ease), background var(--dur-fast) var(--ease); }
+/* `font-family`, not the `font: inherit` shorthand: the shorthand also reset
+   the size and line height `.up-session-row` gives every By session row
+   (usage-panel.css), so a row that opens the inspector set its label at the
+   body's 13/18.85 and its figures at 12/17.4 while a board row beside it read
+   12/16. */
+.up-session-open { width: 100%; min-height: 28px; text-align: left; background: transparent; border: 0; color: inherit; font-family: inherit; cursor: pointer; border-radius: var(--r-ctl); transition: transform var(--dur-fast) var(--ease), background var(--dur-fast) var(--ease); }
 @media (hover: hover) and (pointer: fine) {
 .up-session-open:hover { background: var(--bg-soft); }
 }

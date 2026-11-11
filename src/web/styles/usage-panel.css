@@ -43,7 +43,7 @@
   background: var(--panel);
   z-index: 1;
 }
-.usage-panel .up-header h2 { font-size: calc(13px + var(--ui-text-increase, 0px)); line-height: 20px; font-weight: 600; letter-spacing: 0; text-transform: none; color: var(--text); }
+.usage-panel .up-header h2 { font-size: calc(13px + var(--ui-text-increase, 0px)); line-height: calc(20px + var(--ui-text-increase, 0px)); font-weight: 600; letter-spacing: 0; text-transform: none; color: var(--text); }
 /* The body: padding 12 and a gap of 12 between its blocks. */
 .up-body { display: flex; flex-direction: column; gap: 12px; padding: 12px; }
 /* Size and weight come from the shared panel-caption rule in the session
@@ -87,7 +87,7 @@
   color: var(--text-secondary);
   font-family: inherit;
   font-size: calc(12px + var(--ui-text-increase, 0px));
-  line-height: 16px;
+  line-height: calc(16px + var(--ui-text-increase, 0px));
   font-weight: 400;
 }
 @media (hover: hover) and (pointer: fine) {
@@ -141,15 +141,15 @@
   font-variant-numeric: tabular-nums;
   font-family: var(--font-mono);
   color: var(--text);
-  line-height: 28px;
+  line-height: calc(28px + var(--ui-text-increase, 0px));
 }
 .up-total-label {
   font-size: calc(12px + var(--ui-text-increase, 0px));
-  line-height: 16px;
+  line-height: calc(16px + var(--ui-text-increase, 0px));
   color: var(--muted);
 }
 /* Four pixels under the figure, not the body's twelve: the two are one hero. */
-.up-total + .up-source { margin: -8px 0 0; font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: 16px; color: var(--muted); }
+.up-total + .up-source { margin: -8px 0 0; font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: calc(16px + var(--ui-text-increase, 0px)); color: var(--muted); }
 
 /* The margin has to come out of the width, not sit beside it. `.cost-bar`
    declares `width: 100%`, which resolves against THIS panel's content box —
@@ -190,7 +190,7 @@
   gap: 0;
   color: var(--text);
   font-size: calc(12px + var(--ui-text-increase, 0px));
-  line-height: 16px;
+  line-height: calc(16px + var(--ui-text-increase, 0px));
   font-variant-numeric: tabular-nums;
   font-family: var(--font-mono);
 }
@@ -200,7 +200,7 @@
 .up-k {
   order: 2;
   font-size: calc(11px + var(--ui-text-increase, 0px));
-  line-height: 14px;
+  line-height: calc(14px + var(--ui-text-increase, 0px));
   color: var(--muted);
   /* The caption is the interface's own face, not the figure's mono. */
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
@@ -236,7 +236,7 @@
   min-height: 16px;
   margin: 0 0 6px;
   font-size: calc(12px + var(--ui-text-increase, 0px));
-  line-height: 16px;
+  line-height: calc(16px + var(--ui-text-increase, 0px));
   font-weight: 600;
   color: var(--text-secondary);
   text-transform: none;
@@ -313,7 +313,7 @@
   margin-left: auto;
   font-family: var(--font-mono);
   font-size: calc(11px + var(--ui-text-increase, 0px));
-  line-height: 14px;
+  line-height: calc(14px + var(--ui-text-increase, 0px));
   font-weight: 400;
   color: var(--muted);
   text-transform: none;
@@ -336,7 +336,7 @@
   border-collapse: separate;
   border-spacing: 0 2px;
   font-size: calc(12px + var(--ui-text-increase, 0px));
-  line-height: 16px;
+  line-height: calc(16px + var(--ui-text-increase, 0px));
 }
 .up-table thead {
   position: absolute;
@@ -391,7 +391,7 @@
   gap: 8px;
   height: 24px;
   font-size: calc(12px + var(--ui-text-increase, 0px));
-  line-height: 16px;
+  line-height: calc(16px + var(--ui-text-increase, 0px));
   padding: 0;
 }
 .up-session-label {
@@ -432,7 +432,7 @@
   padding: 0;
   font-size: calc(12px + var(--ui-text-increase, 0px));
   color: var(--muted);
-  line-height: 16px;
+  line-height: calc(16px + var(--ui-text-increase, 0px));
 }
 .up-empty {
   padding: 8px 0;
@@ -456,14 +456,14 @@
   justify-content: space-between;
   align-items: baseline;
   font-size: calc(12px + var(--ui-text-increase, 0px));
-  line-height: 16px;
+  line-height: calc(16px + var(--ui-text-increase, 0px));
 }
 .qb-label { color: var(--text-secondary); font-weight: 400; }
 .qb-pct {
   font-variant-numeric: tabular-nums;
   font-family: var(--font-mono);
   font-size: calc(12px + var(--ui-text-increase, 0px));
-  line-height: 16px;
+  line-height: calc(16px + var(--ui-text-increase, 0px));
   font-weight: 400;
   color: var(--muted);
   transition: color var(--dur-fast) var(--ease);
@@ -540,7 +540,7 @@
 }
 .qb-reset {
   font-size: calc(12px + var(--ui-text-increase, 0px));
-  line-height: 16px;
+  line-height: calc(16px + var(--ui-text-increase, 0px));
   color: var(--muted);
 }
 /* The right-hand note: mono 400 11/14 --muted ("on pace"); an over-pace or
@@ -548,7 +548,7 @@
 .qb-pace {
   font-family: var(--font-mono);
   font-size: calc(11px + var(--ui-text-increase, 0px));
-  line-height: 14px;
+  line-height: calc(14px + var(--ui-text-increase, 0px));
   font-weight: 400;
   color: var(--muted);
   text-align: right;
@@ -604,7 +604,7 @@ button.qb-pace::after {
 .up-plan-badge {
   font-family: var(--font-mono);
   font-size: calc(11px + var(--ui-text-increase, 0px));
-  line-height: 14px;
+  line-height: calc(14px + var(--ui-text-increase, 0px));
   font-weight: 400;
   color: var(--muted);
   text-transform: none;
@@ -623,13 +623,13 @@ button.qb-pace::after {
    ride at the right of the label row, in the same mono 11/14 --muted. */
 .up-quota-na > .up-quota-down {
   font-size: calc(13px + var(--ui-text-increase, 0px));
-  line-height: 20px;
+  line-height: calc(20px + var(--ui-text-increase, 0px));
   font-weight: 600;
   color: var(--text);
 }
 .up-quota-na > .up-quota-hint {
   font-size: calc(12px + var(--ui-text-increase, 0px));
-  line-height: 16px;
+  line-height: calc(16px + var(--ui-text-increase, 0px));
   color: var(--muted);
 }
 /* Label row, "Quota unavailable." and the hint sit 12 apart, as the frame
@@ -684,7 +684,7 @@ button.qb-pace::after {
 .up-reading {
   margin: 0;
   font-size: calc(12px + var(--ui-text-increase, 0px));
-  line-height: 16px;
+  line-height: calc(16px + var(--ui-text-increase, 0px));
   color: var(--muted);
 }
 .up-skels { display: flex; flex-direction: column; gap: 12px; }
@@ -764,7 +764,7 @@ button.qb-pace::after {
 /* A row, unlike the column .up-quota-na is: the grid, then the words. */
 .up-quota-loading { flex-direction: row; align-items: center; gap: 8px; font-size: calc(11px + var(--ui-text-increase, 0px)); color: var(--text-dim); }
 /* A footnote under the windows: 400 12/16 --muted. */
-.up-quota-sub { font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: 16px; color: var(--muted); margin-top: 2px; }
+.up-quota-sub { font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: calc(16px + var(--ui-text-increase, 0px)); color: var(--muted); margin-top: 2px; }
 /* Both of these are .up-quota-sub lines, so they have to come after it to win
    on source order — they read as dim grey otherwise. */
 .up-credits { color: var(--accent); }
@@ -786,7 +786,7 @@ button.qb-pace::after {
   color: var(--muted);
   font: inherit;
   font-size: calc(12px + var(--ui-text-increase, 0px));
-  line-height: 16px;
+  line-height: calc(16px + var(--ui-text-increase, 0px));
 }
 @media (hover: hover) and (pointer: fine) {
 .up-quiet:hover { background: var(--ctl-fill); color: var(--text); }
