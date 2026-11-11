@@ -412,6 +412,8 @@ const catalog: Catalog = {
   "board.rail.group.watchers": "감시",
   "board.rail.explore": "통합 살펴보기",
   "board.rail.explore.short": "통합",
+  "board.rail.words.hide": "라벨 숨기기",
+  "board.rail.words.show": "라벨 표시",
   "board.time.lessThanMinute": "1분 미만",
   "board.time.minutes.one": "{count}분",
   "board.time.minutes.other": "{count}분",

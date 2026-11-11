@@ -30,9 +30,10 @@ describe("the kit's icons", () => {
     expect(html).toContain('stroke-linecap="round" stroke-linejoin="round"');
     expect(html).toContain('aria-hidden="true" focusable="false"');
     expect(html).toContain('fill="none"');
-    // The only fill on any icon is info's dot.
+    // The only fills on any icon are info's dot and, CHANGED ON PURPOSE (stripe
+    // words critique), the centre of radar's rings.
     const fills = html.match(/fill="(?!none")[^"]*"/g) ?? [];
-    expect(fills).toEqual(name === "info" ? ['fill="currentColor"'] : []);
+    expect(fills).toEqual(name === "info" || name === "radar" ? ['fill="currentColor"'] : []);
   });
 
   it("draws unreachable in a 14 box and lets its strokes overflow", () => {
@@ -50,7 +51,9 @@ describe("the redrawn icons keep the export's geometry", () => {
     expect(dOf("arrange")).toBe("M3 2H5C5.55228 2 6 2.44772 6 3V5C6 5.55228 5.55228 6 5 6H3C2.44772 6 2 5.55228 2 5V3C2 2.44772 2.44772 2 3 2ZM9 2H11C11.5523 2 12 2.44772 12 3V5C12 5.55228 11.5523 6 11 6H9C8.44772 6 8 5.55228 8 5V3C8 2.44772 8.44772 2 9 2ZM3 8H5C5.55228 8 6 8.44772 6 9V11C6 11.5523 5.55228 12 5 12H3C2.44772 12 2 11.5523 2 11V9C2 8.44772 2.44772 8 3 8ZM9 8H11C11.5523 8 12 8.44772 12 9V11C12 11.5523 11.5523 12 11 12H9C8.44772 12 8 11.5523 8 11V9C8 8.44772 8.44772 8 9 8Z");
     expect(dOf("calendar")).toBe("M2 6H12M5 1.6V4.2M9 1.6V4.2M3.2 3H10.8C11.4627 3 12 3.53726 12 4.2V10.8C12 11.4627 11.4627 12 10.8 12H3.2C2.53726 12 2 11.4627 2 10.8V4.2C2 3.53726 2.53726 3 3.2 3Z");
     expect(dOf("browser-watch")).toBe("M1.4 7C1.4 7 3.4 3.2 7 3.2C10.6 3.2 12.6 7 12.6 7C12.6 7 10.6 10.8 7 10.8C3.4 10.8 1.4 7 1.4 7ZM1.4 7V7ZM7 5.6C6.5 5.6 6.04 5.87 5.79 6.3C5.54 6.73 5.54 7.27 5.79 7.7C6.04 8.13 6.5 8.4 7 8.4C7.77 8.4 8.4 7.77 8.4 7C8.4 6.23 7.77 5.6 7 5.6ZM7 5.6V5.6Z");
-    expect(dOf("capacity")).toContain("M2.5 10.9C2.04231 10.1096");
+    // CHANGED ON PURPOSE (stripe words critique): capacity is a battery now,
+    // not the dial Usage wears (its own test below).
+    expect(dOf("capacity")).toBe("M1.8 4.4H10.6V9.6H1.8V4.4Z");
     for (const n of ["usage", "settings", "radar", "clear"] as const) {
       expect(KIT_ICONS[n].size).toBe(14);
       expect(dOf(n).length).toBeGreaterThan(10);

@@ -115,6 +115,13 @@ export const PauseGlyph = () => <KitIcon name="pause" className="glyph" />;
 
 export const ClearGlyph = () => <KitIcon name="clear" className="glyph" />;
 
+/** The stripes' words: « folds them away, » brings them back (stripe-words.ts). */
+export const StripeWordsGlyph = ({ shown }: { shown: boolean }) => (
+  <Glyph>
+    <path d={shown ? "M7 3.5 3.5 7 7 10.5M10.5 3.5 7 7l3.5 3.5" : "M3.5 3.5 7 7l-3.5 3.5M7 3.5 10.5 7 7 10.5"} />
+  </Glyph>
+);
+
 export const CodexAccountsGlyph = () => (
   <Glyph>
     <path d="M4.6 3.6 1.4 7l3.2 3.4M9.4 3.6 12.6 7l-3.2 3.4M8 2.2 6 11.8" />

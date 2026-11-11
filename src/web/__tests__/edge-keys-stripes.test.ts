@@ -63,7 +63,10 @@ describe("each stripe is a toolbar, and the dock is one", () => {
     expect(src).toMatch(/const PREV_KEYS = \{ vertical: "ArrowUp", horizontal: "ArrowLeft" \} as const;/);
     expect(src).toMatch(/else if \(e\.key === "Home"\) to = 0;/);
     expect(src).toMatch(/else if \(e\.key === "End"\) to = buttons\.length - 1;/);
-    expect(src).toMatch(/useRoving\(items\.flat\(\)\.length \+ foot\.length, "vertical"\)/);
+    // CHANGED ON PURPOSE (stripe words): the left stripe's arrows also reach
+    // the switch between words and icons at the foot's end.
+    expect(src).toMatch(/const switchIndex = items\.flat\(\)\.length \+ foot\.length;/);
+    expect(src).toMatch(/useRoving\(switchIndex \+ \(switchHere \? 1 : 0\), "vertical"\)/);
     expect(src).toMatch(/useRoving\(items\.length \+ 1, "horizontal"\)/);
   });
 });
@@ -71,7 +74,9 @@ describe("each stripe is a toolbar, and the dock is one", () => {
 describe("what each button is to assistive tech", () => {
   it("puts the left column's two on the left, and the rest on the right in their two groups", () => {
     // Accounts at the top, then Session list (the owner's order, 2026-10-08).
-    expect(ids(left())).toEqual(["accounts", "session-list"]);
+    // CHANGED ON PURPOSE (stripe words): the left stripe ends in the switch
+    // between words and icons.
+    expect(ids(left())).toEqual(["accounts", "session-list", "stripe-words"]);
     expect(ids(right())).toEqual(["usage", "machine", "history", "browser-watch"]);
     expect([...right().matchAll(/<div class="rail-group">/g)]).toHaveLength(2);
   });
@@ -152,10 +157,12 @@ describe("the keys did not move with the buttons", () => {
 
 describe("Accounts, and the left column it shares", () => {
   it("is gone without Claude Code — from the stripe and from the dock — rather than present and inert", () => {
-    expect(ids(left({ claude: false, codex: false }))).toEqual(["session-list"]);
+    // CHANGED ON PURPOSE (stripe words): the switch between words and icons
+    // ends the left stripe.
+    expect(ids(left({ claude: false, codex: false }))).toEqual(["session-list", "stripe-words"]);
     expect(ids(dock({ claude: false, codex: false }))).not.toContain("accounts");
     // Codex alone is not Claude's panel: it draws its own button, never "accounts".
-    expect(ids(left({ claude: false }))).toEqual(["codex-accounts", "session-list"]);
+    expect(ids(left({ claude: false }))).toEqual(["codex-accounts", "session-list", "stripe-words"]);
     expect(ids(dock({ claude: false }))).not.toContain("accounts");
     expect(ids(dock({ claude: true }))).toContain("accounts");
   });

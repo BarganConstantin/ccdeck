@@ -518,7 +518,10 @@ describe("what each of the four toggles announces", () => {
     expect(chrome.left.map(i => i.id)).toEqual(["accounts", "session-list"]);
     const html = draw(createElement(EdgeRail, { side: "left", label: "Left column", groups: [chrome.left] }));
     expect(html).toMatch(/data-rail-item="session-list"[^>]*>\s*<svg /);
-    expect(buttons(html).get("session-list") && attr(buttons(html).get("session-list")!, "aria-label")).toBe("Session list");
+    // CHANGED ON PURPOSE (stripe words critique): a new profile's stripe shows
+    // the door's word, and a door is named by the word it shows (WCAG 2.5.3),
+    // the panel's own title. With the words hidden it is "Session list" again.
+    expect(buttons(html).get("session-list") && attr(buttons(html).get("session-list")!, "aria-label")).toBe("Sessions");
     // And on a phone, in the dock — the stripes give way to it there.
     const dock = draw(createElement(EdgeDock, { items: [...chrome.left, ...chrome.right[0], chrome.utilities[0]], more: [...chrome.right[1], chrome.utilities[1]] }));
     expect(attr(buttons(dock).get("session-list")!, "aria-expanded")).toBe("false");

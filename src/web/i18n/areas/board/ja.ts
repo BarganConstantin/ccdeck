@@ -412,6 +412,8 @@ const catalog: Catalog = {
   "board.rail.group.watchers": "監視",
   "board.rail.explore": "連携を探す",
   "board.rail.explore.short": "連携",
+  "board.rail.words.hide": "ラベルを隠す",
+  "board.rail.words.show": "ラベルを表示",
   "board.time.lessThanMinute": "1分未満",
   "board.time.minutes.one": "{count}分",
   "board.time.minutes.other": "{count}分",

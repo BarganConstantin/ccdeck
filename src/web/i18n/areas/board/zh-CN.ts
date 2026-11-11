@@ -412,6 +412,8 @@ const catalog: Catalog = {
   "board.rail.group.watchers": "监视工具",
   "board.rail.explore": "探索集成",
   "board.rail.explore.short": "集成",
+  "board.rail.words.hide": "隐藏文字",
+  "board.rail.words.show": "显示文字",
   "board.time.lessThanMinute": "不到一分钟",
   "board.time.minutes.one": "{count} 分钟",
   "board.time.minutes.other": "{count} 分钟",

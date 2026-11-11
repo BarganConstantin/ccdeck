@@ -429,6 +429,8 @@ const catalog: Catalog = {
   "board.rail.group.watchers": "Observatori",
   "board.rail.explore": "Explorează integrările",
   "board.rail.explore.short": "Integrări",
+  "board.rail.words.hide": "Ascunde textul",
+  "board.rail.words.show": "Arată textul",
   "board.time.lessThanMinute": "mai puțin de un minut",
   "board.time.minutes.one": "{count} minut",
   "board.time.minutes.few": "{count} minute",

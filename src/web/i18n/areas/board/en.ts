@@ -412,6 +412,8 @@ const catalog: Catalog = {
   "board.rail.group.watchers": "Watchers",
   "board.rail.explore": "Explore integrations",
   "board.rail.explore.short": "Integrations",
+  "board.rail.words.hide": "Hide words",
+  "board.rail.words.show": "Show words",
   "board.time.lessThanMinute": "less than a minute",
   "board.time.minutes.one": "{count} minute",
   "board.time.minutes.other": "{count} minutes",

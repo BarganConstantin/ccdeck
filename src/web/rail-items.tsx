@@ -210,7 +210,7 @@ export function railItems({
     detail: t("board.rail.capacity.detail"),
     glyph: <CapacityGlyph />, kind: "dialog", onPress: () => openCapacity("accounts"),
   }, {
-    id: "reset-calendar", label: t("board.rail.calendar"), short: t("board.rail.calendar.short"), ariaLabel: t("board.rail.calendar"),
+    id: "reset-calendar", label: t("board.rail.calendar"), short: t("board.rail.calendar.short"), stripeWord: t("board.rail.calendar"), ariaLabel: t("board.rail.calendar"),
     detail: t("board.rail.calendar.detail"),
     glyph: <ResetCalendarGlyph />, kind: "dialog", onPress: () => openCapacity("calendar"),
   }] : [];
@@ -218,7 +218,7 @@ export function railItems({
   // (use-deck-shortcuts.ts), so it shows the key. Beside Claude it is only in
   // Quick open, and A belongs to the Accounts door.
   const codex: RailItem = {
-    id: "codex-accounts", label: t("codex.panel.title"), short: "Codex",
+    id: "codex-accounts", label: t("codex.panel.title"), short: "Codex", stripeWord: t("codex.panel.title"),
     ...(providers.claude ? {} : { key: { cap: "A", aria: "A", single: true } }),
     ariaLabel: t("codex.panel.title"), glyph: <CodexAccountsGlyph />, kind: "panel",
     open: codexPanelOpen, controls: "codex-accounts-panel", onPress: toggleCodexPanel, buttonRef: toggles.codex,
@@ -228,7 +228,7 @@ export function railItems({
   // 1100 to 1319 sheet or as the Board's detail panel. The region is the
   // Inspector's aside (DetailAside.tsx), whichever of them is drawn.
   const inspector: RailItem = {
-    id: "inspector", label: t("board.inspector.show"), short: t("board.inspector.show"), key: { cap: "D", aria: "D", single: true },
+    id: "inspector", label: t("board.inspector.show"), short: t("board.inspector.show"), stripeWord: t("board.inspector.label"), key: { cap: "D", aria: "D", single: true },
     ariaLabel: t("board.inspector.show"), glyph: <InspectorGlyph />, kind: "panel",
     open: inspectorOpen, controls: INSPECTOR_REGION_ID, onPress: toggleInspector,
   };
@@ -239,7 +239,7 @@ export function railItems({
   };
   const machine: RailItem = {
     id: "machine", label: t("board.rail.machine"), short: t("board.rail.machine"), key: { cap: "S", aria: "S", single: true },
-    ariaLabel: t("board.rail.machine"), hint: t("board.rail.machine.hint"), glyph: <MachineGlyph />, kind: "panel",
+    ariaLabel: t("board.rail.machine"), hint: t("board.rail.machine.hint"), stripeWord: t("board.rail.machine.hint"), glyph: <MachineGlyph />, kind: "panel",
     open: machinePanelOpen, controls: "system-panel", onPress: () => setMachinePanelOpen(o => !o), buttonRef: toggles.machine,
   };
   // The four below open a modal: aria-haspopup="dialog" and no state, since
@@ -248,12 +248,12 @@ export function railItems({
   const history: RailItem = {
     // "Usage history" whole on the stripe: "History" alone, over Browser watch,
     // read as the browser's.
-    id: "history", label: t("board.rail.history"), short: t("board.rail.history.short"), key: { cap: "H", aria: "H", single: true },
+    id: "history", label: t("board.rail.history"), short: t("board.rail.history.short"), stripeWord: t("board.rail.history"), key: { cap: "H", aria: "H", single: true },
     ariaLabel: t("board.rail.history"), glyph: <HistoryGlyph />, kind: "dialog",
     onPress: () => setUsageHistoryOpen(o => !o),
   };
   const browserWatch: RailItem = {
-    id: "browser-watch", label: t("board.rail.browserWatch"), short: t("board.rail.browserWatch.short"), key: { cap: "B", aria: "B", single: true },
+    id: "browser-watch", label: t("board.rail.browserWatch"), short: t("board.rail.browserWatch.short"), stripeWord: t("board.rail.browserWatch"), key: { cap: "B", aria: "B", single: true },
     ariaLabel: `${t("board.rail.browserWatch")}${t("board.listSep")}${watchOn ? t("board.rail.watching") : t("board.rail.notWatching")}${watchUnseen > 0 ? `${t("board.listSep")}${t("board.rail.unreadCount", { n: watchUnseen })}` : ""}`,
     detail: browserWatchDetail(watchOn, watchUnseen, t),
     glyph: <BrowserWatchGlyph watching={watchOn === true || watchUnseen > 0} />, kind: "dialog",
@@ -289,11 +289,11 @@ export function railItems({
   // titled for itself, the way Account capacity and Reset calendar do; the
   // tabs between them are gone.
   const activity: RailItem[] = openToolActivity ? [{
-    id: "tool-activity", label: t("board.rail.tools.activity"), short: t("board.rail.tools.short"), ariaLabel: t("board.rail.tools.activity"),
+    id: "tool-activity", label: t("board.rail.tools.activity"), short: t("board.rail.tools.short"), stripeWord: t("board.rail.tools.activity"), ariaLabel: t("board.rail.tools.activity"),
     glyph: <ToolActivityGlyph />, kind: "dialog",
     detail: t("board.rail.tools.detail"), onPress: () => openToolActivity("tools"),
   }, {
-    id: "skill-activity", label: t("board.rail.skills"), short: t("board.rail.skills.short"), ariaLabel: t("board.rail.skills"),
+    id: "skill-activity", label: t("board.rail.skills"), short: t("board.rail.skills.short"), stripeWord: t("board.rail.skills"), ariaLabel: t("board.rail.skills"),
     glyph: <SkillActivityGlyph />, kind: "dialog",
     detail: t("board.rail.skills.detail"), onPress: () => openToolActivity("skills"),
   }] : [];

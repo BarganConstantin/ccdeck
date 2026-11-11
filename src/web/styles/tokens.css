@@ -59,13 +59,18 @@
    (edge-rails.css). The bar is 44px since its panel toggles left for the
    window's edges — it was 52 while it held eight controls and their open
    states — and a stripe is 40px wide, leaving room around its icon targets.
+   While the stripes show their words (stripe-words.ts) each is
+   --edge-words-w, which `.app` takes as its --edge-w (edge-rails.css).
    Under 641px the stripes give way to a dock along the bottom,
-   --dock-h tall, so --edge-w is nothing there. */
+   --dock-h tall, so --edge-w is nothing there.
+   A length, registered, so the width can move between the two. */
+@property --edge-w { syntax: "<length>"; inherits: true; initial-value: 40px; }
 :root {
   --panel-inset: 14px;
   --ctl-h: 30px;
   --topbar-h: 44px;
   --edge-w: 40px;
+  --edge-words-w: 156px;
   --dock-h: 56px;
   /* THREE RADII (owner, 2026-11-10): a control at 4, a panel at 8, and the
      pill. V4 had grown six (4 keys, 6 inputs, 8 rows, 10 cards, 12 dialogs,
