@@ -1,12 +1,14 @@
 // The board's arrangement, as state: where every card was put, which of those
 // the user pinned, which are placeholders, the signature the layout keys off,
-// the epoch that forces a rebuild, and the frame the arrangement was packed
-// for. Restored from storage on the first render.
+// the epoch that forces a rebuild, whether the board has had its first flow
+// into its columns, and the frame it was last shown in. Restored from storage
+// on the first render.
 //
 // Moved out of App.tsx unchanged, with R (handleRelayout), which touches
 // nothing else. The rest happens where each is read: snapshotToFlow reads and
-// fills them (use-board-graph.ts), the reframe throws them away
-// (use-reframe.ts), the drag handlers pin (use-node-drag.ts).
+// fills them, and flows a fresh board into its columns once it has settled
+// (use-board-graph.ts, canvas-flow.ts), the reframe frames it again when the
+// canvas changes size (use-reframe.ts), the drag handlers pin (use-node-drag.ts).
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Frame } from "./layout";
 import {
@@ -66,23 +68,28 @@ export function useBoardLayout({ fitLeft, moveCamera, currentViewport }: Pick<Ca
   // mark lives one frame.
   const returningRef = useRef<Set<string>>(new Set());
   const lastLayoutSigRef = useRef<string>("");
-  // Moved wherever the cached positions are thrown away — R, below, and the
-  // reframe (use-reframe.ts). The board is rebuilt inside the memo that calls
-  // snapshotToFlow (use-board-graph.ts), and emptying positionsRef moves none
-  // of that memo's deps, so the rerender both used to ask for handed back the
-  // cached board and the rebuild waited for the clock's next 250ms tick. The
-  // save and the fit each of them runs 80ms later then read the arrangement
-  // they had just discarded, most of the time: R was never stored, and a reload
-  // drew a different board (#1331). In the deps, the render they schedule is
-  // the one that rebuilds.
+  // Moved wherever the cached positions are thrown away from outside the
+  // board's own render — R and its Undo, below. The board is rebuilt inside the
+  // memo that calls snapshotToFlow (use-board-graph.ts), and emptying
+  // positionsRef moves none of that memo's deps, so a bare rerender handed back
+  // the cached board and the rebuild waited for the clock's next 250ms tick.
+  // The save and the fit R runs 80ms later then read the arrangement it had
+  // just discarded, most of the time: R was never stored, and a reload drew a
+  // different board (#1331). In the deps, the render they schedule is the one
+  // that rebuilds.
   const [layoutEpoch, setLayoutEpoch] = useState(0);
 
-  // THE FRAME THE BOARD ON SCREEN WAS PACKED FOR (#995).
+  // Whether the board has had its first layout's flow into its columns
+  // (canvas-flow.ts BoardFlow), or a stored board to keep instead. Not stored:
+  // a reload keeps the board storage brings back, and R flows it again.
+  const flowedRef = useRef(false);
+
+  // THE FRAME THE BOARD WAS LAST SHOWN IN, which the reframe (use-reframe.ts)
+  // compares the next one against: when it moves, the camera frames the board
+  // again, and the board itself stays as it is.
   //
-  // Seeded from storage, because the frame a restored layout was built in is
-  // not this window's: a deck reopened after a monitor change comes back with
-  // coordinates that are internally consistent and shaped for a canvas that is
-  // no longer there.
+  // Seeded from storage, so a deck reopened in another window size is framed
+  // for the new one.
   //
   // Read through a lazy initialiser and held in a ref, the shape `restoredLayout`
   // uses: `useRef(loadLayoutFrame())` would put a localStorage read on the
@@ -137,12 +144,11 @@ export function useBoardLayout({ fitLeft, moveCamera, currentViewport }: Pick<Ca
     if (relayoutTimerRef.current != null) window.clearTimeout(relayoutTimerRef.current);
     relayoutTimerRef.current = window.setTimeout(() => {
       relayoutTimerRef.current = null;
-      // And store it, for the reason the reframe (use-reframe.ts) does: the
-      // debounced save is keyed on layoutSig, which R does not move, so the
-      // board R drew was never written — the storage it had just emptied stayed
-      // empty, and a reload rebuilt the board from the replay instead (#1331).
-      // With it goes the frame it was packed for, which clearStoredLayout
-      // removed with the arrangement it described.
+      // And store it: the debounced save is keyed on layoutSig, which R does
+      // not move, so the board R drew was never written — the storage it had
+      // just emptied stayed empty, and a reload rebuilt the board from the
+      // replay instead (#1331). With it goes the frame it was shown in, which
+      // clearStoredLayout removed with the arrangement it described.
       saveLayout(positionsRef.current, pinnedRef.current);
       if (lastLayoutFrameRef.current) saveLayoutFrame(lastLayoutFrameRef.current);
       fitLeft();
@@ -175,7 +181,7 @@ export function useBoardLayout({ fitLeft, moveCamera, currentViewport }: Pick<Ca
   };
 
   return { restoredLayout, pinnedRef, positionsRef, provisionalRef, returningRef, lastLayoutSigRef, layoutEpoch, setLayoutEpoch,
-           lastLayoutFrameRef, handleRelayout, rearrangeUndo };
+           lastLayoutFrameRef, flowedRef, handleRelayout, rearrangeUndo };
 }
 
 /** Keeps the stored layout in step with the board: moved out of App.tsx

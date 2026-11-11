@@ -603,12 +603,11 @@ function Inner() {
   // A card has just left: its neighbours close the gap after a hold (canvas-motion.css).
   const closing = useClosingGap(graph.visibleAgentIds);
 
-  // Re-column when the frame changes enough to change the answer, keeping what
-  // the reader was looking at — use-reframe.ts.
+  // Frame the board again when the canvas changes size, moving no card —
+  // use-reframe.ts.
   const primarySelectedIdRef = useMirroredRef(primarySelectedId);
   useReframe({
-    nodes, edges, settled, dragging, availableWidth, availableHeight, layout, camera, rf,
-    measuredRef, stateRef, lastFocusRef, primarySelectedIdRef, focusAgentRef, autoFitDisabledRef,
+    settled, dragging, availableWidth, availableHeight, layout, camera, lastFocusRef, focusAgentRef, autoFitDisabledRef,
   });
 
   // `selected` is declared with the rail measurement further up this file,

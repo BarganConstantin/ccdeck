@@ -238,9 +238,12 @@ describe("autoLayout — packs sessions into columns", () => {
     const nodes = sessions(6);
     const measured = sizes(nodes.map(n => n.id));
     const opts = { measured, availableHeight: 400 };   // one column is 1450 tall
-    // Too narrow for a second column to be worth its width.
-    expect(colsUsed(autoLayout(nodes, [], { ...opts, availableWidth: 400 }))).toBe(1);
-    // Three columns of two show the board at 0.94; two of three only at 0.61.
+    // Too narrow for a second column to be worth its width. (CHANGED ON
+    // PURPOSE: 400 wide now takes two — the pitch lost its card of gap, and
+    // the fit draws no bubbles at that zoom, so their lane is not charged.)
+    expect(colsUsed(autoLayout(nodes, [], { ...opts, availableWidth: 250 }))).toBe(1);
+    expect(colsUsed(autoLayout(nodes, [], { ...opts, availableWidth: 400 }))).toBe(2);
+    // Three columns of two show the board at full size; two of three only at 0.61.
     expect(colsUsed(autoLayout(nodes, [], { ...opts, availableWidth: 2400 }))).toBe(3);
     // A very wide canvas must not keep splitting into thin columns: three
     // already show the cards at full size, and six would show them no larger.
@@ -340,7 +343,10 @@ describe("autoLayout — packs sessions into columns", () => {
 });
 
 describe("column spacing", () => {
-  it("leaves at least a node's width of clear space between columns", () => {
+  // CHANGED ON PURPOSE (V4 critique, round 2): a whole node of clear space past
+  // the lane was charged to every column and kept boards in one strip. The
+  // lane itself is the space between columns now, plus a box's chrome.
+  it("leaves the burst lane and a session box's chrome between columns", () => {
     const nodes = Array.from({ length: 4 }, (_, i) => agent(`s${i}n0`, `s${i}`));
     const measured = sizes(nodes.map(n => n.id));
     const out = autoLayout(nodes, [], { measured, availableWidth: 4000, availableHeight: 300 });
@@ -351,7 +357,7 @@ describe("column spacing", () => {
     // Clear space = pitch, minus the card, minus the burst lane beside it.
     const TOOL_LANE = 420;
     const clear = (xs[1] - xs[0]) - W - TOOL_LANE;
-    expect(clear).toBeGreaterThanOrEqual(W);
+    expect(clear).toBe(18 * 2 + 26 + 12);
   });
 });
 

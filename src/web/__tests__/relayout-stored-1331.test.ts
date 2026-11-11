@@ -44,13 +44,11 @@ describe("a relayout is what a reload brings back (#1331)", () => {
   it("rebuilds in the render it schedules, not on the next clock tick", () => {
     // The nodes memo lists the epoch, so moving it is what reruns snapshotToFlow.
     expect(app).toMatch(/snapshotToFlow\([\s\S]*?\[stateRef\.current, stateRef\.current\.revision, now,[^\]]*\blayoutEpoch\b[^\]]*\]/);
-    // And both places that throw positions away move it, instead of a bare
-    // rerender() the memo answers from its cache.
+    // And R moves it, instead of a bare rerender() the memo answers from its
+    // cache. (The reframe was the other place that threw positions away; since
+    // the V4 critique's second round it moves only the camera, and the board's
+    // own flow empties them inside the render that rebuilds it.)
     const body = relayout();
     expect(body).not.toMatch(/\brerender\(\)/);
-    const reframe = /columnsWouldChange\(nodes, edges, opts, prev, frame\)[\s\S]*?\}, \[availableWidth/.exec(app);
-    expect(reframe, "the reframe effect is gone").not.toBeNull();
-    expect(reframe![0]).toMatch(/setLayoutEpoch\(e => e \+ 1\);/);
-    expect(reframe![0]).not.toMatch(/\brerender\(\)/);
   });
 });

@@ -159,6 +159,39 @@ export function boardOrder<N extends Node>(nodes: readonly N[], depthOf: (n: N) 
     || (p.position.x - q.position.x));
 }
 
+/**
+ * WHEN THE WHOLE BOARD FLOWS INTO ITS COLUMNS, in the rail's order: once, on
+ * the first layout of a board storage brought nothing back for, and on R
+ * (which empties every place, so the layout below lays the whole board out).
+ * Never on a zoom, a panel opening or closing, or a window resize
+ * (use-reframe.ts only moves the camera for those), and never because a
+ * session came or went: a re-flow then moves every card on the board, and with
+ * auto hide on that is all the time — the cards walking around the board of
+ * #2291. A session arriving takes the board's next place, a gap or a column's
+ * foot or a new column, and moves nothing else (fill-gaps.ts); one coming back
+ * from auto hide goes home (return-home.ts).
+ */
+export interface BoardFlow {
+  /** Whether the board has had its first layout's flow — or had a stored
+   *  layout to keep instead. False until the board has settled. */
+  flowed: { current: boolean };
+  /** The board's sessions in reading order, the rail's (board-order.ts).
+   *  Asked only when the layout runs. */
+  order: () => readonly string[];
+}
+
+/** The sessions whose cards a pass moved: what the board carries across with
+ *  its own motion (use-bubble-animation.ts), not a jump. */
+function movedSessions(nodes: readonly Node[], before: ReadonlyMap<string, { x: number; y: number }>,
+  after: ReadonlyMap<string, { x: number; y: number }>): string[] {
+  const moved = new Set<string>();
+  for (const n of nodes) {
+    const p = before.get(n.id), q = after.get(n.id);
+    if (p && q && (Math.abs(p.x - q.x) > 0.5 || Math.abs(p.y - q.y) > 0.5)) moved.add(sessionOfNode(n));
+  }
+  return [...moved];
+}
+
 /** How many parents up an agent's root is: 0 for a root, 1 for its subagents. */
 function depthIn(state: GraphState, a: AgentNodeData): number {
   let depth = 0;
@@ -216,6 +249,10 @@ export function snapshotToFlow(
    * (return-home.ts). Spent as each session's cards are drawn.
    */
   returning: Set<string> = new Set(),
+  /** The board's first flow into its columns, and the order it reads in
+   *  (BoardFlow). Without it, sessions are laid out in id order and the board
+   *  as the replay left it stands. */
+  flow?: BoardFlow,
 ): { nodes: Node<FlowNodeData>[]; edges: Edge[] } {
   const nodes: Node<FlowNodeData>[] = [];
   const edges: Edge[] = [];
@@ -392,6 +429,9 @@ export function snapshotToFlow(
   // the hold on its own last frame, a tick before the sweep: that board is
   // repaired the way every board was before this.)
   const holding = restored.size > 0 && !(settled && historyReplayed);
+  // Read before the set empties: the cards still standing where storage put
+  // them are a board somebody arranged, which the first flow leaves alone.
+  const keptFromStorage = !holding && nodes.some(n => restored.has(n.id));
   if (!holding) restored.clear();
   const ancestry = nodes.filter(n => n.data.provider === "codex" && n.data.parentId).map(n => `${n.id}:${sessionOfNode(n)}:${n.data.parentId}`).sort().join("|");
   const sig = `${layoutSig}${ancestry ? `#codex:${ancestry}` : ""}#lanes:${laneSignature(lanes)}${holding ? "#held" : ""}`;
@@ -421,17 +461,46 @@ export function snapshotToFlow(
   // ground has been taken, arrives whole: its places are forgotten here, so it
   // is among the missing below and the gap pass finds it room.
   if (historyReplayed) sendSessionsHome(nodes, positions, provisional, pinned, measured, lanes, returning);
+  // THE FIRST LAYOUT'S FLOW (BoardFlow), once the board's sessions are all
+  // known — the log replayed and the cards measured. Every layout is cut in the
+  // rail's order from the first frame, but the frames before this one were cut
+  // for cards that had not measured, in a frame the panels had not narrowed
+  // yet, and the replay may have brought the sessions in a few at a time, each
+  // taking a gap. So the board is laid out whole once more, here; where that
+  // agrees with what is on screen nothing moves, and what does move travels
+  // with the board's own motion (onBubble below), which reduced motion turns
+  // into a jump. A board a reload brought back stays as it was stored. Not
+  // mid-drag: the flow waits for the card to be let go, and a dragged card is a
+  // pin and keeps its place. A hidden session's place is not on the board and
+  // is kept for its way home.
+  let flowing = false;
+  let beforeFlow: Map<string, { x: number; y: number }> | null = null;
+  if (flow && !flow.flowed.current && settled && historyReplayed) {
+    if (keptFromStorage) flow.flowed.current = true;
+    else if (!dragging) {
+      flow.flowed.current = true;
+      flowing = true;
+      beforeFlow = new Map();
+      for (const n of nodes) {
+        if (pinned.has(n.id)) continue;
+        const p = isUnplaced(n.id, positions, provisional) ? undefined : positions.get(n.id);
+        if (p) beforeFlow.set(n.id, { ...p });
+        positions.delete(n.id);
+        provisional.delete(n.id);
+      }
+    }
+  }
   const missing = nodes.filter(n => needsLayout(n.id, pinned, positions, provisional));
   if (missing.length > 0 || sig !== lastLayoutSigRef.current) {
     if (missing.length > 0) {
-      // Laid out afresh — after R, the reframe, or anything else that emptied
-      // its place — so this page's arrangement, not the stored board's.
+      // Laid out afresh — after R, the first flow, or anything else that
+      // emptied its place — so this page's arrangement, not the stored board's.
       for (const n of missing) restored.delete(n.id);
       // A card joining a session already on the canvas goes beside that session
       // as it sits now, not where a layout from scratch would have it — and a
       // subagent under the siblings its parent already has there.
       const laidOut = joinSessions(
-        autoLayout(nodes, edges, { direction: "LR", pinned, measured, availableWidth, availableHeight, lanes }),
+        autoLayout(nodes, edges, { direction: "LR", pinned, measured, availableWidth, availableHeight, lanes, order: flow?.order() }),
         pinned,
         id => (isUnplaced(id, positions, provisional) ? undefined : positions.get(id)),
         id => footprint(id, measured, lanes),
@@ -441,7 +510,9 @@ export function snapshotToFlow(
       // in has holes while new work keeps being appended underneath. Offer the
       // arrivals those holes first, and past them whichever of a column's foot
       // or a new column to the right lets the fit show the board largest.
-      fillGapsWithNewSessions(
+      // Not on the first flow: its columns are the arrangement, and offered the
+      // board's gaps one by one, its sessions would leave their reading order.
+      if (!flowing) fillGapsWithNewSessions(
         nodes, positions, pinned, measured,
         // Cards only: a recap note joins a session that is already here, and
         // offered a hole it was taken for a session of its own and dropped in
@@ -474,9 +545,13 @@ export function snapshotToFlow(
   // would clear that by sliding the covered session down past the whole grown
   // block; this nudges the neighbours aside by the least that works, which is
   // both shorter and legible as a cause — the box grew, so the others moved.
-  // Self-gating: returns immediately unless something actually grew.
-  const bubbled = bubblePush(nodes, positions, pinned, measured, prevSessionSize, !settled || dragging, lanes);
-  if (bubbled.length > 0) onBubble(bubbled);
+  // Self-gating: returns immediately unless something actually grew. The first
+  // flow only records: it has just laid every session out clear of the others.
+  const bubbled = bubblePush(nodes, positions, pinned, measured, prevSessionSize, !settled || dragging || flowing, lanes);
+  // The first flow's moves travel the way a push does, the cards too young for
+  // their own easing included.
+  const carried = beforeFlow ? [...new Set([...movedSessions(nodes, beforeFlow, positions), ...bubbled])] : bubbled;
+  if (carried.length > 0) onBubble(carried);
   // Evict cached positions for agents that aren't in state.agents anymore.
   // Stale positions for invisible-but-still-tracked agents are KEPT so a
   // transient flicker out of visibleIds (e.g. one frame where isAgentVisible
@@ -510,10 +585,10 @@ export function snapshotToFlow(
   // Drop measurements for nodes that no longer exist. This cache is not
   // restored from storage, but it is not rebuilt either: nothing but the Clear
   // button ever removed an id, so a tab left open for days holds a size for
-  // every agent and every session that has ever been on the canvas. columnGap()
-  // takes the widest measured node of all, and a session drag handle is as wide
-  // as the whole session box, so a single long-gone session kept the gap
-  // between columns at its width for the rest of the tab's life.
+  // every agent and every session that has ever been on the canvas. The column
+  // gap was once the widest measured node of all, and a session drag handle is
+  // as wide as the whole session box, so a single long-gone session kept the
+  // gap between columns at its width for the rest of the tab's life.
   pruneStaleEntries(measured, measuredNodeIds(state.agents.values()));
   // Never silently drop a visible node — if its position is missing, place
   // it at {0,0} for THIS frame and force a fresh layout pass on the next
