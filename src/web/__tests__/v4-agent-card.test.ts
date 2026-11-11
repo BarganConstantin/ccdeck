@@ -224,9 +224,25 @@ describe("the task line", () => {
     expect(decl(t, "white-space")).toBe("nowrap");
     expect(decl(t, "text-overflow")).toBe("ellipsis");
   });
-  it("says what the session-name row said for a root, and what the sub row said for a subagent", () => {
-    expect(html({ sessionName: "Billing rewrite" })).toContain('<div class="task-line" title="Billing rewrite">Billing rewrite</div>');
+  // Owner's critique, 2026-11-11, point 2: one name rule on every surface. The
+  // card read "api / retention job" while the Sessions list beside it read
+  // "retention job / api · Add a retention job…".
+  it("puts a root's name in the head and what was asked under it, and the sub row for a subagent", () => {
+    const named = html({ label: "api", cwdBasename: "api", sessionName: "Billing rewrite", firstPrompt: "Move billing to the new API" });
+    expect(named).toMatch(/<span class="label"[^>]*>Billing rewrite<\/span>/);
+    expect(named).toContain('<div class="task-line" title="Move billing to the new API">Move billing to the new API</div>');
+    // A name and nothing asked yet: the name, and no line under it.
+    expect(html({ sessionName: "Billing rewrite" })).not.toContain("task-line");
+    // Neither a name nor a title: the folder, as before.
+    expect(html({ label: "api", cwdBasename: "api", firstPrompt: "Add a job" })).toMatch(/<span class="label"[^>]*>api<\/span>/);
     expect(html({ kind: "subagent", cwdBasename: "shop" })).toContain(">subagent · shop</div>");
+  });
+  it("says the newest typed prompt, never a background task's notice", () => {
+    const out = html({
+      firstPrompt: "Add rate limiting",
+      prompts: [{ at: 1, text: "Add rate limiting" }, { at: 2, text: "Now cover it with tests" }],
+    });
+    expect(out).toContain('<div class="task-line" title="Now cover it with tests">Now cover it with tests</div>');
   });
   it("is absent for a root with neither a name, a title nor a prompt", () => {
     expect(html({})).not.toContain("task-line");
@@ -238,10 +254,13 @@ describe("the task line", () => {
       .toContain('<div class="task-line" title="Add rate limiting to the public API">Add rate limiting to the public API</div>');
     const two = html({ firstPrompt: "Fix the flaky test\nIt fails on CI only" });
     expect(two).toMatch(/<div class="task-line" title="Fix the flaky test\nIt fails on CI only">Fix the flaky test<\/div>/);
-    // A name or a title still wins over the prompt.
-    expect(html({ sessionTitle: "Rate limits", firstPrompt: "Add rate limiting" })).toContain(">Rate limits</div>");
-    // The far face's title line says the same.
-    expect(html({ firstPrompt: "Add rate limiting" })).toContain('<div class="lod-title">Add rate limiting</div>');
+    // A title is the head's word, and the prompt stays on the task line.
+    const titled = html({ sessionTitle: "Rate limits", firstPrompt: "Add rate limiting" });
+    expect(titled).toMatch(/<span class="label"[^>]*>Rate limits<\/span>/);
+    expect(titled).toContain(">Add rate limiting</div>");
+    // The far face's one line says the same (CHANGED ON PURPOSE, owner's
+    // critique 2026-11-11: it was the face's title line).
+    expect(html({ firstPrompt: "Add rate limiting" })).toContain('<span class="lod-name">Add rate limiting</span>');
   });
   it("says what a subagent's spawning call said it is for, and the kind and folder without one", () => {
     const out = html({ kind: "subagent", label: "Explore", cwdBasename: "web-api", spawnCall: { id: "t1", description: "Find every public route" } });
@@ -483,67 +502,112 @@ describe("the ask row and the stop row", () => {
   });
 });
 
-// Design recommendations (2026-11-09), R1: a fitted phone board puts every
-// card in the face's narrowest query, which drew a ring alone. It says the
-// state's word now, the card's own (cardState), with its mark only where both
-// fit: the word comes first in a reversed row that wraps, so a mark without
-// room drops to a second line the one-line height clips. How it measures is
-// checked in a browser; this pins the markup and the rules.
-describe("the narrowest face says the state", () => {
+// CHANGED ON PURPOSE (owner's critique, 2026-11-11, point 3): below the detail
+// tier a card's face drew its name, a signal line and a title line, and the
+// narrowest face drew the state's word alone. Every face below the detail tier
+// is one task line and a status now: the mark and the word, Working, Done,
+// Waiting or "1 failed". The word is never cut: without room it wraps to the
+// line the row clips, and the mark says the state by its shape and colour.
+// The cluster's pill names the session. How it measures is checked in a
+// browser; this pins the markup and the rules.
+describe("the face below the detail tier", () => {
   const face = (over: Partial<AgentNodeData>) => {
     const out = html(over);
     const at = out.indexOf('class="lod-face"');
     return out.slice(out.lastIndexOf("<div", at));
   };
   const css = read("../styles/agent-node.css").replace(/\/\*[\s\S]*?\*\//g, "");
-  const narrow = (() => {
-    const at = css.indexOf("@container lod (max-width: 72px)");
-    return css.slice(at, css.indexOf("\n}\n", at)).replace(/,\s*\n\s*/g, ", ");
-  })();
-  const inNarrow = (selector: string) => {
-    const esc = selector.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-    return new RegExp(`(?:^|[{}\\s])${esc}\\s*\\{([^}]*)\\}`).exec(narrow)?.[1].replace(/\s+/g, " ").trim();
-  };
+  const notice = "<task-notification>\n<status>completed</status>\n<summary>Background command finished</summary>\n</task-notification>";
 
-  it("draws the card's word on the face, in the line with its mark", () => {
-    expect(face({ state: "active" })).toMatch(/<div class="lod-id"><svg class="state-mark" data-kind="live"[\s\S]*?<span class="lod-state">Working<\/span><\/div>/);
+  it("draws one line: the mark, the task, the word", () => {
+    expect(face({ state: "active", prompts: [{ at: 1, text: "Add rate limiting" }] }))
+      .toMatch(/<div class="lod-line" data-status="active"><svg class="state-mark" data-kind="live"[\s\S]*?<\/svg><span class="lod-name">Add rate limiting<\/span><span class="lod-state">Working<\/span><span class="lod-short">billing-api<\/span><\/div><\/div>/);
     expect(face({ state: "active", toolCount: 0 })).toContain('<span class="lod-state">Ready</span>');
     expect(face({ state: "done" })).toContain('<span class="lod-state">Done</span>');
-    expect(face({ state: "err" })).toContain('<span class="lod-state" data-tone="err">Failed</span>');
+    expect(face({ state: "err" })).toMatch(/data-status="err"[\s\S]*<span class="lod-state">Failed<\/span>/);
+    for (const gone of ["lod-id", "lod-title", "lod-signal", "lod-inline", "lod-long"]) expect(face({ state: "active" })).not.toContain(gone);
   });
 
-  it("says Needs you in the warn tone on a session blocked on you, the alert after the word in the markup", () => {
+  it("says the task a person last asked, never a background task's notice, else the title", () => {
+    const prompts = [{ at: 1, text: "Fix login" }, { at: 2, text: "Now the logout" }, { at: 3, text: notice }];
+    expect(face({ prompts })).toContain('<span class="lod-name">Now the logout</span>');
+    expect(face({ prompts: [{ at: 3, text: notice }], firstPrompt: notice, sessionTitle: "Rate limits" }))
+      .toContain('<span class="lod-name">Rate limits</span>');
+    expect(face({})).toContain('<span class="lod-name">billing-api</span>');
+    // A subagent: what its spawning call said it is for, else its name.
+    expect(face({ kind: "subagent", label: "Explore", spawnCall: { id: "t1", description: "Find every public route" } }))
+      .toContain('<span class="lod-name">Find every public route</span>');
+    expect(face({ kind: "subagent", label: "Explore" })).toContain('<span class="lod-name">Explore</span>');
+  });
+
+  it("says Waiting with the alert mark in place of the state's on a session blocked on you", () => {
     const out = face({ state: "active", waiting: { kind: "permission", since: 1, message: "Claude needs your permission to use Bash" } as never });
-    expect(out).toMatch(/<span class="lod-state" data-tone="warn">Needs you<\/span><svg class="alert-mark"/);
+    expect(out).toMatch(/<div class="lod-line" data-status="waiting"><svg class="alert-mark"[\s\S]*?<span class="lod-state">Waiting<\/span>/);
+    expect(out).not.toContain('class="state-mark"');
   });
 
-  it("shows the word only in the narrowest query, cut with an ellipsis, and the name nowhere there", () => {
-    expect(decl(".lod-state", "display")).toBe("none");
-    expect(body(".lod-name, .lod-inline, .lod-state, .lod-title, .lod-signal")).toMatch(/text-overflow: ellipsis/);
-    expect(inNarrow(".lod-state")).toBe("display: block; order: -1;");
-    expect(inNarrow(".lod-name, .lod-inline, .lod-signal")).toBe("display: none;");
+  it("keeps the task to one cut line and the word whole: a row one line tall that wraps and clips", () => {
+    const rule = (sel: string) => {
+      const at = css.indexOf(`\n${sel} {`);
+      expect(at, sel).toBeGreaterThan(-1);
+      return css.slice(at, css.indexOf("}", at));
+    };
+    const line = rule(".lod-line");
+    for (const d of ["flex: none;", "flex-wrap: wrap;", "align-content: flex-start;", "overflow: hidden;", "height: calc(14px + var(--ui-text-increase, 0px));"]) expect(line).toContain(d);
+    const name = rule(".lod-name");
+    for (const d of ["text-overflow: ellipsis;", "white-space: nowrap;", "min-width: 50%;"]) expect(name).toContain(d);
+    const word = rule(".lod-state");
+    expect(word).toContain("flex: none;");
+    expect(word).not.toMatch(/text-overflow|overflow:/);
+    expect(css).toMatch(/\.lod-line\[data-status="waiting"\] \.lod-state \{ color: var\(--warn\); \}/);
+    expect(css).toMatch(/\.lod-line\[data-status="err"\] \.lod-state \{ color: var\(--err\); \}/);
   });
 
-  it("gives the word the line: a reversed row that wraps, one line high, so a mark without room is clipped and not the word", () => {
-    // Over the overview's own size for the line (three classes, later in the sheet).
-    const id = inNarrow(".canvas-wrap .lod-face > .lod-id")!;
-    expect(css).toMatch(/\.canvas-wrap\[data-lod="overview"\] \.lod-id \{[^}]*line-height: calc\(14px \+ var\(--ui-text-increase, 0px\)\)/);
-    expect(css.indexOf("@container lod (max-width: 72px)")).toBeGreaterThan(css.indexOf('.canvas-wrap[data-lod="overview"] .lod-id {'));
-    expect(id).toContain("flex-flow: row-reverse wrap;");
-    expect(id).toContain("justify-content: center;");
-    expect(id).toContain("align-content: flex-start;");
-    expect(id).toContain("gap: 0 4px;");
-    expect(id).toContain("overflow: hidden;");
-    // One 11px line, 12 high, that never shrinks: a 320-wide phone's face is
-    // 14 high with a content box of 6, and the line stands over its padding.
-    expect(id).toContain("flex: none;");
-    expect(id).toContain("font-size: calc(11px + var(--ui-text-increase, 0px));");
-    expect(id).toContain("line-height: calc(12px + var(--ui-text-increase, 0px));");
-    expect(id).toContain("height: calc(12px + var(--ui-text-increase, 0px));");
-    // A mark beside the word no taller than the line.
-    expect(inNarrow(".lod-id > .state-mark, .lod-id > .alert-mark")).toBe("width: 12px; height: 12px;");
-    // A session blocked on you shows the alert, never the ring beside it.
-    expect(inNarrow('.lod-face[data-alarm] .lod-id > .state-mark')).toBe("display: none;");
+  it("draws no cut task below 40%: the mark, and the word where it fits whole", () => {
+    // Owner's critique 2026-11-11, point 3: "W…" and "A…" on the far faces,
+    // "below 40% a dot only, never a cut word".
+    expect(css).toMatch(/\.canvas-wrap\[data-far\] \.agent-node \.lod-name \{ display: none; \}/);
+    // V4 critique 2, C4 (V4's Figma): the short name at the left, the mark
+    // at the right, one line at any height, the word in the peek. The name is
+    // a value: never cut, it wraps to the clipped line instead.
+    expect(css).toMatch(/\n\.lod-short \{ display: none; \}/);
+    expect(css).toMatch(/\.canvas-wrap\[data-far\] \.agent-node \.lod-state \{ display: none; \}/);
+    const far = (sel: string) => {
+      const at = css.indexOf(`.canvas-wrap[data-far] .agent-node ${sel} {`);
+      expect(at, sel).toBeGreaterThan(-1);
+      return css.slice(at, css.indexOf("}", at));
+    };
+    for (const d of ["flex-direction: row-reverse;", "height: calc(14px + var(--ui-text-increase, 0px));"]) expect(far(".lod-line")).toContain(d);
+    for (const d of ["display: block;", "flex: none;", "margin-right: auto;", "white-space: nowrap;"]) expect(far(".lod-short")).toContain(d);
+    expect(far(".lod-short")).not.toMatch(/text-overflow|overflow:/);
+    // Nearer, the overview and compact faces keep the task.
+    expect(css).not.toMatch(/data-lod="(?:overview|compact)"\] \.agent-node \.lod-name/);
+    const zoom = readFileSync(fileURLToPath(new URL("../semantic-zoom.ts", import.meta.url)), "utf8");
+    expect(zoom).toContain("export const FAR_ZOOM = 0.4;");
+    // Written beside data-lod on every move, read off the element itself.
+    const lod = readFileSync(fileURLToPath(new URL("../use-zoom-lod.ts", import.meta.url)), "utf8");
+    expect(lod).toContain("const far = zoom < FAR_ZOOM;");
+    expect(lod).toContain('if (el && el.hasAttribute("data-far") !== far) el.toggleAttribute("data-far", far);');
+  });
+
+  it("gives the task a line of its own and the status the one under it where the face has room for two", () => {
+    const at = css.indexOf("@container lod (min-height: 28px)");
+    expect(at).toBeGreaterThan(-1);
+    const block = css.slice(at, css.indexOf("\n}\n", at));
+    expect(block).toMatch(/\.lod-line \{ height: calc\(2 \* \(14px \+ var\(--ui-text-increase, 0px\)\)\); \}/);
+    expect(block).toMatch(/\.lod-name \{ order: -1; flex-basis: 100%; \}/);
+    // The old per-height and narrowest queries are gone: one face at both distances.
+    expect(css).not.toMatch(/@container lod \((?:max-height|max-width)/);
+  });
+
+  it("draws no \"now\" note and no dotted tie beside the face, and both at the detail tier", () => {
+    const hidden = /\.canvas-wrap\[data-lod="compact"\] \.react-flow__node-recapNote, \.canvas-wrap\[data-lod="overview"\] \.react-flow__node-recapNote, \.canvas-wrap\[data-lod="compact"\] \.react-flow__edge-recapTie, \.canvas-wrap\[data-lod="overview"\] \.react-flow__edge-recapTie \{\s*visibility: hidden !important;\s*\}/;
+    expect(sheet).toMatch(hidden);
+    // Important: React Flow writes `visibility: visible` inline on every
+    // measured node, which beat the plain rule and left the note on screen.
+    // Hidden, not removed: the note keeps its box, so nothing moves with the distance.
+    expect(sheet).not.toMatch(/react-flow__(?:node-recapNote|edge-recapTie)[^{]*\{[^}]*display: none/);
+    expect(sheet).not.toMatch(/data-lod="detail"\][^{]*react-flow__(?:node-recapNote|edge-recapTie)/);
   });
 });
 
@@ -556,14 +620,13 @@ describe("a face never draws the tick beside a failure count", () => {
     const at = out.indexOf('class="lod-face"');
     return out.slice(out.lastIndexOf("<div", at));
   };
-  const mark = (out: string) => /<div class="lod-id"><svg class="state-mark" data-kind="(\w+)"/.exec(out)?.[1];
+  const mark = (out: string) => /<div class="lod-line"[^>]*><svg class="state-mark" data-kind="(\w+)"/.exec(out)?.[1];
 
   it("draws the cross on a finished card whose calls failed, and the count where the word goes", () => {
     const out = face({ state: "done", toolErrorCount: 1 });
     expect(mark(out)).toBe("err");
-    expect(out).toContain('<span class="lod-inline" data-tone="err">1 failed</span>');
-    // The narrowest face draws the word beside the mark: never "Done" beside the cross.
-    expect(out).toContain('<span class="lod-state" data-tone="err">1 failed</span>');
+    // Never "Done" beside the cross.
+    expect(out).toMatch(/data-status="err"[\s\S]*<span class="lod-state">1 failed<\/span>/);
   });
 
   it("keeps the tick when nothing failed, and the live ring on a card still at work", () => {

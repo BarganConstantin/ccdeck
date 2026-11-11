@@ -382,7 +382,10 @@ describe("two toolbars, one Tab stop each", () => {
     const edge = source("../components/EdgeRails.tsx");
     // The roving reads the buttons inside the toolbar the key was pressed in.
     expect(edge).toContain('e.currentTarget.querySelectorAll<HTMLButtonElement>("button[data-rail-item]")');
-    expect(edge).toContain("const roving = useRoving(items.flat().length + foot.length, \"vertical\");");
+    // CHANGED ON PURPOSE (stripe words): the left stripe's arrows also reach
+    // the switch between words and icons, after its foot.
+    expect(edge).toContain("const switchIndex = items.flat().length + foot.length;");
+    expect(edge).toContain("const roving = useRoving(switchIndex + (switchHere ? 1 : 0), \"vertical\");");
     // One roving state per stripe: each EdgeRail has its own.
     expect(edge.match(/useRoving\(/g)!.length).toBe(3); // the declaration, a stripe, the dock
   });

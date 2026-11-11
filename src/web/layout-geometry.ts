@@ -44,28 +44,20 @@ export const SIBLING_GAP = 70;
 export const CROSS_SESSION_X = PAD * 2 + CARD_MARGIN;
 export const CROSS_SESSION_Y = SESSION_GAP;
 
-// Horizontal room between two session columns: a full card width. At 80px the
-// columns read as one crowded field, with cluster boxes and their label tabs
-// close enough to look joined. A whole node of clear space is where the eye
-// stops trying to relate them. Measured from the widest card actually on
-// screen rather than the default, so the gap holds when cards are wider.
-//
-// Read per node id, the way every other pass here reads `measured`. Walking
-// the map's values instead took in the invisible per-session drag handles,
-// which React Flow measures like any other node and which are as wide as the
-// whole session box: one session fanned out to subagents reported ~1100px, and
-// that became the pitch between two 240px columns. Either the fit check in
-// layout.ts's `packColumns` then failed and every session collapsed into one very tall strip that
-// fit-to-view had to shrink to cover, or the columns survived with an ~850px
-// band of dead canvas between them.
-export function columnGap(
-  nodes: Node[],
-  measured: Map<string, { width: number; height: number }>,
-): number {
-  let widest = NODE_W;
-  for (const n of nodes) widest = Math.max(widest, measured.get(n.id)?.width ?? NODE_W);
-  return widest;
-}
+// Clear canvas between one column's tool lane and the next column: a session
+// box's chrome, which is more than the overlap pass keeps between two sessions
+// side by side and what the gap pass keeps around a box. A column's pitch is
+// its cards plus the lane their bubbles take at full size (TOOL_LANE_W, below),
+// so zooming into a card never reaches the next column. The full card of gap
+// it used to add on top was charged to every column the packer scored, and kept
+// a board with one fanned-out session in one tall strip at a third of its size.
+export const COLUMN_GAP = SESSION_CHROME;
+
+// How many columns the board flows into: the count that lets a fit show every
+// card largest, never more than four, and one while one column already shows
+// the board at 60% or more.
+export const MAX_COLUMNS = 4;
+export const ONE_COLUMN_ZOOM = 0.6;
 
 /**
  * Width the tool-burst lane needs to the right of every agent card.

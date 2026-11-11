@@ -14,7 +14,8 @@ import { useCallback, useEffect, useRef } from "react";
 import { useReactFlow, useStoreApi, type ReactFlowState } from "reactflow";
 
 import { boardRect } from "./board-rect";
-import { cardBodyPx, fitZoomForDrawnLanes } from "./semantic-zoom";
+import { DETAIL_EXIT_PX, cardBodyPx, fitZoomForDrawnLanes } from "./semantic-zoom";
+import { PAD as GROUP_PAD } from "./session-chrome";
 import { TEXT_SIZE_INCREASE, currentTextSize } from "./reading-preferences";
 import { FIT_FILL, FIT_MARGIN, railCover } from "./use-layout-frame";
 import { stageEase as easeOut } from "./motion-ease";
@@ -242,15 +243,26 @@ export function useCamera() {
         const width = node.width ?? (el as HTMLElement).offsetWidth;
         const height = node.height ?? (el as HTMLElement).offsetHeight;
         if (!(width > 0 && height > 0)) return [];
-        return [{ left: pos.x, right: pos.x + width, top: pos.y, bottom: pos.y + height }];
+        return [{ left: pos.x, right: pos.x + width, top: pos.y, bottom: pos.y + height, type: node.type }];
       });
       if (rects.length === 0) return;
-      const minX = Math.min(...rects.map(r => r.left));
-      const maxX = Math.max(...rects.map(r => r.right));
-      const minY = Math.min(...rects.map(r => r.top));
-      const maxY = Math.max(...rects.map(r => r.bottom));
-      const w = maxX - minX, h = maxY - minY;
-      if (!(w > 0 && h > 0)) return;
+      type Rect = (typeof rects)[number];
+      const boxOf = (list: Rect[], pad = 0) => {
+        const minX = Math.min(...list.map(r => r.left)) - pad;
+        const minY = Math.min(...list.map(r => r.top)) - pad;
+        const w = Math.max(...list.map(r => r.right)) + pad - minX;
+        const h = Math.max(...list.map(r => r.bottom)) + pad - minY;
+        return { minX, minY, w, h };
+      };
+      const all = boxOf(rects);
+      // The cards alone, in the session handle's own padding, for the zooms
+      // where a session's note is not drawn (below the full card, the faces;
+      // context-modal.css). The note and the handle around it (which covers
+      // the note too) framed where nothing is drawn: every working session's
+      // box was half empty on its left and the board stood off to the right.
+      const agents = rects.filter(r => r.type === "agent");
+      const cards = agents.length > 0 ? boxOf(agents, GROUP_PAD) : all;
+      if (!(all.w > 0 && all.h > 0) || !(cards.w > 0 && cards.h > 0)) return;
 
       // Tool bursts are an overlay rather than nodes, so they are absent from
       // these rects — leave room or the last column's chips get clipped. The
@@ -261,12 +273,19 @@ export function useCamera() {
       // full card the bubbles are hidden, and room kept for them there is the
       // band of empty canvas a board used to sit in the middle of.
       const railWidth = railCover(pane);
-      const fitWith = (lane: number) => Math.max(MIN_ZOOM, Math.min(
+      const fitWith = (box: { w: number; h: number }, lane: number) => Math.max(MIN_ZOOM, Math.min(
         MAX_ZOOM,
-        ((paneRect.width - railWidth - MARGIN * 2) / (w + lane)) * FILL,
-        ((paneRect.height - MARGIN * 2) / h) * FILL,
+        ((paneRect.width - railWidth - MARGIN * 2) / (box.w + lane)) * FILL,
+        ((paneRect.height - MARGIN * 2) / box.h) * FILL,
       ));
-      const zoom = fitZoomForDrawnLanes(fitWith(TOOL_LANE_ALLOWANCE), fitWith(0), cardBodyPx(TEXT_SIZE_INCREASE[currentTextSize()]));
+      // The notes go with the bubbles: both are drawn only at the full card,
+      // so the zoom that keeps them frames them and the one below it does not.
+      const bodyPx = cardBodyPx(TEXT_SIZE_INCREASE[currentTextSize()]);
+      const zoom = fitZoomForDrawnLanes(fitWith(all, TOOL_LANE_ALLOWANCE), fitWith(cards, 0), bodyPx);
+      // The box that zoom shows: everything where the full card may be drawn
+      // (the band between the two thresholds keeps whichever it came from, so
+      // it is given the room), the cards alone below it.
+      const { minX, minY, h } = zoom * bodyPx >= DETAIL_EXIT_PX ? all : cards;
 
       // One frame, computed once. It used to be spelled out twice — here and
       // again inside the correction below — which is two chances to disagree

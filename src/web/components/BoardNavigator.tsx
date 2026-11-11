@@ -1,13 +1,11 @@
 import React, { forwardRef, memo, useCallback, useEffect, useImperativeHandle, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useStore, type ReactFlowState } from "reactflow";
 import { sessionHue } from "../session-hue";
-import { SEP } from "../cluster-header";
 import { clusterBounds, shallowEqualClusters, type Cluster } from "../cluster-bounds";
-import { agentAriaLabel, stateLabel } from "../agent-copy";
+import { agentAriaLabel } from "../agent-copy";
 import { isAlarming } from "../ambient-counts";
 import { elapsed } from "../duration";
-import { modelChipText } from "../model-label";
-import { drawnState, markBesideFailures, stateMarkKind, type FaceSignal } from "../node-face";
+import { drawnState, markBesideFailures, stateMarkKind } from "../node-face";
 import { useNow } from "../use-now";
 import {
   FACE_H, ROW_H, TILE_PAD, navigatorClusters, navigatorFrame, navigatorSessions, navSignal, neighbourTile,
@@ -18,8 +16,8 @@ import {
   type FlipFrame, type FlipRect, type FoldDirection, type Running, type TileParts,
 } from "../navigator-flip";
 import { AlertMark, StateMark } from "./StateMark";
-import { agentName } from "./terminal/stage-model";
-import { useT } from "../i18n";
+import { useT, type TFunction } from "../i18n";
+import { namesLine, sessionNames, startedLine, type SessionNames } from "../rail-row-copy";
 
 /**
  * THE BOARD, GATHERED TO THE LEFT WHILE A SESSION HAS THE STAGE.
@@ -28,17 +26,18 @@ import { useT } from "../i18n";
  * mounted underneath, hidden, with its camera and its state (the stage's
  * design). Every session is a tile in the board's own column and order — see
  * board-navigator.ts for why that order is never re-decided — with the face a
- * card shows at a distance, its task on the rim, and every subagent alive on a
- * line of its own. The session on the stage is the SOCKET: its face's skin has
- * gone to the stage header, and what stays is the outline in its hue and a
- * chevron pointing at the stage, so the board says which node the stage is
- * without a line drawn across the gap.
+ * card shows at a distance and every subagent alive on a line of its own. The
+ * session on the stage is the SOCKET: its face's skin has gone to the stage
+ * header, and what stays is the outline in its hue and a chevron pointing at
+ * the stage, so the board says which node the stage is without a line drawn
+ * across the gap.
  *
- * The words are the board's: the face reads faceSignal through the same words
- * the card's NodeFace hands it, the clock is the card's elapsed(), the mark is
- * the card's StateMark, the hue is sessionHue, the name and task come off the
- * same cluster header the board's pills are built from. Nothing on a tile is
- * worded here.
+ * The words are the deck's: the title and the folder · task line are the
+ * Sessions list's (rail-row-copy.ts sessionNames), the clock is the card's
+ * elapsed(), the mark is the card's StateMark, the hue is sessionHue.
+ * CHANGED ON PURPOSE (owner's critique, 2026-11-11): the face read the folder
+ * and an id fragment under a floating name tag on the rim; the name is the
+ * face's title now and nothing floats.
  *
  * The default export reads React Flow's store for the clusters and their cards,
  * exactly as SessionClusters does, so it has to be rendered inside the deck's
@@ -294,6 +293,11 @@ function Tile({ tile, cluster, session, density, attached, flash, tabbable, onFo
   const root = session?.root ?? null;
   const subs = session?.subs ?? [];
   const alarm = root != null && isAlarming(root.waiting);
+  const tr = useT();
+  // Named as every surface names it: the title on the face, then the folder
+  // and the task, with when it started and its id's tail in the hover.
+  const names = root ? sessionNames(root) : { title: cluster.label };
+  const line = namesLine(names);
   // A shift-press widens the board's selection there; here there is no
   // selection to widen, so it does nothing rather than something else.
   // Enter or Space on the focused button arrives as a click whose detail is 0.
@@ -313,11 +317,6 @@ function Tile({ tile, cluster, session, density, attached, flash, tabbable, onFo
     >
       <span className="nav-rim" aria-hidden="true" />
       <div className="nav-body">
-        {/* The task, on the rim's top edge. The face already says the name,
-            so the pill carries only what the face cannot fit — the name the
-            board's own pill gives the session, cut where that pill cuts it.
-            Absent when the session has none yet, as on the board. */}
-        {cluster.name ? <span className="nav-pill" data-alarm={alarm ? "" : undefined} aria-hidden="true">{cluster.name}</span> : null}
         {/* The press target is a plain button and the face a span inside it:
             the face's edge says the session's state, as a card's does, and is
             not a control's boundary — the button draws nothing of its own but
@@ -326,8 +325,8 @@ function Tile({ tile, cluster, session, density, attached, flash, tabbable, onFo
           type="button"
           className="nav-open"
           aria-current={attached ? "true" : undefined}
-          aria-label={faceLabel(cluster, root, attached)}
-          title={cluster.fullLabel}
+          aria-label={faceLabel(names, root, attached, tr)}
+          title={[names.title, line, cluster.startedAt != null ? startedLine(cluster.startedAt, cluster.idTail) : ""].filter(Boolean).join("\n")}
           tabIndex={tabbable ? 0 : -1}
           onFocus={() => onFocus(id)}
         >
@@ -338,10 +337,7 @@ function Tile({ tile, cluster, session, density, attached, flash, tabbable, onFo
           <span className="nav-face" data-state={root ? drawnState(root) : undefined} data-alarm={alarm ? "" : undefined}>
             <span className="nav-id">
               {root ? <StateMark kind={markBesideFailures(stateMarkKind(drawnState(root)), root.toolErrorCount ?? 0)} /> : null}
-              <span className="nav-name">
-                {cluster.label}
-                {cluster.shortId ? <span className="nav-sid">{SEP + cluster.shortId}</span> : null}
-              </span>
+              <span className="nav-name">{names.title}</span>
               <span className="nav-right">
                 {alarm
                   ? <AlertMark />
@@ -350,7 +346,9 @@ function Tile({ tile, cluster, session, density, attached, flash, tabbable, onFo
                     : null}
               </span>
             </span>
-            {root ? <SignalLine root={root} signal={navSignal(root)} alarm={alarm} /> : null}
+            {/* Where it runs and what it was last asked, as the Sessions list
+                says it under the same title (rail-row-copy.ts namesLine). */}
+            {line ? <span className="nav-line">{line}</span> : null}
             {attached && (
               <span className="nav-socket" aria-hidden="true">
                 <svg viewBox="0 0 12 12" width="12" height="12" focusable="false">
@@ -391,43 +389,14 @@ function SubRow({ sub, top }: { sub: NavAgent; top: number }) {
   );
 }
 
-/**
- * The face's second line: the board face's signal; for a session stopped on a
- * human, "waiting" and for how long first — the deck's one word for that state,
- * the topbar's and the stage header's — then the face's own sentence; for a
- * session the board has nothing to interrupt about, quietLine.
- */
-function SignalLine({ root, signal, alarm }: { root: NavAgent; signal: FaceSignal | null; alarm: boolean }) {
-  if (alarm && root.waiting) {
-    return (
-      <span className="nav-signal" data-tone="warn">
-        waiting <b><Waited since={root.waiting.since} /></b>{signal ? SEP + signal.long : null}
-      </span>
-    );
-  }
-  if (signal) return <span className="nav-signal" data-tone={signal.tone}>{signal.long}</span>;
-  return <span className="nav-signal">{quietLine(root)}</span>;
-}
-
-/**
- * A quiet face's line: its state in the card's word, then what runs it — the
- * card's model chip ("opus 5.5 · xhigh"), or the agent's name, as the stage
- * header says it, before the session has said its model. A state word alone
- * left a column of tiles reading "live" and nothing else, which is no help in
- * telling them apart.
- */
-export function quietLine(root: Pick<NavAgent, "state" | "model" | "effort" | "provider">): string {
-  const runs = root.model ? modelChipText(root.model, root.effort) : agentName(root.provider === "codex" ? "codex" : "claude");
-  return stateLabel(root.state) + SEP + runs;
-}
-
-/** The face's accessible name: the card's own (agentAriaLabel), the task the
- *  pill shows, and whether this is the session on the stage. */
-function faceLabel(cluster: Cluster, root: NavAgent | null, attached: boolean): string {
+/** The face's accessible name: the card's own (agentAriaLabel) led by the title
+ *  the face draws (WCAG 2.5.3), the folder · task line, and whether this is the
+ *  session on the stage. */
+function faceLabel(names: SessionNames, root: NavAgent | null, attached: boolean, tr: TFunction): string {
   return [
-    root ? agentAriaLabel(root) : cluster.fullLabel,
-    cluster.name,
-    attached ? "open in the Command Panel" : null,
+    root ? agentAriaLabel({ ...root, label: names.title }, Date.now(), false, tr) : names.title,
+    namesLine(names),
+    attached ? tr("board.nav.openHere") : null,
   ].filter(Boolean).join(", ");
 }
 
@@ -436,11 +405,5 @@ function Elapsed({ start, end, coarse = false }: { start: number; end?: number; 
   const now = useNow(1000);
   const text = elapsed(start, end, now);
   return <>{coarse ? railClock(text) : text}</>;
-}
-
-/** How long a block has waited, on the same beat as the card's waiting row. */
-function Waited({ since }: { since: number }) {
-  const now = useNow(1000);
-  return <>{elapsed(since, undefined, now)}</>;
 }
 

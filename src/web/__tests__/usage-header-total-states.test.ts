@@ -131,11 +131,12 @@ describe("the usage panel when the logs could not be read (ccusage failing)", ()
     return m ? m[1].replace(/<br\/?>/g, " ").replace(/&#x27;/g, "'").trim() : null;
   }
 
-  // With neither CLI the Refresh button is not drawn, so the sentence does not point at it.
   const SENTENCE = "Couldn't read today from the transcripts on this machine.";
 
-  it("asks for Refresh only where the Refresh button is drawn", () => {
-    expect(unread([], true)).toBe(`${SENTENCE} Press Refresh to try again.`);
+  // CHANGED ON PURPOSE (owner, 2026-11-11): said once. "Press Refresh to try
+  // again." is gone: the Refresh at the foot is right below the sentence.
+  it("says it in one sentence, with or without the Refresh button below", () => {
+    expect(unread([], true)).toBe(SENTENCE);
     expect(unread([])).toBe(SENTENCE);
   });
 

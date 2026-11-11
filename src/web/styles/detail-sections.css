@@ -465,31 +465,6 @@ button.btn.detail-continue-btn {
   color: var(--inflight);
 }
 
-/* A background task's notice, which Claude Code submits through the same hook
-   as a human's typing (#834). It keeps its place in time but reads as an event,
-   not as words the reader wrote: the quietest row in the list, one muted line
-   until opened. Quiet, not decorated: the dashed edge it wore (a bare
-   border-style, so 3px in currentColor) read as a drop zone and was the
-   loudest thing in the panel (owner, 2026-11-10). */
-.prompt-injected {
-  background: none;
-  border: 0;
-  padding: 0;
-}
-.prompt-injected > summary {
-  display: flex;
-  align-items: baseline;
-  gap: 8px;
-}
-.prompt-injected-label { color: var(--muted); font-size: calc(11px + var(--ui-text-increase, 0px)); }
-.prompt-injected-detail {
-  margin-top: 6px;
-  color: var(--muted);
-  font-size: calc(11px + var(--ui-text-increase, 0px));
-  line-height: 1.45;
-  word-break: break-word;
-}
-
 /* ---------------- clickable tool row ---------------- */
 
 button.tool.clickable {

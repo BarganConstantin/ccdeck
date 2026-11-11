@@ -406,6 +406,7 @@
 .node-peek-state[data-kind="live"] { color: var(--inflight); }
 .node-peek-state[data-kind="done"] { color: var(--ok); }
 .node-peek-state[data-kind="err"] { color: var(--err); }
+.node-peek-state[data-kind="alert"] { color: var(--warn); }
 /* Two lines, then an ellipsis. The max-height is the same two lines for an
    engine with no line clamp, which cuts there without the ellipsis rather than
    letting a pasted paragraph grow the card. */

@@ -266,22 +266,9 @@
   text-overflow: ellipsis;
   text-align: left;
 }
+/* A blocked tool and what it works on (a path, a command): mono, the name heavier. */
 .session-list .sl-line2.mono { font-family: var(--font-mono); }
 .session-list .sl-tool { font-weight: 500; color: var(--text-secondary); }
-/* The second line's one quiet lead (rail-row-copy.ts rowTells): the folder
-   under a name, or what tells a row from others of its name, in the line's own
-   quiet ink. Ahead of a live line it keeps to half the width, so the tool or
-   the note after it still shows; alone it has the whole line. */
-.session-list .sl-tell.lead {
-  display: inline-block;
-  max-width: 50%;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  vertical-align: top;
-}
-/* Words stay in the interface's face (tokens.css html, body) on a mono line:
-   mono is for figures and ids, and an id tell keeps it. */
-.session-list .sl-tell.words { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; }
 
 /* ── groups ───────────────────────────────────────────────────────────────── */
 /* Rail / Group header: --row-group tall, label and count at the two

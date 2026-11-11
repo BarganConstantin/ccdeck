@@ -451,11 +451,30 @@ describe("the Agents tab", () => {
     expect(readFileSync(join(WEB_DIR, "App.tsx"), "utf8")).toMatch(/onSelectAgent=\{selectInspected\}/);
     expect(readFileSync(join(WEB_DIR, "App.tsx"), "utf8")).toMatch(/const selectInspected = useCallback\(\(id: string\) => selectAgent\(id, false, false\), \[selectAgent\]\)/);
   });
-  it("puts the note under the tree and the detail panel's sections under the note", () => {
+  // CHANGED ON PURPOSE: the sentence was a note under the tree on every visit;
+  // it is the hover hint of an info mark beside the Agents title now.
+  it("keeps the note off the body: an info mark beside the Agents title carries it in a hover hint", () => {
     const out = html(ROOT);
-    const note = out.indexOf("Who started whom, read from the transcript. Each card shows its own model, cost and time.");
-    expect(note).toBeGreaterThan(out.lastIndexOf('class="insp-row"'));
-    expect(out.indexOf('id="detail-stub"')).toBeGreaterThan(note);
+    const NOTE = "Who started whom, read from the transcript. Each card shows its own model, cost and time.";
+    expect(out).not.toContain('<p class="insp-note">');
+    expect(out).toMatch(new RegExp(
+      `<span class="insp-title">Agents</span><span class="insp-info" role="img" aria-label="${NOTE.replace(/\./g, "\\.")}" id="[^"]+" tabindex="0"><svg[^>]*>`));
+    // The mark sits in the head row, before the qualifier, and the tree and the
+    // detail panel's sections follow straight on.
+    expect(out.indexOf('class="insp-info"')).toBeLessThan(out.indexOf('class="insp-qual"'));
+    expect(out.indexOf('id="detail-stub"')).toBeGreaterThan(out.lastIndexOf('class="insp-row"'));
+    const src = withoutComments(readFileSync(join(WEB_DIR, "components/Inspector.tsx"), "utf8"));
+    expect(src).toMatch(/<HoverHint className="ap-peek insp-hint" detail=\{detail\}>/);
+    expect(src).toContain('info={tr("board.inspector.agentsNote")}');
+    expect(src).toContain('<KitIcon name="info" />');
+  });
+  it("draws the info mark as a 14px muted glyph whose hint is the panel's surface", () => {
+    expect(decl(".insp-info", "color")).toBe("var(--muted)");
+    expect(decl(".insp-info", "width")).toBe("14px");
+    expect(decl(".insp-info", "align-self")).toBe("center");
+    expect(decl(".insp-info:hover", "color", "(hover: hover) and (pointer: fine)")).toBe("var(--text)");
+    expect(decl(".ap-peek.insp-hint", "font-size")).toBe(INC(12));
+    expect(decl(".ap-peek.insp-hint", "color")).toBe("var(--text-secondary)");
   });
 });
 
@@ -513,7 +532,8 @@ describe("the Context tab", () => {
   });
   it("sets the meter like Figma: the note directly under it, sentence-case rows, one column", () => {
     const out = withContext({ usage: SPENT });
-    expect(out).toMatch(/ctx-window-bar[\s\S]*<p class="ctx-window-note">approximation — CC&#x27;s \/context isn&#x27;t hook-exposed<\/p>/);
+    // CHANGED ON PURPOSE: the note says it plainly, with no hook jargon.
+    expect(out).toMatch(/ctx-window-bar[\s\S]*<p class="ctx-window-note">Estimated from the transcript\.<\/p>/);
     for (const label of ["Input tokens", "Output tokens", "Cache reads", "Cache writes", "Cumulative total", "Estimated cost",
       "User messages", "Assistant messages", "Tool uses", "Tool results", "System-reminders"]) expect(out).toContain(`<span class="ctx-row-label">${label}</span>`);
     expect(out).not.toMatch(/ctx-row-label">[a-z]/);

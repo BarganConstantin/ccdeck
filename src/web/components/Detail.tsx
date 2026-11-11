@@ -12,13 +12,15 @@ import CostBar from "./CostBar";
 import { mcpChipIdentity } from "../tool-skin";
 import { detailCategoryFor, type DetailCategory } from "../detail-category";
 import type { InspectorStatus } from "../inspector-state";
-import { callArg } from "../inspector-time";
+import { argIsPath, callArg } from "../inspector-time";
 import { KitStateGlyph } from "./kit-icons";
+import PathText from "./PathText";
 // The detail panel used to spell both of these out inline — an elapsed clock a
 // tier shorter than the agent card's, and a tool duration a decimal place
 // coarser than the dialog the same row opens (#374). See duration.ts.
 import { elapsed, toolDuration } from "../duration";
-import { injectedPrompt, typedPrompts } from "../injected-prompt";
+import { typedPrompts } from "../injected-prompt";
+import { sessionNames, startedHover } from "../rail-row-copy";
 import { modelChipText, modelChipTitle, modelFamily } from "../model-label";
 import { fmtCost } from "../pricing";
 import { promptTime } from "../relative-time";
@@ -87,6 +89,7 @@ export default function Detail({
   // when there are none, and the chip stays the generic category chip. Asked
   // of every tool the chip counts, not only the window's.
   const mcpChip = catCounts.has("mcp") ? mcpChipIdentity(agent.toolCountByName?.keys() ?? []) : null;
+  const typed = typedPrompts(agent.prompts);
 
   return (
     <>
@@ -101,7 +104,11 @@ export default function Detail({
             aria-label={status?.phrase ?? cardState(agent).word} title={status?.phrase ?? cardState(agent).word}>
             <KitStateGlyph name={status?.glyph ?? (agent.state === "active" ? "working" : agent.state === "err" ? "error" : "done")} />
           </span>
-          <h2 className="hero-title" title={agent.cwd ?? agent.label}>{agent.label}</h2>
+          {/* A session by the title every surface names it by (sessionNames);
+              its folder, when it started and its id's tail in the hover. */}
+          <h2 className="hero-title" title={agent.kind === "root" ? [agent.cwd ?? agent.label, startedHover(agent.startedAt, agent.sessionId, undefined, now, t)].join("\n") : agent.cwd ?? agent.label}>
+            {agent.kind === "root" ? sessionNames(agent).title : agent.label}
+          </h2>
         </div>
         <div className="hero-meta">
           {/* The card's word for it, not the reducer's (#833): "root" is
@@ -263,32 +270,22 @@ export default function Detail({
       <section className="detail-section">
         <h3>{t("board.detail.identity")}</h3>
         <div>
-          {agent.cwd && <div className="row"><span className="k">cwd</span><span className="v" title={agent.cwd}>{agent.cwd}</span></div>}
+          {/* From "~", and cut in the middle so the folder's own name stays. */}
+          {agent.cwd && <div className="row"><span className="k">cwd</span><PathText className="v" path={agent.cwd} /></div>}
           <div className="row"><span className="k">{t("board.kind.session")}</span><span className="v">{agent.sessionId.slice(0, 12)}…</span></div>
           {agent.parentId && <div className="row"><span className="k">{t("board.detail.parent")}</span><span className="v">{agent.parentId.slice(0, 12)}…</span></div>}
         </div>
       </section>
 
-      {agent.prompts.length > 0 && (
+      {typed.length > 0 && (
         <section className="detail-section">
-          {/* The count is what was typed (#834). A background task's notice
-              is listed as the event it is, collapsed, in its place in time. */}
-          <h3>{t("board.detail.prompts")} <span className="section-count">{typedPrompts(agent.prompts).length}</span></h3>
+          {/* What a person typed, listed and counted (#834). A background
+              task's notice arrives on the same hook and is neither: it is not
+              a prompt (owner's critique, 2026-11-11). */}
+          <h3>{t("board.detail.prompts")} <span className="section-count">{typed.length}</span></h3>
           <div className="prompts">
-            {promptKeys(agent.prompts).reverse().map(({ pr, key }) => {
+            {promptKeys(typed).reverse().map(({ pr, key }) => {
               const when = promptTime(pr.at, now);
-              const injected = injectedPrompt(pr.text);
-              if (injected) {
-                return (
-                  <details className="prompt-entry prompt-injected" key={key}>
-                    <summary>
-                      <span className="prompt-time" title={when.title}>{when.label}</span>
-                      <span className="prompt-injected-label">{injected.label}</span>
-                    </summary>
-                    {injected.detail && <div className="prompt-injected-detail">{injected.detail}</div>}
-                  </details>
-                );
-              }
               return (
                 <div className="prompt-entry" key={key}>
                   <div className="prompt-time" title={when.title}>{when.label}</div>
@@ -305,7 +302,7 @@ export default function Detail({
         {agent.tools.length === 0 && <div className="empty">{t("board.detail.noTools")}</div>}
         <div>
           {agent.tools.slice().reverse().map(call => (
-            <ToolRow key={call.id} call={call} onClick={() => onOpenTool(agent.id, call.id)} />
+            <ToolRow key={call.id} call={call} cwd={agent.cwd} onClick={() => onOpenTool(agent.id, call.id)} />
           ))}
         </div>
       </section>
@@ -380,7 +377,7 @@ const TOOL_STATUS_LABEL = { inflight: "board.toolStatus.inflight", done: "board.
 // ever used it on the branch it then threw away — an open call prints a
 // sentinel, and a finished one carries both of its own timestamps. The row is
 // not memoised, so the tick that re-renders the panel still re-renders it.
-function ToolRow({ call, onClick }: { call: ToolCall; onClick: () => void }) {
+function ToolRow({ call, cwd, onClick }: { call: ToolCall; cwd?: string; onClick: () => void }) {
   const t = useT();
   const status = call.endedAt == null ? "inflight" : call.ok === false ? "err" : "done";
   // This row is the button that opens ToolModal for this exact call, and the
@@ -390,8 +387,11 @@ function ToolRow({ call, onClick }: { call: ToolCall; onClick: () => void }) {
   const durLabel = toolDuration(call, "…");
   // What it ran on, never the JSON it was sent as (inspector-time.ts).
   const arg = callArg(call);
+  // A path is read from the session's folder and cut in the middle, so the rows
+  // under one long folder no longer all read the same; the row's hover has it whole.
+  const path = argIsPath(call, arg);
   return (
-    <button className="tool clickable" title={call.inputPreview || call.name} onClick={onClick}>
+    <button className="tool clickable" title={path ? arg : call.inputPreview || call.name} onClick={onClick}>
       <span className="name">
         {/* The dot said nothing here — an empty <span> that was not even marked
             decorative — so a failed call and a finished one both announced
@@ -406,7 +406,7 @@ function ToolRow({ call, onClick }: { call: ToolCall; onClick: () => void }) {
         <span className={`status-dot ${status}`} aria-hidden />
         <span className="vis-hidden">{t(TOOL_STATUS_LABEL[status])}</span>
         <span className="tool-name">{call.name}</span>
-        {arg && <span className="tool-arg">{arg}</span>}
+        {arg && (path ? <PathText className="tool-arg" path={arg} cwd={cwd} hint={false} /> : <span className="tool-arg">{arg}</span>)}
       </span>
       <span className="tool-dur">{durLabel}</span>
     </button>

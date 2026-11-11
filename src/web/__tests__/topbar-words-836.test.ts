@@ -74,18 +74,23 @@ function buttons(html: string): Array<{ name: string; word: string }> {
 }
 
 // Each word, and the accessible name it has to be found in (2.5.3).
+// CHANGED ON PURPOSE (stripe words): a new profile's stripes show each door's
+// word beside its glyph, and a door whose name does not hold its word is named
+// by the word ("Sessions", "This machine"); the left stripe ends in the switch
+// between words and icons.
 const WORDS: Array<[word: string, name: string]> = [
   // The left stripe: Sessions first (V4's Figma), Settings at its foot; the
   // right stripe: the Inspector's door first, then the panels and records.
-  ["Session list", "Session list"],
+  ["Sessions", "Sessions"],
   ["Accounts", "Accounts"],
   ["Settings", "Settings"],
-  ["Show the Inspector", "Show the Inspector"],
+  ["Hide words", "Hide words"],
+  ["Inspector", "Show the Inspector"],
   ["Usage", "Usage"],
-  ["Machine", "Machine"],
+  ["This machine", "This machine"],
   ["Usage history", "Usage history"],
   ["Browser watch", "Browser watch, not watching"],
-  ["Feedback", "Send feedback"],
+  ["", "Send feedback"],
 ];
 
 describe("every control in the chrome says its name (#836)", () => {
@@ -93,8 +98,9 @@ describe("every control in the chrome says its name (#836)", () => {
 
   it("names every control and keeps visible words on the topbar", () => {
     expect(drawn.map(b => b.name)).toEqual(WORDS.map(([, name]) => name));
-    expect(buttons(left).every(b => b.word === "")).toBe(true);
-    expect(buttons(right).every(b => b.word === "")).toBe(true);
+    expect(drawn.map(b => b.word)).toEqual(WORDS.map(([word]) => word));
+    expect(buttons(left).every(b => b.word !== "")).toBe(true);
+    expect(buttons(right).every(b => b.word !== "")).toBe(true);
     // V4's Figma draws Feedback as a bare 28x28 icon: its word is the hint's and
     // the name's ("Send feedback"), not a visible one.
     expect(buttons(corner).map(b => b.word)).toEqual([""]);
@@ -151,8 +157,10 @@ describe("every control in the chrome says its name (#836)", () => {
     // runs, and a run of two or more is a group named for a screen reader.
     // V4's Figma: the left stripe, Sessions first, Settings at the foot; the
     // right stripe, the Inspector's door alone first.
-    expect(buttons(left).map(b => b.name)).toEqual(["Session list", "Accounts", "Settings"]);
-    expect(buttons(right).map(b => b.name)).toEqual(["Show the Inspector", "Usage", "Machine", "Usage history", "Browser watch, not watching"]);
+    // CHANGED ON PURPOSE (stripe words): named by their words where the name
+    // did not hold them, and the switch between words and icons last.
+    expect(buttons(left).map(b => b.name)).toEqual(["Sessions", "Accounts", "Settings", "Hide words"]);
+    expect(buttons(right).map(b => b.name)).toEqual(["Show the Inspector", "Usage", "This machine", "Usage history", "Browser watch, not watching"]);
     expect(right.match(/<div class="rail-group"/g)).toHaveLength(4);
     expect(right).toContain('<div class="rail-group" role="group" aria-label="Usage and machine">');
     expect(body(".rail-foot") /* shares the rule with .rail-doors */).toMatch(/gap: 2px;/);

@@ -104,7 +104,7 @@ export function agentAriaLabel(data: AgentNodeData, now: number = Date.now(), se
     agentKindLabel(data, tr),
     // The word the card SHOWS (Working / Ready / Done / Failed / Waiting, from
     // cardState), so the visible label is in the accessible name (WCAG 2.5.3).
-    // The session list and the peek keep stateLabel's words.
+    // The peek says it too, beside the face's mark (faceStatus).
     cardState(data).word,
     // A turn that stopped on an error also says which one and what to type: the
     // card draws it as "Failed" and its row says the rest.

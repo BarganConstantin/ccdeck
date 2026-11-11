@@ -546,7 +546,7 @@ const catalog: Catalog = {
   "insights.context.codex.uncounted": "Não contado para o Codex — o ccdeck reconstrói a sessão a partir do arquivo de rollout e ignora o que foi gravado antes de se conectar, então um detalhamento de mensagens e chamadas de ferramenta aqui ficaria curto por um valor desconhecido. O valor da janela acima é o da própria CLI e não é afetado.",
   "insights.context.codex.memory": "Arquivos AGENTS.md no escopo",
   "insights.context.codex.memoryEmpty": "Nenhum arquivo AGENTS.md encontrado no caminho do cwd até a raiz do sistema de arquivos, nem em $CODEX_HOME.",
-  "insights.context.claude.subtitle": "aproximação — o /context do CC não é exposto por hook",
+  "insights.context.claude.subtitle": "Estimado a partir da transcrição.",
   "insights.context.claude.scope": "turno atual",
   "insights.context.claude.memory": "Arquivos CLAUDE.md no escopo",
   "insights.context.claude.memoryEmpty": "Nenhum arquivo CLAUDE.md encontrado no caminho do cwd até ~/.claude.",

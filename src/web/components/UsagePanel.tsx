@@ -47,6 +47,7 @@ import { useSingleKeyShortcuts } from "../use-single-key-shortcuts";
 import { PLACE_KEYS, usePanelPlace } from "../panel-place";
 import type { PanelDock } from "../side-column";
 import { DockButtons } from "./SideColumn";
+import PanelFoldHead, { quotaFoldLine } from "./PanelFoldHead";
 
 // The rows of the two board tables, and UNKNOWN_MODEL, are board-usage.ts's,
 // with the folds that build them (#1175). The tables that draw them, and
@@ -303,10 +304,10 @@ export default function UsagePanel({ state, now, providers, incidents = [], leav
 
   const anyLoading = quotaLoading || codexLoading;
 
-  // The header's ↻ means "everything on this panel", and the range is now part
-  // of everything. `refresh=1` on that path is what forces a new ccusage child
-  // rather than the 2-minute cached reading — a manual press is the one moment
-  // paying for a fresh run is right.
+  // The foot's Refresh means "everything on this panel": both quotas and the
+  // period's figures, the panel's one way to try again. `refresh=1` on that
+  // path is what forces a new ccusage child rather than the 2-minute cached
+  // reading — a manual press is the one moment paying for a fresh run is right.
   const refreshAll = () => { refreshQuota(); refreshCodex(); setRangeRefresh(n => n + 1); };
 
   // One string, used as both the ↻'s tooltip and its accessible name (#381).
@@ -318,6 +319,10 @@ export default function UsagePanel({ state, now, providers, incidents = [], leav
   // shows, per provider, and cannot drift into promising a section that is not
   // rendered.
   const refreshLabel = quotaRefreshLabel(providers, t);
+  // The headline in one line, for a folded header: the logs' figure only.
+  const spendLine = !fromRange ? null : hasCost
+    ? t("shell.side.usageSum", { amount: fmtCost(figures.cost), period: periodWord })
+    : t("shell.side.usageTokens", { n: fmtTokens(totalTokenSum), period: periodWord });
 
   return (
     // The id is the target of the topbar toggle's aria-controls. It is spelled
@@ -337,15 +342,18 @@ export default function UsagePanel({ state, now, providers, incidents = [], leav
     <aside className={`usage-panel${leaving ? " leaving" : ""}`} id="usage-panel" aria-label={t("usage.title")} {...place.panel}>
       <SheetHandle />
       <div className="up-header" {...place.grip}>
+        {/* Folded by the Inspector on the Board: the header is one button that
+            opens the panel, with the quota left (the period's spend where
+            there is no quota reading). */}
+        {place.tucked && dock ? (
+          <PanelFoldHead title={t("usage.title")} summary={quotaFoldLine(quota, t) ?? spendLine} onOpen={dock.unfold} />
+        ) : <>
         {/* h2, under the topbar's h1 (#381). Same level as the other panels'
             titles, and the four `up-section-title`s below stepped from h4 to h3
             with it, so the panel reads h1 → h2 → h3 with nothing skipped. */}
         <h2>{t("usage.title")}</h2>
         {/* Folded in Workspace's column, the header keeps the headline. */}
-        {dock?.folded && fromRange && <span className="side-sum">{
-          hasCost ? t("shell.side.usageSum", { amount: fmtCost(figures.cost), period: periodWord })
-            : t("shell.side.usageTokens", { n: fmtTokens(totalTokenSum), period: periodWord })
-        }</span>}
+        {dock?.folded && fromRange && <span className="side-sum">{spendLine}</span>}
         <DockButtons dock={dock} popOut={place.popOut} />
         <FilmLink film="usage" />
         {/* ONE close (V4's Figma). The panel's two other header buttons went to
@@ -358,6 +366,7 @@ export default function UsagePanel({ state, now, providers, incidents = [], leav
           aria-label={t("usage.closePanel")}
           title={withKey(t("usage.close"), "U", singleKeys)}
         ><KitIcon name="close" /></button>
+        </>}
       </div>
 
       <div className="up-body">
@@ -411,13 +420,10 @@ export default function UsagePanel({ state, now, providers, incidents = [], leav
       ) : !fromRange ? (
         // Nothing from the logs: still reading (blank for the first short
         // wait), or the read came back empty-handed. No board figure stands
-        // in for it. "Press Refresh" only where the Refresh below is drawn:
-        // it is gone on a deck with neither CLI (see .up-acts).
+        // in for it. Said once; the Refresh at the foot is the way to try
+        // again, so no line here points at it (owner, 2026-11-11).
         readFailed && (
-          <div className="up-empty">
-            {t("usage.period.unread", { period: periodWord })}
-            {(providers.claude || providers.codex) && <><br />{t("usage.period.unreadRetry")}</>}
-          </div>
+          <div className="up-empty">{t("usage.period.unread", { period: periodWord })}</div>
         )
       ) : totalTokenSum > 0 && (
         <>

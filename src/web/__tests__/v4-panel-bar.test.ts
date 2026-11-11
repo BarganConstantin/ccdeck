@@ -134,8 +134,10 @@ describe("the stripes' markup", () => {
 
   it("draws the doors in order and the foot last, Radio then Settings", () => {
     const order = [...html.matchAll(/data-rail-item="([^"]+)"/g)].map(m => m[1]);
-    expect(order).toEqual([...rails.leftStripe.flat(), ...rails.leftFoot].map(i => i.id));
-    expect(order.slice(-2)).toEqual(["radio", "settings"]);
+    // CHANGED ON PURPOSE (stripe words): the foot ends in the switch between
+    // words and icons, after its two doors.
+    expect(order).toEqual([...[...rails.leftStripe.flat(), ...rails.leftFoot].map(i => i.id), "stripe-words"]);
+    expect(order.slice(-3)).toEqual(["radio", "settings", "stripe-words"]);
   });
 
   it("draws the right stripe's doors in order, with no foot", () => {
@@ -151,7 +153,9 @@ describe("the stripes' markup", () => {
     for (const name of ["Usage and machine", "Activity history", "Watchers"]) {
       expect(right).toContain(`role="group" aria-label="${name}"`);
     }
-    expect(html).toContain('class="rail-foot" role="group" aria-label="Radio, Settings"');
+    // CHANGED ON PURPOSE (stripe words critique): the foot also holds the switch
+    // between words and icons, and is named by all it holds.
+    expect(html).toContain('class="rail-foot" role="group" aria-label="Radio, Settings, Hide words"');
   });
 
   it("keeps a door's help line for assistive tech, off the tooltip", () => {

@@ -85,17 +85,58 @@ describe("what the stage shows", () => {
     expect(show.session.status.tool).toBe("Bash");
   });
 
-  it("tells two sessions the board names alike apart, by the tail of the id as the board's clusters do", () => {
-    const a = agent("019b2c3d-0000-7000-8000-00000000c450", { label: "proj2" });
-    const b = agent("019b2c3d-0000-7000-8000-00000000338a", { label: "proj2", provider: "codex" });
-    const subOfA = agent("sub-1", { sessionId: a.sessionId, kind: "subagent", label: "proj2" });
-    const board = new Map([[a.id, a], [b.id, b], [subOfA.id, subOfA]]);
-    const show = stageShowFor({ kind: "session", id: a.id }, board, NOW);
+  // CHANGED ON PURPOSE (owner's critique, 2026-11-11): the stage names a
+  // session by its title, as every surface does. Two of one title were told
+  // apart by the id's tail, "proj2 · c450"; now by their task, and by the tail
+  // only when the tasks read alike too.
+  const nameOn = (id: string, board: Map<string, AgentNodeData>) => {
+    const show = stageShowFor({ kind: "session", id }, board, NOW);
     if (show.kind !== "session") throw new Error("not a session");
-    expect(show.session.name).toBe("proj2 · c450");
-    const alone = stageShowFor({ kind: "session", id: a.id }, new Map([[a.id, a], [subOfA.id, subOfA]]), NOW);
-    if (alone.kind !== "session") throw new Error("not a session");
-    expect(alone.session.name, "a subagent is not a twin").toBe("proj2");
+    return show.session.name;
+  };
+  const C450 = "019b2c3d-0000-7000-8000-00000000c450";
+  const A338 = "019b2c3d-0000-7000-8000-00000000338a";
+
+  it("names a session by its title, else its folder, bare when no other session shares it", () => {
+    const a = agent(C450, { label: "proj2", prompts: [{ at: NOW, text: "Fix login" }] });
+    expect(nameOn(a.id, new Map([[a.id, a]]))).toBe("proj2");
+    expect(nameOn(a.id, new Map([[a.id, { ...a, sessionTitle: "Fix the login form" }]]))).toBe("Fix the login form");
+    // A different title on the board is no twin.
+    const other = agent(A338, { label: "api", cwdBasename: "api" });
+    expect(nameOn(a.id, new Map([[a.id, a], [other.id, other]]))).toBe("proj2");
+  });
+
+  it("tells two sessions of one title apart by their task, cut short", () => {
+    const a = agent(C450, { label: "proj2", prompts: [{ at: NOW, text: "Fix login" }] });
+    const b = agent(A338, { label: "proj2", provider: "codex", prompts: [{ at: NOW, text: "Make every report export to CSV and PDF on request" }] });
+    const board = new Map([[a.id, a], [b.id, b]]);
+    expect(nameOn(a.id, board)).toBe("proj2 · Fix login");
+    expect(nameOn(b.id, board)).toBe("proj2 · Make every report export to CSV…");
+  });
+
+  it("falls back to the id's tail only when the tasks match too, or there is none", () => {
+    const a = agent(C450, { label: "proj2", prompts: [{ at: NOW, text: "Fix login" }] });
+    const b = agent(A338, { label: "proj2", prompts: [{ at: NOW, text: "fix login" }] });
+    expect(nameOn(a.id, new Map([[a.id, a], [b.id, b]]))).toBe("proj2 · c450");
+    const quiet = { ...a, prompts: [] };
+    const empty = { ...b, prompts: [] };
+    expect(nameOn(a.id, new Map([[a.id, quiet], [b.id, empty]]))).toBe("proj2 · c450");
+    // A subagent of the same name is not a session of the same name.
+    const kid = agent(`${A338}::x`, { kind: "subagent", sessionId: A338, label: "proj2" });
+    expect(nameOn(a.id, new Map([[a.id, a], [kid.id, kid]]))).toBe("proj2");
+  });
+
+  it("quotes and counts what a person typed, never a background task's notice", () => {
+    const notice = "<task-notification>\n<status>completed</status>\n<summary>Background command finished</summary>\n</task-notification>";
+    const root = agent("s1", { prompts: [{ at: NOW - MIN, text: "ship the release" }, { at: NOW, text: notice }] });
+    const show = stageShowFor({ kind: "session", id: "s1" }, new Map([["s1", root]]), NOW);
+    if (show.kind !== "session") throw new Error("not a session");
+    expect(show.session.context?.prompt).toBe("ship the release");
+    expect(show.session.promptCount).toBe(1);
+    const only = stageShowFor({ kind: "session", id: "s1" }, new Map([["s1", { ...root, prompts: [{ at: NOW, text: notice }], firstPrompt: notice }]]), NOW);
+    if (only.kind !== "session") throw new Error("not a session");
+    expect(only.session.context?.prompt).toBeNull();
+    expect(only.session.promptCount).toBe(0);
   });
 
   it("says waiting and for how long, in the face's word, never blocked", () => {

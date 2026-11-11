@@ -36,6 +36,7 @@ export type HintSide = "right" | "left" | "below" | "above";
 
 /** What a hint says. Null is a control whose hint would add nothing. */
 export interface HintSpec {
+  /** The control's name; empty where the word on the control already says it. */
   label: string;
   /** The key, as its keycap prints it, while it does something. */
   keys?: string;
@@ -216,10 +217,10 @@ export function useHint(side: HintSide, layer: HintLayer = "chrome") {
       onPointerEnter={() => window.clearTimeout(hideTimer.current)}
       onPointerLeave={hide}
     >
-      <span className="hint-head">
-        <span className="hint-label">{shown.spec.label}</span>
+      {(shown.spec.label || shown.spec.keys) && <span className="hint-head">
+        {shown.spec.label && <span className="hint-label">{shown.spec.label}</span>}
         {shown.spec.keys && <kbd className="hint-key">{shown.spec.keys}</kbd>}
-      </span>
+      </span>}
       {shown.spec.detail && <span className="hint-detail">{shown.spec.detail}</span>}
     </span>,
     document.body,

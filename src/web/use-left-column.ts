@@ -116,10 +116,11 @@ function loadSessionListOpen(): boolean {
 function saveSessionListOpen(open: boolean): void {
   writeStored(SESSION_LIST_OPEN_KEY, open ? "1" : "0");
 }
-/** Open unless the reader closed it: a first run gets the panel. */
+/** Shut until the reader opens it: a first run meets the board, not a panel
+ *  about a tool it has not set up yet. A profile from before is pinned open at
+ *  boot when it never stored this (storage.ts, settlePanelDefaults). */
 function loadAccountsPanelOpen(): boolean {
-  const stored = readStored(ACCOUNTS_PANEL_OPEN_KEY);
-  return stored === null ? true : stored === "1";
+  return readStored(ACCOUNTS_PANEL_OPEN_KEY) === "1";
 }
 
 export interface LeftColumn {

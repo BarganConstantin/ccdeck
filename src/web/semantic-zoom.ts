@@ -52,6 +52,15 @@ export const DETAIL_ENTER_PX = 7.2;
 export const DETAIL_EXIT_PX = 6.6;
 
 /**
+ * Below this zoom a face draws its state alone, without the task. The owner's
+ * critique (2026-11-11, point 3): at 20-33% the task was a letter and an
+ * ellipsis, "W…", "A…" — "below 40% a dot only, never a cut word". Above
+ * it the overview face keeps the task line over the state. Only words change
+ * across it, never a card's box, so a zoom resting on it cannot move the board.
+ */
+export const FAR_ZOOM = 0.4;
+
+/**
  * The compact face is two lines of 11-12px type and a 6px pad top and bottom:
  * 44px is the least that holds them without clipping a descender, 48 is where
  * it is drawn with the pad it was designed with. The widths are the same

@@ -17,6 +17,8 @@ import { t } from "../../i18n";
 import { SEP } from "../../cluster-header";
 import { distinctIdTail } from "../../session-id-tail";
 import { FACE_WORDS } from "../../board-navigator";
+import { lastTypedPrompt, sameWords, sessionNames, sessionTask } from "../../rail-row-copy";
+import { typedPrompts } from "../../injected-prompt";
 import { contextFill } from "../../context-figure";
 import { faceSignal } from "../../node-face";
 import { shortAgo } from "../../relative-time";
@@ -95,19 +97,27 @@ export function contextUseOf(root: AgentNodeData): { used: number; window: numbe
   return { used, window: limit };
 }
 
-/** A session's name on the board, before any telling apart. */
-const boardName = (a: AgentNodeData) => a.label || a.cwdBasename || a.sessionId.slice(0, 8);
+/** How much of a task follows a shared title on stage before it is cut. */
+const STAGE_TASK_CHARS = 32;
 
-/** The session's name on stage. Two sessions the board names alike — two
- *  agents in one folder — are told apart the way the board's clusters tell
- *  them, by as much of the id's tail as it takes: "proj · c450". */
+const cutTask = (task: string) =>
+  task.length > STAGE_TASK_CHARS ? `${task.slice(0, STAGE_TASK_CHARS - 1).trimEnd()}…` : task;
+
+/**
+ * The session's name on stage: its title, as every surface names it
+ * (rail-row-copy.ts sessionNames). Two sessions on the board of one title are
+ * told apart by their task, cut short ("api · Fix login"); only when the tasks
+ * read alike too, by as much of the id's tail as it takes ("api · c450").
+ */
 export function stageNameOf(root: AgentNodeData, agents: ReadonlyMap<string, AgentNodeData>): string {
-  const name = boardName(root);
-  const twins: string[] = [];
-  for (const a of agents.values()) {
-    if (a.kind !== "subagent" && a.sessionId !== root.sessionId && boardName(a) === name) twins.push(a.sessionId);
-  }
-  return twins.length ? `${name}${SEP}${distinctIdTail(root.sessionId, twins)}` : name;
+  const { title } = sessionNames(root);
+  const twins = [...agents.values()].filter(a =>
+    a.kind !== "subagent" && a.sessionId !== root.sessionId && sameWords(sessionNames(a).title, title));
+  if (!twins.length) return title;
+  const task = cutTask(sessionTask(root));
+  const alike = twins.filter(a => sameWords(cutTask(sessionTask(a)), task));
+  if (task && !alike.length) return `${title}${SEP}${task}`;
+  return `${title}${SEP}${distinctIdTail(root.sessionId, alike.map(a => a.sessionId))}`;
 }
 
 /**
@@ -143,7 +153,8 @@ export function stageShowFor(
   const subs = subagentsOf(agents.values(), id);
   const facts = boardFactsFor(root, subs);
   const provider = root.provider === "codex" ? "codex" : "claude";
-  const lastPrompt = root.prompts.length ? root.prompts[root.prompts.length - 1].text : root.firstPrompt;
+  // What a person last typed: a background task's notice is not a prompt.
+  const lastPrompt = lastTypedPrompt(root);
   const signal = faceSignal(root, undefined, FACE_WORDS);
   const fact = [
     facts.subagentsLive ? t("board.stage.subagentsWorking", { count: facts.subagentsLive }) : null,
@@ -161,7 +172,7 @@ export function stageShowFor(
       status: stageStatusFrom(facts, now),
       // The Inspector's Context tab reads the same two numbers (contextFill).
       contextUse: contextUseOf(root),
-      promptCount: root.prompts.length,
+      promptCount: typedPrompts(root.prompts).length,
       // While the pane attaches: what the face says the session is doing, or
       // failing that, what it was last asked.
       ghostLine: signal?.long ?? promptLine(lastPrompt),

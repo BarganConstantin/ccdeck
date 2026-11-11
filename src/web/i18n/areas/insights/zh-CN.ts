@@ -546,7 +546,7 @@ const catalog: Catalog = {
   "insights.context.codex.uncounted": "Codex 不统计此项——ccdeck 是从 rollout 文件重建会话，并跳过连接之前写入的内容，因此这里的消息和工具调用明细会少算未知的数量。上方的窗口数值来自 CLI 本身，不受影响。",
   "insights.context.codex.memory": "适用范围内的 AGENTS.md 文件",
   "insights.context.codex.memoryEmpty": "从 cwd 到文件系统根目录的路径上，以及 $CODEX_HOME 中，都找不到 AGENTS.md 文件。",
-  "insights.context.claude.subtitle": "近似值——CC 的 /context 无法通过钩子获取",
+  "insights.context.claude.subtitle": "根据会话记录估算。",
   "insights.context.claude.scope": "当前回合",
   "insights.context.claude.memory": "适用范围内的 CLAUDE.md 文件",
   "insights.context.claude.memoryEmpty": "从 cwd 到 ~/.claude 的路径上找不到 CLAUDE.md 文件。",

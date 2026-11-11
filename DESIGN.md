@@ -391,8 +391,14 @@ canvas never leaves — so an open one is a `--text` line on the stripe's inner
 edge, never a tab joined to a page. The topbar keeps the identity, the stream's
 state, the waiting count with the names of who is waiting, and Settings and
 Feedback. Under 641px the stripes and those two become one dock along the
-bottom, `--dock-h` tall. Desktop names and shortcuts appear in hints, including
-when single-key shortcuts are disabled; mobile dock labels remain visible.
+bottom, `--dock-h` tall. A new profile's stripes show each door's word beside
+its glyph, `--edge-words-w` wide; "Hide words" at the left stripe's foot folds
+both to icons, and » brings the words back (`stripe-words.ts`, one choice per
+browser; a profile an earlier version wrote starts with icons). Under 1100px
+the stripes are icons whatever the choice, which is kept, and the switch is not
+drawn: the board needs the room. With icons,
+names and shortcuts appear in hints, including when single-key shortcuts are
+disabled; mobile dock labels remain visible.
 
 **The detail rail is the 360px column.** `--rail-r` is *not* its width — it is the
 right offset the floating panels position against: `368px` (the rail plus an 8px

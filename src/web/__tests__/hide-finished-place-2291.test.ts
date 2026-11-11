@@ -10,10 +10,14 @@
 // a round further down each time.
 //
 // Driven through snapshotToFlow with the real reducer, the real hide rule and
-// the call-back the board runs, in the order App runs them.
+// the call-back the board runs, in the order App runs them — and with the
+// board's flow (BoardFlow, the rail's order) as use-board-graph.ts hands it,
+// since the V4 critique's second round, so the board's first flow into its
+// columns is the one these sessions come back to.
 import { describe, expect, it } from "vitest";
 import type { Node } from "reactflow";
-import { snapshotToFlow } from "../canvas-flow";
+import { attentionOrder } from "../board-order";
+import { snapshotToFlow, type BoardFlow } from "../canvas-flow";
 import { markBroughtBack, retireHiddenTurns, sessionsToHide } from "../hide-finished";
 import { footprint, NODE_H, NODE_W } from "../layout-geometry";
 import { layoutSignature } from "../layout-signature";
@@ -45,6 +49,7 @@ function deck() {
   let since: ReadonlyMap<string, number> = new Map();
   let handled: ReadonlyMap<string, number> = new Map();
   const returning = new Set<string>();
+  const flow: BoardFlow = { flowed: { current: false }, order: () => attentionOrder(state, clock) };
 
   const send = (sid: string, payload: HookPayload, dt = 1_000) => {
     clock += dt;
@@ -71,7 +76,7 @@ function deck() {
       nodes = snapshotToFlow(
         state, now, 1400, 800, pinned, measured, prevSessionSize, () => {}, true, false,
         positions, provisional, layoutSignature(state.agents.values(), now, hidden, measured.size, 0), sigRef,
-        new Set(), null, ids, () => {}, true, new Set(), returning,
+        new Set(), null, ids, () => {}, true, new Set(), returning, flow,
       ).nodes;
       for (const id of positions.keys()) if (!measured.has(id)) measured.set(id, { width: NODE_W, height: NODE_H });
     }
@@ -304,7 +309,7 @@ describe("the wiring", () => {
     expect(hide).not.toBe("");
     expect(hide).not.toMatch(/positionsRef\.current\.delete|pinnedRef\.current\.delete/);
     expect(removals).toMatch(/returningRef\.current\.add\(id\)/);
-    expect(clientText("use-board-graph.ts")).toMatch(/restoredLayout\.restored, returningRef\.current,/);
+    expect(clientText("use-board-graph.ts")).toMatch(/restoredLayout\.restored, returningRef\.current, boardFlow,/);
   });
 
   it("retires the hidden turn ahead of the call-backs that bring a session back", () => {

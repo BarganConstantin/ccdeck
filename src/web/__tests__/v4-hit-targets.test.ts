@@ -75,9 +75,10 @@ const INSET: { control: string; target: string; box: [number, number]; inset: st
   // The version at the right end of the status bar: 54 x 16 -> 54 x 24, the
   // Compact bar's whole height.
   { control: ".statusbar-version", target: ".statusbar-version::after", box: [54, 16], inset: "-4px 0" },
-  // Resume in the board's "Auto-fit off" chip: 45 x 16 -> 53 x 24, the chip's
-  // outer edge.
-  { control: ".autofit-resume", target: ".autofit-resume::after", box: [45, 16], inset: "-4px -4px" },
+  // CHANGED ON PURPOSE: Resume, in the board's "Auto-fit off" strip, is gone;
+  // the whole strip is the "Fit all" button, 24 tall on its own (below).
+  // The info mark beside the Inspector's Agents title: 14 x 14 -> 24 x 24.
+  { control: ".insp-info", target: ".insp-info::after", box: [14, 14], inset: "-5px" },
   // The Inspector's tabs (Agents, Time, Context): ~70 x 20 -> ~72 x 24, the
   // pill's outer edge; 1px each side meets the next tab's in their 2px gap.
   { control: ".insp-tab", target: ".insp-tab::after", box: [70, 20], inset: "-2px -1px" },
@@ -130,6 +131,11 @@ describe("every pressable control has a 24 x 24 target (WCAG 2.5.8)", () => {
     expect(pseudo["height"], target).toBe(height);
     expect(pseudo["background"], target).toBeUndefined();
     expect(decls(control)["position"] ?? decls(":where(.glyph-btn)")["position"], control).toBe("relative");
+  });
+
+  it("gives the canvas's Fit all its 24px target in its own box, border included", () => {
+    expect(decls(".autofit-chip")["height"]).toBe("24px");
+    expect(decls(".autofit-chip")["box-sizing"]).toBe("border-box");
   });
 
   it("lets the recap note's close replace .glyph-btn's inset, which it ties with on specificity", () => {

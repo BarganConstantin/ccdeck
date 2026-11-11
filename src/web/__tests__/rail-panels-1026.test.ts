@@ -243,8 +243,10 @@ describe("the process table's column geometry does not rest on source order (#10
     expect(rule).not.toMatch(/padding-right/);
     // Still only the two that do something, and no more than that.
     // (Four since V4's motion rules: tokens.css's catch-all for a surface that
-    // carries data-motion=instant adds two, transition-duration and animation.)
-    expect(css.match(/!important/g)!.length).toBe(4);
+    // carries data-motion=instant adds two, transition-duration and animation.
+    // Five since critique 2: context-modal.css hides the board's "• now" note
+    // below the full card, against the visibility React Flow writes inline.)
+    expect(css.match(/!important/g)!.length).toBe(5);
   });
 
   it("pins the pid column at the index its neighbours' rules assume", () => {

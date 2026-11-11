@@ -119,7 +119,7 @@ export interface FlipPlan {
 }
 
 /** What one tile wears on one frame. The rim takes the whole transform; the
- *  body (face, rows, pill) only its translate, so its words stay 1:1. */
+ *  body (face, rows) only its translate, so its words stay 1:1. */
 export interface TileFrame {
   rim: string;
   body: string;

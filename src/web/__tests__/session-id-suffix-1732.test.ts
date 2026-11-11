@@ -65,15 +65,17 @@ describe("the usage list's BY SESSION rows", () => {
   });
 });
 
-describe("a cluster header's short id", () => {
+// CHANGED ON PURPOSE (owner's critique, 2026-11-11): the tail is in the pill's
+// tooltip now, beside when the session started, and not drawn on the pill.
+describe("a cluster header's id tail, in its tooltip", () => {
   it("differs between two Codex sessions in one workspace", () => {
-    expect(clusterHeader("ccdeck", undefined, MON, true).shortId)
-      .not.toBe(clusterHeader("ccdeck", undefined, THU, true).shortId);
+    expect(clusterHeader("ccdeck", undefined, MON).idTail)
+      .not.toBe(clusterHeader("ccdeck", undefined, THU).idTail);
   });
 
   it("still differs between two Claude sessions", () => {
-    expect(clusterHeader("ccdeck", undefined, V4A, true).shortId)
-      .not.toBe(clusterHeader("ccdeck", undefined, V4B, true).shortId);
+    expect(clusterHeader("ccdeck", undefined, V4A).idTail)
+      .not.toBe(clusterHeader("ccdeck", undefined, V4B).idTail);
   });
 
   it("grows on the canvas until the colliding sessions differ", () => {
@@ -87,7 +89,7 @@ describe("a cluster header's short id", () => {
     const x = "0190aaaa-0000-7000-8000-00000001beef";
     const y = "0190aaaa-0000-7000-8000-00000002beef";
     const [a, b] = clusterBounds([card(x, 0), card(y, 900)]);
-    expect(a.shortId).not.toBe(b.shortId);
+    expect(a.idTail).not.toBe(b.idTail);
   });
 });
 

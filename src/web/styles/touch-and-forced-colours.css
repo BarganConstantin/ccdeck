@@ -39,10 +39,9 @@
   .fc-tab,
   .fc-anon { min-height: 32px; }
   .fb-shot > .fb-shot-remove::after { inset: -6px; }
-  /* The canvas strips' one word each, Resume and Re-arrange's Undo, take the
-     floor too, and Undo drops the chord it names: a fingertip has no key to
-     press. The chip is 38px tall here, so the strip stacks 8px over that. */
-  .autofit-resume,
+  /* Fit all and Re-arrange's Undo take the floor too, and Undo drops the
+     chord it names: a fingertip has no key to press. */
+  .autofit-chip,
   .rearrange-undo-act { min-height: 32px; }
   .rearrange-undo-key { display: none; }
   /* The terminal stage's keys bar (terminal-stage.css) names keys the same
@@ -180,12 +179,10 @@
      maintenance (#1311). */
   [data-state="degraded"] .pi-dot { background: Canvas; box-shadow: inset 0 0 0 1.5px CanvasText; }
   [data-state="maintenance"] .pi-dot { background: GrayText; }
-  /* The tool legend's dot is the legend's own swatch and keeps its category's
-     colour; a hidden category's is a ring, kept as one in the text colour, so
-     the shape still says which categories the canvas is not showing. */
-  .cat-filter .cat-dot,
+  /* The tool filter's dot is its category's own swatch and keeps its colour;
+     a hidden category's is a ring, kept as one in the text colour, so the
+     shape still says which categories the canvas is not showing. */
   .cat-tools-item .cat-dot { forced-color-adjust: none; }
-  .cat-filter.off .cat-dot,
   .cat-tools-item.off .cat-dot { background: Canvas; border-color: CanvasText; }
 
   /* The network map's marks keep their shapes — filled for on, hollow for
@@ -443,16 +440,15 @@
   .ts-ctxbar i { background: CanvasText; }
   .ts-divider::before { background: CanvasText; }
 
-  /* The canvas strips' words — Resume, and Re-arrange's Undo — are set apart
-     from the status beside them by weight and by a fill under the pointer,
-     and the theme paints that fill Canvas. An edge in the button colour
-     carries each instead, Highlight under the pointer, so the one control in
-     each strip still reads as one. A border and not an outline, which would
-     replace the keyboard's ring. */
-  .autofit-resume,
+  /* Re-arrange's Undo is set apart from the status beside it by weight and
+     by a fill under the pointer, and the theme paints that fill Canvas. An
+     edge in the button colour carries it instead, so the one control in the
+     strip still reads as one; Fit all has its own edge. Both turn Highlight
+     under the pointer. A border and not an outline, which would replace the
+     keyboard's ring. */
   .rearrange-undo-act { border: 1px solid ButtonText; }
   @media (hover: hover) and (pointer: fine) {
-  .autofit-resume:hover,
+  .autofit-chip:hover,
   .rearrange-undo-act:hover { border-color: Highlight; }
   }
 

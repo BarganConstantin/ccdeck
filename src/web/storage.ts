@@ -115,3 +115,40 @@ export function pruneStaleState(store: Storeish, schema: string = STATE_SCHEMA):
   try { store.setItem(SCHEMA_KEY, schema); } catch { /* private mode */ }
   return removed;
 }
+
+/** The three panels a first run used to open by itself: Accounts, Usage and
+ *  This machine. Their flags read a missing value as shut now. */
+export const FIRST_RUN_PANEL_KEYS = ["agent-dag.accountsPanelOpen", "agent-dag.usagePanelOpen", "agent-dag.systemPanelOpen"];
+
+/** Set once the three flags above have been settled on this profile. */
+export const PANEL_DEFAULTS_KEY = "agent-dag.panelDefaults";
+
+/** Written by every earlier load (the detail flag on every one, phones too),
+ *  so a profile holding any of them is not a first run. */
+const EARLIER_LOAD_KEYS = [SCHEMA_KEY, "agent-dag.detailOpen", "agent-dag.sessionListOpen", ...FIRST_RUN_PANEL_KEYS];
+
+/**
+ * A first run opens no panel now (it used to open Accounts and Usage, and This
+ * machine where there was room), so a newcomer meets the board, not two panels
+ * saying what is not set up yet.
+ *
+ * Nobody else's deck changes. Once per profile, before anything reads them: on
+ * a profile an earlier load wrote to, each of the three flags still missing is
+ * stored as open, which is what it read as until now; a fresh profile is left
+ * as it is and gets the closed default. Returns the keys it stored.
+ */
+export function settlePanelDefaults(store: Storeish): string[] {
+  const read = (key: string): string | null => { try { return store.getItem(key); } catch { return null; } };
+  let settled: string | null = null;
+  try { settled = store.getItem(PANEL_DEFAULTS_KEY); } catch { return []; }
+  if (settled !== null) return [];
+  const pinned: string[] = [];
+  if (EARLIER_LOAD_KEYS.some(key => read(key) !== null)) {
+    for (const key of FIRST_RUN_PANEL_KEYS) {
+      if (read(key) !== null) continue;
+      try { store.setItem(key, "1"); pinned.push(key); } catch { /* private mode */ }
+    }
+  }
+  try { store.setItem(PANEL_DEFAULTS_KEY, "1"); } catch { /* private mode */ }
+  return pinned;
+}

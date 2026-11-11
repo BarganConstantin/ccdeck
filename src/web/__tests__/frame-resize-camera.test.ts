@@ -1,46 +1,44 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { Node } from 'reactflow';
-import { initialState } from '../reducer';
-import { columnsWouldChange } from '../layout';
 
 vi.mock('react', async orig => ({ ...(await orig<typeof import('react')>()), useEffect: (run: () => void) => run() }));
 const { useReframe } = await import('../use-reframe');
 
+// CHANGED ON PURPOSE (V4 critique, round 2): a frame change never re-columns
+// the board, so the reframe is handed no positions at all — only the frame it
+// compares against and the camera. The board flows on a fresh board's first
+// layout and on R (v4-board-columns.test.ts).
 const ref = <T>(current: T) => ({ current });
-function resize({ manual = false, focused = false } = {}) {
+function resize({ manual = false, focused = false, previous = { width: 1197, height: 650 }, next = { width: 475, height: 1475 } } = {}) {
   vi.stubGlobal('window', { setTimeout, clearTimeout });
-  const nodes: Node[] = [0, 1].map(i => ({ id: `s${i}`, type: 'agent', position: { x: i * 1200, y: 0 }, data: { sessionId: `s${i}` }, width: 260, height: 130 }));
-  const measured = new Map(nodes.map(n => [n.id, { width: 260, height: 130 }]));
-  const pins = new Map(nodes.map(n => [n.id, n.position]));
-  const previous = { width: 1197, height: 650 };
-  const next = { width: 475, height: 1475 };
-  expect(columnsWouldChange(nodes, [], { direction: 'LR', pinned: pins, measured, lanes: new Map() }, previous, next)).toBe(false);
   const fitLeft = vi.fn();
   const focusAgent = vi.fn();
-  const positions = new Map(pins);
-  const setLayoutEpoch = vi.fn();
   const epoch = ref(0);
   const disabled = ref(manual);
-  // Only members read by the hook are needed; the real packing decision above
-  // and the real effect below run, rather than a copy of their conditions.
-  useReframe({ nodes, edges: [], settled: true, dragging: false,
+  const frameRef = ref<{ width: number; height: number } | null>(previous);
+  useReframe({ settled: true, dragging: false,
     availableWidth: next.width, availableHeight: next.height,
-    layout: { lastLayoutFrameRef: ref(previous), pinnedRef: ref(pins), positionsRef: ref(positions), provisionalRef: ref(new Map()), lastLayoutSigRef: ref('stable'), setLayoutEpoch } as Parameters<typeof useReframe>[0]['layout'],
-    camera: { fitLeft, applyViewport: vi.fn(), cameraEpochRef: epoch, lastFitTimeRef: ref(0) } as Parameters<typeof useReframe>[0]['camera'],
-    rf: { getViewport: () => ({ x: 80, y: 0, zoom: 0.8 }) } as Parameters<typeof useReframe>[0]['rf'],
-    measuredRef: ref(measured), stateRef: ref(initialState()),
+    layout: { lastLayoutFrameRef: frameRef } as unknown as Parameters<typeof useReframe>[0]['layout'],
+    camera: { fitLeft, cameraEpochRef: epoch } as unknown as Parameters<typeof useReframe>[0]['camera'],
     lastFocusRef: ref(focused ? { id: 's0', at: Date.now() } : null),
-    primarySelectedIdRef: ref(focused ? 's0' : null), focusAgentRef: ref(focusAgent), autoFitDisabledRef: disabled,
+    focusAgentRef: ref(focusAgent), autoFitDisabledRef: disabled,
   });
-  return { fitLeft, focusAgent, positions, pins, setLayoutEpoch, epoch, disabled };
+  return { fitLeft, focusAgent, epoch, disabled, frameRef };
 }
 afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); });
-describe('camera when the frame shrinks without changing columns', () => {
-  it('refits a pinned board for a portrait frame without rearranging it', () => {
+describe('camera when the frame changes', () => {
+  it('refits the board for the new frame', () => {
     vi.useFakeTimers(); const s = resize(); vi.runAllTimers();
     expect(s.fitLeft).toHaveBeenCalledOnce();
-    expect(s.positions).toEqual(s.pins);
-    expect(s.setLayoutEpoch).not.toHaveBeenCalled();
+    expect(s.frameRef.current).toEqual({ width: 475, height: 1475 });
+  });
+  it('only refits when the panels close, where it used to re-column the board', () => {
+    // 457.5 -> 963.2: the accounts and usage panels closing on a 1280 window.
+    vi.useFakeTimers(); const s = resize({ previous: { width: 457.5, height: 503.1 }, next: { width: 963.2, height: 503.1 } }); vi.runAllTimers();
+    expect(s.fitLeft).toHaveBeenCalledOnce();
+  });
+  it('does nothing for a frame that has not moved', () => {
+    vi.useFakeTimers(); const s = resize({ next: { width: 1197, height: 650 } }); vi.runAllTimers();
+    expect(s.fitLeft).not.toHaveBeenCalled();
   });
   it('keeps a recently focused card in the new frame', () => {
     vi.useFakeTimers(); const s = resize({ manual: true, focused: true }); vi.runAllTimers();

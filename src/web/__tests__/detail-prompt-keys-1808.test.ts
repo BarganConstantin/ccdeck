@@ -69,23 +69,27 @@ const keyOf = (list: { key: string | null; text: string }[], shows: string) => {
   return hit[0].key;
 };
 
+// CHANGED ON PURPOSE (owner's critique, 2026-11-11): a background task's notice
+// is no longer listed, so the entries that keep their identity are the typed
+// prompts; a notice landing among them must not move their keys either.
 describe("the detail panel's prompt list keeps each entry's identity (#1808)", () => {
-  const A = { at: 10_000, text: notice('Background command "Watch CI" completed (exit code 0)') };
-  const B = { at: 20_000, text: notice('Background command "Build" completed (exit code 0)') };
+  const A = { at: 10_000, text: "watch CI please" };
+  const B = { at: 20_000, text: "now build it" };
   const typed = { at: 30_000, text: "ship it" };
 
-  it("keeps a notice's key when a newer notice arrives", () => {
-    const before = keyOf(render([A]), "Watch CI");
+  it("keeps a prompt's key when a newer prompt arrives", () => {
+    const before = keyOf(render([A]), "watch CI");
     const after = render([A, B]);
-    expect(keyOf(after, "Watch CI")).toBe(before);
-    // And the newcomer does not inherit it, which is what opened the wrong one.
-    expect(keyOf(after, "Build")).not.toBe(before);
+    expect(keyOf(after, "watch CI")).toBe(before);
+    // And the newcomer does not inherit it.
+    expect(keyOf(after, "build it")).not.toBe(before);
   });
 
-  it("keeps a notice's key when a typed prompt arrives", () => {
-    const before = keyOf(render([A, B]), "Watch CI");
-    expect(keyOf(render([A, B, typed]), "Watch CI")).toBe(before);
-    expect(keyOf(render([A, B, typed]), "Build")).toBe(keyOf(render([A, B]), "Build"));
+  it("keeps every key when a background task's notice arrives, and does not list the notice", () => {
+    const before = render([A, B]);
+    const after = render([A, { at: 25_000, text: notice('Background command "Watch CI" completed (exit code 0)') }, B]);
+    expect(after.map(e => e.key)).toEqual(before.map(e => e.key));
+    expect(after.map(e => e.text).join("\n")).not.toContain("Background command");
   });
 
   it("keeps the newer entries' keys when an older prompt is filed among them", () => {
@@ -94,11 +98,44 @@ describe("the detail panel's prompt list keeps each entry's identity (#1808)", (
     const early = { at: 15_000, text: "the one that was missed" };
     const before = render([A, B, typed]);
     const after = render([A, early, B, typed]);
-    for (const shows of ["Watch CI", "Build", "ship it"]) expect(keyOf(after, shows)).toBe(keyOf(before, shows));
+    for (const shows of ["watch CI", "build it", "ship it"]) expect(keyOf(after, shows)).toBe(keyOf(before, shows));
   });
 
   it("gives every entry a key of its own, even two filed at the same moment", () => {
     const list = render([A, { at: A.at, text: "same millisecond" }, B]);
     expect(new Set(list.map(e => e.key)).size).toBe(3);
+  });
+});
+
+describe("the detail panel's Prompts section (owner's critique, 2026-11-11)", () => {
+  const N = { at: 40_000, text: notice("Background command finished") };
+  /** The number in the Prompts heading, or null when there is no such section. */
+  const count = (prompts: PromptEntry[]): string | null => {
+    const find = (node: ReactNode): string | null => {
+      if (Array.isArray(node)) { for (const c of node) { const hit = find(c); if (hit != null) return hit; } return null; }
+      if (!node || typeof node !== "object" || !("props" in node)) return null;
+      const el = node as ReactElement<{ className?: string; children?: ReactNode }>;
+      if (el.props.className === "section-count" && el.type === "span") return textOf(el.props.children);
+      return find(el.props.children);
+    };
+    const tree = Detail({ agent: { ...agent(prompts), tools: [] }, now: 600_000, onOpenTool: () => {} });
+    // The tool calls' heading counts too; the Prompts one comes first.
+    const all: string[] = [];
+    const walk = (node: ReactNode) => {
+      if (Array.isArray(node)) return node.forEach(walk);
+      if (!node || typeof node !== "object" || !("props" in node)) return;
+      const el = node as ReactElement<{ className?: string; children?: ReactNode }>;
+      if (el.type === "h3" && textOf(el.props.children).startsWith("Prompts")) { all.push(find(el.props.children) ?? ""); return; }
+      walk(el.props.children);
+    };
+    walk(tree);
+    return all[0] ?? null;
+  };
+
+  it("counts only what was typed, and is not there when only notices arrived", () => {
+    expect(render([N])).toEqual([]);
+    expect(count([N])).toBeNull();
+    expect(count([{ at: 10_000, text: "ship it" }, N])).toBe("1");
+    expect(render([{ at: 10_000, text: "ship it" }, N]).map(e => e.text)).toEqual([expect.stringContaining("ship it")]);
   });
 });

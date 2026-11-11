@@ -114,6 +114,31 @@
   line-height: 20px;
 }
 .insp-title { font-weight: 600; color: var(--text); }
+/* The info mark after a title: the kit's 14px info glyph in --muted, its
+   sentence in a hover hint (Inspector.tsx). The target is ::after, 24 square
+   round the glyph, so the head row keeps its height. */
+.insp-info {
+  position: relative;
+  flex: none;
+  align-self: center;
+  display: inline-flex;
+  width: 14px;
+  height: 14px;
+  border-radius: var(--r-pill);
+  color: var(--muted);
+  cursor: help;
+}
+.insp-info::after { content: ""; position: absolute; inset: -5px; }
+.insp-info svg { width: 14px; height: 14px; }
+@media (hover: hover) and (pointer: fine) {
+.insp-info:hover { color: var(--text); }
+}
+.ap-peek.insp-hint {
+  width: min(252px, calc(100vw - 16px));
+  font-size: calc(12px + var(--ui-text-increase, 0px));
+  line-height: 16px;
+  color: var(--text-secondary);
+}
 .insp-qual { color: var(--muted); }
 .insp-spacer { flex: 1; }
 .insp-fig {
@@ -239,6 +264,9 @@
   color: var(--muted);
 }
 .insp-time-arg { flex: 1 1 auto; min-width: 0; margin-left: 4px; text-align: right; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* A path is two spans in a flex box, which text-align does not move; an auto
+   margin does, and never pushes them out at the left. */
+.insp-time-arg.path-text > :first-child { margin-left: auto; }
 /* The duration rides the lane, right of the bar (its place is set inline). */
 .insp-time-took { position: absolute; top: 5px; white-space: nowrap; }
 .insp-time-fold {

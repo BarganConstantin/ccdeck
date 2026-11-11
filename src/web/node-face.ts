@@ -252,3 +252,21 @@ export function cardState(data: Pick<AgentNodeData, "kind" | "state" | "stopFail
     : shown === "done" ? { tone: "done", word: t("board.card.stateDone"), mark }
     : { tone: "err", word: t("board.card.stateFailed"), mark };
 }
+
+/**
+ * The status a card wears at a distance, and its hover says (owner's critique,
+ * 2026-11-11): the card's mark and word, Working, Done, Waiting, Ready or
+ * Failed. A finished card whose calls failed says how many beside the cross,
+ * never "Done" beside it (markBesideFailures). The mark tells the state by its
+ * shape as well as its colour, so a face too narrow for the word still says it.
+ */
+export function faceStatus(
+  data: Pick<AgentNodeData, "kind" | "state" | "stopFailure" | "waiting" | "prompts" | "toolCount" | "job" | "toolErrorCount">,
+  tr: TFunction = t,
+): CardState {
+  const state = cardState(data);
+  if (state.mark === "alert") return state;
+  const failed = data.toolErrorCount ?? 0;
+  const mark = markBesideFailures(state.mark, failed);
+  return mark === state.mark ? state : { tone: "err", word: tr("board.failedCount", { n: failed }), mark };
+}

@@ -1354,14 +1354,12 @@ describe("every control that draws a boundary draws one that can be seen (1.4.11
       // A key cap: named by the key written in it (and `.qo-esc` by its word);
       // V4's kit gives it the --line hairline, a label's rim and not a boundary.
       "kbd.qo-key", ".qo-esc", ".qo-foot kbd", ".fb-shortcut kbd",
-      // CHANGED ON PURPOSE (V4's legend): the category filter's items draw no
-      // rim any more, so `.cat-filter` and `.cat-filter.off` left this list.
-      // What draws a border is a hidden category's dot: a 1.5px ring in
-      // --text-dim inside the item, a state mark (its shape is the state, as
-      // the ticked checkbox's fill is) and not the control's boundary. The
-      // item is named by that dot and its word, the identification 1.4.11
-      // accepts in place of a boundary.
-      ".cat-filter.off .cat-dot",
+      // CHANGED ON PURPOSE: the category filter's legend items are gone (one
+      // Tools button at every width), so `.cat-filter.off .cat-dot` left this
+      // list. The canvas's "Fit all" is a button now, where it was a strip
+      // around Resume: its --line-soft rim on --panel is the surface edge the
+      // canvas's instruments share, and it is named by its word and glyph.
+      ".autofit-chip",
       // CHANGED ON PURPOSE (V4's Figma): the Auto-switch chips are the same
       // pills — a --line rim at rest, and the chosen one filled with
       // --accent-16 and edged in --accent — each named by its own word.

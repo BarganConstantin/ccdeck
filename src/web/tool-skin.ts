@@ -277,6 +277,9 @@ function skinForShellCall(toolName: string, input: unknown): CommandSkin | null 
 
 const FILE_TOOLS = new Set(["Read", "Write", "Edit", "MultiEdit", "NotebookEdit", "LS", "Glob", "apply_patch"]);
 
+/** Whether a tool works on a file or a folder, so what it ran on is a path. */
+export const isFileTool = (toolName: string): boolean => FILE_TOOLS.has(toolName);
+
 /** Emoji by file extension — covers code / config / docs / media / etc.
  *  Picked so each ext is visually distinct from neighbours at low zoom. */
 const EXT_EMOJI: Record<string, string> = {

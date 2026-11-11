@@ -36,8 +36,10 @@ export interface QuickItem {
    *  something is typed, and in Recent like any row once opened. */
   pinned?: true;
   title: string;
-  /** One muted line after the title: a session's state, a door's purpose. */
+  /** One muted line after the title: a session's folder and task, a door's purpose. */
   subtitle?: string;
+  /** The row's hover: for a session, when it started and its id's tail. */
+  hint?: string;
   /** Words that find the item without being in its title: "cost" for Usage. */
   keywords?: readonly string[];
   /** The word on the row's right: Panel, Dialog, Session, Theme. */

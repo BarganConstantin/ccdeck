@@ -10,11 +10,11 @@
 // its new place when both have left (rail-model.ts holdOrder, rail-motion.ts).
 import { useEffect, useMemo, useReducer, useRef, useState, type MouseEvent, type ReactNode } from "react";
 import { isAlarming } from "../ambient-counts";
-import { t as translate, useT } from "../i18n";
+import { useT } from "../i18n";
 import { agentCost } from "../usage-models";
 import type { GraphState } from "../reducer";
 import type { BackgroundJob, SessionRecap, WaitingBlock } from "../types";
-import { promptLine, sessionNoteShown, type SessionNote } from "../session-note";
+import { sessionNoteShown, type SessionNote } from "../session-note";
 import { drawnState, neverPrompted } from "../node-face";
 import { isAgentVisible } from "../visibility";
 import { withKey } from "../single-key-shortcuts";
@@ -27,8 +27,7 @@ import {
 } from "../rail-model";
 import { leaveHoldMs, useRailFlip, useRailMembership } from "../rail-motion";
 import { prefersReducedMotion } from "../viewport-motion";
-import { rowTells, runningTool, sameWords, type RowTell } from "../rail-row-copy";
-import { sessionListName } from "../session-display";
+import { runningTool, sessionNames, startedHover } from "../rail-row-copy";
 import { PauseGlyph } from "./rail-glyphs";
 import { CloseGlyph, FoldBody, GroupHead, MoreLine, PlusGlyph, RailGlyph, RailRow, RailUsage, type FoldMode } from "./RailParts";
 
@@ -84,12 +83,12 @@ export interface Row {
   /** The session's folder, when the title is something else: a named row
    *  still says where it runs. Absent when the title is the folder. */
   folder?: string;
-  /** The first line of the session's first prompt, when the title is something
-   *  else: what tells unnamed sessions in one folder apart (rowTells). */
+  /** What a person last asked it, one line (rail-row-copy.ts sessionTask),
+   *  when that is not the title again. With the folder, the second line. */
   task?: string;
-  /** The second line's one quiet lead (rail-row-copy.ts rowTells): the folder
-   *  under a name of its own, or what tells this row from another of its name. */
-  tell?: RowTell;
+  /** When it started and its id's tail (startedHover), for the tooltip: what
+   *  tells two rows of one name apart without drawing it. */
+  hover?: string;
 }
 
 /** Where a row sorts, as the rail's five groups, before activity is looked at:
@@ -157,12 +156,8 @@ export function buildRows(state: GraphState, now: number, watching?: ReadonlySet
     const recap = note?.kind === "recap" ? { text: note.text, at: note.at } : null;
     const status = note && note.kind !== "recap" ? note : null;
     const ended = turnEndedAt(a);
-    // Named as its card is, so the row reads what Claude Code's prompt shows
-    // rather than "Desktop" four times; the folder only when there is no name.
-    const label = sessionListName(a) ?? translate("board.kind.session");
-    const folder = a.cwdBasename && !sameWords(a.cwdBasename, label) ? a.cwdBasename : "";
-    const asked = a.firstPrompt ? promptLine(a.firstPrompt) : "";
-    const task = asked && !sameWords(asked, label) ? asked : "";
+    // Named as every surface names it (rail-row-copy.ts sessionNames).
+    const { title: label, folder, task } = sessionNames(a);
     rows.push({
       sessionId: a.sessionId,
       label,
@@ -211,11 +206,8 @@ export function buildRows(state: GraphState, now: number, watching?: ReadonlySet
     return y.lastActivity - x.lastActivity;
   });
   // On the row, so a row that leaves keeps saying it while it fades.
-  const tells = rowTells(rows, now);
-  for (const r of rows) {
-    const tell = tells.get(r.sessionId);
-    if (tell) r.tell = tell;
-  }
+  const ids = rows.map(r => r.sessionId);
+  for (const r of rows) r.hover = startedHover(r.startedAt, r.sessionId, ids, now);
   return rows;
 }
 

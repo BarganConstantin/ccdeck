@@ -46,7 +46,7 @@ export default function CanvasMain({ canvasRef, bubbling, dragging, trash, zoom,
   const { trashDragging, trashState, trashPhase, trashZoneRef, trashLabel } = trash;
   const { lod, lodRef } = zoom;
   const { markCanvasInput } = viewport;
-  const { peekAgent, peekLabel, peekRecap, peekBounds } = peek;
+  const { peekAgent, peekLabel, peekPeers, peekRecap, peekBounds } = peek;
   return (
     /* <main>, because the canvas is what this page is: everything else on
        screen — the toolbar above it, the panels beside it — exists to
@@ -117,6 +117,7 @@ export default function CanvasMain({ canvasRef, bubbling, dragging, trash, zoom,
         agentFor={peekAgent}
         recapFor={peekRecap}
         labelFor={peekLabel}
+        peers={peekPeers}
         bounds={peekBounds}
       />
     </main>

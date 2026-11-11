@@ -173,7 +173,7 @@ clamping and cleanup must agree. Intentional floor walks, falls and climbing
 remain part of the animation; distinguish these from accidental floating beyond
 the map's ledge. The regression test is `fm-ledge-bounds.test.ts`.
 
-The bottom Auto-fit / Resume chip and temporary Layout re-arranged / Undo notice
+The bottom Fit all button (while auto-fit is off) and temporary Layout re-arranged / Undo notice
 share a horizontal `.canvas-notices` row. Keep them side by side at narrow widths,
 with readable controls, and use the whole row for character obstacle detection.
 

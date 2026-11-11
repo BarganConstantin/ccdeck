@@ -588,7 +588,9 @@ describe("ContextModal copy follows the provider", () => {
     // false for a session whose CLI states the number itself.
     expect(copyFor("codex").subtitle).not.toContain("/context");
     expect(copyFor("codex").subtitle).not.toContain("approximation");
-    expect(copyFor("claude").subtitle).toContain("approximation");
+    expect(copyFor("codex").subtitle).not.toMatch(/estimated/i);
+    // CHANGED ON PURPOSE: the Claude line says it plainly, with no hook jargon.
+    expect(copyFor("claude").subtitle).toBe("Estimated from the transcript.");
   });
 
   it("says the composition is not counted for Codex rather than printing zeroes", () => {

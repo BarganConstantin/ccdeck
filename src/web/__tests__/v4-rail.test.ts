@@ -472,21 +472,27 @@ describe("what each row says", () => {
   const rows = () => { const s = board(); return buildRows(s, T0 + 100_000); };
   const row = (id: string) => rows().find(r => r.sessionId === id)!;
   const line = (id: string) => railLine(row(id), rank(row(id)));
+  const tip = (id: string) => rowTooltip(row(id), false);
   const time = (id: string) => railTime(row(id), rank(row(id)), T0 + 100_000);
 
   it("names the blocked tool and what it wants, or asks the question", () => {
     expect(line("perm")).toMatchObject({ kind: "tool", name: "Bash" });
     expect((line("perm") as { rest: string }).rest).toContain("npm test");
-    expect(line("ask")).toEqual({ kind: "mono", text: "Asks · which database?" });
+    // CHANGED ON PURPOSE (owner's critique, 2026-11-11): words in the UI face.
+    expect(line("ask")).toEqual({ kind: "words", text: "Asks · which database?" });
   });
 
-  it("names the running tool; a background row says the job's own line", () => {
-    expect(line("work")).toMatchObject({ kind: "tool", name: "Edit" });
-    expect(line("bg")).toEqual({ kind: "sans", text: "Turn ended · 2 shells still running" });
+  // CHANGED ON PURPOSE (owner's critique, 2026-11-11): a row not waiting on you
+  // reads folder · task (rail-row-copy.ts railLine). What it runs, and a
+  // background job's line, are its tooltip's.
+  it("names the running tool in the tooltip; a background row's tooltip says the job's own line", () => {
+    expect(line("work")?.kind).toBe("words");
+    expect(tip("work")).toMatch(/^Edit · /m);
+    expect(tip("bg")).toContain("2 shells still running");
   });
 
   it("invites a first prompt on a session that never had one, and gives it no clock", () => {
-    expect(line("fresh")).toEqual({ kind: "sans", text: "Ready for a first prompt" });
+    expect(line("fresh")).toEqual({ kind: "words", text: "Ready for a first prompt" });
     expect(time("fresh")).toBeNull();
   });
 
@@ -802,11 +808,12 @@ describe("review fixes: what the rows sort and say", () => {
     expect(runningTool({ name: "Bash" }).preview).toBe("");
     for (const t of [{ name: "Bash", input: { command: "ls" } }, { name: "x", input: { q: [1] } }]) expect(runningTool(t).preview).not.toMatch(/[{}"]/);
     const row = buildRows(board(), T0 + 100_000).find(r => r.sessionId === "work")!;
-    expect(railLine(row, 1)).toEqual({ kind: "tool", name: "Edit", rest: "src/a.ts" });
+    // CHANGED ON PURPOSE (owner's critique, 2026-11-11): read in the tooltip.
+    expect(rowTooltip(row, false)).toMatch(/^Edit · [^\n]*src\/a\.ts$/m);
   });
 
   // Design recommendations (2026-11-09): a phone cut "Edit · /home/constantin/Deskt…" before the
-  // file's name. The row says the path from the session's folder; the tooltip keeps it whole.
+  // file's name. rowPath says the path from the session's folder; the tooltip keeps it whole.
   it("says a file's path from the session's folder, else its last two segments, whole in the tooltip", () => {
     expect(rowPath("/home/me/work/docs-site/docs/install.md", "/home/me/work/docs-site")).toBe("docs/install.md");
     expect(rowPath("/home/me/work/docs-site/docs/install.md", "/home/me/work/docs-site/")).toBe("docs/install.md");
@@ -824,14 +831,14 @@ describe("review fixes: what the rows sort and say", () => {
     s = send(s, "docs", { hook_event_name: "PreToolUse", tool_name: "Edit", tool_use_id: "e1", tool_input: { file_path: long } }, 2);
     const row = buildRows(s, T0 + 10_000).find(r => r.sessionId === "docs")!;
     expect(row.tool).toEqual({ name: "Edit", preview: long, path: true });
-    expect(railLine(row, 1)).toEqual({ kind: "tool", name: "Edit", rest: "…/docs/install.md" });
+    expect(rowTooltip(row, false)).not.toContain("…/docs/install.md");
     expect(rowTooltip(row, false)).toContain(`Edit · ${long}`);
-    // A command is not a path: as it is, and not repeated in the tooltip.
+    // A command is not a path: as it is, in the tooltip too (CHANGED ON
+    // PURPOSE, owner's critique 2026-11-11: the row no longer draws it).
     s = send(s, "docs", { hook_event_name: "PostToolUse", tool_name: "Edit", tool_use_id: "e1" } as HookPayload, 3);
     s = send(s, "docs", { hook_event_name: "PreToolUse", tool_name: "Bash", tool_use_id: "b1", tool_input: { command: "npm run build -- --mode a/b/c" } }, 4);
     const bash = buildRows(s, T0 + 10_000).find(r => r.sessionId === "docs")!;
-    expect(railLine(bash, 1)).toEqual({ kind: "tool", name: "Bash", rest: "npm run build -- --mode a/b/c" });
-    expect(rowTooltip(bash, false)).not.toContain("Bash · ");
+    expect(rowTooltip(bash, false)).toContain("Bash · npm run build -- --mode a/b/c");
   });
 
   it("keeps in the button what the tooltip alone would lose: the plan, the tag, the tool count, the cost, the suggested reply", () => {

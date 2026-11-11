@@ -291,7 +291,6 @@ function sources(extra: Partial<Parameters<typeof quickOpenItems>[0]> = {}) {
   const src = {
     rails,
     sessions: [] as Row[],
-    now: 100_000,
     openSession: vi.fn(),
     settings: indexFor(true),
     openSettings: vi.fn(),
@@ -412,36 +411,35 @@ describe("the rows the deck offers", () => {
   });
 });
 
+// CHANGED ON PURPOSE (owner's critique, 2026-11-11): the line said the ask, the
+// turn's time or the summary, then the folder. A session is named one way on
+// every surface now: its title, then folder · task (rail-row-copy.ts namesLine),
+// and when it started with its id's tail in the hover.
 describe("a session's line", () => {
-  const row = (o: Partial<Row>) => ({ state: "active" as const, label: "fix login", cwdBasename: "api", waiting: null, startedAt: 0, ...o }) as Row;
+  const row = (o: Partial<Row>) => ({ state: "active" as const, label: "fix login", sessionId: "s1", waiting: null, startedAt: 0, ...o }) as Row;
 
-  // CHANGED ON PURPOSE (V4's Figma): the hint is the ask while it waits, the turn's time while it
-  // works, the summary once done, lowercase; the state is the rail row's glyph.
-  // CHANGED ON PURPOSE (design recommendations, 2026-11-09): a session never given a prompt says
-  // "ready", as its card and its list group do, where it said "idle".
-  it("says what it asks, how long it has worked, what it did, or that it is ready, and where it runs", () => {
-    const ask = { kind: "permission", since: 40_000, tool: { name: "Bash", preview: "npm test -- rate-limit" } } as Row["waiting"];
-    expect(sessionLine(row({ waiting: ask }), 100_000)).toEqual({ line: "Bash · npm test -- rate-limit · api", tone: "waiting" });
-    expect(sessionLine(row({ turnStartedAt: 28_000 }), 300_000)).toEqual({ line: "working 4m 32s · api", tone: "working" });
-    expect(sessionLine(row({ state: "done", unseen: true, recap: { text: "Both deploy keys rotated, old ones revoked", at: 1 } }), 100_000))
-      .toEqual({ line: "Both deploy keys rotated, old ones revoked · api", tone: "done" });
-    expect(sessionLine(row({ neverPrompted: true }), 100_000)).toEqual({ line: "ready · api", tone: "idle" });
-    expect(sessionLine(row({ state: "err" }), 100_000)).toEqual({ line: "failed · api", tone: "error" });
+  it("says folder · task under a title of its own, the task alone under a title that is the folder", () => {
+    expect(sessionLine(row({ folder: "api", task: "rotate the deploy keys" }))).toEqual({ line: "api · rotate the deploy keys", tone: "working" });
+    expect(sessionLine(row({ label: "api", task: "rotate the deploy keys" })).line).toBe("rotate the deploy keys");
+    expect(sessionLine(row({ folder: "api" })).line).toBe("api");
   });
 
-  it("falls back on the state's own word when there is nothing more to say", () => {
-    expect(sessionLine(row({ state: "done", unseen: true }), 100_000).line).toBe("done · api");
-    // A finished turn already seen is Done too, with the Done glyph, as the
-    // card and the list's Done group say it (it said "idle" under a ring).
-    expect(sessionLine(row({ state: "done" }), 100_000)).toEqual({ line: "done · api", tone: "done" });
-    expect(sessionLine(row({ waiting: { kind: "idle", since: 40_000 } as Row["waiting"] }), 100_000))
-      .toEqual({ line: "done · api", tone: "done" });
-    // A permission wait with no tool to name says what its rail row says.
-    expect(sessionLine(row({ waiting: { kind: "permission", since: 40_000 } as Row["waiting"] }), 100_000).line).toBe("Needs your permission · api");
+  it("has no line when there is neither, and keeps the rail's glyph as its tone", () => {
+    expect(sessionLine(row({ label: "api" })).line).toBe("");
+    expect(sessionLine(row({ neverPrompted: true })).tone).toBe("idle");
+    expect(sessionLine(row({ state: "err" })).tone).toBe("error");
+    expect(sessionLine(row({ waiting: { kind: "permission", since: 1 } as Row["waiting"] })).tone).toBe("waiting");
   });
 
-  it("does not repeat a folder that is the session's own name", () => {
-    expect(sessionLine(row({ label: "api" }), 0).line).toBe("working <1s");
+  it("puts the line under the title, and when it started in the hover, never on the row", () => {
+    const hover = "Started 14:32 · 4efa";
+    const items = sources({ sessions: [row({ folder: "api", task: "rotate the deploy keys", hover })] }).items;
+    const item = items.find(i => i.title === "fix login")!;
+    expect(item.subtitle).toBe("api · rotate the deploy keys");
+    expect(item.hint).toBe(hover);
+    expect(JSON.stringify({ title: item.title, subtitle: item.subtitle })).not.toContain("4efa");
+    const bare = sources({ sessions: [row({ label: "api" })] }).items.find(i => i.title === "api")!;
+    expect(bare).not.toHaveProperty("subtitle");
   });
 });
 

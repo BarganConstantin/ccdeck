@@ -72,7 +72,9 @@ describe("#800 — the session list", () => {
     expect(app).toContain("onPress: toggleSessionList");
     expect(app).toContain("onClick={() => item.onPress()}");
     expect(left(false).get("session-list"), "no Session list on the left stripe").toBeTruthy();
-    expect(attr(left(false).get("session-list")!, "aria-label")).toBe("Session list");
+    // CHANGED ON PURPOSE (stripe words critique): the stripe shows "Sessions"
+    // on a new profile, and the door is named by the word it shows (WCAG 2.5.3).
+    expect(attr(left(false).get("session-list")!, "aria-label")).toBe("Sessions");
     const chrome = items();
     const dock = buttons(draw(createElement(EdgeDock, { items: [...chrome.left, ...chrome.right[0], chrome.utilities[0]], more: [...chrome.right[1], chrome.utilities[1]] })));
     expect(dock.get("session-list"), "no Sessions in the phone's dock").toBeTruthy();

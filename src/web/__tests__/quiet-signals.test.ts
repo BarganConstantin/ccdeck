@@ -189,38 +189,44 @@ describe("the contrast maths, checked against the two ends everybody knows", () 
 });
 
 describe("1. the tool-category chip you switched off (#368.1)", () => {
-  /** What an item's word actually sits on. CHANGED ON PURPOSE (V4's Figma):
-   *  the bar was a slab with a fill of its own; the legend that replaced it
-   *  draws none at rest, so the bed is the canvas itself, --bg per theme. */
-  function chipBar(theme: Theme): Rgba {
-    expect(declOf(".cat-filter-bar", "background"), "the legend draws no slab at rest").toBe("none");
-    return tok("--bg", theme);
+  /** What a category's word actually sits on. CHANGED ON PURPOSE: the legend on
+   *  the canvas is gone; the toggles are the Tools menu's rows (one button at
+   *  every width), on the popover's --panel. */
+  function menuBed(theme: Theme): Rgba {
+    expect(declOf(".anchored-popover", "background"), "the menu's surface").toBe("var(--panel)");
+    return tok("--panel", theme);
+  }
+  /** The kit's menu row under the pointer: --selected, 8% of --text over --panel. */
+  function hoveredBed(theme: Theme): Rgba {
+    expect(TOK[theme]["--selected"]).toBe("color-mix(in srgb, var(--text) 8%, var(--panel))");
+    const text = tok("--text", theme);
+    return over([text[0], text[1], text[2], 0.08], tok("--panel", theme));
   }
 
-  it("carries `off` on the colour tier alone — no opacity anywhere on the chip", () => {
+  it("carries `off` on the colour tier alone — no opacity anywhere on the row", () => {
     // This is the regression that matters: any alpha at all puts --muted under
     // AA in dark, because it only clears it by 0.30 at full strength.
-    expect(declOf(".cat-filter.off", "opacity"), "resting").toBeNull();
-    // One hover rule serves both states now (V4's legend).
-    expect(declOf(".cat-filter:hover", "opacity"), "hover").toBeNull();
-    // And the now-dead property is gone from the chip's transition list.
-    expect(declOf(".cat-filter", "transition")).not.toMatch(/opacity/);
+    expect(declOf(".cat-tools-item.off", "opacity"), "resting").toBeNull();
+    expect(declOf(".ap-menu-item:hover:not(:disabled)", "opacity"), "hover").toBeNull();
+    expect(declOf(".ap-menu-item", "transition") ?? "").not.toMatch(/opacity/);
   });
 
   it("reads the off label at 4.5:1 on what it sits on, in both themes", () => {
     // Composites whatever `opacity` the rule declares, because that is the
     // mechanism: the fade applied to the chip applied to its label too.
     for (const theme of themes) {
-      const bed = chipBar(theme);
-      const fg = resolve(declOf(".cat-filter.off", "color")!, theme);
-      const alpha = +(declOf(".cat-filter.off", "opacity") ?? 1);
-      expect(contrastRatio(faded(fg, alpha, bed), bed), `${theme} off chip`).toBeGreaterThanOrEqual(BODY);
+      const bed = menuBed(theme);
+      const fg = resolve(declOf(".cat-tools-item.off", "color")!, theme);
+      const alpha = +(declOf(".cat-tools-item.off", "opacity") ?? 1);
+      expect(contrastRatio(faded(fg, alpha, bed), bed), `${theme} off row`).toBeGreaterThanOrEqual(BODY);
     }
   });
 
   it("shows there is no opacity that would have worked — 0.9 is still under AA in dark", () => {
     // The report proposed `opacity: 0.75` as the floor. It is 3.23:1.
-    const bed = chipBar("dark");
+    // CHANGED ON PURPOSE: the demonstration stays on the bare canvas it was
+    // last measured on; it is about fading a label, not about this control.
+    const bed = tok("--bg", "dark");
     // CHANGED ON PURPOSE: the off label is --text-secondary now (V4's Figma), so
     // the demonstration is pinned to the --muted label it was written about;
     // it shows that fading a label cannot reach AA, whatever the label is.
@@ -234,32 +240,34 @@ describe("1. the tool-category chip you switched off (#368.1)", () => {
     expect(contrastRatio(fg, bed)).toBeGreaterThanOrEqual(BODY);
   });
 
-  it("never lets the pointer take contrast away — off:hover is louder than off", () => {
+  it("never lets the pointer take contrast away — off:hover is louder than off, and reads at 4.5:1", () => {
+    // CHANGED ON PURPOSE: a menu row answers the pointer with the --selected
+    // bed, where --text-dim is 3.95:1 in dark, so a hidden row's word lifts to
+    // --text-secondary under it. It comes after `.off` at a higher weight.
+    expect(declOf(".ap-menu-item:hover:not(:disabled)", "color")).toBeNull();
     for (const theme of themes) {
-      const bed = chipBar(theme);
-      const rest = contrastRatio(resolve(declOf(".cat-filter.off", "color")!, theme), bed);
-      // CHANGED ON PURPOSE (V4's legend): one hover rule lifts every item's
-      // word to --text, a hidden one's too. It comes after `.off` at the same
-      // weight, which is what lets it outrank the dim tier.
-      const hover = contrastRatio(resolve(declOf(".cat-filter:hover", "color")!, theme), bed);
-      expect(hover, `${theme} off:hover vs off`).toBeGreaterThan(rest);
+      const rest = resolve(declOf(".cat-tools-item.off", "color")!, theme);
+      const lifted = resolve(declOf(".cat-tools-item.off:hover", "color")!, theme);
+      const bed = hoveredBed(theme);
+      expect(contrastRatio(lifted, bed), `${theme} off row under the pointer`).toBeGreaterThanOrEqual(BODY);
+      expect(contrastRatio(lifted, bed), `${theme} off:hover vs off`).toBeGreaterThan(contrastRatio(rest, bed));
     }
-    expect(css.indexOf("\n.cat-filter:hover"), "the hover rule follows .off").toBeGreaterThan(css.indexOf("\n.cat-filter.off {"));
+    expect(css.indexOf("\n.cat-tools-item.off:hover"), "the hover rule follows .off").toBeGreaterThan(css.indexOf("\n.cat-tools-item.off {"));
   });
 
   it("still reads off as the quieter of the two states, and on as fully lit", () => {
     for (const theme of themes) {
-      const bed = chipBar(theme);
-      const on = contrastRatio(resolve(declOf(".cat-filter", "color")!, theme), bed);
-      const off = contrastRatio(resolve(declOf(".cat-filter.off", "color")!, theme), bed);
-      expect(on, `${theme} on chip`).toBeGreaterThanOrEqual(BODY);
+      const bed = menuBed(theme);
+      const on = contrastRatio(resolve(declOf(".ap-menu-item", "color")!, theme), bed);
+      const off = contrastRatio(resolve(declOf(".cat-tools-item.off", "color")!, theme), bed);
+      expect(on, `${theme} on row`).toBeGreaterThanOrEqual(BODY);
       expect(off, `${theme} off is quieter`).toBeLessThan(on);
     }
-    // CHANGED ON PURPOSE (V4's legend): the channel that is not a colour is
-    // the dot's shape now, a filled disc against a hollow ring, where it was a
-    // strike through the name.
-    expect(declOf(".cat-filter.off .cat-dot", "background")).toBe("transparent");
-    expect(declOf(".cat-filter.off .cat-dot", "border")).toBe("1.5px solid var(--text-dim)");
+    // CHANGED ON PURPOSE (V4's legend): the channels that are not a colour are
+    // the checkbox's tick and the dot's shape, a filled disc against a hollow
+    // ring, where it was a strike through the name.
+    expect(declOf(".cat-tools-item.off .cat-dot", "background")).toBe("transparent");
+    expect(declOf(".cat-tools-item.off .cat-dot", "border")).toBe("1.5px solid var(--text-dim)");
   });
 });
 

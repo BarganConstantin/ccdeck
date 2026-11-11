@@ -518,7 +518,10 @@ describe("what each of the four toggles announces", () => {
     expect(chrome.left.map(i => i.id)).toEqual(["accounts", "session-list"]);
     const html = draw(createElement(EdgeRail, { side: "left", label: "Left column", groups: [chrome.left] }));
     expect(html).toMatch(/data-rail-item="session-list"[^>]*>\s*<svg /);
-    expect(buttons(html).get("session-list") && attr(buttons(html).get("session-list")!, "aria-label")).toBe("Session list");
+    // CHANGED ON PURPOSE (stripe words critique): a new profile's stripe shows
+    // the door's word, and a door is named by the word it shows (WCAG 2.5.3),
+    // the panel's own title. With the words hidden it is "Session list" again.
+    expect(buttons(html).get("session-list") && attr(buttons(html).get("session-list")!, "aria-label")).toBe("Sessions");
     // And on a phone, in the dock — the stripes give way to it there.
     const dock = draw(createElement(EdgeDock, { items: [...chrome.left, ...chrome.right[0], chrome.utilities[0]], more: [...chrome.right[1], chrome.utilities[1]] }));
     expect(attr(buttons(dock).get("session-list")!, "aria-expanded")).toBe("false");
@@ -642,10 +645,13 @@ describe("the category filter chips, handed over from #368", () => {
   // The chips are components/CategoryFilterBar.tsx's, which App.tsx mounts.
   const bar = markup("components/CategoryFilterBar.tsx");
 
-  it("reports pressed state, and pressed means the category is showing", () => {
-    // The chip's own label is the category name — "edit", not "hide edit" — so
-    // pressed has to mean the category is on. `off` is the hidden set.
-    expect(bar).toMatch(/aria-pressed=\{!off\}/);
+  it("reports its state, and checked means the category is showing", () => {
+    // The row's own label is the category name — "edit", not "hide edit" — so
+    // checked has to mean the category is on. `off` is the hidden set.
+    // CHANGED ON PURPOSE: the legend's pressed items are gone; every width
+    // has the Tools menu, whose rows are the kit's checkboxes.
+    expect(bar).toMatch(/<Checkbox checked=\{!off\} onChange=\{\(\) => toggleCat\(c\)\} \/>/);
+    expect(bar).not.toMatch(/aria-pressed/);
   });
 
   it("dropped role=\"toolbar\" rather than promising arrow keys it does not implement", () => {
@@ -670,31 +676,30 @@ describe("the category filter chips, handed over from #368", () => {
     // in the category's colour while it shows and a hollow ring in --text-dim
     // once it is hidden, where it was a strike through the pill's name. Drawn
     // as a border, so a Contrast theme keeps the ring.
+    // CHANGED ON PURPOSE: the dot and the tick live in the Tools menu's rows.
     expect(markup("components/CategoryFilterBar.tsx")).toMatch(/<span className="cat-dot" aria-hidden="true" \/>/);
-    expect(decl(".cat-filter.off .cat-dot", "background")).toBe("transparent");
-    expect(decl(".cat-filter.off .cat-dot", "border")).toBe("1.5px solid var(--text-dim)");
-    expect(RULES.some(r => selectors(r.selector).includes(".cat-filter.off .cat-name")), "the strike is gone with the pill").toBe(false);
+    expect(decl(".cat-tools-item.off .cat-dot", "background")).toBe("transparent");
+    expect(decl(".cat-tools-item.off .cat-dot", "border")).toBe("1.5px solid var(--text-dim)");
+    expect(RULES.some(r => selectors(r.selector).includes(".cat-tools-item.off .cat-name")), "no strike through the name").toBe(false);
   });
 
-  it("needed one — the two colour tiers alone are under 3:1 apart in both themes", () => {
-    // This is the measurement that makes the strike load-bearing rather than
-    // decoration: --text against --muted, which is the whole of what #368 left.
-    for (const theme of themes) {
-      const on = resolve(decl(".cat-filter", "color")!, theme);
-      const off = resolve(decl(".cat-filter.off", "color")!, theme);
-      expect(contrastRatio(on, off), `${theme} on vs off label`).toBeLessThan(NON_TEXT);
-    }
+  it("needed one — the two colour tiers alone are under 3:1 apart in dark", () => {
+    // This is the measurement that makes the tick and the ring load-bearing
+    // rather than decoration. CHANGED ON PURPOSE: a row that shows reads in
+    // the menu's --text and a hidden one in --text-dim, 2.75:1 apart in dark
+    // (light clears 3:1, dark does not, so colour alone is never enough).
+    const on = resolve(decl(".ap-menu-item", "color")!, "dark");
+    const off = resolve(decl(".cat-tools-item.off", "color")!, "dark");
+    expect(contrastRatio(on, off), "dark on vs off label").toBeLessThan(NON_TEXT);
   });
 
   it("did not spend the contrast #368 just bought to get it", () => {
-    // The ring is geometry; neither tier is faded to get it.
-    // CHANGED ON PURPOSE (V4's legend): an item that shows reads in
-    // --text-secondary and a hidden one in --text-dim, the dim tier that still
-    // clears 4.5:1 (quiet-signals.test.ts); the pointer lifts either to --text.
-    expect(decl(".cat-filter", "color")).toBe("var(--text-secondary)");
-    expect(decl(".cat-filter.off", "color")).toBe("var(--text-dim)");
-    expect(decl(".cat-filter:hover", "color")).toBe("var(--text)");
-    expect(declIn(bodyOf(".cat-filter.off"), "opacity")).toBeNull();
+    // The ring is geometry; neither tier is faded to get it. A hidden row
+    // reads in --text-dim, the dim tier that still clears 4.5:1
+    // (quiet-signals.test.ts).
+    expect(decl(".ap-menu-item", "color")).toBe("var(--text)");
+    expect(decl(".cat-tools-item.off", "color")).toBe("var(--text-dim)");
+    expect(declIn(bodyOf(".cat-tools-item.off"), "opacity")).toBeNull();
   });
 });
 

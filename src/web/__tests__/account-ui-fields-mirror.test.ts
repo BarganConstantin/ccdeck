@@ -81,7 +81,10 @@ describe("the page's half", () => {
     expect(web.decodeStored(f("sound"), null)).toBe(true);
     expect(web.decodeStored(f("sound"), "on")).toBe(true);
     expect(web.decodeStored(f("sound"), "off")).toBe(false);
-    expect(web.decodeStored(f("panels.accounts"), null), "open on a first run").toBe(true);
+    // CHANGED ON PURPOSE (owner, 2026-11-11): a first run opens no panel.
+    expect(web.decodeStored(f("panels.accounts"), null), "shut on a first run").toBe(false);
+    expect(web.decodeStored(f("panels.usage"), null), "shut on a first run").toBe(false);
+    expect(web.decodeStored(f("panels.machine"), null), "shut on a first run").toBe(false);
     expect(web.decodeStored(f("panels.sessionList"), null)).toBe(false);
     expect(web.decodeStored(f("theme"), null)).toBe("rider-black");
   });

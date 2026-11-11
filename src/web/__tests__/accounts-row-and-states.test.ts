@@ -128,6 +128,44 @@ describe("the panel's states", () => {
     expect(draw({ reason: "no_cswap", hint: "uv tool install claude-swap" })).toContain("ap-state-cmd");
   });
 
+  // A first step, not a fault (owner, 2026-11-11): what claude-swap does for the
+  // reader, then "Set up", which shows the command and what comes after it.
+  describe("claude-swap not installed", () => {
+    const html = draw({ reason: "no_cswap", hint: "uv tool install claude-swap" });
+    /** What shows while the steps are shut: everything before them, the last part of the state. */
+    const visible = (markup: string) => markup.slice(0, markup.indexOf('<div class="ap-state-steps"')).replace(/<[^>]+>/g, " ");
+
+    it("opens on what it is for, in plain words, with no fault in them", () => {
+      const shown = visible(html);
+      expect(shown).toContain("Accounts need claude-swap");
+      expect(shown).toContain("It keeps several Claude logins on this machine and switches between them.");
+      expect(shown).not.toMatch(/isn't installed|does not come with|account store/);
+    });
+
+    it("keeps the command behind Set up, which says what it opens", () => {
+      const button = /<button[^>]*>Set up<\/button>/.exec(html)?.[0] ?? "";
+      expect(button).toContain('aria-expanded="false"');
+      const controls = /aria-controls="([^"]+)"/.exec(button)?.[1];
+      expect(controls).toBeTruthy();
+      const steps = new RegExp(`<div class="ap-state-steps" id="${controls}" hidden="">`).exec(html);
+      expect(steps, "the steps are in the page, shut, under the id the button names").not.toBeNull();
+      const inside = html.slice(steps!.index);
+      expect(inside).toContain("ap-state-cmd");
+      expect(inside).toContain("uv tool install claude-swap");
+      expect(inside).toContain("claude-swap is a separate tool from PyPI, installed on its own.");
+      expect(inside.replace(/<[^>]+>/g, "")).toContain("Then add an account with the + button above.");
+      expect(visible(html)).not.toContain("uv tool install claude-swap");
+    });
+
+    it("opens and shuts the steps from the one button, and the sheet hides them while shut", () => {
+      const src = withoutComments(readFileSync(fileURLToPath(new URL("../components/AccountsEmptyState.tsx", import.meta.url)), "utf8"));
+      expect(src).toMatch(/aria-expanded=\{open\} aria-controls=\{stepsId\}/);
+      expect(src).toContain("onClick={() => setOpen(was => !was)}");
+      expect(src).toContain("hidden={!open}");
+      expect(sheetText()).toMatch(/\.ap-state-steps\[hidden\] \{ display: none; \}/);
+    });
+  });
+
   it("shows the reason code, and says a known one in words", () => {
     expect(plainReason("EACCES: permission denied, open '/x'")).toBe("permission denied · EACCES: permission denied, open '/x'");
     expect(plainReason("ENOENT")).toBe("file not found · ENOENT");

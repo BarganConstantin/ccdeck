@@ -564,7 +564,7 @@ const catalog: Catalog = {
   "insights.context.codex.uncounted": "Nenumărat pentru Codex — ccdeck reconstruiește sesiunea din fișierul ei rollout și sare peste ce s-a scris înainte să se atașeze, deci o detaliere pe mesaje și apeluri de unelte ar fi prea mică cu o valoare necunoscută. Cifra ferestrei de mai sus e a CLI-ului însuși și nu e afectată.",
   "insights.context.codex.memory": "Fișiere AGENTS.md aplicabile",
   "insights.context.codex.memoryEmpty": "Niciun fișier AGENTS.md pe calea de la cwd până la rădăcina sistemului de fișiere sau în $CODEX_HOME.",
-  "insights.context.claude.subtitle": "aproximare — /context din CC nu e expus prin hook-uri",
+  "insights.context.claude.subtitle": "Estimat din transcriere.",
   "insights.context.claude.scope": "turul curent",
   "insights.context.claude.memory": "Fișiere CLAUDE.md aplicabile",
   "insights.context.claude.memoryEmpty": "Niciun fișier CLAUDE.md pe calea de la cwd până la ~/.claude.",

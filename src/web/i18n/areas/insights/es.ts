@@ -546,7 +546,7 @@ const catalog: Catalog = {
   "insights.context.codex.uncounted": "No se cuenta para Codex: el deck reconstruye la sesión a partir de su archivo rollout y omite lo escrito antes de conectarse, así que un desglose de mensajes y llamadas a herramientas quedaría corto en una cantidad desconocida. La cifra de la ventana de arriba es la de la propia CLI y no se ve afectada.",
   "insights.context.codex.memory": "Archivos AGENTS.md aplicables",
   "insights.context.codex.memoryEmpty": "No se encontraron archivos AGENTS.md en la ruta desde cwd hasta la raíz del sistema de archivos, ni en $CODEX_HOME.",
-  "insights.context.claude.subtitle": "aproximación: el /context de CC no está expuesto a los hooks",
+  "insights.context.claude.subtitle": "Estimado a partir de la transcripción.",
   "insights.context.claude.scope": "turno actual",
   "insights.context.claude.memory": "Archivos CLAUDE.md aplicables",
   "insights.context.claude.memoryEmpty": "No se encontraron archivos CLAUDE.md en la ruta desde cwd hasta ~/.claude.",

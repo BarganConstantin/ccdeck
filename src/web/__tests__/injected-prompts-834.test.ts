@@ -1,8 +1,8 @@
 // #834: the Prompts list showed Claude Code's injected <task-notification> XML
 // as if the user had typed it. It arrives through UserPromptSubmit like a human
 // turn, so the reducer recorded it like one, and the rail listed it verbatim and
-// counted it. It is now shown as the system event it is, collapsed, in its place
-// in time, and left out of every prompt count and of the session's first words.
+// counted it. It is left out of every prompt list and count, of the session's
+// first words and of its task.
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
@@ -75,15 +75,14 @@ describe("the surfaces that count prompts (#834)", () => {
   const app = read("../App.tsx") + "\n" + read("../components/Detail.tsx");
   const summary = read("../components/SessionSummary.tsx");
 
-  it("counts only typed prompts in the rail's heading", () => {
-    expect(app).toContain('<span className="section-count">{typedPrompts(agent.prompts).length}</span>');
-  });
-
-  it("lists the notice collapsed, by its label, and never prints its text as a prompt", () => {
-    expect(app).toMatch(/<details className="prompt-entry prompt-injected" key=\{key\}>/);
-    expect(app).toContain("{injected.label}");
-    const injectedBranch = /if \(injected\) \{([\s\S]*?)\n\s{14}\}/.exec(app)![1];
-    expect(injectedBranch).not.toContain("pr.text");
+  // CHANGED ON PURPOSE (owner's critique, 2026-11-11): the notice was listed
+  // collapsed, by its label; it is not a prompt, so it is left out of the list
+  // as well as the count.
+  it("lists and counts only typed prompts in the Inspector", () => {
+    expect(app).toContain("const typed = typedPrompts(agent.prompts);");
+    expect(app).toContain('<span className="section-count">{typed.length}</span>');
+    expect(app).toContain("{promptKeys(typed).reverse().map(");
+    expect(app).not.toContain("prompt-injected");
   });
 
   it("counts the same way in the session summary", () => {

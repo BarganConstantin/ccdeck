@@ -1394,6 +1394,9 @@
 .ap-state-text { font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: calc(16px + var(--ui-text-increase, 0px)); color: var(--muted); }
 .ap-state-text b { font-weight: 600; color: var(--text-secondary); }
 .ap-state-btn { align-self: flex-start; }
+/* claude-swap's steps under "Set up": the state's own column and gap. */
+.ap-state-steps { display: flex; flex-direction: column; gap: 8px; }
+.ap-state-steps[hidden] { display: none; }
 .ap-state-cmd {
   display: flex;
   align-items: center;

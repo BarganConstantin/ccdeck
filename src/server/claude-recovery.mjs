@@ -13,7 +13,8 @@ import { maybeResolveContext, maybeResolveModel, maybeResolveSessionName, maybeR
 const FILE_LIMIT = 128;
 const REGISTRY_BYTES = 64 * 1024;
 const TRANSCRIPT_BYTES = 256 * 1024;
-const normalizeStart = value => typeof value === "string" ? value.trim().replace(/\s+/g, " ") : "";
+const TASK_NOTICE = /^\s*<task-notification>[\s\S]*?<\/task-notification>/;
+const normalizeStart = value =>typeof value === "string" ? value.trim().replace(/\s+/g, " ") : "";
 
 /** PID existence alone cannot distinguish a reused PID from the old process. */
 export async function claudeProcessStarts(pids) {
@@ -64,7 +65,9 @@ export async function claudeRecoveryPrompt(path) {
       const content = row.message?.content;
       const value = typeof content === "string" ? content : Array.isArray(content)
         ? content.filter(part => part?.type === "text" && typeof part.text === "string").map(part => part.text).join("\n") : "";
-      if (value) prompt = value;
+      // A background task's notice comes in as a user turn; the prompt is what a
+      // person typed (the deck's injected-prompt.ts reads the same wrapper).
+      if (value && !TASK_NOTICE.test(value)) prompt = value;
     }
     return { prompt, model };
   } catch { return {}; }

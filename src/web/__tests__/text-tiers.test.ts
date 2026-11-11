@@ -199,6 +199,10 @@ describe("what was migrated to the secondary tier", () => {
       ".agent-node .foot .spawn-badge",
       ".agent-node .task-line",
       ".agent-node .time",
+      // CHANGED ON PURPOSE (V4's Figma, critique 2 C4): below 40% the face
+      // names the card's project ("api", "site") in this ink beside the mark.
+      // A label, not prose, kept in the list because the frame draws it so.
+      ".canvas-wrap[data-far] .agent-node .lod-short",
       ".cat-chip",
       ".cat-chip .cat-server",
       ".detail .plan-item",
@@ -208,6 +212,9 @@ describe("what was migrated to the secondary tier", () => {
       ".detail h3:not(.ctx-section-title)",
       ".detail-hero .hero-state",
       ".insp-none-title",
+      // The sentence behind the info mark beside an Inspector tab's title
+      // (Agents: who started whom, read from the transcript), read in its hint.
+      ".ap-peek.insp-hint",
       // CHANGED ON PURPOSE (V4's Figma): an unselected Inspector tab's icon is
       // drawn in the secondary ink, a step above its --muted label.
       ".insp-tab .glyph",
@@ -268,17 +275,14 @@ describe("what was migrated to the secondary tier", () => {
       ".bw-row-detail",
       ".bw-settings-note",
       // The same recap, whole, in the detail panel.
-      // The canvas's tool legend at rest, the one exception that is a label
-      // and not a sentence: a legend of categories that are all showing sits
-      // a tier under the foreground so the canvas stays the loudest thing, and
-      // the pointer lifts an item to --text. Its floors are held in
-      // quiet-signals.
-      // CHANGED ON PURPOSE (V4's legend): a showing item is in this tier and a
-      // hidden one steps down to --text-dim beside a hollow dot (so
-      // `.cat-filter.off` left this list and `.cat-filter` came back), and the
-      // folded legend's "Tools" button below 600px wide says its word in it.
-      ".cat-filter",
+      // The canvas's tool filter, the one exception that is a label and not a
+      // sentence: its "Tools" button sits a tier under the foreground so the
+      // canvas stays the loudest thing, and the pointer lifts it to --text.
+      // CHANGED ON PURPOSE: the legend's items (`.cat-filter`) are gone; the
+      // one button stands at every width. A hidden category's row in its menu
+      // lifts to this tier under the pointer, off the --selected bed's floor.
       ".cat-filter-tools",
+      ".cat-tools-item.off:hover",
       // CHANGED ON PURPOSE (V4's Figma): a companion tile's name is set in this tier, like a theme's.
       ".character-choice",
       // CHANGED ON PURPOSE (V4's Figma): V4's secondary-ink lines: the auto-fit chip and the

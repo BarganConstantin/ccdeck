@@ -32,6 +32,8 @@ const catalog: Catalog = {
   "shell.side.usageSum": "{amount} {period}",
   "shell.side.usageTokens": "{n} tokeni {period}",
   "shell.side.machineSum": "CPU {cpu}% · {memory}",
+  "shell.side.quotaSum": "5h {five} · 7z {week}",
+  "shell.side.quota5h": "5h {five}",
 
   // ── relative ages used in the update lines and the version chip ──
   "shell.ago.now": "chiar acum",
