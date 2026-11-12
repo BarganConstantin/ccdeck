@@ -6,8 +6,6 @@
 // Codex child session is a root with a parent in another session, and its tree
 // is its own.
 import type { AgentNodeData } from "./types";
-import { UNPRICED_LABEL, fmtCost } from "./pricing";
-import { costChip } from "./card-cost";
 import { t } from "./i18n";
 
 export interface TreeRow {
@@ -79,12 +77,4 @@ export function agentTree(agents: ReadonlyMap<string, AgentNodeData>, sessionId:
 export function subagentCount(rows: readonly TreeRow[]): string {
   const n = rows.length - 1;
   return n <= 0 ? t("board.inspector.noSubagents") : t("board.inspector.subagents", { count: n });
-}
-
-/** The session's cost as the root's card prints it (card-cost.ts), or null when
- *  the card prints none. */
-export function sessionCostLabel(root: AgentNodeData): string | null {
-  const chip = costChip(root);
-  if (!chip) return null;
-  return chip.kind === "unpriced" ? UNPRICED_LABEL : `${fmtCost(chip.total)}${chip.floor ? "+" : ""}`;
 }

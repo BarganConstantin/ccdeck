@@ -424,6 +424,8 @@ const PRESSES: Press[] = [
   ["button.tt-part:active", "0.97", "transform"],
   [".sa-session:active", "0.97", "transform"],
   ["button.tool.clickable:active", "0.97", "transform"],
+  // The Inspector's kind chips over that list, each a filter for it.
+  [".call-kind:active", "0.97", "transform"],
   // (The selected ribbon and its × are gone, V4's top bar.)
   // CHANGED ON PURPOSE (V4's Figma): the command is a box with an icon-only Copy at its end, so the press is the Copy button's (a 24px glyph button, the 0.94 the round glyphs take), not a pill's.
   [".ver-banner .ver-copy:active", "0.94", "transform"],

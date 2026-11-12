@@ -186,29 +186,47 @@
   font-family: var(--font-mono);
 }
 
-/* Activity row — the counts on top, the category pills under them */
-.activity-row {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-/* "42 calls  2 live  1 err": mono 12/16, the whole item in its colour. */
+/* "2 live  1 err" beside the Tool calls count: mono 12/16, the whole item in
+   its colour, at the body's weight rather than the heading's. */
 .activity-counters {
   display: flex;
   gap: 12px;
   font-family: var(--font-mono);
   font-size: calc(12px + var(--ui-text-increase, 0px));
   line-height: 16px;
+  font-weight: 400;
   color: var(--text);
 }
 .activity-counters .ac-item b { font-weight: 400; font-variant-numeric: tabular-nums; }
 .activity-counters .ac-live { color: var(--inflight); }
 .activity-counters .ac-err { color: var(--err); }
 
+/* The kind chips under the Tool calls heading. Each is a 24-high button round
+   its pill, so the rows of chips need no gap of their own. */
 .cat-strip {
   display: flex;
   flex-wrap: wrap;
-  gap: 4px;
+  gap: 0 4px;
+}
+/* A chip is a filter: pressed, the list under it keeps that kind of call;
+   pressed again, every call. The pill keeps its look; the pressed one takes
+   the accent wash and the text ink. */
+.call-kind {
+  display: inline-flex;
+  align-items: center;
+  height: 24px;
+  padding: 0;
+  border: none;
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  transition: transform var(--dur-fast) var(--ease);
+}
+.call-kind:active { transform: scale(var(--press)); }
+.call-kind[aria-pressed="true"] .cat-chip { background: var(--accent-16); color: var(--text); }
+@media (hover: hover) and (pointer: fine) {
+.call-kind:hover .cat-chip { color: var(--text); }
 }
 /* A pill: --ctl-fill, padding 1 6, mono 400 11/14 --text-secondary. */
 .cat-chip {
