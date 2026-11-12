@@ -16,8 +16,10 @@ const TWELVE = ["chevron-down", "external", "folder", "lock", "pause"];
 describe("the kit's icons", () => {
   const names = Object.keys(KIT_ICONS) as KitIconName[];
 
-  it("has the 55 icons and the 5 state glyphs", () => {
-    expect(names).toHaveLength(55);
+  // CHANGED ON PURPOSE (the terminal's text size): text-size joins the kit,
+  // the −/+ of the pane's own zoom in its header.
+  it("has the 56 icons and the 5 state glyphs", () => {
+    expect(names).toHaveLength(56);
     expect(Object.keys(KIT_STATE_GLYPHS).sort()).toEqual(["done", "error", "idle", "waiting", "working"]);
   });
 

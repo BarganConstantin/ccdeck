@@ -69,6 +69,7 @@ import Divider from "./Divider";
 import HostsDialog from "./HostsDialog";
 import { t as tNow, useT } from "../../i18n";
 import { useScreenFlags } from "../../use-screens";
+import { fontSizeFor, stepTerminalText, useTerminalTextStep } from "../../terminal-text-size";
 import { chatSessionFor, useSessionTranscript } from "../../use-session-transcript";
 import { DialogPresence } from "../Dialog";
 import type { HostsApi } from "./older-hosts";
@@ -357,6 +358,9 @@ export default function TerminalStage(p: TerminalStageProps) {
   const theme = useMemo(() => terminalTheme(p.readToken, workspace ? "--sunken" : "--panel"), [p.readToken, workspace]);
   const fontFamily = useMemo(() => p.readToken(TERMINAL_FONT_TOKEN).trim() || "monospace", [p.readToken]);
   const chordLabel = useMemo(() => releaseChordLabel(platformName()), []);
+  // The pane's own zoom (terminal-text-size.ts): the header's −/+ and the
+  // keys while typing set it, every pane and tab of this browser follow it.
+  const textStep = useTerminalTextStep();
 
   const session = useTerminalSession({
     subject,
@@ -365,6 +369,7 @@ export default function TerminalStage(p: TerminalStageProps) {
     holdResize: held,
     theme,
     fontFamily,
+    fontSize: fontSizeFor(textStep),
     onCell: p.onCell,
     onLaunched: p.onLaunched,
     onNotice: setNotice,
@@ -538,6 +543,9 @@ export default function TerminalStage(p: TerminalStageProps) {
         workspace={workspace ? (p.show.kind === "empty" ? "empty" : "pane") : undefined}
         context={p.show.kind === "session" ? p.show.session.contextUse : null}
         view={chatSession !== null ? { current: view, onChange: setView } : undefined}
+        // Only while a terminal is on the stage to size: not on the empty
+        // pane, a card that has none, or Chat.
+        textSize={p.show.kind === "empty" || PANELESS.has(phase.kind) || chatOn ? undefined : { step: textStep, onStep: stepTerminalText }}
         nothingRunning={p.show.kind === "empty" || phase.kind === "ended"
           || (subject.kind === "launch" && (phase.kind === "error" || phase.kind === "tmux-missing" || phase.kind === "tmux-installing"))}
         onKeys={() => {

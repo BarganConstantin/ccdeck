@@ -67,6 +67,7 @@ function stageOn(open: unknown) {
     hasFocus: () => doc().activeElement === textarea,
     applicationCursorKeys: () => false,
     scrollForInput() {},
+    setFontSize() {},
     cell: () => null,
     dispose() {},
   };

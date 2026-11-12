@@ -99,6 +99,7 @@
 // some layouts.
 import { isApplePlatform, platformName } from "./platform";
 import { ownsKeystroke, type FocusTarget } from "./shortcuts";
+import { textSizeChord } from "./terminal-text-size";
 
 /** The keystroke fields the chord rules read. Structural, so a test can pass a
  *  plain object; a real KeyboardEvent has every one of them. */
@@ -199,8 +200,9 @@ export interface TerminalKey extends ChordKey {
 
 /** What becomes of a keystroke inside xterm: `release`, `newline`, `copy`,
  *  `meta` and `send` are kept from xterm (`newline`, `meta` and `send` send
- *  something of their own), everything else — Escape always — goes to it. */
-export type TerminalKeyOutcome = "release" | "view" | "newline" | "copy" | "meta" | "send" | "pass";
+ *  something of their own), `zoom` sizes the pane's text
+ *  (terminal-text-size.ts), everything else — Escape always — goes to it. */
+export type TerminalKeyOutcome = "release" | "view" | "zoom" | "newline" | "copy" | "meta" | "send" | "pass";
 
 /**
  * CONTROL WITH A SYMBOL, as xterm, GNOME Terminal and Ghostty send it. xterm.js
@@ -305,6 +307,10 @@ export function terminalKeyOutcome(e: TerminalKey, apple = isApplePlatform(platf
   // kept from the session, and acted on by the window listener
   // (use-deck-shortcuts.ts), the way the release chord is.
   if (isViewChord(e)) return "view";
+  // Ctrl (⌘ on a Mac) with =, - or 0 zooms the pane's text, as a native
+  // terminal's does, rather than the browser's whole page. Shift with minus
+  // is Ctrl+_, the undo the session reads, and stays the session's.
+  if (textSizeChord(e, apple)) return "zoom";
   // An input method composing CJK text owns Enter: it commits the
   // composition. keyCode 229 is what a browser reports while one is active,
   // including on the keydown that ends it, where isComposing can already read

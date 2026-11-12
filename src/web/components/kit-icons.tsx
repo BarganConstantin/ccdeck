@@ -163,6 +163,10 @@ export const KIT_ICONS = {
   terminal: { size: 14, els: [
     { d: "M2.4 3.8L5.6 7L2.4 10.2M7.4 10.6H11.6" }
   ] },
+  // A large A and a small one: the terminal's text size (terminal-text-size.ts).
+  "text-size": { size: 14, els: [
+    { d: "M1.8 11.6L5.1 2.6L8.4 11.6M3 8.6H7.2M9 11.6L10.8 7L12.6 11.6M9.6 10.1H12" }
+  ] },
   theme: { size: 14, els: [
     { d: "M7 1.8C4.13 1.8 1.8 4.13 1.8 7C1.8 9.87 4.13 12.2 7 12.2M7 1.8C9.87 1.8 12.2 4.13 12.2 7C12.2 9.87 9.87 12.2 7 12.2M7 1.8V1.8ZM7 1.8V12.2M7 4.4H10.8M7 7H12M7 9.6H10.8" }
   ] },
