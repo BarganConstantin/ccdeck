@@ -28,7 +28,12 @@
 // an empty one. It is a sibling of the controls, not inside them, so it fades in
 // on the morph's own `chip` ramp (stage-morph.ts) and not with the controls.
 //
-// THREE CONTROLS AND NO MORE: ⌨ (only while there is a pane to type into),
+// THE TEXT SIZE LEADS THEM: Aa, a large A beside a small one, opens −, the
+// percent and + for the pane's own zoom (TextSizeControl.tsx), drawn while
+// there is a terminal on the stage to size. In the takeover it is two rows of
+// the ⋯ menu, Larger text and Smaller text.
+//
+// THREE CONTROLS AFTER IT AND NO MORE: ⌨ (only while there is a pane to type into),
 // ⤢ and ✕ — each the deck's own header glyph (.glyph-btn, panel-glyph.css),
 // so their target, focus ring and press are the ones already measured. ✕'s name is the promise the stage keeps — "Close — the session
 // keeps running" — never stop, end or quit, because closing the stage stops
@@ -47,6 +52,8 @@ import { useState } from "react";
 import AnchoredPopover from "../AnchoredPopover";
 import { t as tNow, useT } from "../../i18n";
 import { BackGlyph, CloseGlyph, CollapseGlyph, ExpandGlyph, KeyboardGlyph, StageGlyph, glyphForState } from "./stage-icons";
+import TextSizeControl, { type TextSizeView } from "./TextSizeControl";
+import { canGoLarger, canGoSmaller } from "../../terminal-text-size";
 
 const PANE_MORE_ID = "ts-more";
 const PANE_MORE_MENU_ID = "ts-more-menu";
@@ -162,6 +169,9 @@ export interface StageHeaderProps {
    *  the deck's own View switch (workspace.css) in the header, so it costs no
    *  stylesheet of Chat's. */
   view?: { current: "chat" | "term"; onChange(next: "chat" | "term"): void };
+  /** The pane's text size and its −/+; left out, no Aa is drawn (no terminal
+   *  on the stage to size). */
+  textSize?: TextSizeView;
   /** Ask the session for keys, or give them back. */
   onKeys(): void;
   onExpand(): void;
@@ -258,11 +268,15 @@ export default function StageHeader(p: StageHeaderProps) {
         <PaneMore items={[
           ...(p.canType ? [{ id: "keys", label: keysLabel, run: p.onKeys }] : []),
           ...(p.canFull && p.workspace !== "empty" ? [{ id: "expand", label: expandLabel, run: p.onExpand }] : []),
+          // The size is set once per screen, so it follows the actions used on every visit.
+          ...(p.textSize && canGoLarger(p.textSize.step) ? [{ id: "text-larger", label: t("board.stage.textLarger"), run: () => p.textSize?.onStep("larger") }] : []),
+          ...(p.textSize && canGoSmaller(p.textSize.step) ? [{ id: "text-smaller", label: t("board.stage.textSmaller"), run: () => p.textSize?.onStep("smaller") }] : []),
           { id: "close", label: closeLabel, run: p.onClose },
         ]} />
       )}
       <div className="ts-ctl">
         <div className="ts-tools">
+          {p.textSize && <TextSizeControl size={p.textSize} />}
           {p.canType && (
             <button
               type="button"

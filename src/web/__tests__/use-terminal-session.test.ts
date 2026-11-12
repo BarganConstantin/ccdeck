@@ -20,6 +20,7 @@ import { fileURLToPath } from "node:url";
 vi.mock("react", async () => (await import("./fake-react")).react);
 
 import { mount as mountComponent, flush } from "./fake-react";
+import { forgetTerminalTextStep, setTerminalTextStep, terminalTextStep } from "../terminal-text-size";
 import { MAX_MESSAGE_BYTES, connectTerminal } from "../terminal-protocol";
 import { launchTerminal, type ApiFailure, type NotAttachable, type SessionRef, type TerminalStatus, type Ticketed, type Launched } from "../terminal-api";
 import {
@@ -131,7 +132,12 @@ class FakeTerminal implements StageTerminal {
   hasFocus() { return this.focused; }
   applicationCursorKeys() { return this.appKeys; }
   scrollForInput() { this.log.push("scroll-for-input"); }
-  cell() { return { w: 8, h: 18 }; }
+  /** The sizes the pane's text was set to, and the cell they draw: 8 × 18 at
+   *  the stage's 13.3px, scaled with the text. */
+  fontSizes: number[] = [];
+  fontSize = 13.3;
+  setFontSize(px: number) { this.fontSizes.push(px); this.fontSize = px; }
+  cell() { return { w: 8 * this.fontSize / 13.3, h: 18 * this.fontSize / 13.3 }; }
   dispose() { this.disposed = true; }
 }
 
@@ -1540,5 +1546,61 @@ describe("a key let go outside the pane", () => {
     const bundle = readFileSync(resolve(xterm, "lib/xterm.mjs"), "utf8");
     expect(bundle).toMatch(/\._keyDownSeen=/);
     expect(bundle).toMatch(/\._keyPressHandled=/);
+  });
+});
+
+describe("the pane's own text size (terminal-text-size.ts)", () => {
+  beforeEach(() => { forgetTerminalTextStep(); setTerminalTextStep(100); });
+  afterEach(() => { setTerminalTextStep(100); forgetTerminalTextStep(); });
+
+  it("Ctrl+= and Ctrl+- zoom the pane's text on the keydown, kept from xterm and from the browser", async () => {
+    const { r, ctl } = rig();
+    ctl.mount(HOST, { theme: THEME, fontFamily: "monospace" });
+    await attach(r, ctl);
+    const s = r.sockets[r.sockets.length - 1];
+    const sent = s.sentBytes().length;
+    expect(r.events().onKey(key({ key: "=", ctrlKey: true }))).toBe(false);
+    expect(terminalTextStep()).toBe(110);
+    expect(r.events().onKey(key({ type: "keyup", key: "=", ctrlKey: true })), "kept on the keyup too").toBe(false);
+    expect(terminalTextStep(), "and stepped once, on the keydown").toBe(110);
+    expect(r.events().onKey(key({ key: "-", ctrlKey: true }))).toBe(false);
+    expect(r.events().onKey(key({ key: "-", ctrlKey: true }))).toBe(false);
+    expect(terminalTextStep()).toBe(90);
+    expect(r.events().onKey(key({ key: "0", ctrlKey: true }))).toBe(false);
+    expect(terminalTextStep()).toBe(100);
+    expect(s.sentBytes().length, "nothing of it reached the session").toBe(sent);
+    expect(r.events().onKey(key({ key: "_", ctrlKey: true, shiftKey: true })), "Ctrl+_ is the session's undo").toBe(true);
+  });
+
+  it("a new size goes to the terminal and the cell is measured again, so the stage refits its columns", async () => {
+    const { r, ctl } = rig();
+    ctl.mount(HOST, { theme: THEME, fontFamily: "monospace", fontSize: 13.3 });
+    await attach(r, ctl);
+    expect(r.cells).toEqual([{ w: 8, h: 18 }]);
+    ctl.setFontSize(26.6);
+    expect(r.terminal().fontSizes).toEqual([26.6]);
+    expect(r.cells[r.cells.length - 1]).toEqual({ w: 16, h: 36 });
+    expect(r.last().cell).toEqual({ w: 16, h: 36 });
+    ctl.setFontSize(13.3);
+    expect(r.cells[r.cells.length - 1]).toEqual({ w: 8, h: 18 });
+  });
+
+  it("a size set before xterm has loaded is the one it opens at", async () => {
+    const { r, ctl } = rig({ lazyMount: true });
+    ctl.mount(HOST, { theme: THEME, fontFamily: "monospace", fontSize: 13.3 });
+    ctl.setFontSize(19.95);
+    r.resolveMount();
+    await flush();
+    expect(r.terminal().fontSizes).toEqual([19.95]);
+    expect(r.cells[r.cells.length - 1].w).toBeCloseTo(12, 5);
+  });
+
+  it("a disposed session sizes nothing", async () => {
+    const { r, ctl } = rig();
+    ctl.mount(HOST, { theme: THEME, fontFamily: "monospace" });
+    await attach(r, ctl);
+    ctl.dispose();
+    ctl.setFontSize(20);
+    expect(r.terminal().fontSizes).toEqual([]);
   });
 });

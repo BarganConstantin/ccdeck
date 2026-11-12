@@ -3,6 +3,11 @@
 import type { TFunction } from "./index";
 import { currentLanguage } from "./index";
 
+/** A whole percent as the language writes it: 110 reads "110 %" in German. */
+export function formatPercent(percent: number, lang = currentLanguage()): string {
+  try { return new Intl.NumberFormat(lang, { style: "percent", maximumFractionDigits: 0 }).format(percent / 100); } catch { return `${percent}%`; }
+}
+
 /** A decimal in the language's own separator: 2.9 reads "2,9" in German. */
 export function formatNumber(value: number, maximumFractionDigits = 1, lang = currentLanguage()): string {
   try { return new Intl.NumberFormat(lang, { maximumFractionDigits }).format(value); } catch { return String(value); }

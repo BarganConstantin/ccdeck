@@ -149,6 +149,66 @@
   border-radius: var(--r-ctl);
 }
 .ts-tools .glyph-btn[aria-pressed="true"] { color: var(--accent); }
+/* Aa while the pane's text is at another size than 100%: filled, as Zoom's ⤢
+   is while it is on, so the change is seen without opening anything. */
+.ts-tools .glyph-btn[data-changed] { background: var(--selected); color: var(--text); }
+
+/* The text size popover: a 13 semibold title, the stepper — − and + as 28px
+   glyphs either side of the percent, in one control-radius box — Back to
+   100%, and the keys in 11 --muted. 200 wide, 12 in, 8 between, the V4 form
+   popover's measures (.ap-pop-form). */
+.ap-pop.ts-text-pop {
+  width: 200px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+}
+.ts-text-title {
+  margin: 0;
+  font-size: calc(13px + var(--ui-text-increase, 0px));
+  line-height: calc(20px + var(--ui-text-increase, 0px));
+  font-weight: 600;
+  color: var(--text);
+}
+.ts-text-step {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px;
+  padding: 2px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-ctl);
+}
+.ts-text-step .glyph-btn {
+  box-sizing: border-box;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border-radius: var(--r-ctl);
+}
+/* At an end, or already at 100%: the deck's off dim, as every aria-disabled
+   control has it, and no press. */
+.ts-text-step .glyph-btn[aria-disabled="true"],
+.btn.ts-text-reset[aria-disabled="true"] { opacity: var(--dim-off); cursor: default; }
+.ts-text-step .glyph-btn[aria-disabled="true"]:active,
+.btn.ts-text-reset[aria-disabled="true"]:active { transform: none; }
+.ts-text-pct {
+  flex: 1;
+  text-align: center;
+  font-size: calc(13px + var(--ui-text-increase, 0px));
+  line-height: calc(20px + var(--ui-text-increase, 0px));
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+}
+.btn.ts-text-reset { width: 100%; justify-content: center; }
+.ts-text-keys {
+  margin: 0;
+  font-size: calc(11px + var(--ui-text-increase, 0px));
+  line-height: calc(16px + var(--ui-text-increase, 0px));
+  color: var(--muted);
+}
 .ts-icon {
   flex: none;
   fill: none;

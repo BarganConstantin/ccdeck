@@ -58,6 +58,7 @@ import { connectTerminal, hexColour, pasteTooLarge, type ConnectOptions, type Si
 import { MINIMUM_CONTRAST_RATIO } from "./terminal-palette";
 import type { Cell } from "./stage-geometry";
 import { terminalKeyInput, terminalKeyOutcome, type TerminalKey } from "./terminal-keys";
+import { stepTerminalText, textSizeChord } from "./terminal-text-size";
 import { openLink } from "./terminal-links";
 import { copyText } from "./copy-text";
 import { leaveRepliesToTmux } from "./terminal-replies";
@@ -70,7 +71,8 @@ import { showsFrame, type KeysOwner, type StagePhase } from "./components/termin
  *  whole 8px on DejaVu Sans Mono and on Menlo, so cells come out exactly 8
  *  wide there instead of floor-squeezed from 7.8; elsewhere the measured cell
  *  (Cell, below) is what the geometry uses, so a different advance costs
- *  nothing but a different column count. */
+ *  nothing but a different column count. It is the pane's 100%: the reader
+ *  zooms the pane's own text from there (terminal-text-size.ts). */
 export const STAGE_FONT_SIZE = 13.3;
 export const STAGE_LINE_HEIGHT = 1.2;
 /** The token the terminal's font is read from: the deck's mono stack, read
@@ -167,6 +169,8 @@ export interface StageTerminal {
   /** What a typed key does to a view scrolled back: it comes to the bottom,
    *  unless the terminal's own scrollOnUserInput is off. */
   scrollForInput(): void;
+  /** The text's size in CSS pixels: the pane's own zoom. The cell follows. */
+  setFontSize(px: number): void;
   /** The cell it drew with, in CSS pixels, once it has drawn. */
   cell(): Cell | null;
   dispose(): void;
@@ -191,6 +195,8 @@ export interface TerminalInit {
   rows: number;
   theme: ITheme;
   fontFamily: string;
+  /** The text's size in CSS pixels; STAGE_FONT_SIZE when not said. */
+  fontSize?: number;
 }
 
 export type MountTerminal = (host: HTMLElement, init: TerminalInit, events: StageTerminalEvents) => Promise<StageTerminal>;
@@ -315,7 +321,7 @@ export const mountXterm: MountTerminal = async (host, init, events) => {
     cols: init.cols,
     rows: init.rows,
     fontFamily: init.fontFamily,
-    fontSize: STAGE_FONT_SIZE,
+    fontSize: init.fontSize ?? STAGE_FONT_SIZE,
     lineHeight: STAGE_LINE_HEIGHT,
     theme: init.theme,
     // `unicode` is behind the proposed-API gate in xterm 6.
@@ -444,6 +450,7 @@ export const mountXterm: MountTerminal = async (host, init, events) => {
     hasFocus: () => term.textarea != null && document.activeElement === term.textarea,
     applicationCursorKeys: () => term.modes.applicationCursorKeysMode,
     scrollForInput: () => { if (term.options.scrollOnUserInput !== false) term.scrollToBottom(); },
+    setFontSize: px => { if (term.options.fontSize !== px) term.options.fontSize = px; },
     // The screen element is exactly cols × rows cells: xterm sizes it to the
     // renderer's canvas. Measured rather than read off xterm's private render
     // service, which has no public accessor in xterm 6.
@@ -530,6 +537,8 @@ export interface TerminalSessionController {
   show(subject: StageSubject): void;
   resize(cols: number, rows: number, hold: boolean): void;
   setTheme(theme: ITheme): void;
+  /** The pane's text size in CSS pixels (terminal-text-size.ts). */
+  setFontSize(px: number): void;
   adopt(): void;
   retry(): void;
   focus(): void;
@@ -597,6 +606,9 @@ export function createTerminalSession(deps: SessionDeps, callbacks: SessionCallb
   let term: StageTerminal | null = null;
   let mounting = false;
   let pendingTheme: ITheme | null = null;
+  // The text was zoomed: the cell is measured again once xterm has drawn at
+  // the new size, whatever the snapshot already holds.
+  let remeasure = false;
   /** The theme the pane is drawn in now, whose foreground and background the
    *  deck passes on to tmux (terminal-protocol's `colours`). */
   let colours: ITheme | null = null;
@@ -996,6 +1008,13 @@ export function createTerminalSession(deps: SessionDeps, callbacks: SessionCallb
     onKey: e => {
       const outcome = terminalKeyOutcome(e);
       if (outcome === "pass") return true;
+      // The pane's own zoom, on the keydown: kept from xterm and from the
+      // browser, whose zoom would take the whole page with it.
+      if (outcome === "zoom") {
+        const direction = e.type === "keydown" ? textSizeChord(e) : null;
+        if (direction) stepTerminalText(direction);
+        return false;
+      }
       const input = e.type === "keydown" && snap.phase.kind === "live" ? terminalKeyInput(e, outcome) : null;
       if (input) { typed(); conn?.sendInput(input); }
       return false;
@@ -1004,7 +1023,11 @@ export function createTerminalSession(deps: SessionDeps, callbacks: SessionCallb
       const owner: KeysOwner = focused ? "pane" : "board";
       if (owner !== snap.keysOwner) emit({ keysOwner: owner });
     },
-    onRender: () => { if (!snap.cell) measure(); },
+    onRender: () => {
+      if (snap.cell && !remeasure) return;
+      remeasure = false;
+      measure();
+    },
   };
 
   return {
@@ -1062,6 +1085,15 @@ export function createTerminalSession(deps: SessionDeps, callbacks: SessionCallb
       sizeTimer = null;
       if (hold) return;
       sizeTimer = setTimeout(applySize, RESIZE_SETTLE_MS);
+    },
+
+    setFontSize(px) {
+      if (disposed) return;
+      withTerminal(t => {
+        t.setFontSize(px);
+        remeasure = true;
+        measure();
+      });
     },
 
     setTheme(theme) {
@@ -1181,6 +1213,8 @@ export interface UseTerminalSessionOptions {
   holdResize?: boolean;
   theme: ITheme;
   fontFamily: string;
+  /** The pane's text size in CSS pixels; STAGE_FONT_SIZE when not said. */
+  fontSize?: number;
   onCell?: (cell: Cell) => void;
   onLaunched?: (launched: LaunchedSession) => void;
   onNotice?: (sentence: string) => void;
@@ -1228,7 +1262,7 @@ export function useTerminalSession(options: UseTerminalSessionOptions): Terminal
     controller.current = ctl;
     ctl.resize(o.cols, o.rows, !!o.holdResize);
     ctl.setTheme(o.theme);
-    if (hostRef.current) ctl.mount(hostRef.current, { theme: o.theme, fontFamily: o.fontFamily });
+    if (hostRef.current) ctl.mount(hostRef.current, { theme: o.theme, fontFamily: o.fontFamily, fontSize: o.fontSize });
     ctl.show(o.subject);
     return () => {
       ctl.dispose();
@@ -1241,6 +1275,13 @@ export function useTerminalSession(options: UseTerminalSessionOptions): Terminal
   useEffect(() => { controller.current?.resize(options.cols, options.rows, !!options.holdResize); },
     [options.cols, options.rows, options.holdResize]);
   useEffect(() => { controller.current?.setTheme(options.theme); }, [options.theme]);
+  // The first size goes in with the mount; a later one zooms the pane in place.
+  const mountedSize = useRef(options.fontSize);
+  useEffect(() => {
+    if (options.fontSize === mountedSize.current) return;
+    mountedSize.current = options.fontSize;
+    controller.current?.setFontSize(options.fontSize ?? STAGE_FONT_SIZE);
+  }, [options.fontSize]);
 
   const adopt = useCallback(() => controller.current?.adopt(), []);
   const retry = useCallback(() => controller.current?.retry(), []);
