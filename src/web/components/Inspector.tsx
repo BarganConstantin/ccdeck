@@ -1,9 +1,9 @@
 // The Inspector: the detail panel's header with its tabs, and what each tab shows.
 //
 // V4 turns the detail panel into one column with a tablist at the top (its
-// Inspector / Header) over a body that scrolls. The Agents tab draws the
-// session as a tree of the very cards the board draws, and then everything the
-// detail panel has always shown about the selected agent, in its order. The
+// Inspector / Header) over a body that scrolls. The Agents tab draws a session
+// with subagents as a tree of the very cards the board draws, and then
+// everything the detail panel shows about the selected agent, in its order. The
 // Context tab is the context breakdown the modal shows, set in the panel.
 //
 // The Time tab is "where the time went" for the session's current turn, or its
@@ -13,7 +13,7 @@ import { memo, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } f
 import SheetHandle from "./SheetHandle";
 
 import { agentAriaLabel } from "../agent-copy";
-import { agentTree, sessionCostLabel, subagentCount, type TreeRow } from "../inspector-tree";
+import { agentTree, subagentCount, type TreeRow } from "../inspector-tree";
 import {
   INSPECTOR_TAB_LABEL, INSPECTOR_TABS, loadInspectorTab, saveInspectorTab, type InspectorTab,
 } from "../inspector-tab";
@@ -191,17 +191,21 @@ function AgentsTab({ selected, agents, revision, onSelectAgent, detail }: {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const rows = useMemo(() => agentTree(agents, selected.sessionId), [agents, selected.sessionId, revision]);
   const tr = useT();
+  // The cost is said once, in the spend line under the title, and a session
+  // with no subagents has no tree to draw: its one card would repeat the
+  // title, the state, the task, the cost and the time below it.
   return (
     <>
       <InspectorHead
         title={tr("board.inspector.agents")}
         info={tr("board.inspector.agentsNote")}
         qualifier={subagentCount(rows)}
-        figure={rows.length > 0 ? sessionCostLabel(rows[0].agent) : null}
       />
-      <ul className="insp-tree">
-        {rows.map(row => <TreeItem key={row.agent.id} row={row} revision={revision} current={row.agent.id === selected.id} onSelectAgent={onSelectAgent} />)}
-      </ul>
+      {rows.length > 1 && (
+        <ul className="insp-tree">
+          {rows.map(row => <TreeItem key={row.agent.id} row={row} revision={revision} current={row.agent.id === selected.id} onSelectAgent={onSelectAgent} />)}
+        </ul>
+      )}
       <div className="insp-detail">{detail}</div>
     </>
   );

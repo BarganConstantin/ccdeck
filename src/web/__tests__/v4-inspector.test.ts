@@ -10,7 +10,7 @@ import { dirname, join, relative, resolve } from "node:path";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import Inspector from "../components/Inspector";
-import { agentTree, sessionCostLabel, sessionRoot, subagentCount } from "../inspector-tree";
+import { agentTree, sessionRoot, subagentCount } from "../inspector-tree";
 import { ContextView, contextFill } from "../components/ContextModal";
 import {
   INSPECTOR_TABS, INSPECTOR_TAB_KEY, loadInspectorTab, saveInspectorTab,
@@ -22,7 +22,6 @@ import {
 } from "../inspector-time";
 import { tabStripMove } from "../tablist-keys";
 import { costChip } from "../card-cost";
-import { fmtCost } from "../pricing";
 import type { AgentNodeData, ToolCall, WaitingBlock } from "../types";
 import { sheetParts, sheetText } from "./sheet-source";
 import { en } from "../i18n/en";
@@ -385,17 +384,15 @@ describe("the Agents tab", () => {
     expect(subagentCount(agentTree(mapOf(ROOT, A("c1", { parentId: "s" })), "s"))).toBe("1 subagent");
     expect(subagentCount(agentTree(TREE, "s"))).toBe("3 subagents");
   });
-  it("heads the tab with the title, the count and the root's cost as its card prints it", () => {
+  // CHANGED ON PURPOSE (V4 critique 3): the head printed the root's cost, which
+  // the root's card and the spend line under the title both print too. The cost
+  // is said once now, in the spend line, so the head carries no figure.
+  it("heads the tab with the title and the count, and no cost figure", () => {
     const out = html(ROOT);
-    const chip = costChip(ROOT);
-    expect(chip?.kind).toBe("spent");
-    const shown = fmtCost((chip as { total: number }).total);
-    expect(sessionCostLabel(ROOT)).toBe(shown);
+    expect(costChip(ROOT)?.kind).toBe("spent");
     expect(out).toContain('<span class="insp-title">Agents</span>');
     expect(out).toContain('<span class="insp-qual">3 subagents</span>');
-    expect(out).toContain(`<span class="insp-fig">${shown}</span>`);
-  });
-  it("prints no figure when the root's card prints no cost", () => {
+    expect(out).not.toContain("insp-fig");
     expect(html(A("s", { childCount: 0 }), mapOf(A("s")))).not.toContain("insp-fig");
   });
   it("draws one row per agent, with a gutter per level and the tree lines in the right columns", () => {

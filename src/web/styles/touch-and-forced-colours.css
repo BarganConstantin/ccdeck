@@ -238,6 +238,8 @@
   .react-flow__controls-button[aria-pressed="true"],
   .aa-tab.on,
   .qh-provider[aria-pressed="true"] { forced-color-adjust: none; border-color: Highlight; background: Highlight; color: HighlightText; }
+  /* The Inspector's kind chip that filters the calls: its pill takes the fill. */
+  .call-kind[aria-pressed="true"] .cat-chip { forced-color-adjust: none; background: Highlight; color: HighlightText; }
   /* The picked threshold chip, the picked next-account option and the picked
      Move slot are a tinted background alone, which a Contrast theme repaints
      as Canvas: the pick keeps a ring. */

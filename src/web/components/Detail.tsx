@@ -3,7 +3,7 @@
 // Moved out of App.tsx, where it sat after `Inner` as a module-level component
 // with the row it draws for each tool call. App.tsx mounts it beside the canvas
 // while an agent is selected and the panel is open.
-import React from "react";
+import React, { useState } from "react";
 import { agentKindLabel, categoryLabel } from "../agent-copy";
 import { cardState } from "../node-face";
 import { useLanguage, useT } from "../i18n";
@@ -24,7 +24,7 @@ import { sessionNames, startedHover } from "../rail-row-copy";
 import { modelChipText, modelChipTitle, modelFamily } from "../model-label";
 import { fmtCost } from "../pricing";
 import { promptTime } from "../relative-time";
-import { noteSource, noteTag, sessionNoteShown } from "../session-note";
+import { noteSource, noteTag, promptLine, sessionNoteShown, type SessionNote } from "../session-note";
 import { fmtTokens } from "../token-format";
 import type { AgentNodeData, PlanStatus, PromptEntry, ToolCall } from "../types";
 import { planSummary } from "../agent-plan";
@@ -70,26 +70,13 @@ export default function Detail({
   const hasCost = cost.total > 0;
   const totalTokens = agent.usage.inputTokens + agent.usage.outputTokens;
 
-  // Bucket tools by category for the activity strip — over every call, as the
-  // calls counter beside it and the recap do (#1842). Read off `tools`, the
-  // chips and the errors left out whatever had slid out of that window.
-  const catCounts = new Map<DetailCategory, number>();
-  for (const [name, n] of agent.toolCountByName ?? []) {
-    const c = detailCategoryFor(name);
-    catCounts.set(c, (catCounts.get(c) ?? 0) + n);
-  }
-  const errCount = agent.toolErrorCount ?? 0;
-  const inflight = agent.tools.filter(call => !call.endedAt).length;
-  const catEntries = Array.from(catCounts.entries())
-    .sort((a, b) => b[1] - a[1]);
-  // The one server this agent's MCP chip is counting, when there is one (#489)
-  // — ToolBursts' own answer for those calls, so the chip is named and tinted
-  // by the function that named and tinted the bubbles rather than by a second
-  // rule that agrees with it today. null when the calls span two servers, or
-  // when there are none, and the chip stays the generic category chip. Asked
-  // of every tool the chip counts, not only the window's.
-  const mcpChip = catCounts.has("mcp") ? mcpChipIdentity(agent.toolCountByName?.keys() ?? []) : null;
+  const note = sessionNoteShown(agent);
   const typed = typedPrompts(agent.prompts);
+  // The prompt Now already says is not listed again under it.
+  const earlier = promptsNotSaid(typed, note);
+  // A plain session's root is what the panel is about, so "session" would say
+  // nothing there; a subagent or a Codex child keeps its kind.
+  const showKind = agentKindLabel(agent, t) !== t("board.kind.session");
 
   return (
     <>
@@ -113,7 +100,10 @@ export default function Detail({
         <div className="hero-meta">
           {/* The card's word for it, not the reducer's (#833): "root" is
               internal vocabulary, and one thing had two names. */}
-          <span className="hero-meta-item">{agentKindLabel(agent, t)}</span>
+          {showKind && <><span className="hero-meta-item">{agentKindLabel(agent, t)}</span><span className="hero-sep">·</span></>}
+          {/* The state in words, said once: the glyph before the name already
+              names it for a screen reader. */}
+          <span className="hero-meta-item" aria-hidden="true">{status?.phrase ?? cardState(agent).word.toLowerCase()}</span>
           <span className="hero-sep">·</span>
           <span className="hero-meta-item" title={t("board.detail.started", { time: new Date(agent.startedAt).toLocaleString(language) })}>
             {elapsedLabel}
@@ -165,7 +155,6 @@ export default function Detail({
           session-note.ts: what the session is doing or what came of it, and
           Claude Code's recap once that arrives. The heading says which. */}
       {(() => {
-        const note = sessionNoteShown(agent);
         if (!note) return null;
         const written = promptTime(note.at, now);
         const heading = note.kind === "recap" ? t("board.detail.recapHeading") : noteTag(note.kind).replace(/^./, c => c.toUpperCase());
@@ -211,47 +200,6 @@ export default function Detail({
         );
       })()}
 
-      {agent.tools.length > 0 && (
-        <section className="detail-section">
-          <h3>{t("board.detail.activity")}</h3>
-          <div className="activity-row">
-            <div className="activity-counters">
-              <span className="ac-item"><b>{agent.toolCount}</b> {t("board.detail.calls")}</span>
-              {inflight > 0 && <span className="ac-item ac-live"><b>{inflight}</b> {t("board.state.live")}</span>}
-              {errCount > 0 && <span className="ac-item ac-err"><b>{errCount}</b> {t("board.meta.err")}</span>}
-            </div>
-            <div className="cat-strip">
-              {catEntries.map(([c, n]) => {
-                // Only the mcp chip has a server behind it, and only when every
-                // one of its calls went to the same one. The hue rides in as a
-                // custom property and styles.css composes the colour — the
-                // lightness belongs to the theme, not to JS (#330).
-                const one = c === "mcp" ? mcpChip : null;
-                const hue = one?.hue;
-                const calls = t("board.detail.catCalls", { count: n, cat: categoryLabel(c, t) });
-                return (
-                  <span
-                    className={`cat-chip cat-${c}${hue != null ? " mcp-hue" : ""}`}
-                    key={c}
-                    style={hue != null ? { "--mcp-hue": hue } as React.CSSProperties : undefined}
-                    title={one ? t("board.detail.catAllTo", { calls, server: one.label }) : calls}
-                  >
-                    {/* The category as a word at rest (#841): a count said
-                        nothing without a hover, and a title never reaches a
-                        keyboard or touch reader. The word is the key, the
-                        count its value ("file 18"; V4's Figma draws no emoji). */}
-                    <span className="cat-name">{categoryLabel(c, t)}</span>
-                    <span className="cat-count">{n}</span>
-                    {/* The words the tint cannot be trusted to carry alone. */}
-                    {one && <span className="cat-server">{one.label}</span>}
-                  </span>
-                );
-              })}
-            </div>
-          </div>
-        </section>
-      )}
-
       {totalTokens > 0 && (
         <section className="detail-section">
           <h3>{t("board.detail.tokens")}</h3>
@@ -277,14 +225,15 @@ export default function Detail({
         </div>
       </section>
 
-      {typed.length > 0 && (
+      {earlier.length > 0 && (
         <section className="detail-section">
           {/* What a person typed, listed and counted (#834). A background
               task's notice arrives on the same hook and is neither: it is not
-              a prompt (owner's critique, 2026-11-11). */}
-          <h3>{t("board.detail.prompts")} <span className="section-count">{typed.length}</span></h3>
+              a prompt (owner's critique, 2026-11-11). The keys come from the
+              whole typed list, so leaving the newest out moves no entry. */}
+          <h3>{earlier.length < typed.length ? t("board.detail.earlierPrompts") : t("board.detail.prompts")} <span className="section-count">{earlier.length}</span></h3>
           <div className="prompts">
-            {promptKeys(typed).reverse().map(({ pr, key }) => {
+            {promptKeys(typed).filter(({ pr }) => earlier.includes(pr)).reverse().map(({ pr, key }) => {
               const when = promptTime(pr.at, now);
               return (
                 <div className="prompt-entry" key={key}>
@@ -297,15 +246,8 @@ export default function Detail({
         </section>
       )}
 
-      <section className="detail-section">
-        <h3>{t("board.detail.toolCalls")} <span className="section-count">{agent.tools.length}</span></h3>
-        {agent.tools.length === 0 && <div className="empty">{t("board.detail.noTools")}</div>}
-        <div>
-          {agent.tools.slice().reverse().map(call => (
-            <ToolRow key={call.id} call={call} cwd={agent.cwd} onClick={() => onOpenTool(agent.id, call.id)} />
-          ))}
-        </div>
-      </section>
+      {/* Keyed by the agent, so a filter chosen for one is not carried to the next. */}
+      <ToolCalls key={agent.id} agent={agent} onOpenTool={onOpenTool} />
 
       {/* The verbs about this one card, as V4's Quiet buttons. The deck has no
           menu for the card that holds Export or Remove, so they stay at the
@@ -343,6 +285,101 @@ export default function Detail({
         )}
       </div>
     </>
+  );
+}
+
+/** The typed prompts to list: all of them, less the newest when the note above
+ *  them is saying it (a turn the model has not answered yet says its prompt). */
+export function promptsNotSaid(typed: readonly PromptEntry[], note: Pick<SessionNote, "text"> | null): PromptEntry[] {
+  let newest: PromptEntry | null = null;
+  for (const p of typed) if (!newest || p.at > newest.at) newest = p;
+  if (!note || !newest || promptLine(newest.text) !== note.text) return typed.slice();
+  return typed.filter(p => p !== newest);
+}
+
+/** The calls, in one section: how many (live and failed beside the count), a
+ *  chip per kind that keeps the list to that kind until it is pressed again,
+ *  and the list, newest first. The counts are over every call (#1842); the
+ *  list holds the calls the deck keeps, so a list shorter than its count says
+ *  why. */
+export function ToolCalls({ agent, onOpenTool }: { agent: AgentNodeData; onOpenTool: (agentId: string, toolId: string) => void }) {
+  const t = useT();
+  const [kind, setKind] = useState<DetailCategory | null>(null);
+  const catCounts = new Map<DetailCategory, number>();
+  for (const [name, n] of agent.toolCountByName ?? []) {
+    const c = detailCategoryFor(name);
+    catCounts.set(c, (catCounts.get(c) ?? 0) + n);
+  }
+  const errCount = agent.toolErrorCount ?? 0;
+  const inflight = agent.tools.filter(call => !call.endedAt).length;
+  const catEntries = Array.from(catCounts.entries())
+    .sort((a, b) => b[1] - a[1]);
+  // The one server this agent's MCP chip is counting, when there is one (#489)
+  // — ToolBursts' own answer for those calls, so the chip is named and tinted
+  // by the function that named and tinted the bubbles rather than by a second
+  // rule that agrees with it today. null when the calls span two servers, or
+  // when there are none, and the chip stays the generic category chip. Asked
+  // of every tool the chip counts, not only the window's.
+  const mcpChip = catCounts.has("mcp") ? mcpChipIdentity(agent.toolCountByName?.keys() ?? []) : null;
+  const total = Math.max(agent.toolCount, agent.tools.length);
+  const listed = kind ? agent.tools.filter(call => detailCategoryFor(call.name) === kind) : agent.tools;
+  const expected = kind ? (catCounts.get(kind) ?? 0) : total;
+  return (
+    <section className="detail-section">
+      <h3>
+        {t("board.detail.toolCalls")} <span className="section-count">{total}</span>
+        {(inflight > 0 || errCount > 0) && (
+          <span className="activity-counters">
+            {inflight > 0 && <span className="ac-item ac-live"><b>{inflight}</b> {t("board.state.live")}</span>}
+            {errCount > 0 && <span className="ac-item ac-err"><b>{errCount}</b> {t("board.meta.err")}</span>}
+          </span>
+        )}
+      </h3>
+      {catEntries.length > 0 && (
+        <div className="cat-strip" role="group" aria-label={t("board.detail.kinds")}>
+          {catEntries.map(([c, n]) => (
+            <button key={c} type="button" className="call-kind" aria-pressed={kind === c} onClick={() => setKind(k => (k === c ? null : c))}>
+              <CatChip c={c} n={n} one={c === "mcp" ? mcpChip : null} />
+            </button>
+          ))}
+        </div>
+      )}
+      {agent.tools.length === 0 && <div className="empty">{t("board.detail.noTools")}</div>}
+      <div>
+        {listed.slice().reverse().map(call => (
+          <ToolRow key={call.id} call={call} cwd={agent.cwd} onClick={() => onOpenTool(agent.id, call.id)} />
+        ))}
+      </div>
+      {agent.tools.length > 0 && listed.length < expected && <div className="empty">{t("board.detail.olderNotListed")}</div>}
+    </section>
+  );
+}
+
+/** One kind's chip: its word and its count ("file 18"), and the server when
+ *  every MCP call went to one. */
+function CatChip({ c, n, one }: { c: DetailCategory; n: number; one: ReturnType<typeof mcpChipIdentity> }) {
+  const t = useT();
+  // Only the mcp chip has a server behind it, and only when every one of its
+  // calls went to the same one. The hue rides in as a custom property and
+  // styles.css composes the colour — the lightness belongs to the theme, not
+  // to JS (#330).
+  const hue = one?.hue;
+  const calls = t("board.detail.catCalls", { count: n, cat: categoryLabel(c, t) });
+  return (
+    <span
+      className={`cat-chip cat-${c}${hue != null ? " mcp-hue" : ""}`}
+      style={hue != null ? { "--mcp-hue": hue } as React.CSSProperties : undefined}
+      title={one ? t("board.detail.catAllTo", { calls, server: one.label }) : calls}
+    >
+      {/* The category as a word at rest (#841): a count said nothing without a
+          hover, and a title never reaches a keyboard or touch reader. The word
+          is the key, the count its value ("file 18"; V4's Figma draws no
+          emoji). */}
+      <span className="cat-name">{categoryLabel(c, t)}</span>
+      <span className="cat-count">{n}</span>
+      {/* The words the tint cannot be trusted to carry alone. */}
+      {one && <span className="cat-server">{one.label}</span>}
+    </span>
   );
 }
 
