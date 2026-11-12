@@ -449,6 +449,11 @@
    stays where it was. */
 .pl-cell.warn .pl-cell-now { color: var(--warn); }
 .pl-cell.hot .pl-cell-now { color: var(--err); }
+/* And the mark and word that say it, under the line (MachineStrip.tsx). */
+.pl-cell > .level-mark {
+  font-size: calc(11px + var(--ui-text-increase, 0px));
+  line-height: calc(14px + var(--ui-text-increase, 0px));
+}
 /* The box IS the scale, which is the panel's own grammar for these readings —
    `.sd-track` holds a `.sd-fill` against the same 0-100. Without it a line at
    4px and a line at 15px in a 24px box are two positions with nothing to be

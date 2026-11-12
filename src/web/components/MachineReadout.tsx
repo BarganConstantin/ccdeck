@@ -8,6 +8,7 @@
 import React, { useEffect, useId, useRef, useState } from "react";
 
 import { KitIcon } from "./kit-icons";
+import { LevelMark } from "./LevelMark";
 import SectionHistoryModal from "./SectionHistoryModal";
 import { DialogPresence } from "./Dialog";
 import { useT } from "../i18n";
@@ -196,8 +197,11 @@ export function Row({ label, value, pct, note }: {
       <div className="sd-row-head">
         <span className="sd-row-label">{label}</span>
         {/* "How much of how much" — the question a percentage cannot answer and
-            the reason this panel exists. */}
-        <span className="sd-row-val">{value}</span>
+            the reason this panel exists. At the meter's --err level it wears
+            the warning mark and "high" as well, in the fill's tone. */}
+        <LevelMark tone={meterLevel(Math.round(pct)) === "err" ? "err" : null} word="high">
+          <span className="sd-row-val">{value}</span>
+        </LevelMark>
       </div>
       <Meter pct={pct} />
       {note && <div className="sd-note">{note}</div>}
@@ -208,8 +212,9 @@ export function Row({ label, value, pct, note }: {
 /**
  * A plain reading, 24 high: the label on the left in --text-secondary, the
  * value on the right in mono. `err` is for a reading the deck already treats as an error
- * (a sensor past its own critical point, a clock held down hard); anything else
- * is --text, never amber. `note` is the sentence that explains it, under.
+ * (a sensor past its own critical point, a clock held down hard): --err, with
+ * the warning mark and "hot" round it; anything else is --text, never amber.
+ * `note` is the sentence that explains it, under.
  * `hint` is a fact about the reading that the frame has no room to draw (a
  * sensor's critical point): it is the row's tooltip and, for a reader who
  * cannot hover, a visually hidden description of the row.
@@ -219,7 +224,9 @@ export function PlainRow({ label, value, err, note, hint }: { label: string; val
   return (
     <div className="sd-plain" title={hint} aria-describedby={hint ? hintId : undefined}>
       <span className="sd-plain-label">{label}</span>
-      <span className="sd-plain-val" data-err={err ? "" : undefined}>{value}</span>
+      <LevelMark tone={err ? "err" : null} word="hot">
+        <span className="sd-plain-val" data-err={err ? "" : undefined}>{value}</span>
+      </LevelMark>
       {hint && <span id={hintId} className="vis-hidden">{hint}</span>}
       {note && <span className="sd-plain-note">{note}</span>}
     </div>

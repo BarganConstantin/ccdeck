@@ -24,6 +24,9 @@ import { describe, it, expect } from "vitest";
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { join } from "node:path";
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
+import QuotaBar from "../components/QuotaBar";
 import { gradientStops as readStops } from "./gradient-stops";
 import { MOUSE_MEDIA, defaultReadingSheetText as sheetText } from "./sheet-source";
 
@@ -1767,5 +1770,136 @@ describe("the placeholder in the deck's shared text field (#1789)", () => {
       // that --text-secondary keeps over --muted, at least.
       expect(value / hint, `${theme} placeholder vs value`).toBeGreaterThanOrEqual(1.47);
     }
+  });
+});
+
+// ── the light theme's frames, the quota sliver and the hover bands ─────────
+//
+// Measured on the light board: Usage's floating frame was --line-soft, 1.09:1
+// on the canvas; the "< 1%" quota sliver was its fill at 0.4 opacity, 1.8:1
+// against its track in light and 2.7:1 in dark; the notes under the machine
+// panel's 6% hover band were --muted, 4.15:1 in dark; and the "By session"
+// hover band was --bg-soft on the white panel, 1.06:1.
+
+describe("the light theme's frames, the quota sliver and the hover bands", () => {
+  const panel = (theme: Theme) => parseColor(TOK[theme]["--panel"]);
+  const canvas = (theme: Theme) => bedOf(".canvas-wrap", theme, parseColor(TOK[theme]["--bg"]));
+  /** A 1px line in `value`, as it composites on `bed`, against that bed. */
+  const lineOn = (value: string, theme: Theme, bed: Rgba) => contrastRatio(over(resolve(value, theme), bed), bed);
+
+  describe("the floating panels' frame in light", () => {
+    const FRAME = ':root[data-color-scheme="light"] :is(.usage-panel, .sysdetail)';
+
+    it("reproduces the 1.09:1 --line-soft frame on the light canvas", () => {
+      expect(declFor(".usage-panel", "border")).toBe("1px solid var(--line-soft)");
+      expect(declFor(".sysdetail", "border")).toBe("1px solid var(--line-soft)");
+      expect(lineOn("var(--line-soft)", "light", canvas("light"))).toBeCloseTo(1.09, 2);
+    });
+
+    it("draws the frame in the strong line, at 3:1 or better on the light canvas", () => {
+      const edge = decl(rule(FRAME), "border-color");
+      expect(edge).toBe("var(--ctl-edge)");
+      const r = lineOn(edge!, "light", canvas("light"));
+      expect(r, `light frame — ${r.toFixed(2)}:1`).toBeGreaterThanOrEqual(NON_TEXT);
+    });
+  });
+
+  describe("the quota bar's '< 1%' sliver", () => {
+    const sliver = renderToStaticMarkup(createElement(QuotaBar, { pct: 0.5, label: "Week", nowSec: 0 }));
+    const style = /class="qb-fill"[^>]*style="([^"]*)"/.exec(sliver)?.[1] ?? "";
+    const track = (theme: Theme) => over(resolve(decl(rule(".qb-track"), "background")!, theme), panel(theme));
+
+    it("is drawn at full strength, with no fade over it", () => {
+      expect(style).toContain("transform:scaleX(0.02)");
+      expect(style).not.toContain("opacity");
+      expect(decl(rule(".qb-fill"), "opacity")).toBeNull();
+    });
+
+    it("reproduces what the old 0.4 fade was worth against the track", () => {
+      const fadedOn = (theme: Theme) => contrastRatio(over([...resolve("var(--accent)", theme).slice(0, 3), 0.4] as Rgba, track(theme)), track(theme));
+      expect(fadedOn("light")).toBeCloseTo(1.8, 1);
+      expect(fadedOn("dark")).toBeCloseTo(2.68, 1);
+    });
+
+    it("holds 3:1 against its track in every fill colour, in both themes", () => {
+      const fill = /background:([^;]+)/.exec(style)?.[1];
+      expect(fill).toBe("var(--accent)");
+      for (const theme of themes) {
+        for (const ink of [fill!, "var(--warn)", "var(--err)"]) {
+          const r = contrastRatio(resolve(ink, theme), track(theme));
+          expect(r, `${theme} sliver ${ink} on its track — ${r.toFixed(2)}:1`).toBeGreaterThanOrEqual(NON_TEXT);
+        }
+      }
+    });
+
+    it("is at least 3px wide on the narrowest track the bar is drawn in", () => {
+      // The panel's width, less its two borders and the body's padding each side.
+      const width = Number(declFor(".usage-panel", "width")!.replace("px", ""));
+      const border = Number(/^(\d+)px/.exec(declFor(".usage-panel", "border")!)![1]);
+      const pad = Number(decl(rule(".up-body"), "padding")!.replace("px", ""));
+      const trackPx = width - 2 * border - 2 * pad;
+      expect(trackPx).toBe(294);
+      expect(trackPx * 0.02).toBeGreaterThanOrEqual(3);
+    });
+  });
+
+  describe("notes under the machine panel's hover band", () => {
+    const BAND = ".sysdetail .sd-reading:hover";
+    const NOTES = `${BAND} :is(.sd-note:not(.sd-note-err), .sd-plain-note, .sd-fig-cap)`;
+    const bandOn = (theme: Theme) => over(resolve(decl(rule(BAND), "background")!, theme), panel(theme));
+
+    it("reproduces the 4.15:1 --muted read on the band in dark", () => {
+      expect(decl(rule(".sd-note"), "color")).toBe("var(--muted)");
+      expect(contrastRatio(resolve("var(--muted)", "dark"), bandOn("dark"))).toBeCloseTo(4.15, 2);
+    });
+
+    it("steps the notes up a tier while the band is under them, at 4.5:1 in both themes", () => {
+      const ink = decl(rule(NOTES), "color");
+      expect(ink).toBe("var(--text-secondary)");
+      for (const theme of themes) {
+        const r = contrastRatio(resolve(ink!, theme), bandOn(theme));
+        expect(r, `${theme} note on the hover band — ${r.toFixed(2)}:1`).toBeGreaterThanOrEqual(BODY);
+      }
+    });
+
+    it("does it for a mouse only, as every hover in the deck", () => {
+      const hover = SHEET.find(r => r.selectors.join(",").includes(".sd-reading:hover :is(.sd-note"));
+      expect(hover?.at).toBe(`@media ${MOUSE_MEDIA}`);
+    });
+  });
+
+  describe("the 'By session' row under the pointer", () => {
+    const HOVER = ".up-session-open:hover";
+
+    it("reproduces the 1.06:1 band on the light panel", () => {
+      expect(decl(rule(HOVER), "background")).toBe("var(--bg-soft)");
+      expect(contrastRatio(resolve("var(--bg-soft)", "light"), panel("light"))).toBeCloseTo(1.06, 2);
+    });
+
+    it("adds a 2px edge in the strong line, at 3:1 on the band in both themes", () => {
+      const shadow = decl(rule(HOVER), "box-shadow");
+      expect(shadow).toBe("inset 2px 0 0 var(--ctl-edge)");
+      for (const theme of themes) {
+        const band = over(resolve("var(--bg-soft)", theme), panel(theme));
+        const r = lineOn("var(--ctl-edge)", theme, band);
+        expect(r, `${theme} By session hover edge — ${r.toFixed(2)}:1`).toBeGreaterThanOrEqual(NON_TEXT);
+      }
+    });
+  });
+
+  describe("the warning mark and word, in the tone they are drawn in", () => {
+    it("reads --warn and --err at 4.5:1 on every panel bed they sit on, in both themes", () => {
+      expect(decl(rule('.level-mark[data-tone="warn"]'), "color")).toBe("var(--warn)");
+      expect(decl(rule('.level-mark[data-tone="err"]'), "color")).toBe("var(--err)");
+      for (const theme of themes) {
+        const beds: Array<[string, Rgba]> = [["--panel", panel(theme)], ["machine hover band", over(resolve(decl(rule(".sysdetail .sd-reading:hover"), "background")!, theme), panel(theme))]];
+        for (const ink of ["var(--warn)", "var(--err)"]) {
+          for (const [name, bed] of beds) {
+            const r = contrastRatio(resolve(ink, theme), bed);
+            expect(r, `${theme} ${ink} on ${name} — ${r.toFixed(2)}:1`).toBeGreaterThanOrEqual(BODY);
+          }
+        }
+      }
+    });
   });
 });

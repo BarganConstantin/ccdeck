@@ -73,6 +73,23 @@
 .path-head { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .path-tail { flex: none; max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
 
+/* A figure at its warning level (LevelMark.tsx): the warning mark, the figure
+   and its word on one line, 4 apart, all in the level's tone, so the colour is
+   never the only thing that says it. The figure keeps its own face; the word
+   and its dot are the interface's, at the figure's size. */
+.level-mark {
+  display: inline-flex;
+  flex: none;
+  align-items: baseline;
+  gap: 4px;
+  white-space: nowrap;
+}
+.level-mark[data-tone="warn"] { color: var(--warn); }
+.level-mark[data-tone="err"] { color: var(--err); }
+.level-mark-glyph { flex: none; align-self: center; width: 12px; height: 12px; }
+.level-mark-dot,
+.level-mark-word { font-weight: 400; font-style: normal; }
+
 /* The canvas is the skip link's target and takes focus programmatically, so it
    does get a ring — landing somewhere with no sign you landed is the failure
    this link exists to fix, one step later. Inset, because .canvas-wrap fills
