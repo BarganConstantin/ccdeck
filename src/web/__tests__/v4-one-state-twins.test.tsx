@@ -3,7 +3,9 @@
 // 2. One state on every surface: a session that ended with a failed call drew
 //    the cross and "1 failed" on its card, and done's tick in the Sessions list.
 //    Every surface now asks node-face.ts sessionMark for the mark; the list row
-//    says the count the card says and stays in its Done group.
+//    says the count the card says and stays in its Done group. Since the
+//    owner's decision of 2026-11-12 that mark is the partial one (done's tick
+//    and an amber dot), and the cross is only for a turn that failed.
 // 3. Look-alikes get the shortest difference: three sessions read "ccdeck ·
 //    Write the release notes for 3.83" on the board and in the list. Only where
 //    two or more share the name and the task line does each draw when it started.
@@ -79,19 +81,24 @@ const card = (data: Partial<AgentNodeData> & { twin?: "minute" | "second" }) => 
 // ── point 2 ─────────────────────────────────────────────────────────────────
 
 describe("one mark for a session, from sessionMark", () => {
-  it("draws the cross for a finished session whose calls failed, and for a stopped turn", () => {
-    expect(sessionMark({ kind: "root", state: "done", toolErrorCount: 1 })).toBe("err");
+  it("draws the partial mark for a finished session whose calls failed, the cross only for a stopped turn", () => {
+    expect(sessionMark({ kind: "root", state: "done", toolErrorCount: 1 })).toBe("partial");
     expect(sessionMark({ kind: "root", state: "done", stopFailure: { kind: "other" } as never })).toBe("err");
     expect(sessionMark({ kind: "root", state: "err" })).toBe("err");
+  });
+  it("lets a stopped turn's cross win over its failed calls", () => {
+    expect(sessionMark({ kind: "root", state: "done", toolErrorCount: 3, stopFailure: { kind: "other" } as never })).toBe("err");
+    expect(sessionMark({ kind: "root", state: "err", toolErrorCount: 3 })).toBe("err");
   });
   it("keeps the tick when nothing failed, and the live ring on a session still at work", () => {
     expect(sessionMark({ kind: "root", state: "done" })).toBe("done");
     expect(sessionMark({ kind: "root", state: "active", toolErrorCount: 3 })).toBe("live");
-    expect(sessionMark({ kind: "subagent", state: "done", toolErrorCount: 2 })).toBe("err");
+    expect(sessionMark({ kind: "subagent", state: "done", toolErrorCount: 2 })).toBe("partial");
   });
   it("reads a list row, which holds its drawn state and its count and no kind", () => {
-    expect(sessionMark({ state: "done", toolErrorCount: 1 })).toBe("err");
+    expect(sessionMark({ state: "done", toolErrorCount: 1 })).toBe("partial");
     expect(sessionMark({ state: "done" })).toBe("done");
+    expect(sessionMark({ state: "err", toolErrorCount: 1 })).toBe("err");
   });
 });
 
@@ -99,17 +106,17 @@ describe("the Sessions list says what the card says", () => {
   const rows = () => buildRows(board(), T0 + 100_000);
   const row = (id: string) => rows().find(r => r.sessionId === id)!;
 
-  it("files the failed session under Done and draws the cross, as the command menu does", () => {
+  it("files the session whose calls failed under Done and draws the partial mark, as the command menu does", () => {
     const site = row("site");
     expect(site.state).toBe("done");
     expect(site.toolErrorCount).toBe(1);
     expect([2, 3]).toContain(rank(site));
-    expect(railGlyph(site, rank(site))).toBe("error");
-    expect(sessionLine(site).tone).toBe("error");
-    // The count the card's face says beside the same cross.
+    expect(railGlyph(site, rank(site))).toBe("partial");
+    expect(sessionLine(site).tone).toBe("partial");
+    // The count the card's face says beside the same mark.
     expect(railFailed(site, rank(site))).toBe("1 failed");
     const face = faceStatus(board().agents.get("site")!);
-    expect(face).toMatchObject({ mark: "err", word: "1 failed" });
+    expect(face).toEqual({ tone: "partial", mark: "partial", word: "1 failed" });
   });
 
   it("says no count on a clean row, a running row or a turn that stopped on an error", () => {
@@ -124,39 +131,69 @@ describe("the Sessions list says what the card says", () => {
     expect(railFailed(stopped, rank(stopped))).toBeNull();
   });
 
-  it("draws the cross and leads the second line with the count", () => {
+  it("draws the partial mark and leads the second line with Done and the count", () => {
     const html = renderToStaticMarkup(createElement(SessionList, {
       state: board(), now: T0 + 100_000, selectedIds: new Set<string>(), onSelect: () => {}, onClose: () => {},
     }));
     const item = html.slice(html.indexOf('data-rail-id="site"'));
     const site = item.slice(0, item.indexOf("</li>"));
-    expect(site).toContain('data-glyph="error"');
-    expect(site).toContain('<span class="sl-failed">1 failed</span> · Run the test suite and fix what fails');
+    expect(site).toContain('data-glyph="partial"');
+    expect(site).toMatch(/<svg class="state-mark" data-kind="partial"[\s\S]*?<circle class="kit-warn"/);
+    expect(site).toContain('Done · <span class="sl-failed">1 failed</span> · Run the test suite and fix what fails');
+    expect(site).toMatch(/<span class="sl-line2">Done · <span class="sl-failed">/);
     expect(html.match(/class="sl-failed"/g)).toHaveLength(1);
   });
 
-  it("sets the count in the cross's ink", () => {
-    expect(decl(".session-list .sl-failed", "color")).toBe("var(--err)");
+  it("sets the count in the warning's ink, and Done in the line's own", () => {
+    expect(decl(".session-list .sl-failed", "color")).toBe("var(--warn)");
     expect(decl(".session-list .sl-failed", "font-weight")).toBe("500");
+    expect(decl(".session-list .sl-line2", "color")).toBe("var(--muted)");
   });
 });
 
 describe("the card's head and the Inspector agree with the face", () => {
-  it("says 1 failed beside the cross on a finished card whose calls failed", () => {
+  it("says Done · 1 failed beside the partial mark on a finished card whose calls failed", () => {
     const out = card({ state: "done", toolErrorCount: 1 });
-    expect(out).toMatch(/<span class="state-line" data-tone="err"><svg class="state-mark" data-kind="err"[\s\S]*?<\/svg><span class="state-word">1 failed<\/span><\/span>/);
+    expect(out).toMatch(/<span class="state-line" data-tone="partial"><svg class="state-mark" data-kind="partial"[\s\S]*?<circle class="kit-warn"[\s\S]*?<\/svg><span class="state-word"><span class="state-done">Done<\/span> · <span class="state-failed">1 failed<\/span><\/span><\/span>/);
     expect(card({ state: "done" })).toMatch(/<span class="state-line" data-tone="done"><svg class="state-mark" data-kind="done"[\s\S]*?<span class="state-word">Done<\/span>/);
   });
 
-  it("draws the cross in the Inspector's head, on the Board and in the Workspace", () => {
+  it("keeps the cross and Failed for a turn that stopped on an error, whatever its count", () => {
+    const out = card({ state: "done", toolErrorCount: 3, stopFailure: { kind: "other", error: "unknown", message: "", at: T0 } as never });
+    expect(out).toMatch(/<span class="state-line" data-tone="err"><svg class="state-mark" data-kind="err"[\s\S]*?<\/svg><span class="state-word">Failed<\/span><\/span>/);
+    expect(out).not.toContain("kit-warn");
+  });
+
+  it("colours Done and the mark in done's ink and the count in the warning's", () => {
+    expect(decl('.agent-node .state-line[data-tone="partial"] .state-word', "color")).toBe("var(--ok)");
+    expect(decl('.agent-node .state-line[data-tone="partial"] .state-failed', "color")).toBe("var(--warn)");
+    expect(decl('.agent-node .state-line[data-tone="partial"] .state-mark', "color")).toBe("var(--ok)");
+    expect(decl('.state-mark[data-kind="partial"]', "color")).toBe("var(--ok)");
+    expect(decl(".state-mark .kit-warn", "fill")).toBe("var(--warn)");
+    expect(decl(".kit-warn", "fill")).toBe("var(--warn)");
+    expect(decl('.lod-line[data-status="partial"] .lod-state', "color")).toBe("var(--warn)");
+    expect(decl('.node-peek-state[data-kind="partial"]', "color")).toBe("var(--warn)");
+    expect(decl('.phone-board .pb-card[data-tone="partial"] .pb-state', "color")).toBe("var(--warn)");
+    expect(decl('.qo-state[data-kind="partial"]', "color")).toBe("var(--ok)");
+  });
+
+  it("draws the partial mark in the Inspector's head, on the Board and in the Workspace", () => {
     const s = board();
     const site = s.agents.get("site")!;
-    expect(cardStatus(site)).toEqual({ glyph: "error", phrase: "1 failed" });
-    expect(paneStatus(site, s.agents, T0 + 100_000).glyph).toBe("error");
+    expect(cardStatus(site)).toEqual({ glyph: "partial", phrase: "done · 1 failed" });
+    expect(paneStatus(site, s.agents, T0 + 100_000).glyph).toBe("partial");
     expect(paneStatus(s.agents.get("n3")!, s.agents, T0 + 100_000).glyph).toBe("done");
   });
 
-  it("draws the cross on the navigator's tile", () => {
+  it("keeps the cross in the Inspector's head for a turn that stopped on an error", () => {
+    const s = board();
+    const site = { ...s.agents.get("site")!, stopFailure: { kind: "other", error: "unknown", message: "", at: T0 } as never };
+    const agents = new Map(s.agents).set("site", site);
+    expect(cardStatus(site).glyph).toBe("error");
+    expect(paneStatus(site, agents, T0 + 100_000).glyph).toBe("error");
+  });
+
+  it("draws the partial mark on the navigator's tile", () => {
     const s = board();
     const dataFor = nodeDataFor(s, () => {});
     const nodes: ClusterNode[] = [...s.agents.values()].map((a, i) => ({
@@ -169,7 +206,7 @@ describe("the card's head and the Inspector agree with the face", () => {
       const at = html.slice(html.indexOf(`data-nav-session="${id}"`));
       return /<span class="nav-id"><svg class="state-mark" data-kind="(\w+)"/.exec(at)?.[1];
     };
-    expect(tile("site")).toBe("err");
+    expect(tile("site")).toBe("partial");
     expect(tile("n3")).toBe("done");
   });
 });

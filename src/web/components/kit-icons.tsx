@@ -5,9 +5,12 @@ import type { ReactNode } from "react";
 // button decides the colour. An icon is never drawn at another size: scaling a
 // 14 to 16 changes its stroke, so the box comes from the icon itself.
 
+// `cls` names one element for the sheet, for a glyph whose parts are not all
+// the one currentColor: the partial mark's dot is --warn beside a tick in the
+// state's own ink.
 type KitEl =
-  | { d: string; w?: number; o?: number }
-  | { cx: number; cy: number; r: number; w?: number; o?: number; fill?: boolean };
+  | { d: string; w?: number; o?: number; cls?: string }
+  | { cx: number; cy: number; r: number; w?: number; o?: number; fill?: boolean; cls?: string };
 
 type KitDef = { size: 12 | 14; visible?: boolean; els: KitEl[] };
 
@@ -213,6 +216,13 @@ export const KIT_STATE_GLYPHS = {
   idle: { size: 14, els: [
     { cx: 7, cy: 7, r: 4.5 }
   ] },
+  // Done's tick, moved down and left so the dot at the corner does not touch
+  // it, and a filled dot the sheet paints --warn (.kit-warn): a turn that
+  // finished with failed calls.
+  partial: { size: 14, els: [
+    { d: "M2.4 8L5 10.6L10.4 5", w: 1.6 },
+    { cx: 12, cy: 2, r: 1.75, fill: true, cls: "kit-warn" }
+  ] },
   waiting: { size: 14, els: [
     { cx: 7, cy: 7, r: 6, o: 0.35 },
     { d: "M7 3.75V7.5" },
@@ -231,10 +241,11 @@ function kitEls(els: readonly KitEl[]): ReactNode {
   return els.map((e, i) => {
     const w = "w" in e ? e.w : undefined;
     const o = "o" in e ? e.o : undefined;
-    if ("d" in e) return <path key={i} d={e.d} strokeWidth={w} strokeOpacity={o} />;
+    const cls = "cls" in e ? e.cls : undefined;
+    if ("d" in e) return <path key={i} className={cls} d={e.d} strokeWidth={w} strokeOpacity={o} />;
     return e.fill
-      ? <circle key={i} cx={e.cx} cy={e.cy} r={e.r} fill="currentColor" stroke="none" />
-      : <circle key={i} cx={e.cx} cy={e.cy} r={e.r} strokeWidth={w} strokeOpacity={o} />;
+      ? <circle key={i} className={cls} cx={e.cx} cy={e.cy} r={e.r} fill="currentColor" stroke="none" />
+      : <circle key={i} className={cls} cx={e.cx} cy={e.cy} r={e.r} strokeWidth={w} strokeOpacity={o} />;
   });
 }
 

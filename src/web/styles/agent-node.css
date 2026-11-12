@@ -284,6 +284,7 @@
 /* A value, so it is drawn whole or not at all. */
 .lod-state { flex: none; white-space: nowrap; }
 .lod-line[data-status="waiting"] .lod-state { color: var(--warn); }
+.lod-line[data-status="partial"] .lod-state { color: var(--warn); }
 .lod-line[data-status="err"] .lod-state { color: var(--err); }
 /* When it started, on a card that reads like another (twinClocks): a value,
    whole or not at all, in the model's quiet mono. */
@@ -336,6 +337,13 @@
 .state-mark[data-kind="idle"] { color: var(--muted); }
 .state-mark[data-kind="live"] { color: var(--inflight); }
 .state-mark[data-kind="done"] { color: var(--ok); }
+/* A turn that finished with failed calls: done's tick in done's ink, and the
+   dot at its corner in the warning's. The dot's own rule wins over the
+   currentColor fill the kit draws it with, on every surface that draws the
+   glyph, the Inspector's head and the command menu as well as a .state-mark. */
+.state-mark[data-kind="partial"] { color: var(--ok); }
+.state-mark .kit-warn,
+.kit-warn { fill: var(--warn); }
 .state-mark[data-kind="err"] { color: var(--err); }
 .alert-mark { flex: none; margin-left: auto; color: var(--warn); }
 
@@ -400,12 +408,16 @@
 .agent-node .state-line .alert-mark { width: 14px; height: 14px; margin-left: 0; }
 .agent-node .state-line[data-tone="active"] .state-word { color: var(--inflight); }
 .agent-node .state-line[data-tone="done"] .state-word { color: var(--ok); }
+/* Finished with failed calls: "Done" in done's ink, the count in the warning's. */
+.agent-node .state-line[data-tone="partial"] .state-word { color: var(--ok); }
+.agent-node .state-line[data-tone="partial"] .state-failed { color: var(--warn); }
 .agent-node .state-line[data-tone="err"] .state-word { color: var(--err); }
 .agent-node .state-line[data-tone="waiting"] .state-word { color: var(--warn); }
 /* Ready for a first prompt: quiet, in the --muted its hollow ring is drawn in
    (.state-mark[data-kind="idle"]). Nothing is at work and nothing is asked. */
 .agent-node .state-line[data-tone="ready"] .state-word { color: var(--muted); }
 .agent-node .state-line[data-tone="done"] .state-mark { color: var(--ok); }
+.agent-node .state-line[data-tone="partial"] .state-mark { color: var(--ok); }
 .agent-node .state-line[data-tone="err"] .state-mark { color: var(--err); }
 .agent-node .state-line[data-tone="waiting"] .state-mark { color: var(--warn); }
 /* Working breathes on the deck's one live tempo; Waiting does not pulse — its

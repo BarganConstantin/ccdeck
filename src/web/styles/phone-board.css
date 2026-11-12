@@ -67,6 +67,7 @@
 }
 .phone-board .pb-card[data-tone="active"] .pb-state { color: var(--inflight); }
 .phone-board .pb-card[data-tone="done"] .pb-state { color: var(--ok); }
+.phone-board .pb-card[data-tone="partial"] .pb-state { color: var(--warn); }
 .phone-board .pb-card[data-tone="err"] .pb-state { color: var(--err); }
 .phone-board .pb-card[data-tone="waiting"] .pb-state { color: var(--warn); }
 .phone-board .pb-card[data-tone="ready"] .pb-state { color: var(--muted); }

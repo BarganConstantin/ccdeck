@@ -265,6 +265,12 @@ describe("the state the Inspector names", () => {
     expect(cardStatus(A("c", { state: "done" })).glyph).toBe("done");
     expect(cardStatus(A("c", { state: "err" })).glyph).toBe("error");
   });
+  it("draws the partial mark for an agent that finished with failed calls, and the cross only for a failure", () => {
+    expect(cardStatus(A("c", { state: "done", toolErrorCount: 3 }))).toEqual({ glyph: "partial", phrase: "done · 3 failed" });
+    expect(cardStatus(A("c", { state: "err", toolErrorCount: 3 })).glyph).toBe("error");
+    const out = renderToStaticMarkup(createElement(Detail, { agent: A("c", { state: "done", toolErrorCount: 3 }), now: 5000, status: { glyph: "partial", phrase: "done · 3 failed" } }));
+    expect(out).toMatch(/<span class="hero-state" role="img" data-state="partial"[^>]*><svg[\s\S]*?<circle class="kit-warn"/);
+  });
   it("is taken from the pane's functions, not a second rule, and loads them only in the Workspace", () => {
     const pane = src("inspector-status-pane.ts");
     expect(pane).toContain("stageStatusFrom(boardFactsFor(root, subagents)");

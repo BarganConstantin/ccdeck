@@ -78,8 +78,9 @@ export function AgentCard({ data, handles = false }: { data: CardData; handles?:
   // failure, as its word and mark say (drawnState, #2185).
   const shown = drawnState(data);
   // The word and glyph beside the name: the faces' own status at a distance
-  // (node-face.ts faceStatus), so a finished card whose calls failed says
-  // "1 failed" beside the cross here too, never Done beside the tick.
+  // (node-face.ts faceStatus), so a finished card whose calls failed wears the
+  // partial mark here too, and says "Done · 1 failed" (StateLine), as its row in
+  // the Sessions list does.
   const state = faceStatus(data, t);
   const cls = [
     "agent-node",
@@ -503,7 +504,8 @@ function PlanRow({ plan, items }: { plan: PlanSummary; items: readonly PlanItem[
  * person last asked the session (the Sessions list's task), else its name or
  * title, never the folder the cluster's pill above already names
  * (rail-row-copy.ts faceTask); a subagent's own task, else its name. Then the
- * mark and the word, Working, Done, Waiting or "1 failed" (faceStatus).
+ * mark and the word, Working, Done, Waiting or, beside the partial mark,
+ * "1 failed" (faceStatus).
  * Compact and overview draw the same face. A card that reads like another on
  * the board (twinClocks) adds when it started, after the word where the face
  * has two lines; never below 40%.
@@ -567,14 +569,21 @@ function Elapsed({ start, end }: { start: number; end?: number }) {
 /** The card's state: the face's own mark, then a sentence-case word, both in
  *  the state's token (V4). The mark is decoration beside the word, so the word
  *  is the channel that carries the state to a reader (1.4.1) and to the card's
- *  accessible name (agentAriaLabel). */
-const STATE_GLYPH: Record<CardState["tone"], KitStateName> = { active: "working", waiting: "waiting", done: "done", err: "error", ready: "idle" };
+ *  accessible name (agentAriaLabel).
+ *
+ *  A turn that finished with failed calls (the partial tone) has room here for
+ *  both facts: Done in done's ink, then the face's "3 failed" in the warning's,
+ *  each its own span for the sheet. The face at a distance says the count alone. */
+const STATE_GLYPH: Record<CardState["tone"], KitStateName> = { active: "working", waiting: "waiting", done: "done", partial: "partial", err: "error", ready: "idle" };
 
 function StateLine({ state, under }: { state: CardState; under: StateMarkKind }) {
+  const t = useT();
   return (
     <span className="state-line" data-tone={state.tone}>
       <KitStateGlyph name={STATE_GLYPH[state.tone]} className="state-mark" kind={state.mark === "alert" ? under : state.mark} />
-      <span className="state-word">{state.word}</span>
+      {state.tone === "partial"
+        ? <span className="state-word"><span className="state-done">{t("board.card.stateDone")}</span>{" · "}<span className="state-failed">{state.word}</span></span>
+        : <span className="state-word">{state.word}</span>}
     </span>
   );
 }
