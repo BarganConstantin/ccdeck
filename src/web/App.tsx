@@ -111,6 +111,7 @@ import { useReports } from "./use-reports";
 import { blockedSessions } from "./ambient-counts";
 import { sessionListName } from "./session-display";
 import { sessionCounts } from "./topbar-counts";
+import { BoardEmptyContext, boardIsEmpty } from "./board-empty";
 import { initialState } from "./reducer";
 import { useSoundSwitch } from "./use-sound-switch";
 import { useSettingsMenus } from "./use-settings-menus";
@@ -931,11 +932,13 @@ function Inner() {
   });
 
   /** Not a topbar readout any more — the "agents" counter went with the
-   *  sessions and events ones. This is the emptiness test: zero agents is what
-   *  puts the hero on the canvas and the "nothing selected" copy in the detail
-   *  rail, and it is the number ClearConfirm counts to say what clearing
-   *  destroys. */
+   *  sessions and events ones. It is the number ClearConfirm counts to say
+   *  what clearing destroys. */
   const agentCount = stateRef.current.agents.size;
+  /** The emptiness test, in one place (board-empty.ts): no session puts the
+   *  hero on the canvas alone, and the parts that act on sessions read it
+   *  through the context below and stay out until the first one arrives. */
+  const boardEmpty = boardIsEmpty(stateRef.current);
   /** The two numbers the topbar chip and the tab strip are driven from —
    *  sessions blocked on a human, longest-blocked first, and sessions with an
    *  agent still moving. Both are recomputed from the agents map on every frame
@@ -1096,7 +1099,7 @@ function Inner() {
   // tabs). On a phone the Sessions list covers the canvas it would sit on, so
   // the notice is the list's own empty state, the panel's width less 8 a side;
   // the card for a dropped connection already says that one.
-  const emptyHero = (reservedRight: number) => agentCount === 0 ? (!live && tabCapped
+  const emptyHero = (reservedRight: number) => boardEmpty ? (!live && tabCapped
     ? <TabCapHero reservedRight={reservedRight} />
     : <EmptyHero live={live} everConnected={everConnected} providers={providers} workspace={workspace} onTour={openTour} reservedRight={reservedRight} />) : null;
   const heroInList = phone && sessionListDrawn && !(everConnected && !live);
@@ -1182,6 +1185,10 @@ function Inner() {
     // root is the root it was; data-zoom folds the list and the Inspector
     // (workspace.css); the switch between the views is view-switch.ts.
     <div ref={appRef} className="app" data-view={inWorkspace ? "workspace" : undefined} data-zoom={zoomPhase} data-side={side.on ? "" : undefined} data-fold-stack={foldStack ? "" : undefined}>
+      {/* Whether the deck has a session yet, for every part drawn below that
+          stays out until it does (board-empty.ts). No element: the grid's
+          children are the ones they were. */}
+      <BoardEmptyContext.Provider value={boardEmpty}>
       {/* The deck's regions, and why each one is the element it is (#381).
           Before this the whole page was <div>s apart from the topbar, so a
           screen reader's landmark rotor listed one entry — Banner — for an
@@ -1387,7 +1394,7 @@ function Inner() {
           rails: quickRails, sessions: buildRows(stateRef.current, now), openSession: pickSession,
           settings: indexFor(providers.claude, integrationsReach(integrations), offeredKinds(integrations)), openSettings,
           singleKeys, fit: handleFit, rearrange: handleRelayout, paused, togglePause,
-          clear: agentCount > 0 ? () => requestClear("button") : undefined,
+          clear: boardEmpty ? undefined : () => requestClear("button"),
           nextWaiting: blockedSessions(stateRef.current.agents.values()).length > 0 ? quickNextWaiting : undefined,
           start: quickStart(),
           keyHelp: () => setKeyHelpOpen(true), tour: openTour, theme: appearance.theme, setTheme,
@@ -1475,6 +1482,7 @@ function Inner() {
           columns and the stripes (not drawn on a phone, where the dock is) —
           components/StatusBar.tsx. */}
       {!phone && <StatusBar stageOpen={stage.enabled && stageClaimsKeys(stage.shell.phase)} zoomedOut={zoom.lod !== "detail"} viewChord={stage.workspaceOffered ? (inWorkspace ? "board" : "workspace") : null} waiting={waitingSessions.length > 0} version={version?.running ?? null} onVersion={welcome.openReleaseNotes} />}
+      </BoardEmptyContext.Provider>
 
       {/* The dialogs, in the order they paint over one another — components/DeckDialogs.tsx. */}
       <DeckDialogs

@@ -10,6 +10,7 @@
 // <footer> is the page's contentinfo landmark. No live region: it would speak on
 // every focus move, and everything it names is on the keyboard sheet (?).
 import { memo, useEffect, useState } from "react";
+import { useBoardEmpty } from "../board-empty";
 import { isCanvasNodeElement } from "../canvas-node-element";
 import { platformName } from "../platform";
 import { statusViewFor, type StatusHint } from "../status-hints";
@@ -64,7 +65,8 @@ function useFocusPlace(stageOpen: boolean): FocusPlace {
 }
 
 /** Memoised: App re-renders on its clock several times a second, and the bar's
- *  only inputs are its two props, focus and the single-key switch. */
+ *  only inputs are its props, focus, the single-key switch and whether the
+ *  board is empty. */
 export default memo(function StatusBar({ stageOpen, zoomedOut, viewChord = null, waiting = true, extra, version = null, onVersion }: {
   stageOpen: boolean;
   zoomedOut: boolean;
@@ -82,12 +84,14 @@ export default memo(function StatusBar({ stageOpen, zoomedOut, viewChord = null,
   const t = useT();
   const singleKeys = useSingleKeyShortcuts();
   const { pane, onCard } = useFocusPlace(stageOpen);
-  const standard = statusViewFor({ stageOpen, pane, onCard, zoomedOut, singleKeys, platform: platformName(), viewChord, waiting });
+  const empty = useBoardEmpty();
+  const standard = statusViewFor({ stageOpen, pane, onCard, zoomedOut, singleKeys, platform: platformName(), viewChord, empty, waiting });
   const view = extra && pane == null ? extra : standard;
   return (
     <footer className="statusbar" aria-label={t("board.keys.statusBar")} data-layer={view.layer}>
       <div className="statusbar-start">
-        <span className="statusbar-who"><span className="statusbar-dot" aria-hidden />{view.label}</span>
+        {/* Unnamed only on an empty board, where no key has work to do. */}
+        {view.label && <span className="statusbar-who"><span className="statusbar-dot" aria-hidden />{view.label}</span>}
         {view.hints.map(h => (
           <span className="statusbar-hint" key={h.word}>
             <span className="statusbar-caps">

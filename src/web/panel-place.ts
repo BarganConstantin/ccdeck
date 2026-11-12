@@ -238,7 +238,9 @@ export function minimapInset(panels: readonly Span[], canvas: Span, width: numbe
  *  sheets are not beside the minimap, so a phone keeps it where it was. */
 export function fitMinimap(): void {
   const canvas = document.querySelector<HTMLElement>(".canvas-wrap");
-  const map = canvas?.querySelector<HTMLElement>(".react-flow__minimap");
+  // An empty board draws no minimap (board-empty.ts); the character keeps its
+  // corner, the minimap's width, and steps in for it alone.
+  const map = canvas?.querySelector<HTMLElement>(".react-flow__minimap") ?? canvas?.querySelector<HTMLElement>(".fm");
   if (!canvas || !map) return;
   // A header folded by the Inspector counts only where it reaches down to the
   // minimap: at the top of the column it is clear of it.

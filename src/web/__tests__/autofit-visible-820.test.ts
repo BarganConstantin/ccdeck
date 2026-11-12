@@ -56,7 +56,8 @@ describe("the canvas offers Fit all while auto-fit is off (#820)", () => {
     // button only while auto-fit is off, and the button is components/AutoFitChip.tsx.
     const board = read("../components/BoardFlow.tsx");
     expect(app).toMatch(/<BoardFlow\b[^>]*\bautoFit=\{autoFit\}/);
-    expect(board).toMatch(/\{autoFitDisabled && <AutoFitChip enableAutoFitAndRefit=\{enableAutoFitAndRefit\} \/>\}/);
+    // CHANGED ON PURPOSE (V4 critique round 3): not over an empty board, where there is nothing to fit.
+    expect(board).toMatch(/\{autoFitDisabled && !empty && <AutoFitChip enableAutoFitAndRefit=\{enableAutoFitAndRefit\} \/>\}/);
     expect(chipSrc).toMatch(/<button\s+type="button"\s+className="autofit-chip"\s+onClick=\{enableAutoFitAndRefit\}/);
   });
 
