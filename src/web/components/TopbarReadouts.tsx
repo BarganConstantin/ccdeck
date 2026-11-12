@@ -34,6 +34,7 @@ import { elapsedShort } from "./SessionList";
 import { useHint } from "./use-hint";
 import VersionChip from "./VersionChip";
 import { versionChipNeeded } from "../version-chip";
+import { useBoardEmpty } from "../board-empty";
 import { t as translate, useT, type TFunction } from "../i18n";
 
 export function StatusStrip({ live, paused, pauseGate }: {
@@ -220,7 +221,8 @@ function QueuePopover({ sessions, now, leaving, onPick, onClose }: {
 }
 
 /** A count pill that is only a readout: Working and Done always, and Waiting
- *  while nothing waits (V4's Figma draws all three pills always). 24 tall, no
+ *  while nothing waits (V4's Figma draws all three pills whenever the deck has
+ *  a session; none before the first, board-empty.ts). 24 tall, no
  *  stroke, the glyph, the figure in mono 600 and the word. */
 const PILL_CLASS = {
   waiting: "count-pill count-waiting",
@@ -412,6 +414,7 @@ export function ReadoutGroup({
   const t = useT();
   const { blockedSaid, watchSaid, incidentSaid } = announcements;
   const { notifySaid } = notify;
+  const empty = useBoardEmpty();
   return (
     /* Three groups now, not two, and this is the observation one.
        The bar used to be a brand and one flat run of eight controls with
@@ -461,14 +464,17 @@ export function ReadoutGroup({
       </div>
       {/* The three counts (V4's Figma, Top bar), 8 apart, right after the
           wordmark: sessions waiting on you (outlined, and the door to the
-          queue popover), working, done. Always drawn; the figures are the
-          sessions' own words (cardState). On a phone only the waiting one
-          stays, and only while something waits (topbar.css). */}
-      <div className="counts">
-        <WaitingStat waitingSessions={waitingSessions} waitingCursorRef={waitingCursorRef} focusSession={focusSession} now={now} />
-        <CountPill kind="working" count={counts.working} glyph={<StateMark kind="live" size={14} />} word={t(WORKING_WORD_MSG)} />
-        <CountPill kind="done" count={counts.done} glyph={<StateMark kind="done" size={14} />} word={t(DONE_WORD_MSG)} />
-      </div>
+          queue popover), working, done. Drawn from the first session on: three
+          zeros over an empty board count nothing (board-empty.ts). The figures
+          are the sessions' own words (cardState). On a phone only the waiting
+          one stays, and only while something waits (topbar.css). */}
+      {!empty && (
+        <div className="counts">
+          <WaitingStat waitingSessions={waitingSessions} waitingCursorRef={waitingCursorRef} focusSession={focusSession} now={now} />
+          <CountPill kind="working" count={counts.working} glyph={<StateMark kind="live" size={14} />} word={t(WORKING_WORD_MSG)} />
+          <CountPill kind="done" count={counts.done} glyph={<StateMark kind="done" size={14} />} word={t(DONE_WORD_MSG)} />
+        </div>
+      )}
       {/* NOT a live region, and #372 is the issue that took the
           `role="status"` off it. Nothing in this strip is a status
           *message*: it is a permanently visible readout the user can read

@@ -1,6 +1,6 @@
 // The canvas's command bar, bottom right (V4's Board / Controls): zoom out, the
 // zoom level, zoom in | recenter, re-arrange, pause, clear | the keyboard
-// reference and the Command Panel.
+// reference and the Command Panel. With no session yet, the Command Panel alone.
 //
 // Moved out of App.tsx's markup unchanged. It renders inside <ReactFlow>, which
 // is what gives it the viewport and the store; App.tsx keeps the commands
@@ -13,6 +13,7 @@ import { withKey } from "../single-key-shortcuts";
 import { pauseLabel, pauseTitle } from "../status-pill";
 import { useT } from "../i18n";
 import type { PauseControls } from "../use-pause-gate";
+import { useBoardEmpty } from "../board-empty";
 import { useSingleKeyShortcuts } from "../use-single-key-shortcuts";
 import { zoomPercent } from "../zoom-percent";
 import { KitIcon } from "./kit-icons";
@@ -54,6 +55,17 @@ export default function CanvasControls({
   const zoomMaxed = useStore(zoomAtMax);
   const zoomMinned = useStore(zoomAtMin);
   const singleKeys = useSingleKeyShortcuts();
+  // An empty board has nothing to zoom, fit, re-arrange, pause or clear: the
+  // bar keeps only the Command Panel, whose empty stage starts a session, and
+  // is not drawn at all without it (board-empty.ts).
+  const empty = useBoardEmpty();
+  if (empty) {
+    return onTerminal ? (
+      <Controls position="bottom-right" showInteractive={false} showFitView={false} showZoom={false}>
+        <CommandPanelButton onTerminal={onTerminal} />
+      </Controls>
+    ) : null;
+  }
   return (
     <Controls position="bottom-right" showInteractive={false} showFitView={false} showZoom={false}>
       {/* Zoom out, the level, zoom in, drawn here rather than left to React
@@ -197,23 +209,28 @@ export default function CanvasControls({
       >
         <KitIcon name="keyboard" />
       </ControlButton>
-      {/* The terminal, behind its hidden flag: the selected session on the
-          stage, else the one the stage showed last, else the empty stage,
-          whose one action is New session. It does not act on the canvas
-          like the verbs before it, it opens a session — and is only there
-          at all when the flag is on. The stage grows out of the session's
-          card when it is on screen, else out of this button, which is why
-          the press hands the button over. */}
-      {onTerminal && (
-        <ControlButton
-          onClick={e => onTerminal(e.currentTarget)}
-          title={t("board.controls.openPanelTip")}
-          aria-label={t("board.controls.openPanel")}
-        >
-          <KitIcon name="terminal" />
-        </ControlButton>
-      )}
+      {onTerminal && <CommandPanelButton onTerminal={onTerminal} />}
     </Controls>
+  );
+}
+
+/** The terminal, behind its hidden flag: the selected session on the
+ *  stage, else the one the stage showed last, else the empty stage,
+ *  whose one action is New session — which is why it is the one button an
+ *  empty board keeps. It does not act on the canvas like the verbs before
+ *  it, it opens a session — and is only there at all when the flag is on.
+ *  The stage grows out of the session's card when it is on screen, else out
+ *  of this button, which is why the press hands the button over. */
+function CommandPanelButton({ onTerminal }: { onTerminal: (button: Element | null) => void }) {
+  const t = useT();
+  return (
+    <ControlButton
+      onClick={e => onTerminal(e.currentTarget)}
+      title={t("board.controls.openPanelTip")}
+      aria-label={t("board.controls.openPanel")}
+    >
+      <KitIcon name="terminal" />
+    </ControlButton>
   );
 }
 

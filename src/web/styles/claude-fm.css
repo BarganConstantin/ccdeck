@@ -87,6 +87,20 @@
    itself, and the height of the Auto-fit chip while it is up on that. */
 .fm-walker[data-place="floor"] { --fm-y: calc(-1 * var(--fm-riser, 0px)); }
 
+/* NO SESSION YET, NO MINIMAP (board-empty.ts): the character stays in the
+   corner the minimap held, standing on the bar's foot line with no ledge
+   under it, so no trip off one is planned (use-fm-scene.ts ground). When the
+   bar is there, which on an empty board is the Command Panel's one button, it
+   stands left of it: one button, the bar's 1px padding and edge each side,
+   and the bar's gap. It goes back up on the minimap with the first session. */
+.canvas-wrap[data-empty] .fm {
+  --fm-y: 0px;
+  bottom: var(--board-controls-edge);
+}
+.canvas-wrap[data-empty]:has(.react-flow__controls) .fm {
+  right: calc(var(--board-controls-edge) + var(--minimap-in, 0px) + var(--board-controls-btn) + 4px + var(--board-controls-gap));
+}
+
 /* GETTING UP ONTO SOMETHING IS A STEP, NOT A CLIMB. It is ankle-high next to
    the ledge this character throws a rope at, so it goes up quickly and arrives
    — ease-out, like everything else on this canvas that settles into place. */

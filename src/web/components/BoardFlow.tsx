@@ -10,7 +10,9 @@
 // under the names the markup already used.
 import type { Dispatch, MutableRefObject, SetStateAction } from "react";
 import ReactFlow, { Background, MiniMap } from "reactflow";
+import { useBoardEmpty } from "../board-empty";
 import type { ClearSource } from "../clear-confirm";
+import type { Palette } from "../palette";
 import type { GraphState } from "../reducer";
 import { CANVAS_MAX_ZOOM, CANVAS_MIN_ZOOM } from "../stored-viewport";
 import type { useAppearance } from "../use-appearance";
@@ -42,6 +44,34 @@ const nodeTypes = { agent: AgentNode, sessionGroup: SessionGroupNode, recapNote:
 /** The recap note's tie to its card — see RecapTieEdge. At module scope like
  *  nodeTypes, since a new object each render makes React Flow warn and remount. */
 const edgeTypes = { recapTie: RecapTieEdge };
+
+/** The map of the board, from the first session on: an empty board has
+ *  nothing to map (board-empty.ts), and the character stands in its corner
+ *  meanwhile (claude-fm.css). */
+export function BoardMinimap({ nodeColor, palette }: {
+  nodeColor: ReturnType<typeof useAppearance>["minimapNodeFill"];
+  palette: Palette;
+}) {
+  const t = useT();
+  const empty = useBoardEmpty();
+  if (empty) return null;
+  return (
+    <MiniMap
+      ariaLabel={t("board.minimap")}
+      style={MINIMAP_SIZE}
+      zoomable
+      pannable
+      nodeColor={nodeColor}
+      nodeStrokeWidth={2}
+      maskColor={palette["--minimap-mask"]}
+      // The frame the view is showing, outlined. The minimap's surface
+      // sits close to the canvas now (.react-flow__minimap), so the mask
+      // alone no longer separates it well; a --line keyline does, in
+      // the same neutral the chrome's edges are drawn in.
+      maskStrokeColor={palette["--line"]}
+    />
+  );
+}
 
 export default function BoardFlow({
   graph, layout, viewport, clicks, drag, appearance, fm, radioOpen, onRadioClose, autoFit, pause,
@@ -81,7 +111,7 @@ export default function BoardFlow({
    *  the session frames go round what is drawn. */
   notesDrawn?: boolean;
 }) {
-  const t = useT();
+  const empty = useBoardEmpty();
   const { allNodes, edges, visibleAgentIds, spotlightSet } = graph;
   const { positionsRef, pinnedRef, handleRelayout, rearrangeUndo } = layout;
   const { restoredViewport, onMoveStart, onMove } = viewport;
@@ -187,7 +217,9 @@ export default function BoardFlow({
           can land off-screen; Fit all is the way back, on the canvas they
           would be looked for on. */}
       <div className="canvas-notices">
-        {autoFitDisabled && <AutoFitChip enableAutoFitAndRefit={enableAutoFitAndRefit} />}
+        {/* Not over an empty board: there is nothing to fit yet, and the
+            chip comes with the first session if auto-fit is still off. */}
+        {autoFitDisabled && !empty && <AutoFitChip enableAutoFitAndRefit={enableAutoFitAndRefit} />}
         {/* Re-arrange's way back, for a few seconds after R — beside the
             chip when both are up, since a board built by hand is one
             auto-fit has usually stood down on. */}
@@ -203,20 +235,7 @@ export default function BoardFlow({
         zoomBy={zoomBy} zoomReset={zoomReset}
         onTerminal={onTerminal}
       />
-      <MiniMap
-        ariaLabel={t("board.minimap")}
-        style={MINIMAP_SIZE}
-        zoomable
-        pannable
-        nodeColor={minimapNodeFill}
-        nodeStrokeWidth={2}
-        maskColor={palette["--minimap-mask"]}
-        // The frame the view is showing, outlined. The minimap's surface
-        // sits close to the canvas now (.react-flow__minimap), so the mask
-        // alone no longer separates it well; a --line keyline does, in
-        // the same neutral the chrome's edges are drawn in.
-        maskStrokeColor={palette["--line"]}
-      />
+      <BoardMinimap nodeColor={minimapNodeFill} palette={palette} />
       {/* Above the minimap, and absent unless there is something to play —
           ClaudeFm renders null until the server says the channel is on air,
           so on a deck with no network this is nothing at all. */}

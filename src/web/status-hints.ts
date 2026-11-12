@@ -106,13 +106,16 @@ export interface StatusInput {
   /** A session waits on an answer (blockedSessions, the queue n walks). Left
    *  out, the bar takes it that one does, as it did before it was told. */
   waiting?: boolean;
+  /** The deck has no session yet (board-empty.ts): the board's and the deck's
+   *  keys have nothing to act on, so neither layer names a key, or itself. */
+  empty?: boolean;
 }
 
 /** The layer, its label and the hints that work with focus and the switch as
  *  they stand. Focus in a pane is the terminal's layer whatever the stage's
  *  phase: the handler gives a pane every key while it holds focus, closing
  *  included (use-deck-shortcuts.ts, inTerminalPanel). */
-export function statusViewFor({ stageOpen, pane, onCard, zoomedOut, singleKeys, platform, viewChord = null, waiting = true }: StatusInput): StatusView {
+export function statusViewFor({ stageOpen, pane, onCard, zoomedOut, singleKeys, platform, viewChord = null, waiting = true, empty = false }: StatusInput): StatusView {
   // Ctrl + backtick, last, a chord: it stays with the single keys off. The
   // pane catches it too (terminal-keys.ts answers "view" before the session
   // sees it), so the terminal layer names it after the release chord.
@@ -128,6 +131,7 @@ export function statusViewFor({ stageOpen, pane, onCard, zoomedOut, singleKeys, 
     };
   }
   const deck = stageOpen;
+  if (empty) return { layer: deck ? "deck" : "board", label: "", hints: [] };
   const table = deck ? DECK_HINTS : BOARD_HINTS;
   return {
     layer: deck ? "deck" : "board",
