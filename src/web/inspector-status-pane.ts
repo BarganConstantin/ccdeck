@@ -5,6 +5,7 @@ import { boardFactsFor } from "./components/terminal/stage-board";
 import { stageStatusFrom } from "./components/terminal/stage-model";
 import type { InspectorStatus } from "./inspector-state";
 import { sessionRoot } from "./inspector-tree";
+import { sessionMark } from "./node-face";
 import type { KitStateName } from "./components/kit-icons";
 import type { AgentNodeData } from "./types";
 
@@ -15,7 +16,9 @@ export function paneStatus(selected: AgentNodeData, agents: ReadonlyMap<string, 
   const subagents = [...agents.values()].filter(a => a.sessionId === root.sessionId && a.kind === "subagent");
   const status = stageStatusFrom(boardFactsFor(root, subagents), now);
   const phrase = [status.phrase, status.emphasis].filter(Boolean).join(" ") + (status.arg ? ` · ${status.arg}` : "");
-  const glyph: KitStateName = root.state === "err" ? "error"
+  // The mark every surface draws for the session (node-face.ts sessionMark):
+  // a stopped turn, or a finished one whose calls failed, is the cross.
+  const glyph: KitStateName = sessionMark(root) === "err" ? "error"
     : status.state === "working" ? "working"
     : status.state === "waiting" ? "waiting"
     : status.state === "ready" ? "idle"

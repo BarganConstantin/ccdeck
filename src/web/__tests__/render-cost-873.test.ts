@@ -35,7 +35,11 @@ describe("node data holds still between events (#873)", () => {
 
   it("reuses a card's data until the board's revision moves", () => {
     expect(flow).toMatch(/entry\.revision !== state\.revision/);
-    expect(flow).toMatch(/const dataFor = nodeDataFor\(state, onOpenContext\);/);
+    // CHANGED ON PURPOSE (V4 critique round 3, look-alike cards): the cards
+    // drawn are handed in too, to decide which read the same; the copies are
+    // still kept until the revision, or that answer, moves.
+    expect(flow).toMatch(/const dataFor = nodeDataFor\(state, onOpenContext, visibleIds\);/);
+    expect(flow).toMatch(/if \(twinKey !== entry\.twinKey\) \{/);
   });
 
   it("does not rebuild the session handles on the clock either", () => {

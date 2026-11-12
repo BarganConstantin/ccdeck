@@ -285,6 +285,15 @@
 .lod-state { flex: none; white-space: nowrap; }
 .lod-line[data-status="waiting"] .lod-state { color: var(--warn); }
 .lod-line[data-status="err"] .lod-state { color: var(--err); }
+/* When it started, on a card that reads like another (twinClocks): a value,
+   whole or not at all, in the model's quiet mono. */
+.lod-start {
+  flex: none;
+  white-space: nowrap;
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
+}
 /* Below 40% (FAR_ZOOM) the face is under a hundred pixels wide and the task
    was a few letters and an ellipsis, "W…" (owner's critique, 2026-11-11,
    point 3: below 40% the state alone, never a cut word). The mark, and the
@@ -300,6 +309,7 @@
    the state alone. Nearer than 40% the short name is not drawn. */
 .lod-short { display: none; }
 .canvas-wrap[data-far] .agent-node .lod-state { display: none; }
+.canvas-wrap[data-far] .agent-node .lod-start { display: none; }
 .canvas-wrap[data-far] .agent-node .lod-line {
   flex-direction: row-reverse;
   height: calc(14px + var(--ui-text-increase, 0px));
@@ -312,10 +322,11 @@
   color: var(--text-secondary);
 }
 /* Room for two lines (28px of content): the task on a line of its own, the
-   mark and the word under it. */
+   mark and the word under it, and a look-alike's start time after the word. */
 @container lod (min-height: 28px) {
   .lod-line { height: calc(2 * (14px + var(--ui-text-increase, 0px))); }
   .lod-name { order: -1; flex-basis: 100%; }
+  .lod-start { order: 1; }
 }
 
 /* A session note's face (RecapNoteNode): its mark row at the card's 12px weight. */
