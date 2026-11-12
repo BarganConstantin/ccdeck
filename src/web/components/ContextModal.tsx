@@ -13,6 +13,7 @@
 // section says so instead of printing five zeroes (#399).
 import { useRef } from "react";
 import { currentLanguage, t, useT } from "../i18n";
+import { formatPercent } from "../i18n/format";
 import type { AgentNodeData, Provider } from "../types";
 import { fmtBytes } from "../byte-format";
 import { fmtCost } from "../pricing";
@@ -281,7 +282,9 @@ function capitalFirst(text: string): string {
   return text.charAt(0).toLocaleUpperCase(currentLanguage()) + text.slice(1);
 }
 
-/** Compact donut indicator — used on the root agent's node header. */
+/** Compact ring and its percent, "◔ 17%" — on the root agent's card foot,
+ *  beside the token figure. It was in the head beside the state mark, where
+ *  two circles meant two things; it says its number in text now as well. */
 interface DonutProps {
   currentContextTokens: number;
   modelId?: string;
@@ -290,11 +293,12 @@ interface DonutProps {
   size?: number;
   onClick?: () => void;
 }
-export function ContextDonut({ currentContextTokens, modelId, contextWindow, size = 26, onClick }: DonutProps) {
+export function ContextDonut({ currentContextTokens, modelId, contextWindow, size = 14, onClick }: DonutProps) {
   const t = useT();
   const window = effectiveContextWindow(contextWindow, modelId);
   const pct = Math.min(1, currentContextTokens / window);
-  const r = size / 2 - 3;
+  // The foot's 14px icon box: a 2px ring 12 across, 8 clear inside.
+  const r = size / 2 - 2;
   const c = size / 2;
   const circ = 2 * Math.PI * r;
   const dash = circ * pct;
@@ -324,10 +328,10 @@ export function ContextDonut({ currentContextTokens, modelId, contextWindow, siz
       aria-label={t("insights.context.donutAria", { pct: Math.round(pct * 100), window: window.toLocaleString(currentLanguage()) })}
     >
       <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} aria-hidden="true">
-        <circle cx={c} cy={c} r={r} stroke="var(--line)" strokeWidth="2.5" fill="none" />
+        <circle cx={c} cy={c} r={r} stroke="var(--line)" strokeWidth="2" fill="none" />
         <circle
           cx={c} cy={c} r={r}
-          stroke={stroke} strokeWidth="2.5" fill="none"
+          stroke={stroke} strokeWidth="2" fill="none"
           strokeDasharray={`${dash} ${circ - dash}`}
           strokeDashoffset={circ / 4}
           strokeLinecap="round"
@@ -340,10 +344,10 @@ export function ContextDonut({ currentContextTokens, modelId, contextWindow, siz
           style={{ transition: "var(--ctx-arc-transition)" }}
         />
         {/* NO FIGURE INSIDE (owner, 2026-11-10). It was 8px, under the deck's
-            11px floor, and 11px does not fit: the ring's clear middle is 17px
-            across and "100" is wider than that. The arc and its colour say how
-            full the window is; the title and the label above say the number. */}
+            11px floor, and 11px does not fit. The figure is beside the ring,
+            in the foot's own type. */}
       </svg>
+      <span className="ctx-donut-pct">{formatPercent(Math.round(pct * 100))}</span>
     </button>
   );
 }

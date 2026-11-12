@@ -15,7 +15,7 @@ import AccountIssuePopover, { WarnGlyph } from "./AccountIssuePopover";
 import type { FeedbackPrefill } from "../feedback";
 import AccountRow from "./AccountRow";
 import AccountsEmptyState from "./AccountsEmptyState";
-import AccountsHeader from "./AccountsHeader";
+import AccountsHeader, { swapMissing } from "./AccountsHeader";
 import AutoSwitchPolicy from "./AutoSwitchPolicy";
 import AddAccountDialog from "./AddAccountDialog";
 import AccountMenuPopover from "./AccountMenuPopover";
@@ -561,7 +561,8 @@ export default function AccountsPanel({ onClose, leaving, onReport, onRoster, la
         <AccountsHeader canShare={(data?.accounts?.length ?? 0) > 0}
           onAdd={() => setAddOpen(true)}
           onShareSet={() => setShareSetOpen(true)} onReload={() => load(true)}
-          pressProps={pressProps} reloading={reloading} closeButton={closeBtn} switcher={switcher} />
+          pressProps={pressProps} reloading={reloading} closeButton={closeBtn} switcher={switcher}
+          noSwap={swapMissing(data)} />
       )}
 
       {/* THE ACCOUNTS SCROLL, AND ONE ROW BELOW IT. The column used to be one

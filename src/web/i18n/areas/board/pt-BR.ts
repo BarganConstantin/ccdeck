@@ -659,6 +659,7 @@ const catalog: Catalog = {
   "board.stage.keysBack": "Devolver as teclas ao quadro ({chord})",
   "board.stage.contextWindow": "Janela de contexto",
   "board.stage.context": "Contexto",
+  "board.stage.contextShort": "{pct} de contexto",
   "board.stage.view": "Visão",
   "board.stage.viewChat": "Chat",
   "board.stage.viewTerm": "Term",

@@ -377,7 +377,8 @@
 }
 
 /* THE HEAD (V4): who on the left — the name, then the model as plain mono text
-   — and the state on the right, with the context donut after it on a root. */
+   — and the state on the right, its one circle. The context ring is the
+   foot's (context-modal.css). */
 .agent-node .head {
   display: flex;
   align-items: center;
@@ -423,33 +424,38 @@
   color: var(--inflight);
   animation: pulse var(--pulse-live) infinite;
 }
+/* The context ring and its percent, "◔ 17%", right after the foot's token
+   figure: a 14px ring and the figure in the foot's own mono 11/14 ink, so the
+   button takes its type from the row it sits in. */
 .ctx-donut {
   position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
   background: transparent;
   border: none;
   padding: 0;
   cursor: pointer;
-  line-height: 0;
+  font: inherit;
+  color: inherit;
   border-radius: var(--r-pill);
   transition: transform var(--dur-fast) var(--ease);
 }
+.ctx-donut svg { flex: none; }
+.ctx-donut-pct { font-variant-numeric: tabular-nums; }
 @media (hover: hover) and (pointer: fine) {
 .ctx-donut:hover { filter: brightness(1.2); transform: scale(1.08); }
 }
 /* After the hover, not before it: the two tie on specificity and a press is
    always a hover as well, so source order is the whole of what decides which
-   scale the pointer sees. 26px of donut, so 0.94 like the other icon targets —
-   0.97 of 26px is under a pixel. */
+   scale the pointer sees. A small target, so 0.94 like the other icon targets. */
 .ctx-donut:active { transform: scale(var(--press-small)); }
-/* ITS TARGET ON SCREEN (WCAG 2.5.8). The donut is 26px in the card, but the
-   card is drawn at the canvas's zoom, so on screen it is 26 x zoom: 23px at
-   0.88, 16px at 0.6, where the full card gives way to its face and the donut
-   goes. An invisible box makes up the difference: 24px / --zoom (written on
-   the canvas, use-canvas-viewport.ts) wide and tall, centred on the donut, so
-   it is 24 on screen at every zoom the donut is drawn at; at 1 and above it is
-   the donut's own box. At most 7px out each side at 0.6, inside the card's
-   padding (7px at the tightest density, 9px by default), so the card's
-   `overflow: hidden` clips none of it. */
+/* ITS TARGET ON SCREEN (WCAG 2.5.8). The ring and its figure are 14px tall in
+   the card, and the card is drawn at the canvas's zoom. An invisible box makes
+   up the difference: 24px / --zoom (written on the canvas,
+   use-canvas-viewport.ts) wide and tall, centred on the button, so it is at
+   least 24 on screen at every zoom the full card is drawn at. It reaches into
+   the card's bottom padding, and under the compact face the foot is gone. */
 .ctx-donut::after {
   content: "";
   position: absolute;

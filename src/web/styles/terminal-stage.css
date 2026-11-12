@@ -124,17 +124,23 @@
   color: var(--muted);
   white-space: nowrap;
 }
+.ts-ctxbar { display: block; width: 28px; height: 4px; border-radius: var(--r-pill); background: var(--line); overflow: hidden; }
+.ts-ctxbar i { display: block; height: 100%; border-radius: var(--r-pill); background: var(--text-secondary); }
+/* The narrow header's own words for the chip, "17% context" (below). */
+.ts-ctxshort { display: none; }
 /* In a header too narrow for the name to keep its room (a phone's takeover),
-   the chip says its percent alone; the rest stays in the text for a screen
-   reader, set aside the way .vis-hidden does. */
+   the chip says its percent with its word and no bar: a bare "17 %" did not
+   say what it was a percent of. The figure stays in the text for a screen
+   reader, set aside the way .vis-hidden does; the short words are hidden from
+   it. After the bar's rule, so this one wins. */
 @container ts-head (max-width: 480px) {
-  .ts-ctxlead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+  .ts-ctxlead, .ts-ctxpct { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+  .ts-ctxshort { display: inline; }
+  .ts-ctxbar { display: none; }
   /* With the chip there, the tool and its argument would be left a few
      characters of ellipsis: the name keeps that room instead. */
   .ts-head:has(.ts-ctxchip) .ts-meta-rest { display: none; }
 }
-.ts-ctxbar { display: block; width: 28px; height: 4px; border-radius: var(--r-pill); background: var(--line); overflow: hidden; }
-.ts-ctxbar i { display: block; height: 100%; border-radius: var(--r-pill); background: var(--text-secondary); }
 
 .ts-ctl { flex: none; display: flex; align-items: center; gap: 4px; }
 /* The controls are the deck's header glyphs (.glyph-btn), as 24px squares at

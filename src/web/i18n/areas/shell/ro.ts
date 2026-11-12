@@ -365,6 +365,8 @@ const catalog: Catalog = {
   "shell.film.watch": "Vezi · 30 s",
   "shell.film.duration": "30 s",
   "shell.film.hidden": ": videoclipul „{subject}” de pe ccdeck.dev, se deschide în browser",
+  "shell.film.watchMenu": "Vezi un videoclip de {duration}",
+  "shell.info.label": "Despre {panel}",
 
   // ── feedback ──
   "shell.feedback.title": "Trimite feedback",

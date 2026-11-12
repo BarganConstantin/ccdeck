@@ -28,6 +28,7 @@ import { fmtTokens } from "../token-format";
 // the detail panel wrote out again, one tier short. See duration.ts.
 import { elapsed } from "../duration";
 import { ContextDonut } from "./ContextModal";
+import { contextFill } from "../context-figure";
 import type { AgentNodeData, PlanItem, WaitingBlock } from "../types";
 import { useNow } from "../use-now";
 import { useLanguage, useT } from "../i18n";
@@ -222,9 +223,24 @@ export function AgentCard({ data, handles = false }: { data: CardData; handles?:
   const present = { tokens: tokenTotal > 0, inflight: inflight > 0 };
   const footMax = footDroppable(present).length;
   const dropped = footDropped(footNotch, present);
+  const showTokens = tokenTotal > 0 && !dropped.has("tokens");
+  // HOW FULL ITS CONTEXT IS, in the foot beside the token figure with its
+  // percent: in the head it was a second circle beside the state mark, two
+  // circles with two meanings. It stays when the squeeze drops the
+  // token figure, so the warning tones never leave the card.
+  const ring: React.ReactElement | false = hasContextSignal && !!data.onOpenContext && (
+    <ContextDonut
+      key="context"
+      currentContextTokens={currentContextTokens}
+      modelId={data.model}
+      contextWindow={data.contextWindow}
+      onClick={() => data.onOpenContext!(data.sessionId)}
+    />
+  );
   const footKey = [
     cost ? `${cost.kind}:${cost.kind === "spent" ? fmtCost(cost.total) + (cost.floor ? "+" : "") : ""}` : "",
     toolKinds.join(","), inflight, fmtTokens(tokenTotal), data.childCount, data.synthetic ? 1 : 0,
+    ring ? Math.round(contextFill(data).pct) : "",
   ].join("|");
   useBeforePaint(() => { setFootNotch(0); }, [footKey]);
   useBeforePaint(() => {
@@ -286,16 +302,9 @@ export function AgentCard({ data, handles = false }: { data: CardData; handles?:
           {data.restoredFromLog &&<span className="synth-tag" title={data.provider === "claude" ? t("board.node.restoredRegistry") : t("board.node.restoredLog")}>{t("board.node.restored")}</span>}
           {data.synthetic && <span className="synth-tag" title={t("board.node.synthesised")}>?</span>}
         </div>
+        {/* One circle here, the state's: the context ring is in the foot. */}
         <div className="head-right">
           <StateLine state={state} under={stateMarkKind(shown)} />
-          {hasContextSignal && data.onOpenContext && (
-            <ContextDonut
-              currentContextTokens={currentContextTokens}
-              modelId={data.model}
-              contextWindow={data.contextWindow}
-              onClick={() => data.onOpenContext!(data.sessionId)}
-            />
-          )}
         </div>
       </div>
 
@@ -387,7 +396,8 @@ export function AgentCard({ data, handles = false }: { data: CardData; handles?:
 
       {/* THE FOOT (V4): up to three icons for the tool kinds the session used,
           latest first, then cost · time, then the figures that stay (in-flight,
-          tokens), a spacer, and at the end the sub-agent count with its icon.
+          tokens and, on a root, the context ring with its percent), a spacer,
+          and at the end the sub-agent count with its icon.
           Items are separated by a dot, and the row stays one line by dropping
           meta items (see .foot). The icons replace the activity sparkline: same
           calls, said as kinds, and their tooltip says how many calls and how
@@ -424,12 +434,16 @@ export function AgentCard({ data, handles = false }: { data: CardData; handles?:
             {data.synthetic ? "≥ " : ""}<Elapsed start={data.startedAt} end={data.endedAt} />
           </span>,
           inflight > 0 && !dropped.has("inflight") && <span key="inflight" className="inflight-meta"><b>{inflight}</b> {t("board.meta.inflight")}</span>,
-          tokenTotal > 0 && !dropped.has("tokens") && (
+          showTokens && (
             <span key="tokens" className="tokens-meta" title={`${t("board.meta.tokensTitle", { input: data.usage.inputTokens, output: data.usage.outputTokens, cacheR: data.usage.cacheReadTokens, cacheC: data.usage.cacheCreateTokens })}${(data.usage.reasoningOutputTokens ?? 0) > 0 ? `  ${t("board.meta.reasoning", { n: data.usage.reasoningOutputTokens ?? 0 })}` : ""}`}>
               <b>{fmtTokens(data.usage.inputTokens + data.usage.outputTokens)}</b> {t("board.meta.tok")}
             </span>
           ),
+          // With the token figure dropped, the ring is an item of its own.
+          !showTokens && ring,
         ])}
+        {/* Right after the token figure, with no dot: "34k tok ◔ 17%". */}
+        {showTokens && ring}
         {data.childCount > 0 && (
           <span className="foot-end">
             <span className="spawn-badge" title={spawnBadgeTitle(data.childCount, t)}>{data.childCount}<KitIcon name="agents" /></span>

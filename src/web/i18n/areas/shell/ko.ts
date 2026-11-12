@@ -359,6 +359,8 @@ const catalog: Catalog = {
   "shell.film.watch": "보기 · 30초",
   "shell.film.duration": "30초",
   "shell.film.hidden": ": ccdeck.dev의 {subject} 동영상, 브라우저에서 열림",
+  "shell.film.watchMenu": "동영상 보기 ({duration})",
+  "shell.info.label": "{panel} 정보",
 
   // ── feedback ──
   "shell.feedback.title": "피드백 보내기",

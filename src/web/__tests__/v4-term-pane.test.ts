@@ -198,7 +198,9 @@ describe("the context chip", () => {
   // same place the Inspector's Context tab reads it.
   it("says the figure at the row's end, before the controls, with a 4px bar of the same percent", () => {
     const out = html(createElement(StageHeader, headerProps({ context: { used: 129_000, window: 200_000 } })));
-    expect(out).toContain('<span class="ts-ctxchip" title="Context window"><span class="vis-hidden">Context </span><span class="ts-ctxlead">129k / 200k · </span>65%');
+    // CHANGED ON PURPOSE (critique 3): the percent has its own span, so a
+    // narrow header can set it aside for "65% context".
+    expect(out).toContain('<span class="ts-ctxchip" title="Context window"><span class="vis-hidden">Context </span><span class="ts-ctxlead">129k / 200k · </span><span class="ts-ctxpct">65%</span>');
     expect(out).toContain('<span class="ts-ctxbar" aria-hidden="true"><i style="width:65%"></i></span>');
     expect(out.indexOf("ts-ctxchip")).toBeGreaterThan(out.indexOf('class="ts-meta"'));
     expect(out.indexOf("ts-ctxchip")).toBeLessThan(out.indexOf('class="ts-ctl"'));
@@ -207,7 +209,7 @@ describe("the context chip", () => {
 
   it("says the window full past it, in the text and the bar: the Inspector's tab reads 100.0% there too", () => {
     const out = html(createElement(StageHeader, headerProps({ context: { used: 300_000, window: 200_000 } })));
-    expect(out).toContain('<span class="ts-ctxlead">300k / 200k · </span>100%');
+    expect(out).toContain('<span class="ts-ctxlead">300k / 200k · </span><span class="ts-ctxpct">100%</span>');
     expect(out).not.toContain("150%");
     expect(out).toContain('<i style="width:100%"></i>');
   });
@@ -599,12 +601,41 @@ describe("the keys bar", () => {
     expect(decl(rule(stage, '.ts-glyph[data-glyph="done"]'), "color")).toBe("var(--ok)");
   });
 
-  it("drops the chip to its percent alone in a header too narrow for the name", () => {
+  // CHANGED ON PURPOSE (critique 3, one meaning per glyph): a bare "17 %" on a
+  // phone said nothing about what it was a percent of. The narrow header says
+  // "17% context" in the language's number format, and drops the bar for it.
+  it("says its percent with its word, and no bar, in a header too narrow for the name", () => {
     expect(decl(rule(stage, ".ts-head"), "container")).toBe("ts-head / inline-size");
-    expect(stage).toMatch(/@container ts-head \(max-width: 480px\) \{\s*\.ts-ctxlead \{[^}]*clip-path: inset\(50%\)/);
-    // The words stay in the text for a screen reader; only the sight loses them.
-    const out = html(createElement(StageHeader, headerProps({ context: { used: 640, window: 200_000 } })));
-    expect(out).toContain('<span class="ts-ctxlead">640 / 200k · </span>0%');
+    const narrow = /@container ts-head \(max-width: 480px\) \{([\s\S]*?)\n\}/.exec(stage)![1];
+    expect(narrow).toMatch(/\.ts-ctxlead, \.ts-ctxpct \{[^}]*clip-path: inset\(50%\)/);
+    expect(narrow).toMatch(/\.ts-ctxshort \{ display: inline; \}/);
+    expect(narrow).toMatch(/\.ts-ctxbar \{ display: none; \}/);
+    // Hidden at every wider header, before the narrow rule so that one wins;
+    // and the narrow rule comes after the bar's own, for the same reason.
+    expect(decl(rule(stage, ".ts-ctxshort"), "display")).toBe("none");
+    expect(stage.indexOf(".ts-ctxshort { display: none; }")).toBeLessThan(stage.indexOf("@container ts-head (max-width: 480px)"));
+    expect(stage.indexOf(".ts-ctxbar { display: block;")).toBeLessThan(stage.indexOf("@container ts-head (max-width: 480px)"));
+    // The figure stays in the text for a screen reader; the short words are
+    // for the eye only, so it does not hear the percent twice.
+    const out = html(createElement(StageHeader, headerProps({ context: { used: 34_000, window: 200_000 } })));
+    expect(out).toContain('<span class="ts-ctxlead">34k / 200k · </span><span class="ts-ctxpct">17%</span><span class="ts-ctxshort" aria-hidden="true">17% context</span>');
+  });
+
+  it("writes the narrow header's percent the way the language writes one", async () => {
+    const { setLanguage } = await import("../i18n");
+    // Called as a function, so the header reads the language on show rather
+    // than a server render's default.
+    const short = () => textOf(one(StageHeader(headerProps({ context: { used: 34_000, window: 200_000 } })),
+      el => el.props.className === "ts-ctxshort"));
+    try {
+      setLanguage("de");
+      expect(short()).toMatch(/^17\s%\sKontext$/u);
+      setLanguage("fr");
+      expect(short()).toMatch(/^17\s%\sde contexte$/u);
+    } finally {
+      setLanguage("en");
+    }
+    expect(short()).toBe("17% context");
   });
 
   it("offers no \"Answer in Chat\": Chat is a later phase", () => {

@@ -499,18 +499,18 @@ describe("the 24px target floor", () => {
   });
 
   it("already covered the context donut, which the report measured zoomed", () => {
-    // The report puts the donut at 19.6 × 19.6. Its box is 26 × 26 — the
-    // component's default, and AgentNode is the one caller and passes no size.
-    // 19.6 is 26 × 0.754: a rect() taken from a node measures the React Flow
-    // viewport transform as well as the element. Pinned at the size it is, so
-    // that shrinking the default has to be a decision rather than a slip.
+    // CHANGED ON PURPOSE (critique 3, one meaning per glyph): the ring left
+    // the head for the card's foot, where it sits at the foot's 14px icon size
+    // beside its percent. Shrinking it was the decision this pin asked for; the
+    // 24px on screen is the invisible box around it (v4-hit-targets.test.ts).
     const fallback = +/size = (\d+)/.exec(contextSrc)![1];
-    expect(fallback).toBeGreaterThanOrEqual(24);
+    expect(fallback).toBe(14);
     expect(contextSrc).toMatch(/<svg width=\{size\} height=\{size\}/);
     const call = /<ContextDonut[\s\S]*?\/>/.exec(agentNodeSrc)![0];
     expect(call).not.toMatch(/\bsize=/);
-    // The box takes its size from the SVG, so nothing in the sheet may shrink
-    // it back underneath the component.
+    expect(bodyOf(".ctx-donut::after")).toMatch(/width:\s*max\(100%, calc\(24px \/ var\(--zoom, 1\)\)\)/);
+    // The box takes its size from the SVG and the figure, so nothing in the
+    // sheet may shrink it back underneath the component.
     const donut = bodyOf(".ctx-donut");
     expect(declIn(donut, "width")).toBeNull();
     expect(declIn(donut, "height")).toBeNull();
