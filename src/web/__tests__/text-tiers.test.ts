@@ -484,6 +484,11 @@ describe("what was migrated to the secondary tier", () => {
       // stands alone now, under the mouse query, so it ends a line of its own.
       ".session-list .sl-row.selected .sl-model",
       ".session-list .sl-row:hover .sl-model",
+      // A phone's Board (critique 3, point 7): a card's task or the question it
+      // waits on is the sentence read there, in the list row's tier; and the
+      // selected card lifts its muted words a tier, as the list's row does.
+      ".phone-board .pb-line",
+      ".phone-board .pb-card.selected .pb-meta",
       // The words leading a removed row's second line, in the tool name's tier
       // beside it: what pressing this row does differently.
       ".session-list .sl-off",

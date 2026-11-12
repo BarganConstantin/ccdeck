@@ -442,6 +442,7 @@ const catalog: Catalog = {
   "board.spark.title": "過去60秒：{parts} · ピーク {peak}/秒",
   "board.edge.aria": "{label} へのリンク",
   "board.minimap": "ミニマップ",
+  "board.phone.stack": "ボード上のセッション",
   "board.cost.note": "API 料金での換算の概算です。記録された Codex の設定では実際のティアを確認できないため、ティアの根拠がないトークンは標準料金で計算しています。",
   "board.cost.heading": "モデル：{model}",
   "board.cost.headingSpeed": "モデル：{model} · {speed}",

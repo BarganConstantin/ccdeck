@@ -405,6 +405,8 @@ const PRESSES: Press[] = [
   [".ta-period-btn:active", "0.97", "transform"],
   [".uh-bar-col:active", "0.97", "transform"],
   [".session-list .sl-row:active", "0.97", "transform"],
+  // A card of the phone's Board (critique 3, point 7): a session's row, at the row's tier.
+  [".phone-board .pb-card:active", "0.97", "transform"],
   // The rail's header icon buttons (Plus, and the phone's close), 24px icons: the icon tier.
   // Renamed from .sl-close for V4's header, which has two such buttons.
   [".session-list .sl-icon-btn:active", "0.94", "transform"],

@@ -525,7 +525,9 @@ describe("the dock has five doors, and the rest are in More", () => {
 
   it("Accounts, Sessions, Usage and Machine, then More; Settings and the rest are in More", () => {
     expect(app).toContain("items={[...rails.left, ...rails.right[0]]");
-    expect(app).toContain("more={[rails.search, ...rails.capacity, ...rails.right.slice(1).flat(), ...rails.integrations, ...rails.explore, ...rails.utilities.filter(item => item !== rails.corner)]}");
+    // CHANGED ON PURPOSE (critique 3, point 7): the Command Panel's row follows
+    // Search while the deck has a terminal; the phone's Board has no canvas bar.
+    expect(app).toContain("more={[rails.search, ...commandPanelMore(stage.enabled ? stage.openFromButton : undefined), ...rails.capacity, ...rails.right.slice(1).flat(), ...rails.integrations, ...rails.explore, ...rails.utilities.filter(item => item !== rails.corner)]}");
   });
 
   // CHANGED ON PURPOSE (the phone layout): Sessions reads not pressed while ANY

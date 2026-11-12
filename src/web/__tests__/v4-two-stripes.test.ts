@@ -395,7 +395,9 @@ describe("the phone keeps its one dock", () => {
   it("draws no stripe under 641px, and the dock from the same lists as before", () => {
     const app = strip(source("../App.tsx"));
     expect(app).toMatch(/\{phone\s*(?:\/\/[^\n]*\s*)*\?\s*<EdgeDock\s+items=\{\[\.\.\.rails\.left, \.\.\.rails\.right\[0\]\]\.map\(sessionsDoorUnderSheet\)\}/);
-    expect(app).toContain("more={[rails.search, ...rails.capacity, ...rails.right.slice(1).flat(), ...rails.integrations, ...rails.explore, ...rails.utilities.filter(item => item !== rails.corner)]}");
+    // CHANGED ON PURPOSE (critique 3, point 7): the Command Panel's row follows
+    // Search while the deck has a terminal; the phone's Board has no canvas bar.
+    expect(app).toContain("more={[rails.search, ...commandPanelMore(stage.enabled ? stage.openFromButton : undefined), ...rails.capacity, ...rails.right.slice(1).flat(), ...rails.integrations, ...rails.explore, ...rails.utilities.filter(item => item !== rails.corner)]}");
     expect(app).toMatch(/\{!phone && <EdgeRail side="right"/);
     // The stripes take nothing on a phone: --edge-w is 0 there.
     expect(decl(":root", "--edge-w", "(max-width: 640px)")).toBe("0px");

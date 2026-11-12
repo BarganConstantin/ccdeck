@@ -36,6 +36,9 @@ describe("the category bar wraps inside the canvas (#848)", () => {
   });
 
   it("still keeps a chip for a hidden category (#783)", () => {
-    expect(app).toMatch(/\{\(presentCats\.length > 1 \|\| hiddenCats\.size > 0\) && \(/);
+    // CHANGED ON PURPOSE (critique 3, point 7): a phone's Board is a stack of
+    // cards with no bubbles to filter, so the bar is not drawn there; wider,
+    // the rule is the one #783 set.
+    expect(app).toMatch(/\{!phone && \(presentCats\.length > 1 \|\| hiddenCats\.size > 0\) && \(/);
   });
 });

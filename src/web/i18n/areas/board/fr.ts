@@ -442,6 +442,7 @@ const catalog: Catalog = {
   "board.spark.title": "{parts} ces 60 dernières secondes · pic {peak}/s",
   "board.edge.aria": "Lien vers {label}",
   "board.minimap": "Minicarte",
+  "board.phone.stack": "Sessions sur le tableau",
   "board.cost.note": "Estimation au tarif de l'API. Les réglages Codex enregistrés ne confirment pas le niveau servi ; les jetons sans preuve de niveau sont facturés au tarif standard.",
   "board.cost.heading": "modèle : {model}",
   "board.cost.headingSpeed": "modèle : {model} · {speed}",
