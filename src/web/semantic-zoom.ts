@@ -52,11 +52,12 @@ export const DETAIL_ENTER_PX = 7.2;
 export const DETAIL_EXIT_PX = 6.6;
 
 /**
- * Below this zoom a face draws its state alone, without the task. The owner's
- * critique (2026-11-11, point 3): at 20-33% the task was a letter and an
- * ellipsis, "W…", "A…" — "below 40% a dot only, never a cut word". Above
- * it the overview face keeps the task line over the state. Only words change
- * across it, never a card's box, so a zoom resting on it cannot move the board.
+ * The least zoom a face still says its task line beside its state at. Below
+ * it the face is a pill: the start of the task, cut, and the mark (agent-node.css
+ * `data-far`). It is also the auto-fit's floor (fit-board.ts): a board the
+ * auto-fit frames is always one whose cards say what they are doing. Only
+ * words change across it, never a card's box, so a zoom resting on it cannot
+ * move the board.
  */
 export const FAR_ZOOM = 0.4;
 
@@ -146,7 +147,8 @@ export const DETAIL_EXIT_ZOOM = DETAIL_EXIT_PX / CARD_BODY_PX;
  * itself fitted at 0.49, and the board sat small in the middle of the canvas
  * with a band of nothing above and below it.
  *
- * `withLanes` is the fit with the allowance and `bare` the fit without. The
+ * `withLanes` is the fit with the allowance and `bare` the fit of the board as
+ * the faces draw it: the cards alone, packed (packed-board.ts). The
  * allowance stays wherever the fit lands at the full card, since that is where
  * the bubbles are drawn and would otherwise run off the right edge. Otherwise
  * the bare fit is used, held below the zoom the full card is LEFT at — under

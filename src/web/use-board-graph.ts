@@ -15,6 +15,7 @@ import { useMemo, useRef, type MutableRefObject } from "react";
 import { attentionOrder } from "./board-order";
 import { snapshotToFlow, type BoardFlow } from "./canvas-flow";
 import { layoutSignature } from "./layout-signature";
+import { boardSqueeze, packNodes, type Squeeze } from "./packed-board";
 import { useRecapNotesVersion } from "./recap-note";
 import type { GraphState } from "./reducer";
 import { visibleBoard } from "./remove-node";
@@ -45,7 +46,7 @@ export function useLayoutSig({ stateRef, now, removedAgentIds, sizeVersion, domS
 export function useBoardGraph({
   stateRef, now, availableWidth, availableHeight, layout, measuredRef, onBubble, settled, dragging,
   layoutSig, selectedIds, openContext, historyReplayed, removedNodes, removedAgentIds,
-  dragTick, dragPatchRef, dragMoveTick, onMoved,
+  dragTick, dragPatchRef, dragMoveTick, onMoved, packed = false,
 }: {
   stateRef: MutableRefObject<GraphState>;
   now: number;
@@ -75,6 +76,8 @@ export function useBoardGraph({
   dragMoveTick: number;
   /** The board moved under the camera with its signature unmoved: frame it again and store it (canvas-flow.ts BoardFlow). */
   onMoved?: () => void;
+  /** The canvas draws the faces, not the full card: hand React Flow the board packed. */
+  packed?: boolean;
 }) {
   const { pinnedRef, positionsRef, provisionalRef, returningRef, lastLayoutSigRef, restoredLayout, layoutEpoch, flowedRef } = layout;
 
@@ -140,9 +143,25 @@ export function useBoardGraph({
     [stateRef.current, stateRef.current.revision, now, availableWidth, availableHeight, settled, dragging, layoutSig, selectedIds, spotlightSet, visibleAgentIds, openContext, dragTick, recapNotesVersion, removedNodes, layoutEpoch, historyReplayed],
   );
 
+  // THE BOARD AS DRAWN. At the full card, the board. Below it, where neither
+  // bubbles nor notes are drawn, the board packed (packed-board.ts): the
+  // canvas kept for them closes up, and only what React Flow is handed moves.
+  // The squeeze holds still for a drag, so the cards around the one in hand do
+  // not shift each time the clock rebuilds the board under it; letting go
+  // packs the board again.
+  const squeezeRef = useRef<Squeeze | null>(null);
+  const shown = useMemo(() => {
+    if (!packed) {
+      squeezeRef.current = null;
+      return nodes;
+    }
+    if (!dragging || !squeezeRef.current) squeezeRef.current = boardSqueeze(nodes);
+    return packNodes(nodes, squeezeRef.current);
+  }, [nodes, packed, dragging]);
+
   // Invisible per-session drag-handle nodes, one behind each session's cards;
   // see session-group-nodes.ts.
-  const groupNodes = useMemo(() => sessionGroupNodes(nodes), [nodes]);
+  const groupNodes = useMemo(() => sessionGroupNodes(shown), [shown]);
 
   /**
    * The array React Flow renders, with the in-flight drag applied on top.
@@ -167,14 +186,17 @@ export function useBoardGraph({
    * node; the node then did not move at all until the mouse came up.
    */
   const allNodes = useMemo(() => {
-    const base = [...groupNodes, ...nodes];
+    const base = [...groupNodes, ...shown];
     const patch = dragPatchRef.current;
     if (!patch || patch.size === 0) return base;
     return base.map(nd => {
       const p = patch.get(nd.id);
       return p ? { ...nd, position: p } : nd;
     });
-  }, [groupNodes, nodes, dragMoveTick]);
+  }, [groupNodes, shown, dragMoveTick]);
 
-  return { spotlightSet, visibleAgentIds, nodes, edges, allNodes };
+  // `nodes` keep the board's places, for everything that reads the board (a
+  // focus, j and k, the fit); `shown` and `squeeze` are the board as drawn,
+  // for a drag, which is made on what is drawn.
+  return { spotlightSet, visibleAgentIds, nodes, shown, squeeze: squeezeRef.current, edges, allNodes };
 }

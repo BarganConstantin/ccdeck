@@ -11,13 +11,14 @@
 // camera's other users (a focus, the reframe, the reader's own gestures) stay
 // in App.tsx and reach the refs from there.
 import { useCallback, useEffect, useRef } from "react";
-import { useReactFlow, useStoreApi, type ReactFlowState } from "reactflow";
+import { useReactFlow, useStoreApi, type Node, type ReactFlowState } from "reactflow";
 
 import { boardRect } from "./board-rect";
-import { DETAIL_EXIT_PX, cardBodyPx, fitZoomForDrawnLanes } from "./semantic-zoom";
-import { PAD as GROUP_PAD } from "./session-chrome";
+import { AUTO_FIT_MIN_ZOOM, FIT_MIN_ZOOM, fitBoard } from "./fit-board";
+import { cardBodyPx } from "./semantic-zoom";
+import { sessionGroupNodes } from "./session-group-nodes";
 import { TEXT_SIZE_INCREASE, currentTextSize } from "./reading-preferences";
-import { FIT_FILL, FIT_MARGIN, railCover } from "./use-layout-frame";
+import { railCover } from "./use-layout-frame";
 import { stageEase as easeOut } from "./motion-ease";
 import { CAMERA_FAST_MS, CAMERA_SLOW_MS, shouldAnimateViewport } from "./viewport-motion";
 import { guardZoomPath, isViewableViewport } from "./zoom-path";
@@ -57,6 +58,10 @@ function interruptPane(selection: PaneSelection | null | undefined): void {
 
 // Matches TOOL_LANE_W in layout-geometry.ts — the burst lane drawn beside each card.
 export const TOOL_LANE_ALLOWANCE = 420;
+
+/** Who asked for a fit: the auto-fit, which keeps the faces' task line, or the
+ *  reader's Fit all and F, which show the whole board however small. */
+export type FitReach = "auto" | "all";
 
 export function useCamera() {
   const rf = useReactFlow();
@@ -180,6 +185,16 @@ export function useCamera() {
   /** The zoom a run of zoom steps is on its way to, so a second press adds to
    *  the first instead of to the frame it has reached so far. */
   const zoomGoalRef = useRef<{ zoom: number; until: number } | null>(null);
+  /** The board's own places, as the layout put them (use-board-graph.ts
+   *  `nodes`), set by App each render. Below the full card React Flow is
+   *  handed the board packed (packed-board.ts), and a fit read off it would
+   *  depend on the zoom it was asked from. Null until the board is built; the
+   *  fit then reads React Flow's nodes. */
+  const boardRef = useRef<Node[] | null>(null);
+  /** The reader's Fit all holds: set by Fit all, F and recenter, and the fits
+   *  that follow on their own (a panel, a resize, a new session) keep showing
+   *  the whole board until the reader pans or zooms by hand (releaseFitAll). */
+  const fitAllHeldRef = useRef(false);
 
   /** A MOVE THE DECK MAKES ON PURPOSE, to `want` over `duration`. Every one of
    *  them does the same four things in the same order, and they used to be
@@ -212,14 +227,15 @@ export function useCamera() {
    * so this measures what is actually drawn and sets the viewport outright.
    * Left-anchored because a graph parked mid-canvas leaves dead space on the
    * side the eye starts from.
+   *
+   * `reach` is who asked. The auto-fit (`auto`) never frames the board below
+   * the zoom its faces still say each card's task at, and leaves the rest of
+   * a board too big for that to a pan; Fit all and F (`all`) show the whole
+   * board however small (fit-board.ts), and so does every fit after them
+   * until the reader pans or zooms by hand.
    */
-  const fitLeftRef = useRef<(duration?: number) => void>(() => {});
-  const fitLeft = useCallback((duration = CAMERA_SLOW_MS) => {
-    // MAX_ZOOM 1: cards are drawn at their natural size, so magnifying past
-    // 1:1 only makes a small graph look coarse. FILL leaves the frame a little
-    // loose — a fit that touches the margins reads as "already too big" and
-    // gives the eye nowhere to land when the next session appears.
-    const MARGIN = FIT_MARGIN, MAX_ZOOM = 1, MIN_ZOOM = 0.2, FILL = FIT_FILL;
+  const fitLeftRef = useRef<(duration?: number, reach?: FitReach) => void>(() => {});
+  const fitLeft = useCallback((duration = CAMERA_SLOW_MS, reach: FitReach = fitAllHeldRef.current ? "all" : "auto") => {
     try {
       const pane = document.querySelector(".canvas-wrap");
       const drawn = Array.from(document.querySelectorAll(".react-flow__node"))
@@ -234,8 +250,11 @@ export function useCamera() {
       // R fits after 80ms, while node transforms ease for 320ms; measuring
       // screen rectangles then frames the old/intermediate arrangement and
       // leaves the final nodes under a side panel. Keep the DOM visibility
-      // filter, but pair its unscaled dimensions with the store's targets.
-      const targets = new Map(rf.getNodes().map(n => [n.id, n]));
+      // filter, but pair its unscaled dimensions with the targets: the
+      // board's own places (boardRef), not the packed ones the faces draw,
+      // so the fit is the same from any zoom.
+      const board = boardRef.current;
+      const targets = new Map<string, Node>((board ? [...sessionGroupNodes(board), ...board] : rf.getNodes()).map(n => [n.id, n]));
       const rects = drawn.flatMap(el => {
         const node = targets.get((el as HTMLElement).dataset.id ?? "");
         if (!node) return [];
@@ -245,63 +264,20 @@ export function useCamera() {
         if (!(width > 0 && height > 0)) return [];
         return [{ left: pos.x, right: pos.x + width, top: pos.y, bottom: pos.y + height, type: node.type }];
       });
-      if (rects.length === 0) return;
-      type Rect = (typeof rects)[number];
-      const boxOf = (list: Rect[], pad = 0) => {
-        const minX = Math.min(...list.map(r => r.left)) - pad;
-        const minY = Math.min(...list.map(r => r.top)) - pad;
-        const w = Math.max(...list.map(r => r.right)) + pad - minX;
-        const h = Math.max(...list.map(r => r.bottom)) + pad - minY;
-        return { minX, minY, w, h };
-      };
-      const all = boxOf(rects);
-      // The cards alone, in the session handle's own padding, for the zooms
-      // where a session's note is not drawn (below the full card, the faces;
-      // context-modal.css). The note and the handle around it (which covers
-      // the note too) framed where nothing is drawn: every working session's
-      // box was half empty on its left and the board stood off to the right.
-      const agents = rects.filter(r => r.type === "agent");
-      const cards = agents.length > 0 ? boxOf(agents, GROUP_PAD) : all;
-      if (!(all.w > 0 && all.h > 0) || !(cards.w > 0 && cards.h > 0)) return;
-
-      // Tool bursts are an overlay rather than nodes, so they are absent from
-      // these rects — leave room or the last column's chips get clipped. The
-      // rail's strip is not room either: a board framed into it would put its
-      // last column under the machine and usage panels.
-      //
-      // Only where they are drawn, though (fitZoomForDrawnLanes): below the
-      // full card the bubbles are hidden, and room kept for them there is the
-      // band of empty canvas a board used to sit in the middle of.
       const railWidth = railCover(pane);
-      const fitWith = (box: { w: number; h: number }, lane: number) => Math.max(MIN_ZOOM, Math.min(
-        MAX_ZOOM,
-        ((paneRect.width - railWidth - MARGIN * 2) / (box.w + lane)) * FILL,
-        ((paneRect.height - MARGIN * 2) / box.h) * FILL,
-      ));
-      // The notes go with the bubbles: both are drawn only at the full card,
-      // so the zoom that keeps them frames them and the one below it does not.
       const bodyPx = cardBodyPx(TEXT_SIZE_INCREASE[currentTextSize()]);
-      const zoom = fitZoomForDrawnLanes(fitWith(all, TOOL_LANE_ALLOWANCE), fitWith(cards, 0), bodyPx);
-      // The box that zoom shows: everything where the full card may be drawn
-      // (the band between the two thresholds keeps whichever it came from, so
-      // it is given the room), the cards alone below it.
-      const { minX, minY, h } = zoom * bodyPx >= DETAIL_EXIT_PX ? all : cards;
-
       // One frame, computed once. It used to be spelled out twice — here and
       // again inside the correction below — which is two chances to disagree
       // about where the graph was supposed to go.
-      const want = {
-        x: MARGIN - minX * zoom,
-        // Tall canvases read down from the top. Centring a width-bound board
-        // there left hundreds of empty pixels above and below its sessions.
-        // Keep the familiar vertical centring on landscape/square canvases.
-        y: (paneRect.height > paneRect.width - railWidth
-          ? MARGIN : Math.max(MARGIN, (paneRect.height - h * zoom) / 2)) - minY * zoom,
-        zoom,
-      };
+      const want = fitBoard(rects, {
+        pane: { width: paneRect.width, height: paneRect.height }, rail: railWidth, bodyPx,
+        floor: reach === "all" ? FIT_MIN_ZOOM : AUTO_FIT_MIN_ZOOM,
+      });
+      if (!want) return;
+      const { zoom } = want;
       const epoch = moveCamera(want, duration);
       // Asked again if the window is resized while this one is still moving.
-      refitRef.current = () => fitLeftRef.current(duration);
+      refitRef.current = () => fitLeftRef.current(duration, reach);
       // A transition can also be cut short — the pane loses its frames when the
       // tab is hidden mid-animation, and the user can grab it. Check afterwards
       // and, if the frame never arrived, put it there outright. Not fitView:
@@ -322,6 +298,14 @@ export function useCamera() {
     } catch { /* viewport not ready */ }
   }, [rf, applyViewport, moveCamera]);
   fitLeftRef.current = fitLeft;
+  /** Fit all and F: the whole board, below the auto-fit's floor if it takes
+   *  that, and held there for the fits that follow on their own. */
+  const fitAll = useCallback(() => {
+    fitAllHeldRef.current = true;
+    fitLeft(CAMERA_SLOW_MS, "all");
+  }, [fitLeft]);
+  /** The reader panned or zoomed by hand: the auto-fit's floor is back. */
+  const releaseFitAll = useCallback(() => { fitAllHeldRef.current = false; }, []);
 
   // A fit that is animating when the tab goes away loses its frames where it
   // stands — a canvas stopped part-way to a frame nobody chose, which is worse
@@ -372,6 +356,8 @@ export function useCamera() {
    *  stamped as the deck's own fit: it is the reader's gesture, so auto-fit
    *  stands down for it (viewport-intent.ts). */
   const zoomStep = useCallback((goal: (zoom: number) => number) => {
+    // A zoom by hand, from a key as well as a press: Fit all lets go.
+    fitAllHeldRef.current = false;
     const { d3Zoom, d3Selection, minZoom, maxZoom } = storeApi.getState();
     const current = d3Selection?.property("__zoom") as PaneTransform | undefined;
     if (!d3Zoom || !d3Selection || !current || !(current.k > 0)) return;
@@ -388,6 +374,25 @@ export function useCamera() {
     } else {
       zoomGoalRef.current = null;
       d3Zoom.scaleTo(d3Selection, want);
+    }
+  }, [storeApi]);
+  /** THE CAMERA SIDEWAYS BY `dx` SCREEN PX, AT ONCE, for the switch between
+   *  the packed board and the board as laid out (use-repack-anchor.ts): the
+   *  cards move in that frame, and the camera with them keeps the one the
+   *  reader is zooming at where it was. Through the pane's d3-zoom, so a wheel
+   *  or a pinch in progress carries on from here. A zoom step still on its way
+   *  is interrupted by the move and sent on to its goal for the time it had
+   *  left. Not stamped: it belongs to the reader's own zoom. */
+  const panBy = useCallback((dx: number) => {
+    if (!Number.isFinite(dx) || dx === 0) return;
+    const { d3Zoom, d3Selection } = storeApi.getState();
+    const current = d3Selection?.property("__zoom") as PaneTransform | undefined;
+    if (!d3Zoom || !d3Selection || !current || !(current.k > 0)) return;
+    d3Zoom.transform(d3Selection, current.translate(dx / current.k, 0));
+    const goal = zoomGoalRef.current;
+    const left = goal ? goal.until - 60 - Date.now() : 0;
+    if (goal && left > 0 && shouldAnimateViewport({ durationMs: left, documentHidden: document.hidden })) {
+      d3Zoom.scaleTo(stageTransition(d3Selection, left) as never, goal.zoom);
     }
   }, [storeApi]);
   /** The + and − buttons: one step of React Flow's own 1.2 each way. */
@@ -414,5 +419,8 @@ export function useCamera() {
    *  Re-arrange keeps it so its Undo can return the view it replaced. */
   const currentViewport = useCallback(() => rf.getViewport(), [rf]);
 
-  return { applyViewport, moveCamera, fitLeft, currentViewport, cameraEpochRef, lastFitTimeRef, takeOver, zoomBy, zoomReset };
+  return {
+    applyViewport, moveCamera, fitLeft, fitAll, releaseFitAll, panBy, boardRef, currentViewport, cameraEpochRef, lastFitTimeRef,
+    takeOver, zoomBy, zoomReset,
+  };
 }

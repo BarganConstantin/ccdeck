@@ -166,10 +166,12 @@ describe("the fit's padding", () => {
     // The width the fit fills is the canvas less what the floating panels
     // cover of its right edge (railCover) and a margin each side; the board's
     // left edge lands on the left margin, so no card is cut there.
+    // fitLeft measures (use-camera.ts) and fit-board.ts decides, since round 3.
+    const fit = readFileSync(fileURLToPath(new URL("../fit-board.ts", import.meta.url)), "utf8");
     expect(camera).toContain("const railWidth = railCover(pane);");
-    expect(camera).toContain("((paneRect.width - railWidth - MARGIN * 2) / (box.w + lane)) * FILL");
-    expect(camera).toContain("x: MARGIN - minX * zoom,");
-    expect(camera).toContain("MARGIN : Math.max(MARGIN, (paneRect.height - h * zoom) / 2)) - minY * zoom,");
+    expect(fit).toContain("((paneRect.width - railWidth - MARGIN * 2) / (box.w + lane)) * FILL");
+    expect(fit).toContain("x: MARGIN - minX * zoom,");
+    expect(fit).toContain("MARGIN : Math.max(MARGIN, (paneRect.height - h * zoom) / 2)) - minY * zoom,");
   });
 
   it("leaves the floor row, where the Auto-fit chip and Undo stand, under the board", () => {

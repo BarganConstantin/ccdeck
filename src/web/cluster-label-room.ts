@@ -66,16 +66,18 @@ export const PANE_CHROME = ".cat-filter-bar, .react-flow__panel, .autofit-chip, 
  *
  * `view` is React Flow's viewport, `pane` its measured size (0×0 until the
  * first measure, when every pill is drawn as it always was rather than none),
- * `chrome` what paneChrome measured over it.
+ * `chrome` what paneChrome measured over it. `gutter` is how far past its box
+ * the pill may reach (cluster-bounds.ts): less where the board is packed.
  */
 export function labelRoom(
   c: Cluster,
   view: { x: number; y: number; zoom: number },
   pane: { width: number; height: number },
   chrome: readonly PaneBox[],
+  gutter?: number,
 ): LabelRoom {
   const zoom = view.zoom || 1;
-  const cap = labelMaxWidth(c.w, zoom);
+  const cap = labelMaxWidth(c.w, zoom, gutter);
   if (pane.width <= 0 || pane.height <= 0) return { maxWidth: cap, hidden: false };
   // Where clusterLabelStyle puts the pill, brought through the camera.
   const left = (c.x + LABEL_INDENT) * zoom + view.x;

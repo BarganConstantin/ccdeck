@@ -521,7 +521,10 @@ describe("the face below the detail tier", () => {
 
   it("draws one line: the mark, the task, the word", () => {
     expect(face({ state: "active", prompts: [{ at: 1, text: "Add rate limiting" }] }))
-      .toMatch(/<div class="lod-line" data-status="active"><svg class="state-mark" data-kind="live"[\s\S]*?<\/svg><span class="lod-name">Add rate limiting<\/span><span class="lod-state">Working<\/span><span class="lod-short">billing-api<\/span><\/div><\/div>/);
+      .toMatch(/<div class="lod-line" data-status="active"><svg class="state-mark" data-kind="live"[\s\S]*?<\/svg><span class="lod-name">Add rate limiting<\/span><span class="lod-state">Working<\/span><\/div><\/div>/);
+    // CHANGED ON PURPOSE (owner's critique, round 3): no second copy of the
+    // folder for the pill tier; that tier cuts the same task line.
+    expect(face({ state: "active" })).not.toContain("lod-short");
     expect(face({ state: "active", toolCount: 0 })).toContain('<span class="lod-state">Ready</span>');
     expect(face({ state: "done" })).toContain('<span class="lod-state">Done</span>');
     expect(face({ state: "err" })).toMatch(/data-status="err"[\s\S]*<span class="lod-state">Failed<\/span>/);
@@ -533,7 +536,12 @@ describe("the face below the detail tier", () => {
     expect(face({ prompts })).toContain('<span class="lod-name">Now the logout</span>');
     expect(face({ prompts: [{ at: 3, text: notice }], firstPrompt: notice, sessionTitle: "Rate limits" }))
       .toContain('<span class="lod-name">Rate limits</span>');
-    expect(face({})).toContain('<span class="lod-name">billing-api</span>');
+    expect(face({ sessionName: "Billing rewrite", sessionTitle: "Rate limits" })).toContain('<span class="lod-name">Billing rewrite</span>');
+    // CHANGED ON PURPOSE (owner's critique, round 3): never the folder, which
+    // the session's tag above the card already says. Asked nothing and given
+    // no name, the face is its state alone.
+    expect(face({})).not.toContain("lod-name");
+    expect(face({ firstPrompt: "billing-api" })).not.toContain("lod-name");
     // A subagent: what its spawning call said it is for, else its name.
     expect(face({ kind: "subagent", label: "Explore", spawnCall: { id: "t1", description: "Find every public route" } }))
       .toContain('<span class="lod-name">Find every public route</span>');
@@ -563,14 +571,14 @@ describe("the face below the detail tier", () => {
     expect(css).toMatch(/\.lod-line\[data-status="err"\] \.lod-state \{ color: var\(--err\); \}/);
   });
 
-  it("draws no cut task below 40%: the mark, and the word where it fits whole", () => {
-    // Owner's critique 2026-11-11, point 3: "W…" and "A…" on the far faces,
-    // "below 40% a dot only, never a cut word".
-    expect(css).toMatch(/\.canvas-wrap\[data-far\] \.agent-node \.lod-name \{ display: none; \}/);
-    // V4 critique 2, C4 (V4's Figma): the short name at the left, the mark
-    // at the right, one line at any height, the word in the peek. The name is
-    // a value: never cut, it wraps to the clipped line instead.
-    expect(css).toMatch(/\n\.lod-short \{ display: none; \}/);
+  it("draws the pill below 40%: the start of the task, cut, and the mark", () => {
+    // CHANGED ON PURPOSE (owner's critique, round 3, point 1): the pill tier
+    // drew the card's label, which for a root is the folder its session's tag
+    // says right above it. It draws the start of the same task line now, cut
+    // with an ellipsis, at the left; the mark at the right; one line at any
+    // height; the word in the peek.
+    expect(css).not.toMatch(/\.canvas-wrap\[data-far\] \.agent-node \.lod-name \{ display: none; \}/);
+    expect(css).not.toContain("lod-short");
     expect(css).toMatch(/\.canvas-wrap\[data-far\] \.agent-node \.lod-state \{ display: none; \}/);
     const far = (sel: string) => {
       const at = css.indexOf(`.canvas-wrap[data-far] .agent-node ${sel} {`);
@@ -578,8 +586,12 @@ describe("the face below the detail tier", () => {
       return css.slice(at, css.indexOf("}", at));
     };
     for (const d of ["flex-direction: row-reverse;", "height: calc(14px + var(--ui-text-increase, 0px));"]) expect(far(".lod-line")).toContain(d);
-    for (const d of ["display: block;", "flex: none;", "margin-right: auto;", "white-space: nowrap;"]) expect(far(".lod-short")).toContain(d);
-    expect(far(".lod-short")).not.toMatch(/text-overflow|overflow:/);
+    // One line, from the left edge to the mark: the 50% the nearer faces keep
+    // for the task would wrap it under a mark this narrow.
+    for (const d of ["order: 0;", "flex: 1 1 0;", "min-width: 0;"]) expect(far(".lod-name")).toContain(d);
+    // The cut itself is the task's own rule: one line, an ellipsis.
+    const name = css.slice(css.indexOf("\n.lod-name {"), css.indexOf("}", css.indexOf("\n.lod-name {")));
+    for (const d of ["text-overflow: ellipsis;", "white-space: nowrap;", "overflow: hidden;"]) expect(name).toContain(d);
     // Nearer, the overview and compact faces keep the task.
     expect(css).not.toMatch(/data-lod="(?:overview|compact)"\] \.agent-node \.lod-name/);
     const zoom = readFileSync(fileURLToPath(new URL("../semantic-zoom.ts", import.meta.url)), "utf8");
