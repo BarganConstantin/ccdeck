@@ -1,20 +1,24 @@
 {
   "3.82.3": [
     {
-      "title": "Windows CPU performance limits",
+      "title": "🖥️ Windows CPU performance limits",
       "body": "Machine now shows CPU performance limits reported by Windows, even when no CPU temperature sensor is available.",
       "priority": "highlight",
       "notice": "The reading includes power-policy and firmware limits. It does not identify overheating or rule out every hardware thermal restriction."
     },
     {
-      "title": "More reliable session status",
+      "title": "🎯 More reliable session status",
       "body": "Failed turns stop appearing active, and background scans no longer create phantom sessions.",
       "priority": "highlight"
     },
     {
-      "title": "Usage history recovers from temporary errors",
+      "title": "🔁 Usage history recovers from temporary errors",
       "body": "Project usage, quota history and tool history recover more reliably after temporary read or save failures.",
       "priority": "highlight"
+    },
+    {
+      "title": "🧹 No hook errors in Claude Code after uninstalling the desktop app",
+      "body": "From this version on, the hook the desktop app leaves in Claude Code's settings ends quietly once the app is uninstalled, instead of showing an error on every tool call."
     }
   ],
   "//": [
