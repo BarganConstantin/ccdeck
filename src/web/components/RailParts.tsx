@@ -114,7 +114,9 @@ export function RailRow({ row: r, group, now, selected, removed, leaving, landNo
   const line = railLine(r, group);
   // "1 failed" beside the cross, as the card's face says it (railFailed).
   const failed = railFailed(r, group, t);
-  const lined = !!(line || removed || failed);
+  // A row that reads like another (twinClocks) leads it with when it started.
+  const start = r.twin ? twinStart(r.startedAt, r.twin) : null;
+  const lined = !!(line || removed || failed || start);
   const time = railTime(r, group, now);
   // The highlight is the row's own once it has been handed over, so it plays
   // out its fade; a row drawn again later has no nonce and does not replay it.
@@ -148,9 +150,6 @@ export function RailRow({ row: r, group, now, selected, removed, leaving, landNo
             <span className="sl-line1">
               <span className="sl-name">
                 <span className="sl-label">{r.label}</span>
-                {/* Only beside a row that reads like another (twinClocks): when
-                    it started, in the model's quiet mono. */}
-                {r.twin && <span className="sl-model sl-start">{twinStart(r.startedAt, r.twin)}</span>}
                 {r.modelId && <span className="sl-model" title={modelChipTitle(r.modelId, r.effort)}>{modelChipText(r.modelId, r.effort)}</span>}
               </span>
               {time && <span className={`sl-time ${time.tone}`}><span className="vis-hidden">{time.spoken}</span>{time.text}</span>}
@@ -159,6 +158,10 @@ export function RailRow({ row: r, group, now, selected, removed, leaving, landNo
               <span className={`sl-line2${line?.kind === "tool" ? " mono" : ""}`}>
                 {/* Words, leading the second line, so the name keeps the first
                     line whole: the press on this row does something different. */}
+                {/* When a look-alike started (twinClocks), first: beside the
+                    name it cut the name to a letter on a narrow list. */}
+                {start && <span className="sl-start">{start}</span>}
+                {start && (removed || failed || line) ? " · " : ""}
                 {removed && <span className="sl-off">{t("board.rail.offBoard")}</span>}
                 {removed && (failed || line) ? " · " : ""}
                 {failed && <span className="sl-failed">{failed}</span>}

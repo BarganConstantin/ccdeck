@@ -202,8 +202,6 @@
   color: var(--muted);
   white-space: nowrap;
 }
-/* A look-alike's start time (twinClocks), in the markers' voice above. */
-.agent-node .title .twin-start { font-variant-numeric: tabular-nums; }
 /* The model text is what gives way first: a much larger shrink factor than the
    name's and its own ellipsis, but a visible floor of 6ch so "Opus…" stays
    readable on a long name (at 0 the box collapsed and no ellipsis showed). Past
@@ -749,6 +747,14 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+/* A look-alike's start time (twinClocks) leads the task line in the model's
+   quiet mono, so the head keeps the name whole. */
+.agent-node .task-line .twin-start {
+  font-family: var(--font-mono);
+  font-size: calc(11px + var(--ui-text-increase, 0px));
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
 }
 
 /* The agent's plan, as one row (#2157): a meter, the count and the step.

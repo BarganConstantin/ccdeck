@@ -267,9 +267,6 @@ export function AgentCard({ data, handles = false }: { data: CardData; handles?:
       <div className="head">
         <div className="title">
           <span className="label" title={cardTooltip} ref={labelRef}>{headName}</span>
-          {/* Only on a card that reads like another on the board, name and
-              task (twinClocks): when it started, in the markers' plain voice. */}
-          {twin && <span className="synth-tag twin-start" title={t("board.node.started", { time: twin })}>{twin}</span>}
           {/* The model as plain mono text after the name (V4): no pill, no
               tint — the word already names the family. A Codex session with no
               model yet says Codex in the same place (#404), and only "codex"
@@ -322,12 +319,17 @@ export function AgentCard({ data, handles = false }: { data: CardData; handles?:
           session": it draws that word the same way. The kind word of an
           ordinary root is not drawn (its edge, its tooltip and the card's
           accessible name already say it). */}
-      {data.kind === "root" && rootTask && (
-        <div className="task-line" title={rootTask.tooltip}>
-          {rootTask.face}
+      {/* A card that reads like another on the board, name and task
+          (twinClocks), leads this line with when it started: in the head it
+          cut the name to a letter. */}
+      {data.kind === "root" && (rootTask || twin) && (
+        <div className="task-line" title={rootTask?.tooltip}>
+          {twin && <span className="twin-start" title={t("board.node.started", { time: twin })}>{twin}</span>}
+          {twin && rootTask ? " · " : ""}
+          {rootTask?.face}
         </div>
       )}
-      {!(data.kind === "root" && rootTask) && agentKindLabel(data, t) !== "session" && (
+      {!(data.kind === "root" && (rootTask || twin)) && agentKindLabel(data, t) !== "session" && (
         <div className="task-line" title={spawnTask ? `${spawnTask}\n${subRowTitle(data, t)}` : subRowTitle(data, t)}>
           {spawnTask || `${agentKindLabel(data, t)}${data.cwdBasename ? ` · ${data.cwdBasename}` : ""}`}
         </div>

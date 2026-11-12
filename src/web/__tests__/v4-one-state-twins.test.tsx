@@ -230,14 +230,18 @@ describe("the Sessions list draws the start time on look-alike rows only", () =>
     expect(twin).toEqual({ n1: "second", n2: "second", n3: "second", map: undefined, site: undefined });
   });
 
-  it("draws it beside the name, in the model's mono tag", () => {
+  it("leads the second line with it, so the name keeps the first line whole", () => {
     const s = board();
     const html = renderToStaticMarkup(createElement(SessionList, {
       state: s, now: T0 + 100_000, selectedIds: new Set<string>(), onSelect: () => {}, onClose: () => {},
     }));
-    expect(html.match(/class="sl-model sl-start"/g)).toHaveLength(3);
+    expect(html.match(/class="sl-start"/g)).toHaveLength(3);
     const n1 = html.slice(html.indexOf('data-rail-id="n1"'));
-    expect(n1).toContain(`<span class="sl-label">ccdeck</span><span class="sl-model sl-start">${clockTime(T0, true)}</span>`);
+    const row = n1.slice(0, n1.indexOf("</li>"));
+    const line1 = row.slice(row.indexOf('class="sl-line1"'), row.indexOf('class="sl-line2'));
+    expect(line1).toContain('<span class="sl-label">ccdeck</span>');
+    expect(line1).not.toContain("sl-start");
+    expect(row).toMatch(new RegExp(`class="sl-line2[^"]*"><span class="sl-start">${clockTime(T0, true)}</span> · `));
     const site = html.slice(html.indexOf('data-rail-id="site"'));
     expect(site.slice(0, site.indexOf("</li>"))).not.toContain("sl-start");
   });
@@ -263,11 +267,19 @@ describe("the board draws the start time on look-alike cards only", () => {
     expect(one(s.agents.get("n1")!)).not.toHaveProperty("twin");
   });
 
-  it("draws it beside the name on the detail face, and after the word on the face at a distance", () => {
+  it("leads the task line with it on the detail face, and puts it after the word on the face at a distance", () => {
     const out = card({ twin: "minute", model: "claude-opus-5-5" });
     const time = clockTime(T0);
-    expect(out).toContain(`<span class="label">ccdeck</span><span class="synth-tag twin-start" title="Started ${time}">${time}</span><span class="model-text"`);
+    // The head keeps the name whole: nothing between it and the model.
+    expect(out).toContain('<span class="label">ccdeck</span><span class="model-text"');
+    expect(out).toMatch(new RegExp(`<div class="task-line"[^>]*><span class="twin-start" title="Started ${time}">${time}</span> · ${NOTES}</div>`));
     expect(out).toContain(`<span class="lod-name">${NOTES}</span><span class="lod-start">${time}</span><span class="lod-state">Working</span>`);
+  });
+
+  it("draws the time alone on the task line of a look-alike that was asked nothing", () => {
+    const out = card({ twin: "minute", prompts: [] });
+    const time = clockTime(T0);
+    expect(out).toMatch(new RegExp(`<div class="task-line"><span class="twin-start" title="Started ${time}">${time}</span></div>`));
   });
 
   it("leaves a card that reads like no other exactly as it was", () => {
