@@ -5,7 +5,8 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { FIRST_RUN_PANEL_KEYS, PANEL_DEFAULTS_KEY, pruneStaleState, SCHEMA_KEY, settlePanelDefaults, SHAPE_KEYS, STATE_SCHEMA } from "../storage";
+import { FIRST_RUN_PANEL_KEYS, forgetRetired, PANEL_DEFAULTS_KEY, pruneStaleState, RETIRED_KEYS, SCHEMA_KEY, settlePanelDefaults, SHAPE_KEYS, STATE_SCHEMA } from "../storage";
+import { floatKey, PLACE_KEYS } from "../panel-place";
 
 function store(initial: Record<string, string> = {}) {
   const map = new Map(Object.entries(initial));
@@ -163,5 +164,44 @@ describe("boot", () => {
     expect(prune, "main.tsx no longer prunes inside a try").toBeGreaterThan(-1);
     expect(main.indexOf("createRoot(")).toBeGreaterThan(prune);
     expect(main.indexOf(".render(")).toBeGreaterThan(prune);
+  });
+});
+
+describe("forgetRetired", () => {
+  const BOARD_USAGE = "agent-dag.usagePanelPlace";
+  const BOARD_MACHINE = "agent-dag.machinePanelPlace";
+
+  it("forgets the Board's panel places and keeps Workspace's floating ones", () => {
+    const s = store();
+    s.setItem(BOARD_USAGE, JSON.stringify({ edge: "right", x: 40, y: 120 }));
+    s.setItem(BOARD_MACHINE, JSON.stringify({ edge: "left", x: 10, y: 300 }));
+    s.setItem(floatKey(PLACE_KEYS.usage), JSON.stringify({ edge: "left", x: 300, y: 90 }));
+    s.setItem("agent-dag.usagePanelHeight", "420");
+    expect(forgetRetired(s)).toEqual([BOARD_USAGE, BOARD_MACHINE]);
+    expect(s.getItem(BOARD_USAGE)).toBeNull();
+    expect(s.getItem(BOARD_MACHINE)).toBeNull();
+    expect(s.getItem(floatKey(PLACE_KEYS.usage))).not.toBeNull();
+    expect(s.getItem("agent-dag.usagePanelHeight")).toBe("420");
+    expect(forgetRetired(s)).toEqual([]);
+  });
+
+  it("names the Board's own keys, the ones panel-place.ts reads on the Board", () => {
+    expect([...RETIRED_KEYS].sort()).toEqual(Object.values(PLACE_KEYS).sort());
+  });
+
+  it("survives a storage that throws", () => {
+    const dead = {
+      getItem() { throw new Error("denied"); },
+      setItem() { throw new Error("denied"); },
+      removeItem() { throw new Error("denied"); },
+    };
+    expect(forgetRetired(dead)).toEqual([]);
+  });
+
+  it("runs at boot before App mounts", () => {
+    const main = readFileSync(fileURLToPath(new URL("../main.tsx", import.meta.url)), "utf8");
+    const forget = main.search(/try \{ forgetRetired\(window\.localStorage\); \} catch/);
+    expect(forget, "main.tsx no longer forgets the retired keys inside a try").toBeGreaterThan(-1);
+    expect(main.indexOf(".render(")).toBeGreaterThan(forget);
   });
 });
