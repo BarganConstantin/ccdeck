@@ -442,6 +442,7 @@ const catalog: Catalog = {
   "board.spark.title": "최근 60s 동안 {parts} · 최고 {peak}/s",
   "board.edge.aria": "{label} 링크",
   "board.minimap": "미니맵",
+  "board.phone.stack": "보드의 세션",
   "board.cost.note": "API 기준 추정치입니다. 기록된 Codex 설정으로는 실제 제공 등급을 확인할 수 없으며, 등급 근거가 없는 토큰은 표준 요금으로 계산합니다.",
   "board.cost.heading": "모델: {model}",
   "board.cost.headingSpeed": "모델: {model} · {speed}",

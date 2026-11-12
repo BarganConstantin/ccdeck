@@ -1279,6 +1279,11 @@ describe("every control that draws a boundary draws one that can be seen (1.4.11
       // is identified by the cap written in it (Esc, Tab, Ctrl+C...) as the frame
       // draws it, with a --line rim on --bg-soft like the other quiet buttons.
       ".ts-key",
+      // A card of the phone's Board (critique 3, point 7): a session's row drawn
+      // as a card, identified by the name, state word and task written in it,
+      // as the Sessions row it stands for is with no edge at all. Its --line rim
+      // on --panel is the card's outline, the canvas cards' own.
+      ".phone-board .pb-card",
       // Rows in the tool list. `border: none` plus a hairline separating one
       // row from the next — the row is identified by the tool's name in it.
       ".detail .tool", "button.tool.clickable", "button.tool.clickable:last-child",

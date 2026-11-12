@@ -442,6 +442,7 @@ const catalog: Catalog = {
   "board.spark.title": "{parts} nos últimos 60s · pico de {peak}/s",
   "board.edge.aria": "Link para {label}",
   "board.minimap": "Minimapa",
+  "board.phone.stack": "Sessões no quadro",
   "board.cost.note": "Estimativa equivalente à API. As configurações registradas do Codex não confirmam a camada atendida; tokens sem evidência de camada usam tarifas padrão.",
   "board.cost.heading": "modelo: {model}",
   "board.cost.headingSpeed": "modelo: {model} · {speed}",

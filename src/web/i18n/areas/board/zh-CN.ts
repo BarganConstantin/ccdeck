@@ -442,6 +442,7 @@ const catalog: Catalog = {
   "board.spark.title": "过去 60 秒：{parts} · 峰值 {peak}/秒",
   "board.edge.aria": "连到 {label}",
   "board.minimap": "缩略图",
+  "board.phone.stack": "看板上的会话",
   "board.cost.note": "按 API 计价估算。Codex 记录的设置无法确认实际使用的服务等级；没有等级佐证的 token 按标准费率计算。",
   "board.cost.heading": "模型：{model}",
   "board.cost.headingSpeed": "模型：{model} · {speed}",

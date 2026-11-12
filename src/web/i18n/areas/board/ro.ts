@@ -462,6 +462,7 @@ const catalog: Catalog = {
   "board.spark.title": "{parts} în ultimele 60s · vârf {peak}/s",
   "board.edge.aria": "Legătură către {label}",
   "board.minimap": "Hartă mică",
+  "board.phone.stack": "Sesiunile de pe tablă",
   "board.cost.note": "Estimare echivalentă API. Setările Codex înregistrate nu confirmă nivelul oferit; tokenii fără dovadă de nivel folosesc tarifele standard.",
   "board.cost.heading": "model: {model}",
   "board.cost.headingSpeed": "model: {model} · {speed}",

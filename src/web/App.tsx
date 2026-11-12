@@ -50,7 +50,7 @@ import { EmptyHero, TabCapHero } from "./components/EmptyHero";
 import DetailAside from "./components/DetailAside";
 import { inspectorDoorOpen, inspectorDoorPress, inspectorIsSheet } from "./inspector-corner";
 import { EdgeDock, EdgeRail, PHONE_QUERY, UtilityRun } from "./components/EdgeRails";
-import { railItems } from "./rail-items";
+import { commandPanelMore, railItems } from "./rail-items";
 import { unreadOf, useFeedbackAccount } from "./feedback-unread";
 import { focusAfterFold } from "./fold-focus";
 // The modal and its panels load on demand; this is the light wrapper that
@@ -65,6 +65,8 @@ import type { IntegrationKind } from "./integrations/types";
 import { useMediaQuery } from "./use-media-query";
 import { ReadoutGroup } from "./components/TopbarReadouts";
 import CategoryFilterBar from "./components/CategoryFilterBar";
+import PhoneBoard from "./components/PhoneBoard";
+import RadioExperience from "./components/RadioExperience";
 import CanvasMain from "./components/CanvasMain";
 import DeckBanner from "./components/DeckBanner";
 import { OfflineCard } from "./components/ConnectionBanner";
@@ -1069,6 +1071,12 @@ function Inner() {
     // No terminal: the Inspector opens as a sheet and the list stays under it.
     openSession(sessionId);
   }, [openSession, phone, closeSessionListToCanvas, stage.enabled, openInPane, markLanded, removedAgentIds, bringBack]);
+  /** A card on the phone's Board opens its session with the Sessions row's own
+   *  press, and leaving the pane comes back to the Board, where the tap was. */
+  const pickFromBoard = useCallback((sessionId: string) => {
+    pickSession(sessionId);
+    paneFromListRef.current = false;
+  }, [pickSession]);
   // Back from the pane, the phone is on Sessions again.
   const paneOpen = stage.enabled && stage.shell.phase !== "closed";
   const paneWasOpen = useRef(false);
@@ -1121,7 +1129,7 @@ function Inner() {
       usage: () => panelReturn.toggles.usage.current,
       machine: () => panelReturn.toggles.machine.current,
       inspector: () => (primarySelectedId
-        ? document.querySelector<HTMLElement>(`.session-list .sl-row[data-session="${CSS.escape(primarySelectedId)}"]`)
+        ? document.querySelector<HTMLElement>(`.session-list .sl-row[data-session="${CSS.escape(primarySelectedId)}"], .phone-board .pb-card[data-session="${CSS.escape(primarySelectedId)}"]`)
         : null),
     },
     modalOpenRef,
@@ -1265,9 +1273,11 @@ function Inner() {
         // active at a time: Sessions gives way while a sheet is up over it, and
         // then its press means "go to Sessions" (the sheet closes, the list
         // stays), so the door never says closed and does the other thing.
+        // The Command Panel is a row of More, after Search, while the deck has a
+        // terminal: the phone's Board draws no canvas bar to hold its button.
         ? <EdgeDock
             items={[...rails.left, ...rails.right[0]].map(sessionsDoorUnderSheet)}
-            more={[rails.search, ...rails.capacity, ...rails.right.slice(1).flat(), ...rails.integrations, ...rails.explore, ...rails.utilities.filter(item => item !== rails.corner)]}
+            more={[rails.search, ...commandPanelMore(stage.enabled ? stage.openFromButton : undefined), ...rails.capacity, ...rails.right.slice(1).flat(), ...rails.integrations, ...rails.explore, ...rails.utilities.filter(item => item !== rails.corner)]}
             offline={everConnected && !live} />
         : <EdgeRail side="left" label={t("board.rail.tools")} groups={rails.leftStripe} foot={rails.leftFoot} />}
 
@@ -1347,13 +1357,24 @@ function Inner() {
             choice the user made and forgetting it silently is the other way to
             be wrong. What must never happen is keeping the choice and taking
             away the control. */}
-        {(presentCats.length > 1 || hiddenCats.size > 0) && (
+        {!phone && (presentCats.length > 1 || hiddenCats.size > 0) && (
           <CategoryFilterBar
             catBarRef={catBarRef} catBarOccluded={catBarOccluded}
             presentCats={presentCats} hiddenCats={hiddenCats} toggleCat={toggleCat}
           />
         )}
-        {/* React Flow, and everything drawn in its pane — components/BoardFlow.tsx. */}
+        {/* A phone's Board is a stack of readable cards, with no free canvas
+            and none of its controls — components/PhoneBoard.tsx. The radio
+            plays on there without its companion, which would stand on the
+            cards. Wider, React Flow and everything drawn in its pane —
+            components/BoardFlow.tsx. */}
+        {phone ? (
+          <>
+            <PhoneBoard state={stateRef.current} now={now} watching={watchingSessions} removedIds={removedAgentIds}
+              selectedIds={selectedIds} onOpen={pickFromBoard} />
+            <RadioExperience fm={fm} character={appearance.character} characterEnabled={false} open={radioOpen} onClose={closeRadio} />
+          </>
+        ) : (
         <BoardFlow
           graph={graph} layout={layout} viewport={viewport} clicks={clicks} drag={drag}
           appearance={appearance} fm={fm} radioOpen={radioOpen} onRadioClose={closeRadio} autoFit={autoFit} pause={pause}
@@ -1363,6 +1384,7 @@ function Inner() {
           onTerminal={stage.enabled ? stage.openFromButton : undefined}
           notesDrawn={zoom.lod === "detail"}
         />
+        )}
         {/* The board's compact form while the stage is open, in the canvas's
             place and inside <main> with the board it stands for — components/
             StageSlots.tsx. Nothing at all with the terminal flag off. */}
@@ -1393,7 +1415,7 @@ function Inner() {
         <QuickOpen onClose={closeQuickOpen} onRun={runQuick} items={quickOpenItems({
           rails: quickRails, sessions: buildRows(stateRef.current, now), openSession: pickSession,
           settings: indexFor(providers.claude, integrationsReach(integrations), offeredKinds(integrations)), openSettings,
-          singleKeys, fit: handleFit, rearrange: handleRelayout, paused, togglePause,
+          singleKeys, fit: handleFit, rearrange: handleRelayout, phone, paused, togglePause,
           clear: boardEmpty ? undefined : () => requestClear("button"),
           nextWaiting: blockedSessions(stateRef.current.agents.values()).length > 0 ? quickNextWaiting : undefined,
           start: quickStart(),

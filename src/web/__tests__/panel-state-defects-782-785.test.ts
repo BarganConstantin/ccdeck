@@ -112,7 +112,9 @@ describe("#783 — the tool-category filter", () => {
     // on a timer — and the bar was gone while the filter was still applied.
     // Every bubble suppressed, no chip to press, and Clear does not reset it:
     // a page reload was the only way back.
-    expect(app).toContain("{(presentCats.length > 1 || hiddenCats.size > 0) && (");
+    // CHANGED ON PURPOSE (critique 3, point 7): not on a phone, whose Board is a
+    // stack of cards with no bubbles to filter.
+    expect(app).toContain("{!phone && (presentCats.length > 1 || hiddenCats.size > 0) && (");
     expect(app, "the bar is gated on what is present alone again")
       .not.toContain("{presentCats.length > 1 && (");
   });

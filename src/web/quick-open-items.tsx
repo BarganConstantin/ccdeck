@@ -129,6 +129,9 @@ export interface QuickOpenSources {
   singleKeys: boolean;
   fit: () => void;
   rearrange: () => void;
+  /** The phone layout: its Board is a stack of cards, where nothing moves a
+   *  camera, so Fit all and Re-arrange are not offered. */
+  phone?: boolean;
   paused: boolean;
   togglePause: () => void;
   /** Absent while the canvas has nothing to clear. */
@@ -197,11 +200,15 @@ export function quickOpenItems(src: QuickOpenSources): QuickItem[] {
       keywords: ["waiting", "needs you", "next", "blocked", "queue"], tag: t("board.quick.tag.action"), verb: t("board.quick.verb.goSession"),
       keyCap: key("n"), glyph: <ClockGlyph />, run: src.nextWaiting });
   }
+  if (!src.phone) {
+    items.push(
+      { id: "action:fit", section: "actions", title: t("board.quick.action.fit"), keywords: ["zoom", "view", "recenter"],
+        tag: t("board.quick.tag.action"), verb: t("board.quick.verb.run"), keyCap: key("F"), glyph: <FitGlyph />, run: src.fit },
+      { id: "action:rearrange", section: "actions", title: t("board.controls.arrangeLabel"), keywords: ["layout", "tidy", "pins"],
+        tag: t("board.quick.tag.action"), verb: t("board.quick.verb.run"), keyCap: key("R"), glyph: <ArrangeGlyph />, run: src.rearrange },
+    );
+  }
   items.push(
-    { id: "action:fit", section: "actions", title: t("board.quick.action.fit"), keywords: ["zoom", "view", "recenter"],
-      tag: t("board.quick.tag.action"), verb: t("board.quick.verb.run"), keyCap: key("F"), glyph: <FitGlyph />, run: src.fit },
-    { id: "action:rearrange", section: "actions", title: t("board.controls.arrangeLabel"), keywords: ["layout", "tidy", "pins"],
-      tag: t("board.quick.tag.action"), verb: t("board.quick.verb.run"), keyCap: key("R"), glyph: <ArrangeGlyph />, run: src.rearrange },
     { id: "action:pause", section: "actions", title: src.paused ? t("board.quick.action.resume") : t("board.quick.action.pause"), keywords: ["pause", "resume", "freeze", "live"],
       tag: t("board.quick.tag.action"), verb: t("board.quick.verb.run"), keyCap: key("Space"), glyph: <PauseGlyph />, run: src.togglePause },
     { id: "action:keys", section: "actions", title: t("board.controls.keys"), keywords: ["keys", "help", "?"],
