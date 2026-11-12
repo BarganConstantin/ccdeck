@@ -16,7 +16,7 @@ import type { Row } from "./components/SessionList";
 import { agoShort, elapsedShort } from "./elapsed-short";
 import type { RailGroup } from "./rail-model";
 import { distinctIdTail } from "./session-id-tail";
-import { sessionListName } from "./session-display";
+import { sessionDisplay, sessionListName } from "./session-display";
 import { injectedPrompt } from "./injected-prompt";
 import type { AgentNodeData, PromptEntry } from "./types";
 
@@ -78,6 +78,22 @@ export function sessionNames(a: Nameable): SessionNames {
 export function sessionTask(a: Pick<AgentNodeData, "prompts" | "firstPrompt">): string {
   const text = lastTypedPrompt(a);
   return text ? promptLine(text) : "";
+}
+
+/**
+ * What a card's face says from a distance (AgentNode's NodeFace), at every
+ * distance below the full card: a root's task, else the name it was given or
+ * Claude Code's title; a subagent's own task, else its name.
+ *
+ * Never the folder (owner's critique, round 3): the session's tag right above
+ * the face names it, and a face that said it again read "ccdeck" under
+ * "CCDECK". Empty when a root has been asked nothing and has no name, and the
+ * face then draws its state alone.
+ */
+export function faceTask(a: Pick<AgentNodeData, "kind" | "label" | "sessionName" | "sessionTitle" | "prompts" | "firstPrompt" | "spawnCall">): string {
+  if (a.kind !== "root") return a.spawnCall?.description || a.label;
+  const said = sessionTask(a) || sessionDisplay(a.sessionName, a.sessionTitle).face || "";
+  return said && !sameWords(said, a.label) ? said : "";
 }
 
 /** sessionTask's prompt whole, every line of it: for a surface that cuts it to

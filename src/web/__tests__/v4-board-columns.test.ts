@@ -33,7 +33,8 @@ import { snapshotToFlow, type BoardFlow } from "../canvas-flow";
 import { autoLayout, fillGapsWithNewSessions } from "../layout";
 import { COLUMN_GAP, MAX_COLUMNS, SESSION_GAP, sessionOfNode, TOOL_LANE_W } from "../layout-geometry";
 import { initialState, type GraphState } from "../reducer";
-import { fitZoomForDrawnLanes } from "../semantic-zoom";
+import { fitBoard } from "../fit-board";
+import { FIT_FILL, FIT_MARGIN } from "../use-layout-frame";
 import type { AgentNodeData, ToolCall } from "../types";
 
 const W = 260, H = 84;
@@ -106,13 +107,17 @@ function columnOfSession(out: Node[]): Map<string, number> {
   return new Map(rootsOf(out).map(n => [sessionOfNode(n), cols.indexOf(n.position.x)]));
 }
 
-/** The zoom fitLeft shows this board at (use-camera.ts). */
+/** The zoom fitLeft shows this board at: fit-board.ts's, on a canvas whose
+ *  frame is `frame`, with no floor. CHANGED ON PURPOSE (round 3): the far fit
+ *  frames the board packed, so this asks it rather than measuring the board
+ *  as laid out. */
 function fitShows(out: Node[], measured: Map<string, { width: number; height: number }>, frame: Frame): number {
-  const xs = out.map(n => n.position.x), ys = out.map(n => n.position.y);
-  const w = Math.max(...out.map(n => n.position.x + sizeOf(n, measured).width)) - Math.min(...xs);
-  const h = Math.max(...out.map(n => n.position.y + sizeOf(n, measured).height)) - Math.min(...ys);
-  const at = (lane: number) => Math.min(1, frame.width / (w + lane), frame.height / h);
-  return fitZoomForDrawnLanes(at(TOOL_LANE_W), at(0));
+  const rects = out.map(n => {
+    const s = sizeOf(n, measured);
+    return { left: n.position.x, right: n.position.x + s.width, top: n.position.y, bottom: n.position.y + s.height, type: n.type ?? "agent" };
+  });
+  const pane = { width: frame.width / FIT_FILL + FIT_MARGIN * 2, height: frame.height / FIT_FILL + FIT_MARGIN * 2 };
+  return fitBoard(rects, { pane, rail: 0, floor: 0 })!.zoom;
 }
 
 /** Sessions in the order the board reads them: by column, then down it. */

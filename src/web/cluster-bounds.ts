@@ -13,6 +13,7 @@ import { isAlarming } from "./ambient-counts";
 import { clusterHeader, type ClusterHeader } from "./cluster-header";
 import { planLine, planSummary } from "./agent-plan";
 import { branchShort, type BranchSummary } from "./node-face";
+import { PACKED_GAP } from "./packed-board";
 import { HEADER_H, LABEL_LIFT, PAD } from "./session-chrome";
 import { sessionDisplay } from "./session-display";
 import type { AgentNodeData } from "./types";
@@ -69,6 +70,14 @@ const LABEL_GUTTER = 240;
 export const LABEL_INDENT = 16;
 
 /**
+ * The same reach where the faces draw the board packed (packed-board.ts): two
+ * columns' cards stand PACKED_GAP apart, their boxes that less a PAD each, and
+ * the pill, which starts LABEL_INDENT inside its box, stops 8 short of the
+ * next box, so it never reaches the next column's box or its pill.
+ */
+export const PACKED_LABEL_GUTTER = PACKED_GAP - 2 * PAD - LABEL_INDENT - 8;
+
+/**
  * The widest the header pill may draw, in SCREEN px, for a cluster box `w`
  * layout units wide shown at `zoom`.
  *
@@ -82,8 +91,8 @@ export const LABEL_INDENT = 16;
  * to minZoom and never hands out a zero, and a zero here would make the cap
  * zero and hide the header entirely.
  */
-export function labelMaxWidth(clusterWidth: number, zoom: number): number {
-  return (clusterWidth + LABEL_GUTTER) * (zoom || 1);
+export function labelMaxWidth(clusterWidth: number, zoom: number, gutter = LABEL_GUTTER): number {
+  return (clusterWidth + gutter) * (zoom || 1);
 }
 
 /**

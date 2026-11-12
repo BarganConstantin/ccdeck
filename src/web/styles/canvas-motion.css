@@ -79,6 +79,19 @@
   transition: opacity var(--dur-base) var(--ease);
 }
 
+/* The board switching to or from its packed places (packed-board.ts): the
+   cards take their new places at once, in the frame the camera moves to keep
+   the one the reader is zooming at still (use-repack-anchor.ts). Carried
+   there, a column slid across the screen under a pinch. The box round each
+   session goes with its cards. */
+.canvas-wrap[data-repack] .react-flow__node,
+.canvas-wrap[data-repack] .react-flow__node.react-flow__node-sessionGroup {
+  transition: none;
+}
+.canvas-wrap[data-repack] .cluster-card {
+  transition: opacity var(--dur-base) var(--ease);
+}
+
 /* ── reduced motion, on the canvas itself ─────────────────────────────────── */
 /*
  * The blocks above cover the relayout easing and nothing else, so a user who

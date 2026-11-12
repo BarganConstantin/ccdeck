@@ -32,7 +32,7 @@ import type { AgentNodeData, PlanItem, WaitingBlock } from "../types";
 import { useNow } from "../use-now";
 import { useLanguage, useT } from "../i18n";
 import { drawnState, faceStatus, stateMarkKind, type BranchSummary, type CardState, type StateMarkKind } from "../node-face";
-import { lastTypedPrompt, sessionNames, sessionTask, twinStart, type TwinClock } from "../rail-row-copy";
+import { faceTask, lastTypedPrompt, sessionNames, twinStart, type TwinClock } from "../rail-row-copy";
 // The agent's own checklist, as one line (#2157). See agent-plan.ts.
 import { planSummary, planTitle, type PlanSummary } from "../agent-plan";
 // The tool kinds the foot draws as icons, from the calls the card holds.
@@ -437,7 +437,7 @@ export function AgentCard({ data, handles = false }: { data: CardData; handles?:
         )}
       </div>
 
-      <NodeFace data={data} task={data.kind === "root" ? sessionTask(data) || sessionNames(data).title : spawnTask || data.label} />
+      <NodeFace data={data} task={faceTask(data)} />
 
       {handles && <Handle type="source" position={Position.Right} style={{ background: "transparent", border: "none" }} />}
     </div>
@@ -484,23 +484,23 @@ function PlanRow({ plan, items }: { plan: PlanSummary; items: readonly PlanItem[
  * Always in the tree, and `display: none` at the detail tier: the mode is an
  * attribute on the canvas, so changing it re-renders no card. What it draws is
  * one task line and the card's status (owner's critique, 2026-11-11): what a
- * person last asked the session (the Sessions list's task), else its title; a
- * subagent's own task, else its name. Then the mark and the word, Working,
- * Done, Waiting or "1 failed" (faceStatus). The cluster's pill above names the
- * session. Compact and overview draw the same face. A card that reads like
- * another on the board (twinClocks) adds when it started, after the word where
- * the face has two lines; never below 40%.
+ * person last asked the session (the Sessions list's task), else its name or
+ * title, never the folder the cluster's pill above already names
+ * (rail-row-copy.ts faceTask); a subagent's own task, else its name. Then the
+ * mark and the word, Working, Done, Waiting or "1 failed" (faceStatus).
+ * Compact and overview draw the same face. A card that reads like another on
+ * the board (twinClocks) adds when it started, after the word where the face
+ * has two lines; never below 40%.
  *
  * The word is never cut: where it does not fit whole, the sheet lets it wrap
  * to a line the face clips, and the mark says the state alone, by its shape
  * and its colour. Where the face is tall enough the task has a line of its
  * own and the status the one under it.
  *
- * Below 40% the face is the board seen whole (V4 critique 2, C4, as V4's
- * Figma draws it): the card's short name at its left, whole or not at all, and the
- * mark at its right. The word moves to the peek. The short name is the card's
- * label — the project a root is in, a subagent's own name — which is what
- * tells two cards in one session apart from that far.
+ * Below 40% the face is a pill (V4's Figma): the start of the same task line
+ * at its left, cut with an ellipsis, and the mark at its right. The word moves
+ * to the peek. CHANGED ON PURPOSE (owner's critique, round 3): the pill said
+ * the card's label, which for a root is the folder its tag says right above.
  *
  * Hidden from assistive technology like the rows it stands in for: the node's
  * accessible name is agentAriaLabel, composed from the data, and says all of
@@ -520,10 +520,9 @@ function NodeFace({ data, task }: { data: AgentNodeData & { branch?: BranchSumma
     >
       <div className="lod-line" data-status={status.tone}>
         {status.mark === "alert" ? <AlertMark /> : <StateMark kind={status.mark} />}
-        <span className="lod-name">{task}</span>
+        {task && <span className="lod-name">{task}</span>}
         {twin && <span className="lod-start">{twin}</span>}
         <span className="lod-state">{status.word}</span>
-        <span className="lod-short">{data.label}</span>
       </div>
     </div>
   );

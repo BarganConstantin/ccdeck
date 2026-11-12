@@ -4,7 +4,7 @@ import { useStore, useViewport, type ReactFlowState } from "reactflow";
 import { sessionHue } from "../reducer";
 import { SEP, clusterTooltip } from "../cluster-header";
 import { useT } from "../i18n";
-import { clusterBounds, clusterBoxStyle, clusterLabelStyle, shallowEqualClusters, type Cluster } from "../cluster-bounds";
+import { PACKED_LABEL_GUTTER, clusterBounds, clusterBoxStyle, clusterLabelStyle, shallowEqualClusters, type Cluster } from "../cluster-bounds";
 import { labelRoom, paneChrome, sameBoxes, type PaneBox } from "../cluster-label-room";
 import { createFocusHold } from "../focus-hold";
 import { prefersReducedMotion } from "../viewport-motion";
@@ -157,7 +157,9 @@ export default function SessionClusters({ onFocusSession, notes = true }: {
         // at all: under the top bar or the filter bar a pill was cut through
         // its words and still took focus behind them. Never moved to stay in
         // view, and never wider than its gutter — cluster-label-room.ts.
-        const room = labelRoom(c, { x, y, zoom }, pane, chrome);
+        // Where the notes are not drawn the board is packed (packed-board.ts)
+        // and the next column stands closer: the pill reaches less far.
+        const room = labelRoom(c, { x, y, zoom }, pane, chrome, notes ? undefined : PACKED_LABEL_GUTTER);
         const labelStyle = clusterLabelStyle(c, zoom, hue, room.maxWidth);
         // Three fields, one pill, and only the middle one in a span of its own.
         // The separators stay the same glyph on purpose: what differs between

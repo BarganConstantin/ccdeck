@@ -37,6 +37,7 @@ import { useRemovalCallBacks, useRemovals } from "./use-removals";
 import { useHideFinished } from "./use-hide-finished";
 import { useTabAmbient } from "./use-tab-ambient";
 import { useCanvasViewport } from "./use-canvas-viewport";
+import { useRepackAnchor, type ZoomFocus } from "./use-repack-anchor";
 import { useCanvasClicks } from "./use-canvas-clicks";
 import { useCanvasSize } from "./use-canvas-size";
 import { useNodeMeasurements, useSettled } from "./use-node-measurements";
@@ -506,7 +507,9 @@ function Inner() {
   // use-canvas-size.ts.
   // Held while the left column moves, so the board is re-packed once, after.
   const { canvasRef, canvasSize, paneSizeRef, remeasureCanvas } = useCanvasSize(columnSettleRef);
-  const autoFit = useAutoFitSwitch(fitLeft);
+  // Fit all and the recenter button turn the auto-fit back on with a fit of
+  // the whole board, below the auto-fit's floor where it takes that.
+  const autoFit = useAutoFitSwitch(camera.fitAll);
   const { autoFitDisabledRef, disableAutoFit } = autoFit;
 
   // True for the length of a drag gesture. A ref as well as state: the
@@ -556,8 +559,14 @@ function Inner() {
   const { lodRef, applyZoom } = zoom;
   // The viewport: the one restored from storage, the one stored on every move,
   // and whether a move was the user's or the deck's — use-canvas-viewport.ts.
+  // A pan or a zoom by hand: auto-fit stands down, and a Fit all stops holding.
+  const { releaseFitAll } = camera;
+  const tookWheel = useCallback(() => { disableAutoFit(); releaseFitAll(); }, [disableAutoFit, releaseFitAll]);
+  // Where each zoom holds still, for the switch to and from the packed board.
+  const zoomFocusRef = useRef<ZoomFocus | null>(null);
   const viewport = useCanvasViewport({
-    applyViewport, takeOver: camera.takeOver, lastFitTimeRef, cameraEpochRef, disableAutoFit, markInteract, canvasRef, applyZoom,
+    applyViewport, takeOver: camera.takeOver, lastFitTimeRef, cameraEpochRef, disableAutoFit: tookWheel, markInteract, canvasRef, applyZoom,
+    zoomFocusRef,
   });
 
   // The selected agent. Declared this high because the rail measurement below
@@ -603,8 +612,18 @@ function Inner() {
     stateRef, now, availableWidth, availableHeight, layout, measuredRef, onBubble, settled, dragging,
     layoutSig, selectedIds, openContext, historyReplayed, removedNodes, removedAgentIds,
     dragTick, dragPatchRef, dragMoveTick, onMoved: boardMoved,
+    // Below the full card the faces draw the board packed (packed-board.ts).
+    packed: zoom.lod !== "detail",
   });
   const { nodes, edges } = graph;
+  // The fit reads the board's own places, not the packed ones (use-camera.ts).
+  camera.boardRef.current = nodes;
+  // Crossing to or from the packed board keeps the card the reader is zooming
+  // at where it is — use-repack-anchor.ts.
+  useRepackAnchor({
+    packed: zoom.lod !== "detail", nodes, squeeze: graph.squeeze, focusRef: zoomFocusRef, canvasRef,
+    getViewport: camera.currentViewport, panBy: camera.panBy,
+  });
   // A card has just left: its neighbours close the gap after a hold (canvas-motion.css).
   const closing = useClosingGap(graph.visibleAgentIds);
 
@@ -627,13 +646,14 @@ function Inner() {
   // The three handlers of a drag on the canvas — a card, or a whole session
   // by its box — and what they leave behind: see use-node-drag.ts.
   const drag = useNodeDrag({
-    nodes, stateRef, pinnedRef, positionsRef, draggingRef, dragPatchRef,
+    nodes, shown: graph.shown, squeeze: graph.squeeze, stateRef, pinnedRef, positionsRef, draggingRef, dragPatchRef,
     setDragging, setDragMoveTick, setDragTick, endBubble, markInteract, disableAutoFit,
     beginTrashDrag, trackTrashDrag, endTrashDrag, removeNode,
   });
 
-  // Same anchoring as relayout — F and the fit button land where it does.
-  const handleFit = useCallback(() => fitLeft(), [fitLeft]);
+  // Same anchoring as relayout — F and the fit button land where it does,
+  // the whole board, as Fit all does.
+  const handleFit = camera.fitAll;
 
   // `nodes` is rebuilt by the snapshotToFlow memo on every 250ms tick, so a
   // callback that closes over it is a new function four times a second — and
