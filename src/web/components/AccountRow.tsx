@@ -20,6 +20,7 @@
 // Expanding reveals all windows, resets and the age of the reading.
 import { WarnGlyph } from "./AccountIssuePopover";
 import { KitIcon, KitStateGlyph, type KitIconName } from "./kit-icons";
+import { LevelMark } from "./LevelMark";
 import AccountTelemetry from "./AccountTelemetry";
 import AccountHint from "./AccountHint";
 import { accountIssue, sentence, type AccountIssue } from "../account-issue";
@@ -44,6 +45,32 @@ type RequestSlot = ReturnType<typeof useRequestSlot>;
  *  own ink — a quota is not a problem until it is nearly spent. */
 function fullness(pct: number): "mid" | "hi" | undefined {
   return pct >= 90 ? "hi" : pct >= 70 ? "mid" : undefined;
+}
+
+/** A quota figure painted --warn or --err for its level never says so in
+ *  colour alone (WCAG 1.4.1). An open lane has the room for LevelMark's mark
+ *  and word, "⚠ 92% · high"; the shut row's figures are packed beside the
+ *  name, so they wear the mark alone and give the word to a screen reader and
+ *  to the hover. Below its level the figure is drawn as it always was. */
+function QuotaPct({ className, pct, level, compact }: {
+  className: string; pct: number; level: "mid" | "hi" | undefined; compact?: boolean;
+}) {
+  const t = useT();
+  const n = `${Math.round(pct)}%`;
+  if (!level) return <span className={className}>{n}</span>;
+  if (!compact) {
+    return (
+      <span className={className} data-level={level}>
+        <LevelMark tone={level === "hi" ? "err" : "warn"} word="high">{n}</LevelMark>
+      </span>
+    );
+  }
+  const word = t("common.level.high");
+  return (
+    <span className={className} data-level={level} title={word}>
+      <KitIcon name="warning" className="level-mark-glyph" />{n}<span className="vis-hidden"> {word}</span>
+    </span>
+  );
 }
 
 /** Match main's quota colours for every account, independent of selection. */
@@ -100,7 +127,7 @@ export function LaneBar({ lane, nowSec, readAt, frozen, sortedBy }: {
           ? <span className="ap-lane-pct" data-reset="" title={before ?? undefined}>
               {before ? <><span aria-hidden>{t("accounts.row.resetWord")}</span><span className="vis-hidden">{before}</span></> : t("accounts.row.resetWord")}
             </span>
-          : <span className="ap-lane-pct" data-level={record ? undefined : fullness(capped)}>{Math.round(capped)}%</span>}
+          : <QuotaPct className="ap-lane-pct" pct={capped} level={record ? undefined : fullness(capped)} />}
         {reset && (
           <span className="ap-lane-reset" title={countdown ? t("accounts.row.laneResetsIn", { label: laneLabel(lane.label, t), time: countdown }) : undefined}>
             {reset}
@@ -319,7 +346,7 @@ export default function AccountRow({
             open line says it: its number is the old window's. */}
         {rolled
           ? <span className={pct} title={t("accounts.row.laneReset", { label: lane.label })}>{t("accounts.row.resetWord")}</span>
-          : <span className={pct} data-level={frozen ? undefined : fullness(lane.pct)}>{Math.round(lane.pct)}%</span>}
+          : <QuotaPct className={pct} pct={lane.pct} level={frozen ? undefined : fullness(lane.pct)} compact />}
       </span>
     );
   };
@@ -591,7 +618,7 @@ export default function AccountRow({
             <span className="ap-q-label">{laneLabel(l.label, t)}</span>{" "}
             {lapsed(l, nowSec)
               ? <span className="ap-q-pct" title={t("accounts.row.laneReset", { label: l.label })}>{t("accounts.row.resetWord")}</span>
-              : <span className="ap-q-pct" data-level={frozen ? undefined : fullness(l.pct)}>{Math.round(l.pct)}%</span>}
+              : <QuotaPct className="ap-q-pct" pct={l.pct} level={frozen ? undefined : fullness(l.pct)} compact />}
           </span>
         ))}
         {!primary && !blocked && !a.disabled && <span className="ap-q-reset">{voice.waiting ?? voice.noReading ?? t("accounts.row.noUsageLower")}</span>}

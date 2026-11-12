@@ -474,6 +474,10 @@ describe("what was migrated to the secondary tier", () => {
       // opens, "every process, with its command line". --muted on the door's
       // plate measured 4.34:1 in dark (#859).
       ".sd-door-sub",
+      // Critique 3, point 10: a hovered reading's 6% band takes --muted to
+      // 4.15:1 in dark, so its notes and captions step up a tier while the
+      // band is there (a fault note keeps its --err).
+      ".sysdetail .sd-reading:hover :is(.sd-note:not(.sd-note-err), .sd-plain-note, .sd-fig-cap)",
       // V4's attention rail (Figma Rail / Group header and Row): a group's label,
       // the clock at a row's right edge and the tool a row names, all the one
       // secondary tier the Figma file prints them in. The rail's old recap,

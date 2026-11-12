@@ -621,6 +621,15 @@
 .ap-lane-value > *,
 .ap-meta-value { overflow: hidden; text-overflow: ellipsis; }
 .ap-lane-pct { font-variant-numeric: tabular-nums; }
+/* The warning mark a high figure wears on the shut row (AccountRow QuotaPct):
+   the figure's own ink, a hair before the number. */
+.ap-account .ap-q-pct > .level-mark-glyph {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  margin-right: 2px;
+  vertical-align: -1px;
+}
 .ap-lane-pct[data-level="mid"] { color: var(--warn); }
 .ap-lane-pct[data-level="hi"] { color: var(--err); }
 /* A record — an old reading, or a window that has reset since it was read —
