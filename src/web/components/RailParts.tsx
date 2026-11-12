@@ -34,6 +34,7 @@ export function RailGlyph({ kind }: { kind: RailGlyphKind }) {
         {kind === "waiting" && <AlertMark size={14} />}
         {kind === "working" && <StateMark kind="live" size={14} />}
         {kind === "done" && <StateMark kind="done" size={14} />}
+        {kind === "partial" && <StateMark kind="partial" size={14} />}
         {kind === "error" && <StateMark kind="err" size={14} />}
         {kind === "idle" && <StateMark kind="idle" size={14} />}
       </span>
@@ -113,7 +114,7 @@ export function RailRow({ row: r, group, now, selected, removed, leaving, landNo
   // What it waits on, Ready, or "folder · task" (rail-row-copy.ts railLine);
   // none, and the row is one line.
   const line = railLine(r, group);
-  // "1 failed" beside the cross, as the card's face says it (railFailed).
+  // "Done · 1 failed" beside the partial mark, as the card says it (railFailed).
   const failed = railFailed(r, group, t);
   // A row that reads like another (twinClocks) leads it with when it started.
   const start = r.twin ? twinStart(r.startedAt, r.twin) : null;
@@ -165,7 +166,9 @@ export function RailRow({ row: r, group, now, selected, removed, leaving, landNo
                 {start && (removed || failed || line) ? " · " : ""}
                 {removed && <span className="sl-off">{t("board.rail.offBoard")}</span>}
                 {removed && (failed || line) ? " · " : ""}
-                {failed && <span className="sl-failed">{failed}</span>}
+                {/* Done in the line's own ink, then the count in the warning's:
+                    the turn finished, and some of its calls did not. */}
+                {failed && <>{t("board.card.stateDone")} · <span className="sl-failed">{failed}</span></>}
                 {failed && line ? " · " : ""}
                 {line && (line.kind === "tool"
                   ? <><b className="sl-tool">{line.name}</b>{line.rest ? ` · ${line.rest}` : ""}</>

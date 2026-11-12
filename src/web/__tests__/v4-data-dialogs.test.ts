@@ -511,8 +511,8 @@ describe("Session recap", () => {
   it("heads the dialog 'Session recap' with the duration on the right, and names the session on a line of its own", () => {
     expect(recap).toContain('t("insights.summary.title")');
     // CHANGED ON PURPOSE (V4 critique round 3, one state on every surface): the
-    // mark is the session's own (sessionMark), the cross when its calls failed,
-    // where it was always done's tick.
+    // mark is the session's own (sessionMark), the partial mark when its calls
+    // failed and the cross when its turn did, where it was always done's tick.
     expect(recap).toMatch(/<StateMark kind=\{summary\.mark\} \/>\s*<span id="ss-who-name" className="ss-who-name">\{summary\.label\}<\/span>/);
     expect(recap).toContain("mark: sessionMark(root),");
     expect(recap).toContain('labelledBy="ss-title ss-who-name"');

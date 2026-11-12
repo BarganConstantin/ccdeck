@@ -57,7 +57,8 @@ export default function SessionSummary({ state, sessionId, onClose }: Props) {
 
         <div className="modal-body">
           {/* V4's who line: the session's mark, its name and its short id. The
-              mark is its card's: the cross when its calls failed, not done's tick. */}
+              mark is its card's: the partial mark when its calls failed, the
+              cross only when its turn did. */}
           <div className="ss-who" title={summary.cwd ?? summary.sessionId}>
             <StateMark kind={summary.mark} />
             <span id="ss-who-name" className="ss-who-name">{summary.label}</span>

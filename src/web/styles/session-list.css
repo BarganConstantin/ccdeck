@@ -171,9 +171,10 @@
 /* Its words lead the second line, in the tool name's ink, so the first line
    keeps the session's name whole beside the model and the clock. */
 .session-list .sl-off { font-weight: 500; color: var(--text-secondary); }
-/* "1 failed" leads the second line of a finished row whose calls failed, in
-   the cross's ink, as the card's face says it beside the same mark. */
-.session-list .sl-failed { font-weight: 500; color: var(--err); }
+/* "Done · 1 failed" leads the second line of a finished row whose calls
+   failed: Done in the line's own muted ink, the count in the warning's, as the
+   card says it beside the same partial mark. */
+.session-list .sl-failed { font-weight: 500; color: var(--warn); }
 /* When a row that reads like another started (twinClocks): it leads the second
    line in the model's quiet mono, so the name keeps the first line whole. */
 .session-list .sl-start {

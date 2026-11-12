@@ -17,8 +17,11 @@ export function paneStatus(selected: AgentNodeData, agents: ReadonlyMap<string, 
   const status = stageStatusFrom(boardFactsFor(root, subagents), now);
   const phrase = [status.phrase, status.emphasis].filter(Boolean).join(" ") + (status.arg ? ` · ${status.arg}` : "");
   // The mark every surface draws for the session (node-face.ts sessionMark):
-  // a stopped turn, or a finished one whose calls failed, is the cross.
-  const glyph: KitStateName = sessionMark(root) === "err" ? "error"
+  // a finished turn whose calls failed is the partial mark, a stopped one the
+  // cross.
+  const mark = sessionMark(root);
+  const glyph: KitStateName = mark === "partial" ? "partial"
+    : mark === "err" ? "error"
     : status.state === "working" ? "working"
     : status.state === "waiting" ? "waiting"
     : status.state === "ready" ? "idle"

@@ -17,10 +17,12 @@ describe("the kit's icons", () => {
   const names = Object.keys(KIT_ICONS) as KitIconName[];
 
   // CHANGED ON PURPOSE (the terminal's text size): text-size joins the kit,
-  // the −/+ of the pane's own zoom in its header.
-  it("has the 56 icons and the 5 state glyphs", () => {
+  // the −/+ of the pane's own zoom in its header. CHANGED ON PURPOSE (owner's
+  // decision, 2026-11-12): partial joins the state glyphs, a turn that
+  // finished with failed calls.
+  it("has the 56 icons and the 6 state glyphs", () => {
     expect(names).toHaveLength(56);
-    expect(Object.keys(KIT_STATE_GLYPHS).sort()).toEqual(["done", "error", "idle", "waiting", "working"]);
+    expect(Object.keys(KIT_STATE_GLYPHS).sort()).toEqual(["done", "error", "idle", "partial", "waiting", "working"]);
   });
 
   it.each(names)("%s renders at the kit's size, stroke and caps", name => {
@@ -102,6 +104,20 @@ describe("the redrawn icons keep the export's geometry", () => {
     expect(KIT_STATE_GLYPHS.error.els).toEqual([{ cx: 7, cy: 7, r: 5.5 }, { d: "M9 5L5 9M5 5L9 9" }]);
     expect(KIT_STATE_GLYPHS.idle.els).toEqual([{ cx: 7, cy: 7, r: 4.5 }]);
   });
+
+  it("partial is done's tick moved clear of a filled dot at the corner, the dot named for the sheet", () => {
+    expect(KIT_STATE_GLYPHS.partial.els).toEqual([
+      { d: "M2.4 8L5 10.6L10.4 5", w: 1.6 },
+      { cx: 12, cy: 2, r: 1.75, fill: true, cls: "kit-warn" },
+    ]);
+    // The tick's end, its nearest point to the dot, stays clear of the dot by
+    // more than half the tick's 1.6 stroke.
+    const [x, y] = [10.4, 5];
+    expect(Math.hypot(12 - x, 2 - y) - 0.8).toBeGreaterThan(1.75);
+    // The dot stays inside the 14 box.
+    expect(12 + 1.75).toBeLessThanOrEqual(14);
+    expect(2 - 1.75).toBeGreaterThanOrEqual(0);
+  });
 });
 
 describe("the state marks", () => {
@@ -117,10 +133,23 @@ describe("the state marks", () => {
     expect(renderToStaticMarkup(createElement(KitStateGlyph, { name: "idle" }))).toContain('r="4.5"');
   });
 
+  it("draw the partial mark as the tick in currentColor and a .kit-warn dot", () => {
+    const html = renderToStaticMarkup(createElement(StateMark, { kind: "partial" }));
+    expect(html).toMatch(/^<svg class="state-mark" data-kind="partial" width="14" height="14" viewBox="0 0 14 14"/);
+    expect(html).toContain('<path d="M2.4 8L5 10.6L10.4 5" stroke-width="1.6"></path>');
+    expect(html).toContain('<circle class="kit-warn" cx="12" cy="2" r="1.75" fill="currentColor" stroke="none"></circle>');
+    // Only the dot is named; every other glyph draws no class inside.
+    for (const name of Object.keys(KIT_STATE_GLYPHS).filter(n => n !== "partial") as (keyof typeof KIT_STATE_GLYPHS)[]) {
+      expect(renderToStaticMarkup(createElement(KitStateGlyph, { name }))).not.toMatch(/<(?:path|circle) class=/);
+    }
+  });
+
   it("take their colour from the existing tokens, not from the glyph", () => {
     const css = read("../styles/agent-node.css");
     expect(css).toContain('.state-mark[data-kind="live"] { color: var(--inflight); }');
     expect(css).toContain('.state-mark[data-kind="done"] { color: var(--ok); }');
+    expect(css).toContain('.state-mark[data-kind="partial"] { color: var(--ok); }');
+    expect(css).toMatch(/\.state-mark \.kit-warn,\s*\.kit-warn \{ fill: var\(--warn\); \}/);
     expect(css).toContain('.state-mark[data-kind="err"] { color: var(--err); }');
     expect(css).toContain(".alert-mark { flex: none; margin-left: auto; color: var(--warn); }");
   });
