@@ -346,12 +346,15 @@ export default function UsagePanel({ state, now, providers, incidents = [], leav
             opens the panel, with the quota left (the period's spend where
             there is no quota reading). */}
         {place.tucked && dock ? (
-          <PanelFoldHead title={t("usage.title")} summary={quotaFoldLine(quota, t) ?? spendLine} onOpen={dock.unfold} />
+          <PanelFoldHead title={t("usage.title")} summary={quotaFoldLine(quota, t) ?? spendLine} onToggle={dock.unfold} />
         ) : <>
         {/* h2, under the topbar's h1 (#381). Same level as the other panels'
             titles, and the four `up-section-title`s below stepped from h4 to h3
-            with it, so the panel reads h1 → h2 → h3 with nothing skipped. */}
-        <h2>{t("usage.title")}</h2>
+            with it, so the panel reads h1 → h2 → h3 with nothing skipped.
+            Opened beside the Inspector, the title folds it back to its row. */}
+        {dock?.refold ? (
+          <PanelFoldHead title={t("usage.title")} open onToggle={dock.refold} />
+        ) : <h2>{t("usage.title")}</h2>}
         {/* Folded in Workspace's column, the header keeps the headline. */}
         {dock?.folded && fromRange && <span className="side-sum">{spendLine}</span>}
         <DockButtons dock={dock} popOut={place.popOut} />

@@ -86,7 +86,8 @@ class FakeDocument {
     if (sel.startsWith(".usage-panel")) return this.sheets.usage ?? null;
     if (sel.startsWith(".sysdetail")) return this.sheets.machine ?? null;
     if (sel.startsWith(".accounts-panel")) return this.sheets.accounts ?? null;
-    if (sel.startsWith(".app > .detail")) return this.sheets.inspector ?? null;
+    // CHANGED ON PURPOSE: the Inspector is inside the right column's wrapper.
+    if (sel.startsWith(".app > .right-col > .detail")) return this.sheets.inspector ?? null;
     return null;
   }
   querySelectorAll(sel: string) {

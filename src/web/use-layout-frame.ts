@@ -19,9 +19,12 @@ export const FIT_FILL = 0.86;
 
 /** How much of the canvas's right edge the rail covers.
  *
- *  The machine and usage panels are `position: fixed` over the canvas rather
- *  than a grid column beside it, so the canvas's own width counts the strip
- *  under them as room. A board packed and fitted into that strip puts its
+ *  On a desktop Board the machine and usage panels are in the right column
+ *  now (panel-place.css), beside the canvas, which ends at its edge: there
+ *  they cover nothing and this is 0, the canvas box itself being the room.
+ *  Where one is still `position: fixed` over the canvas (hidden under the
+ *  Board's stage), the canvas's own width counts the strip under it as room.
+ *  A board packed and fitted into that strip puts its
  *  right-hand column under the panels — the one thing spreading the board
  *  sideways must never do. Measured rather than derived from the panel flags,
  *  like the canvas itself, so it stays right whether one panel is open or both

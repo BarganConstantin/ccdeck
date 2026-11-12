@@ -1,12 +1,13 @@
 // Usage and This machine fold to their header line while the Inspector is open
-// on the Board. Both stay floating, movable panels; folded, they no longer
-// cover the cards beside the Inspector, and closing it gives each back as it was.
+// on the Board. All three share the Board's right column (panel-place.css);
+// folded, the two leave the Inspector the column, and closing the Inspector
+// gives each back as it was.
 //
-// - The Inspector opens: every open panel folds to its header (the title, one
-//   line of its readings and a chevron), and the two stack in the home slots
-//   beside it (panel-place.css, "folded by the Inspector").
-// - A press on a folded header opens that panel again; it floats until it is
-//   closed or the Inspector closes.
+// - The Inspector opens: every open panel folds to one row at the top of the
+//   column (the title, one line of its figures and a chevron).
+// - A press on a folded row opens that panel in place, above the Inspector.
+//   Its title is then the same row button with the chevron turned up, and a
+//   press folds it back to its row.
 // - A panel opened by its door or key while the Inspector is open opens unfolded.
 // - The Inspector closes: nothing is folded. A panel it folded is open again
 //   where it was; a closed one stays closed.
@@ -21,10 +22,14 @@ export type Folds = Readonly<Record<SidePanel, boolean>>;
 export const NO_FOLDS: Folds = { usage: false, machine: false };
 
 /** A panel's dock as the panel is told it: on the Board, folded while the
- *  Inspector folds it, and its unfold opens it again. Workspace's dock is its
- *  own column's and is handed on as it is. */
-export function withInspectorFold(dock: PanelDock, folded: boolean, unfold: () => void): PanelDock {
-  return dock.mode === "board" && folded ? { ...dock, folded: true, unfold } : dock;
+ *  Inspector folds it, and its unfold opens it again; opened while the
+ *  Inspector is open (`refold` given), `refold` folds it back. With no
+ *  Inspector there is no row to fold to. Workspace's dock is its own column's
+ *  and is handed on as it is. */
+export function withInspectorFold(dock: PanelDock, folded: boolean, unfold: () => void, refold?: () => void): PanelDock {
+  if (dock.mode !== "board") return dock;
+  if (folded) return { ...dock, folded: true, unfold };
+  return refold ? { ...dock, refold } : dock;
 }
 
 /**
@@ -53,5 +58,9 @@ export function useInspectorFold(on: boolean, open: Folds) {
     });
   }, [on, open.usage, open.machine]);
   const unfold = useCallback((k: SidePanel) => setFolds(prev => (prev[k] ? { ...prev, [k]: false } : prev)), []);
-  return { folds, unfold };
+  // Back to its row; with no Inspector there is no row to fold to.
+  const fold = useCallback((k: SidePanel) => {
+    if (was.current.on) setFolds(prev => (prev[k] ? prev : { ...prev, [k]: true }));
+  }, []);
+  return { folds, unfold, fold, on };
 }
