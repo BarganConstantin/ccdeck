@@ -559,7 +559,9 @@ describe("what each of the four toggles announces", () => {
     expect(body).toMatch(/setSessionListOpen\(open => \{[\s\S]*?return !open;/);
     // Drawn from the flag's own render, and held while it leaves (panel-exit.ts,
     // isDrawn) since the left column animates (2026-10-08).
-    expect(app).toMatch(/const sessionListDrawn = isDrawn\(sessionListOpen, sessionListPhase\);/);
+    // CHANGED ON PURPOSE (one side column between 641 and 839): from the list
+    // open on screen, which a folded left column is not.
+    expect(app).toMatch(/const sessionListDrawn = isDrawn\(listOnScreen, sessionListPhase\);/);
     expect(app).toMatch(/\{sessionListDrawn && \(\s*<SessionList/);
     // The stripe button presses the same toggle L does.
     expect(app).toMatch(/onPress: toggleSessionList/);

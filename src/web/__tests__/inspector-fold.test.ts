@@ -349,7 +349,10 @@ describe("App's wiring and the sheet", () => {
   // CHANGED ON PURPOSE (critique 3): the Board's right column replaces the
   // floating stack beside the Inspector, and it is up whenever it holds a part.
   it("folds while the Inspector shows on a desktop, and draws the right column on the Board alone", () => {
-    expect(app).toContain("const inspectorFold = useInspectorFold(!phone && detailShown, { usage: usagePanelOpen, machine: machinePanelOpen });");
+    // CHANGED ON PURPOSE (one side column between 641 and 839): read from the
+    // Inspector the reader has open, so a right column folded and brought back
+    // comes back with its panels as they were.
+    expect(app).toContain("const inspectorFold = useInspectorFold(!phone && detailWanted, { usage: usagePanelOpen, machine: machinePanelOpen });");
     expect(app).toMatch(/const rightCol = !phone && !inWorkspace\s*&& \(detailShown \|\| inRightCol\(usageRail\.shown, usagePhase\) \|\| inRightCol\(machineRail\.shown, machinePhase\)\);/);
     expect(app).toContain('data-right-col={rightCol ? "" : undefined}');
     expect(app).not.toContain("data-fold-stack");

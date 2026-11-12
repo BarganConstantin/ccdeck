@@ -201,7 +201,10 @@ describe("the rail inset is measured when something can have moved it", () => {
     // with the panel enabled and nothing selected has no `.detail` and a rail
     // 360px further right. Both halves are pinned, so changing the mount
     // condition without changing the derivation goes red here.
-    expect(app).toMatch(/const detailShown = detailOpen && selected != null;/);
+    // CHANGED ON PURPOSE (one side column between 641 and 839): nor while the
+    // right column is folded, which unmounts the panel the way a close does.
+    expect(app).toMatch(/const detailWanted = detailOpen && selected != null;/);
+    expect(app).toMatch(/const detailShown = detailWanted && !sideFold\.right;/);
     // CHANGED ON PURPOSE (the phone layout): the panel is drawn for
     // `detailOnScreen`, which is `selected` while `detailShown` and, on a phone
     // only, the last selection while the sheet slides down. Wider than a phone

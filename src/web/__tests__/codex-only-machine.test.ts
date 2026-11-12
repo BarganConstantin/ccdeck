@@ -460,7 +460,9 @@ describe("which panels the UI draws for each machine", () => {
     // The gate is one name since 2026-10-08, `accountsDrawn`, because the
     // left column mounts on it too; Claude Code is in its definition.
     expect(leadUpTo(appSrc, "<AccountsPanel leaving=")).toContain('{accountsDrawn && (shownAccountProvider === "claude" || accountSide.bothMounted) && (');
-    expect(appSrc).toMatch(/const accountsDrawn = isDrawn\(accountsPanelOpen, accountsPhase\) && \(providers\.claude \|\| providers\.codex\);/);
+    // CHANGED ON PURPOSE (one side column between 641 and 839): drawn from the
+    // panel open on screen, which a folded left column is not.
+    expect(appSrc).toMatch(/const accountsDrawn = isDrawn\(accountsOnScreen, accountsPhase\) && \(providers\.claude \|\| providers\.codex\);/);
   });
 
   it("hides the accounts button too, rather than opening onto nothing", () => {
