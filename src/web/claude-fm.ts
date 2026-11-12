@@ -10,8 +10,10 @@
 
 // ── walking the edge ────────────────────────────────────────────────────────
 //
-// The character stands ON the minimap's top edge rather than floating above it,
-// and every so often it walks along that edge to somewhere else on it. That is
+// The character stands ON the control bar's top edge, at its left end, rather
+// than floating above it (it stood on the minimap's until V4's third critique;
+// fm-ledge.ts), and every so often it walks along that edge to somewhere else
+// on it. That is
 // the whole of the behaviour, and the restraint is the design: this is a
 // monitoring tool, and something that moved continuously in the corner of it
 // would be the thing people turn off first.
@@ -20,7 +22,8 @@
 // edge, never crosses the canvas, and never walks at all while the music is on
 // — a character that wanders off mid-track reads as a bug rather than as life.
 
-/** How far along the minimap's edge it can get: the minimap's width less its
+/** How far along the ledge it can get when nothing measured it: the minimap's
+ *  width (the ledge it stood on first) less its
  *  own, so it is standing on the edge at both ends rather than hanging off one.
  *
  *  A DEFAULT RATHER THAN A CONSTANT EVERYTHING READS. The ledge is one place
@@ -30,8 +33,8 @@
  *  has to know which place is being walked is the caller. */
 export const WALK_SPAN_PX = 148;
 
-/** Where it is. The ledge is the minimap's top border; the floor is the bottom
- *  of the canvas, which it can only reach by leaving the ledge. */
+/** Where it is. The ledge is the control bar's top edge; the floor is the
+ *  bottom of the canvas, which it can only reach by leaving the ledge. */
 export type Place = "ledge" | "floor";
 
 /** How long it stands before it thinks about doing something again.
@@ -235,7 +238,7 @@ export const walkMsFor = (from: number, to: number) =>
 export const WALK_MIN_MS = 120;
 
 /** The bin is the right-hand end of the ledge — the corner it starts at, and
- *  the one spot on the minimap's edge nothing else is ever standing on. */
+ *  the one spot on the ledge nothing else is ever standing on. */
 export const BIN_X = 0;
 
 /**
@@ -279,10 +282,10 @@ export function kickSteps(from: number, at: number): Step[] {
 
 export const SKIP_BEAT_MS = 640;
 
-/** Sit, lower the line over the minimap, wait for a bite, then pack it away
- * before standing. The final walk makes the return to the scene explicit. */
+/** Sit, lower the line past the ledge's end, wait for a bite, then pack it
+ * away before standing. The final walk makes the return to the scene explicit. */
 export function fishSteps(from: number, at: number, rand: () => number): Step[] {
-  // Leave room on the left for the rod, line and float, within the minimap.
+  // Leave room on the left for the rod, line and float, within the canvas.
   const spot = Math.max(-70, Math.min(-20, at));
   const pose = { x: spot, prop: null, facing: "left" as const };
   return [
@@ -325,7 +328,7 @@ export function sitSteps(from: number, at: number, rand: () => number): Step[] {
  * It takes out a scope and looks at the board.
  *
  * The only thing it does that is about the canvas rather than about the ledge
- * it is standing on: it turns away from the minimap, points the thing at the
+ * it is standing on: it turns to the left, points the thing at the
  * sessions, and watches them for a while. Nothing is read and nothing is
  * reported — it is not a feature wearing a character, it is a character that
  * has noticed there is something to look at.
@@ -387,7 +390,7 @@ export const isMoving = (act: Act | null): boolean =>
 
 export function facingFor(step: Step, from: number, prev: Facing): Facing {
   if (step.facing) return step.facing;
-  // Looking at the board, which is everything to the left of the minimap.
+  // Looking at the board, which is everything to the left of the bar.
   if (step.act === "watch" || step.act === "scope-pack") return "left";
   if (step.x === from) return prev;
   return step.x > from ? "right" : "left";
@@ -401,13 +404,13 @@ export const isFocused = (act: Act | null): boolean =>
 
 // ── leaving the ledge ───────────────────────────────────────────────────────
 //
-// The one activity that is not on the minimap's edge at all. It walks to the
+// The one activity that is not on the ledge at all. It walks to the
 // far end, looks over, drops onto the canvas floor, walks about down there, and
 // ropes its way back up.
 //
 // EVERYTHING HERE IS DERIVED RATHER THAN PICKED, because a fall that is merely
 // a duration reads as a slide. The drop is timed from an acceleration and the
-// height it is actually falling, so a minimap of a different size falls for a
+// height it is actually falling, so a ledge of a different height falls for a
 // different length of time on its own; the climb is timed from a speed, because
 // climbing a rope is work at a steady rate and not the fall run backwards.
 
@@ -445,11 +448,13 @@ export const ROPE_CATCH_MS = 240;
  *
  * `ledgeH` is how far it has to fall, and `floorSpan` how far it can walk once
  * it is down — both measured from the page rather than assumed, because the
- * minimap is a fixed size and the canvas is whatever the window is today.
+ * ledge is the bar's height and the canvas is whatever the window is today.
  *
  * It comes back up where it went down. That is not a shortcut: a rope thrown at
  * the ledge has to catch something, and the only part of the ledge this
- * character has any business hooking is the corner it just left.
+ * character has any business hooking is the corner it just left. A ledge no
+ * taller than it is (STEP_UP_PX), like the control bar's top, is stepped back
+ * onto rather than climbed.
  */
 export function leaveLedgeSteps(
   from: number,
@@ -458,7 +463,7 @@ export function leaveLedgeSteps(
 ): Step[] {
   const ledgeSpan = opts.ledgeSpan ?? WALK_SPAN_PX;
   // The far end of the ledge, which is the only corner with canvas under it
-  // rather than more minimap.
+  // rather than more of the thing it stands on.
   const edge = -ledgeSpan;
   const fall = fallMsFor(opts.ledgeH);
   const climb = climbMsFor(opts.ledgeH);
@@ -482,18 +487,27 @@ export function leaveLedgeSteps(
     { x: second, act: "walk",  prop: null, ms: walkMsFor(first, second), place: "floor",
       floorFrac: secondFrac },
     { x: edge,   act: "walk",  prop: null, ms: walkMsFor(second, edge),  place: "floor" },
-    { x: edge,   act: "lasso", prop: null, ms: LASSO_MS, place: "floor" },
-    { x: edge,   act: "rope-throw", prop: null, ms: ROPE_THROW_MS, place: "floor" },
-    { x: edge,   act: "rope-catch", prop: null, ms: ROPE_CATCH_MS, place: "floor" },
-    { x: edge,   act: "climb", prop: null, ms: climb },
-    { x: edge,   act: "pull-up", prop: null, ms: 480 },
+    ...(opts.ledgeH <= STEP_UP_PX ? [
+      { x: edge, act: "mount" as const, prop: null, ms: MOUNT_MS },
+    ] : [
+      { x: edge, act: "lasso" as const, prop: null, ms: LASSO_MS, place: "floor" as const },
+      { x: edge, act: "rope-throw" as const, prop: null, ms: ROPE_THROW_MS, place: "floor" as const },
+      { x: edge, act: "rope-catch" as const, prop: null, ms: ROPE_CATCH_MS, place: "floor" as const },
+      { x: edge, act: "climb" as const, prop: null, ms: climb },
+      { x: edge, act: "pull-up" as const, prop: null, ms: 480 },
+    ]),
   ];
 }
+
+/** The tallest ledge it steps up onto instead of roping up: its own height,
+ *  14 rows of 3px (claude-fm-sprite.ts). The control bar's top is about 25px
+ *  over the canvas floor. */
+export const STEP_UP_PX = 42;
 
 /** The whole decision, in one place: what it does next and where. */
 /** What the page has to tell the model before it can plan a trip: how far there
  *  is to fall, and how much floor there is once it lands. Neither is knowable
- *  here — the minimap is a fixed size but the canvas is whatever the window is
+ *  here — the ledge is the bar's height but the canvas is whatever the window is
  *  today, and both change on a resize. */
 export interface Ground {
   ledgeH: number;
@@ -509,7 +523,12 @@ export function nextActivity(from: number, rand: () => number, ground?: Ground):
     case "kick": return kickSteps(from, propSpot(from, rand, span));
     case "sit":   return sitSteps(from, propSpot(from, rand, span), rand);
     case "watch": return watchSteps(from, propSpot(from, rand, span), rand);
-    case "fish": return fishSteps(from, propSpot(from, rand, span), rand);
+    // From a ledge only, and from its far end, so the line goes down past the
+    // bar's end onto the canvas floor and stays inside the canvas. On the
+    // floor line (an empty board) it would hang through the canvas's foot.
+    case "fish":
+      if (!ground || !(ground.ledgeH > 0)) break;
+      return fishSteps(from, -span, rand);
     case "skip": return skipSteps(from, propSpot(from, rand, span), rand);
     case "leave": {
       // WITHOUT THE GROUND IT DOES NOT GO. A trip planned against a guessed

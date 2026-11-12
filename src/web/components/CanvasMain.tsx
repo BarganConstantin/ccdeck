@@ -48,8 +48,8 @@ export default function CanvasMain({ canvasRef, bubbling, dragging, trash, zoom,
   const { lod, lodRef } = zoom;
   const { markCanvasInput } = viewport;
   const { peekAgent, peekLabel, peekPeers, peekRecap, peekBounds } = peek;
-  // No session yet: the minimap is not drawn, and the character stands in
-  // its corner instead (claude-fm.css reads this).
+  // No session yet: the minimap is not drawn, and the character stands in the
+  // corner instead of on the bar (claude-fm.css reads this).
   const empty = useBoardEmpty();
   return (
     /* <main>, because the canvas is what this page is: everything else on

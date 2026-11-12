@@ -1,52 +1,54 @@
 /* ---------------- Claude FM ------------------------------------------------
-   A character standing on the minimap's top edge, and the hidden player behind
-   it. Nothing in this block renders unless the server said the channel is on
-   air — see components/ClaudeFm.tsx.
+   A character standing on the control bar's left end, and the hidden player
+   behind it. Nothing in this block renders unless the server said the channel
+   is on air — see components/ClaudeFm.tsx.
 
    IT STANDS ON THE EDGE rather than floating over it, which is the difference
-   between a character and a sticker. Its feet land exactly on the minimap's top
-   border, and the two numbers that put them there are named so the next person
-   can see what it is standing on: React Flow gives every canvas panel a 15px
-   margin, and the minimap's 105px drawing inside `.react-flow__minimap`'s 1px
-   edge is a 107px box. Its 140px drawing is 142px wide with that edge. Keep
-   these ledge dimensions in step with MINIMAP_SIZE in BoardFlow.tsx.
+   between a character and a sticker. Its feet land exactly on the bar's top
+   edge (V4 critique, round 3: it stood on the minimap, over the board's tool
+   bubbles, and the minimap now comes and goes with the board). The bar is one
+   button tall plus its 1px padding and 1px edge each side, 12px off the floor
+   (react-flow.css), at every zoom. Where along the canvas its left end is
+   depends on the buttons it holds, so the component measures it (fm-ledge.ts)
+   and hands over --fm-right and --fm-ledge-w with data-ledge="bar".
 
    --fm-x is where along that ledge it is standing, written by the component. */
 .fm {
   --flow-gutter: 15px;   /* .react-flow__panel's own margin */
-  --minimap-h: 107px;    /* MiniMap's 105 drawing plus the 1px edge each side */
-  --minimap-w: 142px;    /* its 140 drawing, the same 1px edge each side */
+  --minimap-w: 142px;    /* the minimap's 140 drawing plus its 1px edge each side */
   position: absolute;
-  /* The minimap's right edge lines up with the control bar's under it, 12px
-     in (react-flow.css), so the ledge's does too; and it steps in past an open
-     panel with the minimap (--minimap-in, panel-place.ts fitMinimap). */
-  right: calc(var(--board-controls-edge) + var(--minimap-in, 0px));
+  /* No bar to stand on: the corner, on the floor line. */
+  right: var(--board-controls-edge);
   /* THE SCENE SITS ON THE CANVAS FLOOR, NOT ON THE LEDGE, and the ledge is a
      height within it. It used to be pinned to the minimap's top border, which
      made that border the only place in the world — there was no way to express
      "further down" at all, and the character could not leave.
 
-     Nothing moves on screen for this: the walker carries --fm-y, which defaults
-     to exactly the ledge's height above the floor, so every position that was
-     right before is right now. What it buys is somewhere else to go. */
+     The walker carries --fm-y, which defaults to exactly the ledge's height
+     above the floor. What it buys is somewhere else to go. */
   bottom: var(--flow-gutter);
-  /* The minimap stands over the control bar (react-flow.css), so the ledge is
-     its height plus that room above the floor, less the gutter the floor
-     already stands at. Only the ledge moves: the floor stays the canvas's. */
-  --fm-y: calc(-1 * (var(--minimap-h) + var(--board-controls-room) - var(--flow-gutter)));
+  --fm-ledge-h: 0px;
+  --fm-y: calc(-1 * var(--fm-ledge-h));
   width: var(--minimap-w);
   height: 0;
   /* Above the canvas, alongside the chrome it stands next to: the same z-index
      the minimap is given. The control bar stands one over it (react-flow.css),
-     since the character lands behind the bar when it jumps down. */
+     since the character lands behind the bar when it hops down. */
   z-index: 5;
   /* The canvas is under this. A press that misses the character should pan the
      deck as if nothing were there, so only the button takes the pointer. */
   pointer-events: none;
 }
+/* ON THE BAR. The scene starts at the bar's left end and is the ledge's
+   length; the ledge is the bar's top over the floor the scene stands on. */
+.fm[data-ledge="bar"] {
+  right: var(--fm-right);
+  width: var(--fm-ledge-w);
+  --fm-ledge-h: calc(var(--board-controls-edge) + var(--board-controls-btn) + 4px - var(--flow-gutter));
+}
 
 /* THE LEDGE IS A STAGE, AND THE STAGE DOES NOT MOVE. `.fm` above is the whole
-   length of the minimap's edge with nothing on it; the two things standing on
+   length of the ledge with nothing on it; the two things standing on
    it position themselves within it. That split is what lets a piece of litter
    lie still while the character walks toward it — when the walk lived on the
    scene itself, everything on the ledge travelled with it, which is one way to
@@ -71,10 +73,8 @@
    never moves, so every ledge coordinate and the 21px prop offset below stay
    exactly as valid as they were, and only the amount of floor changes. */
 .fm[data-place="floor"] {
-  /* The same gutter as the right, which floorReach (use-fm-scene.ts) reads
-     once and assumes on both sides. With the minimap stepped in past a panel
-     the right one is wider, so the walk stops that much short of the left
-     edge: shorter, never past it. */
+  /* The canvas's edge, which floorReach (use-fm-scene.ts) counts as
+     FLOOR_EDGE; the walk stops short of a minimap in the left corner. */
   left: var(--board-controls-edge);
   width: auto;
 }
@@ -87,15 +87,17 @@
    itself, and the height of the Auto-fit chip while it is up on that. */
 .fm-walker[data-place="floor"] { --fm-y: calc(-1 * var(--fm-riser, 0px)); }
 
-/* NO SESSION YET, NO MINIMAP (board-empty.ts): the character stays in the
-   corner the minimap held, standing on the bar's foot line with no ledge
-   under it, so no trip off one is planned (use-fm-scene.ts ground). When the
-   bar is there, which on an empty board is the Command Panel's one button, it
-   stands left of it: one button, the bar's 1px padding and edge each side,
-   and the bar's gap. It goes back up on the minimap with the first session. */
+/* NO SESSION YET (board-empty.ts): the character stays in the minimap's
+   corner, standing on the bar's foot line with no ledge under it, so no trip
+   off one is planned (use-fm-scene.ts ground). When the bar is there, which on
+   an empty board is the Command Panel's one button, it stands left of it: one
+   button, the bar's 1px padding and edge each side, and the bar's gap. It goes
+   up onto the whole bar with the first session. */
 .canvas-wrap[data-empty] .fm {
   --fm-y: 0px;
   bottom: var(--board-controls-edge);
+  right: calc(var(--board-controls-edge) + var(--minimap-in, 0px));
+  width: var(--minimap-w);
 }
 .canvas-wrap[data-empty]:has(.react-flow__controls) .fm {
   right: calc(var(--board-controls-edge) + var(--minimap-in, 0px) + var(--board-controls-btn) + 4px + var(--board-controls-gap));
@@ -130,7 +132,7 @@
 /* Going up is work at a steady rate, not the fall run backwards. Linear. */
 .fm-walker[data-act="climb"] {
   /* Stop with hands at the ledge; the final step pulls the hips over it. */
-  --fm-y: calc(-1 * var(--minimap-h) + 24px);
+  --fm-y: calc(-1 * var(--fm-ledge-h) + 24px);
   transition: transform var(--fm-walk-ms, 0ms) linear;
 }
 .fm-walker[data-act="pull-up"] { transition: transform var(--fm-walk-ms, 0ms) steps(4, end); }
@@ -170,7 +172,7 @@
   bottom: 0;
   transform: translateX(calc(var(--fm-rope-x, 0px) - 25.5px));
   width: 3px;
-  height: var(--minimap-h);
+  height: var(--fm-ledge-h);
 }
 .fm-rope-line {
   position: absolute; inset: 0;
@@ -187,17 +189,17 @@
 .fm-rope[data-act="rope-throw"] .fm-rope-line { animation: fm-rope-unroll var(--fm-rope-ms) steps(10, end) both; }
 .fm-rope[data-act="rope-catch"] .fm-rope-hook { animation: fm-hook-catch var(--fm-rope-ms) steps(2, end) both; }
 @keyframes fm-hook-ready {
-  0%, 100% { transform: translate(0, calc(var(--minimap-h) - 42px)); }
-  50% { transform: translate(6px, calc(var(--minimap-h) - 45px)); }
+  0%, 100% { transform: translate(0, calc(var(--fm-ledge-h) - 42px)); }
+  50% { transform: translate(6px, calc(var(--fm-ledge-h) - 45px)); }
 }
 @keyframes fm-hook-throw {
-  from { transform: translate(0, calc(var(--minimap-h) - 42px)); }
+  from { transform: translate(0, calc(var(--fm-ledge-h) - 42px)); }
   80% { transform: translate(0, -6px); }
   to { transform: translate(0, 0); }
 }
 @keyframes fm-rope-unroll {
   /* Reveal at the hook's speed without stretching the rope's pixel pattern. */
-  from { clip-path: inset(calc(var(--minimap-h) - 42px) 0 0 0); }
+  from { clip-path: inset(calc(var(--fm-ledge-h) - 42px) 0 0 0); }
   80%, to { clip-path: inset(0); }
 }
 @keyframes fm-hook-catch {
@@ -208,7 +210,7 @@
    height the character is about to cover. */
 .fm-rope[data-act="climb"] {
   width: 3px;
-  height: var(--minimap-h);
+  height: var(--fm-ledge-h);
 }
 
 /* The 21px is what centres a 12px object under a 54px one when both are
@@ -811,7 +813,7 @@
 .fm-walker[data-act="kick"][data-facing="right"] .fm-leg[data-side="right"] { transform: translate(2px, -1px); }
 
 /* Sitting on the edge, legs over the side. The sprite drops below the line it
-   stands on, which is what puts the feet over the minimap — the same pixels
+   stands on, which is what puts the feet behind the bar's edge — the same pixels
    that would be a bug anywhere else in this block are the whole pose here.
 
    THIRTEEN, AND IT MOVES WITH THE LEGS. It was ten when they were two rows;
@@ -828,7 +830,8 @@
    lowered. */
 .fm-walker[data-act="sit"] .fm-sprite { transform: translateY(9px); }
 
-/* A rod built from grid-aligned steps; the line lowers over the minimap.
+/* A rod built from grid-aligned steps; the line lowers past the bar's left end
+   to the canvas floor (ClaudeFm.tsx draws it no longer), inside the canvas.
    Keeping the seated pose through stowing prevents a jump up with gear out. */
 .fm-walker:is([data-act="cast"], [data-act="fish"], [data-act="reel"], [data-act="stow"]) .fm-sprite {
   transform: translateY(9px);

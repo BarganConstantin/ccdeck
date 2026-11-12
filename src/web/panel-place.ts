@@ -35,6 +35,7 @@ import { useMediaQuery } from "./use-media-query";
 import { PHONE_QUERY } from "./phone-load";
 import { t } from "./i18n";
 import type { PanelDock } from "./side-column";
+import { MINIMAP_BOX, MINIMAP_FLOOR } from "./minimap-place";
 
 export type PanelPlace = {
   /** The window edge the panel is kept from. */
@@ -203,11 +204,11 @@ export const BOARD_EDGE = 12;
 type Span = { left: number; right: number };
 
 /**
- * NO PANEL STANDS OVER THE MINIMAP OR THE CHARACTER ON IT (owner, 2026-11-10).
- * Both stand at the canvas's bottom right, under the panels' home slots, and an
- * open Usage panel covered the minimap and half the character. Now they step
- * in past every panel their span meets, BOARD_EDGE clear of it, and are not
- * drawn when what the panels leave of the canvas cannot hold them.
+ * NO PANEL STANDS OVER THE MINIMAP (owner, 2026-11-10). In the bottom right
+ * corner it stands under the panels' home slots, and an open Usage panel
+ * covered it. Now it steps in past every panel its span meets, BOARD_EDGE
+ * clear of it, and is not drawn when what the panels leave of the canvas
+ * cannot hold it. (The character stands on the control bar since round 3.)
  *
  * A panel counts at its full height, as railCover counts it for the fit: its
  * foot moves as its readings arrive, and a minimap that jumped each time would
@@ -231,27 +232,32 @@ export function minimapInset(panels: readonly Span[], canvas: Span, width: numbe
 }
 
 /** Applies minimapInset to the panels as they stand: `--minimap-in` on the
- *  canvas, which the minimap and the character read (react-flow.css,
- *  claude-fm.css), and `data-minimap="off"` when there is no room. Offsets for
+ *  canvas, which the minimap in the right corner and the empty board's
+ *  character read (react-flow.css, claude-fm.css), and `data-minimap="off"`
+ *  when there is no room. Offsets for
  *  the panels, as fitStack, so an arriving panel's 12px of travel does not
  *  count. A docked part is in its column, not over the canvas; a phone's
  *  sheets are not beside the minimap, so a phone keeps it where it was. */
 export function fitMinimap(): void {
   const canvas = document.querySelector<HTMLElement>(".canvas-wrap");
-  // An empty board draws no minimap (board-empty.ts); the character keeps its
-  // corner, the minimap's width, and steps in for it alone.
-  const map = canvas?.querySelector<HTMLElement>(".react-flow__minimap") ?? canvas?.querySelector<HTMLElement>(".fm");
-  if (!canvas || !map) return;
+  if (!canvas) return;
+  // The minimap is drawn only while part of the board is out of view
+  // (minimap-place.ts), so its corner is fitted at its own size while it is
+  // away: right when it comes, and the empty board's character, which keeps
+  // that corner, steps in with it.
+  const map = canvas.querySelector<HTMLElement>(".react-flow__minimap");
+  const mapTop = () => map?.getBoundingClientRect().top
+    ?? canvas.getBoundingClientRect().bottom - MINIMAP_FLOOR - MINIMAP_BOX.height;
   // A header folded by the Inspector counts only where it reaches down to the
   // minimap: at the top of the column it is clear of it.
-  const clearAbove = (el: HTMLElement) => el.getBoundingClientRect().bottom + BOARD_EDGE <= map.getBoundingClientRect().top;
+  const clearAbove = (el: HTMLElement) => el.getBoundingClientRect().bottom + BOARD_EDGE <= mapTop();
   const panels = window.matchMedia(PHONE_QUERY).matches ? [] : Array.from(
     document.querySelectorAll<HTMLElement>(".usage-panel:not(.leaving), .sysdetail:not(.leaving)"),
     el => (isDocked(el) || !(el.offsetWidth > 0) || (isTucked(el) && clearAbove(el))
       ? null : { left: leftOf(el), right: leftOf(el) + el.offsetWidth }),
   ).filter((span): span is Span => span !== null);
   const box = canvas.getBoundingClientRect();
-  const inset = minimapInset(panels, { left: box.left, right: box.right }, map.offsetWidth);
+  const inset = minimapInset(panels, { left: box.left, right: box.right }, map?.offsetWidth || MINIMAP_BOX.width);
   canvas.style.setProperty("--minimap-in", `${inset ?? 0}px`);
   if (inset === null) canvas.setAttribute("data-minimap", "off");
   else canvas.removeAttribute("data-minimap");

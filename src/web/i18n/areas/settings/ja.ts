@@ -273,7 +273,7 @@ const catalog: Catalog = {
   "settings.theme.name.whiteContrast": "ホワイト・ハイコントラスト",
   "settings.character.title": "キャラクター",
   "settings.character.show": "キャラクターを表示",
-  "settings.character.note": "ミニマップの横に立っています。押すとラジオが流れます。",
+  "settings.character.note": "キャンバス下部のバーの上に立っています。押すとラジオが流れます。",
   "settings.character.choose": "キャラクターを選択",
   "settings.character.name.deck": "ccdeck コンパニオン",
   "settings.character.name.fox": "キツネ",

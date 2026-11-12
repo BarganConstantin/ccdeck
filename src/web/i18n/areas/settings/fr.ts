@@ -273,7 +273,7 @@ const catalog: Catalog = {
   "settings.theme.name.whiteContrast": "Blanc, contraste élevé",
   "settings.character.title": "Personnage",
   "settings.character.show": "Afficher le personnage",
-  "settings.character.note": "Se tient près de la minicarte. Appuyez dessus pour lancer la radio.",
+  "settings.character.note": "Se tient sur la barre en bas du canevas. Appuyez dessus pour lancer la radio.",
   "settings.character.choose": "Choisir le personnage",
   "settings.character.name.deck": "Compagnon ccdeck",
   "settings.character.name.fox": "Renard",

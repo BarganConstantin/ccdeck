@@ -513,30 +513,34 @@ describe("the character", () => {
     }
   });
 
-  it("stands ON the minimap's edge, on numbers that are named", () => {
+  // CHANGED ON PURPOSE (V4 critique, round 3, point 6): it stands on the
+  // control bar's left end, not on the minimap, which now comes and goes.
+  it("stands ON the control bar's edge, on numbers that are named", () => {
     // Its feet land exactly on the border, which is the difference between a
     // character and a sticker. No gap term: a character hovering a few pixels
     // over the ledge it is standing on is the thing that reads as wrong.
-    // THE SCENE SITS ON THE CANVAS FLOOR AND THE LEDGE IS A HEIGHT WITHIN IT.
-    // It used to be pinned to the minimap's top border, which made that border
-    // the only place in the world — there was no way to express "further down"
-    // at all, so the character could not leave it. Nothing moved on screen for
-    // the change: --fm-y defaults to exactly the ledge's height above the floor.
+    // THE SCENE SITS ON THE CANVAS FLOOR AND THE LEDGE IS A HEIGHT WITHIN IT,
+    // so the character can leave it: --fm-y is the ledge's height above the floor.
     expect(decl(".fm", "bottom")).toBe("var(--flow-gutter)");
-    // V4 stands the minimap over the control bar, so the ledge is that much
-    // higher above the same floor (v4-board-controls.test.ts).
-    expect(decl(".fm", "--fm-y")).toBe("calc(-1 * (var(--minimap-h) + var(--board-controls-room) - var(--flow-gutter)))");
-    // Its right edge is the minimap's, which V4 lines up with the control bar
-    // under it, 12px in (v4-board-controls.test.ts).
-    // CHANGED ON PURPOSE (owner 2026-11-10 critique): it steps in with the minimap past an open panel.
-    expect(decl(".fm", "right")).toBe("calc(var(--board-controls-edge) + var(--minimap-in, 0px))");
+    expect(decl(".fm", "--fm-y")).toBe("calc(-1 * var(--fm-ledge-h))");
+    // The bar's top: 12px off the canvas's foot, one button and its 1px
+    // padding and edge each side tall, less the floor's own gutter.
+    expect(decl('.fm[data-ledge="bar"]', "--fm-ledge-h"))
+      .toBe("calc(var(--board-controls-edge) + var(--board-controls-btn) + 4px - var(--flow-gutter))");
+    // From the bar's left end, as the component measured it (fm-ledge.ts).
+    expect(decl('.fm[data-ledge="bar"]', "right")).toBe("var(--fm-right)");
+    expect(decl('.fm[data-ledge="bar"]', "width")).toBe("var(--fm-ledge-w)");
+    expect(component).toContain('data-ledge={ledge ? "bar" : undefined}');
+    // No bar: the corner, on the floor line.
+    expect(decl(".fm", "--fm-ledge-h")).toBe("0px");
+    expect(decl(".fm", "right")).toBe("var(--board-controls-edge)");
     expect(decl(".fm", "--flow-gutter")).toBe("15px");
     // 54px is 18 columns at exactly 3px. A width that does not divide by the
     // grid puts every cell boundary on a fraction of a pixel, and a pixel
     // character with soft edges is the one thing it cannot be.
     expect(decl(".fm-sprite", "width")).toBe("54px");
     expect(54 % SPRITE_W).toBe(0);
-    expect(decl(".fm", "--minimap-h")).toBe("107px");
+    expect(css).not.toContain("--minimap-h");
   });
 
   it("does not eat a press meant for the canvas", () => {
@@ -1162,7 +1166,8 @@ describe("the character", () => {
     expect(ropeAt).toBeGreaterThan(-1);
     expect(ropeAt).toBeLessThan(walkerAt);
     // It reaches exactly the height being climbed.
-    expect(decl('.fm-rope[data-act="climb"]', "height")).toBe("var(--minimap-h)");
+    // CHANGED ON PURPOSE (round 3, point 6): the ledge is the bar's, not the minimap's.
+    expect(decl('.fm-rope[data-act="climb"]', "height")).toBe("var(--fm-ledge-h)");
     // 25.5px is the sprite's middle: 54px wide, right-aligned, rope 3px.
     expect(decl(".fm-rope", "transform")).toBe("translateX(calc(var(--fm-rope-x, 0px) - 25.5px))");
     expect(54 / 2 - 3 / 2).toBe(25.5);

@@ -161,19 +161,24 @@ describe("the room the minimap and the character leave for it", () => {
     expect(d["--board-controls-room"]).toBe(
       "calc(var(--board-controls-edge) + var(--board-controls-btn) + 6px + var(--board-controls-gap))");
   });
-  it("is read by the minimap's bottom offset, and the minimap's right edge is the bar's", () => {
+  it("is read by the minimap's bottom offset, and in the right corner the minimap's right edge is the bar's", () => {
     const m = decls(".react-flow__panel.react-flow__minimap");
     expect(m["margin-bottom"]).toBe("var(--board-controls-room)");
-    // CHANGED ON PURPOSE (owner 2026-11-10 critique): both step in past an open panel by --minimap-in (0 with none).
-    expect(m["margin-right"]).toBe("calc(var(--board-controls-edge) + var(--minimap-in, 0px))");
-    // CHANGED ON PURPOSE (owner 2026-11-10 critique): the ledge follows the minimap in.
-    expect(decls(".fm")["right"]).toBe("calc(var(--board-controls-edge) + var(--minimap-in, 0px))");
+    // CHANGED ON PURPOSE (owner 2026-11-10 critique): it steps in past an open panel by --minimap-in (0 with none).
+    // CHANGED ON PURPOSE (round 3, point 6): only in the right corner; the left one keeps the edge.
+    expect(decls(".react-flow__panel.react-flow__minimap.right")["margin-right"]).toBe("calc(var(--board-controls-edge) + var(--minimap-in, 0px))");
+    expect(decls(".react-flow__panel.react-flow__minimap.left")["margin-left"]).toBe("var(--board-controls-edge)");
+    // CHANGED ON PURPOSE (round 3, point 6): the character stands on the bar, from its left end.
+    expect(decls('.fm[data-ledge="bar"]')["right"]).toBe("var(--fm-right)");
   });
-  it("lifts only the character's ledge: its floor stays the canvas's, the same gutter both sides", () => {
+  // CHANGED ON PURPOSE (round 3, point 6): the ledge is the bar's top, not the minimap's.
+  it("lifts only the character's ledge: its floor stays the canvas's, the ledge is the bar's top", () => {
     const fm = decls(".fm");
     expect(fm["margin-bottom"]).toBeUndefined();
     expect(fm["bottom"]).toBe("var(--flow-gutter)");
-    expect(fm["--fm-y"]).toBe("calc(-1 * (var(--minimap-h) + var(--board-controls-room) - var(--flow-gutter)))");
+    expect(fm["--fm-y"]).toBe("calc(-1 * var(--fm-ledge-h))");
+    expect(decls('.fm[data-ledge="bar"]')["--fm-ledge-h"])
+      .toBe("calc(var(--board-controls-edge) + var(--board-controls-btn) + 4px - var(--flow-gutter))");
     expect(decls('.fm[data-place="floor"]')["left"]).toBe("var(--board-controls-edge)");
   });
 });

@@ -273,7 +273,7 @@ const catalog: Catalog = {
   "settings.theme.name.whiteContrast": "白色高對比",
   "settings.character.title": "角色",
   "settings.character.show": "顯示角色",
-  "settings.character.note": "站在縮圖地圖旁邊，點一下即可播放廣播。",
+  "settings.character.note": "站在畫布底部的工具列上，點一下即可播放廣播。",
   "settings.character.choose": "選擇角色",
   "settings.character.name.deck": "ccdeck 夥伴",
   "settings.character.name.fox": "狐狸",
