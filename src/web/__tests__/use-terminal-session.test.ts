@@ -1550,8 +1550,11 @@ describe("a key let go outside the pane", () => {
 });
 
 describe("the pane's own text size (terminal-text-size.ts)", () => {
-  beforeEach(() => { forgetTerminalTextStep(); setTerminalTextStep(100); });
-  afterEach(() => { setTerminalTextStep(100); forgetTerminalTextStep(); });
+  // The chord follows the platform (⌘ on a Mac, Ctrl elsewhere), and Node
+  // reports the runner's own: pinned here, so a macOS runner reads these
+  // Ctrl cases as Linux does. The Mac case below pins a Mac.
+  beforeEach(() => { vi.stubGlobal("navigator", { platform: "Linux x86_64" }); forgetTerminalTextStep(); setTerminalTextStep(100); });
+  afterEach(() => { setTerminalTextStep(100); forgetTerminalTextStep(); vi.unstubAllGlobals(); });
 
   it("Ctrl+= and Ctrl+- zoom the pane's text on the keydown, kept from xterm and from the browser", async () => {
     const { r, ctl } = rig();
@@ -1570,6 +1573,19 @@ describe("the pane's own text size (terminal-text-size.ts)", () => {
     expect(terminalTextStep()).toBe(100);
     expect(s.sentBytes().length, "nothing of it reached the session").toBe(sent);
     expect(r.events().onKey(key({ key: "_", ctrlKey: true, shiftKey: true })), "Ctrl+_ is the session's undo").toBe(true);
+  });
+
+  it("on a Mac only ⌘ zooms; Ctrl+= stays the session's", async () => {
+    vi.stubGlobal("navigator", { platform: "MacIntel" });
+    const { r, ctl } = rig();
+    ctl.mount(HOST, { theme: THEME, fontFamily: "monospace" });
+    await attach(r, ctl);
+    expect(r.events().onKey(key({ key: "=", ctrlKey: true })), "Ctrl+= goes on to xterm").toBe(true);
+    expect(terminalTextStep()).toBe(100);
+    expect(r.events().onKey(key({ key: "=", metaKey: true }))).toBe(false);
+    expect(terminalTextStep()).toBe(110);
+    expect(r.events().onKey(key({ key: "0", metaKey: true }))).toBe(false);
+    expect(terminalTextStep()).toBe(100);
   });
 
   it("a new size goes to the terminal and the cell is measured again, so the stage refits its columns", async () => {
