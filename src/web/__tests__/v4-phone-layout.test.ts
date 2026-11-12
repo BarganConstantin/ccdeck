@@ -302,7 +302,11 @@ describe("one sheet at a time, closed by Esc or a flick", () => {
     expect(app).toContain("right: rails.right.map(group => group.map(sessionsDoorUnderSheet)),");
     // The door's own press must not call the key's wrapper (it would loop):
     // the rails are built with the plain toggle.
-    expect(app).toMatch(/railItems\(\{\s*providers, sessionListOpen, toggleSessionList,/);
+    // CHANGED ON PURPOSE (one side column between 641 and 839): the toggle as
+    // the folded column answers it (one-side-column.ts), which is still not
+    // the key's wrapper; the key's path ends at the same press.
+    expect(app).toMatch(/railItems\(\{\s*(?:\/\/[^\n]*\n\s*)*providers, sessionListOpen: listOnScreen, toggleSessionList: pressSessionList,/);
+    expect(app).toContain("closeSheet: sheets.closeSheet, toggleList: pressSessionList,");
   });
 
   // CHANGED ON PURPOSE (the phone layout): a flick needs the speed AND 12px of

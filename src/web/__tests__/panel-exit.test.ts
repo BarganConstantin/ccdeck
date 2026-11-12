@@ -264,8 +264,11 @@ describe("each panel is held for as long as its exit animation runs", () => {
     // what has to last exactly --side-exit is the close — the column's width
     // going to nothing and the panel sliding out with its edge. A switch is
     // shorter than that (a 120ms fade), so the hold covers it too.
-    expect(held("accountsPanelOpen")).toBe(cssMs("--side-exit"));
-    expect(held("sessionListOpen")).toBe(cssMs("--side-exit"));
+    // CHANGED ON PURPOSE (one side column between 641 and 839): each held by
+    // its panel open on screen, which a folded left column is not, so a fold
+    // leaves the way a close does.
+    expect(held("accountsOnScreen")).toBe(cssMs("--side-exit"));
+    expect(held("listOnScreen")).toBe(cssMs("--side-exit"));
     const closing = [...css.matchAll(/\.left-column\.closing\b[^{]*\{([^}]*)\}/g)].map(m => m[1]).join(" ");
     expect(closing).toMatch(/transition-duration:\s*var\(--side-exit\)/);
     expect(closing).toMatch(/transform var\(--side-exit\)/);
@@ -298,7 +301,9 @@ describe("each panel is held for as long as its exit animation runs", () => {
     // CHANGED ON PURPOSE (the phone layout): the sheet's times are read from the
     // tokens (sheetCloseMs, sheetFadeMs), not restated as constants.
     expect(app).toMatch(/const railExitMs = useMemo\(\s*\(\) => phone \? \(reducedMotion \? sheetFadeMs\(\) : sheetCloseMs\(\)\) : tokenMs\(reducedMotion \? "--dur-xfade" : "--dur-fast"\),\s*\[reducedMotion, phone\]\);/);
-    expect(app).toMatch(/usePanelPresence\(usagePanelOpen, railExitMs\)/);
-    expect(app).toMatch(/usePanelPresence\(machinePanelOpen, railExitMs\)/);
+    // CHANGED ON PURPOSE (one side column between 641 and 839): a folded right
+    // column takes both out the way a close does.
+    expect(app).toMatch(/usePanelPresence\(usagePanelOpen && !sideFold\.right, railExitMs\)/);
+    expect(app).toMatch(/usePanelPresence\(machinePanelOpen && !sideFold\.right, railExitMs\)/);
   });
 });

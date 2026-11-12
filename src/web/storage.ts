@@ -152,3 +152,22 @@ export function settlePanelDefaults(store: Storeish): string[] {
   try { store.setItem(PANEL_DEFAULTS_KEY, "1"); } catch { /* private mode */ }
   return pinned;
 }
+
+/** Keys no build reads any more, forgotten on every load: the places Usage and
+ *  This machine were moved to on the Board. Since critique 3 (2026-11-12) they
+ *  stand in the Board's right column and do not move, so a place an earlier
+ *  build saved is dead weight in the store. A part popped out of Workspace's
+ *  column keeps its own place under its own key (panel-place.ts floatKey),
+ *  which stays. Kept as literals: panel-place.ts reads this module. */
+export const RETIRED_KEYS = ["agent-dag.usagePanelPlace", "agent-dag.machinePanelPlace"];
+
+/** Forgets the keys above. Returns the ones it removed. */
+export function forgetRetired(store: Storeish): string[] {
+  const removed: string[] = [];
+  for (const key of RETIRED_KEYS) {
+    try {
+      if (store.getItem(key) !== null) { store.removeItem(key); removed.push(key); }
+    } catch { /* a locked-down store is not worth failing boot over */ }
+  }
+  return removed;
+}

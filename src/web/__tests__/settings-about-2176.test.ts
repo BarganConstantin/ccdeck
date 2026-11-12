@@ -442,7 +442,11 @@ describe("Settings › General › Elsewhere on the deck", () => {
     const app = flat(read("../App.tsx"));
     // Both sides of the panel draw Local network (#2472), so the door no
     // longer moves the panel to Claude's side: the side that is up answers it.
-    expect(app).toContain("const openLocalNetwork = useCallback(() => { openAccountsPanel(); setLanWanted(true); }, [openAccountsPanel]);");
+    // CHANGED ON PURPOSE (one side column between 641 and 839): the panel the
+    // door opens is the column opened last, so it is drawn over a right column
+    // in that band; the open is still openAccountsPanel, which never shuts it.
+    expect(app).toContain('const raiseAccounts = useCallback(() => { raiseSide("left"); openAccountsPanel(); }, [raiseSide, openAccountsPanel]);');
+    expect(app).toContain("const openLocalNetwork = useCallback(() => { raiseAccounts(); setLanWanted(true); }, [raiseAccounts]);");
     expect(app).toContain("useEffect(() => { if (!accountsPanelOpen) setLanWanted(false); }, [accountsPanelOpen]);");
     expect(app).toContain("lanWanted={lanWanted} onLanShown={lanShown}");
     const panel = flat(read("../components/AccountsPanel.tsx"));

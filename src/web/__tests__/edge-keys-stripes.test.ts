@@ -175,7 +175,13 @@ describe("Accounts, and the left column it shares", () => {
     // Codex's own button (a Codex-only deck) opens its side through the same
     // toggle (openAccountSide), never a second way in.
     const app = sourceOf("App.tsx");
-    expect(app).toMatch(/railItems\(\{\s*providers, sessionListOpen, toggleSessionList,\s*accountsPanelOpen, toggleAccountsPanel, accountsPanelId: panelId\(shownAccountProvider\),\s*codexPanelOpen: accountsPanelOpen && shownAccountProvider === "codex",\s*toggleCodexPanel: \(\) => openAccountSide\("codex"\),/);
+    // CHANGED ON PURPOSE (one side column between 641 and 839): the doors read
+    // the panels open on screen, and press through those same two toggles,
+    // answered against the screen while the column is folded
+    // (one-side-column.ts foldAwarePress).
+    expect(app).toMatch(/railItems\(\{\s*providers, sessionListOpen: listOnScreen, toggleSessionList: pressSessionList,\s*accountsPanelOpen: accountsOnScreen, toggleAccountsPanel: pressAccounts, accountsPanelId: panelId\(shownAccountProvider\),\s*codexPanelOpen: accountsOnScreen && shownAccountProvider === "codex",\s*toggleCodexPanel: \(\) => openAccountSide\("codex"\),/);
+    expect(app).toMatch(/const pressSessionList = useMemo\(\(\) => foldAwarePress\(toggleSessionList, \{/);
+    expect(app).toMatch(/const pressAccounts = useMemo\(\(\) => foldAwarePress\(toggleAccountsPanel, \{/);
     expect(app).toContain("if (!accountsPanelOpen || shownAccountProvider === side) toggleAccountsPanel();");
     const column = sourceOf("use-left-column.ts");
     // CHANGED ON PURPOSE (the owner's phone layout): each still evicts the other

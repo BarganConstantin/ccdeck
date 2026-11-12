@@ -94,6 +94,7 @@ import { useLanPairRequests } from "./use-lan-pair-requests";
 import { useAccountAttention } from "./use-account-attention";
 import { useMeterQuota } from "./use-quota";
 import { leftColumnWidth, useColumnSettle, useLeftColumn, useRailWidth, useWorkspaceColumn } from "./use-left-column";
+import { foldAwarePress, foldAwareSet, useOneSideColumn } from "./one-side-column";
 import { sessionsOf, useMarkSeen } from "./use-mark-seen";
 import { useRightPanels } from "./use-right-panels";
 import { useLiveAnnouncements } from "./use-live-announcements";
@@ -201,8 +202,30 @@ function Inner() {
   // across a refresh — use-right-panels.ts. Called ahead of the selection
   // below, because a plain selection opens the detail panel (#814). A load in
   // Workspace has the two in one side column, not side by side over the board.
-  const { detailOpen, setDetailOpen, usagePanelOpen, setUsagePanelOpen, machinePanelOpen, setMachinePanelOpen, hold: holdRight }
+  const { detailOpen, setDetailOpen: setDetailStored, usagePanelOpen, setUsagePanelOpen, machinePanelOpen, setMachinePanelOpen, hold: holdRight }
     = useRightPanels(leftColumnWidth(leftPanel, railWidth), readView() === "workspace");
+  // ONE SIDE COLUMN BETWEEN 641 AND 839: the one opened last is drawn, and the
+  // other folds to its stripe, its stored flags untouched (one-side-column.ts).
+  // Read here, ahead of every panel's presence; the open flags it decides on
+  // are settled further down, once the selection and the stage are known.
+  const sides = useOneSideColumn({ left: leftPanel !== null, right: usagePanelOpen || machinePanelOpen, board: readView() !== "workspace" });
+  const { fold: sideFold, foldRef: sideFoldRef, raise: raiseSide } = sides;
+  const rightFolded = useCallback(() => sideFoldRef.current.right, [sideFoldRef]);
+  const raiseRight = useCallback(() => raiseSide("right"), [raiseSide]);
+  /** The detail panel's setter as the doors, D and a selection reach it: an open
+   *  while the right column is folded brings the column back. */
+  const setDetailOpen = useMemo(() => foldAwareSet(setDetailStored, rightFolded, raiseRight), [setDetailStored, rightFolded, raiseRight]);
+  // The left column's doors and keys the same way: folded, a press opens it.
+  const leftPanelRef = useMirroredRef(leftPanel);
+  const pressSessionList = useMemo(() => foldAwarePress(toggleSessionList, {
+    folded: () => sideFoldRef.current.left, holds: () => leftPanelRef.current === "session-list", raise: () => raiseSide("left"),
+  }), [toggleSessionList, sideFoldRef, leftPanelRef, raiseSide]);
+  const pressAccounts = useMemo(() => foldAwarePress(toggleAccountsPanel, {
+    folded: () => sideFoldRef.current.left, holds: () => leftPanelRef.current === "accounts", raise: () => raiseSide("left"),
+  }), [toggleAccountsPanel, sideFoldRef, leftPanelRef, raiseSide]);
+  /** Each left panel open on screen: open, and its column not folded. */
+  const listOnScreen = sessionListOpen && !sideFold.left;
+  const accountsOnScreen = accountsPanelOpen && !sideFold.left;
 
   const { selectedIds, primarySelectedId, selectAgent, clearSelection, pruneSelectionToBoard } =
     useSelection(stateRef, setDetailOpen);
@@ -213,11 +236,11 @@ function Inner() {
   /** Both panels outlive their own `false` by the length of their exit: a
    *  close slides the panel out with the column's edge, and a switch fades the
    *  one leaving under the one arriving. Must match `--side-exit` in the sheet. */
-  const accountsPhase = usePanelPresence(accountsPanelOpen, 200);
-  const sessionListPhase = usePanelPresence(sessionListOpen, 200);
+  const accountsPhase = usePanelPresence(accountsOnScreen, 200);
+  const sessionListPhase = usePanelPresence(listOnScreen, 200);
   /** Drawn, and leaving, from the render that flips the flag: the same render
    *  the column's width changes in (panel-exit.ts, isDrawn). */
-  const sessionListDrawn = isDrawn(sessionListOpen, sessionListPhase);
+  const sessionListDrawn = isDrawn(listOnScreen, sessionListPhase);
   /** The rail's two panels leave the same way, by a fade alone: held for its
    *  length, --dur-fast, or --dur-xfade under reduced motion (the sheet,
    *  machine-panel.css). */
@@ -229,8 +252,9 @@ function Inner() {
   const railExitMs = useMemo(
     () => phone ? (reducedMotion ? sheetFadeMs() : sheetCloseMs()) : tokenMs(reducedMotion ? "--dur-xfade" : "--dur-fast"),
     [reducedMotion, phone]);
-  const usagePhase = usePanelPresence(usagePanelOpen, railExitMs);
-  const machinePhase = usePanelPresence(machinePanelOpen, railExitMs);
+  // A folded right column takes both out the way a close does.
+  const usagePhase = usePanelPresence(usagePanelOpen && !sideFold.right, railExitMs);
+  const machinePhase = usePanelPresence(machinePanelOpen && !sideFold.right, railExitMs);
 
   // ── the deck's own two tones (#704) ───────────────────────────────────────
   // Built lazily on the first gesture rather than here: an AudioContext
@@ -317,18 +341,22 @@ function Inner() {
   /** The doors that name a side: opened on it, moved to it if already open. */
   const openAccountSide = (side: AccountSide) => {
     accountSide.remember(side);
+    // Folded, the door reads closed: it brings the column back, on that side.
+    if (sideFold.left) { raiseSide("left"); if (!accountsPanelOpen) toggleAccountsPanel(); return; }
     if (!accountsPanelOpen || shownAccountProvider === side) toggleAccountsPanel();
   };
   /** How wide the left column is drawn: the open panel's own width, or 0 —
    *  never anything the two panels make between them (LeftColumn.tsx). The
    *  accounts panel has no width when neither provider is installed. */
-  const leftColumnTarget = leftColumnWidth(
+  const leftColumnWanted = leftColumnWidth(
     // On a phone the column holds the list alone: Accounts is a sheet over it.
     phone ? (sessionListOpen ? "session-list" : null)
       : leftPanel === "accounts" && !(providers.claude || providers.codex) ? null : leftPanel,
     railWidth);
+  // Folded, the column closes as it does for a close: the stored flags stay.
+  const leftColumnTarget = sideFold.left ? 0 : leftColumnWanted;
   const columnSettleRef = useColumnSettle(leftColumnTarget);
-  const accountsDrawn = isDrawn(accountsPanelOpen, accountsPhase) && (providers.claude || providers.codex);
+  const accountsDrawn = isDrawn(accountsOnScreen, accountsPhase) && (providers.claude || providers.codex);
   // Settings › General's door to Local network (#2176), which is the accounts
   // panel's own view: the panel opened (use-left-column.ts), and the view
   // asked for. The panel shows it once its roster has arrived — the moment
@@ -337,14 +365,16 @@ function Inner() {
   // open on some later visit nobody asked it of.
   const [lanWanted, setLanWanted] = useState(false);
   const rememberAccountSide = accountSide.remember;
+  // Settings' two doors open the panel, so its column is the one opened last.
+  const raiseAccounts = useCallback(() => { raiseSide("left"); openAccountsPanel(); }, [raiseSide, openAccountsPanel]);
   // Settings' door names Claude's accounts where Claude Code is, so it opens that side.
-  const openAccounts = useCallback(() => { rememberAccountSide(providers.claude ? "claude" : "codex"); openAccountsPanel(); }, [openAccountsPanel, providers.claude, rememberAccountSide]);
+  const openAccounts = useCallback(() => { rememberAccountSide(providers.claude ? "claude" : "codex"); raiseAccounts(); }, [raiseAccounts, providers.claude, rememberAccountSide]);
   // Both sides of the panel draw Local network (#2472), so it opens on
   // whichever side is up — and on a deck with only Codex, it opens at all.
   const openLocalNetwork = useCallback(() => {
-    openAccountsPanel();
+    raiseAccounts();
     setLanWanted(true);
-  }, [openAccountsPanel]);
+  }, [raiseAccounts]);
   // What Local network offers from this deck, read by Claude's side and drawn
   // by Codex's too (#2472). Null until Claude's side has read its roster.
   const [claudeLan, setClaudeLan] = useState<LanAccount[] | null>(null);
@@ -582,8 +612,11 @@ function Inner() {
    *  horizontal position off: `--rail-r` is 368px with it and 8px without
    *  (`.app:not(:has(.detail))`), and `.usage-panel` takes the same 360px step.
    *  Not `detailOpen` on its own — the panel is `detailOpen && selected`, so a
-   *  deck with the panel enabled and nothing selected is 360px out. */
-  const detailShown = detailOpen && selected != null;
+   *  deck with the panel enabled and nothing selected is 360px out. Nor while
+   *  the right column is folded (one-side-column.ts): `detailWanted` is the
+   *  panel the reader has open, folded or not. */
+  const detailWanted = detailOpen && selected != null;
+  const detailShown = detailWanted && !sideFold.right;
   const lastSelected = useRef(selected);
   if (selected) lastSelected.current = selected;
   // Where keyboard focus goes when a panel's own × or ‹ takes it away with the
@@ -597,7 +630,9 @@ function Inner() {
 
   // The Inspector open folds the open floating panels to their header, and
   // closing it gives them back (inspector-fold.ts). Workspace keeps its own.
-  const inspectorFold = useInspectorFold(!phone && detailShown, { usage: usagePanelOpen, machine: machinePanelOpen });
+  // Read from the open flags, not the screen: a right column folded and
+  // brought back comes back with its panels as they were.
+  const inspectorFold = useInspectorFold(!phone && detailWanted, { usage: usagePanelOpen, machine: machinePanelOpen });
 
   // What the floating panels cover of the canvas, and the frame the layout and
   // every fit pack the board for: see use-layout-frame.ts.
@@ -688,8 +723,10 @@ function Inner() {
   // Board or Workspace, as the browser remembered it (use-view.ts). Whether the
   // layout follows it is the stage hook's: it holds the gate (use-stage.ts).
   const viewState = useView();
+  // The stage and the detail panel evict each other by the reader's own flags,
+  // so a folded right column changes nothing between them.
   const stage = useStage({
-    stateRef, canvasRef, detailOpen, detailShown, setDetailOpen, primarySelectedIdRef, selectAgent,
+    stateRef, canvasRef, detailOpen, detailShown: detailWanted, setDetailOpen, primarySelectedIdRef, selectAgent,
     view: viewState.stored, phone, clearSelection,
   });
   const inWorkspace = stage.workspace;
@@ -851,8 +888,13 @@ function Inner() {
   // panel does, and one the stage hides reads as closed — use-stage.ts
   // useRailPanel. The panels themselves, their own ×, the machine panel's
   // slot and the board's frame keep the plain flags.
-  const usageRail = useRailPanel(stage, usagePanelOpen, setUsagePanelOpen);
-  const machineRail = useRailPanel(stage, machinePanelOpen, setMachinePanelOpen);
+  const usageAsked = useRailPanel(stage, usagePanelOpen, setUsagePanelOpen);
+  const machineAsked = useRailPanel(stage, machinePanelOpen, setMachinePanelOpen);
+  // And a folded right column reads as closed, the same way: a press opens.
+  const setUsageRail = useMemo(() => foldAwareSet(usageAsked.set, rightFolded, raiseRight), [usageAsked.set, rightFolded, raiseRight]);
+  const setMachineRail = useMemo(() => foldAwareSet(machineAsked.set, rightFolded, raiseRight), [machineAsked.set, rightFolded, raiseRight]);
+  const usageRail = { shown: usageAsked.shown && !sideFold.right, set: setUsageRail };
+  const machineRail = { shown: machineAsked.shown && !sideFold.right, set: setMachineRail };
   // THE BOARD'S RIGHT COLUMN: on a desktop Board, Usage, This machine and the
   // Inspector share one grid column and the canvas ends at its edge, so none
   // of them floats over the board and every fit has the room that is left
@@ -861,6 +903,14 @@ function Inner() {
   const inRightCol = (shown: boolean, phase: PanelPhase) => (shown ? isMounted(phase) : phase === "leaving");
   const rightCol = !phone && !inWorkspace
     && (detailShown || inRightCol(usageRail.shown, usagePhase) || inRightCol(machineRail.shown, machinePhase));
+  // Which side columns the reader has open, folded or not, now that the
+  // selection and the stage are known: a change runs this render again before
+  // it is drawn, with the fold it makes (one-side-column.ts).
+  sides.settle({
+    left: leftColumnWanted > 0,
+    right: !phone && (detailWanted || usageAsked.shown || machineAsked.shown),
+    board: !inWorkspace,
+  });
 
   // What a click, a double-click and a hover on the canvas do — use-canvas-clicks.ts.
   const clicks = useCanvasClicks({
@@ -944,8 +994,8 @@ function Inner() {
 
   // The L key is the Sessions door's press: with a sheet up over the list it
   // means "go to Sessions" (the sheet closes, the list stays), set once the
-  // sheets are known (below); until then, and with no sheet, the plain toggle.
-  const sessionsKeyRef = useRef<() => void>(toggleSessionList);
+  // sheets are known (below); until then, and with no sheet, the door's press.
+  const sessionsKeyRef = useRef<() => void>(pressSessionList);
   const pressSessionsKey = useCallback(() => sessionsKeyRef.current(), []);
   // Every key the deck answers, and what each one reaches: see
   // use-deck-shortcuts.ts, whose parameter list is that list.
@@ -957,7 +1007,7 @@ function Inner() {
     stageRef: stage.keysRef, lodRef, inspectorSheetFoldRef: sheetFoldRef,
     // What the keys do.
     clearSelection, selectAgent, focusAgent, stepAgent, focusSession: focusSessionOnView, requestClear,
-    handleRelayout, undoRearrange: rearrangeUndo.undo, handleFit, togglePause, toggleSessionList: pressSessionsKey, toggleAccountsPanel,
+    handleRelayout, undoRearrange: rearrangeUndo.undo, handleFit, togglePause, toggleSessionList: pressSessionsKey, toggleAccountsPanel: pressAccounts,
     setDetailOpen, setUsageHistoryOpen, setUsagePanelOpen: usageRail.set, setMachinePanelOpen: machineRail.set,
     setBrowserWatchOpen, setKeyHelpOpen, setTheme, openSettings, openIntegrationRef, openQuickOpen,
   });
@@ -1032,7 +1082,7 @@ function Inner() {
     density: v => appearance.setDensity(v as Density),
     "panels.sessionList": v => { if (v) { if (!sessionListOpen) toggleSessionList(); } else closeSessionList(); },
     "panels.accounts": v => { if (v) openAccountsPanel(); else closeAccountsPanel(); },
-    "panels.detail": v => setDetailOpen(v === true),
+    "panels.detail": v => setDetailStored(v === true),
     "panels.usage": v => setUsagePanelOpen(v === true),
     "panels.machine": v => setMachinePanelOpen(v === true),
     singleKeyShortcuts: v => setSingleKeyShortcuts(v === true),
@@ -1066,9 +1116,10 @@ function Inner() {
   const feedbackUnread = unreadOf(useFeedbackAccount());
   const openFeedbackConversations = useCallback(() => dialogs.openFeedback({ initialTab: "conversations" }), [dialogs.openFeedback]);
   const rails = railItems({
-    providers, sessionListOpen, toggleSessionList,
-    accountsPanelOpen, toggleAccountsPanel, accountsPanelId: panelId(shownAccountProvider),
-    codexPanelOpen: accountsPanelOpen && shownAccountProvider === "codex",
+    // A folded column's doors read closed (one-side-column.ts).
+    providers, sessionListOpen: listOnScreen, toggleSessionList: pressSessionList,
+    accountsPanelOpen: accountsOnScreen, toggleAccountsPanel: pressAccounts, accountsPanelId: panelId(shownAccountProvider),
+    codexPanelOpen: accountsOnScreen && shownAccountProvider === "codex",
     toggleCodexPanel: () => openAccountSide("codex"),
     usagePanelOpen: usageRail.shown, setUsagePanelOpen: usageRail.set,
     machinePanelOpen: machineRail.shown, setMachinePanelOpen: machineRail.set, setUsageHistoryOpen,
@@ -1183,7 +1234,7 @@ function Inner() {
   // The L key goes the same way, and so does Quick Open's Sessions row (built
   // from these mapped doors): one path, whoever asks.
   sessionsKeyRef.current = () => pressSessionsDoor({
-    sheet: sheets.sheet, listOpen: sessionListOpen, closeSheet: sheets.closeSheet, toggleList: toggleSessionList,
+    sheet: sheets.sheet, listOpen: sessionListOpen, closeSheet: sheets.closeSheet, toggleList: pressSessionList,
   });
   const quickRails = {
     ...rails,
@@ -1201,14 +1252,14 @@ function Inner() {
   const accountsNodes = (
     <>
       {accountsDrawn && (shownAccountProvider === "claude" || accountSide.bothMounted) && (
-        <AccountsPanel leaving={isLeaving(accountsPanelOpen, accountsPhase)} onReport={dialogs.openFeedback}
+        <AccountsPanel leaving={isLeaving(accountsOnScreen, accountsPhase)} onReport={dialogs.openFeedback}
           onRoster={attention.observe} onClose={sheetClose("accounts", closeAccounts)}
           lanWanted={lanWanted} onLanShown={lanShown} onLanAccounts={setClaudeLan} codexLanAccounts={codexLan} switcher={accountsSwitch}
           side={sideState("claude")} onNotice={accountSide.noteClaude}
           planLabel={meterQuota.reading?.planLabel ?? null} />
       )}
       {accountsDrawn && (shownAccountProvider === "codex" || accountSide.bothMounted) && (
-        <CodexAccountsPanel leaving={isLeaving(accountsPanelOpen, accountsPhase)}
+        <CodexAccountsPanel leaving={isLeaving(accountsOnScreen, accountsPhase)}
           onClose={sheetClose("accounts", closeAccounts)} switcher={accountsSwitch}
           side={sideState("codex")} onNotice={accountSide.noteCodex}
           lanAccounts={lanOffered} lanReady={!providers.claude || claudeLan != null}
@@ -1341,7 +1392,7 @@ function Inner() {
           {!phone && accountsNodes}
           {sessionListDrawn && (
             <SessionList
-              leaving={isLeaving(sessionListOpen, sessionListPhase)}
+              leaving={isLeaving(listOnScreen, sessionListPhase)}
               state={stateRef.current}
               now={now}
               selectedIds={selectedIds}
