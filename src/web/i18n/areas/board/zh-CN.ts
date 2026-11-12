@@ -659,6 +659,7 @@ const catalog: Catalog = {
   "board.stage.keysBack": "把按键交还给看板（{chord}）",
   "board.stage.contextWindow": "上下文窗口",
   "board.stage.context": "上下文",
+  "board.stage.contextShort": "上下文 {pct}",
   "board.stage.view": "视图",
   "board.stage.viewChat": "聊天",
   "board.stage.viewTerm": "终端",

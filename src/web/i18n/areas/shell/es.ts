@@ -360,6 +360,8 @@ const catalog: Catalog = {
   "shell.film.watch": "Ver · 30 s",
   "shell.film.duration": "30 s",
   "shell.film.hidden": ": el video de {subject} en ccdeck.dev, se abre en tu navegador",
+  "shell.film.watchMenu": "Ver un video de {duration}",
+  "shell.info.label": "Acerca de {panel}",
 
   // ── feedback ──
   "shell.feedback.title": "Enviar comentarios",

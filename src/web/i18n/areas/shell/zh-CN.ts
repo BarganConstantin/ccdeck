@@ -361,6 +361,8 @@ const catalog: Catalog = {
   "shell.film.watch": "观看 · 30 秒",
   "shell.film.duration": "30 秒",
   "shell.film.hidden": "：ccdeck.dev 上的“{subject}”视频，会在浏览器中打开",
+  "shell.film.watchMenu": "观看视频（{duration}）",
+  "shell.info.label": "关于{panel}",
 
   // ── feedback ──
   "shell.feedback.title": "发送反馈",

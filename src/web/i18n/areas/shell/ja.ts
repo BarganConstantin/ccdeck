@@ -353,6 +353,8 @@ const catalog: Catalog = {
   "shell.film.watch": "動画 · 30秒",
   "shell.film.duration": "30秒",
   "shell.film.hidden": "：ccdeck.dev の「{subject}」の動画、ブラウザーで開く",
+  "shell.film.watchMenu": "動画を見る（{duration}）",
+  "shell.info.label": "{panel}について",
 
   // ── feedback ──
   "shell.feedback.title": "フィードバックを送信",

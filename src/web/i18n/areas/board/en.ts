@@ -659,6 +659,7 @@ const catalog: Catalog = {
   "board.stage.keysBack": "Give the keys back to the board ({chord})",
   "board.stage.contextWindow": "Context window",
   "board.stage.context": "Context",
+  "board.stage.contextShort": "{pct} context",
   "board.stage.view": "View",
   "board.stage.viewChat": "Chat",
   "board.stage.viewTerm": "Term",

@@ -20,7 +20,7 @@ import type { Providers } from "../providers";
 import type { Incident } from "../provider-status";
 import CostBar from "./CostBar";
 import { KitIcon } from "./kit-icons";
-import FilmLink from "./FilmLink";
+import PanelInfo from "./PanelInfo";
 import { ClaudeQuotaSection, CodexQuotaSection } from "./QuotaSections";
 import UsageModelTable from "./UsageModelTable";
 import UsagePeriodStrip from "./UsagePeriodStrip";
@@ -355,7 +355,8 @@ export default function UsagePanel({ state, now, providers, incidents = [], leav
         {/* Folded in Workspace's column, the header keeps the headline. */}
         {dock?.folded && fromRange && <span className="side-sum">{spendLine}</span>}
         <DockButtons dock={dock} popOut={place.popOut} />
-        <FilmLink film="usage" />
+        {/* The video, behind ⓘ: a ▷ here read as "run". */}
+        <PanelInfo film="usage" panel={t("usage.title")} />
         {/* ONE close (V4's Figma). The panel's two other header buttons went to
             its foot: the refresh as a quiet "Refresh" and the quota history as
             a quiet "Quota history", both still here and still pressable. */}

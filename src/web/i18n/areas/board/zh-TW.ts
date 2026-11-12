@@ -659,6 +659,7 @@ const catalog: Catalog = {
   "board.stage.keysBack": "把按鍵還給畫布（{chord}）",
   "board.stage.contextWindow": "上下文視窗",
   "board.stage.context": "上下文",
+  "board.stage.contextShort": "上下文 {pct}",
   "board.stage.view": "檢視",
   "board.stage.viewChat": "對話",
   "board.stage.viewTerm": "終端機",

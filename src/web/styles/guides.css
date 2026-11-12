@@ -249,6 +249,11 @@
   .empty-hero .film-action { transition: background var(--dur-fast) var(--ease); }
 }
 
+/* A panel header's ⓘ (PanelInfo.tsx) is the header's own glyph button; its
+   menu's video item is a link drawn as a menu row, with no underline. */
+.panel-info { flex: none; }
+.panel-info-film { text-decoration: none; }
+
 /* Panel videos share the header's icon row rather than taking a text row. */
 .film-link.film-icon {
   display: inline-grid;
