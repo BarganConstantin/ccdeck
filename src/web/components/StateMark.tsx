@@ -1,16 +1,18 @@
 import type { StateMarkKind } from "../node-face";
 import { KitStateGlyph, type KitStateName } from "./kit-icons";
 
-const KIT_STATE: Record<StateMarkKind, KitStateName> = { live: "working", done: "done", idle: "idle", err: "error" };
+const KIT_STATE: Record<StateMarkKind, KitStateName> = { live: "working", done: "done", partial: "partial", idle: "idle", err: "error" };
 
 /**
  * A card's state, drawn on V4's kit grid: a ring with an arc for live, a tick
- * for done, a ring with a cross for err, a hollow ring for idle. Shapes, not
- * three colours of one dot: the full card says the same thing in a pill with the
- * word in it, and where there is no room for the word the shape carries it, and
- * the colour, the same --inflight / --ok / --err the pill uses, only agrees with
- * it. Still, no motion of its own: the live pill pulses, and forty of them
- * pulsing in overview would be the whole canvas blinking.
+ * for done, a ring with a cross for err, a hollow ring for idle, and for
+ * partial, a turn that finished with failed calls, done's tick with an amber
+ * dot at its corner. Shapes, not colours of one dot: the full card says the
+ * same thing in a pill with the word in it, and where there is no room for the
+ * word the shape carries it, and the colour, the same --inflight / --ok / --err
+ * the pill uses, only agrees with it. Still, no motion of its own: the live
+ * pill pulses, and forty of them pulsing in overview would be the whole canvas
+ * blinking.
  *
  * Drawn rather than typed, for the reason RecapMark gives: a glyph from the
  * body face comes out at whatever weight each platform's fallback chose.

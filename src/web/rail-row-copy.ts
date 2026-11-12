@@ -20,17 +20,21 @@ import { sessionDisplay, sessionListName } from "./session-display";
 import { injectedPrompt } from "./injected-prompt";
 import type { AgentNodeData, PromptEntry } from "./types";
 
-/** Figma's Glyph: Waiting, Working, Done, Idle, Error. Background wears the
- *  Working mark, the session being at work while its turn has ended. The
- *  hollow Idle ring is the Ready group's: a session not yet given a prompt. */
-export type RailGlyphKind = "waiting" | "working" | "done" | "idle" | "error";
+/** Figma's Glyph: Waiting, Working, Done, Partial, Idle, Error. Background
+ *  wears the Working mark, the session being at work while its turn has ended.
+ *  The hollow Idle ring is the Ready group's: a session not yet given a prompt.
+ *  Partial is done's tick with an amber dot: a turn that finished with failed
+ *  calls. */
+export type RailGlyphKind = "waiting" | "working" | "done" | "partial" | "idle" | "error";
 
 export function railGlyph(r: Row, group: RailGroup): RailGlyphKind {
   if (group === 0) return "waiting";
   if (group === 1) return "working";
-  // The card's own mark (node-face.ts sessionMark): a failure, or a finished
-  // turn whose calls failed, is the cross, never done's tick.
-  if (sessionMark(r) === "err") return "error";
+  // The card's own mark (node-face.ts sessionMark): a turn that stopped on an
+  // error is the cross, and a finished one whose calls failed the partial mark.
+  const mark = sessionMark(r);
+  if (mark === "err") return "error";
+  if (mark === "partial") return "partial";
   if (r.neverPrompted) return "idle";
   // Done · new and Done are a turn that ended, whatever the root's state still
   // says: a row marked active with an idle-prompt block is "your turn", and
@@ -133,11 +137,12 @@ export function startedLine(startedAt: number, idTail: string, now = Date.now(),
 }
 
 /** "1 failed" on a finished row whose calls failed: the words its card's face
- *  says beside the same cross (node-face.ts faceStatus). The row stays in its
- *  Done group. Null on every other row: a turn that stopped on an error says
- *  Failed by its mark, and a running one keeps its ring. */
+ *  says beside the same partial mark (node-face.ts faceStatus), which the row
+ *  draws after Done. The row stays in its Done group. Null on every other row:
+ *  a turn that stopped on an error says Failed by its cross, and a running one
+ *  keeps its ring. */
 export function railFailed(r: Row, group: RailGroup, tr: TFunction = t): string | null {
-  if (r.state !== "done" || railGlyph(r, group) !== "error") return null;
+  if (railGlyph(r, group) !== "partial") return null;
   return tr("board.failedCount", { n: r.toolErrorCount ?? 0 });
 }
 

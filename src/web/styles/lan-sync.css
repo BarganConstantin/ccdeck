@@ -405,6 +405,8 @@
 }
 .node-peek-state[data-kind="live"] { color: var(--inflight); }
 .node-peek-state[data-kind="done"] { color: var(--ok); }
+/* "3 failed" beside the partial mark, whose tick keeps done's ink of its own. */
+.node-peek-state[data-kind="partial"] { color: var(--warn); }
 .node-peek-state[data-kind="err"] { color: var(--err); }
 .node-peek-state[data-kind="alert"] { color: var(--warn); }
 /* Two lines, then an ellipsis. The max-height is the same two lines for an
@@ -488,7 +490,9 @@
   color: var(--muted);
   font-variant-numeric: tabular-nums;
 }
-.node-peek-failed { color: var(--err); }
+/* Failed calls are worth a look, not a failure: the warning's ink, as the
+   partial mark's count beside the state says it. */
+.node-peek-failed { color: var(--warn); }
 /* A recap note's peek: the note's own mark in its session's hue, and the
    recap whole — prose, at the note's size and ink, with room for it. */
 .recap-peek {

@@ -209,7 +209,10 @@ describe("a small face says one thing, in the order a reader would want it", () 
   });
 
   it("then failures, then the branch, then the call still open", () => {
-    expect(faceSignal(agent({ ...failing }), branch, words)).toMatchObject({ tone: "err", short: "2 failed" });
+    // CHANGED ON PURPOSE (owner's decision, 2026-11-12): failed calls are the
+    // warning's ink, as the count beside the partial mark; err is for a turn
+    // that stopped on an error.
+    expect(faceSignal(agent({ ...failing }), branch, words)).toMatchObject({ tone: "warn", short: "2 failed" });
     expect(faceSignal(agent({ tools: open }), branch, words)).toMatchObject({ tone: "muted", short: "→ 4 · 2 live" });
     expect(faceSignal(agent({ tools: open }), undefined, words)).toEqual({ tone: "muted", long: "Edit · styles.css", short: "Edit" });
   });

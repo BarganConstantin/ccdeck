@@ -218,9 +218,12 @@ describe("a tile says what the board's card says", () => {
     expect(src).not.toContain("open in the Command Panel");
   });
 
-  it("draws the cross, as the board's face does, over a line that says calls failed", () => {
+  it("draws the partial mark, as the board's face does, over a line that says calls failed", () => {
     // Owner 2026-11-10 critique: done's tick beside "1 failed". The finished
     // session and one finished subagent are given a failed call each.
+    // CHANGED ON PURPOSE (owner's decision, 2026-11-12): the cross became the
+    // partial mark, done's tick with an amber dot, and the count the warning's
+    // ink; the cross is only for a turn that stopped on an error.
     const sub = [...state.agents.values()].find(a => a.sessionId === "boom" && a.kind === "subagent")!;
     const failing = nodes.map(n => n.data?.id === "quiet" ? { ...n, data: { ...n.data!, toolErrorCount: 1 } }
       : n.data?.id === sub.id ? { ...n, data: { ...n.data!, state: "done" as const, toolErrorCount: 1 } } : n);
@@ -230,10 +233,11 @@ describe("a tile says what the board's card says", () => {
     const face = renderToStaticMarkup(createElement(ReactFlowProvider, null,
       createElement(AgentNode as any, { id: "quiet", data: failing.find(n => n.data?.id === "quiet")!.data, selected: false })));
     const mark = /class="state-mark" data-kind="(\w+)"/;
-    expect(mark.exec(face.slice(face.indexOf('class="lod-face"')))?.[1]).toBe("err");
-    expect(mark.exec(tile(out, "quiet"))?.[1]).toBe("err");
+    expect(mark.exec(face.slice(face.indexOf('class="lod-face"')))?.[1]).toBe("partial");
+    expect(mark.exec(tile(out, "quiet"))?.[1]).toBe("partial");
     const row = /<div class="nav-row" data-state="done"[^>]*>([\s\S]*?)<\/div>/.exec(tile(out, "boom"))?.[1] ?? "";
-    expect(mark.exec(row)?.[1]).toBe("err");
+    expect(mark.exec(row)?.[1]).toBe("partial");
+    expect(row).toMatch(/<span class="nav-row-said" data-tone="warn">1 tool call failed<\/span>/);
   });
 });
 

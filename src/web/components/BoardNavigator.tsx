@@ -331,9 +331,9 @@ function Tile({ tile, cluster, session, density, attached, flash, tabbable, onFo
           onFocus={() => onFocus(id)}
         >
           {/* The state the card draws (drawnState): a turn that stopped on an
-              error is Failed here as on the card, never a finished ✓. Nor
-              for a session whose calls failed: the mark the card, the list
-              and the peek draw (sessionMark). */}
+              error is Failed here as on the card, never a finished ✓. A
+              session whose calls failed wears the partial mark the card, the
+              list and the peek draw (sessionMark). */}
           <span className="nav-face" data-state={root ? drawnState(root) : undefined} data-alarm={alarm ? "" : undefined}>
             <span className="nav-id">
               {root ? <StateMark kind={sessionMark(root)} /> : null}

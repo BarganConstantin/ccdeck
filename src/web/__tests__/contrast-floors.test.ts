@@ -379,7 +379,7 @@ describe("agent-node state rings (#268)", () => {
     // an-error state the old pill was handed directly. CHANGED ON PURPOSE (V4
     // critique round 3, one state on every surface): the head takes the faces'
     // faceStatus, which starts from cardState and only adds "1 failed" beside
-    // the cross on a finished card whose calls failed.
+    // the partial mark on a finished card whose calls failed.
     expect(agentNode).toMatch(/const state = faceStatus\(data, t\);/);
     const nodeFace = readFileSync(fileURLToPath(new URL("../node-face.ts", import.meta.url)), "utf8");
     expect(nodeFace).toMatch(/export function faceStatus\([^]*?\): CardState \{\s*const state = cardState\(data\);/);

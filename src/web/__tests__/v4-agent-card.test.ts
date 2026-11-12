@@ -625,8 +625,12 @@ describe("the face below the detail tier", () => {
 
 // Owner 2026-11-10 critique: a finished card whose calls failed drew done's
 // green tick beside "1 failed", the mark saying success and the words failure.
-// Where the face can say the count, the mark follows the worst state.
-describe("a face never draws the tick beside a failure count", () => {
+// CHANGED ON PURPOSE (owner's decision, 2026-11-12): it drew the cross until
+// then. Claude Code counts every Bash command that exits non-zero as a failed
+// call, so that is the common case and must not look like a failure. It draws
+// the partial mark, done's tick with an amber dot; the cross is only for a
+// turn that stopped on an error.
+describe("a face never draws the bare tick beside a failure count", () => {
   const face = (over: Partial<AgentNodeData>) => {
     const out = html(over);
     const at = out.indexOf('class="lod-face"');
@@ -634,11 +638,19 @@ describe("a face never draws the tick beside a failure count", () => {
   };
   const mark = (out: string) => /<div class="lod-line"[^>]*><svg class="state-mark" data-kind="(\w+)"/.exec(out)?.[1];
 
-  it("draws the cross on a finished card whose calls failed, and the count where the word goes", () => {
+  it("draws the partial mark on a finished card whose calls failed, and the count alone where the word goes", () => {
     const out = face({ state: "done", toolErrorCount: 1 });
+    expect(mark(out)).toBe("partial");
+    expect(out).toContain('<circle class="kit-warn"');
+    // The face has room for the count alone; the detail card says Done too.
+    expect(out).toMatch(/data-status="partial"[\s\S]*<span class="lod-state">1 failed<\/span>/);
+    expect(out).not.toContain("state-done");
+  });
+
+  it("keeps the cross for a turn that stopped on an error, whatever its count", () => {
+    const out = face({ state: "done", toolErrorCount: 2, stopFailure: { kind: "other", error: "unknown", message: "", at: 1 } as never });
     expect(mark(out)).toBe("err");
-    // Never "Done" beside the cross.
-    expect(out).toMatch(/data-status="err"[\s\S]*<span class="lod-state">1 failed<\/span>/);
+    expect(out).toMatch(/data-status="err"[\s\S]*<span class="lod-state">Failed<\/span>/);
   });
 
   it("keeps the tick when nothing failed, and the live ring on a card still at work", () => {
@@ -648,9 +660,17 @@ describe("a face never draws the tick beside a failure count", () => {
   });
 
   it("is one rule, shared with the navigator", () => {
-    expect(markBesideFailures("done", 1)).toBe("err");
+    expect(markBesideFailures("done", 3)).toBe("partial");
+    expect(markBesideFailures("done", 1)).toBe("partial");
     expect(markBesideFailures("done", 0)).toBe("done");
     expect(markBesideFailures("live", 3)).toBe("live");
+    expect(markBesideFailures("err", 3)).toBe("err");
     expect(markBesideFailures("idle", 0)).toBe("idle");
+  });
+
+  it("says the count in the warning's ink on the face", () => {
+    const css = read("../styles/agent-node.css").replace(/\/\*[\s\S]*?\*\//g, "");
+    expect(css).toMatch(/\.lod-line\[data-status="partial"\] \.lod-state \{ color: var\(--warn\); \}/);
+    expect(css).toMatch(/\.state-mark\[data-kind="partial"\] \{ color: var\(--ok\); \}/);
   });
 });

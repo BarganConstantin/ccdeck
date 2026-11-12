@@ -16,6 +16,7 @@
 import { useEffect, useState } from "react";
 
 import type { KitStateName } from "./components/kit-icons";
+import { t } from "./i18n";
 import { faceStatus } from "./node-face";
 import type { AgentNodeData } from "./types";
 
@@ -30,10 +31,11 @@ export interface InspectorStatus {
  *  agent on the Board, and of a session until the pane's sentence has loaded. */
 export function cardStatus(agent: AgentNodeData): InspectorStatus {
   // The card's own head (faceStatus): a finished agent whose calls failed is
-  // the cross and "1 failed" there, so here too.
+  // the partial mark and "Done · 1 failed" there, so here too.
   const state = faceStatus(agent);
-  const glyph: KitStateName = state.tone === "active" ? "working" : state.tone === "waiting" ? "waiting" : state.tone === "err" ? "error" : state.tone === "ready" ? "idle" : "done";
-  return { glyph, phrase: state.word.toLowerCase() };
+  const glyph: KitStateName = state.tone === "active" ? "working" : state.tone === "waiting" ? "waiting" : state.tone === "partial" ? "partial" : state.tone === "err" ? "error" : state.tone === "ready" ? "idle" : "done";
+  const word = state.tone === "partial" ? `${t("board.card.stateDone")} · ${state.word}` : state.word;
+  return { glyph, phrase: word.toLowerCase() };
 }
 
 type Pane = typeof import("./inspector-status-pane");

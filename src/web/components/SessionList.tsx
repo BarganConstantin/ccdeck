@@ -90,8 +90,8 @@ export interface Row {
    *  tells two rows of one name apart without drawing it. */
   hover?: string;
   /** The root's failed tool calls over its life, the count its card says: a
-   *  finished row with any draws the cross and "1 failed" (node-face.ts
-   *  sessionMark). */
+   *  finished row with any draws the partial mark and "Done · 1 failed"
+   *  (node-face.ts sessionMark). */
   toolErrorCount?: number;
   /** Set only when another row reads the same, name and task: the row draws
    *  its start time beside its name, to this much (rail-row-copy.ts twinClocks). */

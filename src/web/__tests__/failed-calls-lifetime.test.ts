@@ -78,7 +78,7 @@ describe("a failure counts for the agent's whole life, on every surface", () => 
   });
 
   it("is on the small face", () => {
-    expect(faceSignal({ ...root, waiting: null }, undefined, words)).toMatchObject({ tone: "err", short: "3 failed" });
+    expect(faceSignal({ ...root, waiting: null }, undefined, words)).toMatchObject({ tone: "warn", short: "3 failed" });
   });
 
   it("is in the branch summary", () => {

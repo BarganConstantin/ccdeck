@@ -400,12 +400,16 @@ describe("the mark is as visible as the dot it replaced", () => {
 // floors as the dot it replaced: 4.5:1 for a state, 3:1 for the idle mark in
 // --muted, the fallback's floor.
 describe("the rail's glyph is as visible as the dot it replaced", () => {
+  // The partial mark is two parts: done's tick, and the --warn dot at its
+  // corner, a filled shape read beside the tick, so at the non-text floor.
   const RAIL_GLYPHS = [
-    { kind: "waiting", sel: '.session-list .sl-glyph[data-glyph="waiting"]', floor: BODY },
-    { kind: "working", sel: '.session-list .sl-glyph[data-glyph="working"] .state-mark', floor: BODY },
-    { kind: "done", sel: '.state-mark[data-kind="done"]', floor: BODY },
-    { kind: "error", sel: '.state-mark[data-kind="err"]', floor: BODY },
-    { kind: "idle", sel: '.state-mark[data-kind="idle"]', floor: NON_TEXT },
+    { kind: "waiting", sel: '.session-list .sl-glyph[data-glyph="waiting"]', prop: "color", floor: BODY },
+    { kind: "working", sel: '.session-list .sl-glyph[data-glyph="working"] .state-mark', prop: "color", floor: BODY },
+    { kind: "done", sel: '.state-mark[data-kind="done"]', prop: "color", floor: BODY },
+    { kind: "partial", sel: '.state-mark[data-kind="partial"]', prop: "color", floor: BODY },
+    { kind: "partial's dot", sel: ".kit-warn", prop: "fill", floor: NON_TEXT },
+    { kind: "error", sel: '.state-mark[data-kind="err"]', prop: "color", floor: BODY },
+    { kind: "idle", sel: '.state-mark[data-kind="idle"]', prop: "color", floor: NON_TEXT },
   ] as const;
 
   function railBeds(theme: Theme): Array<[string, Rgba]> {
@@ -419,8 +423,8 @@ describe("the rail's glyph is as visible as the dot it replaced", () => {
 
   it("clears its floor on every bed a row paints, in both themes", () => {
     for (const theme of themes) {
-      for (const { kind, sel, floor } of RAIL_GLYPHS) {
-        const declared = decl(sel, "color")!;
+      for (const { kind, sel, prop, floor } of RAIL_GLYPHS) {
+        const declared = decl(sel, prop)!;
         expect(declared, `${sel} colour`).toMatch(/^var\(--/);
         for (const [bedName, bed] of railBeds(theme)) {
           expect(contrastRatio(resolve(declared, theme), bed), `${theme} ${kind} glyph on ${bedName}`)

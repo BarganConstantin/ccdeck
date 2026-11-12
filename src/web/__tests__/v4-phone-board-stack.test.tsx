@@ -134,14 +134,17 @@ describe("each card wears the one mark and word its session has everywhere", () 
     for (const c of phoneBoardCards(s, NOW)) expect(c.status).toEqual(faceStatus(s.agents.get(c.row.sessionId)!));
   });
 
-  it("waiting is the alert mark and Waiting; working the live ring; site the cross and \"1 failed\"; done the tick", () => {
+  it("waiting is the alert mark and Waiting; working the live ring; site the partial mark and \"1 failed\"; done the tick", () => {
     const html = renderToStaticMarkup(createElement(PhoneBoard, { state: board(), now: NOW, onOpen: () => {} }));
     const card = (id: string) => html.slice(html.indexOf(`data-session="${id}"`), html.indexOf("</button>", html.indexOf(`data-session="${id}"`)));
     expect(card("api")).toContain("alert-mark");
     expect(card("api")).toContain(">Waiting<");
     expect(card("n1")).toMatch(/class="state-mark" data-kind="live"/);
     expect(card("n1")).toContain(">Working<");
-    expect(card("site")).toContain('data-kind="err"');
+    expect(card("site")).toContain('data-tone="partial"');
+    expect(card("site")).toContain('data-kind="partial"');
+    expect(card("site")).toContain('class="kit-warn"');
+    expect(card("site")).not.toContain('data-kind="err"');
     expect(card("site")).toContain(">1 failed<");
     expect(card("ret")).toContain('data-kind="done"');
     expect(card("ret")).toContain(">Done<");
