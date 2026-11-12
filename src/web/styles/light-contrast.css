@@ -18,3 +18,9 @@
 /* mini-map node strokes more visible */
 :root[data-color-scheme="light"] .react-flow__minimap-node { stroke: rgba(15,23,42,0.25); }
 
+/* Usage's and This machine's frame on the light canvas. Their --line-soft edge
+   is 1.09:1 there, so the panel's outline was its shadow alone; the strong
+   line, --ctl-edge, holds 3:1 against the canvas (contrast-floors.test.ts). A
+   docked panel draws no frame and a phone sheet keeps its own top edge. */
+:root[data-color-scheme="light"] :is(.usage-panel, .sysdetail) { border-color: var(--ctl-edge); }
+

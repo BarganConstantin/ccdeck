@@ -441,6 +441,12 @@
 .sysdetail .sd-reading:hover .sd-h,
 .sysdetail .sd-reading:hover .sd-row-more { color: var(--text); }
 }
+/* The 6% band takes --muted to 4.15:1 in dark, so the notes and captions under
+   it step up a tier while it is there: --text-secondary holds 4.5:1 on it in
+   every theme (contrast-floors.test.ts). A fault note keeps its --err. */
+@media (hover: hover) and (pointer: fine) {
+.sysdetail .sd-reading:hover :is(.sd-note:not(.sd-note-err), .sd-plain-note, .sd-fig-cap) { color: var(--text-secondary); }
+}
 
 /* A METER ROW (V4's Figma): the label 400 12/16 --text-secondary, the reading
    in mono 12/16 --text at the right, and the meter under them, 3 apart. The
@@ -450,6 +456,8 @@
 .sd-row-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin-bottom: 3px; }
 .sd-row-label { color: var(--text-secondary); }
 .sd-row-val { font-family: var(--font-mono); font-variant-numeric: tabular-nums; color: var(--text); }
+/* From 90 the reading is in the fill's --err, with its mark and word. */
+.level-mark > .sd-row-val { color: inherit; }
 .sd-track {
   position: relative;
   display: block;
@@ -488,6 +496,8 @@
 .sd-plain-label { color: var(--text-secondary); }
 .sd-plain-val { margin-left: auto; font-family: var(--font-mono); font-variant-numeric: tabular-nums; color: var(--text); }
 .sd-plain-val[data-err] { color: var(--err); }
+/* An error reading stands at the row's end inside its mark and word. */
+.sd-plain > .level-mark { margin-left: auto; }
 .sd-plain-note { flex: 0 0 100%; color: var(--muted); }
 
 /* THE LOAD AVERAGE: three cells 16 apart, the value in mono 400 12/16 --text

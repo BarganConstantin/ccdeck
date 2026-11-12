@@ -15,6 +15,8 @@ const catalog: Catalog = {
   "common.cancel": "취소",
   "common.close": "닫기",
   "common.notNow": "나중에",
+  "common.level.high": "높음",
+  "common.level.hot": "과열",
 };
 
 export default catalog;

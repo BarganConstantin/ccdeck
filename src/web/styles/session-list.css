@@ -467,6 +467,9 @@
    plain to 89, error from 90. A stale reading is always quiet. */
 .session-list .sl-usage-btn[data-level="low"] .sl-usage-pct { color: var(--muted); }
 .session-list .sl-usage-btn[data-level="high"] .sl-usage-pct { color: var(--err); }
+/* At error the mark and "high" stand round the figure (LevelMark), at the
+   line's end where the figure alone stood. */
+.session-list .sl-usage-line1 > .level-mark { margin-left: auto; }
 /* The old figure and the new share one cell and crossfade (FadeFigure). */
 .fade-figure { display: inline-grid; justify-items: end; }
 .fade-figure > * { grid-area: 1 / 1; }

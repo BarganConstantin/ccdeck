@@ -12,6 +12,7 @@ import { railFailed, railGlyph, railLine, railTime, rowSpoken, rowTooltip, twinS
 import { fadeIn, tokenMs } from "../rail-motion";
 import type { UsageMeter } from "../rail-usage";
 import { FadeFigure, useFillJump } from "./FadeFigure";
+import { LevelMark } from "./LevelMark";
 import { useT } from "../i18n";
 
 /** The 14px status glyph. Working breathes on --pulse-live and nothing else
@@ -192,7 +193,9 @@ export function RailUsage({ meter, onPress }: { meter: UsageMeter | null; onPres
         <span className="sl-usage-line1" aria-hidden>
           {meter.name && <span className="sl-usage-name" title={meter.name}>{meter.name}</span>}
           <span className="sl-usage-what">{t("board.rail.fiveHour")}</span>
-          <FadeFigure className="sl-usage-pct" text={meter.pctText} value={meter.fill} />
+          <LevelMark tone={meter.level === "high" ? "err" : null} word="high">
+            <FadeFigure className="sl-usage-pct" text={meter.pctText} value={meter.fill} />
+          </LevelMark>
         </span>
         <span className="sl-usage-bar" aria-hidden>
           <span className="sl-usage-fill" data-jump={jump || undefined} style={{ width: `${meter.fill}%` }}>

@@ -66,9 +66,12 @@
    (usage-panel.css), so a row that opens the inspector set its label at the
    body's 13/18.85 and its figures at 12/17.4 while a board row beside it read
    12/16. */
-.up-session-open { width: 100%; min-height: 28px; text-align: left; background: transparent; border: 0; color: inherit; font-family: inherit; cursor: pointer; border-radius: var(--r-ctl); transition: transform var(--dur-fast) var(--ease), background var(--dur-fast) var(--ease); }
+.up-session-open { width: 100%; min-height: 28px; text-align: left; background: transparent; border: 0; color: inherit; font-family: inherit; cursor: pointer; border-radius: var(--r-ctl); transition: transform var(--dur-fast) var(--ease), background var(--dur-fast) var(--ease), box-shadow var(--dur-fast) var(--ease); }
+/* The band alone is 1.06:1 on the panel in light (1.04 in dark), so the row
+   under the pointer also takes a 2px edge at its start in the strong line,
+   --ctl-edge, which holds 3:1 on the panel in every theme. */
 @media (hover: hover) and (pointer: fine) {
-.up-session-open:hover { background: var(--bg-soft); }
+.up-session-open:hover { background: var(--bg-soft); box-shadow: inset 2px 0 0 var(--ctl-edge); }
 }
 .up-session-open:active { background: var(--accent-dim); transform: scale(var(--press)); }
 .up-session-inspect { flex: none; color: var(--text-dim); }

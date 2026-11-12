@@ -15,6 +15,8 @@ const catalog: Catalog = {
   "common.cancel": "Anulează",
   "common.close": "Închide",
   "common.notNow": "Nu acum",
+  "common.level.high": "ridicat",
+  "common.level.hot": "fierbinte",
 };
 
 export default catalog;

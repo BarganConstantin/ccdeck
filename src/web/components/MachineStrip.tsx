@@ -33,6 +33,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { areaPath, band, linePath, spanLabel, yFor, SPARK_PAD, type History, type Series } from "./SectionHistoryModal";
 import { t as translate, useT } from "../i18n";
 import { fmtReading, fmtThreshold, liveReadings, type LiveSource } from "../machine-live";
+import { LevelMark } from "./LevelMark";
 
 /** The panel's own order, so the strip reads as the same machine described in
  *  the same sequence rather than as a second opinion about it. */
@@ -185,7 +186,7 @@ export default function MachineStrip({ sys }: { sys: LiveSource }) {
   );
 }
 
-function Cell({ series, stepMs, now, span }: { series: Series; stepMs: number; now: number | undefined; span: string }) {
+export function Cell({ series, stepMs, now, span }: { series: Series; stepMs: number; now: number | undefined; span: string }) {
   const t = useT();
   const { points, top, unit, warnAt, critAt } = series;
   const label = cellLabel(series);
@@ -253,6 +254,10 @@ function Cell({ series, stepMs, now, span }: { series: Series; stepMs: number; n
         )}
         <path className="pl-spark-line" d={linePath(points, SPARK_W, stepMs, top, SPARK_H, SPARK_PAD)} />
       </svg>
+      {/* Past a threshold the number's colour is said in a mark and a word,
+          under the line: the 116px head has no room beside the number without
+          cutting the label that says which reading this is. */}
+      {tone && <LevelMark tone={tone === "hot" ? "err" : "warn"} word={unit === "C" ? "hot" : "high"} />}
       {/* The one number the shape cannot be read off a 24px box, and the one
           worth having under a process list: what it reached while you were not
           looking. Said in words for a screen reader, which gets no shape at

@@ -15,6 +15,8 @@ const catalog: Catalog = {
   "common.cancel": "Cancel",
   "common.close": "Close",
   "common.notNow": "Not now",
+  "common.level.high": "high",
+  "common.level.hot": "hot",
 };
 
 export default catalog;
