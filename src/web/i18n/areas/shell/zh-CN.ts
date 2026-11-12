@@ -18,7 +18,6 @@ const catalog: Catalog = {
   "shell.rail.left": "账号与会话",
   "shell.rail.right": "用量与活动",
   "shell.appMenu": "应用菜单",
-  "shell.dragToMove": "拖动以移动 · 双击还原位置",
   // ── Workspace's side column: Usage and This machine beside the pane ──
   "shell.side.fold": "折叠",
   "shell.side.unfold": "展开",

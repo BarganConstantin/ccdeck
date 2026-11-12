@@ -18,7 +18,6 @@ const catalog: Catalog = {
   "shell.rail.left": "Conturi și sesiuni",
   "shell.rail.right": "Utilizare și activitate",
   "shell.appMenu": "Meniul aplicației",
-  "shell.dragToMove": "Trage pentru a muta · dublu clic pentru a-l pune la loc",
   // ── Workspace's side column: Usage and This machine beside the pane ──
   "shell.side.fold": "Strânge",
   "shell.side.unfold": "Desfă",

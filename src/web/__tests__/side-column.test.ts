@@ -327,10 +327,12 @@ describe("a part's header buttons", () => {
     // CHANGED ON PURPOSE (owner 2026-11-10): no board headline; chips from first paint; logs-unread sentence.
     // The folded line carries the logs' figure only: before ccusage answered it
     // printed the board's sum beside the period word.
-    expect(usage).toMatch(/<h2>\{t\("usage\.title"\)\}<\/h2>(?:\s|\{\})*\{dock\?\.folded && fromRange && <span className="side-sum">/);
+    // CHANGED ON PURPOSE (critique 3 review): the plain title is the branch for
+    // a panel with no fold-back (inspector-fold.test.ts), so a `}` may close it.
+    expect(usage).toMatch(/<h2>\{t\("usage\.title"\)\}<\/h2>\}?(?:\s|\{\})*\{dock\?\.folded && fromRange && <span className="side-sum">/);
     expect(usage).toMatch(/<DockButtons dock=\{dock\} popOut=\{place\.popOut\} \/>[\s\S]{0,200}?up-close/);
     const machine = code("components/MachinePanel.tsx");
-    expect(machine).toMatch(/<h2 className="sd-title" id="sd-title">[^<]*<\/h2>(?:\s|\{\})*\{dock\?\.folded && summary && <span className="side-sum">\{summary\}<\/span>\}\s*<DockButtons dock=\{dock\} popOut=\{place\.popOut\} \/>\s*<button type="button" className="glyph-btn sd-close"/);
+    expect(machine).toMatch(/<h2 className="sd-title" id="sd-title">[^<]*<\/h2>\}?(?:\s|\{\})*\{dock\?\.folded && summary && <span className="side-sum">\{summary\}<\/span>\}\s*<DockButtons dock=\{dock\} popOut=\{place\.popOut\} \/>\s*<button type="button" className="glyph-btn sd-close"/);
   });
 });
 
@@ -382,7 +384,9 @@ describe("the strings", () => {
 describe("the Board and the phone", () => {
   const flat = (path: string) => read(path).replace(/\/\*[\s\S]*?\*\//g, "").replace(/\s+/g, " ");
 
-  it("the wrapper is no box on the Board, so the panels float there as before", () => {
+  // CHANGED ON PURPOSE (critique 3): on the Board the panels are parts of the
+  // right column, which panel-place.css draws; this wrapper stays no box there.
+  it("the wrapper is no box on the Board, where the right column holds the panels", () => {
     expect(flat("styles/panel-place.css")).toContain(".ws-side { display: contents; }");
     // Every other rule of the column is Workspace's.
     const ws = flat("styles/workspace.css");
@@ -404,7 +408,8 @@ describe("the Board and the phone", () => {
   it("on a phone Usage and This machine are full-height sheets, one at a time, with no grip", () => {
     const phone = flat("styles/phone-sheet.css");
     expect(phone).toContain(".app.app.app .usage-panel, .app.app.app .sysdetail { height: var(--sheet-room); max-height: var(--sheet-room); }");
-    expect(code("panel-place.ts")).toContain('const grip = phone || mode === "docked" ? {} : {');
+    // CHANGED ON PURPOSE (critique 3): only a part popped out of Workspace's column has a grip.
+    expect(code("panel-place.ts")).toContain('const grip = phone || mode !== "float" ? {} : {');
   });
 });
 

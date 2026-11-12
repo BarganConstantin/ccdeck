@@ -33,7 +33,8 @@ const SELECTOR: Record<SheetName, string> = {
   accounts: ".accounts-panel:not([hidden]):not(.leaving)",
   usage: ".usage-panel:not(.leaving)",
   machine: ".sysdetail:not(.leaving)",
-  inspector: ".app > .detail:not(.leaving)",
+  // In the right column's wrapper, which is no box on a phone (panel-place.css).
+  inspector: ".app > .right-col > .detail:not(.leaving)",
 };
 /** Anything in a sheet that answers a press by itself keeps it: a drag only
  *  starts on the handle and on what is not a control. */

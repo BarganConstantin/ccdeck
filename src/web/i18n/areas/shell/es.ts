@@ -18,7 +18,6 @@ const catalog: Catalog = {
   "shell.rail.left": "Cuentas y sesiones",
   "shell.rail.right": "Uso y actividad",
   "shell.appMenu": "Menú de la aplicación",
-  "shell.dragToMove": "Arrastra para mover · doble clic para devolverlo a su sitio",
   // ── Workspace's side column: Usage and This machine beside the pane ──
   "shell.side.fold": "Plegar",
   "shell.side.unfold": "Desplegar",

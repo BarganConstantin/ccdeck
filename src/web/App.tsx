@@ -2,7 +2,7 @@ import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRe
 import { ReactFlowProvider, useReactFlow } from "reactflow";
 // Keeps a side panel mounted long enough to animate out — see panel-exit.ts
 // for why `{open && <Panel/>}` cannot do that on its own.
-import { usePanelPresence, isMounted, isDrawn, isLeaving } from "./panel-exit";
+import { usePanelPresence, isMounted, isDrawn, isLeaving, type PanelPhase } from "./panel-exit";
 import BoardFlow from "./components/BoardFlow";
 import DesktopTitlebar from "./components/DesktopTitlebar";
 import SessionList, { buildRows } from "./components/SessionList";
@@ -123,7 +123,7 @@ import { StageDockSlot, StageNavigatorSlot } from "./components/StageSlots";
 import ViewSwitch from "./components/ViewSwitch";
 import { EmptyInspector } from "./components/Inspector";
 import { readView, useView, type View } from "./use-view";
-import { useSideColumn } from "./side-column";
+import { useSideColumn, type SidePanel } from "./side-column";
 import { useInspectorFold, withInspectorFold } from "./inspector-fold";
 import SideColumn from "./components/SideColumn";
 import { SKIP_TO_PANE_MSG, WORKSPACE_PANE_ID, skipToPane } from "./workspace-pane";
@@ -768,7 +768,7 @@ function Inner() {
   }, [inWorkspace, inspectorColumn, inspectorSheet, inspectorOpen, foldInspector, showInspector, setDetailOpen, primarySelectedIdRef, stateRef, focusSession, stepAgent]);
   const sheetFoldRef = useMirroredRef<(() => void) | null>(inspectorSheet && detailShown ? foldInspector : null);
   // Usage and Machine dock in a side column in Workspace, beside the pane, and
-  // float over the Board as before (side-column.ts). One open flag each for
+  // sit in the right column on the Board (side-column.ts). One open flag each for
   // both views, so a panel open on one side of the switch is open on the other.
   const onePart = useMediaQuery(ONE_PART_QUERY);
   const side = useSideColumn({
@@ -777,14 +777,15 @@ function Inner() {
     mounted: { usage: isMounted(usagePhase), machine: isMounted(machinePhase) },
     narrow: onePart,
   });
-  // On the Board each panel's dock carries the Inspector's fold, and while the
-  // Inspector is open the home slots are one column beside it (inspector-fold.ts,
-  // panel-place.css). Workspace's column and a phone's sheets are left as they are.
+  // On the Board each panel's dock carries the Inspector's fold: a folded panel
+  // is one row at the top of the right column, above the Inspector
+  // (inspector-fold.ts, panel-place.css); opened there, it folds back to that
+  // row. Workspace's column and a phone's sheets are left as they are.
+  const refold = (k: SidePanel) => (inspectorFold.on ? () => inspectorFold.fold(k) : undefined);
   const docks = {
-    usage: withInspectorFold(side.dock.usage, inspectorFold.folds.usage, () => inspectorFold.unfold("usage")),
-    machine: withInspectorFold(side.dock.machine, inspectorFold.folds.machine, () => inspectorFold.unfold("machine")),
+    usage: withInspectorFold(side.dock.usage, inspectorFold.folds.usage, () => inspectorFold.unfold("usage"), refold("usage")),
+    machine: withInspectorFold(side.dock.machine, inspectorFold.folds.machine, () => inspectorFold.unfold("machine"), refold("machine")),
   };
-  const foldStack = !phone && !inWorkspace && detailShown;
   // UNDER 1320 THE COLUMN TAKES THE INSPECTOR'S PLACE: an Inspector sheet up
   // when the column arrives is held, and given back when the column goes (both
   // parts closed or popped out). One opened while the column is up comes in
@@ -850,6 +851,14 @@ function Inner() {
   // slot and the board's frame keep the plain flags.
   const usageRail = useRailPanel(stage, usagePanelOpen, setUsagePanelOpen);
   const machineRail = useRailPanel(stage, machinePanelOpen, setMachinePanelOpen);
+  // THE BOARD'S RIGHT COLUMN: on a desktop Board, Usage, This machine and the
+  // Inspector share one grid column and the canvas ends at its edge, so none
+  // of them floats over the board and every fit has the room that is left
+  // (panel-place.css). A panel stays in it for its exit fade; one the stage
+  // hides is out of it, as the Inspector the stage evicts is.
+  const inRightCol = (shown: boolean, phase: PanelPhase) => (shown ? isMounted(phase) : phase === "leaving");
+  const rightCol = !phone && !inWorkspace
+    && (detailShown || inRightCol(usageRail.shown, usagePhase) || inRightCol(machineRail.shown, machinePhase));
 
   // What a click, a double-click and a hover on the canvas do — use-canvas-clicks.ts.
   const clicks = useCanvasClicks({
@@ -1204,7 +1213,7 @@ function Inner() {
     // data-view exists only in Workspace, so with the Command Panel off the
     // root is the root it was; data-zoom folds the list and the Inspector
     // (workspace.css); the switch between the views is view-switch.ts.
-    <div ref={appRef} className="app" data-view={inWorkspace ? "workspace" : undefined} data-zoom={zoomPhase} data-side={side.on ? "" : undefined} data-fold-stack={foldStack ? "" : undefined}>
+    <div ref={appRef} className="app" data-view={inWorkspace ? "workspace" : undefined} data-zoom={zoomPhase} data-side={side.on ? "" : undefined} data-right-col={rightCol ? "" : undefined}>
       {/* Whether the deck has a session yet, for every part drawn below that
           stays out until it does (board-empty.ts). No element: the grid's
           children are the ones they were. */}
@@ -1434,6 +1443,11 @@ function Inner() {
           changes nothing on screen. */}
       {!phone && <EdgeRail side="right" label={t("shell.rail.right")} groups={rails.rightStripe} />}
 
+      {/* The Board's right column: Usage, This machine, then the Inspector, top
+          to bottom (panel-place.css). Always drawn, so nothing in it remounts
+          when it comes and goes; no box at all in Workspace, on a phone, or
+          with nothing in it, where each part is laid out as it always was. */}
+      <div className="right-col">
       {/* Both inside Workspace's side column, which is a track of the grid
           there with a part docked and nothing on the Board (SideColumn.tsx), so
           a panel never remounts when it docks, floats or the view switches. */}
@@ -1492,6 +1506,7 @@ function Inner() {
           onClose={inWorkspace && (inspectorColumn || inspectorSheet) ? foldInspector : sheetClose("inspector", () => { panelReturn.detail(); setDetailOpen(false); })}
         />
       ) : null}
+      </div>
 
       {/* A phone's sheets lie over a scrim; a press on it closes the one up. */}
       {phone && <div className="phone-scrim" data-open={sheets.sheet ? "" : undefined} aria-hidden="true" onClick={() => sheets.closeSheet()} />}
