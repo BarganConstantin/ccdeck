@@ -273,7 +273,7 @@ const catalog: Catalog = {
   "settings.theme.name.whiteContrast": "White Contrast",
   "settings.character.title": "Character",
   "settings.character.show": "Show the character",
-  "settings.character.note": "Stands beside the minimap. Press it to play the radio.",
+  "settings.character.note": "Stands on the bar at the bottom of the canvas. Press it to play the radio.",
   "settings.character.choose": "Choose character",
   "settings.character.name.deck": "Deck companion",
   "settings.character.name.fox": "Fox",

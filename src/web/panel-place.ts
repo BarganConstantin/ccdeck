@@ -1,11 +1,11 @@
 // Usage and the machine panel, moved by hand (owner, 2026-10-24).
 //
-// Both float over the board in the right-hand slots --rail-r gives them. The
-// owner turned a dock beside the stripe down twice and asked instead that the
-// reader can pick a panel up by its header and put it where the board is
-// empty: lower, further left, wherever the agents are not. The slot stays the
-// home a panel returns to: a double click on the header, or a drop close to
-// it, puts it back, and it follows the detail panel from there as before.
+// ON THE BOARD THEY NO LONGER FLOAT (critique 3, 2026-11-12): on a desktop
+// Board they live in the right column with the Inspector (App.tsx rightCol,
+// panel-place.css), the canvas ends at the column's edge, and nothing of theirs
+// is drawn over the cards. There they have no place and no grip. What follows
+// is a part popped out of Workspace's column, the one panel that still floats:
+// it is picked up by its header and put anywhere in the view.
 //
 // A PLACE IS KEPT FROM THE NEARER EDGE. Most windows change width more than
 // height, and a panel put down near the right stripe should stay near it when
@@ -35,6 +35,7 @@ import { useMediaQuery } from "./use-media-query";
 import { PHONE_QUERY } from "./phone-load";
 import { t } from "./i18n";
 import type { PanelDock } from "./side-column";
+import { MINIMAP_BOX, MINIMAP_FLOOR } from "./minimap-place";
 
 export type PanelPlace = {
   /** The window edge the panel is kept from. */
@@ -76,10 +77,10 @@ export function floatKey(key: string): string {
 const isDocked = (el: Element | null) => el?.getAttribute?.("data-dock") === "docked";
 /** Folded to its header while the Inspector is open on the Board (inspector-fold.ts). */
 const isTucked = (el: Element | null) => el?.getAttribute?.("data-fold") === "inspector";
-/** While the Inspector is open on the Board the home slots are one column
- *  beside it (panel-place.css, "folded by the Inspector"), and that column's
- *  flex does what the stack does here. */
-const STACK_ON = ".app[data-fold-stack]";
+/** The Board's right column is up (panel-place.css, "the Board's right
+ *  column"): its flex does what the stack does here, and a panel's height is
+ *  the column's share, not its own. */
+const STACK_ON = ".app[data-right-col]";
 
 /** Where each panel keeps the height it settled at (see useRememberedHeight). */
 const HEIGHT_KEYS: Record<string, string> = {
@@ -171,7 +172,7 @@ export function fitStack(): void {
   machine?.style.removeProperty("max-height");
   if (!usage || !machine || window.matchMedia(PHONE_QUERY).matches) return;
   // A part of Workspace's column is not stacked with anything: the column
-  // shares its height. Nor is the Board's column beside the Inspector.
+  // shares its height. Nor is a part of the Board's right column.
   if (isDocked(usage) || isDocked(machine)) return;
   if (document.querySelector(STACK_ON)) return;
   const box = (el: HTMLElement): Box => ({ left: el.offsetLeft, top: el.offsetTop, width: el.offsetWidth });
@@ -203,11 +204,11 @@ export const BOARD_EDGE = 12;
 type Span = { left: number; right: number };
 
 /**
- * NO PANEL STANDS OVER THE MINIMAP OR THE CHARACTER ON IT (owner, 2026-11-10).
- * Both stand at the canvas's bottom right, under the panels' home slots, and an
- * open Usage panel covered the minimap and half the character. Now they step
- * in past every panel their span meets, BOARD_EDGE clear of it, and are not
- * drawn when what the panels leave of the canvas cannot hold them.
+ * NO PANEL STANDS OVER THE MINIMAP (owner, 2026-11-10). In the bottom right
+ * corner it stands under the panels' home slots, and an open Usage panel
+ * covered it. Now it steps in past every panel its span meets, BOARD_EDGE
+ * clear of it, and is not drawn when what the panels leave of the canvas
+ * cannot hold it. (The character stands on the control bar since round 3.)
  *
  * A panel counts at its full height, as railCover counts it for the fit: its
  * foot moves as its readings arrive, and a minimap that jumped each time would
@@ -231,27 +232,32 @@ export function minimapInset(panels: readonly Span[], canvas: Span, width: numbe
 }
 
 /** Applies minimapInset to the panels as they stand: `--minimap-in` on the
- *  canvas, which the minimap and the character read (react-flow.css,
- *  claude-fm.css), and `data-minimap="off"` when there is no room. Offsets for
+ *  canvas, which the minimap in the right corner and the empty board's
+ *  character read (react-flow.css, claude-fm.css), and `data-minimap="off"`
+ *  when there is no room. Offsets for
  *  the panels, as fitStack, so an arriving panel's 12px of travel does not
  *  count. A docked part is in its column, not over the canvas; a phone's
  *  sheets are not beside the minimap, so a phone keeps it where it was. */
 export function fitMinimap(): void {
   const canvas = document.querySelector<HTMLElement>(".canvas-wrap");
-  // An empty board draws no minimap (board-empty.ts); the character keeps its
-  // corner, the minimap's width, and steps in for it alone.
-  const map = canvas?.querySelector<HTMLElement>(".react-flow__minimap") ?? canvas?.querySelector<HTMLElement>(".fm");
-  if (!canvas || !map) return;
+  if (!canvas) return;
+  // The minimap is drawn only while part of the board is out of view
+  // (minimap-place.ts), so its corner is fitted at its own size while it is
+  // away: right when it comes, and the empty board's character, which keeps
+  // that corner, steps in with it.
+  const map = canvas.querySelector<HTMLElement>(".react-flow__minimap");
+  const mapTop = () => map?.getBoundingClientRect().top
+    ?? canvas.getBoundingClientRect().bottom - MINIMAP_FLOOR - MINIMAP_BOX.height;
   // A header folded by the Inspector counts only where it reaches down to the
   // minimap: at the top of the column it is clear of it.
-  const clearAbove = (el: HTMLElement) => el.getBoundingClientRect().bottom + BOARD_EDGE <= map.getBoundingClientRect().top;
+  const clearAbove = (el: HTMLElement) => el.getBoundingClientRect().bottom + BOARD_EDGE <= mapTop();
   const panels = window.matchMedia(PHONE_QUERY).matches ? [] : Array.from(
     document.querySelectorAll<HTMLElement>(".usage-panel:not(.leaving), .sysdetail:not(.leaving)"),
     el => (isDocked(el) || !(el.offsetWidth > 0) || (isTucked(el) && clearAbove(el))
       ? null : { left: leftOf(el), right: leftOf(el) + el.offsetWidth }),
   ).filter((span): span is Span => span !== null);
   const box = canvas.getBoundingClientRect();
-  const inset = minimapInset(panels, { left: box.left, right: box.right }, map.offsetWidth);
+  const inset = minimapInset(panels, { left: box.left, right: box.right }, map?.offsetWidth || MINIMAP_BOX.width);
   canvas.style.setProperty("--minimap-in", `${inset ?? 0}px`);
   if (inset === null) canvas.setAttribute("data-minimap", "off");
   else canvas.removeAttribute("data-minimap");
@@ -305,8 +311,8 @@ export function useRememberedHeight(panelRef: { readonly current: HTMLElement | 
     const heightKey = HEIGHT_KEYS[key];
     if (!el || !heightKey || window.matchMedia(PHONE_QUERY).matches) return;
     const saved = Number(readStored(heightKey));
-    // In the column beside the Inspector the column shares the height: a held
-    // floor would push the panel past its foot.
+    // In the Board's right column the column shares the height: a held floor
+    // would push the Inspector under it past its foot.
     if (Number.isFinite(saved) && saved > 0 && !el.closest?.(STACK_ON)) {
       el.style.minHeight = `${Math.min(saved, Math.max(0, window.innerHeight - HEIGHT_SPARE), roomBelow(el))}px`;
       fitStack();
@@ -315,9 +321,11 @@ export function useRememberedHeight(panelRef: { readonly current: HTMLElement | 
       el.style.removeProperty("min-height");
     }, HEIGHT_HOLD_MS);
     let latest = 0;
-    // Only a floating panel's height is its own: docked, it is the column's
-    // share, and folded by the Inspector it is its header's.
-    const watch = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(() => { if (!isDocked(el) && !isTucked(el)) latest = el.offsetHeight; });
+    // Only a floating panel's height is its own: docked or in the Board's
+    // column, it is the column's share, and folded it is its header's.
+    const watch = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(() => {
+      if (!isDocked(el) && !isTucked(el) && !el.closest?.(STACK_ON)) latest = el.offsetHeight;
+    });
     watch?.observe(el);
     const keep = () => { if (latest > 0) writeStored(heightKey, String(Math.round(latest))); };
     window.addEventListener("pagehide", keep);
@@ -340,8 +348,8 @@ export function useRememberedHeight(panelRef: { readonly current: HTMLElement | 
 export function usePanelPlace(boardKey: string, dock?: PanelDock) {
   const phone = useMediaQuery(PHONE_QUERY);
   const mode = dock?.mode ?? "board";
-  // Folded by the Inspector, the panel is its header in the column beside it:
-  // no place, no grip, no held height. Its place is kept for when it opens.
+  // Folded by the Inspector, the panel is its row at the top of the Board's
+  // right column: one button that opens it, no held height.
   const tucked = mode === "board" && !!dock?.folded && !phone;
   const key = mode === "float" ? floatKey(boardKey) : boardKey;
   const [place, setPlace] = useState<PanelPlace | null>(() => parsePlace(readStored(key)));
@@ -486,7 +494,8 @@ export function usePanelPlace(boardKey: string, dock?: PanelDock) {
     fitMinimap();
   }, [tucked]);
 
-  const placed = place && !phone && mode !== "docked" && !tucked ? place : null;
+  // Only a part popped out of Workspace's column floats, so only it has a place.
+  const placed = place && !phone && mode === "float" ? place : null;
   // The pair is fitted when this panel arrives or is put somewhere, before it
   // paints; when it leaves; and when the room around them changes: the window,
   // or the canvas column, which the detail panel and the rating row resize and
@@ -512,12 +521,13 @@ export function usePanelPlace(boardKey: string, dock?: PanelDock) {
     "data-fold": mode === "docked" && dock?.folded ? "" : tucked ? "inspector" : undefined,
     style: placed ? ({ "--place-x": `${placed.x}px`, "--place-y": `${placed.y}px` } as CSSProperties) : undefined,
   };
-  // A docked part does not move: its header holds its buttons and nothing else.
-  const grip = phone || mode === "docked" ? {} : {
+  // A docked part and a panel in the Board's right column do not move: the
+  // header holds its buttons and nothing else (folded by the Inspector, one
+  // button that opens it).
+  const grip = phone || mode !== "float" ? {} : {
     "data-grip": "",
-    title: t(mode === "float" ? "shell.side.dragToDock" : "shell.dragToMove"),
+    title: t("shell.side.dragToDock"),
     onPointerDown, onPointerMove, onPointerUp, onPointerCancel, onLostPointerCapture: onPointerCancel, onDoubleClick,
   };
-  // Folded by the Inspector, the header is one button that opens it: no grip.
-  return { place: placed, panel, grip: tucked ? {} : grip, mode, popOut, tucked };
+  return { place: placed, panel, grip, mode, popOut, tucked };
 }

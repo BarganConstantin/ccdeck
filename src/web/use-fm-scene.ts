@@ -15,14 +15,15 @@ import {
 } from "./claude-fm";
 import { BEAT_MS, nextDance, nextDanceMs, type Dance } from "./claude-fm-dance";
 import { createSceneTimer } from "./claude-fm-runtime";
+import { FLOOR_EDGE } from "./fm-ledge";
 import type { Probe } from "./use-fm-player";
 
 /** @param probe what there is to play; the scene runs only while there is some.
  *  @param dead the player said it cannot play here, and the character left.
  *  @param playing the music is on, which is what the dance is for. */
 export function useFmScene(probe: Probe | null, dead: boolean, playing: boolean) {
-  /** Where along the minimap's top edge it is standing, in pixels left of
-   *  the right-hand end. Zero is where it starts. */
+  /** Where along the ledge (the control bar's top edge) it is standing, in
+   *  pixels left of the right-hand end. Zero is where it starts. */
   const [x, setX] = useState(0);
   const [walkMs, setWalkMs] = useState(0);
   /** What it is doing, which is what the sheet draws. Null when it is simply
@@ -157,8 +158,10 @@ export function useFmScene(probe: Probe | null, dead: boolean, playing: boolean)
      * EVERY NUMBER COMES FROM A RECT, and none from `getComputedStyle`. That
      * is the cost #612/#613 removed from this canvas, and render-path-cost
      * keeps a list of the two files still allowed it; adding a third is what
-     * that test exists to make somebody think twice about. The gutter is the
-     * gap between the scene and its parent, which is already laid out.
+     * that test exists to make somebody think twice about. The floor runs from
+     * the scene's right end, on the bar, to FLOOR_EDGE in from the canvas's
+     * left, and stops short of a minimap in the left corner whose foot is
+     * lower than the character's head.
      */
     const floorReach = (): number | null => {
       const el = scene.current;
@@ -167,14 +170,18 @@ export function useFmScene(probe: Probe | null, dead: boolean, playing: boolean)
       if (!el || !sprite || !parent) return null;
       const box = el.getBoundingClientRect();
       const outer = parent.getBoundingClientRect();
-      const gutter = outer.right - box.right;
-      const span = outer.width - gutter * 2 - sprite.offsetWidth;
+      let left = outer.right - outer.width + FLOOR_EDGE;
+      const map = parent.querySelector?.(".react-flow__minimap")?.getBoundingClientRect();
+      if (map && map.right <= box.right && map.bottom > box.bottom - sprite.offsetHeight) {
+        left = Math.max(left, map.right + FLOOR_EDGE);
+      }
+      const span = box.right - left - sprite.offsetWidth;
       return span > 0 ? span : null;
     };
 
     /**
      * What a trip needs to know: how far there is to fall, and how much floor
-     * is at the bottom. The minimap is a fixed size; the canvas is whatever
+     * is at the bottom. The bar is a fixed height; the canvas is whatever
      * the window is today, and both change on a resize — so both are read
      * when a trip is planned rather than held in a constant.
      *

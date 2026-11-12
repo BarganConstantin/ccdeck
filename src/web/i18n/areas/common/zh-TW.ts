@@ -15,6 +15,8 @@ const catalog: Catalog = {
   "common.cancel": "取消",
   "common.close": "關閉",
   "common.notNow": "暫時不要",
+  "common.level.high": "偏高",
+  "common.level.hot": "過熱",
 };
 
 export default catalog;

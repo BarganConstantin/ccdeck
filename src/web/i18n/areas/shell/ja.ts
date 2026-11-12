@@ -18,7 +18,6 @@ const catalog: Catalog = {
   "shell.rail.left": "アカウントとセッション",
   "shell.rail.right": "使用量とアクティビティ",
   "shell.appMenu": "アプリケーションメニュー",
-  "shell.dragToMove": "ドラッグで移動 · ダブルクリックで元の位置に戻す",
   // ── Workspace's side column: Usage and This machine beside the pane ──
   "shell.side.fold": "折りたたむ",
   "shell.side.unfold": "展開する",
@@ -353,6 +352,8 @@ const catalog: Catalog = {
   "shell.film.watch": "動画 · 30秒",
   "shell.film.duration": "30秒",
   "shell.film.hidden": "：ccdeck.dev の「{subject}」の動画、ブラウザーで開く",
+  "shell.film.watchMenu": "動画を見る（{duration}）",
+  "shell.info.label": "{panel}について",
 
   // ── feedback ──
   "shell.feedback.title": "フィードバックを送信",

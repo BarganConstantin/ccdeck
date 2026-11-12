@@ -8,9 +8,17 @@
 // higher than the half it started in, never above Usage. Run as the hook
 // itself (usePanelPlace under fake-react), against stubs of the panel and its
 // header, with the presses a mouse would make on the header.
+//
+// CHANGED ON PURPOSE (critique 3, 2026-11-12): on the Board the panels are in
+// the right column and do not move; the one that is dragged is a part popped
+// out of Workspace's column, which keeps its place under its own key.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { PLACE_KEYS, parsePlace, usePanelPlace } from "../panel-place";
+import { PLACE_KEYS, floatKey, parsePlace, usePanelPlace } from "../panel-place";
+import type { PanelDock } from "../side-column";
 import { mount } from "./fake-react";
+
+const dockOf = (mode: PanelDock["mode"]): PanelDock => ({ mode, folded: false, fold() {}, unfold() {}, popOut() {}, dock() {} });
+const FLOAT_KEY = floatKey(PLACE_KEYS.machine);
 
 vi.mock("react", async () => (await import("./fake-react")).react);
 
@@ -88,11 +96,11 @@ function stubPanel(read: () => ReturnType<typeof usePanelPlace> | null) {
 }
 
 /** Mounts the machine panel's hook, as a reload does: whatever place the
- *  browser kept is read again. */
-function machine() {
+ *  browser kept is read again. Popped out of Workspace's column unless asked. */
+function machine(mode: PanelDock["mode"] = "float") {
   let latest: ReturnType<typeof usePanelPlace> | null = null;
   const { panel, header } = stubPanel(() => latest);
-  const Panel = () => { latest = usePanelPlace(PLACE_KEYS.machine); panel.sync(latest.panel["data-place"]); return null; };
+  const Panel = () => { latest = usePanelPlace(PLACE_KEYS.machine, dockOf(mode)); panel.sync(latest.panel["data-place"]); return null; };
   const view = mount(Panel, {});
   (latest!.panel.ref as { current: unknown }).current = panel;
   const ev = (x: number, y: number) => ({
@@ -114,16 +122,15 @@ function machine() {
     view.rerender({});
     return tops;
   };
-  return { drag, panel, view, stored: () => parsePlace(store.get(PLACE_KEYS.machine) ?? null) };
+  return { drag, panel, view, grip: () => latest!.grip, stored: () => parsePlace(store.get(FLOAT_KEY) ?? null) };
 }
 
 // Workspace at 1440 x 900 with the Inspector column: Usage is the column's top
 // half under the Inspector's head (76 to 440), the machine panel the lower half.
 const USAGE_TOP_WORKSPACE = 76;
 const WORKSPACE_HOME: Rect = { left: 1080, top: 476, width: 320, height: 400 };
-// The Board: both at the top of the rail, the machine panel one slot left.
-const USAGE_TOP_BOARD = 48;
-const BOARD_HOME: Rect = { left: 740, top: 48, width: 320, height: 400 };
+// The Board's right column, beside the Inspector's place.
+const BOARD_HOME: Rect = { left: 1040, top: 48, width: 360, height: 400 };
 
 describe("the machine panel dragged up in Workspace", () => {
   it("goes above Usage, up to the top bar's foot, and is kept there", () => {
@@ -137,7 +144,7 @@ describe("the machine panel dragged up in Workspace", () => {
 
   it("goes above Usage again after a reload, from a place below it", () => {
     home = WORKSPACE_HOME;
-    store.set(PLACE_KEYS.machine, JSON.stringify({ edge: "right", x: 40, y: 600 }));
+    store.set(FLOAT_KEY, JSON.stringify({ edge: "right", x: 40, y: 600 }));
     const m = machine();
     const tops = m.drag(0, -700);
     expect(tops.at(-1)).toBe(TOPBAR);
@@ -155,14 +162,13 @@ describe("the machine panel dragged up in Workspace", () => {
     expect(m.stored()?.y).toBeLessThan(USAGE_TOP_WORKSPACE);
   });
 
-  it("goes above Usage on the Board and again back in Workspace", () => {
+  it("is not moved on the Board, where it is a part of the right column, and floats again popped out", () => {
     home = BOARD_HOME;
-    const m = machine();
-    expect(m.drag(-100, -300).at(-1), "on the Board").toBeLessThan(USAGE_TOP_BOARD);
-    // Back to Workspace: the home slot is the lower half again, the place stays.
-    m.view.rerender({});
+    store.set(PLACE_KEYS.machine, JSON.stringify({ edge: "left", x: 200, y: 300 }));
+    const board = machine("board");
+    expect(board.grip(), "no header to drag it by").toEqual({});
+    expect(board.panel.getAttribute("data-place"), "an older Board place is not drawn").toBeNull();
     home = WORKSPACE_HOME;
-    store.set(PLACE_KEYS.machine, JSON.stringify({ edge: "right", x: 40, y: 600 }));
     const again = machine();
     expect(again.drag(0, -700).at(-1)).toBeLessThan(USAGE_TOP_WORKSPACE);
   });

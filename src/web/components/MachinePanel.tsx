@@ -106,11 +106,14 @@ function Shell({ usageOpen, leaving, sub, flag, summary, dock, onClose, children
         {/* Folded by the Inspector on the Board: one button that opens it. */}
         {place.tucked && dock ? (
           <div className="sd-head">
-            <PanelFoldHead title={t("insights.machine.title")} titleId="sd-title" headingClass="sd-title" summary={summary} onOpen={dock.unfold} />
+            <PanelFoldHead title={t("insights.machine.title")} titleId="sd-title" headingClass="sd-title" summary={summary} onToggle={dock.unfold} />
           </div>
         ) : (
         <div className="sd-head">
-          <h2 className="sd-title" id="sd-title">{t("insights.machine.title")}</h2>
+          {/* Opened beside the Inspector, the title folds it back to its row. */}
+          {dock?.refold ? (
+            <PanelFoldHead title={t("insights.machine.title")} titleId="sd-title" headingClass="sd-title" open onToggle={dock.refold} />
+          ) : <h2 className="sd-title" id="sd-title">{t("insights.machine.title")}</h2>}
           {/* Folded in Workspace's column, the header keeps the live line. */}
           {dock?.folded && summary && <span className="side-sum">{summary}</span>}
           <DockButtons dock={dock} popOut={place.popOut} />

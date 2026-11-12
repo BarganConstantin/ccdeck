@@ -18,7 +18,6 @@ const catalog: Catalog = {
   "shell.rail.left": "계정 및 세션",
   "shell.rail.right": "사용량 및 활동",
   "shell.appMenu": "애플리케이션 메뉴",
-  "shell.dragToMove": "끌어서 이동 · 두 번 클릭하면 원위치",
   // ── Workspace's side column: Usage and This machine beside the pane ──
   "shell.side.fold": "접기",
   "shell.side.unfold": "펼치기",
@@ -359,6 +358,8 @@ const catalog: Catalog = {
   "shell.film.watch": "보기 · 30초",
   "shell.film.duration": "30초",
   "shell.film.hidden": ": ccdeck.dev의 {subject} 동영상, 브라우저에서 열림",
+  "shell.film.watchMenu": "동영상 보기 ({duration})",
+  "shell.info.label": "{panel} 정보",
 
   // ── feedback ──
   "shell.feedback.title": "피드백 보내기",

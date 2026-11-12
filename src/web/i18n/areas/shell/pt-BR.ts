@@ -18,7 +18,6 @@ const catalog: Catalog = {
   "shell.rail.left": "Contas e sessões",
   "shell.rail.right": "Uso e atividade",
   "shell.appMenu": "Menu do aplicativo",
-  "shell.dragToMove": "Arraste para mover · clique duas vezes para recolocar",
   // ── Workspace's side column: Usage and This machine beside the pane ──
   "shell.side.fold": "Recolher",
   "shell.side.unfold": "Expandir",
@@ -362,6 +361,8 @@ const catalog: Catalog = {
   "shell.film.watch": "Assistir · 30 s",
   "shell.film.duration": "30 s",
   "shell.film.hidden": ": o vídeo de {subject} em ccdeck.dev, abre no navegador",
+  "shell.film.watchMenu": "Assistir a um vídeo de {duration}",
+  "shell.info.label": "Sobre {panel}",
 
   // ── feedback ──
   "shell.feedback.title": "Enviar feedback",

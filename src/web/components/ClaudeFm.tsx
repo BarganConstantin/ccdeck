@@ -1,6 +1,6 @@
 // Claude FM — the one control on this deck that exists to be enjoyed.
 //
-// A small character stands beside the minimap. Press it and the Claude
+// A small character stands on the canvas's control bar. Press it and the Claude
 // channel's live stream plays; press it again and it stops. It dances while
 // the music is on and stands still when it is not. That is the whole feature,
 // and the rest of this file is the three ways it is allowed to be absent.
@@ -49,6 +49,7 @@ import {
 } from "../fm-stations";
 import { useFmPlayer, type FmPlayer } from "../use-fm-player";
 import { useFmScene } from "../use-fm-scene";
+import { useBarLedge } from "../fm-ledge";
 import CharacterSprite from "./CharacterSprite";
 import type { Character } from "../character";
 import { t as translateNow, useT, type TFunction } from "../i18n";
@@ -109,6 +110,8 @@ export const ClaudeFmCharacter = memo(function ClaudeFmCharacter({ player, sourc
 
     const { scene, suspended, x, walkMs, act, prop, ballFlight, place, facing, riser, dance, beatMs } =
       useFmScene(probe, dead, playing);
+    // The control bar's left end, which it stands on (fm-ledge.ts).
+    const ledge = useBarLedge(scene, !!probe && !dead);
 
     if (!probe || dead) return null;
 
@@ -121,7 +124,12 @@ export const ClaudeFmCharacter = memo(function ClaudeFmCharacter({ player, sourc
         className="fm"
         data-suspended={suspended ? "" : undefined}
         data-place={place}
-        style={{ "--fm-beat": `${beatMs}ms` } as CSSProperties}
+        data-ledge={ledge ? "bar" : undefined}
+        style={{
+          "--fm-beat": `${beatMs}ms`,
+          "--fm-right": ledge ? `${ledge.right}px` : undefined,
+          "--fm-ledge-w": ledge ? `${ledge.width}px` : undefined,
+        } as CSSProperties}
       >
         {/* On the ledge, and not inside the walker: a thing lying on the floor
             does not travel with whoever is about to pick it up. */}
@@ -187,14 +195,16 @@ export const ClaudeFmCharacter = memo(function ClaudeFmCharacter({ player, sourc
               <path d="M24 11H22V9H20V7H18V5H16V3H13V2H8" />
               <rect className="fm-fishing-grip" x="21" y="9" width="3" height="3" />
             </g>
+            {/* Down to the canvas floor, where the ripple is, and no further:
+                the bar's top is the ledge, and below the floor is the canvas's foot. */}
             <g className="fm-fishing-line">
-              <path d="M8 2V26" />
+              <path d="M8 2V18" />
               <g className="fm-float">
-                <rect x="7" y="25" width="3" height="2" />
-                <rect x="8" y="24" width="1" height="1" />
+                <rect x="7" y="17" width="3" height="2" />
+                <rect x="8" y="16" width="1" height="1" />
               </g>
             </g>
-            <path className="fm-ripple" d="M3 28H6M10 28H14M5 30H12" />
+            <path className="fm-ripple" d="M3 20H6M10 20H14M5 22H12" />
           </svg>
         )}
         {(["skip-ready", "skip", "skip-rest"] as (Act | null)[]).includes(act) && (

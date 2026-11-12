@@ -11,6 +11,7 @@ import { useId, useState } from "react";
 import { useT } from "../i18n";
 import { durationLabel, formatNumber } from "../i18n/format";
 import { FadeFigure, useFillJump } from "./FadeFigure";
+import { LevelMark, type LevelTone } from "./LevelMark";
 
 // ── Pace helpers ───────────────────────────────────────────────────────────
 
@@ -53,7 +54,7 @@ export function computePace(pct: number, resetAtSec: number, windowSec: number, 
     const runsOutSec = ratePerSec > 0 ? remainPct / ratePerSec : Infinity;
     const info: PaceInfo = {
       // "over pace", not "ahead" (#823): ahead reads as winning, and this is
-      // the warning. --err, the tick's own colour: usage wears no amber in V4.
+      // the warning. --err, the tick's own colour.
       label: `${Math.round(delta)}% over pace`, kind: "over", n: Math.round(delta), color: "var(--err)",
       expectedPct, isDeficit: true,
     };
@@ -101,6 +102,12 @@ export function quotaMeterColor(capped: number, isErr = capped >= 90): string {
   return isErr || capped >= 90 ? "var(--err)" : capped >= 70 ? "var(--warn)" : "var(--accent)";
 }
 
+/** The same two levels as a tone for the figure, which wears the warning mark
+ *  and "high" in it (LevelMark): null under 70, where the fill is the accent. */
+export function quotaTone(capped: number, isErr = capped >= 90): LevelTone | null {
+  return isErr || capped >= 90 ? "err" : capped >= 70 ? "warn" : null;
+}
+
 // ── Quota bar ──────────────────────────────────────────────────────────────
 interface QuotaBarProps {
   /** How full the window is, or null when the source sent no reading for it.
@@ -137,8 +144,11 @@ export default function QuotaBar({ pct, label, reset, resetAt, windowSec, limitR
   // 0.25% of the track is a fill nobody can see.
   const underOne = capped < 1;
   const pctLabel = rolled ? t("usage.quota.rolled") : !known ? t("usage.quota.noReading") : quotaPctText(capped);
-  // minimum 2% visual fill so a bar under 1% is still visible as a thin sliver
+  // A bar under 1% still draws a sliver: 2% of a track never narrower than
+  // 294px is 5.9px, past the 3px floor. At full strength, not faded: the fill's
+  // own colour is what holds 3:1 against the track (contrast-floors.test.ts).
   const fillW    = underOne ? 2 : capped;
+  const tone     = known ? quotaTone(capped, isErr) : null;
 
   const countdown = resetAt && !rolled && resetAt > nowSec ? durationLabel(t, resetAt - nowSec) : null;
   const pace = (known && resetAt && windowSec) ? computePace(capped, resetAt, windowSec, nowSec, limitReached) : null;
@@ -154,10 +164,12 @@ export default function QuotaBar({ pct, label, reset, resetAt, windowSec, limitR
           {label}
           {limitReached && !rolled && <span className="qb-limit-badge" title={t("usage.quota.rateLimitReached")}>⛔</span>}
         </span>
-        <span className="qb-pct" data-known={known || undefined}><FadeFigure text={pctLabel} value={capped} /></span>
+        <LevelMark tone={tone} word="high">
+          <span className="qb-pct" data-known={known || undefined}><FadeFigure text={pctLabel} value={capped} /></span>
+        </LevelMark>
       </div>
       <div className="qb-track">
-        {known && <div className="qb-fill" data-jump={jump || undefined} style={{ transform: `scaleX(${fillW / 100})`, background: color, opacity: underOne ? 0.4 : 1 }} />}
+        {known && <div className="qb-fill" data-jump={jump || undefined} style={{ transform: `scaleX(${fillW / 100})`, background: color }} />}
         {/* Pace marker ("green line"): where usage should be now to last until
             reset. Green when under or on pace, red when over it. Its legend is
             the note under the bar (#850), so the tick itself is not announced. */}

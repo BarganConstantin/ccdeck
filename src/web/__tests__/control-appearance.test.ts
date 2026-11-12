@@ -221,9 +221,9 @@ const EXEMPT = new Map<string, string>([
   // and the column is the hit area — a press on the empty space above a short
   // day still selects that day, which is why the target is the column and not
   // the bar. UsageHistoryModal.tsx.
-  // The context donut, whose appearance is the SVG it wraps. Its `border-radius`
-  // is there to round the focus ring, the same reason `.glyph-btn` carries one.
-  ["ctx-donut", "a hit area around an SVG donut, which is what is drawn"],
+  // CHANGED ON PURPOSE (critique 3, one meaning per glyph): the context ring
+  // left this list. It moved to the card's foot with its percent as text, so
+  // its rule now gives it the foot's type and ink: an appearance of its own.
   // A branch row in the GitHub and GitLab panel (#2179): an empty button
   // stretched over the row, whose name, commit and stats are what is drawn.
   // forge/BranchesTab.tsx.

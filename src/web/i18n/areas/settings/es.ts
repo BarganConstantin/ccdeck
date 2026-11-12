@@ -273,7 +273,7 @@ const catalog: Catalog = {
   "settings.theme.name.whiteContrast": "Blanco de alto contraste",
   "settings.character.title": "Personaje",
   "settings.character.show": "Mostrar el personaje",
-  "settings.character.note": "Está junto al minimapa. Presiónalo para reproducir la radio.",
+  "settings.character.note": "Está sobre la barra de la parte inferior del lienzo. Presiónalo para reproducir la radio.",
   "settings.character.choose": "Elegir personaje",
   "settings.character.name.deck": "Compañero de ccdeck",
   "settings.character.name.fox": "Zorro",

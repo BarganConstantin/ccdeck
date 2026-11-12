@@ -1,0 +1,109 @@
+/* ---------------- a phone's Board: a stack of readable cards ----------------
+   At 640 and under the Board is not a free canvas: App draws the stack
+   (components/PhoneBoard.tsx) in React Flow's place, and only there, so these
+   rules have nothing to match on a wider window. One full-width card per
+   session, in the Sessions list's order, the stack scrolling inside the
+   canvas's cell between the top bar and the dock. A card is --panel with a
+   --line edge and --r-panel corners, 8 apart from the next, 16 from the
+   screen's sides: its mark, name and state word; the question it waits on or
+   its task; "model · time" in mono, then a look-alike's start time. The whole
+   card is the press, at least 44 high. */
+.phone-board {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  box-sizing: border-box;
+  margin: 0;
+  padding: 12px 16px;
+  list-style: none;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.phone-board .pb-item { min-width: 0; }
+.phone-board .pb-card {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 100%;
+  min-width: 0;
+  min-height: 44px;
+  box-sizing: border-box;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-panel);
+  background: var(--panel);
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background var(--dur-fast) var(--ease), transform var(--dur-fast) var(--ease);
+}
+.phone-board .pb-card:active { transform: scale(var(--press)); }
+.phone-board .pb-card.selected { background: var(--selected); }
+
+.phone-board .pb-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.phone-board .pb-head > .alert-mark { margin-left: 0; }
+.phone-board .pb-name {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: calc(13px + var(--ui-text-increase, 0px));
+  font-weight: 600;
+}
+/* The state word at the right end, in its state's ink, never cut. */
+.phone-board .pb-state {
+  flex: none;
+  margin-left: auto;
+  font-size: calc(12px + var(--ui-text-increase, 0px));
+}
+.phone-board .pb-card[data-tone="active"] .pb-state { color: var(--inflight); }
+.phone-board .pb-card[data-tone="done"] .pb-state { color: var(--ok); }
+.phone-board .pb-card[data-tone="err"] .pb-state { color: var(--err); }
+.phone-board .pb-card[data-tone="waiting"] .pb-state { color: var(--warn); }
+.phone-board .pb-card[data-tone="ready"] .pb-state { color: var(--muted); }
+
+/* The question or the task: two lines at most, the rest in the session's pane. */
+.phone-board .pb-line {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  font-size: calc(13px + var(--ui-text-increase, 0px));
+  color: var(--text-secondary);
+}
+.phone-board .pb-line.mono { font-family: var(--font-mono); font-size: calc(12px + var(--ui-text-increase, 0px)); }
+.phone-board .pb-tool { font-weight: 600; color: var(--text); }
+.phone-board .pb-meta {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--font-mono);
+  font-size: calc(11px + var(--ui-text-increase, 0px));
+  color: var(--muted);
+}
+/* A look-alike's start time, the meta line's last part: the clocks of the
+   cards that read the same line up digit for digit. */
+.phone-board .pb-start { font-variant-numeric: tabular-nums; }
+/* On the selected card's fill the muted words step up a tier, as the list's do. */
+.phone-board .pb-card.selected .pb-meta { color: var(--text-secondary); }
+
+/* Under the session's pane the stack is out of sight and out of reach, as the
+   canvas is (stage-shell.css). */
+.canvas-wrap[data-stage="opening"] > .phone-board,
+.canvas-wrap[data-stage="open"] > .phone-board,
+.canvas-wrap[data-stage="closing"] > .phone-board { visibility: hidden; }
+
+@media (prefers-reduced-motion: reduce) {
+  .phone-board .pb-card { transition: none; }
+  .phone-board .pb-card:active { transform: none; }
+}

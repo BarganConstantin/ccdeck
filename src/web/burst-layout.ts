@@ -48,6 +48,21 @@ export function primaryBubbleWidth(_toolName: string, label: string): number {
   return Math.max(ESTIMATED_BUBBLE_W, 61 + [...label].length * 6.8);
 }
 
+/** The widest a pill grows, as the sheet caps it (tool-bursts.css: .tool-burst
+ *  and .tool-burst.sub). */
+const PRIMARY_MAX_W = 190;
+const SUB_MAX_W = 140;
+
+/** The box a bubble takes, in world space: its place, the width its label was
+ *  given (no wider than the sheet lets the pill grow) and the pill's height.
+ *  The minimap keeps off these (minimap-place.ts). */
+export function burstBox(b: Pick<Burst, "worldX" | "worldY" | "toolName" | "name" | "isSub">): {
+  left: number; top: number; right: number; bottom: number;
+} {
+  const width = Math.min(b.isSub ? SUB_MAX_W : PRIMARY_MAX_W, primaryBubbleWidth(b.toolName, b.name));
+  return { left: b.worldX, top: b.worldY, right: b.worldX + width, bottom: b.worldY + 2 * BUBBLE_HALF_H };
+}
+
 type Status = "inflight" | "done" | "err";
 
 function statusOf(t: ToolCall): Status {

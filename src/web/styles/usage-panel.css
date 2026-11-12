@@ -446,8 +446,9 @@
    A window is a top line (the name in 400 12/16 --text-secondary, the percent
    in mono 12/16 --text), a meter 2 high on a --ctl-fill track, and the line
    under it (400 12/16 --muted with its note in mono 11/14 --muted). The rows
-   are 3 apart. The meter's fill follows the panel's rule: under 70 --muted, 70
-   to 89 --text, 90 and up --err, never amber (QuotaBar.tsx). */
+   are 3 apart. The meter's fill is --accent under 70, --warn from 70 to 89 and
+   --err from 90 or at the limit (quotaMeterColor, QuotaBar.tsx); from 70 the
+   percent takes the fill's tone with the warning mark and "high" (LevelMark). */
 .up-quota-section { padding-top: 0; border-top: none; }
 .up-quota-bars { display: flex; flex-direction: column; gap: 6px; }
 .qb-row { display: flex; flex-direction: column; gap: 3px; }
@@ -469,6 +470,8 @@
   transition: color var(--dur-fast) var(--ease);
 }
 .qb-pct[data-known] { color: var(--text); }
+/* At its warning level the figure is in the tone its mark and word are in. */
+.level-mark > .qb-pct[data-known] { color: inherit; }
 /* The track is 2 high; the pace tick rides across it and stands 2 clear above
    and below, so it overflows rather than clips. */
 .qb-track {

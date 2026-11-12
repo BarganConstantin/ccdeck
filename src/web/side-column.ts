@@ -1,6 +1,6 @@
 // Usage and This machine in a side column, in Workspace (owner, 2026-11-08).
 //
-// On the Board the two float over the canvas as they always have (panel-place.ts).
+// On the Board the two sit in the right column with the Inspector (panel-place.css).
 // In Workspace they dock instead, in one column between the pane and the
 // Inspector: the terminal makes room and reflows, and nothing covers the
 // Inspector, the pane's header or its answer row. The first panel opened
@@ -143,6 +143,9 @@ export interface PanelDock {
   unfold: () => void;
   popOut: () => void;
   dock: () => void;
+  /** On the Board while the Inspector is open: folds the opened panel back to
+   *  its row at the top of the right column (inspector-fold.ts). */
+  refold?: () => void;
 }
 
 export interface SideColumn extends SideLayout {

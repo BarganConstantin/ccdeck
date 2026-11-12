@@ -26,7 +26,9 @@
 // numbers by stage-board.ts, from the same place the Inspector's Context tab
 // reads them; with no figure, or nothing used yet, no chip is drawn rather than
 // an empty one. It is a sibling of the controls, not inside them, so it fades in
-// on the morph's own `chip` ramp (stage-morph.ts) and not with the controls.
+// on the morph's own `chip` ramp (stage-morph.ts) and not with the controls. In
+// a narrow header (a phone's) it says "17% context" in the language's own
+// number format, and the bar gives its room to the word.
 //
 // THE TEXT SIZE LEADS THEM: Aa, a large A beside a small one, opens −, the
 // percent and + for the pane's own zoom (TextSizeControl.tsx), drawn while
@@ -51,6 +53,7 @@ import { agentName, type KeysOwner, type StageStatus } from "./stage-model";
 import { useState } from "react";
 import AnchoredPopover from "../AnchoredPopover";
 import { t as tNow, useT } from "../../i18n";
+import { formatPercent } from "../../i18n/format";
 import { BackGlyph, CloseGlyph, CollapseGlyph, ExpandGlyph, KeyboardGlyph, StageGlyph, glyphForState } from "./stage-icons";
 import TextSizeControl, { type TextSizeView } from "./TextSizeControl";
 import { canGoLarger, canGoSmaller } from "../../terminal-text-size";
@@ -251,7 +254,15 @@ export default function StageHeader(p: StageHeaderProps) {
       {parts && used && (
         <span className="ts-ctxchip" title={t("board.stage.contextWindow")}>
           <span className="vis-hidden">{t("board.stage.context")} </span>
-          {parts.pct == null ? parts.lead : <><span className="ts-ctxlead">{parts.lead}</span>{parts.pct}</>}
+          {parts.pct == null ? parts.lead : <>
+            <span className="ts-ctxlead">{parts.lead}</span><span className="ts-ctxpct">{parts.pct}</span>
+            {/* A header too narrow for the figure (a phone's) says the percent
+                with what it is a percent of, "17% context", where a bare
+                "17 %" said nothing; the words above stay for a screen reader. */}
+            <span className="ts-ctxshort" aria-hidden="true">
+              {t("board.stage.contextShort", { pct: formatPercent(contextPercent(used.used, used.window)) })}
+            </span>
+          </>}
           <span className="ts-ctxbar" aria-hidden="true"><i style={{ width: `${contextPercent(used.used, used.window)}%` }} /></span>
         </span>
       )}

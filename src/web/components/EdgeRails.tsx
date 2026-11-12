@@ -328,7 +328,9 @@ export function EdgeRail({ side, label, groups, foot = [] }: { side: "left" | "r
 const STRIPE_WORDS_ID = "stripe-words";
 const STRIPE_WORDS_CLASS = "rail-btn rail-btn-stripe rail-words-btn";
 
-const DOCK_MORE_ID = "dock-more";
+/** The dock's More button: what a row of its menu that opens something hands on
+ *  as its opener (rail-items.tsx commandPanelMore). */
+export const DOCK_MORE_ID = "dock-more";
 const DOCK_MENU_ID = "dock-more-menu";
 
 /** The dock's More: the three rare dialogs, in a menu like an account's ⋯.

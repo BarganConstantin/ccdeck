@@ -1,9 +1,9 @@
 /* ---------------- a right panel where the reader put it ----------------
-   Usage and the machine panel can be picked up by their header and put down
-   anywhere over the board (panel-place.ts, owner 2026-10-24). Unmoved, they
-   keep the slots --rail-r gives them (machine-panel.css); moved, the panel
-   carries `data-place` with the edge it is kept from and `--place-x` /
-   `--place-y`, and this sheet draws it there.
+   A part popped out of Workspace's column can be picked up by its header and
+   put down anywhere in the view (panel-place.ts). Moved, the panel carries
+   `data-place` with the edge it is kept from and `--place-x` / `--place-y`,
+   and this sheet draws it there. On the Board the two never float: they are
+   in the right column (below).
 
    THE CLAMP LIVES HERE, not in a resize listener, and it is the owner's room
    (2026-11-08): the whole view from under the top bar to the status bar, the
@@ -49,37 +49,63 @@
    panels are drawn as if it were not there. */
 .ws-side { display: contents; }
 
-/* ---------------- folded by the Inspector, on the Board ----------------
-   While the Inspector is open on the Board (inspector-fold.ts) the wrapper is
-   one column in the home slots beside it: Usage, then This machine, 8 apart
-   (panel-place.ts STACK_GAP), and the column shares its height between them.
-   A panel the Inspector folded is its header there, one button with the
-   title, one line of its readings and a chevron (the folded look of
-   Workspace's column); pressed, the panel opens in its slot. One with a place
-   of its own floats there once open, and one being moved leaves the column
-   for the drag. The column's width is Workspace's (SideColumn.tsx writes it),
-   so the panels keep their own and stand at its right. Never on a phone. */
-.app[data-fold-stack] .ws-side {
-  position: fixed;
-  top: calc(var(--topbar-h) + 8px + var(--rating-h, 0px));
-  right: var(--rail-r);
-  z-index: 20;
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 8px;
-  max-height: calc(100vh - var(--topbar-h) - 24px - var(--status-room, 0px) - var(--rating-h, 0px));
-  pointer-events: none;
+/* ---------------- the Board's right column ----------------
+   On a desktop Board, Usage, This machine and the Inspector live in one
+   column at the right, top to bottom (critique 3, 2026-11-12). The canvas ends
+   at the column's left edge, so nothing of theirs is drawn over the cards, and
+   every fit measures the canvas that is left (use-camera.ts). App sets
+   `data-right-col` while the column holds something (App.tsx rightCol); the
+   wrapper is no box anywhere else: in Workspace, on a phone, or empty, each
+   part is laid out as it always was.
+
+   One surface, the Inspector's: --panel with a 1px --line on its left. The
+   panels give up their floating box and take their content's height, a 1px
+   --line between parts; the Inspector takes the rest and keeps at least half.
+   With the Inspector open, a panel it folded is one row at the top (the title,
+   its figures and a chevron, inspector-fold.ts); pressed, the panel opens in
+   place above the Inspector, and its title folds it back. With no Inspector
+   an open panel has the column alone. The width is the Inspector's track, so opening the Inspector beside
+   an open panel does not move the canvas's edge. */
+.right-col { display: contents; }
+@media (min-width: 641px) {
+  body .app[data-right-col]:not(:has(.detail)) { grid-template-columns: 1fr var(--inspector-w); }
+  body .app[data-right-col]:has(.left-column):not(:has(.detail)) { grid-template-columns: auto 1fr var(--inspector-w); }
+  .app[data-right-col] > .right-col {
+    grid-column: -2 / -1;
+    grid-row: 2 / -1;
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    min-height: 0;
+    overflow: hidden;
+    background: var(--panel);
+    border-left: 1px solid var(--line);
+  }
+  /* A strip banner takes the row under the top bar, as for the Inspector (rating.css). */
+  .app[data-right-col]:has(.banner-mark, .rating-banner) > .right-col { grid-row: 3 / -1; }
+  .app[data-right-col] > .right-col > .ws-side > :is(.usage-panel, .sysdetail) {
+    position: relative;
+    inset: auto;
+    z-index: auto;
+    width: auto;
+    min-height: var(--pane-head-h);
+    max-height: none;
+    flex: 0 1 auto;
+    overflow-y: auto;
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
+  }
+  .app[data-right-col] > .right-col > .ws-side > .usage-panel + .sysdetail,
+  .app[data-right-col] > .right-col > .ws-side:not(:empty) + .detail { border-top: 1px solid var(--line); }
+  .app[data-right-col] > .right-col > .detail { flex: 1 1 0; min-height: 50%; border-left: 0; }
 }
-.app[data-fold-stack] .ws-side > :is(.usage-panel, .sysdetail):not([data-place]):not([data-moving]) {
-  position: relative;
-  inset: auto;
-  z-index: auto;
-  min-height: 0;
-  max-height: none;
-  flex: 0 1 auto;
+/* Just above the phone, beside a left panel: the column gives up what the
+   window lacks, as the Inspector's own track does (detail-panel.css). */
+@media (min-width: 641px) and (max-width: 647px) {
+  body .app[data-right-col]:has(.left-column):not(:has(.detail)) { grid-template-columns: auto 1fr minmax(0, var(--inspector-w)); }
 }
-.app[data-fold-stack] .ws-side > :not(.leaving) { pointer-events: auto; }
 .app [data-fold="inspector"] { flex: none; overflow: hidden; }
 .app [data-fold="inspector"] > :is(.up-body, .sd-body) { display: none; }
 .app [data-fold="inspector"] :is(.up-header, .sd-top) { padding: 0; border-bottom: 0; }
@@ -113,6 +139,13 @@
   font-variant-numeric: tabular-nums;
 }
 .fold-head > svg { flex: none; margin-left: auto; color: var(--muted); }
+/* Opened in place beside the Inspector, the title is that same row button with
+   the chevron turned up, and a press folds the panel back. It runs from the
+   column's edge (over the header's 12 of padding) to the header's other
+   buttons, its title where the plain one stands. */
+.app[data-right-col] .fold-row { display: flex; flex: 1 1 auto; align-self: stretch; min-width: 0; margin: 0; }
+.app[data-right-col] .fold-head[aria-expanded="true"] { height: auto; margin-left: -12px; }
+.fold-head[aria-expanded="true"] > svg { transform: rotate(180deg); }
 @media (hover: hover) and (pointer: fine) {
   .fold-head:hover { background: var(--line-soft); }
 }

@@ -33,11 +33,17 @@ describe("the open row's bars", () => {
     onDismissRefusal: () => {}, switchedHere: false, swapped: null, displaced: undefined,
     issueExpanded: false, onOpenIssue: () => {},
   } as never));
-  const printed = [...html.matchAll(/class="ap-lane-pct"[^>]*>([^<]+)</g)].map(m => m[1]);
+  // The figure, past the warning mark a high one wears (AccountRow QuotaPct).
+  const printed = [...html.matchAll(/class="ap-lane-pct"[^>]*>(?:<[^>]+>)*([^<]+)</g)].map(m => m[1]);
 
   it("print the whole percentage the shut row prints", () => {
     expect(printed).toEqual(["86%", "13%"]);
     expect(text(html)).not.toContain("85.5");
+  });
+
+  it("say a high window with the mark and the word, not its colour alone", () => {
+    expect(html).toMatch(/class="ap-lane-pct" data-level="mid"><span class="level-mark" data-tone="warn">/);
+    expect(html.match(/class="level-mark-word"/g)).toHaveLength(1);
   });
 });
 

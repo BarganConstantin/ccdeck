@@ -83,17 +83,27 @@ describe("each place draws its film", () => {
     expect(html).not.toContain("film-link");
   });
 
-  it("the Usage panel, in its header", () => {
+  // CHANGED ON PURPOSE (critique 3, one meaning per glyph): a panel header
+  // draws no ▷ any more, which read as "run" beside + and ↻. The film is the
+  // ⓘ's menu item there (v4-panel-info.test.tsx opens it), so these two pin
+  // the ⓘ in the header and the film it is handed.
+  it("the Usage panel, in its header, behind ⓘ", () => {
     const html = renderToStaticMarkup(createElement(UsagePanel, {
       state: initialState(), now: 0, providers: ASSUMED, onClose: noop,
     }));
-    expect(html).toContain(linkTo("usage"));
-    expect(html.indexOf(linkTo("usage"))).toBeLessThan(html.indexOf('class="up-body"'));
+    const info = html.indexOf('class="glyph-btn panel-info"');
+    expect(info).toBeGreaterThan(-1);
+    expect(info).toBeLessThan(html.indexOf('class="up-body"'));
+    expect(html).toMatch(/class="glyph-btn panel-info" aria-label="About Usage" title="About Usage" aria-haspopup="menu" aria-expanded="false"/);
+    expect(html).not.toContain("film-icon");
+    expect(read("../components/UsagePanel.tsx")).toMatch(/<PanelInfo film="usage" panel=\{t\("usage\.title"\)\} \/>/);
   });
 
-  it("the Claude accounts column, before any roster has arrived", () => {
+  it("the Claude accounts column, behind ⓘ, before any roster has arrived", () => {
     const html = renderToStaticMarkup(createElement(AccountsPanel, { onClose: noop }));
-    expect(html).toContain(linkTo("claudeAccounts"));
+    expect(html).toMatch(/class="glyph-btn panel-info" aria-label="About Claude accounts"/);
+    expect(html).not.toContain("film-icon");
+    expect(read("../components/AccountsHeader.tsx")).toMatch(/<PanelInfo film="claudeAccounts" panel=\{t\("accounts\.header\.title"\)\} \/>/);
   });
 
   it("Local network while it is off, beside `See how it works`", () => {

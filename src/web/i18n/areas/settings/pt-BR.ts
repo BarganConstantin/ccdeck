@@ -277,7 +277,7 @@ const catalog: Catalog = {
   "settings.theme.name.whiteContrast": "Branco, alto contraste",
   "settings.character.title": "Personagem",
   "settings.character.show": "Mostrar o personagem",
-  "settings.character.note": "Fica ao lado do minimapa. Clique nele para ouvir o rádio.",
+  "settings.character.note": "Fica sobre a barra na parte de baixo da tela. Clique nele para ouvir o rádio.",
   "settings.character.choose": "Escolher personagem",
   "settings.character.name.deck": "Companheiro do ccdeck",
   "settings.character.name.fox": "Raposa",

@@ -28,8 +28,9 @@ export interface UsageMeter {
   /** The fill's parts, left to right: one cyan part unless the page holds an
    *  honest per-session split of the window (see railSegments). */
   segments: RailSegment[];
-  /** The figure's tone: under 70 quiet, 70 to 89 plain, 90 and up error. The
-   *  bar itself never changes colour. A stale reading is always quiet. */
+  /** The figure's tone: under 70 quiet, 70 to 89 plain, 90 and up error, where
+   *  it wears the warning mark and "high" too. The bar itself never changes
+   *  colour. A stale reading is always quiet. */
   level: FigureLevel;
   /** The reading is old or the last read failed: drawn quiet. */
   stale: boolean;
@@ -104,9 +105,12 @@ export function usageMeter(held: MeterQuota | null | undefined, nowMs: number, a
   const reset = countdown ? t("accounts.row.resetsIn", { time: countdown }) : null;
   const week = weekPct != null ? t("board.meter.week", { pct: quotaPctText(weekPct) }) : null;
   const readAgo = stale ? t("board.meter.readAgo", { ago: agoShort(held!.readAt, undefined, nowMs) }) : null;
+  const level: FigureLevel = stale ? "low" : figureLevel(capped);
+  // The error level's word is said as well as drawn (RailParts.tsx).
+  const high = level === "high" && t("common.level.high");
   const spoken = t("board.meter.spoken", {
-    parts: [name, t("board.meter.fiveHour", { pct: pctText }), countdown && t("usage.quota.resetsIn", { time: countdown }), week, stale && t("board.meter.lastRead", { ago: minutesAgo(age) })]
+    parts: [name, t("board.meter.fiveHour", { pct: pctText }), high, countdown && t("usage.quota.resetsIn", { time: countdown }), week, stale && t("board.meter.lastRead", { ago: minutesAgo(age) })]
       .filter(Boolean).join(", "),
   });
-  return { name, pctText, fill: capped, segments: railSegments(), level: stale ? "low" : figureLevel(capped), stale, readAgo, reset, week, spoken };
+  return { name, pctText, fill: capped, segments: railSegments(), level, stale, readAgo, reset, week, spoken };
 }

@@ -273,7 +273,7 @@ const catalog: Catalog = {
   "settings.theme.name.whiteContrast": "Weiß, hoher Kontrast",
   "settings.character.title": "Figur",
   "settings.character.show": "Figur anzeigen",
-  "settings.character.note": "Steht neben der Minimap. Drücke darauf, um das Radio zu spielen.",
+  "settings.character.note": "Steht auf der Leiste unten im Canvas. Drücke darauf, um das Radio zu spielen.",
   "settings.character.choose": "Figur wählen",
   "settings.character.name.deck": "ccdeck-Begleiter",
   "settings.character.name.fox": "Fuchs",

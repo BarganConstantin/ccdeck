@@ -250,7 +250,8 @@ describe("the topbar's Feedback button", () => {
     // entry on every size: More drops its row (it says "Send feedback" whole
     // wherever a menu still lists it, as quick open does).
     expect(item).toMatch(/menu: t\("board\.rail\.feedback\.menu"\)/);
-    expect(app).toMatch(/more=\{\[rails\.search, \.\.\.rails\.capacity, \.\.\.rails\.right\.slice\(1\)\.flat\(\), \.\.\.rails\.integrations, \.\.\.rails\.explore, \.\.\.rails\.utilities\.filter\(item => item !== rails\.corner\)\]\}/);
+    // CHANGED ON PURPOSE (critique 3, point 7): the Command Panel's row follows Search.
+    expect(app).toMatch(/more=\{\[rails\.search, \.\.\.commandPanelMore\(stage\.enabled \? stage\.openFromButton : undefined\), \.\.\.rails\.capacity, \.\.\.rails\.right\.slice\(1\)\.flat\(\), \.\.\.rails\.integrations, \.\.\.rails\.explore, \.\.\.rails\.utilities\.filter\(item => item !== rails\.corner\)\]\}/);
     expect(app).not.toMatch(/\{!phone && <div className="tb-corner">/);
     expect(rails).toMatch(/item\.menu \?\? item\.label/);
   });

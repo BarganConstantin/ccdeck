@@ -2,7 +2,7 @@ import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRe
 import { ReactFlowProvider, useReactFlow } from "reactflow";
 // Keeps a side panel mounted long enough to animate out — see panel-exit.ts
 // for why `{open && <Panel/>}` cannot do that on its own.
-import { usePanelPresence, isMounted, isDrawn, isLeaving } from "./panel-exit";
+import { usePanelPresence, isMounted, isDrawn, isLeaving, type PanelPhase } from "./panel-exit";
 import BoardFlow from "./components/BoardFlow";
 import DesktopTitlebar from "./components/DesktopTitlebar";
 import SessionList, { buildRows } from "./components/SessionList";
@@ -51,7 +51,7 @@ import { EmptyHero, TabCapHero } from "./components/EmptyHero";
 import DetailAside from "./components/DetailAside";
 import { inspectorDoorOpen, inspectorDoorPress, inspectorIsSheet } from "./inspector-corner";
 import { EdgeDock, EdgeRail, PHONE_QUERY, UtilityRun } from "./components/EdgeRails";
-import { railItems } from "./rail-items";
+import { commandPanelMore, railItems } from "./rail-items";
 import { unreadOf, useFeedbackAccount } from "./feedback-unread";
 import { focusAfterFold } from "./fold-focus";
 // The modal and its panels load on demand; this is the light wrapper that
@@ -66,6 +66,8 @@ import type { IntegrationKind } from "./integrations/types";
 import { useMediaQuery } from "./use-media-query";
 import { ReadoutGroup } from "./components/TopbarReadouts";
 import CategoryFilterBar from "./components/CategoryFilterBar";
+import PhoneBoard from "./components/PhoneBoard";
+import RadioExperience from "./components/RadioExperience";
 import CanvasMain from "./components/CanvasMain";
 import DeckBanner from "./components/DeckBanner";
 import { OfflineCard } from "./components/ConnectionBanner";
@@ -123,7 +125,7 @@ import { StageDockSlot, StageNavigatorSlot } from "./components/StageSlots";
 import ViewSwitch from "./components/ViewSwitch";
 import { EmptyInspector } from "./components/Inspector";
 import { readView, useView, type View } from "./use-view";
-import { useSideColumn } from "./side-column";
+import { useSideColumn, type SidePanel } from "./side-column";
 import { useInspectorFold, withInspectorFold } from "./inspector-fold";
 import SideColumn from "./components/SideColumn";
 import { SKIP_TO_PANE_MSG, WORKSPACE_PANE_ID, skipToPane } from "./workspace-pane";
@@ -768,7 +770,7 @@ function Inner() {
   }, [inWorkspace, inspectorColumn, inspectorSheet, inspectorOpen, foldInspector, showInspector, setDetailOpen, primarySelectedIdRef, stateRef, focusSession, stepAgent]);
   const sheetFoldRef = useMirroredRef<(() => void) | null>(inspectorSheet && detailShown ? foldInspector : null);
   // Usage and Machine dock in a side column in Workspace, beside the pane, and
-  // float over the Board as before (side-column.ts). One open flag each for
+  // sit in the right column on the Board (side-column.ts). One open flag each for
   // both views, so a panel open on one side of the switch is open on the other.
   const onePart = useMediaQuery(ONE_PART_QUERY);
   const side = useSideColumn({
@@ -777,14 +779,15 @@ function Inner() {
     mounted: { usage: isMounted(usagePhase), machine: isMounted(machinePhase) },
     narrow: onePart,
   });
-  // On the Board each panel's dock carries the Inspector's fold, and while the
-  // Inspector is open the home slots are one column beside it (inspector-fold.ts,
-  // panel-place.css). Workspace's column and a phone's sheets are left as they are.
+  // On the Board each panel's dock carries the Inspector's fold: a folded panel
+  // is one row at the top of the right column, above the Inspector
+  // (inspector-fold.ts, panel-place.css); opened there, it folds back to that
+  // row. Workspace's column and a phone's sheets are left as they are.
+  const refold = (k: SidePanel) => (inspectorFold.on ? () => inspectorFold.fold(k) : undefined);
   const docks = {
-    usage: withInspectorFold(side.dock.usage, inspectorFold.folds.usage, () => inspectorFold.unfold("usage")),
-    machine: withInspectorFold(side.dock.machine, inspectorFold.folds.machine, () => inspectorFold.unfold("machine")),
+    usage: withInspectorFold(side.dock.usage, inspectorFold.folds.usage, () => inspectorFold.unfold("usage"), refold("usage")),
+    machine: withInspectorFold(side.dock.machine, inspectorFold.folds.machine, () => inspectorFold.unfold("machine"), refold("machine")),
   };
-  const foldStack = !phone && !inWorkspace && detailShown;
   // UNDER 1320 THE COLUMN TAKES THE INSPECTOR'S PLACE: an Inspector sheet up
   // when the column arrives is held, and given back when the column goes (both
   // parts closed or popped out). One opened while the column is up comes in
@@ -850,6 +853,14 @@ function Inner() {
   // slot and the board's frame keep the plain flags.
   const usageRail = useRailPanel(stage, usagePanelOpen, setUsagePanelOpen);
   const machineRail = useRailPanel(stage, machinePanelOpen, setMachinePanelOpen);
+  // THE BOARD'S RIGHT COLUMN: on a desktop Board, Usage, This machine and the
+  // Inspector share one grid column and the canvas ends at its edge, so none
+  // of them floats over the board and every fit has the room that is left
+  // (panel-place.css). A panel stays in it for its exit fade; one the stage
+  // hides is out of it, as the Inspector the stage evicts is.
+  const inRightCol = (shown: boolean, phase: PanelPhase) => (shown ? isMounted(phase) : phase === "leaving");
+  const rightCol = !phone && !inWorkspace
+    && (detailShown || inRightCol(usageRail.shown, usagePhase) || inRightCol(machineRail.shown, machinePhase));
 
   // What a click, a double-click and a hover on the canvas do — use-canvas-clicks.ts.
   const clicks = useCanvasClicks({
@@ -1089,6 +1100,12 @@ function Inner() {
     // No terminal: the Inspector opens as a sheet and the list stays under it.
     openSession(sessionId);
   }, [openSession, phone, closeSessionListToCanvas, stage.enabled, openInPane, markLanded, removedAgentIds, bringBack]);
+  /** A card on the phone's Board opens its session with the Sessions row's own
+   *  press, and leaving the pane comes back to the Board, where the tap was. */
+  const pickFromBoard = useCallback((sessionId: string) => {
+    pickSession(sessionId);
+    paneFromListRef.current = false;
+  }, [pickSession]);
   // Back from the pane, the phone is on Sessions again.
   const paneOpen = stage.enabled && stage.shell.phase !== "closed";
   const paneWasOpen = useRef(false);
@@ -1141,7 +1158,7 @@ function Inner() {
       usage: () => panelReturn.toggles.usage.current,
       machine: () => panelReturn.toggles.machine.current,
       inspector: () => (primarySelectedId
-        ? document.querySelector<HTMLElement>(`.session-list .sl-row[data-session="${CSS.escape(primarySelectedId)}"]`)
+        ? document.querySelector<HTMLElement>(`.session-list .sl-row[data-session="${CSS.escape(primarySelectedId)}"], .phone-board .pb-card[data-session="${CSS.escape(primarySelectedId)}"]`)
         : null),
     },
     modalOpenRef,
@@ -1204,7 +1221,7 @@ function Inner() {
     // data-view exists only in Workspace, so with the Command Panel off the
     // root is the root it was; data-zoom folds the list and the Inspector
     // (workspace.css); the switch between the views is view-switch.ts.
-    <div ref={appRef} className="app" data-view={inWorkspace ? "workspace" : undefined} data-zoom={zoomPhase} data-side={side.on ? "" : undefined} data-fold-stack={foldStack ? "" : undefined}>
+    <div ref={appRef} className="app" data-view={inWorkspace ? "workspace" : undefined} data-zoom={zoomPhase} data-side={side.on ? "" : undefined} data-right-col={rightCol ? "" : undefined}>
       {/* Whether the deck has a session yet, for every part drawn below that
           stays out until it does (board-empty.ts). No element: the grid's
           children are the ones they were. */}
@@ -1285,9 +1302,11 @@ function Inner() {
         // active at a time: Sessions gives way while a sheet is up over it, and
         // then its press means "go to Sessions" (the sheet closes, the list
         // stays), so the door never says closed and does the other thing.
+        // The Command Panel is a row of More, after Search, while the deck has a
+        // terminal: the phone's Board draws no canvas bar to hold its button.
         ? <EdgeDock
             items={[...rails.left, ...rails.right[0]].map(sessionsDoorUnderSheet)}
-            more={[rails.search, ...rails.capacity, ...rails.right.slice(1).flat(), ...rails.integrations, ...rails.explore, ...rails.utilities.filter(item => item !== rails.corner)]}
+            more={[rails.search, ...commandPanelMore(stage.enabled ? stage.openFromButton : undefined), ...rails.capacity, ...rails.right.slice(1).flat(), ...rails.integrations, ...rails.explore, ...rails.utilities.filter(item => item !== rails.corner)]}
             offline={everConnected && !live} />
         : <EdgeRail side="left" label={t("board.rail.tools")} groups={rails.leftStripe} foot={rails.leftFoot} />}
 
@@ -1367,13 +1386,24 @@ function Inner() {
             choice the user made and forgetting it silently is the other way to
             be wrong. What must never happen is keeping the choice and taking
             away the control. */}
-        {(presentCats.length > 1 || hiddenCats.size > 0) && (
+        {!phone && (presentCats.length > 1 || hiddenCats.size > 0) && (
           <CategoryFilterBar
             catBarRef={catBarRef} catBarOccluded={catBarOccluded}
             presentCats={presentCats} hiddenCats={hiddenCats} toggleCat={toggleCat}
           />
         )}
-        {/* React Flow, and everything drawn in its pane — components/BoardFlow.tsx. */}
+        {/* A phone's Board is a stack of readable cards, with no free canvas
+            and none of its controls — components/PhoneBoard.tsx. The radio
+            plays on there without its companion, which would stand on the
+            cards. Wider, React Flow and everything drawn in its pane —
+            components/BoardFlow.tsx. */}
+        {phone ? (
+          <>
+            <PhoneBoard state={stateRef.current} now={now} watching={watchingSessions} removedIds={removedAgentIds}
+              selectedIds={selectedIds} onOpen={pickFromBoard} />
+            <RadioExperience fm={fm} character={appearance.character} characterEnabled={false} open={radioOpen} onClose={closeRadio} />
+          </>
+        ) : (
         <BoardFlow
           graph={graph} layout={layout} viewport={viewport} clicks={clicks} drag={drag}
           appearance={appearance} fm={fm} radioOpen={radioOpen} onRadioClose={closeRadio} autoFit={autoFit} pause={pause}
@@ -1383,6 +1413,7 @@ function Inner() {
           onTerminal={stage.enabled ? stage.openFromButton : undefined}
           notesDrawn={zoom.lod === "detail"}
         />
+        )}
         {/* The board's compact form while the stage is open, in the canvas's
             place and inside <main> with the board it stands for — components/
             StageSlots.tsx. Nothing at all with the terminal flag off. */}
@@ -1413,7 +1444,7 @@ function Inner() {
         <QuickOpen onClose={closeQuickOpen} onRun={runQuick} items={quickOpenItems({
           rails: quickRails, sessions: buildRows(stateRef.current, now), openSession: pickSession,
           settings: indexFor(providers.claude, integrationsReach(integrations), offeredKinds(integrations)), openSettings,
-          singleKeys, fit: handleFit, rearrange: handleRelayout, paused, togglePause,
+          singleKeys, fit: handleFit, rearrange: handleRelayout, phone, paused, togglePause,
           clear: boardEmpty ? undefined : () => requestClear("button"),
           nextWaiting: blockedSessions(stateRef.current.agents.values()).length > 0 ? quickNextWaiting : undefined,
           start: quickStart(),
@@ -1434,6 +1465,11 @@ function Inner() {
           changes nothing on screen. */}
       {!phone && <EdgeRail side="right" label={t("shell.rail.right")} groups={rails.rightStripe} />}
 
+      {/* The Board's right column: Usage, This machine, then the Inspector, top
+          to bottom (panel-place.css). Always drawn, so nothing in it remounts
+          when it comes and goes; no box at all in Workspace, on a phone, or
+          with nothing in it, where each part is laid out as it always was. */}
+      <div className="right-col">
       {/* Both inside Workspace's side column, which is a track of the grid
           there with a part docked and nothing on the Board (SideColumn.tsx), so
           a panel never remounts when it docks, floats or the view switches. */}
@@ -1492,6 +1528,7 @@ function Inner() {
           onClose={inWorkspace && (inspectorColumn || inspectorSheet) ? foldInspector : sheetClose("inspector", () => { panelReturn.detail(); setDetailOpen(false); })}
         />
       ) : null}
+      </div>
 
       {/* A phone's sheets lie over a scrim; a press on it closes the one up. */}
       {phone && <div className="phone-scrim" data-open={sheets.sheet ? "" : undefined} aria-hidden="true" onClick={() => sheets.closeSheet()} />}

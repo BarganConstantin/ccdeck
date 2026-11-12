@@ -18,7 +18,6 @@ const catalog: Catalog = {
   "shell.rail.left": "Conturi și sesiuni",
   "shell.rail.right": "Utilizare și activitate",
   "shell.appMenu": "Meniul aplicației",
-  "shell.dragToMove": "Trage pentru a muta · dublu clic pentru a-l pune la loc",
   // ── Workspace's side column: Usage and This machine beside the pane ──
   "shell.side.fold": "Strânge",
   "shell.side.unfold": "Desfă",
@@ -365,6 +364,8 @@ const catalog: Catalog = {
   "shell.film.watch": "Vezi · 30 s",
   "shell.film.duration": "30 s",
   "shell.film.hidden": ": videoclipul „{subject}” de pe ccdeck.dev, se deschide în browser",
+  "shell.film.watchMenu": "Vezi un videoclip de {duration}",
+  "shell.info.label": "Despre {panel}",
 
   // ── feedback ──
   "shell.feedback.title": "Trimite feedback",

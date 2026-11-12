@@ -32,7 +32,8 @@ import type { PanelToggles } from "./use-panel-return";
 import { isApplePlatform, platformName } from "./platform";
 import { quickOpenChordLabel } from "./quick-open";
 import { settingsChordLabel, type SettingsSection } from "./settings";
-import type { RailItem } from "./components/EdgeRails";
+import { DOCK_MORE_ID, type RailItem } from "./components/EdgeRails";
+import { KitIcon } from "./components/kit-icons";
 import type { IntegrationWebDef } from "./integrations/types";
 import type { CapacityView } from "./components/AccountsUsageReport";
 import {
@@ -361,4 +362,22 @@ export function railItems({
     explore,
     integrations: trackers,
   };
+}
+
+/**
+ * The Command Panel's way in on a phone: one row under the dock's More, right
+ * after Search. The canvas bar's Terminal button was the phone's only door to
+ * it, and the phone's Board draws no canvas bar. A row only while the deck has
+ * a terminal (`open` is the stage's openFromButton, absent with the stage off),
+ * named as that button is; its press is the button's, with the More button as
+ * the opener, which is where focus goes back.
+ */
+export function commandPanelMore(open: ((opener: Element | null) => void) | undefined): RailItem[] {
+  if (!open) return [];
+  const label = t("board.controls.openPanel");
+  return [{
+    id: "command-panel", label, short: label, ariaLabel: label, detail: t("board.controls.openPanelTip"),
+    glyph: <KitIcon name="terminal" />, kind: "panel",
+    onPress: () => open(typeof document === "undefined" ? null : document.getElementById(DOCK_MORE_ID)),
+  }];
 }
