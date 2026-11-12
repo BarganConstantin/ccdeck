@@ -8,10 +8,11 @@
 import dagre from "dagre";
 import type { Node, Edge } from "reactflow";
 import {
-  cardSize, COLUMN_GAP, fitZoom, footprint, FULL_SIZE, groupBySession, MAX_COLUMNS, ONE_COLUMN_ZOOM, SESSION_GAP, SIBLING_GAP,
-  TOOL_LANE_W, type Lanes,
+  cardSize, COLUMN_GAP, fitZoom, footprint, FULL_SIZE, groupBySession, MAX_COLUMNS, ONE_COLUMN_ZOOM, RANK_SEP, SESSION_GAP,
+  SIBLING_GAP, TOOL_LANE_W, type Lanes,
 } from "./layout-geometry";
 import { fitZoomForDrawnLanes } from "./semantic-zoom";
+import { PACKED_GAP, squeezeSpans } from "./packed-board";
 
 // The shared measurements are layout-geometry.ts's. The lane map's type and
 // its signature are part of what callers hand the passes, so the rest of the
@@ -66,10 +67,6 @@ export interface LayoutOptions {
  * them makes a session claim its distance from the canvas origin as size.
  */
 interface PinnedBox { minX: number; minY: number; maxX: number; maxY: number }
-
-/** dagre's gap between two ranks: the room an edge takes to turn from a parent
- *  card to its children when nothing else stands between them. */
-const RANK_SEP = 160;
 
 /** Clear canvas kept between the end of a parent's bubble trail and its
  *  children's cards. */
@@ -127,6 +124,8 @@ function layoutSession(
   /** How far in from the session's left edge its first card stands: the room
    *  its recap note takes, which is empty canvas below the full card. */
   cardLeft: number;
+  /** Its cards' width from that line as the faces draw them, packed. */
+  packedTail: number;
   pinnedBox: PinnedBox | null;
 } {
   const g = new dagre.graphlib.Graph();
@@ -190,6 +189,12 @@ function layoutSession(
   let cardLeft = Infinity;
   for (const [id, p] of positions) if (!notes.has(id)) cardLeft = Math.min(cardLeft, p.x);
   if (!Number.isFinite(cardLeft)) cardLeft = 0;
+  // How wide its cards are from that line where the faces draw the board
+  // packed (packed-board.ts): the bands kept for bubbles closed up.
+  const spans = [...positions].filter(([id]) => !notes.has(id))
+    .map(([id, p]) => ({ left: p.x, right: p.x + cardSize(id, measured).w }));
+  const squeeze = squeezeSpans(spans);
+  const packedTail = spans.length > 0 ? Math.max(...spans.map(s => squeeze.at(s.right))) - cardLeft : 0;
 
   // The session's cluster box is drawn around every member, pinned ones
   // included, so the space it claims has to account for them too — otherwise
@@ -216,7 +221,7 @@ function layoutSession(
       maxY: Math.max(pinnedBox.maxY, p.y + h),
     };
   }
-  return { positions, width, height, cardLeft, pinnedBox };
+  return { positions, width, height, cardLeft, packedTail, pinnedBox };
 }
 
 /** One session after dagre, waiting to be packed into a column. */
@@ -289,6 +294,13 @@ const widthOf = (col: Column) => lineWidth(col) + TOOL_LANE_W;
  * 44% beside an empty half of the stage, where 4 + 3 shows them larger. The
  * columns are still set that far apart (widthOf): what the fit does not frame
  * from afar is drawn when the board is read close.
+ *
+ * And from afar the lanes and gaps between columns are not drawn either: the
+ * faces draw the board packed, PACKED_GAP between two columns' cards
+ * (packed-board.ts), and the fit sizes its zoom on that (fit-board.ts). The
+ * score's `bare` is that packed width. Scored on the width as laid out, a
+ * board beside two panels was cut into one tall column the auto-fit could only
+ * show at its floor, where two columns packed showed every card whole.
  */
 function packColumns(laid: LaidSession[], frameW: number, frameH: number): Column[] {
   const n = laid.length;
@@ -310,19 +322,22 @@ function packColumns(laid: LaidSession[], frameW: number, frameH: number): Colum
     }
     return row;
   });
-  // The first column of [0, j): where its card line stands, which is where the
-  // fit's frame of the cards alone begins.
-  const lead = [0];
-  for (let j = 0, m = 0; j < n; j++) lead.push(m = Math.max(m, laid[j].cardLeft));
-  const firstLine = (starts: readonly number[]) => lead[starts.length > 1 ? starts[1] : n];
+  // The same run's width as the faces draw it: its widest packed stretch of
+  // cards from the line.
+  const packedWidest = laid.map((_, i) => {
+    const row: number[] = [];
+    for (let j = i, tail = 0; j < n; j++) row.push(tail = Math.max(tail, laid[j].packedTail));
+    return row;
+  });
   const score = (starts: readonly number[]) => {
-    let w = 0, h = 0;
+    let w = 0, packed = 0, h = 0;
     for (let c = 0; c < starts.length; c++) {
       const i = starts[c], j = c + 1 < starts.length ? starts[c + 1] : n;
       w += widest[i][j - 1 - i] + (c + 1 < starts.length ? TOOL_LANE_W + COLUMN_GAP : 0);
+      packed += packedWidest[i][j - 1 - i] + (c + 1 < starts.length ? PACKED_GAP : 0);
       h = Math.max(h, tops[j] - tops[i] - SESSION_GAP);
     }
-    const bare = fitZoom(w - firstLine(starts), h, frameW, frameH);
+    const bare = fitZoom(packed, h, frameW, frameH);
     return { shows: fitZoomForDrawnLanes(fitZoom(w + TOOL_LANE_W, h, frameW, frameH), bare), bare, h };
   };
 
@@ -330,10 +345,11 @@ function packColumns(laid: LaidSession[], frameW: number, frameH: number): Colum
   let top = score(best);
   if (top.bare >= ONE_COLUMN_ZOOM) return one;
   const EPS = 1e-9;
-  // `fixed` and `tallest` are the width and the height of the columns before
-  // the last: cutting the last again never takes from either, so a branch
-  // whose fixed columns alone, or the rest shared out over the columns left,
-  // already show less than the best cut so far is not walked.
+  // `fixed` and `tallest` are the packed width and the height of the columns
+  // before the last: cutting the last again never takes from either, so a
+  // branch whose fixed columns alone, or the rest shared out over the columns
+  // left, already show less than the best cut so far is not walked. Packed,
+  // because no cut shows more than its packed width lets it (`bare`).
   const walk = (starts: number[], fixed: number, tallest: number) => {
     if (starts.length > 1) {
       const s = score(starts);
@@ -347,11 +363,9 @@ function packColumns(laid: LaidSession[], frameW: number, frameH: number): Colum
     const last = starts[starts.length - 1];
     const left = MAX_COLUMNS - starts.length;
     for (let at = last + 1; at < n; at++) {
-      const next = fixed + widest[last][at - 1 - last] + TOOL_LANE_W + COLUMN_GAP;
+      const next = fixed + packedWidest[last][at - 1 - last] + PACKED_GAP;
       const high = Math.max(tallest, tops[at] - tops[last] - SESSION_GAP);
-      // The cut at `at` closes the first column when there is none yet.
-      const inset = lead[starts.length > 1 ? starts[1] : at];
-      if (Math.min(FULL_SIZE, frameW / (next - inset), frameH / high) < top.shows - EPS) break;
+      if (Math.min(FULL_SIZE, frameW / next, frameH / high) < top.shows - EPS) break;
       const rest = (tops[n] - tops[at] - left * SESSION_GAP) / left;
       if (Math.min(FULL_SIZE, frameH / Math.max(high, rest)) < top.shows - EPS) continue;
       walk([...starts, at], next, high);

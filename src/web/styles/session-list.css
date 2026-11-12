@@ -171,6 +171,16 @@
 /* Its words lead the second line, in the tool name's ink, so the first line
    keeps the session's name whole beside the model and the clock. */
 .session-list .sl-off { font-weight: 500; color: var(--text-secondary); }
+/* "1 failed" leads the second line of a finished row whose calls failed, in
+   the cross's ink, as the card's face says it beside the same mark. */
+.session-list .sl-failed { font-weight: 500; color: var(--err); }
+/* When a row that reads like another started (twinClocks): it leads the second
+   line in the model's quiet mono, so the name keeps the first line whole. */
+.session-list .sl-start {
+  font-family: var(--font-mono);
+  font-size: calc(11px + var(--ui-text-increase, 0px));
+  font-variant-numeric: tabular-nums;
+}
 
 /* LAND: the row a jump arrived at says "here" once, --accent-16 fading to
    nothing over --dur-base. Opacity only, so reduced motion keeps it. */
@@ -233,7 +243,7 @@
   overflow: hidden;
   text-overflow: ellipsis;
 }
-/* The model, and the words for a session off the board: the same mono tag. */
+/* The model, a mono tag after the name. */
 .session-list .sl-model {
   flex: none;
   font-family: var(--font-mono);

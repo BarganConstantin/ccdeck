@@ -17,6 +17,7 @@ import { typedPrompts } from "../injected-prompt";
 import CostBar from "./CostBar";
 import { Dialog } from "./Dialog";
 import { StateMark } from "./StateMark";
+import { sessionMark, type StateMarkKind } from "../node-face";
 import { useModalDismiss, useScrimDismiss } from "./use-modal-dismiss";
 
 interface Props {
@@ -55,9 +56,10 @@ export default function SessionSummary({ state, sessionId, onClose }: Props) {
         </div>
 
         <div className="modal-body">
-          {/* V4's who line: the done mark, the session's name and its short id. */}
+          {/* V4's who line: the session's mark, its name and its short id. The
+              mark is its card's: the cross when its calls failed, not done's tick. */}
           <div className="ss-who" title={summary.cwd ?? summary.sessionId}>
-            <StateMark kind="done" />
+            <StateMark kind={summary.mark} />
             <span id="ss-who-name" className="ss-who-name">{summary.label}</span>
             <span className="ss-who-id">· {summary.sessionId.slice(0, 8)}</span>
           </div>
@@ -149,6 +151,8 @@ interface Summary {
   errCount: number;
   topTools: Array<[string, number]>;
   firstPrompt?: string;
+  /** The mark the session's card and row draw (node-face.ts sessionMark). */
+  mark: StateMarkKind;
 }
 
 function buildSummary(state: GraphState, sessionId: string): Summary | null {
@@ -227,5 +231,6 @@ function buildSummary(state: GraphState, sessionId: string): Summary | null {
     errCount,
     topTools,
     firstPrompt,
+    mark: sessionMark(root),
   };
 }

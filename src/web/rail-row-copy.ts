@@ -7,6 +7,8 @@ import { blockedToolTooltip, waitingSentence } from "./agent-copy";
 import { fmtCost } from "./pricing";
 import { sessionSpendLabel } from "./board-usage";
 import { currentLanguage, t, type TFunction } from "./i18n";
+import { clockTime } from "./i18n/format";
+import { sessionMark } from "./node-face";
 import { noteSource, noteTag, promptLine } from "./session-note";
 import { planSpoken } from "./agent-plan";
 import { salientField } from "./tool-input";
@@ -14,7 +16,7 @@ import type { Row } from "./components/SessionList";
 import { agoShort, elapsedShort } from "./elapsed-short";
 import type { RailGroup } from "./rail-model";
 import { distinctIdTail } from "./session-id-tail";
-import { sessionListName } from "./session-display";
+import { sessionDisplay, sessionListName } from "./session-display";
 import { injectedPrompt } from "./injected-prompt";
 import type { AgentNodeData, PromptEntry } from "./types";
 
@@ -26,7 +28,9 @@ export type RailGlyphKind = "waiting" | "working" | "done" | "idle" | "error";
 export function railGlyph(r: Row, group: RailGroup): RailGlyphKind {
   if (group === 0) return "waiting";
   if (group === 1) return "working";
-  if (r.state === "err") return "error";
+  // The card's own mark (node-face.ts sessionMark): a failure, or a finished
+  // turn whose calls failed, is the cross, never done's tick.
+  if (sessionMark(r) === "err") return "error";
   if (r.neverPrompted) return "idle";
   // Done · new and Done are a turn that ended, whatever the root's state still
   // says: a row marked active with an idle-prompt block is "your turn", and
@@ -76,6 +80,22 @@ export function sessionTask(a: Pick<AgentNodeData, "prompts" | "firstPrompt">): 
   return text ? promptLine(text) : "";
 }
 
+/**
+ * What a card's face says from a distance (AgentNode's NodeFace), at every
+ * distance below the full card: a root's task, else the name it was given or
+ * Claude Code's title; a subagent's own task, else its name.
+ *
+ * Never the folder (owner's critique, round 3): the session's tag right above
+ * the face names it, and a face that said it again read "ccdeck" under
+ * "CCDECK". Empty when a root has been asked nothing and has no name, and the
+ * face then draws its state alone.
+ */
+export function faceTask(a: Pick<AgentNodeData, "kind" | "label" | "sessionName" | "sessionTitle" | "prompts" | "firstPrompt" | "spawnCall">): string {
+  if (a.kind !== "root") return a.spawnCall?.description || a.label;
+  const said = sessionTask(a) || sessionDisplay(a.sessionName, a.sessionTitle).face || "";
+  return said && !sameWords(said, a.label) ? said : "";
+}
+
 /** sessionTask's prompt whole, every line of it: for a surface that cuts it to
  *  a measure of its own. */
 export function lastTypedPrompt(a: Pick<AgentNodeData, "prompts" | "firstPrompt">): string {
@@ -108,8 +128,67 @@ export function startedLine(startedAt: number, idTail: string, now = Date.now(),
   const lang = currentLanguage();
   const at = new Date(startedAt);
   const day = at.toDateString() === new Date(now).toDateString() ? "" : `${at.toLocaleDateString(lang, { weekday: "short" })} `;
-  const time = `${day}${at.toLocaleTimeString(lang, { hour: "2-digit", minute: "2-digit" })}`;
+  const time = `${day}${clockTime(startedAt, false, lang)}`;
   return `${tr("board.row.startedAt", { time })} · ${idTail}`;
+}
+
+/** "1 failed" on a finished row whose calls failed: the words its card's face
+ *  says beside the same cross (node-face.ts faceStatus). The row stays in its
+ *  Done group. Null on every other row: a turn that stopped on an error says
+ *  Failed by its mark, and a running one keeps its ring. */
+export function railFailed(r: Row, group: RailGroup, tr: TFunction = t): string | null {
+  if (r.state !== "done" || railGlyph(r, group) !== "error") return null;
+  return tr("board.failedCount", { n: r.toolErrorCount ?? 0 });
+}
+
+/** A session as twinClocks weighs it: the name and the task line it is drawn
+ *  with, and when it started. */
+export interface TwinCandidate {
+  id: string;
+  title: string;
+  task?: string;
+  startedAt: number;
+}
+
+/** How much of its start time a look-alike draws: the minute, or the seconds
+ *  too when two of its look-alikes started in the same minute. */
+export type TwinClock = "minute" | "second";
+
+/**
+ * THE SHORTEST DIFFERENCE BETWEEN SESSIONS THAT READ THE SAME (owner's critique,
+ * 2026-11-12): three cards and three rows read "ccdeck · Write the release notes
+ * for 3.83" and nothing told them apart. Only where two or more of the sessions
+ * a surface shows share the name and the task line does each of them draw when
+ * it started beside its name; a session that reads like no other is left
+ * exactly as it was. Names compare as a reader takes them (sameWords). The
+ * Sessions list asks it of its rows, the board of the cards it draws.
+ */
+export function twinClocks(items: Iterable<TwinCandidate>): Map<string, TwinClock> {
+  const looks = new Map<string, TwinCandidate[]>();
+  for (const it of items) {
+    const key = JSON.stringify([it.title.trim().toLowerCase(), (it.task ?? "").trim().toLowerCase()]);
+    const same = looks.get(key);
+    if (same) same.push(it); else looks.set(key, [it]);
+  }
+  const out = new Map<string, TwinClock>();
+  for (const same of looks.values()) {
+    if (same.length < 2) continue;
+    const minutes = new Set(same.map(it => minuteOfDay(it.startedAt)));
+    const clock: TwinClock = minutes.size < same.length ? "second" : "minute";
+    for (const it of same) out.set(it.id, clock);
+  }
+  return out;
+}
+
+/** The minute a clock shows for a time: two days' 14:32 read the same. */
+function minuteOfDay(ms: number): number {
+  const at = new Date(ms);
+  return at.getHours() * 60 + at.getMinutes();
+}
+
+/** A look-alike's start time as it is drawn beside its name. */
+export function twinStart(startedAt: number, clock: TwinClock): string {
+  return clockTime(startedAt, clock === "second");
 }
 
 /** Two names a reader takes for one: case and the space around them aside. */

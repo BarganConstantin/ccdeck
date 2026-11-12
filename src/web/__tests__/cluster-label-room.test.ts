@@ -170,7 +170,9 @@ describe("the layer draws what the room says", () => {
   });
 
   it("sizes the pill from the room and hides it when there is none", () => {
-    expect(component).toContain("const room = labelRoom(c, { x, y, zoom }, pane, chrome);");
+    // Round 3: where the notes are not drawn the board is packed and the pill
+    // reaches only as far as the packed gap lets it.
+    expect(component).toContain("const room = labelRoom(c, { x, y, zoom }, pane, chrome, notes ? undefined : PACKED_LABEL_GUTTER);");
     expect(component).toContain("const labelStyle = clusterLabelStyle(c, zoom, hue, room.maxWidth);");
     expect(component).toContain('data-offpane={room.hidden ? "" : undefined}');
     // The width is the room's, and the room never exceeds the gutter's cap.

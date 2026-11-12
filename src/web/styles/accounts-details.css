@@ -79,7 +79,7 @@
   .rating-banner .rating-pick:active,
   .rating-banner .rating-later:active,
   .ctx-donut:active,
-  .session-list .sl-row:active, .session-list .sl-icon-btn:active, button.tool.clickable:active,
+  .session-list .sl-row:active, .session-list .sl-icon-btn:active, button.tool.clickable:active, .call-kind:active,
   .session-list .sl-usage-btn:active,
   .uh-bar-col:active, .ap-failure-x:active,
   .ap-field select:active:not(:disabled),

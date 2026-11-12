@@ -9,6 +9,7 @@
 // comes in as children, so none of it is relayed through here.
 import type { MutableRefObject, ReactNode } from "react";
 
+import { useBoardEmpty } from "../board-empty";
 import { isCanvasNodeElement } from "../canvas-node-element";
 import { releasePointerFocus } from "../canvas-pointer-focus";
 import { isMounted } from "../panel-exit";
@@ -47,6 +48,9 @@ export default function CanvasMain({ canvasRef, bubbling, dragging, trash, zoom,
   const { lod, lodRef } = zoom;
   const { markCanvasInput } = viewport;
   const { peekAgent, peekLabel, peekPeers, peekRecap, peekBounds } = peek;
+  // No session yet: the minimap is not drawn, and the character stands in
+  // its corner instead (claude-fm.css reads this).
+  const empty = useBoardEmpty();
   return (
     /* <main>, because the canvas is what this page is: everything else on
        screen — the toolbar above it, the panels beside it — exists to
@@ -72,6 +76,7 @@ export default function CanvasMain({ canvasRef, bubbling, dragging, trash, zoom,
       data-lod={lod}
       data-live={joins ? "" : undefined}
       data-stage={stagePhase}
+      data-empty={empty ? "" : undefined}
       ref={canvasRef}
       onMouseDownCapture={releasePointerFocus}
       /* The three that say a human is working this canvas right now. They

@@ -75,7 +75,10 @@ describe("the camera's numbers are the sheet's", () => {
     }
     expect(stripped("use-board-layout.ts")).toMatch(/moveCamera\(kept\.viewport, CAMERA_SLOW_MS\)/);
     expect(stripped("use-agent-focus.ts")).toMatch(/const FOCUS_MS = CAMERA_SLOW_MS;/);
-    expect(stripped("use-camera.ts")).toMatch(/fitLeft = useCallback\(\(duration = CAMERA_SLOW_MS\)/);
+    // Round 3 adds who asked (the auto-fit, or a Fit all that still holds)
+    // after the duration.
+    expect(stripped("use-camera.ts")).toMatch(/fitLeft = useCallback\(\(duration = CAMERA_SLOW_MS, reach: FitReach = fitAllHeldRef\.current \? "all" : "auto"\)/);
+    expect(stripped("use-camera.ts")).toMatch(/fitAllHeldRef\.current = true;\s*fitLeft\(CAMERA_SLOW_MS, "all"\);/);
   });
 
   it("opens already fitted: no duration, no glide", () => {

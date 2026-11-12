@@ -16,7 +16,7 @@
 import { useEffect, useState } from "react";
 
 import type { KitStateName } from "./components/kit-icons";
-import { cardState } from "./node-face";
+import { faceStatus } from "./node-face";
 import type { AgentNodeData } from "./types";
 
 export interface InspectorStatus {
@@ -29,7 +29,9 @@ export interface InspectorStatus {
 /** What the card says, as a glyph and a word: the status of a subagent, of any
  *  agent on the Board, and of a session until the pane's sentence has loaded. */
 export function cardStatus(agent: AgentNodeData): InspectorStatus {
-  const state = cardState(agent);
+  // The card's own head (faceStatus): a finished agent whose calls failed is
+  // the cross and "1 failed" there, so here too.
+  const state = faceStatus(agent);
   const glyph: KitStateName = state.tone === "active" ? "working" : state.tone === "waiting" ? "waiting" : state.tone === "err" ? "error" : state.tone === "ready" ? "idle" : "done";
   return { glyph, phrase: state.word.toLowerCase() };
 }

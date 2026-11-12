@@ -31,8 +31,8 @@ import { ContextDonut } from "./ContextModal";
 import type { AgentNodeData, PlanItem, WaitingBlock } from "../types";
 import { useNow } from "../use-now";
 import { useLanguage, useT } from "../i18n";
-import { cardState, drawnState, faceStatus, stateMarkKind, type BranchSummary, type CardState, type StateMarkKind } from "../node-face";
-import { lastTypedPrompt, sessionNames, sessionTask } from "../rail-row-copy";
+import { drawnState, faceStatus, stateMarkKind, type BranchSummary, type CardState, type StateMarkKind } from "../node-face";
+import { faceTask, lastTypedPrompt, sessionNames, twinStart, type TwinClock } from "../rail-row-copy";
 // The agent's own checklist, as one line (#2157). See agent-plan.ts.
 import { planSummary, planTitle, type PlanSummary } from "../agent-plan";
 // The tool kinds the foot draws as icons, from the calls the card holds.
@@ -56,7 +56,7 @@ import { CardContinue, ContinuedRow } from "./StopContinue";
  *  draws cards to markup and a layout effect only warns (as use-count-up.ts). */
 const useBeforePaint = typeof window === "undefined" ? useEffect : useLayoutEffect;
 
-type CardData = AgentNodeData & { onOpenContext?: (sessionId: string) => void; branch?: BranchSummary };
+type CardData = AgentNodeData & { onOpenContext?: (sessionId: string) => void; branch?: BranchSummary; twin?: TwinClock };
 
 /** The board's node: the card, with the connection handles React Flow needs. */
 function AgentNode({ data }: NodeProps<CardData>) {
@@ -76,9 +76,10 @@ export function AgentCard({ data, handles = false }: { data: CardData; handles?:
   // The state the card draws: a turn that stopped on an error rings as a
   // failure, as its word and mark say (drawnState, #2185).
   const shown = drawnState(data);
-  // The word and glyph beside the name, from the same mapping the faces at a
-  // distance draw their mark with (node-face.ts).
-  const state = cardState(data);
+  // The word and glyph beside the name: the faces' own status at a distance
+  // (node-face.ts faceStatus), so a finished card whose calls failed says
+  // "1 failed" beside the cross here too, never Done beside the tick.
+  const state = faceStatus(data, t);
   const cls = [
     "agent-node",
     `state-${shown}`,
@@ -144,6 +145,8 @@ export function AgentCard({ data, handles = false }: { data: CardData; handles?:
   // on this machine, session-display.ts): their head is still the folder.
   const names = data.kind === "root" ? sessionNames(data) : null;
   const headName = names ? names.title : data.label;
+  // When it started, on a card another reads like (canvas-flow.ts nodeDataFor).
+  const twin = names && data.twin ? twinStart(data.startedAt, data.twin) : null;
   const [squeeze, setSqueeze] = useState(0);
   // The name's width as last observed: a state, so a name that has narrowed is
   // measured again by the render the change causes.
@@ -316,12 +319,17 @@ export function AgentCard({ data, handles = false }: { data: CardData; handles?:
           session": it draws that word the same way. The kind word of an
           ordinary root is not drawn (its edge, its tooltip and the card's
           accessible name already say it). */}
-      {data.kind === "root" && rootTask && (
-        <div className="task-line" title={rootTask.tooltip}>
-          {rootTask.face}
+      {/* A card that reads like another on the board, name and task
+          (twinClocks), leads this line with when it started: in the head it
+          cut the name to a letter. */}
+      {data.kind === "root" && (rootTask || twin) && (
+        <div className="task-line" title={rootTask?.tooltip}>
+          {twin && <span className="twin-start" title={t("board.node.started", { time: twin })}>{twin}</span>}
+          {twin && rootTask ? " · " : ""}
+          {rootTask?.face}
         </div>
       )}
-      {!(data.kind === "root" && rootTask) && agentKindLabel(data, t) !== "session" && (
+      {!(data.kind === "root" && (rootTask || twin)) && agentKindLabel(data, t) !== "session" && (
         <div className="task-line" title={spawnTask ? `${spawnTask}\n${subRowTitle(data, t)}` : subRowTitle(data, t)}>
           {spawnTask || `${agentKindLabel(data, t)}${data.cwdBasename ? ` · ${data.cwdBasename}` : ""}`}
         </div>
@@ -431,7 +439,7 @@ export function AgentCard({ data, handles = false }: { data: CardData; handles?:
         )}
       </div>
 
-      <NodeFace data={data} task={data.kind === "root" ? sessionTask(data) || sessionNames(data).title : spawnTask || data.label} />
+      <NodeFace data={data} task={faceTask(data)} />
 
       {handles && <Handle type="source" position={Position.Right} style={{ background: "transparent", border: "none" }} />}
     </div>
@@ -478,30 +486,33 @@ function PlanRow({ plan, items }: { plan: PlanSummary; items: readonly PlanItem[
  * Always in the tree, and `display: none` at the detail tier: the mode is an
  * attribute on the canvas, so changing it re-renders no card. What it draws is
  * one task line and the card's status (owner's critique, 2026-11-11): what a
- * person last asked the session (the Sessions list's task), else its title; a
- * subagent's own task, else its name. Then the mark and the word, Working,
- * Done, Waiting or "1 failed" (faceStatus). The cluster's pill above names the
- * session. Compact and overview draw the same face.
+ * person last asked the session (the Sessions list's task), else its name or
+ * title, never the folder the cluster's pill above already names
+ * (rail-row-copy.ts faceTask); a subagent's own task, else its name. Then the
+ * mark and the word, Working, Done, Waiting or "1 failed" (faceStatus).
+ * Compact and overview draw the same face. A card that reads like another on
+ * the board (twinClocks) adds when it started, after the word where the face
+ * has two lines; never below 40%.
  *
  * The word is never cut: where it does not fit whole, the sheet lets it wrap
  * to a line the face clips, and the mark says the state alone, by its shape
  * and its colour. Where the face is tall enough the task has a line of its
  * own and the status the one under it.
  *
- * Below 40% the face is the board seen whole (V4 critique 2, C4, as V4's
- * Figma draws it): the card's short name at its left, whole or not at all, and the
- * mark at its right. The word moves to the peek. The short name is the card's
- * label — the project a root is in, a subagent's own name — which is what
- * tells two cards in one session apart from that far.
+ * Below 40% the face is a pill (V4's Figma): the start of the same task line
+ * at its left, cut with an ellipsis, and the mark at its right. The word moves
+ * to the peek. CHANGED ON PURPOSE (owner's critique, round 3): the pill said
+ * the card's label, which for a root is the folder its tag says right above.
  *
  * Hidden from assistive technology like the rows it stands in for: the node's
  * accessible name is agentAriaLabel, composed from the data, and says all of
  * this at every zoom. The peek beside the pointer says the word too.
  */
-function NodeFace({ data, task }: { data: AgentNodeData & { branch?: BranchSummary }; task: string }) {
+function NodeFace({ data, task }: { data: AgentNodeData & { branch?: BranchSummary; twin?: TwinClock }; task: string }) {
   const tr = useT();
   const alarm = data.kind === "root" && isAlarming(data.waiting);
   const status = faceStatus(data, tr);
+  const twin = data.kind === "root" && data.twin ? twinStart(data.startedAt, data.twin) : null;
   return (
     <div
       className="lod-face"
@@ -511,9 +522,9 @@ function NodeFace({ data, task }: { data: AgentNodeData & { branch?: BranchSumma
     >
       <div className="lod-line" data-status={status.tone}>
         {status.mark === "alert" ? <AlertMark /> : <StateMark kind={status.mark} />}
-        <span className="lod-name">{task}</span>
+        {task && <span className="lod-name">{task}</span>}
+        {twin && <span className="lod-start">{twin}</span>}
         <span className="lod-state">{status.word}</span>
-        <span className="lod-short">{data.label}</span>
       </div>
     </div>
   );

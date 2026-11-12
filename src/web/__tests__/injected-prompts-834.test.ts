@@ -78,10 +78,13 @@ describe("the surfaces that count prompts (#834)", () => {
   // CHANGED ON PURPOSE (owner's critique, 2026-11-11): the notice was listed
   // collapsed, by its label; it is not a prompt, so it is left out of the list
   // as well as the count.
+  // CHANGED ON PURPOSE (V4 critique 3): the prompt the Now note already says
+  // is left out too, so the list and its count are the typed prompts less that one.
   it("lists and counts only typed prompts in the Inspector", () => {
     expect(app).toContain("const typed = typedPrompts(agent.prompts);");
-    expect(app).toContain('<span className="section-count">{typed.length}</span>');
-    expect(app).toContain("{promptKeys(typed).reverse().map(");
+    expect(app).toContain("const earlier = promptsNotSaid(typed, note);");
+    expect(app).toContain('<span className="section-count">{earlier.length}</span>');
+    expect(app).toContain("{promptKeys(typed).filter(({ pr }) => earlier.includes(pr)).reverse().map(");
     expect(app).not.toContain("prompt-injected");
   });
 

@@ -22,6 +22,10 @@ const notice = (summary: string) => [
   "</task-notification>",
 ].join("\n");
 
+// CHANGED ON PURPOSE (V4 critique 3): the Inspector leaves out the prompt its
+// Now note is already saying. Here the model has answered every prompt, so the
+// note is its own line and every typed prompt is listed, which is what these
+// tests are about.
 const agent = (prompts: PromptEntry[]): AgentNodeData => ({
   id: "s1",
   sessionId: "s1",
@@ -29,6 +33,7 @@ const agent = (prompts: PromptEntry[]): AgentNodeData => ({
   kind: "root",
   state: "active",
   startedAt: 1_000,
+  activity: { text: "Reading the workflow files", source: "said", at: 500_000 },
   tools: [],
   prompts,
   toolCount: 0,

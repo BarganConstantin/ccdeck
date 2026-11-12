@@ -5,7 +5,7 @@ import { clusterBounds, shallowEqualClusters, type Cluster } from "../cluster-bo
 import { agentAriaLabel } from "../agent-copy";
 import { isAlarming } from "../ambient-counts";
 import { elapsed } from "../duration";
-import { drawnState, markBesideFailures, stateMarkKind } from "../node-face";
+import { drawnState, sessionMark } from "../node-face";
 import { useNow } from "../use-now";
 import {
   FACE_H, ROW_H, TILE_PAD, navigatorClusters, navigatorFrame, navigatorSessions, navSignal, neighbourTile,
@@ -332,11 +332,11 @@ function Tile({ tile, cluster, session, density, attached, flash, tabbable, onFo
         >
           {/* The state the card draws (drawnState): a turn that stopped on an
               error is Failed here as on the card, never a finished ✓. Nor
-              over a line that says calls failed: the mark the board's face
-              draws there (markBesideFailures). */}
+              for a session whose calls failed: the mark the card, the list
+              and the peek draw (sessionMark). */}
           <span className="nav-face" data-state={root ? drawnState(root) : undefined} data-alarm={alarm ? "" : undefined}>
             <span className="nav-id">
-              {root ? <StateMark kind={markBesideFailures(stateMarkKind(drawnState(root)), root.toolErrorCount ?? 0)} /> : null}
+              {root ? <StateMark kind={sessionMark(root)} /> : null}
               <span className="nav-name">{names.title}</span>
               <span className="nav-right">
                 {alarm
@@ -382,7 +382,7 @@ function SubRow({ sub, top }: { sub: NavAgent; top: number }) {
   const said = navSignal(sub);
   return (
     <div className="nav-row" data-state={sub.state} style={{ top }}>
-      <StateMark kind={markBesideFailures(stateMarkKind(sub.state), sub.toolErrorCount ?? 0)} />
+      <StateMark kind={sessionMark(sub)} />
       <span className="nav-row-name">{sub.label}</span>
       {said ? <span className="nav-row-said" data-tone={said.tone}>{said.long}</span> : null}
     </div>

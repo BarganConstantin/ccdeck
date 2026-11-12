@@ -28,6 +28,10 @@ export const SESSION_GAP = SESSION_CHROME + SESSION_VISIBLE_GAP;
 // Clear space two cards of the SAME session keep from each other.
 export const CARD_MARGIN = 24;
 
+/** dagre's gap between two ranks: the room an edge takes to turn from a parent
+ *  card to its children when nothing else stands between them. */
+export const RANK_SEP = 160;
+
 // Clear space between two subagents of one parent, stacked in the rank beside
 // it — dagre's `nodesep`, and the pitch a subagent spawned later is appended at
 // (join-sessions.ts), so a column grown one spawn at a time is spaced like one

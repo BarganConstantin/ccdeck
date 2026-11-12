@@ -188,7 +188,7 @@ export type StateMarkKind = "live" | "done" | "err" | "idle";
  * "done", because the turn did end, and everything that counts live and done
  * sessions reads that.
  */
-export function drawnState(data: Pick<AgentNodeData, "kind" | "state" | "stopFailure">): AgentNodeData["state"] {
+export function drawnState(data: Pick<AgentNodeData, "state"> & Partial<Pick<AgentNodeData, "kind" | "stopFailure">>): AgentNodeData["state"] {
   return data.kind === "root" && data.stopFailure && data.state === "done" ? "err" : data.state;
 }
 
@@ -205,6 +205,19 @@ export function stateMarkKind(state: AgentNodeData["state"]): StateMarkKind {
  */
 export function markBesideFailures(mark: StateMarkKind, failed: number): StateMarkKind {
   return mark === "done" && failed > 0 ? "err" : mark;
+}
+
+/**
+ * THE MARK A SESSION OR AN AGENT WEARS, ON EVERY SURFACE THAT DRAWS ONE (owner's
+ * critique, 2026-11-12): the card and its faces, the peek, the navigator, the
+ * Sessions list and the command menu's rows, the Inspector's head. One session
+ * that ended with a failed call drew the cross on the board and done's tick in
+ * the list. The drawn state (a stopped turn is a failure) with the worst state
+ * winning over a failure count. A list row passes its own drawn state and its
+ * count, with no kind.
+ */
+export function sessionMark(data: Pick<AgentNodeData, "state"> & Partial<Pick<AgentNodeData, "kind" | "stopFailure" | "toolErrorCount">>): StateMarkKind {
+  return markBesideFailures(stateMarkKind(drawnState(data)), data.toolErrorCount ?? 0);
 }
 
 /** What the detail card says about its state, beside the mark (V4's Agent /
@@ -265,8 +278,7 @@ export function faceStatus(
   tr: TFunction = t,
 ): CardState {
   const state = cardState(data);
-  if (state.mark === "alert") return state;
-  const failed = data.toolErrorCount ?? 0;
-  const mark = markBesideFailures(state.mark, failed);
-  return mark === state.mark ? state : { tone: "err", word: tr("board.failedCount", { n: failed }), mark };
+  if (state.mark === "alert" || state.mark === "idle") return state;
+  const mark = sessionMark(data);
+  return mark === state.mark ? state : { tone: "err", word: tr("board.failedCount", { n: data.toolErrorCount ?? 0 }), mark };
 }

@@ -27,7 +27,7 @@ import {
 } from "../rail-model";
 import { leaveHoldMs, useRailFlip, useRailMembership } from "../rail-motion";
 import { prefersReducedMotion } from "../viewport-motion";
-import { runningTool, sessionNames, startedHover } from "../rail-row-copy";
+import { runningTool, sessionNames, startedHover, twinClocks, type TwinClock } from "../rail-row-copy";
 import { PauseGlyph } from "./rail-glyphs";
 import { CloseGlyph, FoldBody, GroupHead, MoreLine, PlusGlyph, RailGlyph, RailRow, RailUsage, type FoldMode } from "./RailParts";
 
@@ -89,6 +89,13 @@ export interface Row {
   /** When it started and its id's tail (startedHover), for the tooltip: what
    *  tells two rows of one name apart without drawing it. */
   hover?: string;
+  /** The root's failed tool calls over its life, the count its card says: a
+   *  finished row with any draws the cross and "1 failed" (node-face.ts
+   *  sessionMark). */
+  toolErrorCount?: number;
+  /** Set only when another row reads the same, name and task: the row draws
+   *  its start time beside its name, to this much (rail-row-copy.ts twinClocks). */
+  twin?: TwinClock;
 }
 
 /** Where a row sorts, as the rail's five groups, before activity is looked at:
@@ -187,7 +194,13 @@ export function buildRows(state: GraphState, now: number, watching?: ReadonlySet
       cwd: a.cwd,
       ...(task ? { task } : null),
       ...(folder ? { folder } : null),
+      ...(a.toolErrorCount ? { toolErrorCount: a.toolErrorCount } : null),
     });
+  }
+  const twins = twinClocks(rows.map(r => ({ id: r.sessionId, title: r.label, task: r.task, startedAt: r.startedAt })));
+  for (const r of rows) {
+    const twin = twins.get(r.sessionId);
+    if (twin) r.twin = twin;
   }
   // Sort: by group, then, among the blocked rows, the LONGEST-blocked first —
   // the opposite of the most-recent ordering everything else uses, because on

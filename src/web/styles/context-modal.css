@@ -748,6 +748,14 @@
   overflow: hidden;
   text-overflow: ellipsis;
 }
+/* A look-alike's start time (twinClocks) leads the task line in the model's
+   quiet mono, so the head keeps the name whole. */
+.agent-node .task-line .twin-start {
+  font-family: var(--font-mono);
+  font-size: calc(11px + var(--ui-text-increase, 0px));
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
+}
 
 /* The agent's plan, as one row (#2157): a meter, the count and the step.
    The step is a sentence the agent wrote, so it is the sans stack in

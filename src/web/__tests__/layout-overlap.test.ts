@@ -240,8 +240,11 @@ describe("autoLayout — packs sessions into columns", () => {
     const opts = { measured, availableHeight: 400 };   // one column is 1450 tall
     // Too narrow for a second column to be worth its width. (CHANGED ON
     // PURPOSE: 400 wide now takes two — the pitch lost its card of gap, and
-    // the fit draws no bubbles at that zoom, so their lane is not charged.)
-    expect(colsUsed(autoLayout(nodes, [], { ...opts, availableWidth: 250 }))).toBe(1);
+    // the fit draws no bubbles at that zoom, so their lane is not charged.
+    // And again in round 3: from afar two columns are drawn PACKED_GAP apart,
+    // so 250 wide takes two as well — 0.37 against one column's 0.28.)
+    expect(colsUsed(autoLayout(nodes, [], { ...opts, availableWidth: 150 }))).toBe(1);
+    expect(colsUsed(autoLayout(nodes, [], { ...opts, availableWidth: 250 }))).toBe(2);
     expect(colsUsed(autoLayout(nodes, [], { ...opts, availableWidth: 400 }))).toBe(2);
     // Three columns of two show the board at full size; two of three only at 0.61.
     expect(colsUsed(autoLayout(nodes, [], { ...opts, availableWidth: 2400 }))).toBe(3);

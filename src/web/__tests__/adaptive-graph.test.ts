@@ -132,13 +132,16 @@ describe("the fit keeps room for the bubbles only where they are drawn", () => {
   it("is what fitLeft frames with", () => {
     const camera = read("../use-camera.ts");
     expect(camera).toContain("const bodyPx = cardBodyPx(TEXT_SIZE_INCREASE[currentTextSize()]);");
-    // The full card's box with its lane, the cards alone without one (the
-    // notes go with the bubbles: drawn at the full card only).
-    expect(camera).toContain("const zoom = fitZoomForDrawnLanes(fitWith(all, TOOL_LANE_ALLOWANCE), fitWith(cards, 0), bodyPx);");
+    // The arithmetic is fit-board.ts's since round 3: the full card's box
+    // with its lane, the cards alone without one and packed as the faces draw
+    // them (the notes go with the bubbles: drawn at the full card only), never
+    // under the floor the caller asked for.
+    const fit = read("../fit-board.ts");
+    expect(fit).toContain("const zoom = Math.max(floor, fitZoomForDrawnLanes(fitWith(all, TOOL_LANE_W), fitWith(packed, 0), bodyPx));");
     // And the frame that zoom shows: everything at the full card, the cards
     // in their handle's padding below it, where the notes are not drawn.
-    expect(camera).toContain("const cards = agents.length > 0 ? boxOf(agents, GROUP_PAD) : all;");
-    expect(camera).toContain("const { minX, minY, h } = zoom * bodyPx >= DETAIL_EXIT_PX ? all : cards;");
+    expect(fit).toContain("const cards = agents.length > 0 ? boxOf(agents, GROUP_PAD) : all;");
+    expect(fit).toContain("const { minX, minY, h } = zoom * bodyPx >= DETAIL_EXIT_PX ? all : cards;");
   });
 });
 
@@ -338,7 +341,9 @@ describe("the canvas wiring the pure halves depend on", () => {
   });
 
   it("draws the face in every card and hides it from assistive technology", () => {
-    expect(node).toContain('<NodeFace data={data} task={data.kind === "root" ? sessionTask(data) || sessionNames(data).title : spawnTask || data.label} />');
+    // What the face says is rail-row-copy.ts's faceTask since round 3: never
+    // the folder the session's pill already shows.
+    expect(node).toContain("<NodeFace data={data} task={faceTask(data)} />");
     expect(node).toMatch(/className="lod-face"[\s\S]{0,200}aria-hidden/);
     expect(css).toMatch(/\.lod-face \{ display: none; \}/);
   });
