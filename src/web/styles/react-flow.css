@@ -73,13 +73,12 @@
    a --line edge, --r-ctl and the overlay shadow, the way every floating
    thing in V4 stands.
 
-   THE BAR'S ROOM. The minimap, and the Claude FM character on its edge, sit
-   above the bar, not beside it: the bar is one button tall plus its 2px
-   padding and 1px edge each side, stands 12px off the board's right and
-   bottom edges, and the minimap's bottom is 8px over its top. One property
-   says that sum, set on the canvas so the minimap and the character's ledge
-   (claude-fm.css) read the same number and it follows --ctl-h with the
-   density.
+   THE BAR'S ROOM. The minimap sits above the bar, not beside it: the bar is
+   one button tall plus its 2px padding and 1px edge each side, stands 12px
+   off the board's right and bottom edges, and the minimap's bottom is 8px
+   over its top. One property says that sum, set on the canvas so it follows
+   --ctl-h with the density. The Claude FM character stands on the bar itself,
+   on its left end (claude-fm.css).
 
    THE BUTTON. V4 draws the bar's buttons 24 at Compact, a step under the
    deck's --ctl-h (28 there): the bar floats over the sessions and stays small.
@@ -106,8 +105,8 @@
 }
 /* Two classes: React Flow's own `.react-flow__panel` margin (15px) is one,
    and this panel alone stands 12px in. Over the Claude FM character, which
-   lands on the canvas floor behind it when it jumps off the minimap's edge:
-   the bar's buttons stay visible and keep the pointer. */
+   stands on its top and lands on the canvas floor behind it when it hops off
+   the bar's end: the bar's buttons stay visible and keep the pointer. */
 .react-flow__panel.react-flow__controls {
   margin: var(--board-controls-edge);
   z-index: 6;
@@ -232,18 +231,23 @@
 @media (hover: hover) and (pointer: fine) {
 .react-flow__minimap:hover { border-color: var(--line); }
 }
-/* Over the control bar, not beside it (see its room at the top of this block),
-   and right edge on right edge with it. Two classes, like the bar's own
-   margin, to outrank the panel's 15px.
-   UNLESS A PANEL STANDS THERE (owner, 2026-11-10): an open Usage or machine
-   panel floats over the canvas's right edge, so the minimap, and the character
-   on it, step in past it by --minimap-in, and are not drawn when the canvas
-   has no room left for them (panel-place.ts fitMinimap). The control bar
-   stays where it is: unlike these two it can never be left out. No motion:
-   they are where they stand. */
+/* Drawn only while part of the board is out of view, in the bottom corner
+   that covers fewer cards, the left one by default (minimap-place.ts). A row
+   up in either: over the notices on the left, over the control bar on the
+   right, right edge on right edge with it (see its room at the top of this
+   block). Two classes, like the bar's own margin, to outrank the panel's 15px.
+   ON THE RIGHT, UNLESS A PANEL STANDS THERE (owner, 2026-11-10): an open Usage
+   or machine panel floating over the canvas's right edge moves it in by
+   --minimap-in, and hides it when the canvas has no room left (panel-place.ts
+   fitMinimap). No motion: it stands where it is put. */
 .react-flow__panel.react-flow__minimap {
-  margin-right: calc(var(--board-controls-edge) + var(--minimap-in, 0px));
   margin-bottom: var(--board-controls-room);
 }
-.canvas-wrap[data-minimap="off"] :is(.react-flow__minimap, .fm) { visibility: hidden; }
+.react-flow__panel.react-flow__minimap.left {
+  margin-left: var(--board-controls-edge);
+}
+.react-flow__panel.react-flow__minimap.right {
+  margin-right: calc(var(--board-controls-edge) + var(--minimap-in, 0px));
+}
+.canvas-wrap[data-minimap="off"] .react-flow__minimap.right { visibility: hidden; }
 

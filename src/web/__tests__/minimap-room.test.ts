@@ -92,17 +92,24 @@ describe("the sheet", () => {
     return at < 0 ? "" : sheet.slice(at, sheet.indexOf("}", at));
   };
 
-  it("moves the minimap and the character's ledge by the same inset", () => {
-    expect(rule(".react-flow__panel.react-flow__minimap")).toContain("margin-right: calc(var(--board-controls-edge) + var(--minimap-in, 0px));");
-    expect(rule("\n.fm")).toContain("right: calc(var(--board-controls-edge) + var(--minimap-in, 0px));");
+  // CHANGED ON PURPOSE (V4 critique, round 3, point 6): the minimap takes the
+  // bottom left corner by default and steps past a panel only in the right
+  // one; the character stands on the control bar, which no panel moves.
+  it("moves the minimap in the right corner by the inset, and the character not at all", () => {
+    expect(rule(".react-flow__panel.react-flow__minimap.right")).toContain("margin-right: calc(var(--board-controls-edge) + var(--minimap-in, 0px));");
+    expect(rule(".react-flow__panel.react-flow__minimap.left")).toContain("margin-left: var(--board-controls-edge);");
+    expect(rule("\n.fm")).toContain("right: var(--board-controls-edge);");
+    expect(rule('\n.fm[data-ledge="bar"]')).not.toContain("--minimap-in");
   });
 
-  it("hides both, and only both, when there is no room", () => {
-    expect(rule('.canvas-wrap[data-minimap="off"] :is(.react-flow__minimap, .fm)')).toContain("visibility: hidden;");
+  it("hides the minimap in the right corner, and only it, when there is no room", () => {
+    expect(rule('.canvas-wrap[data-minimap="off"] .react-flow__minimap.right')).toContain("visibility: hidden;");
+    expect(sheet).not.toMatch(/data-minimap="off"\][^{]*\.fm\b/);
   });
 
   it("does not animate the step: they stand where they are put", () => {
     expect(rule(".react-flow__panel.react-flow__minimap")).not.toMatch(/transition|animation/);
+    expect(rule(".react-flow__panel.react-flow__minimap.right")).not.toMatch(/transition|animation/);
     expect(sheet).not.toMatch(/--minimap-in[^;]*;[^}]*transition/);
   });
 });

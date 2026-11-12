@@ -164,8 +164,10 @@ describe("the minimap", () => {
     expect(map(0)).toBe("");
   });
 
-  it("comes back with the first session", () => {
-    expect(map(1)).toContain("react-flow__minimap");
+  // CHANGED ON PURPOSE (round 3, point 6): a session alone does not bring it
+  // back; part of the board out of view does (v4-minimap-off-the-work.test.tsx).
+  it("waits, with a session, for part of the board to be out of view", () => {
+    expect(map(1)).toBe("");
   });
 
   it("is the board's own, and the Auto-fit chip waits for a session too", () => {
@@ -202,8 +204,13 @@ describe("the character, without the minimap", () => {
     expect(empty["bottom"]).toBe("var(--board-controls-edge)");
     expect(decls(".canvas-wrap[data-empty]:has(.react-flow__controls) .fm")["right"])
       .toBe("calc(var(--board-controls-edge) + var(--minimap-in, 0px) + var(--board-controls-btn) + 4px + var(--board-controls-gap))");
-    // With a session it is back on the minimap's ledge, as before.
-    expect(decls(".fm")["--fm-y"]).toBe("calc(-1 * (var(--minimap-h) + var(--board-controls-room) - var(--flow-gutter)))");
+    // CHANGED ON PURPOSE (round 3, point 6): with a session it goes up onto the
+    // control bar's top, not the minimap's.
+    expect(decls(".fm")["--fm-y"]).toBe("calc(-1 * var(--fm-ledge-h))");
+    expect(decls('.fm[data-ledge="bar"]')["--fm-ledge-h"])
+      .toBe("calc(var(--board-controls-edge) + var(--board-controls-btn) + 4px - var(--flow-gutter))");
+    // The corner keeps the minimap's width, so its strolls are as long as before.
+    expect(decls(".canvas-wrap[data-empty] .fm")["width"]).toBe("var(--minimap-w)");
   });
 
   it("still steps in past an open panel with no minimap to measure", () => {

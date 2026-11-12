@@ -2,7 +2,7 @@
 // it is handed them on — no edge a keyboard stop, a drag threshold, the zoom
 // range, the opening fit — and what shares its pane: the grid, the session
 // labels, the tool bubbles, Fit all, the command stack, the minimap
-// and Claude FM.
+// (while part of the board is out of view) and Claude FM on the bar.
 //
 // Moved out of App.tsx's markup unchanged, with nodeTypes, edgeTypes and the
 // opening fit's duration. The <main> around it is CanvasMain.tsx's, and
@@ -11,6 +11,9 @@
 import type { Dispatch, MutableRefObject, SetStateAction } from "react";
 import ReactFlow, { Background, MiniMap } from "reactflow";
 import { useBoardEmpty } from "../board-empty";
+import { useMinimapPlace } from "../use-minimap-place";
+import { PHONE_QUERY } from "../phone-load";
+import { useMediaQuery } from "../use-media-query";
 import type { ClearSource } from "../clear-confirm";
 import type { Palette } from "../palette";
 import type { GraphState } from "../reducer";
@@ -45,19 +48,23 @@ const nodeTypes = { agent: AgentNode, sessionGroup: SessionGroupNode, recapNote:
  *  nodeTypes, since a new object each render makes React Flow warn and remount. */
 const edgeTypes = { recapTie: RecapTieEdge };
 
-/** The map of the board, from the first session on: an empty board has
- *  nothing to map (board-empty.ts), and the character stands in its corner
- *  meanwhile (claude-fm.css). */
+/** The map of the board, only while part of it is out of view, in the bottom
+ *  corner that covers less of what the board draws: cards, notes and tool
+ *  bubbles (minimap-place.ts). Not on a phone, and not on an empty board,
+ *  which has nothing to map (board-empty.ts). */
 export function BoardMinimap({ nodeColor, palette }: {
   nodeColor: ReturnType<typeof useAppearance>["minimapNodeFill"];
   palette: Palette;
 }) {
   const t = useT();
   const empty = useBoardEmpty();
-  if (empty) return null;
+  const phone = useMediaQuery(PHONE_QUERY);
+  const place = useMinimapPlace();
+  if (empty || phone || !place) return null;
   return (
     <MiniMap
       ariaLabel={t("board.minimap")}
+      position={place === "left" ? "bottom-left" : "bottom-right"}
       style={MINIMAP_SIZE}
       zoomable
       pannable
@@ -236,9 +243,9 @@ export default function BoardFlow({
         onTerminal={onTerminal}
       />
       <BoardMinimap nodeColor={minimapNodeFill} palette={palette} />
-      {/* Above the minimap, and absent unless there is something to play —
-          ClaudeFm renders null until the server says the channel is on air,
-          so on a deck with no network this is nothing at all. */}
+      {/* On the control bar's left end, and absent unless there is something
+          to play — ClaudeFm renders null until the server says the channel is
+          on air, so on a deck with no network this is nothing at all. */}
       <RadioExperience fm={fm} character={appearance.character} characterEnabled={characterEnabled} open={radioOpen} onClose={onRadioClose} />
     </ReactFlow>
   );

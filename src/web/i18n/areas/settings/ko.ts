@@ -273,7 +273,7 @@ const catalog: Catalog = {
   "settings.theme.name.whiteContrast": "화이트 고대비",
   "settings.character.title": "캐릭터",
   "settings.character.show": "캐릭터 표시",
-  "settings.character.note": "미니맵 옆에 서 있습니다. 누르면 라디오가 재생됩니다.",
+  "settings.character.note": "캔버스 아래쪽 막대 위에 서 있습니다. 누르면 라디오가 재생됩니다.",
   "settings.character.choose": "캐릭터 선택",
   "settings.character.name.deck": "ccdeck 동료",
   "settings.character.name.fox": "여우",

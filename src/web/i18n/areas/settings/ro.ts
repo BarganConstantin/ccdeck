@@ -281,7 +281,7 @@ const catalog: Catalog = {
   "settings.theme.name.whiteContrast": "Alb, contrast ridicat",
   "settings.character.title": "Personaj",
   "settings.character.show": "Arată personajul",
-  "settings.character.note": "Stă lângă minihartă. Apasă-l ca să pornești radioul.",
+  "settings.character.note": "Stă pe bara din josul canvas-ului. Apasă-l ca să pornești radioul.",
   "settings.character.choose": "Alege personajul",
   "settings.character.name.deck": "Însoțitorul ccdeck",
   "settings.character.name.fox": "Vulpe",
