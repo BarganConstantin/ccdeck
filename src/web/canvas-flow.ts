@@ -27,6 +27,7 @@ import { autoLayout, bubblePush, fillGapsWithNewSessions, joinSessions, laneSign
 import { footprint, NODE_W, sessionOfNode } from "./layout-geometry";
 import { noteSpot, tetherRecapNotes } from "./note-tether";
 import { branchSummaries, type BranchSummary } from "./node-face";
+import { sessionNames, twinClocks, type TwinCandidate, type TwinClock } from "./rail-row-copy";
 import { isUnplaced, needsLayout, recordPlacement, stampPlaceholder, type Provisional } from "./placement";
 import { liveNodeIds, measuredNodeIds, pruneStaleEntries } from "./prune";
 import { sendSessionsHome } from "./return-home";
@@ -43,8 +44,10 @@ import { t } from "./i18n";
 export { RECAP_NOTE_GAP, RECAP_NOTE_H, RECAP_NOTE_W } from "./layout-geometry";
 
 /** `branch` is on a root only, and only while it has subagents on the canvas:
- *  what they add up to, for the faces too small to show them one by one. */
-export type FlowNodeData = AgentNodeData & { onOpenContext?: (sessionId: string) => void; branch?: BranchSummary };
+ *  what they add up to, for the faces too small to show them one by one.
+ *  `twin` is on a root only, and only while another card on the board reads
+ *  the same, name and task: the card then draws when it started (twinClocks). */
+export type FlowNodeData = AgentNodeData & { onOpenContext?: (sessionId: string) => void; branch?: BranchSummary; twin?: TwinClock };
 
 /**
  * Node data that keeps its identity while the board has not changed (#873).
@@ -65,25 +68,57 @@ const NODE_DATA = new WeakMap<GraphState, {
    *  that every root's copy reads, rather than one pass per root. */
   branches: Map<string, BranchSummary>;
   groups: Map<string, string>;
+  /** Every root's name and task, read once per revision for twinClocks. */
+  roots: TwinCandidate[];
+  /** The look-alikes among the cards drawn, and their key: a removal or a
+   *  fade changes which are drawn between revisions. */
+  twins: Map<string, TwinClock>;
+  twinKey: string;
 }>();
 
-export function nodeDataFor(state: GraphState, onOpenContext: (sessionId: string) => void): (a: AgentNodeData) => FlowNodeData {
+/** `drawn`, when given, is the cards on the board: the look-alikes are decided
+ *  among them (twinClocks), and a session off the board tells none apart. */
+export function nodeDataFor(state: GraphState, onOpenContext: (sessionId: string) => void, drawn?: ReadonlySet<string>): (a: AgentNodeData) => FlowNodeData {
   let entry = NODE_DATA.get(state);
   if (!entry || entry.revision !== state.revision || entry.open !== onOpenContext) {
-    entry = { revision: state.revision, open: onOpenContext, byId: new Map(), branches: branchSummaries(state.agents.values()), groups: canvasSessions(state.agents.values()) };
+    entry = {
+      revision: state.revision, open: onOpenContext, byId: new Map(), branches: branchSummaries(state.agents.values()), groups: canvasSessions(state.agents.values()),
+      roots: twinCandidates(state), twins: new Map(), twinKey: "",
+    };
     NODE_DATA.set(state, entry);
   }
+  const twins = twinClocks(drawn ? entry.roots.filter(r => drawn.has(r.id)) : entry.roots);
+  const twinKey = [...twins].map(([id, clock]) => `${id}:${clock}`).sort().join("\n");
+  if (twinKey !== entry.twinKey) {
+    // Copies made before say the old answer: made again, once, for every card.
+    entry.byId.clear();
+    entry.twins = twins;
+    entry.twinKey = twinKey;
+  }
   const { byId, branches, groups } = entry;
+  const twinOf = entry.twins;
   return a => {
     let d = byId.get(a.id);
     if (!d) {
       const branch = a.kind === "root" ? branches.get(a.sessionId) : undefined;
-      d = branch ? { ...a, onOpenContext, branch } : { ...a, onOpenContext };
+      const twin = a.kind === "root" ? twinOf.get(a.id) : undefined;
+      d = { ...a, onOpenContext, ...(branch ? { branch } : null), ...(twin ? { twin } : null) };
       d.canvasSessionId = groups.get(a.id);
       byId.set(a.id, d);
     }
     return d;
   };
+}
+
+/** Every root as twinClocks weighs it, named as its card names it. */
+function twinCandidates(state: GraphState): TwinCandidate[] {
+  const out: TwinCandidate[] = [];
+  for (const a of state.agents.values()) {
+    if (a.kind !== "root") continue;
+    const { title, task } = sessionNames(a);
+    out.push({ id: a.id, title, task, startedAt: a.startedAt });
+  }
+  return out;
 }
 
 /**
@@ -274,7 +309,7 @@ export function snapshotToFlow(
 ): { nodes: Node<FlowNodeData>[]; edges: Edge[] } {
   const nodes: Node<FlowNodeData>[] = [];
   const edges: Edge[] = [];
-  const dataFor = nodeDataFor(state, onOpenContext);
+  const dataFor = nodeDataFor(state, onOpenContext, visibleIds);
   for (const a of state.agents.values()) {
     if (!visibleIds.has(a.id)) continue;
     const exiting = a.exitAt != null;

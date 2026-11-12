@@ -202,6 +202,8 @@
   color: var(--muted);
   white-space: nowrap;
 }
+/* A look-alike's start time (twinClocks), in the markers' voice above. */
+.agent-node .title .twin-start { font-variant-numeric: tabular-nums; }
 /* The model text is what gives way first: a much larger shrink factor than the
    name's and its own ellipsis, but a visible floor of 6ch so "Opus…" stays
    readable on a long name (at 0 the box collapsed and no ellipsis showed). Past

@@ -8,6 +8,15 @@ export function formatNumber(value: number, maximumFractionDigits = 1, lang = cu
   try { return new Intl.NumberFormat(lang, { maximumFractionDigits }).format(value); } catch { return String(value); }
 }
 
+/** A time of day on the language's own clock, "14:32" or "2:32 PM", and with
+ *  its seconds when the minute alone does not tell two times apart. */
+export function clockTime(ms: number, seconds = false, lang = currentLanguage()): string {
+  const opts: Intl.DateTimeFormatOptions = seconds
+    ? { hour: "2-digit", minute: "2-digit", second: "2-digit" }
+    : { hour: "2-digit", minute: "2-digit" };
+  try { return new Date(ms).toLocaleTimeString(lang, opts); } catch { return new Date(ms).toLocaleTimeString(undefined, opts); }
+}
+
 /** A span of seconds as the two largest units that are not zero, "2d 4h",
  *  "1h 05m", "12m" in English; the unit words come from the "time.*" keys so
  *  each language writes them its own way. The minutes take two digits once an

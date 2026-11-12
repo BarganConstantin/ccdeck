@@ -8,7 +8,7 @@ import { AlertMark, StateMark } from "./StateMark";
 import { stateLabel } from "../agent-copy";
 import { modelChipText, modelChipTitle } from "../model-label";
 import { RAIL_GROUP_LABEL_MSGS, type RailGroup } from "../rail-model";
-import { railGlyph, railLine, railTime, rowSpoken, rowTooltip, type RailGlyphKind } from "../rail-row-copy";
+import { railFailed, railGlyph, railLine, railTime, rowSpoken, rowTooltip, twinStart, type RailGlyphKind } from "../rail-row-copy";
 import { fadeIn, tokenMs } from "../rail-motion";
 import type { UsageMeter } from "../rail-usage";
 import { FadeFigure, useFillJump } from "./FadeFigure";
@@ -112,7 +112,9 @@ export function RailRow({ row: r, group, now, selected, removed, leaving, landNo
   // What it waits on, Ready, or "folder · task" (rail-row-copy.ts railLine);
   // none, and the row is one line.
   const line = railLine(r, group);
-  const lined = !!(line || removed);
+  // "1 failed" beside the cross, as the card's face says it (railFailed).
+  const failed = railFailed(r, group, t);
+  const lined = !!(line || removed || failed);
   const time = railTime(r, group, now);
   // The highlight is the row's own once it has been handed over, so it plays
   // out its fade; a row drawn again later has no nonce and does not replay it.
@@ -146,6 +148,9 @@ export function RailRow({ row: r, group, now, selected, removed, leaving, landNo
             <span className="sl-line1">
               <span className="sl-name">
                 <span className="sl-label">{r.label}</span>
+                {/* Only beside a row that reads like another (twinClocks): when
+                    it started, in the model's quiet mono. */}
+                {r.twin && <span className="sl-model sl-start">{twinStart(r.startedAt, r.twin)}</span>}
                 {r.modelId && <span className="sl-model" title={modelChipTitle(r.modelId, r.effort)}>{modelChipText(r.modelId, r.effort)}</span>}
               </span>
               {time && <span className={`sl-time ${time.tone}`}><span className="vis-hidden">{time.spoken}</span>{time.text}</span>}
@@ -155,7 +160,9 @@ export function RailRow({ row: r, group, now, selected, removed, leaving, landNo
                 {/* Words, leading the second line, so the name keeps the first
                     line whole: the press on this row does something different. */}
                 {removed && <span className="sl-off">{t("board.rail.offBoard")}</span>}
-                {removed && line ? " · " : ""}
+                {removed && (failed || line) ? " · " : ""}
+                {failed && <span className="sl-failed">{failed}</span>}
+                {failed && line ? " · " : ""}
                 {line && (line.kind === "tool"
                   ? <><b className="sl-tool">{line.name}</b>{line.rest ? ` · ${line.rest}` : ""}</>
                   : line.text)}
