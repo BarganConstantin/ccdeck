@@ -107,11 +107,11 @@
     "ws": "8.22.1"
   },
   "optionalDependencies": {
-    "@ccdeck/engine-darwin-arm64": "0.1.1",
-    "@ccdeck/engine-darwin-x64": "0.1.1",
-    "@ccdeck/engine-linux-arm64": "0.1.1",
-    "@ccdeck/engine-linux-x64": "0.1.1",
-    "@ccdeck/engine-win32-x64": "0.1.1"
+    "@ccdeck/engine-darwin-arm64": "0.1.2",
+    "@ccdeck/engine-darwin-x64": "0.1.2",
+    "@ccdeck/engine-linux-arm64": "0.1.2",
+    "@ccdeck/engine-linux-x64": "0.1.2",
+    "@ccdeck/engine-win32-x64": "0.1.2"
   },
   "bundledDependencies": [
     "fs-native-extensions",
