@@ -71,14 +71,15 @@ function install(platform: "linux" | "darwin" | "win32") {
 function jobArgs(platform: "linux" | "darwin" | "win32", body: string): string[] {
   if (platform === "darwin") {
     const array = /<key>ProgramArguments<\/key>\s*<array>([\s\S]*?)<\/array>/.exec(body)?.[1] ?? "";
-    return [...array.matchAll(/<string>([^<]*)<\/string>/g)].map(m => m[1]).slice(2);
+    return [...array.matchAll(/<string>([^<]*)<\/string>/g)].map(m => m[1]).slice(6);
   }
   if (platform === "linux") {
     const line = /^ExecStart=(.*)$/m.exec(body)?.[1] ?? "";
-    return line.split(" ").slice(2);
+    return (line.split(" ccdeck-login ")[1] ?? "").split(" ").slice(2);
   }
   const line = /<Arguments>([^<]*)<\/Arguments>/.exec(body)?.[1] ?? "";
-  return line.split(" ").slice(1);
+  // /d /s /c "if exist "S" ("N" "S" args...)"
+  return (/.*agent-dag\.js&quot; ([^)]*)\)&quot;$/.exec(line)?.[1] ?? "").split(" ");
 }
 
 describe("the login item's job says it was started at login", () => {

@@ -198,6 +198,11 @@ export async function offerLoginItem({ deckDataDir, deckLogDir }) {
         : out.enable
           ? `  ${P.muted}${G.dash}  ${PRODUCT}'s login item is written but systemd did not enable it (${out.reason}) ${G.dash} \`${out.enable}\` turns it on${P.reset}\n\n`
           : `  ${P.muted}${G.dash}  ${PRODUCT} will now start when you log in ${G.dash} \`${COMMAND} --uninstall-service\` undoes it${P.reset}\n\n`);
+    } else {
+      // A login item an older deck wrote runs node on the script bare, which
+      // is a stack at every login once the package is removed. Rewritten in
+      // place to the guarded form: file content only, silent, never enabled.
+      await svc.refreshLoginItem();
     }
   } catch (err) {
     // Never fatal. The deck is up; this is a convenience that did not happen.

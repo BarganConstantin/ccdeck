@@ -43,6 +43,7 @@ import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node
 // from a Mac — the same reason deck-home.mjs and claudeCliCandidates do it, and
 // the third time this class of bug has been caught here.
 import { posix as posixPath, win32 as winPath } from "node:path";
+import { writeFileAtomic } from "./atomic-write.mjs";
 
 /** The joiner for the platform being ASKED ABOUT, which is not always this one. */
 const joinFor = (platform) => (platform === "win32" ? winPath.join : posixPath.join);
@@ -95,7 +96,7 @@ export function xmlEscape(s) {
  * at. The default band is the honest one.
  */
 export function plistFor({ execPath, script, logPath, label = SERVICE_LABEL, args = [], env = {} } = {}) {
-  const argv = [execPath, script, ...args].map(a => `      <string>${xmlEscape(a)}</string>`).join("\n");
+  const argv = [...GUARD_WORDS, execPath, script, ...args].map(a => `      <string>${xmlEscape(a)}</string>`).join("\n");
   const vars = Object.entries({ AGENTS_DECK_DETACHED: "1", ...env })
     .map(([k, v]) => `      <key>${xmlEscape(k)}</key>\n      <string>${xmlEscape(v)}</string>`)
     .join("\n");
@@ -129,6 +130,27 @@ ${vars}
 const sdEscape = (s) => String(s).replace(/%/g, "%%");
 
 /**
+ * What a login item runs on Linux and macOS, as the shell's own program text.
+ *
+ * ONE CONSTANT, with the paths handed over as positional arguments after it,
+ * never spliced into the text, so a space, a quote or a `$` in an install path
+ * is only ever an argument (the rule NODE_FALLBACK in installer.mjs follows).
+ * `$0` is the label, `$1` node, `$2` the deck's script and the rest its
+ * arguments. When the script is gone, because `npm uninstall -g ccdeck` took it
+ * and nothing took the login item, the job ends 0 and says nothing. Before, it
+ * was a node "Cannot find module" stack in deck.log and a failed unit at every
+ * login.
+ */
+export const LOGIN_GUARD = '[ -f "$2" ] || exit 0; exec "$@"';
+/** The words in front of the old command, which is exactly [node, script, ...args]. */
+const GUARD_WORDS = ["/bin/sh", "-c", LOGIN_GUARD, "ccdeck-login"];
+/** The same words, as they stand in a systemd ExecStart line. */
+const sdWord = (a) => {
+  const v = sdEscape(a).replace(/\$/g, "$$$$");
+  return /[\s"'\\]/.test(v) ? `"${v.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"` : v;
+};
+
+/**
  * The systemd --user unit.
  *
  * `append:` needs systemd 240, which is 2018 and older than every distribution
@@ -144,10 +166,7 @@ export function unitFor({ execPath, script, logPath, args = [], env = {}, produc
   // and the same `%` in an install path made ExecStart a fatal error.
   // An argument with whitespace, a quote or a backslash is quoted, with the
   // C escapes systemd's word splitting reads inside the quotes.
-  const cmd = [execPath, script, ...args].map(a => {
-    const v = sdEscape(a).replace(/\$/g, "$$$$");
-    return /[\s"'\\]/.test(v) ? `"${v.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"` : v;
-  }).join(" ");
+  const cmd = [...GUARD_WORDS, execPath, script, ...args].map(sdWord).join(" ");
   // QUOTED, AND `%` ESCAPED. systemd.exec(5) splits an Environment= assignment
   // on whitespace unless the whole thing is double-quoted, and it expands `%`
   // specifiers in the value. ExecStart above quotes its own arguments; this
@@ -214,7 +233,14 @@ export function taskXmlFor({ execPath, script, args = [], product = "ccdeck" } =
   // way to carry it. The launcher writes deck.log either way, so the output
   // this platform also cannot redirect lands in the same file as everywhere
   // else.
-  const argLine = [script, ...args].map(a => (/\s/.test(a) ? `"${a}"` : a)).join(" ");
+  // THROUGH cmd.exe, so a deck script that `npm uninstall -g` took away ends the
+  // task with exit 0 instead of node's "Cannot find module" window at every
+  // logon. `if exist` has no else, so a missing script runs nothing; /s strips
+  // the one outer pair of quotes and every path inside is quoted on its own.
+  // When the script exists this runs the same node on the same script with the
+  // same arguments as before.
+  const rest = args.map(a => ` ${/\s/.test(a) ? `"${a}"` : a}`).join("");
+  const argLine = `/d /s /c "if exist "${script}" ("${execPath}" "${script}"${rest})"`;
   return `<?xml version="1.0" encoding="UTF-16"?>
 <Task version="1.2" xmlns="http://schemas.microsoft.com/windows/2004/02/mit/task">
   <RegistrationInfo>
@@ -252,7 +278,7 @@ export function taskXmlFor({ execPath, script, args = [], product = "ccdeck" } =
   </Settings>
   <Actions Context="Author">
     <Exec>
-      <Command>${xmlEscape(execPath)}</Command>
+      <Command>cmd.exe</Command>
       <Arguments>${xmlEscape(argLine)}</Arguments>
     </Exec>
   </Actions>
@@ -571,6 +597,54 @@ export function installService({
   } catch (err) {
     return { ok: false, path, reason: err?.code ?? String(err?.message ?? err) };
   }
+}
+
+/**
+ * A login item written before the guard, as the guarded one. Text in, text
+ * out, null when there is nothing to change (already guarded, or not a shape
+ * this file writes). The old command was exactly [node, script, ...args], which
+ * is what the guard takes as its own positional arguments, so the words are put
+ * in front of it and nothing else in the file moves.
+ */
+export function guardedItemText(text, platform = process.platform) {
+  if (platform === "linux") {
+    const m = /^ExecStart=(.*)$/m.exec(text);
+    if (!m || m[1].startsWith("/bin/sh -c ") || m[1].trim() === "") return null;
+    return text.replace(/^ExecStart=.*$/m, () => `ExecStart=${GUARD_WORDS.map(sdWord).join(" ")} ${m[1]}`);
+  }
+  if (platform === "darwin") {
+    const m = /(<key>ProgramArguments<\/key>\s*<array>\n)(\s*<string>)([^<]*)(<\/string>)/.exec(text);
+    if (!m || m[3] === "/bin/sh") return null;
+    const words = GUARD_WORDS.map(a => `      <string>${xmlEscape(a)}</string>\n`).join("");
+    return text.replace(m[0], () => `${m[1]}${words}${m[2]}${m[3]}${m[4]}`);
+  }
+  return null;
+}
+
+/**
+ * Bring the login item of an older deck to the guarded form, on the platform's
+ * own file. File content only: no enable, no load, no schtasks, so nothing is
+ * started, stopped or registered by it. Windows keeps its task in the scheduler
+ * rather than in a file, and rewriting it would take schtasks, so it is not
+ * touched here. Answers whether it rewrote the file, never throws.
+ */
+export async function refreshLoginItem({
+  platform = process.platform,
+  home = homedir(),
+  env = process.env,
+  read = readFileSync,
+} = {}) {
+  try {
+    if (platform !== "linux" && platform !== "darwin") return false;
+    const path = servicePath(platform, home, env);
+    const text = read(path, "utf8");
+    // Ours: the marker both writers put in every job.
+    if (!text.includes("AGENTS_DECK_DETACHED")) return false;
+    const next = guardedItemText(text, platform);
+    if (next === null || next === text) return false;
+    await writeFileAtomic(path, next);
+    return true;
+  } catch { return false; }
 }
 
 /**
