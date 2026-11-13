@@ -124,7 +124,7 @@ describe("the systemd unit", () => {
 
   it("quotes a path with a space in it", () => {
     expect(unitFor({ ...JOB, script: "/opt/cc deck/bin/agent-dag.js" }))
-      .toContain('ExecStart=/usr/bin/node "/opt/cc deck/bin/agent-dag.js" --no-open');
+      .toContain('/usr/bin/node "/opt/cc deck/bin/agent-dag.js" --no-open');
   });
 
   it("quotes an environment value too, and escapes the specifier character", () => {
@@ -164,8 +164,8 @@ describe("the Windows task", () => {
       file: "schtasks", args: ["/Create", "/TN", SERVICE_LABEL, "/XML", "C:\\x\\task.xml", "/F"],
     });
     const xml = taskXmlFor(JOB);
-    expect(xml).toContain("<Command>/usr/bin/node</Command>");
-    expect(xml).toContain("<Arguments>/opt/ccdeck/bin/agent-dag.js --no-open</Arguments>");
+    expect(xml).toContain("<Command>cmd.exe</Command>");
+    expect(xml).toContain('<Arguments>/d /s /c &quot;if exist &quot;/opt/ccdeck/bin/agent-dag.js&quot; (&quot;/usr/bin/node&quot; &quot;/opt/ccdeck/bin/agent-dag.js&quot; --no-open)&quot;</Arguments>');
   });
 
   it("is written as UTF-16, which is the only encoding schtasks accepts", () => {
