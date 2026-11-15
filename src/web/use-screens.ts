@@ -3,7 +3,7 @@
 //
 // IMPORTS NO SCREEN. Types cross (they compile away); no value from
 // components/chat/ or components/decision/ is imported here, so the pane that
-// holds the slot costs the deck nothing with the flags off. `loadScreens` is the
+// holds the slot costs the deck nothing until a screen is drawn. `loadScreens` is the
 // only `import()` of components/screens.ts, named once (v4-screens-gate.test.ts).
 //
 // NOTHING IS FETCHED UNTIL A SCREEN IS DRAWN. The chunk is not preloaded: the
@@ -11,7 +11,7 @@
 // and the caller handed it a source: the stage does that for a Claude session,
 // reading its conversation from the deck's transcript route
 // (use-session-transcript.ts, asked only while Chat is on screen). So a deck
-// with a flag set by hand and Term showing makes no request, and logs no
+// with Chat on (the default) and Term showing makes no request, and logs no
 // error. A stale tab after an upgrade, asking for a chunk the new build no
 // longer has, draws nothing.
 import { createElement, lazy, Suspense, useMemo, useState, type ComponentType } from "react";
