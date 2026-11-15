@@ -170,13 +170,13 @@ describe("what each name says", () => {
   it("names each session as its rail row does: its name, else Claude Code's title, else its folder", () => {
     const named = [
       { id: "n", sessionId: "n", kind: "root", label: "Desktop", cwdBasename: "Desktop", sessionName: "loroloop", sessionTitle: "Fix login", waiting: block({ since: 1 }) },
-      { id: "t", sessionId: "t", kind: "root", label: "constantin", cwdBasename: "constantin", sessionTitle: "Add Codex accounts", waiting: block({ since: 2 }) },
+      { id: "t", sessionId: "t", kind: "root", label: "alex", cwdBasename: "alex", sessionTitle: "Add Codex accounts", waiting: block({ since: 2 }) },
       { id: "f", sessionId: "f", kind: "root", label: "api", cwdBasename: "api", waiting: block({ since: 3 }) },
     ] as unknown as AgentNodeData[];
     const q = blockedSessions(named);
     expect(q.map(w => w.name)).toEqual(["loroloop", "Add Codex accounts", "api"]);
     // The label stays the folder for every other surface that reads it.
-    expect(q.map(w => w.label)).toEqual(["Desktop", "constantin", "api"]);
+    expect(q.map(w => w.label)).toEqual(["Desktop", "alex", "api"]);
     expect(queueEntryName(q[0].name!, q[0].waiting, 60_000)).toBe("loroloop, waiting 1 minute for permission; go to session");
   });
 });

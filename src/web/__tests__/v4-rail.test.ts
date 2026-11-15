@@ -812,7 +812,7 @@ describe("review fixes: what the rows sort and say", () => {
     expect(rowTooltip(row, false)).toMatch(/^Edit · [^\n]*src\/a\.ts$/m);
   });
 
-  // Design recommendations (2026-11-09): a phone cut "Edit · /home/constantin/Deskt…" before the
+  // Design recommendations (2026-11-09): a phone cut "Edit · /home/alex/Deskt…" before the
   // file's name. rowPath says the path from the session's folder; the tooltip keeps it whole.
   it("says a file's path from the session's folder, else its last two segments, whole in the tooltip", () => {
     expect(rowPath("/home/me/work/docs-site/docs/install.md", "/home/me/work/docs-site")).toBe("docs/install.md");

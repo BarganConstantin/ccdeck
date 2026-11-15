@@ -323,7 +323,7 @@ describe("the SessionNamed payloads a live deck emits", () => {
 describe("the name a session is listed by (sessionListName)", () => {
   it("is the card's face, else the label, else the folder", () => {
     expect(sessionListName({ sessionName: "loroloop", sessionTitle: "Fix login", label: "Desktop", cwdBasename: "Desktop" })).toBe("loroloop");
-    expect(sessionListName({ sessionTitle: "Add Codex accounts", label: "constantin" })).toBe("Add Codex accounts");
+    expect(sessionListName({ sessionTitle: "Add Codex accounts", label: "alex" })).toBe("Add Codex accounts");
     expect(sessionListName({ sessionName: "  ", sessionTitle: null, label: "api" })).toBe("api");
     expect(sessionListName({ label: "", cwdBasename: "web" })).toBe("web");
     expect(sessionListName({ label: "" })).toBeUndefined();
