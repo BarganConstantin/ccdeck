@@ -843,6 +843,13 @@ describe("describeTarget, the one sentence the panel shows", () => {
     expect(describeTarget({ kind: "B", socket: { path: "/x" }, pane: "%1" }).label).toMatch(/its own size/);
   });
 
+  it("says case D is fitted to the panel and gets its size back, which is what the routes do", () => {
+    const { label } = describeTarget({ kind: "D", attachId: "0b9c2f4e", wrapper: { name: "ccdeck-att-0b9c2f4e", pane: "%5" } });
+    expect(label).toMatch(/fitted to the panel/);
+    expect(label).toMatch(/at the size it had before/);
+    expect(label, "the sentence from before the panel fitted it").not.toMatch(/at the size it already has/);
+  });
+
   it("offers reopening an ended session only when it can be reopened", () => {
     expect(describeTarget({ kind: "gone", adoptable: true })).toMatchObject({ adoptable: true, label: expect.stringMatching(/reopening it here/) });
     expect(describeTarget({ kind: "gone", adoptable: false })).toMatchObject({ adoptable: false, label: expect.not.stringMatching(/reopen it here continues/) });
