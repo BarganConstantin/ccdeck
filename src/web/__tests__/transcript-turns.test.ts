@@ -84,6 +84,12 @@ describe("what Claude Code wrote for itself is not what you typed", () => {
     expect(transcriptTurns([user("<command-name>/x</command-name> and then this")])).toEqual([{ kind: "user", text: "and then this" }]);
   });
 
+  it("skips a background task's notice, as text or as a part, and keeps the tag typed mid-sentence", () => {
+    const notice = "<task-notification>\n<task-id>b1</task-id>\n<status>completed</status>\n<summary>Background command \"Watch CI\" completed (exit code 0)</summary>\n</task-notification>";
+    expect(transcriptTurns([user(notice), user([{ type: "text", text: `  ${notice}` }])])).toEqual([]);
+    expect(transcriptTurns([user(`why does <task-notification> show up?`)])).toEqual([{ kind: "user", text: "why does <task-notification> show up?" }]);
+  });
+
   it("skips an interruption note, as text or as a part", () => {
     expect(transcriptTurns([
       user("[Request interrupted by user]"),

@@ -41,11 +41,15 @@ function parse(line) {
 }
 
 // CLAUDE CODE'S OWN BOOKKEEPING IS NOT WHAT THE PERSON TYPED. A slash
-// command's wrappers, a local command's output, an interruption note and the
-// summary written when a conversation is compacted are all user lines in the
-// file, but none was typed, and the summary alone runs to thousands of
-// characters. They would be drawn as "you said".
+// command's wrappers, a local command's output, an interruption note, the
+// notice a background task sends when it finishes, and the summary written
+// when a conversation is compacted are all user lines in the file, but none
+// was typed, and the summary alone runs to thousands of characters. They would
+// be drawn as "you said".
 const WRAPPERS = /<(command-name|command-message|command-args|local-command-stdout|local-command-stderr)>[\s\S]*?<\/\1>/g;
+// The notice has to OPEN the line, as the rail reads it (injected-prompt.ts):
+// a person who mentions the tag mid-sentence typed it.
+const TASK_NOTICE = /^\s*<task-notification>[\s\S]*?<\/task-notification>/;
 const INTERRUPTED = /^\[Request interrupted by user/;
 const SUMMARY_LEAD = /^This session is being continued from a previous conversation/;
 
@@ -59,7 +63,7 @@ function userText(content) {
       .map(part => part.text)
       .join("\n");
   } else return "";
-  text = text.replace(WRAPPERS, "").trim();
+  text = text.replace(WRAPPERS, "").trim().replace(TASK_NOTICE, "").trim();
   return INTERRUPTED.test(text) ? "" : text;
 }
 

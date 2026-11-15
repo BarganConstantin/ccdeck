@@ -1,6 +1,6 @@
 /* ---------------- Chat ----------------
    The conversation of one session (components/chat/), in the Workspace pane.
-   IN A LAZY CHUNK: ChatView.tsx imports this sheet, so with the flag off the
+   IN A LAZY CHUNK: ChatView.tsx imports this sheet, so until Chat is drawn the
    deck's first stylesheet carries none of it (v4-screens-bundle.test.ts reads
    dist/web). Tokens only, and no motion: a new line appears where it belongs. */
 

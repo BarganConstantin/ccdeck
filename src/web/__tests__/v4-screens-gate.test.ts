@@ -1,6 +1,7 @@
-// Chat and the Decision card are screens only, each behind a flag that is off,
-// and off means absent: not reachable, not drawn, not in the first-load chunk,
-// no network from the new code. The built half of that (the entry JS and CSS
+// Chat and the Decision card are screens only, each behind its own flag: Chat's
+// is on unless set to "0" (owner, 2026-11-15), the Decision card's is off. Either
+// way neither is in the first-load chunk, and a screen not drawn costs nothing:
+// not drawn, not loaded, no network from the new code. The built half of that (the entry JS and CSS
 // carry none of the screens) is v4-screens-bundle.test.ts's, which reads
 // dist/web; this half reads the sources, so it holds without a build.
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -57,20 +58,32 @@ const SCREEN_PATH = [/^components\/chat\//, /^components\/decision\//, /^compone
 const reachesScreens = (paths: string[]) => paths.filter(p => SCREEN_PATH.some(re => re.test(p)));
 
 describe("the flags", () => {
-  it("are off unless the stored value is exactly 1", () => {
-    const store = (v: Record<string, string>) => (k: string) => v[k] ?? null;
-    expect(readScreenFlags(store({}))).toEqual(NO_SCREENS);
+  // CHANGED ON PURPOSE (owner, 2026-11-15): Chat is on by default in V4, so its
+  // flag is on unless the stored value is exactly "0". The Decision card keeps
+  // the old rule: off unless the stored value is exactly "1".
+  const store = (v: Record<string, string>) => (k: string) => v[k] ?? null;
+
+  it("have Chat on unless the stored value is exactly 0", () => {
+    expect(readScreenFlags(store({}))).toEqual({ chat: true, decision: false });
     expect(readScreenFlags(store({ "agent-dag.chat": "1" }))).toEqual({ chat: true, decision: false });
-    expect(readScreenFlags(store({ "agent-dag.decision": "1" }))).toEqual({ chat: false, decision: true });
-    for (const v of ["0", "true", "on", "", "yes", "11", " 1"]) {
-      expect(readScreenFlags(store({ "agent-dag.chat": v, "agent-dag.decision": v })), `"${v}"`).toEqual(NO_SCREENS);
+    expect(readScreenFlags(store({ "agent-dag.chat": "0" }))).toEqual(NO_SCREENS);
+    for (const v of ["true", "on", "", "yes", "11", " 1", "00", " 0", "off", "false"]) {
+      expect(readScreenFlags(store({ "agent-dag.chat": v })).chat, `"${v}"`).toBe(true);
     }
   });
 
-  it("are off where the browser refuses the store", () => {
-    // readStored answers null for a store that throws (storage.ts); the flags read null as off.
-    expect(readScreenFlags(() => null)).toEqual(NO_SCREENS);
-    expect(readScreenFlags()).toEqual(NO_SCREENS);
+  it("have the Decision card off unless the stored value is exactly 1", () => {
+    expect(readScreenFlags(store({ "agent-dag.decision": "1" }))).toEqual({ chat: true, decision: true });
+    expect(readScreenFlags(store({ "agent-dag.chat": "0", "agent-dag.decision": "1" }))).toEqual({ chat: false, decision: true });
+    for (const v of ["0", "true", "on", "", "yes", "11", " 1"]) {
+      expect(readScreenFlags(store({ "agent-dag.decision": v })).decision, `"${v}"`).toBe(false);
+    }
+  });
+
+  it("have Chat on and the Decision card off where the browser refuses the store", () => {
+    // readStored answers null for a store that throws (storage.ts): no value, so the defaults.
+    expect(readScreenFlags(() => null)).toEqual({ chat: true, decision: false });
+    expect(readScreenFlags()).toEqual({ chat: true, decision: false });
   });
 
   it("count only with the Command Panel's gate on, in Workspace, off a phone", () => {
@@ -150,10 +163,25 @@ describe("what is drawn with the flags off", () => {
     onAdopt: vi.fn(), onNotNow: vi.fn(), onRetry: vi.fn(), onNewSession: vi.fn(), ...over,
   } as StageBodyProps));
 
+  // CHANGED ON PURPOSE (owner, 2026-11-15): Chat is on by default, so "the flags
+  // off" is now a browser that stored "0" for Chat (and nothing for the card).
+  afterEach(() => vi.unstubAllGlobals());
+  const flagsOff = () => vi.stubGlobal("window", { localStorage: { getItem: (k: string) => (k === "agent-dag.chat" ? "0" : null) } });
+
   it("is the pane it always was, whatever the caller hands it", () => {
+    flagsOff();
     const plain = body({ workspace: true });
     expect(body({ workspace: true, screens })).toBe(plain);
     expect(plain).not.toMatch(/data-view|chat|dc-/);
+  });
+
+  it("with nothing stored, is Chat when the caller hands it Chat, and never the Decision card", () => {
+    const plain = body({ workspace: true });
+    expect(plain).not.toMatch(/data-view|chat|dc-/);
+    const chat = body({ workspace: true, screens });
+    expect(chat).toContain('data-view="chat"');
+    expect(chat).not.toMatch(/dc-/);
+    expect(body({ workspace: true, screens: { ...screens, view: "term" } })).toBe(plain);
   });
 
   it("the slot is nothing with the flags off, with a flag on and nothing to draw, or with no props", () => {
