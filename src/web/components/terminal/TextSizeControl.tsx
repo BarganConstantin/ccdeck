@@ -36,8 +36,10 @@ const TEXT_SIZE_TITLE_ID = "ts-text-size-title";
 
 /** The three chords as one unbreakable run. At 200 wide the line broke
  *  between them and left "Ctrl+0" alone on a line of its own; held together,
- *  the break falls after "While you type:" and the chords read as one row. */
-const unbroken = (keys: string) => keys.replace(/ /g, "\u00a0");
+ *  the break falls after "While you type:" and the chords read as one row.
+ *  A line may also break after a "+" (before "+" or "−"), so each "+" is
+ *  followed by a word joiner, which draws nothing. */
+const unbroken = (keys: string) => keys.replace(/ /g, "\u00a0").replace(/\+/g, "+\u2060");
 
 export interface TextSizeView {
   /** The step the pane's text is at, in percent (100 is the stage's 13.3px). */
@@ -91,7 +93,7 @@ export default function TextSizeControl({ size }: { size: TextSizeView }) {
           <button type="button" className="btn ts-text-reset" aria-disabled={!changed || undefined} onClick={() => press("reset", changed)}>
             {t("board.stage.textReset", { percent: formatPercent(DEFAULT_STEP) })}
           </button>
-          <p className="ts-text-keys">{t("board.stage.textKeys", { keys: unbroken(textSizeKeysLabel()) })}</p>
+          <p className="ts-text-keys">{t("board.stage.textKeys", { keys: unbroken(textSizeKeysLabel(t("board.stage.textKeyCtrl"))) })}</p>
         </AnchoredPopover>
       )}
     </>

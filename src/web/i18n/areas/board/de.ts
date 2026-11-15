@@ -670,6 +670,7 @@ const catalog: Catalog = {
   "board.stage.textLarger": "Größerer Text",
   "board.stage.textReset": "Zurück auf {percent}",
   "board.stage.textKeys": "Beim Tippen: {keys}",
+  "board.stage.textKeyCtrl": "Strg",
   "board.chat.conversation": "Unterhaltung",
   "board.chat.loading": "Unterhaltung wird gelesen",
   "board.chat.retry": "Erneut versuchen",

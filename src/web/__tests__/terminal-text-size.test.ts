@@ -25,6 +25,7 @@ import {
 import { STAGE_FONT_SIZE } from "../use-terminal-session";
 import { terminalKeyOutcome, type TerminalKey } from "../terminal-keys";
 import { en } from "../i18n/en";
+import { AREA_FILES } from "../i18n/catalogs";
 
 const chord = (over: Partial<TerminalKey>) =>
   ({ type: "keydown", key: "a", ctrlKey: false, shiftKey: false, altKey: false, metaKey: false, ...over });
@@ -89,9 +90,20 @@ describe("the keys, as a native terminal has them", () => {
     expect(textSizeChord(chord({ key: "=", metaKey: true }), false), "⌘ is not Control elsewhere").toBeNull();
   });
 
+  // CHANGED ON PURPOSE (German): the Control key's name comes from the reader's
+  // language, so a German keyboard reads Strg, as everywhere else in the deck.
   it("are named for the keyboard they are on", () => {
-    expect(textSizeKeysLabel(true)).toBe("⌘+ · ⌘− · ⌘0");
-    expect(textSizeKeysLabel(false)).toBe("Ctrl++ · Ctrl+− · Ctrl+0");
+    expect(textSizeKeysLabel("Ctrl", true)).toBe("⌘+ · ⌘− · ⌘0");
+    expect(textSizeKeysLabel("Strg", true), "a Mac keyboard has no Control name to translate").toBe("⌘+ · ⌘− · ⌘0");
+    expect(textSizeKeysLabel("Ctrl", false)).toBe("Ctrl++ · Ctrl+− · Ctrl+0");
+    expect(textSizeKeysLabel("Strg", false)).toBe("Strg++ · Strg+− · Strg+0");
+  });
+
+  it("take the Control key's name from each language: Strg in German, Ctrl in the rest", () => {
+    expect(en["board.stage.textKeyCtrl"]).toBe("Ctrl");
+    const board = AREA_FILES.filter(f => f.area === "board");
+    expect(board.length).toBeGreaterThanOrEqual(10);
+    for (const f of board) expect(f.catalog["board.stage.textKeyCtrl"], f.code).toBe(f.code === "de" ? "Strg" : "Ctrl");
   });
 
   it("are kept from the pane (outcome zoom) after Escape and the release chord, before anything that sends", () => {
@@ -189,9 +201,12 @@ describe("the header's Aa", () => {
   });
 
   it("names the keys, so the reader learns they exist", () => {
-    expect(control).toContain('t("board.stage.textKeys", { keys: unbroken(textSizeKeysLabel()) })');
+    // CHANGED ON PURPOSE (German): the chords get the Control key's name from the catalog.
+    expect(control).toContain('t("board.stage.textKeys", { keys: unbroken(textSizeKeysLabel(t("board.stage.textKeyCtrl"))) })');
     // The chords as one run, so a narrow line breaks before them, not between them.
-    expect(control).toContain('keys.replace(/ /g, "\\u00a0")');
+    // CHANGED ON PURPOSE: the line also broke after a "+" ("Strg+" / "− · Strg+0"),
+    // so a word joiner follows each "+".
+    expect(control).toContain('keys.replace(/ /g, "\\u00a0").replace(/\\+/g, "+\\u2060")');
     expect(en["board.stage.textKeys"]).toBe("While you type: {keys}");
   });
 });

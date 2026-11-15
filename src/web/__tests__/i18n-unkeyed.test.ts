@@ -82,7 +82,7 @@ const OUTSIDE_COMPONENTS: readonly string[] = [
   "use-feedback-conversations.ts", "App.tsx", "quick-open-items.tsx", "detail-category.tsx",
   "key-help.ts", "notify-reach.ts", "board-usage.ts", "reauth-attention.ts", "auto-choice.ts", "rearrange-undo.ts",
   "quick-open.ts", "status-pill.ts", "update-check.ts", "expired-switch.ts", "settings-give-back.ts", "desktop-update.ts",
-  "auto-switch-threshold.ts", "provider-copy.ts", "use-claude-settings.ts", "admin-failure.ts", "usage-from-ccusage.ts",
+  "auto-switch-threshold.ts", "terminal-text-size.ts", "provider-copy.ts", "use-claude-settings.ts", "admin-failure.ts", "usage-from-ccusage.ts",
   "film-links.ts", "fm-stations.ts", "radio-discovery.ts",
   "forge-types.ts", "forge-panel.ts", "forge-detail.ts", "forge-lists.ts", "jira-api.ts", "jira-board.ts",
 ];

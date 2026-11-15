@@ -82,9 +82,10 @@ export function textSizeChord(
   return null;
 }
 
-/** The three chords as the reader's keyboard labels them, for the control. */
-export function textSizeKeysLabel(apple = isApplePlatform(platformName())): string {
-  return apple ? "⌘+ · ⌘− · ⌘0" : "Ctrl++ · Ctrl+− · Ctrl+0";
+/** The three chords as the reader's keyboard labels them, for the control.
+ *  `ctrl` is the Control key's name in the reader's language (board.stage.textKeyCtrl: Strg in German). */
+export function textSizeKeysLabel(ctrl: string, apple = isApplePlatform(platformName())): string {
+  return apple ? "⌘+ · ⌘− · ⌘0" : `${ctrl}++ · ${ctrl}+− · ${ctrl}+0`;
 }
 
 // ── the one value, shared by every pane and tab ─────────────────────────────
