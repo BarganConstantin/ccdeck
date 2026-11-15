@@ -208,6 +208,19 @@ WantedBy=default.target
 }
 
 /**
+ * The Windows account this process runs as, in the form a Task Scheduler
+ * <UserId> takes: DOMAIN\user (the machine name for a local account), or the
+ * bare user name when Windows left USERDOMAIN out. Empty when neither is set,
+ * and then the task is written without one, as before.
+ */
+export function windowsAccount(env = process.env) {
+  const user = String(env?.USERNAME ?? "").trim();
+  if (!user) return "";
+  const domain = String(env?.USERDOMAIN ?? "").trim();
+  return domain ? `${domain}\\${user}` : user;
+}
+
+/**
  * The Task Scheduler job, as XML.
  *
  * XML rather than `schtasks /TR "<command>"`, and this is not fussiness: /TR
@@ -221,11 +234,20 @@ WantedBy=default.target
  * UTF-16LE with a BOM on disk, which is what schtasks requires and what a file
  * written as UTF-8 is silently rejected for.
  *
- * No <UserId>: schtasks fills in the account running it, which is the one whose
- * login this task is about. Naming it would be a guess that breaks on a renamed
- * account, a domain user or a machine in another locale.
+ * No <UserId> in the PRINCIPAL: schtasks fills in the account running it, which
+ * is the one whose login this task is about.
+ *
+ * But the LOGON TRIGGER names the account, when the caller knows it. A logon
+ * trigger without one fires at ANY user's logon, and Windows lets only an
+ * administrator register that: on a real Windows 11 standard account, schtasks
+ * answered this file with "ERROR: Access is denied." while the same file with
+ * the account in the trigger was accepted (VM check, 2026-11-15). So the login
+ * item this deck offers never registered for an ordinary account. The name is
+ * the process's own USERDOMAIN\USERNAME (windowsAccount): not a guess, not
+ * translated on a localised Windows, the domain form for a domain user, and
+ * Task Scheduler resolves it to the account's SID when the task is registered.
  */
-export function taskXmlFor({ execPath, script, args = [], product = "ccdeck" } = {}) {
+export function taskXmlFor({ execPath, script, args = [], product = "ccdeck", userId = "" } = {}) {
   // NO ENVIRONMENT BLOCK, and that is the schema's doing rather than an
   // omission here: there is nowhere in a Task Scheduler task to put a variable.
   // Which is the second reason Windows runs the LAUNCHER and lets it detach
@@ -248,7 +270,7 @@ export function taskXmlFor({ execPath, script, args = [], product = "ccdeck" } =
   </RegistrationInfo>
   <Triggers>
     <LogonTrigger>
-      <Enabled>true</Enabled>
+      <Enabled>true</Enabled>${userId ? `\n      <UserId>${xmlEscape(userId)}</UserId>` : ""}
     </LogonTrigger>
   </Triggers>
   <Principals>
@@ -554,7 +576,7 @@ export function installService({
       // this deck owns.
       const xmlPath = joinFor(platform)(logPathDir(logPath), `${SERVICE_LABEL}-task.xml`);
       // UTF-16LE with a BOM: schtasks rejects UTF-8 with an unhelpful error.
-      fs.writeFileSync(xmlPath, "\uFEFF" + taskXmlFor({ execPath, script, args, product }), "utf16le");
+      fs.writeFileSync(xmlPath, "\uFEFF" + taskXmlFor({ execPath, script, args, product, userId: windowsAccount(env) }), "utf16le");
       const cmd = registerCommand(platform, xmlPath);
       const out = run(cmd.file, cmd.args, { encoding: "utf8", windowsHide: true });
       if (out?.status !== 0) {
