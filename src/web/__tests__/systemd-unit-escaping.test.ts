@@ -21,7 +21,7 @@
 import { describe, it, expect } from "vitest";
 
 // @ts-expect-error — plain .mjs module, no types
-const { unitFor } = await import("../../server/login-service.mjs");
+const { unitFor, LOGIN_GUARD } = await import("../../server/login-service.mjs");
 
 /** A value as systemd resolves it, or an error naming the specifier it would expand. */
 function resolved(value: string): string {
@@ -74,18 +74,18 @@ describe("the systemd unit", () => {
   });
 
   it("starts the node and the script it was given, `%` and all", () => {
-    expect(execWords(setting(unitFor(job), "ExecStart"))).toEqual([job.execPath, job.script, ...job.args]);
+    expect(execWords(setting(unitFor(job), "ExecStart"))).toEqual(["/bin/sh", "-c", LOGIN_GUARD, "ccdeck-login", job.execPath, job.script, ...job.args]);
   });
 
   it("keeps a `$`, a space, a quote and a backslash in a path as part of it", () => {
     const odd = { ...job, script: "/home/ana/$work/My \"Deck\"/back\\slash/agent-dag.js" };
-    expect(execWords(setting(unitFor(odd), "ExecStart"))).toEqual([odd.execPath, odd.script, ...odd.args]);
+    expect(execWords(setting(unitFor(odd), "ExecStart"))).toEqual(["/bin/sh", "-c", LOGIN_GUARD, "ccdeck-login", odd.execPath, odd.script, ...odd.args]);
   });
 
   it("leaves an ordinary path exactly as it was written", () => {
     const plain = { execPath: "/usr/bin/node", script: "/opt/ccdeck/bin/agent-dag.js", logPath: "/home/u/deck.log", args: ["--no-open"] };
     const unit = unitFor(plain);
-    expect(setting(unit, "ExecStart")).toBe("/usr/bin/node /opt/ccdeck/bin/agent-dag.js --no-open");
+    expect(setting(unit, "ExecStart")).toMatch(/ \/usr\/bin\/node \/opt\/ccdeck\/bin\/agent-dag\.js --no-open$/);
     expect(setting(unit, "StandardOutput")).toBe("append:/home/u/deck.log");
   });
 });

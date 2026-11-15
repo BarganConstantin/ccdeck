@@ -162,7 +162,7 @@ describe("what the login item runs the deck with", () => {
       run: () => ({ status: 0 }),
     });
     expect(out.ok).toBe(true);
-    const program = /<key>ProgramArguments<\/key>\s*<array>\s*<string>([^<]*)<\/string>/.exec(body)?.[1];
+    const program = /<key>ProgramArguments<\/key>\s*<array>(?:\s*<string>[^<]*<\/string>){4}\s*<string>([^<]*)<\/string>/.exec(body)?.[1];
     expect(program).toBe(join(linked, NODE));
   });
 });

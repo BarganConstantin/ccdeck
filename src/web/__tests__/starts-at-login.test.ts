@@ -124,7 +124,7 @@ describe("the systemd unit", () => {
 
   it("quotes a path with a space in it", () => {
     expect(unitFor({ ...JOB, script: "/opt/cc deck/bin/agent-dag.js" }))
-      .toContain('ExecStart=/usr/bin/node "/opt/cc deck/bin/agent-dag.js" --no-open');
+      .toContain('/usr/bin/node "/opt/cc deck/bin/agent-dag.js" --no-open');
   });
 
   it("quotes an environment value too, and escapes the specifier character", () => {
@@ -164,8 +164,8 @@ describe("the Windows task", () => {
       file: "schtasks", args: ["/Create", "/TN", SERVICE_LABEL, "/XML", "C:\\x\\task.xml", "/F"],
     });
     const xml = taskXmlFor(JOB);
-    expect(xml).toContain("<Command>/usr/bin/node</Command>");
-    expect(xml).toContain("<Arguments>/opt/ccdeck/bin/agent-dag.js --no-open</Arguments>");
+    expect(xml).toContain("<Command>cmd.exe</Command>");
+    expect(xml).toContain('<Arguments>/d /s /c &quot;if exist &quot;/opt/ccdeck/bin/agent-dag.js&quot; (&quot;/usr/bin/node&quot; &quot;/opt/ccdeck/bin/agent-dag.js&quot; --no-open)&quot;</Arguments>');
   });
 
   it("is written as UTF-16, which is the only encoding schtasks accepts", () => {
@@ -175,12 +175,45 @@ describe("the Windows task", () => {
     expect(SRC).toContain('"utf16le"');
   });
 
-  it("names no user, because every way of naming one is a guess", () => {
-    // schtasks fills in the account running it, which is the one whose login
-    // this task is about. A <UserId> would break on a renamed account, a domain
-    // user, or a machine in another locale.
+  it("names no user in the principal: schtasks fills in the account running it", () => {
     expect(taskXmlFor(JOB)).not.toContain("<UserId>");
     expect(taskXmlFor(JOB)).toContain("<LogonType>InteractiveToken</LogonType>");
+    const named = taskXmlFor({ ...JOB, userId: "PC\\ana" });
+    const principal = named.slice(named.indexOf("<Principals>"), named.indexOf("</Principals>"));
+    expect(principal).not.toContain("<UserId>");
+  });
+
+  it("names the account in the logon trigger, or an ordinary account cannot register it", () => {
+    // MEASURED on a real Windows 11 standard account (2026-11-15): a logon
+    // trigger without <UserId> is any user's logon, which only an administrator
+    // may register, and schtasks answered the deck's file with "ERROR: Access is
+    // denied." The same file with the account in the trigger was accepted. The
+    // login item never registered for an ordinary account until this.
+    const xml = taskXmlFor({ ...JOB, userId: "PC\\ana & co" });
+    const trigger = xml.slice(xml.indexOf("<LogonTrigger>"), xml.indexOf("</LogonTrigger>"));
+    expect(trigger).toContain("<UserId>PC\\ana &amp; co</UserId>");
+    // After <Enabled>, which is the order the schema wants.
+    expect(trigger.indexOf("<Enabled>")).toBeLessThan(trigger.indexOf("<UserId>"));
+  });
+
+  it("takes the account from the process's own USERDOMAIN and USERNAME", () => {
+    const { windowsAccount } = svc as { windowsAccount: (env?: Record<string, string | undefined>) => string };
+    expect(windowsAccount({ USERDOMAIN: "CCDECK-WIN", USERNAME: "cpwqa" })).toBe("CCDECK-WIN\\cpwqa");
+    expect(windowsAccount({ USERNAME: "ana" })).toBe("ana");
+    expect(windowsAccount({ USERDOMAIN: "PC" })).toBe("");
+    expect(windowsAccount({})).toBe("");
+  });
+
+  it("writes that account into the file schtasks registers", () => {
+    let written = "";
+    const out = installService({
+      platform: "win32", home: "C:\\Users\\ana", ...JOB,
+      env: { USERDOMAIN: "PC", USERNAME: "ana" },
+      fs: { mkdirSync: () => {}, writeFileSync: (_p: string, body: string) => { written = body; } },
+      run: () => ({ status: 0 }),
+    });
+    expect(out).toMatchObject({ ok: true, how: "schtasks" });
+    expect(written).toContain("<UserId>PC\\ana</UserId>");
   });
 
   it("does not stop the deck for a laptop on battery", () => {
