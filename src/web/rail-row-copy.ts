@@ -234,7 +234,7 @@ function toolRest(tool: { preview: string; path?: true }, cwd: string | undefine
 }
 
 /**
- * A file's path as a row has room for it. A phone cut "Edit · /home/constantin/
+ * A file's path as a row has room for it. A phone cut "Edit · /home/alex/
  * Deskt…" off long before the file's name, which is the part that tells two
  * calls apart. Relative to the session's folder when the file is inside it
  * ("docs/install.md"), else its last two segments after "…/"; a path of two

@@ -1,6 +1,6 @@
 // Paths in narrow places were cut at their END, so the file's name went first:
-// the Inspector's cwd read "/home/constantin/.claude/jobs…" and every Tool calls
-// row "Read /home/constantin/.claude/job…", all alike. One shared display now:
+// the Inspector's cwd read "/home/alex/.claude/jobs…" and every Tool calls
+// row "Read /home/alex/.claude/job…", all alike. One shared display now:
 // read from the session's folder, "~" for a home folder, cut in the middle by
 // CSS so the last segment stays, the whole path in the hover.
 import { describe, it, expect } from "vitest";

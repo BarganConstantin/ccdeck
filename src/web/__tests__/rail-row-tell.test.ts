@@ -55,8 +55,8 @@ describe("what a session is called", () => {
   it("is its name, else Claude Code's title, else its folder; the folder too only when the title is something else", () => {
     expect(sessionNames(agent({ sessionName: "loroloop", sessionTitle: "Fix the login page", cwdBasename: "Desktop", label: "Desktop" })))
       .toEqual({ title: "loroloop", folder: "Desktop" });
-    expect(sessionNames(agent({ sessionTitle: "Add Codex accounts", cwdBasename: "constantin", label: "constantin" })))
-      .toEqual({ title: "Add Codex accounts", folder: "constantin" });
+    expect(sessionNames(agent({ sessionTitle: "Add Codex accounts", cwdBasename: "alex", label: "alex" })))
+      .toEqual({ title: "Add Codex accounts", folder: "alex" });
     expect(sessionNames(agent({}))).toEqual({ title: "api" });
     // A name that only says the folder again, case and spaces aside, is said once.
     expect(sessionNames(agent({ sessionName: "API ", label: "api" }))).toEqual({ title: "API" });
@@ -153,12 +153,12 @@ describe("the rail row", () => {
     let s = initialState();
     s = begin(s, "named", "/home/me/Desktop", 0, "go on");
     s = named(s, "named", 10, "loroloop", "Fix the login page");
-    s = begin(s, "titled", "/home/me/constantin", 0, "go on");
+    s = begin(s, "titled", "/home/me/alex", 0, "go on");
     s = named(s, "titled", 10, null, "Add Codex accounts");
     s = begin(s, "plain", "/home/me/api", 0, "Make the phone rows tellable apart");
     const rows = byId(buildRows(s, NOW + MIN));
     expect([rows.named.label, rows.named.folder, rows.named.task]).toEqual(["loroloop", "Desktop", "go on"]);
-    expect([rows.titled.label, rows.titled.folder]).toEqual(["Add Codex accounts", "constantin"]);
+    expect([rows.titled.label, rows.titled.folder]).toEqual(["Add Codex accounts", "alex"]);
     // Neither: the folder, and the prompt is the task, never the title.
     expect([rows.plain.label, rows.plain.folder, rows.plain.task]).toEqual(["api", undefined, "Make the phone rows tellable apart"]);
   });
