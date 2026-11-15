@@ -1,16 +1,19 @@
 // The two switches in front of the Chat and Decision screens, and nothing else.
 //
-// OFF BY DEFAULT, AND NOT REACHABLE. Each screen has its own flag, one string in
-// the browser's localStorage in the deck's own namespace ("1" is on, anything
-// else, or no storage at all, is off), read once at load like use-view.ts reads
-// the view. There is no Settings row: a flag nobody can see is the point while
-// the data the screens draw does not exist yet.
+// CHAT ON, THE DECISION CARD OFF. Each screen has its own flag, one string in
+// the browser's localStorage in the deck's own namespace, read once at load
+// like use-view.ts reads the view. Chat is on unless its key is "0": a Claude
+// session's pane offers the Chat | Term switch from the first visit, and Term
+// is still where every pane starts. The Decision card stays off unless its key
+// is "1" (anything else, or no storage at all, is off): it has no way to answer
+// yet. There is no Settings row for either.
+// CHANGED ON PURPOSE (owner, 2026-11-15): Chat was off unless "1".
 //
 // NO SCREEN CODE HERE. This file imports storage.ts and nothing of
 // components/chat/ or components/decision/ (v4-screens-gate.test.ts walks the
 // import graph). It is read by the lazy StageShell chunk (StageBody and
 // StageHeader), not by the first load; the screens themselves are
-// use-screens.ts's one dynamic import, made only with a flag on.
+// use-screens.ts's one dynamic import, made only when a screen is drawn.
 //
 // A FLAG IS NOT ENOUGH. A screen is reached only where the Command Panel is
 // (the gate Workspace uses) and only in the Workspace view, which a phone never
@@ -27,10 +30,10 @@ export interface ScreenFlags {
 
 export const NO_SCREENS: ScreenFlags = { chat: false, decision: false };
 
-/** What the browser remembered. A key that is anything but "1" is off. */
+/** What the browser remembered. Chat is off only for "0"; the Decision card is on only for "1". */
 export function readScreenFlags(read: (key: string) => string | null = readStored): ScreenFlags {
   return {
-    chat: read(CHAT_FLAG_KEY) === "1",
+    chat: read(CHAT_FLAG_KEY) !== "0",
     decision: read(DECISION_FLAG_KEY) === "1",
   };
 }
