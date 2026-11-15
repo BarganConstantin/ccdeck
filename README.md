@@ -780,8 +780,13 @@ platform's **data** directory, and the platform's **log** directory.
 
 | | macOS | Windows | Linux |
 |---|---|---|---|
-| data — `prefs.json`, `tool-audit/` | `~/Library/Application Support/ccdeck` | `%LOCALAPPDATA%\ccdeck\Data` | `$XDG_DATA_HOME/ccdeck` |
+| data — `prefs.json`, `tool-audit/`, `engine/` | `~/Library/Application Support/ccdeck` | `%LOCALAPPDATA%\ccdeck\Data` | `$XDG_DATA_HOME/ccdeck` |
 | log — `events.jsonl` | `~/Library/Logs/ccdeck` | `%LOCALAPPDATA%\ccdeck\Log` | `$XDG_STATE_HOME/ccdeck` |
+
+`engine/` holds the terminal engine, and `engine-minimum-version` beside it the
+oldest engine the deck will run again. **Settings › General › Experimental › Remove the engine**
+empties `engine/`, and the engine installs again the next time a terminal opens.
+Both stay after `npm uninstall -g ccdeck`; delete them with the data folder.
 
 `prefs.json` is the one to delete deliberately: it holds this deck's **Local
 network private key**, the one every deck you paired with has pinned. Leaving it
