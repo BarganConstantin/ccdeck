@@ -1,4 +1,16 @@
 {
+  "3.82.4": [
+    {
+      "title": "🪟 Start at login works on Windows without administrator rights",
+      "body": "Turning on Start at login now works on ordinary Windows accounts too. Before, Windows answered \"Access is denied\" unless ccdeck ran as an administrator.",
+      "priority": "highlight"
+    },
+    {
+      "title": "🧹 No error at login after removing ccdeck",
+      "body": "If Start at login is on and you remove ccdeck with npm uninstall, the login item now ends quietly instead of failing at every login.",
+      "notice": "On Windows, a login item turned on before this version keeps its old form until you turn Start at login off and on again."
+    }
+  ],
   "3.82.3": [
     {
       "title": "🖥️ Windows CPU performance limits",
