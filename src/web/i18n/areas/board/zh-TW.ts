@@ -670,6 +670,7 @@ const catalog: Catalog = {
   "board.stage.textLarger": "放大文字",
   "board.stage.textReset": "恢復為 {percent}",
   "board.stage.textKeys": "輸入時：{keys}",
+  "board.stage.textKeyCtrl": "Ctrl",
   "board.chat.conversation": "對話",
   "board.chat.loading": "正在讀取對話",
   "board.chat.retry": "重試",

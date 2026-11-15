@@ -690,6 +690,7 @@ const catalog: Catalog = {
   "board.stage.textLarger": "Text mai mare",
   "board.stage.textReset": "Înapoi la {percent}",
   "board.stage.textKeys": "Cât scrii: {keys}",
+  "board.stage.textKeyCtrl": "Ctrl",
   "board.chat.conversation": "Conversație",
   "board.chat.loading": "Se citește conversația",
   "board.chat.retry": "Reîncearcă",

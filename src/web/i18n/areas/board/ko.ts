@@ -670,6 +670,7 @@ const catalog: Catalog = {
   "board.stage.textLarger": "글자 크게",
   "board.stage.textReset": "{percent}로 되돌리기",
   "board.stage.textKeys": "입력 중: {keys}",
+  "board.stage.textKeyCtrl": "Ctrl",
   "board.chat.conversation": "대화",
   "board.chat.loading": "대화를 읽는 중",
   "board.chat.retry": "다시 시도",
