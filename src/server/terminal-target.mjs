@@ -473,7 +473,9 @@ export function describeTarget(target) {
     case "B":
       return { kind, label: "This session runs in your own tmux, so the panel joins that pane at its own size and leaves your terminal as it is." };
     case "D":
-      return { kind, label: "This is a Claude background session, so the panel opens it the way claude attach does, at the size it already has, and it keeps running when the panel closes." };
+      // The panel fits the session to itself and puts its own size back as it
+      // closes (terminal-js-routes, keepSize). The engine says the same words.
+      return { kind, label: "This is a Claude background session, so the panel opens it the way claude attach does, fitted to the panel, and when the panel closes it keeps running at the size it had before." };
     case "C":
       return target.adoptable
         ? {
