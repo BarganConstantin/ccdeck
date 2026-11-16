@@ -16,6 +16,7 @@ import { LevelMark } from "./LevelMark";
 import { useT } from "../i18n";
 import SessionNameField, { useRenaming } from "./SessionNameField";
 import { isRenameKey, type RenameFacts } from "../session-rename";
+import { beginDrag, endDrag } from "../split-drag";
 
 /** The 14px status glyph. Working breathes on --pulse-live and nothing else
  *  moves on its own; Waiting is the alert triangle and holds still, because
@@ -92,6 +93,10 @@ export interface RailRowProps {
    *  where a click leaves them on the list. Absent on the Board, where Enter
    *  is the button's own click. */
   onOpenKeys?: (sessionId: string) => void;
+  /** WORKSPACE (internal #102): ⇧↵ on the row opens the session in a pane
+   *  beside the one in focus, and the row can be dragged onto a pane. Absent
+   *  on the Board, and on a row off the board. */
+  onOpenBeside?: (sessionId: string) => void;
   /** A session the deck can name (internal #101): a double click on the row,
    *  or F2 on it, opens the field where its name is. Left out (a row on its
    *  way out), the row only selects. */
@@ -115,7 +120,23 @@ export function openKeysOnEnter(
   };
 }
 
-export function RailRow({ row: r, group, now, selected, removed, leaving, landNonce, onSelect, onOpenKeys, rename }: RailRowProps) {
+/** WORKSPACE (internal #102): ⇧↵ on a row, unheld and with no other
+ *  modifier, opens the session beside the pane in focus. The bare Enter is
+ *  openKeysOnEnter's; any other key is the row's own. */
+export function openBesideOnShiftEnter(
+  sessionId: string,
+  onOpenBeside: ((sessionId: string) => void) | undefined,
+): ((e: { key: string; repeat: boolean; shiftKey: boolean; ctrlKey: boolean; altKey: boolean; metaKey: boolean; preventDefault(): void }) => boolean) | undefined {
+  if (!onOpenBeside) return undefined;
+  return e => {
+    if (e.key !== "Enter" || !e.shiftKey || e.repeat || e.ctrlKey || e.altKey || e.metaKey) return false;
+    e.preventDefault();
+    onOpenBeside(sessionId);
+    return true;
+  };
+}
+
+export function RailRow({ row: r, group, now, selected, removed, leaving, landNonce, onSelect, onOpenKeys, onOpenBeside, rename }: RailRowProps) {
   const t = useT();
   // What it waits on, Ready, or "folder · task" (rail-row-copy.ts railLine);
   // none, and the row is one line.
@@ -134,6 +155,10 @@ export function RailRow({ row: r, group, now, selected, removed, leaving, landNo
   // and the row comes back with the keyboard on it.
   const rowRef = useRef<HTMLButtonElement>(null);
   const renaming = useRenaming(rename?.sessionId, rowRef);
+  // WORKSPACE (internal #102): the row, dragged onto a pane, opens there.
+  const [dragging, setDragging] = useState(false);
+  const beside = removed ? undefined : onOpenBeside;
+  const besideKey = openBesideOnShiftEnter(r.sessionId, beside);
   if (renaming.on && rename) {
     return (
       <li className="sl-row-item" data-rail-id={r.sessionId}>
@@ -149,11 +174,23 @@ export function RailRow({ row: r, group, now, selected, removed, leaving, landNo
   return (
     <li className={`sl-row-item${leaving ? " leaving" : ""}`} data-rail-id={r.sessionId}
       ref={el => { if (el) el.inert = leaving; }}>
-      {/* F2 on the row, caught here as it bubbles: the row's own keydown is
-          the Workspace's Enter (openKeysOnEnter). */}
-      <div className="sl-row-in" onKeyDown={rename ? e => {
-        if (e.target === rowRef.current && isRenameKey(e)) { e.preventDefault(); renaming.start(); }
-      } : undefined}>
+      {/* F2 and ⇧↵ on the row, caught here as they bubble: the row's own
+          keydown is the Workspace's Enter (openKeysOnEnter). */}
+      <div
+        className="sl-row-in"
+        data-dragging={dragging || undefined}
+        draggable={beside ? true : undefined}
+        onDragStart={beside ? e => {
+          beginDrag(e, { kind: "session", id: r.sessionId, name: r.label });
+          setDragging(true);
+        } : undefined}
+        onDragEnd={beside ? () => { setDragging(false); endDrag(); } : undefined}
+        onKeyDown={rename || besideKey ? e => {
+          if (e.target !== rowRef.current) return;
+          if (besideKey?.(e)) return;
+          if (rename && isRenameKey(e)) { e.preventDefault(); renaming.start(); }
+        } : undefined}
+      >
         <button
           ref={rowRef}
           type="button"

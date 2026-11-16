@@ -951,6 +951,10 @@ describe("what counts as an edge, which BORDER_PROPS decides (#655)", () => {
       // stays in the field — VIRTUAL_FOCUS again (SettingsSearch.tsx).
       '.settings-result[data-highlighted="true"]',
       ".uh-bar-col.sel .uh-bar",
+      // CHANGED ON PURPOSE (internal #102): the line between two panes of a
+      // split Workspace is the same kind of grab strip, 1px drawn, so the
+      // keyboard ring drawn round it is the whole of its boundary.
+      ".wsp-divider:focus-visible",
       ":focus-visible",
     ]);
   });

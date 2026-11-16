@@ -50,7 +50,7 @@
 import { contextFigure, contextFigureParts, contextPercent } from "../../context-figure";
 import type { TerminalProvider } from "../../terminal-api";
 import { agentName, type KeysOwner, type StageStatus } from "./stage-model";
-import { type RefObject, useState } from "react";
+import { type DragEvent, type RefObject, useState } from "react";
 import AnchoredPopover from "../AnchoredPopover";
 import SessionNameField, { RenameGlyph } from "../SessionNameField";
 import type { RenameFacts } from "../../session-rename";
@@ -192,6 +192,13 @@ export interface StageHeaderProps {
   /** The pane's text size and its −/+; left out, no Aa is drawn (no terminal
    *  on the stage to size). */
   textSize?: TextSizeView;
+  /** WORKSPACE with panes side by side (internal #102): ⤢ fills the Workspace
+   *  with this pane and gives the others their room back (`expanded` is
+   *  filled), never full screen. */
+  split?: boolean;
+  /** A drag from the header moves the pane (internal #102). Not while the
+   *  name is being edited, nor from a button. */
+  onDragHead?(e: DragEvent<HTMLElement>): void;
   /** Ask the session for keys, or give them back. */
   onKeys(): void;
   onExpand(): void;
@@ -218,6 +225,9 @@ export function zoomLabelFor(zoomed: boolean, canFull: boolean, full: boolean): 
 }
 
 export const FULL_LABEL_MSG = "board.stage.fullLabel";
+/** ⤢ in a split Workspace (internal #102): what a press will do. */
+export const SPLIT_MAX_LABEL_MSG = "board.stage.split.maximize";
+export const SPLIT_RESTORE_LABEL_MSG = "board.stage.split.restore";
 /** No Esc in it: held where the keyboard lock took, pressed where it did
  *  not, and the browser's own bubble says which. */
 export const FULL_LEAVE_LABEL_MSG = "board.stage.fullLeaveLabel";
@@ -242,7 +252,8 @@ export default function StageHeader(p: StageHeaderProps) {
   const keysLabel = t("board.stage.typeInto");
   const keysTip = pane ? t("board.stage.keysBack", { chord: p.chordLabel }) : t("board.stage.typeIntoTip", { label: keysLabel });
   const zoom = p.workspace === "pane";
-  const expandLabel = zoom ? zoomLabelFor(p.expanded, p.canFull === true, p.full === true) : expandLabelFor(p.expanded, p.canFull === true, p.full === true);
+  const expandLabel = p.split ? t(p.expanded ? SPLIT_RESTORE_LABEL_MSG : SPLIT_MAX_LABEL_MSG)
+    : zoom ? zoomLabelFor(p.expanded, p.canFull === true, p.full === true) : expandLabelFor(p.expanded, p.canFull === true, p.full === true);
   const closeLabel = t(p.workspace === "empty" ? BACK_EMPTY_LABEL_MSG
     : p.workspace === "pane" ? (p.nothingRunning ? PANE_CLOSE_LABEL_MSG : CLOSE_LABEL_MSG)
       : p.nothingRunning ? CLOSE_EMPTY_LABEL_MSG : CLOSE_LABEL_MSG);
@@ -252,7 +263,15 @@ export default function StageHeader(p: StageHeaderProps) {
   const renaming = p.rename ?? null;
   const renameLabel = t("board.rename.action");
   return (
-    <header className="ts-head">
+    <header
+      className="ts-head"
+      draggable={p.onDragHead && !renaming?.on ? true : undefined}
+      onDragStart={p.onDragHead && !renaming?.on ? e => {
+        // A press on a control is that control's, never the start of a move.
+        if ((e.target as Element | null)?.closest?.("button, input, [role=menu]")) { e.preventDefault(); return; }
+        p.onDragHead?.(e);
+      } : undefined}
+    >
       {p.takeover && (
         <button type="button" className="glyph-btn" aria-label={backLabel} title={backLabel} onClick={p.onClose}>
           <BackGlyph />

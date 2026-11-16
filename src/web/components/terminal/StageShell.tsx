@@ -28,9 +28,10 @@
 // starts at the progress that draws the frame the open drew last, so nothing
 // jumps. By a key there is no morph at all, and under reduced motion the stage
 // crossfades in its column, the board and the navigator fading with it.
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, type CSSProperties, type MutableRefObject } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type DragEvent, type KeyboardEvent as ReactKeyboardEvent, type MutableRefObject, type ReactNode } from "react";
 import { useReactFlow, useStoreApi } from "reactflow";
 import type { BlockedSession } from "../../ambient-counts";
+import { useT } from "../../i18n";
 import { boardRect } from "../../board-rect";
 import { clusterBounds } from "../../cluster-bounds";
 import { FLIP_CLOSE_MS, FLIP_OPEN_MS, easeOutInverse, readBoardClusterRects, runTween, type Running } from "../../navigator-flip";
@@ -42,13 +43,19 @@ import { columnSeed, crossfadeFrame, localRect, morphFrame, type MorphFrame, typ
 import type { Asks } from "../../use-asks";
 import { useMirroredRef } from "../../use-mirrored-ref";
 import type { Stage } from "../../use-stage";
+import { beginDrag, currentDrag, endDrag, isOurDrag } from "../../split-drag";
+import type { StageTarget } from "../../stage-shell";
+import type { AgentNodeData } from "../../types";
 import { prefersReducedMotion } from "../../viewport-motion";
+import { tabStripMove } from "../../tablist-keys";
+import { MAX_PANES, paneIds, paneTarget, zoneAt, zoneRect, type DropZone, type Rect } from "../../workspace-split";
 import BoardNavigator from "../BoardNavigator";
 import NewSessionPopover from "./NewSessionPopover";
+import SplitDivider from "./SplitDivider";
 import { useCodexLaunch } from "./codex-launch";
 import { barArrival, barAsks, boardProjects, stageShowFor, waitingCardFor } from "./stage-board";
 import { closedAnnouncement } from "./stage-model";
-import TerminalStage, { stageName } from "./TerminalStage";
+import TerminalStage, { stageName, type StageSplit } from "./TerminalStage";
 
 // ---------------------------------------------------------------------------
 // The navigator, in the canvas.
@@ -118,8 +125,83 @@ function cardRects(canvas: HTMLElement | null, id: string | null): { card: DOMRe
   return { card, name: nameEl ? nameEl.getBoundingClientRect() : null };
 }
 
+/** Panes in the order they were made (p0, p1, …): a new pane is added after
+ *  the others, and none of them moves in the document. */
+function byPaneNumber(a: string, b: string): number {
+  return (Number(a.slice(1)) || 0) - (Number(b.slice(1)) || 0);
+}
+
 const asRect = (r: DOMRect | { x: number; y: number; w: number; h: number }): MorphRect =>
   "width" in r ? { x: r.left, y: r.top, w: r.width, h: r.height } : r;
+
+// ---------------------------------------------------------------------------
+// WORKSPACE with panes side by side (internal #102).
+
+/** One pane's place in the Workspace. Every pane, the one stage included, is
+ *  drawn through this one keyed wrapper, so a split, a move or a switch of
+ *  view never mounts the terminal on screen again. */
+interface SplitPaneProps {
+  id: string;
+  /** Its box in the cell; null fills the cell (one pane, or the Board). */
+  rect: Rect | null;
+  /** Several panes on screen: the one with the keys is marked. */
+  multi: boolean;
+  focused: boolean;
+  /** Behind the strip: kept running, out of sight and out of reach. */
+  hidden: boolean;
+  /** One pane on show and the strip names them all: this pane is the panel
+   *  its tab in the strip controls. */
+  strip: boolean;
+  target: StageTarget | null;
+  agents: ReadonlyMap<string, AgentNodeData>;
+  onFound(sessionId: string, key: string): void;
+  /** A press or a focus inside a pane without the keys gives it them. */
+  onFocusIn(): void;
+  children: ReactNode;
+}
+
+/** Below this a pane's header keeps its name and its own controls only. */
+const NARROW_PANE_W = 600;
+
+function SplitPane(p: SplitPaneProps) {
+  // A Codex launch in any pane is found as its own (codex-launch.ts).
+  useCodexLaunch(p.target, p.agents, p.onFound);
+  const r = p.rect;
+  const style: CSSProperties | undefined = r ? { left: r.x, top: r.y, width: r.w, height: r.h, right: "auto", bottom: "auto" } : undefined;
+  const away = p.multi && !p.focused && !p.hidden;
+  // `inert` is not in React 18's attribute types; it is a plain attribute.
+  const inert = p.hidden ? { inert: "" } : {};
+  const pane = {
+    style,
+    "data-pane": p.id,
+    "data-focused": (p.multi && p.focused) || undefined,
+    "data-narrow": (p.multi && r != null && r.w < NARROW_PANE_W) || undefined,
+    "data-hidden": p.hidden || undefined,
+    "aria-hidden": p.hidden || undefined,
+    ...inert,
+    onPointerDownCapture: away ? p.onFocusIn : undefined,
+    onFocusCapture: away ? p.onFocusIn : undefined,
+  };
+  // Under the strip the pane is the panel its tab names. The same <div> in
+  // both branches, so React keeps it, and the terminal in it, between them.
+  const id = p.id;
+  return p.strip ? (
+    <div className="wsp-pane" role="tabpanel" id={stripPanelId(id)} aria-labelledby={stripTabId(id)} {...pane}>
+      {p.children}
+    </div>
+  ) : (
+    <div className="wsp-pane" {...pane}>
+      {p.children}
+    </div>
+  );
+}
+
+/** The strip's tab for a pane, and the pane it shows. */
+const stripTabId = (pane: string) => `wsp-tab-${pane}`;
+const stripPanelId = (pane: string) => `wsp-pane-${pane}`;
+
+/** What a drag over the Workspace would do, and where it lights up. */
+interface DropView { pane: string; zone: DropZone; rect: Rect; label: string; already: boolean }
 
 export function StageDock(p: StageDockProps) {
   const { stage, stateRef, canvasRef } = p;
@@ -137,10 +219,20 @@ export function StageDock(p: StageDockProps) {
    *  nothing is opening. A close that turns it around starts from here. */
   const openedRef = useRef(1);
 
+  const t = useT();
   const agents = stateRef.current.agents;
   const show = stageShowFor(shell.target, agents, p.now);
-  useCodexLaunch(shell.target, agents, (sessionId, key) => stage.onLaunched({ sessionId, key }));
+  const onFound = useCallback((sessionId: string, key: string) => stage.onLaunched({ sessionId, key }), [stage]);
   const fill = g?.fill === true;
+  const [drop, setDrop] = useState<DropView | null>(null);
+  // A drag that ends anywhere, dropped or not, takes its zone away.
+  useEffect(() => {
+    if (!drop) return;
+    const off = () => setDrop(null);
+    window.addEventListener("dragend", off);
+    window.addEventListener("drop", off);
+    return () => { window.removeEventListener("dragend", off); window.removeEventListener("drop", off); };
+  }, [drop]);
   const name = stageName(show, fill);
   // The empty stage's name is a description, not a session: closing it keeps
   // nothing running, so the sentence says only that the stage closed.
@@ -328,6 +420,142 @@ export function StageDock(p: StageDockProps) {
     if (flow) flow.style.opacity = "";
   }, [canvasRef]);
 
+  // ── the panes (internal #102) ──────────────────────────────────────────────
+  const split = stage.split ?? null;
+  const focusedId = split?.focused ?? "p0";
+  const arrangement = fill ? stage.arrangement ?? null : null;
+  const multi = arrangement != null && arrangement.mode !== "one";
+  const ids = multi && split ? [...paneIds(split.root)].sort(byPaneNumber) : [focusedId];
+  const panes = ids.map(id => {
+    const focused = id === focusedId;
+    const target = focused ? shell.target : paneTarget(split!, id, null);
+    const paneShow = focused ? show : stageShowFor(target, agents, p.now);
+    return { id, focused, target, show: paneShow, name: stageName(paneShow, true) };
+  });
+
+  const nameOfSession = (id: string) => stageName(stageShowFor({ kind: "session", id }, agents, p.now), true);
+  /** The drop a drag at (x, y) of the cell would make, or null. */
+  const dropAt = (x: number, y: number): DropView | null => {
+    const dragged = currentDrag();
+    if (!dragged || !split) return null;
+    // A session already in a pane: the keys go there, whichever pane it is dropped on.
+    if (dragged.kind === "session") {
+      const has = panes.find(x2 => x2.target?.kind === "session" && x2.target.id === dragged.id);
+      if (has) {
+        const r = multi ? arrangement!.rects.get(has.id) : null;
+        const box = r ?? { x: 0, y: 0, w: inRef.current?.clientWidth ?? 0, h: inRef.current?.clientHeight ?? 0 };
+        return { pane: has.id, zone: "here", rect: box, label: t("board.stage.split.already"), already: true };
+      }
+    }
+    const shown = panes.filter(x2 => !(multi && arrangement!.mode === "strip" && !x2.focused));
+    for (const pane of shown) {
+      const r = multi ? arrangement!.rects.get(pane.id) : { x: 0, y: 0, w: inRef.current?.clientWidth ?? 0, h: inRef.current?.clientHeight ?? 0 };
+      if (!r || x < r.x || y < r.y || x > r.x + r.w || y > r.y + r.h) continue;
+      if (dragged.kind === "pane" && dragged.id === pane.id) return null;
+      const canSplit = dragged.kind === "pane" || (paneIds(split.root).length < MAX_PANES && pane.show.kind !== "empty");
+      const zone = zoneAt(r, x, y, canSplit);
+      const key = dragged.kind === "pane"
+        ? (zone === "here" ? "board.stage.split.moveSwap" : zone === "top" ? "board.stage.split.moveAbove" : zone === "bottom" ? "board.stage.split.moveBelow" : "board.stage.split.moveBeside")
+        : (zone === "here" ? "board.stage.split.showHere" : zone === "top" ? "board.stage.split.openAbove" : zone === "bottom" ? "board.stage.split.openBelow" : "board.stage.split.openBeside");
+      return { pane: pane.id, zone, rect: zoneRect(r, zone), label: t(key, { name: dragged.name }), already: false };
+    }
+    return null;
+  };
+  const point = (e: DragEvent<HTMLElement>) => {
+    const box = inRef.current?.getBoundingClientRect();
+    return box ? { x: e.clientX - box.left, y: e.clientY - box.top } : null;
+  };
+  function onDragOver(e: DragEvent<HTMLDivElement>) {
+    if (!isOurDrag(e.dataTransfer?.types)) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const at = point(e);
+    const next = at ? dropAt(at.x, at.y) : null;
+    if (e.dataTransfer) e.dataTransfer.dropEffect = next ? "move" : "none";
+    setDrop(prev => (prev && next && prev.pane === next.pane && prev.zone === next.zone && prev.label === next.label ? prev : next));
+  }
+  function onDragLeave(e: DragEvent<HTMLDivElement>) {
+    const to = e.relatedTarget as Node | null;
+    if (to && inRef.current?.contains(to)) return;
+    setDrop(null);
+  }
+  function onDrop(e: DragEvent<HTMLDivElement>) {
+    if (!isOurDrag(e.dataTransfer?.types)) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const at = point(e);
+    const view = at ? dropAt(at.x, at.y) : null;
+    const dragged = currentDrag();
+    setDrop(null);
+    endDrag();
+    if (!view || !dragged) return;
+    if (dragged.kind === "pane") stage.movePaneTo(dragged.id, view.pane, view.zone);
+    else if (view.already) stage.focusPaneId(view.pane, { keys: true });
+    else if (view.zone === "here") stage.dropHere(view.pane, dragged.id);
+    else stage.openBeside(dragged.id, { at: view.pane, zone: view.zone });
+  }
+
+  /** The terminal of one pane: the stage as it always was for the pane with
+   *  the keys, and the same stage, sized to its box, for every other pane. */
+  const stageFor = (pane: typeof panes[number]) => {
+    const own = pane.focused;
+    const id = pane.id;
+    const ps = pane.show;
+    const rect = multi ? arrangement!.rects.get(id) : null;
+    const geometry = multi && rect ? stage.geometryFor(rect.w, rect.h) : g!;
+    const keysHere = () => { if (!own) stage.focusPaneId(id); };
+    const splitView: StageSplit | null = multi ? {
+      primary: own,
+      max: arrangement!.why === "max",
+      onMax: () => (arrangement!.why === "max" ? stage.showAll() : stage.toggleMax(id)),
+      onDragHead: e => beginDrag(e, { kind: "pane", id, name: pane.name }),
+    } : null;
+    const close = multi ? () => stage.closePane(id)
+      : fill ? (ps.kind === "empty" ? p.onBoard ?? stage.close : stage.emptyPane) : stage.close;
+    return (
+      <TerminalStage
+        show={ps}
+        geometry={geometry}
+        cell={stage.cell}
+        readToken={readToken}
+        expanded={stage.expanded}
+        firstRun={own ? stage.firstRun : false}
+        asksWaiting={own && p.waitingSessions.length > 0}
+        asks={own ? barAsks(p.asks.view, p.waitingSessions, p.now) : null}
+        arrival={own ? barArrival(p.asks.view, p.waitingSessions) : null}
+        // Held until the stage can be seen: a focus asked of a pane that is
+        // still hidden would be spent on nothing and not asked again. With
+        // panes side by side, only the pane it was asked for answers it.
+        focusRequest={multi ? stage.requestFor(id) : shell.phase === "waiting" ? null : shell.focusRequest}
+        takeTypeAhead={stage.takeTypeAhead}
+        holdsTypeAhead={stage.holdsTypeAhead}
+        onWantKeys={own ? stage.focusPane : () => stage.focusPaneId(id, { keys: true })}
+        onNextAsk={p.asks.nextAsk}
+        onOpenWaiting={id => stage.switchTo(id, { focusPane: true })}
+        onAnswerArrival={p.asks.nextAsk}
+        // Workspace: ✕ empties the pane, and on the empty pane leaves for the
+        // Board. The Board's ✕ closes the stage, as it did. With panes side by
+        // side ✕ (or the agent ending itself, #104) closes that pane alone.
+        onClose={close}
+        waiting={own && fill && ps.kind === "empty" ? waitingCardFor(p.waitingSessions, p.now) : null}
+        onToggleExpand={stage.toggleExpand}
+        onFirstRunDone={stage.firstRunDone}
+        onNewSession={anchor => { keysHere(); stage.openPopover(anchor); }}
+        onCols={stage.onCols}
+        onColsReset={stage.onColsReset}
+        onRelease={stage.release}
+        onCell={own ? stage.onCell : undefined}
+        onBarH={own ? stage.onBarH : undefined}
+        onHeadH={own ? stage.onHeadH : undefined}
+        onLaunched={stage.onLaunched}
+        onLaunchAgain={ps.kind === "launch" ? () => { keysHere(); stage.launch(ps.agent, ps.cwd, ps.options); } : undefined}
+        onAnnounce={stage.announce}
+        windows={stage.windows}
+        split={splitView}
+      />
+    );
+  };
+
   if (!g) return null;
   const morphing = shell.phase === "waiting" || shell.phase === "opening" || shell.phase === "closing";
   const currentCwd = show.kind === "session" ? show.session.ref.cwd : show.kind === "launch" ? show.cwd : null;
@@ -343,44 +571,106 @@ export function StageDock(p: StageDockProps) {
       style={{ "--stage-w": `${g.stageW}px` } as CSSProperties}
     >
       <div className="stage-ground" aria-hidden="true" />
-      <div ref={inRef} className="stage-in">
-        <TerminalStage
-          show={show}
-          geometry={g}
-          cell={stage.cell}
-          readToken={readToken}
-          expanded={stage.expanded}
-          firstRun={stage.firstRun}
-          asksWaiting={p.waitingSessions.length > 0}
-          asks={barAsks(p.asks.view, p.waitingSessions, p.now)}
-          arrival={barArrival(p.asks.view, p.waitingSessions)}
-          // Held until the stage can be seen: a focus asked of a pane that is
-          // still hidden would be spent on nothing and not asked again.
-          focusRequest={shell.phase === "waiting" ? null : shell.focusRequest}
-          takeTypeAhead={stage.takeTypeAhead}
-          holdsTypeAhead={stage.holdsTypeAhead}
-          onWantKeys={stage.focusPane}
-          onNextAsk={p.asks.nextAsk}
-          onOpenWaiting={id => stage.switchTo(id, { focusPane: true })}
-          onAnswerArrival={p.asks.nextAsk}
-          // Workspace: ✕ empties the pane, and on the empty pane leaves for the
-          // Board. The Board's ✕ closes the stage, as it did.
-          onClose={fill ? (show.kind === "empty" ? p.onBoard ?? stage.close : stage.emptyPane) : stage.close}
-          waiting={fill && show.kind === "empty" ? waitingCardFor(p.waitingSessions, p.now) : null}
-          onToggleExpand={stage.toggleExpand}
-          onFirstRunDone={stage.firstRunDone}
-          onNewSession={stage.openPopover}
-          onCols={stage.onCols}
-          onColsReset={stage.onColsReset}
-          onRelease={stage.release}
-          onCell={stage.onCell}
-          onBarH={stage.onBarH}
-          onHeadH={stage.onHeadH}
-          onLaunched={stage.onLaunched}
-          onLaunchAgain={show.kind === "launch" ? () => stage.launch(show.agent, show.cwd, show.options) : undefined}
-          onAnnounce={stage.announce}
-          windows={stage.windows}
-        />
+      <div
+        ref={inRef}
+        className="stage-in"
+        data-split={multi ? arrangement!.mode : undefined}
+        onDragOverCapture={fill ? onDragOver : undefined}
+        onDragLeave={fill ? onDragLeave : undefined}
+        onDropCapture={fill ? onDrop : undefined}
+      >
+        {arrangement?.mode === "strip" && (
+          <div
+            className="wsp-strip"
+            role="tablist"
+            aria-label={t("board.stage.split.strip")}
+            style={{ height: arrangement.strip }}
+            onKeyDown={(e: ReactKeyboardEvent<HTMLDivElement>) => {
+              // The arrows walk the tabs as a click would choose one: that
+              // pane on show. The keys stay on the tab, as on any tab strip;
+              // ↵ or a click on the pane hands them to its terminal.
+              if ((e.target as HTMLElement).getAttribute("role") !== "tab") return;
+              const order = arrangement.order;
+              const move = tabStripMove(e, order.indexOf(focusedId), order.length);
+              if (move.kind !== "select") return;
+              e.preventDefault();
+              e.stopPropagation();
+              const next = order[move.index];
+              stage.focusPaneId(next);
+              document.getElementById(stripTabId(next))?.focus();
+            }}
+          >
+            {arrangement.order.map((id, n) => {
+              const pane = panes.find(x => x.id === id);
+              if (!pane) return null;
+              const on = id === focusedId;
+              return (
+                <button
+                  key={id}
+                  type="button"
+                  role="tab"
+                  id={stripTabId(id)}
+                  aria-controls={stripPanelId(id)}
+                  tabIndex={on ? 0 : -1}
+                  className="wsp-tab"
+                  aria-selected={on}
+                  data-on={on || undefined}
+                  title={pane.name}
+                  onClick={() => stage.focusPaneId(id, { keys: true })}
+                >
+                  <span className="wsp-tab-n" aria-hidden="true">{n + 1}</span>
+                  <span className="wsp-tab-name">{pane.name}</span>
+                </button>
+              );
+            })}
+            {arrangement.why === "max" && (
+              <button type="button" className="wsp-all" onClick={stage.showAll}>
+                {t("board.stage.split.showAll", { count: panes.length })}
+              </button>
+            )}
+            {arrangement.why === "narrow" && (
+              <span className="wsp-why" title={t("board.stage.split.narrowHint")}>
+                {t("board.stage.split.narrow")}
+              </span>
+            )}
+          </div>
+        )}
+        {panes.map(pane => (
+          <SplitPane
+            key={pane.id}
+            id={pane.id}
+            rect={multi ? arrangement!.rects.get(pane.id) ?? null : null}
+            multi={multi}
+            focused={pane.focused}
+            hidden={multi && arrangement!.mode === "strip" && !pane.focused}
+            strip={multi && arrangement!.mode === "strip"}
+            target={pane.target}
+            agents={agents}
+            onFound={onFound}
+            onFocusIn={() => stage.focusPaneId(pane.id)}
+          >
+            {stageFor(pane)}
+          </SplitPane>
+        ))}
+        {fill && (
+          <p className="wsp-note" role="status" aria-atomic="true" data-on={stage.splitNote ? true : undefined}>
+            {stage.splitNote}
+          </p>
+        )}
+        {multi && arrangement!.mode === "split" && arrangement!.dividers.map(d => (
+          <SplitDivider key={d.path || "root"} d={d} label={t("board.stage.split.divider")} inRef={inRef} onRatio={stage.setSplitRatio} />
+        ))}
+        {drop && (
+          <div
+            className="wsp-zone"
+            data-zone={drop.zone}
+            data-already={drop.already || undefined}
+            style={{ left: drop.rect.x, top: drop.rect.y, width: drop.rect.w, height: drop.rect.h }}
+            aria-hidden="true"
+          >
+            <span className="wsp-zone-label">{drop.label}</span>
+          </div>
+        )}
       </div>
       <span ref={edgeRef} className="stage-edge" aria-hidden="true" />
       <span ref={riderRef} className="stage-rider" aria-hidden="true">{name}</span>
