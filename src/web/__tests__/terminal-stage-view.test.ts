@@ -697,7 +697,12 @@ describe("the keys typed before the pane could take them", () => {
     // use-focus-request.test.ts's. This is the wire between them, which needs
     // a real xterm to run.
     const stage = web("components/terminal/TerminalStage.tsx");
-    expect(stage).toMatch(/focus: request => \{\s*session\.focus\(\);\s*const ahead = p\.takeTypeAhead\?\.\(request\);\s*if \(ahead\) session\.type\(ahead\);\s*\}/);
+    // CHANGED ON PURPOSE (internal #99): the request goes through intoPane, which
+    // shows Term first when Chat covers the pane; the keys still follow the focus,
+    // in givePane, and a request the stage left on the way lets them go.
+    expect(stage).toMatch(/focus: request => \{ intoPane\(request\); \}/);
+    expect(stage).toMatch(/const givePane = \(request\?: FocusRequest\["request"\]\) => \{\s*session\.focus\(\);\s*if \(request === undefined\) return;\s*const ahead = p\.takeTypeAhead\?\.\(request\);\s*if \(ahead\) session\.type\(ahead\);\s*\};/);
+    expect(stage).toMatch(/if \(want\.key === key\) givePane\(want\.request\);\s*else if \(want\.request !== undefined\) p\.takeTypeAhead\?\.\(want\.request\);/);
     expect(stage).toMatch(/unmet: request => \{ p\.takeTypeAhead\?\.\(request\); \}/);
     expect(web("components/terminal/StageShell.tsx")).toContain("takeTypeAhead={stage.takeTypeAhead}");
   });
