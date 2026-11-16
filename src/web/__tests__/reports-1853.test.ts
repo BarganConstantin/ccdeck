@@ -17,8 +17,16 @@
 // reports went on by default — which is why the cases about a saved `false`
 // matter more than they look: an upgrade must never turn back on what somebody
 // turned off.
+import { mkdtempSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { Readable } from "node:stream";
 import { describe, it, expect, vi } from "vitest";
+import { rmTempDir } from "./rm-temp-dir";
+// @ts-expect-error — plain JS module, no types
+import { COUNT_CAP } from "../../server/depth-facts.mjs";
+// @ts-expect-error — plain JS module, no types
+import { createIntegrationsStore, META_FILE, REPORTED_CONNECTIONS_MAX } from "../../server/integrations/store.mjs";
 import { DEFAULTS, normalise, publicPrefs, reportsVetoed } from "../../server/deck-prefs.mjs";
 import {
   createReporter, deviceIdToken, installFacts, localeToken, reportsOn, scrub, shellToken, termToken,
@@ -91,26 +99,148 @@ function harness({
 
 
 describe("provider connection snapshots", () => {
-  it("reports distinct known providers on active only, not addresses or secrets", async () => {
-    const h = harness();
-    const report = h.reporterWith({ integrations: async () =>
-      ["gitlab", "jira", "jira", "unknown", "token-secret", "github"] });
-    await report.checkIn();
-    const installs = h.calls.filter(c => c.body?.kind === "install");
-    const active = h.calls.filter(c => c.body?.kind === "active");
-    expect(installs[0].body).not.toHaveProperty("connectedIntegrations");
-    expect(active[0].body?.connectedIntegrations).toEqual(["jira", "github", "gitlab"]);
-    expect(JSON.stringify(active[0].body)).not.toContain("token-secret");
+  const TRACKER_FIELDS = ["connectedIntegrations", "integrationCounts", "integrationsUnread"];
+  const activeOf = (h: ReturnType<typeof harness>) => h.calls.find(c => c.body?.kind === "active")?.body;
+  /** The real store over a scratch folder holding `meta` as integrations.json
+   *  (nothing written when it is undefined), as the deck's own reporter reads it. */
+  const scratchStore = (meta?: string) => {
+    const dir = mkdtempSync(join(tmpdir(), "ccdeck-report-trackers-"));
+    if (meta !== undefined) writeFileSync(join(dir, META_FILE), meta);
+    return { dir, counts: createIntegrationsStore({ dir: () => dir }).connectionCounts };
+  };
+  const connection = (kind: unknown, n: number) => ({
+    id: `conn-id-${kind}-${n}`, kind, name: `Secret board ${n}`, baseUrl: `https://tracker-${n}.private.example`,
+    account: { id: `acct-${n}`, login: `alice-login-${n}`, name: `Alice Private ${n}` },
   });
 
-  it("distinguishes empty configurations from a failed metadata read", async () => {
-    const empty = harness();
-    await empty.reporterWith({ integrations: async () => [] }).checkIn();
-    expect(empty.calls.find(c => c.body?.kind === "active")?.body?.connectedIntegrations).toEqual([]);
+  it("says how many connections of each provider are saved, on active only", async () => {
+    const h = harness();
+    await h.reporterWith({ integrations: async () => ({ jira: 2, github: 1, gitlab: 0 }) }).checkIn();
+    expect(activeOf(h)?.integrationCounts).toEqual({ jira: 2, github: 1, gitlab: 0 });
+    // Still sent for older versions of the API, which read the names alone.
+    expect(activeOf(h)?.connectedIntegrations).toEqual(["jira", "github"]);
+    expect(activeOf(h)).not.toHaveProperty("integrationsUnread");
+  });
 
-    const unreadable = harness();
-    await unreadable.reporterWith({ integrations: async () => { throw Error("unreadable metadata"); } }).checkIn();
-    expect(unreadable.calls.find(c => c.body?.kind === "active")?.body).not.toHaveProperty("connectedIntegrations");
+  it("counts what the real store reads, and nothing else about a connection leaves", async () => {
+    const { dir, counts } = scratchStore(JSON.stringify({
+      version: 1, connections: [
+        connection("jira", 1), connection("jira", 2), connection("github", 3),
+        connection("youtrack", 4), connection(7, 5), null, "gitlab",
+      ],
+    }));
+    try {
+      const h = harness();
+      await h.reporterWith({ integrations: counts }).checkIn();
+      const body = activeOf(h);
+      expect(body?.integrationCounts).toEqual({ jira: 2, github: 1, gitlab: 0 });
+      expect(body?.connectedIntegrations).toEqual(["jira", "github"]);
+      const said = JSON.stringify(h.calls.map(c => c.body));
+      for (const leak of ["conn-id", "Secret board", "private.example", "acct-", "alice-login", "Alice Private", "youtrack"]) {
+        expect(said, leak).not.toContain(leak);
+      }
+    } finally {
+      rmTempDir(dir);
+    }
+  });
+
+  it("caps each count, store and reporter alike", async () => {
+    expect(REPORTED_CONNECTIONS_MAX).toBe(COUNT_CAP);
+    const { dir, counts } = scratchStore(JSON.stringify({
+      version: 1, connections: Array.from({ length: 60 }, (_, i) => connection("jira", i)),
+    }));
+    try {
+      const h = harness();
+      await h.reporterWith({ integrations: counts }).checkIn();
+      expect(activeOf(h)?.integrationCounts).toEqual({ jira: 50, github: 0, gitlab: 0 });
+    } finally {
+      rmTempDir(dir);
+    }
+    // A provider that answers past the cap, or below zero, is held to it.
+    const h = harness();
+    await h.reporterWith({ integrations: async () => ({ jira: 99, github: -3, gitlab: 50 }) }).checkIn();
+    expect(activeOf(h)?.integrationCounts).toEqual({ jira: 50, github: 0, gitlab: 50 });
+    expect(activeOf(h)?.connectedIntegrations).toEqual(["jira", "gitlab"]);
+  });
+
+  it("says nothing is saved, with explicit zeros, when there is no file yet", async () => {
+    const { dir, counts } = scratchStore();
+    try {
+      const h = harness();
+      await h.reporterWith({ integrations: counts }).checkIn();
+      expect(activeOf(h)?.integrationCounts).toEqual({ jira: 0, github: 0, gitlab: 0 });
+      expect(activeOf(h)?.connectedIntegrations).toEqual([]);
+      expect(activeOf(h)).not.toHaveProperty("integrationsUnread");
+    } finally {
+      rmTempDir(dir);
+    }
+  });
+
+  it.each([
+    ["invalid JSON", "{not-json"],
+    ["no connections list", JSON.stringify({ version: 1 })],
+    ["connections that are not a list", JSON.stringify({ version: 1, connections: { a: { kind: "jira" } } })],
+  ])("says only that the list could not be read when the metadata has %s", async (_, meta) => {
+    const { dir, counts } = scratchStore(meta);
+    try {
+      const h = harness();
+      await h.reporterWith({ integrations: counts }).checkIn();
+      expect(activeOf(h)?.integrationsUnread).toBe(true);
+      expect(activeOf(h)).not.toHaveProperty("integrationCounts");
+      expect(activeOf(h)).not.toHaveProperty("connectedIntegrations");
+    } finally {
+      rmTempDir(dir);
+    }
+  });
+
+  it.each([
+    ["throws", async () => { throw Error("unreadable metadata"); }],
+    ["answers null", async () => null],
+    ["answers the old list of names", async () => ["jira", "github"]],
+    ["leaves a provider out", async () => ({ jira: 1, github: 0 })],
+    ["answers a count as text", async () => ({ jira: "2", github: 0, gitlab: 0 })],
+    ["answers a fraction", async () => ({ jira: 1.5, github: 0, gitlab: 0 })],
+  ])("treats a provider that %s as a list that could not be read", async (_, integrations) => {
+    const h = harness();
+    await h.reporterWith({ integrations }).checkIn();
+    expect(activeOf(h)?.integrationsUnread).toBe(true);
+    expect(activeOf(h)).not.toHaveProperty("integrationCounts");
+    expect(activeOf(h)).not.toHaveProperty("connectedIntegrations");
+  });
+
+  it("says nothing about trackers on any report but the active", async () => {
+    const h = harness();
+    const integrations = async () => ({ jira: 1, github: 1, gitlab: 1 });
+    await h.reporterWith({ integrations }).checkIn();
+    await h.reporterWith({ integrations, version: "3.33.0" }).checkIn();
+    const report = h.reporterWith({ integrations });
+    await report.ping();
+    await report.reportUninstall("broken");
+    await report.reportError("server", new Error("boom"));
+    const others = h.calls.filter(c => c.body?.kind !== "active");
+    expect(others.map(c => c.body?.kind ?? c.url)).toEqual(expect.arrayContaining(["install", "update", "uninstall"]));
+    for (const call of others) for (const field of TRACKER_FIELDS) expect(call.body ?? {}, `${call.url} ${field}`).not.toHaveProperty(field);
+    expect(activeOf(h)?.integrationCounts).toEqual({ jira: 1, github: 1, gitlab: 1 });
+  });
+
+  it("says nothing about trackers when no store is wired in", async () => {
+    const h = harness();
+    await h.reporter.checkIn();
+    for (const field of TRACKER_FIELDS) expect(activeOf(h)).not.toHaveProperty(field);
+  });
+
+  it("never reads the connections with reports off or vetoed", async () => {
+    const off = harness({ saved: { reports: false } });
+    const vetoed = harness({ env: { AGENTS_DECK_NO_REPORTS: "1" } });
+    for (const h of [off, vetoed]) {
+      const integrations = vi.fn(async () => ({ jira: 1, github: 0, gitlab: 0 }));
+      const report = h.reporterWith({ integrations });
+      await report.checkIn();
+      h.nextDay();
+      await report.checkIn();
+      expect(h.calls).toEqual([]);
+      expect(integrations).not.toHaveBeenCalled();
+    }
   });
 });
 

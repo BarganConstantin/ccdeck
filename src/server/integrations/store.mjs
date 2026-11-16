@@ -39,6 +39,13 @@ const DIR_MODE = 0o700;
 export const MAX_CONNECTIONS = 50;
 /** The folder both files live in, inside the deck's home. */
 export const STORE_DIR = "integrations";
+/** The providers a usage report may name, in the order it names them. */
+export const REPORTED_KINDS = ["jira", "github", "gitlab"];
+/** The most connections of one kind a usage report counts: the cap the report
+ *  puts on its other counts too (depth-facts.mjs COUNT_CAP, which the reporter
+ *  holds the answer to again). The store saves no more than MAX_CONNECTIONS in
+ *  all, so this bites only on a file edited by hand. */
+export const REPORTED_CONNECTIONS_MAX = 50;
 
 const text = (v, max = 500) => (typeof v === "string" ? v.slice(0, max) : "");
 
@@ -152,27 +159,38 @@ export function createIntegrationsStore({ dir = () => join(deckDataDir(), STORE_
    *  whether one is saved. */
   const publicOf = (conn, secrets) => ({ ...conn, tokenSaved: secrets.has(conn.id) });
 
-  return {
-    /**
-     * Only the supported provider names with a saved connection — never credentials,
-     * account identity, connection ID, address or number of connections. Metadata
-     * alone is read: the secrets file is not even opened for usage reporting.
-     * null = unavailable/unreadable; [] = successfully read, nothing connected.
-     */
-    async connectedKinds() {
-      try {
-        const raw = await readFile(join(dir(), META_FILE), "utf8");
-        const doc = JSON.parse(raw.replace(/^\uFEFF/, ""));
-        if (!doc || !Array.isArray(doc.connections)) return null;
-        const kinds = new Set(doc.connections
-          .filter(c => c && typeof c === "object" && typeof c.kind === "string")
-          .map(c => c.kind)
-          .filter(k => k === "jira" || k === "github" || k === "gitlab"));
-        return ["jira", "github", "gitlab"].filter(k => kinds.has(k));
-      } catch (error) {
-        if (error?.code === "ENOENT") return [];
-        return null;
+  /**
+   * How many saved connections each supported provider has, capped at
+   * REPORTED_CONNECTIONS_MAX — never credentials, account identity, connection
+   * ID, name or address. Metadata alone is read: the secrets file is not even
+   * opened for usage reporting.
+   * null = unavailable/unreadable; all zeros = no file yet, or nothing connected.
+   */
+  async function connectionCounts() {
+    const counts = Object.fromEntries(REPORTED_KINDS.map(k => [k, 0]));
+    try {
+      const raw = await readFile(join(dir(), META_FILE), "utf8");
+      const doc = JSON.parse(raw.replace(/^\uFEFF/, ""));
+      if (!doc || !Array.isArray(doc.connections)) return null;
+      for (const c of doc.connections) {
+        if (c && typeof c === "object" && REPORTED_KINDS.includes(c.kind)) counts[c.kind] += 1;
       }
+      for (const k of REPORTED_KINDS) counts[k] = Math.min(counts[k], REPORTED_CONNECTIONS_MAX);
+      return counts;
+    } catch (error) {
+      if (error?.code === "ENOENT") return counts;
+      return null;
+    }
+  }
+
+  return {
+    connectionCounts,
+    /** The supported providers with at least one saved connection, in
+     *  REPORTED_KINDS order, off the same read as connectionCounts.
+     *  null = unavailable/unreadable; [] = nothing connected. */
+    async connectedKinds() {
+      const counts = await connectionCounts();
+      return counts && REPORTED_KINDS.filter(k => counts[k] > 0);
     },
     /** Every connection, as a page may see it. `own(conn, secret)`, when
      *  given, is handed each connection that has a secret, with it, and
