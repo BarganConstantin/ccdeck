@@ -15,8 +15,6 @@ import { useT } from "../i18n";
 import { createPortal } from "react-dom";
 import { type Peer, foldPeek, restLine } from "../other-accounts";
 import { KitIcon } from "./kit-icons";
-import AnchoredPopover from "./AnchoredPopover";
-import { SLOT_ORDER, type OrderChoice } from "../other-accounts-order";
 import { placeBeside } from "../popover-place";
 import { PEEK_DELAY_MS, PEEK_GRACE_MS } from "./LanSyncSection";
 
@@ -104,11 +102,16 @@ function FoldPeek({ anchorId, id, peers, onHold, onLet }: {
 /**
  * THE HEAD OF THE GROUP OF EVERY ACCOUNT THAT IS NOT THE LIVE ONE.
  *
- * One line: the fold title and, while expanded,
- * the order and expand-all controls. The names stay inside the list or peek.
+ * One line: the fold title and, while expanded, the expand-all control. The
+ * names stay inside the list or peek.
+ *
+ * NO ORDER CONTROL (internal #94). The list stands in availability order —
+ * usable accounts first (other-accounts-order.ts byAvailability) — which is
+ * the one order the owner asked for, so a menu of other orders was a control
+ * with nothing left to decide.
  */
 export default function OtherAccounts({
-  peers, strained, armed, threshold, open, onToggle, order, choices, onOrder, allOpen, onToggleAll, held = false, idPrefix = "",
+  peers, strained, armed, threshold, open, onToggle, allOpen, onToggleAll, idPrefix = "",
 }: {
   peers: Peer[];
   /** Where auto-switch trips. This row says it because the control that sets
@@ -123,15 +126,9 @@ export default function OtherAccounts({
   armed: boolean;
   open: boolean;
   onToggle: () => void;
-  /** The order the list is in, as one of `choices` (#1579). */
-  order: string;
-  choices: OrderChoice[];
-  onOrder: (order: string) => void;
   /** Every row behind the fold is open, so the next press shuts them all. */
   allOpen: boolean;
   onToggleAll: () => void;
-  /** The list is holding the order the reader found it in — see holdOrder. */
-  held?: boolean;
   /** Before each id, for the second column that draws this row (AccountRow's
    *  RowVoice says why). */
   idPrefix?: string;
@@ -200,7 +197,6 @@ export default function OtherAccounts({
             <span className="ap-nav-name">{t("accounts.other.title")}</span>
           </span>
         </button>
-        {open && <SortMenu order={order} choices={choices} onOrder={onOrder} held={held} idPrefix={idPrefix} />}
         {/* A toggle, named once and pressed or not: a name that changed under
             the keyboard's focus is one most screen readers never announce. The
             tooltip says what the next press does. Drawn only while the list is
@@ -233,76 +229,5 @@ export default function OtherAccounts({
       {peek && <FoldPeek anchorId={`ap-${idPrefix}rest-entry`} id={`ap-${idPrefix}rest-peek`} peers={peers}
         onHold={holdPeek} onLet={shutPeek} />}
     </div>
-  );
-}
-
-/**
- * THE LIST'S ORDER (#1579), AS ONE MENU: slot, most room, and fullest or
- * emptiest first by each window — the direction is part of the choice, so
- * there is no second button to reverse it.
- *
- * A button that opens a menu over the column, so choosing an order moves
- * nothing but the rows and the group stays open. What it shows closed is the
- * order the list is in; under 240px the name leaves the button for its tooltip
- * and the icon and the chevron stay. It is drawn at --text once it is anything
- * but slot, so a sorted list says so, and with a dashed edge while the list is
- * holding the order the reader found — the deck's mark for "the last thing,
- * not the latest" — with the reason in its title.
- */
-function SortMenu({ order, choices, onOrder, held, idPrefix }: {
-  order: string;
-  choices: OrderChoice[];
-  onOrder: (order: string) => void;
-  held: boolean;
-  idPrefix: string;
-}) {
-  const t = useT();
-  const [menu, setMenu] = useState<null | "first" | "last">(null);
-  const id = `ap-${idPrefix}rest-sort`;
-  const label = choices.find(c => c.id === order)?.label ?? t("accounts.order.slot");
-  const choose = (next: string) => {
-    onOrder(next);
-    document.getElementById(id)?.focus();
-    setMenu(null);
-  };
-  return (
-    <>
-      <button type="button" id={id} className="ap-rest-sort"
-        aria-haspopup="menu" aria-expanded={menu != null}
-        aria-controls={menu ? `${id}-menu` : undefined}
-        // The whole order, for a name the width has cut or hidden; and while
-        // the list is held, why it does not match what the numbers now say.
-        title={held ? t("accounts.other.heldTip", { label }) : label}
-        data-sorted={order === SLOT_ORDER ? undefined : ""}
-        data-held={held ? "" : undefined}
-        onClick={() => setMenu(m => (m ? null : "first"))}
-        onKeyDown={e => {
-          // Down opens at the first order and Up at the last, the way a native
-          // menu button does. Enter and Space are the click.
-          if (e.key !== "ArrowDown" && e.key !== "ArrowUp") return;
-          e.preventDefault();
-          setMenu(e.key === "ArrowUp" ? "last" : "first");
-        }}>
-        <svg className="ap-rest-sort-glyph" width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor"
-          strokeWidth="1.25" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-          <path d="M3.5 2v8M1.75 8.25 3.5 10l1.75-1.75M6.5 2.5h1.5M6.5 5h3M6.5 7.5h4" />
-        </svg>
-        <span className="vis-hidden">{t("accounts.other.orderLabel")}: </span>
-        <span className="ap-rest-sort-name">{label}</span>
-        <KitIcon name="chevron-down" className="ap-rest-sort-chev" />
-      </button>
-      {menu && (
-        <AnchoredPopover anchorId={id} boundaryId={idPrefix ? `ap-${idPrefix}scroll` : "ap-scroll"} id={`${id}-menu`}
-          className="ap-pop ap-sort-pop" role="menu" labelledBy={id} start={menu} onClose={() => setMenu(null)}>
-          {choices.map(c => (
-            <button key={c.id} type="button" role="menuitemradio" aria-checked={c.id === order} className="ap-menu-item"
-              onClick={() => choose(c.id)}>
-              <span className="ap-menu-label">{c.label}</span>
-              {c.id === order && <span className="ap-menu-check" aria-hidden>✓</span>}
-            </button>
-          ))}
-        </AnchoredPopover>
-      )}
-    </>
   );
 }

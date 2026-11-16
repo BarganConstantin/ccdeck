@@ -47,7 +47,6 @@ const catalog: Catalog = {
   "codex.lane.limit": "limită",
   "codex.peer.account": "contul {n}",
   "codex.peer.heldOut": "scos din rotație",
-  "codex.order.added": "Ordinea adăugării",
 
   // What can be wrong with an account (codexIssue)
   "codex.issue.notSignedIn": "Neautentificat",

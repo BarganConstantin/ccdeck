@@ -1,40 +1,28 @@
-// The head of the Other accounts group (V4's Figma): two lines.
+// The head of the Other accounts group (V4's Figma).
 //
-// Line 1 is one toggle — a chevron, "Other accounts" and a count of every other
-// account — 28 high, with "Expand every account" at its right end while the
-// list is open. Line 2 is a green dot and how many a switch would reach, with
-// the list's order at its right end: one menu of the orders, the direction
-// inside each choice, which reorders the rows and leaves the group open.
+// One toggle — a chevron and "Other accounts" — 28 high, with "Expand every
+// account" at its right end while the list is open.
 //
-// What these pin: the toggle and its count; expand-all as a pressed-or-not
-// toggle beside it; the count line, which counts reach, not room; the order's
-// button, its menu and how the menu answers; and the sheet that keeps the
-// title on one line and the order down to its glyphs under 240 wide.
+// CHANGED ON PURPOSE (internal #94): the list's order menu is gone. The list
+// stands usable first (other-accounts-order-1579.test.ts), so the head has no
+// order to show and nothing to choose.
+//
+// What these pin: the toggle; expand-all as a pressed-or-not toggle beside it;
+// the auto-switch alarm; and that no order control is drawn.
 import { describe, expect, it } from "vitest";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import OtherAccounts from "../components/OtherAccounts";
-import { orderChoices, SLOT_ORDER } from "../other-accounts-order";
-import type { Account } from "../claude-accounts";
 import type { Peer } from "../other-accounts";
-import { sourceOf } from "./client-source";
 import { sheetText } from "./sheet-source";
-import { withoutComments } from "./tsx-scan";
 
 const peer = (key: string, ready: boolean, headroom: number | null = 50): Peer => ({
   key, name: `${key}@northwind.example`, ready, why: ready ? null : "held out", warn: false, headroom,
 });
-const lane = (id: string, label: string, pct: number) => ({ id, label, pct, resetAt: null });
-const acct = (num: number): Account => ({
-  num, email: `a${num}@x.io`, alias: null, org: null, active: false, disabled: false,
-  lanes: [lane("five_hour", "5h", 10 * num), lane("seven_day", "7d", 5 * num)],
-  headroom: 100 - 10 * num, fetchedAt: null, nextAt: null, stale: false, error: null,
-});
-const CHOICES = orderChoices([acct(2), acct(3)]);
 
 const props = (over: Record<string, unknown> = {}) => ({
   peers: [peer("a", true), peer("b", true), peer("c", false)], strained: false, armed: false, threshold: null,
-  open: false, onToggle: () => {}, order: SLOT_ORDER, choices: CHOICES, onOrder: () => {},
+  open: false, onToggle: () => {},
   allOpen: false, onToggleAll: () => {}, ...over,
 });
 const html = (over: Record<string, unknown> = {}) => renderToStaticMarkup(createElement(OtherAccounts, props(over)));
@@ -96,67 +84,15 @@ describe("auto-switch warning", () => {
   });
 });
 
-describe("the order", () => {
-  const sort = (out: string) => /<button type="button" id="ap-rest-sort"[^]*?<\/button>/.exec(out)?.[0] ?? "";
-  const code = withoutComments(sourceOf("components/OtherAccounts.tsx"));
-
-  it("stands at the right end of line 2 while the list is open, showing the order the list is in", () => {
-    expect(sort(html())).toBe("");
-    const out = html({ open: true, order: "7d:empty" });
-    expect(out).not.toContain('class="ap-rest-line"');
-    expect(out.indexOf('id="ap-rest-sort"')).toBeLessThan(out.indexOf('class="ap-rest-all"'));
-    expect(sort(out)).toMatch(/aria-haspopup="menu" aria-expanded="false" title="7-day · emptiest first" data-sorted=""/);
-    expect(text(sort(out))).toBe("7-day · emptiest first");
-    // Its name to a screen reader says what it orders.
-    expect(sort(out)).toContain('<span class="vis-hidden">Order of the other accounts: </span>');
-    expect(text(sort(html({ open: true })))).toBe("Slot");
-  });
-
-  it("offers six orders for the two windows, the direction inside each choice", () => {
-    expect(CHOICES.map(c => c.label)).toEqual([
-      "Slot", "Most room", "5-hour · fullest first", "5-hour · emptiest first", "7-day · fullest first", "7-day · emptiest first",
-    ]);
-  });
-
-  it("opens a menu of radio items, the chosen one ticked, that reorders and keeps the group open", () => {
-    expect(code).toMatch(/<AnchoredPopover anchorId=\{id\}[^>]*className="ap-pop ap-sort-pop" role="menu" labelledBy=\{id\}/);
-    expect(code).toMatch(/role="menuitemradio" aria-checked=\{c\.id === order\}/);
-    expect(code).toMatch(/\{c\.id === order && <span className="ap-menu-check" aria-hidden>✓<\/span>\}/);
-    // A choice orders the list, hands focus back to the button and shuts the
-    // menu — and nothing else: the group's toggle is not touched.
-    expect(code).toMatch(/const choose = \(next: string\) => \{\s*onOrder\(next\);\s*document\.getElementById\(id\)\?\.focus\(\);\s*setMenu\(null\);\s*\};/);
-    expect(code).not.toMatch(/choose[^}]*onToggle/);
-    // The arrow keys open it at the first or the last order, as a native menu button does.
-    expect(code).toMatch(/setMenu\(e\.key === "ArrowUp" \? "last" : "first"\)/);
-    // And the popover walks radio items with the arrows, as it walks menu items.
-    expect(sourceOf("components/AnchoredPopover.tsx")).toContain('const ITEM = \'[role="menuitem"], [role="menuitemradio"]\';');
-  });
-
-  it("is quiet at rest, filled under the pointer and while its menu is open, and dashed while held", () => {
+describe("no order control (internal #94)", () => {
+  it("is drawn, open or shut, and the sheet keeps no rule for one", () => {
+    for (const out of [html(), html({ open: true })]) {
+      expect(out).not.toContain("ap-rest-sort");
+      expect(out).not.toContain('aria-haspopup="menu"');
+    }
     const css = sheetText();
-    expect(css).toMatch(/\.ap-rest-sort \{[^}]*height: 22px;[^}]*border: 1px solid transparent;[^}]*background: none;/);
-    expect(css).toContain('.ap-rest-sort[aria-expanded="true"] { background: var(--ctl-fill); }');
-    expect(css).toContain(".ap-rest-sort[data-held] { border-style: dashed; border-color: var(--ctl-edge); }");
-    expect(css).toMatch(/\.ap-pop\.ap-sort-pop \{ width: 200px; \}/);
-  });
-
-  it("gives way before the count on a short line, never below its glyph and chevron", () => {
-    const css = sheetText();
-    // Beside the order the count does not shrink at all (a shared shrink takes
-    // a sliver from it, enough for an ellipsis), up to the line less the
-    // order's glyphs; the order shrinks to those glyphs and no further.
-    expect(css).toContain(".ap-rest-line:has(.ap-rest-sort) > .ap-rest-ready { flex: none; max-width: calc(100% - 50px); }");
-    expect(css).toMatch(/\.ap-rest-sort \{\s*flex: 0 1 auto;[^}]*min-width: 44px;/);
-    // Alone on the line (the group shut), the count has the whole line.
-    expect(css).toMatch(/\.ap-rest-ready \{[^}]*min-width: 0;/);
-  });
-
-  it("keeps only its glyph and chevron under 240 wide, its name in the tooltip and to a screen reader", () => {
-    const css = sheetText();
-    // The group is the container; its 4px inset each side makes 232 inside a 240 column.
-    expect(css).toContain(".ap-rest { container: ap-rest / inline-size; }");
-    // Its own width then follows the two glyphs, with no room kept for the name.
-    expect(css).toMatch(/@container ap-rest \(width < 232px\) \{\s*\.ap-rest-sort \{ min-width: auto; \}\s*\.ap-rest-sort-name \{\s*position: absolute;\s*width: 1px;\s*height: 1px;\s*overflow: hidden;\s*clip-path: inset\(50%\);/);
-    expect(sort(html({ open: true, order: "5h:full" }))).toContain('title="5-hour · fullest first"');
+    expect(css).not.toContain("ap-rest-sort");
+    expect(css).not.toContain("ap-sort-pop");
+    expect(css).not.toContain("container: ap-rest");
   });
 });

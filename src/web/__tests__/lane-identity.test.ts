@@ -229,6 +229,7 @@ describe("the panel holds the set the way this module says", () => {
     // The key from lane-open.ts; the set's rules from other-accounts-order.ts,
     // which reads the key and knownLanes from lane-open.ts in its turn.
     expect(panelCode).toMatch(/import \{ laneKey, toggleLane \} from "\.\.\/lane-open";/);
-    expect(panelCode).toMatch(/allOpen, holdOrder, isOpen, orderChoices, orderKey, sortAccounts, toggleAll, toggleOne, trimOpenness, validOrder,/);
+    // CHANGED ON PURPOSE (internal #94): the order is byAvailability's now.
+    expect(panelCode).toMatch(/allOpen, byAvailability, holdOrder, isOpen, toggleAll, toggleOne, trimOpenness,/);
   });
 });

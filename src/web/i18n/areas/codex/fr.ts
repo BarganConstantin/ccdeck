@@ -41,7 +41,6 @@ const catalog: Catalog = {
   "codex.lane.limit": "limite",
   "codex.peer.account": "compte {n}",
   "codex.peer.heldOut": "exclu",
-  "codex.order.added": "Ordre d'ajout",
   // What can be wrong with an account (codexIssue)
   "codex.issue.notSignedIn": "Non connecté",
   "codex.issue.notSignedIn.hint": "Ce compte n'a pas encore de connexion Codex : il n'y a donc rien à lire ni vers quoi basculer.",

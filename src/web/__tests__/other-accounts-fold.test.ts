@@ -252,8 +252,9 @@ describe("the row, in Local network's idiom and with its timings", () => {
 describe("what the column folds, and when it does not", () => {
   it("keeps the live account whole above the fold and puts every other account behind it", () => {
     expect(panel).toMatch(/const others = activeAcct \? roster\.filter\(a => !a\.active\) : \[\];/);
-    // In the reader's order since #1579, and held while they are in the list.
-    expect(panel).toMatch(/const rest = holdOrder\(sortAccounts\(others, shownOrder, a => reachable\(a, nowSec\), nowSec\), held\);/);
+    // Usable first since internal #94, and held while a reader is in the list.
+    expect(panel).toMatch(/const rest = holdOrder\(byAvailability\(others, a => \(\{/);
+    expect(panel).toMatch(/\}\), nowSec\), held\);/);
     expect(panel).toMatch(/const head = rest\.length \? roster\.filter\(a => a\.active\) : roster;/);
     // The row stands between the two lists, which is the only place an
     // accordion's handle can be.

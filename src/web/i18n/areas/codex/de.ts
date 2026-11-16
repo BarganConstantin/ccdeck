@@ -40,7 +40,6 @@ const catalog: Catalog = {
   "codex.lane.limit": "Limit",
   "codex.peer.account": "Konto {n}",
   "codex.peer.heldOut": "ausgenommen",
-  "codex.order.added": "Reihenfolge ergänzt",
 
   "codex.issue.notSignedIn": "Nicht angemeldet",
   "codex.issue.notSignedIn.hint": "Dieses Konto hat noch keine Codex-Anmeldung, also gibt es nichts zu lesen und nichts, wohin man wechseln könnte.",

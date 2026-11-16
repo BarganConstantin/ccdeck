@@ -198,13 +198,6 @@
 @media (prefers-reduced-motion: reduce) {
   .ap-rest-all:active { transform: none; }
 }
-/* The number the list is ordered by, in each row it orders (#1579): heavier,
-   in the shut line and on the bars, so a sorted list says what it is sorted
-   by at the numbers themselves. Weight only — the colour is the reading's. */
-.ap-q[data-sort-key] .ap-q-pct,
-.ap-q[data-sort-key] .ap-q-label { font-weight: 700; }
-.ap-lane[data-sort-key] .ap-lane-label,
-.ap-lane[data-sort-key] .ap-lane-pct { font-weight: 700; }
 /* The list it opens hangs directly off it — the top padding belongs to the
    fold's own bottom, and two of them would read as a gap the reader has to
    cross to believe the rows are what the row was about.

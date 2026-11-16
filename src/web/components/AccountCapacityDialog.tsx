@@ -16,22 +16,25 @@ import AccountsUsageReport, { type CapacityView } from "./AccountsUsageReport";
 import { DialogPresence } from "./Dialog";
 import { useAccountRoster } from "../use-account-roster";
 import { usePanelClock } from "../use-panel-clock";
-import { loadOrder } from "../accounts-prefs";
 import { reachable } from "../account-fold";
 import { laneKey } from "../lane-open";
-import { sortAccounts, validOrder } from "../other-accounts-order";
+import { byAvailability } from "../other-accounts-order";
+import { accountIssue } from "../account-issue";
 import type { Account } from "../claude-accounts";
 import { reloadText } from "../accounts-reload";
 import { useT } from "../i18n";
 
 /** The order the accounts panel lists a roster in: the live account, then the
- *  others in the order the reader last chose for them (#1579). With nobody
- *  live, the roster's own. */
-export function panelOrder(roster: readonly Account[], order: string, nowSec: number): string[] {
+ *  others usable first (internal #94, other-accounts-order.ts byAvailability).
+ *  With nobody live, the roster's own. */
+export function panelOrder(roster: readonly Account[], nowSec: number): string[] {
   const live = roster.filter(a => a.active);
   if (live.length === 0) return roster.map(laneKey);
   const others = roster.filter(a => !a.active);
-  return [...live, ...sortAccounts(others, validOrder(order, others), a => reachable(a, nowSec), nowSec)].map(laneKey);
+  return [...live, ...byAvailability(others, a => ({
+    reachable: reachable(a, nowSec),
+    rateLimited: accountIssue(a, nowSec)?.kind === "rate",
+  }), nowSec)].map(laneKey);
 }
 
 /** The roster's own handoff, unused: nothing here keeps lanes to trim. */
@@ -45,7 +48,7 @@ export default function AccountCapacityDialog({ view, onClose }: { view: Capacit
   // the reader.
   const [order, setOrder] = useState<string[] | null>(null);
   useEffect(() => {
-    if (order == null && data) setOrder(panelOrder(data.accounts ?? [], loadOrder(), nowSec));
+    if (order == null && data) setOrder(panelOrder(data.accounts ?? [], nowSec));
   }, [data, order, nowSec]);
   return (
     <DialogPresence when={order != null || failure != null}>

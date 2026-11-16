@@ -502,7 +502,6 @@
 .ap-fig .ap-q-pct[data-level="hi"] { color: var(--err); }
 .ap-account[data-frozen] .ap-fig .ap-q-pct,
 .ap-fig[data-none] .ap-q-pct { color: var(--muted); }
-.ap-fig[data-sort-key] :is(.ap-q-label, .ap-q-pct) { font-weight: 700; }
 /* A state, said in a word and not in a pill. Held out stands where the figure
    stands; putting the account back is in its ⋯. */
 .ap-held { flex: none; font-size: calc(11px + var(--ui-text-increase, 0px)); color: var(--muted); }
@@ -1208,7 +1207,6 @@
    Line 1 is the one toggle, 28 high — a 14 chevron, "Other accounts" in 13
    medium in the text ink (it never wraps) and the count of every other account
    in a pill — with "Expand every account" at its right end, 24 square. */
-.ap-rest { container: ap-rest / inline-size; }
 .ap-rest-head {
   display: flex;
   align-items: center;
@@ -1277,80 +1275,11 @@
   cursor: help;
 }
 .ap-rest-ready-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-/* Beside the order the count keeps its whole width, and only the order gives
-   way — down to its glyph and chevron (44 + the 6 gap = 50); past that the
-   count is cut too. */
-.ap-rest-line:has(.ap-rest-sort) > .ap-rest-ready { flex: none; max-width: calc(100% - 50px); }
 .ap-rest-dot { flex: none; width: 6px; height: 6px; border-radius: var(--r-pill); background: var(--ok); }
 .ap-rest-ready[data-tone="idle"] .ap-rest-dot { background: var(--muted-dim); }
 .ap-rest-head > .ap-rest-ready { flex: none; margin-left: auto; }
 .ap-rest-head .ap-nav.ap-sum { flex: 1 1 auto; padding: 0; gap: 8px; }
 .ap-rest-head .ap-nav-name { overflow: hidden; text-overflow: ellipsis; }
-.ap-rest-head > .ap-rest-sort { flex: none; min-width: 28px; margin-left: 0; padding: 0 2px; gap: 2px; }
-.ap-rest-head .ap-rest-sort-name { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
-/* The order: 22 high, the sort glyph, the order's name in the text ink and a
-   chevron, quiet until the pointer, the keyboard or its open menu fills it.
-   On a short line its name is cut first, never below the glyph and the
-   chevron (44 = both, two gaps, its padding and edges); the name is always
-   in the tooltip. */
-.ap-rest-sort {
-  flex: 0 1 auto;
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  min-width: 44px;
-  max-width: 60%;
-  height: 22px;
-  margin-left: auto;
-  padding: 0 4px 0 6px;
-  border: 1px solid transparent;
-  border-radius: var(--r-ctl);
-  background: none;
-  color: var(--text);
-  font: inherit;
-  font-size: calc(12px + var(--ui-text-increase, 0px));
-  line-height: calc(16px + var(--ui-text-increase, 0px));
-  cursor: pointer;
-  transition: background var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease),
-              transform var(--dur-fast) var(--ease);
-}
-.ap-rest-sort:active { transform: scale(var(--press)); }
-@media (prefers-reduced-motion: reduce) {
-  .ap-rest-sort:active { transform: none; }
-}
-.ap-rest-sort-glyph { flex: none; color: var(--text-secondary); }
-.ap-rest-sort-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.ap-rest-sort-chev { flex: none; width: 12px; height: 12px; color: var(--muted); }
-@media (hover: hover) and (pointer: fine) {
-.ap-rest-sort:hover { background: var(--ctl-fill); }
-}
-.ap-rest-sort[aria-expanded="true"] { background: var(--ctl-fill); }
-/* Held: the order the reader found, not the latest — dashed, as the deck
-   draws everything it is showing as the last thing rather than the current
-   one, with the reason in its title. */
-.ap-rest-sort[data-held] { border-style: dashed; border-color: var(--ctl-edge); }
-/* UNDER 240 WIDE the order keeps its glyph and its chevron, and its name goes
-   to the tooltip (and stays the button's name for a screen reader). */
-@container ap-rest (width < 232px) {
-  .ap-rest-sort { min-width: auto; }
-  .ap-rest-sort-name {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    overflow: hidden;
-    clip-path: inset(50%);
-    white-space: nowrap;
-  }
-}
-/* The menu: 200 wide, rows of the kit's menu, the chosen order ticked. */
-.ap-pop.ap-sort-pop { width: 200px; }
-.ap-sort-pop .ap-menu-label { flex: 1 1 auto; min-width: 0; }
-.ap-sort-pop .ap-menu-check {
-  flex: none;
-  font-size: calc(11px + var(--ui-text-increase, 0px));
-  line-height: calc(14px + var(--ui-text-increase, 0px));
-  color: var(--muted);
-}
 /* The one sentence in the error ink: auto-switch is on and there is nowhere it
    could go. On the title's edge, under line 2, open or shut. */
 .ap-rest-alarm {
