@@ -1,5 +1,6 @@
 // With no engine — always so in the free product — the Command Panel's eight
-// routes have nothing behind them, and say so: a deck handed a null
+// routes (and New session's folder question, which the deck answers itself
+// only beside an engine) have nothing behind them, and say so: a deck handed a null
 // `terminal.engine`, or one that is switched off, answers every route with the
 // same status and the same bytes, `{ ok: false, error, code: "not-installed"
 // }`, asks the engine nothing, asks nothing of any other terminal, and makes
@@ -122,6 +123,11 @@ const ROUTES: Array<[string, string, string?]> = [
   // The older session hosts' two (Windows): refused the same way.
   ["GET", "/api/terminal/hosts"],
   ["POST", "/api/terminal/hosts/end", JSON.stringify({ generation: 1, sessions: ["0".repeat(32)] })],
+  // New session's folder question (internal #106), answered by the deck
+  // itself when there is an engine: with none, refused in the same bytes, so a
+  // deck with no engine says nothing new about this machine's folders.
+  ["POST", "/api/terminal/folder", JSON.stringify({ cwd: PROJECT })],
+  ["POST", "/api/terminal/folder", "{not json"],
   ["POST", "/api/terminal/launch", JSON.stringify({ agent: "claude", cwd: PROJECT, pad: "x".repeat(9 * 1024) })],
 ];
 

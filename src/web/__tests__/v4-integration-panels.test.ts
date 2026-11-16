@@ -379,8 +379,11 @@ describe("the New session popover", () => {
       expect(src, key).toContain(`t("${key}")`);
       expect(en[key], key).toBe(word);
     }
-    expect(src).toContain("project-path");
-    expect(src).toContain("onStart(agent, target.cwd, options)");
+    // CHANGED ON PURPOSE (internal #106): the free path field became the
+    // project search, which takes a full path too, and Start starts in the
+    // folder the deck said yes to.
+    expect(src).toContain('name="project-search"');
+    expect(src).toContain("onStart(agent, cwd, options)");
     expect(src).not.toMatch(/prompt/i);
   });
 });

@@ -4,9 +4,10 @@
 //
 // CommonJS because the window is sandboxed, and a sandboxed preload is not an
 // ES module and may require nothing but a short list that includes "electron".
-// Deliberately small: audio calls by opaque id, caption colours, a menu, and
-// whether the terminal pane has the keys.
-// No path, window handle, generic IPC, or generic read or write
+// Deliberately small: audio calls by opaque id, caption colours, a menu,
+// whether the terminal pane has the keys, and the system's folder dialog,
+// which returns only the folder the person chose in it.
+// No path from the page, window handle, generic IPC, or generic read or write
 // primitive. main.mjs checks who is calling and notification-audio-store.mjs
 // checks what they sent, so nothing here is trusted to have done either.
 const { contextBridge, ipcRenderer } = require("electron");
@@ -24,6 +25,13 @@ contextBridge.exposeInMainWorld("ccdeckNotificationAudio", {
 // else.
 contextBridge.exposeInMainWorld("ccdeckTerminal", {
   keys: owned => ipcRenderer.invoke("ccdeck:terminal:keys", owned === true),
+});
+
+// New session's "Choose another folder…" (internal #106): opens the system's
+// folder dialog and hears back the folder the person chose, or null. It takes
+// no argument, so the page cannot name a folder for the app to open or read.
+contextBridge.exposeInMainWorld("ccdeckFolder", {
+  choose: () => ipcRenderer.invoke("ccdeck:folder:choose"),
 });
 
 // No window handle or generic IPC is exposed to the page.

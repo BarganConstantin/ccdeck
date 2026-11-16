@@ -727,6 +727,11 @@ const EXEMPT: string[] = [
   // release, so it answers as the deck's other list rows do: its fill
   // deepens a step and nothing moves.
   ".qo-row",
+  // CHANGED ON PURPOSE (internal #106): a project row in New session's picker
+  // is quick open's row in a listbox (its height, radius and --selected fill).
+  // It answers the same way: the fill under the pointer and the tick on the
+  // chosen row, and nothing moves, so its name and path stay under the pointer.
+  ".ns-option",
   // The rail's group headers that fold and its "N more" line (V4's Attention
   // rail): rows of a list that open the rest of it, answered as the deck's
   // other list rows are, by the fill under the pointer and the chevron turning.

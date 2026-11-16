@@ -102,6 +102,8 @@ const ROUTES: [string, string, unknown?][] = [
   ["POST", "/api/terminal/claim", { key: "launch-k1", sessionId: "0b9f3c1e-2d4a-4b6c-8e0f-1a2b3c4d5e6f", provider: "codex", cwd: "/tmp" }],
   ["GET", "/api/terminal/hosts"],
   ["POST", "/api/terminal/hosts/end", { generation: 1, sessions: ["a".repeat(32)] }],
+  // New session's folder question (internal #106): gone with the switch too.
+  ["POST", "/api/terminal/folder", { cwd: "/tmp" }],
 ];
 
 describe("the terminal routes on a deck with the panel switched off", () => {

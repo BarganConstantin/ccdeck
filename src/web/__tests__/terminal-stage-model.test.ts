@@ -218,7 +218,9 @@ describe("the New session popover's projects", () => {
       { cwd: "", hue: 0, at: 99 },
     ], "/home/u/code/vicinae");
     expect(got.map(p => p.cwd)).toEqual(["/home/u/code/vicinae", "/home/u/code/paycore", "/home/u/personal/ccdeck"]);
-    expect(got[1]).toEqual({ cwd: "/home/u/code/paycore", name: "paycore", hue: 270 });
+    // With when it was last heard from, so the New session picker can set the
+    // folders it remembers among them (internal #106).
+    expect(got[1]).toEqual({ cwd: "/home/u/code/paycore", name: "paycore", hue: 270, at: 90 });
   });
 
   it("takes absolute paths on either platform and refuses a tilde the deck cannot expand", () => {
