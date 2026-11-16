@@ -101,6 +101,7 @@ const TMUX_VERSION = (() => {
 // is relaxed. The "half" case below checks, on every tmux, that this rule and
 // the tmux at hand agree.
 const BEFORE_36 = TMUX_VERSION !== null && TMUX_VERSION < 306;
+const BEFORE_37 = TMUX_VERSION !== null && TMUX_VERSION < 307;
 const STRESS = BEFORE_36 ? ["stress", "pre-3.6"] : ["stress"];
 const X = headlessXterm();
 /** Whether the screen comparisons can run: no emulator gives the checks that
@@ -600,9 +601,30 @@ describe("against a real tmux", () => {
     await c.seed();
     await c.input("x");
     await waitFor(() => exits.length > 0, "the exit", 6000);
-    expect(exits, "tmux reports the death within a second, through the subscription").toEqual([{ reason: "ended" }]);
+    // With how the program ended (internal #104): the fixture exits 0. Before
+    // 3.7 tmux can say the pane is dead before it has reaped the child, and
+    // before 3.6 it may never reap it without another SIGCHLD; the client
+    // waits a moment for the status and says the ending without it if it
+    // never comes, so there an ending without a status is right too.
+    const unreaped = BEFORE_37 && (exits[0] as { exitStatus?: number }).exitStatus === undefined;
+    expect(exits, "tmux reports the death within a second, through the subscription")
+      .toEqual(unreaped ? [{ reason: "ended" }] : [{ reason: "ended", exitStatus: 0 }]);
     const last = await c.seed();
     expect([last.cols, last.rows], "remain-on-exit kept the pane, and its frame can be read").toEqual([80, 24]);
+  });
+
+  it("says the exit status of a program that ends badly, which the stage keeps the pane for (internal #104)", async () => {
+    if (!TMUX) return;
+    tm("new-session", "-d", "-s", "bad", "-x", "80", "-y", "24", NODE, "-e", "setTimeout(() => process.exit(3), 1500)");
+    tm("set-option", "-p", "-t", "bad", "remain-on-exit", "on");
+    const c = open({ target: "bad" });
+    const exits: unknown[] = [];
+    c.on("exit", (e: unknown) => exits.push(e));
+    await c.ready;
+    await c.seed();
+    await waitFor(() => exits.length > 0, "the exit", 8000);
+    if (BEFORE_37) expect([[{ reason: "ended", exitStatus: 3 }], [{ reason: "ended" }]], "a status, or none if tmux had not reaped it").toContainEqual(exits);
+    else expect(exits).toEqual([{ reason: "ended", exitStatus: 3 }]);
   });
 
   it("tells a detach, where the pane lives on, from a session that was killed", async () => {

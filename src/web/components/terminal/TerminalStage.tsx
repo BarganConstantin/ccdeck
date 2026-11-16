@@ -480,6 +480,18 @@ export default function TerminalStage(p: TerminalStageProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [phase.kind, key]);
 
+  // AN AGENT THAT ENDED ITSELF closes its pane (internal #104): /exit, Ctrl+D,
+  // anything that exited with status 0 while this pane watched it run
+  // (endedCleanly). Only that pane: the Board's stage closes, a Workspace pane
+  // empties as its ✕ empties it, and the session stays on the board to
+  // reopen. A crash, a kill, a failed start, a lost socket or a restarting
+  // deck keeps the pane, its last frame and Reopen. A launch the board never
+  // had as a session keeps its "Launch again" too.
+  const closeOnEnd = useRef(p.onClose);
+  closeOnEnd.current = p.onClose;
+  const endedItself = phase.kind === "ended" && phase.clean === true && p.show.kind === "session";
+  useEffect(() => { if (endedItself) closeOnEnd.current(); }, [endedItself, key]);
+
   useEffect(() => {
     if (!notice) return;
     onAnnounce.current?.(notice);

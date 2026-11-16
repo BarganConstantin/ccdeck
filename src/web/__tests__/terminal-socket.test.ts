@@ -733,6 +733,31 @@ describe("the bridge, in the order the panel expects", () => {
     }
   });
 
+  it("says how an ended pane's program ended, when tmux said, and nothing of it for any other ending (internal #104)", async () => {
+    for (const [said, sent] of [
+      [{ reason: "ended", exitStatus: 0 }, { t: "exit", reason: "ended", exitStatus: 0 }],
+      [{ reason: "ended", exitStatus: 3 }, { t: "exit", reason: "ended", exitStatus: 3 }],
+      [{ reason: "ended", exitSignal: 9 }, { t: "exit", reason: "ended", exitSignal: 9 }],
+      [{ reason: "ended" }, { t: "exit", reason: "ended" }],
+      [{ reason: "ended", exitStatus: -1, exitSignal: 0 }, { t: "exit", reason: "ended" }],
+      [{ reason: "detached", exitStatus: 0 }, { t: "exit", reason: "detached" }],
+    ] as const) {
+      const { conn, control, text } = bridge();
+      text({ t: "size", cols: 80, rows: 24 });
+      await vi.waitFor(() => expect(control().seeds).toBe(1));
+      control().emit("exit", said);
+      await vi.waitFor(() => expect(conn.closes.length).toBe(1));
+      expect(conn.texts().at(-1), JSON.stringify(said)).toEqual(sent);
+    }
+  });
+
+  it("keeps the status on a pane that died before the panel had a frame, which still says it was not looking", async () => {
+    const { conn, control } = bridge();
+    control().emit("exit", { reason: "ended", exitStatus: 0 });
+    await vi.waitFor(() => expect(conn.closes.length).toBe(1));
+    expect(conn.texts().at(-1)).toEqual({ t: "exit", reason: "ended", atOpen: true, exitStatus: 0 });
+  });
+
   it("ignores its own close", async () => {
     const { conn, control } = bridge();
     control().emit("exit", { reason: "closed" });

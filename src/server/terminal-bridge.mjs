@@ -330,7 +330,7 @@ export function terminalBridge({
     control.resize(asked.cols, asked.rows);
   }
 
-  function onExit({ reason } = {}) {
+  function onExit({ reason, exitStatus, exitSignal } = {}) {
     if (ended || reason === "closed") return;
     const said = EXIT_REASONS[reason] ?? "error";
     later(async () => {
@@ -341,7 +341,7 @@ export function terminalBridge({
       // the ending came before it was looking (`atOpen`).
       const first = said === "ended" && !seeded;
       if (first) await deliverSeed();
-      end(said, said === "error" ? ERROR_SENTENCE : undefined, first ? { atOpen: true } : undefined);
+      end(said, said === "error" ? ERROR_SENTENCE : undefined, { atOpen: first, exitStatus, exitSignal });
     });
   }
 
@@ -441,8 +441,10 @@ export function terminalBridge({
   // keeps running whatever the reason — closing a panel is never stopping an
   // agent.
   // `atOpen`: the session had ended before this panel first saw it, so the
-  // panel does not say it ended "just now".
-  function end(reason, text, { atOpen = false } = {}) {
+  // panel does not say it ended "just now". `exitStatus`/`exitSignal`: how an
+  // ended pane's program ended, when tmux said; the stage closes a pane whose
+  // agent ended itself with status 0 (internal #104).
+  function end(reason, text, { atOpen = false, exitStatus, exitSignal } = {}) {
     if (ended) return;
     ended = true;
     // A character the pane began and never finished is not sent: tmux draws
@@ -450,7 +452,11 @@ export function terminalBridge({
     carry.drop();
     clearTimeout(resizeTimer);
     clearTimeout(coloursTimer);
-    conn.sendText(JSON.stringify({ t: "exit", reason, ...(text ? { message: text } : {}), ...(atOpen ? { atOpen: true } : {}) }));
+    const how = reason === "ended" ? {
+      ...(Number.isInteger(exitStatus) && exitStatus >= 0 ? { exitStatus } : {}),
+      ...(Number.isInteger(exitSignal) && exitSignal > 0 ? { exitSignal } : {}),
+    } : {};
+    conn.sendText(JSON.stringify({ t: "exit", reason, ...(text ? { message: text } : {}), ...(atOpen ? { atOpen: true } : {}), ...how }));
     try {
       conn.close(reason === "server-shutdown" ? 1001 : 1000, reason);
     } catch { /* already closing */ }

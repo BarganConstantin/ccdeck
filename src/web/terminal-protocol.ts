@@ -92,6 +92,9 @@ export type ExitReason = "ended" | "detached" | "server-shutdown" | "error";
 
 export const EXIT_REASONS: readonly ExitReason[] = ["ended", "detached", "server-shutdown", "error"];
 
+/** A whole number no smaller than `min`: an exit status or a signal. */
+const isCount = (v: unknown, min: number): boolean => typeof v === "number" && Number.isSafeInteger(v) && v >= min;
+
 /** A tmux server's version as [major, minor]: 3.6a is [3, 6]. */
 export type TmuxVersion = readonly [number, number];
 
@@ -130,6 +133,10 @@ export interface TerminalExit {
   message?: string;
   /** The pane had already ended when this socket attached. */
   atOpen?: boolean;
+  /** "ended" only, when tmux said: the program's exit status (0 or more)… */
+  exitStatus?: number;
+  /** …or the signal that ended it (1 or more). */
+  exitSignal?: number;
 }
 
 /**
@@ -288,6 +295,8 @@ export function parseServerMessage(text: string): ServerMessage | null {
         reason,
         ...(typeof msg.message === "string" && msg.message ? { message: msg.message } : {}),
         ...(msg.atOpen === true ? { atOpen: true } : {}),
+        ...(reason === "ended" && isCount(msg.exitStatus, 0) ? { exitStatus: msg.exitStatus as number } : {}),
+        ...(reason === "ended" && isCount(msg.exitSignal, 1) ? { exitSignal: msg.exitSignal as number } : {}),
       };
     }
     default:
@@ -404,6 +413,8 @@ export function connectTerminal(options: ConnectOptions): TerminalConnection {
             reason: msg.reason,
             ...(msg.message === undefined ? {} : { message: msg.message }),
             ...(msg.atOpen ? { atOpen: true } : {}),
+            ...(msg.exitStatus === undefined ? {} : { exitStatus: msg.exitStatus }),
+            ...(msg.exitSignal === undefined ? {} : { exitSignal: msg.exitSignal }),
           });
           // The deck closes next. Closing from this side too means a deck that
           // never gets round to it cannot leave the socket open behind a panel

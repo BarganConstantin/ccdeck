@@ -84,6 +84,32 @@ export const PAUSE_AFTER = 2;
 // a program exits under remain-on-exit and 'exit' must say 'ended'.
 const DEAD_SUBSCRIPTION = "ccdeck-dead";
 
+// What the subscription reports: whether the pane is dead, then how its
+// program ended — the exit status, or the signal that killed it (tmux 3.3+;
+// an older tmux leaves the field empty). The stage closes a pane whose agent
+// ended itself with status 0 (internal #104), so the ending has to say how.
+export const DEAD_FORMAT = "#{pane_dead}:#{pane_dead_status}:#{pane_dead_signal}";
+
+// Before tmux 3.7, `#{pane_dead}` can say 1 a tick before the exit status is
+// known: the pane is marked dead at its pty's end, the status when the child
+// is reaped. A death that comes without either waits this long for them, and
+// is said without them if they do not come.
+export const DEAD_GRACE_MS = 2500;
+
+/**
+ * Read a DEAD_FORMAT value: `{ dead }`, with `status` (0 or more) and
+ * `signal` (1 or more) when tmux gave them. A value with fewer fields — a
+ * blank, or `#{pane_dead}` alone — is read for `dead` only.
+ */
+export function parseDeadValue(value) {
+  const [dead, status = "", signal = ""] = String(value ?? "").split(":");
+  const out = { dead: dead === "1" };
+  if (!out.dead) return out;
+  if (/^\d{1,9}$/.test(status)) out.status = Number(status);
+  if (/^\d{1,9}$/.test(signal) && Number(signal) > 0) out.signal = Number(signal);
+  return out;
+}
+
 // A line longer than this without a newline is not tmux talking. It caps what a
 // broken peer can make this process buffer.
 const MAX_LINE = 64 << 20;
@@ -569,13 +595,16 @@ class ControlClient extends EventEmitter {
   #closedPromise;
   #closedResolve;
   #killTimer = null;
+  #deadTimer = null;
+  #deadGraceMs;
   #pasteBuffer = `ccdeck-paste-${randomBytes(4).toString("hex")}`;
 
   /** Resolves `{ pane, window, session, cols, rows, dead }` once attached. */
   ready;
 
   constructor({ tmux, socket, target, pane, ignoreSize = false, readOnly = false,
-    pauseAfter = PAUSE_AFTER, spawn = nodeSpawn, execFile = nodeExecFile, env = process.env }) {
+    pauseAfter = PAUSE_AFTER, spawn = nodeSpawn, execFile = nodeExecFile, env = process.env,
+    deadGraceMs = DEAD_GRACE_MS }) {
     super();
     this.#tmux = typeof tmux === "string" ? tmux : tmux?.path;
     if (!this.#tmux) throw new TypeError("openControl needs the tmux binary");
@@ -591,6 +620,7 @@ class ControlClient extends EventEmitter {
     this.#ignoreSize = !!ignoreSize;
     this.#readOnly = !!readOnly;
     this.#pauseAfter = Math.max(0, Math.floor(Number(pauseAfter) || 0));
+    this.#deadGraceMs = Math.max(0, Number(deadGraceMs) || 0);
     this.#spawn = spawn;
     this.#execFile = execFile;
     // tmux.mjs's client environment: the deck's own, without TMUX and
@@ -610,7 +640,7 @@ class ControlClient extends EventEmitter {
     // sends, and answered in this order.
     const fmt = quoteTmuxArg("#{session_id} #{window_id} #{pane_id} #{pane_width} #{pane_height} #{pane_dead}");
     this.#send([`display-message -p${this.#pane ? ` -t ${this.#pane}` : ""} ${fmt}`], (reply) => this.#onPaneInfo(reply));
-    this.#send([`refresh-client -B ${quoteTmuxArg(`${DEAD_SUBSCRIPTION}:%*:#{pane_dead}`)}`]);
+    this.#send([`refresh-client -B ${quoteTmuxArg(`${DEAD_SUBSCRIPTION}:%*:${DEAD_FORMAT}`)}`]);
     // #start is async (a pane target is looked up first); nothing in it should
     // throw, and if something does, it is this connection's error, not the deck's.
     this.#start().catch((err) => this.#fail("error", err?.message || String(err)));
@@ -765,7 +795,7 @@ class ControlClient extends EventEmitter {
         if (this.#isReady && msg.session !== this.#session) this.#verifyPane("detached", true);
         return;
       case "subscription-changed":
-        if (msg.name === DEAD_SUBSCRIPTION && msg.pane === this.#pane && msg.value === "1") this.#emitExit("ended");
+        if (msg.name === DEAD_SUBSCRIPTION && msg.pane === this.#pane) this.#onDeadValue(msg.value);
         return;
       case "exit":
         this.#onExitLine(msg.reason);
@@ -936,12 +966,38 @@ class ControlClient extends EventEmitter {
     if (this.#torn) this.#closedResolve();
   }
 
-  #emitExit(reason, message) {
+  // The pane died: said with how its program ended, or, when tmux has not
+  // said that yet, after DEAD_GRACE_MS for it (see DEAD_FORMAT).
+  #onDeadValue(value) {
+    const d = parseDeadValue(value);
+    if (!d.dead || this.#exitEmitted) return;
+    if (d.status !== undefined || d.signal !== undefined) {
+      this.#emitExit("ended", undefined, d);
+      return;
+    }
+    if (this.#deadTimer) return;
+    this.#deadTimer = setTimeout(() => {
+      this.#deadTimer = null;
+      this.#emitExit("ended");
+    }, this.#deadGraceMs);
+    this.#deadTimer.unref?.();
+  }
+
+  // `how`: the dead pane's `status` and `signal`, only for "ended" from the
+  // subscription; every other ending says neither.
+  #emitExit(reason, message, how = {}) {
     if (this.#exitEmitted) return;
     this.#exitEmitted = true;
+    clearTimeout(this.#deadTimer);
+    this.#deadTimer = null;
     this.#streaming = false;
     this.#folding = null;
-    this.emit("exit", message ? { reason, message } : { reason });
+    this.emit("exit", {
+      reason,
+      ...(message ? { message } : {}),
+      ...(how.status !== undefined ? { exitStatus: how.status } : {}),
+      ...(how.signal !== undefined ? { exitSignal: how.signal } : {}),
+    });
   }
 
   #fail(reason, message) {
