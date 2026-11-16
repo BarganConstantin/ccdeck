@@ -22,6 +22,7 @@ vi.mock("react", async () => (await import("./fake-react")).react);
 import { mount as mountComponent, flush } from "./fake-react";
 import { forgetTerminalTextStep, setTerminalTextStep, terminalTextStep } from "../terminal-text-size";
 import { MAX_MESSAGE_BYTES, connectTerminal } from "../terminal-protocol";
+import { CLEAN_END_MIN_LIVE_MS } from "../components/terminal/stage-model";
 import { launchTerminal, type ApiFailure, type NotAttachable, type SessionRef, type TerminalStatus, type Ticketed, type Launched } from "../terminal-api";
 import {
   ACK_EVERY_BYTES,
@@ -664,6 +665,37 @@ describe("how a session ends", () => {
     const s = await attach(r, ctl);
     expect(r.last().phase.kind).toBe("live");
     s.text({ t: "exit", reason: "ended", atOpen: true });
+    expect(r.last().phase).toEqual({ kind: "ended", atOpen: true });
+  });
+
+  // Internal #104: an agent that ended itself — status 0, while the pane
+  // watched it run — is a clean ending, which the stage closes the pane on.
+  it("calls an ending clean only for status 0, no signal, after the pane was live a while", async () => {
+    for (const [exit, liveMs, phase] of [
+      [{ exitStatus: 0 }, CLEAN_END_MIN_LIVE_MS, { kind: "ended", clean: true }],
+      [{ exitStatus: 0 }, CLEAN_END_MIN_LIVE_MS - 1, { kind: "ended" }],
+      [{ exitStatus: 1 }, 60_000, { kind: "ended" }],
+      [{ exitSignal: 9 }, 60_000, { kind: "ended" }],
+      [{ exitStatus: 0, exitSignal: 9 }, 60_000, { kind: "ended" }],
+      [{}, 60_000, { kind: "ended" }],
+    ] as const) {
+      const { r, ctl } = rig();
+      ctl.mount(HOST, { theme: THEME, fontFamily: "monospace" });
+      await flush();
+      const s = await attach(r, ctl);
+      r.clock.now += liveMs;
+      s.text({ t: "exit", reason: "ended", ...exit });
+      expect(r.last().phase, `${JSON.stringify(exit)} after ${liveMs} ms`).toEqual(phase);
+    }
+  });
+
+  it("never calls clean an ending it did not watch, whatever the status", async () => {
+    const { r, ctl } = rig();
+    ctl.mount(HOST, { theme: THEME, fontFamily: "monospace" });
+    await flush();
+    const s = await attach(r, ctl);
+    r.clock.now += 60_000;
+    s.text({ t: "exit", reason: "ended", atOpen: true, exitStatus: 0 });
     expect(r.last().phase).toEqual({ kind: "ended", atOpen: true });
   });
 

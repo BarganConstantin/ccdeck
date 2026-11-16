@@ -65,7 +65,7 @@ import { leaveRepliesToTmux } from "./terminal-replies";
 import { isApplePlatform, platformName } from "./platform";
 import { prefersReducedMotion } from "./viewport-motion";
 import { t as tr } from "./i18n";
-import { showsFrame, type KeysOwner, type StagePhase } from "./components/terminal/stage-model";
+import { endedCleanly, showsFrame, type KeysOwner, type StagePhase } from "./components/terminal/stage-model";
 
 /** The stage's font size. 13.3px is where the deck's mono stack advances a
  *  whole 8px on DejaVu Sans Mono and on Menlo, so cells come out exactly 8
@@ -716,6 +716,9 @@ export function createTerminalSession(deps: SessionDeps, callbacks: SessionCallb
     // parse callbacks, which a superseded connection's writes do not reach.
     let parsed = 0;
     let acked = 0;
+    // When this connection first drew the pane live: an ending that comes
+    // too soon after it is not the agent's own (endedCleanly).
+    let liveAt: number | null = null;
     const parsedBytes = (n: number, now = false) => {
       if (my !== gen || !open) return;
       parsed += n;
@@ -748,6 +751,7 @@ export function createTerminalSession(deps: SessionDeps, callbacks: SessionCallb
             reconnectStarted = null;
             engineLost = false;
             restartSaid = null;
+            if (liveAt === null) liveAt = deps.now();
             emit({ phase: { kind: "live", sizeOwner, readOnly }, paneSize: sizeOwner === "pane" ? { cols: t.cols, rows: t.rows } : null });
             measure();
             // The stage moved while this was being seeded (a reconnect after
@@ -790,7 +794,7 @@ export function createTerminalSession(deps: SessionDeps, callbacks: SessionCallb
           if (sizeOwner === "pane") emit({ paneSize: { cols, rows } });
         }));
       },
-      onExit: ({ reason, message, atOpen }) => {
+      onExit: ({ reason, message, atOpen, exitStatus, exitSignal }) => {
         if (my !== gen) return;
         open = false;
         conn = null;
@@ -799,7 +803,13 @@ export function createTerminalSession(deps: SessionDeps, callbacks: SessionCallb
         // Ended before anyone was looking: the deck says so for a dead pane
         // opened for its last frame, and an ending that lands before the seed
         // was ever revealed is the same thing seen from here.
-        else if (reason === "ended") setPhase(atOpen || snap.phase.kind !== "live" ? { kind: "ended", atOpen: true } : { kind: "ended" });
+        // One this pane watched is the agent ending itself when it exited
+        // cleanly (endedCleanly): the stage closes the pane then.
+        else if (reason === "ended") {
+          setPhase(atOpen || snap.phase.kind !== "live" ? { kind: "ended", atOpen: true }
+            : endedCleanly({ exitStatus, exitSignal }, deps.now() - (liveAt ?? deps.now())) ? { kind: "ended", clean: true }
+              : { kind: "ended" });
+        }
         else if (reason === "detached") setPhase({ kind: "detached" });
         else setPhase({ kind: "error", message: message || tr(STOPPED_MSG) });
       },

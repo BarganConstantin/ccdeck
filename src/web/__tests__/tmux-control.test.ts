@@ -100,6 +100,21 @@ describe("parseControlLine", () => {
   });
 });
 
+describe("parseDeadValue (internal #104)", () => {
+  it("reads whether the pane is dead, and how its program ended when tmux said", () => {
+    expect(tc.parseDeadValue("0::")).toEqual({ dead: false });
+    expect(tc.parseDeadValue("1:0:")).toEqual({ dead: true, status: 0 });
+    expect(tc.parseDeadValue("1:3:")).toEqual({ dead: true, status: 3 });
+    expect(tc.parseDeadValue("1::9"), "killed: tmux has a signal and no status").toEqual({ dead: true, signal: 9 });
+    expect(tc.parseDeadValue("1::"), "not reaped yet, or tmux 3.2 with no signal field").toEqual({ dead: true });
+    expect(tc.parseDeadValue("1"), "#{pane_dead} alone").toEqual({ dead: true });
+    expect(tc.parseDeadValue(""), "a blank").toEqual({ dead: false });
+    expect(tc.parseDeadValue("1:x:-2"), "nothing that is not a count").toEqual({ dead: true });
+    expect(tc.parseDeadValue("1::0"), "signal 0 is no signal").toEqual({ dead: true });
+    expect(tc.parseDeadValue("0:0:"), "a live pane says nothing of how").toEqual({ dead: false });
+  });
+});
+
 describe("quoteTmuxArg", () => {
   it("double-quotes, so spaces, semicolons, hashes and braces are inert", () => {
     expect(tc.quoteTmuxArg("a b; c #{x} {y}"), "inside double quotes tmux does not split or start a new command")
@@ -308,8 +323,8 @@ describe("the control client, against a fake tmux", () => {
       .toEqual({ ok: true, lines: ["status on"] });
     expect(fake.argv(), "attach carries -E, the client flags and an exact-match session name")
       .toEqual(["-u", "-L", "ccdeck-test-fake", "-C", "attach-session", "-E", "-f", "pause-after=2", "-t", "=s"]);
-    expect(fake.written[1], "the pane's death is watched through the %* subscription")
-      .toBe("refresh-client -B \"ccdeck-dead:%*:#{pane_dead}\"");
+    expect(fake.written[1], "the pane's death, and how its program ended, are watched through the %* subscription")
+      .toBe("refresh-client -B \"ccdeck-dead:%*:#{pane_dead}:#{pane_dead_status}:#{pane_dead_signal}\"");
     await c.close();
   });
 
@@ -585,15 +600,77 @@ describe("the control client, against a fake tmux", () => {
     const exits: unknown[] = [];
     c.on("exit", (e: unknown) => exits.push(e));
     await c.ready;
-    fake.send("%subscription-changed ccdeck-dead $0 @0 0 %0 : 0\n%subscription-changed ccdeck-dead $0 @1 1 %3 : 1\n");
+    fake.send("%subscription-changed ccdeck-dead $0 @0 0 %0 : 0::\n%subscription-changed ccdeck-dead $0 @1 1 %3 : 1:0:\n");
     await tick();
     expect(exits, "another pane dying is not ours").toEqual([]);
-    fake.send("%subscription-changed ccdeck-dead $0 @0 0 %0 : 1\n%subscription-changed ccdeck-dead $0 @0 0 %0 : 1\n");
+    fake.send("%subscription-changed ccdeck-dead $0 @0 0 %0 : 1:0:\n%subscription-changed ccdeck-dead $0 @0 0 %0 : 1:0:\n");
     await until(() => exits.length > 0, "the exit");
-    expect(exits).toEqual([{ reason: "ended" }]);
+    expect(exits, "with how its program ended (internal #104)").toEqual([{ reason: "ended", exitStatus: 0 }]);
     expect((await c.seed({ history: 0 })).cols, "a dead pane can still be captured").toBe(120);
     await c.close();
     expect(exits, "exit is emitted once, close() included").toHaveLength(1);
+  });
+
+  // Internal #104: the stage closes a pane whose agent ended itself with
+  // status 0, so the ending says how the program ended — and only says so
+  // when tmux did.
+  it("says how a dead pane's program ended: its exit status, or the signal that killed it", async () => {
+    for (const [value, said] of [
+      ["1:0:", { reason: "ended", exitStatus: 0 }],
+      ["1:3:", { reason: "ended", exitStatus: 3 }],
+      ["1::9", { reason: "ended", exitSignal: 9 }],
+    ] as const) {
+      const fake = fakeTmux({ respond: answers() });
+      const c = open(fake);
+      const exits: unknown[] = [];
+      c.on("exit", (e: unknown) => exits.push(e));
+      await c.ready;
+      fake.send(`%subscription-changed ccdeck-dead $0 @0 0 %0 : ${value}\n`);
+      await until(() => exits.length > 0, value);
+      expect(exits, value).toEqual([said]);
+      await c.close();
+    }
+  });
+
+  it("waits a moment for a status tmux has not reaped yet, and says the ending without one if it never comes", async () => {
+    // Before tmux 3.7, #{pane_dead} can be 1 a tick before the status is known.
+    const fake = fakeTmux({ respond: answers() });
+    const c = open(fake, { deadGraceMs: 40 });
+    const exits: unknown[] = [];
+    c.on("exit", (e: unknown) => exits.push(e));
+    await c.ready;
+    fake.send("%subscription-changed ccdeck-dead $0 @0 0 %0 : 1::\n");
+    await tick();
+    expect(exits, "not yet: the status may follow").toEqual([]);
+    fake.send("%subscription-changed ccdeck-dead $0 @0 0 %0 : 1:0:\n");
+    await until(() => exits.length > 0, "the exit");
+    expect(exits).toEqual([{ reason: "ended", exitStatus: 0 }]);
+    await new Promise(r => setTimeout(r, 80));
+    expect(exits, "the grace timer was dropped, so nothing is said twice").toHaveLength(1);
+    await c.close();
+
+    const lone = fakeTmux({ respond: answers() });
+    const d = open(lone, { deadGraceMs: 40 });
+    const said: unknown[] = [];
+    d.on("exit", (e: unknown) => said.push(e));
+    await d.ready;
+    lone.send("%subscription-changed ccdeck-dead $0 @0 0 %0 : 1::\n");
+    await until(() => said.length > 0, "the exit after the grace");
+    expect(said, "no status came: ended, saying nothing of how").toEqual([{ reason: "ended" }]);
+    await d.close();
+  });
+
+  it("drops a status still awaited when the client is closed", async () => {
+    const fake = fakeTmux({ respond: answers() });
+    const c = open(fake, { deadGraceMs: 40 });
+    const exits: unknown[] = [];
+    c.on("exit", (e: unknown) => exits.push(e));
+    await c.ready;
+    fake.send("%subscription-changed ccdeck-dead $0 @0 0 %0 : 1::\n");
+    await tick();
+    await c.close();
+    await new Promise(r => setTimeout(r, 80));
+    expect(exits).toEqual([{ reason: "closed" }]);
   });
 
   it("checks the pane when the stream says it may be gone, and reports what it finds", async () => {

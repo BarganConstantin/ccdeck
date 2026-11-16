@@ -387,6 +387,23 @@ describe("how it ends — exactly once", () => {
     expect(b.told).toEqual([["exit", { reason: "ended" }]]);
   });
 
+  it("reads how an ended pane's program ended, and only plain counts on an ending (internal #104)", () => {
+    const cases: [Record<string, unknown>, Record<string, unknown>][] = [
+      [{ t: "exit", reason: "ended", exitStatus: 0 }, { reason: "ended", exitStatus: 0 }],
+      [{ t: "exit", reason: "ended", exitStatus: 2, exitSignal: 9 }, { reason: "ended", exitStatus: 2, exitSignal: 9 }],
+      [{ t: "exit", reason: "ended", exitSignal: 15 }, { reason: "ended", exitSignal: 15 }],
+      [{ t: "exit", reason: "ended", exitStatus: "0", exitSignal: 0 }, { reason: "ended" }],
+      [{ t: "exit", reason: "ended", exitStatus: -1, exitSignal: 1.5 }, { reason: "ended" }],
+      [{ t: "exit", reason: "detached", exitStatus: 0 }, { reason: "detached" }],
+    ];
+    for (const [msg, told] of cases) {
+      const a = connect();
+      a.ws.open();
+      a.ws.text(msg);
+      expect(a.told, JSON.stringify(msg)).toEqual([["exit", told]]);
+    }
+  });
+
   it("drops a reset still waiting for its seed when the session exits", () => {
     const { ws, told } = connect();
     ws.open();

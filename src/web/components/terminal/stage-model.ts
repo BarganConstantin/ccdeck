@@ -46,7 +46,10 @@ import { t } from "../../i18n";
  *  - ended: the session finished; its last frame stays, frozen. `atOpen`
  *    when it had already finished before this stage first drew it — a dead
  *    deck pane opened for its last frame — so the stage never saw it end and
- *    must not say it ended "just now".
+ *    must not say it ended "just now". `clean` when its agent ended itself
+ *    with status 0 — /exit, Ctrl+D — while this stage watched it run
+ *    (endedCleanly): the pane closes then (internal #104), and the session
+ *    stays on the board to reopen.
  *  - detached: someone else took the pane away; the session runs on.
  *  - error: anything else, said in a sentence, with a way to try again.
  */
@@ -58,7 +61,7 @@ export type StagePhase =
   | { kind: "not-attachable"; target: TerminalTarget; stillRunning: boolean; busy: boolean }
   | { kind: "tmux-installing"; progress?: TmuxProgress }
   | { kind: "tmux-missing"; reason: string; install?: string; download?: string; busy: boolean }
-  | { kind: "ended"; atOpen?: boolean }
+  | { kind: "ended"; atOpen?: boolean; clean?: boolean }
   | { kind: "detached" }
   /** `code`: the engine's refusal, when it is a state of this machine
    *  (terminal-api's PANEL_UNAVAILABLE). Such a card checks again in place,
@@ -66,6 +69,23 @@ export type StagePhase =
   | { kind: "error"; message: string; code?: PanelUnavailable; busy?: boolean };
 
 export type StagePhaseKind = StagePhase["kind"];
+
+/** How long a pane must have been live before an ending counts as the agent
+ *  ending itself (internal #104). Below it, the ending is the start failing,
+ *  or the deck's once-a-second word that a pane opened for its last frame
+ *  was already dead, and the frame stays for the reader. */
+export const CLEAN_END_MIN_LIVE_MS = 3000;
+
+/**
+ * Whether an ending the stage watched is the agent ending itself cleanly:
+ * its program exited with status 0, no signal, after the pane had been live
+ * for CLEAN_END_MIN_LIVE_MS. A crash, a kill, a failed start, an ending tmux
+ * gave no status for, a lost socket or a restarting deck is never one: those
+ * keep the pane, its last frame and Reopen.
+ */
+export function endedCleanly(exit: { exitStatus?: number; exitSignal?: number }, liveForMs: number): boolean {
+  return exit.exitStatus === 0 && exit.exitSignal === undefined && liveForMs >= CLEAN_END_MIN_LIVE_MS;
+}
 
 /** Whether the terminal's own frame is what the body shows. A first attach
  *  and a switch show a state card instead — the frame in the terminal then is
