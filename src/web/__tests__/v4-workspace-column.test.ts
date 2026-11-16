@@ -167,7 +167,9 @@ describe("nothing is forced at render", () => {
   it("App draws the Board's column from the Board's flags, in every view", () => {
     const app = withoutComments(sourceOf("App.tsx"));
     expect(app).toContain("{(sessionListDrawn || accountsDrawn) && (");
-    expect(app).toContain("<LeftColumn width={leftColumnTarget}>");
+    // CHANGED ON PURPOSE (internal #103): the column also carries the Sessions
+    // list's own width; nothing about when it is drawn changed.
+    expect(app).toContain("<LeftColumn width={leftColumnTarget} listWidth={phone ? undefined : listWidth}>");
     expect(app).toContain("useWorkspaceColumn({ active: inWorkspace && stage.enabled,");
     expect(app).not.toContain("columnDrawn");
     expect(app).not.toContain("workspaceColumnWidth");

@@ -345,7 +345,9 @@ describe("App's wiring", () => {
     expect(app).toContain('data-side={side.on ? "" : undefined}');
     // A load in Workspace opens both as they were left: they share the column,
     // so the Board's side-by-side room rule does not hold This machine.
-    expect(app).toContain('useRightPanels(leftColumnWidth(leftPanel, railWidth), readView() === "workspace")');
+    // CHANGED ON PURPOSE (internal #103): the column's width is the list's own,
+    // which its edge drags (rail-width-103.test.ts).
+    expect(app).toContain('useRightPanels(leftColumnWidth(leftPanel, railWidth, listWidth), readView() === "workspace")');
     // CHANGED ON PURPOSE (owner, 2026-11-11 critique): each dock goes through
     // withInspectorFold, which hands Workspace's on as it is and carries the
     // Inspector's fold on the Board (inspector-fold.test.ts).

@@ -28,6 +28,8 @@ const catalog: Catalog = {
   "shell.side.splitHint": "Drag to share the height · arrow keys move it",
   "shell.side.width": "Side column width",
   "shell.side.widthHint": "Drag to widen or narrow the column · arrow keys move it",
+  "shell.list.width": "Sessions list width",
+  "shell.list.widthHint": "Drag to widen or narrow the list · arrow keys move it · double-click resets it",
   "shell.side.usageSum": "{amount} {period}",
   "shell.side.usageTokens": "{n} tokens {period}",
   "shell.side.machineSum": "CPU {cpu}% · {memory}",

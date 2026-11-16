@@ -28,6 +28,8 @@ const catalog: Catalog = {
   "shell.side.splitHint": "Ziehen, um die Höhe zu teilen · Pfeiltasten verschieben",
   "shell.side.width": "Breite der Seitenspalte",
   "shell.side.widthHint": "Ziehen, um die Spalte zu verbreitern oder zu verschmälern · Pfeiltasten verschieben",
+  "shell.list.width": "Breite der Sitzungsliste",
+  "shell.list.widthHint": "Ziehen, um die Liste zu verbreitern oder zu verschmälern · Pfeiltasten verschieben · Doppelklick setzt zurück",
   "shell.side.usageSum": "{amount} {period}",
   "shell.side.usageTokens": "{n} Tokens {period}",
   "shell.side.machineSum": "CPU {cpu} % · {memory}",

@@ -21,6 +21,7 @@ import AccountCapacityDialog from "./components/AccountCapacityDialog";
 import type { CapacityView } from "./components/AccountsUsageReport";
 import CodexAccountsPanel from "./components/CodexAccountsPanel";
 import LeftColumn from "./components/LeftColumn";
+import RailEdge from "./components/RailEdge";
 import { useDragTrash } from "./use-drag-trash";
 import { useBubbleAnimation, useClosingGap } from "./use-bubble-animation";
 import { useZoomLod } from "./use-zoom-lod";
@@ -94,6 +95,7 @@ import { useLanPairRequests } from "./use-lan-pair-requests";
 import { useAccountAttention } from "./use-account-attention";
 import { useMeterQuota } from "./use-quota";
 import { leftColumnWidth, useColumnSettle, useLeftColumn, useRailWidth, useWorkspaceColumn } from "./use-left-column";
+import { fitRailWidth, useRailCap, useRailWidthChoice } from "./rail-width";
 import { foldAwarePress, foldAwareSet, useOneSideColumn } from "./one-side-column";
 import { sessionsOf, useMarkSeen } from "./use-mark-seen";
 import { useRightPanels } from "./use-right-panels";
@@ -198,12 +200,18 @@ function Inner() {
   // The rail's width at the density in force (--rail-w), which the column and
   // the right-hand panels' room both follow.
   const railWidth = useRailWidth();
+  // The list's own width, its edge's to drag and kept in the browser, held to
+  // the window (rail-width.ts, internal #103). The accounts panel keeps the
+  // density's.
+  const railChoice = useRailWidthChoice();
+  const railCapNow = useRailCap(railWidth);
+  const listWidth = fitRailWidth(railChoice.chosen, railWidth, railCapNow);
   // The detail, Usage and Machine panels' open flags, each kept in the browser
   // across a refresh — use-right-panels.ts. Called ahead of the selection
   // below, because a plain selection opens the detail panel (#814). A load in
   // Workspace has the two in one side column, not side by side over the board.
   const { detailOpen, setDetailOpen: setDetailStored, usagePanelOpen, setUsagePanelOpen, machinePanelOpen, setMachinePanelOpen, hold: holdRight }
-    = useRightPanels(leftColumnWidth(leftPanel, railWidth), readView() === "workspace");
+    = useRightPanels(leftColumnWidth(leftPanel, railWidth, listWidth), readView() === "workspace");
   // ONE SIDE COLUMN BETWEEN 641 AND 839: the one opened last is drawn, and the
   // other folds to its stripe, its stored flags untouched (one-side-column.ts).
   // Read here, ahead of every panel's presence; the open flags it decides on
@@ -352,7 +360,7 @@ function Inner() {
     // On a phone the column holds the list alone: Accounts is a sheet over it.
     phone ? (sessionListOpen ? "session-list" : null)
       : leftPanel === "accounts" && !(providers.claude || providers.codex) ? null : leftPanel,
-    railWidth);
+    railWidth, phone ? railWidth : listWidth);
   // Folded, the column closes as it does for a close: the stored flags stay.
   const leftColumnTarget = sideFold.left ? 0 : leftColumnWanted;
   const columnSettleRef = useColumnSettle(leftColumnTarget);
@@ -1388,7 +1396,7 @@ function Inner() {
           scrim) and the column holds the list alone. */}
       {phone && accountsNodes}
       {(sessionListDrawn || accountsDrawn) && (
-        <LeftColumn width={leftColumnTarget}>
+        <LeftColumn width={leftColumnTarget} listWidth={phone ? undefined : listWidth}>
           {!phone && accountsNodes}
           {sessionListDrawn && (
             <SessionList
@@ -1409,6 +1417,9 @@ function Inner() {
               onNewSession={inWorkspace && stage.enabled ? stage.newSessionFrom : undefined}
               offline={phone && everConnected && !live && !restart.restarting ? <OfflineCard lastNewsAt={lastNewsAt} /> : undefined}
               emptyNotice={heroInList ? emptyHero(0) : undefined}
+              edge={phone ? undefined : (
+                <RailEdge width={listWidth} cap={railCapNow} onWidth={railChoice.choose} onReset={railChoice.reset} />
+              )}
             />
           )}
         </LeftColumn>

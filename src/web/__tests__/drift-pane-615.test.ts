@@ -300,7 +300,10 @@ describe("the six layouts are still the six the stylesheet declares", () => {
     expect(rightCode).toMatch(/useState<boolean>\(loadDetailOpen\)/);
     // CHANGED ON PURPOSE: App also says whether this load lands in Workspace,
     // where Usage and This machine share a side column (side-column.ts).
-    expect(appCode).toMatch(/\bdetailOpen\b[^}]*\}\s*= useRightPanels\(leftColumnWidth\(leftPanel, railWidth\), readView\(\) === "workspace"\);/);
+    // CHANGED ON PURPOSE (internal #103): the left column's width is the
+    // Sessions list's own when the list is open (rail-width.ts), so the right
+    // panels are fitted beside that width.
+    expect(appCode).toMatch(/\bdetailOpen\b[^}]*\}\s*= useRightPanels\(leftColumnWidth\(leftPanel, railWidth, listWidth\), readView\(\) === "workspace"\);/);
   });
 });
 

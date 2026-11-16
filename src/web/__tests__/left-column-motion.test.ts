@@ -146,6 +146,9 @@ describe("no panel can size the column by its content (2026-10-08)", () => {
     // App's width, plus the reading preference's panel increase while open:
     // 0px at the Default text size, so the column is exactly App's width.
     expect(sourceOf("components/LeftColumn.tsx")).toMatch(/"--left-col-w": width === 0 \? "0px" : `calc\(\$\{width\}px \+ var\(--ui-panel-increase, 0px\)\)`/);
-    expect(sourceOf("App.tsx")).toMatch(/<LeftColumn width=\{leftColumnTarget\}>/);
+    // CHANGED ON PURPOSE (internal #103): the column also holds the Sessions
+    // list's own width (--list-w) for the list in it; its own width is still
+    // App's leftColumnTarget.
+    expect(sourceOf("App.tsx")).toMatch(/<LeftColumn width=\{leftColumnTarget\} listWidth=\{phone \? undefined : listWidth\}>/);
   });
 });

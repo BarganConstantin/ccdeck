@@ -19,9 +19,14 @@
 // over the one leaving.
 import { useLayoutEffect, useRef, type CSSProperties, type ReactNode } from "react";
 
-export default function LeftColumn({ width, children }: {
+export default function LeftColumn({ width, listWidth, children }: {
   /** The width the column is moving to, from leftColumnWidth. */
   width: number;
+  /** The Sessions list's own width, the reader's (rail-width.ts, internal
+   * #103), as --list-w for the list in it; none on a phone, where the list is
+   * the screen's width. The column holds it even while Accounts is open, so a
+   * list arriving is at its own width from its first frame. */
+  listWidth?: number;
   children: ReactNode;
 }) {
   const ref = useRef<HTMLDivElement>(null);
@@ -34,7 +39,10 @@ export default function LeftColumn({ width, children }: {
   });
   return (
     <div ref={ref} className={`left-column${width === 0 ? " closing" : ""}`}
-      style={{ "--left-col-w": width === 0 ? "0px" : `calc(${width}px + var(--ui-panel-increase, 0px))` } as CSSProperties}>
+      style={{
+        "--left-col-w": width === 0 ? "0px" : `calc(${width}px + var(--ui-panel-increase, 0px))`,
+        ...(listWidth === undefined ? null : { "--list-w": `calc(${listWidth}px + var(--ui-panel-increase, 0px))` }),
+      } as CSSProperties}>
       {children}
     </div>
   );

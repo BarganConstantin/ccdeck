@@ -140,6 +140,12 @@
   /* With the chip there, the tool and its argument would be left a few
      characters of ellipsis: the name keeps that room instead. */
   .ts-head:has(.ts-ctxchip) .ts-meta-rest { display: none; }
+  /* A header narrower still (a Workspace pane down to its 400 px beside a
+     wide Sessions list and the side panels, internal #103): the state word
+     gives way with an ellipsis, as the name does, instead of being drawn
+     over the chip. */
+  .ts-meta { overflow: hidden; }
+  .ts-meta-state { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 }
 
 .ts-ctl { flex: none; display: flex; align-items: center; gap: 4px; }

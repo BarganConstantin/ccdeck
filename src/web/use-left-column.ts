@@ -77,8 +77,10 @@ export function leftColumnPanel(sessionListOpen: boolean, accountsOpen: boolean,
  *  until the leaving panel unmounted 200ms later and it snapped to 240. The
  *  column is one element now, this is its width, and the sheet eases it from
  *  the last one: every frame of a switch is between the two panels' widths. */
-export function leftColumnWidth(panel: LeftPanel | null, railWidth: number = SESSION_LIST_WIDTH): number {
-  if (panel === "session-list") return railWidth;
+export function leftColumnWidth(panel: LeftPanel | null, railWidth: number = SESSION_LIST_WIDTH, listWidth: number = railWidth): number {
+  // The list's own width: the one the reader dragged its edge to, held to the
+  // window, else the density's (rail-width.ts, internal #103).
+  if (panel === "session-list") return listWidth;
   // The accounts panel is drawn at the rail's width (V4's Figma: 264 at
   // Compact), so the column holds the same one for either.
   if (panel === "accounts") return railWidth;
