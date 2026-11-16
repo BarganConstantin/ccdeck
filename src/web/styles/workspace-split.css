@@ -1,0 +1,222 @@
+/* WORKSPACE WITH PANES SIDE BY SIDE (internal #102, workspace-split.ts,
+   StageShell.tsx). Every stage sits in a .wsp-pane, one or up to four; with
+   one it fills the stage as before. With more the script places each pane
+   (left, top, width, height) and draws the lines between them. */
+
+.wsp-pane {
+  position: absolute;
+  inset: 0;
+  min-width: 0;
+  min-height: 0;
+}
+/* A pane that waits behind the strip keeps its terminal mounted and attached,
+   but nothing of it is seen, pressed or read. */
+.wsp-pane[data-hidden] { visibility: hidden; }
+
+/* Side by side, the stage's own left edge is the line between panes. */
+.stage-in[data-split] .ts-stage { border-left: 0; }
+
+/* The pane that has the keys: its header carries a 2px accent line at the
+   top; the others keep their header and say their name more quietly. */
+.stage-in[data-split] .wsp-pane[data-focused] .ts-head { box-shadow: inset 0 2px 0 var(--accent); }
+.stage-in[data-split] .wsp-pane:not([data-focused]) .ts-name { color: var(--muted); }
+.stage-in[data-split] .ts-head[draggable="true"] { cursor: grab; }
+.stage-in[data-split] .ts-head[draggable="true"]:active { cursor: grabbing; }
+
+/* A narrow pane keeps its glyph, name, state word and controls: the tool and
+   what it works on go first (the header's own @container rules take the rest
+   below 480 px, terminal-stage.css). */
+.wsp-pane[data-narrow] .ts-meta-rest { display: none; }
+
+/* The line between two panes: 1px drawn, 9px to take hold of. */
+.wsp-divider {
+  position: absolute;
+  z-index: 3;
+  box-sizing: border-box;
+  background: var(--line);
+  touch-action: none;
+  transition: background-color var(--dur-fast) var(--ease);
+}
+.wsp-divider::before { content: ""; position: absolute; }
+.wsp-divider[data-dir="row"] { cursor: col-resize; }
+.wsp-divider[data-dir="row"]::before { inset: 0 -4px; }
+.wsp-divider[data-dir="col"] { cursor: row-resize; }
+.wsp-divider[data-dir="col"]::before { inset: -4px 0; }
+.wsp-divider[data-moving] { background: var(--accent); }
+/* A grab strip with no box of its own, as the side column's edge is: the
+   keyboard ring drawn round the line is the whole of its boundary. */
+.wsp-divider:focus-visible { background: var(--accent); outline: var(--focus-w) solid var(--accent); outline-offset: 0; }
+@media (hover: hover) and (pointer: fine) {
+  .wsp-divider:hover { background: var(--accent); }
+}
+
+/* Where a drop would land: the half or the whole pane, lit, with what the drop
+   would do written in its middle. */
+.wsp-zone {
+  position: absolute;
+  z-index: 4;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px;
+  pointer-events: none;
+  border: 1px solid var(--accent);
+  border-radius: var(--r-ctl);
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+}
+.wsp-zone[data-already] { background: transparent; border-width: 2px; }
+.wsp-zone-label {
+  max-width: 100%;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  padding: 4px 10px;
+  border-radius: var(--r-pill);
+  background: var(--panel);
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 18px;
+  box-shadow: 0 0 0 1px var(--line);
+}
+
+/* Too narrow for panes side by side, or one pane filled: a strip of tabs over
+   the one pane on show, each the pane's number and name. */
+.wsp-strip {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  z-index: 2;
+  box-sizing: border-box;
+  display: flex;
+  align-items: stretch;
+  gap: 2px;
+  padding: 3px 4px 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+  background: var(--sunken);
+  border-bottom: 1px solid var(--line);
+}
+.wsp-tab,
+.wsp-all {
+  flex: 0 1 auto;
+  min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: var(--r-ctl) var(--r-ctl) 0 0;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 12px;
+  line-height: 18px;
+  cursor: pointer;
+  transition: color var(--dur-fast) var(--ease), background-color var(--dur-fast) var(--ease), transform var(--dur-fast) var(--ease);
+}
+.wsp-tab { max-width: 220px; }
+.wsp-tab[data-on] {
+  background: var(--panel);
+  color: var(--text);
+  box-shadow: inset 0 2px 0 var(--accent);
+}
+.wsp-tab-n {
+  flex: none;
+  font-family: var(--font-mono);
+  color: var(--muted);
+}
+.wsp-tab-name {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-weight: 600;
+}
+.wsp-all { flex: none; margin-left: auto; }
+/* Why a session went where it did (four panes at most): over the panes, top
+   centre, for a few seconds. Always in the tree, so the status region is there
+   before the sentence arrives and a screen reader hears it; empty, it takes no
+   room and catches no press. */
+.wsp-note {
+  position: absolute;
+  top: 8px;
+  left: 50%;
+  z-index: 4;
+  max-width: min(520px, calc(100% - 24px));
+  margin: 0;
+  padding: 6px 12px;
+  transform: translateX(-50%);
+  border-radius: var(--r-ctl);
+  background: var(--panel);
+  color: var(--text);
+  box-shadow: 0 0 0 1px var(--line), var(--shadow-1);
+  font-size: 12px;
+  line-height: 18px;
+  text-align: center;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity var(--dur-fast) var(--ease);
+}
+.wsp-note:empty { padding: 0; box-shadow: none; }
+.wsp-note[data-on] { opacity: 1; }
+
+/* Why the strip shows tabs and not panes: quiet, and only in the room the tabs
+   leave — a tab's name is never cut for it (its whole sentence is its title). */
+.wsp-why {
+  flex: 1 1 0;
+  min-width: 0;
+  align-self: center;
+  padding: 0 8px;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  text-align: right;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 18px;
+}
+@media (hover: hover) and (pointer: fine) {
+  .wsp-tab:not([data-on]):hover,
+  .wsp-all:hover { color: var(--text); background: var(--selected); }
+}
+/* A tab and Show all are labelled controls: they answer a press as the
+   deck's other tabs do. Their keyboard ring is the global one. */
+.wsp-tab:active,
+.wsp-all:active { transform: scale(var(--press)); }
+
+/* A session row on its way into the Workspace: an accent line at its start,
+   its words at full contrast (a fade over text is a contrast cut, #1289). And
+   the chip under the pointer: drawn off screen for the browser to copy
+   (split-drag.ts). */
+.session-list .sl-row-in[data-dragging] { box-shadow: inset 2px 0 0 var(--accent); }
+.wsp-drag-chip {
+  position: fixed;
+  left: -1000px;
+  top: -1000px;
+  max-width: 240px;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  padding: 4px 10px;
+  border-radius: var(--r-pill);
+  background: var(--panel);
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 18px;
+  box-shadow: 0 0 0 1px var(--accent);
+  pointer-events: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .wsp-divider,
+  .wsp-tab,
+  .wsp-all,
+  .wsp-note { transition: none; }
+  /* The press stays a state change and stops being a movement. */
+  .wsp-tab:active,
+  .wsp-all:active { transform: none; }
+}

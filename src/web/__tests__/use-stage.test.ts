@@ -18,6 +18,7 @@ import {
   type StageDeps,
 } from "../use-stage";
 import { TYPE_AHEAD_MS } from "../type-ahead";
+import { paneIds, paneTarget } from "../workspace-split";
 import { en } from "../i18n/en";
 import { settingsFailure, setSettingsFailure } from "../settings-failure";
 import { mount } from "./fake-react";
@@ -1583,5 +1584,112 @@ describe("Workspace: a rail panel asked for while Zoom is on", () => {
     now().rail.set(false);
     expect(setOpen).toHaveBeenCalledWith(false);
     expect(now().stage.expanded).toBe(false);
+  });
+});
+
+describe("Workspace: sessions side by side (internal #102)", () => {
+  const five = ["s1", "s2", "s3", "s4", "s5"].map(id => root(id));
+  function inWorkspace() {
+    const t = setup({ view: "workspace", agents: five, selected: "s1" });
+    t.turnOn();
+    t.now().stage.switchTo("s1", { focusPane: true });
+    return t;
+  }
+  const panes = (t: ReturnType<typeof inWorkspace>) => paneIds(t.now().stage.split.root);
+  /** What each pane shows, in pane order. */
+  const shows = (t: ReturnType<typeof inWorkspace>) => {
+    const st = t.now().stage;
+    return panes(t).map(id => {
+      const target = paneTarget(st.split, id, st.shell.phase !== "closed" ? st.shell.target : null);
+      return target.kind === "session" ? target.id : target.kind;
+    });
+  };
+
+  it("opens a second session beside the first, with the keys in the new pane", () => {
+    const t = inWorkspace();
+    expect(panes(t)).toHaveLength(1);
+    t.now().stage.openBeside("s2");
+    expect(panes(t)).toHaveLength(2);
+    expect(shows(t)).toEqual(["s1", "s2"]);
+    expect(t.now().stage.shell.target, "the new pane has the keys").toEqual({ kind: "session", id: "s2" });
+    expect(t.now().stage.split.focused).toBe(panes(t)[1]);
+  });
+
+  it("never opens a session twice: one already in a pane gets the keys there", () => {
+    const t = inWorkspace();
+    t.now().stage.openBeside("s2");
+    t.now().stage.openBeside("s1");
+    expect(panes(t), "no third pane, no second attach").toHaveLength(2);
+    expect(shows(t)).toEqual(["s1", "s2"]);
+    expect(t.now().stage.split.focused).toBe(panes(t)[0]);
+    expect(t.now().stage.shell.target).toEqual({ kind: "session", id: "s1" });
+    // A click on a card for a session in another pane does the same (openOn).
+    t.now().stage.switchTo("s2", { focusPane: true });
+    expect(panes(t)).toHaveLength(2);
+    expect(shows(t)).toEqual(["s1", "s2"]);
+    expect(t.now().stage.split.focused).toBe(panes(t)[1]);
+  });
+
+  it("holds four at most: a fifth opens in the pane in focus, and the deck says why", () => {
+    const t = inWorkspace();
+    for (const id of ["s2", "s3", "s4"]) t.now().stage.openBeside(id);
+    expect(panes(t)).toHaveLength(4);
+    expect([...shows(t)].sort()).toEqual(["s1", "s2", "s3", "s4"]);
+    const focused = t.now().stage.split.focused;
+    t.now().stage.openBeside("s5");
+    expect(panes(t)).toHaveLength(4);
+    expect(t.now().stage.split.focused).toBe(focused);
+    expect(t.now().stage.shell.target).toEqual({ kind: "session", id: "s5" });
+    expect(t.now().stage.splitNote).toBe(en["board.stage.split.full"]);
+  });
+
+  it("closes one pane alone: the others keep their sessions, the keys go beside it", () => {
+    const t = inWorkspace();
+    t.now().stage.openBeside("s2");
+    t.now().stage.openBeside("s3");
+    expect(shows(t)).toEqual(["s1", "s2", "s3"]);
+    const [, middle] = panes(t);
+    // A pane without the keys: the pane with them keeps them.
+    const keys = t.now().stage.split.focused;
+    t.now().stage.closePane(middle!);
+    expect(shows(t)).toEqual(["s1", "s3"]);
+    expect(t.now().stage.split.focused).toBe(keys);
+    // The pane with the keys: they go to the pane left.
+    t.now().stage.closePane(keys);
+    expect(shows(t)).toEqual(["s1"]);
+    expect(t.now().stage.shell.target).toEqual({ kind: "session", id: "s1" });
+    // The last pane empties, as the one pane always did.
+    t.now().stage.closePane(panes(t)[0]!);
+    expect(panes(t)).toHaveLength(1);
+    expect(t.now().stage.shell.target).toEqual({ kind: "empty" });
+  });
+
+  it("fills the Workspace with one pane and gives the others their room back", () => {
+    const t = inWorkspace();
+    t.now().stage.openBeside("s2");
+    const [first] = panes(t);
+    t.now().stage.toggleMax(first!);
+    expect(t.now().stage.split.max).toBe(first);
+    expect(t.now().stage.split.focused, "the filled pane has the keys").toBe(first);
+    t.now().stage.showAll();
+    expect(t.now().stage.split.max).toBeNull();
+    expect(shows(t)).toEqual(["s1", "s2"]);
+  });
+
+  it("moves a pane by its header: same pane id, so the same terminal, in its new place", () => {
+    const t = inWorkspace();
+    t.now().stage.openBeside("s2");
+    const [a, b] = panes(t);
+    t.now().stage.movePaneTo(b!, a!, "left");
+    expect(panes(t)).toEqual([b, a]);
+    expect(shows(t)).toEqual(["s2", "s1"]);
+  });
+
+  it("on the Board there is one stage: beside is the stage as it was", () => {
+    const t = setup({ agents: five });
+    t.turnOn();
+    t.now().stage.openBeside("s2");
+    expect(panes(t as unknown as ReturnType<typeof inWorkspace>)).toHaveLength(1);
+    expect(t.now().stage.shell.target).toEqual({ kind: "session", id: "s2" });
   });
 });

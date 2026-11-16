@@ -180,7 +180,9 @@ describe("the flag off in the rest of the deck", () => {
     // Every entry point opens with the flag.
     expect(stageHook).toMatch(/const onNodeClick = useCallback\(\(id: string, el: Element \| null\): boolean => \{\s*if \(!enabledRef\.current\) return false;/);
     expect(stageHook).toMatch(/const followSession = useCallback\(\(sessionId: string\): boolean => \{\s*if \(!enabledRef\.current \|\| /);
-    expect(stageHook).toMatch(/if \(!enabledRef\.current\) return;\s*const focus = /);
+    // CHANGED ON PURPOSE (internal #102): openOn's first line is still the flag;
+    // the split's check for a session already in another pane comes after it.
+    expect(stageHook).toMatch(/const openOn = useCallback\(\(target: StageTarget, opts: [^\n]*\) => \{\s*if \(!enabledRef\.current\) return;/);
     expect(stageHook).toMatch(/keysRef\.current = enabled\s*\?/);
     expect(stageHook).toMatch(/waitingSessions: enabled \? waitingSessions : NO_WAITING,/);
     // And the click keeps every line it had after the stage's own.

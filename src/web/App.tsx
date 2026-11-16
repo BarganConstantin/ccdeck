@@ -735,7 +735,7 @@ function Inner() {
   // so a folded right column changes nothing between them.
   const stage = useStage({
     stateRef, canvasRef, detailOpen, detailShown: detailWanted, setDetailOpen, primarySelectedIdRef, selectAgent,
-    view: viewState.stored, phone, clearSelection,
+    view: viewState.stored, phone, clearSelection, ready: historyReplayed,
   });
   const inWorkspace = stage.workspace;
   // Zoom's fold and unfold: the panels slide, the grid follows at the end
@@ -972,6 +972,12 @@ function Inner() {
     if (removedAgentIds.has(sessionId)) bringBack([sessionId]);
     openInPane(sessionId, { focusPane: true });
   }, [removedAgentIds, bringBack, openInPane]);
+  // ⇧↵ on a row, in Workspace (internal #102): the session in a pane beside
+  // the one in focus, with the keys.
+  const openSessionBeside = useCallback((sessionId: string) => {
+    if (removedAgentIds.has(sessionId)) bringBack([sessionId]);
+    stage.openBeside(sessionId);
+  }, [removedAgentIds, bringBack, stage.openBeside]);
 
   // Which element a POINTER put focus on, so a button the mouse pressed stops
   // swallowing the single-key shortcuts (#851): see use-pointer-focus.ts.
@@ -1414,6 +1420,7 @@ function Inner() {
               activeAlias={attention.accounts?.find(a => a.active)?.alias ?? null}
               onOpenUsage={() => usageRail.set(o => !o)}
               onOpenKeys={inWorkspace ? openSessionWithKeys : undefined}
+              onOpenBeside={inWorkspace && stage.enabled ? openSessionBeside : undefined}
               onNewSession={inWorkspace && stage.enabled ? stage.newSessionFrom : undefined}
               offline={phone && everConnected && !live && !restart.restarting ? <OfflineCard lastNewsAt={lastNewsAt} /> : undefined}
               emptyNotice={heroInList ? emptyHero(0) : undefined}

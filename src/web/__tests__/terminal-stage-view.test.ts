@@ -777,20 +777,25 @@ describe("asking for the session again from the stage", () => {
     expect(en["board.stage.attachAgain"]).toBe("Attach again");
     expect(stage).toMatch(/endView\(phase, p\.show, \{[^}]*attachAgain: retry \}\)/);
     expect(stage).not.toContain("session.retry}");
-    expect(web("components/terminal/StageShell.tsx")).toContain("onWantKeys={stage.focusPane}");
+    // CHANGED ON PURPOSE (internal #102): the pane with the keys asks as before;
+    // another pane side by side asks for its own pane, with the keys.
+    expect(web("components/terminal/StageShell.tsx")).toContain("onWantKeys={own ? stage.focusPane : () => stage.focusPaneId(id, { keys: true })}");
   });
 
   it("starts an exited launch again as a new launch, in its folder with its options", () => {
     // A new key, so the deck starts an agent rather than finding the one that exited.
+    // CHANGED ON PURPOSE (internal #102): per pane, and that pane takes the keys first.
     expect(web("components/terminal/StageShell.tsx"))
-      .toContain('onLaunchAgain={show.kind === "launch" ? () => stage.launch(show.agent, show.cwd, show.options) : undefined}');
+      .toContain('onLaunchAgain={ps.kind === "launch" ? () => { keysHere(); stage.launch(ps.agent, ps.cwd, ps.options); } : undefined}');
     expect(web("components/terminal/TerminalStage.tsx")).toContain("launchAgain: p.onLaunchAgain");
   });
 
   it("reports a recognised Codex with the launch it was recognised for", () => {
     // The stage takes it only while that launch is still the one on it (use-stage's onLaunched).
-    expect(web("components/terminal/StageShell.tsx"))
-      .toContain("useCodexLaunch(shell.target, agents, (sessionId, key) => stage.onLaunched({ sessionId, key }));");
+    // CHANGED ON PURPOSE (internal #102): each pane watches its own target.
+    const shell = web("components/terminal/StageShell.tsx");
+    expect(shell).toContain("useCodexLaunch(p.target, p.agents, p.onFound);");
+    expect(shell).toContain("const onFound = useCallback((sessionId: string, key: string) => stage.onLaunched({ sessionId, key }), [stage]);");
   });
 
   it("lands a request still holding keys with a catch, so a sentence mid-way never presses the card", () => {

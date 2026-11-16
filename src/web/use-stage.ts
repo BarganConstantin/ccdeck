@@ -38,7 +38,7 @@
 // navigator a sliver or nothing, and the session's columns would change under
 // it — a redraw of the TUI — for a glance at the quota.
 import {
-  useCallback, useEffect, useLayoutEffect, useRef, useState,
+  useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState,
   type Dispatch, type MutableRefObject, type SetStateAction,
 } from "react";
 import type { BlockedSession } from "./ambient-counts";
@@ -50,7 +50,7 @@ import { DOUBLE_CLICK_MS } from "./focus-hold";
 import { notePanelLaunch } from "./panel-launch";
 import type { GraphState } from "./reducer";
 import {
-  ASSUMED_CELL, BAR_H, BAR_H_TOUCH, NARROW_BELOW, PHONE_BAR_H, PHONE_HEAD_H, PHONE_KEYS_H, STAGE_COLS_KEY, headHFor, loadStageCols, saveStageCols, stageGeometry,
+  ASSUMED_CELL, BAR_H, BAR_H_TOUCH, NARROW_BELOW, PHONE_BAR_H, PHONE_HEAD_H, PHONE_KEYS_H, STAGE_COLS_KEY, headHFor, loadStageCols, paneMinSize, saveStageCols, stageGeometry,
   type Cell, type StageGeometry,
 } from "./stage-geometry";
 import {
@@ -66,6 +66,11 @@ import type { StageShortcuts } from "./use-deck-shortcuts";
 import { useMirroredRef } from "./use-mirrored-ref";
 import { t } from "./i18n";
 import { refuseSave, setSettingsFailure } from "./settings-failure";
+import {
+  MIN_PANE_COLS, MIN_PANE_ROWS, arrange, focusSplit, insertPane, loadSplit, movePane, paneCount, paneIds, paneTarget, paneWith,
+  promoteLaunch, removePane, saveSplit, setRatio, singleSplit, withFocusedTarget,
+  type Arrangement, type DropZone, type EdgeZone, type SplitState,
+} from "./workspace-split";
 import { readView, workspaceOffered, writeView, type View } from "./use-view";
 
 /** The lazy chunk's one door: the navigator, the stage and everything they
@@ -78,9 +83,15 @@ export const loadStageShell = () => import("./components/terminal/StageShell");
  *  whether the Command Panel is on. */
 export const PREFS_WAIT_MS = 3000;
 
+/** How long the Workspace's note over its panes stays (four panes at most):
+ *  long enough to read a sentence twice. */
+export const SPLIT_NOTE_MS = 6000;
+
 /** What is said when the lazy chunk will not load — a tab left open across an
  *  upgrade asks for a file the new build no longer has. */
 export const SHELL_UNAVAILABLE_MSG = "board.stage.shellUnavailable";
+/** What an empty pane shows. */
+const EMPTY_TARGET: StageTarget = { kind: "empty" };
 
 const pageRect = (r: DOMRect | { left: number; top: number; width: number; height: number }): ShellRect =>
   ({ x: r.left, y: r.top, w: r.width, h: r.height });
@@ -128,6 +139,10 @@ export interface StageDeps {
   detailShown: boolean;
   setDetailOpen: (open: boolean) => void;
   primarySelectedIdRef: { readonly current: string | null };
+  /** The board has heard the deck's history (App's historyReplayed): a kept
+   *  Workspace split closes the panes whose session it does not know. Left
+   *  out, the split waits RESTORE_WAIT_MS for them instead. */
+  ready?: boolean;
   /** use-selection.ts's: the stage moving to a session selects it, without
    *  inspecting it — see `follow` below. */
   selectAgent: (id: string, additive: boolean, inspect?: boolean) => void;
@@ -168,7 +183,7 @@ function railRow(id: string): HTMLElement | null {
   }
 }
 
-export function useStage({ stateRef, canvasRef, detailOpen, detailShown, setDetailOpen, primarySelectedIdRef, selectAgent, view = "board", phone = false, clearSelection }: StageDeps) {
+export function useStage({ stateRef, canvasRef, detailOpen, detailShown, setDetailOpen, primarySelectedIdRef, selectAgent, view = "board", phone = false, clearSelection, ready = false }: StageDeps) {
   // The switch, from the one read of the deck's prefs (use-prefs-read.ts),
   // and whether the deck's platform has the panel at all, which the switch in
   // Settings says — null until the deck has answered. `windows`: its sessions
@@ -296,9 +311,52 @@ export function useStage({ stateRef, canvasRef, detailOpen, detailShown, setDeta
     : null;
   const geometryRef = useMirroredRef(geometry);
 
+  // ── the split (internal #102) ──────────────────────────────────────────────
+  // Workspace's panes, as workspace-split.ts arranges them. The pane in focus
+  // is the stage: it shows what `shell` shows, so every way into a session
+  // (a row, Enter, ⌘K, a notification, New session, a reload) lands in the
+  // pane with the keys, as it landed in the one pane before. The arrangement
+  // this browser kept is read once, and its pane in focus is the pane on
+  // screen from the first render: the terminal drawn before the others come
+  // back is not drawn again when they do.
+  const keptSplitRef = useRef<SplitState | null | undefined>(undefined);
+  if (keptSplitRef.current === undefined) keptSplitRef.current = loadSplit();
+  const [split, setSplitState] = useState<SplitState>(() => singleSplit(keptSplitRef.current?.focused ?? "p0"));
+  const splitRef = useMirroredRef(split);
+  const setSplit = useCallback((next: SplitState) => {
+    if (next === splitRef.current) return;
+    splitRef.current = next;
+    setSplitState(next);
+  }, [splitRef]);
+  /** The least a pane is drawn at: 40 columns by 8 rows of the cell xterm drew. */
+  const paneMin = useMemo(() => paneMinSize(MIN_PANE_COLS, MIN_PANE_ROWS, cell, headH, barH), [cell, headH, barH]);
+  const arrangement: Arrangement | null = workspace && box && open ? arrange(split, box, paneMin) : null;
+  const arrangementRef = useMirroredRef(arrangement);
+  /** A pane's own geometry: the Workspace pane's, for its box. */
+  const geometryFor = useCallback((w: number, h: number): StageGeometry => stageGeometry({
+    appW: Math.floor(w), bodyH: Math.floor(h), cellW: cell.w, cellH: cell.h, expanded: false,
+    narrow: box?.narrow ?? false, storedCols: null, fill: true, barH, headH,
+  }), [cell, barH, headH, box?.narrow]);
+  /** The pane a focus token was asked for. Only that pane answers it: a pane
+   *  the keys move to by a click or a Tab is not handed an older request, or
+   *  it would take the keyboard out from under the control that was focused. */
+  const tokenPaneRef = useRef<{ token: number; pane: string } | null>(null);
+  /** Launches and the sessions they became, for a pane that started one and
+   *  no longer has the keys when the board hears of it. */
+  const launchedKeysRef = useRef(new Map<string, string>());
+
   const [firstRun, setFirstRun] = useState(() => readStored(STAGE_FIRST_RUN_KEY) !== "1");
   /** The stage's sentence for the deck's live region (App mounts it). */
   const [said, setSaid] = useState("");
+  // What the Workspace shows over its panes for a moment: why a session went
+  // where it did (four panes at most). On screen, not only spoken: the
+  // stage's own "open" sentence follows it at once in the hidden region.
+  const [splitNote, setSplitNote] = useState<{ text: string; n: number } | null>(null);
+  useEffect(() => {
+    if (!splitNote) return;
+    const id = setTimeout(() => setSplitNote(null), SPLIT_NOTE_MS);
+    return () => clearTimeout(id);
+  }, [splitNote]);
 
   const navRef = useRef<BoardNavigatorHandle | null>(null);
   const keysRef = useRef<StageShortcuts | null>(null);
@@ -326,8 +384,21 @@ export function useStage({ stateRef, canvasRef, detailOpen, detailShown, setDeta
    */
   const openOn = useCallback((target: StageTarget, opts: { el?: Element | null; focusPane?: boolean; grace?: boolean } = {}) => {
     if (!enabledRef.current) return;
+    // SPLIT (#102): a session already in another pane is never opened twice
+    // (no second pane, no second attach): the keys go to the pane that has it,
+    // which goes on showing it as it was.
+    if (workspaceRef.current && target.kind === "session") {
+      const s = splitRef.current;
+      const shown = shellRef.current.phase !== "closed" ? shellRef.current.target : null;
+      const other = paneCount(s) > 1 ? paneWith(s, target.id, shown, s.focused) : null;
+      if (other) {
+        setSplit(focusSplit(s, other, shown));
+        target = paneTarget(s, other, null);
+      }
+    }
     const focus = opts.focusPane ? ++tokenRef.current : null;
     if (focus != null) {
+      tokenPaneRef.current = { token: focus, pane: splitRef.current.focused };
       aheadRef.current = target.kind === "session"
         ? { token: focus, session: target.id, from: document.activeElement, ahead: startTypeAhead(Date.now()) }
         : null;
@@ -355,7 +426,7 @@ export function useStage({ stateRef, canvasRef, detailOpen, detailShown, setDeta
       grace: !!opts.grace,
       focus,
     });
-  }, [enabledRef, shellRef, canvasRef, detailOpenRef, measure, setDetailOpen]);
+  }, [enabledRef, shellRef, canvasRef, detailOpenRef, measure, setDetailOpen, workspaceRef, splitRef, setSplit]);
 
   /** The session on the stage is the selected one. A move that did not come
    *  through a card — a tile, j/k, the next ask, a session list row — selects
@@ -457,13 +528,14 @@ export function useStage({ stateRef, canvasRef, detailOpen, detailShown, setDeta
   const focusPane = useCallback(() => {
     if (!stageClaimsKeys(shellRef.current.phase)) return;
     const token = ++tokenRef.current;
+    tokenPaneRef.current = { token, pane: splitRef.current.focused };
     // Held, as after a click on a card: Try again asks for a pane that is a
     // moment away, and what is typed meanwhile is the session's, not the
     // deck's shortcuts' (type-ahead.ts).
     const id = targetSession(shellRef.current.target);
     aheadRef.current = id ? { token, session: id, from: document.activeElement, ahead: startTypeAhead(Date.now()) } : null;
     dispatch({ type: "focus", token });
-  }, [shellRef]);
+  }, [shellRef, splitRef]);
 
   /**
    * A navigator tile was pressed. From the keyboard, that session with the
@@ -494,6 +566,137 @@ export function useStage({ stateRef, canvasRef, detailOpen, detailShown, setDeta
     follow(sessionId);
   }, [shellRef, openOn, follow, focusPane]);
 
+  // ── the split's moves (internal #102) ──────────────────────────────────────
+  /** The keys to pane `id`: the stage shows what it shows, the Inspector
+   *  follows it. With `keys` the keyboard goes into it too (1–4, a drop);
+   *  a click or a Tab into it has put the keyboard there already. */
+  const focusPaneId = useCallback((id: string, opts: { keys?: boolean } = {}): boolean => {
+    if (!enabledRef.current || !workspaceRef.current) return false;
+    const s = splitRef.current;
+    if (!paneIds(s.root).includes(id)) return false;
+    if (id === s.focused) {
+      if (opts.keys) focusPane();
+      return true;
+    }
+    const next = focusSplit(s, id, shellRef.current.phase !== "closed" ? shellRef.current.target : null);
+    setSplit(next);
+    const shows = next.targets[id] ?? EMPTY_TARGET;
+    openOn(shows, { focusPane: opts.keys === true });
+    if (shows.kind === "session") follow(shows.id);
+    else {
+      unheardRef.current = shows.kind === "launch" ? "launch" : null;
+      clearRef.current?.();
+    }
+    return true;
+  }, [enabledRef, workspaceRef, splitRef, shellRef, setSplit, focusPane, openOn, follow, clearRef]);
+
+  /** 1–4 on the deck: the keys to the pane counted there, left to right and
+   *  then the next row down. False with one pane, or none that far. */
+  const focusPaneAt = useCallback((n: number): boolean => {
+    const a = arrangementRef.current;
+    if (!a || a.mode === "one") return false;
+    const id = a.order[n - 1];
+    return id ? focusPaneId(id, { keys: true }) : false;
+  }, [arrangementRef, focusPaneId]);
+
+  /** A session beside a pane, with the keys: ⇧↵ on its row (beside the pane
+   *  in focus), a drop on a pane's edge. Already in a pane, the keys go there;
+   *  into an empty pane, it simply opens there; with four open, it opens in
+   *  the pane in focus, as ↵ would, and the deck says why. */
+  const openBeside = useCallback((sessionId: string, opts: { at?: string; zone?: EdgeZone } = {}) => {
+    if (!enabledRef.current) return;
+    if (!workspaceRef.current) { openOn({ kind: "session", id: sessionId }, { focusPane: true }); follow(sessionId); return; }
+    const s = splitRef.current;
+    const shown = shellRef.current.phase !== "closed" ? shellRef.current.target : null;
+    const other = paneWith(s, sessionId, shown);
+    if (other) { focusPaneId(other, { keys: true }); return; }
+    const at = opts.at ?? s.focused;
+    if (paneTarget(s, at, shown).kind === "empty") {
+      if (at !== s.focused) setSplit(focusSplit(s, at, shown));
+      openOn({ kind: "session", id: sessionId }, { focusPane: true });
+      follow(sessionId);
+      return;
+    }
+    const rect = arrangementRef.current?.rects.get(at);
+    const zone = opts.zone ?? (rect && rect.h > rect.w ? "bottom" : "right");
+    const added = insertPane(shown ? withFocusedTarget(s, shown) : s, at, zone, { kind: "session", id: sessionId });
+    if (!added) {
+      setSplitNote(n => ({ text: t("board.stage.split.full"), n: (n?.n ?? 0) + 1 }));
+      openOn({ kind: "session", id: sessionId }, { focusPane: true });
+      follow(sessionId);
+      return;
+    }
+    // Zoom folds the list the next session would come from: the split gives it back.
+    setExpanded(false);
+    setSplit(focusSplit(added.state, added.id, shown));
+    openOn({ kind: "session", id: sessionId }, { focusPane: true });
+    follow(sessionId);
+  }, [enabledRef, workspaceRef, splitRef, shellRef, arrangementRef, setSplit, openOn, follow, focusPaneId]);
+
+  /** A session dropped on a pane's Here: it shows there, with the keys; the
+   *  one it replaces keeps running and stays in the list. */
+  const dropHere = useCallback((paneId: string, sessionId: string) => {
+    if (!enabledRef.current || !workspaceRef.current) return;
+    const s = splitRef.current;
+    const shown = shellRef.current.phase !== "closed" ? shellRef.current.target : null;
+    const other = paneWith(s, sessionId, shown);
+    if (other) { focusPaneId(other, { keys: true }); return; }
+    if (paneId !== s.focused) setSplit(focusSplit(s, paneId, shown));
+    openOn({ kind: "session", id: sessionId }, { focusPane: true });
+    follow(sessionId);
+  }, [enabledRef, workspaceRef, splitRef, shellRef, setSplit, openOn, follow, focusPaneId]);
+
+  /** A pane dragged by its header onto another pane's zone: the same pane,
+   *  so the same terminal, in its new place. */
+  const movePaneTo = useCallback((id: string, to: string, zone: DropZone) => {
+    setSplit(movePane(splitRef.current, id, to, zone));
+  }, [splitRef, setSplit]);
+
+  /** A divider moved, or double-clicked back to halves. */
+  const setSplitRatio = useCallback((path: string, ratio: number) => {
+    setSplit(setRatio(splitRef.current, path, ratio));
+  }, [splitRef, setSplit]);
+
+  /** ⤢ with several panes: this one fills the Workspace, the strip names the
+   *  others; again, or Show all, and the split is back. */
+  const toggleMax = useCallback((id: string) => {
+    if (splitRef.current.max === id) { setSplit({ ...splitRef.current, max: null }); return; }
+    if (id !== splitRef.current.focused) focusPaneId(id);
+    setSplit({ ...splitRef.current, max: id });
+  }, [splitRef, setSplit, focusPaneId]);
+  const showAll = useCallback(() => {
+    if (splitRef.current.max) setSplit({ ...splitRef.current, max: null });
+  }, [splitRef, setSplit]);
+
+  /** ✕ on a pane, or its agent ending itself (internal #104): with panes
+   *  beside it, it goes and they take its room, its session running on; the
+   *  last pane empties, as the one pane always did. The keys, when it had
+   *  them, go to the pane beside it. */
+  const closePane = useCallback((id: string) => {
+    if (!enabledRef.current) return;
+    const s = splitRef.current;
+    if (!workspaceRef.current || paneCount(s) <= 1 || !paneIds(s.root).includes(id)) { emptyPane(); return; }
+    const had = s.focused === id;
+    const next = removePane(s, id);
+    setSplit(next);
+    if (!had) return;
+    const shows = next.targets[next.focused] ?? EMPTY_TARGET;
+    openOn(shows, { focusPane: true });
+    if (shows.kind === "session") follow(shows.id);
+    else {
+      unheardRef.current = shows.kind === "launch" ? "launch" : null;
+      clearRef.current?.();
+    }
+  }, [enabledRef, workspaceRef, splitRef, setSplit, emptyPane, openOn, follow, clearRef]);
+
+  /** The focus token pane `id` answers: the shell's, when it was asked for
+   *  that pane, else none. */
+  const requestFor = useCallback((id: string): number | null => {
+    const r = shell.phase === "waiting" ? null : shell.focusRequest;
+    const owner = tokenPaneRef.current;
+    return r != null && owner?.token === r && owner.pane === id ? r : null;
+  }, [shell.phase, shell.focusRequest]);
+
   const launch = useCallback((agent: TerminalProvider, cwd: string, options?: LaunchOptions) => {
     // The deck keeps it on the session it starts (terminal-routes.mjs
     // launchOnce), so unique across every tab on the deck, not just this one.
@@ -515,9 +718,22 @@ export function useStage({ stateRef, canvasRef, detailOpen, detailShown, setDeta
    *  second. */
   const onLaunched = useCallback((l: { sessionId: string; key?: string }) => {
     const t = shellRef.current.target;
-    if (t?.kind !== "launch" || (l.key !== undefined && l.key !== t.key)) return;
+    if (t?.kind !== "launch" || (l.key !== undefined && l.key !== t.key)) {
+      // SPLIT (#102): a launch in a pane the keys have since left. Remembered,
+      // so the pane shows the session once the board knows it (below), and
+      // kept on the board as this panel's, as the pane with the keys does.
+      const inPane = !!l.key && !!l.sessionId && Object.entries(splitRef.current.targets)
+        .some(([id, x]) => id !== splitRef.current.focused && x.kind === "launch" && x.key === l.key);
+      if (inPane && l.key) {
+        launchedKeysRef.current.set(l.key, l.sessionId);
+        launchedIdsRef.current.add(l.sessionId);
+        notePanelLaunch(stateRef.current, l.sessionId, l.key);
+      }
+      return;
+    }
     if (!l.sessionId && launchedRef.current?.key === t.key && launchedRef.current.sessionId) return;
     launchedRef.current = { key: t.key, sessionId: l.sessionId };
+    if (l.sessionId) launchedKeysRef.current.set(t.key, l.sessionId);
     // Reachable again from the Terminal button even before the board knows
     // it: a new Claude in a folder it has not been trusted in asks first, and
     // no hook fires until it is answered, so a stage closed meanwhile would
@@ -530,13 +746,74 @@ export function useStage({ stateRef, canvasRef, detailOpen, detailShown, setDeta
       // (panel-launch.ts).
       notePanelLaunch(stateRef.current, l.sessionId, t.key);
     }
-  }, [shellRef, stateRef]);
+  }, [shellRef, stateRef, splitRef]);
   useEffect(() => {
     const t = shell.target;
+    if (t?.kind !== "launch") return;
     const l = launchedRef.current;
-    if (t?.kind !== "launch" || !l || l.key !== t.key || !l.sessionId) return;
-    if (stateRef.current.agents.has(l.sessionId)) dispatch({ type: "launched", key: t.key, sessionId: l.sessionId });
+    // A launch the keys came back to in a split (#102) was named while away.
+    const sessionId = l && l.key === t.key ? l.sessionId : launchedKeysRef.current.get(t.key);
+    if (!sessionId) return;
+    if (stateRef.current.agents.has(sessionId)) dispatch({ type: "launched", key: t.key, sessionId });
   });
+
+  // ── the split, kept (internal #102) ────────────────────────────────────────
+  // A launch in a pane without the keys becomes its session once the board
+  // knows it, on the connection the pane already has.
+  useEffect(() => {
+    const s = splitRef.current;
+    let next = s;
+    for (const [id, x] of Object.entries(s.targets)) {
+      if (id === s.focused || x.kind !== "launch") continue;
+      const sessionId = launchedKeysRef.current.get(x.key);
+      if (sessionId && stateRef.current.agents.has(sessionId)) next = promoteLaunch(next, x.key, sessionId);
+    }
+    setSplit(next);
+  });
+  // What the pane in focus shows, written into its entry: for the keys
+  // leaving it, and for the browser to keep.
+  useEffect(() => {
+    if (!workspace || shell.phase === "closed" || !shell.target) return;
+    setSplit(withFocusedTarget(splitRef.current, shell.target));
+  }, [workspace, shell.phase, shell.target, splitRef, setSplit]);
+  // The arrangement this browser kept comes back once the pane is open and the
+  // board knows its sessions (or has had RESTORE_WAIT_MS to hear of them). The
+  // pane on screen is the kept pane in focus and goes on showing what it
+  // shows; a pane whose session is gone closes, as does an empty one, and one
+  // that would show the session the pane in focus already shows. Nothing is
+  // started for any of them. A split the reader has made meanwhile wins.
+  const keptUntilRef = useRef(0);
+  useEffect(() => {
+    const kept = keptSplitRef.current;
+    if (!kept || !enabled || !workspace || shell.phase === "closed") return;
+    const s = splitRef.current;
+    if (paneCount(s) > 1) { keptSplitRef.current = null; return; }
+    if (!keptUntilRef.current) keptUntilRef.current = Date.now() + RESTORE_WAIT_MS;
+    const known = (id: string) => stateRef.current.agents.has(id) || launchedIdsRef.current.has(id);
+    const sessions = Object.values(kept.targets).flatMap(x => (x.kind === "session" ? [x.id] : []));
+    if (!ready && !sessions.every(known) && Date.now() <= keptUntilRef.current) return;
+    keptSplitRef.current = null;
+    const shown = shellRef.current.target;
+    const keptFocus = kept.targets[kept.focused];
+    // An empty pane on screen takes the session it had when the split was kept.
+    const reopen = shown?.kind === "empty" && keptFocus?.kind === "session" && known(keptFocus.id) ? keptFocus.id : null;
+    const showing = shown?.kind === "session" ? shown.id : reopen;
+    let next: SplitState = { ...kept, focused: s.focused, max: null, next: Math.max(kept.next, s.next) };
+    for (const id of paneIds(kept.root)) {
+      if (id === next.focused) continue;
+      const x = next.targets[id];
+      if (!x || x.kind !== "session" || x.id === showing || !known(x.id)) next = removePane(next, id);
+    }
+    if (paneCount(next) < 2) return;
+    setSplit(reopen ? next : withFocusedTarget(next, shown ?? EMPTY_TARGET));
+    if (reopen) { openOn({ kind: "session", id: reopen }); follow(reopen); }
+  });
+  // Kept per browser while it is more than one pane; once the kept one has had
+  // its turn, so the first render's single pane does not forget it.
+  useEffect(() => {
+    if (keptSplitRef.current || !enabled || !workspace) return;
+    saveSplit(split, shell.phase !== "closed" ? shell.target : null);
+  }, [split, shell.phase, shell.target, enabled, workspace]);
   // WORKSPACE: the board has now heard of the session the pane showed while it
   // was unknown (follow, launch above), and it is still on the pane: it is the
   // session in focus, so the Inspector shows it. A pane that has moved on first
@@ -588,7 +865,9 @@ export function useStage({ stateRef, canvasRef, detailOpen, detailShown, setDeta
       navRef.current.focusTile(id);
       return;
     }
-    const head = document.querySelector<HTMLElement>(".stage-dock .ts-head");
+    // In a split (#102), the header of the pane that had the keys.
+    const head = document.querySelector<HTMLElement>(".stage-dock .wsp-pane[data-focused] .ts-head")
+      ?? document.querySelector<HTMLElement>(".stage-dock .ts-head");
     // ⌨ is the header's pressed button; Workspace's Zoom reports its state the
     // same way and is not where the keys land.
     const pressed = head?.querySelector<HTMLElement>("button[aria-pressed]");
@@ -967,6 +1246,8 @@ export function useStage({ stateRef, canvasRef, detailOpen, detailShown, setDeta
     onNodeClick, followSession, switchTo, openFromButton, openTile, launch, onLaunched,
     focusPane, release, takeTypeAhead, holdsTypeAhead, close, closed, failed, giveRightBack, reveal, revealed, announce,
     openPopover, newSessionFrom, closePopover, onCols, onColsReset, toggleExpand, unzoom, firstRunDone, onCell, onBarH, onHeadH,
+    split, arrangement, paneMin, geometryFor, requestFor, focusPaneId, focusPaneAt, openBeside, dropHere, movePaneTo, closePane,
+    setSplitRatio, toggleMax, showAll, splitNote: splitNote?.text ?? null,
   };
 }
 
@@ -1092,7 +1373,7 @@ const NO_WAITING: readonly BlockedSession[] = [];
  * few lines later in the same render, is in time.
  */
 export function useStageAsks(stage: Stage, waitingSessions: readonly BlockedSession[], canvasRef: MutableRefObject<HTMLElement | null>): Asks {
-  const { enabled, shell, switchTo, navRef, focusPane, release, keysRef, workspace, expanded } = stage;
+  const { enabled, shell, switchTo, navRef, focusPane, release, keysRef, workspace, expanded, focusPaneAt } = stage;
   // With the flag off the run is given nothing to watch, so it never renders
   // the deck again for a list it has no use for.
   const asks = useAsks({
@@ -1115,6 +1396,7 @@ export function useStageAsks(stage: Stage, waitingSessions: readonly BlockedSess
       focusPane,
       nextAsk: asks.nextAsk,
       release,
+      ...(workspace ? { focusPaneAt } : {}),
     }
     : null;
   return asks;

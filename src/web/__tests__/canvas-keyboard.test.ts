@@ -405,12 +405,18 @@ describe("nothing else in the deck invents a focus stop", () => {
     // machine, whose value is Usage's share; the arrow keys move each.
     // CHANGED ON PURPOSE (internal #103): the Sessions list's right edge is the
     // same widget, a window splitter whose value is the list's width.
+    // CHANGED ON PURPOSE (internal #102): the line between two panes of a split
+    // Workspace is the same widget too, its value the first pane's share; the
+    // arrow keys move it, Home and End run it to the ends.
     // Sorted, so the order is the paths' and not the file system's.
     expect([...offenders].sort()).toEqual([
       "components/CostTip.tsx", "components/ForgeHtml.tsx", "components/IntegrationSplit.tsx", "components/RadarSplitter.tsx", "components/RadioMap.tsx",
       "components/RadioPanel.tsx", "components/RailEdge.tsx", "components/ReleaseNotesModal.tsx", "components/SideColumn.tsx", "components/ToolAuditSplitter.tsx",
-      "components/chat/ChatView.tsx", "components/forge/DetailJobs.tsx", "jira-html.tsx",
+      "components/chat/ChatView.tsx", "components/forge/DetailJobs.tsx", "components/terminal/SplitDivider.tsx", "jira-html.tsx",
     ]);
+    const paneLine = code(readFileSync(`${web}components/terminal/SplitDivider.tsx`, "utf8"));
+    expect([...paneLine.matchAll(/tabIndex=/g)], "one stop, on the separator").toHaveLength(1);
+    expect(paneLine).toMatch(/role="separator"\s+tabIndex=\{0\}/);
     const side = code(readFileSync(`${web}components/SideColumn.tsx`, "utf8"));
     expect([...side.matchAll(/tabIndex=/g)], "two stops, one on each separator").toHaveLength(2);
     expect([...side.matchAll(/role="separator" tabIndex=\{0\}/g)]).toHaveLength(2);
