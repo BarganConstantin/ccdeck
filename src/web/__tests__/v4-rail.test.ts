@@ -573,6 +573,25 @@ describe("the seen marker", () => {
 // ── the fold, the hold and the motion, as rules ─────────────────────────────
 
 describe("the fold past 8", () => {
+  it("clears a finished row's new marker when seen, without changing the Done count", () => {
+    let s = initialState();
+    for (const id of ["new-result", "seen-result"]) {
+      s = begin(s, id, 0);
+      s = stop(s, id, 1_000);
+    }
+    markSeen("seen-result", s.agents.get("seen-result")!.endedAt);
+    const draw = () => renderToStaticMarkup(createElement(SessionList, {
+      state: s, now: T0 + 60_000, selectedIds: new Set<string>(), onSelect: () => {}, onClose: () => {},
+    }));
+    const before = draw();
+    expect(before).toContain('<span class="sl-group-label">Done</span><span class="sl-group-count">2</span>');
+    expect(before.match(/class="sl-unseen"/g)).toHaveLength(1);
+    expect(before).toContain('role="img" aria-label="Done · new"');
+    markSeen("new-result", s.agents.get("new-result")!.endedAt);
+    const after = draw();
+    expect(after).toContain('<span class="sl-group-label">Done</span><span class="sl-group-count">2</span>');
+    expect(after).not.toContain('class="sl-unseen"');
+  });
   it("draws 8 rows of 14 sessions (2 + 4 + 4 + 4): all of Needs you and Working, 2 of Done · new, Done folded", () => {
     expect(RAIL_FOLD_AT).toBe(8);
     expect(foldPlan([2, 4, 4, 4, 0])).toEqual([
@@ -611,7 +630,7 @@ describe("the fold past 8", () => {
     expect(withReady).not.toContain('sl-group-label">Idle<');
   });
 
-  it("renders 2 more and a folded Done row at 14 sessions", () => {
+  it("shares one Done header and fold between new and seen turns", () => {
     let s = initialState();
     for (const id of ["w1", "w2"]) { s = begin(s, id, 0); s = notify(s, id, "permission_prompt", "ok?", 500); }
     for (const id of ["r1", "r2", "r3", "r4"]) s = begin(s, id, 0);
@@ -621,9 +640,10 @@ describe("the fold past 8", () => {
       state: s, now: T0 + 60_000, selectedIds: new Set<string>(), onSelect: () => {}, onClose: () => {},
     }));
     expect((html.match(/<li class="sl-row-item"/g) ?? []).length).toBe(8);
-    expect(html).toContain("2 more");
-    expect(html).toMatch(/<button type="button" class="sl-more" aria-expanded="false">2 more/);
-    expect(html).toMatch(/<button type="button" class="sl-fold-btn" aria-expanded="false" data-motion="animate">[\s\S]*?<span class="sl-group-label">Done<\/span><span class="sl-group-count">4<\/span>/);
+    expect(html).toMatch(/<button type="button" class="sl-more" aria-expanded="false">6 more/);
+    expect(html).toContain('<span class="sl-group-label">Done</span><span class="sl-group-count">8</span>');
+    expect(html.match(/class="sl-group-label">Done<\/span>/g)).toHaveLength(1);
+    expect(html).not.toContain('class="sl-group-label">Done · new</span>');
     // CHANGED ON PURPOSE (the UI in every language): the labels are keys.
     // CHANGED ON PURPOSE (design recommendations, 2026-11-09): the words the cards say.
     expect([...RAIL_GROUP_LABEL_MSGS]).toEqual([

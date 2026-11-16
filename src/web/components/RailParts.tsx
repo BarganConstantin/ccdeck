@@ -218,6 +218,7 @@ export function RailRow({ row: r, group, now, selected, removed, leaving, landNo
             <span className="sl-line1">
               <span className="sl-name">
                 <span className="sl-label">{r.label}</span>
+                {r.unseen && (group === 2 || group === 3) && <span className="sl-unseen" role="img" aria-label={t("board.railGroup.new")} title={t("board.railGroup.new")} />}
                 {r.modelId && <span className="sl-model" title={modelChipTitle(r.modelId, r.effort)}>{modelChipText(r.modelId, r.effort)}</span>}
               </span>
               {time && <span className={`sl-time ${time.tone}`}><span className="vis-hidden">{time.spoken}</span>{time.text}</span>}

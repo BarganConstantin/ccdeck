@@ -1,5 +1,17 @@
 # Owner's ccdeck work — continuation context
 
+## Local single Done group — 2026-11-16
+
+Owner requested one Done section instead of separate new/seen sections.
+Local branch `fix/v4-single-done-group`, based on next/v4 `49d95fb8`, runs
+from `~/.cache/ccdeck-wt/v4-single-done-group` on port 4317 through the
+installed desktop wrapper. New results retain their priority and seen state;
+the list combines their header, count and fold, with an accessible dot on
+unseen rows. No changes have been pushed or merged. Relevant tests (86),
+typecheck and build passed. Isolated browser fixtures verified combined
+counts and clearing the dot after selection, Rider Black/Light and 390/320px.
+The temporary Vite preview was stopped; keep one owner-facing v4 backend.
+
 Updated: 2026-10-29. This is a handoff, not a claim that processes or remote
 branches still have the same state. Verify them at the start of a new session.
 

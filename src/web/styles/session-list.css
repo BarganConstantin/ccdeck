@@ -1,5 +1,14 @@
 /* ---------------- the attention rail ---------------- */
 
+.session-list .sl-unseen {
+  width: 5px;
+  height: 5px;
+  flex: none;
+  align-self: center;
+  border-radius: 50%;
+  background: var(--text-secondary);
+}
+
 /* V4's Board window rail (V4's Figma, Sessions): the left column's session
    list, grouped by what each session wants of you. Its width is --rail-w at the
    density in force, 264 at Compact and below and 288 at Default and
