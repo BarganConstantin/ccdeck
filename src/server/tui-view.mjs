@@ -1072,6 +1072,28 @@ function accountRows(rows, { home, at, width }, look) {
   });
 }
 
+/**
+ * A window whose reset has passed since it was read (#100). Its number is the
+ * old window's, and nothing is known about the new one until claude-swap reads
+ * it again — the panel's own rule (lane-view.ts `lapsed`), which draws it as
+ * reset rather than as the number it had, and not as 0% either, which nobody
+ * has read. Here it went on showing that number under "live", the countdown
+ * gone, for as long as the screen stayed up.
+ */
+export function lapsed(l, now) {
+  return typeof l?.resetAt === "number" && Number.isFinite(l.resetAt) && l.resetAt > 0 && l.resetAt * 1000 <= now;
+}
+
+/** A lapsed lane in the list: an empty meter one cell shorter and "reset"
+ *  where the percentage was, in the same width; the glyph alone where there is
+ *  no meter. */
+function lapsedCell(head, { kind, bar }, look) {
+  const { tone, g } = look;
+  if (kind === "C") return `${head}${tone.muted}${padStart(g.restart, 4)}${tone.reset}`;
+  const cell = `${head}${gauge(0, Math.max(0, bar - 1), look)} ${tone.muted}reset${tone.reset}`;
+  return kind === "B" ? cell : `${cell}  ${" ".repeat(9)}`;
+}
+
 function laneCells(a, { kind, bar }, labelW, look) {
   const { tone, g, now } = look;
   const lanes = LANE_IDS.map(id => (a.lanes ?? []).find(l => l.id === id) ?? null);
@@ -1079,6 +1101,7 @@ function laneCells(a, { kind, bar }, labelW, look) {
   return lanes.map(l => {
     if (!l) return " ".repeat(laneWidth(kind, bar, labelW));
     const head = `${tone.muted}${padEnd(oneLine(l.label), labelW)}${tone.reset} `;
+    if (lapsed(l, now)) return lapsedCell(head, { kind, bar }, look);
     const pct = `${pctTone(l.pct, tone)}${padStart(`${Math.round(l.pct)}%`, 4)}${tone.reset}`;
     if (kind === "C") return `${head}${pct}`;
     if (kind === "B") return `${head}${gauge(l.pct, bar, look)} ${pct}`;
@@ -1143,6 +1166,9 @@ function detailPanel(a, home, width, look) {
     note,
     lines: [...said, ...lanes.map((l, i) => {
       const u = untils[i];
+      if (lapsed(l, now)) {
+        return `${tone.muted}${padEnd(oneLine(l.label), labelW)}${tone.reset}  ${gauge(0, bar, look)}${tone.muted}${padStart("reset", 5)}${tone.reset}`;
+      }
       const reset = !tail || !u ? "" : tail === words ? `   ${tone.muted}resets in ${u}${tone.reset}` : `  ${tone.muted}${g.restart} ${u}${tone.reset}`;
       return `${tone.muted}${padEnd(oneLine(l.label), labelW)}${tone.reset}  ${gauge(l.pct, bar, look)}`
         + `${pctTone(l.pct, tone)}${padStart(`${Math.round(l.pct)}%`, 5)}${tone.reset}${reset}`;

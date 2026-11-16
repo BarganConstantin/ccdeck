@@ -1816,7 +1816,12 @@ describe("the loop", () => {
     await until(() => term.screenText().includes("bob@home.example"));
     term.input.write("+");
     term.input.write("\r");
-    await until(() => deck.posts().length === 2);
+    // Quit once the second refusal is on screen, not once it is asked: a quit
+    // while a start is still waiting on the deck lets go of it, as the test
+    // above wants, and which of the two came first was the order of a few
+    // promise steps.
+    const refusals = () => term.screenText().split("Another sign-in is saving an account right now").length - 1;
+    await until(() => deck.posts().length === 2 && refusals() >= 2);
     term.input.write("\x03");
     expect(await done).toBe(0);
     expect(deck.posts()).toEqual([{ action: "login" }, { action: "login" }]);
@@ -1944,5 +1949,206 @@ describe("the loop", () => {
     // Ctrl+C leaves from inside a form too.
     term.input.write("\x03");
     expect(await done).toBe(0);
+  });
+});
+
+// #100: the screen stayed on the numbers it had while it stayed up, and only
+// quitting and opening it again brought the new ones. A deck that restarts —
+// an update, the banner's Restart, a CLI installed while it ran — is up again
+// on the same port within a second with a new token, and every reading asked
+// with the old one was refused 401 from then on.
+describe("a deck that restarted under the screen (#100)", () => {
+  type Asked = { method?: string; path: string; body?: unknown };
+  /** A deck whose token is the one it was started with, as the deck's request
+   *  gates make it; `restart` gives it a new one, and `five` is #1's five-hour
+   *  figure. `roster` holds statuses the next account reads answer with. */
+  function restartingDeck() {
+    const st = { token: "first", five: 10, roster: [] as number[], asked: [] as string[], switched: [] as number[], finds: 0 };
+    const rows = () => ROWS.map(r => (r.num === 1
+      ? { ...r, lanes: [lane("five_hour", "5h", st.five, Date.now() / 1000 + 3600), lane("seven_day", "7d", 21, Date.now() / 1000 + 86_400)] }
+      : r));
+    const plain = fakeDeck();
+    const deck = fakeDeck({
+      find: async () => { st.finds++; return { port: 4999, version: "3.46.0", token: st.token }; },
+      ask: async (d: unknown, o: Asked) => {
+        const token = (d as { token?: string }).token;
+        st.asked.push(`${token} ${o.method ?? "GET"} ${o.path}`);
+        if (token !== st.token) return { ok: false, status: 401, body: { error: "unauthenticated" } };
+        if (o.path.startsWith("/api/claude-accounts")) {
+          const status = st.roster.shift() ?? 200;
+          return status === 200
+            ? { ok: true, status, body: { ok: true, activeNum: 1, accounts: rows() } }
+            : { ok: false, status, body: null };
+        }
+        return plain.source.ask(d, o);
+      },
+      // The deck's own switch answers a refused token with its body, as
+      // switchThroughDeck hands it on.
+      switchDeck: async (d: unknown, num: number) => {
+        const token = (d as { token?: string }).token;
+        st.asked.push(`${token} POST /api/claude-accounts/switch`);
+        if (token !== st.token) return { error: "unauthenticated" };
+        st.switched.push(num);
+        return { ok: true, output: "switched" };
+      },
+    });
+    return { deck, st, restart: () => { st.token = "second"; } };
+  }
+
+  it("reads on from the deck found again, with no notice and nothing to reopen", async () => {
+    let t = Date.now();
+    const term = fakeTerminal(120, 30);
+    const { deck, st, restart } = restartingDeck();
+    const { out } = quietOut();
+    const done = runTui({}, out, { input: term.input, output: term.output, source: deck.source, tickMs: 20, now: () => t, ...LOOK });
+    await until(() => term.screenText().includes("alice@corp.example") && st.asked.some(a => a.startsWith("first GET /api/claude-accounts")));
+    expect(term.screenText()).not.toContain("77%");
+    const found = st.finds;
+    restart();
+    st.five = 77;
+    t += 20_000;                      // every reading due again
+    await until(() => term.screenText().includes("77%"));
+    // Asked with the old token, refused, and asked again with the new one.
+    expect(st.asked.filter(a => a.startsWith("second GET /api/claude-accounts")).length).toBeGreaterThan(0);
+    expect(term.screenText()).not.toContain("answered 401");
+    // Every reading was refused at once, and one look for the deck served them all.
+    expect(st.finds - found).toBe(1);
+    const before = st.finds;
+    t += 20_000;
+    await until(() => st.asked.filter(a => a.startsWith("second GET /api/claude-accounts")).length >= 2);
+    expect(st.finds).toBe(before);    // nothing refused, nothing looked for
+    term.input.write("q");
+    expect(await done).toBe(0);
+  });
+
+  it("enter after a restart switches once, through the deck found again", async () => {
+    const term = fakeTerminal(120, 30);
+    const { deck, st, restart } = restartingDeck();
+    const { out } = quietOut();
+    // The clock stands still: no reading finds the new deck before the key.
+    const t = Date.now();
+    const done = runTui({}, out, { input: term.input, output: term.output, source: deck.source, tickMs: 20, now: () => t, ...LOOK });
+    await until(() => term.screenText().includes("bob@home.example"));
+    restart();
+    term.input.write("\x1b[B");      // down, onto #2
+    term.input.write("\r");
+    await until(() => term.screenText().includes("switched to #2 bob@home.example (home)"));
+    expect(st.switched).toEqual([2]);
+    expect(st.asked.filter(a => a.endsWith("/api/claude-accounts/switch"))).toEqual([
+      "first POST /api/claude-accounts/switch", "second POST /api/claude-accounts/switch",
+    ]);
+    expect(term.screenText()).not.toContain("unauthenticated");
+    term.input.write("q");
+    expect(await done).toBe(0);
+  });
+
+  it("takes its own failure notice down once the accounts read well again", async () => {
+    let t = Date.now();
+    const term = fakeTerminal(120, 30);
+    const { deck, st } = restartingDeck();
+    st.roster.push(500);
+    const { out } = quietOut();
+    const done = runTui({}, out, { input: term.input, output: term.output, source: deck.source, tickMs: 20, now: () => t, ...LOOK });
+    await until(() => term.screenText().includes("the deck on 4999 answered 500"));
+    st.five = 42;
+    t += 20_000;
+    await until(() => term.screenText().includes("42%"));
+    // The whole screen again, as a resize draws it: the notice is not on it.
+    const mark = term.written().length;
+    term.output.emit("resize");
+    await until(() => stripAnsi(term.written().slice(mark)).includes("42%"));
+    expect(stripAnsi(term.written().slice(mark))).not.toContain("answered 500");
+    term.input.write("q");
+    expect(await done).toBe(0);
+  });
+
+  it("a notice that is not the roster's own stays up through a good read", async () => {
+    const term = fakeTerminal(120, 30);
+    const deck = fakeDeck({ switchDeck: async () => ({ ok: false, reason: "timeout" }) });
+    const forced = () => deck.calls.filter(c => c.path === "/api/claude-accounts?refresh=1").length;
+    const { out } = quietOut();
+    const done = runTui({}, out, { input: term.input, output: term.output, source: deck.source, tickMs: 20, ...LOOK });
+    await until(() => term.screenText().includes("bob@home.example"));
+    const before = forced();
+    term.input.write("\x1b[B");       // down, onto #2
+    term.input.write("\r");
+    await until(() => term.screenText().includes("claude-swap took too long to answer"));
+    // The switch reads the accounts again, and that good read leaves a
+    // notice it did not put up where it is.
+    await until(() => forced() > before);
+    await new Promise(r => setTimeout(r, 50));
+    const mark = term.written().length;
+    term.output.emit("resize");
+    await until(() => stripAnsi(term.written().slice(mark)).includes("bob@home.example"));
+    expect(stripAnsi(term.written().slice(mark))).toContain("claude-swap took too long to answer");
+    term.input.write("q");
+    expect(await done).toBe(0);
+  });
+
+  it("a deck that answers 401 with its token unchanged is asked each reading once", async () => {
+    const term = fakeTerminal(120, 30);
+    const asked: string[] = [];
+    const deck = fakeDeck({
+      ask: async (_d: unknown, o: Asked) => {
+        asked.push(`${o.method ?? "GET"} ${o.path}`);
+        return { ok: false, status: 401, body: { error: "unauthenticated" } };
+      },
+    });
+    const { out } = quietOut();
+    // The clock stands still: each reading runs once, at the start.
+    const t = Date.now();
+    const done = runTui({}, out, { input: term.input, output: term.output, source: deck.source, tickMs: 20, now: () => t, ...LOOK });
+    await until(() => term.screenText().includes("the deck on 4999 answered 401"));
+    await new Promise(r => setTimeout(r, 200));
+    expect(asked.length).toBeGreaterThan(0);
+    expect(new Set(asked).size).toBe(asked.length);
+    term.input.write("q");
+    expect(await done).toBe(0);
+  });
+});
+
+// #100: a window whose reset passed since claude-swap read it went on showing
+// its old number, the countdown gone, under "live". The Accounts panel draws
+// it as reset (lane-view.ts `lapsed`), and the screen now does too.
+describe("a window whose reset has passed (#100)", () => {
+  const passed = () => view.withRoster(deckState(), {
+    ok: true, activeNum: 1,
+    accounts: ROWS.map(r => (r.num === 1
+      ? { ...r, lanes: [lane("five_hour", "5h", 95, NOW / 1000 - 60), lane("seven_day", "7d", 21, NOW / 1000 + 86_400)] }
+      : r)),
+  });
+
+  it("says reset where the number was, in the list and the detail, at every width", () => {
+    for (const columns of [160, 120, 100, 80, 60]) {
+      const lines = text(frame(passed(), columns, 30).lines);
+      const alice = lines.find(l => l.includes("alice@corp.example") || l.includes("work"))!;
+      const bob = lines.find(l => l.includes("bob@home.example") || l.includes("home"))!;
+      expect(alice, `${columns}: #1's row`).toBeDefined();
+      expect(alice, `${columns}: #1's row`).not.toContain("95%");
+      expect(alice, `${columns}: #1's row`).toMatch(/reset|↻/);
+      expect(alice.length, `${columns}: the row keeps its width`).toBe(bob.length);
+      if (alice.includes("7d")) expect(alice.indexOf("7d"), `${columns}: 7d lines up`).toBe(bob.indexOf("7d"));
+      if (bob.includes("21%") || bob.includes("22%")) {
+        expect(alice.indexOf("21%"), `${columns}: the 7d figure lines up`).toBe(bob.indexOf("22%"));
+      }
+    }
+  });
+
+  it("the detail says reset with its bar empty, and the 7d line is untouched", () => {
+    const lines = text(frame(passed(), 120, 30).lines);
+    const five = lines.filter(l => /\b5h\b/.test(l) && !l.includes("@"));
+    expect(five.some(l => l.includes("reset") && !l.includes("95%")), five.join("\n")).toBe(true);
+    const seven = lines.filter(l => /\b7d\b/.test(l) && !l.includes("@"));
+    expect(seven.some(l => l.includes("21%")), seven.join("\n")).toBe(true);
+  });
+
+  it("is not reset a second before, and lapsed() keeps the panel's rule", () => {
+    expect(view.lapsed({ resetAt: NOW / 1000 }, NOW)).toBe(true);
+    expect(view.lapsed({ resetAt: NOW / 1000 + 1 }, NOW)).toBe(false);
+    expect(view.lapsed({ resetAt: null }, NOW)).toBe(false);
+    expect(view.lapsed({ resetAt: 0 }, NOW)).toBe(false);
+    expect(view.lapsed({}, NOW)).toBe(false);
+    const lines = text(frame(deckState(), 120, 30).lines);
+    expect(lines.find(l => l.includes("alice@corp.example"))).toContain("10%");
   });
 });
