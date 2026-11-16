@@ -11,6 +11,8 @@ import {
   canType,
   closedAnnouncement,
   elidePath,
+  elsewhereLine,
+  elsewherePhrase,
   folderName,
   frameRun,
   frameState,
@@ -101,9 +103,30 @@ describe("what the stage knows better than the board", () => {
       .toEqual({ state: "starting", phrase: "starting…", arg: "/w/ccdeck" });
   });
 
-  it("calls a session started outside the deck 'running elsewhere', keeping the board's tool", () => {
+  it("calls a session started outside the deck 'working elsewhere', keeping the board's tool", () => {
     const c: StagePhase = { kind: "not-attachable", target: { kind: "C", label: "…", adoptable: true }, stillRunning: false, busy: false };
-    expect(headerStatus(working, c)).toEqual({ state: "elsewhere", phrase: "running elsewhere", tool: "Task", arg: "3 subagents" });
+    // CHANGED ON PURPOSE (#97): the phrase says what it does there, as the
+    // board does, rather than "running elsewhere" for every state.
+    expect(headerStatus(working, c)).toEqual({ state: "elsewhere", phrase: "working elsewhere", tool: "Task", arg: "3 subagents" });
+  });
+
+  it("says a session outside the deck whose reply is done is waiting there, not unreachable (#97)", () => {
+    const c: StagePhase = { kind: "not-attachable", target: { kind: "C", label: "…", adoptable: true }, stillRunning: true, busy: false };
+    const idle: StageStatus = { state: "idle", phrase: "your turn" };
+    expect(headerStatus(idle, c)).toEqual({ state: "elsewhere", phrase: "waiting elsewhere" });
+    expect(headerStatus({ state: "waiting", phrase: "waiting", tool: "Bash", arg: "git push" }, c))
+      .toEqual({ state: "elsewhere", phrase: "waiting elsewhere", tool: "Bash", arg: "git push" });
+    expect(headerStatus({ state: "ready", phrase: "ready" }, c).phrase).toBe("waiting elsewhere");
+    expect(headerStatus({ state: "ended", phrase: "ended" }, c).state, "an ended session is not elsewhere").toBe("ended");
+    expect(elsewherePhrase("none")).toBe("board.stage.phrase.elsewhere");
+  });
+
+  it("picks the card's paragraph by what the board says the session is doing (#97)", () => {
+    expect(elsewhereLine("idle")).toBe("board.stage.elsewhere.idle");
+    expect(elsewhereLine("ready")).toBe("board.stage.elsewhere.idle");
+    expect(elsewhereLine("waiting")).toBe("board.stage.elsewhere.waiting");
+    expect(elsewhereLine("working")).toBe("board.stage.elsewhere.working");
+    for (const unknown of [null, undefined, "ended", "none"] as const) expect(elsewhereLine(unknown)).toBe("board.stage.elsewhere.running");
   });
 
   it("says not attached when tmux is missing, and ended when the socket said so first", () => {

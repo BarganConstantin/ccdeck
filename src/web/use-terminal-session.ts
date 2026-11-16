@@ -110,6 +110,11 @@ export const TMUX_SETUP_POLL_MS = 400;
 /** When it stops waiting for that: a build is about a megabyte, so this is a
  *  connection that is not working rather than a slow one. */
 export const TMUX_SETUP_GIVE_UP_MS = 180_000;
+/** How often the stage looks again at a session running in a terminal outside
+ *  the deck, while its card is up and the page is shown (#97): soon enough
+ *  that quitting it there turns the card into Reopen here before the reader
+ *  reaches for a button, and an open is one loopback read. */
+export const ELSEWHERE_POLL_MS = 4_000;
 
 // ---------------------------------------------------------------------------
 // What the stage is asked to show.
@@ -880,6 +885,41 @@ export function createTerminalSession(deps: SessionDeps, callbacks: SessionCallb
   const openFlow = async (ref: SessionRef, my: number, reconnecting: boolean) => {
     const answer = await deps.api.open(ref);
     if (my !== gen) return;
+    await landOpen(answer, my, reconnecting);
+  };
+
+  /** The card for a session that runs in a terminal outside the deck, and a
+   *  quiet look every few seconds at whether it still does (#97): quit there,
+   *  it turns into Reopen here without a press. The look is the same read the
+   *  open is — it starts, stops and sends nothing — and it skips a hidden page,
+   *  so a tab left in the background does not ask on its own. */
+  const runningElsewhere = (phase: Extract<StagePhase, { kind: "not-attachable" }>, my: number) => {
+    setPhase(phase);
+    watchElsewhere(my);
+  };
+
+  const watchElsewhere = (my: number) => {
+    clearTimer(retryTimer);
+    retryTimer = setTimeout(() => {
+      retryTimer = null;
+      if (my !== gen || disposed) return;
+      const now = snap.phase;
+      if (now.kind !== "not-attachable" || !now.stillRunning) return;
+      const ref = refOf();
+      const hidden = typeof document !== "undefined" && document.visibilityState === "hidden";
+      if (!ref || hidden || now.busy) { watchElsewhere(my); return; }
+      void deps.api.open(ref).then(answer => {
+        if (my !== gen || disposed) return;
+        const still = snap.phase;
+        if (still.kind !== "not-attachable" || !still.stillRunning || still.busy) return;
+        // Still running there, or the deck blinked: the card stays as it is.
+        if (isFailure(answer) || (!answer.ok && answer.target.kind === "C")) { watchElsewhere(my); return; }
+        void landOpen(answer, my, false);
+      });
+    }, ELSEWHERE_POLL_MS);
+  };
+
+  const landOpen = async (answer: Awaited<ReturnType<SessionDeps["api"]["open"]>>, my: number, reconnecting: boolean) => {
     if (answer.ok) { connect(answer.ticket, my); return; }
     if (isFailure(answer)) {
       // Opening starts nothing, so a moment's refusal is waited out even on
@@ -892,7 +932,9 @@ export function createTerminalSession(deps: SessionDeps, callbacks: SessionCallb
       await tmuxOr(my, { kind: "error", message: answer.target.reason === "uncertain" ? tr("board.stage.identityUncertain") : answer.target.label });
       return;
     }
-    setPhase({ kind: "not-attachable", target: answer.target, stillRunning: answer.target.kind === "C", busy: false });
+    const phase = { kind: "not-attachable", target: answer.target, stillRunning: answer.target.kind === "C", busy: false } as const;
+    if (phase.stillRunning) runningElsewhere(phase, my);
+    else setPhase(phase);
   };
 
   const launchFlow = async (agent: TerminalProvider, cwd: string, key: string, my: number, options?: LaunchOptions) => {
@@ -1126,7 +1168,7 @@ export function createTerminalSession(deps: SessionDeps, callbacks: SessionCallb
         if (my !== gen) return;
         if (answer.ok) { connect(answer.ticket, my); return; }
         if (answer.error === STILL_RUNNING && phase.kind === "not-attachable") {
-          setPhase({ ...phase, stillRunning: true, busy: false });
+          runningElsewhere({ ...phase, stillRunning: true, busy: false }, my);
           return;
         }
         setPhase(failed(answer));

@@ -27,6 +27,7 @@ import {
   ACK_EVERY_BYTES,
   CTRL_V,
   ECHO_WINDOW_MS,
+  ELSEWHERE_POLL_MS,
   ENGINE_NO_RETURN_MSG,
   ENGINE_NO_RETURN_WINDOWS_MSG,
   NO_RETURN_MSG,
@@ -552,6 +553,90 @@ describe("checking an external terminal", () => {
     await flush();
     expect(r.adopt).toHaveBeenCalledTimes(1);
     expect(r.sockets[0].url).toMatch(/ticket=adopted$/);
+  });
+
+  // #97: quitting the session in its own terminal turns the card into Reopen
+  // here without a press. The look is a read; it never adopts or stops.
+  it("looks again on its own while the session runs elsewhere, and offers Reopen here once it stopped", async () => {
+    const { r, ctl } = rig();
+    const external = { kind: "C" as const, label: "running elsewhere", adoptable: true };
+    r.open.mockResolvedValue({ ok: false, target: external });
+    ctl.show({ kind: "session", ref: REF });
+    await flush();
+    expect(r.open).toHaveBeenCalledTimes(1);
+    const shown = r.snaps.length;
+    await vi.advanceTimersByTimeAsync(ELSEWHERE_POLL_MS);
+    expect(r.open, "one look per interval").toHaveBeenCalledTimes(2);
+    expect(r.open.mock.calls[1][0]).toEqual(REF);
+    expect(r.snaps.length, "still running: the card is left as it is").toBe(shown);
+    await vi.advanceTimersByTimeAsync(ELSEWHERE_POLL_MS);
+    expect(r.open).toHaveBeenCalledTimes(3);
+
+    r.open.mockResolvedValue({ ok: false, target: { kind: "gone", label: "ended", adoptable: true } });
+    await vi.advanceTimersByTimeAsync(ELSEWHERE_POLL_MS);
+    expect(r.last().phase).toEqual({ kind: "not-attachable", target: { kind: "gone", label: "ended", adoptable: true }, stillRunning: false, busy: false });
+    expect(r.adopt, "Reopen here waits for the press").not.toHaveBeenCalled();
+    await vi.advanceTimersByTimeAsync(ELSEWHERE_POLL_MS * 3);
+    expect(r.open, "nothing more to look for once it can be reopened").toHaveBeenCalledTimes(4);
+    ctl.adopt();
+    await flush();
+    expect(r.adopt).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps the card through a failed look, and attaches when the session has a pane again", async () => {
+    const { r, ctl } = rig();
+    r.open.mockResolvedValueOnce({ ok: false, target: { kind: "C", label: "running elsewhere", adoptable: true } });
+    ctl.show({ kind: "session", ref: REF });
+    await flush();
+    r.open.mockResolvedValueOnce(failure(null));
+    await vi.advanceTimersByTimeAsync(ELSEWHERE_POLL_MS);
+    expect(r.last().phase, "a deck that blinked is not news").toMatchObject({ kind: "not-attachable", stillRunning: true, busy: false });
+    // Reopened from another tab: it is the deck's pane now, and the stage shows it.
+    r.open.mockResolvedValueOnce(ticketed("t9"));
+    await vi.advanceTimersByTimeAsync(ELSEWHERE_POLL_MS);
+    expect(r.sockets).toHaveLength(1);
+    expect(r.sockets[0].url).toMatch(/ticket=t9$/);
+  });
+
+  it("does not look while the page is hidden, and stops when the stage shows something else", async () => {
+    const { r, ctl } = rig();
+    r.open.mockResolvedValue({ ok: false, target: { kind: "C", label: "running elsewhere", adoptable: true } });
+    ctl.show({ kind: "session", ref: REF });
+    await flush();
+    const g = globalThis as { document?: unknown };
+    const had = "document" in g;
+    const before = g.document;
+    g.document = { visibilityState: "hidden" };
+    try {
+      await vi.advanceTimersByTimeAsync(ELSEWHERE_POLL_MS * 3);
+      expect(r.open, "a hidden tab asks nothing").toHaveBeenCalledTimes(1);
+    } finally {
+      if (had) g.document = before; else delete g.document;
+    }
+    await vi.advanceTimersByTimeAsync(ELSEWHERE_POLL_MS);
+    expect(r.open, "shown again, it looks again").toHaveBeenCalledTimes(2);
+
+    r.open.mockResolvedValue(ticketed("other"));
+    ctl.show({ kind: "session", ref: OTHER });
+    await flush();
+    const calls = r.open.mock.calls.length;
+    await vi.advanceTimersByTimeAsync(ELSEWHERE_POLL_MS * 3);
+    expect(r.open.mock.calls.slice(calls).map(c => c[0]), "nothing more about the session that left").not.toContainEqual(REF);
+  });
+
+  it("looks again after a refused Reopen here says it is still running", async () => {
+    const { r, ctl } = rig();
+    r.open.mockResolvedValueOnce({ ok: false, target: { kind: "gone", label: "ended", adoptable: true } });
+    ctl.show({ kind: "session", ref: REF });
+    await flush();
+    r.adopt.mockResolvedValueOnce(failure(409, "still-running"));
+    ctl.adopt();
+    await flush();
+    expect(r.last().phase).toMatchObject({ kind: "not-attachable", stillRunning: true, busy: false });
+    r.open.mockResolvedValueOnce({ ok: false, target: { kind: "gone", label: "ended", adoptable: true } });
+    await vi.advanceTimersByTimeAsync(ELSEWHERE_POLL_MS);
+    expect(r.last().phase).toMatchObject({ kind: "not-attachable", target: { kind: "gone" }, stillRunning: false });
+    expect(r.adopt).toHaveBeenCalledTimes(1);
   });
 });
 

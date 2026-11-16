@@ -340,7 +340,10 @@ describe("the state cards: centred in the pane", () => {
     expect(cls({ kind: "not-attachable", target: c, stillRunning: false, busy: false }, "Reopen here")).toBe("btn primary");
     // CHANGED ON PURPOSE (this and the next four): V4 makes only New session and
     // Reopen here Primary; Check again and Try again are Quiet.
-    expect(cls({ kind: "not-attachable", target: c, stillRunning: true, busy: false }, "Check again")).toBe("btn");
+    // CHANGED ON PURPOSE (#97): a session still running outside the deck has
+    // no Check again at all — the stage looks again on its own — only Not now.
+    expect(cls({ kind: "not-attachable", target: c, stillRunning: true, busy: false }, "Check again")).toBeUndefined();
+    expect(cls({ kind: "not-attachable", target: c, stillRunning: true, busy: false }, "Not now")).toBe("btn");
     expect(cls({ kind: "not-attachable", target: c, stillRunning: false, busy: false }, "Not now")).toBe("btn");
     expect(cls({ kind: "tmux-missing", reason: "missing", busy: false }, "Check again")).toBe("btn");
     expect(cls({ kind: "error", message: "x" }, "Try again")).toBe("btn");
@@ -406,12 +409,14 @@ describe("the state cards: centred in the pane", () => {
     }
   });
 
-  it("takes Figma's colon in the still-running note where the code had a dash, and no other sentence", () => {
+  it("says what the session does in the other terminal, through its keys, and no dash where Figma has a colon", () => {
     const body = read("components/terminal/StageBody.tsx");
-    // CHANGED ON PURPOSE (the UI in every language): the note is read through its key, and the key holds Figma's sentence.
-    expect(body).toContain('STILL_RUNNING_NOTE_MSG = "board.stage.stillRunning"');
-    expect(en["board.stage.stillRunning"]).toBe("It is still running in that terminal. Reopening needs it stopped first: finish or quit it there, then check again.");
-    expect(en["board.stage.stillRunning"]).toContain("Reopening needs it stopped first: finish or quit it there, then check again.");
+    // CHANGED ON PURPOSE (#97): Figma's one still-running sentence ("…then
+    // check again") becomes one per state the board reads, each ending on how
+    // to bring the session here; the stage checks again itself.
+    expect(body).toContain("t(elsewhereLine(p.boardState))");
+    expect(en["board.stage.elsewhere.running"]).toBe("It is still running in a terminal outside ccdeck. To continue it here, quit it in that terminal. ccdeck sees that on its own and offers Reopen here, with the same conversation.");
+    expect(en).not.toHaveProperty(["board.stage.stillRunning"]);
     expect(body).not.toContain("stopped first —");
   });
 });
