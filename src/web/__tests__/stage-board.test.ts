@@ -237,6 +237,8 @@ describe("the projects New session offers", () => {
     ];
     expect(boardProjects(agents).map(p => p.cwd)).toEqual(["/w/travel", "/w/paycore", "/w/ccdeck"]);
     expect(boardProjects(agents, "/w/ccdeck").map(p => p.cwd)).toEqual(["/w/ccdeck", "/w/travel", "/w/paycore"]);
-    expect(boardProjects(agents)[0]).toEqual({ cwd: "/w/travel", name: "travel", hue: sessionHue("b") });
+    // CHANGED ON PURPOSE (internal #106): with when it was last heard from,
+    // so the picker can order the board's folders among the reader's recents.
+    expect(boardProjects(agents)[0]).toEqual({ cwd: "/w/travel", name: "travel", hue: sessionHue("b"), at: NOW - MIN });
   });
 });

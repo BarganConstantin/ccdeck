@@ -422,6 +422,9 @@ export interface ProjectChoice {
   cwd: string;
   name: string;
   hue: number;
+  /** When it was last used: a session heard from there, or the reader chose
+   *  it (project-picker.ts). Orders the board's folders among the picker's. */
+  at?: number;
 }
 
 /** Whether `p` is a path the deck will start an agent in: absolute, POSIX or
@@ -451,7 +454,7 @@ export function projectChoices(seen: Iterable<ProjectSeen>, currentCwd?: string 
   const ordered = [...latest.values()].sort((a, b) => b.at - a.at);
   const current = currentCwd ? ordered.findIndex(s => s.cwd === currentCwd) : -1;
   if (current > 0) ordered.unshift(...ordered.splice(current, 1));
-  return ordered.map(s => ({ cwd: s.cwd, name: s.name || folderName(s.cwd), hue: s.hue }));
+  return ordered.map(s => ({ cwd: s.cwd, name: s.name || folderName(s.cwd), hue: s.hue, at: s.at }));
 }
 
 /**

@@ -195,11 +195,12 @@ import { handleCcusage, handleCcusageSession, handleCodexQuota, handleCodexUsage
 import { handleIntegrations } from "./integrations/routes.mjs";
 // The Command Panel's eight routes, every one absent while the panel is
 // switched off and answered by the optional local engine while it is on —
-// see terminal-routes.mjs — and the WebSocket upgrade that carries a session,
+// see terminal-routes.mjs — its folder check, which the deck answers itself
+// under the same switch, and the WebSocket upgrade that carries a session,
 // which runs its own gates because the route table never sees an upgrade
 // (terminal-socket.mjs).
 import {
-  handleTerminalAdopt, handleTerminalClaim, handleTerminalEndHosts, handleTerminalHosts, handleTerminalLaunch, handleTerminalOpen,
+  handleTerminalAdopt, handleTerminalClaim, handleTerminalEndHosts, handleTerminalFolder, handleTerminalHosts, handleTerminalLaunch, handleTerminalOpen,
   handleTerminalStatus, handleTerminalTarget, terminalUpgradeOptions,
   handleEngineStatus, handleEngineAction,
 } from "./terminal-routes.mjs";
@@ -572,6 +573,7 @@ export async function startServer({ port = 4317, host = "127.0.0.1", persist = n
     if (req.method === "POST" && url.pathname === "/api/terminal/adopt")  return guard(handleTerminalAdopt(req, res, terminal), res);
     if (req.method === "POST" && url.pathname === "/api/terminal/launch") return guard(handleTerminalLaunch(req, res, terminal), res);
     if (req.method === "POST" && url.pathname === "/api/terminal/claim")  return guard(handleTerminalClaim(req, res, terminal), res);
+    if (req.method === "POST" && url.pathname === "/api/terminal/folder") return guard(handleTerminalFolder(req, res, terminal), res);
     // The engine's install, from the page (engine-install.mjs): its state, an
     // install from the registry or from a file, a cancel and a remove.
     if (req.method === "GET"  && url.pathname === "/api/terminal/engine") return guard(handleEngineStatus(req, res, terminal), res);

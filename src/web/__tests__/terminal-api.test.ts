@@ -17,8 +17,10 @@ import {
   PANEL_RECOVERING,
   PANEL_UNAVAILABLE,
   STILL_RUNNING,
+  FOLDER_ROUTE,
   TERMINAL_ROUTES,
   adoptTerminal,
+  checkFolder,
   claimLaunch,
   endHostSessions,
   launchTerminal,
@@ -398,6 +400,34 @@ describe("the older session hosts (Windows)", () => {
     ];
     for (const body of bad) expect((await terminalHosts({ fetchFn: answering(200, body).fetchFn })).ok, JSON.stringify(body)).toBe(false);
     expect((await endHostSessions({ generation: 2, sessions: [ID] }, { fetchFn: answering(200, { ok: true, ended: "1" }).fetchFn })).ok).toBe(false);
+  });
+});
+
+describe("the New session picker's folder question (internal #106)", () => {
+  it("asks the deck's own route, beside the version 1 ones rather than among them", async () => {
+    expect(FOLDER_ROUTE).toBe("/api/terminal/folder");
+    expect(Object.values(TERMINAL_ROUTES)).not.toContain(FOLDER_ROUTE);
+    const { fetchFn, asked } = answering(200, { ok: true, cwd: "/srv/api" });
+    expect(await checkFolder("/srv/api/", { fetchFn })).toEqual({ ok: true, cwd: "/srv/api" });
+    expect(asked).toHaveLength(1);
+    expect(asked[0]).toMatchObject({ url: "/api/terminal/folder", method: "POST", body: { cwd: "/srv/api/" } });
+    expect(asked[0].headers["content-type"]).toBe("application/json");
+  });
+
+  it("passes the deck's four reasons through, and nothing it does not know", async () => {
+    for (const code of ["relative", "missing", "denied", "not-folder"]) {
+      expect(await checkFolder("/x", { fetchFn: answering(200, { ok: false, code }).fetchFn })).toEqual({ ok: false, code });
+    }
+    expect(await checkFolder("/x", { fetchFn: answering(200, { ok: false, code: "rm -rf" }).fetchFn })).toEqual({ ok: false, code: "unavailable" });
+    expect(await checkFolder("/x", { fetchFn: answering(200, { ok: true }).fetchFn }), "a yes with no folder is no answer").toEqual({ ok: false, code: "unavailable" });
+  });
+
+  it("says offline when the deck cannot be reached, and unavailable for any other answer, never throwing", async () => {
+    const down = async () => { throw new TypeError("Failed to fetch"); };
+    expect(await checkFolder("/x", { fetchFn: down })).toEqual({ ok: false, code: "offline" });
+    expect(await checkFolder("/x", { fetchFn: answering(404, { ok: false, error: "Not found" }).fetchFn })).toEqual({ ok: false, code: "unavailable" });
+    expect(await checkFolder("/x", { fetchFn: answering(409, { ok: false, code: "not-installed" }).fetchFn })).toEqual({ ok: false, code: "unavailable" });
+    expect(await checkFolder("/x", { fetchFn: answering(200, "<html>").fetchFn })).toEqual({ ok: false, code: "unavailable" });
   });
 });
 

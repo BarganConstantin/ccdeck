@@ -774,6 +774,37 @@ function installTerminalKeysIpc() {
   });
 }
 
+/**
+ * New session's "Choose another folder…" (internal #106): the system's own
+ * folder dialog, attached to the window. The page sends nothing — no path to
+ * start from, no title — and hears back one thing: the folder the person
+ * chose, or null when they closed the dialog. The person picks it; the page
+ * never names a folder for the app to read. One dialog at a time: a second
+ * press while one is open gets null instead of a second dialog. The deck
+ * still checks the folder before any agent starts in it.
+ */
+let choosingFolder = false;
+function installFolderPickerIpc() {
+  ipcMain.handle("ccdeck:folder:choose", async event => {
+    if (!fromDeckPage(event) || event.senderFrame !== event.sender.mainFrame) return null;
+    if (choosingFolder) return null;
+    choosingFolder = true;
+    try {
+      const parent = await windowOnScreen(ON_SCREEN_WAIT_MS);
+      asking += 1;
+      try {
+        const options = { title: "Choose a project folder", buttonLabel: "Choose", properties: ["openDirectory", "dontAddToRecent"] };
+        const out = await (parent ? dialog.showOpenDialog(parent, options) : dialog.showOpenDialog(options));
+        return out.canceled || !out.filePaths?.length ? null : String(out.filePaths[0]);
+      } finally {
+        asking -= 1;
+      }
+    } finally {
+      choosingFolder = false;
+    }
+  });
+}
+
 function installNotificationAudioIpc() {
   const handle = (name, run) => ipcMain.handle(`ccdeck:notification-audio:${name}`, (event, arg) => {
     if (!fromDeckPage(event)) throw new Error("Notification audio is only available to the deck.");
@@ -989,6 +1020,7 @@ app.whenReady().then(async () => {
   installNotificationAudioIpc();
   installWindowChromeIpc();
   installTerminalKeysIpc();
+  installFolderPickerIpc();
   if (process.platform !== "darwin") {
     Menu.setApplicationMenu(Menu.buildFromTemplate([
       { label: "File", submenu: [{ role: "close" }, { role: "quit" }] },

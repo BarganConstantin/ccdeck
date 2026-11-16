@@ -14,7 +14,7 @@
 // through startServer's `terminal` option, beside the backend itself. terminal-target.test.ts and terminal-sessions.test.ts pin those
 // modules; terminal-socket-tmux.test.ts runs the whole path on real tmux.
 import { describe, it, expect, afterAll, afterEach, beforeAll, beforeEach, vi } from "vitest";
-import { mkdirSync, mkdtempSync } from "node:fs";
+import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { request, type Server } from "node:http";
 import { EventEmitter } from "node:events";
 import { tmpdir } from "node:os";
@@ -709,6 +709,38 @@ function askDroppedOnceStarted(body: unknown): Promise<void> {
     void vi.waitFor(() => expect(launches.length).toBeGreaterThan(0)).then(drop, drop);
   });
 }
+
+describe("POST /api/terminal/folder", () => {
+  // The New session picker's question before a launch (internal #106),
+  // answered by the deck: yes with the folder, or why not. It starts nothing
+  // and asks nothing of tmux; terminal-folder.test.ts has every reason.
+  it("says yes for a folder an agent can start in, trimmed of a trailing separator", async () => {
+    const got = await ask("POST", "/api/terminal/folder", { cwd: `${PROJECT}/` });
+    expect(got.status).toBe(200);
+    expect(got.body).toEqual({ ok: true, cwd: PROJECT });
+  });
+
+  it("says why not, and starts nothing nor asks tmux anything", async () => {
+    writeFileSync(join(DIR, "a-file"), "x");
+    expect((await ask("POST", "/api/terminal/folder", { cwd: join(DIR, "gone") })).body).toEqual({ ok: false, code: "missing" });
+    expect((await ask("POST", "/api/terminal/folder", { cwd: join(DIR, "a-file") })).body).toEqual({ ok: false, code: "not-folder" });
+    expect((await ask("POST", "/api/terminal/folder", { cwd: "~/project" })).body).toEqual({ ok: false, code: "relative" });
+    expect(launches).toEqual([]);
+    expect(resolved).toEqual([]);
+    expect(lists).toEqual([]);
+  });
+
+  it("refuses a body that names no folder with 400, and one too large with 413", async () => {
+    for (const body of ["{not json", JSON.stringify({ cwd: 7 }), JSON.stringify({}), "null"]) {
+      expect(await ask("POST", "/api/terminal/folder", body), body).toMatchObject({ status: 400, body: { ok: false, code: "bad-request" } });
+    }
+    expect((await ask("POST", "/api/terminal/folder", JSON.stringify({ cwd: PROJECT, pad: "x".repeat(20_000) }))).status).toBe(413);
+  });
+
+  it("is a mutation: refused to a caller that presents nothing", async () => {
+    expect((await ask("POST", "/api/terminal/folder", { cwd: PROJECT }, { host: `127.0.0.1:${port}` })).status).toBe(401);
+  });
+});
 
 describe("POST /api/terminal/launch", () => {
   it("starts an agent in a deck-owned session and answers its id, its name and a ticket", async () => {

@@ -398,6 +398,12 @@ describe("what was migrated to the secondary tier", () => {
       ".jr-group-title", ".jr-group-toggle", ".jr-status, .jr-panel .jr-status.ig-chip",
       "button.btn.jr-chip", "button.btn.jr-status-btn",
       ".ns-form .uh-range-btn[aria-pressed=\"false\"]", ".ns-title",
+      // New session's picker (internal #106): what an empty list says (no
+      // projects yet, nothing matched, a path that needs to be full) — a
+      // sentence read to know what to do next — and the chosen folder's
+      // path, with the path a problem names: the line that says where Start
+      // goes, read before pressing it.
+      ".ns-empty", ".ns-problem-path", ".ns-where-v",
       // The network map's next step: the one sentence that says what to do
       // about the network, or about the deck pointed at. Read, not glanced.
       ".nm-next",

@@ -1,4 +1,5 @@
-// The Command Panel's eight HTTP routes, and the wiring that hands its socket
+// The Command Panel's eight HTTP routes the engine answers, the folder check
+// the deck answers itself (terminal-folder.mjs), and the wiring that hands its socket
 // to the upgrade in terminal-socket.mjs.
 //
 //   GET  /api/terminal/status     is tmux here, and new enough? No paths.
@@ -9,6 +10,7 @@
 //   POST /api/terminal/launch     start a new agent in a deck-owned tmux session
 //   POST /api/terminal/claim      is this new Codex the one a launch started?
 //   POST /api/terminal/hosts/end  end the sessions on one older host, as reviewed
+//   POST /api/terminal/folder     can an agent start in this folder? (the deck answers)
 //
 // And the engine's own install, which the page offers where the engine is not
 // here (engine-install.mjs), under the same switch and the same gates:
@@ -59,6 +61,7 @@ import { readBody, readBytes, send } from "./http-io.mjs";
 import { panelProvenance, withProvenance } from "./panel-provenance.mjs";
 import { heldPrefs } from "./prefs-state.mjs";
 import { engineRefusal } from "./pro-engine-terminal.mjs";
+import { checkFolder } from "./terminal-folder.mjs";
 import { createTicketStore } from "./terminal-socket.mjs";
 
 /** The bodies here are an id, a provider and a folder. A few kilobytes is far
@@ -179,6 +182,33 @@ export async function handleTerminalAdopt(req, res, options) {
  *  name, ticket }`. The key makes asking again safe: one agent per key. */
 export async function handleTerminalLaunch(req, res, options) {
   return posted(req, res, options, "launch");
+}
+
+/** POST /api/terminal/folder `{ cwd }` → `{ ok: true, cwd }`, or `{ ok: false,
+ *  code }` with why an agent could not start there (terminal-folder.mjs). The
+ *  New session picker's question before a launch; answered here, by the deck,
+ *  since it is about this machine's folders and not a terminal's. */
+export async function handleTerminalFolder(req, res, options) {
+  const d = terminalDeps(options);
+  if (!d.enabled()) return notFound(res);
+  let raw;
+  try { raw = await readBody(req, res, BODY_LIMIT); } catch { return; } // answered 413 already
+  // Off while the body came in: the route is not there.
+  if (!d.enabled()) return notFound(res);
+  // As the engine's own routes: a deck with no engine to start an agent has
+  // no folder to check for one, and says so in the same words and bytes
+  // (pro-engine-routes-off.test.ts), before it reads the question.
+  if (!d.jsBackend && d.engine?.enabled !== true) {
+    const { status, body } = engineRefusal("not-installed");
+    return send(res, status, body);
+  }
+  let cwd = null;
+  try {
+    const body = JSON.parse(raw);
+    if (body && typeof body === "object" && typeof body.cwd === "string") cwd = body.cwd;
+  } catch {}
+  if (cwd === null) return send(res, 400, { ok: false, code: "bad-request" });
+  return send(res, 200, await (d.checkFolder ?? checkFolder)(cwd));
 }
 
 /** GET /api/terminal/engine → `{ ok: true, engine }`: the engine's install

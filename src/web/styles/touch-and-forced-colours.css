@@ -69,7 +69,11 @@
   .ns-pop .ns-option,
   .ns-pop .ns-field,
   .ns-pop .ns-acts .btn,
+  .ns-pop button.btn.ns-choose,
   .board-nav button.btn.nav-new { min-height: 32px; }
+  /* A fingertip has no Shift+Delete and no hover: a project's × is always
+     drawn, a 32px square at the row's end. */
+  .ns-pop .ns-forget { opacity: 1; width: 32px; min-height: 32px; margin-right: -8px; }
   .ts-bar { height: 36px; }
   .ts-bar:has(.ts-first),
   .ts-bar:has(.ts-asks) { min-height: 36px; }
@@ -138,6 +142,9 @@
   /* The command menu's chosen row is a fill (quick-open.css), and a Contrast
      theme drops fills: draw it as a ring inside the row. */
   .qo-row[aria-selected="true"] { outline: 2px solid Highlight; outline-offset: -2px; }
+  /* New session's projects wear quick open's fill on the row the keys are on
+     (terminal-stage.css): the same ring here (internal #106). */
+  .ns-option[data-highlighted] { outline: 2px solid Highlight; outline-offset: -2px; }
 
   .modal.settings-modal,
   .settings-nav { background: Canvas; color: CanvasText; }

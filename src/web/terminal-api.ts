@@ -64,6 +64,11 @@ export const TERMINAL_ROUTES = {
   endHosts: "/api/terminal/hosts/end",
 } as const;
 
+/** New session's folder question (internal #106). Not one of the routes above:
+ *  those are the terminal's version 1 contract, answered by the engine; this
+ *  one the deck answers itself, behind the same switch and gates. */
+export const FOLDER_ROUTE = "/api/terminal/folder";
+
 export type TerminalProvider = "claude" | "codex";
 
 /** What the deck can say about tmux. No paths: the panel shows a fact and,
@@ -448,6 +453,33 @@ export function adoptTerminal(ref: SessionRef, options: ApiOptions = {}, size?: 
     const target = targetOf(body.target);
     return ticket && target ? { ok: true, ticket, target } : null;
   });
+}
+
+/** Why a folder is not one to start an agent in: the deck's own four
+ *  (terminal-folder.mjs), `offline` when the deck could not be reached, and
+ *  `unavailable` when it gave no answer this page reads (a deck without the
+ *  question, a refusal at the gates). */
+export type FolderProblem = "relative" | "missing" | "denied" | "not-folder" | "offline" | "unavailable";
+export type FolderAnswer = { ok: true; cwd: string } | { ok: false; code: FolderProblem };
+const FOLDER_PROBLEMS: ReadonlySet<string> = new Set(["relative", "missing", "denied", "not-folder"]);
+
+/** Ask the deck whether an agent can start in `cwd` — the New session
+ *  picker's question before it starts one, so a folder that is gone is said
+ *  in the picker, with the folder still chosen. Never throws. */
+export async function checkFolder(cwd: string, options: ApiOptions = {}): Promise<FolderAnswer> {
+  const fetchFn = options.fetchFn ?? ((input: string, req?: RequestInit) => fetch(input, req));
+  let res: Response;
+  try {
+    res = await fetchFn(FOLDER_ROUTE, post({ cwd }));
+  } catch {
+    return { ok: false, code: "offline" };
+  }
+  const body: unknown = await res.json().catch(() => null);
+  if (res.ok && isObject(body)) {
+    if (body.ok === true && typeof body.cwd === "string" && body.cwd) return { ok: true, cwd: body.cwd };
+    if (body.ok === false && typeof body.code === "string" && FOLDER_PROBLEMS.has(body.code)) return { ok: false, code: body.code as FolderProblem };
+  }
+  return { ok: false, code: "unavailable" };
 }
 
 /** Start a new agent in `cwd`, inside a deck-owned tmux session, and get a
