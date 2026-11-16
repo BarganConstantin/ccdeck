@@ -25,7 +25,7 @@
 // [data-terminal-panel], which only the terminal's own host carries
 // (StageBody) — the header and the keys bar are where focus lands when the
 // keys go back to the board, and from there j, k and n are the board's.
-import { useEffect, useMemo, useRef, useState, type CSSProperties, type RefObject } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type RefObject } from "react";
 import type { LaunchOptions, SessionRef, TerminalProvider } from "../../terminal-api";
 import { terminalTheme } from "../../terminal-palette";
 import { releaseChordLabel } from "../../terminal-keys";
@@ -55,7 +55,7 @@ import {
 import StageHeader from "./StageHeader";
 import StageBody, { catchKeys, type StageContext } from "./StageBody";
 import type { HeldKeys } from "../../type-ahead";
-import { useFocusRequest } from "./use-focus-request";
+import { useFocusRequest, type FocusRequest } from "./use-focus-request";
 import { tellDesktopKeys } from "../../desktop-keys";
 import { QUIET_RESCAN_MS, quietPage } from "../../quiet-page";
 import { guardLeaving } from "../../leave-guard";
@@ -388,6 +388,42 @@ export default function TerminalStage(p: TerminalStageProps) {
   const live = spineLive(status, phase, session.streaming);
   const typing = phaseTakesKeys(phase);
 
+  // CHAT ONLY READS (Figma V4: the conversation is read in Chat and typed into
+  // in Term, "↵ open and type"). Every way into the pane — the keys bar's
+  // "type in Term", the header's keys button, Enter on the deck, the asks run,
+  // a card's click — shows Term first and gives it the keys once it is drawn.
+  // Under Chat the pane is hidden, and a hidden textarea takes no focus: ↵
+  // did nothing there, while keys held for the pane still went to a session
+  // nobody could see (internal #99). Keys typed ahead for a request stay held
+  // until then and follow the focus, as on a pane already in view; a request
+  // whose session the stage left before Term was drawn lets them go.
+  const keysAfterTerm = useRef<{ key: string; request?: FocusRequest["request"] } | null>(null);
+  const givePane = (request?: FocusRequest["request"]) => {
+    session.focus();
+    if (request === undefined) return;
+    const ahead = p.takeTypeAhead?.(request);
+    if (ahead) session.type(ahead);
+  };
+  const intoPane = (request?: FocusRequest["request"]) => {
+    if (chatOn) { keysAfterTerm.current = { key, request }; setView("term"); return; }
+    givePane(request);
+  };
+  useLayoutEffect(() => {
+    const want = keysAfterTerm.current;
+    if (chatOn || !want) return;
+    keysAfterTerm.current = null;
+    if (want.key === key) givePane(want.request);
+    else if (want.request !== undefined) p.takeTypeAhead?.(want.request);
+  });
+  // And back to Chat with the keys in the pane: they leave it, so nothing typed
+  // next goes to a pane that is no longer on screen (a browser that keeps the
+  // focus on the textarea through a click on the switch, as Safari does).
+  const showView = (next: "chat" | "term") => {
+    if (next === "chat" && session.keysOwner === "pane") session.release();
+    setView(next);
+  };
+  const chatCannotType = chatOn && p.show.kind === "session" && PANELESS.has(phase.kind);
+
   // The keyboard's owner goes up so the deck's shortcuts know to step aside.
   const onKeysOwner = useRef(p.onKeysOwner);
   onKeysOwner.current = p.onKeysOwner;
@@ -461,11 +497,7 @@ export default function TerminalStage(p: TerminalStageProps) {
   useFocusRequest({
     key, request: p.focusRequest, launch: subject.kind === "launch", typing: current && typing,
     from: subject.kind === "session" && subject.launch ? `launch:${subject.launch}` : null,
-    focus: request => {
-      session.focus();
-      const ahead = p.takeTypeAhead?.(request);
-      if (ahead) session.type(ahead);
-    },
+    focus: request => { intoPane(request); },
     settled: current && settlesFocus(phase), land: request => landFocus(rootRef.current, p.holdsTypeAhead?.(request) ?? null),
     unmet: request => { p.takeTypeAhead?.(request); },
   });
@@ -542,7 +574,7 @@ export default function TerminalStage(p: TerminalStageProps) {
         takeover={p.geometry.takeover}
         workspace={workspace ? (p.show.kind === "empty" ? "empty" : "pane") : undefined}
         context={p.show.kind === "session" ? p.show.session.contextUse : null}
-        view={chatSession !== null ? { current: view, onChange: setView } : undefined}
+        view={chatSession !== null ? { current: view, onChange: showView } : undefined}
         // Only while a terminal is on the stage to size: not on the empty
         // pane, a card that has none, or Chat.
         textSize={p.show.kind === "empty" || PANELESS.has(phase.kind) || chatOn ? undefined : { step: textStep, onStep: stepTerminalText }}
@@ -550,7 +582,7 @@ export default function TerminalStage(p: TerminalStageProps) {
           || (subject.kind === "launch" && (phase.kind === "error" || phase.kind === "tmux-missing" || phase.kind === "tmux-installing"))}
         onKeys={() => {
           if (session.keysOwner === "pane") { session.release(); p.onRelease?.(); }
-          else session.focus();
+          else intoPane();
         }}
         onExpand={fullStage.toggle}
         onClose={p.onClose}
@@ -584,7 +616,10 @@ export default function TerminalStage(p: TerminalStageProps) {
         workspace={workspace}
         paneless={p.show.kind === "empty" || PANELESS.has(phase.kind) || onItsWay(phase, frame)}
         onFirstRunDone={p.onFirstRunDone}
-        onTypeHere={session.focus}
+        chat={chatOn}
+        chatCannotType={chatCannotType}
+        onShowTerm={() => showView("term")}
+        onTypeHere={() => intoPane()}
         end={end}
         asks={p.asks}
         arrival={p.arrival}

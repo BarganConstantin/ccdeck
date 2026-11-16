@@ -33,6 +33,12 @@
 // have no keys to name; the bar is hidden, not removed, because the stage
 // measures it by element (TerminalStage's useDrawnHeight) and a new element
 // would never be measured.
+//
+// CHAT ONLY READS (Figma V4: the conversation is read in Chat and typed into
+// in Term; there is no input under it). With Chat on the pane, "type here" is
+// "type in Term", since that is where the keys go; and a session that cannot
+// take keys, whose card Chat covers, says so here with the way to that card,
+// rather than leaving Chat with nothing to say how to write (internal #99).
 import { RELEASE_CHORD_SPOKEN_MSG } from "../../terminal-keys";
 import { RECONNECT_NOTE_MSG, type KeysOwner } from "./stage-model";
 import { Kbd } from "../Kbd";
@@ -101,6 +107,12 @@ export interface KeysBarProps {
    *  nothing on screen yet): the bar says nothing and is not drawn, unless it
    *  carries the older hosts' line. */
   paneless?: boolean;
+  /** Chat is on the pane: the keys go to Term, which a press shows first. */
+  chat?: boolean;
+  /** Chat is on a pane that cannot take keys (a card stands for it in Term):
+   *  the bar says so, with the way to that card. */
+  chatCannotType?: boolean;
+  onShowTerm?(): void;
   onFirstRunDone(): void;
   onTypeHere(): void;
   end?: EndView | null;
@@ -215,7 +227,17 @@ export default function KeysBar(p: KeysBarProps) {
         <span className="ts-end">{p.notice}</span>
       </div>
     );
-  } else if (p.firstRun && p.canType) {
+  } else if (p.chatCannotType) {
+    left = (
+      <div className="ts-keys" data-owner="none" data-split>
+        <span className="ts-end">{t("board.chat.cannotType")}</span>
+        <button type="button" className="btn" onClick={p.onShowTerm}>{t("board.chat.showTerm")}</button>
+      </div>
+    );
+  } else if (p.firstRun && p.canType && !p.chat) {
+    // Not on Chat: the line is about the terminal ("Typing goes to the
+    // session"), and on Chat the keys are with the deck, so there the bar
+    // names Term instead; the line comes back on Term until Got it.
     // The first-run line lives here so it does not cost the terminal a row.
     // On a stage too narrow for it on one line (a phone) it wraps, and Got it
     // stays in reach; only a third line, on the narrowest screens, grows the
@@ -254,7 +276,7 @@ export default function KeysBar(p: KeysBarProps) {
         {!lean && p.canType && (
           <span className="ts-hint">
             <Kbd label={t("board.keys.enterSpoken")}>↵</Kbd>
-            <button type="button" className="btn ts-plain" onClick={p.onTypeHere}>{t("board.keys.typeHere")}</button>
+            <button type="button" className="btn ts-plain" onClick={p.onTypeHere}>{t(p.chat ? "board.keys.typeInTerm" : "board.keys.typeHere")}</button>
           </span>
         )}
         {!lean && p.asksWaiting && <span className="ts-hint"><Kbd>n</Kbd> {t("board.keys.nextAskHint")}</span>}
@@ -262,7 +284,7 @@ export default function KeysBar(p: KeysBarProps) {
     );
   }
   return (
-    <footer className="ts-bar" aria-label={t("board.keys.bar")} hidden={(p.paneless && !p.hosts) || undefined}>
+    <footer className="ts-bar" aria-label={t("board.keys.bar")} hidden={(p.paneless && !p.hosts && !p.chatCannotType) || undefined}>
       {left}
       {right}
     </footer>
