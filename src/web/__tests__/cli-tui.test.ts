@@ -2138,6 +2138,12 @@ describe("a window whose reset has passed (#100)", () => {
     const lines = text(frame(passed(), 120, 30).lines);
     const five = lines.filter(l => /\b5h\b/.test(l) && !l.includes("@"));
     expect(five.some(l => l.includes("reset") && !l.includes("95%")), five.join("\n")).toBe(true);
+    // A space between the meter and the word, and the word where the
+    // percentage ends on the 7d line below it.
+    const word = five.find(l => l.includes("reset"))!;
+    expect(word).toMatch(/\S reset/);
+    const seven7 = lines.find(l => /\b7d\b/.test(l) && !l.includes("@") && l.includes("21%"))!;
+    expect(word.indexOf("reset") + "reset".length).toBe(seven7.indexOf("21%") + "21%".length);
     const seven = lines.filter(l => /\b7d\b/.test(l) && !l.includes("@"));
     expect(seven.some(l => l.includes("21%")), seven.join("\n")).toBe(true);
   });

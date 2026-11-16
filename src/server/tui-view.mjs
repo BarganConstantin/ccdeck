@@ -1167,7 +1167,9 @@ function detailPanel(a, home, width, look) {
     lines: [...said, ...lanes.map((l, i) => {
       const u = untils[i];
       if (lapsed(l, now)) {
-        return `${tone.muted}${padEnd(oneLine(l.label), labelW)}${tone.reset}  ${gauge(0, bar, look)}${tone.muted}${padStart("reset", 5)}${tone.reset}`;
+        // One cell off the meter for the space a percentage carries in its
+        // pad: "reset" is as wide as that pad, and would touch the meter.
+        return `${tone.muted}${padEnd(oneLine(l.label), labelW)}${tone.reset}  ${gauge(0, Math.max(0, bar - 1), look)} ${tone.muted}reset${tone.reset}`;
       }
       const reset = !tail || !u ? "" : tail === words ? `   ${tone.muted}resets in ${u}${tone.reset}` : `  ${tone.muted}${g.restart} ${u}${tone.reset}`;
       return `${tone.muted}${padEnd(oneLine(l.label), labelW)}${tone.reset}  ${gauge(l.pct, bar, look)}`
