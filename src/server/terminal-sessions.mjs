@@ -283,6 +283,19 @@ export function clampSize(cols, rows) {
  * mid-session" — and the bridge pauses a pane whose panel falls behind. An
  * older Claude ignores it.
  *
+ * `-e CLAUDE_CODE_TMUX_TRUECOLOR=1` for Claude: Claude Code drops to 256
+ * colours whenever $TMUX is set, whatever COLORTERM says, "because tmux does
+ * not pass through truecolor escape sequences unless configured to", and
+ * documents this variable to lift that clamp. Here tmux does pass them: control
+ * mode hands the panel the pane's bytes untranslated, and capture-pane -e seeds
+ * a reattach with the 24-bit colours the grid stored. Clamped, Claude's colours
+ * reached the panel as the nearest 256-colour slot and the palette repainted
+ * that slot by role (terminal-palette.ts), so its orange mascot came out deep
+ * rust on a light theme; with it, Claude draws its own /theme's colours, the
+ * block-drawn mascot exactly. Its "auto" theme follows the panel: tmux answers
+ * the background from window-style below and, from 3.6, tells the pane when it
+ * changes. A tmux the deck did not start keeps Claude's clamp.
+ *
  * `-e CLAUDE_CODE_SCROLL_SPEED=3` for Claude: xterm.js sends one wheel report
  * per notch to a program that has the mouse, and Claude Code's fullscreen
  * scrolls a line per report, so it moved a third of what every native
@@ -311,7 +324,7 @@ export function launchCommand({ name, cwd, cols, rows, argv, sessionId = "", age
     ["set-option", "-g", "history-limit", String(PANE_HISTORY)],
     ["new-session", "-d", "-s", name, "-x", String(cols), "-y", String(rows),
       "-c", tmuxFormatLiteral(cwd), "-e", "COLORTERM=truecolor",
-      ...(agent === "claude" ? ["-e", "CLAUDE_CODE_NONBLOCKING_STDOUT=1", "-e", `CLAUDE_CODE_SCROLL_SPEED=${CLAUDE_SCROLL_SPEED}`] : []),
+      ...(agent === "claude" ? ["-e", "CLAUDE_CODE_NONBLOCKING_STDOUT=1", "-e", "CLAUDE_CODE_TMUX_TRUECOLOR=1", "-e", `CLAUDE_CODE_SCROLL_SPEED=${CLAUDE_SCROLL_SPEED}`] : []),
       "-P", "-F", "#{pane_id}",
       "--", ...paneArgv(argv)],
     // The panel's colours, straight after the pane and in the same sequence,
