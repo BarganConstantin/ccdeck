@@ -33,7 +33,6 @@ import { type Account, type Lane } from "../claude-accounts";
 import { lapsed, laneSplit } from "../lane-view";
 import { resetCountdown } from "../relative-time";
 import { type useRequestSlot } from "../use-request-slot";
-import { laneName } from "../other-accounts-order";
 import { resetSinceReading } from "../accounts-usage-report";
 import { sharedLine } from "../account-lan";
 import { telemetryLine } from "../org-telemetry";
@@ -92,8 +91,8 @@ function splitAddress(name: string): { local: string; domain: string | null } {
  * row used to draw said the same numbers a second time beside the meter; the
  * line says them once, in words, with the reset beside the number it ends.
  */
-export function LaneBar({ lane, nowSec, readAt, frozen, sortedBy }: {
-  lane: Lane; nowSec: number; readAt: number | null; frozen?: boolean; sortedBy?: boolean;
+export function LaneBar({ lane, nowSec, readAt, frozen }: {
+  lane: Lane; nowSec: number; readAt: number | null; frozen?: boolean;
 }) {
   const t = useT();
   const capped = Math.min(100, Math.max(0, lane.pct));
@@ -117,7 +116,7 @@ export function LaneBar({ lane, nowSec, readAt, frozen, sortedBy }: {
   // A window nobody has spent from yet has no reset to count down to.
   const idle = !record && capped === 0 && !lane.resetAt;
   return (
-    <div className="ap-lane" data-sort-key={sortedBy ? "" : undefined}>
+    <div className="ap-lane">
       <span className="ap-lane-label" title={laneLabel(lane.label, t)}>{windowName(lane, t)}</span>
       <span className="ap-lane-value">
         {/* Whole, as the shut row and the Usage panel print it: claude-swap keeps
@@ -213,9 +212,6 @@ interface Props {
   /** This row's warning has its explanation open. */
   issueExpanded: boolean;
   onOpenIssue: (num: number, anchor: string) => void;
-  /** What the list behind the fold is ordered by (#1579) — a window's name,
-   *  "room", or null — so the row can mark the number it was placed by. */
-  sortKey?: string | null;
   /** This is Auto-switch's home account: what the mark says about it
    *  (auto-choice.ts homeTitle), or null on every other row. */
   home?: string | null;
@@ -250,7 +246,7 @@ function issueState(issue: AccountIssue): RowState {
 
 export default function AccountRow({
   a, nowSec, voice = CLAUDE_VOICE, issueOverride, lan, opened, onToggleLanes, busy, pressProps, onSwitch, menuOpen, onOpenMenu, onCloseMenu,
-  refusal, onDismissRefusal, onSignIn, switchedHere, swapped, displaced, issueExpanded, onOpenIssue, sortKey = null, home = null,
+  refusal, onDismissRefusal, onSignIn, switchedHere, swapped, displaced, issueExpanded, onOpenIssue, home = null,
   rotating = false, telemetryBoundaryId, planLabel = null,
 }: Props) {
   const t = useT();
@@ -262,13 +258,6 @@ export default function AccountRow({
   // A folded lane joins the shut row when it is fuller than every window still
   // running — not measured against one that has reset since.
   const { fuller } = laneSplit(live);
-  // THE NUMBER THIS ROW WAS PLACED BY (#1579), marked in the shut line and on
-  // the open lines, so a sorted list says what it is sorted by at the numbers
-  // themselves rather than only in the control that sorted it. Under "room"
-  // it is the tightest window still running: the one the room is measured from.
-  const keyLane = sortKey === "room"
-    ? live.reduce<Lane | null>((x, l) => (x && x.pct >= l.pct ? x : l), null)
-    : sortKey ? a.lanes.find(l => laneName(l) === sortKey) ?? null : null;
   const issue = issueOverride !== undefined ? issueOverride : accountIssue(a, nowSec, lan, t);
   // EVERY ROW IS ONE SHAPE: the name, one figure, one line under it and one
   // meter. The rest — every window with its reset, when it was read, what its
@@ -327,7 +316,7 @@ export default function AccountRow({
     : a.stale ? { tone: "quiet", glyph: "info" }
     : null;
   /** A figure at the end of a line: the window's name, quiet, and its number. */
-  const figure = (lane: Lane | null, fallback: string, cls: string, marked = false) => {
+  const figure = (lane: Lane | null, fallback: string, cls: string) => {
     if (!lane || blocked) {
       return (
         <span className={`ap-fig ${cls}`} data-none="">
@@ -340,7 +329,7 @@ export default function AccountRow({
     // The head's figure is the row's value, the one the row's acts stand in for.
     const pct = cls === "ap-fig-1" ? "ap-value ap-q-pct" : "ap-q-pct";
     return (
-      <span className={`ap-fig ${cls}`} data-sort-key={marked ? "" : undefined}>
+      <span className={`ap-fig ${cls}`}>
         <span className="ap-q-label">{laneLabel(lane.label, t)}</span>
         {/* A window that has reset since it was read is said to have, as its
             open line says it: its number is the old window's. */}
@@ -466,7 +455,7 @@ export default function AccountRow({
         {/* THE FIRST FIGURE, at the right edge: the first window's name and how
             much of it is used, in the waiting ink from 80% and the error ink at
             100%. A login that cannot be used shows a dash. */}
-        {!a.disabled && figure(primary, "5h", "ap-fig-1", !!primary && primary.id === keyLane?.id)}
+        {!a.disabled && figure(primary, "5h", "ap-fig-1")}
         {/* The row's two acts take the figure's place under the pointer and the
             keyboard, and are always there on touch (accounts-panel.css). */}
         <span className="ap-acts">
@@ -571,7 +560,7 @@ export default function AccountRow({
               aria-label={t("accounts.row.fixAs", { fix: issue.fix, name: a.email ?? name })} title={issue.hint}
               onClick={() => onSignIn(a.email)}>{t("accounts.row.signIn")}</button>
           )}
-          {figure(second, "7d", "ap-fig-2", !!second && second.id === keyLane?.id)}
+          {figure(second, "7d", "ap-fig-2")}
         </div>
       )}
       {!issue && weekFull && state && (
@@ -580,7 +569,7 @@ export default function AccountRow({
           <span className="ap-issue-text">
             {weekReset ? t("accounts.row.weeklyLimitAt", { reset: weekReset }) : t("accounts.row.weeklyLimit")}
           </span>
-          {figure(second, "7d", "ap-fig-2", !!second && second.id === keyLane?.id)}
+          {figure(second, "7d", "ap-fig-2")}
         </p>
       )}
       {/* AN OLD READING: nothing collected for a quarter of an hour. The
@@ -592,7 +581,7 @@ export default function AccountRow({
           <span className="ap-issue-text ap-q-age" data-never={age ? undefined : ""} title={ageTitle}>
             {age ? t("accounts.row.lastReadAgo", { ago: age }) : sentence(t("accounts.row.ageNever"))}
           </span>
-          {figure(second, "7d", "ap-fig-2", !!second && second.id === keyLane?.id)}
+          {figure(second, "7d", "ap-fig-2")}
         </p>
       )}
 
@@ -614,7 +603,7 @@ export default function AccountRow({
           ? <span className="ap-q-reset">{t("accounts.row.skipped")}</span>
           : primaryReset && <span className="ap-q-reset">{t("accounts.row.resetsIn", { time: primaryReset })}</span>}
         {!blocked && extra.map(l => (
-          <span key={l.id} className="ap-q" data-sort-key={l.id === keyLane?.id ? "" : undefined}>
+          <span key={l.id} className="ap-q">
             <span className="ap-q-label">{laneLabel(l.label, t)}</span>{" "}
             {lapsed(l, nowSec)
               ? <span className="ap-q-pct" title={t("accounts.row.laneReset", { label: l.label })}>{t("accounts.row.resetWord")}</span>
@@ -622,7 +611,7 @@ export default function AccountRow({
           </span>
         ))}
         {!primary && !blocked && !a.disabled && <span className="ap-q-reset">{voice.waiting ?? voice.noReading ?? t("accounts.row.noUsageLower")}</span>}
-        {(second || primary || blocked) && figure(second, "7d", "ap-fig-2", !!second && second.id === keyLane?.id)}
+        {(second || primary || blocked) && figure(second, "7d", "ap-fig-2")}
       </p>
 
       {/* OPEN: every window and when it resets, when it was read and when it
@@ -634,7 +623,7 @@ export default function AccountRow({
         <div className="ap-detail" id={`ap-${ids}detail-${a.num}`}>
           <div className="ap-lanes">
             {a.lanes.length
-              ? a.lanes.map(l => <LaneBar key={l.id} lane={l} nowSec={nowSec} readAt={a.fetchedAt} frozen={frozen} sortedBy={l.id === keyLane?.id} />)
+              ? a.lanes.map(l => <LaneBar key={l.id} lane={l} nowSec={nowSec} readAt={a.fetchedAt} frozen={frozen} />)
               : <div className="ap-hint">{voice.waiting ?? t("accounts.row.noUsage")}</div>}
           </div>
           <div className="ap-meta">
@@ -674,7 +663,7 @@ export default function AccountRow({
           read. A held-out account keeps its own: it is still spent from by
           hand. An old reading draws it in the quiet ink. */}
       <div className="ap-meter" aria-hidden>
-        {primary && !blocked && !primaryRolled && <div className="ap-meter-fill" data-sort-key={primary.id === keyLane?.id ? "" : undefined}
+        {primary && !blocked && !primaryRolled && <div className="ap-meter-fill"
           style={{ width: `${primaryPct === 0 ? 1.5 : primaryPct}%`, background: frozen ? "var(--muted)" : meterInk(primaryPct), opacity: primaryPct === 0 ? 0.4 : 1 }} />}
       </div>
     </li>

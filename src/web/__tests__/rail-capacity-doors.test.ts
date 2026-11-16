@@ -122,14 +122,15 @@ describe("the rows come in the panel's order with no panel to take it from", () 
   });
   const keys = (...rows: Account[]) => rows.map(laneKey);
 
-  it("puts the live account first, then the others in the stored order", () => {
-    const [a1, a2, a3] = [acct(1, false, 20), acct(2, true, 50), acct(3, false, 90)];
-    expect(panelOrder([a1, a2, a3], "7d:full", 0)).toEqual(keys(a2, a3, a1));
-    expect(panelOrder([a1, a2, a3], "slot", 0)).toEqual(keys(a2, a1, a3));
+  // CHANGED ON PURPOSE (internal #94): the panel has one order now, usable
+  // first, so the report takes that order rather than a stored choice.
+  it("puts the live account first, then the others usable first", () => {
+    const [a1, a2, a3, a4] = [acct(1, false, 100), acct(2, true, 50), acct(3, false, 90), acct(4, false, 10)];
+    expect(panelOrder([a1, a2, a3, a4], 0)).toEqual(keys(a2, a3, a4, a1));
   });
 
   it("keeps the roster's own order while nobody is live", () => {
-    const [a3, a1] = [acct(3, false, 90), acct(1, false, 20)];
-    expect(panelOrder([a3, a1], "7d:empty", 0)).toEqual(keys(a3, a1));
+    const [a3, a1] = [acct(3, false, 100), acct(1, false, 20)];
+    expect(panelOrder([a3, a1], 0)).toEqual(keys(a3, a1));
   });
 });

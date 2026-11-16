@@ -40,7 +40,6 @@ const catalog: Catalog = {
   "codex.lane.limit": "限额",
   "codex.peer.account": "账号 {n}",
   "codex.peer.heldOut": "已排除",
-  "codex.order.added": "按添加顺序",
 
   "codex.issue.notSignedIn": "未登录",
   "codex.issue.notSignedIn.hint": "此账号尚未登录 Codex，因此无法读取，也无法切换过去。",

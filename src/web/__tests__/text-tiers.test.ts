@@ -181,13 +181,14 @@ describe("what was migrated to the secondary tier", () => {
       // second figure and a figure on line 2, the reset after the plan, the
       // open row's values, a state line about something that clears on its
       // own, the selected row's other quiet parts; and the group's head —
-      // its chevron, count, expand-all, how many can be switched to, the sort
-      // glyph — with "and N more" under the previews. The head's title moved
+      // its chevron, count, expand-all, how many can be switched to — with
+      // "and N more" under the previews (the sort glyph went with the order
+      // menu, internal #94). The head's title moved
       // up to --text, so it left this list.
       ".ap-account.active :where(.ap-alias-domain, .ap-q-label, .ap-q-plan, .ap-marks, .ap-meta-key)",
       ".ap-fig-2 .ap-q-pct", ".ap-issue-line", ".ap-lane-reset", ".ap-meta", ".ap-meta-value",
       ".ap-preview-more", ".ap-q-pct", ".ap-q-reset", ".ap-rest-head > .ap-rest-all", ".ap-rest-ready",
-      ".ap-rest-sort-glyph", ".ap-sum .ap-nav-chev", ".ap-sum-count", ".ap-tag",
+      ".ap-sum .ap-nav-chev", ".ap-sum-count", ".ap-tag",
       // V4's Agent / Card sets its task line (the session's name or title, or a
       // subagent's kind and folder) in this tier, and its foot — cost · time …
       // and the sub-agent count — in the same ink as mono figures. The foot is

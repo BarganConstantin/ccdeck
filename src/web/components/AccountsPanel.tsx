@@ -27,10 +27,9 @@ import { lanAccounts, type SharedMark } from "../account-lan";
 import type { LanAccount } from "../lan-types";
 import { laneKey, toggleLane } from "../lane-open";
 import {
-  NONE_OPEN, allOpen, holdOrder, isOpen, orderChoices, orderKey, sortAccounts, toggleAll, toggleOne, trimOpenness, validOrder,
+  NONE_OPEN, allOpen, byAvailability, holdOrder, isOpen, toggleAll, toggleOne, trimOpenness,
   type Openness,
 } from "../other-accounts-order";
-import { loadOrder, saveOrder } from "../accounts-prefs";
 import { focusDropped, rescueSelectors } from "../panel-press";
 import { copyText } from "../copy-text";
 import { accountIssue } from "../account-issue";
@@ -150,9 +149,6 @@ export default function AccountsPanel({ onClose, leaving, onReport, onRoster, la
   // fold's control and speaks for the accounts behind it, as it did when the
   // live row was open by what it is. Not remembered between visits.
   const [liveOpen, setLiveOpen] = useState<string[]>([]);
-  // The order the accounts behind the fold are listed in (#1579): slot, how
-  // full they are by one window, or how much room they have. Kept the same way.
-  const [order, setOrder] = useState<string>(loadOrder);
   // The list's order at the moment the pointer or the keyboard came into it,
   // or null while nobody is there: a poll that moves the numbers does not move
   // the rows under a reader's hand. See holdOrder.
@@ -260,11 +256,6 @@ export default function AccountsPanel({ onClose, leaving, onReport, onRoster, la
   // in that order. See use-panel-clock.ts.
   const nowSec = usePanelClock();
 
-  // What the fold remembers is written back as it changes (#1579) — after the
-  // clock, like every effect in this panel, so the roster's poll and the tick
-  // keep the order they have always started in.
-  useEffect(() => { saveOrder(order); }, [order]);
-
   // WHAT LOCAL NETWORK KNOWS about each account's copies elsewhere, from the
   // status its own section already polls: a dead login no paired deck can
   // repair says so on its row, rather than waiting in silence for a copy
@@ -299,11 +290,14 @@ export default function AccountsPanel({ onClose, leaving, onReport, onRoster, la
   // reader of a one-account store sees.
   const roster = data?.accounts ?? [];
   const others = activeAcct ? roster.filter(a => !a.active) : [];
-  // In the reader's order (#1579), and held where it was while they are in the
-  // list. An order stored for a model no account has any more is slot order.
-  const choices = orderChoices(others, t);
-  const shownOrder = validOrder(order, others);
-  const rest = holdOrder(sortAccounts(others, shownOrder, a => reachable(a, nowSec), nowSec), held);
+  // USABLE ACCOUNTS FIRST (internal #94): the ones a switch can use now, then
+  // the ones not read yet, then the ones waiting on a window or a rate limit,
+  // then the week spent, then the ones no switch reaches — slot order inside
+  // each group, and held where it was while a reader is in the list.
+  const rest = holdOrder(byAvailability(others, a => ({
+    reachable: reachable(a, nowSec),
+    rateLimited: accountIssue(a, nowSec)?.kind === "rate",
+  }), nowSec), held);
   /**
    * HELD WHILE A READER IS IN IT (#1579). A sorted list whose rows jumped on a
    * poll would move the Switch the reader was reaching for, so the order is
@@ -520,7 +514,6 @@ export default function AccountsPanel({ onClose, leaving, onReport, onRoster, la
         issueExpanded={issueExpanded} onOpenIssue={openIssue}
         telemetryBoundaryId={rowBoundary(a.num)}
         planLabel={a.active ? planLabel : null}
-        sortKey={a.active ? null : orderKey(shownOrder)}
         home={isHome(a, auto?.choice?.home) ? homeTitle(a, !!auto?.enabled) : null}
         rotating={!!(auto?.enabled || auto?.external)} />
     );
@@ -673,12 +666,8 @@ export default function AccountsPanel({ onClose, leaving, onReport, onRoster, la
                   threshold={auto?.ok ? threshold : null}
                   open={restOpen}
                   onToggle={() => setRestOpen(o => !o)}
-                  order={shownOrder}
-                  choices={choices}
-                  onOrder={setOrder}
                   allOpen={allOpen(openness, rest)}
                   onToggleAll={() => setOpenness(o => toggleAll(o, rest))}
-                  held={held != null}
                 />
               )}
               {/* WHAT THE ROW OPENS, in one box named by `aria-controls`; the
