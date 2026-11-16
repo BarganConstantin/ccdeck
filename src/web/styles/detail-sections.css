@@ -15,6 +15,9 @@
   gap: 6px;
   min-width: 0;
 }
+/* The card's ⋯ (Export JSON, Remove from board) at the far end of the name's
+   line, a quiet icon button like the Fold above it (V4 top-10 #6). */
+.detail-hero .hero-more { flex: none; margin-left: auto; }
 .detail-hero .hero-state { flex: none; display: inline-flex; width: 14px; height: 14px; color: var(--text-secondary); }
 .detail-hero .hero-state[data-state="idle"] { color: var(--muted); }
 .detail-hero .hero-state[data-state="error"] { color: var(--err); }
@@ -57,9 +60,8 @@
   font-weight: 400;
   letter-spacing: 0;
 }
-.detail-hero .hero-cost { margin-top: 8px; display: flex; flex-direction: column; gap: 6px; }
-/* The split of the spend: kept (the frame does not draw it), quieter than the figure. */
-.detail-hero .hero-cost .cost-bar { height: 4px; border-radius: var(--r-tag); }
+/* The figure alone: its split by kind is under Details, keyed (V4 top-10 #6). */
+.detail-hero .hero-cost { margin-top: 8px; }
 .detail-hero .hero-cost-headline {
   display: flex;
   align-items: baseline;
@@ -79,16 +81,63 @@
   font-weight: 400;
   color: var(--muted);
 }
-/* The verbs about the card (Recap, Export JSON, Remove from board) close the
-   body, 8 apart, as V4's Quiet button draws them: `button.btn` as it is, 28
-   high, 13/500 --text-secondary, the control radius, 12 in. The edge stays the button's
-   --ctl-edge (control-edges.test.ts holds every control to 3:1), and the row
-   stays on a running session too: each is something the card can do then. */
+/* Show recap, the one verb left in the body, under what a person reads, as
+   V4's Quiet button draws it: `button.btn` as it is, 28 high, 13/500
+   --text-secondary, the control radius, 12 in. The edge stays the button's
+   --ctl-edge (control-edges.test.ts holds every control to 3:1). Export JSON
+   and Remove from board are the title block's ⋯ (V4 top-10 #6). */
 .detail .hero-actions {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
 }
+
+/* DETAILS (V4 top-10 #6): the spend by kind, the identity and the tool calls,
+   behind one quiet row at the end of the body. No box round it: a hairline
+   above parts it from what is read, and the row is the panel's 13px in
+   --muted with the kit's chevron, which turns down while it is open. The
+   whole row is the target, and the shared ring draws inside it. It answers a
+   press the way the deck's other reading rows do (What's new's disclosures):
+   by opening, its chevron turning and its words lifting to --text under the
+   pointer, never by scaling the row out from under the pointer. */
+.detail-more { border-top: 1px solid var(--line); }
+.detail-more > summary {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 28px;
+  padding: 4px 0;
+  border-radius: var(--r-ctl);
+  font-size: calc(13px + var(--ui-text-increase, 0px));
+  line-height: 20px;
+  color: var(--muted);
+  cursor: pointer;
+  list-style: none;
+}
+.detail-more > summary::-webkit-details-marker { display: none; }
+.detail-more-chev { flex: none; }
+.detail-more[open] > summary .detail-more-chev { transform: rotate(90deg); }
+@media (hover: hover) and (pointer: fine) {
+.detail-more > summary:hover { color: var(--text); }
+}
+/* How many tool calls are inside, at the row's far end, quieter than its word. */
+.detail-more-count {
+  margin-left: auto;
+  font-size: calc(12px + var(--ui-text-increase, 0px));
+  line-height: 16px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+/* What it opens onto keeps the gap between sections the body has above it. */
+.detail-more-body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding-top: 8px;
+}
+/* The bar sits on the section's 8px gap over the token rows that key it, as
+   tall as the Time tab's split bar. */
+.detail-more .cost-bar { height: 6px; }
 
 /* Stacked cost-breakdown bar */
 .cost-bar {
@@ -162,6 +211,24 @@
 .cost-bar .cb-output   { background: var(--usage-purple); }
 .cost-bar .cb-cache-r  { background: var(--usage-teal); }
 .cost-bar .cb-cache-w  { background: var(--usage-lime); }
+/* The key to the bar in the Inspector's Details: each token row's label leads
+   with an 8px square in its band's colour, read from the same four tokens so
+   a band re-tuned moves its swatch with it (V4 top-10 #6). Square, as the
+   recap's key to the same bar is: the deck's corners are 0, 4, 8 or a pill,
+   and 4 would round an 8px swatch into a dot. They sit on --panel, where the
+   four bands already clear 3:1 (contrast-floors.test.ts). */
+.tokens-grid .tk-key::before {
+  content: "";
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  margin-right: 6px;
+  border-radius: 0;
+}
+.tokens-grid .tk-in::before  { background: var(--usage-blue); }
+.tokens-grid .tk-out::before { background: var(--usage-purple); }
+.tokens-grid .tk-cr::before  { background: var(--usage-teal); }
+.tokens-grid .tk-cw::before  { background: var(--usage-lime); }
 
 .detail-section {
   display: flex;
