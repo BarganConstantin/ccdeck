@@ -594,6 +594,7 @@ export default function TerminalStage(p: TerminalStageProps) {
         context={p.show.kind === "session" ? p.show.session.context : null}
         windows={p.windows}
         launched={p.show.kind === "session" && (p.show.session.launched === true || !!p.show.launch)}
+        boardState={board?.state ?? null}
         onAdopt={reopen}
         onNotNow={p.onClose}
         onRetry={retry}

@@ -264,9 +264,11 @@ export function headerStatus(board: StageStatus | null, phase: StagePhase): Stag
     case "not-attachable":
       // Started outside the deck and still running there: the board's own
       // tool and argument are still true, only the place is different.
+      // What it does there is the board's too (#97): a reply that is done
+      // reads "waiting elsewhere", not as a session that cannot be reached.
       if (phase.target.kind === "C" && board && board.state !== "ended") {
         const { tool, arg } = board;
-        return { state: "elsewhere", phrase: t("board.stage.phrase.elsewhere"), ...(tool ? { tool } : {}), ...(arg ? { arg } : {}) };
+        return { state: "elsewhere", phrase: t(elsewherePhrase(board.state)), ...(tool ? { tool } : {}), ...(arg ? { arg } : {}) };
       }
       return board ?? { state: "ended", phrase: t("board.stage.phrase.ended") };
     case "ended":
@@ -318,6 +320,26 @@ export function launchedUnreachable(target: TerminalTarget, place: { windows?: b
  *  deck's own sentence. */
 export function provenanceUnknown(target: TerminalTarget, place: { windows?: boolean; launched?: boolean }): boolean {
   return target.kind === "C" && place.windows === true && !launchedUnreachable(target, place) && target.provenance === "unknown";
+}
+
+/** The card's paragraph for a session still running in a terminal outside the
+ *  deck, by what the board says it is doing there (#97). Done with its reply,
+ *  it is waiting, not ended; each says how to bring it here — quit it there,
+ *  and the stage, which keeps looking, offers Reopen here. */
+export function elsewhereLine(state: StageState | null | undefined): string {
+  switch (state) {
+    case "idle": case "ready": return "board.stage.elsewhere.idle";
+    case "waiting": return "board.stage.elsewhere.waiting";
+    case "working": return "board.stage.elsewhere.working";
+    default: return "board.stage.elsewhere.running";
+  }
+}
+
+/** The header's words for the same session. */
+export function elsewherePhrase(state: StageState): string {
+  if (state === "working") return "board.stage.phrase.workingElsewhere";
+  if (state === "idle" || state === "ready" || state === "waiting") return "board.stage.phrase.waitingElsewhere";
+  return "board.stage.phrase.elsewhere";
 }
 
 /** The sentence for arriving at `phase`, or null when there is nothing new to

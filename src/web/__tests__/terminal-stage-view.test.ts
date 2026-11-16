@@ -19,7 +19,7 @@ import { withoutComments } from "./tsx-scan";
 import { sheetText } from "./sheet-source";
 import TerminalStage, { endView, stageName, subjectOf, type StageShow, type TerminalStageProps } from "../components/terminal/TerminalStage";
 import StageHeader, { BACK_EMPTY_LABEL_MSG, BACK_LABEL_MSG, CLOSE_EMPTY_LABEL_MSG, CLOSE_LABEL_MSG, FULL_LABEL_MSG, FULL_LEAVE_LABEL_MSG, type StageHeaderProps } from "../components/terminal/StageHeader";
-import StageBody, { EMPTY_NEW_SESSION_ID, STILL_RUNNING_NOTE_MSG, StateCard, downloadNote, setupLine, setupShare, tmuxFact, type StageBodyProps } from "../components/terminal/StageBody";
+import StageBody, { EMPTY_NEW_SESSION_ID, StateCard, downloadNote, setupLine, setupShare, tmuxFact, type StageBodyProps } from "../components/terminal/StageBody";
 import EngineCard from "../components/terminal/EngineCard";
 import { en } from "../i18n/en";
 import KeysBar, { ArrivalNote, AsksTrack, type KeysBarProps } from "../components/terminal/KeysBar";
@@ -33,7 +33,6 @@ import { subjectKey } from "../use-terminal-session";
 // still compares them with the sentence as it was written.
 const BACK_EMPTY_LABEL = en[BACK_EMPTY_LABEL_MSG], BACK_LABEL = en[BACK_LABEL_MSG], CLOSE_EMPTY_LABEL = en[CLOSE_EMPTY_LABEL_MSG];
 const CLOSE_LABEL = en[CLOSE_LABEL_MSG], FULL_LABEL = en[FULL_LABEL_MSG], FULL_LEAVE_LABEL = en[FULL_LEAVE_LABEL_MSG];
-const STILL_RUNNING_NOTE = en[STILL_RUNNING_NOTE_MSG];
 const LAUNCHED_UNREACHABLE = en[LAUNCHED_UNREACHABLE_MSG], PROVENANCE_UNKNOWN = en[PROVENANCE_UNKNOWN_MSG];
 
 const html = (el: ReactElement) => renderToStaticMarkup(el);
@@ -240,17 +239,50 @@ describe("the body's state cards, each at the terminal's origin", () => {
     expect(props.onNotNow).toHaveBeenCalled();
 
     const refused = html(createElement(StateCard, bodyProps({ kind: "not-attachable", target, stillRunning: true, busy: false })));
-    expect(refused).toContain(STILL_RUNNING_NOTE);
-    // CHANGED ON PURPOSE: one paragraph, not the case's label with a note
-    // stacked under it; and Check again is a Quiet button (only Reopen here and
-    // New session are Primary).
+    expect(refused).toContain(en["board.stage.elsewhere.running"]);
+    // One paragraph, not the case's label with a note stacked under it.
     expect(refused).not.toContain(target.label);
     expect(refused).not.toContain("ts-note");
     expect(refused).not.toContain("btn primary");
-    expect(refused).toContain("Check again");
-    expect(refused).not.toContain("Reopen here");
+    // CHANGED ON PURPOSE (#97): no Check again. The stage looks again on its
+    // own while the card is up, and a press could only ask the same question.
+    expect(refused).not.toContain("Check again");
+    const refusedTree = StateCard(bodyProps({ kind: "not-attachable", target, stillRunning: true, busy: false }));
+    // The sentence names Reopen here as what follows; no such button yet.
+    expect(button(refusedTree, "Reopen here")).toBeNull();
+    expect(button(refusedTree, "Not now")?.props["data-stage-land"]).toBe(true);
     expect(html(createElement(StateCard, bodyProps({ kind: "not-attachable", target: { ...target, adoptable: false }, stillRunning: false, busy: false }))))
       .not.toContain("Reopen here");
+  });
+
+  it("says what a session outside the deck is doing there and how to bring it here, by the board's state (#97)", () => {
+    const target = { kind: "C" as const, label: "This session was started outside the deck, so there is no pane to attach to.", adoptable: true };
+    const phase: StagePhase = { kind: "not-attachable", target, stillRunning: true, busy: false };
+    const said = (boardState: StageBodyProps["boardState"]) => html(createElement(StateCard, bodyProps(phase, { boardState })));
+    // The list says Done / your turn: the card agrees, and says it has not ended.
+    expect(said("idle")).toContain(en["board.stage.elsewhere.idle"]);
+    expect(en["board.stage.elsewhere.idle"]).toMatch(/^Its reply is done, but the session is still open: it is waiting for you in a terminal outside ccdeck\. /);
+    expect(said("ready")).toContain(en["board.stage.elsewhere.idle"]);
+    expect(said("waiting")).toContain(en["board.stage.elsewhere.waiting"]);
+    expect(said("working")).toContain(en["board.stage.elsewhere.working"]);
+    expect(said(null)).toContain(en["board.stage.elsewhere.running"]);
+    for (const key of ["idle", "waiting", "working", "running"]) {
+      // Every one says how: quit it there, and Reopen here follows on its own.
+      expect(en[`board.stage.elsewhere.${key}`]).toContain("To continue it here, quit it in that terminal. ccdeck sees that on its own and offers Reopen here, with the same conversation.");
+      expect(en[`board.stage.elsewhere.${key}`]).not.toMatch(/check again/i);
+    }
+    expect(said("idle")).toContain('role="status"');
+    expect(said("idle")).toContain("Refactor mailbox controller");
+  });
+
+  it("on Windows, a session the deck cannot reach keeps its own sentence even while it still runs (#97)", () => {
+    const target = { kind: "C" as const, label: "x", adoptable: true, provenance: "panel" as const };
+    const out = html(createElement(StateCard, bodyProps({ kind: "not-attachable", target, stillRunning: true, busy: false }, { windows: true, boardState: "idle" })));
+    expect(out).toContain(LAUNCHED_UNREACHABLE);
+    expect(out).not.toContain(en["board.stage.elsewhere.idle"]);
+    const unsure = html(createElement(StateCard, bodyProps({ kind: "not-attachable", target: { ...target, provenance: "unknown" }, stillRunning: true, busy: false }, { windows: true })));
+    expect(unsure).toContain(PROVENANCE_UNKNOWN);
+    expect(unsure).not.toContain("Reopen here");
   });
 
   it("on Windows, says a session this deck launched and cannot reach is its own launch, not ended, with no Reopen here", () => {

@@ -31,7 +31,7 @@ import { useEffect, useLayoutEffect, useRef, useState, type MutableRefObject } f
 import { copyText } from "../../copy-text";
 import { CAUGHT_KEYS_ATTR } from "../../shortcuts";
 import type { TmuxProgress } from "../../terminal-api";
-import { LAUNCHED_UNREACHABLE_MSG, PROVENANCE_UNKNOWN_MSG, agentName, errorWords, frameRun, launchedUnreachable, provenanceUnknown, type FrameRun, type StagePhase } from "./stage-model";
+import { LAUNCHED_UNREACHABLE_MSG, PROVENANCE_UNKNOWN_MSG, agentName, elsewhereLine, errorWords, frameRun, launchedUnreachable, provenanceUnknown, type FrameRun, type StagePhase, type StageState } from "./stage-model";
 import { CopyGlyph, StageGlyph } from "./stage-icons";
 import EngineCard, { engineCardCode } from "./EngineCard";
 import type { WaitingCard } from "./stage-board";
@@ -44,8 +44,6 @@ import { chatShown, ScreensSlot, useScreenFlags, type ScreensProps } from "../..
 /** The id the empty card's New session button carries, so the popover can
  *  hang off it. */
 export const EMPTY_NEW_SESSION_ID = "ts-empty-new-session";
-
-export const STILL_RUNNING_NOTE_MSG = "board.stage.stillRunning";
 
 /** What the board knows that helps a card say where the session is. */
 export interface StageContext {
@@ -68,6 +66,9 @@ export interface StageBodyProps {
   windows?: boolean;
   /** This deck launched the session on the stage (panel-launch.ts). */
   launched?: boolean;
+  /** What the board says the session is doing, for a card about a session
+   *  that runs somewhere the stage cannot reach (#97). */
+  boardState?: StageState | null;
   onAdopt(): void;
   /** "Not now": leave the stage, the session untouched. */
   onNotNow(): void;
@@ -230,21 +231,26 @@ export function StateCard(p: Omit<StageBodyProps, "hostRef"> & { held?: boolean;
       const ours = launchedUnreachable(target, p);
       const unsure = provenanceUnknown(target, p);
       const adoptable = target.adoptable && !ours && !unsure;
+      // Still running in a terminal outside the deck (#97): one paragraph says
+      // what it is doing there and how to bring it here. The stage keeps
+      // looking on its own (use-terminal-session's watch), so there is no
+      // button that could only ask the same question again. On Windows, a
+      // session the deck cannot reach keeps its own sentence.
+      const elsewhere = phase.stillRunning && !ours && !unsure;
+      const offer = adoptable && !phase.stillRunning;
       return (
         <div className="ts-card">
           {p.context?.prompt && <div className="ts-ctx"><span className="ts-prompt">❯ </span>{p.context.prompt}</div>}
-          {/* One paragraph: after a refused Reopen the deck says the session is
-              still running, and that sentence is the whole body. */}
-          {phase.stillRunning
-            ? <p className="ts-text" role="status">{t(STILL_RUNNING_NOTE_MSG)}</p>
+          {elsewhere
+            ? <p className="ts-text" role="status">{t(elsewhereLine(p.boardState))}</p>
             : <p className="ts-text">{ours ? t(LAUNCHED_UNREACHABLE_MSG) : unsure ? t(PROVENANCE_UNKNOWN_MSG) : target.label}</p>}
           <div className="ts-acts">
-            {adoptable && (
-              <button type="button" className={phase.stillRunning ? "btn" : "btn primary"} aria-busy={phase.busy || undefined} data-stage-land onClick={p.onAdopt}>
-                {phase.stillRunning ? t("board.stage.checkAgain") : t("board.stage.reopenHere")}
+            {offer && (
+              <button type="button" className="btn primary" aria-busy={phase.busy || undefined} data-stage-land onClick={p.onAdopt}>
+                {t("board.stage.reopenHere")}
               </button>
             )}
-            <button type="button" className="btn" data-stage-land={adoptable ? undefined : true} onClick={p.onNotNow}>{t("common.notNow")}</button>
+            <button type="button" className="btn" data-stage-land={offer ? undefined : true} onClick={p.onNotNow}>{t("common.notNow")}</button>
           </div>
         </div>
       );
