@@ -289,8 +289,22 @@ export interface AgentNodeData {
    *
    *  It is a description, not an address. It is rewritten as the session moves
    *  and two sessions may well share one, which is why it is shown NEXT TO the
-   *  session id rather than in place of it. */
+   *  session id rather than in place of it.
+   *
+   *  THE NAME DRAWN (internal #101): the reader's own from the deck,
+   *  `deckName`, when there is one, else the provider's, `providerSessionName`.
+   *  Every surface reads this field, so a name typed in the deck is the one the
+   *  list, the card, the header, the Inspector and quick open all say. */
   sessionName?: string;
+  /** The name the reader typed for this session in the deck — any provider,
+   *  Codex included — kept by the deck and never written to the provider's own
+   *  files (session-deck-names.mjs). Wins over the provider's name until the
+   *  reader clears it. */
+  deckName?: string;
+  /** The provider's own name for the session (/rename, `--name`, Claude
+   *  Code's slug), as the transcript last said it: what `sessionName` reads
+   *  when the deck has no name of its own, and what a cleared name gives back. */
+  providerSessionName?: string;
   /** The session's `ai-title` — a sentence, e.g. "Inspect repository to
    *  understand current state".
    *
@@ -713,6 +727,10 @@ export interface HookPayload {
    *  means the scan has nothing to say, never that the name was cleared. */
   sessionName?: string | null;
   sessionTitle?: string | null;
+  /** On `SessionNamed`, any provider: the name the reader typed in the deck,
+   *  or null once they cleared it (internal #101). Absent says nothing, so the
+   *  transcript's own naming never clears or replaces it. */
+  deckName?: string | null;
   /** Claude-only, on the synthetic `SessionRecapped`: Claude Code's recap as the
    *  transcript last showed it, or null once a later turn has retired it. */
   recap?: SessionRecap | null;

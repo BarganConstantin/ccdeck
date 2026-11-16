@@ -50,8 +50,10 @@
 import { contextFigure, contextFigureParts, contextPercent } from "../../context-figure";
 import type { TerminalProvider } from "../../terminal-api";
 import { agentName, type KeysOwner, type StageStatus } from "./stage-model";
-import { useState } from "react";
+import { type RefObject, useState } from "react";
 import AnchoredPopover from "../AnchoredPopover";
+import SessionNameField, { RenameGlyph } from "../SessionNameField";
+import type { RenameFacts } from "../../session-rename";
 import { t as tNow, useT } from "../../i18n";
 import { formatPercent } from "../../i18n/format";
 import { BackGlyph, CloseGlyph, CollapseGlyph, ExpandGlyph, KeyboardGlyph, StageGlyph, glyphForState } from "./stage-icons";
@@ -139,12 +141,27 @@ export const ZOOM_OFF_LABEL_MSG = "board.stage.zoomOffLabel";
 /** WORKSPACE: ✕ on a pane whose session is not running, or never started. */
 export const PANE_CLOSE_LABEL_MSG = "board.stage.paneCloseLabel";
 
+/** The header's renaming, held by the stage: the session's facts, whether
+ *  its field is open, and the pencil focus goes back to when it closes. */
+export interface StageRename {
+  facts: RenameFacts;
+  on: boolean;
+  start(): void;
+  done(saved: boolean): void;
+  back: RefObject<HTMLButtonElement>;
+}
+
 export interface StageHeaderProps {
   /** Changes with the session on stage, so its identity arrives afresh —
    *  from the left, out of the board — on every switch. */
   identity: string;
   /** The session's name, or the empty stage's title. */
   name: string;
+  /** A session the deck can name (internal #101): a pencil after the name, and
+   *  a double click on the name, open the field in its place. Left out, the
+   *  name is only drawn. The stage holds the renaming (useRenaming), so this
+   *  header calls no hook and stays drawable by calling it. */
+  rename?: StageRename | null;
   provider?: TerminalProvider | null;
   status: StageStatus;
   keysOwner: KeysOwner;
@@ -230,6 +247,10 @@ export default function StageHeader(p: StageHeaderProps) {
     : p.workspace === "pane" ? (p.nothingRunning ? PANE_CLOSE_LABEL_MSG : CLOSE_LABEL_MSG)
       : p.nothingRunning ? CLOSE_EMPTY_LABEL_MSG : CLOSE_LABEL_MSG);
   const backLabel = t(p.nothingRunning ? BACK_EMPTY_LABEL_MSG : BACK_LABEL_MSG);
+  // RENAMING (internal #101): the field takes the name's place for the session
+  // it opened on; a switch to another session closes it unsaved.
+  const renaming = p.rename ?? null;
+  const renameLabel = t("board.rename.action");
   return (
     <header className="ts-head">
       {p.takeover && (
@@ -239,7 +260,16 @@ export default function StageHeader(p: StageHeaderProps) {
       )}
       <div className="ts-id" key={p.identity}>
         {glyph && <StageGlyph kind={glyph} />}
-        <h2 className="ts-name">{p.name}</h2>
+        {renaming?.on
+          ? <SessionNameField facts={renaming.facts} place="header" onDone={renaming.done} />
+          : <h2 className="ts-name" data-renamable={renaming ? "" : undefined} onDoubleClick={renaming?.start}>{p.name}</h2>}
+        {/* The pencil: on a phone the ⋯ menu holds Rename instead. */}
+        {renaming && !renaming.on && (
+          <button ref={renaming.back} type="button" className="glyph-btn ts-rename"
+            aria-label={renameLabel} title={t("board.rename.tip")} onClick={renaming.start}>
+            <RenameGlyph />
+          </button>
+        )}
         {/* The provider, in words, where the model chip used to say it. */}
         {p.provider && <span className="vis-hidden">{agentName(p.provider)}</span>}
         {status.state !== "none" && (
@@ -277,6 +307,7 @@ export default function StageHeader(p: StageHeaderProps) {
       )}
       {p.takeover && (
         <PaneMore items={[
+          ...(renaming ? [{ id: "rename", label: renameLabel, run: renaming.start }] : []),
           ...(p.canType ? [{ id: "keys", label: keysLabel, run: p.onKeys }] : []),
           ...(p.canFull && p.workspace !== "empty" ? [{ id: "expand", label: expandLabel, run: p.onExpand }] : []),
           // The size is set once per screen, so it follows the actions used on every visit.

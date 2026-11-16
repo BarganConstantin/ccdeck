@@ -34,6 +34,7 @@ import { CloseGlyph, FoldBody, GroupHead, MoreLine, PlusGlyph, RailGlyph, RailRo
 /** The id the rail's Plus carries, so the new-session popover can hang off it. */
 export const RAIL_NEW_SESSION_ID = "rail-new-session";
 import { usageMeter } from "../rail-usage";
+import { renameFacts } from "../session-rename";
 import type { MeterQuota } from "../use-quota";
 
 export interface Row {
@@ -443,7 +444,9 @@ export default function SessionList({ state, now, selectedIds, onSelect, onClose
   const renderRow = (e: Entry): ReactNode => (
     <RailRow key={e.id} row={e.row} group={rank(e.row)} now={now} leaving={e.ghost}
       selected={selectedIds.has(e.id)} removed={removedIds?.has(e.id) ?? false}
-      landNonce={landing?.id === e.id ? landing.nonce : null} onSelect={press} onOpenKeys={e.ghost ? undefined : onOpenKeys} />
+      landNonce={landing?.id === e.id ? landing.nonce : null} onSelect={press} onOpenKeys={e.ghost ? undefined : onOpenKeys}
+      // Named in place (internal #101), from the session as the board has it.
+      rename={e.ghost ? null : renameFacts(state.agents.get(e.id))} />
   );
 
   const nodes: ReactNode[] = [];
