@@ -75,6 +75,8 @@ import { DialogPresence } from "../Dialog";
 import type { HostsApi } from "./older-hosts";
 import { useOlderHosts } from "./use-older-hosts";
 import type { WaitingCard } from "./stage-board";
+import type { RenameFacts } from "../../session-rename";
+import { useRenaming } from "../SessionNameField";
 
 /** The phases with no pane to type into, whose cards carry no keys bar. */
 const PANELESS: ReadonlySet<StagePhaseKind> = new Set<StagePhaseKind>([
@@ -172,6 +174,9 @@ export interface StageSessionInfo {
   launched?: boolean;
   /** How many prompts the board has for it: Chat reads its conversation again when this changes. */
   promptCount?: number;
+  /** What the header's Rename needs (session-rename.ts renameFacts), for a
+   *  session the board has; left out, the name is only drawn. */
+  rename?: RenameFacts | null;
 }
 
 /** What the stage is asked to show. */
@@ -424,6 +429,13 @@ export default function TerminalStage(p: TerminalStageProps) {
   };
   const chatCannotType = chatOn && p.show.kind === "session" && PANELESS.has(phase.kind);
 
+  // RENAMING (internal #101): held here rather than in the header, which is
+  // drawn by calling it; the facts are the session on stage, so a switch to
+  // another session closes an open field unsaved.
+  const renameFacts = p.show.kind === "session" ? p.show.session.rename ?? null : null;
+  const renameBack = useRef<HTMLButtonElement>(null);
+  const renaming = useRenaming(renameFacts?.sessionId, renameBack);
+
   // The keyboard's owner goes up so the deck's shortcuts know to step aside.
   const onKeysOwner = useRef(p.onKeysOwner);
   onKeysOwner.current = p.onKeysOwner;
@@ -563,6 +575,7 @@ export default function TerminalStage(p: TerminalStageProps) {
       <StageHeader
         identity={key}
         name={name}
+        rename={renameFacts ? { facts: renameFacts, on: renaming.on, start: renaming.start, done: renaming.done, back: renameBack } : null}
         provider={p.show.kind === "session" ? p.show.session.ref.provider : p.show.kind === "launch" ? p.show.agent : null}
         status={status}
         keysOwner={session.keysOwner}

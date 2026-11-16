@@ -216,9 +216,23 @@ export function applySessionNamed(state: GraphState, p: HookPayload, sessionId: 
   if (root) {
     const named = typeof p.sessionName === "string" ? p.sessionName.trim() : "";
     const titled = typeof p.sessionTitle === "string" ? p.sessionTitle.trim() : "";
-    if (named) root.sessionName = named;
+    // The reader's own name from the deck (internal #101): a string sets it,
+    // null clears it, and a payload without the field — every transcript
+    // pass — leaves it as it was. Whichever is set wins over the provider's.
+    const deck = "deckName" in p;
+    if (named) root.providerSessionName = named;
+    if (deck) {
+      const typed = typeof p.deckName === "string" ? p.deckName.trim() : "";
+      if (typed) root.deckName = typed; else delete root.deckName;
+    }
+    if (named || deck) {
+      const drawn = root.deckName ?? root.providerSessionName;
+      if (drawn) root.sessionName = drawn; else delete root.sessionName;
+    }
     if (titled) root.sessionTitle = titled;
-    const shown = root.sessionName ?? "";
+    // The title CC overwrites with the provider's slug: compared with that
+    // name, not the reader's, so clearing theirs brings the sentence back.
+    const shown = root.deckName ? (root.providerSessionName ?? "") : (root.sessionName ?? "");
     if (root.sessionTitle && shown
         && root.sessionTitle.toLowerCase() === shown.toLowerCase()) {
       root.sessionTitle = undefined;

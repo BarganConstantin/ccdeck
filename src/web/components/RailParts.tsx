@@ -14,6 +14,8 @@ import type { UsageMeter } from "../rail-usage";
 import { FadeFigure, useFillJump } from "./FadeFigure";
 import { LevelMark } from "./LevelMark";
 import { useT } from "../i18n";
+import SessionNameField, { useRenaming } from "./SessionNameField";
+import { isRenameKey, type RenameFacts } from "../session-rename";
 
 /** The 14px status glyph. Working breathes on --pulse-live and nothing else
  *  moves on its own; Waiting is the alert triangle and holds still, because
@@ -90,6 +92,10 @@ export interface RailRowProps {
    *  where a click leaves them on the list. Absent on the Board, where Enter
    *  is the button's own click. */
   onOpenKeys?: (sessionId: string) => void;
+  /** A session the deck can name (internal #101): a double click on the row,
+   *  or F2 on it, opens the field where its name is. Left out (a row on its
+   *  way out), the row only selects. */
+  rename?: RenameFacts | null;
 }
 
 /** WORKSPACE: a row's keydown. A bare Enter opens the session and takes the
@@ -109,7 +115,7 @@ export function openKeysOnEnter(
   };
 }
 
-export function RailRow({ row: r, group, now, selected, removed, leaving, landNonce, onSelect, onOpenKeys }: RailRowProps) {
+export function RailRow({ row: r, group, now, selected, removed, leaving, landNonce, onSelect, onOpenKeys, rename }: RailRowProps) {
   const t = useT();
   // What it waits on, Ready, or "folder · task" (rail-row-copy.ts railLine);
   // none, and the row is one line.
@@ -124,17 +130,40 @@ export function RailRow({ row: r, group, now, selected, removed, leaving, landNo
   // out its fade; a row drawn again later has no nonce and does not replay it.
   const [lit, setLit] = useState<number | null>(null);
   useEffect(() => { if (landNonce != null) setLit(landNonce); }, [landNonce]);
+  // RENAMING (internal #101): the field takes the row's place, its glyph kept,
+  // and the row comes back with the keyboard on it.
+  const rowRef = useRef<HTMLButtonElement>(null);
+  const renaming = useRenaming(rename?.sessionId, rowRef);
+  if (renaming.on && rename) {
+    return (
+      <li className="sl-row-item" data-rail-id={r.sessionId}>
+        <div className="sl-row-in">
+          <div className={`sl-row sl-row-edit${selected ? " selected" : ""}`}>
+            <RailGlyph kind={railGlyph(r, group)} />
+            <SessionNameField facts={rename} place="row" onDone={renaming.done} />
+          </div>
+        </div>
+      </li>
+    );
+  }
   return (
     <li className={`sl-row-item${leaving ? " leaving" : ""}`} data-rail-id={r.sessionId}
       ref={el => { if (el) el.inert = leaving; }}>
-      <div className="sl-row-in">
+      {/* F2 on the row, caught here as it bubbles: the row's own keydown is
+          the Workspace's Enter (openKeysOnEnter). */}
+      <div className="sl-row-in" onKeyDown={rename ? e => {
+        if (e.target === rowRef.current && isRenameKey(e)) { e.preventDefault(); renaming.start(); }
+      } : undefined}>
         <button
+          ref={rowRef}
           type="button"
           className={`sl-row${selected ? " selected" : ""}${removed ? " removed" : ""}`}
           aria-current={selected ? "true" : undefined}
+          aria-keyshortcuts={rename ? "F2" : undefined}
           data-session={r.sessionId}
           data-one-line={!lined || undefined}
           onClick={() => onSelect(r.sessionId)}
+          onDoubleClick={rename ? renaming.start : undefined}
           onKeyDown={openKeysOnEnter(r.sessionId, onOpenKeys)}
           title={rowTooltip(r, removed)}
         >

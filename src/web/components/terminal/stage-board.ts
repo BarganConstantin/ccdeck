@@ -23,6 +23,7 @@ import { contextFill } from "../../context-figure";
 import { faceSignal } from "../../node-face";
 import { shortAgo } from "../../relative-time";
 import { sessionHue } from "../../session-hue";
+import { renameFacts } from "../../session-rename";
 import type { StageTarget } from "../../stage-shell";
 import type { AgentNodeData } from "../../types";
 import type { AsksView as RunView } from "../../use-asks";
@@ -181,6 +182,8 @@ export function stageShowFor(
       // A launch of this panel's, which the board keeps for the session's life
       // (panel-launch.ts), or the one the stage has just moved off.
       ...(root.panelLaunch != null || target.launch ? { launched: true } : {}),
+      // The header's Rename, for the session as the board knows it (#101).
+      rename: renameFacts(root),
     },
     ...launch,
   };

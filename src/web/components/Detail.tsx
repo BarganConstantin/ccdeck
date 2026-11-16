@@ -3,7 +3,9 @@
 // Moved out of App.tsx, where it sat after `Inner` as a module-level component
 // with the row it draws for each tool call. App.tsx mounts it beside the canvas
 // while an agent is selected and the panel is open.
-import React, { useState } from "react";
+import React, { useRef, useState } from "react";
+import SessionNameField, { RenameGlyph, useRenaming } from "./SessionNameField";
+import { renameFacts } from "../session-rename";
 import { agentKindLabel, categoryLabel } from "../agent-copy";
 import { cardState } from "../node-face";
 import { useLanguage, useT } from "../i18n";
@@ -32,6 +34,37 @@ import { agentCost, otherModelIds } from "../usage-models";
 import { withKey } from "../single-key-shortcuts";
 // Continue, for a turn that stopped on a login or a usage limit (#2193).
 import { StopContinueSection } from "./StopContinue";
+
+/** The title, with the Rename beside it for a session the deck can name
+ *  (internal #101). Its own component, holding the renaming, because Detail
+ *  calls no hook: the field takes the title's place, and a selection that
+ *  moves to another session closes it unsaved. */
+function HeroTitle({ agent, now }: { agent: AgentNodeData; now: number }) {
+  const t = useT();
+  const back = useRef<HTMLButtonElement>(null);
+  const rename = renameFacts(agent);
+  const renaming = useRenaming(rename?.sessionId, back);
+  return (
+    <>
+      {/* A session by the title every surface names it by (sessionNames);
+          its folder, when it started and its id's tail in the hover. */}
+      {renaming.on && rename
+        ? <SessionNameField facts={rename} place="hero" onDone={renaming.done} />
+        : (
+          <h2 className="hero-title" data-renamable={rename ? "" : undefined} onDoubleClick={rename ? renaming.start : undefined}
+            title={agent.kind === "root" ? [agent.cwd ?? agent.label, startedHover(agent.startedAt, agent.sessionId, undefined, now, t)].join("\n") : agent.cwd ?? agent.label}>
+            {agent.kind === "root" ? sessionNames(agent).title : agent.label}
+          </h2>
+        )}
+      {rename && !renaming.on && (
+        <button ref={back} type="button" className="glyph-btn hero-rename"
+          aria-label={t("board.rename.action")} title={t("board.rename.tip")} onClick={renaming.start}>
+          <RenameGlyph />
+        </button>
+      )}
+    </>
+  );
+}
 
 export default function Detail({
   agent,
@@ -93,9 +126,7 @@ export default function Detail({
           </span>
           {/* A session by the title every surface names it by (sessionNames);
               its folder, when it started and its id's tail in the hover. */}
-          <h2 className="hero-title" title={agent.kind === "root" ? [agent.cwd ?? agent.label, startedHover(agent.startedAt, agent.sessionId, undefined, now, t)].join("\n") : agent.cwd ?? agent.label}>
-            {agent.kind === "root" ? sessionNames(agent).title : agent.label}
-          </h2>
+          <HeroTitle agent={agent} now={now} />
         </div>
         <div className="hero-meta">
           {/* The card's word for it, not the reducer's (#833): "root" is

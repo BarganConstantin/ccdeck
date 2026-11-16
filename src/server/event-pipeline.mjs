@@ -44,7 +44,7 @@ import { outputWatch, touchSession } from "./session-tracking.mjs";
 import { usageDay } from "./usage-day.mjs";
 // What the deck learns about a session that its hooks never say, read off the
 // transcript and sent back through pushEvent — see session-enrichment.mjs.
-import { knownModelId, maybeResolveContext, maybeResolveModel, maybeResolveSessionName, maybeResolveUsage } from "./session-enrichment.mjs";
+import { knownModelId, maybeAnnounceDeckName, maybeResolveContext, maybeResolveModel, maybeResolveSessionName, maybeResolveUsage } from "./session-enrichment.mjs";
 // The Codex half: a session's rollout, found by id — see codex-enrichment.mjs.
 import { maybeResolveCodex } from "./codex-enrichment.mjs";
 // The gate pushEvent asks before a transcript path is followed — see
@@ -266,6 +266,13 @@ export function pushEvent(raw, source, opts = {}) {
   // replay of a log spanning weeks would otherwise churn the whole LRU through
   // dead session ids before the first live event even arrives.
   if (!opts.replay && raw && typeof raw === "object") touchSession(raw.session_id);
+
+  // A session the reader named in the deck is told its name once per run, on
+  // the first live word from it (internal #101, session-enrichment.mjs). Its
+  // own traffic only: a hook, or the rollout watcher's line.
+  if (!opts.replay && (source === "hook" || source === "codex") && raw && typeof raw === "object") {
+    maybeAnnounceDeckName(raw, source === "codex" || raw.provider === "codex" ? "codex" : "claude");
+  }
 
   // Kick off async transcript scans. Model and usage are both re-read
   // periodically (throttled to 2.5s per session) so the cost columns track
