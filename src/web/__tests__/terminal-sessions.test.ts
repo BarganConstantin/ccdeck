@@ -205,7 +205,7 @@ describe("the tmux command that makes a deck session", () => {
       "set-option", "-g", "default-terminal", "screen-256color",
       ";", "set-option", "-g", "history-limit", "10000",
       ";", "new-session", "-d", "-s", "ccdeck-claude-0123abcd", "-x", "100", "-y", "30",
-      "-c", "/w/a##{x} b\\;", "-e", "COLORTERM=truecolor", "-e", "CLAUDE_CODE_NONBLOCKING_STDOUT=1", "-e", "CLAUDE_CODE_SCROLL_SPEED=3", "-P", "-F", "#{pane_id}",
+      "-c", "/w/a##{x} b\\;", "-e", "COLORTERM=truecolor", "-e", "CLAUDE_CODE_NONBLOCKING_STDOUT=1", "-e", "CLAUDE_CODE_TMUX_TRUECOLOR=1", "-e", "CLAUDE_CODE_SCROLL_SPEED=3", "-P", "-F", "#{pane_id}",
       "--", "/bin/claude", "--session-id", ID,
       ";", "set-option", "-t", at, "@ccdeck-session", ID,
       ";", "set-option", "-t", at, "@ccdeck-agent", "claude",
@@ -216,10 +216,24 @@ describe("the tmux command that makes a deck session", () => {
     ]);
   });
 
-  it("gives Claude, and only Claude, the non-blocking stdout and the wheel speed its docs name", () => {
+  it("gives Claude, and only Claude, the non-blocking stdout, the 24-bit colour and the wheel speed its docs name", () => {
     const codex = launchCommand({ name: "ccdeck-codex-0123abcd", cwd: "/w", cols: 80, rows: 24, argv: ["/bin/codex"], agent: "codex", kind: "launch" });
     expect(codex).not.toContain("CLAUDE_CODE_NONBLOCKING_STDOUT=1");
+    expect(codex).not.toContain("CLAUDE_CODE_TMUX_TRUECOLOR=1");
     expect(codex).not.toContain("CLAUDE_CODE_SCROLL_SPEED=3");
+    expect(codex).toContain("COLORTERM=truecolor");
+  });
+
+  it("lifts Claude's 256-colour clamp inside the pane, before the agent's argv (internal #98)", () => {
+    // Claude Code clamps to 256 colours whenever $TMUX is set unless this is
+    // set; clamped, its orange came out as the palette's slot 174 (deep rust
+    // on a light theme). The variable is an environment entry of new-session,
+    // so it has to sit before "--" and the argv.
+    const args = launchCommand({ name: "ccdeck-claude-0123abcd", cwd: "/w", cols: 80, rows: 24, argv: ["/bin/claude"], agent: "claude", kind: "launch" });
+    const flag = args.indexOf("CLAUDE_CODE_TMUX_TRUECOLOR=1");
+    expect(flag).toBeGreaterThan(args.indexOf("new-session"));
+    expect(args[flag - 1]).toBe("-e");
+    expect(flag).toBeLessThan(args.indexOf("--"));
   });
 
   it("gives every pane a 256-colour terminal type and a native terminal's history, ahead of the pane", () => {

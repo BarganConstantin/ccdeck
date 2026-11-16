@@ -47,7 +47,8 @@
 // jobs (bright black is the "dim" colour most CLIs print secondary text in).
 //
 // THE 256-COLOUR SLOTS CLAUDE CODE PAINTS WITH ARE TOKENS TOO (v1's map, the
-// graft the stage's design takes from it). Claude Code draws nearly everything outside
+// graft the stage's design takes from it). Claude Code clamps itself to 256
+// colours under tmux, and clamped it draws nearly everything outside
 // the sixteen: prose in 231, secondary text in 246, finished tools in 114, its
 // salmon spinner in 174/180/216, a Monokai-like syntax set in
 // 197/81/148/186/141/208, rules in 244, the permission box in 147, the user's
@@ -70,11 +71,22 @@
 //           still clears 4.5:1. It is not a new colour so much as a known
 //           alpha of two measured ones.
 //
+// A deck-launched Claude is no longer clamped (CLAUDE_CODE_TMUX_TRUECOLOR,
+// terminal-sessions.mjs, internal #98): it draws its own /theme's 24-bit
+// colours, so this map now serves Claude in a tmux the deck did not start, and
+// every other TUI that paints in the 256 palette. Clamped, Claude's brand
+// orange (215,119,87) became slot 174 and its block-drawn mascot came out in
+// --usage-orange, deep rust on the light themes; unclamped it is drawn as
+// written, because xterm keeps box-drawing and block glyphs out of the
+// contrast rule below.
+//
 // Slots no map entry names stay at xterm's own values (an empty entry in
 // extendedAnsi is xterm's default for that slot), and minimumContrastRatio is
-// what keeps them readable: Claude Code also paints in 24-bit colour chosen by
+// what keeps them readable: Claude Code paints in 24-bit colour chosen by
 // its own /theme, so a session set to a dark theme draws light-on-light inside
-// the deck's light theme unless xterm lifts it.
+// the deck's light theme unless xterm lifts it. Its "auto" theme follows the
+// deck instead: tmux answers OSC 11 from the pane's window-style and, from 3.6,
+// tells the pane when the deck's theme changes it (CSI ? 997 ; n).
 //
 // Only a type is imported from xterm. This module is cheap and DOM-free, and it
 // must not be what pulls xterm into the chunk every visit loads.
