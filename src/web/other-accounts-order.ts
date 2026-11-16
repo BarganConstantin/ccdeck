@@ -1,161 +1,83 @@
 // How the accounts behind the fold are ordered and which of them are open
-// (#1579).
+// (#1579, internal #94).
 //
 // With nine or more accounts in Other accounts the list was hard to compare:
 // it stood in slot order (1, 5, 8, 9, 10, …), which says nothing about which
-// account is nearly spent or which has room, and each row had to be opened on
-// its own to show its bars — and every one of them shut again when the panel
-// was closed, because the set of open rows lived in the panel's state.
+// account can take over now. #1579 answered with a menu of orders — slot,
+// room, fullest or emptiest by each window — and the owner then asked for the
+// one answer instead of the menu (internal #94): the accounts that can be used
+// now on top, the ones that cannot below them, and no sort control at all.
 //
 // Three rules live here, as functions the suite can call without a DOM:
 //
-//   - the ORDER: slot, or how full each account is by one window — 5h, 7d or
-//     a model's — fullest first (what is about to run out) or emptiest first
-//     (where to switch next), or by room, the tightest window's headroom —
-//     the fold's peek's own measure of where to go;
+//   - the ORDER: by availability — usable now, then not read yet, then
+//     waiting on a window or a rate limit, then the week spent, then the
+//     accounts no switch can reach — and slot order inside each group;
 //   - which rows are OPEN, as a mode and its exceptions, so "expand all" is a
 //     fact that holds for an account that arrives later rather than a list of
 //     whoever was there when it was pressed;
 //   - the HOLD: while the pointer or the keyboard is in the list, a poll that
-//     moves the numbers does not move the rows under them.
+//     moves an account to another group does not move the rows under them.
 //
-// What is remembered between reloads — the order and the open rows — is
-// accounts-prefs.ts's.
+// What is remembered between reloads — the open rows — is accounts-prefs.ts's.
 import type { Account, Lane } from "./claude-accounts";
-import { t as tNow, type TFunction } from "./i18n";
 import { laneKey, toggleLane, type LaneOwner } from "./lane-open";
-import { headroomAt, lapsed } from "./lane-view";
+import { lapsed } from "./lane-view";
 
 // ── the order ───────────────────────────────────────────────────────────────
 
-/** One entry in the order menu. `id` is what is stored; `label` is what the
- *  menu lists, and what its closed control shows. */
-export interface OrderChoice {
-  id: string;
-  label: string;
-}
-
-export const SLOT_ORDER = "slot";
-
-/** The windows every account has, by the lane ids the server sends. */
-const WINDOWS: { lane: string; name: string }[] = [
-  { lane: "five_hour", name: "5h" },
-  { lane: "seven_day", name: "7d" },
-];
-
-/** A model lane's name, which is the label the server gives it ("Opus"). */
+/** A model's own lane ("Opus"), which the server sends with a scoped- id. */
 const isModelLane = (l: Lane) => l.id.startsWith("scoped-");
 
-/** The name an order calls a lane by: "5h", "7d", or the model's label. */
-export function laneName(l: Lane): string {
-  return WINDOWS.find(w => w.lane === l.id)?.name ?? l.label;
+/**
+ * WHERE AN ACCOUNT STANDS FOR A SWITCH NOW (internal #94). Lower is nearer
+ * the top of the list:
+ *
+ *   0  USABLE: a switch reaches it, nothing limits it, and every window it
+ *      has was read, is still running and is under 100%;
+ *   1  NOT READ YET: a switch reaches it, but a window has no reading or has
+ *      reset since it was read. It may well have room; nothing says so yet,
+ *      and a list that put it on top on no evidence would be wrong half the
+ *      time. A fresh reading moves it up;
+ *   2  WAITING: rate limited, or a window short of the week is full. It
+ *      clears by itself, within hours;
+ *   3  WEEK SPENT: its 7-day window is full, whatever the 5-hour one says —
+ *      the first of the issue's checks;
+ *   4  OUT OF REACH: held out of rotation, or a login only a sign-in brings
+ *      back. Its row withholds Switch.
+ *
+ * A model's own window (Opus) is left out: a full one stops that model, not
+ * the account. `reachable` is account-fold.ts's rule and `rateLimited` the
+ * row's own issue, so the list and the row never disagree about either.
+ */
+export type Availability = 0 | 1 | 2 | 3 | 4;
+
+export function availability(
+  a: Account, { reachable, rateLimited }: { reachable: boolean; rateLimited: boolean }, nowSec: number,
+): Availability {
+  if (!reachable) return 4;
+  const lanes = (a.lanes ?? []).filter(l => !isModelLane(l) && Number.isFinite(l.pct));
+  const running = lanes.filter(l => !lapsed(l, nowSec));
+  if (running.some(l => l.id === "seven_day" && l.pct >= 100)) return 3;
+  if (rateLimited || running.some(l => l.pct >= 100)) return 2;
+  if (lanes.length === 0 || running.length < lanes.length) return 1;
+  return 0;
 }
 
 /**
- * What an order sorts by, for the rows to mark: a window's name, "room" for
- * the tightest window of each account, or null for slot order. A sorted list
- * that did not say what it was sorted by left the reader to work it out from
- * numbers at ragged positions in every row.
+ * The accounts in availability order. Stable: inside a group the roster's own
+ * order (claude-swap's slots, Codex's order of adding) holds, so a poll that
+ * changes a number moves nothing until it changes a group — the issue's
+ * "no unstable reshuffling among equivalent accounts".
  */
-export function orderKey(order: string): string | null {
-  if (order === "room") return "room";
-  const m = /^(.+):(full|empty)$/.exec(order);
-  return m ? m[1] : null;
-}
-
-/**
- * Every order the menu offers for these accounts: slot, then fullest and
- * emptiest by 5h and by 7d, then the same for each model window any of them
- * has — after slot and room, which are the two orders a reader looking for
- * where to go next reaches for first. The direction is part of each choice
- * ("5-hour · fullest first"), so the menu is the only control the order needs.
- * The two fixed windows are named in words; a model's by its label.
- *
- * The model entries come from the accounts in the list, so a store with no
- * Opus lane is not offered an Opus order that would sort nothing. The ids are
- * what is stored, and they have not changed.
- */
-export function orderChoices(accounts: readonly Account[], t: TFunction = tNow): OrderChoice[] {
-  const models = [...new Set(accounts.flatMap(a => (a.lanes ?? []).filter(isModelLane).map(l => l.label)))]
-    .sort((x, y) => x.localeCompare(y));
-  const windows = [
-    ...WINDOWS.map(w => ({ id: w.name, said: t(`accounts.win.${w.lane}`) })),
-    ...models.map(m => ({ id: m, said: m })),
-  ];
-  return [
-    { id: SLOT_ORDER, label: t("accounts.order.slot") },
-    { id: "room", label: t("accounts.order.room") },
-    ...windows.flatMap(w => [
-      { id: `${w.id}:full`, label: t("accounts.order.full", { window: w.said }) },
-      { id: `${w.id}:empty`, label: t("accounts.order.empty", { window: w.said }) },
-    ]),
-  ];
-}
-
-/** An account's reading of one window, or null when it has none — which a
- *  window that has reset since it was read is, at `nowSec`: its number is the
- *  old window's (lane-view.ts's lapsed). */
-function windowPct(a: Account, name: string, nowSec?: number): number | null {
-  const fixed = WINDOWS.find(w => w.name === name);
-  const lane = (a.lanes ?? []).find(l => (fixed ? l.id === fixed.lane : isModelLane(l) && l.label === name));
-  if (lane && nowSec != null && lapsed(lane, nowSec)) return null;
-  return lane && Number.isFinite(lane.pct) ? lane.pct : null;
-}
-
-/**
- * The accounts in the chosen order. Stable, and slot order is the tiebreak,
- * so two accounts at the same reading keep the order they always had.
- *
- * AN ACCOUNT WITH NO READING GOES LAST, in either direction. It is not empty
- * and it is not full — nothing has been collected for it — and sorting it as
- * a zero would put an unread account at the top of "emptiest first", which is
- * the list of where to switch next.
- *
- * AND THE TWO ORDERS THAT ANSWER "WHERE NEXT" PUT THE ACCOUNTS NOBODY CAN
- * SWITCH TO AFTER THE ONES THEY CAN. Emptiest first and most room are read as
- * a queue, and an account held out of rotation, or one whose login no switch
- * can get past, at the top of that queue is a row with no Switch on it where
- * the next hop should be — the fold's own peek already ranks them that way.
- * Fullest first is a list of what is about to run out, and every account is
- * part of that answer. `reachable` is account-fold.ts's.
- *
- * An order this build does not offer, or one for a model no account has any
- * more, is slot order: the stored choice is whatever was in the store.
- *
- * `nowSec` is the panel's clock: a window that has reset since it was read is
- * unread by it, and room is measured against the windows still running. Left
- * out, the readings are taken as they came.
- */
-export function sortAccounts<T extends Account>(
-  accounts: readonly T[], order: string, reachable: (a: T) => boolean = () => true, nowSec?: number,
+export function byAvailability<T extends Account>(
+  accounts: readonly T[],
+  standing: (a: T) => { reachable: boolean; rateLimited: boolean },
+  nowSec: number,
 ): T[] {
-  // "Slot" is the roster's own order — claude-swap's sequence, which the live
-  // row above is drawn in too — and it is every other order's tiebreak.
-  const bySlot = [...accounts];
-  const reachableFirst = (sorted: T[]) => [...sorted.filter(reachable), ...sorted.filter(a => !reachable(a))];
-  if (order === "room") {
-    const room = (a: T) => (nowSec == null ? a.headroom : headroomAt(a, nowSec));
-    return reachableFirst(rank(bySlot, a => { const r = room(a); return Number.isFinite(r) ? r : null; }, "desc"));
-  }
-  const m = /^(.+):(full|empty)$/.exec(order);
-  if (!m) return bySlot;
-  const [, name, dir] = m;
-  if (!bySlot.some(a => windowPct(a, name, nowSec) != null)) return bySlot;
-  const ranked = rank(bySlot, a => windowPct(a, name, nowSec), dir === "full" ? "desc" : "asc");
-  return dir === "empty" ? reachableFirst(ranked) : ranked;
-}
-
-function rank<T>(items: T[], value: (x: T) => number | null, dir: "asc" | "desc"): T[] {
-  const read = items.filter(x => value(x) != null);
-  const unread = items.filter(x => value(x) == null);
-  // Array.prototype.sort is stable, so equal readings keep their slot order.
-  read.sort((x, y) => (dir === "desc" ? value(y)! - value(x)! : value(x)! - value(y)!));
-  return [...read, ...unread];
-}
-
-/** A stored order, or slot when it is not one of these accounts' choices. */
-export function validOrder(order: string | null | undefined, accounts: readonly Account[]): string {
-  return orderChoices(accounts).some(c => c.id === order) ? (order as string) : SLOT_ORDER;
+  const ranked = accounts.map((a, i) => ({ a, i, g: availability(a, standing(a), nowSec) }));
+  ranked.sort((x, y) => x.g - y.g || x.i - y.i);
+  return ranked.map(r => r.a);
 }
 
 // ── the hold ────────────────────────────────────────────────────────────────

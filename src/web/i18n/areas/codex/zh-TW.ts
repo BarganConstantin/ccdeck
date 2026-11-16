@@ -41,7 +41,6 @@ const catalog: Catalog = {
   "codex.lane.limit": "額度",
   "codex.peer.account": "帳號 {n}",
   "codex.peer.heldOut": "已排除",
-  "codex.order.added": "已加入順序",
 
   // What can be wrong with an account (codexIssue)
   "codex.issue.notSignedIn": "尚未登入",

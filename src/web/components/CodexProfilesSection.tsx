@@ -11,9 +11,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { codexLanAccounts, type SharedMark } from "../account-lan";
 import type { LanAccount } from "../lan-types";
-import { NONE_OPEN, allOpen, isOpen, orderChoices, orderKey, SLOT_ORDER, sortAccounts, toggleAll, toggleOne, validOrder, type Openness } from "../other-accounts-order";
+import { NONE_OPEN, allOpen, byAvailability, isOpen, toggleAll, toggleOne, type Openness } from "../other-accounts-order";
 import { laneKey, toggleLane } from "../lane-open";
-import { loadOrder, saveOrder } from "../accounts-prefs";
 import { sentence } from "../account-issue";
 import { isAutoArmed, pastThreshold } from "../account-fold";
 import { codexHomeTitle } from "../auto-choice";
@@ -45,8 +44,6 @@ import AutoSwitchPolicy from "./AutoSwitchPolicy";
 import OtherAccounts from "./OtherAccounts";
 import CodexShareDialog from "./CodexShareDialog";
 
-/** Keeps this column's order and open rows apart from Claude's. */
-const SCOPE = ".codex";
 /** A login that moved during a read answers again after the server's one-minute
  *  floor at the latest, so a few tries are enough and nothing runs for ever. */
 const RETRY_MS = 15_000;
@@ -139,10 +136,7 @@ export default function CodexProfilesSection({ onClose, switcher, onNotice, away
   /** The default account's own press, apart from "Expand all", which speaks for
    *  the accounts behind the fold. */
   const [liveOpen, setLiveOpen] = useState<string[]>([]);
-  const [order, setOrder] = useState<string>(() => loadOrder(SCOPE));
   const [auto, setAuto] = useState<AutoStatus | null>(null);
-
-  useEffect(() => { saveOrder(order, SCOPE); }, [order]);
 
   /** Put focus back when a press took the control it was on: a switch replaces
    *  the row's button with the live dot. Only when it really fell. */
@@ -316,11 +310,13 @@ export default function CodexProfilesSection({ onClose, switcher, onNotice, away
   useEffect(() => { if (rosterRead) onNotice?.(needsAttention); }, [onNotice, needsAttention, rosterRead]);
   const others = rows.filter(row => row !== head);
   const otherAccounts = others.map(row => row.account);
-  const choices = orderChoices(otherAccounts).map(choice => choice.id === SLOT_ORDER ? { ...choice, label: t("codex.order.added") } : choice);
-  const shownOrder = validOrder(order, otherAccounts);
-  const rest = sortAccounts(otherAccounts, shownOrder,
-    a => { const row = others.find(r => r.account === a); return !a.disabled && !row?.issue?.blocksSwitch; }, nowSec)
-    .map(a => others.find(row => row.account === a) as Row);
+  // Usable accounts first, the order of adding inside each group — the Claude
+  // column's rule (internal #94, other-accounts-order.ts byAvailability), with
+  // this column's own issue saying whether a switch reaches the account.
+  const rest = byAvailability(otherAccounts, a => {
+    const row = others.find(r => r.account === a);
+    return { reachable: !a.disabled && !row?.issue?.blocksSwitch, rateLimited: row?.issue?.kind === "rate" };
+  }, nowSec).map(a => others.find(row => row.account === a) as Row);
   const rowOf = (id: string | undefined) => rows.find(row => row.profile.id === id);
   const rowBoundary = (id: string) => restOpen && rest.some(row => row.profile.id === id) ? "ap-codex-rest-list" : "ap-codex-scroll";
 
@@ -478,8 +474,7 @@ export default function CodexProfilesSection({ onClose, switcher, onNotice, away
         onSignIn={() => signIn(profile)}
         switchedHere={liveSelection?.state !== 'failed' && (switched?.id === profile.id || (liveSelection?.state === 'waiting' && liveSelection.requestedProfileId === profile.id)
           || (['manual_required', 'waiting'].includes(liveSelection?.continuation ?? '') && profile.active === true))} swapped={null} displaced={undefined}
-        issueExpanded={issueOpen?.anchor === `ap-codex-issue-${a.num}`} onOpenIssue={(_, anchor) => openIssue(profile.id, anchor)}
-        sortKey={a.active ? null : orderKey(shownOrder)} />
+        issueExpanded={issueOpen?.anchor === `ap-codex-issue-${a.num}`} onOpenIssue={(_, anchor) => openIssue(profile.id, anchor)} />
     );
   };
 
@@ -590,9 +585,6 @@ export default function CodexProfilesSection({ onClose, switcher, onNotice, away
                   threshold={auto?.ok ? threshold : null}
                   open={restOpen}
                   onToggle={() => setRestOpen(open => !open)}
-                  order={shownOrder}
-                  choices={choices}
-                  onOrder={setOrder}
                   allOpen={allOpen(openness, rest.map(row => row.account))}
                   onToggleAll={() => setOpenness(o => toggleAll(o, rest.map(row => row.account)))}
                 />

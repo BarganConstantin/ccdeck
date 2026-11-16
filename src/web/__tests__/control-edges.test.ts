@@ -749,14 +749,10 @@ const CONTROLS: Control[] = [
   { at: ".ap-lan-who .ap-manage-btn:hover:not(:disabled)",
     fillFrom: ".ap-lan-who .ap-manage-btn:hover:not(:disabled)",
     states: [".ap-lan-who .ap-manage-btn:focus-visible"], beds: ACCOUNTS },
-  // The Other accounts list's two controls (#1579), on the same terms: no
-  // boundary at rest — the order is its words and the other is named — and the
-  // edge they draw under the pointer and the keyboard measured on the column.
-  // CHANGED ON PURPOSE (V4's Figma): the order is a menu button now, not a
-  // select. It draws no boundary at rest, under the pointer or with its menu
-  // open — a fill answers those — and the one edge it does draw, the dashed
-  // one while the list is held, is measured on the column.
-  { at: ".ap-rest-sort[data-held]", beds: ACCOUNTS },
+  // The Other accounts list's expand-all (#1579), on the same terms: no
+  // boundary at rest — it is named — and the edge it draws under the pointer
+  // and the keyboard measured on the column. CHANGED ON PURPOSE (internal
+  // #94): the order menu beside it, and its dashed held edge, are gone.
   { at: ".ap-rest-all:hover", fillFrom: ".ap-rest-all:hover",
     states: [".ap-rest-all:focus-visible"], beds: ACCOUNTS },
   // The network map's way in, over Local network's row, on the same terms as

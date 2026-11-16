@@ -41,7 +41,6 @@ const catalog: Catalog = {
   "codex.lane.limit": "limite",
   "codex.peer.account": "conta {n}",
   "codex.peer.heldOut": "fora do rodízio",
-  "codex.order.added": "Ordem de adição",
 
   // What can be wrong with an account (codexIssue)
   "codex.issue.notSignedIn": "Sem login",

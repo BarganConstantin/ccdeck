@@ -40,7 +40,6 @@ const catalog: Catalog = {
   "codex.lane.limit": "한도",
   "codex.peer.account": "계정 {n}",
   "codex.peer.heldOut": "제외됨",
-  "codex.order.added": "추가 순서",
 
   "codex.issue.notSignedIn": "로그인 안 됨",
   "codex.issue.notSignedIn.hint": "이 계정에는 아직 Codex 로그인이 없어서 읽을 것도, 전환할 곳도 없습니다.",

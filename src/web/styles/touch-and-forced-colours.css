@@ -316,9 +316,6 @@
   .canvas-wrap[data-lod="detail"] .recap-note:hover,
   .canvas-wrap[data-lod] .recap-note:hover > .lod-face.recap-face { outline: 1px solid CanvasText; outline-offset: 2px; }
   }
-  /* The order's glyphs take the button's own system colour rather than the
-     --muted they rest in, which a contrast theme does not repaint (#1579). */
-  .ap-rest-sort-glyph, .ap-rest-sort-chev { color: ButtonText; }
   /* The count keeps its bubble, so the digits stay a badge on the corner
      rather than a stray number over the button's edge. */
   .rail-badge { forced-color-adjust: none; background: CanvasText; color: Canvas; }

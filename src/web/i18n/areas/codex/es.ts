@@ -40,7 +40,6 @@ const catalog: Catalog = {
   "codex.lane.limit": "límite",
   "codex.peer.account": "cuenta {n}",
   "codex.peer.heldOut": "excluida",
-  "codex.order.added": "Orden añadido",
 
   "codex.issue.notSignedIn": "Sin iniciar sesión",
   "codex.issue.notSignedIn.hint": "Esta cuenta aún no tiene inicio de sesión de Codex, así que no hay nada que leer ni a qué cambiar.",
