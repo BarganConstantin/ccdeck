@@ -70,6 +70,10 @@ export interface StageShortcuts {
    *  opens until a row is pressed (the 160ms flip is the Board's). "board", or
    *  left out, is the navigator and its flip. */
   mode?: "board" | "rail";
+  /** WORKSPACE with panes side by side (internal #102): 1 to 4 put the keys in
+   *  that pane, left to right then top to bottom. False when there is no such
+   *  pane, and the digit goes on as before. */
+  focusPaneAt?: (n: number) => boolean;
 }
 
 /** Board or Workspace, as the chord that switches them reaches it. Null, or
@@ -502,6 +506,14 @@ export function useDeckShortcuts({
       // line, which pauses on the first press only and still cancels every
       // repeat, or the page behind the canvas scrolls.
       if (e.repeat && !/^[ jkJK]$/.test(e.key)) return;
+      // 1 to 4: the keys to that pane of a split Workspace (internal #102).
+      // Only from here, the deck's own keys: a pane's terminal never reaches
+      // this handler, so a digit typed into an agent stays the agent's.
+      if (/^[1-4]$/.test(e.key) && !e.ctrlKey && !e.metaKey && !e.altKey
+        && stageRef?.current?.open && stageRef.current.focusPaneAt?.(Number(e.key))) {
+        e.preventDefault();
+        return;
+      }
       if (e.key === " ") { e.preventDefault(); if (!e.repeat) togglePause(); }
       if (e.key === "c" || e.key === "C") requestClear("shortcut");
       if (e.key === "r" || e.key === "R") handleRelayout();

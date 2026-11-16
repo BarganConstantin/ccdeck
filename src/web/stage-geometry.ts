@@ -342,3 +342,14 @@ export function loadStageCols(read: (key: string) => string | null = readStored)
 export function saveStageCols(cols: number, write: (key: string, value: string) => void = writeStored): void {
   if (Number.isInteger(cols) && cols > 0) write(STAGE_COLS_KEY, String(cols));
 }
+
+/** WORKSPACE SPLIT (internal #102): the least a pane is drawn at, in pixels —
+ *  `cols` columns after the pane's inset and the scrollbar's lane, `rows`
+ *  rows between its header and its keys bar, as fillGeometry fits them. */
+export function paneMinSize(cols: number, rows: number, cell: Cell, headH: number, barH: number): { w: number; h: number } {
+  const cw = finite(cell.w, ASSUMED_CELL.w), ch = finite(cell.h, ASSUMED_CELL.h);
+  return {
+    w: Math.ceil(cols * cw + WS_INSET_LEFT + INSET_RIGHT),
+    h: Math.ceil(rows * ch + Math.max(HEAD_H_MIN, headH) + Math.max(BAR_H, barH) + ROW_SLACK),
+  };
+}

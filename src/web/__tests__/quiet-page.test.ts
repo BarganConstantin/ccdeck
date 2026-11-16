@@ -54,8 +54,18 @@ describe("the page while the pane has the keys", () => {
   });
 
   it("is asked by the stage only while the pane has the keys, and undone when it gives them back", () => {
-    const stage = readFileSync(fileURLToPath(new URL("../components/terminal/TerminalStage.tsx", import.meta.url)), "utf8");
-    expect(stage).toMatch(/if \(session\.keysOwner !== "pane"\) return;\n\s+quietPage\(true\);[\s\S]*?return \(\) => \{ clearInterval\(again\); quietPage\(false\); \};/);
+    // CHANGED ON PURPOSE (internal #102): each stage says whether its pane has
+    // the keys through pane-keys.ts, which quiets the page when the first pane
+    // takes them, looks again every QUIET_RESCAN_MS, and undoes it when the
+    // last gives them back, so the pane the keys left cannot wake the page
+    // while the pane they went to types (pane-keys.test.ts runs it).
+    const read = (path: string) => readFileSync(fileURLToPath(new URL(path, import.meta.url)), "utf8");
+    const stage = read("../components/terminal/TerminalStage.tsx");
+    expect(stage).toMatch(/useEffect\(\(\) => \{ paneHoldsKeys\(keysToken\.current, session\.keysOwner === "pane"\); \}, \[session\.keysOwner\]\);/);
+    expect(stage).toMatch(/return \(\) => paneHoldsKeys\(me, false\);/);
+    const panes = read("../pane-keys.ts");
+    expect(panes).toMatch(/if \(now && !before\) \{[\s\S]*?deps\.quiet\(true\);\n\s+stopRescan = deps\.every\(\(\) => deps\.quiet\(true\), QUIET_RESCAN_MS\);/);
+    expect(panes).toMatch(/\} else if \(!now && before\) \{\n\s+stopRescan\?\.\(\);\n\s+stopRescan = null;\n\s+deps\.quiet\(false\);/);
   });
 
   it("stops xterm's scrollbar fade, spelled past xterm's own rule, which loads after the deck's sheet", () => {

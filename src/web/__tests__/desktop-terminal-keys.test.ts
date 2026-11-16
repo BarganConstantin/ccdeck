@@ -35,9 +35,18 @@ describe("the bridge", () => {
   });
 
   it("is told by the stage whenever the pane's keys change hands, and given back when the stage goes", () => {
+    // CHANGED ON PURPOSE (internal #102): with panes side by side each stage
+    // says it through pane-keys.ts, which tells the app once for all of them:
+    // held while any pane holds the keys, so the pane they left cannot hand
+    // the menu's shortcuts back while the pane they went to types. With one
+    // pane it tells the app what the stage itself used to (pane-keys.test.ts).
     const stage = web("components/terminal/TerminalStage.tsx");
-    expect(stage).toMatch(/useEffect\(\(\) => \{ tellDesktopKeys\(session\.keysOwner === "pane"\); \}, \[session\.keysOwner\]\);/);
-    expect(stage).toMatch(/useEffect\(\(\) => \(\) => tellDesktopKeys\(false\), \[\]\);/);
+    expect(stage).toMatch(/useEffect\(\(\) => \{ paneHoldsKeys\(keysToken\.current, session\.keysOwner === "pane"\); \}, \[session\.keysOwner\]\);/);
+    expect(stage).toMatch(/useEffect\(\(\) => \{ const me = keysToken\.current; return \(\) => paneHoldsKeys\(me, false\); \}, \[\]\);/);
+    const panes = web("pane-keys.ts");
+    expect(panes).toContain('import { tellDesktopKeys } from "./desktop-keys";');
+    expect(panes).toMatch(/tell: tellDesktopKeys,/);
+    expect(panes).toMatch(/const now = holders\.size > 0;\n\s+deps\.tell\(now\);/);
   });
 });
 

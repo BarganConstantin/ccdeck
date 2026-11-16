@@ -528,6 +528,10 @@ const PRESSES: Press[] = [
   // A history chart's peak figure, which keeps that minute's reading under the
   // chart: a number and its word, a labelled control, so 0.97.
   [".hist-peak:active", "0.97", "transform"],
+  // CHANGED ON PURPOSE (internal #102): the strip over a filled or too narrow
+  // split Workspace — a pane's tab and Show all — labelled controls, 0.97.
+  [".wsp-tab:active", "0.97", "transform"],
+  [".wsp-all:active", "0.97", "transform"],
 ];
 
 /** What the press declaration has to read, given the property carrying it. */

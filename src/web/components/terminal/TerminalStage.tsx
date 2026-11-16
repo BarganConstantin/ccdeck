@@ -25,7 +25,7 @@
 // [data-terminal-panel], which only the terminal's own host carries
 // (StageBody) — the header and the keys bar are where focus lands when the
 // keys go back to the board, and from there j, k and n are the board's.
-import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type RefObject } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type DragEvent, type RefObject } from "react";
 import type { LaunchOptions, SessionRef, TerminalProvider } from "../../terminal-api";
 import { terminalTheme } from "../../terminal-palette";
 import { releaseChordLabel } from "../../terminal-keys";
@@ -56,8 +56,7 @@ import StageHeader from "./StageHeader";
 import StageBody, { catchKeys, type StageContext } from "./StageBody";
 import type { HeldKeys } from "../../type-ahead";
 import { useFocusRequest, type FocusRequest } from "./use-focus-request";
-import { tellDesktopKeys } from "../../desktop-keys";
-import { QUIET_RESCAN_MS, quietPage } from "../../quiet-page";
+import { paneHoldsKeys } from "../../pane-keys";
 import { guardLeaving } from "../../leave-guard";
 import { isKeptKeysNotice, keptKeysNotice } from "../../tab-keys";
 import { useFullStage } from "./use-full-stage";
@@ -251,10 +250,26 @@ export interface TerminalStageProps {
    *  named in the pane with a button to open it. Null, or left out, is the
    *  "nothing is waiting" card. Read only where the geometry fills the cell. */
   waiting?: WaitingCard | null;
+  /** WORKSPACE with panes side by side (internal #102): this pane's place in
+   *  the split. Only the `primary` pane, the one with the keys, wears the
+   *  Workspace pane's id. ⤢ fills the Workspace with this pane (`max`) rather
+   *  than the screen, and the header drags the pane to another place. Left
+   *  out: the one stage, as before. */
+  split?: StageSplit | null;
   /** The suite's seam into the session. The integrator passes nothing. */
   sessionDeps?: Partial<SessionDeps>;
   /** The suite's seam into the older hosts' routes. */
   hostsApi?: HostsApi;
+}
+
+/** A pane of a split Workspace (internal #102). */
+export interface StageSplit {
+  primary: boolean;
+  /** This pane fills the Workspace, the others named in the strip. */
+  max: boolean;
+  onMax(): void;
+  /** A drag from the header: the pane goes where it is dropped. */
+  onDragHead?(e: DragEvent<HTMLElement>): void;
 }
 
 /** The subject the session hook is handed for what the stage shows. */
@@ -441,17 +456,13 @@ export default function TerminalStage(p: TerminalStageProps) {
   onKeysOwner.current = p.onKeysOwner;
   useEffect(() => { onKeysOwner.current?.(session.keysOwner); }, [session.keysOwner]);
   // And to the desktop app, whose menu would otherwise take Ctrl+R, Ctrl+C and
-  // the rest from the pane; given back when the stage goes.
-  useEffect(() => { tellDesktopKeys(session.keysOwner === "pane"); }, [session.keysOwner]);
-  useEffect(() => () => tellDesktopKeys(false), []);
-  // And the rest of the page holds still while they do (quiet-page.ts): its
-  // endless animations kept every echo waiting a frame.
-  useEffect(() => {
-    if (session.keysOwner !== "pane") return;
-    quietPage(true);
-    const again = setInterval(() => quietPage(true), QUIET_RESCAN_MS);
-    return () => { clearInterval(again); quietPage(false); };
-  }, [session.keysOwner]);
+  // the rest from the pane; given back when the stage goes. The rest of the
+  // page holds still while they do (quiet-page.ts). Said for every pane at
+  // once (pane-keys.ts): the pane the keys leave does not undo the pane they
+  // went to.
+  const keysToken = useRef({});
+  useEffect(() => { paneHoldsKeys(keysToken.current, session.keysOwner === "pane"); }, [session.keysOwner]);
+  useEffect(() => { const me = keysToken.current; return () => paneHoldsKeys(me, false); }, []);
 
   // ⤢: full screen too, where that is what hands the pane Ctrl+W (tab-keys.ts).
   const fullStage = useFullStage(p.expanded, p.onToggleExpand);
@@ -562,7 +573,7 @@ export default function TerminalStage(p: TerminalStageProps) {
       data-empty={p.show.kind === "empty" || undefined}
       data-live={live || undefined}
       data-takeover={p.geometry.takeover || undefined}
-      id={workspace ? WORKSPACE_PANE_ID : undefined}
+      id={workspace && (p.split?.primary ?? true) ? WORKSPACE_PANE_ID : undefined}
       tabIndex={workspace ? -1 : undefined}
       data-fill={workspace || undefined}
       data-held={held || undefined}
@@ -593,9 +604,11 @@ export default function TerminalStage(p: TerminalStageProps) {
         keysOwner={session.keysOwner}
         chordLabel={chordLabel}
         canType={typing}
-        expanded={p.expanded}
-        canFull={fullStage.can}
-        full={fullStage.full}
+        expanded={p.split ? p.split.max : p.expanded}
+        canFull={p.split ? false : fullStage.can}
+        full={p.split ? false : fullStage.full}
+        split={p.split != null}
+        onDragHead={p.split?.onDragHead}
         takeover={p.geometry.takeover}
         workspace={workspace ? (p.show.kind === "empty" ? "empty" : "pane") : undefined}
         context={p.show.kind === "session" ? p.show.session.contextUse : null}
@@ -609,7 +622,7 @@ export default function TerminalStage(p: TerminalStageProps) {
           if (session.keysOwner === "pane") { session.release(); p.onRelease?.(); }
           else intoPane();
         }}
-        onExpand={fullStage.toggle}
+        onExpand={p.split ? p.split.onMax : fullStage.toggle}
         onClose={p.onClose}
       />
       <StageBody

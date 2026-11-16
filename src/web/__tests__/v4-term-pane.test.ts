@@ -755,7 +755,9 @@ describe("the geometry follows the header as it is drawn", () => {
   });
 
   it("StageShell passes it on, and use-stage fits the geometry to it, from the density until it has said", () => {
-    expect(shellSrc).toContain("onHeadH={stage.onHeadH}");
+    // CHANGED ON PURPOSE (internal #102): only the pane with the keys measures
+    // for the stage; a pane beside it is sized from its own box.
+    expect(shellSrc).toContain("onHeadH={own ? stage.onHeadH : undefined}");
     expect(useStage).toContain("const [headH, setHeadH] = useState(paneHeadH);");
     expect(useStage).toContain("headHFor(typeof document === \"undefined\" ? undefined : document.documentElement?.dataset?.density)");
     expect(useStage).toContain("barH, headH })");

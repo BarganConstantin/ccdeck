@@ -105,7 +105,9 @@ describe("the skip link in Workspace (review 8)", () => {
 
   it("gives the pane's element the id and a negative tabIndex, only as the Workspace pane", () => {
     const ts = withoutComments(sourceOf("components/terminal/TerminalStage.tsx"));
-    expect(ts).toContain("id={workspace ? WORKSPACE_PANE_ID : undefined}");
+    // CHANGED ON PURPOSE (internal #102): with panes side by side, only the
+    // pane with the keys carries the id, so the skip link has one target.
+    expect(ts).toContain("id={workspace && (p.split?.primary ?? true) ? WORKSPACE_PANE_ID : undefined}");
     expect(ts).toContain("tabIndex={workspace ? -1 : undefined}");
   });
 });
