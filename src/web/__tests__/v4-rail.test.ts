@@ -70,7 +70,10 @@ describe("the column (Figma Sessions)", () => {
     const hook = code("../use-left-column.ts");
     expect(hook).toContain('getPropertyValue("--rail-w")');
     expect(hook).toMatch(/attributeFilter: \["data-density"\]/);
-    expect(code("../App.tsx")).toMatch(/leftColumnWidth\(leftPanel, railWidth\)/);
+    // CHANGED ON PURPOSE (internal #103): the list may be dragged wider or
+    // narrower; the column and the room right of it follow the list's width,
+    // which is the density's until the reader drags it (rail-width-103.test.ts).
+    expect(code("../App.tsx")).toMatch(/leftColumnWidth\(leftPanel, railWidth, listWidth\)/);
   });
 });
 

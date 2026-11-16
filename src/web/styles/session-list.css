@@ -587,3 +587,25 @@
 .sl-dot.state-done::before { content: "✓"; width: auto; height: auto; background: none; }
 .sl-dot.state-err { color: var(--err); }
 .sl-dot.state-err::before { content: "×"; width: auto; height: auto; background: none; }
+
+/* ── the edge (internal #103, RailEdge.tsx) ──────────────────────────────── */
+/* The list's right edge drags its width. It is the list's last 8 px, over the
+   rows, inside the column that clips it, so nothing of the board is under it.
+   At rest the column's border is the only line; hovered, held or focused, a
+   2 px accent line stands on it. The phone draws no edge: the list is the
+   screen's width there. */
+.session-list > .sl-edge {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  right: 0;
+  width: 8px;
+  z-index: 3;
+  cursor: col-resize;
+  touch-action: none;
+}
+.left-column[data-resizing] .sl-edge { box-shadow: inset -2px 0 0 var(--accent); }
+@media (hover: hover) and (pointer: fine) {
+  .session-list > .sl-edge:hover { box-shadow: inset -2px 0 0 var(--accent); }
+}
+.session-list > .sl-edge:focus-visible { outline: var(--focus-w) solid var(--accent); outline-offset: calc(-1 * var(--focus-w)); }

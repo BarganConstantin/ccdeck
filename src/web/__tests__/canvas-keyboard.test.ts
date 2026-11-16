@@ -403,10 +403,12 @@ describe("nothing else in the deck invents a focus stop", () => {
     // Workspace's side column has two window splitters: its left edge, whose
     // value is the column's width, and the split between Usage and This
     // machine, whose value is Usage's share; the arrow keys move each.
+    // CHANGED ON PURPOSE (internal #103): the Sessions list's right edge is the
+    // same widget, a window splitter whose value is the list's width.
     // Sorted, so the order is the paths' and not the file system's.
     expect([...offenders].sort()).toEqual([
       "components/CostTip.tsx", "components/ForgeHtml.tsx", "components/IntegrationSplit.tsx", "components/RadarSplitter.tsx", "components/RadioMap.tsx",
-      "components/RadioPanel.tsx", "components/ReleaseNotesModal.tsx", "components/SideColumn.tsx", "components/ToolAuditSplitter.tsx",
+      "components/RadioPanel.tsx", "components/RailEdge.tsx", "components/ReleaseNotesModal.tsx", "components/SideColumn.tsx", "components/ToolAuditSplitter.tsx",
       "components/chat/ChatView.tsx", "components/forge/DetailJobs.tsx", "jira-html.tsx",
     ]);
     const side = code(readFileSync(`${web}components/SideColumn.tsx`, "utf8"));

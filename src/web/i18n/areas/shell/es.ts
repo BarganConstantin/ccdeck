@@ -28,6 +28,8 @@ const catalog: Catalog = {
   "shell.side.splitHint": "Arrastra para repartir la altura · las flechas la mueven",
   "shell.side.width": "Ancho de la columna lateral",
   "shell.side.widthHint": "Arrastra para ensanchar o estrechar la columna · las flechas la mueven",
+  "shell.list.width": "Ancho de la lista de sesiones",
+  "shell.list.widthHint": "Arrastra para ensanchar o estrechar la lista · las flechas la mueven · doble clic la restablece",
   "shell.side.usageSum": "{amount} {period}",
   "shell.side.usageTokens": "{n} tokens {period}",
   "shell.side.machineSum": "CPU {cpu} % · {memory}",

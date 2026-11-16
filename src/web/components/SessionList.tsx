@@ -279,13 +279,18 @@ interface Props {
   /** The empty board's notice, on a phone, where this panel covers the canvas
    *  it would sit on: shown in place of the one-line empty state. */
   emptyNotice?: ReactNode;
+  /** The right edge that drags the list's width (RailEdge.tsx, internal
+   *  #103), drawn last, over the rows. The width itself is the column's
+   *  --list-w (LeftColumn). Absent on a phone, where the list is the
+   *  screen's width. */
+  edge?: ReactNode;
 }
 
 /** A row that has left the list, kept drawn until its fade and its closing space are done. */
 interface Ghost { row: Row; group: RailGroup; after: string | null; until: number }
 interface Entry { id: string; row: Row; ghost: boolean }
 
-export default function SessionList({ state, now, selectedIds, onSelect, onClose, removedIds, onBringBackAll, leaving = false, landed = null, watching, quota, activeAlias = null, onOpenUsage, onOpenKeys, onNewSession, offline = null, emptyNotice = null }: Props) {
+export default function SessionList({ state, now, selectedIds, onSelect, onClose, removedIds, onBringBackAll, leaving = false, landed = null, watching, quota, activeAlias = null, onOpenUsage, onOpenKeys, onNewSession, offline = null, emptyNotice = null, edge = null }: Props) {
   const t = useT();
   const singleKeys = useSingleKeyShortcuts();
   // `state.revision`, not `state.lastSeq`: the prop is `stateRef.current` and
@@ -553,6 +558,7 @@ export default function SessionList({ state, now, selectedIds, onSelect, onClose
           5-hour reading as the page last read it, aged against the board's
           clock. No reading, nothing drawn. */}
       {onOpenUsage && <RailUsage meter={usageMeter(quota, now, activeAlias)} onPress={onOpenUsage} />}
+      {edge}
     </aside>
   );
 }

@@ -28,6 +28,8 @@ const catalog: Catalog = {
   "shell.side.splitHint": "拖动以分配高度 · 方向键可移动",
   "shell.side.width": "侧栏宽度",
   "shell.side.widthHint": "拖动以加宽或收窄侧栏 · 方向键可移动",
+  "shell.list.width": "会话列表宽度",
+  "shell.list.widthHint": "拖动以加宽或收窄列表 · 方向键可移动 · 双击恢复默认",
   "shell.side.usageSum": "{amount} {period}",
   "shell.side.usageTokens": "{n} token {period}",
   "shell.side.machineSum": "CPU {cpu}% · {memory}",

@@ -943,6 +943,10 @@ describe("what counts as an edge, which BORDER_PROPS decides (#655)", () => {
       // distances, where the card's own is a hairline of layout units.
       ".react-flow__node:focus-visible .lod-face",
       ".react-flow__node:focus-visible:not(.rf-selected) .agent-node",
+      // CHANGED ON PURPOSE (internal #103): the Sessions list's right edge is a
+      // thin grab strip with no box of its own, as Workspace's .ws-edge is, so
+      // the keyboard ring drawn inside it is the whole of its boundary.
+      ".session-list > .sl-edge:focus-visible",
       // Settings' search results: the highlight the arrows move while focus
       // stays in the field — VIRTUAL_FOCUS again (SettingsSearch.tsx).
       '.settings-result[data-highlighted="true"]',

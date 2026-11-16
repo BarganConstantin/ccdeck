@@ -28,6 +28,8 @@ const catalog: Catalog = {
   "shell.side.splitHint": "Trage pentru a împărți înălțimea · tastele săgeți o mută",
   "shell.side.width": "Lățimea coloanei laterale",
   "shell.side.widthHint": "Trage pentru a lărgi sau îngusta coloana · tastele săgeți o mută",
+  "shell.list.width": "Lățimea listei de sesiuni",
+  "shell.list.widthHint": "Trage pentru a lărgi sau îngusta lista · tastele săgeți o mută · dublu clic o readuce",
   "shell.side.usageSum": "{amount} {period}",
   "shell.side.usageTokens": "{n} tokeni {period}",
   "shell.side.machineSum": "CPU {cpu}% · {memory}",

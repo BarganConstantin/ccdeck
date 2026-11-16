@@ -58,6 +58,15 @@
     transform var(--dur-move) var(--ease-stage),
     opacity var(--dur-base) var(--ease) var(--delay-step);
 }
+/* THE LIST'S OWN WIDTH (internal #103): the reader's, dragged at its right edge
+   and kept in the browser (rail-width.ts), or the density's when nothing is
+   kept. --list-w is set on the column (LeftColumn's listWidth) and the list
+   inherits it; a drag writes it as it moves (RailEdge.tsx). Unset (a phone),
+   the list is the rail token, as before. */
+.left-column > .session-list { width: var(--list-w, calc(var(--rail-w) + var(--ui-panel-increase, 0px))); }
+/* A drag moves the column with the pointer, not on its easing, and selects
+   nothing on the way. */
+.left-column[data-resizing] { transition: none; user-select: none; }
 /* How a panel arrives: alone, it came with the column and slides in with the
    edge; beside another, the column was already open and it fades in where it
    stands. */
