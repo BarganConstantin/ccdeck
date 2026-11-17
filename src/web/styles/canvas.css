@@ -11,8 +11,7 @@
 
 /* The drop target for the gesture in #1264, on the canvas rather than the
    viewport so it centres on the board whatever panels sit beside it, above
-   the auto-fit chip, which a drag always calls up and which is hidden for the
-   length of the drag. Raised clear of the 35px band where React Flow pans the
+   the canvas's notices row. Raised clear of the 35px band where React Flow pans the
    board under a dragged card, slop included (AUTO_PAN_EDGE_PX), so aiming at
    it never scrolls the board away. Calm while the card is far away, leaning in
    as the pointer approaches, and red only once a release would remove the
@@ -95,7 +94,6 @@
 /* The zone's own words turn --err over a card, and its bed turns a tenth toward
    --err with them, where --muted is 3.42:1 in dark (#1788). */
 .drag-trash-zone.over .drag-trash-hint { color: var(--text-secondary); }
-.canvas-wrap.dragging-any .autofit-chip { visibility: hidden; }
 .react-flow__node.dragging .agent-node {
   transition: border-color var(--dur-fast) var(--ease), transform var(--dur-fast) var(--ease),
     opacity var(--dur-fast) var(--ease);
@@ -124,53 +122,10 @@
   .react-flow__node.dragging .agent-node { transition: none; }
 }
 
-/* Fit all (#820), while auto-fit is off: one quiet button on the canvas, on
-   the surface and edge the canvas's other instruments wear (the control stack,
-   the minimap, the re-arrange strip). The canvas controls' recenter glyph in
-   --muted, then the word in the secondary ink; the pointer lifts both. It
-   used to be a status and an action ("Auto-fit off · Resume"), which named a
-   mechanism instead of what the press does. Centred by auto margins, and
-   pressed with `scale`, not `transform`: the notices row sets
-   `transform: none` on it. */
-.autofit-chip {
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 14px;
-  z-index: 6;
-  /* 24 tall, the control radius on --panel, a --line-soft edge, 6px between
-     the glyph and the word. Padding is 8 and 10 less the 1px edge. */
-  box-sizing: border-box;
-  height: 24px;
-  width: max-content;
-  margin: 0 auto;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 0 calc(10px - 1px) 0 calc(8px - 1px);
-  border: 1px solid var(--line-soft);
-  border-radius: var(--r-ctl);
-  background: var(--panel);
-  color: var(--text-secondary);
-  font: inherit;
-  font-size: calc(12px + var(--ui-text-increase, 0px));
-  line-height: calc(16px + var(--ui-text-increase, 0px));
-  white-space: nowrap;
-  cursor: pointer;
-  transition: background var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease), scale var(--dur-fast) var(--ease);
-}
-.autofit-chip svg { flex: none; color: var(--muted); }
-@media (hover: hover) and (pointer: fine) {
-.autofit-chip:hover { background: color-mix(in srgb, var(--text) 8%, var(--panel)); color: var(--text); }
-.autofit-chip:hover svg { color: var(--text); }
-}
-.autofit-chip:active { scale: var(--press); }
-
 /* Re-arrange's way back (rearrange-undo.ts): for a few seconds after R the
-   canvas offers the board it replaced. The auto-fit chip's strip, because it
-   is the same kind of thing — a state in words and the one action that
-   answers it — on the same surface, edge, radius and type, bottom centre.
-   Alongside the chip when both are up, inside the shared notices row. */
+   canvas offers the board it replaced: a state in words and the one action
+   that answers it, on the surface, edge, radius and type the canvas's other
+   instruments wear (the control stack, the minimap), inside the notices row. */
 .rearrange-undo {
   position: absolute;
   left: 0;
@@ -228,7 +183,6 @@
   gap: 8px;
   pointer-events: none;
 }
-.canvas-notices .autofit-chip,
 .canvas-notices .rearrange-undo {
   position: relative;
   left: auto;
@@ -238,7 +192,6 @@
   transform: none;
   pointer-events: auto;
 }
-.canvas-notices .autofit-chip { flex-shrink: 0; }
 .canvas-notices .rearrange-undo { min-width: 0; }
 .canvas-notices .rearrange-undo-act { flex-shrink: 0; }
 .canvas-notices .rearrange-undo-state { overflow: hidden; text-overflow: ellipsis; }

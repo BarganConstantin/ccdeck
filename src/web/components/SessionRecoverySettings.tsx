@@ -47,7 +47,9 @@ function usePrefSwitch(key: string, fallback: boolean, t: TFunction) {
 /** Bring back the sessions a restart interrupted, one row per provider: busy
  *  Claude sessions, unfinished Codex turns. The preference applies to the next
  *  server start; it never replays tools. Drawn in General's Sessions group
- *  (SessionsSection.tsx). */
+ *  (SessionsSection.tsx). The note is the whole of what the row says (V4
+ *  top-10 #10): its Details repeated it, with how the deck finds the sessions,
+ *  which is the deck's business and not a choice the reader makes. */
 export default function SessionRecoveryRow({ provider }: { provider: "Codex" | "Claude" }) {
   const key = provider === "Codex" ? "recoverCodexSessions" : "recoverClaudeSessions";
   const settingId = `${provider.toLowerCase()}-session-recovery`;
@@ -58,7 +60,7 @@ export default function SessionRecoveryRow({ provider }: { provider: "Codex" | "
     <SettingRow settingId={settingId}
       name={provider === "Codex" ? t("settings.recover.codexName") : t("settings.recover.claudeName")} nameId={nameId}
       note={provider === "Codex" ? t("settings.recover.codexNote") : t("settings.recover.claudeNote")} noteId={noteId}
-      details={provider === "Codex" ? t("settings.recover.codexDetails") : t("settings.recover.claudeDetails")} control={
+      control={
       <button type="button" className="switch" role="switch" aria-labelledby={nameId} aria-describedby={noteId} aria-checked={recover.enabled} {...selfPressProps(false, !recover.ready)} onClick={recover.change}><span className="switch-knob" /></button>
     } />
     {recover.error && <p role="alert">{recover.error}</p>}
@@ -67,7 +69,9 @@ export default function SessionRecoveryRow({ provider }: { provider: "Codex" | "
 
 /** Continue stopped background sessions by themselves (#2193): OFF until it is
  *  turned on, the server's default (deck-prefs.mjs `continueStopped`). Claude's,
- *  and last in the Sessions group, after Codex's row. */
+ *  and last in the Sessions group, after Codex's row. It keeps its Details: what
+ *  counts as stopped, and that it continues once per stop, are what the reader
+ *  weighs before turning it on, and the note has room for neither. */
 export function ContinueStoppedRow() {
   const t = useT();
   const pref = usePrefSwitch("continueStopped", false, t);

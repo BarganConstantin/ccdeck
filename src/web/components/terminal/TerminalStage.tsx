@@ -559,7 +559,6 @@ export default function TerminalStage(p: TerminalStageProps) {
   const hosts = useOlderHosts(p.windows === true, key, s => onAnnounce.current?.(s), p.hostsApi);
 
   const style = {
-    "--session-hue": p.show.kind === "session" ? p.show.session.hue : p.show.kind === "launch" ? p.show.hue : 200,
     "--ts-term-top": `${p.geometry.termTop}px`,
   } as CSSProperties;
 

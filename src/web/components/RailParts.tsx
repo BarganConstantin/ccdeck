@@ -262,17 +262,19 @@ export function RailUsage({ meter, onPress }: { meter: UsageMeter | null; onPres
   const line2 = second.flatMap((part, i) => (part ? [i > 0 && second[0] ? "·" : null, part] : [])).filter(Boolean);
   return (
     <div className="sl-usage">
-      <button type="button" className="sl-usage-btn" onClick={onPress} data-stale={meter.stale || undefined} data-level={meter.level} aria-label={meter.spoken}>
+      <button type="button" className="sl-usage-btn" onClick={onPress} data-stale={meter.stale || undefined} aria-label={meter.spoken}>
         <span className="sl-usage-line1" aria-hidden>
           {meter.name && <span className="sl-usage-name" title={meter.name}>{meter.name}</span>}
           <span className="sl-usage-what">{t("board.rail.fiveHour")}</span>
-          <LevelMark tone={meter.level === "high" ? "err" : null} word="high">
+          {/* The Usage panel's level, mark and word: "⚠ 86% · high" here as there. */}
+          <LevelMark tone={meter.level} word="high">
             <FadeFigure className="sl-usage-pct" text={meter.pctText} value={meter.fill} />
           </LevelMark>
         </span>
         <span className="sl-usage-bar" aria-hidden>
+          {/* Every part in the one fill colour: a split is shape, 2 apart. */}
           <span className="sl-usage-fill" data-jump={jump || undefined} style={{ width: `${meter.fill}%` }}>
-            {meter.segments.map(seg => <span key={seg.token} className="sl-usage-seg" style={{ flexGrow: seg.share, background: `var(${seg.token})` }} />)}
+            {meter.segments.map((seg, i) => <span key={i} className="sl-usage-seg" style={{ flexGrow: seg.share, background: meter.color }} />)}
           </span>
           <span className="sl-usage-track" />
         </span>

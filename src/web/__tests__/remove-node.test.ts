@@ -532,13 +532,21 @@ describe("where Remove lives and what follows it", () => {
     const detail = /function Detail\([\s\S]*?\n}\n/.exec(panel)?.[0] ?? "";
     expect(detail, "no Detail in components/Detail.tsx").not.toBe("");
     expect(panel).not.toMatch(/>\s*Remove node\s*</);
-    expect(detail).toMatch(/className="btn"\s+onClick=\{onRemove\}[\s\S]*?>\{t\("board\.detail\.remove"\)\}<\/button>/);
+    // CHANGED ON PURPOSE (V4 top-10 #6): a `.btn` at the foot of the body → an
+    // item of the title block's ⋯ menu (DetailActions), because Export and
+    // Remove were two of three equal buttons under the whole tool-call list.
+    // Detail still hands it onRemove; the item still runs it and says Remove.
+    expect(detail).toMatch(/<DetailActions\b[^>]*\bonRemove=\{onRemove\}/);
+    const actions = /function DetailActions\([\s\S]*?\n}\n/.exec(panel)?.[0] ?? "";
+    expect(actions, "no DetailActions in components/Detail.tsx").not.toBe("");
+    expect(actions).toMatch(/role="menuitem" className="ap-menu-item"[\s\S]*?onClick=\{\(\) => choose\(onRemove\)\}\s*>\{t\("board\.detail\.remove"\)\}<\/button>/);
     expect(app).toMatch(/<DetailAside\b[^>]*\bremoveSelectedNode=\{removeSelectedNode\}/);
     const aside = readFileSync(fileURLToPath(new URL("../components/DetailAside.tsx", import.meta.url)), "utf8");
     expect(aside).toMatch(/onRemove=\{removeSelectedNode\}/);
-    // Reversible from the session list, so not dressed as the one destructive .btn the sheet reserves
-    // red for.
+    // Reversible from the session list, so not dressed as the one destructive
+    // item the sheet reserves red for.
     expect(detail).not.toMatch(/btn danger[^"]*"\s+onClick=\{onRemove\}/);
+    expect(actions).not.toMatch(/ap-menu-item danger/);
   });
 
   it("is one key from a selection, since a plain click shuts the panel it lives in", () => {

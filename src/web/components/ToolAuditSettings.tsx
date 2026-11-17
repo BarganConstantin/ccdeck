@@ -6,7 +6,9 @@
 // row with its select on the right, the size is a row with its reading on the
 // right and Refresh beside it, and Clear is the last row, as a destructive
 // action goes last in every settings window this one follows. Shortening the
-// retention or clearing still asks first, in the row that asked.
+// retention or clearing still asks first, in the row that asked. Keep history
+// has no line under it (V4 top-10 #10): that older calls go is what keeping
+// them for N days means, and shortening it says so before it deletes.
 import { useEffect, useRef, useState } from 'react';
 import { auditBytes, auditDate, type AuditStorage } from '../tool-audit';
 import { SettingRow, SettingsGroup } from './SettingsParts';
@@ -50,7 +52,7 @@ export default function ToolAuditSettings() {
   </div>;
   return <SettingsGroup id="tool-history-settings-title" title={t('settings.tools.title')} note={t('settings.tools.note')} className="ta-settings">
     {storage ? <>
-      <SettingRow settingId="tool-history-retention" name={t('settings.tools.keep')} nameId="ta-keep-label" note={t('settings.tools.keepNote')} control={<SelectShell><select className="sm-select" aria-labelledby="ta-keep-label" value={storage.retentionDays} aria-busy={busy} onChange={e => {
+      <SettingRow settingId="tool-history-retention" name={t('settings.tools.keep')} nameId="ta-keep-label" control={<SelectShell><select className="sm-select" aria-labelledby="ta-keep-label" value={storage.retentionDays} aria-busy={busy} onChange={e => {
         if (busyRef.current) return;
         const days = Number(e.target.value) as 30 | 60 | 90;
         if (days < storage.retentionDays) setConfirm(days as 30 | 60); else void change('retention', days);

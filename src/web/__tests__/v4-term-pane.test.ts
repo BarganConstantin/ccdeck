@@ -17,7 +17,7 @@ import { fileURLToPath } from "node:url";
 
 import { all, one, textOf } from "./fake-react";
 import { withoutComments } from "./tsx-scan";
-import StageHeader, { CLOSE_LABEL_MSG, contextChipText, metaRest, type StageHeaderProps } from "../components/terminal/StageHeader";
+import StageHeader, { CLOSE_LABEL_MSG, contextChipText, metaRest, stateSentence, stateWord, type StageHeaderProps } from "../components/terminal/StageHeader";
 import { en } from "../i18n/en";
 
 // CHANGED ON PURPOSE (the UI in every language): the label is read through its key, and the English catalog holds the words.
@@ -130,27 +130,35 @@ describe("the Term header: one row", () => {
     expect(decl(name, "white-space")).toBe("nowrap");
   });
 
-  it("sets the sentence in mono 12/16 with a 6px gap: the state in its colour, the tool and argument --muted, one line", () => {
+  // CHANGED ON PURPOSE (V4 top-10 #7): mono 12/16 with the tool and its
+  // argument drawn after the state → one state word in sans 12/16, the rest of
+  // the sentence in its tooltip and for a screen reader, because the sentence
+  // took the room the session's name needed ("retention …" in a 545 pane).
+  it("sets the one state word in sans 12/16 with tabular figures, in its colour, and never shrinks it at a wide header", () => {
     const meta = rule(stage, ".ts-meta");
-    expect(decl(meta, "font")).toBe("400 12px/16px var(--font-mono)");
-    expect(decl(meta, "gap")).toBe("6px");
+    expect(decl(meta, "font")).toBeUndefined();
+    expect(meta).not.toContain("--font-mono");
+    expect(decl(meta, "font-size")).toBe("12px");
+    expect(decl(meta, "line-height")).toBe("16px");
+    expect(decl(meta, "flex")).toBe("none");
     expect(decl(meta, "color")).toBe("var(--muted)");
     expect(decl(meta, "white-space")).toBe("nowrap");
     expect(decl(rule(stage, ".ts-meta-state"), "color")).toBe("var(--text-secondary)");
+    expect(decl(rule(stage, ".ts-meta-state"), "font-variant-numeric")).toBe("tabular-nums");
     expect(decl(rule(stage, '.ts-meta[data-state="waiting"] .ts-meta-state'), "color")).toBe("var(--warn)");
-    expect(decl(rule(stage, ".ts-meta-rest"), "text-overflow")).toBe("ellipsis");
-    expect(decl(rule(stage, ".ts-meta-rest"), "overflow")).toBe("hidden");
-    // The words are the face's: the state part, then "· Bash · npm test …".
+    expect(stage).not.toContain(".ts-meta-rest");
     const out = html(createElement(StageHeader, headerProps()));
     // CHANGED ON PURPOSE: V4's Figma draws "waiting 6m" in one regular
     // weight, so the minutes are no longer in a <b>.
     expect(out).toContain('<span class="ts-meta-state">waiting 6m</span>');
     expect(out).not.toContain("<b>");
     expect(stage).not.toContain(".ts-meta-state b");
-    expect(out).toContain('<span class="ts-meta-rest">· Bash · npm test -- rate-limit</span>');
+    // The tool and its argument: the word's tooltip, and a reader hears them.
+    expect(out).toContain('<div class="ts-meta" data-state="waiting" title="waiting 6m · Bash · npm test -- rate-limit">');
+    expect(out).toContain('<span class="vis-hidden"> · Bash · npm test -- rate-limit</span>');
     expect(metaRest(working)).toBe("Task · 3 subagents running · 7m 38s");
     expect(metaRest({ state: "idle", phrase: "idle" }), "no tool, no rest of the sentence").toBeNull();
-    expect(html(createElement(StageHeader, headerProps({ status: { state: "idle", phrase: "idle" } })))).not.toContain("ts-meta-rest");
+    expect(html(createElement(StageHeader, headerProps({ status: { state: "ended", phrase: "ended" } })))).not.toContain("title=\"ended");
   });
 
   it("has no hue spine, no light travelling down one, and no model chip", () => {
@@ -166,7 +174,11 @@ describe("the Term header: one row", () => {
     expect(html(createElement(StageHeader, headerProps()))).toContain('<span class="vis-hidden">Claude Code</span>');
     expect(html(createElement(StageHeader, headerProps({ provider: "codex" })))).toContain('<span class="vis-hidden">Codex</span>');
     expect(agentName("claude")).toBe("Claude Code");
-    expect(html(createElement(StageHeader, headerProps({ provider: null })))).not.toContain("vis-hidden");
+    // CHANGED ON PURPOSE (V4 top-10 #7): `not.toContain("vis-hidden")` → no
+    // provider's name, because the header now also keeps the sentence's rest
+    // ("· Bash · npm test") in a vis-hidden span for a screen reader.
+    const none = html(createElement(StageHeader, headerProps({ provider: null })));
+    expect(none).not.toMatch(/<span class="vis-hidden">(Claude Code|Codex)<\/span>/);
   });
 
   it("draws no Chat/Term toggle and no Split: Chat is a later phase and a dead control is worse than none", () => {
@@ -196,22 +208,26 @@ describe("the context chip", () => {
   // Figma). It used to be pinned as not drawn, because nothing
   // handed the stage a figure; the tests below prove one is handed, from the
   // same place the Inspector's Context tab reads it.
-  it("says the figure at the row's end, before the controls, with a 4px bar of the same percent", () => {
+  // CHANGED ON PURPOSE (V4 top-10 #7): "129k / 200k · 65%" and a 4px bar → the
+  // cards' ring and "65%" beside it, the whole figure its tooltip and its name,
+  // because the figure and the bar took the room the session's name needed.
+  it("draws the ring and the percent at the row's end, before the controls, the whole figure its tooltip and name", () => {
     const out = html(createElement(StageHeader, headerProps({ context: { used: 129_000, window: 200_000 } })));
-    // CHANGED ON PURPOSE (critique 3): the percent has its own span, so a
-    // narrow header can set it aside for "65% context".
-    expect(out).toContain('<span class="ts-ctxchip" title="Context window"><span class="vis-hidden">Context </span><span class="ts-ctxlead">129k / 200k · </span><span class="ts-ctxpct">65%</span>');
-    expect(out).toContain('<span class="ts-ctxbar" aria-hidden="true"><i style="width:65%"></i></span>');
+    expect(out).toContain('<span class="ts-ctxchip" role="img" aria-label="129k / 200k · 65% context" title="129k / 200k · 65% context"><svg width="14" height="14"');
+    expect(out).toContain('<span class="ts-ctxpct">65%</span>');
+    expect(out).not.toMatch(/ts-ctxbar|ts-ctxlead/);
     expect(out.indexOf("ts-ctxchip")).toBeGreaterThan(out.indexOf('class="ts-meta"'));
     expect(out.indexOf("ts-ctxchip")).toBeLessThan(out.indexOf('class="ts-ctl"'));
     expect(out.indexOf("ts-ctxchip"), "before ⌨ ⤢ ✕").toBeLessThan(out.indexOf("glyph-btn"));
   });
 
-  it("says the window full past it, in the text and the bar: the Inspector's tab reads 100.0% there too", () => {
+  it("says the window full past it, in the name, the percent and the ring: the Inspector's tab reads 100.0% there too", () => {
     const out = html(createElement(StageHeader, headerProps({ context: { used: 300_000, window: 200_000 } })));
-    expect(out).toContain('<span class="ts-ctxlead">300k / 200k · </span><span class="ts-ctxpct">100%</span>');
+    expect(out).toContain('aria-label="300k / 200k · 100% context"');
+    expect(out).toContain('<span class="ts-ctxpct">100%</span>');
     expect(out).not.toContain("150%");
-    expect(out).toContain('<i style="width:100%"></i>');
+    // The ring is whole, in the ceiling's colour.
+    expect(out).toMatch(/stroke="var\(--err\)"[^>]*stroke-dasharray="31\.4\d* 0"/);
   });
 
   it("is not drawn when the figure is unknown or nothing is used", () => {
@@ -222,16 +238,20 @@ describe("the context chip", () => {
     expect(contextChipText({ used: 850, window: 0 }), "no window: the used part alone").toBe("850");
   });
 
-  it("is Mono Medium 11/14 --muted, 24 high at the control radius, over a --line track filled --text-secondary", () => {
+  // CHANGED ON PURPOSE (V4 top-10 #7): Mono Medium 11/14 over a 4px bar → sans
+  // 12/16 with tabular figures beside the ring, because figures are set in
+  // sans in the deck and the bar is gone for the ring.
+  it("is sans 12/16 --muted with tabular figures, 24 high at the control radius, the ring 4 before its percent", () => {
     const chip = rule(stage, ".ts-ctxchip");
-    expect(decl(chip, "font")).toBe("500 11px/14px var(--font-mono)");
+    expect(chip).not.toContain("--font-mono");
+    expect(decl(chip, "font-size")).toBe("12px");
+    expect(decl(chip, "line-height")).toBe("16px");
+    expect(decl(chip, "font-variant-numeric")).toBe("tabular-nums");
     expect(decl(chip, "color")).toBe("var(--muted)");
     expect(decl(chip, "height")).toBe("24px");
     expect(decl(chip, "border-radius")).toBe("var(--r-ctl)");
-    const bar = rule(stage, ".ts-ctxbar");
-    expect(decl(bar, "height")).toBe("4px");
-    expect(decl(bar, "background")).toBe("var(--line)");
-    expect(decl(rule(stage, ".ts-ctxbar i"), "background")).toBe("var(--text-secondary)");
+    expect(decl(chip, "gap")).toBe("4px");
+    expect(stage).not.toContain(".ts-ctxbar");
   });
 
   it("fades in on the morph's chip ramp, last of all, and not with the controls", () => {
@@ -263,12 +283,83 @@ describe("the context chip", () => {
   });
 });
 
+// V4 top-10 #7: in a 545 pane the header read "retention …  not attached
+// 170k / 1M · 17%" and a bar. The name has the room now, with at most one state
+// word, and the context is the cards' ring and its percent.
+describe("the name has the room, and one state word", () => {
+  const live: StagePhase = { kind: "live", sizeOwner: "board", readOnly: false } as unknown as StagePhase;
+  const board = (state: StageState, phrase: string, more: Partial<StageStatus> = {}): StageStatus => ({ state, phrase, ...more });
+
+  it("draws no state word while the pane is attached and the session works, waits at its prompt or is ready", () => {
+    for (const status of [
+      board("working", "working", { tool: "Bash", arg: "git push", seconds: "4s" }),
+      board("idle", "your turn", { arg: "last turn 4m" }),
+      board("ready", "ready", { arg: "first prompt" }),
+    ]) {
+      const shown = headerStatus(status, live);
+      expect(stateWord(shown), status.state).toBeNull();
+      const out = html(createElement(StageHeader, headerProps({ status: shown })));
+      expect(out, status.state).not.toContain("ts-meta");
+      // A screen reader still hears what the glyph shows.
+      expect(out).toContain(`<span class="vis-hidden">${stateSentence(shown)}</span>`);
+    }
+  });
+
+  it("says \"not attached\" when it is not, as the one word, in the state's ink", () => {
+    const shown = headerStatus(board("working", "working", { tool: "Bash" }), { kind: "tmux-missing", reason: "", busy: false });
+    expect(stateWord(shown)).toBe("not attached");
+    const out = html(createElement(StageHeader, headerProps({ status: shown })));
+    expect(out).toContain('<div class="ts-meta" data-state="detached"><span class="ts-meta-state">not attached</span></div>');
+    expect(out.match(/ts-meta-state/g)).toHaveLength(1);
+    // The other words a reader needs are each one word too.
+    expect(stateWord(waiting)).toBe("waiting 6m");
+    expect(stateWord(headerStatus(null, { kind: "attaching", reconnect: true }))).toBe("reconnecting…");
+    expect(stateWord(board("ended", "ended 14m ago"))).toBe("ended 14m ago");
+    expect(stateWord(board("elsewhere", "working elsewhere"))).toBe("working elsewhere");
+    expect(stateWord({ state: "none", phrase: "" })).toBeNull();
+  });
+
+  it("lets the name be the one thing in the row that shrinks: the word, the chip and the controls keep their size", () => {
+    expect(decl(rule(stage, ".ts-id"), "flex")).toBe("1 1 auto");
+    expect(decl(rule(stage, ".ts-name"), "min-width")).toBe("0");
+    expect(decl(rule(stage, ".ts-name"), "text-overflow")).toBe("ellipsis");
+    for (const sel of [".ts-meta", ".ts-ctxchip", ".ts-ctl"]) expect(decl(rule(stage, sel), "flex"), sel).toBe("none");
+  });
+
+  it("draws the context as the cards' ring and \"17%\", the whole figure its tooltip and its name", () => {
+    const tree = StageHeader(headerProps({ context: { used: 170_000, window: 1_000_000 } }));
+    const chip = one(tree, el => el.props.className === "ts-ctxchip")!;
+    expect(chip.props.role).toBe("img");
+    expect(chip.props["aria-label"]).toBe("170k / 1M · 17% context");
+    expect(chip.props.title).toBe("170k / 1M · 17% context");
+    expect(textOf(one(chip, el => el.props.className === "ts-ctxpct"))).toBe("17%");
+    // The ring is the donut's own drawing (ContextModal.tsx), not a copy.
+    const ring = one(chip, el => typeof el.type === "function")!;
+    expect((ring.type as { name: string }).name).toBe("ContextRing");
+    expect(ring.props.fill).toBeCloseTo(0.17);
+    const out = html(createElement(StageHeader, headerProps({ context: { used: 170_000, window: 1_000_000 } })));
+    expect(out).toMatch(/<span class="ts-ctxchip"[^>]*><svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true">/);
+    expect(out).not.toContain("ts-ctxbar");
+  });
+
+  it("says the used tokens alone, with no ring, when no window is known", () => {
+    const out = html(createElement(StageHeader, headerProps({ context: { used: 850, window: 0 } })));
+    expect(out).toContain('aria-label="850 context"');
+    expect(out).toContain('<span class="ts-ctxpct">850</span>');
+    expect(out).not.toMatch(/ts-ctxchip[^>]*><svg/);
+  });
+});
+
 describe("the reconnect sentence", () => {
   it("adds what the frozen frame cannot say to the header's phrase, and draws no card over the frame", () => {
     const status = headerStatus(null, { kind: "attaching", reconnect: true });
     expect(status).toMatchObject({ phrase: "reconnecting…", arg: "Nothing typed now is sent." });
     expect(metaRest(status)).toBe("Nothing typed now is sent.");
-    expect(html(createElement(StageHeader, headerProps({ status })))).toContain('<span class="ts-meta-rest">· Nothing typed now is sent.</span>');
+    // CHANGED ON PURPOSE (V4 top-10 #7): drawn after the word → the word's
+    // tooltip and a screen reader's, because the header draws one state word;
+    // the keys bar below says it to the eye (next case).
+    const out = html(createElement(StageHeader, headerProps({ status })));
+    expect(out).toContain('<div class="ts-meta" data-state="attaching" title="reconnecting… · Nothing typed now is sent."><span class="ts-meta-state">reconnecting…</span><span class="vis-hidden"> · Nothing typed now is sent.</span></div>');
     // V4's Figma card is noted, not built: the last frame stays.
     expect(html(createElement(StateCard, bodyProps({ kind: "attaching", reconnect: true })))).toBe("");
     expect(headerStatus(null, { kind: "attaching", reconnect: false })).toEqual({ state: "attaching", phrase: "attaching…" });
@@ -609,21 +700,21 @@ describe("the keys bar", () => {
   // CHANGED ON PURPOSE (critique 3, one meaning per glyph): a bare "17 %" on a
   // phone said nothing about what it was a percent of. The narrow header says
   // "17% context" in the language's number format, and drops the bar for it.
-  it("says its percent with its word, and no bar, in a header too narrow for the name", () => {
+  // CHANGED ON PURPOSE (V4 top-10 #7): the rule is kept, "17% context" and no
+  // graphic; what gives way is the ring and its percent where the figure and
+  // the bar gave way, and the whole figure is the chip's name now.
+  it("says its percent with its word, and no ring, in a header too narrow for the name", () => {
     expect(decl(rule(stage, ".ts-head"), "container")).toBe("ts-head / inline-size");
     const narrow = /@container ts-head \(max-width: 480px\) \{([\s\S]*?)\n\}/.exec(stage)![1];
-    expect(narrow).toMatch(/\.ts-ctxlead, \.ts-ctxpct \{[^}]*clip-path: inset\(50%\)/);
+    expect(narrow).toMatch(/\.ts-ctxchip > :is\(svg, \.ts-ctxpct\) \{ display: none; \}/);
     expect(narrow).toMatch(/\.ts-ctxshort \{ display: inline; \}/);
-    expect(narrow).toMatch(/\.ts-ctxbar \{ display: none; \}/);
-    // Hidden at every wider header, before the narrow rule so that one wins;
-    // and the narrow rule comes after the bar's own, for the same reason.
+    // Hidden at every wider header, before the narrow rule so that one wins.
     expect(decl(rule(stage, ".ts-ctxshort"), "display")).toBe("none");
     expect(stage.indexOf(".ts-ctxshort { display: none; }")).toBeLessThan(stage.indexOf("@container ts-head (max-width: 480px)"));
-    expect(stage.indexOf(".ts-ctxbar { display: block;")).toBeLessThan(stage.indexOf("@container ts-head (max-width: 480px)"));
-    // The figure stays in the text for a screen reader; the short words are
-    // for the eye only, so it does not hear the percent twice.
+    // A screen reader hears the chip's name, the whole figure, either way.
     const out = html(createElement(StageHeader, headerProps({ context: { used: 34_000, window: 200_000 } })));
-    expect(out).toContain('<span class="ts-ctxlead">34k / 200k · </span><span class="ts-ctxpct">17%</span><span class="ts-ctxshort" aria-hidden="true">17% context</span>');
+    expect(out).toContain('role="img" aria-label="34k / 200k · 17% context"');
+    expect(out).toContain('<span class="ts-ctxpct">17%</span><span class="ts-ctxshort">17% context</span>');
   });
 
   it("writes the narrow header's percent the way the language writes one", async () => {

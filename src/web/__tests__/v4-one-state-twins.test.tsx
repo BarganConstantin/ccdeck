@@ -164,17 +164,23 @@ describe("the card's head and the Inspector agree with the face", () => {
     expect(out).not.toContain("kit-warn");
   });
 
-  it("colours Done and the mark in done's ink and the count in the warning's", () => {
-    expect(decl('.agent-node .state-line[data-tone="partial"] .state-word', "color")).toBe("var(--ok)");
+  // CHANGED ON PURPOSE (V4 top-10 #9): Done and the tick were done's green
+  // (--ok) beside an amber dot and an amber count, so a run that finished with
+  // failures read as half a success. The mark, its word and its count are one
+  // warning now, in --warn wherever the partial mark is drawn: the card, the
+  // faces, the Inspector's head, the peek, the phone board and quick open.
+  it("colours Done, the mark and the count in the warning's ink", () => {
+    expect(decl('.agent-node .state-line[data-tone="partial"] .state-word', "color")).toBe("var(--warn)");
     expect(decl('.agent-node .state-line[data-tone="partial"] .state-failed', "color")).toBe("var(--warn)");
-    expect(decl('.agent-node .state-line[data-tone="partial"] .state-mark', "color")).toBe("var(--ok)");
-    expect(decl('.state-mark[data-kind="partial"]', "color")).toBe("var(--ok)");
+    expect(decl('.agent-node .state-line[data-tone="partial"] .state-mark', "color")).toBe("var(--warn)");
+    expect(decl('.state-mark[data-kind="partial"]', "color")).toBe("var(--warn)");
     expect(decl(".state-mark .kit-warn", "fill")).toBe("var(--warn)");
     expect(decl(".kit-warn", "fill")).toBe("var(--warn)");
     expect(decl('.lod-line[data-status="partial"] .lod-state', "color")).toBe("var(--warn)");
     expect(decl('.node-peek-state[data-kind="partial"]', "color")).toBe("var(--warn)");
     expect(decl('.phone-board .pb-card[data-tone="partial"] .pb-state', "color")).toBe("var(--warn)");
-    expect(decl('.qo-state[data-kind="partial"]', "color")).toBe("var(--ok)");
+    expect(decl('.qo-state[data-kind="partial"]', "color")).toBe("var(--warn)");
+    expect(decl('.detail-hero .hero-state[data-state="partial"]', "color")).toBe("var(--warn)");
   });
 
   it("draws the partial mark in the Inspector's head, on the Board and in the Workspace", () => {
@@ -307,8 +313,10 @@ describe("the board draws the start time on look-alike cards only", () => {
   it("leads the task line with it on the detail face, and puts it after the word on the face at a distance", () => {
     const out = card({ twin: "minute", model: "claude-opus-5-5" });
     const time = clockTime(T0);
-    // The head keeps the name whole: nothing between it and the model.
-    expect(out).toContain('<span class="label">ccdeck</span><span class="model-text"');
+    // The head keeps the name whole. CHANGED ON PURPOSE (V4 top-10 #2): the
+    // model followed it; the head is the name alone now.
+    expect(out).toContain('<span class="label">ccdeck</span></div>');
+    expect(out).not.toContain("model-text");
     expect(out).toMatch(new RegExp(`<div class="task-line"[^>]*><span class="twin-start" title="Started ${time}">${time}</span> · ${NOTES}</div>`));
     expect(out).toContain(`<span class="lod-name">${NOTES}</span><span class="lod-start">${time}</span><span class="lod-state">Working</span>`);
   });
@@ -325,9 +333,15 @@ describe("the board draws the start time on look-alike cards only", () => {
     expect(out).not.toContain("lod-start");
   });
 
-  it("sets it in the quiet mono, puts it after the word on two lines, and never draws it below 40%", () => {
+  // CHANGED ON PURPOSE (V4 top-10 #2): the clock was set in the quiet mono.
+  // Mono is for paths, commands and keys; a time is a figure, so it is the
+  // UI face with tabular figures, on the face and on the task line alike.
+  it("sets it in quiet tabular figures, puts it after the word on two lines, and never draws it below 40%", () => {
     expect(decl(".lod-start", "color")).toBe("var(--muted)");
-    expect(decl(".lod-start", "font-family")).toBe("var(--font-mono)");
+    expect(decl(".lod-start", "font-family")).toBeUndefined();
+    expect(decl(".lod-start", "font-variant-numeric")).toBe("tabular-nums");
+    expect(decl(".agent-node .task-line .twin-start", "font-family")).toBeUndefined();
+    expect(decl(".agent-node .task-line .twin-start", "font-variant-numeric")).toBe("tabular-nums");
     expect(decl(".lod-start", "flex")).toBe("none");
     expect(decl(".canvas-wrap[data-far] .agent-node .lod-start", "display")).toBe("none");
     const css = sheetText().replace(/\/\*[\s\S]*?\*\//g, "");

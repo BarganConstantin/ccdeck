@@ -335,6 +335,10 @@ body .app[data-view="workspace"][data-side]:not([data-zoom]):has(.left-column) {
   animation: none;
 }
 :root[data-view-switch] .app .ws-side { transition: none; }
+/* The stripes too: Workspace draws them as icons (stripe-words.ts), and the
+   Board's words come back at their width, not growing to it, so the canvas
+   is released into the box it was held at. */
+:root[data-view-switch] .app:has(> .edge-rail[data-words]) { transition: none; }
 
 /* The Inspector's Fold is drawn in the column too (V4's Figma). It folds the
    Inspector alone (App.tsx): with no .detail the grid drops its track and the

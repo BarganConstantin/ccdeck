@@ -570,8 +570,8 @@ export const DISMOUNT_MS = 200;
  * through it.
  *
  * The deck's controls sit on the canvas floor and the character walks along it,
- * so without this it strolls straight through the Auto-fit chip as though the
- * chip were a picture of a chip. Going over it is the only reading that makes
+ * so without this it strolls straight through a notice on the canvas floor as
+ * though it were a picture of one. Going over it is the only reading that makes
  * the two objects share a world.
  *
  * Nothing is assumed about the obstacle being there: it is measured from the

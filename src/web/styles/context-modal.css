@@ -165,10 +165,10 @@
 .ctx-modal .ctx-row, .ctx-modal .ctx-md-list li { height: 24px; }
 .ctx-modal .ctx-md-path { color: var(--text-secondary); }
 .ctx-modal .ctx-md-size { color: var(--muted); }
-/* WHO (V4): the name 13/20 at 600 in --text, then the model as plain mono 11/14
-   in --muted — no pill, no border, no fill, no family tint, the word already
-   names the family — and the other markers in the same plain voice. Baseline
-   aligned, so the 11px words sit on the 13px name's line. */
+/* WHO (V4): the name 13/20 at 600 in --text, then "Codex" on a Codex card,
+   then the restored and ? markers as plain mono 11/14 in --muted. No model
+   (V4 top-10 #2): the card says its task, and the Inspector says what it runs
+   on. Baseline aligned, so the smaller words sit on the 13px name's line. */
 .agent-node .title {
   flex: 1;
   display: flex;
@@ -184,15 +184,23 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  /* THE NAME WINS THE HEAD: the model text gives way first (below), with a
-     much larger shrink factor, so the name ellipsizes only once the model is
-     at its floor. No floor of its own: a minimum width held a short name's box
-     open, and the model started a gap after it rather than 6px (V4's Agent /
-     Card). */
+  /* No floor: a minimum width held a short name's box open, and a marker
+     after it started a gap away rather than 6px (V4's Agent / Card). */
   flex: 0 1 auto;
   min-width: 0;
 }
-.agent-node .title .model-text,
+/* "Codex" on a Codex card, where the model text sat (V4 top-10 #2): the one
+   word that tells the two CLIs apart on the board. A word, not a value, so
+   the UI face at 12 in --muted, no pill; whole, so the name ellipsizes first. */
+.agent-node .title .provider-word {
+  flex: none;
+  font-size: calc(12px + var(--ui-text-increase, 0px));
+  line-height: calc(16px + var(--ui-text-increase, 0px));
+  font-weight: 400;
+  color: var(--muted);
+  white-space: nowrap;
+}
+/* The restored and ? tags stay whole: the name ellipsizes first. */
 .agent-node .title .synth-tag {
   flex: none;
   font-family: var(--font-mono);
@@ -201,17 +209,6 @@
   font-weight: 400;
   color: var(--muted);
   white-space: nowrap;
-}
-/* The model text is what gives way first: a much larger shrink factor than the
-   name's and its own ellipsis, but a visible floor of 6ch so "Opus…" stays
-   readable on a long name (at 0 the box collapsed and no ellipsis showed). Past
-   that floor the name ellipsizes. The restored and ? tags
-   stay whole (flex: none above). */
-.agent-node .title .model-text {
-  flex: 0 100 auto;
-  min-width: min(6ch, 100%);
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
 /* The clock is the foot's second item. Tabular figures keep the digits one
    width while they tick; no minimum width, which left a gap mid-row between
@@ -226,9 +223,9 @@
 }
 
 /* Blocked on a human (#337). A row of its own, under the task line and
-   above the numbers: the head already spends the card on the name, the model
-   and the state word, so a fourth chip there truncated the name and still
-   overflowed the card.
+   above the numbers: the head already spends the card on the name and the
+   state word, so a chip there truncated the name and still overflowed the
+   card.
    It does not replace the state word above it and must not read as if it did —
    a permission prompt lands on a session that is still live, an idle prompt on
    one that has finished, and both facts stay on the card.
@@ -281,16 +278,14 @@
 /* The recap itself: a node of its own beside the session root, open by itself
    once the session comes to rest (RecapNoteNode). A node like the cards — laid
    out by the same pass, moved by the same drags, fitted by the same fit — so it
-   takes a card's depth and radius, with the panel's plate and a hairline of the
-   session's colour. It is not inside the card, so it rebuilds the card's
-   --accent from the hue it is handed.
+   takes a card's depth and radius, with the panel's plate and a neutral
+   hairline: no session colour (V4 top-10 #1), as on the card.
    NO CURSOR OF ITS OWN. It said `cursor: grab`, which the node's wrapper
    already says (React Flow's sheet), and an element's own cursor beats the one
    it inherits: React Flow's `.dragging { cursor: grabbing }` landed on the
    wrapper under a box that kept the open hand, so a dragged note never closed
    it and a dragged card did. */
 .recap-note {
-  --accent: hsl(var(--session-hue, 200) 70% var(--session-accent-l));
   position: relative;
   /* V4's recap note: 240 wide, 8px by 10px inside, 4px between its rows, the
      node's radius on --panel with a --line-soft edge. Figma draws the edge
@@ -311,12 +306,12 @@
   font-size: calc(12px + var(--ui-text-increase, 0px));
 }
 /* The tie to the card (RecapTieEdge): a thread with beads on it. A hairline in
-   the session's colour, at the lightness the live session edges are held to on
-   the canvas; round dots strung along it; a bead where it is fastened at each
-   end. Beads, where the canvas's other edges are solid or dashed — those mean a
-   call, this means "said by". Decoration, so it takes no pointer. */
+   --muted, the settled edges' ink (no session colour, V4 top-10 #1); round dots
+   strung along it; a bead where it is fastened at each end. Beads, where the
+   canvas's other edges are solid or dashed — those mean a call, this means
+   "said by". Decoration, so it takes no pointer. */
 .recap-tie {
-  --tie: hsl(var(--session-hue, 200) 80% var(--session-edge-l));
+  --tie: var(--muted);
   pointer-events: none;
 }
 .recap-tie-thread {
@@ -372,14 +367,14 @@
   gap: 1px;
   padding: 5px 8px;
   background: var(--panel);
-  --lod-edge: color-mix(in srgb, var(--accent) 45%, var(--line));
+  --lod-edge: var(--line-soft);
 }
 /* A POINTER ON THE NOTE, answered as one on its card is: the card's lift at
    the full size, and at every distance the card face's hover tint on the
-   note's plate and the note's edge — the session's hue, which is the mark a
-   note has where a card has a stripe — drawn firmer. The tint is what carries
-   it at the full size on the dark canvas, where a shadow is next to invisible
-   and the edge alone read as no change. The face's tint was always meant for
+   note's plate and the note's edge drawn firmer, --line-soft to --line, the
+   same step at every distance (it was the session's hue until V4 top-10 #1).
+   The tint is what carries it at the full size on the dark canvas, where a
+   shadow is next to invisible and the edge alone read as no change. The face's tint was always meant for
    it, and never reached it: `.react-flow__node:hover .lod-face` weighs less
    than the plate above, which names the face by both its classes. None of it
    is a ring, which is selection's and the keyboard's, and nothing moves: a
@@ -397,11 +392,9 @@
   }
   .canvas-wrap[data-lod] .recap-note:hover > .lod-face.recap-face {
     background: color-mix(in srgb, var(--text) 6%, var(--panel));
-    --lod-edge: color-mix(in srgb, var(--accent) 70%, var(--line));
+    --lod-edge: var(--line);
   }
 }
-/* A note has no stripe: its hue is its edge, as it is at the full size. */
-.lod-face.recap-face::before { display: none; }
 .recap-face .recap-note-mark { flex: none; font-size: calc(11px + var(--ui-text-increase, 0px)); }
 /* The age is a value, so like a waiting row's duration it is never cut: cut
    to fit, "39m ago" read "3". It is drawn whole or not at all. The mark row
@@ -734,25 +727,31 @@
   white-space: nowrap;
 }
 
-/* THE TASK LINE (V4): one line, 12/16 regular in --text-secondary, cut with an
-   ellipsis at the card's width. It is body text now, not the 11px mono the
-   session-name row used: cluster-header.ts promised never to show more of the
-   field than the card does, in monospace COLUMNS (NAME_COLUMNS 32 = 210px at
-   11px); at 12px proportional the card shows about that many characters on
-   average, and the header's cap stays the safe side of it. */
+/* THE TASK LINE (V4): 12/16 regular in --text-secondary, on up to two lines,
+   cut with an ellipsis at the end of the second. CHANGED ON PURPOSE (V4 top-10
+   #2): one line cut most prompts after four words, and the task is what the
+   card is for. The card's height is measured (React Flow), never assumed, so
+   a second line grows the card the way an ask row does; a word longer than
+   the card breaks rather than running under its edge. It is body text, not
+   the 11px mono the session-name row used: cluster-header.ts promised never to
+   show more of the field than the card does, in monospace COLUMNS
+   (NAME_COLUMNS 32 = 210px at 11px), and two proportional lines only widen
+   the margin it keeps. */
 .agent-node .task-line {
   font-size: calc(12px + var(--ui-text-increase, 0px));
   line-height: calc(16px + var(--ui-text-increase, 0px));
   color: var(--text-secondary);
-  white-space: nowrap;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
   overflow: hidden;
-  text-overflow: ellipsis;
+  overflow-wrap: anywhere;
 }
-/* A look-alike's start time (twinClocks) leads the task line in the model's
-   quiet mono, so the head keeps the name whole. */
+/* A look-alike's start time (twinClocks) leads the task line, so the head
+   keeps the name whole: a figure in the UI face with tabular digits, quiet.
+   CHANGED ON PURPOSE (V4 top-10 #2): it was 11px mono. */
 .agent-node .task-line .twin-start {
-  font-family: var(--font-mono);
-  font-size: calc(11px + var(--ui-text-increase, 0px));
   font-variant-numeric: tabular-nums;
   color: var(--muted);
 }
@@ -761,7 +760,7 @@
    The step is a sentence the agent wrote, so it is the sans stack in
    --text-secondary, prose somebody reads; the count is a live number, so it is
    monospace with tabular figures and never the part that ellipsises. The
-   meter is the session's own --accent over a --line track, the same pair the
+   meter is the deck's --accent over a --line track, the same pair the
    card's other fills use, and it repeats the count, so 1.4.11's printed
    equivalent covers it. A finished list steps back to --muted: it says what
    got done, and stops competing with the rows that say what is happening. */
@@ -838,8 +837,8 @@
 /* TWO COLOURS IN THIS ROW, NOT FOUR — and the two that went were the two that
    meant nothing.
 
-   The token count read var(--accent), which inside this card is the SESSION
-   HUE: hsl(h 70% 60%) where h is a hash of the session id. Across the hue
+   The token count read var(--accent), which inside this card was then the
+   SESSION HUE: hsl(h 70% 60%) where h is a hash of the session id. Across the hue
    circle that measures 3.14:1 at its worst and 12.89:1 at its best, so the
    same metric swung more than fourfold in loudness depending on a number
    nobody chose — and at its worst it is under the 4.5:1 floor its own size

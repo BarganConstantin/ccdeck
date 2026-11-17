@@ -1,6 +1,6 @@
 // The strip that offers a re-arranged board back, for a few seconds after R.
 //
-// The auto-fit chip's shape, beside it at the bottom of the canvas: a status in
+// A strip at the bottom of the canvas, in its notices row: a status in
 // words that is not a control, and one action that is. What it offers and for
 // how long is use-board-layout.ts's (rearrange-undo.ts holds the rules); this is
 // the strip, the polite region that says it arrived, and the three things a

@@ -326,12 +326,15 @@
 .ap-reset-account-body strong { color: var(--text); font-weight: 600; }
 .ap-reset-reading { display: flex; flex-direction: column; align-items: flex-end; gap: 5px; text-align: right; padding-top: 10px; }
 .ap-reset-usage { font: calc(12px + var(--ui-text-increase, 0px)) var(--font-mono); font-variant-numeric: tabular-nums; color: var(--text); }
-.ap-reset-reading[data-level="limited"] .ap-reset-usage { color: var(--reset-attention); }
+/* A current reading in the Usage panel's inks for the same number (quotaLevel):
+   the meter in the accent, then --warn from 70% and --err from 90%, when the
+   words wear the mark and "high" too (LevelMark). An older one is quiet. */
+.level-mark > .ap-reset-usage { color: inherit; }
 .ap-reset-reading[data-level="older"] .ap-reset-usage { color: var(--report-meta); }
 .ap-reset-meter { display: block; width: 64px; height: 4px; background: var(--line); border-radius: var(--r-pill); overflow: hidden; }
-.ap-reset-meter > span { display: block; height: 100%; background: var(--muted); transform: scaleX(var(--reset-used)); transform-origin: left center; }
-.ap-reset-meter[data-level="mid"] > span { background: var(--text); }
-.ap-reset-meter[data-level="hi"] > span { background: var(--err); }
+.ap-reset-meter > span { display: block; height: 100%; background: var(--accent); transform: scaleX(var(--reset-used)); transform-origin: left center; }
+.ap-reset-meter[data-level="warn"] > span { background: var(--warn); }
+.ap-reset-meter[data-level="err"] > span { background: var(--err); }
 .ap-reset-old { font-size: calc(11px + var(--ui-text-increase, 0px)); line-height: 1.45; color: var(--report-meta); }
 .ap-reset-entry[data-outdated] .ap-reset-name > span:first-child { color: var(--text); }
 .ap-reset-disclosure > .ap-reset-explain { margin: 8px 0 16px; }
@@ -447,8 +450,8 @@
 @starting-style {
   .ap-report-meter i { transform: scaleX(0); }
 }
-.ap-report-meter[data-level="mid"] i { background: var(--text); }
-.ap-report-meter[data-level="hi"] i { background: var(--err); }
+.ap-report-meter[data-level="warn"] i { background: var(--warn); }
+.ap-report-meter[data-level="err"] i { background: var(--err); }
 .ap-report-reset,
 .ap-report-none { margin: 0; font-size: calc(12px + var(--ui-text-increase, 0px)); color: var(--report-meta); }
 .ap-report-reset { display: flex; align-items: baseline; gap: 4px; min-width: 0; white-space: nowrap; }
@@ -538,16 +541,19 @@
 .ap-report-tag { border: 1px solid var(--line); line-height: calc(14px + var(--ui-text-increase, 0px)); color: var(--report-meta); }
 .ap-report-cell { white-space: nowrap; }
 /* A window's figure: its bar, 140 wide and 2 tall, and the percentage 8 to the
-   right of it (it gives up width to a three-digit one). The bar is the sums'
-   own meter, drawn here by how much is USED — muted to 69%, the text ink to
-   89%, the error ink from 90%, never amber — and the percentage stays in the
-   text ink whatever the bar says. */
+   right of it (it gives up width to a three-digit one, and to the mark and the
+   word). The bar is the sums' own meter, drawn here by how much is USED, in the
+   Usage panel's inks for the same number (quotaLevel): the accent to 69%, the
+   warning ink to 89%, the error ink from 90%. From 70% the percentage wears the
+   level too, "⚠ 86% · high" (LevelMark). A reading that is not current has no
+   level: bar and percentage quiet. */
 .ap-report-fig { display: flex; align-items: center; gap: 8px; }
 .ap-report-fig .ap-report-meter { display: block; flex: 1 1 140px; min-width: 0; max-width: 140px; height: 2px; border-radius: var(--r-tag); background: var(--ctl-fill); }
-.ap-report-fig .ap-report-meter i { background: var(--muted); }
-.ap-report-fig .ap-report-meter[data-level="mid"] i { background: var(--text); }
-.ap-report-fig .ap-report-meter[data-level="hi"] i { background: var(--err); }
+.ap-report-fig .ap-report-meter[data-level="warn"] i { background: var(--warn); }
+.ap-report-fig .ap-report-meter[data-level="err"] i { background: var(--err); }
+.ap-report-cell[data-uncounted] .ap-report-meter i { background: var(--muted); }
 .ap-report-pct { flex: none; font-family: var(--font-mono); font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: 16px; color: var(--text); font-variant-numeric: tabular-nums; }
+.level-mark > .ap-report-pct { color: inherit; }
 .ap-report-cell[data-uncounted] .ap-report-pct { color: var(--muted); }
 /* The second line of a window's cell and of the state's: when the window
    resets, how current the reading is. Quiet, and 2 under the line above. */

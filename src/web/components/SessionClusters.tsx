@@ -1,7 +1,6 @@
 import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useStore, useViewport, type ReactFlowState } from "reactflow";
-import { sessionHue } from "../reducer";
 import { SEP, clusterTooltip } from "../cluster-header";
 import { useT } from "../i18n";
 import { PACKED_LABEL_GUTTER, clusterBounds, clusterBoxStyle, clusterLabelStyle, shallowEqualClusters, type Cluster } from "../cluster-bounds";
@@ -113,18 +112,13 @@ export default function SessionClusters({ onFocusSession, notes = true }: {
   const boxes = (
     <div className="session-clusters" style={cameraStyle} ref={layerRef}>
       {clusters.map(c => {
-        const hue = sessionHue(c.sessionId);
-        // Only the hue. The four colours these two elements used to carry —
-        // label, rim, card border, card wash — were composed here at a
-        // lightness tuned for the dark canvas, which made them the one part of
-        // the palette that could not answer to data-theme; the label measured
-        // 1.21:1 on white across the hue circle. The hue is the half this
-        // component actually knows (it is a hash of the session id); the half
-        // that depends on the theme belongs to the sheet, and is there now.
+        // No colour: the box is a neutral wash the sheet draws, the same for
+        // every session (V4 top-10 #1). It wore the session's hashed hue, a
+        // colour that said nothing, as did the label above it.
         //
-        // Where the box and the pill go, and why neither carries the camera, is
-        // cluster-bounds.ts's: see clusterBoxStyle and clusterLabelStyle.
-        const boxStyle = clusterBoxStyle(c, hue);
+        // Where the box and the label go, and why neither carries the camera,
+        // is cluster-bounds.ts's: see clusterBoxStyle and clusterLabelStyle.
+        const boxStyle = clusterBoxStyle(c);
         return <div key={c.sessionId} className="cluster-card" style={boxStyle} aria-hidden />;
       })}
     </div>
@@ -152,7 +146,6 @@ export default function SessionClusters({ onFocusSession, notes = true }: {
   const labels = viewport && createPortal(
     <div className="cluster-labels nopan">
       {clusters.map(c => {
-        const hue = sessionHue(c.sessionId);
         // Drawn whole inside the pane and clear of the chrome over it, or not
         // at all: under the top bar or the filter bar a pill was cut through
         // its words and still took focus behind them. Never moved to stay in
@@ -160,15 +153,13 @@ export default function SessionClusters({ onFocusSession, notes = true }: {
         // Where the notes are not drawn the board is packed (packed-board.ts)
         // and the next column stands closer: the pill reaches less far.
         const room = labelRoom(c, { x, y, zoom }, pane, chrome, notes ? undefined : PACKED_LABEL_GUTTER);
-        const labelStyle = clusterLabelStyle(c, zoom, hue, room.maxWidth);
-        // Three fields, one pill, and only the middle one in a span of its own.
-        // The separators stay the same glyph on purpose: what differs between
-        // these fields is their KIND, not their rank, and the sheet says so by
-        // leaving the name in its own case while the workspace and the id are
-        // drawn uppercase. Two glyphs would have added a second rhythm without
-        // saying which of its neighbours it binds to.
+        const labelStyle = clusterLabelStyle(c, zoom, room.maxWidth);
+        // The folder, then its qualifiers, one label, each qualifier in a span
+        // of its own. The separators stay the same glyph on purpose: two glyphs
+        // would have added a second rhythm without saying which of its
+        // neighbours it binds to.
         //
-        // The pill is content-width and transitions neither width nor left, so
+        // The label is content-width and transitions neither width nor left, so
         // a rename repaints one edge with no easing anywhere. The four eased
         // properties on .cluster-card are the node bounds above and no name
         // reaches them.
@@ -198,13 +189,12 @@ export default function SessionClusters({ onFocusSession, notes = true }: {
                 zoom, so it is the one place a blocked session can always be
                 found from — the tile under it may be twenty pixels wide. */}
             {c.alarm ? <><AlertMark /><span className="cluster-label-said">{t("board.cluster.waitingOnYou")}</span></> : null}
-            {/* THE FOLDER, THEN ITS QUALIFIERS. The workspace keeps the hue
-                and the capitals — it is the address, and the only field the
-                session colour needs to mark. The plan, the branch and the
-                session's title step down to the annotation tier and to normal
-                weight; the separators go with them, so the run reads as one
-                strong word followed by its qualifiers. No id: when it started
-                and its id's tail are in the tooltip (clusterTooltip).
+            {/* THE FOLDER, THEN ITS QUALIFIERS. The folder is written as it
+                is, in the label's --muted at 500 (V4 top-10 #1: no capitals,
+                no hue). The plan, the branch and the session's title step
+                down to normal weight; the separators go with them, so the run
+                reads as one word followed by its qualifiers. No id: when it
+                started and its id's tail are in the tooltip (clusterTooltip).
 
                 THE NAME IS THERE ONLY WHEN THE CARD CANNOT SAY IT. The root
                 card prints the same name on its own row, so at a zoom where

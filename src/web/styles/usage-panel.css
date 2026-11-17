@@ -447,8 +447,9 @@
    in mono 12/16 --text), a meter 2 high on a --ctl-fill track, and the line
    under it (400 12/16 --muted with its note in mono 11/14 --muted). The rows
    are 3 apart. The meter's fill is --accent under 70, --warn from 70 to 89 and
-   --err from 90 or at the limit (quotaMeterColor, QuotaBar.tsx); from 70 the
-   percent takes the fill's tone with the warning mark and "high" (LevelMark). */
+   --err from 90 or at the limit (quotaLevel and quotaFill, QuotaBar.tsx, the
+   one level every quota meter in the deck shares); from 70 the percent takes
+   the fill's tone with the warning mark and "high" (LevelMark). */
 .up-quota-section { padding-top: 0; border-top: none; }
 .up-quota-bars { display: flex; flex-direction: column; gap: 6px; }
 .qb-row { display: flex; flex-direction: column; gap: 3px; }
@@ -546,8 +547,9 @@
   line-height: calc(16px + var(--ui-text-increase, 0px));
   color: var(--muted);
 }
-/* The right-hand note: mono 400 11/14 --muted ("on pace"); an over-pace or
-   used-up window keeps the colour that says so (QuotaBar.tsx). */
+/* The right-hand note: mono 400 11/14 --muted ("on pace"), in every state. It
+   was drawn whole in the pace colour and read as a link (V4 top-10 #10); the
+   one figure that warns keeps the over-pace colour instead (.qb-pace-figure). */
 .qb-pace {
   font-family: var(--font-mono);
   font-size: calc(11px + var(--ui-text-increase, 0px));
@@ -580,11 +582,19 @@ button.qb-pace {
   font-family: inherit;
   line-height: inherit;
   cursor: pointer;
-  text-decoration: underline dotted;
+  text-decoration: none;
   text-underline-offset: 2px;
   transition: transform var(--dur-fast) var(--ease);
 }
+/* Quiet text that still answers a press: underlined only under the pointer,
+   the way a pressable line of text says so without looking like a link. */
+@media (hover: hover) and (pointer: fine) {
+button.qb-pace:hover { text-decoration: underline; }
+}
 button.qb-pace:active { transform: scale(var(--press)); }
+/* How far over the pace, or how soon it runs out: the number that warns, in
+   the colour the marker on the bar takes for the same state. */
+.qb-pace-figure { color: var(--err); font-variant-numeric: tabular-nums; }
 button.qb-pace::after {
   content: "";
   position: absolute;

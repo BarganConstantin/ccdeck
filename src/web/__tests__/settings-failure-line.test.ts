@@ -176,7 +176,11 @@ describe("General's own words", () => {
   it("names the language row as V4 does", () => {
     const html = renderToStaticMarkup(createElement(LanguageSection));
     expect(html).toContain('<span class="settings-row-name" id="settings-language-label">Language</span>');
-    expect(html).toContain("The words in the deck. Follows the system until you pick one.");
+    // CHANGED ON PURPOSE (V4 top-10 #10): "The words in the deck. Follows the
+    // system until you pick one." under the name → no line, because "Language"
+    // already says what the select changes.
+    expect(html).not.toContain("The words in the deck.");
+    expect(html).not.toContain("settings-row-note");
   });
 
   it("says what the restore rows and Update when idle do in V4's words", () => {

@@ -189,39 +189,39 @@ describe("the chip's words", () => {
   });
 });
 
-describe("the card's chip", () => {
+// CHANGED ON PURPOSE (V4 top-10 #2): this was "the card's chip". The card drew
+// the model and its effort after the name ("opus 5.5 · high"), and measured
+// its head to give the effort up when the name was cut (#2169). The model
+// left the card — it says its task, not the machinery — so the effort went
+// with it, and the squeeze with nothing left to squeeze. The level a user
+// asked to see (#2155) is still drawn beside the model in the Inspector's
+// chip, which is what this now holds.
+describe("the effort off the card, and on the Inspector's chip", () => {
   const card = (data: unknown) => renderToStaticMarkup(createElement(ReactFlowProvider, null,
     // NodeProps carries more than the card reads; only data matters here.
     createElement(AgentNode as never, { id: "s", data, selected: false } as never)));
+  const read = (rel: string) => readFileSync(fileURLToPath(new URL(rel, import.meta.url)), "utf8");
 
-  it("draws the effort with the model, and its full id and level in the tooltip", () => {
+  it("draws neither the model nor the effort on the card, though the session stated both", () => {
     const state = run([
       { hook_event_name: "SessionStart", session_id: "card", cwd: "/w/docs", model: "claude-opus-5-5" },
       { hook_event_name: "PreToolUse", session_id: "card", tool_name: "Read", tool_use_id: "c1", tool_input: {}, effort: { level: "high" } },
     ]);
-    const html = card(state.agents.get("card"));
-    expect(html).toContain(">opus 5.5 · high</span>");
-    expect(html).toContain('title="claude-opus-5-5\neffort: high"');
+    const agent = state.agents.get("card")!;
+    // The reducer still holds the level, for the Inspector to say.
+    expect(agent.effort).toBe("high");
+    const html = card(agent);
+    expect(html).not.toContain("opus 5.5");
+    expect(html).not.toContain("effort: high");
+    expect(html).not.toContain("model-text");
   });
 
-  it("keeps the model alone where the row has no room for the effort", () => {
-    // Measured in a browser, so pinned here at the source: with a spawn badge
-    // and "+1", "Opus 5.5 · xhigh +1" overflowed the row by 51px and the row's
-    // ellipsis took the whole chip, model and all, off the card. The card now
-    // measures the row and gives up the kind word, then the effort (#2169 —
-    // the order is card-row-squeeze.test.ts's); tried again when the row's
-    // contents or width change.
-    const src = readFileSync(fileURLToPath(new URL("../components/AgentNode.tsx", import.meta.url)), "utf8");
-    // CHANGED ON PURPOSE (V4's Agent / Card): the model is plain text in the
-    // head, beside the name, so the card measures the head (a cut name) rather
-    // than the sub row; the model text still gives up its effort and never
-    // itself, tried again when what the head holds changes or the NAME gets
-    // wider. CHANGED ON PURPOSE (review): the measurement is the name's overflow
-    // against the effort's width (the effort goes only when that can uncut the
-    // name), and the width trigger is the label's, not the head's.
-    expect(src).toMatch(/overflow: label\.scrollWidth - label\.clientWidth,/);
-    expect(src).toMatch(/useBeforePaint\(\(\) => \{ setSqueeze\(0\); \}, \[data\.effort, data\.model, otherModels\.length, headName, data\.kind, squeezeMax\]\)/);
-    expect(src).toMatch(/modelChipText\(data\.model, row\.effort \? data\.effort : undefined\)/);
-    expect(src).toMatch(/className="label" title=\{cardTooltip\} ref=\{labelRef\}/);
+  it("says the effort with the model in the Inspector's chip, words and tooltip", () => {
+    const detail = read("../components/Detail.tsx");
+    expect(detail).toContain("modelChipText(agent.model, agent.effort)");
+    expect(detail).toContain("modelChipTitle(agent.model, agent.effort)");
+    // And the card measures no head for an effort to give up.
+    const node = read("../components/AgentNode.tsx");
+    expect(node).not.toMatch(/modelChipText|setSqueeze|labelRef/);
   });
 });

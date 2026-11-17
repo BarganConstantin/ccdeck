@@ -221,7 +221,8 @@ describe("what each account can do now (#1713)", () => {
     // row that said Ready, and "0% remaining" on a card whose lead said 1 of 1
     // ready.
     const out = renderToStaticMarkup(createElement(UsageReportBody, { accounts: [acct(1, 99.6, 99.6)], nowSec: NOW, held: null }));
-    expect(out).toContain('<span class="ap-report-pct" data-level="hi">99%</span>');
+    // The level is the shared quota level's (V4 top-10 #9): "err", was "hi".
+    expect(out).toContain('<span class="ap-report-pct" data-level="err">99%</span>');
     expect(out).not.toContain(">100%<");
     expect(out).toContain('<p class="ap-report-left"><b>1%</b> average remaining</p>');
     expect(out).toContain("<b>1</b> of 1 Claude account ready");
@@ -305,8 +306,11 @@ describe("the report, drawn", () => {
     // the sheet's starting style can outrank (#1713).
     expect(html([acct(1, 20, 40)])).toContain('<div class="ap-report-meter" aria-hidden="true"><i style="--left:0.8"></i></div>');
     const low = html([acct(1, 95, 75)]);
-    expect(low).toContain('<div class="ap-report-meter" data-level="hi" aria-hidden="true"><i style="--left:0.05"></i></div>');
-    expect(low).toContain('<div class="ap-report-meter" data-level="mid" aria-hidden="true"><i style="--left:0.25"></i></div>');
+    // CHANGED ON PURPOSE (V4 top-10 #9): "hi" and "mid" (the text ink from
+    // 70) → the shared quota level, "err" and "warn" (the warning ink from 70),
+    // the inks the sheet's comment already promised and the Usage panel uses.
+    expect(low).toContain('<div class="ap-report-meter" data-level="err" aria-hidden="true"><i style="--left:0.05"></i></div>');
+    expect(low).toContain('<div class="ap-report-meter" data-level="warn" aria-hidden="true"><i style="--left:0.25"></i></div>');
   });
 
   it("names whose reset comes next on the line, since each account keeps its own window", () => {
@@ -365,7 +369,9 @@ describe("the report, drawn", () => {
     expect(out).toMatch(/data-status="limited"><span class="ap-report-state-word">Limited</);
     expect(out).toMatch(/data-status="exhausted"><span class="ap-report-state-word">Exhausted</);
     expect(out).toMatch(/data-status="ready"><span class="ap-report-state-word">Ready</);
-    expect(out).toContain('<span class="ap-report-pct" data-level="hi">95%</span>');
+    // CHANGED ON PURPOSE (V4 top-10 #9): the figure wears the shared level's
+    // mark and word, "⚠ 95% · high", as the Usage panel says it; was "hi" bare.
+    expect(out).toMatch(/<span class="level-mark" data-tone="err"><svg[^>]*class="level-mark-glyph"[^]*?<span class="ap-report-pct" data-level="err">95%<\/span><span class="level-mark-dot" aria-hidden="true">·<\/span><span class="level-mark-word">high<\/span><\/span>/);
     expect(out).toContain("<b>1</b> of 3 Claude accounts ready");
   });
 

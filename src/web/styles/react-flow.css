@@ -45,23 +45,21 @@
   stroke-dasharray: 5;
   animation: dashflow 0.8s linear infinite;
 }
-/* Parent→child edges, in the session's hue. Two classes deep on purpose: this
-   has to outrank .animated above and the light-theme .react-flow__edge-path
-   further down, both of which land on 0-3-0, and an inline stroke is what used
-   to do that. It cannot go back to being inline — App would then be choosing
-   the lightness again, which is the whole defect #330 names.
-   A stroke is not text. 1.4.11 asks 3:1 of a graphic that carries meaning, and
-   these carry the one thing no label repeats — which agent spawned which — so
-   3:1 is the floor they are tuned to, not 4.5:1. Chasing 4.5 would have cost
-   ~24.5% lightness at S=80, a near-black hairline that reads as ink rather
-   than as a session's colour, and the hue is the only thing telling two
-   overlapping trees apart. The canvas is the only bed they are measured on:
-   nodes paint over edges, so an edge is never read against a node's panel. */
+/* Parent→child edges, coloured by their state alone (V4 top-10 #1): a live
+   subagent's edge in --inflight, the colour that means running everywhere on
+   the deck, and a settled one in --muted. They wore the session's hashed hue,
+   a colour that said nothing; the cluster's box and label say whose tree it
+   is. Two classes deep on purpose: this has to outrank .animated above and the
+   light-theme .react-flow__edge-path further down, both of which land on
+   0-3-0. A stroke is not text: 1.4.11 asks 3:1 of a graphic that carries
+   meaning, and these carry the one thing no label repeats — which agent
+   spawned which — so both tokens are measured on the canvas, the only bed an
+   edge is read on (nodes paint over edges). */
 .react-flow__edge.sess-edge.sess-live .react-flow__edge-path {
-  stroke: hsl(var(--session-hue, 200) 80% var(--session-edge-l));
+  stroke: var(--inflight);
 }
 .react-flow__edge.sess-edge.sess-idle .react-flow__edge-path {
-  stroke: hsl(var(--session-hue, 200) 50% var(--session-edge-idle-l));
+  stroke: var(--muted);
 }
 @keyframes dashflow { to { stroke-dashoffset: -10; } }
 .react-flow__attribution { display: none; }
@@ -183,9 +181,23 @@
 .react-flow__controls-button[aria-disabled="true"]:hover { background: transparent; color: var(--muted); }
 }
 /* Recenter while auto-fit is off: the press would do something, so the glyph
-   steps up to the foreground, beside the canvas's own Fit all. Not the
-   accent: this is a hint, not data or focus. */
-.react-flow__controls-button[data-nudge] { color: var(--text); }
+   steps up to the foreground and wears a dot, the view is not following the
+   board (#820). The canvas's own Fit all chip said so in words and did what
+   this press does, so the chip went (V4 top-10 #3) and the dot stays. Not
+   the accent and not a state colour: this is a hint, not data or focus, in
+   the glyph's own ink. ::before, since a coarse pointer's target reach is
+   the ::after (phone-sheet.css). */
+.react-flow__controls-button[data-nudge] { position: relative; color: var(--text); }
+.react-flow__controls-button[data-nudge]::before {
+  content: "";
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 4px;
+  height: 4px;
+  border-radius: var(--r-pill);
+  background: currentColor;
+}
 /* Clear asks before it destroys anything, so at rest it is as neutral as its
    neighbours and only the pointer warms it. */
 @media (hover: hover) and (pointer: fine) {

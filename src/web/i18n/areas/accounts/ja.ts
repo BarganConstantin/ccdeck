@@ -3,8 +3,6 @@ import type { Catalog } from "../../catalogs";
 
 const catalog: Catalog = {
   "accounts.sort.by": "{label}で並べ替え",
-  "accounts.autoFit.fitAll": "全体を表示",
-  "accounts.autoFit.fitAllTip": "すべてのセッションをもう一度画面に収めます",
   "accounts.projLoading.title": "プロジェクトの作業を読み込み中",
   "accounts.projLoading.note": "このアカウントの作業をプロジェクト別に集計しています…",
   "accounts.telemetry.label": "{name} の組織テレメトリ",

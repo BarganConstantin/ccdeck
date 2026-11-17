@@ -29,9 +29,7 @@
     "burst-live-wash": "#f0abfc12",
     "hero-core": "#83acfc",
     "grid-line": "#303237",
-    "minimap-mask": "rgba(30, 31, 34, .85)",
-    "session-accent-l": "74%",
-    "session-edge-idle-l": "65%"
+    "minimap-mask": "rgba(30, 31, 34, .85)"
   },
   "selection": {
     "background": "#2e436e",
