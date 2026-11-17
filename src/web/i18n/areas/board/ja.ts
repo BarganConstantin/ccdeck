@@ -703,7 +703,6 @@ const catalog: Catalog = {
   "board.stage.typeIntoTip": "{label} (↵)",
   "board.stage.keysBack": "キーをボードに戻す（{chord}）",
   "board.stage.contextWindow": "コンテキストウィンドウ",
-  "board.stage.context": "コンテキスト",
   "board.stage.contextShort": "コンテキスト {pct}",
   "board.stage.view": "表示",
   "board.stage.viewChat": "チャット",

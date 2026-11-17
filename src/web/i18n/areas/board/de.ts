@@ -703,7 +703,6 @@ const catalog: Catalog = {
   "board.stage.typeIntoTip": "{label} (↵)",
   "board.stage.keysBack": "Tasten an den Canvas zurückgeben ({chord})",
   "board.stage.contextWindow": "Kontextfenster",
-  "board.stage.context": "Kontext",
   "board.stage.contextShort": "{pct} Kontext",
   "board.stage.view": "Ansicht",
   "board.stage.viewChat": "Chat",

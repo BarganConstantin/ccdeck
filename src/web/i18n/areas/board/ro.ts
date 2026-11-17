@@ -723,7 +723,6 @@ const catalog: Catalog = {
   "board.stage.typeIntoTip": "{label} (↵)",
   "board.stage.keysBack": "Dă tastele înapoi tablei ({chord})",
   "board.stage.contextWindow": "Fereastra de context",
-  "board.stage.context": "Context",
   "board.stage.contextShort": "{pct} din context",
   "board.stage.view": "Vizualizare",
   "board.stage.viewChat": "Chat",

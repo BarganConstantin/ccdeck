@@ -703,7 +703,6 @@ const catalog: Catalog = {
   "board.stage.typeIntoTip": "{label} (↵)",
   "board.stage.keysBack": "Rendre les touches au tableau ({chord})",
   "board.stage.contextWindow": "Fenêtre de contexte",
-  "board.stage.context": "Contexte",
   "board.stage.contextShort": "{pct} de contexte",
   "board.stage.view": "Vue",
   "board.stage.viewChat": "Chat",

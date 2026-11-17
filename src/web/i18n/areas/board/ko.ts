@@ -703,7 +703,6 @@ const catalog: Catalog = {
   "board.stage.typeIntoTip": "{label} (↵)",
   "board.stage.keysBack": "키를 보드에 돌려주기 ({chord})",
   "board.stage.contextWindow": "컨텍스트 창",
-  "board.stage.context": "컨텍스트",
   "board.stage.contextShort": "컨텍스트 {pct}",
   "board.stage.view": "보기",
   "board.stage.viewChat": "채팅",
