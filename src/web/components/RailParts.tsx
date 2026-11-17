@@ -151,8 +151,11 @@ export function RailRow({ row: r, group, now, selected, removed, leaving, landNo
   const contextual = compact && context && group !== 0 && !removed && !failed && r.state !== "err" && !r.neverPrompted;
   const projectOnly = contextual && context.detail === "project";
   const line = detail ? contextual && context.text ? { kind: "words" as const, text: context.text } : railLine(r, group) : null;
-  // True twins keep their clock even when one is open in a pane.
-  const start = twin ? [twinStart(r.startedAt, twin), compact ? context?.idTail : null].filter(Boolean).join(" · ") : null;
+  // An identical import time does not distinguish twins: keep only their
+  // unique suffix here; the full clock remains in the tooltip.
+  const start = twin ? compact && context?.idTail ? context.idTail : twinStart(r.startedAt, twin) : null;
+  const waitingProject = compact && context && group === 0 && context.detail !== "none" && !removed && !failed
+    ? r.folder ?? r.cwdBasename : null;
   const hiddenTask = compact && (!detail || projectOnly || group === 0 || (r.fullTask && (r.fullTask !== r.task || context?.text !== undefined && !context.text.includes(r.fullTask))))
     ? r.fullTask ?? r.task : null;
   const worded = !!(line || removed || failed);
@@ -255,15 +258,17 @@ export function RailRow({ row: r, group, now, selected, removed, leaving, landNo
             </span>
             {lined && (start
               ? (
-                // A look-alike's line: its words give way first, so the start
-                // time at its end stays whole. Not at the line's start any more
-                // (V4 top-10, inbox): the line leads with what the session is.
+                // Project first; the unique suffix or clock stays whole.
                 <span className="sl-line2 sl-twin">
+                  {waitingProject && <span className="sl-row-project">{waitingProject} · </span>}
                   {worded && <span className={`sl-words${line?.kind === "tool" ? " mono" : ""}`}>{words}</span>}
                   <span className="sl-start">{worded ? "· " : ""}{start}</span>
                 </span>
               )
-              : <span className={`sl-line2${line?.kind === "tool" ? " mono" : ""}`}>{words}</span>)}
+              : <span className={`sl-line2${waitingProject ? " sl-with-project" : line?.kind === "tool" ? " mono" : ""}`}>
+                  {waitingProject && <span className="sl-row-project">{waitingProject} · </span>}
+                  {waitingProject ? <span className={`sl-words${line?.kind === "tool" ? " mono" : ""}`}>{words}</span> : words}
+                </span>)}
           </span>
         </button>
       </div>

@@ -57,6 +57,8 @@
           "pixel-metal-edge",
           "pixel-character-body",
           "text-secondary",
+          "provider-claude",
+          "provider-codex",
           "ctl-fill",
           "ctl-edge",
           "chrome-bg",

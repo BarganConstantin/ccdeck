@@ -177,13 +177,13 @@ agentului. Nu s-a adăugat un API pentru conversații sau un provider nou.
 
 Compoziția vizuală a fost revizuită după exemplele publice
 [Herdr Chat și Code](https://herdr.dev/). Caseta este acum un singur control
-integrat în conversație, cu hint de tastatură doar cât compui și o singură
+integrat în conversație, cu hint de tastatură accesibil, ascuns vizual, și o singură
 linie pentru starea conexiunii. În eșantionul desktop măsurat, footerul normal
 are 76px, iar cel deconectat 108px, față de aproximativ 180px în prima variantă.
 Instrumentele păstrează disclosure-urile funcționale, cu o linie discretă
 pentru apelurile deschise, fără o cutie în jurul fiecărui grup.
 
-Headerele și comutatoarele panourilor respectă textul mărit. Sub 400px,
+Headerele și comutatoarele panourilor respectă textul mărit. Până la 480px,
 comenzile headerului sunt în meniul existent More, păstrând un singur rând
 și mai mult loc pentru nume. Fiecare panou are un ID propriu pentru meniu și
 ancora lui. Lista evită repetarea promptului la gemenii unde proiectul și
@@ -215,6 +215,56 @@ Verdict local: **SHIP WITH FOLLOW-UPS**, pregătit pentru review vizual.
 Chat rămâne disponibil pentru transcript-uri Claude. O sesiune externă care
 nu se poate atașa nu devine controlabilă doar prin această casetă. Comportamentul
 cu un agent AI real și platformele Windows/Linux nu au fost verificate aici.
+
+## Revizie: accente de provider și review Impeccable
+
+Accentele Claude portocaliu și Codex albastru-violet sunt restaurate în listă,
+antete și conversație, inclusiv pe rândul selectat. Măștile SVG transparente
+rămân neschimbate; culorile sunt tokenuri din catalogul JSON, cu variante
+deschise/închise. Focusul composerului folosește o singură margine de 1px,
+fără halo, iar indicația Enter/Shift+Enter rămâne doar pentru cititorul de ecran.
+Direcția păstrează conversația liniștită și controlul integrat cerute după
+referințele Herdr și [Claude Desktop](https://code.claude.com/docs/en/desktop).
+
+Două evaluări independente, una manuală și una cu detector și browser, au
+identificat patru defecte P2; toate au fost corectate:
+
+- Antetele înguste mută comenzile în More la 480px și păstrează întreagă
+  durata de așteptare. Rename nu mai rezervă loc când există deja în More.
+- Rândul urgent al sesiunilor omonime păstrează proiectul înaintea comenzii.
+  Gemenii importați cu aceeași oră arată sufixul distinct, păstrând ora completă
+  în tooltip; orele diferite rămân vizibile.
+- Send activ are contrast suficient în Light: suprafața sa folosește fundalul
+  temei, păstrând culoarea și marginea acțiunii.
+- Mesajele proprii folosesc interliniere proporțională de 1.5, inclusiv la
+  Largest, în locul valorii fixe care înghesuia textul mărit.
+
+Detectorul de markup a inspectat șase componente: zero constatări. Semnalele
+despre o ierarhie tipografică plată și un halo pe Canvas ascuns nu justifică
+modificarea Workspace: greutatea/gruparea disting chrome-ul, iar Canvas este
+în afara acestei revizii. Verdictul este calitativ, fără un scor care ar
+pretinde verificarea tuturor fluxurilor aplicației.
+
+Verificarea finală a acestei revizii, Node 22:
+
+- 157 teste relevante trecute în zece fișiere, după adaptarea regresiei
+  existente la excepția intenționată pentru durata waiting. Typecheck,
+  themes:check pentru 12 teme și build trecute; avertismentul de chunk rămâne.
+- Chromium izolat: culorile randate în toate cele 12 teme, pe suprafețele
+  vizibile de listă, selecție, antet și Chat; contrast minim al mărcilor 3.99:1,
+  Send activ 5.21:1. Măsurarea așteaptă încheierea tranziției între teme.
+- Matricea 1/2/4 panouri în Rider Black/Light, Largest, meniuri distincte,
+  navigare de tastatură/restaurare de focus și Send coarse de minimum 44px
+  trecute, fără erori JavaScript observate.
+- Antete constrânse la 467/480/481/320px, inclusiv durate până la 999h 59m:
+  durata rămâne întreagă, fără suprapuneri. La 320px o durată extrem de lungă
+  poate lua aproape tot locul numelui; numele rămâne în lista sesiunilor.
+
+Questions skipped: corecțiile și verificarea locală erau deja autorizate.
+Verdict local: **SHIP WITH FOLLOW-UPS**; confirmarea vizuală a proprietarului
+și integrarea v4 rămân separate. Acest review nu certifică un agent AI real,
+telemetria externă sau comportamentul Chat pe telefon: la 390/320px aplicația
+afișează fluxul mobil existent; Chat a fost verificat ca panou îngust separat.
 
 ## Previzualizare și limite
 

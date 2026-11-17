@@ -31,7 +31,7 @@
   place-items: center;
   width: 20px;
   height: 20px;
-  color: var(--text-secondary);
+  color: var(--provider-claude);
   vertical-align: middle;
 }
 .provider-avatar::before {
@@ -42,10 +42,10 @@
   -webkit-mask: var(--provider-mark) center / contain no-repeat;
   mask: var(--provider-mark) center / contain no-repeat;
 }
+.provider-avatar[data-provider="codex"] { color: var(--provider-codex); }
 /* Codex fills its square; Claude's wide mark has transparent headroom.
    Balance the visible shapes inside the same slot, without altering artwork. */
 .provider-avatar[data-provider="codex"]::before { width: 16px; height: 16px; }
-.ts-id .provider-avatar { color: var(--text); }
 /* A reference shared with the session row, including panes hidden by Zoom.
    Active means this pane is selected; the keyboard button still owns typing. */
 .pane-badge {

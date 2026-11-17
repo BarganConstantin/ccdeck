@@ -172,8 +172,6 @@
 .session-list .sl-row[data-compact] > .provider-avatar { align-self: center; position: relative; top: calc((19px + var(--ui-text-increase, 0px)) / -2); }
 .session-list .sl-row[data-compact][data-one-line] > .provider-avatar { top: 0; }
 .session-list .sl-row[data-compact] .sl-line1 { align-items: center; }
-.session-list .sl-row[data-compact].selected .provider-avatar,
-.session-list .sl-row[data-compact][data-pane-active] .provider-avatar { color: var(--text); }
 .session-list .sl-row-status { flex: none; display: inline-flex; align-items: center; gap: 6px; }
 .session-list .sl-row-status .sl-glyph { height: 14px; padding: 0; }
 .session-list .sl-row[data-compact] .sl-name { flex: 1; }
@@ -218,11 +216,17 @@
    failed: Done in the line's own muted ink, the count in the warning's, as the
    card says it beside the same partial mark. */
 .session-list .sl-failed { font-weight: 500; color: var(--warn); }
-/* When a row that reads like another started (twinClocks): it ends the second
-   line, in the line's own quiet ink and tabular figures, never cut. The words
-   before it give way first, with their ellipsis, so two look-alikes stay told
-   apart however narrow the list is. */
-.session-list .sl-line2.sl-twin { display: flex; }
+/* A look-alike's distinguishing clock/suffix stays whole. Waiting rows keep
+   their project ahead of the tool text, which can yield in a narrow list. */
+.session-list .sl-line2.sl-twin, .session-list .sl-line2.sl-with-project { display: flex; }
+.session-list .sl-row-project {
+  flex: 0 1 auto;
+  max-width: 50%;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.session-list .sl-row-project + .sl-words { flex: 1 1 0; }
 .session-list .sl-words {
   min-width: 0;
   overflow: hidden;

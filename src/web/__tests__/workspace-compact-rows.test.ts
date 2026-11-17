@@ -279,7 +279,7 @@ describe("compact SessionList title collisions", () => {
     }
   });
 
-  it("keeps exact clocks on true twins even when one is open in a pane", () => {
+  it("uses distinct suffixes instead of repeated identical clocks on true twins", () => {
     const state = initialState();
     addSession(state, "first", "Rate limiter", TASK, "claude");
     addSession(state, "second", "Rate limiter", TASK, "claude");
@@ -295,12 +295,26 @@ describe("compact SessionList title collisions", () => {
       expect(visibleText(button)).toContain("web-api");
       expect(button).toContain(TASK); // Full task stays accessible and in its tooltip.
       const start = button.match(/class="sl-start">([^<]+)</)?.[1];
-      expect(start).toMatch(/\d{2}:\d{2}:\d{2}/);
+      expect(start).not.toMatch(/\d{2}:\d{2}:\d{2}/);
+      expect(start).toContain(id.slice(-4));
       expect(button).toContain(buildRows(state, NOW).find(r => r.sessionId === id)!.exactHover);
       starts.push(start);
     }
     // These fixtures start within the same second; id tails disambiguate them.
     expect(new Set(starts).size).toBe(2);
+  });
+
+  it("keeps a waiting twin’s project and command beside its unique suffix", () => {
+    const out = drawRow({ group: 0,
+      context: { detail: "task", text: "web-api", twin: "second", idTail: "a123" },
+      row: row({ waiting: { kind: "permission", message: "Allow tests?", since: NOW - 5_000,
+        tool: { name: "Bash", preview: "npm test" } } }),
+    });
+    const visible = visibleText(out);
+    expect(out).toContain('<span class="sl-row-project">web-api · </span>');
+    expect(visible).toContain("web-api · Bash · npm test");
+    expect(visible).toContain("a123");
+    expect(out).toMatch(/title="[^"]*Started /);
   });
 
   it("does not treat different providers or full multiline tasks as true twins", () => {

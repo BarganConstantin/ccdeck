@@ -50,7 +50,7 @@
   background: var(--your-message);
   border-radius: var(--r-overlay) var(--r-overlay) var(--r-tag) var(--r-overlay);
   font-size: calc(13px + var(--ui-text-increase, 0px));
-  line-height: 20px;
+  line-height: 1.5;
   color: var(--text);
   overflow-wrap: anywhere;
   white-space: pre-wrap;

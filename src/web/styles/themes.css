@@ -12,6 +12,8 @@
   --pixel-metal-edge: #475569;
   --pixel-character-body: #38bdf8;
   --text-secondary: #9aa0ab;
+  --provider-claude: #e5a181;
+  --provider-codex: #aab5ff;
   --ctl-fill: color-mix(in srgb, var(--text) 7%, transparent);
   --ctl-edge: color-mix(in srgb, var(--text) 50%, transparent);
   --chrome-bg: color-mix(in srgb, var(--panel) 60%, var(--bg));
@@ -82,6 +84,8 @@
   --pixel-metal-edge: #475569;
   --pixel-character-body: #38bdf8;
   --text-secondary: #303845;
+  --provider-claude: #a24c31;
+  --provider-codex: #4d52b8;
   --ctl-fill: color-mix(in srgb, var(--text) 8%, transparent);
   --ctl-edge: color-mix(in srgb, var(--text) 50%, transparent);
   --chrome-bg: color-mix(in srgb, var(--panel) 60%, var(--bg));
@@ -152,6 +156,8 @@
   --pixel-metal-edge: #475569;
   --pixel-character-body: #38bdf8;
   --text-secondary: #b4b8bf;
+  --provider-claude: #e5a181;
+  --provider-codex: #aab5ff;
   --ctl-fill: color-mix(in srgb, var(--text) 8%, transparent);
   --ctl-edge: color-mix(in srgb, var(--text) 50%, transparent);
   --chrome-bg: #2b2d30;
@@ -222,6 +228,8 @@
   --pixel-metal-edge: #475569;
   --pixel-character-body: #38bdf8;
   --text-secondary: #adadad;
+  --provider-claude: #e5a181;
+  --provider-codex: #aab5ff;
   --ctl-fill: color-mix(in srgb, var(--text) 7%, transparent);
   --ctl-edge: color-mix(in srgb, var(--text) 50%, transparent);
   --chrome-bg: #181818;
@@ -292,6 +300,8 @@
   --pixel-metal-edge: #475569;
   --pixel-character-body: #38bdf8;
   --text-secondary: #b4bee6;
+  --provider-claude: #e5a181;
+  --provider-codex: #aab5ff;
   --ctl-fill: color-mix(in srgb, var(--text) 7%, transparent);
   --ctl-edge: color-mix(in srgb, var(--text) 50%, transparent);
   --chrome-bg: #24283b;
@@ -362,6 +372,8 @@
   --pixel-metal-edge: #475569;
   --pixel-character-body: #38bdf8;
   --text-secondary: #a8d4a9;
+  --provider-claude: #e5a181;
+  --provider-codex: #aab5ff;
   --ctl-fill: color-mix(in srgb, var(--text) 7%, transparent);
   --ctl-edge: color-mix(in srgb, var(--text) 50%, transparent);
   --chrome-bg: #121a13;
@@ -432,6 +444,8 @@
   --pixel-metal-edge: #475569;
   --pixel-character-body: #38bdf8;
   --text-secondary: #e2e2e2;
+  --provider-claude: #e5a181;
+  --provider-codex: #aab5ff;
   --ctl-fill: color-mix(in srgb, var(--text) 7%, transparent);
   --ctl-edge: #a3a3a3;
   --chrome-bg: #101010;
@@ -502,6 +516,8 @@
   --pixel-metal-edge: #475569;
   --pixel-character-body: #38bdf8;
   --text-secondary: #262626;
+  --provider-claude: #a24c31;
+  --provider-codex: #4d52b8;
   --ctl-fill: color-mix(in srgb, var(--text) 7%, transparent);
   --ctl-edge: #555555;
   --chrome-bg: #ffffff;
@@ -572,6 +588,8 @@
   --pixel-metal-edge: #475569;
   --pixel-character-body: #38bdf8;
   --text-secondary: #bac2de;
+  --provider-claude: #e5a181;
+  --provider-codex: #aab5ff;
   --ctl-fill: color-mix(in srgb, var(--text) 7%, transparent);
   --ctl-edge: color-mix(in srgb, var(--text) 50%, transparent);
   --chrome-bg: #252537;
@@ -642,6 +660,8 @@
   --pixel-metal-edge: #475569;
   --pixel-character-body: #38bdf8;
   --text-secondary: #d5c4a1;
+  --provider-claude: #e5a181;
+  --provider-codex: #aab5ff;
   --ctl-fill: color-mix(in srgb, var(--text) 7%, transparent);
   --ctl-edge: #a89984;
   --chrome-bg: #32302f;
@@ -712,6 +732,8 @@
   --pixel-metal-edge: #475569;
   --pixel-character-body: #38bdf8;
   --text-secondary: #504945;
+  --provider-claude: #a24c31;
+  --provider-codex: #4d52b8;
   --ctl-fill: color-mix(in srgb, var(--text) 7%, transparent);
   --ctl-edge: #7c6f64;
   --chrome-bg: #faf7e8;
@@ -782,6 +804,8 @@
   --pixel-metal-edge: #475569;
   --pixel-character-body: #38bdf8;
   --text-secondary: #d4be98;
+  --provider-claude: #e5a181;
+  --provider-codex: #aab5ff;
   --ctl-fill: color-mix(in srgb, var(--text) 7%, transparent);
   --ctl-edge: #b9a68e;
   --chrome-bg: #45403d;

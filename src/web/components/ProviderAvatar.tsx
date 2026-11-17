@@ -3,7 +3,7 @@ import codex from "../assets/providers/codex.svg";
 import type { Provider } from "../types";
 import type { CSSProperties } from "react";
 
-/** Upstream monochrome artwork follows the theme's ink; status stays separate. */
+/** Unchanged transparent artwork wears each provider's theme-aware accent. */
 export default function ProviderAvatar({ provider }: { provider: Provider }) {
   const name = provider === "codex" ? "Codex" : "Claude Code";
   const style: CSSProperties & { "--provider-mark": string } = {

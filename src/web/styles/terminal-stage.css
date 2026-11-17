@@ -138,21 +138,21 @@
 @container ts-head (max-width: 480px) {
   .ts-ctxchip > :is(svg, .ts-ctxpct) { display: none; }
   .ts-ctxshort { display: inline; }
-  /* A header narrower still (a Workspace pane down to its 400 px beside a
-     wide Sessions list and the side panels, internal #103): the state word
-     gives way with an ellipsis, as the name does, instead of being drawn
-     over the chip. */
-  .ts-meta { flex: 0 1 auto; overflow: hidden; }
-  .ts-meta-state { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+  /* Waiting keeps its duration: it is the reason to look at the pane.
+     Other state words may give way before drawing over the context chip. */
+  .ts-meta:not([data-state="waiting"]) { flex: 0 1 auto; overflow: hidden; }
+  .ts-meta:not([data-state="waiting"]) .ts-meta-state { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 }
 
 .ts-ctl { flex: none; display: flex; align-items: center; gap: 4px; }
 .ts-head > .ts-compact-more.ts-more.glyph-btn { display: none; flex: none; }
 /* Keep the task name readable in a narrow split. The existing overflow menu
    carries the same actions; the header keeps one measured row. */
-@container ts-head (max-width: 400px) {
+@container ts-head (max-width: 480px) {
   .ts-head > .ts-compact-more.ts-more.glyph-btn { display: inline-flex; }
   .ts-head:has(> .ts-compact-more) > .ts-ctl { display: none; }
+  /* Rename is already in More; its hidden pencil need not reserve room. */
+  .ts-head:has(> .ts-compact-more) .ts-rename { display: none; }
 }
 /* The controls are the deck's header glyphs (.glyph-btn), as 24px squares at
    the control radius; ⌨ pressed — the keys in the pane — wears the accent. */

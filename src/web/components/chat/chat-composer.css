@@ -53,6 +53,7 @@
   height: auto;
   margin: 4px 0;
   padding: 6px 10px;
+  background: var(--bg);
   font: inherit;
   font-weight: 600;
 }

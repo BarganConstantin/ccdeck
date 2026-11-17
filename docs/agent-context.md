@@ -449,3 +449,25 @@ Chromium checked direct multiline Unicode input through the actual engine,
 draft retention, IME, keyboard menus/focus and 1/2/4-pane light/dark layouts,
 text enlargement, narrow component widths and the existing mobile route.
 An agent AI session and external telemetry capture remain unverified.
+
+### Provider accents and independent visual review, later on 2026-11-17
+
+The owner requested orange Claude and blue-violet Codex marks, including in
+headers and Chat. They now use light/dark provider tokens in the JSON theme
+catalog; SVG masks remain unchanged. The visible keyboard hint is removed
+(still accessible), and composer focus uses a single 1px edge without a halo.
+
+Two independent Impeccable assessments found four P2 defects, now corrected:
+waiting duration truncation (More threshold now 480px), lost project context
+in urgent same-name rows, enabled Send contrast in Light, and fixed user-message
+leading under Largest. Identical twin clocks yield to a distinct suffix;
+the full start time remains in the tooltip. Final rendered marks passed all
+12 themes (minimum 3.99:1); enabled Send minimum 5.21:1 after theme transitions
+settled. Final focused validation: 157 tests across ten files, typecheck,
+themes:check and build, plus isolated browser layouts, focus and header edges.
+
+Four-pane preview: `http://127.0.0.1:4479/batch1-four-preview.html`.
+The local backend and demo process remain isolated. Do not reuse dated PIDs.
+No push, public PR, v4 merge or release has been performed. Owner visual
+confirmation and integration validation remain outstanding; real-model and
+external telemetry behavior are not certified by this UI review.
