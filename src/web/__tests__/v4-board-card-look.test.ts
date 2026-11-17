@@ -171,23 +171,12 @@ describe("no recap pin on the card", () => {
 });
 
 describe("the chips over the board", () => {
-  // CHANGED ON PURPOSE: "Auto-fit off · Resume" was a status and an accent
-  // action in one strip; it is one quiet "Fit all" button now, the recenter
-  // glyph in --muted and the word in the secondary ink, the strip's surface kept.
-  it("fit all: 24 tall, the control radius, --panel on --line-soft, the glyph 6px from the word", () => {
-    const chip = ".autofit-chip";
-    expect(decl(chip, "height")).toBe("24px");
-    expect(decl(chip, "box-sizing")).toBe("border-box");
-    expect(decl(chip, "border-radius")).toBe("var(--r-ctl)");
-    expect(decl(chip, "background")).toBe("var(--panel)");
-    expect(decl(chip, "border")).toBe("1px solid var(--line-soft)");
-    expect(decl(chip, "gap")).toBe("6px");
-    expect(decl(chip, "padding")).toBe("0 calc(10px - 1px) 0 calc(8px - 1px)");
-    expect(decl(chip, "color")).toBe("var(--text-secondary)");
-    expect(decl(chip, "font-size")).toBe(TEXT(12));
-    expect(decl(chip, "cursor")).toBe("pointer");
-    expect(decl(".autofit-chip svg", "color")).toBe("var(--muted)");
-    expect(decl(".autofit-chip:hover", "color")).toBe("var(--text)");
+  // CHANGED ON PURPOSE (V4 top-10 #3): a quiet "Fit all" chip (24 tall, --panel
+  // on --line-soft) stood on the board while auto-fit was off → it is gone,
+  // because the control bar's recenter did the very same thing; recenter
+  // wears a dot in that state instead (autofit-visible-820.test.ts).
+  it("fit all: no chip on the board, recenter is the one fit control", () => {
+    expect(sheetText()).not.toMatch(/\.autofit-chip\b/);
   });
   it("re-arrange undo: 189 x 24, Undo as a quiet accent button, then the key cap", () => {
     const strip = ".rearrange-undo";
@@ -264,11 +253,12 @@ describe("the chips over the board", () => {
     expect(src).toContain('<span className="cat-dot" aria-hidden="true" />');
   });
   it("writes none of them with a colour literal, and every hover under the mouse query", () => {
-    for (const sel of [".autofit-chip", ".rearrange-undo", ".rearrange-undo-act", ".drag-trash-zone", ".cat-filter-bar", ".cat-filter-tools", ".cat-tools-item.off", ".cat-tools-item.off .cat-dot", ".cost-tip", ".recap-note"]) {
+    // CHANGED ON PURPOSE (V4 top-10 #3): ".autofit-chip" and its hover left both lists with the chip.
+    for (const sel of [".rearrange-undo", ".rearrange-undo-act", ".drag-trash-zone", ".cat-filter-bar", ".cat-filter-tools", ".cat-tools-item.off", ".cat-tools-item.off .cat-dot", ".cost-tip", ".recap-note"]) {
       expect(body(sel), sel).not.toMatch(LITERAL);
     }
     const css = sheetText();
-    for (const sel of [".autofit-chip:hover", ".rearrange-undo-act:hover", ".cat-filter-tools:hover"]) {
+    for (const sel of [".rearrange-undo-act:hover", ".cat-filter-tools:hover"]) {
       const at = css.indexOf(sel);
       expect(at, sel).toBeGreaterThan(-1);
       expect(css.lastIndexOf("@media (hover: hover) and (pointer: fine)", at), sel).toBeGreaterThan(css.lastIndexOf("\n}\n", at));

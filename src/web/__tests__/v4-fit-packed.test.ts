@@ -23,6 +23,7 @@ import { AUTO_FIT_MIN_ZOOM, fitBoard, FIT_MIN_ZOOM, type FitRect } from "../fit-
 import { anchorShift, boardSqueeze, NO_SQUEEZE, PACKED_GAP, packNodes, squeezeSpans, zoomFocus, type Squeeze, type View } from "../packed-board";
 import { DETAIL_EXIT_ZOOM, FAR_ZOOM, nextLod } from "../semantic-zoom";
 import { FIT_FILL, FIT_MARGIN } from "../use-layout-frame";
+import { drawnCards, minimapPlace } from "../minimap-place";
 import { LABEL_INDENT, labelMaxWidth, PACKED_LABEL_GUTTER } from "../cluster-bounds";
 import { PAD } from "../session-chrome";
 import { faceTask } from "../rail-row-copy";
@@ -224,6 +225,25 @@ describe("the auto-fit frames the board as drawn", () => {
       }
     });
   }
+
+  // V4 top-10 #3: the board as drawn stands in the middle of the canvas the
+  // panels leave, not against its left margin, and a board the fit shows whole
+  // brings no minimap to stand over it (minimap-place.ts: the map is drawn only
+  // while part of the board is out of view).
+  it("centres the board as drawn in the canvas the panels leave, with no minimap over it", () => {
+    for (const c of cases) {
+      const nodes = board(c.pane.width, c.rail);
+      const want = fitBoard(rectsOf(nodes), { pane: c.pane, rail: c.rail, floor: AUTO_FIT_MIN_ZOOM })!;
+      const drawn = packNodes(nodes, boardSqueeze(nodes)).filter(n => n.type === "agent");
+      const left = (Math.min(...drawn.map(n => n.position.x)) - PAD) * want.zoom + want.x;
+      const right = (Math.max(...drawn.map(n => n.position.x + CARD.width)) + PAD) * want.zoom + want.x;
+      expect((left + right) / 2, c.name).toBeCloseTo(FIT_MARGIN + (c.pane.width - c.rail - 2 * FIT_MARGIN) / 2, 6);
+      expect(left, c.name).toBeGreaterThan(FIT_MARGIN);
+      const view = [want.x, want.y, want.zoom] as const;
+      const placed = drawn.map(n => ({ ...n, positionAbsolute: n.position }));
+      expect(minimapPlace(drawnCards(placed, view), c.pane), c.name).toBeNull();
+    }
+  });
 
   it("lands on the same frame when fitted again, from any distance", () => {
     for (const c of cases) {

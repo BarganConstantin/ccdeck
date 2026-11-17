@@ -221,12 +221,14 @@ export function useCamera() {
   }, [applyViewport]);
 
   /**
-   * Frame the graph against the left edge of the canvas.
+   * Frame the graph in the canvas the panels leave.
    *
-   * React Flow's fitView centres, and there is no asymmetric-padding option,
-   * so this measures what is actually drawn and sets the viewport outright.
-   * Left-anchored because a graph parked mid-canvas leaves dead space on the
-   * side the eye starts from.
+   * React Flow's fitView centres on the whole pane, and there is no
+   * asymmetric-padding option, so this measures what is actually drawn and
+   * sets the viewport outright: centred across the canvas left of the rail
+   * when the board is narrower than it, from the left margin when it is not
+   * (fit-board.ts). The name is older than the centring: it was anchored left
+   * until a board held by its height stood in the canvas's left half.
    *
    * `reach` is who asked. The auto-fit (`auto`) never frames the board below
    * the zoom its faces still say each card's task at, and leaves the rest of
@@ -281,7 +283,7 @@ export function useCamera() {
       // A transition can also be cut short — the pane loses its frames when the
       // tab is hidden mid-animation, and the user can grab it. Check afterwards
       // and, if the frame never arrived, put it there outright. Not fitView:
-      // that centres, which is the one thing this function exists to avoid.
+      // that centres on the whole pane, rail and floor rules and all ignored.
       window.setTimeout(() => {
         try {
           // Only if it is still THIS fit's target: a second fit started in the

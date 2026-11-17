@@ -3,8 +3,6 @@ import type { Catalog } from "../../catalogs";
 
 const catalog: Catalog = {
   "accounts.sort.by": "按“{label}”排序",
-  "accounts.autoFit.fitAll": "全部显示",
-  "accounts.autoFit.fitAllTip": "让所有会话重新显示在屏幕内",
   "accounts.projLoading.title": "正在读取项目活动",
   "accounts.projLoading.note": "正在按项目汇总此账号的工作…",
   "accounts.telemetry.label": "{name} 的组织遥测",

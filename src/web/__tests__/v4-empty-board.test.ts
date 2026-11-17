@@ -1,6 +1,6 @@
 // The empty board shows the welcome hero, not the machinery (V4 critique,
 // round 3). With no session the top bar's counts, the canvas bar's board
-// controls, the minimap, the Auto-fit chip and the status bar's keys are not
+// controls, the minimap and the status bar's keys are not
 // drawn; the Command Panel's button stays (its empty stage starts a session),
 // and the character stands in the minimap's corner. All of them read one
 // answer, board-empty.ts, and come back with the first session.
@@ -170,10 +170,17 @@ describe("the minimap", () => {
     expect(map(1)).toBe("");
   });
 
-  it("is the board's own, and the Auto-fit chip waits for a session too", () => {
+  it("is the board's own, and recenter's auto-fit dot waits for a session too", () => {
     const board = read("../components/BoardFlow.tsx");
-    expect(board).toContain("<BoardMinimap nodeColor={minimapNodeFill} palette={palette} />");
-    expect(board).toContain("{autoFitDisabled && !empty && <AutoFitChip");
+    // CHANGED ON PURPOSE (V4 top-10 #3): the minimap is told whether the notes
+    // are drawn, so it keeps off a selected card's note too.
+    expect(board).toContain("<BoardMinimap nodeColor={minimapNodeFill} palette={palette} notes={notesDrawn} />");
+    // CHANGED ON PURPOSE (V4 top-10 #3): the Auto-fit chip waited for a session
+    // → it is gone (recenter did the same thing); recenter and its dot are on
+    // the bar, which an empty board does not draw beyond the Command Panel.
+    expect(board).not.toContain("<AutoFitChip");
+    const controls = read("../components/CanvasControls.tsx");
+    expect(controls.indexOf("if (empty) {")).toBeLessThan(controls.indexOf("data-nudge={autoFitDisabled"));
   });
 });
 

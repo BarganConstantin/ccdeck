@@ -28,7 +28,7 @@ import { useZoomLod } from "./use-zoom-lod";
 import { useEventStream } from "./use-event-stream";
 import { useSelection } from "./use-selection";
 import { useBoardTick } from "./use-board-tick";
-import { useAgentFocus } from "./use-agent-focus";
+import { useAgentFocus, type LastFocus } from "./use-agent-focus";
 import { usePeekReaders } from "./use-peek-readers";
 import { useBoardLayout, useLayoutAutosave } from "./use-board-layout";
 import { useReframe } from "./use-reframe";
@@ -528,10 +528,11 @@ function Inner() {
   const layout = useBoardLayout(camera);
   const { pinnedRef, positionsRef, lastLayoutSigRef, handleRelayout, rearrangeUndo } = layout;
 
-  /** The card the last focus framed, and when — so a re-pack that lands just
-   *  after it (the reframe effect below) can frame it again where it went. */
-  const lastFocusRef = useRef<{ id: string; at: number } | null>(null);
-  /** focusAgent, for an effect declared above it. */
+  /** The card the last focus or selection brought into view, and when — so a
+   *  re-pack that lands just after it (the reframe effect below) can frame it
+   *  again where it went, the same way. */
+  const lastFocusRef = useRef<LastFocus | null>(null);
+  /** That jump made again (use-agent-focus.ts), for an effect declared above it. */
   const focusAgentRef = useRef<(id: string) => void>(() => {});
 
 
@@ -709,6 +710,9 @@ function Inner() {
   // registered once. Assigned during render so a keystroke in the same commit
   // sees the array that was just drawn.
   const nodesRef = useMirroredRef(nodes);
+  // And the board as drawn (packed below the full card), where a selection
+  // is brought into view at the zoom the reader is at.
+  const shownRef = useMirroredRef(graph.shown);
 
   // Bringing a card and its session into view, and stepping between cards —
   // use-agent-focus.ts.
@@ -719,8 +723,9 @@ function Inner() {
   // nonce makes the same session twice two jumps.
   const [landed, setLanded] = useState<{ id: string; nonce: number } | null>(null);
   const markLanded = useCallback((sessionId: string) => setLanded(prev => ({ id: sessionId, nonce: (prev?.nonce ?? 0) + 1 })), []);
-  const { focusAgent, stepAgent, focusSession } = useAgentFocus({
-    canvasRef, stateRef, measuredRef, nodesRef, railInsetRef, moveCamera, disableAutoFit,
+  const { focusAgent, revealAgent, stepAgent, focusSession } = useAgentFocus({
+    canvasRef, stateRef, measuredRef, nodesRef, shownRef, lodRef, railInsetRef, moveCamera,
+    currentViewport: camera.currentViewport, disableAutoFit,
     lastFocusRef, focusAgentRef, selectAgent, primarySelectedIdRef, onLand: markLanded,
   });
 
@@ -922,7 +927,7 @@ function Inner() {
 
   // What a click, a double-click and a hover on the canvas do — use-canvas-clicks.ts.
   const clicks = useCanvasClicks({
-    clearSelection, selectAgent, detailOpen, setDetailOpen, detailShown, focusAgent, draggingRef, lodRef, stage,
+    clearSelection, selectAgent, detailOpen, setDetailOpen, detailShown, focusAgent, revealAgent, draggingRef, lodRef, stage,
   });
 
   // What the peek reads, made once — use-peek-readers.ts.
