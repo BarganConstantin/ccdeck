@@ -323,10 +323,12 @@ policy, firmware and thermal constraints; it does not identify overheating or
 measure lost turbo boost. A 0% row means Windows reports no cap below nominal,
 not that every hardware-level thermal restriction has been ruled out. Missing
 counters stay unavailable. No driver or administrator access is required.
-| macOS, Intel | `ioreg` for the GPU, `pmset -g therm` for throttling | nothing |
+| macOS, Intel | `osx-cpu-temp` for the CPU proximity sensor, `ioreg` for the GPU, `pmset -g therm` for throttling | optional `brew install osx-cpu-temp` for CPU degrees; GPU and throttling need nothing |
 | macOS, Apple Silicon | `macmon`, which the deck fetches for you | nothing |
 
-Apple Silicon is the one that needs a tool, and it is not an oversight. No command that ships with macOS prints a temperature on an M-series Mac: `powermetrics` needs root, `pmset -g therm` records nothing there, and the sensors sit behind a private API that only native code can call. [`macmon`](https://github.com/vladkens/macmon) reads them without `sudo` and covers M1 through M5.
+Intel CPU degrees use an existing `osx-cpu-temp` installation from either Homebrew prefix. It runs without `sudo`; ccdeck does not install it automatically. A missing tool or unavailable sensor leaves the CPU row absent.
+
+Apple Silicon needs a different tool, and it is not an oversight. No command that ships with macOS prints a temperature on an M-series Mac: `powermetrics` needs root, `pmset -g therm` records nothing there, and the sensors sit behind a private API that only native code can call. [`macmon`](https://github.com/vladkens/macmon) reads them without `sudo` and covers M1 through M5.
 
 You do not have to install it. The deck downloads the published binary into `~/.agents-deck/tools/macmon` — the same place it already keeps `uv` — verifies it against the SHA-256 the GitHub release publishes, checks that it runs, and only then uses it. Not through Homebrew, because a machine without Homebrew would need Homebrew installed first, and that is a large thing to do to somebody who asked for a dashboard. It happens in the background, after the deck is already up, and never on the first run's critical path.
 
