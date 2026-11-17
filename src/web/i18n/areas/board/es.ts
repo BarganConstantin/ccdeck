@@ -271,6 +271,8 @@ const catalog: Catalog = {
   "board.hero.waiting": "Esperando a Claude Code o Codex",
   "board.hero.run": "Ejecuta claude o codex en cualquier carpeta. En cuanto una sesión envíe un evento, aparecerá aquí un nodo que crece a medida que se bifurcan subagentes y se llaman herramientas.",
   "board.hero.notShowing": "¿No aparece la sesión?",
+  "board.hero.noSessions": "Aún no hay sesiones",
+  "board.hero.startHint": "Inicia Claude Code o Codex en una terminal y la sesión aparecerá aquí.",
   "board.controls.zoomIn": "Acercar",
   "board.controls.zoomOut": "Alejar",
   "board.controls.recenterOn": "Recentrar la vista y reactivar el ajuste automático",

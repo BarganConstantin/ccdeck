@@ -1165,6 +1165,11 @@ function Inner() {
     openQuickOpen,
     feedbackUnread, openFeedbackConversations,
     inspectorOpen, toggleInspector,
+    // A stripe's More reads open while a dialog behind it is up.
+    dialogsUp: {
+      history: dialogs.usageHistoryOpen, browserWatch: dialogs.browserWatchOpen, radar: dialogs.trafficRadarOpen,
+      radio: radioOpen, explore: exploreIntegrationsOpen, toolActivity: toolAuditView, capacity: capacityView,
+    },
   });
   /** A phone opens on Sessions, and a row there opens that session's pane when
    *  the deck has a terminal for it (the Command Panel is on), else the
@@ -1391,7 +1396,7 @@ function Inner() {
             items={[...rails.left, ...rails.right[0]].map(sessionsDoorUnderSheet)}
             more={[rails.search, ...commandPanelMore(stage.enabled ? stage.openFromButton : undefined), ...rails.capacity, ...rails.right.slice(1).flat(), ...rails.integrations, ...rails.explore, ...rails.utilities.filter(item => item !== rails.corner)]}
             offline={everConnected && !live} />
-        : <EdgeRail side="left" label={t("board.rail.tools")} groups={rails.leftStripe} foot={rails.leftFoot} />}
+        : <EdgeRail side="left" label={t("board.rail.tools")} groups={rails.leftStripe} more={rails.leftMore} foot={rails.leftFoot} />}
 
       {/* Mounted whether or not anything was removed, for the reason the
           topbar's alarm region is (#372): words that arrive with their region
@@ -1550,7 +1555,7 @@ function Inner() {
           column, the canvas, this stripe, then its panels and the Inspector.
           Fixed to the window's right edge, so where it sits in the document
           changes nothing on screen. */}
-      {!phone && <EdgeRail side="right" label={t("shell.rail.right")} groups={rails.rightStripe} />}
+      {!phone && <EdgeRail side="right" label={t("shell.rail.right")} groups={rails.rightStripe} more={rails.rightMore} />}
 
       {/* The Board's right column: Usage, This machine, then the Inspector, top
           to bottom (panel-place.css). Always drawn, so nothing in it remounts

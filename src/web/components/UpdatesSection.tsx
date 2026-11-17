@@ -91,8 +91,12 @@ export default function UpdatesSection({ autoRestart, onToggleAutoRestart, versi
   // does wherever it can.
   const info = shape === "no-restart" ? t("settings.updates.noRestartNote")
     : shape === "checks-off" ? t("settings.updates.checksOffNote") : null;
+  // The plain shape keeps its Details (V4 top-10 #10): the 30 seconds, the two
+  // paths and what Off means are the rule itself, which the one-line note
+  // cannot hold. The app's row is named "Updates", so there it stands under no
+  // caption of the same name.
   return (
-    <SettingsGroup id="settings-updates-caption" title={t("settings.updates.title")}>
+    <SettingsGroup id={shape === "app" ? undefined : "settings-updates-caption"} title={shape === "app" ? undefined : t("settings.updates.title")}>
       {shape === "app" ? (
         <SettingRow as="div" settingId="auto-update" name={t("settings.updates.title")} note={t("settings.updates.appNote")} />
       ) : (

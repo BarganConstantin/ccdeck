@@ -39,7 +39,8 @@ export default function RadioPanel({ fm, player, library, selected: current, lab
   const [searchExpansion, setSearchExpansion] = useState<boolean | null>(null);
   const [keyboardOpened] = useState(() => document.activeElement?.matches(":focus-visible") ?? false);
   const panel = useModalDismiss<HTMLDivElement>(onClose, {
-    restoreFocusFallback: () => Array.from(document.querySelectorAll<HTMLButtonElement>('[data-rail-item="radio"], #dock-more'))
+    // Radio's door, or the More whose menu holds it: the left stripe's, or the dock's.
+    restoreFocusFallback: () => Array.from(document.querySelectorAll<HTMLButtonElement>('[data-rail-item="radio"], [data-more-holds~="radio"]'))
       .find(button => button.getClientRects().length > 0) ?? null,
   });
   const [query, setQuery] = useState("");

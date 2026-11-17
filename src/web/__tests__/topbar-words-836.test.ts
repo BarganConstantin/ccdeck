@@ -58,8 +58,11 @@ const rails = railItems({
 });
 // CHANGED ON PURPOSE (V4's Figma): one bar holding every door is two stripes, a
 // door on the side its panel opens; Settings at the left one's foot.
-const left = renderToStaticMarkup(createElement(EdgeRail, { side: "left", label: "Panels and tools", groups: rails.leftStripe, foot: rails.leftFoot }));
-const right = renderToStaticMarkup(createElement(EdgeRail, { side: "right", label: "Usage and activity", groups: rails.rightStripe }));
+// CHANGED ON PURPOSE (V4 top-10 #4): each stripe drawn with its More, as App
+// draws it. These rails have no capacity, Explore or Radio doors, so the left
+// More has nothing in it and is not drawn; the right one holds the records.
+const left = renderToStaticMarkup(createElement(EdgeRail, { side: "left", label: "Panels and tools", groups: rails.leftStripe, more: rails.leftMore, foot: rails.leftFoot }));
+const right = renderToStaticMarkup(createElement(EdgeRail, { side: "right", label: "Usage and activity", groups: rails.rightStripe, more: rails.rightMore }));
 const corner = renderToStaticMarkup(createElement(UtilityRun, { items: [rails.corner] }));
 const dock = renderToStaticMarkup(createElement(EdgeDock, {
   items: [...rails.left, ...rails.right[0], rails.utilities[0]], more: [...rails.right.slice(1).flat(), rails.utilities[1]],
@@ -88,8 +91,9 @@ const WORDS: Array<[word: string, name: string]> = [
   ["Inspector", "Show the Inspector"],
   ["Usage", "Usage"],
   ["This machine", "This machine"],
-  ["Usage history", "Usage history"],
-  ["Browser watch", "Browser watch, not watching"],
+  // CHANGED ON PURPOSE (V4 top-10 #4): Usage history and Browser watch were
+  // doors here → rows of the right stripe's More, whose name says them.
+  ["More", "More: Usage history, Browser watch, not watching"],
   ["", "Send feedback"],
 ];
 
@@ -125,8 +129,9 @@ describe("every control in the chrome says its name (#836)", () => {
     // its corner cell at every width.
     expect(app).toMatch(/\{!phone && <div className="actions"><UtilityRun items=\{\[rails\.search\]\} \/><\/div>\}/);
     expect(app).toMatch(/<div className="tb-corner"><UtilityRun items=\{\[rails\.corner\]\} \/><\/div>/);
-    expect(app).toMatch(/: <EdgeRail side="left" label=\{t\("board\.rail\.tools"\)\} groups=\{rails\.leftStripe\} foot=\{rails\.leftFoot\} \/>\}/);
-    expect(app).toMatch(/\{!phone && <EdgeRail side="right" label=\{t\("shell\.rail\.right"\)\} groups=\{rails\.rightStripe\} \/>\}/);
+    // CHANGED ON PURPOSE (V4 top-10 #4): each stripe takes its More too.
+    expect(app).toMatch(/: <EdgeRail side="left" label=\{t\("board\.rail\.tools"\)\} groups=\{rails\.leftStripe\} more=\{rails\.leftMore\} foot=\{rails\.leftFoot\} \/>\}/);
+    expect(app).toMatch(/\{!phone && <EdgeRail side="right" label=\{t\("shell\.rail\.right"\)\} groups=\{rails\.rightStripe\} more=\{rails\.rightMore\} \/>\}/);
   });
 
   it("says a short word under each glyph in the phone's dock, and the rest by name behind More", () => {
@@ -159,9 +164,11 @@ describe("every control in the chrome says its name (#836)", () => {
     // right stripe, the Inspector's door alone first.
     // CHANGED ON PURPOSE (stripe words): named by their words where the name
     // did not hold them, and the switch between words and icons last.
+    // CHANGED ON PURPOSE (V4 top-10 #4): the right stripe's records and
+    // watchers are behind its More, last, so the stripe draws two runs, not four.
     expect(buttons(left).map(b => b.name)).toEqual(["Sessions", "Accounts", "Settings", "Hide words"]);
-    expect(buttons(right).map(b => b.name)).toEqual(["Show the Inspector", "Usage", "This machine", "Usage history", "Browser watch, not watching"]);
-    expect(right.match(/<div class="rail-group"/g)).toHaveLength(4);
+    expect(buttons(right).map(b => b.name)).toEqual(["Show the Inspector", "Usage", "This machine", "More: Usage history, Browser watch, not watching"]);
+    expect(right.match(/<div class="rail-group"/g)).toHaveLength(2);
     expect(right).toContain('<div class="rail-group" role="group" aria-label="Usage and machine">');
     expect(body(".rail-foot") /* shares the rule with .rail-doors */).toMatch(/gap: 2px;/);
     expect(body(".rail-group")).toMatch(/gap: 2px;/);
@@ -215,7 +222,11 @@ describe("the chrome is quiet: no edge at rest, a neutral look under the pointer
     // pressed look left with the bar's toggles. A disclosure says
     // aria-expanded, a dialog opener aria-haspopup="dialog".
     for (const html of [left, right, corner, dock]) expect(html).not.toMatch(/aria-pressed/);
-    expect(right).toMatch(/aria-label="Usage history"[^>]*aria-haspopup="dialog"|aria-haspopup="dialog"[^>]*aria-label="Usage history"/);
+    // CHANGED ON PURPOSE (V4 top-10 #4): Usage history, the dialog opener this
+    // read, is a row of the right stripe's More → Settings, on the left foot,
+    // is the stripe's dialog opener read here, and the More a menu button.
+    expect(left).toMatch(/aria-label="Settings"[^>]*aria-haspopup="dialog"|aria-haspopup="dialog"[^>]*aria-label="Settings"/);
+    expect(right).toMatch(/data-rail-item="more"[^>]*aria-haspopup="menu"/);
     expect(left).toMatch(/aria-expanded="false"/);
   });
 

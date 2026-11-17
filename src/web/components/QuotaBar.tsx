@@ -7,11 +7,22 @@
 // rules for when a bar turns red, and what its pace note says, are
 // written once. The one piece of state it holds is its own: whether that note
 // is open (#856).
-import { useId, useState } from "react";
+import { useId, useState, type ReactNode } from "react";
 import { useT } from "../i18n";
 import { durationLabel, formatNumber } from "../i18n/format";
 import { FadeFigure, useFillJump } from "./FadeFigure";
 import { LevelMark, type LevelTone } from "./LevelMark";
+import { slot } from "./Slot";
+
+/** A pace sentence with its one figure set apart, so the over-pace colour sits
+ *  on the number that warns and the sentence around it stays quiet text (V4
+ *  top-10 #10). The unit after a number — "%", or the " %" French spaces it
+ *  with — is part of the figure. Only the two warnings are drawn this way: an
+ *  on-pace or under-pace note has nothing to warn about, so no colour. */
+function figureIn(template: string, token: string, value: string): ReactNode {
+  const unit = new RegExp(`\\{${token}\\}(\\s?%)`).exec(template)?.[1] ?? "";
+  return slot(template.replace(`{${token}}${unit}`, `{${token}}`), token, <span className="qb-pace-figure">{value}{unit}</span>);
+}
 
 // ── Pace helpers ───────────────────────────────────────────────────────────
 
@@ -199,8 +210,11 @@ export default function QuotaBar({ pct, label, reset, resetAt, windowSec, limitR
           <button
             type="button"
             className="qb-pace"
-            // Keep the pace colour visible alongside the meter.
-            style={{ color: pace.color }}
+            // QUIET TEXT, NOT A LINK (V4 top-10 #10). The whole sentence was
+            // in the pace colour with a dotted underline, so every bar carried
+            // a coloured link. It reads in --muted now, underlined only under
+            // the pointer, and the one figure that warns — how far over, how
+            // soon it runs out — keeps the over-pace colour (figureIn).
             aria-expanded={why}
             aria-controls={why ? whyId : undefined}
             onClick={() => setWhy(w => !w)}
@@ -209,7 +223,11 @@ export default function QuotaBar({ pct, label, reset, resetAt, windowSec, limitR
                 that says the tick on the bar is the pace these words are
                 measured against (#850). */}
             <i className="qb-pace-key" aria-hidden style={{ background: pace.isDeficit ? "var(--err)" : "var(--ok)" }} />
-            {pace.runsOutIn ? t("usage.quota.pace.runsOut", { time: durationLabel(t, pace.runsOutSec ?? 0) }) : t(`usage.quota.pace.${pace.kind}`, { n: pace.n ?? 0 })}
+            {pace.runsOutIn
+              ? figureIn(t("usage.quota.pace.runsOut"), "time", durationLabel(t, pace.runsOutSec ?? 0))
+              : pace.kind === "over"
+                ? figureIn(t("usage.quota.pace.over"), "n", String(pace.n ?? 0))
+                : t(`usage.quota.pace.${pace.kind}`, { n: pace.n ?? 0 })}
           </button>
         )}
       </div>

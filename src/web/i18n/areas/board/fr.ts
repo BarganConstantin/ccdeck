@@ -271,6 +271,8 @@ const catalog: Catalog = {
   "board.hero.waiting": "En attente de Claude Code ou de Codex",
   "board.hero.run": "Lancez claude ou codex dans n’importe quel dossier. Dès qu’une session envoie un événement, un nœud apparaît ici et grandit à mesure que des sous-agents se créent et que des outils sont appelés.",
   "board.hero.notShowing": "La session n’apparaît pas ?",
+  "board.hero.noSessions": "Aucune session pour l’instant",
+  "board.hero.startHint": "Lancez Claude Code ou Codex dans un terminal et la session apparaîtra ici.",
   "board.controls.zoomIn": "Zoom avant",
   "board.controls.zoomOut": "Zoom arrière",
   "board.controls.recenterOn": "Recentrer la vue + réactiver l’ajustement auto",
