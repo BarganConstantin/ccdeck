@@ -121,7 +121,8 @@ describe("an open account row whose window has reset since its collection", () =
     // the error ink, on the figure and on the meter alike.
     const html = row(account(NOW + 3600));
     const lane = fiveHour(html);
-    expect(lane).toContain('data-level="hi"');
+    // The level's name is the shared quota level's (V4 top-10 #9): "err", was "hi".
+    expect(lane).toContain('data-level="err"');
     expect(text(lane)).toContain("resets in 1h");
     expect(text(lane)).not.toMatch(/\breset$/);
     expect(meter(html)).toContain("width:92%;background:var(--err)");

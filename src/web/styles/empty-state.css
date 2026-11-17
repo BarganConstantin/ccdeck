@@ -30,21 +30,13 @@
   letter-spacing: 0;
 }
 .empty-hero.empty-notice p { line-height: 20px; }
+/* The notices' mark. The empty board draws none (V4 top-10 #10): its 40px
+   chevron with a blinking cursor had no job above the title, so it went, and
+   its blink with it. */
 .empty-hero .empty-symbol {
   display: grid;
   place-items: center;
-  width: 40px; height: 40px;
-  margin: 0 auto 20px;
   color: var(--muted);
-}
-.empty-hero .empty-cursor { animation: empty-cursor-blink 1.4s steps(1, end) infinite; }
-.empty-hero .empty-symbol[data-active="false"] .empty-cursor { animation: none; }
-@keyframes empty-cursor-blink {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0; }
-}
-@media (prefers-reduced-motion: reduce) {
-  .empty-hero .empty-cursor { animation: none; }
 }
 .empty-hero h2 {
   color: var(--text);

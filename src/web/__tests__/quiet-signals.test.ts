@@ -276,7 +276,9 @@ describe("2. the quota pace marker (#368.2)", () => {
   // the token sets come from there — a new state added to either is caught.
   // CHANGED ON PURPOSE (compact accounts, #2539): the fill wears main's quota
   // colours for every account, --accent below 70, --warn from 70, --err from 90.
-  const FILLS = [...(/export function quotaMeterColor[^{]*\{\s*return\s+([^;]+);/.exec(quotaBar)![1])
+  // The fill's inks are quotaFill's since every quota meter shares one level
+  // (V4 top-10 #9); they were quotaMeterColor's, the same three.
+  const FILLS = [...(/export function quotaFill[^{]*\{\s*return\s+([^;]+);/.exec(quotaBar)![1])
     .matchAll(/var\((--[\w-]+)\)/g)].map(m => m[1]);
   const MARKERS = [...(/className="qb-pace-marker"[\s\S]*?\/>/.exec(quotaBar)![0])
     .matchAll(/var\((--[\w-]+)\)/g)].map(m => m[1]);

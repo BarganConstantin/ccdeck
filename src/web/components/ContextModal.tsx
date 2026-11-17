@@ -297,15 +297,6 @@ export function ContextDonut({ currentContextTokens, modelId, contextWindow, siz
   const t = useT();
   const window = effectiveContextWindow(contextWindow, modelId);
   const pct = Math.min(1, currentContextTokens / window);
-  // The foot's 14px icon box: a 2px ring 12 across, 8 clear inside.
-  const r = size / 2 - 2;
-  const c = size / 2;
-  const circ = 2 * Math.PI * r;
-  const dash = circ * pct;
-  // Color shifts from accent → warning as we close on the ceiling. The middle
-  // step is --warn: it was --inflight, the one hue that means "running right
-  // now", and a window filling up is a level, not something running (#1649).
-  const stroke = pct > 0.9 ? "var(--err)" : pct > 0.7 ? "var(--warn)" : "var(--accent)";
   return (
     <button
       type="button"
@@ -327,27 +318,46 @@ export function ContextDonut({ currentContextTokens, modelId, contextWindow, siz
          aria-valuenow; this is the surface that was silent. */
       aria-label={t("insights.context.donutAria", { pct: Math.round(pct * 100), window: window.toLocaleString(currentLanguage()) })}
     >
-      <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} aria-hidden="true">
-        <circle cx={c} cy={c} r={r} stroke="var(--line)" strokeWidth="2" fill="none" />
-        <circle
-          cx={c} cy={c} r={r}
-          stroke={stroke} strokeWidth="2" fill="none"
-          strokeDasharray={`${dash} ${circ - dash}`}
-          strokeDashoffset={circ / 4}
-          strokeLinecap="round"
-          // Named here, valued in styles.css. The literal `stroke-dasharray
-          // 400ms ease` this used to hold was an inline style, which outranks
-          // every selector, so no `prefers-reduced-motion` rule could reach it
-          // (#357) and the arc swept around the circle on every turn however
-          // the reader had set their OS. `--ctx-arc-transition` becomes `none`
-          // under that preference, and the arc simply is its new length.
-          style={{ transition: "var(--ctx-arc-transition)" }}
-        />
-        {/* NO FIGURE INSIDE (owner, 2026-11-10). It was 8px, under the deck's
-            11px floor, and 11px does not fit. The figure is beside the ring,
-            in the foot's own type. */}
-      </svg>
+      <ContextRing fill={pct} size={size} />
       <span className="ctx-donut-pct">{formatPercent(Math.round(pct * 100))}</span>
     </button>
+  );
+}
+
+/** The donut's ring alone, `fill` of the way round (0 to 1). The pane's header
+ *  draws it beside its percent (terminal/StageHeader.tsx), where there is no
+ *  breakdown to open and so no button; one drawing, so the two read alike. */
+export function ContextRing({ fill, size = 14 }: { fill: number; size?: number }) {
+  const pct = Math.min(1, Math.max(0, fill));
+  // The foot's 14px icon box: a 2px ring 12 across, 8 clear inside.
+  const r = size / 2 - 2;
+  const c = size / 2;
+  const circ = 2 * Math.PI * r;
+  const dash = circ * pct;
+  // Color shifts from accent → warning as we close on the ceiling. The middle
+  // step is --warn: it was --inflight, the one hue that means "running right
+  // now", and a window filling up is a level, not something running (#1649).
+  const stroke = pct > 0.9 ? "var(--err)" : pct > 0.7 ? "var(--warn)" : "var(--accent)";
+  return (
+    <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} aria-hidden="true">
+      <circle cx={c} cy={c} r={r} stroke="var(--line)" strokeWidth="2" fill="none" />
+      <circle
+        cx={c} cy={c} r={r}
+        stroke={stroke} strokeWidth="2" fill="none"
+        strokeDasharray={`${dash} ${circ - dash}`}
+        strokeDashoffset={circ / 4}
+        strokeLinecap="round"
+        // Named here, valued in styles.css. The literal `stroke-dasharray
+        // 400ms ease` this used to hold was an inline style, which outranks
+        // every selector, so no `prefers-reduced-motion` rule could reach it
+        // (#357) and the arc swept around the circle on every turn however
+        // the reader had set their OS. `--ctx-arc-transition` becomes `none`
+        // under that preference, and the arc simply is its new length.
+        style={{ transition: "var(--ctx-arc-transition)" }}
+      />
+      {/* NO FIGURE INSIDE (owner, 2026-11-10). It was 8px, under the deck's
+          11px floor, and 11px does not fit. The figure is beside the ring,
+          in the foot's own type. */}
+    </svg>
   );
 }

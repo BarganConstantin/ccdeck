@@ -581,6 +581,11 @@ const EXEMPT: string[] = [
   // What's new's text button (.rn-text-button) is gone: its Take the tour is a
   // bordered .btn now, which the button rule presses.
   ".release-notes .rn-history > summary", ".release-notes .rn-more > summary", ".kh-tour",
+  // The Inspector's Details row (V4 top-10 #6) is the same kind of full-width
+  // reading row: it answers by opening, its chevron turning and its words
+  // lifting to --text under the pointer; a row scaled on press would slide
+  // "Details" and its count out from under the pointer.
+  ".detail-more > summary",
   // Radio uses pointer-only feedback on the control or its child glyph.
   // Range thumbs and map markers must retain fixed interaction geometry.
   ".radio-cluster-preview > div > .radio-cluster-station",

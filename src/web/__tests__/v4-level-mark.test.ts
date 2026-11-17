@@ -1,13 +1,13 @@
 // Every warning that was a colour alone now says itself twice more: the
 // warning mark before the figure and a word after it, both in the figure's
-// tone, in every theme. The quota bars from 70%, the rail's meter at its error
-// level, the machine panel's meters from 90%, a reading past its sensor's
+// tone, in every theme. The quota bars and the rail's meter from 70%, the
+// machine panel's meters from 90%, a reading past its sensor's
 // critical point (a GPU's among them), and the process list's strip past a
 // threshold. Below the level, nothing is added.
 import { describe, expect, it } from "vitest";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import QuotaBar, { quotaMeterColor, quotaTone } from "../components/QuotaBar";
+import QuotaBar, { quotaFill, quotaLevel } from "../components/QuotaBar";
 import { LevelMark } from "../components/LevelMark";
 import { PlainRow, Row } from "../components/MachineReadout";
 import { Cell } from "../components/MachineStrip";
@@ -83,10 +83,12 @@ describe("a quota bar from 70%", () => {
   });
 
   it("matches the tone to the fill at every level", () => {
+    // The tone and the fill are one level now (quotaLevel), the fill its ink.
     for (const pct of [0, 69, 70, 89, 90, 100]) {
-      const tone = quotaTone(pct);
-      const fill = quotaMeterColor(pct);
+      const tone = quotaLevel(pct);
+      const fill = quotaFill(tone);
       expect(tone === null ? "var(--accent)" : tone === "warn" ? "var(--warn)" : "var(--err)").toBe(fill);
+      expect(mark(bar(pct))?.tone ?? null).toBe(tone);
     }
   });
 
@@ -99,7 +101,7 @@ describe("a quota bar from 70%", () => {
   });
 });
 
-describe("the rail's usage meter at its error level", () => {
+describe("the rail's usage meter from 70%", () => {
   const NOW = 1_800_000_000;
   const reading = (session5hPct: number): QuotaData => ({ ok: true, planLabel: "Max 20x", session5hPct, session5hResetAt: NOW + 3600 });
   const meter = (pct: number) => usageMeter({ reading: reading(pct), readAt: NOW * 1000, failed: false }, NOW * 1000);
@@ -110,9 +112,18 @@ describe("the rail's usage meter at its error level", () => {
     expect(meter(95)?.spoken).toContain("5-hour limit 95%, high");
   });
 
-  it("adds nothing under 90, where the figure takes no warning colour", () => {
-    expect(mark(draw(75))).toBeNull();
-    expect(meter(75)?.spoken).not.toContain("high");
+  // CHANGED ON PURPOSE (V4 top-10 #9): nothing under 90 → the warning mark,
+  // --warn and "high" from 70, as the Usage panel's bar has them, because the
+  // same 86% read calm on the rail and "⚠ 86% · high" in the panel.
+  it("marks 70 to 89 in --warn and says high, aloud too, as the Usage panel's bar does", () => {
+    expect(mark(draw(75))).toEqual({ tone: "warn", word: "high" });
+    expect(mark(draw(75))).toEqual(mark(html(createElement(QuotaBar, { pct: 75, label: "5-hour window", nowSec: 0 }))));
+    expect(meter(75)?.spoken).toContain("5-hour limit 75%, high");
+  });
+
+  it("adds nothing under 70", () => {
+    expect(mark(draw(69))).toBeNull();
+    expect(meter(69)?.spoken).not.toContain("high");
   });
 
   it("keeps the mark at the line's end, where the figure stood", () => {

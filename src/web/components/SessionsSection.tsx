@@ -8,7 +8,9 @@
 // select for the control, because the choice is one of five and the platform's
 // own list is the one a keyboard, a screen reader and a touch screen already
 // know. The note says where a hidden session went, which is the question a
-// card that has left the board raises.
+// card that has left the board raises. It has no Details (V4 top-10 #10): what
+// they said past the note — a session that works again comes back — follows
+// from "finished", and a disclosure under every row of the group was a wall.
 import type { ReactNode } from "react";
 import { HIDE_FINISHED_CHOICES, setHideFinishedAfter } from "../hide-finished";
 import { useHideFinishedAfter } from "../use-hide-finished";
@@ -30,7 +32,6 @@ export default function SessionsSection({ children }: { children?: ReactNode }) 
         name={t("settings.board.hideLabel")}
         nameId="settings-hide-finished-label"
         note={t("settings.board.hideNote")}
-        details={t("settings.board.hideDetails")}
         noteId="settings-hide-finished-note"
         control={
           <SelectShell>
