@@ -1,5 +1,37 @@
 # Owner's ccdeck work — continuation context
 
+## Intel CPU readings and pending Codex switches — 2026-11-17
+
+The Intel CPU proximity reader is merged into `next/v4` through PR #2596,
+merge `31b001723`. The optional installed `osx-cpu-temp` reader supplies CPU
+degrees independently of the existing GPU and throttling sources. Actual
+Intel Mac readings were verified in the API and Thermal panel; the eight
+required CI checks passed. The merged runtime checkout is `v4-cpu-runtime`.
+
+The follow-up branch `fix/codex-account-handoff-stall` targets `development`
+after `next/v4` was integrated there through PR #2598. It includes the
+development engine 0.1.5 pins. A native
+account read confirmed the previous account while the selected default had
+already changed: running command items kept deferring the shared-server
+handoff. Supported direct-input sessions now use the existing durable
+checkpoint protocol while tools run, with one steer and one continuation.
+Unknown activity, approvals and user input remain guarded. The Accounts
+panel names the account still in use above the list while switching.
+
+The follow-up also reproduces a second gap: an explicit usage-limit failure
+just before authentication was idle and omitted from the paused-turn list.
+New account switches can capture the latest direct-input usage failure from
+the preceding five minutes, retain it across other conversations' checkpoints,
+and continue it once after a different login is confirmed. Same-account
+refreshes, old errors, manual interruption, new input and uncertain sends do
+not replay it. The owner's existing limited conversation was inspected only;
+do not resume it as a verification step.
+
+Read the local runtime marker before restarting: the desktop may be serving
+this follow-up checkout on port 4317 instead of the merged runtime. Do not
+equate a selected default with a completed native login, or synthetic protocol
+tests with a live account handoff on every provider version.
+
 ## Local single Done group — 2026-11-16
 
 Owner requested one Done section instead of separate new/seen sections.

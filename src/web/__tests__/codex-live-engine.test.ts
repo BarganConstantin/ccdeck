@@ -64,6 +64,132 @@ async function fixture({ saved = null as any, actual = A, readCredential = null 
     externalLogin: (id: string) => { account = { ...account, email: email(id) }; callbacks.onNotification({ method: 'account/updated' }); } };
 }
 describe('existing Codex session account engine', () => {
+  it('continues a fresh usage-limit failure once after a different account is confirmed', async () => {
+    const f = await fixture({ active: true }); Object.assign(f.thread, { canAcceptDirectInput: true });
+    f.thread.status.type = 'idle'; f.turn.status = 'failed';
+    Object.assign(f.turn, { completedAt: Math.floor(Date.now() / 1000), error: { codexErrorInfo: 'usageLimitExceeded' } });
+    expect(await f.c.request({ id: B, revision: 1 })).toMatchObject({ state: 'applied', profileId: B, continuation: 'automatic' });
+    expect(f.calls.filter(c => c.method === 'turn/start')).toHaveLength(1);
+    expect(f.calls.findIndex(c => c.method === 'turn/start')).toBeGreaterThan(f.calls.findIndex(c => c.method === 'account/login/start'));
+    await f.c.tick();
+    expect(f.calls.filter(c => c.method === 'turn/start')).toHaveLength(1);
+  });
+  it.each(['before-interrupt', 'during-interrupt'])('preserves a usage failure arriving %s in the account handoff', async race => {
+    const f = await fixture({ active: true }); Object.assign(f.thread, { canAcceptDirectInput: true });
+    const original = f.rpc.request.getMockImplementation()!; let reads = 0;
+    f.rpc.request.mockImplementation(async (method, params) => {
+      const result = await original(method, params);
+      if ((race === 'before-interrupt' && method === 'thread/read' && ++reads === 2)
+        || (race === 'during-interrupt' && method === 'turn/interrupt')) {
+        f.thread.status.type = 'idle'; f.turn.status = 'failed';
+        Object.assign(f.turn, { completedAt: Math.floor(Date.now() / 1000), error: { codexErrorInfo: 'usageLimitExceeded' } });
+      }
+      return result;
+    });
+    expect(await f.c.request({ id: B, revision: 1 })).toMatchObject({ state: 'applied', continuation: 'automatic' });
+    expect(f.calls.filter(c => c.method === 'turn/start')).toHaveLength(1);
+  });
+  it.each([false, true])('handles a usage failure replacing the checkpoint without retrying an unchanged account: %s', async sameLogin => {
+    const f = await fixture({ active: true }); Object.assign(f.thread, { canAcceptDirectInput: true });
+    f.turn.items.push({ id: 'watch', type: 'commandExecution', status: 'inProgress' });
+    const original = f.rpc.request.getMockImplementation()!;
+    f.rpc.request.mockImplementation(async (method, params) => {
+      if (method === 'turn/steer') { f.turn.items.push({ id: 'checkpoint-input', type: 'userMessage', clientId: params.clientUserMessageId }); return {}; }
+      return original(method, params);
+    });
+    expect(await f.c.request({ id: sameLogin ? A : B, revision: 1 })).toMatchObject({ state: 'waiting' });
+    f.thread.status.type = 'idle'; f.turn.status = 'failed'; f.turn.items[1].status = 'completed';
+    Object.assign(f.turn, { error: { codexErrorInfo: 'usageLimitExceeded' } });
+    await f.c.tick();
+    expect(f.c.status()).toMatchObject({ state: 'applied', continuation: sameLogin ? 'manual_required' : 'automatic' });
+    expect(f.rpc.request.mock.calls.filter(c => c[0] === 'turn/steer')).toHaveLength(1);
+    expect(f.calls.filter(c => c.method === 'turn/start')).toHaveLength(sameLogin ? 0 : 1);
+  });
+  it('retains a failed conversation while another conversation drains tools for the same switch', async () => {
+    const f = await fixture({ active: true }); Object.assign(f.thread, { canAcceptDirectInput: true });
+    f.turn.items.push({ id: 'watch', type: 'commandExecution', status: 'inProgress' });
+    const stopped = { id: 'limited-thread', canAcceptDirectInput: true, status: { type: 'idle' } };
+    const failed = { id: 'limited-turn', rootTurnId: 'limited-root', status: 'failed', completedAt: Math.floor(Date.now() / 1000),
+      error: { codexErrorInfo: 'usageLimitExceeded' }, itemsView: 'full', items: [{ id: 'limited-input', type: 'userMessage' }] };
+    const original = f.rpc.request.getMockImplementation()!;
+    f.rpc.request.mockImplementation(async (method, params) => {
+      if (method === 'thread/loaded/list') return { data: [f.thread.id, stopped.id] };
+      if (params?.threadId === stopped.id) {
+        if (['thread/read', 'thread/resume'].includes(method)) return { thread: stopped };
+        if (method === 'thread/unsubscribe') return {};
+        if (method === 'thread/turns/list') return { data: [failed] };
+        if (method === 'turn/start') { stopped.status.type = 'active'; failed.status = 'inProgress'; failed.id = 'limited-continuation'; return { turn: { id: failed.id } }; }
+        throw Error('Unexpected request for failed conversation');
+      }
+      if (method === 'turn/steer') { f.turn.items.push({ id: 'checkpoint-input', type: 'userMessage', clientId: params.clientUserMessageId }); return {}; }
+      return original(method, params);
+    });
+    expect(await f.c.request({ id: B, revision: 1 })).toMatchObject({ state: 'waiting' });
+    const marker = f.journals.at(-1).entries.find((e: any) => e.threadId === f.thread.id).checkpointId;
+    f.thread.status.type = 'idle'; f.turn.status = 'completed'; f.turn.items[1].status = 'completed';
+    f.turn.items.push({ id: 'checkpoint-result', type: 'agentMessage', text: 'CCDECK_CHECKPOINT_' + marker });
+    await f.c.tick();
+    expect(f.c.status()).toMatchObject({ state: 'applied', continuation: 'automatic' });
+    expect(f.rpc.request.mock.calls.filter(c => c[0] === 'turn/steer')).toHaveLength(1);
+    expect(f.rpc.request.mock.calls.filter(c => c[0] === 'turn/start').map(c => c[1].threadId).sort()).toEqual([f.thread.id, stopped.id].sort());
+  });
+  it.each(['same-account', 'old-failure', 'missing-time', 'future-time', 'no-direct-input', 'user-stop', 'other-error', 'unfinished-tool', 'changed-input', 'login-failure'])('does not resume a rate-limited conversation with %s', async guard => {
+    const f = await fixture({ active: true }); Object.assign(f.thread, { canAcceptDirectInput: true });
+    f.thread.status.type = 'idle'; f.turn.status = guard === 'user-stop' ? 'interrupted' : 'failed';
+    Object.assign(f.turn, { completedAt: Math.floor(Date.now() / 1000) - (guard === 'old-failure' ? 600 : 0),
+      error: { codexErrorInfo: guard === 'other-error' ? 'internalServerError' : 'usageLimitExceeded' } });
+    if (guard === 'missing-time') Object.assign(f.turn, { completedAt: null });
+    if (guard === 'future-time') Object.assign(f.turn, { completedAt: Date.now() / 1000 + 60 });
+    if (guard === 'no-direct-input') Object.assign(f.thread, { canAcceptDirectInput: false });
+    if (guard === 'unfinished-tool') f.turn.items.push({ id: 'still-running', type: 'commandExecution', status: 'inProgress' });
+    const original = f.rpc.request.getMockImplementation()!;
+    f.rpc.request.mockImplementation(async (method, params) => {
+      if (guard === 'login-failure' && method === 'account/login/start') throw Error('login rejected');
+      const result = await original(method, params);
+      if (guard === 'changed-input' && method === 'account/login/start') f.turn.items.push({ id: 'new-input', type: 'userMessage' });
+      return result;
+    });
+    await f.c.request({ id: guard === 'same-account' ? A : B, revision: 1 });
+    expect(f.calls.some(c => c.method === 'turn/start')).toBe(false);
+  });
+  it('does not resend an unconfirmed continuation of a rate-limited response', async () => {
+    const f = await fixture({ active: true }); Object.assign(f.thread, { canAcceptDirectInput: true });
+    f.thread.status.type = 'idle'; f.turn.status = 'failed';
+    Object.assign(f.turn, { completedAt: Math.floor(Date.now() / 1000), error: { codexErrorInfo: 'usageLimitExceeded' } });
+    const original = f.rpc.request.getMockImplementation()!;
+    f.rpc.request.mockImplementation(async (method, params) => {
+      if (method === 'turn/start') throw Object.assign(Error('response lost'), { code: 'native_request_timeout' });
+      return original(method, params);
+    });
+    expect(await f.c.request({ id: B, revision: 1 })).toMatchObject({ state: 'applied', continuation: 'manual_required' });
+    await f.c.tick(); await f.c.request({ id: B, revision: 2 });
+    expect(f.rpc.request.mock.calls.filter(c => c[0] === 'turn/start')).toHaveLength(1);
+    expect(f.journals.at(-1).entries[0].phase).toBe('sent');
+  });
+  it('checkpoints a long-running command once, authenticates only after completion, and continues once', async () => {
+    const f = await fixture({ active: true }); Object.assign(f.thread, { canAcceptDirectInput: true });
+    f.turn.items.push({ id: 'watch', type: 'commandExecution', status: 'inProgress' });
+    const original = f.rpc.request.getMockImplementation()!;
+    f.rpc.request.mockImplementation(async (method, params) => {
+      if (method === 'turn/steer') {
+        f.turn.items.push({ id: 'checkpoint-input', type: 'userMessage', clientId: params.clientUserMessageId }); return {};
+      }
+      return original(method, params);
+    });
+    expect(await f.c.request({ id: B, revision: 1 })).toMatchObject({ state: 'waiting', continuation: 'waiting' });
+    await f.c.tick(); await f.c.tick();
+    expect(f.rpc.request.mock.calls.filter(c => c[0] === 'turn/steer')).toHaveLength(1);
+    expect(f.calls.some(c => ['account/login/start', 'turn/interrupt'].includes(c.method))).toBe(false);
+    const id = f.journals.at(-1).entries[0].checkpointId;
+    f.thread.status.type = 'idle'; f.turn.status = 'completed'; f.turn.items[1].status = 'completed';
+    f.turn.items.push({ id: 'checkpoint-result', type: 'agentMessage', text: 'CCDECK_CHECKPOINT_' + id });
+    await f.c.tick();
+    expect(f.c.status()).toMatchObject({ state: 'applied', profileId: B, continuation: 'automatic' });
+    await f.c.tick();
+    expect(f.calls.filter(c => c.method === 'account/login/start')).toHaveLength(1);
+    expect(f.calls.filter(c => c.method === 'turn/start')).toHaveLength(1);
+    expect(f.calls.some(c => c.method === 'turn/interrupt')).toBe(false);
+  });
   it.each(['removed', 'unavailable'] as const)('does not return cached renewal tokens if the active profile becomes %s after the credential read', async state => {
     const f = await fixture(); await f.c.request({ id: A, revision: 1 });
     const original = f.rpc.request.getMockImplementation()!;
