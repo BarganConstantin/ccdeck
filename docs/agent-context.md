@@ -395,7 +395,9 @@ from this work have been pushed, merged, tagged or published.
 
 ## Session controls and local shell — 2026-11-17
 
-Branch `fix/v4-session-chrome` is based on `next/v4` at `4ee27422`.
+Branch `fix/v4-session-chrome` includes `next/v4` through `7324d79e`.
+It keeps the owner’s one Done heading when integrating the upstream inbox
+ordering; unread finished results still carry their marker.
 It restores one Done group, follows native Codex titles without requiring a
 rollout append, and makes UI renames update provider metadata before saving
 the local display override. Clearing removes only the local override.
@@ -428,6 +430,39 @@ Verification: Node 22 typecheck and production build; focused title, rename,
 account polling/handoff, terminal controls, rail and status-bar tests. Browser
 checks used an isolated context with real xterm/React components at desktop,
 390 and 320 px: one hint row, contextual typing hint and phone fallback.
-Synthetic alternate-screen wheel produced no input. Normal-buffer scrolling
-position was not established by the synthetic wheel probe. Temporary browser
-fixtures were removed. Recheck current process IDs before replacing a runtime.
+Trusted Electron wheel events moved normal-buffer scrollback and produced no
+input in the alternate screen. Temporary browser fixtures were removed.
+Recheck current process IDs before replacing a runtime.
+
+
+### Shared sidebar, session setup and native file drops
+
+Sessions and Accounts now use the same persisted width and the same column
+resize handle. The title has a full first row; provider, model and age sit
+below it. The New session dialog uses project rows, agent choices and a
+closed Session options disclosure with native model/permission selects.
+Its placement follows content changes so expanded options and the primary
+action remain reachable at narrow widths.
+
+The terminal no longer reserves a second footer when its contextual hints
+are in the global status bar. Initial palette colors accompany recovery
+requests so native agents can draw their composer and warning colors
+correctly from startup.
+
+The desktop preload resolves only native File objects explicitly dropped
+by the reader. The terminal pastes bounded, quoted absolute paths once,
+without reading file contents, uploading files or submitting the command.
+A browser without a native path bridge explains that limitation.
+
+Verification on Node 22: 37 relevant test files / 1,050 tests, typecheck and
+production build passed after integrating the latest upstream inbox changes.
+The signed macOS wrapper was rebuilt; its signature was verified. In its
+actual Electron renderer a disposable two-file drop (spaces and apostrophe
+in filenames) produced one correctly quoted paste with no input submission.
+Pointer dragging resized both sidebar panels and switching retained the
+width. Real terminal geometry left only 2–9px below the last cell row, and
+the desktop had one global status bar with no local duplicate. Earlier
+isolated visual checks covered desktop, 390/320px and light/dark palettes.
+The native folder bridge is present, but selecting a folder through the
+system dialog is not fully automated. External foreground-session transfer
+remains a separate engine capability; this UI validation does not prove it.
