@@ -20,6 +20,31 @@
    top; the others keep their header and say their name more quietly. */
 .stage-in[data-split] .wsp-pane[data-focused] .ts-head { box-shadow: inset 0 2px 0 var(--accent); }
 .stage-in[data-split] .wsp-pane:not([data-focused]) .ts-name { color: var(--muted); }
+/* A reference shared with the session row, including panes hidden by Zoom.
+   Active means this pane is selected; the keyboard button still owns typing. */
+.pane-badge {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  box-sizing: border-box;
+  padding: 0 4px;
+  border: 1px solid transparent;
+  border-radius: var(--r-tag);
+  background: var(--ctl-fill);
+  color: var(--text-secondary);
+  font-size: calc(11px + var(--ui-text-increase, 0px));
+  font-weight: 600;
+  line-height: 18px;
+  font-variant-numeric: tabular-nums;
+}
+.pane-badge[data-active] { color: var(--text); background: var(--accent-16); border-color: var(--accent); }
+@media (forced-colors: active) {
+  .pane-badge { border: 1px solid CanvasText; }
+  .pane-badge[data-active] { forced-color-adjust: none; color: HighlightText; background: Highlight; border-color: Highlight; }
+}
 .stage-in[data-split] .ts-head[draggable="true"] { cursor: grab; }
 .stage-in[data-split] .ts-head[draggable="true"]:active { cursor: grabbing; }
 

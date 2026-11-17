@@ -673,6 +673,8 @@ const catalog: Catalog = {
   "board.stage.split.full": "Höchstens vier Bereiche: Die Sitzung wurde im aktuellen Bereich geöffnet, die bisherige läuft weiter",
   "board.stage.split.maximize": "Workspace mit diesem Bereich füllen",
   "board.stage.split.restore": "Bereiche wieder nebeneinander zeigen",
+  "board.stage.split.paneNumber": "Bereich {number}",
+  "board.stage.split.activePane": "Aktiver Bereich {number}",
   "board.stage.split.strip": "Bereiche",
   "board.stage.split.divider": "Größe der Bereiche ändern",
   "board.stage.split.showAll": "Alle {count} zeigen",

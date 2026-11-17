@@ -264,6 +264,7 @@ export interface TerminalStageProps {
 
 /** A pane of a split Workspace (internal #102). */
 export interface StageSplit {
+  number?: number;
   primary: boolean;
   /** This pane fills the Workspace, the others named in the strip. */
   max: boolean;
@@ -607,6 +608,7 @@ export default function TerminalStage(p: TerminalStageProps) {
         canFull={p.split ? false : fullStage.can}
         full={p.split ? false : fullStage.full}
         split={p.split != null}
+        paneLink={p.split?.number != null ? { number: p.split.number, active: p.split.primary } : undefined}
         onDragHead={p.split?.onDragHead}
         takeover={p.geometry.takeover}
         workspace={workspace ? (p.show.kind === "empty" ? "empty" : "pane") : undefined}

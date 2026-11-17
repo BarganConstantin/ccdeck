@@ -673,6 +673,8 @@ const catalog: Catalog = {
   "board.stage.split.full": "最多四个窗格：已在当前窗格中打开，原来的会话继续运行",
   "board.stage.split.maximize": "让此窗格占满 Workspace",
   "board.stage.split.restore": "重新并排显示窗格",
+  "board.stage.split.paneNumber": "窗格 {number}",
+  "board.stage.split.activePane": "当前窗格 {number}",
   "board.stage.split.strip": "窗格",
   "board.stage.split.divider": "调整窗格大小",
   "board.stage.split.showAll": "显示全部 {count} 个",

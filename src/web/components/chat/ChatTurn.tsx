@@ -5,7 +5,7 @@
 // NEW LINES APPEAR WITH NO MOTION. A line is drawn where it belongs and that is
 // all; there is no entrance, no highlight, no scroll animation.
 import {
-  ChevronRightGlyph, FileGlyph, SearchGlyph, ToolTerminalGlyph,
+  FileGlyph, SearchGlyph, ToolTerminalGlyph,
 } from "./chat-icons";
 import { t as tNow, useT, type TFunction } from "../../i18n";
 import type { ChatSince, ChatTurn as Turn } from "./chat-model";
@@ -24,7 +24,6 @@ export function ToolRow({ turn }: { turn: Extract<Turn, { kind: "tool" }> }) {
   const Mark = MARKS[turn.mark ?? (turn.name === "Bash" ? "terminal" : turn.name === "Explore" ? "search" : "file")];
   return (
     <div className="chat-tool" data-running={turn.running || undefined}>
-      <span className="chat-tool-chev"><ChevronRightGlyph /></span>
       <span className="chat-tool-mark"><Mark /></span>
       <span className="chat-tool-name">{turn.name}</span>
       <span className="chat-tool-arg">{turn.arg}</span>

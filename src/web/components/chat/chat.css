@@ -69,7 +69,6 @@
 /* A run of tool rows is one block: 0 between the rows (the column's 12 is taken
    back), and the column's 12 after the run. */
 .chat-tool + .chat-tool { margin-top: -12px; }
-.chat-tool-chev,
 .chat-tool-mark { flex: none; display: inline-flex; color: var(--muted); }
 .chat-tool-name { flex: none; font-weight: 500; color: var(--text-secondary); }
 .chat-tool-arg { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--font-mono); }

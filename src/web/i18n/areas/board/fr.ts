@@ -673,6 +673,8 @@ const catalog: Catalog = {
   "board.stage.split.full": "Quatre volets au plus : la session s'est ouverte dans le volet actif, et celle qui s'y trouvait continue de tourner",
   "board.stage.split.maximize": "Remplir le Workspace avec ce volet",
   "board.stage.split.restore": "Remettre les volets côte à côte",
+  "board.stage.split.paneNumber": "Volet {number}",
+  "board.stage.split.activePane": "Volet actif {number}",
   "board.stage.split.strip": "Volets",
   "board.stage.split.divider": "Redimensionner les volets",
   "board.stage.split.showAll": "Tout afficher ({count})",

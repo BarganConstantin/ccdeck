@@ -501,6 +501,7 @@ export function StageDock(p: StageDockProps) {
     const geometry = multi && rect ? stage.geometryFor(rect.w, rect.h) : g!;
     const keysHere = () => { if (!own) stage.focusPaneId(id); };
     const splitView: StageSplit | null = multi ? {
+      number: arrangement!.order.indexOf(id) + 1,
       primary: own,
       max: arrangement!.why === "max",
       onMax: () => (arrangement!.why === "max" ? stage.showAll() : stage.toggleMax(id)),

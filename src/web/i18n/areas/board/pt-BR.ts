@@ -673,6 +673,8 @@ const catalog: Catalog = {
   "board.stage.split.full": "No máximo quatro painéis: abriu no painel atual, e a sessão que estava nele continua rodando",
   "board.stage.split.maximize": "Preencher o Workspace com este painel",
   "board.stage.split.restore": "Mostrar os painéis lado a lado de novo",
+  "board.stage.split.paneNumber": "Painel {number}",
+  "board.stage.split.activePane": "Painel ativo {number}",
   "board.stage.split.strip": "Painéis",
   "board.stage.split.divider": "Redimensionar os painéis",
   "board.stage.split.showAll": "Mostrar todos os {count}",

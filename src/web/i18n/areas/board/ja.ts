@@ -673,6 +673,8 @@ const catalog: Catalog = {
   "board.stage.split.full": "ペインは最大4つです。現在のペインで開き、そこにあったセッションは動き続けます",
   "board.stage.split.maximize": "このペインで Workspace を埋める",
   "board.stage.split.restore": "ペインを再び並べて表示",
+  "board.stage.split.paneNumber": "ペイン {number}",
+  "board.stage.split.activePane": "アクティブなペイン {number}",
   "board.stage.split.strip": "ペイン",
   "board.stage.split.divider": "ペインのサイズを変更",
   "board.stage.split.showAll": "{count} 個すべて表示",

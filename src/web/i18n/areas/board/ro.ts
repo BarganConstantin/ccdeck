@@ -693,6 +693,8 @@ const catalog: Catalog = {
   "board.stage.split.full": "Cel mult patru zone: s-a deschis în zona în care erai, iar sesiunea de acolo rulează în continuare",
   "board.stage.split.maximize": "Umple Workspace cu această zonă",
   "board.stage.split.restore": "Arată din nou zonele una lângă alta",
+  "board.stage.split.paneNumber": "Panoul {number}",
+  "board.stage.split.activePane": "Panoul activ {number}",
   "board.stage.split.strip": "Zone",
   "board.stage.split.divider": "Redimensionează zonele",
   "board.stage.split.showAll": "Arată toate {count}",

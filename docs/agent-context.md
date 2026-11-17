@@ -1,5 +1,19 @@
 # Owner's ccdeck work — continuation context
 
+## Workspace compact preview — 2026-11-17
+
+- Branch `feature/v4-terminal-chat`, worktree `~/Desktop/ccdeck-v4-terminal-chat`,
+  based on `next/v4` `13d1d45c1`. First batch awaits the owner's visual review
+  before integration; do not merge or start the next batch before that review.
+- Isolated built-app preview: `http://127.0.0.1:4479/batch1-preview.html`, with
+  synthetic sessions and transcripts. Terminal fixtures cannot attach to real
+  agents; component-only local echo is on port 5197. Recheck processes before use.
+- Preview launch/rebuild/stop helpers are under `/tmp/ccdeck-batch1-preview/`;
+  `stop.py` checks recorded processes before stopping them. The preview HTML is
+  ignored build output; regenerate with `make-review-page.py` after rebuilding.
+- Scope, verification and limitations: `docs/research/herdr-batch1-verification.md`.
+  Preserve the separately served session-chrome worktree and other agents' work.
+
 Updated: 2026-10-29. This is a handoff, not a claim that processes or remote
 branches still have the same state. Verify them at the start of a new session.
 

@@ -69,6 +69,8 @@ import { t as tNow, useT } from "../../i18n";
 import { formatPercent } from "../../i18n/format";
 import { BackGlyph, CloseGlyph, CollapseGlyph, ExpandGlyph, KeyboardGlyph, StageGlyph, glyphForState } from "./stage-icons";
 import TextSizeControl, { type TextSizeView } from "./TextSizeControl";
+import PaneBadge from "../PaneBadge";
+import type { PaneLink } from "../../workspace-split";
 import { canGoLarger, canGoSmaller } from "../../terminal-text-size";
 
 const PANE_MORE_ID = "ts-more";
@@ -163,6 +165,7 @@ export interface StageRename {
 }
 
 export interface StageHeaderProps {
+  paneLink?: PaneLink;
   /** Changes with the session on stage, so its identity arrives afresh —
    *  from the left, out of the board — on every switch. */
   identity: string;
@@ -313,6 +316,7 @@ export default function StageHeader(p: StageHeaderProps) {
         </button>
       )}
       <div className="ts-id" key={p.identity}>
+        {p.paneLink && <PaneBadge pane={p.paneLink} />}
         {glyph && <StageGlyph kind={glyph} />}
         {renaming?.on
           ? <SessionNameField facts={renaming.facts} place="header" onDone={renaming.done} />

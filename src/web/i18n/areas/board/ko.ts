@@ -673,6 +673,8 @@ const catalog: Catalog = {
   "board.stage.split.full": "창은 최대 4개입니다. 현재 창에서 열렸고, 원래 있던 세션은 계속 실행됩니다",
   "board.stage.split.maximize": "이 창으로 Workspace 채우기",
   "board.stage.split.restore": "창을 다시 나란히 보기",
+  "board.stage.split.paneNumber": "창 {number}",
+  "board.stage.split.activePane": "활성 창 {number}",
   "board.stage.split.strip": "창",
   "board.stage.split.divider": "창 크기 조절",
   "board.stage.split.showAll": "{count}개 모두 보기",

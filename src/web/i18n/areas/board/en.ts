@@ -673,6 +673,8 @@ const catalog: Catalog = {
   "board.stage.split.full": "Four panes at most: it opened in the pane you were in, and that session keeps running",
   "board.stage.split.maximize": "Fill the Workspace with this pane",
   "board.stage.split.restore": "Show the panes side by side again",
+  "board.stage.split.paneNumber": "Pane {number}",
+  "board.stage.split.activePane": "Active pane {number}",
   "board.stage.split.strip": "Panes",
   "board.stage.split.divider": "Resize the panes",
   "board.stage.split.showAll": "Show all {count}",

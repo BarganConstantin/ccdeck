@@ -673,6 +673,8 @@ const catalog: Catalog = {
   "board.stage.split.full": "Cuatro paneles como máximo: se abrió en el panel activo y la sesión que estaba ahí sigue en marcha",
   "board.stage.split.maximize": "Llenar el Workspace con este panel",
   "board.stage.split.restore": "Volver a mostrar los paneles lado a lado",
+  "board.stage.split.paneNumber": "Panel {number}",
+  "board.stage.split.activePane": "Panel activo {number}",
   "board.stage.split.strip": "Paneles",
   "board.stage.split.divider": "Cambiar el tamaño de los paneles",
   "board.stage.split.showAll": "Mostrar los {count}",

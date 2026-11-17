@@ -36,6 +36,7 @@ import { CloseGlyph, FoldBody, GroupHead, MoreLine, PlusGlyph, RailRow, RailUsag
 export const RAIL_NEW_SESSION_ID = "rail-new-session";
 import { usageMeter } from "../rail-usage";
 import { renameFacts } from "../session-rename";
+import type { PaneLink } from "../workspace-split";
 import type { MeterQuota } from "../use-quota";
 
 export interface Row {
@@ -265,6 +266,8 @@ interface Props {
   /** The sessions you are looking at: selected, or open on the stage. Their
    *  finished turns count as seen in the rows themselves. */
   watching?: ReadonlySet<string>;
+  /** Workspace's open panes, using the numbers drawn in their headers. */
+  openPanes?: ReadonlyMap<string, PaneLink>;
   /** Claude's 5-hour reading with when it was read (useMeterQuota, held in
    *  App.tsx). The rail itself never fetches. */
   quota?: MeterQuota;
@@ -301,7 +304,7 @@ interface Props {
 interface Ghost { row: Row; group: RailGroup; after: string | null; until: number }
 interface Entry { id: string; row: Row; ghost: boolean }
 
-export default function SessionList({ state, now, selectedIds, onSelect, onClose, removedIds, onBringBackAll, leaving = false, landed = null, watching, quota, activeAlias = null, onOpenUsage, onOpenKeys, onOpenBeside, onNewSession, offline = null, emptyNotice = null, edge = null }: Props) {
+export default function SessionList({ state, now, selectedIds, onSelect, onClose, removedIds, onBringBackAll, leaving = false, landed = null, watching, openPanes, quota, activeAlias = null, onOpenUsage, onOpenKeys, onOpenBeside, onNewSession, offline = null, emptyNotice = null, edge = null }: Props) {
   const t = useT();
   const singleKeys = useSingleKeyShortcuts();
   // `state.revision`, not `state.lastSeq`: the prop is `stateRef.current` and
@@ -451,11 +454,20 @@ export default function SessionList({ state, now, selectedIds, onSelect, onClose
 
   // A row's words and glyph follow its own state, not the group a held order
   // keeps it in: they change in place while the row waits for its move.
+  // Compact rows omit the prompt only when their name is enough to tell them apart.
+  const nameCounts = new Map<string, number>();
+  for (const row of rows) {
+    const name = row.label.trim().toLocaleLowerCase();
+    nameCounts.set(name, (nameCounts.get(name) ?? 0) + 1);
+  }
   const renderRow = (e: Entry): ReactNode => (
     <RailRow key={e.id} row={e.row} group={rank(e.row)} now={now} leaving={e.ghost}
       selected={selectedIds.has(e.id)} removed={removedIds?.has(e.id) ?? false}
       landNonce={landing?.id === e.id ? landing.nonce : null} onSelect={press} onOpenKeys={e.ghost ? undefined : onOpenKeys}
       onOpenBeside={e.ghost ? undefined : onOpenBeside}
+      compact={!!onOpenKeys}
+      showContext={(nameCounts.get(e.row.label.trim().toLocaleLowerCase()) ?? 0) > 1}
+      pane={openPanes?.get(e.row.sessionId)}
       // Named in place (internal #101), from the session as the board has it.
       rename={e.ghost ? null : renameFacts(state.agents.get(e.id))} />
   );
