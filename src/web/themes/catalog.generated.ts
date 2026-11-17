@@ -47,6 +47,10 @@ export const THEME_DEFINITIONS = {
   "gruvbox-material": {
     "name": "Gruvbox Material",
     "colorScheme": "dark"
+  },
+  "ink": {
+    "name": "Ink",
+    "colorScheme": "light"
   }
 } as const;
 export type Theme = keyof typeof THEME_DEFINITIONS;
