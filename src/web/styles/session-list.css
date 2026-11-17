@@ -615,7 +615,7 @@
    At rest the column's border is the only line; hovered, held or focused, a
    2 px accent line stands on it. The phone draws no edge: the list is the
    screen's width there. */
-.session-list > .sl-edge {
+.left-column > .sl-edge {
   position: absolute;
   top: 0;
   bottom: 0;
@@ -627,6 +627,6 @@
 }
 .left-column[data-resizing] .sl-edge { box-shadow: inset -2px 0 0 var(--accent); }
 @media (hover: hover) and (pointer: fine) {
-  .session-list > .sl-edge:hover { box-shadow: inset -2px 0 0 var(--accent); }
+  .left-column > .sl-edge:hover { box-shadow: inset -2px 0 0 var(--accent); }
 }
-.session-list > .sl-edge:focus-visible { outline: var(--focus-w) solid var(--accent); outline-offset: calc(-1 * var(--focus-w)); }
+.left-column > .sl-edge:focus-visible { outline: var(--focus-w) solid var(--accent); outline-offset: calc(-1 * var(--focus-w)); }
