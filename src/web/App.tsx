@@ -123,6 +123,7 @@ import { useSettingsMenus } from "./use-settings-menus";
 import { useAutoFitSwitch } from "./use-auto-fit-switch";
 import { useRailPanel, useStage, useStageAsks } from "./use-stage";
 import { stageClaimsKeys, targetSession } from "./stage-shell";
+import { sessionPaneLinks } from "./workspace-split";
 import { StageDockSlot, StageNavigatorSlot } from "./components/StageSlots";
 import ViewSwitch from "./components/ViewSwitch";
 import { EmptyInspector } from "./components/Inspector";
@@ -903,6 +904,8 @@ function Inner() {
   // The same sessions, for the rail's row model: they are seen the moment a turn
   // ends under them, not on the effect after, so they never pass through Done · unseen.
   const watchingSessions = sessionsOf(stateRef.current, [...selectedIds, stage.enabled && stage.shell.phase !== "closed" ? targetSession(stage.shell.target) : null]);
+  const openPanes = inWorkspace && stage.enabled && stage.shell.phase !== "closed"
+    ? sessionPaneLinks(stage.split, stage.shell.target, stage.arrangement?.order) : undefined;
   // Finished sessions taking themselves off the board after the delay picked
   // in Settings › General — use-hide-finished.ts. After the stage, whose
   // session is kept as the selected card's is.
@@ -1443,6 +1446,7 @@ function Inner() {
               onBringBackAll={bringBackAll}
               landed={landed}
               watching={watchingSessions}
+              openPanes={openPanes}
               quota={meterQuota}
               activeAlias={attention.accounts?.find(a => a.active)?.alias ?? null}
               onOpenUsage={() => usageRail.set(o => !o)}

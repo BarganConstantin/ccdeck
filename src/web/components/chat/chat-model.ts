@@ -1,4 +1,4 @@
-// What Chat draws, as props. Types only: the turns are built on the server from
+// What Chat draws, as props, and how adjacent replies are grouped. Turns come from
 // the session's transcript (src/server/transcript-turns.mjs) and read through
 // use-session-transcript.ts. A test hands ChatView a stand-in; every line below
 // is transcript text, so none of it is held in src/.
@@ -33,3 +33,22 @@ export type ChatSource =
   | { state: "loading" }
   | { state: "error"; message: string; onRetry?(): void }
   | { state: "ready"; turns: ChatTurn[]; since?: ChatSince };
+
+export type ConversationBlock =
+  | { kind: "user" | "record"; text: string; index: number }
+  | { kind: "assistant"; turns: ChatTurn[]; index: number };
+
+/** Keep an assistant's prose and tool calls together, in transcript order. */
+export function conversationBlocks(turns: ChatTurn[]): ConversationBlock[] {
+  const blocks: ConversationBlock[] = [];
+  turns.forEach((turn, index) => {
+    if (turn.kind === "user" || turn.kind === "record") {
+      blocks.push({ kind: turn.kind, text: turn.text, index });
+      return;
+    }
+    const last = blocks.at(-1);
+    if (last?.kind === "assistant") last.turns.push(turn);
+    else blocks.push({ kind: "assistant", turns: [turn], index });
+  });
+  return blocks;
+}

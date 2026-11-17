@@ -123,16 +123,16 @@ export function namesLine(n: SessionNames): string {
  * leave it needing. An earlier day leads with its weekday, so yesterday's 14:32
  * is not today's.
  */
-export function startedHover(startedAt: number, sessionId: string, peers: Iterable<string> = [], now = Date.now(), tr: TFunction = t): string {
-  return startedLine(startedAt, distinctIdTail(sessionId, peers), now, tr);
+export function startedHover(startedAt: number, sessionId: string, peers: Iterable<string> = [], now = Date.now(), tr: TFunction = t, seconds = false): string {
+  return startedLine(startedAt, distinctIdTail(sessionId, peers), now, tr, seconds);
 }
 
 /** startedHover with the id's tail already cut ("Started 14:32 · 4efa"). */
-export function startedLine(startedAt: number, idTail: string, now = Date.now(), tr: TFunction = t): string {
+export function startedLine(startedAt: number, idTail: string, now = Date.now(), tr: TFunction = t, seconds = false): string {
   const lang = currentLanguage();
   const at = new Date(startedAt);
   const day = at.toDateString() === new Date(now).toDateString() ? "" : `${at.toLocaleDateString(lang, { weekday: "short" })} `;
-  const time = `${day}${clockTime(startedAt, false, lang)}`;
+  const time = `${day}${clockTime(startedAt, seconds, lang)}`;
   return `${tr("board.row.startedAt", { time })} · ${idTail}`;
 }
 
@@ -181,6 +181,71 @@ export function twinClocks(items: Iterable<TwinCandidate>): Map<string, TwinCloc
     const minutes = new Set(same.map(it => minuteOfDay(it.startedAt)));
     const clock: TwinClock = minutes.size < same.length ? "second" : "minute";
     for (const it of same) out.set(it.id, clock);
+  }
+  return out;
+}
+
+/** Compact Workspace context is grouped separately from the legacy Board.
+ *  Project first; task only among peers in that project; clocks only for the
+ *  same full task and provider. A provider avatar already distinguishes providers. */
+export interface CompactRowContext {
+  detail: "none" | "project" | "task";
+  text?: string;
+  twin?: TwinClock;
+  idTail?: string;
+}
+
+export function compactRowContexts(rows: readonly Row[], groups?: ReadonlyMap<string, RailGroup>): Map<string, CompactRowContext> {
+  const names = new Map<string, Row[]>();
+  for (const row of rows) {
+    const label = row.label.trim().toLowerCase();
+    // The heading and avatar already distinguish these rows. Add a second
+    // line only among names that remain alike within that visible identity.
+    const key = groups ? JSON.stringify([label, row.provider ?? "claude", groups.get(row.sessionId)]) : label;
+    const peers = names.get(key) ?? [];
+    peers.push(row);
+    names.set(key, peers);
+  }
+  const out = new Map<string, CompactRowContext>();
+  for (const peers of names.values()) {
+    const projects = new Map<string, Row[]>();
+    for (const row of peers) {
+      const key = row.cwd ?? row.folder ?? row.cwdBasename ?? "";
+      const project = projects.get(key) ?? [];
+      project.push(row);
+      projects.set(key, project);
+    }
+    for (const project of projects.values()) {
+      const twins = twinClocks(project.map(row => ({
+        id: row.sessionId,
+        title: row.provider ?? "claude",
+        task: row.fullTask ?? row.task,
+        startedAt: row.startedAt,
+      })));
+      for (const row of project) out.set(row.sessionId, {
+        detail: peers.length === 1 ? "none" : project.length === 1 ? "project" : "task",
+        ...(project.length === 1 ? {
+          text: peers.some(other => other.cwd !== row.cwd && other.folder === row.folder)
+            ? row.cwd : row.folder,
+        } : twins.has(row.sessionId) ? { text: row.folder ?? row.cwdBasename } : {
+          // If the first prompt line is shared, use the first differing line.
+          text: [row.folder, (row.fullTask ?? row.task ?? "").split(/\r?\n/).find((line, index) =>
+            line.trim() && project.some(other => !sameWords(line, (other.fullTask ?? other.task ?? "").split(/\r?\n/)[index] ?? ""))) ?? row.task]
+            .filter(Boolean).join(" · "),
+        }),
+        ...(twins.has(row.sessionId) ? {
+          twin: "second" as const,
+          // Imports can share the same timestamp. A clock alone cannot tell
+          // those apart, so retain the shortest distinct id tail as well.
+          ...(project.some(other => other.sessionId !== row.sessionId
+            && twins.has(other.sessionId)
+            && (other.provider ?? "claude") === (row.provider ?? "claude")
+            && sameWords(other.fullTask ?? other.task ?? "", row.fullTask ?? row.task ?? "")
+            && twinStart(other.startedAt, "second") === twinStart(row.startedAt, "second"))
+            ? { idTail: distinctIdTail(row.sessionId, project.map(peer => peer.sessionId)) } : {}),
+        } : {}),
+      });
+    }
   }
   return out;
 }
@@ -281,11 +346,12 @@ export function railTime(r: Row, group: RailGroup, now: number): { text: string;
 /** Everything the row does not draw, whole, and who wrote the note: the
  *  tooltip is where a cut task, what it waits on or runs, when it started and
  *  its id stay readable. */
-export function rowTooltip(r: Row, removed: boolean): string {
+export function rowTooltip(r: Row, removed: boolean, compact = false): string {
   const lines: string[] = [removed ? t("board.row.bringBack", { label: r.label }) : t("board.row.focus", { label: r.label })];
   if (r.folder) lines.push(t("board.row.inFolder", { folder: r.folder }));
-  if (r.task) lines.push(r.task);
-  lines.push(r.hover ?? startedHover(r.startedAt, r.sessionId));
+  const task = compact ? r.fullTask ?? r.task : r.task;
+  if (task) lines.push(task);
+  lines.push(compact ? r.exactHover ?? startedHover(r.startedAt, r.sessionId, [], Date.now(), t, true) : r.hover ?? startedHover(r.startedAt, r.sessionId));
   if (r.waiting) {
     lines.push(
       waitingSentence(r.waiting),

@@ -411,6 +411,11 @@ describe("what was migrated to the secondary tier", () => {
       // path, with the path a problem names: the line that says where Start
       // goes, read before pressing it.
       ".ns-empty", ".ns-problem-path", ".ns-where-v",
+      // Workspace's pane number and unfocused title use secondary ink so
+      // the focused pane keeps the stronger title. Explicit metadata
+      // exceptions, like the card's figures above, rather than prose.
+      ".pane-badge",
+      ".stage-in[data-split] .wsp-pane:not([data-focused]) .ts-name",
       // The network map's next step: the one sentence that says what to do
       // about the network, or about the deck pointed at. Read, not glanced.
       ".nm-next",
@@ -697,6 +702,8 @@ describe("what was migrated to the secondary tier", () => {
       // its "Ends" fact.
       ".ts-end",
       ".ts-first",
+      // The read-only Chat footer explains where to reply before its action.
+      ".ts-chat-handoff > .ts-chat-reply-note",
       ".oh-intro",
       ".oh-ends",
       // What's new: the sentence under each change, the always-visible notice

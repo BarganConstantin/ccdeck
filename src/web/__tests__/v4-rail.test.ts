@@ -211,9 +211,12 @@ describe("Rail / Row", () => {
     expect(decl(".session-list .sl-tool", "color")).toBe("var(--text-secondary)");
   });
 
-  it("draws the glyph 14px with 3 above, Working on --pulse-live, Waiting still", () => {
+  it("draws the glyph 14px with 3 above, Working spinning smoothly, Waiting still", () => {
     expect(decl(".session-list .sl-glyph", "padding-top")).toBe("3px");
-    expect(decl('.session-list .sl-glyph[data-glyph="working"] .state-mark', "animation")).toBe("pulse var(--pulse-live) infinite");
+    // Owner's requested Working cue reuses the loader's spin and duration.
+    expect(decl('.session-list .sl-glyph[data-glyph="working"] .state-mark', "animation")).toBe("spin var(--loop-loader) linear infinite");
+    expect(decl('.session-list .sl-glyph[data-glyph="working"] .state-mark', "transform-origin")).toBe("center");
+    expect(decl('.session-list .sl-glyph[data-glyph="working"] .state-mark', "transform-box")).toBe("view-box");
     expect(rail).not.toMatch(/data-glyph="waiting"\][^{]*\{[^}]*animation/);
     // Changed on purpose (review item 6): the crossfade is no longer the
     // sheet's @starting-style, which replayed whenever a row was moved in the
@@ -236,7 +239,8 @@ describe("Rail / Row", () => {
 
   it("takes a tooltip for everything the old row drew and this one does not", () => {
     const parts = code("../components/RailParts.tsx");
-    expect(parts).toContain("title={rowTooltip(r, removed)}");
+    // The tooltip now appends the pane reference, preserving the complete original text.
+    expect(parts).toContain('title={[rowTooltip(r, removed, compact), pane ?');
     expect(parts).not.toMatch(/sl-cost|sl-plan|sl-recap|sl-status|sl-elapsed|model-chip/);
   });
 
@@ -356,12 +360,12 @@ describe("the motion cards, read from the sheet", () => {
   // Changed on purpose (review item 6): the sheet's reduced-motion join and
   // leave transitions went with the transitions; joinMotion answers "fade"
   // under reduced motion and the motion code plays the opacity alone.
-  it("answers reduced motion: space at once, rows fade, the pulse stays", () => {
+  it("answers reduced motion: space at once, rows fade, Working pulses instead of spinning", () => {
     expect(decl(".session-list .sl-rows > .sl-row-item", "transition", "(prefers-reduced-motion: reduce)")).toBeUndefined();
     const motion = code("../rail-motion.ts");
     expect(motion).toContain('how === "fade"');
     expect(motion).toContain('{ duration: tokenMs("--dur-fast"), easing }');
-    expect(rail).not.toMatch(/prefers-reduced-motion[\s\S]*pulse var\(--pulse-live\) none/);
+    expect(decl('.session-list .sl-glyph[data-glyph="working"] .state-mark', "animation", "(prefers-reduced-motion: reduce)")).toBe("pulse var(--pulse-live) infinite");
   });
 
   it("writes no colour of its own: tokens only", () => {
@@ -928,7 +932,8 @@ describe("review fixes: what the rows sort and say", () => {
     expect(spoken).toContain("suggested reply: ship it");
     const parts = code("../components/RailParts.tsx");
     expect(parts).toMatch(/<span className="vis-hidden">\{rowSpoken\(r\)\}<\/span>/);
-    expect(parts).toContain("title={rowTooltip(r, removed)}");
+    // The tooltip now appends the pane reference, preserving the complete original text.
+    expect(parts).toContain('title={[rowTooltip(r, removed, compact), pane ?');
     // The row, rendered: the words are in its button.
     const html = renderToStaticMarkup(createElement(SessionList, {
       state: board(), now: T0 + 100_000, selectedIds: new Set<string>(), onSelect: () => {}, onClose: () => {},

@@ -7,6 +7,7 @@
    A flex column of a header, the list, which is what scrolls, and the removed
    cards' line at the foot. */
 .session-list {
+  container: session-list / inline-size;
   width: calc(var(--rail-w) + var(--ui-panel-increase, 0px));
   background: var(--panel);
   border-right: 1px solid var(--line);
@@ -156,6 +157,31 @@
 .session-list .sl-row:hover { background: var(--ctl-fill); }
 }
 .session-list .sl-row.selected { background: var(--selected); }
+/* Workspace's simple rows give the task one line. Density and enlarged text
+   still set the floor; rows explaining a wait, a failure or a twin keep two. */
+.session-list .sl-row[data-compact] { align-items: center; }
+.session-list .sl-row[data-compact]:not([data-one-line]) {
+  min-height: max(calc(var(--row-rail) + 6px), calc(50px + 2 * var(--ui-text-increase, 0px)));
+  padding-block: 6px;
+}
+.session-list .sl-row[data-compact][data-one-line] {
+  min-height: max(calc(var(--row-rail) - 10px), calc(34px + 2 * var(--ui-text-increase, 0px)));
+}
+/* The row centers the full text block. Half the context line (16px) and its
+   gap (3px) brings the avatar back to the title, including at larger text. */
+.session-list .sl-row[data-compact] > .provider-avatar { align-self: center; position: relative; top: calc((19px + var(--ui-text-increase, 0px)) / -2); }
+.session-list .sl-row[data-compact][data-one-line] > .provider-avatar { top: 0; }
+.session-list .sl-row[data-compact] .sl-line1 { align-items: center; }
+.session-list .sl-row-status { flex: none; display: inline-flex; align-items: center; gap: 6px; }
+.session-list .sl-row-status .sl-glyph { height: 14px; padding: 0; }
+.session-list .sl-row[data-compact] .sl-name { flex: 1; }
+.session-list .sl-row[data-compact] .sl-label { font-weight: 500; line-height: calc(20px + var(--ui-text-increase, 0px)); }
+.session-list .sl-row[data-compact].selected .sl-label { font-weight: 600; }
+.session-list .sl-row[data-compact][data-pane-active] { background: var(--selected); }
+.session-list .sl-row[data-compact] .sl-line2 { line-height: calc(16px + var(--ui-text-increase, 0px)); }
+.session-list .sl-row[data-compact]:not([data-one-line]) .sl-line2 { margin-top: 3px; }
+/* Named tasks keep the full row; optional project context stays accessible. */
+.session-list .sl-row[data-compact] .sl-label { flex: 1 1 auto; }
 /* The muted words step up a tier on the fill: --muted on it is 4.05:1 in dark
    (#1789), the reason the Tool activity rows do the same. */
 .session-list .sl-row.selected .sl-line2 { color: var(--text-secondary); }
@@ -178,11 +204,18 @@
    failed: Done in the line's own muted ink, the count in the warning's, as the
    card says it beside the same partial mark. */
 .session-list .sl-failed { font-weight: 500; color: var(--warn); }
-/* When a row that reads like another started (twinClocks): it ends the second
-   line, in the line's own quiet ink and tabular figures, never cut. The words
-   before it give way first, with their ellipsis, so two look-alikes stay told
-   apart however narrow the list is. */
-.session-list .sl-line2.sl-twin { display: flex; }
+/* A look-alike's distinguishing clock/suffix stays whole. Waiting rows keep
+   their project ahead of the tool text, which can yield in a narrow list. */
+.session-list .sl-line2.sl-twin, .session-list .sl-line2.sl-with-project { display: flex; }
+.session-list .sl-row-project {
+  flex: 0 1 auto;
+  max-width: 50%;
+  min-width: 0;
+  margin-right: 4px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.session-list .sl-row-project + .sl-words { flex: 1 1 0; }
 .session-list .sl-words {
   min-width: 0;
   overflow: hidden;
@@ -208,7 +241,7 @@
 @keyframes sl-land { from { opacity: 1; } to { opacity: 0; } }
 
 /* The status glyph: 14x14 with 3 above it, to sit on the name's first line.
-   Working breathes on --pulse-live, the one thing here that moves on its own;
+   Working turns at the loader's steady tempo, with no opacity blinking;
    Waiting holds still. A new state is a new mark, and RailGlyph fades it in
    over --dur-fast, only when that row's own kind changes. */
 .session-list .sl-glyph {
@@ -222,7 +255,12 @@
 }
 .session-list .sl-glyph-mark { display: inline-flex; }
 .session-list .sl-glyph[data-glyph="waiting"] { color: var(--warn); }
-.session-list .sl-glyph[data-glyph="working"] .state-mark { color: var(--inflight); animation: pulse var(--pulse-live) infinite; }
+.session-list .sl-glyph[data-glyph="working"] .state-mark {
+  color: var(--inflight);
+  transform-box: view-box;
+  transform-origin: center;
+  animation: spin var(--loop-loader) linear infinite;
+}
 .session-list .sl-glyph .alert-mark { margin-left: 0; }
 
 .session-list .sl-text {
@@ -543,6 +581,7 @@
      touch floor. Either way about 20 is left under the words, so the list
      keeps one rhythm (owner, 2026-11-10). */
   .session-list .sl-row[data-one-line] { min-height: 44px; }
+  .session-list .sl-row[data-compact][data-one-line] { min-height: 44px; }
   .session-list .sl-more, .session-list .sl-fold-btn { min-height: 44px; }
   /* Rows at 8 in from each edge: the 374 the phone frame draws in a 390 panel. */
   .session-list .sl-rows { padding-inline: 8px; }
@@ -557,12 +596,17 @@
   .session-list .sl-icon-btn::after { content: ""; position: absolute; inset: -6px -10px -14px; }
 }
 
+@media (pointer: coarse) {
+  .session-list .sl-row[data-compact][data-one-line] { min-height: 44px; }
+}
+
 /* REDUCED MOTION: a joining row's space opens at once and only its opacity
    moves, a leaving row fades and then its space closes at once, and the list's
    FLIP fades the rows that moved instead of travelling them: all of it
-   rail-motion.ts's, which asks joinMotion and releaseMotion. The glyph's pulse
-   stays: it is opacity, and it is the state itself. */
+   rail-motion.ts's, which asks joinMotion and releaseMotion. Working keeps
+   the gentle opacity pulse instead of turning, to retain its state cue. */
 @media (prefers-reduced-motion: reduce) {
+  .session-list .sl-glyph[data-glyph="working"] .state-mark { animation: pulse var(--pulse-live) infinite; }
   .session-list .sl-row,
   .session-list .sl-usage-btn,
   .session-list .sl-usage-fill,

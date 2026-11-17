@@ -1,10 +1,14 @@
 # Brand files
 
-Every logo and icon this repository ships is a file copied unchanged from the
+Every ccdeck logo and app icon this repository ships is a file copied unchanged from the
 ccdeck brand kit. `kit.json` beside this file is the record: the kit version
 they were copied from (the one place it is written), every kit file, each place
 in the repo it serves, and its SHA-256. The kit itself is not in this
 repository; only the files the product uses are.
+
+Third-party provider marks used to identify Claude Code and Codex are separate
+from this kit. Their original artwork and attribution are recorded in
+`THIRD_PARTY_NOTICES.md`; they never replace or modify the ccdeck mark.
 
 The name and these files are not part of the AGPL-licensed work: see
 [LICENSING.md, "Name and logo"](../../LICENSING.md#name-and-logo).

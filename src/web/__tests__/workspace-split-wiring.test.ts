@@ -144,8 +144,8 @@ describe("the sheet", () => {
 
   it("hides a pane behind the strip without unmounting it, and marks the pane with the keys", () => {
     expect(css).toContain(".wsp-pane[data-hidden] { visibility: hidden; }");
-    expect(css).toContain(".stage-in[data-split] .wsp-pane[data-focused] .ts-head { box-shadow: inset 0 2px 0 var(--accent); }");
-    expect(css).toContain(".stage-in[data-split] .wsp-pane:not([data-focused]) .ts-name { color: var(--muted); }");
+    expect(css).toContain(".stage-in[data-split] .wsp-pane[data-focused] .ts-head { background: color-mix(in srgb, var(--text) 5%, var(--panel)); }");
+    expect(css).toContain(".stage-in[data-split] .wsp-pane:not([data-focused]) .ts-name { color: var(--text-secondary); }");
   });
 
   it("gives the line between panes a hold wider than its pixel, and the cursor that says which way", () => {

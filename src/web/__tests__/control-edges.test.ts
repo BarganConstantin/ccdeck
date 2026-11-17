@@ -951,6 +951,9 @@ describe("what counts as an edge, which BORDER_PROPS decides (#655)", () => {
       // Settings' search results: the highlight the arrows move while focus
       // stays in the field — VIRTUAL_FOCUS again (SettingsSearch.tsx).
       '.settings-result[data-highlighted="true"]',
+      // Chat's terminal handoff has a text action without a resting border;
+      // its shared keyboard outline is the action's only ring boundary.
+      ".ts-chat-handoff > button.btn:focus-visible",
       ".uh-bar-col.sel .uh-bar",
       // CHANGED ON PURPOSE (internal #102): the line between two panes of a
       // split Workspace is the same kind of grab strip, 1px drawn, so the

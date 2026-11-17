@@ -14,6 +14,8 @@
     "line-soft": "#e4e7ec",
     "text": "#0d1117",
     "text-secondary": "#303845",
+    "provider-claude": "#a24c31",
+    "provider-codex": "#4d52b8",
     "muted": "#4a5260",
     "muted-dim": "#7c8493",
     "text-dim": "#5f6673",

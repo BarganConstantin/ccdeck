@@ -329,15 +329,14 @@ describe("the sheet", () => {
     expect(column).toMatch(/\.left-column\[data-resizing\] \{ transition: none; user-select: none; \}/);
   });
 
-  it("lets a narrow pane header cut its state word instead of drawing it over the context chip", () => {
+  it("lets a narrow header cut ordinary states while preserving a waiting duration", () => {
     const stage = read("styles/terminal-stage.css");
     const narrow = stage.slice(stage.indexOf("@container ts-head (max-width: 480px)"));
     const block = narrow.slice(0, narrow.indexOf("\n}\n"));
-    // CHANGED ON PURPOSE (V4 top-10 #7): `.ts-meta { overflow: hidden; }` →
-    // `flex: 0 1 auto` with it, because a wider header no longer lets the word's
-    // box shrink at all (it is `flex: none` there, so the name keeps the room).
-    expect(block).toContain(".ts-meta { flex: 0 1 auto; overflow: hidden; }");
-    expect(block).toContain(".ts-meta-state { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }");
+    // Waiting explains which pane needs attention; its duration keeps the
+    // space released when the narrow header moves actions into More.
+    expect(block).toContain('.ts-meta:not([data-state="waiting"]) { flex: 0 1 auto; overflow: hidden; }');
+    expect(block).toContain('.ts-meta:not([data-state="waiting"]) .ts-meta-state { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }');
     // Wider headers keep the state word whole: the name is what a short header cuts.
     expect(stage).toMatch(/\.ts-meta-state \{ flex: none;/);
   });

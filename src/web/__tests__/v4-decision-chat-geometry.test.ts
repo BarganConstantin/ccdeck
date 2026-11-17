@@ -119,18 +119,19 @@ describe("the tree", () => {
 });
 
 describe("the chat column", () => {
-  it("is 12 above and below, 20 at the sides, content 776 at x 20", () => {
-    expect(rule(chat, ".chat-body")).toContain("padding: 12px 20px;");
+  it("gives responses breathing room and bounds the reading column", () => {
+    expect(rule(chat, ".chat-body")).toContain("padding: 24px 28px 32px;");
     const col = rule(chat, ".chat-col");
     expect(col).toContain("max-width: 776px;");
-    expect(col).toContain("gap: 12px;");
-    expect(816 - 2 * 20).toBe(776);
+    expect(col).toContain("gap: 24px;");
+    expect(chat).toContain("@container chat-pane (max-width: 480px)");
+    expect(chat).toContain("padding: 16px 12px 24px;");
   });
 
-  it("runs consecutive tool rows together, 24 high, with 12 after the run", () => {
-    expect(rule(chat, ".chat-tool + .chat-tool")).toContain("margin-top: -12px;");
-    expect(rule(chat, ".chat-tool")).toContain("height: var(--row-tool);");
-    expect(read("../styles/reading.css")).toContain("--row-tool: 24px;");
+  it("gives disclosure targets readable height and lets enlarged text grow", () => {
+    expect(rule(chat, ".chat-tool")).toContain("min-height: max(var(--row-tool), 32px);");
+    expect(rule(chat, ".chat-activity-head")).toContain("min-height: 32px;");
+    expect(chat).not.toContain("margin-top: -12px;");
   });
 
   it("sets a tool row 0 8, 6 round, 6 between its parts, 12/16, the argument mono", () => {
@@ -139,9 +140,9 @@ describe("the chat column", () => {
     expect(tool).toContain("border-radius: var(--r-ctl);");
     expect(tool).toContain("gap: 6px;");
     // CHANGED ON PURPOSE (V4 top-10 #8): mono → sans for the row, because a tool's name and its note are a label and a figure; the argument keeps mono.
-    expect(tool).toContain("font: 400 12px/16px var(--font-sans);");
+    expect(tool).toContain("font: 400 calc(12px + var(--ui-text-increase, 0px))/1.5 var(--font-sans);");
     expect(rule(chat, ".chat-tool-arg")).toContain("font-family: var(--font-mono);");
-    expect(tool).toContain("color: var(--muted);");
+    expect(tool).toContain("color: var(--text-secondary);");
     expect(rule(chat, ".chat-tool-name")).toMatch(/font-weight: 500;[^}]*color: var\(--text-secondary\);/);
     expect(rule(chat, ".chat-tool-arg")).toContain("text-overflow: ellipsis;");
   });
@@ -149,14 +150,14 @@ describe("the chat column", () => {
   it("sets the assistant 13/20 --text up to 640, the divider 12/16 --muted with --line-soft rules", () => {
     const said = rule(chat, ".chat-said");
     expect(said).toContain("max-width: 640px;");
-    expect(said).toContain("line-height: 20px;");
+    expect(said).toContain("line-height: 1.65;");
     expect(said).toContain("color: var(--text);");
     expect(rule(chat, ".chat-since")).toMatch(/gap: 12px;[^}]*color: var\(--muted\);/);
     expect(rule(chat, ".chat-since-line")).toContain("background: var(--line-soft);");
   });
 
   it("sets your message right-aligned, 8 12, 12 12 4 12 round, on --your-message", () => {
-    expect(rule(chat, ".chat-you")).toContain("justify-content: flex-end;");
+    expect(rule(chat, ".chat-you")).toContain("align-items: flex-end;");
     const text = rule(chat, ".chat-you-text");
     expect(text).toContain("padding: 8px 12px;");
     expect(text).toContain("background: var(--your-message);");

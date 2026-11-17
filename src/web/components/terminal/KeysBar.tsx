@@ -34,16 +34,13 @@
 // measures it by element (TerminalStage's useDrawnHeight) and a new element
 // would never be measured.
 //
-// CHAT ONLY READS (Figma V4: the conversation is read in Chat and typed into
-// in Term; there is no input under it). With Chat on the pane, "type here" is
-// "type in Term", since that is where the keys go; and a session that cannot
-// take keys, whose card Chat covers, says so here with the way to that card,
-// rather than leaving Chat with nothing to say how to write (internal #99).
+// Chat can supply its composer in this same measured footer. Session end,
+// notice and ask/host actions remain reachable beneath the input.
 import { RELEASE_CHORD_SPOKEN_MSG } from "../../terminal-keys";
 import { RECONNECT_NOTE_MSG, type KeysOwner } from "./stage-model";
 import { Kbd } from "../Kbd";
 import { t as tNow, useT } from "../../i18n";
-import { useLayoutEffect, useState, type ReactElement } from "react";
+import { useLayoutEffect, useState, type ReactElement, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { StageGlyph } from "./stage-icons";
 
@@ -113,6 +110,8 @@ export interface KeysBarProps {
   paneless?: boolean;
   /** Chat is on the pane: the keys go to Term, which a press shows first. */
   chat?: boolean;
+  /** Direct reply input, using the stage's existing writable connection. */
+  composer?: ReactNode;
   /** Chat is on a pane that cannot take keys (a card stands for it in Term):
    *  the bar says so, with the way to that card. */
   chatCannotType?: boolean;
@@ -247,9 +246,16 @@ export default function KeysBar(p: KeysBarProps) {
     );
   } else if (p.chatCannotType) {
     left = (
-      <div className="ts-keys" data-owner="none" data-split>
-        <span className="ts-end">{t("board.chat.cannotType")}</span>
+      <div className="ts-keys ts-chat-handoff" data-owner="none" data-split>
+        <span className="ts-chat-reply-note">{t("board.chat.replyInTerm")}</span>
         <button type="button" className="btn" onClick={p.onShowTerm}>{t("board.chat.showTerm")}</button>
+      </div>
+    );
+  } else if (p.chat && p.canType && !lean) {
+    left = (
+      <div className="ts-keys ts-chat-handoff" data-owner="board" data-split>
+        <span className="ts-chat-reply-note">{t("board.chat.replyInTerm")}</span>
+        <button type="button" className="btn primary" onClick={p.onTypeHere}>{t("board.chat.continueInTerm")}</button>
       </div>
     );
   } else if (p.firstRun && p.canType && !p.chat) {
@@ -301,12 +307,19 @@ export default function KeysBar(p: KeysBarProps) {
       </div>
     );
   }
-  if (p.primary === false) return null;
   const bar = (
-    <footer className="ts-bar" aria-label={t("board.keys.bar")} hidden={(p.paneless && !p.hosts && !p.chatCannotType) || undefined}>
-      {left}
-      {right}
+    <footer className={p.composer ? "ts-bar ts-bar-compose" : "ts-bar"}
+      aria-label={t(p.composer ? "board.chat.conversation" : "board.keys.bar")}
+      hidden={(p.paneless && !p.hosts && !p.chatCannotType && !p.composer) || undefined}>
+      {p.composer ? <>{p.composer}{(p.end || p.notice || right) && <div className="ts-chat-status">
+        {(p.end || p.notice) && left}
+        {right}
+      </div>}</> : <>{left}{right}</>}
     </footer>
   );
+  // Each Chat pane keeps its input locally; only terminal hints share the
+  // focused pane's status slot, with a local fallback on phones.
+  if (p.composer) return bar;
+  if (p.primary === false) return null;
   return <KeysBarPlacement visible={!(p.paneless && !p.hosts && !p.chatCannotType)}>{bar}</KeysBarPlacement>;
 }
