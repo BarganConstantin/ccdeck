@@ -588,6 +588,11 @@ const EXEMPT: string[] = [
   // lifting to --text under the pointer; a row scaled on press would slide
   // "Details" and its count out from under the pointer.
   ".detail-more > summary",
+  // CHANGED ON PURPOSE (#2591): New session's "Session options" row is the
+  // same kind of full-width disclosure row: it answers by opening and its
+  // chevron turning, and a row scaled on press would slide its summary out
+  // from under the pointer.
+  ".ns-options-summary",
   // Radio uses pointer-only feedback on the control or its child glyph.
   // Range thumbs and map markers must retain fixed interaction geometry.
   ".radio-cluster-preview > div > .radio-cluster-station",

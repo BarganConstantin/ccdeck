@@ -159,8 +159,10 @@
 /* The muted words step up a tier on the fill: --muted on it is 4.05:1 in dark
    (#1789), the reason the Tool activity rows do the same. */
 .session-list .sl-row.selected .sl-line2 { color: var(--text-secondary); }
+.session-list .sl-row.selected .sl-model { color: var(--text-secondary); }
 @media (hover: hover) and (pointer: fine) {
 .session-list .sl-row:hover .sl-line2 { color: var(--text-secondary); }
+.session-list .sl-row:hover .sl-model { color: var(--text-secondary); }
 }
 /* The most-clicked control in the app answers a press. Nothing interactive
    nests inside the row, so the scale is the row's alone. */

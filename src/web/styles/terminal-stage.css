@@ -812,9 +812,10 @@ button.btn.ns-choose { align-self: flex-start; gap: 6px; padding: 0 8px; font-si
 .ns-label-gap { margin-top: 18px; }
 .ns-form:not([data-searching]) .ns-where { display: none; }
 .ns-options { margin-top: 16px; border-top: 1px solid var(--line-soft); }
-.ns-options-summary { display: flex; align-items: center; gap: 8px; min-height: 42px; cursor: pointer; font-size: 12px; color: var(--text-secondary); list-style: none; }
+/* The row keeps the control radius at rest, so the deck's one focus ring
+   (inset, tokens.css) draws round it and focus changes no radius. */
+.ns-options-summary { display: flex; align-items: center; gap: 8px; min-height: 42px; border-radius: var(--r-ctl); cursor: pointer; font-size: 12px; color: var(--text-secondary); list-style: none; }
 .ns-options-summary::-webkit-details-marker { display: none; }
-.ns-options-summary:focus-visible { outline: var(--focus-w) solid var(--accent); outline-offset: 2px; border-radius: var(--r-ctl); }
 .ns-options-value { min-width: 0; margin-left: auto; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--muted); font-size: 11px; }
 .ns-options-chevron { flex: none; }
 .ns-options[open] .ns-options-chevron { transform: rotate(180deg); }

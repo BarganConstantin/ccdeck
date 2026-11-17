@@ -105,6 +105,12 @@ const SELECTS: Record<string, Array<{ name: string; chain: El[] }>> = {
     // CHANGED ON PURPOSE (V4 Figma): the select now sits in the Select shell, span.v4-select.
     chain: [el("body"), el("div", ["modal", "settings-modal"]), el("div", ["settings-body"]), el("div", ["settings-pane"]), el("section", ["settings-group"]), el("div", ["settings-list"]), el("label", ["settings-row"]), el("span", ["settings-row-control"]), el("span", ["v4-select"]), el("select", ["sm-select"])],
   }],
+  // CHANGED ON PURPOSE (#2591): New session's model and permission strips
+  // became the kit's select, folded under "Session options".
+  "components/terminal/NewSessionPopover.tsx": [
+    { name: "the new session's model", chain: [el("body"), el("div", ["anchored-popover", "ns-pop"]), el("div", ["ns-form"]), el("details", ["ns-options"]), el("div", ["ns-options-fields"]), el("label", ["ns-setting"]), el("span", ["v4-select"]), el("select", ["sm-select"])] },
+    { name: "the new session's permissions", chain: [el("body"), el("div", ["anchored-popover", "ns-pop"]), el("div", ["ns-form"]), el("details", ["ns-options"]), el("div", ["ns-options-fields"]), el("label", ["ns-setting"]), el("span", ["v4-select"]), el("select", ["sm-select"])] },
+  ],
   "components/JiraMovePopover.tsx": [{
     name: "where a Jira move sends the issues",
     chain: [el("body"), el("div", ["modal-backdrop"]), el("div", ["modal", "ig-modal"]), el("div", ["ig-body"]), el("div", ["jr-panel"]), el("div", ["ig-split"]), el("div", ["ig-list"]), el("div", ["jr-list-scroll"]), el("div", ["jr-board"]), el("div", ["anchored-popover", "jr-move-pop"]), el("form"), el("select")],
