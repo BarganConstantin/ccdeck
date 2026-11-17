@@ -54,6 +54,7 @@ export interface Row {
    *  null whenever the recap speaks instead, or nothing has been said. */
   status?: SessionNote | null;
   modelId?: string;
+  provider?: "claude" | "codex";
   /** The effort the session reported, shown after the model (#2155). */
   effort?: string;
   toolCount: number;
@@ -177,6 +178,7 @@ export function buildRows(state: GraphState, now: number, watching?: ReadonlySet
       recap,
       status,
       modelId: a.model,
+      provider: a.provider === "codex" ? "codex" : "claude",
       effort: a.effort,
       // The ROOT's plan: the Task tools' list is the session's, shared with its
       // subagents, and a row is a session (agent-plan.ts).

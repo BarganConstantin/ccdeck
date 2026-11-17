@@ -239,10 +239,21 @@
 }
 .session-list .sl-name {
   display: flex;
+  flex: 1;
   align-items: baseline;
   gap: 6px;
   min-width: 0;
 }
+.session-list .sl-meta {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  width: 100%;
+  min-width: 0;
+  line-height: 16px;
+}
+.session-list .sl-meta .sl-model { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.session-list .sl-meta .sl-time { margin-left: auto; }
 .session-list .sl-label {
   min-width: 0;
   font-size: calc(13px + var(--ui-text-increase, 0px));

@@ -219,9 +219,7 @@ export function RailRow({ row: r, group, now, selected, removed, leaving, landNo
               <span className="sl-name">
                 <span className="sl-label">{r.label}</span>
                 {r.unseen && (group === 2 || group === 3) && <span className="sl-unseen" role="img" aria-label={t("board.railGroup.new")} title={t("board.railGroup.new")} />}
-                {r.modelId && <span className="sl-model" title={modelChipTitle(r.modelId, r.effort)}>{modelChipText(r.modelId, r.effort)}</span>}
               </span>
-              {time && <span className={`sl-time ${time.tone}`}><span className="vis-hidden">{time.spoken}</span>{time.text}</span>}
             </span>
             {lined && (
               <span className={`sl-line2${line?.kind === "tool" ? " mono" : ""}`}>
@@ -242,6 +240,13 @@ export function RailRow({ row: r, group, now, selected, removed, leaving, landNo
                   : line.text)}
               </span>
             )}
+            {(r.provider || r.modelId || time) && <span className="sl-meta">
+              <span className="sl-model" title={r.modelId ? modelChipTitle(r.modelId, r.effort) : undefined}>
+                {r.provider && <>{r.provider === "codex" ? "Codex" : "Claude"}{r.modelId ? " · " : ""}</>}
+                {r.modelId && modelChipText(r.modelId, r.effort)}
+              </span>
+              {time && <span className={`sl-time ${time.tone}`}><span className="vis-hidden">{time.spoken}</span>{time.text}</span>}
+            </span>}
           </span>
         </button>
       </div>
