@@ -13,6 +13,8 @@
   .v4-select > .sm-select,
   .settings-tab,
   .ap-policy .ap-threshold-input { min-height: 32px; }
+  /* The Inspector's Details row: full width already, 28 high under a mouse. */
+  .detail-more > summary { min-height: 32px; }
   /* The popover's rows sit flush against each other, so a fingertip gets the
      height a touch list needs rather than the 32px floor; its form controls
      stand at the same height as each other, a step over it. */
@@ -348,6 +350,7 @@
   .uh-legend-dot,
   .cost-bar .cb-seg,
   .session-summary .ssl::before,
+  .tokens-grid .tk-key::before,
   .ap-proj-seg,
   .ap-proj-fill,
   .ap-proj-colseg,
