@@ -1,7 +1,9 @@
 // When Workspace's 320 sheet is the Inspector (V4's Figma). Pure, so the table
 // can be read without a renderer; App.tsx feeds it the window's answers. The
 // Inspector's door on the right stripe (rail-items.tsx) is what shows and hides
-// it; there is no tab of its own.
+// it; there is no tab of its own. Every visit to Workspace starts with it
+// folded, column or sheet, and leaving gives the Board its own back
+// (use-workspace-inspector.ts).
 
 /** The id of the Inspector's region (its <aside>), the door's aria-controls
  *  while it is mounted. */

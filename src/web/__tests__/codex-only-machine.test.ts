@@ -485,7 +485,9 @@ describe("which panels the UI draws for each machine", () => {
     // The connected trackers (#2178) are in the bar's last run, so they cannot
     // stand in for the accounts button either.
     // CHANGED ON PURPOSE (V4's Figma): the one bar is two stripes, each its own toolbar.
-    expect(appSrc).toMatch(/<EdgeRail side="left" label=\{t\("board\.rail\.tools"\)\} groups=\{rails\.leftStripe\} foot=\{rails\.leftFoot\} \/>/);
+    // CHANGED ON PURPOSE (V4 top-10 #4): the left stripe also takes its More
+    // (the capacity run among its rows), because the occasional doors moved there.
+    expect(appSrc).toMatch(/<EdgeRail side="left" label=\{t\("board\.rail\.tools"\)\} groups=\{rails\.leftStripe\} more=\{rails\.leftMore\} foot=\{rails\.leftFoot\} \/>/);
     // And nowhere else: the phone's grouping and the utilities never carry it.
     expect(appSrc).toMatch(/right: \[\s*named\(t\("board\.rail\.group\.usage"\), \[usage, machine\]\),\s*named\(t\("board\.rail\.group\.activity"\), \[history, \.\.\.activity\]\),\s*named\(t\("board\.rail\.group\.watchers"\), \[browserWatch, \.\.\.radar\]\),\s*radio,\s*\]/);
     expect(appSrc).toMatch(/utilities: \[settings, feedback\]/);

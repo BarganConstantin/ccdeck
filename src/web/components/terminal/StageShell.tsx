@@ -160,9 +160,6 @@ interface SplitPaneProps {
   children: ReactNode;
 }
 
-/** Below this a pane's header keeps its name and its own controls only. */
-const NARROW_PANE_W = 600;
-
 function SplitPane(p: SplitPaneProps) {
   // A Codex launch in any pane is found as its own (codex-launch.ts).
   useCodexLaunch(p.target, p.agents, p.onFound);
@@ -175,7 +172,6 @@ function SplitPane(p: SplitPaneProps) {
     style,
     "data-pane": p.id,
     "data-focused": (p.multi && p.focused) || undefined,
-    "data-narrow": (p.multi && r != null && r.w < NARROW_PANE_W) || undefined,
     "data-hidden": p.hidden || undefined,
     "aria-hidden": p.hidden || undefined,
     ...inert,

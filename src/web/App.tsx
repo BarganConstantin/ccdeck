@@ -130,6 +130,8 @@ import { EmptyInspector } from "./components/Inspector";
 import { readView, useView, type View } from "./use-view";
 import { useSideColumn, type SidePanel } from "./side-column";
 import { useInspectorFold, withInspectorFold } from "./inspector-fold";
+import { useWorkspaceInspector } from "./use-workspace-inspector";
+import { setStripeWorkspace } from "./stripe-words";
 import SideColumn from "./components/SideColumn";
 import { SKIP_TO_PANE_MSG, WORKSPACE_PANE_ID, skipToPane } from "./workspace-pane";
 import { createChimePlayer } from "./chime-player";
@@ -769,7 +771,23 @@ function Inner() {
   // the pane stay (folding both is Zoom's). D, or choosing a session to
   // inspect, opens it again; the grid drops its track while it is folded.
   const [inspectorFolded, setInspectorFolded] = useState(false);
-  useEffect(() => { if (detailOpen) setInspectorFolded(false); }, [detailOpen]);
+  // An open unfolds it, not the flag as it stands: a load that lands in
+  // Workspace holds the Board's open flag shut below, and the flag it had
+  // before the hold must not unfold the column after it.
+  const detailWasOpen = useRef(detailOpen);
+  useEffect(() => {
+    if (detailOpen && !detailWasOpen.current) setInspectorFolded(false);
+    detailWasOpen.current = detailOpen;
+  }, [detailOpen]);
+  // Workspace opens on the pane: entering closes the Inspector, at every
+  // width, and leaving gives the Board the one it had (use-workspace-inspector.ts).
+  useWorkspaceInspector({
+    active: inWorkspace, detailOpen,
+    fold: () => setInspectorFolded(true), hold: holdRight.detail, restore: setDetailStored,
+  });
+  // The stripes are icons while Workspace is up (stripe-words.ts), in the
+  // commit that draws it.
+  useLayoutEffect(() => { setStripeWorkspace(inWorkspace); }, [inWorkspace]);
   const foldInspector = useCallback(() => {
     setInspectorFolded(true);
     setDetailOpen(false);
@@ -1147,6 +1165,11 @@ function Inner() {
     openQuickOpen,
     feedbackUnread, openFeedbackConversations,
     inspectorOpen, toggleInspector,
+    // A stripe's More reads open while a dialog behind it is up.
+    dialogsUp: {
+      history: dialogs.usageHistoryOpen, browserWatch: dialogs.browserWatchOpen, radar: dialogs.trafficRadarOpen,
+      radio: radioOpen, explore: exploreIntegrationsOpen, toolActivity: toolAuditView, capacity: capacityView,
+    },
   });
   /** A phone opens on Sessions, and a row there opens that session's pane when
    *  the deck has a terminal for it (the Command Panel is on), else the
@@ -1373,7 +1396,7 @@ function Inner() {
             items={[...rails.left, ...rails.right[0]].map(sessionsDoorUnderSheet)}
             more={[rails.search, ...commandPanelMore(stage.enabled ? stage.openFromButton : undefined), ...rails.capacity, ...rails.right.slice(1).flat(), ...rails.integrations, ...rails.explore, ...rails.utilities.filter(item => item !== rails.corner)]}
             offline={everConnected && !live} />
-        : <EdgeRail side="left" label={t("board.rail.tools")} groups={rails.leftStripe} foot={rails.leftFoot} />}
+        : <EdgeRail side="left" label={t("board.rail.tools")} groups={rails.leftStripe} more={rails.leftMore} foot={rails.leftFoot} />}
 
       {/* Mounted whether or not anything was removed, for the reason the
           topbar's alarm region is (#372): words that arrive with their region
@@ -1532,7 +1555,7 @@ function Inner() {
           column, the canvas, this stripe, then its panels and the Inspector.
           Fixed to the window's right edge, so where it sits in the document
           changes nothing on screen. */}
-      {!phone && <EdgeRail side="right" label={t("shell.rail.right")} groups={rails.rightStripe} />}
+      {!phone && <EdgeRail side="right" label={t("shell.rail.right")} groups={rails.rightStripe} more={rails.rightMore} />}
 
       {/* The Board's right column: Usage, This machine, then the Inspector, top
           to bottom (panel-place.css). Always drawn, so nothing in it remounts
@@ -1575,8 +1598,10 @@ function Inner() {
           `:not(:has(.detail))` in the sheet already drops the column, so this
           needed no layout change of its own. */}
       {/* WORKSPACE draws the Inspector as a column whether or not a session is in
-          focus (an empty pane means none, and the column says so), down to 1320px;
-          under that it is the detail sheet, opened as on the Board. */}
+          focus (an empty pane means none, and the column says so), down to 1320px,
+          once it is unfolded: each visit starts with it folded
+          (use-workspace-inspector.ts). Under that it is the detail sheet, opened
+          as on the Board. */}
       {inWorkspace && inspectorColumn && !inspectorFolded && !(detailOpen && selected) ? (
         selected ? (
           <DetailAside

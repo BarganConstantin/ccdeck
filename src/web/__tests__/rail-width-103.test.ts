@@ -333,9 +333,12 @@ describe("the sheet", () => {
     const stage = read("styles/terminal-stage.css");
     const narrow = stage.slice(stage.indexOf("@container ts-head (max-width: 480px)"));
     const block = narrow.slice(0, narrow.indexOf("\n}\n"));
-    expect(block).toContain(".ts-meta { overflow: hidden; }");
+    // CHANGED ON PURPOSE (V4 top-10 #7): `.ts-meta { overflow: hidden; }` →
+    // `flex: 0 1 auto` with it, because a wider header no longer lets the word's
+    // box shrink at all (it is `flex: none` there, so the name keeps the room).
+    expect(block).toContain(".ts-meta { flex: 0 1 auto; overflow: hidden; }");
     expect(block).toContain(".ts-meta-state { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }");
-    // Wider headers keep the state whole; the tool and its argument give way first.
+    // Wider headers keep the state word whole: the name is what a short header cuts.
     expect(stage).toMatch(/\.ts-meta-state \{ flex: none;/);
   });
 
