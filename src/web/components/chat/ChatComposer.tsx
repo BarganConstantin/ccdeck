@@ -69,7 +69,7 @@ export default function ChatComposer({ value, onChange, onSend, unavailable, onS
   const showTerm = onShowTerm && (blocked || result === "partial" || result === "unavailable");
 
   return (
-    <form className="chat-composer" data-message={message ? "" : undefined} onSubmit={event => { event.preventDefault(); send(); }}>
+    <form className="chat-composer" onSubmit={event => { event.preventDefault(); send(); }}>
       <div className="chat-composer-col">
         <label className="vis-hidden" htmlFor={`${id}-draft`}>{t("board.chat.composer.reply")}</label>
         <div className="chat-composer-input">
@@ -93,8 +93,8 @@ export default function ChatComposer({ value, onChange, onSend, unavailable, onS
           />
           <button className="btn primary chat-composer-send" type="submit" disabled={disabled}>{t("board.chat.composer.send")}</button>
         </div>
+        <span id={`${id}-hint`} className="vis-hidden">{t("board.chat.composer.hint")}</span>
         <div className="chat-composer-meta">
-          <span id={`${id}-hint`} className="chat-composer-hint">{t("board.chat.composer.hint")}</span>
           <p id={`${id}-status`} className="chat-composer-status" role="status" aria-live="polite" aria-atomic="true" data-result={result ?? undefined}>{message}</p>
           {showTerm && <button className="chat-composer-term" type="button" onClick={onShowTerm}>{t("board.chat.showTerm")}</button>}
         </div>
