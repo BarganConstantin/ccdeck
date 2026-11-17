@@ -374,7 +374,9 @@ export function createCodexLiveAccountController(input = {}) {
       await save().catch(() => update({ reason: 'ownership_not_saved' }));
       if (handoff.paused.length) {
         try {
-          const result = await resume();
+          // A checkpoint can itself end with a usage error. Only a different
+          // login authorizes retrying that failure, including this late race.
+          const result = await resume(!refresh && !sameAccount(before, next));
           if (result.delegated?.length) {
             childContinuation = { rpc, entries: result.delegated, deadline: Date.now() + (options.delegationTimeoutMs ?? 60_000),
               record, journal, identity: resumeIdentity };

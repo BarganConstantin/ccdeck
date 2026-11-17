@@ -89,7 +89,7 @@ describe('existing Codex session account engine', () => {
     expect(await f.c.request({ id: B, revision: 1 })).toMatchObject({ state: 'applied', continuation: 'automatic' });
     expect(f.calls.filter(c => c.method === 'turn/start')).toHaveLength(1);
   });
-  it('continues after a usage failure replaces the requested checkpoint without sending a second steer', async () => {
+  it.each([false, true])('handles a usage failure replacing the checkpoint without retrying an unchanged account: %s', async sameLogin => {
     const f = await fixture({ active: true }); Object.assign(f.thread, { canAcceptDirectInput: true });
     f.turn.items.push({ id: 'watch', type: 'commandExecution', status: 'inProgress' });
     const original = f.rpc.request.getMockImplementation()!;
@@ -97,13 +97,13 @@ describe('existing Codex session account engine', () => {
       if (method === 'turn/steer') { f.turn.items.push({ id: 'checkpoint-input', type: 'userMessage', clientId: params.clientUserMessageId }); return {}; }
       return original(method, params);
     });
-    expect(await f.c.request({ id: B, revision: 1 })).toMatchObject({ state: 'waiting' });
+    expect(await f.c.request({ id: sameLogin ? A : B, revision: 1 })).toMatchObject({ state: 'waiting' });
     f.thread.status.type = 'idle'; f.turn.status = 'failed'; f.turn.items[1].status = 'completed';
     Object.assign(f.turn, { error: { codexErrorInfo: 'usageLimitExceeded' } });
     await f.c.tick();
-    expect(f.c.status()).toMatchObject({ state: 'applied', continuation: 'automatic' });
+    expect(f.c.status()).toMatchObject({ state: 'applied', continuation: sameLogin ? 'manual_required' : 'automatic' });
     expect(f.rpc.request.mock.calls.filter(c => c[0] === 'turn/steer')).toHaveLength(1);
-    expect(f.calls.filter(c => c.method === 'turn/start')).toHaveLength(1);
+    expect(f.calls.filter(c => c.method === 'turn/start')).toHaveLength(sameLogin ? 0 : 1);
   });
   it('retains a failed conversation while another conversation drains tools for the same switch', async () => {
     const f = await fixture({ active: true }); Object.assign(f.thread, { canAcceptDirectInput: true });
