@@ -63,7 +63,10 @@ describe("the session list's waiting word", () => {
     expect(rows.blocked.spoken).toBe("waiting ");
     // CHANGED ON PURPOSE: the wait reads to the second under an hour, as V4
     // draws it ("6m 42s"); it was whole minutes before.
-    expect(rows.blocked.text).toMatch(/^\d+m \d{2}s$/);
+    // CHANGED ON PURPOSE (V4 top-10, inbox): "59m 56s" → "59m", because the
+    // row says one age to the minute, as an inbox does; the pane's header
+    // keeps the seconds.
+    expect(rows.blocked.text).toMatch(/^\d+m$/);
     expect(Object.values(rows).filter(r => r.spoken.startsWith("waiting")).length).toBe(1);
     // The old readout ended "· Bash": the tool still shows, on the row's
     // second line now, with what it was asked to run.
@@ -74,6 +77,8 @@ describe("the session list's waiting word", () => {
   it("calls an ended turn what the card calls it", () => {
     const ended = clocks(html).ended;
     expect(ended.spoken).toBe("your turn, ended ");
-    expect(ended.text).toMatch(/^\d+m ago$/);
+    // CHANGED ON PURPOSE (V4 top-10, inbox): "59m ago" → "59m", because every
+    // row says its age the same way and "ended" is the screen reader's word.
+    expect(ended.text).toMatch(/^\d+m$/);
   });
 });

@@ -1,9 +1,11 @@
-// One wait, one precision. V4 draws a session's wait as "6m 42s" in the rail
-// row, the pane's header ("waiting 6m 42s"), the empty pane and the phone's
-// row alike, and a running turn the same way ("4m 33s"); the row had dropped
-// the seconds from a minute on while the empty pane kept them, so one wait
-// read two ways on one screen. Ages ("3m ago", "read 12m ago") keep the
-// minute, and an hour reads "1h 15m" as before.
+// One wait, one precision. V4 draws a session's wait as "6m 42s" in the pane's
+// header ("waiting 6m 42s"), the empty pane and the next ask alike, and a
+// running turn the same way ("4m 33s"). Ages ("3m ago", "read 12m ago") keep
+// the minute, and an hour reads "1h 15m" as before.
+//
+// The Sessions list's row (and the phone's card, which prints the row's
+// figure) says one age to the minute instead (V4 top-10, inbox): "6m" where
+// the header says "6m 42s", the same clock with its seconds left off.
 //
 // The countdown to a quota reset takes two digits for its minutes once an hour
 // leads them, as V4 draws every reset: "Resets in 2h 09m".
@@ -64,11 +66,18 @@ describe("the clock a wait and a turn are counted in", () => {
 describe("where the deck prints a wait", () => {
   const waiting = { kind: "permission", message: "", since: NOW - (6 * MIN + 42 * SEC), tool: { name: "Bash", preview: "npm test" } } as Row["waiting"];
 
-  it("prints the rail row's wait and turn to the second, and its age to the minute", () => {
+  // CHANGED ON PURPOSE (V4 top-10, inbox): the row printed the wait and the
+  // turn to the second ("6m 42s", "4m 33s") and an end as "3m ago" → every row
+  // prints one age to the minute ("6m", "4m", "3m"), because the Sessions list
+  // reads like an inbox, not a row of stopwatches. The header and the empty
+  // pane keep the seconds; the row's figure is theirs with the seconds left
+  // off, so the two never disagree. Done · new is group 1 and Working 2 now.
+  it("prints the rail row's wait, turn and end as one age to the minute, the header's clock without its seconds", () => {
     const row = { waiting, startedAt: NOW - 30 * MIN, turnStartedAt: NOW - (4 * MIN + 33 * SEC), turnEndedAt: NOW - (3 * MIN + 20 * SEC), neverPrompted: false } as Row;
-    expect(railTime(row, 0, NOW)?.text).toBe("6m 42s");
-    expect(railTime(row, 1, NOW)?.text).toBe("4m 33s");
-    expect(railTime({ ...row, waiting: null } as Row, 2, NOW)?.text).toBe("3m ago");
+    expect(railTime(row, 0, NOW)?.text).toBe("6m");
+    expect(railTime(row, 2, NOW)?.text).toBe("4m");
+    expect(railTime({ ...row, waiting: null } as Row, 1, NOW)?.text).toBe("3m");
+    expect(elapsedShort(waiting!.since, undefined, NOW).startsWith(`${railTime(row, 0, NOW)?.text} `)).toBe(true);
   });
 
   it("prints the empty pane's and the next ask's wait as the row does", () => {

@@ -866,7 +866,6 @@ const catalog: Catalog = {
   "board.row.spokenRunning": "läuft",
   "board.row.spokenYourTurnEnded": "du bist dran, beendet",
   "board.row.spokenEnded": "beendet",
-  "board.row.ago": "vor {time}",
   "board.row.asks": "Fragt · {sentence}",
   "board.row.ready": "Bereit für den ersten Prompt",
   "board.row.bringBack": "{label} zurück auf den Canvas holen",

@@ -75,7 +75,7 @@ describe("Rail / Usage box", () => {
     expect(decl(".session-list .sl-usage-btn", "width")).toBe("100%");
   });
 
-  it("sets line 1 on a baseline 6 apart: the name 12/16 600 text, the limit 12/16 secondary, the percent mono 600 text at the end", () => {
+  it("sets line 1 on a baseline 6 apart: the name 12/16 600 text, the limit 12/16 secondary, the percent tabular 600 text at the end", () => {
     expect(decl(".session-list .sl-usage-line1", "align-items")).toBe("baseline");
     expect(decl(".session-list .sl-usage-line1", "gap")).toBe("6px");
     expect(decl(".session-list .sl-usage-line1", "font-size")).toBe("calc(12px + var(--ui-text-increase, 0px))");
@@ -83,7 +83,11 @@ describe("Rail / Usage box", () => {
     expect(decl(".session-list .sl-usage-name", "font-weight")).toBe("600");
     expect(decl(".session-list .sl-usage-name", "color")).toBe("var(--text)");
     expect(decl(".session-list .sl-usage-what", "color")).toBe("var(--text-secondary)");
-    expect(decl(".session-list .sl-usage-pct", "font-family")).toBe("var(--font-mono)");
+    // CHANGED ON PURPOSE (V4 top-10, inbox): the percent in mono → the UI face
+    // with tabular figures, because a percentage is a figure, not code; mono in
+    // the Sessions list is kept for a path or a command.
+    expect(decl(".session-list .sl-usage-pct", "font-family")).toBeUndefined();
+    expect(decl(".session-list .sl-usage-pct", "font-variant-numeric")).toBe("tabular-nums");
     expect(decl(".session-list .sl-usage-pct", "font-weight")).toBe("600");
     expect(decl(".session-list .sl-usage-pct", "color")).toBe("var(--text)");
     expect(decl(".session-list .sl-usage-pct", "margin-left")).toBe("auto");

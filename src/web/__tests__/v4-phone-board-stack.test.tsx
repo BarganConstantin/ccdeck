@@ -99,18 +99,22 @@ function outsideMedia(css: string): string {
 }
 
 describe("the stack is the Sessions list's order and groups, one card per session", () => {
-  it("roots only, in buildRows' order: Needs you, Working, then Done · new", () => {
+  // CHANGED ON PURPOSE: herdr order, unread done above working. The stack is
+  // the list's order, so it moved with it (V4 top-10, inbox): Needs you, then
+  // the finished turns not yet looked at (group 1), then Working (group 2).
+  it("roots only, in buildRows' order: Needs you, Done · new, then Working", () => {
     const s = board();
     const cards = phoneBoardCards(s, NOW);
     expect(cards.map(c => c.row.sessionId)).toEqual(buildRows(s, NOW).map(r => r.sessionId));
-    expect(cards.map(c => c.row.sessionId)).toEqual(["api", "n2", "n1", "site", "ret"]);
+    expect(cards.map(c => c.row.sessionId)).toEqual(["api", "site", "ret", "n2", "n1"]);
     expect(cards.map(c => c.group)).toEqual([0, 1, 1, 2, 2]);
   });
 
   it("a finished turn looked at moves down to Done with the list's row", () => {
     const s = board();
     const watching = new Set(["site", "ret"]);
-    expect(phoneBoardCards(s, NOW, { watching }).map(c => c.group)).toEqual([0, 1, 1, 3, 3]);
+    // CHANGED ON PURPOSE: herdr order, unread done above working (Working 1 → 2).
+    expect(phoneBoardCards(s, NOW, { watching }).map(c => c.group)).toEqual([0, 2, 2, 3, 3]);
     expect(phoneBoardCards(s, NOW, { watching }).map(c => c.row.sessionId)).toEqual(buildRows(s, NOW, watching).map(r => r.sessionId));
   });
 
@@ -124,7 +128,9 @@ describe("the stack is the Sessions list's order and groups, one card per sessio
 
   it("what the canvas would not draw is left to the list: a removed session draws no card", () => {
     const s = board();
-    expect(phoneBoardCards(s, NOW, { removed: new Set(["site"]) }).map(c => c.row.sessionId)).toEqual(["api", "n2", "n1", "ret"]);
+    // CHANGED ON PURPOSE: herdr order, unread done above working ("ret", a
+    // finished turn not yet looked at, reads before the two at work).
+    expect(phoneBoardCards(s, NOW, { removed: new Set(["site"]) }).map(c => c.row.sessionId)).toEqual(["api", "ret", "n2", "n1"]);
   });
 });
 
@@ -162,7 +168,9 @@ describe("each card wears the one mark and word its session has everywhere", () 
     const meta = ["api", "n2", "n1", "site", "ret"].map(id => metaText(cardOf(html, id)));
     for (const m of meta) expect(m.startsWith(`${modelChipText("claude-opus-4-5")} · `)).toBe(true);
     // Waiting since 200 s in, at 600 s: the wait, counted as the list counts it.
-    expect(meta[0]).toBe(`${modelChipText("claude-opus-4-5")} · 6m 40s`);
+    // CHANGED ON PURPOSE (V4 top-10, inbox): "6m 40s" → "6m", because the list's
+    // row says one age to the minute now and the card prints the row's figure.
+    expect(meta[0]).toBe(`${modelChipText("claude-opus-4-5")} · 6m`);
   });
 
   it("only the two look-alikes draw when they started, last on the mono line, and the name keeps its line", () => {
@@ -172,7 +180,7 @@ describe("each card wears the one mark and word its session has everywhere", () 
     const html = renderToStaticMarkup(createElement(PhoneBoard, { state: s, now: NOW, onOpen: () => {} }));
     expect(html.match(/class="pb-start"/g)).toHaveLength(2);
     const n1 = cardOf(html, "n1");
-    // "opus · 8m 19s · 22:15": model · elapsed · start, separators only between parts.
+    // "opus · 8m · 22:15": model · age · start, separators only between parts.
     const start = twinStart(T0 + 100_000, "minute");
     expect(metaOf(n1)).toMatch(new RegExp(`<span class="pb-start">${start}</span>$`));
     expect(metaText(n1)).toMatch(new RegExp(`^${modelChipText("claude-opus-4-5")} · \\S+( \\S+)? · ${start}$`));

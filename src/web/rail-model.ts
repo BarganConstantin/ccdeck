@@ -2,8 +2,13 @@
 // under the pointer does with a session that joins or changes group, and which
 // motion each change gets. Pure, so a bare-node suite can call all of it.
 //
-// The five groups are SessionList.tsx's rank(): 0 Needs you, 1 Working,
-// 2 Done · new, 3 Done, 4 Ready.
+// The five groups are SessionList.tsx's rank(): 0 Needs you, 1 Done · new,
+// 2 Working, 3 Done, 4 Ready. A group's number is its place in the list, which
+// is what holdOrder below and the list's sort compare.
+//
+// CHANGED ON PURPOSE (V4 top-10, inbox): Done · new was 2, below Working. A
+// finished turn you have not looked at is your turn, so it now reads second,
+// above sessions at work that need nothing from you (herdr's inbox order).
 //
 // CHANGED ON PURPOSE (design recommendations, 2026-11-09): 2 and 3 were "Done ·
 // unseen" and "Idle", so a finished turn the card calls Done sat under Idle
@@ -16,11 +21,12 @@ import { t } from "./i18n";
 export type RailGroup = 0 | 1 | 2 | 3 | 4;
 export const RAIL_GROUPS: readonly RailGroup[] = [0, 1, 2, 3, 4];
 export const RAIL_GROUP_LABEL_MSGS = [
-  "board.railGroup.needs", "board.railGroup.working", "board.railGroup.new", "board.railGroup.done", "board.railGroup.ready",
+  "board.railGroup.needs", "board.railGroup.new", "board.railGroup.working", "board.railGroup.done", "board.railGroup.ready",
 ] as const;
 
 /** Rows drawn before the rail folds. Needs you and Working are never part of
- *  the budget's cut: nobody waiting on you is ever hidden. */
+ *  the budget's cut: nobody waiting on you is ever hidden. Done · new, Done and
+ *  Ready share what is left, in the order they are drawn. */
 export const RAIL_FOLD_AT = 8;
 /** Inside a group opened or folded, or in the whole list, above this a change
  *  is made at once: a parade of twenty rows is not news. */
@@ -31,12 +37,15 @@ export const RAIL_CROSSFADE_AT = 12;
 
 export interface Slot { id: string; group: RailGroup }
 
+/** The groups the fold never cuts: Needs you and Working. */
+const UNCUT: readonly RailGroup[] = [0, 2];
+
 /** How many of a group's rows are drawn before its fold, and how many wait
  *  behind it. `counts` is rows per group, in group order. */
 export function foldPlan(counts: readonly [number, number, number, number, number]): { shown: number; rest: number }[] {
-  let budget = Math.max(0, RAIL_FOLD_AT - counts[0] - counts[1]);
+  let budget = Math.max(0, RAIL_FOLD_AT - counts[0] - counts[2]);
   return counts.map((n, g) => {
-    if (g < 2) return { shown: n, rest: 0 };
+    if (UNCUT.includes(g as RailGroup)) return { shown: n, rest: 0 };
     const shown = Math.min(n, budget);
     budget -= shown;
     return { shown, rest: n - shown };

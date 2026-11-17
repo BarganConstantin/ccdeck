@@ -1,6 +1,7 @@
 // The attention rail: the left column's list of every session on the canvas,
-// grouped by what each one wants of you — Needs you, Working, Done · new,
-// Done, Ready — in V4's Board window. Click a row to fit-view to that session and
+// grouped by what each one wants of you — Needs you, Done · new, Working,
+// Done, Ready — in V4's Board window. It reads like an inbox: what is yours to
+// act on first, and each row's age at its right edge. Click a row to fit-view to that session and
 // select its root agent. Toggle visibility with the L key (see App.tsx). The
 // topbar's ☰ used to open it too and has been removed; L is the way in, and
 // the × below and L itself are the two ways out.
@@ -96,21 +97,24 @@ export interface Row {
    *  finished row with any draws the partial mark and "Done · 1 failed"
    *  (node-face.ts sessionMark). */
   toolErrorCount?: number;
-  /** Set only when another row reads the same, name and task: the row draws
-   *  its start time beside its name, to this much (rail-row-copy.ts twinClocks). */
+  /** Set only when another row reads the same, name and task: the row ends its
+   *  second line with its start time, to this much (rail-row-copy.ts twinClocks). */
   twin?: TwinClock;
 }
 
 /** Where a row sorts, as the rail's five groups, before activity is looked at:
  *  0 Needs you, a session blocked on a permission prompt or a question; 1
- *  Working, a turn running or a background job still going; 2 Done · new, a
- *  turn that ended since you last looked; 3 Done, a turn that ended and has
+ *  Done · new, a turn that ended since you last looked; 2 Working, a turn
+ *  running or a background job still going; 3 Done, a turn that ended and has
  *  been seen; 4 Ready, a session not yet given a prompt (node-face.ts
  *  neverPrompted), which its card calls Ready too.
  *
- *  A blocked session is the only row on this list that is asking for something,
- *  so it is first. "Your turn" is a different thing from a decision you are
- *  stalled on: V4 puts it below Working, and once you have seen it, in Done.
+ *  It is an inbox's order (V4 top-10, inbox; herdr's: blocked, done and
+ *  unread, working, seen). A blocked session is stalled on a decision only you
+ *  can make, so it is first. A finished turn you have not looked at is your
+ *  turn too, only not a blocking one: its result waits to be read, so it comes
+ *  next, above the sessions at work, which need nothing from you yet. Once you
+ *  have seen it, it is Done, below them. It sat under Working before.
  *  Waiting is not the row's `state`: an idle_prompt sits on a session that is
  *  legitimately done and still reads `done` two columns to the left.
  *
@@ -123,10 +127,10 @@ export interface Row {
 export function rank(r: Row): RailGroup {
   if (isAlarming(r.waiting)) return 0;
   // A job still going wears the Working mark even though its turn has ended.
-  if (r.job && (r.job.state === "working" || r.job.state === "blocked")) return 1;
+  if (r.job && (r.job.state === "working" || r.job.state === "blocked")) return 2;
   const turnEnded = r.state !== "active" || r.waiting?.kind === "idle";
-  if (!turnEnded) return r.neverPrompted ? 4 : 1;
-  return r.unseen ? 2 : 3;
+  if (!turnEnded) return r.neverPrompted ? 4 : 2;
+  return r.unseen ? 1 : 3;
 }
 
 /** The newest call still running on an active agent. The reducer appends, so
@@ -212,13 +216,14 @@ export function buildRows(state: GraphState, now: number, watching?: ReadonlySet
   // (the newest prompt), newest first, then by id: the one key that does not
   // move during a turn, where lastActivity moves on every tool call and would
   // reshuffle the group under your eyes. Done · new goes by the turn's end,
-  // newest first; Done and Ready by the latest activity.
+  // newest first; Done and Ready by the latest activity. The groups moved
+  // (Done · new above Working); the order inside each did not.
   rows.sort((x, y) => {
     const rx = rank(x), ry = rank(y);
     if (rx !== ry) return rx - ry;
     if (x.waiting && y.waiting && rx === 0) return x.waiting.since - y.waiting.since;
-    if (rx === 1) return (y.turnStartedAt ?? y.startedAt) - (x.turnStartedAt ?? x.startedAt) || (x.sessionId < y.sessionId ? -1 : x.sessionId > y.sessionId ? 1 : 0);
-    if (rx === 2) return (y.turnEndedAt ?? 0) - (x.turnEndedAt ?? 0);
+    if (rx === 2) return (y.turnStartedAt ?? y.startedAt) - (x.turnStartedAt ?? x.startedAt) || (x.sessionId < y.sessionId ? -1 : x.sessionId > y.sessionId ? 1 : 0);
+    if (rx === 1) return (y.turnEndedAt ?? 0) - (x.turnEndedAt ?? 0);
     return y.lastActivity - x.lastActivity;
   });
   // On the row, so a row that leaves keeps saying it while it fades.
@@ -305,7 +310,7 @@ export default function SessionList({ state, now, selectedIds, onSelect, onClose
   // only when an envelope lands; the periodic sweeps that settle a dead session
   // and evict a finished one move only `revision`.
   //
-  // `now` is here on its own merits — every row prints an elapsed time — and it
+  // `now` is here on its own merits — every row prints an age — and it
   // ticks every 250ms, so this list was never visibly stale the way the usage
   // panel's was (#575). That is luck, not correctness: the accident that saved
   // it was a clock with nothing to do with whether the state changed, and the
