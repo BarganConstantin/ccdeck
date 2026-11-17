@@ -69,14 +69,12 @@ const ENTER: StatusCap = { text: "↵", get spoken() { return t("board.keys.ente
 
 /** The board's layer. Figma's last item here, Ctrl + backtick → workspace, is added
  *  by statusViewFor only where the chord works (the Command Panel is on): the
- *  bar names only keys that work. Space → pause is the keyboard sheet's, which
- *  the frame leaves out; it goes before the chord. */
+ *  bar names only keys that work. */
 export const BOARD_HINTS: readonly StatusHint[] = [
   { caps: [cap("j"), cap("k")], get word() { return t("board.status.cards"); }, binds: ["j", "k"], learn: "cards" },
   { caps: [ENTER], get word() { return t("board.status.select"); }, binds: ["Enter"], onCard: true, learn: "select" },
   { caps: [cap("p")], get word() { return t("board.status.peek"); }, binds: ["p"], zoomedOut: true, learn: "peek" },
   { caps: [cap("n")], get word() { return t("board.status.nextWaiting"); }, binds: ["n"], waiting: true, learn: "nextWaiting" },
-  { caps: [cap("Space")], get word() { return t("board.status.pause"); }, binds: [" "], offCard: true, learn: "pause" },
 ];
 
 /** The deck's layer (the stage open, the board around it with the keys). No

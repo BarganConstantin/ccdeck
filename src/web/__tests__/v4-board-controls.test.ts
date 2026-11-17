@@ -44,8 +44,6 @@ describe("the bar's items, left to right", () => {
     "<CanvasMore",
     'id={CANVAS_MORE_ID}',
     'label={t("board.controls.arrangeLabel")} keyCap="R"',
-    'label={paused ? t("board.quick.action.resume") : t("board.quick.action.pause")}',
-    'keyCap="Space"',
     'label={t("board.quick.action.clear")} keyCap="C"',
     '<div role="separator" className="ap-menu-sep" />',
     'label={t("board.controls.openPanel")}',
@@ -67,7 +65,7 @@ describe("the bar's items, left to right", () => {
     ]);
     expect(component).toContain('const name = filtered ? t("board.controls.moreFiltered") : t("accounts.row.more");');
   });
-  it("runs zoom out, level, zoom in | recenter, re-arrange, pause, clear | keyboard, Command Panel", () => {
+  it("runs zoom out, level, zoom in | recenter, re-arrange, clear | keyboard, Command Panel", () => {
     let from = 0;
     for (const needle of order) {
       const at = component.indexOf(needle, from);

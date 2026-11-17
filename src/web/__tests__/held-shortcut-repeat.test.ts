@@ -21,11 +21,10 @@ function hold(deck: ReturnType<typeof mountDeckKeys>, key: string, n = 5) {
 }
 
 describe("a held shortcut acts once", () => {
-  it("pauses once for a held Space, and still keeps the repeats from scrolling the page", () => {
+  it("never pauses the Board on Space, including held repeats", () => {
     const deck = mountDeckKeys();
-    const { repeats } = hold(deck, " ");
-    expect(deck.props.togglePause).toHaveBeenCalledTimes(1);
-    for (const e of repeats) expect(e.preventDefault).toHaveBeenCalled();
+    hold(deck, " ");
+    expect(deck.props.togglePause).not.toHaveBeenCalled();
   });
 
   it("switches the theme once for a held T", () => {
