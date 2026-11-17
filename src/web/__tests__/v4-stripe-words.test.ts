@@ -357,9 +357,11 @@ describe("Workspace draws the stripes as icons", () => {
     expect(wordsOf(right.tree).every(w => w === null)).toBe(true);
     expect(toolbar(left.tree).props["data-words"]).toBeUndefined();
     expect(toolbar(right.tree).props["data-words"]).toBeUndefined();
-    // No switch, as under 1100: the foot is Radio and Settings alone.
+    // No switch, as under 1100: the foot is More and Settings alone.
+    // CHANGED ON PURPOSE (V4 top-10 #4): the foot was Radio and Settings → More
+    // and Settings, since Radio went behind the stripe's More.
     expect(one(left.tree, e => e.props["data-rail-item"] === "stripe-words")).toBeNull();
-    expect(one(left.tree, e => e.props.className === "rail-foot")!.props["aria-label"]).toBe("Radio, Settings");
+    expect(one(left.tree, e => e.props.className === "rail-foot")!.props["aria-label"]).toBe("More, Settings");
     expect(stripeWidth()).toBe(STRIPE_W.icons);
     expect(stripeWordsShown(), "the reader's choice is untouched").toBe(true);
     expect(stored[STRIPE_WORDS_KEY]).toBe("on");
