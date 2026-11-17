@@ -1068,10 +1068,11 @@ function Inner() {
   // Browser Watch has something unread — in use-live-announcements.ts.
   const announcements = useLiveAnnouncements({ waitingSessions, watchUnseen, incidents });
 
-  // OS notifications for a session that is waiting on you: the permission, the
-  // switch, asking for it, and what has already been raised — in
-  // use-os-notifications.ts. It is fed the same waiting set the sidebar draws.
-  const notify = useOsNotifications({ waitingSessions, liveSince, focusSession: focusSessionOnView });
+  // OS notifications for a session that is waiting on you, and for a turn that
+  // finished while the page was hidden: the permission, the switch, asking for
+  // it, and what has already been raised — in use-os-notifications.ts. It is
+  // fed the same waiting set the sidebar draws, and the graph for finished turns.
+  const notify = useOsNotifications({ waitingSessions, liveSince, focusSession: focusSessionOnView, stateRef });
   const { loadNotifyPrefs } = notify;
   // The terminal's run through the waiting sessions, and the stage's half of
   // the keys, which need the waiting list built just above — use-stage.ts.
