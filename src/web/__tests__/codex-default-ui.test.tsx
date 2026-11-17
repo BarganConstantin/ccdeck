@@ -132,7 +132,8 @@ describe('Codex default selection controls', () => {
     // The selected row is the live one and offers no second Switch to press.
     expect((selected.props.a as { active: boolean }).active).toBe(true);
     expect(rowText(selected)).not.toContain('Switch');
-    // And it says what a switch does to the sessions already running, on the row.
+    // Pending native identity is visible above the roster; completed-switch
+    // follow-up and failure details remain on the selected row.
     if (liveState === 'failed') {
       expect(rowText(selected)).toContain('Default saved');
       expect(rowText(selected)).toContain('open Codex app could not switch');
@@ -140,7 +141,9 @@ describe('Codex default selection controls', () => {
       (selected.props.onDismissRefusal as () => void)(); await flush();
       expect(rowText(rowOf(view, 'Work')!)).not.toContain('Default saved');
     } else if (liveState === 'waiting') {
-      expect(rowText(selected)).toContain('Waiting for running tools or pending input');
+      const pending = one(view.tree, el => el.props.role === 'status' && textOf(el).includes('Waiting for running tools or pending input'));
+      expect(pending).not.toBeNull();
+      expect(rowText(selected)).not.toContain('Waiting for running tools or pending input');
       expect(rowText(selected)).not.toContain('now use this account');
     } else if (liveState === 'children_waiting') {
       expect(rowText(selected)).toContain('Account switched. Waiting for subagents to resume.');

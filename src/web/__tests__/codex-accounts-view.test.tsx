@@ -114,6 +114,14 @@ async function deck(profiles: () => CodexProfile[], quota: (id: string) => Profi
 }
 
 describe('the panel, on the moments that matter', () => {
+  it('keeps the actual account visible above the selected default while a switch is pending', async () => {
+    const roster = [profile({ id: 'old', label: 'old@example.test', active: false }), profile({ id: 'next', label: 'next@example.test', active: true })];
+    const { view } = await deck(() => roster, () => reading(), url => url === '/api/codex-profiles'
+      ? { revision: 1, profiles: roster, live: { state: 'waiting', profileId: 'old', requestedProfileId: 'next', continuation: 'waiting' } } : null);
+    const notice = one(view.tree, el => el.props.role === 'status' && textOf(el).includes('Still using old@example.test'));
+    expect(notice).not.toBeNull();
+    expect(textOf(notice)).toContain('account will switch');
+  });
   it('asks again when a login moved during a read, and the row never shows an error for it', async () => {
     vi.useFakeTimers();
     let settled = false;
