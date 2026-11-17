@@ -101,8 +101,9 @@ export default function CanvasControls({
           accessibility tree and not a tab stop. */}
       <span className="react-flow__controls-divider" aria-hidden />
       {/* data-nudge while auto-fit is off: the glyph steps up to the
-          foreground, because pressing it now would do something. It was
-          the accent; the canvas's Auto-fit chip is what says why. */}
+          foreground and wears a dot, because pressing it now would do
+          something. It is the canvas's one fit control: the Fit all chip
+          that did the same went (V4 top-10 #3), and its title says it. */}
       <ControlButton
         onClick={enableAutoFitAndRefit}
         title={autoFitDisabled

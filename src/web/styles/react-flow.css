@@ -181,9 +181,23 @@
 .react-flow__controls-button[aria-disabled="true"]:hover { background: transparent; color: var(--muted); }
 }
 /* Recenter while auto-fit is off: the press would do something, so the glyph
-   steps up to the foreground, beside the canvas's own Fit all. Not the
-   accent: this is a hint, not data or focus. */
-.react-flow__controls-button[data-nudge] { color: var(--text); }
+   steps up to the foreground and wears a dot, the view is not following the
+   board (#820). The canvas's own Fit all chip said so in words and did what
+   this press does, so the chip went (V4 top-10 #3) and the dot stays. Not
+   the accent and not a state colour: this is a hint, not data or focus, in
+   the glyph's own ink. ::before, since a coarse pointer's target reach is
+   the ::after (phone-sheet.css). */
+.react-flow__controls-button[data-nudge] { position: relative; color: var(--text); }
+.react-flow__controls-button[data-nudge]::before {
+  content: "";
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 4px;
+  height: 4px;
+  border-radius: var(--r-pill);
+  background: currentColor;
+}
 /* Clear asks before it destroys anything, so at rest it is as neutral as its
    neighbours and only the pointer warms it. */
 @media (hover: hover) and (pointer: fine) {

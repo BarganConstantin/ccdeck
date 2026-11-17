@@ -133,9 +133,13 @@ describe("every pressable control has a 24 x 24 target (WCAG 2.5.8)", () => {
     expect(decls(control)["position"] ?? decls(":where(.glyph-btn)")["position"], control).toBe("relative");
   });
 
-  it("gives the canvas's Fit all its 24px target in its own box, border included", () => {
-    expect(decls(".autofit-chip")["height"]).toBe("24px");
-    expect(decls(".autofit-chip")["box-sizing"]).toBe("border-box");
+  // CHANGED ON PURPOSE (V4 top-10 #3): the canvas's Fit all chip had its own 24px
+  // box → the chip is gone; recenter, which did the same thing, is a control
+  // bar button at the bar's own size.
+  it("gives the canvas's one fit control, recenter, the bar's button size", () => {
+    expect(decls(".autofit-chip")["height"]).toBeUndefined();
+    expect(decls(".react-flow__controls-button")["width"]).toBe("var(--board-controls-btn)");
+    expect(decls(".react-flow__controls-button")["height"]).toBe("var(--board-controls-btn)");
   });
 
   it("lets the recap note's close replace .glyph-btn's inset, which it ties with on specificity", () => {

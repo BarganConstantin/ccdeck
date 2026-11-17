@@ -6,7 +6,8 @@ import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { COUNT_MS } from "../count-up";
-import { figureLevel, railSegments, SEGMENT_TOKENS } from "../rail-usage";
+import { railSegments } from "../rail-usage";
+import { quotaLevel } from "../components/QuotaBar";
 import { JUMP_UNDER, movesBetween } from "../components/FadeFigure";
 import { RAIL_CROSSFADE_AT, RAIL_LONG_LIST, joinMotion, releaseMotion } from "../rail-model";
 import { LEAVE_SPACE_DELAY_MS, leaveHoldMs } from "../rail-motion";
@@ -48,39 +49,54 @@ describe("the meter's box and bar (V4's Figma)", () => {
     expect(decl(".session-list .sl-usage-track", "background")).toBe("var(--line)");
     expect(decl(".session-list .sl-usage-track", "min-width")).toBe("1px");
   });
-  it("names the five part colours in V4's order", () => {
-    expect([...SEGMENT_TOKENS]).toEqual(["--usage-cyan", "--usage-indigo", "--usage-lime", "--usage-pink", "--usage-orange"]);
+  // CHANGED ON PURPOSE (V4 top-10 #9): five data colours for the parts → no
+  // part colour of its own, because colour on this meter now says the level only.
+  it("names no part colour: every part is drawn in the meter's one fill colour", () => {
+    const parts = source("../components/RailParts.tsx");
+    expect(parts).toMatch(/className="sl-usage-seg" style=\{\{ flexGrow: seg\.share, background: meter\.color \}\}/);
+    expect(source("../rail-usage.ts")).not.toMatch(/SEGMENT_TOKENS|--usage-(?:cyan|indigo|lime|pink|orange)/);
   });
 });
 
 describe("the split", () => {
-  it("is one cyan part without an honest split", () => {
-    expect(railSegments()).toEqual([{ token: "--usage-cyan", share: 1 }]);
-    expect(railSegments([])).toEqual([{ token: "--usage-cyan", share: 1 }]);
-    expect(railSegments([5])).toEqual([{ token: "--usage-cyan", share: 1 }]);
+  // CHANGED ON PURPOSE (V4 top-10 #9): one cyan part → one part, with no
+  // colour of its own, because the fill's colour is the reading's level.
+  it("is one part without an honest split", () => {
+    expect(railSegments()).toEqual([{ share: 1 }]);
+    expect(railSegments([])).toEqual([{ share: 1 }]);
+    expect(railSegments([5])).toEqual([{ share: 1 }]);
   });
   it("goes largest first, in order, and the fifth is everything left", () => {
     const parts = railSegments([1, 8, 2, 4, 3, 1]);
-    expect(parts.map(p => p.token)).toEqual([...SEGMENT_TOKENS]);
+    expect(parts).toHaveLength(5);
     expect(parts.map(p => p.share * 19)).toEqual([8, 4, 3, 2, 2].map(n => expect.closeTo(n, 9)));
     expect(parts.reduce((a, p) => a + p.share, 0)).toBeCloseTo(1, 9);
   });
   it("draws as many parts as there are sessions up to four", () => {
-    expect(railSegments([3, 1]).map(p => p.token)).toEqual(["--usage-cyan", "--usage-indigo"]);
+    expect(railSegments([3, 1])).toEqual([{ share: 0.75 }, { share: 0.25 }]);
   });
 });
 
 describe("the figure's levels", () => {
-  it("is quiet under 70, plain from 70 to 89, error from 90", () => {
-    expect([0, 69, 70, 89, 90, 100].map(figureLevel)).toEqual(["low", "low", "mid", "mid", "high", "high"]);
-    expect(decl(".session-list .sl-usage-btn[data-level=\"low\"] .sl-usage-pct", "color")).toBe("var(--muted)");
-    expect(decl(".session-list .sl-usage-btn[data-level=\"high\"] .sl-usage-pct", "color")).toBe("var(--err)");
+  // CHANGED ON PURPOSE (V4 top-10 #9): quiet under 70, plain to 89, error from
+  // 90 → the Usage panel's level (quotaLevel): plain under 70, the warning mark,
+  // "high" and --warn from 70, --err from 90, because 86% read calm here and
+  // "⚠ 86% · high" in the Usage panel.
+  it("takes the Usage panel's level: plain under 70, the warning from 70, the error from 90", () => {
+    expect([0, 69, 70, 89, 90, 100].map(p => quotaLevel(p))).toEqual([null, null, "warn", "warn", "err", "err"]);
+    expect(decl(".session-list .sl-usage-btn[data-level=\"low\"] .sl-usage-pct", "color")).toBeUndefined();
+    expect(decl(".session-list .sl-usage-btn[data-level=\"high\"] .sl-usage-pct", "color")).toBeUndefined();
     expect(decl(".session-list .sl-usage-pct", "color")).toBe("var(--text)");
+    expect(decl(".session-list .level-mark > .sl-usage-pct", "color")).toBe("inherit");
   });
-  it("leaves the bar's fill without a warn, err or accent colour", () => {
+  // CHANGED ON PURPOSE (V4 top-10 #9): the fill had no level colour → the fill
+  // is the level's (accent, --warn, --err), set inline from the meter, because
+  // the same number has the same colour on every quota meter.
+  it("colours the bar's fill from the meter, never from the sheet", () => {
     const parts = source("../components/RailParts.tsx");
-    expect(parts).not.toMatch(/meter\.color/);
+    expect(parts).toMatch(/background: meter\.color/);
     expect(decl(".session-list .sl-usage-fill", "background")).toBeUndefined();
+    expect(decl(".session-list .sl-usage-seg", "background")).toBeUndefined();
   });
 });
 

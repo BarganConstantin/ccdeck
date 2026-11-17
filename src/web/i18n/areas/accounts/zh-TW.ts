@@ -3,8 +3,6 @@ import type { Catalog } from "../../catalogs";
 
 const catalog: Catalog = {
   "accounts.sort.by": "依「{label}」排序",
-  "accounts.autoFit.fitAll": "全部顯示",
-  "accounts.autoFit.fitAllTip": "讓所有工作階段重新顯示在畫面內",
   "accounts.projLoading.title": "正在讀取專案活動",
   "accounts.projLoading.note": "正在依專案彙整此帳號的工作…",
   "accounts.telemetry.label": "{name} 的組織遙測",

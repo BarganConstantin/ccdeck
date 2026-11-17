@@ -65,7 +65,11 @@ describe("each stripe is a toolbar, and the dock is one", () => {
     expect(src).toMatch(/else if \(e\.key === "End"\) to = buttons\.length - 1;/);
     // CHANGED ON PURPOSE (stripe words): the left stripe's arrows also reach
     // the switch between words and icons at the foot's end.
-    expect(src).toMatch(/const switchIndex = items\.flat\(\)\.length \+ foot\.length;/);
+    // CHANGED ON PURPOSE (V4 top-10 #4): the doors then the foot → the doors,
+    // the stripe's More, then the foot, because the More is in the arrows' order.
+    expect(src).toMatch(/const moreIndex = items\.flat\(\)\.length;/);
+    expect(src).toMatch(/const footIndex = moreIndex \+ \(moreHere \? 1 : 0\);/);
+    expect(src).toMatch(/const switchIndex = footIndex \+ foot\.length;/);
     expect(src).toMatch(/useRoving\(switchIndex \+ \(switchHere \? 1 : 0\), "vertical"\)/);
     expect(src).toMatch(/useRoving\(items\.length \+ 1, "horizontal"\)/);
   });

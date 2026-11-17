@@ -13,6 +13,8 @@
   .v4-select > .sm-select,
   .settings-tab,
   .ap-policy .ap-threshold-input { min-height: 32px; }
+  /* The Inspector's Details row: full width already, 28 high under a mouse. */
+  .detail-more > summary { min-height: 32px; }
   /* The popover's rows sit flush against each other, so a fingertip gets the
      height a touch list needs rather than the 32px floor; its form controls
      stand at the same height as each other, a step over it. */
@@ -39,9 +41,8 @@
   .fc-tab,
   .fc-anon { min-height: 32px; }
   .fb-shot > .fb-shot-remove::after { inset: -6px; }
-  /* Fit all and Re-arrange's Undo take the floor too, and Undo drops the
-     chord it names: a fingertip has no key to press. */
-  .autofit-chip,
+  /* Re-arrange's Undo takes the floor too, and drops the chord it names: a
+     fingertip has no key to press. */
   .rearrange-undo-act { min-height: 32px; }
   .rearrange-undo-key { display: none; }
   /* The terminal stage's keys bar (terminal-stage.css) names keys the same
@@ -348,6 +349,7 @@
   .uh-legend-dot,
   .cost-bar .cb-seg,
   .session-summary .ssl::before,
+  .tokens-grid .tk-key::before,
   .ap-proj-seg,
   .ap-proj-fill,
   .ap-proj-colseg,
@@ -435,26 +437,23 @@
      glyphs (StateMark, AlertMark), drawn in currentColor, so they take the
      text colour on their own and keep their shapes — filled for working,
      hollow for idle, a tick for ended, the triangle for waiting — which is
-     what tells them apart here. The header's context bar keeps its track and its
-     fill, the fill in the text colour. The
+     what tells them apart here. The header's context ring is the card's
+     (ContextModal.tsx ContextRing), drawn in strokes, not the backgrounds
+     the theme repaints, and answered here no more than the card's is: the
+     figure beside it is text, which the theme recolours, so the reading
+     survives whatever the theme makes of the ring. The
      divider's line is drawn in the text colour, and the terminal itself is
      drawn by xterm's DOM renderer here, whose glyphs the theme recolours
      like any text (use-terminal-session.ts). */
-  .ts-ctxbar,
-  .ts-ctxbar i { forced-color-adjust: none; }
-  .ts-ctxbar { background: Canvas; outline: 1px solid CanvasText; }
-  .ts-ctxbar i { background: CanvasText; }
   .ts-divider::before { background: CanvasText; }
 
   /* Re-arrange's Undo is set apart from the status beside it by weight and
      by a fill under the pointer, and the theme paints that fill Canvas. An
      edge in the button colour carries it instead, so the one control in the
-     strip still reads as one; Fit all has its own edge. Both turn Highlight
-     under the pointer. A border and not an outline, which would replace the
-     keyboard's ring. */
+     strip still reads as one, and it turns Highlight under the pointer. A
+     border and not an outline, which would replace the keyboard's ring. */
   .rearrange-undo-act { border: 1px solid ButtonText; }
   @media (hover: hover) and (pointer: fine) {
-  .autofit-chip:hover,
   .rearrange-undo-act:hover { border-color: Highlight; }
   }
 

@@ -1358,10 +1358,10 @@ describe("every control that draws a boundary draws one that can be seen (1.4.11
       "kbd.qo-key", ".qo-esc", ".qo-foot kbd", ".fb-shortcut kbd",
       // CHANGED ON PURPOSE: the category filter's legend items are gone (one
       // Tools button at every width), so `.cat-filter.off .cat-dot` left this
-      // list. The canvas's "Fit all" is a button now, where it was a strip
-      // around Resume: its --line-soft rim on --panel is the surface edge the
-      // canvas's instruments share, and it is named by its word and glyph.
-      ".autofit-chip",
+      // list.
+      // CHANGED ON PURPOSE (V4 top-10 #3): ".autofit-chip" (the canvas's "Fit
+      // all" button) → gone from this list, because the chip left the canvas:
+      // ⌖ recenter did the same job, so the sheet no longer draws the selector.
       // CHANGED ON PURPOSE (V4's Figma): the Auto-switch chips are the same
       // pills — a --line rim at rest, and the chosen one filled with
       // --accent-16 and edged in --accent — each named by its own word.

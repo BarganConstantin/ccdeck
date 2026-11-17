@@ -3,8 +3,6 @@ import type { Catalog } from "../../catalogs";
 
 const catalog: Catalog = {
   "accounts.sort.by": "Sortează după {label}",
-  "accounts.autoFit.fitAll": "Încadrează tot",
-  "accounts.autoFit.fitAllTip": "Încadrează din nou toate sesiunile pe ecran",
   "accounts.projLoading.title": "Se citește activitatea pe proiecte",
   "accounts.projLoading.note": "Se adună munca acestui cont pe proiecte…",
   "accounts.telemetry.label": "Telemetria organizației pentru {name}",

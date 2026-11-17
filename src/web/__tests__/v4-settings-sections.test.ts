@@ -182,12 +182,18 @@ const settings = (html: string) => new Set([...pane(html).matchAll(/data-setting
 
 describe("each page's groups, in order", () => {
   it("General: Language, then the rest of the deck's behaviour, then Elsewhere on the deck and Experimental", () => {
-    const labels = groups(draw("general"));
-    expect(labels[0]).toBe("Language");
+    const html = draw("general");
+    const labels = groups(html);
+    // CHANGED ON PURPOSE (V4 top-10 #10): a "Language" caption over the one row
+    // named "Language" → no caption, because the word was said twice. The row
+    // is still the page's first.
+    expect(labels).not.toContain("Language");
+    expect([...pane(html).matchAll(/data-setting="([^"]+)"/g)][0][1]).toBe("language");
+    expect(labels[0]).toBe("Sessions");
     expect(labels.slice(-2)).toEqual(["Elsewhere on the deck", "Experimental"]);
     // CHANGED ON PURPOSE (V4's General page): one Sessions group where Board
     // and a group per provider were.
-    expect(labels).toEqual(["Language", "Sessions", "Updates", "Elsewhere on the deck", "Experimental"]);
+    expect(labels).toEqual(["Sessions", "Updates", "Elsewhere on the deck", "Experimental"]);
   });
   it("General's Sessions group: V4's four rows in V4's order, Claude before Codex, and none lost", () => {
     const html = draw("general");
@@ -220,7 +226,14 @@ describe("each page's groups, in order", () => {
     expect(groups(draw("general", { terminal: undefined }))).not.toContain("Experimental");
   });
   it("Appearance: Theme, Character", () => expect(groups(draw("appearance"))).toEqual(["Theme", "Character"]));
-  it("Text & density: Text size, Density, Preview", () => expect(groups(draw("reading"))).toEqual(["Text size", "Density", "Preview"]));
+  // CHANGED ON PURPOSE (V4 top-10 #10): "Text size" and "Density" captions,
+  // each over one row of the same name → one list with no caption, because the
+  // name was said twice. Preview keeps its caption: it is not a row's name.
+  it("Text & density: the two rows uncaptioned, then Preview", () => {
+    const html = draw("reading");
+    expect(groups(html)).toEqual(["Preview"]);
+    expect([...pane(html).matchAll(/data-setting="([^"]+)"/g)].map(m => m[1]).slice(0, 2)).toEqual(["text-size", "density"]);
+  });
   it("Keyboard: Shortcuts first", () => expect(groups(draw("keyboard"))[0]).toBe("Shortcuts"));
   it("Notifications: Sessions, Accounts", () => expect(groups(draw("notifications"))).toEqual(["Sessions", "Accounts"]));
   it("Sounds: Sound, a group for each tone, Your own", () => {
@@ -229,7 +242,14 @@ describe("each page's groups, in order", () => {
     expect(labels.at(-1)).toBe("Your own");
     expect(labels).toHaveLength(4);
   });
-  it("Radar: Radar", () => expect(groups(draw("radar"))).toEqual(["Radar"]));
+  // CHANGED ON PURPOSE (V4 top-10 #10): a "Radar" caption over the row named
+  // "Radar" on the page named "Radar" → no caption, because it was the third
+  // time the word was said.
+  it("Radar: its row under no caption", () => {
+    const html = draw("radar");
+    expect(groups(html)).toEqual([]);
+    expect(settings(html)).toContain("radar-open");
+  });
   it("About: Version, Tour and feedback, Project", () => expect(groups(draw("about"))).toEqual(["Version", "Tour and feedback", "Project"]));
   it("Integrations: its providers are rows of Connected and Not connected, not a heading each", () => {
     const html = pane(draw("integrations"));
@@ -270,7 +290,12 @@ describe("no setting the pages drew before went missing", () => {
   });
   it("keeps the Details disclosures the rows had", () => {
     const details = (section: SettingsSection) => pane(draw(section)).match(/<details class="settings-row-details"/g)?.length ?? 0;
-    expect({ general: details("general"), sounds: details("sounds") }).toEqual({ general: 5, sounds: 0 });
+    // CHANGED ON PURPOSE (V4 top-10 #10): General 5 → 3, because Hide finished
+    // and the two Bring back rows lost Details that restated their note.
+    // Continue stopped and Update when idle keep theirs (what stops it, the two
+    // update paths), and the Command Panel's long note became a short line plus
+    // a Details saying that turning it off leaves the sessions running.
+    expect({ general: details("general"), sounds: details("sounds") }).toEqual({ general: 3, sounds: 0 });
   });
 });
 
