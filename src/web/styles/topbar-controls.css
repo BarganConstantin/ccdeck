@@ -136,10 +136,11 @@
    Done are plain readouts: no stroke, radius 14, 4px either side, the figure in
    --text and the word in --text-secondary.
    Waiting is a BUTTON while somebody waits (the door to the queue popover
-   below), and a readout like its neighbours at 0 — the frame always draws
-   three pills, and a quiet 0 says there is no alarm. A paused stream and an
-   incident are the other amber this bar has; the version chip is not. The
-   edge is the token itself: V4 draws it so. */
+   below). A count at 0 is not drawn at all (V4 top-10 #5): the frame drew
+   three pills always, a quiet 0 saying there was no alarm, and the absence of
+   the amber pill says the same. A paused stream and an incident are the other
+   amber this bar has; the version chip is not. The edge is the token itself:
+   V4 draws it so. */
 .topbar .counts {
   display: flex;
   align-items: center;
@@ -176,11 +177,9 @@
 /* The word after the figure inherits the pill's tier: --text-secondary on the
    readouts, --warn on the lit one. */
 .topbar .count-pill .count-word { color: inherit; }
-/* The glyphs: Working and Done wear the card's own state marks (agent-node.css);
-   Waiting at 0 is the quiet triangle, in the secondary tier. */
+/* The glyphs: Working and Done wear the card's own state marks (agent-node.css). */
 .topbar .count-working .state-mark,
 .topbar .count-done .state-mark { flex: none; }
-.topbar .count-waiting:not(.waiting-stat) .alert-mark { color: var(--muted); }
 /* Waiting, the pill that is lit: with somebody waiting it is the button. */
 .topbar .count-pill.waiting-stat {
   padding: 0 8px 0 6px;
@@ -194,7 +193,7 @@
 .topbar .count-pill.waiting-stat b { color: var(--warn); }
 /* V4's Waiting glyph (V4's Figma): the deck's alert triangle at 14px, in
    --warn, standing still. Its global rule pushes it to a row's end; here it
-   leads the pill. At 0 it is the quiet pill's glyph, in the secondary tier. */
+   leads the pill. */
 .topbar .count-pill .alert-mark { margin-left: 0; }
 .topbar .count-pill.waiting-stat .alert-mark { color: var(--warn); }
 @media (hover: hover) and (pointer: fine) {
@@ -474,9 +473,9 @@ button.btn:active:not(:disabled):not(:focus-visible) { transform: scale(var(--pr
 button.btn.primary { background: var(--btn-primary-wash, var(--accent-16)); color: var(--accent); border-color: var(--accent); font-weight: 600; }
 /* `button.btn.warn` was here, and it is gone rather than kept for later. Its
    only wearer was the Resume half of the topbar Pause button, and that control
-   has left the bar for the canvas control stack — where the paused state is
-   drawn as a fill on `.react-flow__controls-button[aria-pressed="true"]`, not
-   as an amber outline on a text button. What the rule was worth is not lost:
+   has left the bar for the canvas control stack, and since V4 top-10 #5 is a
+   row of its ⋯ menu whose words say Pause or Resume; the paused state is the
+   top bar's paused pill. What the rule was worth is not lost:
    the 85% it settled on was the number every --warn boundary in this sheet
    used, until V4 drew the bar's amber edges (the count, a paused stream, an
    incident) at the full token; its reasoning is in git history.

@@ -54,9 +54,15 @@ describe("no filter re-rasterises over the live canvas (#882)", () => {
     // legend that replaced it has no box at rest, its words sit on the canvas.
     // What has to hold is the #882 half: nothing behind it is blurred, in any
     // state, so nothing re-rasterises under the live canvas.
-    expect(decl(bodyOf(".cat-filter-bar"), "background")).toBe("none");
-    for (const sel of [".cat-filter-bar", ".cat-filter-bar.occluded", ".cat-filter-bar.occluded:not(:hover):not(:focus-within)"]) {
+    // CHANGED ON PURPOSE (V4 top-10 #5): the legend over the live canvas, with no
+    // background → no legend there at all: its rows are a group of the canvas bar's
+    // ⋯ menu, and neither the menu's surface nor the rows blur what is behind them,
+    // because nothing of the filter floats over the moving canvas any more.
+    expect(RULES.filter(([s]) => s.includes(".cat-filter-bar"))).toEqual([]);
+    for (const sel of [".anchored-popover", ".ap-pop.canvas-more-pop", ".cat-tools-group", ".cat-tools-head"]) {
+      expect(bodyOf(sel), `${sel} has a rule`).not.toBe("");
       expect(decl(bodyOf(sel), "backdrop-filter"), sel).toBeNull();
+      expect(decl(bodyOf(sel), "filter"), sel).toBeNull();
     }
   });
 

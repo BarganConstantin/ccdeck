@@ -310,66 +310,41 @@
   }
 }
 
-/* The tool filter over the canvas (CategoryFilterBar.tsx): one "Tools" button
-   whose menu shows or hides each category's calls when the canvas gets busy.
-   Only appears when ≥2 categories are present, so a single-tool session stays
-   uncluttered. */
-.cat-filter-bar {
+/* THE CANVAS BAR'S ⋯ (CanvasControls.tsx): More actions, the last button of
+   the bar. While calls on the board are hidden by the tool filter it carries
+   a 6px dot in the accent on its top right corner, the rail's dot (edge-rails.css),
+   which is what "Tools 1 of 2" said when the filter was a button of its own. */
+.react-flow__controls-button.canvas-more { position: relative; }
+.canvas-more-dot {
   position: absolute;
-  /* Under the board header when there is one (board-header.css). */
-  top: calc(14px + var(--board-head-top, 0px));
-  left: 14px;
-  z-index: 6;
-  display: flex;
-  align-items: center;
-  /* STAYS INSIDE THE CANVAS (#848): the canvas clips, and a control past its
-     edge is one a keyboard reader's focus lands on unseen. The radius is a
-     surface's: when something drifts under the button the bar takes a bed
-     (add-account.css). */
-  flex-wrap: wrap;
-  max-width: calc(100% - 28px);
-  /* No box, no edge, no fill of its own: the button is the only thing drawn. */
-  gap: 2px;
-  padding: 0;
-  background: none;
-  border: 0;
-  border-radius: var(--r-ctl);
-  box-shadow: none;
-}
-/* The button, the same at every width: round on the control fill, 28 tall at
-   Compact — "Tools" in the secondary ink, how many categories show in the muted
-   mono while some are hidden, a chevron. One button wide at 390 and at 320, so
-   nothing on the canvas scrolls sideways. */
-.cat-filter-tools {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  box-sizing: border-box;
-  height: var(--ctl-h);
-  padding: 0 8px 0 10px;
-  border: 0;
+  top: 3px;
+  right: 3px;
+  width: 6px;
+  height: 6px;
   border-radius: var(--r-pill);
-  background: var(--bg-soft);
-  color: var(--text-secondary);
-  font: inherit;
+  background: var(--accent);
+  pointer-events: none;
+}
+/* Its menu: the kit's menu (accounts-manage.css), as wide as its longest row
+   and never narrower than the kit's 220. A command row is its words and, at
+   the right end, its key in a muted cap. */
+.ap-pop.canvas-more-pop { width: max-content; min-width: 220px; max-width: calc(100vw - 16px); }
+.canvas-more-word { flex: 1 1 auto; min-width: 0; }
+.canvas-more-key { display: inline-flex; flex: none; margin-left: auto; padding-left: 16px; }
+
+/* The tool filter, the ⋯ menu's last group (CategoryFilterBar.tsx): a muted
+   heading, then one row per kind of call on the board. It only appears with
+   two kinds or more on the board, or one hidden, so a single-tool session
+   stays uncluttered. */
+.cat-tools-group { display: flex; flex-direction: column; }
+.cat-tools-head {
+  padding: 4px 8px;
+  color: var(--muted);
   font-size: calc(12px + var(--ui-text-increase, 0px));
   line-height: calc(16px + var(--ui-text-increase, 0px));
-  white-space: nowrap;
-  cursor: pointer;
-  transition: background var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease), transform var(--dur-fast) var(--ease);
+  font-weight: 500;
 }
-.cat-tools-count {
-  color: var(--muted);
-  font-family: var(--font-mono);
-  font-size: calc(11px + var(--ui-text-increase, 0px));
-  line-height: calc(14px + var(--ui-text-increase, 0px));
-}
-.cat-filter-tools svg { flex: none; color: var(--muted); }
-@media (hover: hover) and (pointer: fine) {
-.cat-filter-tools:hover { background: color-mix(in srgb, var(--text) 8%, var(--bg-soft)); color: var(--text); }
-}
-.cat-filter-tools:active { transform: scale(var(--press)); }
-/* The menu's rows are the kit's menu item, each a label around the kit's
+/* The rows are the kit's menu item, each a label around the kit's
    checkbox, the category's dot and its word. A hidden category: the box is
    unticked, the dot goes hollow and the word steps down to --text-dim — a tick
    and a shape, not only a colour, and never opacity, which faded the word under

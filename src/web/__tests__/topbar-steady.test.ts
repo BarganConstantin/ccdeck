@@ -49,7 +49,9 @@ describe("the bar holds nothing a panel changes", () => {
     }
   });
 
-  it("keeps the waiting pill mounted while nothing waits, so nothing after it moves when somebody does", () => {
+  // CHANGED ON PURPOSE (V4 top-10 #5): was "keeps the waiting pill mounted while
+  // nothing waits, so nothing after it moves when somebody does".
+  it("draws the waiting pill only while somebody waits, and keeps the bar's end group where it is", () => {
     // V4's Figma draws the three count pills always: WaitingStat renders the
     // quiet 0 pill when the queue is empty, so the bar is the same width
     // either way. The queue names that took the free room (WaitingNames) are
@@ -58,7 +60,17 @@ describe("the bar holds nothing a panel changes", () => {
     expect(header).not.toContain("WaitingNames");
     expect(header).not.toMatch(/waitingSessions\.length > 0 && \(\s*<WaitingStat/);
     const readouts = sourceOf("components/TopbarReadouts.tsx");
-    expect(readouts).toMatch(/if \(count === 0\) \{\s*return <CountPill kind="waiting" count=\{0\}/);
+    // CHANGED ON PURPOSE (V4 top-10 #5): a quiet "0 waiting" pill held the bar's
+    // width → a zero is not drawn, and with all three at zero the group is not
+    // either; what follows the counts moves by a pill's width when one comes back,
+    // and the bar's end group stays put, because "0 waiting" was machinery read on
+    // every glance and the brief allows the shift with no reserved gap.
+    expect(readouts).toMatch(/if \(count === 0\) return null;\s*const waitingLabel/);
+    expect(readouts).not.toMatch(/<CountPill kind="waiting"/);
+    expect(readouts).toContain("{!empty && waitingSessions.length + counts.working + counts.done > 0 && (");
+    // The end group is pushed to the far edge by the bar's own space-between,
+    // so the counts coming and going never move it.
+    expect(sheetText().replace(/\/\*[\s\S]*?\*\//g, "")).toMatch(/\.topbar\s*\{[^}]*justify-content:\s*space-between/);
   });
 });
 

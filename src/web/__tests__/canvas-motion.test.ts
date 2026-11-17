@@ -49,9 +49,9 @@
 //
 // Deliberately outside the canvas sweep: the topbar, banners and sidebar, whose
 // single status dots pulse opacity in a fixed strip rather than across the
-// surface the deck is watched on, and .cat-filter-bar, chrome that floats over
-// the canvas rather than living in it. Its button's press is checked below with
-// the other controls.
+// surface the deck is watched on. (.cat-filter-bar, chrome that floated over
+// the canvas, was the other; it is a group of the canvas bar's ⋯ menu since
+// V4 top-10 #5, and nothing floats there now.)
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
@@ -399,7 +399,9 @@ const PRESSES: Press[] = [
   [".aa-code > summary:active", "0.97", "transform"],
   // CHANGED ON PURPOSE: the tool legend's items and its "Show all" are gone;
   // the one "Tools" button stands at every width. A labelled control, so 0.97.
-  [".cat-filter-tools:active", "0.97", "transform"],
+  // CHANGED ON PURPOSE (V4 top-10 #5): .cat-filter-tools:active at 0.97 → gone, because
+  // the floating Tools button is gone: its rows are a group of the canvas bar's ⋯ menu,
+  // and ⋯ presses as the bar's other buttons do (.react-flow__controls-button, above).
   [".ctx-donut:active", "0.94", "transform"],
   [".uh-range-btn:active", "0.97", "transform"],
   [".ta-period-btn:active", "0.97", "transform"],
@@ -600,6 +602,10 @@ const EXEMPT: string[] = [
   // bar moves nothing (v4-status-bar.test.ts: no transition, animation or
   // transform in its sheet), so the version answers with the hover fill only.
   ".statusbar-version",
+  // The status bar's "? Keys", drawn once every key of a layer is learned (V4
+  // top-10 #5): the keyboard sheet's door. Exempt for the version's reason: the
+  // bar moves nothing, so it answers with the hover fill and the sheet opening.
+  ".statusbar-keys",
   // Companion selection answers through its radio check and chosen preview.
   ".character-choice",
   // A day column in the Projects report's chart, clickable to reveal that day's

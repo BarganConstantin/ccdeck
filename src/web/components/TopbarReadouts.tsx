@@ -220,22 +220,24 @@ function QueuePopover({ sessions, now, leaving, onPick, onClose }: {
   );
 }
 
-/** A count pill that is only a readout: Working and Done always, and Waiting
- *  while nothing waits (V4's Figma draws all three pills whenever the deck has
- *  a session; none before the first, board-empty.ts). 24 tall, no
- *  stroke, the glyph, the figure in mono 600 and the word. */
+/** A count pill that is only a readout: Working and Done. 24 tall, no stroke,
+ *  the glyph, the figure in mono 600 and the word. Not drawn at zero (V4
+ *  top-10 #5): "0 done" was a readout of nothing, read on every glance. V4's
+ *  Figma drew all three pills whenever the deck had a session, a quiet "0
+ *  waiting" among them; the bar draws a count now only while it counts
+ *  something, and Waiting, the one that asks for you, comes back lit. */
 const PILL_CLASS = {
-  waiting: "count-pill count-waiting",
   working: "count-pill count-working",
   done: "count-pill count-done",
 } as const;
 
 export function CountPill({ kind, count, glyph, word }: {
-  kind: "waiting" | "working" | "done";
+  kind: "working" | "done";
   count: number;
   glyph: ReactNode;
   word: string;
 }) {
+  if (count === 0) return null;
   return (
     <span className={PILL_CLASS[kind]}>
       {glyph}
@@ -249,7 +251,8 @@ export function CountPill({ kind, count, glyph, word }: {
  *  outlined in --warn, the bar's one alarm — and the door to the queue. A press
  *  (or Enter, Space, ArrowDown) opens the queue popover under it; a row goes to
  *  that session, and so does W, which then walks the rest (#825). With nothing
- *  waiting it is a quiet readout like its two neighbours and opens nothing.
+ *  waiting it is not drawn at all (V4 top-10 #5); it was a quiet "0 waiting"
+ *  readout, the bar saying there was no alarm in words.
  *
  *  What the press did before: it went straight to the longest wait (or, with
  *  the terminal on, started the run of asks). Both stay one key away — W does
@@ -282,16 +285,14 @@ export function WaitingStat({ waitingSessions, waitingCursorRef, focusSession, n
   // Everyone answered while it was up: nothing left to list.
   useEffect(() => { if (count === 0 && pop !== "closed") setPop("closed"); }, [count, pop]);
 
-  if (count === 0) {
-    return <CountPill kind="waiting" count={0} glyph={<AlertMark size={14} />} word={t("board.queue.waiting")} />;
-  }
+  if (count === 0) return null;
   const waitingLabel = t("board.queue.waitingForYou", { count });
   return (
     <>
       <button
         type="button"
         id={WAITING_PILL_ID}
-        className="count-pill count-waiting waiting-stat"
+        className="count-pill waiting-stat"
         onClick={() => {
           if (popRef.current === "closed") setPop("open");
           else close();
@@ -464,11 +465,14 @@ export function ReadoutGroup({
       </div>
       {/* The three counts (V4's Figma, Top bar), 8 apart, right after the
           wordmark: sessions waiting on you (outlined, and the door to the
-          queue popover), working, done. Drawn from the first session on: three
-          zeros over an empty board count nothing (board-empty.ts). The figures
-          are the sessions' own words (cardState). On a phone only the waiting
-          one stays, and only while something waits (topbar.css). */}
-      {!empty && (
+          queue popover), working, done. Each only while it counts something
+          (V4 top-10 #5): a zero is not drawn, and with all three at zero the
+          group is not either, so no gap is kept for them. One that comes back
+          moves what follows it over by its width; the bar's end group stays
+          put. Nothing over an empty board (board-empty.ts). The figures are the
+          sessions' own words (cardState). On a phone only the waiting one
+          stays (topbar.css). */}
+      {!empty && waitingSessions.length + counts.working + counts.done > 0 && (
         <div className="counts">
           <WaitingStat waitingSessions={waitingSessions} waitingCursorRef={waitingCursorRef} focusSession={focusSession} now={now} />
           <CountPill kind="working" count={counts.working} glyph={<StateMark kind="live" size={14} />} word={t(WORKING_WORD_MSG)} />

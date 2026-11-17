@@ -17,6 +17,10 @@
 // With the stage closed, or the flag off, `stageRef` is absent or not open,
 // no element carries the pane's attribute, and every key does exactly what it
 // did before; stage-board-keys.test.ts holds the two decks side by side.
+//
+// The keys the status bar names are counted here as they are answered
+// (noteKeyUse, key-learning.ts), so the bar can stop naming a key the reader
+// has learned. Only here: a button pressed with the mouse is not a use of its key.
 import { useEffect, type Dispatch, type MutableRefObject, type SetStateAction } from "react";
 
 import { blockedSessions, nextWaiting, prevWaiting } from "./ambient-counts";
@@ -26,6 +30,7 @@ import { canvasKeyIntent, shouldReleaseFocusOnEscape } from "./canvas-keys";
 import type { ClearSource } from "./clear-confirm";
 import { escapeOutcome, modalStack } from "./modal-dismiss";
 import { isUndoChord } from "./rearrange-undo";
+import { noteKeyUse, type LearnedKey } from "./key-learning";
 import { isApplePlatform, platformName } from "./platform";
 import { isQuickOpenChord } from "./quick-open";
 import type { GraphState } from "./reducer";
@@ -175,6 +180,37 @@ export function stepWaiting(
   focusSession(to.id);
 }
 
+/** What the status bar counts a key the stage answered under (key-learning.ts),
+ *  or null: j and k walk the sessions, Enter opens one to type in, n takes the
+ *  next ask. i and w make the same moves and the bar names neither; a held key
+ *  is one use. */
+export function stageKeyLearned(intent: StageKeyIntent, key: string, repeat: boolean): LearnedKey | null {
+  if (repeat) return null;
+  if (intent.kind === "step") return "sessions";
+  if (intent.kind === "focus-pane") return key === "Enter" ? "openAndType" : null;
+  return key === "n" || key === "N" ? "nextWaiting" : null;
+}
+
+/** What the status bar counts a key the board answered under (key-learning.ts),
+ *  or null. On a focused card (`onCard`) Enter is the bar's "↵ select", and
+ *  Space, the same press, is unnamed there. Off a card: Space pauses, j and k
+ *  walk the cards, n takes the next waiting session, and p peeks, except with
+ *  the stage open, where the card a peek would hang off is hidden and p does
+ *  nothing. A held key is one use. Written as a table rather than in the
+ *  handler's branches, so the handler keeps one comparison per key it binds
+ *  (key-help.test.ts counts them). */
+export function boardKeyLearned(key: string, repeat: boolean, { onCard = false, stageOpen = false } = {}): LearnedKey | null {
+  if (repeat) return null;
+  if (onCard) return key === "Enter" ? "select" : null;
+  switch (key) {
+    case " ": return "pause";
+    case "j": case "J": case "k": case "K": return "cards";
+    case "n": case "N": return "nextWaiting";
+    case "p": case "P": return stageOpen ? null : "peek";
+    default: return null;
+  }
+}
+
 export function useDeckShortcuts({
   pointerFocusRef, nodesRef, stateRef, primarySelectedIdRef, providersRef, soundOnRef,
   keyHelpOpenRef, modalOpenRef, waitingCursorRef, removeSelectedRef, activateSoundRef,
@@ -293,6 +329,7 @@ export function useDeckShortcuts({
         if (view?.available) {
           if (!canvasModalOpen({ appModal: modalOpenRef.current, dialogDepth: modalStack.dialogDepth() })) {
             e.preventDefault();
+            if (!e.repeat) noteKeyUse("view");
             if (!e.repeat) view.toggle();
           }
           return;
@@ -398,6 +435,9 @@ export function useDeckShortcuts({
       const intent = canvasKeyIntent(e, focusedNodeId);
       if (intent.kind === "activate") {
         e.preventDefault();
+        // The bar's "↵ select"; Space on a card is the same press, unnamed.
+        const selectLearned = boardKeyLearned(e.key, e.repeat, { onCard: true });
+        if (selectLearned) noteKeyUse(selectLearned);
         selectAgent(intent.nodeId, intent.additive);
         return;
       }
@@ -450,6 +490,8 @@ export function useDeckShortcuts({
         });
         if (stageIntent) {
           e.preventDefault();
+          const learned = stageKeyLearned(stageIntent, e.key, e.repeat);
+          if (learned) noteKeyUse(learned);
           stageKey(stageIntent, stage, e.target);
           return;
         }
@@ -514,6 +556,11 @@ export function useDeckShortcuts({
         e.preventDefault();
         return;
       }
+      // Every key from here down that the status bar names is answered below
+      // with no return in between, so it is counted here, once per press:
+      // Space, j and k, n, and p (boardKeyLearned).
+      const boardLearned = boardKeyLearned(e.key, e.repeat, { stageOpen: !!stageRef?.current?.open });
+      if (boardLearned) noteKeyUse(boardLearned);
       if (e.key === " ") { e.preventDefault(); if (!e.repeat) togglePause(); }
       if (e.key === "c" || e.key === "C") requestClear("shortcut");
       if (e.key === "r" || e.key === "R") handleRelayout();

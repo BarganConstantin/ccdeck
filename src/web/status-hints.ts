@@ -7,6 +7,10 @@
 // holds the table against the handler and the sheet, so a hint cannot outlive
 // its key.
 //
+// AND ONLY UNTIL THEY ARE LEARNED (V4 top-10 #5): each hint names what the
+// deck counts its key's uses under (`learn`, key-learning.ts), and a key used
+// often enough from the keyboard is no longer named (unlearnedView, below).
+//
 // THREE LAYERS, decided by where the keys are:
 //  - board: the board has them, the Command Panel stage is closed;
 //  - deck: the stage is open and the board around it has them;
@@ -16,6 +20,7 @@
 // terminal-keys.ts that the shortcuts handler already carries.
 import { isCharacterKey } from "./single-key-shortcuts";
 import { releaseChordLabel, RELEASE_CHORD_SPOKEN_MSG, VIEW_CHORD_LABEL } from "./terminal-keys";
+import { isLearned, type KeyUses, type LearnedKey } from "./key-learning";
 import { t } from "./i18n";
 
 /** The view chord in words, for a screen reader: a backtick is read as nothing. */
@@ -48,6 +53,12 @@ export interface StatusHint {
   /** Only while a session waits on an answer: with an empty queue the key
    *  goes nowhere (nextWaiting, and the stage's next ask, find nothing). */
   waiting?: true;
+  /** What the deck counts this key's uses under (key-learning.ts): once it
+   *  has been used enough from the keyboard it is learned, and the bar stops
+   *  naming it. Left out, the hint is always drawn: the pane's way out (the
+   *  release chord), which must never go while the pane holds the keys, and
+   *  the Decision card's own layer. */
+  learn?: LearnedKey;
 }
 
 export type StatusLayer = "board" | "deck" | "terminal";
@@ -61,11 +72,11 @@ const ENTER: StatusCap = { text: "↵", get spoken() { return t("board.keys.ente
  *  bar names only keys that work. Space → pause is the keyboard sheet's, which
  *  the frame leaves out; it goes before the chord. */
 export const BOARD_HINTS: readonly StatusHint[] = [
-  { caps: [cap("j"), cap("k")], get word() { return t("board.status.cards"); }, binds: ["j", "k"] },
-  { caps: [ENTER], get word() { return t("board.status.select"); }, binds: ["Enter"], onCard: true },
-  { caps: [cap("p")], get word() { return t("board.status.peek"); }, binds: ["p"], zoomedOut: true },
-  { caps: [cap("n")], get word() { return t("board.status.nextWaiting"); }, binds: ["n"], waiting: true },
-  { caps: [cap("Space")], get word() { return t("board.status.pause"); }, binds: [" "], offCard: true },
+  { caps: [cap("j"), cap("k")], get word() { return t("board.status.cards"); }, binds: ["j", "k"], learn: "cards" },
+  { caps: [ENTER], get word() { return t("board.status.select"); }, binds: ["Enter"], onCard: true, learn: "select" },
+  { caps: [cap("p")], get word() { return t("board.status.peek"); }, binds: ["p"], zoomedOut: true, learn: "peek" },
+  { caps: [cap("n")], get word() { return t("board.status.nextWaiting"); }, binds: ["n"], waiting: true, learn: "nextWaiting" },
+  { caps: [cap("Space")], get word() { return t("board.status.pause"); }, binds: [" "], offCard: true, learn: "pause" },
 ];
 
 /** The deck's layer (the stage open, the board around it with the keys). No
@@ -74,9 +85,9 @@ export const BOARD_HINTS: readonly StatusHint[] = [
  *  later phase); its Ctrl + backtick → board is added by statusViewFor, where
  *  the chord works. */
 export const DECK_HINTS: readonly StatusHint[] = [
-  { caps: [cap("j"), cap("k")], get word() { return t("board.status.sessions"); }, binds: ["j", "k"] },
-  { caps: [ENTER], get word() { return t("board.status.openAndType"); }, binds: ["Enter"] },
-  { caps: [cap("n")], get word() { return t("board.status.nextWaiting"); }, binds: ["n"], waiting: true },
+  { caps: [cap("j"), cap("k")], get word() { return t("board.status.sessions"); }, binds: ["j", "k"], learn: "sessions" },
+  { caps: [ENTER], get word() { return t("board.status.openAndType"); }, binds: ["Enter"], learn: "openAndType" },
+  { caps: [cap("n")], get word() { return t("board.status.nextWaiting"); }, binds: ["n"], waiting: true, learn: "nextWaiting" },
 ];
 
 /** What the bar draws now. */
@@ -120,13 +131,16 @@ export function statusViewFor({ stageOpen, pane, onCard, zoomedOut, singleKeys, 
   // pane catches it too (terminal-keys.ts answers "view" before the session
   // sees it), so the terminal layer names it after the release chord.
   const view: readonly StatusHint[] = viewChord
-    ? [{ caps: [cap(VIEW_CHORD_LABEL, viewChordSpoken())], word: t(viewChord === "workspace" ? "board.status.viewWorkspace" : "board.status.viewBoard"), binds: [] }]
+    ? [{ caps: [cap(VIEW_CHORD_LABEL, viewChordSpoken())], word: t(viewChord === "workspace" ? "board.status.viewWorkspace" : "board.status.viewBoard"), binds: [], learn: "view" }]
     : [];
   if (pane != null) {
     return {
       layer: "terminal",
       label: pane ? t("board.status.keysIn", { name: pane }) : t("board.status.keysInSession"),
-      // A chord, so it stays with the single keys off.
+      // A chord, so it stays with the single keys off. No `learn`: it is the
+      // way out of a pane that holds every key, and a reader who has
+      // forgotten it is trapped there, so it is named for as long as focus is
+      // in the pane, however often it has been used.
       hints: [{ caps: [cap(releaseChordLabel(platform), t(RELEASE_CHORD_SPOKEN_MSG))], word: t("board.status.keysBack"), binds: [] }, ...view],
     };
   }
@@ -143,4 +157,13 @@ export function statusViewFor({ stageOpen, pane, onCard, zoomedOut, singleKeys, 
       ...view,
     ],
   };
+}
+
+/** The view as the bar draws it once the reader's own uses are counted: a
+ *  hint whose key is learned (key-learning.ts) goes, and a layer left with no
+ *  hint is not named — the bar draws its one "? Keys" in its place
+ *  (StatusBar.tsx). A hint with no `learn` always stays: the pane's way out. */
+export function unlearnedView(view: StatusView, uses: KeyUses): StatusView {
+  const hints = view.hints.filter(h => !h.learn || !isLearned(h.learn, uses));
+  return { ...view, label: hints.length > 0 ? view.label : "", hints };
 }

@@ -273,10 +273,15 @@ describe("titles drop the letter when the switch is off", () => {
   });
 
   it("builds every other title that names a key through the same rule", () => {
+    // CHANGED ON PURPOSE (V4 top-10 #5): the canvas bar's Re-arrange, keyboard and
+    // Pause titles → the ⋯ menu's rows, which drop their key cap and
+    // aria-keyshortcuts through one rule (MenuRow), and the keyboard title on the
+    // status bar's "? Keys" and Pause's on the top bar's pill, which kept them,
+    // because those three buttons left the bar for the menu.
     for (const [rel, call] of [
-      ["components/CanvasControls.tsx", 'withKey(t("board.controls.arrange"), "R", singleKeys)'],
-      ["components/CanvasControls.tsx", 'singleKeys ? withKey(t("board.controls.keys"), "?", true) : t("board.controls.keysOff")'],
-      ["components/CanvasControls.tsx", "dropped: pauseGate.dropped, singleKeys }, t)"],
+      ["components/CanvasControls.tsx", "const key = singleKeys ? keyCap : undefined;"],
+      ["components/StatusBar.tsx", 'singleKeys ? withKey(t("board.controls.keys"), "?", true) : t("board.controls.keysOff")'],
+      ["components/TopbarReadouts.tsx", "dropped: pauseGate.dropped, singleKeys,"],
       ["components/SessionList.tsx", 'withKey(t("board.list.hideSidebar"), "L", singleKeys)'],
       ["components/UsagePanel.tsx", 'withKey(t("usage.close"), "U", singleKeys)'],
       ["components/AccountsPanel.tsx", 'withKey(t("accounts.close"), "A", singleKeys)'],
@@ -336,11 +341,18 @@ describe("the shortcuts sheet with the switch off", () => {
   });
 
   it("says on the ? button, with the keys off, why ? does nothing", () => {
-    expect(sourceOf("components/CanvasControls.tsx")).toContain('t("board.controls.keysOff")');
+    // CHANGED ON PURPOSE (V4 top-10 #5): the bar's ? button → the ⋯ menu's row says
+    // it in its words, and the status bar's "? Keys" in its tooltip, because the
+    // button moved into the menu.
+    expect(sourceOf("components/CanvasControls.tsx")).toContain('singleKeys ? t("board.controls.keys") : t("board.controls.keysOff")');
+    expect(sourceOf("components/StatusBar.tsx")).toContain('t("board.controls.keysOff")');
   });
 
   it("is still reachable with the keys off: the canvas stack's button opens it, and its door opens Settings at General", () => {
-    expect(sourceOf("components/CanvasControls.tsx")).toContain("onClick={() => setKeyHelpOpen(o => !o)}");
+    // CHANGED ON PURPOSE (V4 top-10 #5): the canvas stack's button → the ⋯ menu's
+    // Keyboard shortcuts row and the status bar's "? Keys", both a press with no key.
+    expect(sourceOf("components/CanvasControls.tsx")).toContain("onPick={pick(() => setKeyHelpOpen(o => !o))}");
+    expect(sourceOf("components/StatusBar.tsx")).toContain("onClick={() => setKeyHelpOpen(o => !o)}");
     expect(sourceOf("components/DeckDialogs.tsx")).toContain('onSettings={() => { setKeyHelpOpen(false); openSettings("keyboard"); }}');
     expect(singleKeyShortcutsOn()).toBe(true);
   });

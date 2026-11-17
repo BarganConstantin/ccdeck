@@ -6,7 +6,6 @@ import { useEffect, useRef, useState, type MouseEvent, type ReactNode } from "re
 import type { Row } from "./SessionList";
 import { AlertMark, StateMark } from "./StateMark";
 import { stateLabel } from "../agent-copy";
-import { modelChipText, modelChipTitle } from "../model-label";
 import { RAIL_GROUP_LABEL_MSGS, type RailGroup } from "../rail-model";
 import { railFailed, railGlyph, railLine, railTime, rowSpoken, rowTooltip, twinStart, type RailGlyphKind } from "../rail-row-copy";
 import { fadeIn, tokenMs } from "../rail-motion";
@@ -216,9 +215,10 @@ export function RailRow({ row: r, group, now, selected, removed, leaving, landNo
           <span className="vis-hidden">{rowSpoken(r)}</span>
           <span className="sl-text">
             <span className="sl-line1">
+              {/* The name alone: the model that stood after it, in mono, is
+                  the Inspector's to say (V4 top-10 #5). */}
               <span className="sl-name">
                 <span className="sl-label">{r.label}</span>
-                {r.modelId && <span className="sl-model" title={modelChipTitle(r.modelId, r.effort)}>{modelChipText(r.modelId, r.effort)}</span>}
               </span>
               {time && <span className={`sl-time ${time.tone}`}><span className="vis-hidden">{time.spoken}</span>{time.text}</span>}
             </span>

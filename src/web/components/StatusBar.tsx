@@ -7,13 +7,21 @@
 // focus (terminal-keys.ts). The layer follows focus live from focusin and
 // focusout on the document: no polling, and nothing moves, a change swaps at once.
 //
+// KEYS UNTIL LEARNED (V4 top-10 #5). A key the reader has used often enough
+// from the keyboard is not named again (key-learning.ts, status-hints.ts
+// unlearnedView). Once a layer has nothing left to name, the bar keeps one
+// quiet "? Keys", the keyboard sheet's door, where every key is still written.
+// The pane's way out is the exception: it is named while the pane has the keys.
+//
 // <footer> is the page's contentinfo landmark. No live region: it would speak on
 // every focus move, and everything it names is on the keyboard sheet (?).
-import { memo, useEffect, useState } from "react";
+import { memo, useEffect, useState, type Dispatch, type SetStateAction } from "react";
 import { useBoardEmpty } from "../board-empty";
 import { isCanvasNodeElement } from "../canvas-node-element";
+import { useLearnedKeys } from "../key-learning";
 import { platformName } from "../platform";
-import { statusViewFor, type StatusHint } from "../status-hints";
+import { withKey } from "../single-key-shortcuts";
+import { statusViewFor, unlearnedView, type StatusHint } from "../status-hints";
 import { PANE_NAME_ATTR, paneNameOf, TERMINAL_PANEL_SELECTOR } from "../terminal-keys";
 import { useSingleKeyShortcuts } from "../use-single-key-shortcuts";
 import { Kbd } from "./Kbd";
@@ -65,13 +73,17 @@ function useFocusPlace(stageOpen: boolean): FocusPlace {
 }
 
 /** Memoised: App re-renders on its clock several times a second, and the bar's
- *  only inputs are its props, focus, the single-key switch and whether the
- *  board is empty. */
-export default memo(function StatusBar({ stageOpen, zoomedOut, viewChord = null, waiting = true, extra, version = null, onVersion }: {
+ *  only inputs are its props, focus, the single-key switch, whether the board
+ *  is empty and the keys the reader has learned. */
+export default memo(function StatusBar({ stageOpen, zoomedOut, viewChord = null, waiting = true, extra, version = null, onVersion, setKeyHelpOpen }: {
   stageOpen: boolean;
   zoomedOut: boolean;
   version?: string | null;
   onVersion?: () => void;
+  /** The keyboard sheet's switch, the one the canvas's keyboard button and ?
+   *  use: what "? Keys" presses once there is no key left to name. Left out,
+   *  that entry is not drawn. */
+  setKeyHelpOpen?: Dispatch<SetStateAction<boolean>>;
   /** A session waits on an answer: n has somewhere to go (status-hints.ts). */
   waiting?: boolean;
   /** A layer the caller names while a screen has the keys (the Decision card's,
@@ -85,12 +97,16 @@ export default memo(function StatusBar({ stageOpen, zoomedOut, viewChord = null,
   const singleKeys = useSingleKeyShortcuts();
   const { pane, onCard } = useFocusPlace(stageOpen);
   const empty = useBoardEmpty();
+  const uses = useLearnedKeys();
   const standard = statusViewFor({ stageOpen, pane, onCard, zoomedOut, singleKeys, platform: platformName(), viewChord, empty, waiting });
-  const view = extra && pane == null ? extra : standard;
+  // The Decision card's layer is drawn whole: it is short-lived, and its keys
+  // are that card's, which nobody has had the time to learn.
+  const view = extra && pane == null ? extra : unlearnedView(standard, uses);
   return (
     <footer className="statusbar" aria-label={t("board.keys.statusBar")} data-layer={view.layer}>
       <div className="statusbar-start">
-        {/* Unnamed only on an empty board, where no key has work to do. */}
+        {/* Named only while it names a key: on an empty board, or once every
+            key of the layer is learned, the "? Keys" below stands alone. */}
         {view.label && <span className="statusbar-who"><span className="statusbar-dot" aria-hidden />{view.label}</span>}
         {view.hints.map(h => (
           <span className="statusbar-hint" key={h.word}>
@@ -100,6 +116,18 @@ export default memo(function StatusBar({ stageOpen, zoomedOut, viewChord = null,
             {h.word}
           </span>
         ))}
+        {/* Nothing left to name: the door to the sheet that names them all,
+            the canvas keyboard button's own press. The ? cap only while the
+            single keys are on, as the button's tooltip says it. */}
+        {view.hints.length === 0 && setKeyHelpOpen && (
+          <button type="button" className="statusbar-keys" onClick={() => setKeyHelpOpen(o => !o)}
+            aria-label={t("board.controls.keysLabel")} aria-haspopup="dialog"
+            aria-keyshortcuts={singleKeys ? "?" : undefined}
+            title={singleKeys ? withKey(t("board.controls.keys"), "?", true) : t("board.controls.keysOff")}>
+            {singleKeys && <Kbd>?</Kbd>}
+            {t("board.keys.statusBar")}
+          </button>
+        )}
       </div>
       {version && (
         <button type="button" className="statusbar-version" onClick={onVersion}

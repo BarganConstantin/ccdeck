@@ -294,12 +294,15 @@ describe("the status pill stopped resizing itself (#504)", () => {
 // ── the control that left the bar ───────────────────────────────────────────
 
 describe("Pause is a canvas verb and lives on the canvas (#527's rule, applied last)", () => {
-  /** The `<ControlButton>` whose aria-label is the pause control's. */
+  /** The control that pauses the canvas.
+   *  CHANGED ON PURPOSE (V4 top-10 #5): the bar's `<ControlButton>` named by
+   *  pauseLabel → the Space row of the canvas bar's ⋯ menu, because the bar keeps
+   *  only the view's controls and the canvas's verbs are one menu away. */
   const CONTROL = (() => {
-    const at = app.indexOf("aria-label={pauseLabel(t)}");
-    expect(at, "no control carries pauseLabel").toBeGreaterThan(-1);
-    const open = app.lastIndexOf("<ControlButton", at);
-    return app.slice(open, app.indexOf("</ControlButton>", at));
+    const at = app.indexOf('keyCap="Space"');
+    expect(at, "no menu row carries the Space key").toBeGreaterThan(-1);
+    const open = app.lastIndexOf("<MenuRow", at);
+    return app.slice(open, app.indexOf("/>", at) + 2);
   })();
 
   it("is gone from the topbar, markup and stylesheet together", () => {
@@ -340,13 +343,18 @@ describe("Pause is a canvas verb and lives on the canvas (#527's rule, applied l
   });
 
   it("is drawn the way the four glyphs beside it are drawn", () => {
-    // The bar draws from V4's kit (kit-icons.tsx), one weight and one box, so a
-    // glyph is never a weight or a box away from its neighbours.
-    expect(CONTROL).toMatch(/<KitIcon name="pause" \/>/);
-    expect(CONTROL).not.toMatch(/strokeWidth/);
-    // And a name, because a glyph has none. The four around it each gained one
-    // for the same reason when they moved.
-    expect(CONTROL).toMatch(/aria-label=\{pauseLabel\(t\)\}/);
+    // CHANGED ON PURPOSE (V4 top-10 #5): a kit glyph named by pauseLabel on the
+    // bar → a row of words in the ⋯ menu, drawn by the same MenuRow as the rows
+    // around it, because a menu row says its verb in words and needs no glyph.
+    expect(CONTROL).toMatch(/^<MenuRow /);
+    expect(CONTROL).not.toMatch(/KitIcon|strokeWidth/);
+    expect(app).toMatch(/<button type="button" role="menuitem" className="ap-menu-item" onClick=\{onPick\}/);
+    // The row's words are its name; no glyph needs one of its own.
+    expect(CONTROL).toMatch(/label=\{paused \? t\("board\.quick\.action\.resume"\) : t\("board\.quick\.action\.pause"\)\}/);
+    // CHANGED ON PURPOSE (V4 top-10 #5): the tooltip that counted what the pause held
+    // → none on the row, because a menu row has no tooltip; the top bar's paused pill
+    // (statusPill, below) is where the held count is read, as it already was.
+    expect(CONTROL).not.toMatch(/pauseTitle/);
     // `dropped` joined `held` in #547: the hold is bounded now, and a tooltip
     // that named the count without saying the queue had overflowed would be
     // describing a backlog that will be applied whole when it will not.
@@ -356,9 +364,13 @@ describe("Pause is a canvas verb and lives on the canvas (#527's rule, applied l
     // and the ref around it is gone; what the tooltip has to say is unchanged.
     // `singleKeys` joined them with Settings › General's switch: Space is named
     // in the tooltip only while Space pauses (WCAG 2.1.4).
-    expect(CONTROL).toMatch(
-      /title=\{pauseTitle\(\{ paused, held: pauseGate\.size, dropped: pauseGate\.dropped, singleKeys \}, t\)\}/,
-    );
+    // CHANGED ON PURPOSE (V4 top-10 #5): the bar's button read that tooltip from
+    // pauseTitle → the top bar's paused pill is the one place it is read, with the
+    // held and dropped counts and the switch, because the menu row has no tooltip.
+    expect(app).toMatch(/held: pauseGate\.size, dropped: pauseGate\.dropped, singleKeys,/);
+    // The row's key is the switch's too: no Space cap or aria-keyshortcuts with
+    // the single keys off (MenuRow).
+    expect(app).toContain("const key = singleKeys ? keyCap : undefined;");
   });
 
   it("reports which of its two states it is in, which its four neighbours need not", () => {
@@ -367,37 +379,35 @@ describe("Pause is a canvas verb and lives on the canvas (#527's rule, applied l
     // Pause is a setting that stays on. aria-pressed is this deck's word for
     // that — the sound switch has carried it since #370 — and not
     // aria-expanded, which would promise a region that appears.
-    expect(CONTROL).toMatch(/aria-pressed=\{paused\}/);
-    expect(CONTROL).not.toMatch(/aria-expanded|aria-haspopup/);
-    // The name does not flip with it. "Resume the canvas, pressed" is two
-    // halves contradicting each other; the state belongs in the attribute.
+    // CHANGED ON PURPOSE (V4 top-10 #5): a toggle button with aria-pressed and a
+    // name that never flipped → a menu row whose words say what a press does now
+    // (Pause the stream, Resume the stream), because a menuitem carries no
+    // pressed state, and the brief asks the row's label to follow the state.
+    expect(CONTROL).not.toMatch(/aria-pressed|aria-expanded|aria-haspopup/);
+    expect(en["board.quick.action.pause"]).toBe("Pause the stream");
+    expect(en["board.quick.action.resume"]).toBe("Resume the stream");
+    // The bar's old name stays what it was, for whatever still reads it.
     expect(PAUSE_LABEL).toBe("Pause the canvas");
     expect(pauseLabel()).toBe(PAUSE_LABEL);
-    expect(CONTROL).not.toMatch(/Resume/);
   });
 
   it("draws that state in amber, as a tint and a glyph rather than a block", () => {
-    // Amber rather than the accent because amber is what a frozen canvas is
-    // drawn in everywhere else on this deck. It was a solid --warn fill with
-    // the glyph inverted, the loudest thing on the canvas; the canvas chrome
-    // went quiet, and the state is carried by the glyph leaving the resting
-    // --muted for --warn, on a tint of the same amber.
-    const on = '.react-flow__controls-button[aria-pressed="true"]';
-    expect(decl(on, "background")).toBe("color-mix(in srgb, var(--warn) 16%, transparent)");
-    expect(decl(on, "color")).toBe("var(--warn)");
+    // CHANGED ON PURPOSE (V4 top-10 #5): a pressed Pause drew --warn on a 16% amber
+    // tint on the bar → the bar draws no paused state at all, because Pause is a
+    // menu row now and ⋯ shows no special state for it (the brief); the top bar's
+    // paused pill is what says the canvas is frozen.
+    expect(css).not.toMatch(/\.react-flow__controls-button\[aria-pressed="true"\]/);
     expect(decl(".react-flow__controls-button", "color")).toBe("var(--muted)");
     expect(decl(".react-flow__controls-button", "background")).toBe("transparent");
-    // Keyed on the attribute, so the pixels and the tree cannot disagree.
     expect(css).not.toMatch(/\.react-flow__controls-button\.paused/);
+    expect(app).not.toMatch(/canvas-more[^\n]*paused/);
   });
 
   it("answers the pointer while pressed, which the tint alone would not", () => {
-    // The unpressed hover brings up the control fill and the pressed state has
-    // its own background, so a pressed Pause answers with a deeper tint of the
-    // same amber. The stack no longer clips (a focus ring has to show), so
-    // nothing here has to be drawn inset.
-    const hover = bodyOf('.react-flow__controls-button[aria-pressed="true"]:hover');
-    expect(declIn(hover, "background")).toBe("color-mix(in srgb, var(--warn) 24%, transparent)");
+    // CHANGED ON PURPOSE (V4 top-10 #5): the pressed hover's 24% amber → gone with
+    // the pressed state; the row answers the pointer as every menu row does.
+    expect(css).not.toMatch(/\.react-flow__controls-button\[aria-pressed="true"\]:hover/);
+    expect(decl(".ap-menu-item:hover:not(:disabled)", "background")).toBe("var(--selected)");
     expect(decl(".react-flow__controls", "overflow")).toBeNull();
   });
 
@@ -406,9 +416,9 @@ describe("Pause is a canvas verb and lives on the canvas (#527's rule, applied l
     // canvas-motion.test.ts enumerates for a pressable name. What would create
     // them is `cursor: pointer` in this sheet, which is what that sweep is
     // keyed on.
-    for (const sel of ['.react-flow__controls-button[aria-pressed="true"]',
-                       '.react-flow__controls-button[aria-pressed="true"]:hover',
-                       ".react-flow__controls-button"]) {
+    // CHANGED ON PURPOSE (V4 top-10 #5): the two pressed selectors left with the
+    // pressed state → the bar's button and ⋯, which wears the same class.
+    for (const sel of [".react-flow__controls-button", ".react-flow__controls-button.canvas-more"]) {
       expect(declIn(bodyOf(sel), "cursor"), sel).toBeNull();
     }
   });
@@ -424,7 +434,9 @@ describe("Pause is a canvas verb and lives on the canvas (#527's rule, applied l
     // never the thing this case was about.
     expect(KEY_HELP.flatMap(g => g.rows).find(r => r.cap === "Space")!.action)
       .toMatch(/pause or resume/);
-    expect(CONTROL).toMatch(/onClick=\{togglePause\}/);
+    // CHANGED ON PURPOSE (V4 top-10 #5): onClick={togglePause} on the bar → the
+    // row's pick, which hands focus back to ⋯ and then runs the same toggle.
+    expect(CONTROL).toMatch(/onPick=\{pick\(togglePause\)\}/);
   });
 });
 

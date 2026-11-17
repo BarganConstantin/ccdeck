@@ -239,16 +239,21 @@ describe("the chips over the board", () => {
   // menu; the whole look is pinned in v4-tool-legend.test.ts. These keep the
   // numbers this file has always held the board's chips to.
   it("tool filter: no box around one round Tools button on the control fill", () => {
-    const bar = ".cat-filter-bar";
-    expect(decl(bar, "min-height")).toBeUndefined();
-    expect(decl(bar, "border")).toBe("0");
-    expect(decl(bar, "border-radius")).toBe("var(--r-ctl)");
-    expect(decl(bar, "background")).toBe("none");
-    const tools = ".cat-filter-tools";
-    expect(decl(tools, "height")).toBe("var(--ctl-h)");
-    expect(decl(tools, "border-radius")).toBe("var(--r-pill)");
-    expect(decl(tools, "background")).toBe("var(--bg-soft)");
-    expect(decl(tools, "font-size")).toBe(TEXT(12));
+    // CHANGED ON PURPOSE (V4 top-10 #5): a round "Tools" button floating over the
+    // canvas's top left → no chip over the board at all: the filter is the last
+    // group of the canvas bar's ⋯ menu, under a 12px muted "Tool calls" heading,
+    // and ⋯ wears a 6px accent dot while a kind is hidden, because a control
+    // floating over the cards for a filter most readers never touch was machinery.
+    expect(() => body(".cat-filter-bar")).toThrow(/no rule/);
+    expect(() => body(".cat-filter-tools")).toThrow(/no rule/);
+    const dot = ".canvas-more-dot";
+    expect(decl(dot, "width")).toBe("6px");
+    expect(decl(dot, "height")).toBe("6px");
+    expect(decl(dot, "border-radius")).toBe("var(--r-pill)");
+    expect(decl(dot, "background")).toBe("var(--accent)");
+    expect(decl(dot, "pointer-events")).toBe("none");
+    expect(decl(".cat-tools-head", "color")).toBe("var(--muted)");
+    expect(decl(".cat-tools-head", "font-size")).toBe(TEXT(12));
   });
   it("tool filter menu: an 8px dot in the category's colour, a hidden one a hollow dot in --text-dim", () => {
     expect(decl(".cat-tools-item .cat-dot", "width")).toBe("8px");
@@ -260,15 +265,20 @@ describe("the chips over the board", () => {
     expect(decl(".cat-tools-item.off .cat-dot", "background")).toBe("transparent");
     expect(decl(".cat-tools-item.off .cat-dot", "border")).toBe("1.5px solid var(--text-dim)");
     const src = read("../components/CategoryFilterBar.tsx");
-    expect(src).toContain("<Checkbox checked={!off} onChange={() => toggleCat(c)} />");
+    // CHANGED ON PURPOSE (V4 top-10 #5): the checkbox carries role="menuitemcheckbox",
+    // because its rows are items of the ⋯ menu now.
+    expect(src).toContain('<Checkbox role="menuitemcheckbox" checked={!off} onChange={() => toggleCat(c)}');
     expect(src).toContain('<span className="cat-dot" aria-hidden="true" />');
   });
   it("writes none of them with a colour literal, and every hover under the mouse query", () => {
-    for (const sel of [".autofit-chip", ".rearrange-undo", ".rearrange-undo-act", ".drag-trash-zone", ".cat-filter-bar", ".cat-filter-tools", ".cat-tools-item.off", ".cat-tools-item.off .cat-dot", ".cost-tip", ".recap-note"]) {
+    // CHANGED ON PURPOSE (V4 top-10 #5): .cat-filter-bar and .cat-filter-tools (and the
+    // latter's hover) → the ⋯ button's dot, its menu and the filter's heading, which
+    // replaced them; a hidden row's hover stands for the old button's.
+    for (const sel of [".autofit-chip", ".rearrange-undo", ".rearrange-undo-act", ".drag-trash-zone", ".canvas-more-dot", ".ap-pop.canvas-more-pop", ".cat-tools-head", ".cat-tools-item.off", ".cat-tools-item.off .cat-dot", ".cost-tip", ".recap-note"]) {
       expect(body(sel), sel).not.toMatch(LITERAL);
     }
     const css = sheetText();
-    for (const sel of [".autofit-chip:hover", ".rearrange-undo-act:hover", ".cat-filter-tools:hover"]) {
+    for (const sel of [".autofit-chip:hover", ".rearrange-undo-act:hover", ".cat-tools-item.off:hover"]) {
       const at = css.indexOf(sel);
       expect(at, sel).toBeGreaterThan(-1);
       expect(css.lastIndexOf("@media (hover: hover) and (pointer: fine)", at), sel).toBeGreaterThan(css.lastIndexOf("\n}\n", at));
