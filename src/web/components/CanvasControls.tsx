@@ -1,6 +1,6 @@
 // The canvas's command bar, bottom right (V4's Board / Controls): zoom out, the
 // zoom level, zoom in | recenter, and one ⋯ "More actions" whose menu holds the
-// rest — re-arrange, pause, clear, the Command Panel, the keyboard reference and
+// rest — re-arrange, clear, the Command Panel, the keyboard reference and
 // the tool filter. With no session yet, the Command Panel alone.
 //
 // CHANGED ON PURPOSE (V4 top-10 #5): the bar drew eight buttons, three of them
@@ -56,14 +56,13 @@ export function toolFilterActive(presentCats: readonly DetailCategory[], hiddenC
 }
 
 export default function CanvasControls({
-  autoFitDisabled, enableAutoFitAndRefit, paused, togglePause,
+  autoFitDisabled, enableAutoFitAndRefit,
   handleRelayout, requestClear, setKeyHelpOpen, zoomBy, zoomReset, onTerminal,
   presentCats = NO_CATS, hiddenCats = NONE_HIDDEN, toggleCat,
 }: {
   autoFitDisabled: boolean;
   enableAutoFitAndRefit: () => void;
-  /** Whether the canvas is paused: the menu's row says Pause or Resume. What
-   *  is held while it is, the top bar's paused pill counts. */
+  /** Retained for callers while Board pause is withdrawn. */
   paused: boolean;
   togglePause: PauseControls["togglePause"];
   handleRelayout: () => void;
@@ -88,7 +87,7 @@ export default function CanvasControls({
   // limit is reached or left, not on every zoom frame.
   const zoomMaxed = useStore(zoomAtMax);
   const zoomMinned = useStore(zoomAtMin);
-  // An empty board has nothing to zoom, fit, re-arrange, pause or clear: the
+  // An empty board has nothing to zoom, fit, re-arrange or clear: the
   // bar keeps only the Command Panel, whose empty stage starts a session, and
   // is not drawn at all without it (board-empty.ts). Not in a menu there: it
   // is the one thing an empty board can do.
@@ -148,7 +147,7 @@ export default function CanvasControls({
         <KitIcon name="recenter" />
       </ControlButton>
       <CanvasMore
-        paused={paused} togglePause={togglePause} handleRelayout={handleRelayout} requestClear={requestClear}
+        handleRelayout={handleRelayout} requestClear={requestClear}
         setKeyHelpOpen={setKeyHelpOpen} onTerminal={onTerminal}
         presentCats={presentCats} hiddenCats={hiddenCats} toggleCat={toggleCat}
       />
@@ -186,14 +185,10 @@ function MenuRow({ label, keyCap, onPick }: { label: string; keyCap?: string; on
  *  filter's checkboxes (CategoryFilterBar.tsx) leave the menu open: they are
  *  ticked, not run.
  *
- *  Pause is a row whose words follow the state (Pause the stream, Resume the
- *  stream) — the setting is not drawn on ⋯: the top bar's paused pill is what
- *  says the canvas is frozen. Clear the deck… is not in the danger colour: it
+ *  Clear the deck… is not in the danger colour: it
  *  destroys nothing, it opens the question whose answer does, and that answer
  *  is the deck's one red button. */
-function CanvasMore({ paused, togglePause, handleRelayout, requestClear, setKeyHelpOpen, onTerminal, presentCats, hiddenCats, toggleCat }: {
-  paused: boolean;
-  togglePause: () => void;
+function CanvasMore({ handleRelayout, requestClear, setKeyHelpOpen, onTerminal, presentCats, hiddenCats, toggleCat }: {
   handleRelayout: () => void;
   requestClear: (source: ClearSource) => void;
   setKeyHelpOpen: Dispatch<SetStateAction<boolean>>;
@@ -241,8 +236,6 @@ function CanvasMore({ paused, togglePause, handleRelayout, requestClear, setKeyH
         <AnchoredPopover anchorId={CANVAS_MORE_ID} id={CANVAS_MORE_MENU_ID} className="ap-pop canvas-more-pop" role="menu"
           labelledBy={CANVAS_MORE_ID} start={menu} onClose={() => setMenu(null)}>
           <MenuRow label={t("board.controls.arrangeLabel")} keyCap="R" onPick={pick(handleRelayout)} />
-          <MenuRow label={paused ? t("board.quick.action.resume") : t("board.quick.action.pause")}
-            keyCap="Space" onPick={pick(togglePause)} />
           <MenuRow label={t("board.quick.action.clear")} keyCap="C" onPick={pick(() => requestClear("button"))} />
           <div role="separator" className="ap-menu-sep" />
           {/* The stage grows out of the card when it is on screen, else out of

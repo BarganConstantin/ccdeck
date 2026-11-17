@@ -80,9 +80,13 @@ describe("the handler actually consults it", () => {
   );
 
   it("gates the key table on shortcutBlocked", () => {
+    // CHANGED ON PURPOSE (#2591): the table's first row was Space → it is C,
+    // because the owner withdrew Board pause and Space left the table. The rule
+    // read is the same: the gate is asked before the first key it gates.
     expect(handler).toContain("shortcutBlocked({");
+    expect(handler).not.toContain('e.key === " "');
     expect(handler.indexOf("shortcutBlocked({"))
-      .toBeLessThan(handler.indexOf('e.key === " "'));
+      .toBeLessThan(handler.indexOf('e.key === "c" || e.key === "C"'));
   });
 
   it("still has a key table to gate, so this is not vacuous", () => {

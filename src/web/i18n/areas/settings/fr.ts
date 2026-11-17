@@ -237,7 +237,7 @@ const catalog: Catalog = {
   "settings.key.tourText": "Huit images de ce que montre ccdeck.",
   "settings.key.tour": "Faire la visite",
   "settings.keyboard.singleKeys": "Raccourcis à une touche",
-  "settings.keyboard.singleKeysNote": "Des touches comme L, U, M, ? et Espace ouvrent des panneaux et basculent des réglages. Désactivez-les si vous utilisez la commande vocale ou les pressez par erreur.",
+  "settings.keyboard.singleKeysNote": "Des touches comme L, U, M et ? ouvrent des panneaux et basculent des réglages. Désactivez-les si vous utilisez la commande vocale ou les pressez par erreur.",
   "settings.keyboard.filter": "Filtrer les raccourcis",
   "settings.keyboard.noMatch": "Aucun raccourci ne correspond à « {query} ».",
   "settings.keyboard.sheetName": "la feuille des raccourcis clavier",

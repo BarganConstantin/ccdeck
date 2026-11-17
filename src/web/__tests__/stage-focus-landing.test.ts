@@ -128,3 +128,34 @@ describe("the action each card lands on", () => {
     expect(landed(html)).toEqual(["Reopen here"]);
   });
 });
+
+// #2591 draws the pane's keys bar in the shared status bar, outside the stage
+// root, so an ended session's action is looked for there too — by the pane
+// with the keys only; a split's other pane never takes it.
+describe("landing on the keys bar's action in the status bar", () => {
+  const withSlot = (action: ReturnType<typeof el>) => {
+    const slot = { querySelector: (sel: string) => (sel === "[data-stage-land]" ? action : null) };
+    (globalThis as Record<string, unknown>).document = {
+      body, activeElement: body,
+      getElementById: (id: string) => (id === "ccdeck-stage-status" ? slot : null),
+    };
+  };
+  const root = (found: Record<string, ReturnType<typeof el> | undefined>, dataset: Record<string, string> = {}) =>
+    Object.assign(stage(found), { dataset }) as unknown as HTMLElement;
+
+  it("puts the keys on the shared bar's Reopen here, not on ✕", () => {
+    const action = el("Reopen here"), close = el("✕");
+    withSlot(action);
+    expect(landFocus(root({ ".ts-head button[data-stage-close]": close }))).toBe(true);
+    expect(action.focus).toHaveBeenCalledTimes(1);
+    expect(close.focus).not.toHaveBeenCalled();
+  });
+
+  it("leaves the shared action to the pane with the keys", () => {
+    const action = el("Reopen here"), close = el("✕");
+    withSlot(action);
+    expect(landFocus(root({ ".ts-head button[data-stage-close]": close }, { secondary: "true" }))).toBe(true);
+    expect(action.focus).not.toHaveBeenCalled();
+    expect(close.focus).toHaveBeenCalledTimes(1);
+  });
+});

@@ -1,14 +1,8 @@
 // Naming a session in the deck (internal #101).
 //
-// THE NAME IS THE DECK'S, NOT THE PROVIDER'S. Claude Code keeps a name of its
-// own for a session (/rename, a custom-title line in its transcript) and Codex
-// keeps none we can write; this deck writes neither. A name typed here is kept
-// in the deck's own data folder (session-deck-names.mjs), keyed by provider and
-// session id, and comes back to every page as `deckName` on SessionNamed. The
-// reducer draws it ahead of the provider's name (transcript-events.ts
-// applySessionNamed), so the list, the card, the Workspace header, the
-// Inspector and quick open, which all read `sessionName`, read it with no rule
-// of their own. Clearing it gives the provider's name back.
+// Saving asks the provider to rename its actual conversation, then persists
+// the deck's display override. Clearing removes only the deck override.
+// A provider refusal leaves the name unchanged and reports a failed save.
 //
 // Kept out of React, so the rules the field follows (what a press saves, which
 // key does what) are tested in a plain node environment, and so the field's
@@ -106,7 +100,7 @@ export async function saveSessionName(
     const res = await send("/api/session-name", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ provider: facts.provider, sessionId: facts.sessionId, name }),
+      body: JSON.stringify({ provider: facts.provider, sessionId: facts.sessionId, name, syncProvider: true }),
     });
     const body = await res.json().catch(() => null) as { ok?: unknown; name?: unknown } | null;
     if (!res.ok || !body || body.ok !== true) return { ok: false };

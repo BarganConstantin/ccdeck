@@ -51,7 +51,7 @@
 // The form is its own component with no portal, so the suite can render it
 // whole and press its controls without a DOM; what it asks of the world
 // (the deck, the dialog, the storage, the clock) comes in through `deps`.
-import { useRef, useState, type KeyboardEvent } from "react";
+import { useRef, useState, type KeyboardEvent, type MutableRefObject } from "react";
 import AnchoredPopover from "../AnchoredPopover";
 import { checkFolder, type FolderAnswer, type FolderProblem, type LaunchOptions, type TerminalProvider } from "../../terminal-api";
 import { canChooseFolder, chooseFolder } from "../../desktop-folder";
@@ -62,6 +62,8 @@ import {
   withRecent, withoutRecent, type KeptProjects, type ProjectStore,
 } from "./project-picker";
 import { ProviderGlyph } from "./stage-icons";
+import SelectShell from "../SelectShell";
+import { KitIcon } from "../kit-icons";
 import { t as tNow, useT } from "../../i18n";
 
 export const NEW_SESSION_POPOVER_ID = "ns-pop";
@@ -110,6 +112,7 @@ export interface NewSessionFormProps {
   onStart(agent: TerminalProvider, cwd: string, options?: LaunchOptions): void;
   onCancel(): void;
   deps?: Partial<NewSessionDeps>;
+  searchRef?: MutableRefObject<HTMLInputElement | null>;
 }
 
 /** `label` is a catalog key where the choice is a word (Default), the model's own name otherwise. */
@@ -162,7 +165,7 @@ const pathExample = (windows: boolean) => (windows ? "C:\\path\\to\\project" : "
 
 interface Chosen { cwd: string; name: string }
 
-export function NewSessionForm({ projects, initialAgent = "claude", windows = false, onStart, onCancel, deps: given }: NewSessionFormProps) {
+export function NewSessionForm({ projects, initialAgent = "claude", windows = false, onStart, onCancel, deps: given, searchRef }: NewSessionFormProps) {
   const t = useT();
   const [deps] = useState<NewSessionDeps>(() => ({ ...productDeps(), ...given }));
   const [kept, setKept] = useState<KeptProjects>(() => readKept(deps.store));
@@ -177,7 +180,8 @@ export function NewSessionForm({ projects, initialAgent = "claude", windows = fa
   const [busy, setBusy] = useState<"checking" | "picking" | null>(null);
   const [problem, setProblem] = useState<{ code: FolderProblem; cwd: string } | null>(null);
   const [note, setNote] = useState<string | null>(null);
-  const fieldRef = useRef<HTMLInputElement | null>(null);
+  const localFieldRef = useRef<HTMLInputElement | null>(null);
+  const fieldRef = searchRef ?? localFieldRef;
   // Set once Start has gone through: the form takes no second one.
   const startedRef = useRef(false);
   // A folder question in flight: a second press waits for its answer.
@@ -329,8 +333,11 @@ export function NewSessionForm({ projects, initialAgent = "claude", windows = fa
   const keysHint = t("board.newSession.keysHint", { mod: deps.apple ? "⌘" : "Ctrl" });
 
   return (
-    <div className="ns-form" aria-busy={busy ? true : undefined}>
-      <h3 id={TITLE_ID} className="ns-title">{t("board.newSession.title")}</h3>
+    <div className="ns-form" data-searching={searching || undefined} aria-busy={busy ? true : undefined}>
+      <div className="ns-head">
+        <h3 id={TITLE_ID} className="ns-title">{t("board.newSession.title")}</h3>
+        <button type="button" className="glyph-btn ns-close" aria-label={t("common.close")} onClick={onCancel}><KitIcon name="close" /></button>
+      </div>
       <label className="ns-label" id="ns-project-label" htmlFor={FIELD_ID}>{t("board.newSession.project")}</label>
       <input
         ref={fieldRef}
@@ -373,8 +380,10 @@ export function NewSessionForm({ projects, initialAgent = "claude", windows = fa
               onClick={() => pickOption(q)}
             >
               <i className="ns-dot" aria-hidden="true" />
-              <span className="ns-name">{isTyped ? t("board.newSession.usePath", { name: q.name }) : q.name}</span>
-              <span className="ns-path">{isTyped ? elidePath(q.cwd, 40) : paths.get(q.cwd) ?? elidePath(q.cwd, 40)}</span>
+              <span className="ns-project-copy">
+                <span className="ns-name">{isTyped ? t("board.newSession.usePath", { name: q.name }) : q.name}</span>
+                <span className="ns-path">{isTyped ? elidePath(q.cwd, 56) : paths.get(q.cwd) ?? elidePath(q.cwd, 56)}</span>
+              </span>
               {isChosen && (
                 <svg className="ns-check" width="12" height="12" viewBox="0 0 12 12" aria-hidden="true">
                   <path d="M2.5 6.5l2.25 2.25L9.5 3.5" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
@@ -424,27 +433,30 @@ export function NewSessionForm({ projects, initialAgent = "claude", windows = fa
             aria-pressed={agent === a.agent}
             onClick={() => setAgent(a.agent)}
           >
-            <ProviderGlyph provider={a.agent} size={11} /> {a.label}
+            <ProviderGlyph provider={a.agent} size={16} /> {a.label}
           </button>
         ))}
       </div>
       {agent === "claude" && (
-        <>
-          <span className="ns-label" id="ns-model-label">{t("board.newSession.model")}</span>
-          <div className="uh-range ns-choices" role="group" aria-labelledby="ns-model-label">
-            {MODEL_CHOICES.map(c => (
-              <button key={c.label} type="button" className="uh-range-btn" aria-pressed={model === c.value} onClick={() => setModel(c.value)}>
-                {c.named ? c.label : t(c.label)}
-              </button>
-            ))}
-          </div>
-          <span className="ns-label" id="ns-mode-label">{t("board.newSession.permissions")}</span>
-          <div className="uh-range ns-choices" role="group" aria-labelledby="ns-mode-label">
-            {MODE_CHOICES.map(c => (
-              <button key={c.label} type="button" className="uh-range-btn" aria-pressed={mode === c.value} title={t(c.title)} onClick={() => setMode(c.value)}>
-                {t(c.label)}
-              </button>
-            ))}
+        <details className="ns-options">
+          <summary className="ns-options-summary">
+            <span>{t("board.newSession.options")}</span>
+            <span className="ns-options-value">{!model && !mode && !worktree ? t("board.newSession.usesSettings") : <>{model ? MODEL_CHOICES.find(c => c.value === model)?.label : t("board.newSession.default")}{" · "}{t(MODE_CHOICES.find(c => c.value === mode)!.label)}{worktree ? ` · ${t("board.newSession.worktreeShort")}` : ""}</>}</span>
+            <svg className="ns-options-chevron" width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.4" aria-hidden="true"><path d="m3 4.5 3 3 3-3" /></svg>
+          </summary>
+          <div className="ns-options-fields">
+            <label className="ns-setting" htmlFor="ns-model">
+              <span className="ns-label" id="ns-model-label">{t("board.newSession.model")}</span>
+              <SelectShell><select id="ns-model" aria-labelledby="ns-model-label" className="sm-select" value={model ?? ""} onChange={e => setModel(MODEL_CHOICES.find(c => c.value === e.currentTarget.value)?.value ?? null)}>
+                {MODEL_CHOICES.map(c => <option key={c.label} value={c.value ?? ""}>{c.named ? c.label : t(c.label)}</option>)}
+              </select></SelectShell>
+            </label>
+            <label className="ns-setting" htmlFor="ns-mode">
+              <span className="ns-label" id="ns-mode-label">{t("board.newSession.permissions")}</span>
+              <SelectShell><select id="ns-mode" aria-labelledby="ns-mode-label" className="sm-select" value={mode ?? ""} title={t(MODE_CHOICES.find(c => c.value === mode)!.title)} onChange={e => setMode(MODE_CHOICES.find(c => c.value === e.currentTarget.value)?.value ?? null)}>
+                {MODE_CHOICES.map(c => <option key={c.label} value={c.value ?? ""}>{t(c.label)}</option>)}
+              </select></SelectShell>
+            </label>
           </div>
           <label className="ns-worktree">
             <span className="ns-worktree-label" id={WORKTREE_ID}>{t("board.newSession.worktree")}</span>
@@ -460,7 +472,7 @@ export function NewSessionForm({ projects, initialAgent = "claude", windows = fa
               <span className="switch-knob" />
             </button>
           </label>
-        </>
+        </details>
       )}
       <p className="ns-note">{t(windows ? NEW_SESSION_NOTE_WINDOWS_MSG : NEW_SESSION_NOTE_MSG)}</p>
       <div className="ns-acts">
@@ -486,6 +498,7 @@ export interface NewSessionPopoverProps {
 }
 
 export default function NewSessionPopover(p: NewSessionPopoverProps) {
+  const searchRef = useRef<HTMLInputElement | null>(null);
   return (
     <AnchoredPopover
       anchorId={p.anchorId}
@@ -494,6 +507,7 @@ export default function NewSessionPopover(p: NewSessionPopoverProps) {
       role="dialog"
       labelledBy={TITLE_ID}
       onClose={p.onClose}
+      focusRef={searchRef}
       // Both of its anchors — the navigator's "+ New session" and the empty
       // stage's button — sit at the left end of what they open into; an end
       // aligned popover from the stage's button would hang out over the
@@ -501,6 +515,7 @@ export default function NewSessionPopover(p: NewSessionPopoverProps) {
       align="start"
     >
       <NewSessionForm
+        searchRef={searchRef}
         projects={p.projects}
         initialAgent={p.initialAgent}
         windows={p.windows}

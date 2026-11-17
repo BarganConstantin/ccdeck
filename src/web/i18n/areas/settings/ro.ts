@@ -245,7 +245,7 @@ const catalog: Catalog = {
   "settings.key.tourText": "Opt imagini cu ce arată ccdeck.",
   "settings.key.tour": "Fă turul",
   "settings.keyboard.singleKeys": "Comenzi cu o singură tastă",
-  "settings.keyboard.singleKeysNote": "Taste ca L, U, M, ? și Space deschid panouri și comută lucruri. Oprește-le dacă folosești comenzi vocale sau le apeși din greșeală.",
+  "settings.keyboard.singleKeysNote": "Taste ca L, U, M și ? deschid panouri și comută lucruri. Oprește-le dacă folosești comenzi vocale sau le apeși din greșeală.",
   "settings.keyboard.filter": "Filtrează comenzile",
   "settings.keyboard.noMatch": "Nicio comandă nu se potrivește cu „{query}”.",
   "settings.keyboard.sheetName": "fișa cu comenzi rapide",

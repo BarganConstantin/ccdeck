@@ -81,9 +81,8 @@ export function leftColumnWidth(panel: LeftPanel | null, railWidth: number = SES
   // The list's own width: the one the reader dragged its edge to, held to the
   // window, else the density's (rail-width.ts, internal #103).
   if (panel === "session-list") return listWidth;
-  // The accounts panel is drawn at the rail's width (V4's Figma: 264 at
-  // Compact), so the column holds the same one for either.
-  if (panel === "accounts") return railWidth;
+  // Accounts and Sessions share the same persisted width and resize edge.
+  if (panel === "accounts") return listWidth;
   return 0;
 }
 

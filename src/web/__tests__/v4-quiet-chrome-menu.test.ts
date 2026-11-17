@@ -91,7 +91,6 @@ describe("the ⋯ menu", () => {
     expect(pop.props.start).toBe("first");
     expect(listed(pop)).toEqual([
       [en["board.controls.arrangeLabel"], "R"],
-      [en["board.quick.action.pause"], "Space"],
       [en["board.quick.action.clear"], "C"],
       "—",
       [en["board.controls.openPanel"], null],
@@ -101,11 +100,12 @@ describe("the ⋯ menu", () => {
     ]);
   });
 
-  it("says Resume while the canvas is paused, and nothing about it on ⋯", () => {
+  it("offers neither pause nor resume even with a stale paused flag", () => {
     const m = bar({ paused: true });
     expect(m.button().props["aria-label"]).toBe(en["accounts.row.more"]);
     (m.button().props.onClick as () => void)();
-    expect(listed(m.menu()!)[1]).toEqual([en["board.quick.action.resume"], "Space"]);
+    expect(listed(m.menu()!)).not.toContainEqual([en["board.quick.action.resume"], "Space"]);
+    expect(listed(m.menu()!)).not.toContainEqual([en["board.quick.action.pause"], "Space"]);
   });
 
   it("leaves out the Command Panel while it is off, and the filter while there is nothing to filter", () => {
@@ -113,7 +113,6 @@ describe("the ⋯ menu", () => {
     (m.button().props.onClick as () => void)();
     expect(listed(m.menu()!)).toEqual([
       [en["board.controls.arrangeLabel"], "R"],
-      [en["board.quick.action.pause"], "Space"],
       [en["board.quick.action.clear"], "C"],
       "—",
       [en["board.controls.keys"], "?"],
@@ -162,8 +161,7 @@ describe("the ⋯ menu", () => {
     };
     pick(en["board.controls.arrangeLabel"]);
     expect(m.spies.handleRelayout).toHaveBeenCalledTimes(1);
-    pick(en["board.quick.action.pause"]);
-    expect(m.spies.togglePause).toHaveBeenCalledTimes(1);
+    expect(m.spies.togglePause).not.toHaveBeenCalled();
     pick(en["board.quick.action.clear"]);
     expect(m.spies.requestClear).toHaveBeenCalledWith("button");
     pick(en["board.controls.openPanel"]);
@@ -171,7 +169,7 @@ describe("the ⋯ menu", () => {
     pick(en["board.controls.keys"]);
     const toggle = m.spies.setKeyHelpOpen.mock.calls[0][0] as (o: boolean) => boolean;
     expect(toggle(false)).toBe(true);
-    expect(focused).toHaveBeenCalledTimes(5);
+    expect(focused).toHaveBeenCalledTimes(4);
   });
 });
 

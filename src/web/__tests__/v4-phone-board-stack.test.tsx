@@ -323,7 +323,7 @@ describe("what the canvas bar held that a phone still needs, and what it does no
     const ids = quick(true);
     expect(ids).not.toContain("action:fit");
     expect(ids).not.toContain("action:rearrange");
-    expect(ids).toContain("action:pause");
+    expect(ids).not.toContain("action:pause");
   });
 
   it("and offers both wider, as before", () => {

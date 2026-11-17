@@ -294,16 +294,11 @@ describe("the status pill stopped resizing itself (#504)", () => {
 // ── the control that left the bar ───────────────────────────────────────────
 
 describe("Pause is a canvas verb and lives on the canvas (#527's rule, applied last)", () => {
-  /** The control that pauses the canvas.
-   *  CHANGED ON PURPOSE (V4 top-10 #5): the bar's `<ControlButton>` named by
-   *  pauseLabel → the Space row of the canvas bar's ⋯ menu, because the bar keeps
-   *  only the view's controls and the canvas's verbs are one menu away. */
-  const CONTROL = (() => {
-    const at = app.indexOf('keyCap="Space"');
-    expect(at, "no menu row carries the Space key").toBeGreaterThan(-1);
-    const open = app.lastIndexOf("<MenuRow", at);
-    return app.slice(open, app.indexOf("/>", at) + 2);
-  })();
+  // CHANGED ON PURPOSE (#2591): the control that paused the canvas (the bar's
+  // button, then the Space row of the canvas bar's ⋯ menu, V4 top-10 #5) →
+  // none at all, because the owner withdrew Board pause: the Board always
+  // follows its event stream. The cases below that read that row now read
+  // that it is gone; the ones about the bar and the sheet are unchanged.
 
   it("is gone from the topbar, markup and stylesheet together", () => {
     // Both halves, because either one left behind is a defect of its own: a
@@ -346,18 +341,16 @@ describe("Pause is a canvas verb and lives on the canvas (#527's rule, applied l
   });
 
   it("is drawn the way the four glyphs beside it are drawn", () => {
-    // CHANGED ON PURPOSE (V4 top-10 #5): a kit glyph named by pauseLabel on the
-    // bar → a row of words in the ⋯ menu, drawn by the same MenuRow as the rows
-    // around it, because a menu row says its verb in words and needs no glyph.
-    expect(CONTROL).toMatch(/^<MenuRow /);
-    expect(CONTROL).not.toMatch(/KitIcon|strokeWidth/);
+    // CHANGED ON PURPOSE (#2591): a row of words in the ⋯ menu (V4 top-10 #5)
+    // → no row, because Board pause is withdrawn. The menu's other rows are
+    // still drawn by the one MenuRow, and none of them pauses or resumes.
+    expect(app).not.toContain('keyCap="Space"');
+    expect(app).not.toMatch(/board\.quick\.action\.(?:pause|resume)/);
     expect(app).toMatch(/<button type="button" role="menuitem" className="ap-menu-item" onClick=\{onPick\}/);
-    // The row's words are its name; no glyph needs one of its own.
-    expect(CONTROL).toMatch(/label=\{paused \? t\("board\.quick\.action\.resume"\) : t\("board\.quick\.action\.pause"\)\}/);
-    // CHANGED ON PURPOSE (V4 top-10 #5): the tooltip that counted what the pause held
-    // → none on the row, because a menu row has no tooltip; the top bar's paused pill
-    // (statusPill, below) is where the held count is read, as it already was.
-    expect(CONTROL).not.toMatch(/pauseTitle/);
+    expect(app).toMatch(/<MenuRow label=\{t\("board\.controls\.arrangeLabel"\)\} keyCap="R"/);
+    // No tooltip counts a hold anywhere in the menu: the top bar's paused pill
+    // (statusPill, below) is the one place that reads it, as it already was.
+    expect(app).not.toMatch(/pauseTitle/);
     // `dropped` joined `held` in #547: the hold is bounded now, and a tooltip
     // that named the count without saying the queue had overflowed would be
     // describing a backlog that will be applied whole when it will not.
@@ -386,7 +379,9 @@ describe("Pause is a canvas verb and lives on the canvas (#527's rule, applied l
     // name that never flipped → a menu row whose words say what a press does now
     // (Pause the stream, Resume the stream), because a menuitem carries no
     // pressed state, and the brief asks the row's label to follow the state.
-    expect(CONTROL).not.toMatch(/aria-pressed|aria-expanded|aria-haspopup/);
+    // CHANGED ON PURPOSE (#2591): that row is gone with Board pause, so no
+    // control anywhere claims a paused state for the canvas.
+    expect(app).not.toMatch(/aria-pressed=\{paused/);
     expect(en["board.quick.action.pause"]).toBe("Pause the stream");
     expect(en["board.quick.action.resume"]).toBe("Resume the stream");
     // The bar's old name stays what it was, for whatever still reads it.
@@ -426,20 +421,14 @@ describe("Pause is a canvas verb and lives on the canvas (#527's rule, applied l
     }
   });
 
-  it("leaves Space exactly where it was", () => {
-    // The key is how this feature is actually used and nothing about it moved:
-    // the same handler, the same gate, the same row in the shortcuts sheet.
-    // A held Space pauses once (held-shortcut-repeat.test.ts); its repeats are
-    // still cancelled.
-    expect(app).toMatch(/if \(e\.key === " "\) \{ e\.preventDefault\(\); if \(!e\.repeat\) togglePause\(\); \}/);
-    // The row, read from the table the sheet renders. It used to be read from
-    // the detail rail's shorter copy of it; that rail is gone, and the copy was
-    // never the thing this case was about.
-    expect(KEY_HELP.flatMap(g => g.rows).find(r => r.cap === "Space")!.action)
-      .toMatch(/pause or resume/);
-    // CHANGED ON PURPOSE (V4 top-10 #5): onClick={togglePause} on the bar → the
-    // row's pick, which hands focus back to ⋯ and then runs the same toggle.
-    expect(CONTROL).toMatch(/onPick=\{pick\(togglePause\)\}/);
+  it("takes Space off the Board: no handler, no row in the sheet, no menu row", () => {
+    // CHANGED ON PURPOSE (#2591): Space paused the canvas, from the deck's
+    // handler, the shortcuts sheet and the ⋯ menu → Space pauses nothing,
+    // because the owner withdrew Board pause. Space still presses a focused
+    // card or button and still reaches a terminal; only the Board verb left.
+    expect(app).not.toMatch(/e\.key === " "/);
+    expect(KEY_HELP.flatMap(g => g.rows).find(r => r.cap === "Space")).toBeUndefined();
+    expect(app).not.toMatch(/pick\(togglePause\)|onClick=\{togglePause\}/);
   });
 });
 
@@ -593,7 +582,10 @@ describe("the outage explanation reaches something other than a pointer (#510)",
     expect(pauseTitle({ paused: true, held: 0 })).toContain("(Space)");
     expect(pauseTitle({ paused: true, held: 7 })).toContain("(Space)");
     expect(PAUSE_LABEL.trim()).not.toBe("");
-    expect(KEY_HELP.flatMap(g => g.rows).some(r => r.cap === "Space")).toBe(true);
+    // CHANGED ON PURPOSE (#2591): the key was in the shortcuts sheet → it is
+    // not, because the owner withdrew Board pause and the deck can no longer
+    // reach a paused-but-connected state that would need explaining.
+    expect(KEY_HELP.flatMap(g => g.rows).some(r => r.cap === "Space")).toBe(false);
   });
 
   it("draws the added sentence in a colour that is measured rather than assumed", () => {

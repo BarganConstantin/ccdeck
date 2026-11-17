@@ -29,7 +29,7 @@ interface Props {
 
 export const SINGLE_KEYS_LABEL = "Single-key shortcuts";
 export const SINGLE_KEYS_NOTE =
-  "Keys like L, U, M, ? and Space open panels and toggle things. Turn this off if you use voice control or press them by accident.";
+  "Keys like L, U, M and ? open panels and toggle things. Turn this off if you use voice control or press them by accident.";
 
 /** A row's action as the name of a setting row: a capital, and the sheet's
  *  "this sheet" said from outside it. */

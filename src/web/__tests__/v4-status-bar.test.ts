@@ -207,8 +207,8 @@ describe("the three layers, word for word", () => {
 
   it("names ↵ select only while the keyboard is on a card: no handler answers the board's Enter anywhere else", () => {
     const off = statusViewFor({ stageOpen: false, pane: null, onCard: false, zoomedOut: true, singleKeys: true, platform: "Linux" });
-    // Off a card Space is the deck's pause, so "pause" closes the row there.
-    expect(off.hints.map(h => h.word)).toEqual(["cards", "peek", "next waiting", "pause"]);
+    // Off a card there is no global Space action.
+    expect(off.hints.map(h => h.word)).toEqual(["cards", "peek", "next waiting"]);
     expect(BOARD_HINTS.filter(h => h.onCard).map(h => h.word)).toEqual(["select"]);
     // The deck's Enter is the stage's own (focus-pane), wherever focus is.
     expect(DECK_HINTS.some(h => h.onCard)).toBe(false);
@@ -284,11 +284,10 @@ describe("the keys that work right now: Ctrl+` from a pane, n only with a queue,
 
   it("names Space pause on the board off a card, before Ctrl+`; on a card Space is the card's", () => {
     const off = statusViewFor({ ...base, stageOpen: false, onCard: false, viewChord: "workspace" });
-    expect(words(off).slice(-2)).toEqual(["pause", "workspace"]);
-    expect(off.hints.find(h => h.word === "pause")!.caps).toEqual([{ text: "Space", spoken: undefined }]);
+    expect(words(off).at(-1)).toBe("workspace");
+    expect(off.hints.some(h => h.word === "pause")).toBe(false);
     expect(words(statusViewFor({ ...base, stageOpen: false, onCard: true }))).not.toContain("pause");
-    // The handler pauses on Space; a focused card takes Space as its own activate.
-    expect(read("use-deck-shortcuts.ts")).toMatch(/if \(e\.key === " "\) \{ e\.preventDefault\(\); if \(!e\.repeat\) togglePause\(\); \}/);
+    // Space still activates a focused card.
     expect(read("canvas-keys.ts")).toMatch(/if \(e\.key === "Enter" \|\| e\.key === " "\) return \{ kind: "activate"/);
     // A single key: the switch silences it, and the bar with it.
     expect(words(statusViewFor({ ...base, stageOpen: false, onCard: false, singleKeys: false }))).not.toContain("pause");

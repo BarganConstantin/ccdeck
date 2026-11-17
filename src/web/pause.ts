@@ -124,6 +124,8 @@ export const PAUSE_QUEUE_LIMIT = 1000;
  *  the ceiling in a handful of events instead of a thousand; production never
  *  passes it and takes PAUSE_QUEUE_LIMIT. */
 export interface PauseGateOptions<T = unknown> {
+  /** False keeps the stream live even if a legacy caller requests a pause. */
+  enabled?: boolean;
   /** Maximum events held before the oldest start falling off the back. */
   limit?: number;
   /**
@@ -286,10 +288,10 @@ export function createPauseGate<T extends Sequenced>(opts: PauseGateOptions<T> =
     },
 
     setPaused(next: boolean): T[] {
-      paused = next;
+      paused = opts.enabled !== false && next;
       // Pausing holds nothing back yet, and re-pausing must not spill the
       // queue or forget what it has already dropped: only a real resume drains.
-      if (next) return [];
+      if (paused) return [];
       const held = queue;
       // Queue, count and flag go together in this one step. A resume that
       // emptied the queue but left `dropped` standing would have the pill

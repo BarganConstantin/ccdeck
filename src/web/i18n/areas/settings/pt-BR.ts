@@ -241,7 +241,7 @@ const catalog: Catalog = {
   "settings.key.tourText": "Oito imagens do que o ccdeck mostra.",
   "settings.key.tour": "Fazer o tour",
   "settings.keyboard.singleKeys": "Atalhos de uma tecla",
-  "settings.keyboard.singleKeysNote": "Teclas como L, U, M, ? e Espaço abrem painéis e alternam coisas. Desligue se você usa controle por voz ou as aperta sem querer.",
+  "settings.keyboard.singleKeysNote": "Teclas como L, U, M e ? abrem painéis e alternam coisas. Desligue se você usa controle por voz ou as aperta sem querer.",
   "settings.keyboard.filter": "Filtrar atalhos",
   "settings.keyboard.noMatch": "Nenhum atalho corresponde a “{query}”.",
   "settings.keyboard.sheetName": "a lista de atalhos de teclado",

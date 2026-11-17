@@ -76,7 +76,7 @@ describe("with the stage closed, or no stage at all, the keys are the deck's as 
     expect(preventedClosed).toEqual(preventedWithout);
     // And the sweep was not vacuous: the deck's own keys ran.
     expect(callsWithout.stepAgent, "J and K stepped the canvas").not.toEqual([]);
-    expect(callsWithout.togglePause, "Space paused").not.toEqual([]);
+    expect(callsWithout.togglePause, "Board pause is disabled").toEqual([]);
     // A closed stage is asked nothing.
     for (const fn of [stage.focusTile, stage.switchTo, stage.focusPane, stage.nextAsk, stage.release]) {
       expect(fn).not.toHaveBeenCalled();

@@ -237,7 +237,7 @@ const catalog: Catalog = {
   "settings.key.tourText": "用八張圖看看 ccdeck 呈現的內容。",
   "settings.key.tour": "開始導覽",
   "settings.keyboard.singleKeys": "單鍵快速鍵",
-  "settings.keyboard.singleKeysNote": "L、U、M、? 和空白鍵等按鍵可以開啟面板或切換功能。如果您使用語音控制，或常不小心按到，可以關閉此項。",
+  "settings.keyboard.singleKeysNote": "L、U、M 和 ? 等按鍵可以開啟面板或切換功能。如果您使用語音控制，或常不小心按到，可以關閉此項。",
   "settings.keyboard.filter": "篩選快速鍵",
   "settings.keyboard.noMatch": "沒有符合「{query}」的快速鍵。",
   "settings.keyboard.sheetName": "鍵盤快速鍵清單",

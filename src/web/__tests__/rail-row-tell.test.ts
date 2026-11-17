@@ -143,7 +143,10 @@ const draw = (s: GraphState, now: number) => renderToStaticMarkup(createElement(
 const button = (html: string, sid: string) =>
   [...html.matchAll(/<button[^>]*data-session="([^"]+)"[^>]*>[\s\S]*?<\/button>/g)].find(m => m[1] === sid)?.[0] ?? "";
 /** The text of a row's second line, tags stripped. */
-const line2 = (b: string) => /<span class="sl-line2">([\s\S]*?)<\/span>(?=<\/span>)/.exec(b)?.[1].replace(/<[^>]+>/g, "") ?? null;
+// CHANGED ON PURPOSE (#2591): the second line was the row's last line → a
+// meta line (provider · model, then the age) follows it, so the second line
+// ends where its own text ends: before the row's close or before that meta.
+const line2 = (b: string) => /<span class="sl-line2">([\s\S]*?)<\/span>(?=<\/span>|<span class="sl-meta">)/.exec(b)?.[1].replace(/<[^>]+>/g, "") ?? null;
 const byId = (rows: Row[]) => Object.fromEntries(rows.map(r => [r.sessionId, r]));
 
 beforeEach(() => { seq = 0; resetSessionsSeen(); });
@@ -184,6 +187,8 @@ describe("the rail row", () => {
     const two = button(html, "two-0000-bbbb");
     expect(one).toContain('<span class="sl-label">loroloop</span>');
     expect(line2(one)).toBe("Desktop · Fix the phone rows");
+    // (#2591) The provider leads the meta line under them, the age at its end.
+    expect(one).toMatch(/<span class="sl-meta"><span class="sl-model"[^>]*>Claude<\/span><span class="sl-time /);
     // A title that is the folder: the task alone, and the running call is the tooltip's.
     expect(two).toContain('<span class="sl-label">api</span>');
     expect(line2(two)).toBe("Fix logout");

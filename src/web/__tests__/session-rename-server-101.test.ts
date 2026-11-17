@@ -6,7 +6,7 @@
 // Scratch HOME, CCDECK_HOME, CLAUDE_CONFIG_DIR and CODEX_HOME: nothing here
 // reads or writes a real deck's names or a provider's files.
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { existsSync, mkdtempSync, readFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { request, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
 import { tmpdir } from "node:os";
@@ -103,6 +103,27 @@ async function until(check: () => Promise<boolean>, what: string) {
 }
 
 describe("naming a session through the deck (internal #101)", () => {
+  it("saves a requested provider rename in the Claude transcript and in the deck", async () => {
+    const sid = "5d1c0f6e-2b3a-4c5d-9e8f-101101101102";
+    const project = join(DIR, "claude", "projects", "fixture");
+    mkdirSync(project, { recursive: true });
+    const transcript = join(project, sid + ".jsonl");
+    writeFileSync(transcript, "{}\n");
+    const result = await post("/api/session-name", { provider: "claude", sessionId: sid, name: "Planning", syncProvider: true });
+    expect(result).toEqual({ status: 200, body: { ok: true, name: "Planning" } });
+    expect(JSON.parse(readFileSync(transcript, "utf8").trim().split("\n").at(-1)!)).toEqual({ type: "custom-title", customTitle: "Planning", sessionId: sid });
+    expect(names.deckNameFor("claude", sid)).toBe("Planning");
+    await post("/api/session-name", { provider: "claude", sessionId: sid, name: null });
+  });
+
+  it("does not announce or save a local success when the provider rename fails", async () => {
+    const sid = "5d1c0f6e-2b3a-4c5d-9e8f-101101101103";
+    const result = await post("/api/session-name", { provider: "claude", sessionId: sid, name: "Missing", syncProvider: true });
+    expect(result).toEqual({ status: 409, body: { ok: false, reason: "provider_name_not_saved" } });
+    expect(names.deckNameFor("claude", sid)).toBeUndefined();
+    expect(await told(sid)).toEqual([]);
+  });
+
   it("keeps the name, answers it as kept, and tells every page", async () => {
     const r = await post("/api/session-name", { provider: "claude", sessionId: SID, name: "  Billing   fix " });
     expect(r).toEqual({ status: 200, body: { ok: true, name: "Billing fix" } });

@@ -405,9 +405,9 @@ describe("the rows the deck offers", () => {
     expect(startFolder([root("w", "C:\\Users\\me\\proj", 1)], null)).toEqual({ cwd: "C:\\Users\\me\\proj", name: "proj" });
   });
 
-  it("say Pause or Resume as the stream stands", () => {
-    expect(byId(sources().items, "action:pause")?.title).toBe("Pause the stream");
-    expect(byId(sources({ paused: true }).items, "action:pause")?.title).toBe("Resume the stream");
+  it("offers no Board pause or resume action", () => {
+    expect(byId(sources().items, "action:pause")).toBeUndefined();
+    expect(byId(sources({ paused: true }).items, "action:pause")).toBeUndefined();
   });
 });
 
