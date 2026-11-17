@@ -117,10 +117,12 @@
 }
 
 /* What you answered and how long it took: the spaces in it are the host's. */
-.chat-record { margin: 0; font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: 16px; color: var(--muted); white-space: pre-wrap; }
+.chat-record { margin: 0; font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: 1.5; color: var(--muted); white-space: pre-wrap; }
 
-.chat-error { display: flex; align-items: center; gap: 12px; padding: 8px 12px; border: 1px solid var(--line); border-radius: var(--r-panel); background: var(--bg-soft); font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: 16px; color: var(--text); }
-.chat-retry { margin: 0 0 0 auto; padding: 0; background: none; border: 0; font: inherit; font-weight: 500; color: var(--accent); cursor: pointer; }
+.chat-error { display: flex; align-items: center; gap: 12px; padding: 8px 12px; border: 1px solid var(--line); border-radius: var(--r-panel); background: var(--bg-soft); font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: 1.5; color: var(--text); }
+.chat-error > span { min-width: 0; overflow-wrap: anywhere; }
+.chat-retry { flex: none; min-height: 28px; margin: 0 0 0 auto; padding: 0; background: none; border: 0; font: inherit; font-weight: 500; color: var(--accent); cursor: pointer; }
+.chat-retry:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: var(--r-ctl); }
 @media (hover: hover) and (pointer: fine) {
 .chat-retry:hover { text-decoration: underline; }
 }
@@ -137,6 +139,7 @@
 @media (pointer: coarse) {
   .chat-tool, .chat-activity-head, .chat-latest { min-height: 44px; }
   .chat-response-author .chat-copy { min-width: 44px; min-height: 44px; }
+  .chat-retry { min-height: 44px; }
 }
 
 /* In the pane: Chat fills the body and the terminal's host stays mounted, hidden

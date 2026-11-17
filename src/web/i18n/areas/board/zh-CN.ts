@@ -738,7 +738,7 @@ const catalog: Catalog = {
   "board.chat.composer.empty": "未发送任何内容。请先输入消息。",
   "board.chat.composer.unavailable": "无法发送消息。草稿已保留；重试前请检查 Term。",
   "board.chat.connecting": "正在连接会话…",
-  "board.chat.offline": "请连接会话以发送消息。",
+  "board.chat.offline": "尚未连接。请打开 Term。",
   "board.chat.readOnly": "此会话为只读。",
   "board.chat.waiting": "请先回应待处理的请求，再发送消息。",
   "board.stage.region": "命令面板——{name}",

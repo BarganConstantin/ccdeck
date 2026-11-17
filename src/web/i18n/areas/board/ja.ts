@@ -738,7 +738,7 @@ const catalog: Catalog = {
   "board.chat.composer.empty": "何も送信されませんでした。先にメッセージを入力してください。",
   "board.chat.composer.unavailable": "メッセージを送信できませんでした。下書きは保持されています。再試行する前にTermを確認してください。",
   "board.chat.connecting": "セッションに接続中…",
-  "board.chat.offline": "メッセージを送信するにはセッションに接続してください。",
+  "board.chat.offline": "未接続です。Termを開いてください。",
   "board.chat.readOnly": "このセッションは読み取り専用です。",
   "board.chat.waiting": "メッセージを送信する前に、保留中のリクエストに回答してください。",
   "board.stage.region": "コマンドパネル — {name}",

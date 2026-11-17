@@ -738,7 +738,7 @@ const catalog: Catalog = {
   "board.chat.composer.empty": "Rien n’a été envoyé. Écrivez d’abord un message.",
   "board.chat.composer.unavailable": "Le message n’a pas pu être envoyé. Votre brouillon est conservé ; vérifiez Term avant de réessayer.",
   "board.chat.connecting": "Connexion à la session…",
-  "board.chat.offline": "Connectez la session pour envoyer des messages.",
+  "board.chat.offline": "Non connectée. Ouvrez Term.",
   "board.chat.readOnly": "Cette session est en lecture seule.",
   "board.chat.waiting": "Répondez à la demande en attente avant d’envoyer un message.",
   "board.stage.region": "Command Panel — {name}",

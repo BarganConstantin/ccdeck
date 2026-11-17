@@ -738,7 +738,7 @@ const catalog: Catalog = {
   "board.chat.composer.empty": "아무것도 보내지 않았습니다. 먼저 메시지를 작성하세요.",
   "board.chat.composer.unavailable": "메시지를 보내지 못했습니다. 초안은 보관됩니다. 다시 시도하기 전에 Term을 확인하세요.",
   "board.chat.connecting": "세션에 연결 중…",
-  "board.chat.offline": "메시지를 보내려면 세션을 연결하세요.",
+  "board.chat.offline": "연결되지 않았습니다. Term을 여세요.",
   "board.chat.readOnly": "이 세션은 읽기 전용입니다.",
   "board.chat.waiting": "메시지를 보내기 전에 대기 중인 요청에 답하세요.",
   "board.stage.region": "명령 패널 — {name}",

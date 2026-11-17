@@ -289,3 +289,31 @@ orchestrarea panourilor din aplicație.
 Nu au fost validate tastarea către un agent AI real, fluxul extern de evenimente,
 platformele Windows/Linux sau integrarea în `next/v4`. Suita completă și CI
 aparțin verificării de integrare, după confirmarea vizuală.
+
+## Revizie: Impeccable clarify și polish
+
+Mesajul unei sesiuni neconectate spune acum starea și acțiunea disponibilă:
+„Not connected. Open Term.” Aceeași corecție
+este aplicată în cele zece limbi existente, fără a promite reconectarea și
+fără schimbarea avertismentelor pentru trimiteri parțiale.
+
+În browser, la Largest într-un panou de 320px, eroarea și nota despre
+mesajele anterioare aveau font de 16px și interlinie fixă de 16px. Acum
+folosesc interlinie de 1.5; explicațiile de sub composer cresc proporțional
+la fel. Retry are o țintă de minimum 44px pentru touch și focus de tastatură
+explicit. Proiectul din rândul urgent are spațiu separat înaintea comenzii.
+
+Verificare: 128 teste relevante trecute, inclusiv Chat, composer, lista și i18n;
+cele 63 de verificări i18n au fost repetate după scurtarea finală a textului.
+Typecheck și build trecute. Browserul a verificat eroare, Retry din tastatură
+cu recuperare reală a citirii (HTTP 500 → răspuns fixture valid), conținut și
+stare goală, în Rider Black/Light, Largest și panou de 320px. Interlinia
+măsurată este 24px la font de 16px, Retry touch 44px. Matricea 1/2/4 panouri,
+meniurile și targeturile touch au trecut din nou; zero erori JavaScript
+observate în aceste contexte. Datele simulate verifică prezentarea și
+recuperarea citirii, nu răspunsul unui agent AI real.
+
+Textul final și acțiunea Show Term au fost verificate separat în engleză și
+română, la 390/320px cu Largest: fără overflow, cu hintul încă ascuns și
+comutarea efectivă în Term. Verdict pentru această revizie locală:
+**SHIP WITH FOLLOW-UPS**, cu aceleași limite de integrare v4 și model real.

@@ -223,6 +223,7 @@
   flex: 0 1 auto;
   max-width: 50%;
   min-width: 0;
+  margin-right: 4px;
   overflow: hidden;
   text-overflow: ellipsis;
 }

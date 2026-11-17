@@ -760,7 +760,7 @@ const catalog: Catalog = {
   "board.chat.composer.empty": "Nu s-a trimis nimic. Scrie mai întâi un mesaj.",
   "board.chat.composer.unavailable": "Mesajul nu a putut fi trimis. Textul tău este păstrat; verifică Term înainte să încerci din nou.",
   "board.chat.connecting": "Se conectează la sesiune…",
-  "board.chat.offline": "Conectează sesiunea pentru a trimite mesaje.",
+  "board.chat.offline": "Fără conexiune. Deschide Term.",
   "board.chat.readOnly": "Această sesiune permite doar citirea.",
   "board.chat.waiting": "Răspunde la solicitarea în așteptare înainte să trimiți un mesaj.",
   "board.stage.region": "Panoul de comenzi — {name}",

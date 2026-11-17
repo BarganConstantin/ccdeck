@@ -68,7 +68,7 @@
   gap: 4px 12px;
   color: var(--text-secondary);
   font-size: calc(11px + var(--ui-text-increase, 0px));
-  line-height: 18px;
+  line-height: 1.5;
 }
 .chat-composer-term { flex: none; min-height: 28px; margin-top: 4px; padding: 2px 0; border: 0; background: transparent; color: var(--text-secondary); text-decoration: underline; text-underline-offset: 3px; }
 .chat-composer-status { flex: 1 1 180px; min-width: 0; margin: 6px 0 0; color: var(--text-secondary); overflow-wrap: anywhere; }

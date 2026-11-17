@@ -738,7 +738,7 @@ const catalog: Catalog = {
   "board.chat.composer.empty": "Nothing was sent. Write a message first.",
   "board.chat.composer.unavailable": "Message could not be sent. Your draft is kept; check Term before trying again.",
   "board.chat.connecting": "Connecting to the session…",
-  "board.chat.offline": "Connect the session to send messages.",
+  "board.chat.offline": "Not connected. Open Term.",
   "board.chat.readOnly": "This session is read-only.",
   "board.chat.waiting": "Answer the pending request before sending a message.",
   "board.stage.region": "Command Panel — {name}",
