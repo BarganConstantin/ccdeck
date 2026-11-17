@@ -156,9 +156,11 @@ describe("the bar's box", () => {
     expect(d["height"]).toBe("16px");
     expect(d["background"]).toBe("var(--line-soft)");
   });
-  it("prints the level in mono 11 on 14, --text-secondary, padded 0 4", () => {
+  it("prints the level in tabular sans 11 on 14, --text-secondary, padded 0 4", () => {
     const z = decls(".react-flow__controls-button[data-zoom-level]");
-    expect(z["font"]).toBe("400 11px/14px var(--font-mono)");
+    // CHANGED ON PURPOSE (V4 top-10 #8): mono → sans + tabular-nums, because the zoom level is a figure, not code.
+    expect(z["font"]).toBe("400 11px/14px var(--font-sans)");
+    expect(z["font-variant-numeric"]).toBe("tabular-nums");
     expect(z["color"]).toBe("var(--text-secondary)");
     expect(z["padding"]).toBe("0 4px");
     expect(z["width"]).toBe("auto");

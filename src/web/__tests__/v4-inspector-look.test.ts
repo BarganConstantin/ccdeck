@@ -131,7 +131,7 @@ describe("the body and the title block", () => {
     expect(decl(".insp-b", "padding")).toBe("8px 12px 12px");
     expect(decl(".insp-b", "gap")).toBe("8px");
   });
-  it("sets the name 600 14/20 --text, the meta line 400 12/16 --muted, the spend mono 600 18/24 --text", () => {
+  it("sets the name 600 14/20 --text, the meta line 400 12/16 --muted, the spend tabular sans 600 18/24 --text", () => {
     // CHANGED ON PURPOSE (owner 2026-11-10 critique: type scale 11/12/13/16/22, radii 4/8/pill): the title at 16, the spend a figure at 16.
     expect(decl(".detail-hero .hero-title", "font-size")).toBe(INC(16));
     expect(decl(".detail-hero .hero-title", "line-height")).toBe("20px");
@@ -140,7 +140,8 @@ describe("the body and the title block", () => {
     expect(decl(".detail-hero .hero-meta", "font-size")).toBe(INC(12));
     expect(decl(".detail-hero .hero-meta", "line-height")).toBe("16px");
     expect(decl(".detail-hero .hero-meta", "color")).toBe("var(--muted)");
-    expect(decl(".detail-hero .hero-cost-value", "font-family")).toBe("var(--font-mono)");
+    // CHANGED ON PURPOSE (V4 top-10 #8): mono → sans + tabular-nums, because the spend is a figure, not code.
+    expect(decl(".detail-hero .hero-cost-value", "font-family")).toBe("var(--font-sans)");
     expect(decl(".detail-hero .hero-cost-value", "font-size")).toBe(INC(16));
     expect(decl(".detail-hero .hero-cost-value", "line-height")).toBe("24px");
     expect(decl(".detail-hero .hero-cost-value", "font-weight")).toBe("600");
@@ -207,8 +208,9 @@ describe("the sections", () => {
     expect(decl(".detail h3:not(.ctx-section-title)", "letter-spacing")).toBe("0");
     expect(decl(".detail-section h3", "height")).toBe("20px");
   });
-  it("sets a count beside a label mono 400 11/14 --muted, no pill", () => {
-    expect(decl(".detail-section h3 .section-count", "font-family")).toBe("var(--font-mono)");
+  it("sets a count beside a label tabular sans 400 11/14 --muted, no pill", () => {
+    // CHANGED ON PURPOSE (V4 top-10 #8): mono → sans + tabular-nums, because a section's count is a figure, not code.
+    expect(decl(".detail-section h3 .section-count", "font-family")).toBe("var(--font-sans)");
     expect(decl(".detail-section h3 .section-count", "font-size")).toBe(INC(11));
     expect(decl(".detail-section h3 .section-count", "line-height")).toBe("14px");
     expect(decl(".detail-section h3 .section-count", "color")).toBe("var(--muted)");
@@ -224,8 +226,9 @@ describe("the sections", () => {
     expect(out.match(/class="plan-mark"/g)).toHaveLength(3);
     expect(out).toMatch(/class="plan-mark"[^>]*><svg/);
   });
-  it("sets the activity counts mono 12/16 with a gap of 12 and the pills --ctl-fill, --r-pill, padding 1 6, mono 400 11/14 --text-secondary", () => {
-    expect(decl(".activity-counters", "font-family")).toBe("var(--font-mono)");
+  it("sets the activity counts tabular sans 12/16 with a gap of 12 and the pills --ctl-fill, --r-pill, padding 1 6, 400 11/14 --text-secondary", () => {
+    // CHANGED ON PURPOSE (V4 top-10 #8): mono → sans + tabular-nums, because the live and failed counts is a figure, not code.
+    expect(decl(".activity-counters", "font-family")).toBe("var(--font-sans)");
     expect(decl(".activity-counters", "gap")).toBe("12px");
     expect(decl(".activity-counters .ac-live", "color")).toBe("var(--inflight)");
     expect(decl(".activity-counters .ac-err", "color")).toBe("var(--err)");
@@ -235,12 +238,13 @@ describe("the sections", () => {
     expect(decl(".cat-chip", "font-size")).toBe(INC(11));
     expect(decl(".cat-chip", "color")).toBe("var(--text-secondary)");
   });
-  it("sets identity and token rows label 400 12/16 --muted, value mono 12/16 --text", () => {
+  it("sets identity and token rows label 400 12/16 --muted, an id or path mono and a token count tabular sans, 12/16 --text", () => {
     expect(decl(".detail .row .k", "color")).toBe("var(--muted)");
     expect(decl(".detail .row .v", "font-family")).toBe("var(--font-mono)");
     expect(decl(".detail .row .v", "font-size")).toBe(INC(12));
     expect(decl(".tokens-grid .k", "color")).toBe("var(--muted)");
-    expect(decl(".tokens-grid b", "font-family")).toBe("var(--font-mono)");
+    // CHANGED ON PURPOSE (V4 top-10 #8): mono → sans + tabular-nums, because a token count is a figure, not code.
+    expect(decl(".tokens-grid b", "font-family")).toBe("var(--font-sans)");
   });
   it("sets prompts 400 12/16 --text-secondary", () => {
     expect(decl(".prompt-text", "font-size")).toBe(INC(12));
@@ -320,10 +324,11 @@ describe("the Time tab", () => {
     expect(decl(".insp-head", "line-height")).toBe("20px");
     expect(decl(".insp-title", "font-weight")).toBe("600");
   });
-  it("sets the stats 2 x 2, gap 6 / 12, the label 400 12/16 --muted, the value mono 500 14/20, Waiting on you --warn", () => {
+  it("sets the stats 2 x 2, gap 6 / 12, the label 400 12/16 --muted, the value tabular sans 500 14/20, Waiting on you --warn", () => {
     expect(decl(".insp-time-stats", "gap")).toBe("6px 12px");
     expect(decl(".insp-time-stat dt", "color")).toBe("var(--muted)");
-    expect(decl(".insp-time-stat dd", "font-family")).toBe("var(--font-mono)");
+    // CHANGED ON PURPOSE (V4 top-10 #8): mono → sans + tabular-nums, because a time stat is a figure, not code.
+    expect(decl(".insp-time-stat dd", "font-family")).toBe("var(--font-sans)");
     // CHANGED ON PURPOSE (owner 2026-11-10 critique: type scale 11/12/13/16/22, radii 4/8/pill): a value at the body's 13.
     expect(decl(".insp-time-stat dd", "font-size")).toBe(INC(13));
     expect(decl(".insp-time-stat dd", "font-weight")).toBe("500");
@@ -343,11 +348,12 @@ describe("the Time tab", () => {
   });
   it("draws the waterfall: an axis 20 high, rows 24, a 124 name column", () => {
     expect(decl(".insp-time-axis", "height")).toBe("20px");
-    // The column's name is a word, 12/16 in the UI face; only the ticks are mono 11/14.
+    // The column's name is a word, 12/16 in the UI face; the ticks are 11/14 with tabular figures.
     expect(decl(".insp-time-axis", "font-family")).toBeUndefined();
     expect(decl(".insp-time-axis", "font-size")).toBe(INC(12));
     expect(decl(".insp-time-axis", "line-height")).toBe("16px");
-    expect(decl(".insp-time-ticks", "font-family")).toBe("var(--font-mono)");
+    // CHANGED ON PURPOSE (V4 top-10 #8): mono → sans + tabular-nums, because an axis tick (a time) is a figure, not code.
+    expect(decl(".insp-time-ticks", "font-family")).toBe("var(--font-sans)");
     expect(decl(".insp-time-ticks", "font-size")).toBe(INC(11));
     expect(decl(".insp-time-ticks", "line-height")).toBe("14px");
     expect(decl(".insp-time-axis", "border-bottom")).toBe("1px solid var(--line-soft)");

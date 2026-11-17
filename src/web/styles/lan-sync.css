@@ -377,7 +377,7 @@
 }
 .node-peek-time {
   flex: none;
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: calc(11px + var(--ui-text-increase, 0px));
   font-variant-numeric: tabular-nums;
   color: var(--muted);

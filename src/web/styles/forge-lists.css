@@ -26,12 +26,13 @@
 button.btn.fgl-chip { --ctl-h: 24px; gap: 6px; padding: 0 8px; border-radius: var(--r-pill); font-size: calc(12px + var(--ui-text-increase, 0px)); font-weight: 400; line-height: 16px; color: var(--text-secondary); white-space: nowrap; }
 /* A 16% wash put --text at 4.485:1 in Gruvbox Material; 14% holds AA, as the Jira chips' does. */
 button.btn.fgl-chip[aria-pressed="true"] { background: color-mix(in srgb, var(--accent) 14%, var(--panel)); border-color: var(--accent); color: var(--text); }
-.fgl-chip-count { font-family: var(--font-mono); font-size: calc(11px + var(--ui-text-increase, 0px)); font-variant-numeric: tabular-nums; }
+.fgl-chip-count { font-family: var(--font-sans); font-size: calc(11px + var(--ui-text-increase, 0px)); font-variant-numeric: tabular-nums; }
 .fgl-scope-seg, .fgl-scope { margin-left: auto; }
 .fgl-seg { flex: none; max-width: 100%; overflow-x: auto; scrollbar-width: none; }
 .fgl-seg .uh-range-btn { display: inline-flex; align-items: center; gap: 6px; min-height: 24px; white-space: nowrap; }
 /* The order and the which-ones menu are words on the strip's row, so they keep
-   the strip's sans; mono stays for the counts (owner, 2026-11-10). */
+   the strip's sans; the counts are the sans too since V4 top-10 #8, with
+   tabular figures (they were mono, owner 2026-11-10). */
 .fgl-controls button.btn.fgl-sort { gap: 6px; padding: 0 10px; font-size: calc(11px + var(--ui-text-increase, 0px)); }
 .fgl-controls-note { color: var(--muted); font-size: calc(12px + var(--ui-text-increase, 0px)); }
 /* All / Mine / Review requests as one menu button, for a list too narrow for
@@ -79,18 +80,18 @@ button.btn.fgl-chip[aria-pressed="true"] { background: color-mix(in srgb, var(--
 
 /* People, comments, child items. */
 .fgl-people { display: inline-flex; align-items: center; gap: 3px; }
-.fgl-people-more { margin-left: 2px; font-family: var(--font-mono); font-size: calc(11px + var(--ui-text-increase, 0px)); color: var(--muted); }
+.fgl-people-more { margin-left: 2px; font-family: var(--font-sans); font-variant-numeric: tabular-nums; font-size: calc(11px + var(--ui-text-increase, 0px)); color: var(--muted); }
 .fgl-reviewer { position: relative; display: inline-flex; }
 .fgl-reviewer-mark { position: absolute; right: -4px; bottom: -4px; display: grid; place-items: center; width: 13px; height: 13px; border-radius: var(--r-pill); background: var(--panel); color: var(--muted); }
 .fgl-reviewer[data-tone="ok"] .fgl-reviewer-mark { color: var(--ok); }
 .fgl-reviewer[data-tone="bad"] .fgl-reviewer-mark { color: var(--err); }
-.fgl-comments, .fgl-children { display: inline-flex; align-items: center; gap: 4px; font-family: var(--font-mono); font-size: calc(12px + var(--ui-text-increase, 0px)); font-variant-numeric: tabular-nums; color: var(--muted); }
+.fgl-comments, .fgl-children { display: inline-flex; align-items: center; gap: 4px; font-family: var(--font-sans); font-size: calc(12px + var(--ui-text-increase, 0px)); font-variant-numeric: tabular-nums; color: var(--muted); }
 
 /* ── Pipelines: status first, as GitLab's table has it ───────────────────── */
 .fg-row.fgl-pipeline { grid-template-columns: 8.5em minmax(0, 1fr) auto; grid-template-areas: "status title side" "duration meta when"; }
 .fgl-pipeline > .fgl-status { grid-area: status; min-width: 0; }
 .fgl-pipeline .fgl-line > .fgl-duration { grid-area: duration; }
-.fgl-duration { min-width: 0; color: var(--muted); font-family: var(--font-mono); font-size: calc(12px + var(--ui-text-increase, 0px)); font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.fgl-duration { min-width: 0; color: var(--muted); font-family: var(--font-sans); font-size: calc(12px + var(--ui-text-increase, 0px)); font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .fgl-duration:empty { visibility: hidden; }
 .fgl-pipeline .fgl-meta { display: block; }
 .fgl-ref-glyph { vertical-align: -2px; margin-right: 4px; color: var(--muted); }
@@ -129,7 +130,7 @@ button.btn.fgl-chip[aria-pressed="true"] { background: color-mix(in srgb, var(--
 .fgl-commit > * { flex: none; }
 .fgl-commit > .fgl-commit-title { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .fgl-stats { grid-area: stats; display: flex; align-items: center; justify-content: flex-end; gap: 12px; }
-.fgl-diverge { font-family: var(--font-mono); font-size: calc(11px + var(--ui-text-increase, 0px)); line-height: 14px; font-variant-numeric: tabular-nums; color: var(--muted); white-space: nowrap; }
+.fgl-diverge { font-family: var(--font-sans); font-size: calc(11px + var(--ui-text-increase, 0px)); line-height: 14px; font-variant-numeric: tabular-nums; color: var(--muted); white-space: nowrap; }
 .fgl-ci { min-width: 0; }
 .fgl-branch-change { grid-area: change; justify-self: end; min-width: 0; color: var(--text-secondary); font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: 16px; white-space: nowrap; }
 .fgl-create { display: inline-flex; gap: 4px; padding: 4px 0; }
@@ -170,7 +171,7 @@ button.btn.fgl-repo-trigger[aria-expanded="true"] { background: var(--ctl-fill);
 .fgl-repo-options, .fgl-repo-group-rows { display: grid; gap: 8px; }
 /* A group's name, 12/600 in --text-secondary, with how many it holds. */
 .fgl-repo-head { display: flex; align-items: center; gap: 6px; min-height: 20px; padding: 0 8px; color: var(--text-secondary); font-size: calc(12px + var(--ui-text-increase, 0px)); font-weight: 600; line-height: 16px; }
-.fgl-repo-head-count { color: var(--muted); font-family: var(--font-mono); font-size: calc(11px + var(--ui-text-increase, 0px)); font-weight: 400; font-variant-numeric: tabular-nums; }
+.fgl-repo-head-count { color: var(--muted); font-family: var(--font-sans); font-size: calc(11px + var(--ui-text-increase, 0px)); font-weight: 400; font-variant-numeric: tabular-nums; }
 /* A row: the path over when it last moved, 44 high, and the check. */
 .fgl-repo-option { display: grid; grid-template-columns: minmax(0, 1fr) 14px; align-items: center; gap: 8px; min-height: 44px; padding: 4px 8px; box-sizing: border-box; border: 0; border-radius: var(--r-ctl); background: none; color: var(--text); text-align: left; font: inherit; cursor: pointer; transition: background var(--dur-fast) var(--ease), transform var(--dur-fast) var(--ease); }
 .fgl-repo-option[data-active="true"] { background: var(--ctl-fill); }

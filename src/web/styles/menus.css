@@ -362,7 +362,7 @@
 /* A value the row reports, in the data face, a figure that ticks. */
 .settings-read {
   color: var(--text);
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: calc(12px + var(--ui-text-increase, 0px));
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
@@ -1113,7 +1113,7 @@ button.btn.sm-hear {
   min-width: 34px;
   text-align: right;
   color: var(--muted);
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: calc(11px + var(--ui-text-increase, 0px));
   font-variant-numeric: tabular-nums;
 }

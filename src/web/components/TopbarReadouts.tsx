@@ -107,7 +107,7 @@ export function StatusStrip({ live, paused, pauseGate }: {
 /** One queued session's words: its name, the one its rail row shows, how long
  *  it has waited, and what on — the session list row's order, "waiting 6m ·
  *  Bash", so the two read the same. V4 sets the name on the left and the wait
- *  with what it is on at the row's right end, one quiet mono run. */
+ *  with what it is on at the row's right end, one quiet run. */
 function QueueEntryWords({ w, now }: { w: BlockedSession; now: number }) {
   const t = useT();
   return (
@@ -221,7 +221,7 @@ function QueuePopover({ sessions, now, leaving, onPick, onClose }: {
 }
 
 /** A count pill that is only a readout: Working and Done. 24 tall, no stroke,
- *  the glyph, the figure in mono 600 and the word. Not drawn at zero (V4
+ *  the glyph, the figure at 600 (tabular) and the word. Not drawn at zero (V4
  *  top-10 #5): "0 done" was a readout of nothing, read on every glance. V4's
  *  Figma drew all three pills whenever the deck had a session, a quiet "0
  *  waiting" among them; the bar draws a count now only while it counts

@@ -101,12 +101,12 @@
 .fd-people > li { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 10px; min-width: 0; }
 .fd-review { font-size: calc(11px + var(--ui-text-increase, 0px)); }
 .fd-faces { list-style: none; display: flex; flex-wrap: wrap; align-items: center; gap: 4px; margin: 0; padding: 0; }
-.fd-faces-more { color: var(--muted); font: calc(11px + var(--ui-text-increase, 0px)) var(--font-mono); padding-left: 2px; }
+.fd-faces-more { color: var(--muted); font: calc(11px + var(--ui-text-increase, 0px)) var(--font-sans); font-variant-numeric: tabular-nums; padding-left: 2px; }
 .fd-diverge { display: inline-flex; flex-wrap: wrap; align-items: baseline; gap: 4px 8px; color: var(--muted); }
 /* "0 behind · 3 ahead" is one line: the fact's value is a grid by default,
    which stacked its three pieces. */
 .fd-fact dd.fd-diverge { display: flex; flex-wrap: nowrap; white-space: nowrap; }
-.fd-diverge strong { color: var(--text); font-family: var(--font-mono); font-weight: 600; font-variant-numeric: tabular-nums; }
+.fd-diverge strong { color: var(--text); font-family: var(--font-sans); font-weight: 600; font-variant-numeric: tabular-nums; }
 
 /* A label: the forge's colour is only the swatch, so the words keep the
    theme's own contrast whatever the colour is. */
@@ -201,7 +201,7 @@ a.fd-file:hover { background: var(--ctl-fill); --muted: var(--text-secondary); }
 .fd-file-status { padding: 0 6px; border: 1px solid var(--line); border-radius: var(--r-tag); color: var(--muted); font-size: calc(11px + var(--ui-text-increase, 0px)); line-height: 1.6; }
 .fd-file-status[data-status=added] { color: var(--ok); border-color: color-mix(in srgb, var(--ok) 45%, var(--line)); }
 .fd-file-status[data-status=deleted] { color: var(--err); border-color: color-mix(in srgb, var(--err) 45%, var(--line)); }
-.fd-diffstat { display: inline-flex; gap: 8px; font: calc(11px + var(--ui-text-increase, 0px)) var(--font-mono); font-variant-numeric: tabular-nums; }
+.fd-diffstat { display: inline-flex; gap: 8px; font: calc(11px + var(--ui-text-increase, 0px)) var(--font-sans); font-variant-numeric: tabular-nums; }
 .fd-add { color: var(--ok); }
 .fd-del { color: var(--err); }
 .fd-add[data-zero], .fd-del[data-zero] { color: var(--muted); }
@@ -226,7 +226,7 @@ a.fd-file:hover .fd-out-mark { color: var(--text); }
 .fd-job-row .fg-mark { min-width: 6.5em; }
 .fd-job-name { flex: 1 1 8em; min-width: 0; font-weight: 500; overflow-wrap: anywhere; }
 .fd-job-note { padding: 0 6px; border: 1px solid color-mix(in srgb, var(--warn) 45%, var(--line)); border-radius: var(--r-tag); color: var(--muted); font-size: calc(11px + var(--ui-text-increase, 0px)); line-height: 1.6; white-space: nowrap; }
-.fd-job-time { margin-left: auto; color: var(--muted); font: calc(11px + var(--ui-text-increase, 0px)) var(--font-mono); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.fd-job-time { margin-left: auto; color: var(--muted); font: calc(11px + var(--ui-text-increase, 0px)) var(--font-sans); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .fd-job-body { display: grid; gap: 10px; min-width: 0; padding: 2px 14px 14px 32px; }
 .fd-job-reason { margin: 0; color: var(--text); font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: 1.5; }
 .fd-annotations { list-style: none; display: grid; gap: 8px; margin: 0; padding: 0; font-size: calc(12px + var(--ui-text-increase, 0px)); }

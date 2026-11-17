@@ -126,7 +126,7 @@
 @media (hover: hover) and (pointer: fine) {
 .ig-rs-grip:hover { color: var(--text); }
 }
-/* The size while a drag runs: 11px mono in --text-secondary on --sunken, a
+/* The size while a drag runs: 11px tabular in --text-secondary on --sunken, a
    --line edge, under the bottom-right corner; inside the dialog's foot when
    the window has no room below it. */
 .ig-rs-readout {
@@ -139,7 +139,7 @@
   border-radius: var(--r-ctl);
   background: var(--sunken);
   color: var(--text-secondary);
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: calc(11px + var(--ui-text-increase, 0px));
   line-height: 14px;
   font-variant-numeric: tabular-nums;
@@ -211,7 +211,7 @@
   text-overflow: ellipsis;
   white-space: nowrap;
   color: var(--muted);
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: calc(11px + var(--ui-text-increase, 0px));
   line-height: 14px;
 }

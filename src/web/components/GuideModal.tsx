@@ -87,7 +87,7 @@ export default function GuideModal({ title, steps, finish, aside, onClose }: {
             <span id="guide-title" className="modal-tool-name">{title}</span>
           </div>
           <div className="modal-actions">
-            {/* V4's step counter: mono 12 in --muted, at the header's right,
+            {/* V4's step counter: 12 tabular in --muted, at the header's right,
                 left of the ×. */}
             <span className="guide-count">{at + 1} / {steps.length}</span>
             <DialogClose onClick={onClose} label={t("shell.closeEsc")} />

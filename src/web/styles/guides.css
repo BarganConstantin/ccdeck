@@ -41,7 +41,7 @@
 }
 .guide-count {
   color: var(--muted);
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: calc(12px + var(--ui-text-increase, 0px));
   line-height: 16px;
   font-variant-numeric: tabular-nums;
@@ -83,6 +83,8 @@
 .ga-cap { font-size: calc(11px + max(0px, var(--ui-text-increase, 0px))); font-weight: 600; letter-spacing: 0.06em; fill: var(--muted); }
 .ga-big { font-size: calc(22px + var(--ui-text-increase, 0px)); font-weight: 600; fill: var(--text); }
 .ga-strong { font-weight: 600; }
+/* Mono for what the deck itself sets in mono: a terminal's lines and the tool
+   bubbles' words. An account's address is a name, in the sans (V4 top-10 #8). */
 .ga-mono { font-family: var(--font-mono); }
 /* The four states, after the text rules so a coloured line wins the tie. */
 .ga-ok { fill: var(--ok); }

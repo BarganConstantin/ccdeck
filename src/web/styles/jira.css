@@ -125,7 +125,7 @@ button.btn.jr-chip[aria-pressed="true"] { background: color-mix(in srgb, var(--a
 .jr-group-body .jr-board-note { margin: 0; padding: 8px 12px; }
 .jr-closed-title { margin: 8px 0; color: var(--muted); font-size: calc(12px + var(--ui-text-increase, 0px)); font-weight: 600; }
 .jr-group { margin: 0 0 16px; min-width: 0; }
-/* V4's group head: 28 high, the name 12/600 in --text-secondary, its meta 11px mono in --muted. */
+/* V4's group head: 28 high, the name 12/600 in --text-secondary, its meta 11px tabular in --muted. */
 .jr-group-head { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; padding: 0; min-width: 0; }
 .jr-group-title { margin: 0; flex: 1 1 auto; min-width: 0; font-size: calc(12px + var(--ui-text-increase, 0px)); font-weight: 600; line-height: 16px; color: var(--text-secondary); }
 .jr-group-toggle {
@@ -164,9 +164,9 @@ button.btn.jr-chip[aria-pressed="true"] { background: color-mix(in srgb, var(--a
   line-height: calc(16px + var(--ui-text-increase, 0px));
   white-space: nowrap;
 }
-.jr-group-dates, .jr-group-count { color: var(--muted); font-family: var(--font-mono); font-size: calc(11px + var(--ui-text-increase, 0px)); font-weight: 400; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.jr-group-dates, .jr-group-count { color: var(--muted); font-family: var(--font-sans); font-size: calc(11px + var(--ui-text-increase, 0px)); font-weight: 400; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .jr-group-facts { display: flex; align-items: center; gap: 12px; margin-left: auto; min-width: 0; }
-.jr-tally { color: var(--muted); font-family: var(--font-mono); font-size: calc(11px + var(--ui-text-increase, 0px)); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.jr-tally { color: var(--muted); font-family: var(--font-sans); font-size: calc(11px + var(--ui-text-increase, 0px)); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .jr-totals { display: inline-flex; flex-wrap: wrap; gap: 4px; min-width: 0; }
 .jr-total, .jr-estimate {
   min-width: 24px;
@@ -554,12 +554,12 @@ button.btn.jr-chip[aria-pressed="true"] { background: color-mix(in srgb, var(--a
 .jr-dim { color: var(--muted); }
 .jr-chips { display: inline-flex; flex-wrap: wrap; gap: 4px; }
 .jr-detail-section { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
-/* A section's head 12/600 in --text-secondary, its count in mono 11, and the
+/* A section's head 12/600 in --text-secondary, its count at 11, tabular, and the
    description in --text-secondary (V4's Figma). */
 .jr-detail-section h3 { margin: 0; display: flex; align-items: baseline; gap: 6px; color: var(--text-secondary); font-size: calc(12px + var(--ui-text-increase, 0px)); font-weight: 600; line-height: 16px; }
 .jr-detail-desc > .jr-html { color: var(--text-secondary); }
 .jr-detail-section > p { margin: 0; font-size: calc(12px + var(--ui-text-increase, 0px)); }
-.jr-count { color: var(--muted); font-family: var(--font-mono); font-size: calc(11px + var(--ui-text-increase, 0px)); font-weight: 400; font-variant-numeric: tabular-nums; }
+.jr-count { color: var(--muted); font-family: var(--font-sans); font-size: calc(11px + var(--ui-text-increase, 0px)); font-weight: 400; font-variant-numeric: tabular-nums; }
 /* Sub-tasks stand alone as the backlog's rows do (V4's Figma): one line, 32
    high on --r-panel, no box round them. */
 .jr-detail-subtasks { margin: 0; padding: 0; list-style: none; }
@@ -585,17 +585,17 @@ button.btn.jr-chip[aria-pressed="true"] { background: color-mix(in srgb, var(--a
 .jr-detail-subtasks .jr-detail-sub:active { background: color-mix(in srgb, var(--text) 10%, transparent); }
 .jr-files { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 4px; font-size: calc(12px + var(--ui-text-increase, 0px)); }
 /* An attachment (V4's Figma): the 14 file glyph in --muted, the name, and
-   its size in mono 11. */
+   its size at 11, tabular. */
 .jr-files li { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; min-width: 0; }
 .jr-file-glyph { flex: none; color: var(--muted); }
-.jr-file-size { color: var(--muted); font-family: var(--font-mono); font-size: calc(11px + var(--ui-text-increase, 0px)); font-variant-numeric: tabular-nums; }
+.jr-file-size { color: var(--muted); font-family: var(--font-sans); font-size: calc(11px + var(--ui-text-increase, 0px)); font-variant-numeric: tabular-nums; }
 .jr-more-link { display: inline-flex; align-items: center; gap: 4px; color: var(--accent); }
 .jr-files a { display: inline-flex; align-items: center; gap: 4px; color: var(--accent); overflow-wrap: anywhere; }
 .jr-comments { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 12px; }
-/* A comment is not boxed (V4's Figma): the author, the time in mono, then the words. */
+/* A comment is not boxed (V4's Figma): the author, the time (tabular), then the words. */
 .jr-comment { min-width: 0; }
 .jr-comment-head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 4px; font-size: calc(12px + var(--ui-text-increase, 0px)); font-weight: 500; line-height: 16px; }
-.jr-comment-head time { font-family: var(--font-mono); font-size: calc(11px + var(--ui-text-increase, 0px)); font-weight: 400; }
+.jr-comment-head time { font-family: var(--font-sans); font-variant-numeric: tabular-nums; font-size: calc(11px + var(--ui-text-increase, 0px)); font-weight: 400; }
 
 /* An issue's description and comments, sanitised (jira-html.tsx): only the
    elements and the handful of Jira's own classes that are drawn here. */

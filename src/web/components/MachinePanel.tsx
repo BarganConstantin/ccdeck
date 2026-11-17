@@ -395,7 +395,7 @@ function ThermalSection({ thermal }: { thermal: Thermal | null }) {
     <div className="sd-section" role="group" aria-label={t("insights.machine.thermal")}>
       <OpensHistory group="thermal" title={t("insights.machine.thermalHistory")} action={t("insights.machine.showThermal")} label={t("insights.machine.thermal")}>
         {thermal.celsius.map(r => (
-          // A plain row (V4's Figma): the reading in mono at the right, in
+          // A plain row (V4's Figma): the reading, tabular, at the right, in
           // --text, and --err only past the sensor's own critical point, which
           // the row also says in words when the sensor has one.
           <PlainRow key={r.label} label={r.label} value={`${r.celsius} °C`}

@@ -6,33 +6,33 @@
 .modal-actions .su-caption { margin-right: 4px; }
 .su-body { min-height: 0; gap: 12px; font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: calc(16px + var(--ui-text-increase, 0px)); }
 .su-body > * { flex: none; }
-/* V4: "Whole session" at 12/500 in the foreground, the agent after it in the meta mono. */
+/* V4: "Whole session" at 12/500 in the foreground, the agent after it at the meta 11. */
 .su-scope { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .su-scope > span:first-child { color: var(--text); font-weight: 500; }
-.su-scope > span:last-child { color: var(--muted); font-family: var(--font-mono); font-size: calc(11px + var(--ui-text-increase, 0px)); line-height: calc(14px + var(--ui-text-increase, 0px)); }
+.su-scope > span:last-child { color: var(--muted); font-family: var(--font-sans); font-size: calc(11px + var(--ui-text-increase, 0px)); line-height: calc(14px + var(--ui-text-increase, 0px)); }
 .su-note { color: var(--muted); }
 .su-note, .su-message { margin: 0; }
 .su-message { padding-block: 16px; color: var(--muted); }
 .su-pricing { display: flex; align-items: center; gap: 12px; justify-content: space-between; flex-wrap: wrap; color: var(--muted); }
 .su-pricing select { max-width: 100%; min-width: 0; font: inherit; color: var(--text); background: var(--ctl-fill); border: 1px solid var(--ctl-edge); border-radius: var(--r-ctl); padding: 6px 8px; }
 .su-totals, .su-tokens, .su-dates { margin: 0; }
-/* V4's stats: bare, the value (mono 16/24 600) over its label (12/16 muted), 32 apart. */
+/* V4's stats: bare, the value (16/24 600, tabular) over its label (12/16 muted), 32 apart. */
 .su-totals { display: flex; flex-wrap: wrap; gap: 8px 32px; }
 .su-totals > div { display: flex; flex-direction: column-reverse; min-width: 0; }
 .su-totals dt, .su-tokens dt, .su-dates dt { color: var(--muted); }
-.su-totals dd { margin: 0; font-family: var(--font-mono); font-size: calc(16px + var(--ui-text-increase, 0px)); font-weight: 600; line-height: calc(24px + var(--ui-text-increase, 0px)); color: var(--text); font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.su-totals dd { margin: 0; font-family: var(--font-sans); font-size: calc(16px + var(--ui-text-increase, 0px)); font-weight: 600; line-height: calc(24px + var(--ui-text-increase, 0px)); color: var(--text); font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
 .su-section-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin-bottom: 6px; }
 .su-section-head h3 { margin: 0; font-size: calc(12px + var(--ui-text-increase, 0px)); font-weight: 600; line-height: calc(16px + var(--ui-text-increase, 0px)); color: var(--text-secondary); }
-.su-section-head > span { color: var(--muted); font-family: var(--font-mono); font-size: calc(11px + var(--ui-text-increase, 0px)); line-height: calc(14px + var(--ui-text-increase, 0px)); }
+.su-section-head > span { color: var(--muted); font-family: var(--font-sans); font-variant-numeric: tabular-nums; font-size: calc(11px + var(--ui-text-increase, 0px)); line-height: calc(14px + var(--ui-text-increase, 0px)); }
 /* The split: 6 high, parts at the tag radius, 2 apart. */
 .su-composition { display: flex; gap: 2px; height: 6px; overflow: hidden; border-radius: var(--r-tag); margin-bottom: 12px; }
 .su-composition > span { min-width: 0; border-radius: var(--r-tag); }
-/* The four counts under it: the value (mono 12) over its name, 16 apart. */
+/* The four counts under it: the value (12, tabular) over its name, 16 apart. */
 .su-tokens { display: flex; flex-wrap: wrap; gap: 8px 16px; }
 .su-tokens > div { display: flex; flex-direction: column-reverse; min-width: 0; }
 .su-tokens dt { display: flex; align-items: center; gap: 6px; white-space: nowrap; }
 .su-key { flex: none; width: 6px; height: 6px; border-radius: 0; }
-.su-tokens dd { margin: 0; font-family: var(--font-mono); color: var(--text); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.su-tokens dd { margin: 0; font-family: var(--font-sans); color: var(--text); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .su-share { display: inline; margin-left: 6px; color: var(--muted); font-size: calc(11px + var(--ui-text-increase, 0px)); }
 .su-reasoning { margin-top: 8px; font-size: calc(12px + var(--ui-text-increase, 0px)); }
 /* Cached input reuse: one quiet line, the figure then how much of it was measured. */
@@ -45,8 +45,8 @@
 .su-models th, .su-models td { height: 24px; padding: 0; border: 0; text-align: left; overflow-wrap: anywhere; }
 .su-models th { font-weight: 400; color: var(--muted); }
 .su-models thead th { height: 20px; color: var(--muted); font-size: calc(11px + var(--ui-text-increase, 0px)); }
-.su-models th:last-child, .su-models td { width: 90px; text-align: right; font-family: var(--font-mono); color: var(--text); font-variant-numeric: tabular-nums; }
-.su-models thead th:last-child { font-family: inherit; color: var(--muted); }
+.su-models th:last-child, .su-models td { width: 90px; text-align: right; font-family: var(--font-sans); color: var(--text); font-variant-numeric: tabular-nums; }
+.su-models thead th:last-child { color: var(--muted); }
 .su-unpriced { color: var(--muted); font-size: calc(11px + var(--ui-text-increase, 0px)); }
 .su-dates { display: grid; gap: 0; }
 .su-dates > div { display: flex; align-items: center; min-height: 24px; justify-content: space-between; gap: 12px; flex-wrap: wrap; }

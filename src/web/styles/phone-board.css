@@ -6,7 +6,7 @@
    canvas's cell between the top bar and the dock. A card is --panel with a
    --line edge and --r-panel corners, 8 apart from the next, 16 from the
    screen's sides: its mark, name and state word; the question it waits on or
-   its task; "model · time" in mono, then a look-alike's start time. The whole
+   its task; "model · time" in tabular figures, then a look-alike's start time. The whole
    card is the press, at least 44 high. */
 .phone-board {
   position: absolute;
@@ -88,7 +88,8 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
+  font-variant-numeric: tabular-nums;
   font-size: calc(11px + var(--ui-text-increase, 0px));
   color: var(--muted);
 }

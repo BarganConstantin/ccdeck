@@ -166,8 +166,11 @@ export async function handleTerminalClaim(req, res, options) {
   return posted(req, res, options, "claim");
 }
 
-/** POST /api/terminal/open `{ sessionId, provider, cwd }` → a ticket, or `{
- *  ok: false, target }` with HTTP 200: not attachable is a state. */
+/** POST /api/terminal/open `{ sessionId, provider, cwd, cols?, rows?, colours?
+ *  }` → a ticket, or `{ ok: false, target }` with HTTP 200: not attachable is
+ *  a state. The optional pane size and colours are adopt's, passed on as they
+ *  came: when the engine opens the session by starting a client, the client
+ *  starts at that size and in those colours. */
 export async function handleTerminalOpen(req, res, options) {
   return posted(req, res, options, "open");
 }

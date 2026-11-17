@@ -99,7 +99,8 @@ describe("70 and 88", () => {
   it("puts the ask row on the column's gap alone, 16 high, for Waiting and for a Failed card with a reason", () => {
     for (const row of [".agent-node .waiting-row", ".agent-node .stop-row"]) {
       expect(decl(row, "line-height"), row).toBe(TEXT(16));
-      expect(decl(row, "font-family"), row).toBe("var(--font-mono)");
+      // CHANGED ON PURPOSE (V4 top-10 #8): mono → sans, because a question, Your turn or a failure's reason is words, not code (a call keeps .mono).
+      expect(decl(row, "font-family"), row).toBe("var(--font-sans)");
       expect(decl(row, "font-size"), row).toBe(TEXT(12));
       expect(decl(row, "white-space"), row).toBe("nowrap");
       expect(body(row), row).not.toMatch(/margin|padding|border|background/);
@@ -135,10 +136,12 @@ describe("the foot", () => {
     expect(decl(".agent-node .foot .foot-tools", "gap")).toBe("2px");
     expect(decl(".agent-node .foot .foot-tools", "color")).toBe("var(--muted)");
   });
-  it("is centred with a 6px gap, and keeps cost, time and the dot in mono", () => {
+  it("is centred with a 6px gap, and keeps cost, time and the dot in tabular sans", () => {
     expect(decl(".agent-node .foot", "align-items")).toBe("center");
     expect(decl(".agent-node .foot", "gap")).toBe("0 6px");
-    expect(decl(".agent-node .foot", "font-family")).toBe("var(--font-mono)");
+    // CHANGED ON PURPOSE (V4 top-10 #8): mono → sans + tabular-nums, because the foot (cost, clock, tokens) is a figure, not code.
+    expect(decl(".agent-node .foot", "font-family")).toBe("var(--font-sans)");
+    expect(decl(".agent-node .foot", "font-variant-numeric")).toBe("tabular-nums");
   });
   it("ends with the sub-agent count and the Agents icon", () => {
     expect(decl(".agent-node .foot .foot-end", "margin-left")).toBe("auto");
@@ -356,12 +359,13 @@ describe("the recap note", () => {
     expect(decl(n, "box-shadow")).toBe("none");
     expect(body(n)).not.toMatch(/color-mix/);
   });
-  it("has a 24 head: recap in 500 11/14 --muted, the age in mono, a spacer, the close icon button", () => {
+  it("has a 24 head: recap in 500 11/14 --muted, the age in tabular sans, a spacer, the close icon button", () => {
     expect(decl(".recap-note-head", "height")).toBe("24px");
     expect(decl(".recap-note-head", "gap")).toBe("6px");
     expect(decl(".recap-note-mark", "font-weight")).toBe("500");
     expect(decl(".recap-note-mark", "color")).toBe("var(--muted)");
-    expect(decl(".recap-note-age", "font-family")).toBe("var(--font-mono)");
+    // CHANGED ON PURPOSE (V4 top-10 #8): mono → sans + tabular-nums, because the note's age is a figure, not code.
+    expect(decl(".recap-note-age", "font-family")).toBe("var(--font-sans)");
     expect(decl(".recap-note-age", "line-height")).toBe(TEXT(14));
     expect(decl(".recap-note-text", "color")).toBe("var(--text-secondary)");
     expect(decl(".recap-note-text", "line-height")).toBe(TEXT(16));

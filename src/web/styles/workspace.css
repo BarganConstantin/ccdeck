@@ -256,7 +256,7 @@ body .app[data-view="workspace"][data-side]:not([data-zoom]):has(.left-column) {
 .ts-ws-title { margin: 0; font-size: 16px; font-weight: 600; line-height: 20px; color: var(--text); }
 .ts-ws-head { display: flex; align-items: baseline; gap: 8px; }
 .ts-ws-head > .ts-glyph { align-self: center; }
-.ts-ws-wait { margin-left: 4px; font: 500 13px/20px var(--font-mono); font-variant-numeric: tabular-nums; color: var(--warn); }
+.ts-ws-wait { margin-left: 4px; font: 500 13px/20px var(--font-sans); font-variant-numeric: tabular-nums; color: var(--warn); }
 .ts-ws-ask { margin: 0; font-size: 12px; line-height: 16px; color: var(--muted); }
 /* The command in the ask's own tone, as V4 sets it: mono on the 20 line. */
 .ts-ws-ask code { font: 400 13px/20px var(--font-mono); color: var(--muted); }

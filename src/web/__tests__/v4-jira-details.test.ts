@@ -129,13 +129,14 @@ describe("an issue's page", () => {
     expect(jira).not.toContain("@container jira-detail (max-width: 440px)");
   });
 
-  it("sets section heads 12/600 in --text-secondary, counts in mono 11 and the description in --text-secondary", () => {
+  it("sets section heads 12/600 in --text-secondary, counts in tabular 11 and the description in --text-secondary", () => {
     const head = rule(jira, ".jr-detail-section h3");
     expect(head).toMatch(/font-size:\s*calc\(12px/);
     expect(head).toMatch(/font-weight:\s*600/);
     expect(head).toMatch(/color:\s*var\(--text-secondary\)/);
     const count = rule(jira, ".jr-count");
-    expect(count).toMatch(/font-family:\s*var\(--font-mono\)/);
+    // CHANGED ON PURPOSE (V4 top-10 #8): mono → sans + tabular-nums, because a section's count is a figure, not code.
+    expect(count).toMatch(/font-family:\s*var\(--font-sans\)/);
     expect(count).toMatch(/font-size:\s*calc\(11px/);
     expect(rule(jira, ".jr-detail-desc > .jr-html")).toMatch(/color:\s*var\(--text-secondary\)/);
     expect(read("components/JiraIssueDetail.tsx")).toContain('className="jr-detail-section jr-detail-desc"');
@@ -157,12 +158,13 @@ describe("an issue's page", () => {
     expect(en["integrations.field.priority"]).toBe("Priority");
   });
 
-  it("lists an attachment with the 14 file glyph and its size in mono 11, its date in the size's title", () => {
+  it("lists an attachment with the 14 file glyph and its size in tabular 11, its date in the size's title", () => {
     const detail = read("components/JiraIssueDetail.tsx");
     expect(detail).toContain('<KitIcon name="file" className="jr-file-glyph" />');
     expect(detail).toContain('<span className="jr-file-size" title={jiraDate(a.created) || undefined}>{fileSize(a.size)}</span>');
     const size = rule(jira, ".jr-file-size");
-    expect(size).toMatch(/font-family:\s*var\(--font-mono\)/);
+    // CHANGED ON PURPOSE (V4 top-10 #8): mono → sans + tabular-nums, because a file's size is a figure, not code.
+    expect(size).toMatch(/font-family:\s*var\(--font-sans\)/);
     expect(size).toMatch(/font-size:\s*calc\(11px/);
   });
 

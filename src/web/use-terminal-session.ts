@@ -932,6 +932,8 @@ export function createTerminalSession(deps: SessionDeps, callbacks: SessionCallb
   };
 
   const openFlow = async (ref: SessionRef, my: number, reconnecting: boolean) => {
+    // At the pane's size and in its colours, as an adopt: an open the engine
+    // answers by starting a client (a managed Codex) starts it in both.
     const answer = await deps.api.open(ref, {}, { ...want }, paneColours());
     if (my !== gen) return;
     await landOpen(answer, my, reconnecting);

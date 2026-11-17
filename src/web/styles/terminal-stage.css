@@ -425,7 +425,7 @@
   transform: translateX(-100%);
   animation: ts-scan 1.1s cubic-bezier(0.45, 0, 0.55, 1) infinite;
 }
-.ts-setup-line { font: 400 11px/14px var(--font-mono); color: var(--muted); font-variant-numeric: tabular-nums; }
+.ts-setup-line { font: 400 11px/14px var(--font-sans); color: var(--muted); font-variant-numeric: tabular-nums; }
 /* The actions: the kit's Primary and Quiet buttons (topbar-controls.css) in a
    centred row; the cards set no size of their own for them. */
 .ts-acts { display: flex; align-items: center; justify-content: center; gap: 8px; }
@@ -467,7 +467,7 @@
 .ts-eng-title { margin: 0; font-size: 16px; font-weight: 600; line-height: 20px; color: var(--text); }
 .ts-eng-text { margin: 0; font-size: 13px; line-height: 20px; color: var(--text-secondary); }
 .ts-eng-said { margin: 0; font-size: 12px; line-height: 16px; color: var(--warn); }
-.ts-eng-mono { margin: 0; font: 400 11px/14px var(--font-mono); color: var(--muted); font-variant-numeric: tabular-nums; }
+.ts-eng-line { margin: 0; font: 400 11px/14px var(--font-sans); color: var(--muted); font-variant-numeric: tabular-nums; }
 .ts-eng-note { margin: 0; font-size: 11px; line-height: 16px; color: var(--muted); }
 .ts-eng-acts { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 .ts-eng-acts .btn { display: inline-flex; align-items: center; gap: 6px; }
@@ -491,7 +491,7 @@
 .ts-eng-step[data-state="now"] .ts-eng-mark { color: var(--accent); }
 .ts-eng-step[data-state="fail"] .ts-eng-mark { color: var(--err); }
 .ts-eng-ring { box-sizing: border-box; width: 10px; height: 10px; border: 1.5px solid currentColor; border-radius: var(--r-pill); }
-.ts-eng-aside { font: 400 11px/14px var(--font-mono); color: var(--muted); }
+.ts-eng-aside { font: 400 11px/14px var(--font-sans); font-variant-numeric: tabular-nums; color: var(--muted); }
 .ts-eng-step[data-state="fail"] .ts-eng-aside { color: var(--err); }
 /* Settings › General, the engine's row during an install: the bar and its
    bytes under the note, 340 wide, in the name's column. */
@@ -668,7 +668,7 @@
 .ts-divider[data-held] .ts-grip { opacity: 0; }
 /* While the edge is held the header recedes. */
 .ts-stage[data-held] .ts-head > :not(.ts-scan) { opacity: 0.2; transition: opacity var(--dur-fast) var(--ease); }
-/* The readout while dragging: bare mono text in the middle of the pane side. */
+/* The readout while dragging: bare tabular text in the middle of the pane side. */
 .ts-detents {
   position: absolute;
   inset: 0;
@@ -679,7 +679,7 @@
   pointer-events: none;
 }
 .ts-readout {
-  font: 400 13px/20px var(--font-mono);
+  font: 400 13px/20px var(--font-sans);
   font-variant-numeric: tabular-nums;
   color: var(--text);
   white-space: nowrap;

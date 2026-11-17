@@ -112,7 +112,8 @@ describe("the three counts", () => {
     expect(decl(".topbar .count-pill.waiting-stat", "border")).toBe("1px solid var(--warn)");
     expect(decl(".topbar .count-pill.waiting-stat", "padding")).toBe("0 8px 0 6px");
     expect(decl(".topbar .count-pill.waiting-stat", "color")).toBe("var(--warn)");
-    expect(decl(".topbar .count-pill b", "font-family")).toBe("var(--font-mono)");
+    // CHANGED ON PURPOSE (V4 top-10 #8): mono → sans + tabular-nums, because the count is a figure, not code.
+    expect(decl(".topbar .count-pill b", "font-family")).toBe("var(--font-sans)");
     expect(decl(".topbar .count-pill b", "font-weight")).toBe("600");
     expect(decl(".topbar .count-pill b", "color")).toBe("var(--text)");
     expect(decl(".topbar .count-pill.waiting-stat b", "color")).toBe("var(--warn)");
@@ -303,7 +304,7 @@ describe("the queue popover", () => {
     expect(decl(".queue-head", "line-height")).toBe("16px");
     expect(decl(".queue-head", "font-weight")).toBe("500");
   });
-  it("draws a row as the Waiting glyph, the name in SemiBold 13 and the wait in mono 11 at the right end", () => {
+  it("draws a row as the Waiting glyph, the name in SemiBold 13 and the wait in tabular sans 11 at the right end", () => {
     const at = readouts.indexOf("{sessions.map(w => (");
     const row = readouts.slice(at, readouts.indexOf("))}", at));
     expect(row).toContain("<AlertMark size={14} />");
@@ -311,7 +312,9 @@ describe("the queue popover", () => {
     expect(decl(".queue-row .alert-mark", "margin-left")).toBe("0");
     expect(decl(".queue-row", "font-size")).toBe("calc(13px + var(--ui-text-increase, 0px))");
     expect(decl(".queue-row .we-name", "font-weight")).toBe("600");
-    expect(decl(".queue-row :is(.we-wait, .we-what)", "font-family")).toBe("var(--font-mono)");
+    // CHANGED ON PURPOSE (V4 top-10 #8): mono → sans + tabular-nums, because the wait and the tool's name is a figure and a label, not code.
+    expect(decl(".queue-row :is(.we-wait, .we-what)", "font-family")).toBe("var(--font-sans)");
+    expect(decl(".queue-row .we-wait", "font-variant-numeric")).toBe("tabular-nums");
     expect(decl(".queue-row :is(.we-wait, .we-what)", "font-size")).toBe("calc(11px + var(--ui-text-increase, 0px))");
     expect(decl(".queue-row :is(.we-wait, .we-what)", "line-height")).toBe("14px");
     expect(decl(".queue-row :is(.we-wait, .we-what)", "color")).toBe("var(--muted)");

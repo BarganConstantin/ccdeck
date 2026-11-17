@@ -101,7 +101,7 @@ export function EngineRows() {
             aria-valuenow={share == null ? undefined : Math.round(share * 100)} aria-valuetext={line} data-unknown={share == null || undefined}>
             <i className="ts-setup-fill" style={share == null ? undefined : { transform: `scaleX(${share})` }} />
           </span>
-          <span className="ts-eng-mono">{line}</span>
+          <span className="ts-eng-line">{line}</span>
         </span>
       );
       if (ours) control = <button type="button" className="btn" aria-busy={eng.pending || undefined} onClick={() => { void eng.cancel(); }}>{t("common.cancel")}</button>;

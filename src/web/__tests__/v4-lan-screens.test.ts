@@ -255,8 +255,9 @@ describe("a paired deck's details", () => {
     expect(nearby).not.toContain("Check now");
   });
 
-  it("writes the sub-line in 12px mono: calls itself first, then whether it is there", () => {
-    expect(decl(".lan-peer-sub", "font-family")).toBe("var(--font-mono)");
+  it("writes the sub-line in 12px sans: calls itself first, then whether it is there", () => {
+    // CHANGED ON PURPOSE (V4 top-10 #8): mono → sans, because the sub-line is a sentence (a machine's name and its state), not code.
+    expect(decl(".lan-peer-sub", "font-family")).toBe("var(--font-sans)");
     expect(decl(".lan-peer-sub", "font-size")).toBe(px(12));
     expect(decl(".lan-peer-sub", "line-height")).toBe("16px");
     expect(en["lan.peer.callsItself"]).toBe("calls itself {name}");
