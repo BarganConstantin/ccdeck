@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { mount, textOf, flush } from './fake-react';
+import { mount, textOf, flush, one } from './fake-react';
 import { openOthers, rowOf } from './codex-panel-helpers';
 
 vi.mock('react', async () => (await import('./fake-react')).react);
@@ -42,11 +42,15 @@ describe('Codex roster polling', () => {
     const view = mount(() => CodexProfilesSection()); cleanup = view.unmount;
     await flush();
     expect(rowOf(view, 'Work')!.props.switchedHere).toBe(true);
-    expect((rowOf(view, 'Work')!.props.voice as { switched: string }).switched).toContain('Personal');
+    const pending = one(view.tree, el => el.props.role === 'status' && textOf(el).includes('Still using Personal'));
+    expect(pending).not.toBeNull();
+    expect(textOf(pending)).toContain('The account will switch');
+    expect((rowOf(view, 'Work')!.props.voice as { switched?: string }).switched).toBeUndefined();
     applied = true;
     await vi.advanceTimersByTimeAsync(2000);
     expect(rosterReads(fetcher)).toBe(2);
     expect((rowOf(view, 'Work')!.props.voice as { switched?: string }).switched).toBeUndefined();
+    expect(one(view.tree, el => el.props.role === 'status' && textOf(el).includes('Still using Personal'))).toBeNull();
   });
 
   it('lets a roster slower than several poll intervals finish and resumes polling afterward', async () => {

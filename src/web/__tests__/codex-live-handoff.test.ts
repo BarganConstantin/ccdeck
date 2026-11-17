@@ -65,6 +65,33 @@ async function checkpointHandoff(f: ReturnType<typeof familyFixture>) {
   return inspectCodexLiveCheckpoints(f.rpc, entries, { record: async (e: any, phase: string) => { e.phase = phase; } });
 }
 describe('native account handoff without network-permit revocation', () => {
+  it('requests a cooperative checkpoint for a direct-input session with a running command', async () => {
+    const f = fixture(); Object.assign(f.thread, { canAcceptDirectInput: true });
+    f.turn.items.push({ id: 'ci-watch', type: 'commandExecution', status: 'inProgress' });
+    const handoff = await prepareCodexLiveHandoff(f.rpc, { cooperativeTools: true });
+    expect(handoff.checkpoint).toMatchObject([{ threadId: f.thread.id, turnId: f.turn.id }]);
+    expect(f.rpc.request.mock.calls.some(c => c[0] === 'turn/interrupt')).toBe(false);
+    const request = vi.fn(async (_method: string, _params: unknown) => ({}));
+    await requestCodexLiveCheckpoints({ request }, handoff.checkpoint, { record: async () => {} });
+    expect(request.mock.calls[0]).toMatchObject(['turn/steer', { threadId: f.thread.id, expectedTurnId: f.turn.id }]);
+    expect(JSON.stringify(request.mock.calls[0])).toContain('Do not cancel running commands');
+    expect(JSON.stringify(request.mock.calls[0])).toContain('CCDECK_CHECKPOINT_' + handoff.checkpoint[0].checkpointId);
+    expect(JSON.stringify(request.mock.calls[0])).not.toContain('Use native send_message');
+  });
+  it.each(['waitingOnApproval', 'waitingOnUserInput'])('never steers a cooperative checkpoint over %s', async flag => {
+    const f = fixture(); Object.assign(f.thread, { canAcceptDirectInput: true });
+    f.thread.status.activeFlags.push(flag);
+    f.turn.items.push({ id: 'ci-watch', type: 'commandExecution', status: 'inProgress' });
+    expect((await prepareCodexLiveHandoff(f.rpc, { cooperativeTools: true })).checkpoint).toBeUndefined();
+  });
+  it.each(['unknown-tool', 'missing-direct-input', 'incomplete-history', 'idle-with-running-process'])('keeps %s outside cooperative checkpoints', async condition => {
+    const f = fixture(); Object.assign(f.thread, { canAcceptDirectInput: condition !== 'missing-direct-input' });
+    f.turn.items.push({ id: 'tool', type: condition === 'unknown-tool' ? 'futureTool' : 'commandExecution', status: 'inProgress' });
+    if (condition === 'incomplete-history') f.turn.itemsView = 'summary';
+    if (condition === 'idle-with-running-process') { f.thread.status.type = 'idle'; f.turn.status = 'completed'; }
+    expect((await prepareCodexLiveHandoff(f.rpc, { cooperativeTools: true })).checkpoint).toBeUndefined();
+    expect(f.rpc.request.mock.calls.some(c => c[0] === 'turn/interrupt')).toBe(false);
+  });
   it('does not continue after ownership is invalidated during the final history read', async () => {
     const f = fixture(), handoff = await prepareCodexLiveHandoff(f.rpc);
     const read = f.rpc.request.getMockImplementation()!;

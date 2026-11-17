@@ -4,8 +4,9 @@
 
 The owner explicitly requested merging the reviewed UI batch into development.
 The earlier local-only approval notes below describe the preceding review phase.
-The integration base is development `7e740055a`, which already includes next/v4
-and engine 0.1.5. Preserve its session chrome and keyboard work alongside the
+The integration base is development `b3a0687b6`, including the Codex account
+handoff correction from PR #2599, next/v4 and engine 0.1.5.
+Preserve its session chrome and keyboard work alongside the
 compact rows, direct Chat composer and quiet active-pane styling. Validate the
 combined tree and required PR checks before merging; no release tag or package
 publication was requested.
@@ -16,8 +17,15 @@ project/prompt information in accessible text and tooltips, and show additional
 context only for remaining same-provider collisions or actionable waiting rows.
 The integrated UI follows the shared type, spacing and keyboard-focus tokens.
 
+PR #2600 is the integration boundary. After its verified merge, the isolated
+port 4479 preview moves to a detached merged commit in `ccdeck-ui-dev-preview`;
+the feature worktree is then removed. Its helpers remain in the temporary
+preview directory. Recheck the PR, checkout and process before relying on that
+planned runtime transition. The local `development` branch contains archived
+history: do not reset it or merge that history into the recreated remote branch.
 
-## Workspace compact preview — 2026-11-17
+
+## Workspace compact preview — earlier review on 2026-11-17
 
 - Branch `feature/v4-terminal-chat`, worktree `~/Desktop/ccdeck-v4-terminal-chat`,
   based on `next/v4` `13d1d45c1`. First batch awaits the owner's visual review
@@ -30,6 +38,38 @@ The integrated UI follows the shared type, spacing and keyboard-focus tokens.
   ignored build output; regenerate with `make-review-page.py` after rebuilding.
 - Scope, verification and limitations: `docs/research/herdr-batch1-verification.md`.
   Preserve the separately served session-chrome worktree and other agents' work.
+
+## Intel CPU readings and pending Codex switches — 2026-11-17
+
+The Intel CPU proximity reader is merged into `next/v4` through PR #2596,
+merge `31b001723`. The optional installed `osx-cpu-temp` reader supplies CPU
+degrees independently of the existing GPU and throttling sources. Actual
+Intel Mac readings were verified in the API and Thermal panel; the eight
+required CI checks passed. The merged runtime checkout is `v4-cpu-runtime`.
+
+The follow-up branch `fix/codex-account-handoff-stall` targets `development`
+after `next/v4` was integrated there through PR #2598. It includes the
+development engine 0.1.5 pins. A native
+account read confirmed the previous account while the selected default had
+already changed: running command items kept deferring the shared-server
+handoff. Supported direct-input sessions now use the existing durable
+checkpoint protocol while tools run, with one steer and one continuation.
+Unknown activity, approvals and user input remain guarded. The Accounts
+panel names the account still in use above the list while switching.
+
+The follow-up also reproduces a second gap: an explicit usage-limit failure
+just before authentication was idle and omitted from the paused-turn list.
+New account switches can capture the latest direct-input usage failure from
+the preceding five minutes, retain it across other conversations' checkpoints,
+and continue it once after a different login is confirmed. Same-account
+refreshes, old errors, manual interruption, new input and uncertain sends do
+not replay it. The owner's existing limited conversation was inspected only;
+do not resume it as a verification step.
+
+Read the local runtime marker before restarting: the desktop may be serving
+this follow-up checkout on port 4317 instead of the merged runtime. Do not
+equate a selected default with a completed native login, or synthetic protocol
+tests with a live account handoff on every provider version.
 
 ## Local single Done group — 2026-11-16
 
