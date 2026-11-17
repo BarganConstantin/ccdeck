@@ -45,7 +45,7 @@ describe("the modal's frame and header", () => {
     expect(rule(integrations, ".ig-frame")).toMatch(/overflow:\s*hidden/);
   });
 
-  it("has a 44 header with the title at 14/600 and the connection name in 11px mono", () => {
+  it("has a 44 header with the title at 14/600 and the connection name in 11px sans", () => {
     const head = rule(integrations, ".ig-head");
     expect(head).toMatch(/min-height:\s*44px/);
     expect(head).toMatch(/border-bottom:\s*1px solid var\(--line-soft\)/);
@@ -54,7 +54,8 @@ describe("the modal's frame and header", () => {
     expect(title).toMatch(/font-size:\s*calc\(16px/);
     expect(title).toMatch(/font-weight:\s*600/);
     const name = rule(integrations, ".ig-head .ig-conn-name");
-    expect(name).toMatch(/font-family:\s*var\(--font-mono\)/);
+    // CHANGED ON PURPOSE (V4 top-10 #8): mono → sans + tabular-nums, because a connection's name is a label, not code.
+    expect(name).toMatch(/font-family:\s*var\(--font-sans\)/);
     expect(name).toMatch(/font-size:\s*calc\(11px/);
     expect(name).toMatch(/color:\s*var\(--muted\)/);
   });

@@ -156,7 +156,7 @@
 @media (prefers-reduced-motion: reduce) {
   .react-flow__controls-button { transition: background var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease); }
 }
-/* The zoom level is a button that prints a figure, in the mono 11 on 14 the
+/* The zoom level is a button that prints a figure, in the tabular 11 on 14 the
    V4 bar sets numbers in. Never narrower than four figures ("100%"): the bar
    is anchored on the right, so a label that narrowed from 100% to 99% would
    slide zoom out from under a pointer pressing it again. */
@@ -164,7 +164,7 @@
   width: auto;
   min-width: calc(4ch + 8px);
   padding: 0 4px;
-  font: 400 11px/14px var(--font-mono);
+  font: 400 11px/14px var(--font-sans);
   color: var(--text-secondary);
   font-variant-numeric: tabular-nums;
 }

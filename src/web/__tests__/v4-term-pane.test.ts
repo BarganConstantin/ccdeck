@@ -476,7 +476,8 @@ describe("the state cards: centred in the pane", () => {
     expect(decl(rule(stage, ".ts-setup-bar"), "height")).toBe("2px");
     // CHANGED ON PURPOSE: V4's figure is mono 11/14, on a --ctl-fill track
     // with a --muted fill and a 4 radius, 4 under the bar.
-    expect(decl(rule(stage, ".ts-setup-line"), "font")).toBe("400 11px/14px var(--font-mono)");
+    // CHANGED ON PURPOSE (V4 top-10 #8): mono → sans + tabular-nums, because the download's progress line is a figure, not code.
+    expect(decl(rule(stage, ".ts-setup-line"), "font")).toBe("400 11px/14px var(--font-sans)");
     expect(decl(rule(stage, ".ts-setup"), "gap")).toBe("4px");
     expect(decl(rule(stage, ".ts-setup-bar"), "background")).toBe("var(--ctl-fill)");
     expect(decl(rule(stage, ".ts-setup-bar"), "border-radius")).toBe("var(--r-tag)");
@@ -760,9 +761,10 @@ describe("the divider", () => {
     expect(held).toMatch(/width:\s*2px;\s*background:\s*var\(--accent\)/);
   });
 
-  it("reads its size while dragging in mono 13/20 --text, and keeps its role, its one tab stop and its detents", () => {
+  it("reads its size while dragging in tabular sans 13/20 --text, and keeps its role, its one tab stop and its detents", () => {
     const readout = rule(stage, ".ts-readout");
-    expect(decl(readout, "font")).toBe("400 13px/20px var(--font-mono)");
+    // CHANGED ON PURPOSE (V4 top-10 #8): mono → sans + tabular-nums, because the size readout (cols × rows) is a figure, not code.
+    expect(decl(readout, "font")).toBe("400 13px/20px var(--font-sans)");
     expect(decl(readout, "color")).toBe("var(--text)");
     const src = withoutComments(read("components/terminal/Divider.tsx"));
     expect(src).toContain('role="separator"');

@@ -38,8 +38,8 @@
 .ctx-modal .ctx-window-fill { border-radius: var(--r-tag); background: var(--muted); }
 .ctx-modal .ctx-window-fill[data-level="high"] { background: var(--text); }
 .ctx-modal .ctx-window-fill[data-level="full"] { background: var(--err); }
-.ctx-modal .ctx-window-meta { justify-content: flex-start; font-family: inherit; font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: calc(16px + var(--ui-text-increase, 0px)); }
-.ctx-modal .ctx-window-pct { font-family: var(--font-mono); font-weight: 400; }
+.ctx-modal .ctx-window-meta { justify-content: flex-start; font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: calc(16px + var(--ui-text-increase, 0px)); }
+.ctx-modal .ctx-window-pct { font-family: var(--font-sans); font-variant-numeric: tabular-nums; font-weight: 400; }
 
 /* The context modal's × — a header close like the other five, and the last one
    still drawing its own 28px bordered box. `.glyph-btn` now, which takes the
@@ -88,7 +88,8 @@
 .ctx-window-meta {
   display: flex; justify-content: space-between;
   font-size: calc(11px + var(--ui-text-increase, 0px));
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
+  font-variant-numeric: tabular-nums;
   color: var(--muted);
 }
 .ctx-window-pct { color: var(--text); font-weight: 600; }
@@ -114,7 +115,7 @@
 }
 .ctx-row-label { color: var(--muted); font-weight: 400; }
 .ctx-row-val {
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-weight: 400;
   color: var(--text);
   font-variant-numeric: tabular-nums;
@@ -156,17 +157,18 @@
   text-overflow: ellipsis;
 }
 .ctx-md-size {
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   color: var(--text);
   font-variant-numeric: tabular-nums;
   flex-shrink: 0;
 }
-/* Rows 24 high; the memory files are plain mono lines in the second text step. */
+/* Rows 24 high; the memory files are plain lines in the second text step, the
+   path in mono and the size a figure in the sans. */
 .ctx-modal .ctx-row, .ctx-modal .ctx-md-list li { height: 24px; }
 .ctx-modal .ctx-md-path { color: var(--text-secondary); }
 .ctx-modal .ctx-md-size { color: var(--muted); }
 /* WHO (V4): the name 13/20 at 600 in --text, then "Codex" on a Codex card,
-   then the restored and ? markers as plain mono 11/14 in --muted. No model
+   then the restored and ? markers as plain 11/14 in --muted. No model
    (V4 top-10 #2): the card says its task, and the Inspector says what it runs
    on. Baseline aligned, so the smaller words sit on the 13px name's line. */
 .agent-node .title {
@@ -203,7 +205,7 @@
 /* The restored and ? tags stay whole: the name ellipsizes first. */
 .agent-node .title .synth-tag {
   flex: none;
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: calc(11px + var(--ui-text-increase, 0px));
   line-height: calc(14px + var(--ui-text-increase, 0px));
   font-weight: 400;
@@ -219,7 +221,7 @@
   white-space: nowrap;
   font-variant-numeric: tabular-nums;
   color: var(--text-secondary);
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
 }
 
 /* Blocked on a human (#337). A row of its own, under the task line and
@@ -242,9 +244,10 @@
   display: flex;
   align-items: center;
   gap: 6px;
-  /* THE ASK LINE (V4): plain text, not a pill — mono 12/16 regular, no border,
-     no fill, one line cut with an ellipsis (the sentence yields, below). */
-  font-family: var(--font-mono);
+  /* THE ASK LINE (V4): plain text, not a pill — 12/16 regular, no border,
+     no fill, one line cut with an ellipsis (the sentence yields, below). The
+     sans for a question or "Your turn"; a call is mono (.mono, below). */
+  font-family: var(--font-sans);
   font-size: calc(12px + var(--ui-text-increase, 0px));
   line-height: calc(16px + var(--ui-text-increase, 0px));
   font-weight: 400;
@@ -262,6 +265,9 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+/* A permission prompt's call, "Bash · npm test", is what would run, so it is
+   set in mono, as the session list sets the same line (V4 top-10 #8). */
+.agent-node .waiting-said.mono { font-family: var(--font-mono); }
 /* The still twin of .ap-pulse's emitter — same 5px dot, no ping. A session
    that finished and is resting has not earned motion; the one that cannot
    proceed without you has, and it borrows .ap-pulse outright so the app keeps
@@ -442,7 +448,7 @@
 @container lod (height < 44px) { .recap-face-text { -webkit-line-clamp: 1; line-clamp: 1; } }
 @container lod (height < 30px) { .recap-face-text { display: none; } }
 /* The head row (V4): 24 tall, 6px apart — "recap" in 500 11/14 --muted, its
-   age in mono 11/14 --muted-dim, a spacer, then the close button (a 24x24 icon
+   age in 11/14 tabular --muted-dim, a spacer, then the close button (a 24x24 icon
    button with the kit's close glyph). */
 .recap-note-head {
   display: flex;
@@ -460,7 +466,8 @@
   color: var(--muted);
 }
 .recap-note-age {
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
+  font-variant-numeric: tabular-nums;
   font-size: calc(11px + var(--ui-text-increase, 0px));
   line-height: calc(14px + var(--ui-text-increase, 0px));
   /* V4 draws the age in --muted-dim; the deck never sets text in that tier
@@ -651,7 +658,7 @@
 
 /* The turn ended on an error — an expired login, a usage limit, an API error
    (StopFailure) — and needs a "continue" typed in the session to run again.
-   The ask row's geometry in the failure's hue (V4's Agent / Card): mono 12/16
+   The ask row's geometry in the failure's hue (V4's Agent / Card): 12/16
    in --err, one line cut with an ellipsis, no border and no padding, so a
    Failed card with a reason is 88 tall like a Waiting one. No pulse: nothing
    here is still happening. */
@@ -659,7 +666,7 @@
   display: flex;
   align-items: center;
   gap: 6px;
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: calc(12px + var(--ui-text-increase, 0px));
   line-height: calc(16px + var(--ui-text-increase, 0px));
   font-weight: 400;
@@ -759,7 +766,7 @@
 /* The agent's plan, as one row (#2157): a meter, the count and the step.
    The step is a sentence the agent wrote, so it is the sans stack in
    --text-secondary, prose somebody reads; the count is a live number, so it is
-   monospace with tabular figures and never the part that ellipsises. The
+   tabular figures and never the part that ellipsises. The
    meter is the deck's --accent over a --line track, the same pair the
    card's other fills use, and it repeats the count, so 1.4.11's printed
    equivalent covers it. A finished list steps back to --muted: it says what
@@ -791,7 +798,7 @@
 }
 .agent-node .plan-count {
   flex: none;
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-variant-numeric: tabular-nums;
   color: var(--muted);
 }
@@ -814,12 +821,14 @@
    and drops meta items instead (tokens, then in-flight, then the tool count;
    see card-row-squeeze.ts).
 
-   THE FOOT (V4) is that row in the card's mono 11/14: --text-secondary figures
+   THE FOOT (V4) is that row in the card's 11/14 with tabular figures (the sans
+   since V4 top-10 #8, it was mono): --text-secondary figures
    with a --muted dot between them, plain weight (the bold figure against a
    muted word is gone with the colours). The dot's gap is 6px each side. */
 .agent-node .foot {
   color: var(--text-secondary);
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
+  font-variant-numeric: tabular-nums;
   font-size: calc(11px + var(--ui-text-increase, 0px));
   line-height: calc(14px + var(--ui-text-increase, 0px));
   display: flex;
@@ -872,7 +881,7 @@
    it always did. */
 
 /* The Tokens rows in the Inspector (V4's Figma): a label in 400 12/16 --muted
-   and its value in mono 12/16 --text, one row each, no box. */
+   and its value in 12/16 tabular --text, one row each, no box. */
 .tokens-grid {
   display: flex;
   flex-direction: column;
@@ -887,7 +896,7 @@
   padding: 2px 0;
 }
 .tokens-grid .k { color: var(--muted); font-weight: 400; }
-.tokens-grid b { color: var(--text); font-family: var(--font-mono); font-weight: 400; font-variant-numeric: tabular-nums; }
+.tokens-grid b { color: var(--text); font-family: var(--font-sans); font-weight: 400; font-variant-numeric: tabular-nums; }
 
 /* The dashed edge is the whole difference. It also faded the card to 0.92,
    which took the "?" — the only word on the card for "this start was
@@ -895,7 +904,7 @@
 .agent-node.synthetic {
   border-style: dashed;
 }
-/* The "?" and "restored" markers are plain mono words after the model now (the
+/* The "?" and "restored" markers are plain words after the model now (the
    type is the .title rule's); the ink is the muted tier the 4.5:1 floor above
    measures. */
 .agent-node .synth-tag { color: var(--muted); }
@@ -927,7 +936,7 @@
   color: var(--text);
   background: var(--bg-soft);
   font-size: calc(11px + max(-1px, var(--ui-text-increase, 0px)));
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-weight: 600;
   letter-spacing: 0.02em;
 }
@@ -976,5 +985,5 @@
 
 /* React Flow edge label background — match theme */
 .react-flow__edge-textbg { fill: var(--bg-soft); fill-opacity: 0.9; }
-.react-flow__edge-text { font-family: var(--font-mono); font-size: calc(11px + max(-1px, var(--ui-text-increase, 0px))); fill: var(--text); }
+.react-flow__edge-text { font-family: var(--font-sans); font-size: calc(11px + max(-1px, var(--ui-text-increase, 0px))); fill: var(--text); }
 

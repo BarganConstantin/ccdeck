@@ -54,7 +54,7 @@ export default function PhoneBoard({ state, now, watching, removedIds, selectedI
 }
 
 /** One card: the mark, the name and the state word; the question it waits on,
- *  else "folder · task"; then "model · time" in mono, and a look-alike's start
+ *  else "folder · task"; then "model · time" (tabular), and a look-alike's start
  *  time after them. */
 export function PhoneBoardCard({ card, now, selected, onOpen }: { card: PhoneCard; now: number; selected: boolean; onOpen: (sessionId: string) => void }) {
   const { row: r, group, status } = card;

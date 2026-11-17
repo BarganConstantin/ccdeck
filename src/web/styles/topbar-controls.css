@@ -129,7 +129,7 @@
 
 /* THE THREE COUNTS (V4's Figma, Top bar): waiting, working, done, 8 apart in
    .counts, right after the wordmark. Each is 24 tall with the 12 on 16 type,
-   a 14px glyph, the figure in the deck's mono at 600 and the word at 400, 4
+   a 14px glyph, the figure at 600 with tabular digits and the word at 400, 4
    between the parts. Waiting is the one that may be amber and the only one with
    a stroke: a 1px --warn edge on a full pill (--r-pill), the glyph, figure and
    word all --warn, 6px in on the glyph's side and 8 on the other. Working and
@@ -167,7 +167,7 @@
               transform var(--dur-fast) var(--ease);
 }
 .topbar .count-pill b {
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: calc(12px + var(--ui-text-increase, 0px));
   line-height: 16px;
   font-weight: 600;
@@ -215,7 +215,7 @@
    foot with how many are out of view and the N key. A row is 28 at Compact
    (the table height), the --selected fill under the pointer and the arrows:
    the Waiting glyph, the name at 600, and at the right end how long it has
-   waited and on what, in 11/14 mono --muted. The fill reaches 8 past the
+   waited and on what, in 11/14 --muted. The fill reaches 8 past the
    words on either side (the list's negative inset), so the words stand on the
    popover's 12.
    MOTION is transitions on a class, never keyframes (the base popover's
@@ -298,16 +298,18 @@
   font-weight: 600;
 }
 /* The wait and what it is on read as one run, "6m · Bash": the row's 8 gap
-   between them is taken back to one space of the mono face. */
+   between them is taken back to one space of the sans face, a quarter of an
+   em. They were mono, with 1ch for that space; both are a figure and a tool's
+   name, so they are the sans now, the wait with tabular digits (V4 top-10 #8). */
 .queue-row :is(.we-wait, .we-what) {
   flex: none;
   color: var(--muted);
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: calc(11px + var(--ui-text-increase, 0px));
   line-height: 14px;
 }
 .queue-row .we-wait { margin-left: auto; font-variant-numeric: tabular-nums; }
-.queue-row .we-what { margin-left: calc(1ch - 8px); }
+.queue-row .we-what { margin-left: calc(0.25em - 8px); }
 .queue-row:focus-visible { background: var(--selected); }
 @media (hover: hover) and (pointer: fine) {
   .queue-row:hover { background: var(--selected); }

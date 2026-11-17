@@ -187,11 +187,11 @@
   color: var(--text-secondary);
 }
 /* The section's own figure, at the far end of its heading. One section has one:
-   CPU, whose total is said here and nowhere else: mono 12/16 --text. */
+   CPU, whose total is said here and nowhere else: 12/16 tabular --text. */
 .sd-h-val {
   margin-left: auto;
   color: var(--text);
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-weight: 400;
   font-variant-numeric: tabular-nums;
 }
@@ -449,13 +449,13 @@
 }
 
 /* A METER ROW (V4's Figma): the label 400 12/16 --text-secondary, the reading
-   in mono 12/16 --text at the right, and the meter under them, 3 apart. The
+   in 12/16 tabular --text at the right, and the meter under them, 3 apart. The
    meter is a bar 8 high with the cores' control corners, so memory reads at a
    glance the way the cores do; the fill is the cores' --accent below 90 and
    --err from 90, never amber (meterLevel). */
 .sd-row-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin-bottom: 3px; }
 .sd-row-label { color: var(--text-secondary); }
-.sd-row-val { font-family: var(--font-mono); font-variant-numeric: tabular-nums; color: var(--text); }
+.sd-row-val { font-family: var(--font-sans); font-variant-numeric: tabular-nums; color: var(--text); }
 /* From 90 the reading is in the fill's --err, with its mark and word. */
 .level-mark > .sd-row-val { color: inherit; }
 .sd-track {
@@ -479,7 +479,7 @@
 .sd-row > .sd-note { margin-top: 3px; }
 
 /* A PLAIN ROW (V4's Figma): 24 high, the label in --text-secondary and the
-   reading in mono --text at the right, 12 apart across the row (rows
+   reading in tabular --text at the right, 12 apart across the row (rows
    themselves sit 2 apart). The label is the meter row's label and Usage's row
    label ("5-hour window", a model's name) in the same tier: it was --muted,
    so GPU, Throttling and the network's three read a step greyer than Physical
@@ -494,13 +494,13 @@
   min-height: 24px;
 }
 .sd-plain-label { color: var(--text-secondary); }
-.sd-plain-val { margin-left: auto; font-family: var(--font-mono); font-variant-numeric: tabular-nums; color: var(--text); }
+.sd-plain-val { margin-left: auto; font-family: var(--font-sans); font-variant-numeric: tabular-nums; color: var(--text); }
 .sd-plain-val[data-err] { color: var(--err); }
 /* An error reading stands at the row's end inside its mark and word. */
 .sd-plain > .level-mark { margin-left: auto; }
 .sd-plain-note { flex: 0 0 100%; color: var(--muted); }
 
-/* THE LOAD AVERAGE: three cells 16 apart, the value in mono 400 12/16 --text
+/* THE LOAD AVERAGE: three cells 16 apart, the value in 400 12/16 --text
    over its caption 400 11/14 --muted — Usage's tokens row (`.up-tok`,
    `.up-k`), which is the same thing: a row of figures, each with the word for
    what it counts under it. The value was 600 16/24, a size and weight Usage
@@ -508,9 +508,10 @@
    the panel and read as its headline. */
 .sd-figs { display: flex; gap: 16px; }
 .sd-fig { display: flex; flex-direction: column; font-variant-numeric: tabular-nums; }
-/* 5ch of the mono face holds 99.99, so a figure gaining a digit does not slide
+/* 5ch holds 99.99 in tabular figures (a ch is one digit's width), so a figure
+   gaining a digit does not slide
    the ones after it. */
-.sd-fig-val { min-width: 5ch; font-family: var(--font-mono); font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: calc(16px + var(--ui-text-increase, 0px)); font-weight: 400; color: var(--text); }
+.sd-fig-val { min-width: 5ch; font-family: var(--font-sans); font-variant-numeric: tabular-nums; font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: calc(16px + var(--ui-text-increase, 0px)); font-weight: 400; color: var(--text); }
 .sd-fig-cap { color: var(--muted); font-size: calc(11px + var(--ui-text-increase, 0px)); line-height: calc(14px + var(--ui-text-increase, 0px)); white-space: nowrap; }
 
 /* The sentences — "reading this machine…", why a reading is missing: 12/16. */

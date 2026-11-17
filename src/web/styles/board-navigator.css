@@ -40,7 +40,7 @@ button.btn.nav-new { flex: none; gap: 6px; padding: 0 12px 0 10px; }
 .nav-new svg { flex: none; }
 .nav-count {
   margin-left: auto;
-  font: 400 11px/1 var(--font-mono);
+  font: 400 11px/1 var(--font-sans);
   color: var(--muted);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
@@ -153,7 +153,7 @@ button.btn.nav-new { flex: none; gap: 6px; padding: 0 12px 0 10px; }
 .nav-name { flex: 1 1 auto; }
 .nav-right { flex: none; margin-left: auto; display: inline-flex; align-items: center; }
 .nav-el {
-  font: 400 11px/1 var(--font-mono);
+  font: 400 11px/1 var(--font-sans);
   color: var(--muted);
   font-variant-numeric: tabular-nums;
 }

@@ -526,14 +526,16 @@ function StopRow({ data, stop }: { data: AgentNodeData; stop: StopFacts }) {
   );
 }
 
-/** What the session is waiting on, as V4's Agent / Card draws it: one mono line
+/** What the session is waiting on, as V4's Agent / Card draws it: one line
  *  in the Waiting colour, with no dot and no clock (the head's alert mark says
  *  it is waiting, the foot's clock says for how long). A permission prompt reads
  *  as the call it is most likely about — "Bash · npm test -- rate-limit", the
- *  same line the session list draws — and as Claude Code's sentence when the
- *  stream implied no call. A question reads as the question, and an idle prompt
- *  as "Your turn". The tooltip keeps Claude Code's own sentence, the hedge on
- *  the guess (blockedToolTooltip) and how long it has been blocked. */
+ *  same line the session list draws, and in mono as it does, because it is a
+ *  call (V4 top-10 #8) — and as Claude Code's sentence when the stream implied
+ *  no call. A question reads as the question, and an idle prompt as "Your
+ *  turn", both in the sans: they are words, not something to type. The tooltip
+ *  keeps Claude Code's own sentence, the hedge on the guess
+ *  (blockedToolTooltip) and how long it has been blocked. */
 function WaitingRow({ waiting }: { waiting: WaitingBlock }) {
   const t = useT();
   // Its own beat (#873): the tooltip's "blocked for 3m" counts up while the
@@ -548,7 +550,7 @@ function WaitingRow({ waiting }: { waiting: WaitingBlock }) {
   ].filter(Boolean).join("\n");
   return (
     <div className="waiting-row" title={title}>
-      <span className="waiting-said">
+      <span className={`waiting-said${tool ? " mono" : ""}`}>
         {tool ? (tool.preview ? `${tool.name} · ${tool.preview}` : tool.name) : waitingLabel(waiting, t)}
       </span>
     </div>

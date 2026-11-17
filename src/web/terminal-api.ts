@@ -403,11 +403,14 @@ export function claimLaunch(ref: SessionRef, key: string, options: ApiOptions = 
   });
 }
 
-/** Attach to a session: a ticket for the socket, or the reason there is no pane. */
+/** Attach to a session: a ticket for the socket, or the reason there is no pane.
+ *  With the pane's size and colours, as adopt sends them: an open the engine
+ *  answers by starting a client for the session (a Codex conversation loaded
+ *  in the local Codex app server) starts it at that size and in those colours. */
 export function openTerminal(ref: SessionRef, options: ApiOptions = {}, size?: PaneSize, colours?: PaneColours): Promise<Ticketed | NotAttachable | ApiFailure> {
   const { sessionId, provider, cwd } = ref;
-  const initial = { ...(size ? { cols: size.cols, rows: size.rows } : {}), ...(colours ? { colours } : {}) };
-  return ask<Ticketed | NotAttachable>(TERMINAL_ROUTES.open, post({ sessionId, provider, cwd, ...initial }), options, body => {
+  const extra = { ...(size ? { cols: size.cols, rows: size.rows } : {}), ...(colours ? { colours } : {}) };
+  return ask<Ticketed | NotAttachable>(TERMINAL_ROUTES.open, post({ sessionId, provider, cwd, ...extra }), options, body => {
     if (!isObject(body)) return null;
     const target = targetOf(body.target);
     if (!target) return null;

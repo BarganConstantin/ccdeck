@@ -133,12 +133,14 @@ describe("the chat column", () => {
     expect(read("../styles/reading.css")).toContain("--row-tool: 24px;");
   });
 
-  it("sets a tool row 0 8, 6 round, 6 between its parts, mono 12/16", () => {
+  it("sets a tool row 0 8, 6 round, 6 between its parts, 12/16, the argument mono", () => {
     const tool = rule(chat, ".chat-tool");
     expect(tool).toContain("padding: 0 8px;");
     expect(tool).toContain("border-radius: var(--r-ctl);");
     expect(tool).toContain("gap: 6px;");
-    expect(tool).toContain("font: 400 12px/16px var(--font-mono);");
+    // CHANGED ON PURPOSE (V4 top-10 #8): mono → sans for the row, because a tool's name and its note are a label and a figure; the argument keeps mono.
+    expect(tool).toContain("font: 400 12px/16px var(--font-sans);");
+    expect(rule(chat, ".chat-tool-arg")).toContain("font-family: var(--font-mono);");
     expect(tool).toContain("color: var(--muted);");
     expect(rule(chat, ".chat-tool-name")).toMatch(/font-weight: 500;[^}]*color: var\(--text-secondary\);/);
     expect(rule(chat, ".chat-tool-arg")).toContain("text-overflow: ellipsis;");

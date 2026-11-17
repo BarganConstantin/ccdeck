@@ -7,7 +7,10 @@
 .tr-warning, .tr-tone-enabled { color: var(--warn); }
 .tr-tone-unknown { color: var(--text-secondary); }
 .tr-tone-ok { color: var(--ok); }
-.tr-body code, .tr-body time { font-family: var(--font-mono); font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.tr-body code, .tr-body time { font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+/* Code is what was typed, so mono; a time is a figure, so the sans (V4 top-10 #8). */
+.tr-body code { font-family: var(--font-mono); }
+.tr-body time { font-family: var(--font-sans); }
 .tr-body ul { list-style: none; margin: 12px 0 0; padding: 0; }
 .tr-summary { padding: 16px 20px; background: var(--bg-soft); }
 .tr-summary-state { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }

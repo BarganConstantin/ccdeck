@@ -51,7 +51,8 @@ describe("line 1, the one toggle", () => {
     expect(css).toMatch(/\.ap-rest \.ap-nav\.ap-sum \{[^}]*min-height: 28px;/);
     expect(css).toMatch(/\.ap-sum \.ap-nav-name \{[^}]*font-size: calc\(13px[^}]*font-weight: 500;[^}]*color: var\(--text\);[^}]*white-space: nowrap;/);
     // CHANGED ON PURPOSE (owner 2026-11-10 critique: type scale 11/12/13/16/22, radii 4/8/pill): a pill is the pill token.
-    expect(css).toMatch(/\.ap-sum-count \{[^}]*height: 18px;[^}]*border-radius: var\(--r-pill\);[^}]*font-family: var\(--font-mono\);/);
+    // CHANGED ON PURPOSE (V4 top-10 #8): mono → sans + tabular-nums, because the count is a figure, not code.
+    expect(css).toMatch(/\.ap-sum-count \{[^}]*height: 18px;[^}]*border-radius: var\(--r-pill\);[^}]*font-family: var\(--font-sans\);[^}]*font-variant-numeric: tabular-nums;/);
   });
 });
 

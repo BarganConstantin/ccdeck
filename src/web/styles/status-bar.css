@@ -75,7 +75,8 @@
   background: none;
   color: var(--muted);
   font: inherit;
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
+  font-variant-numeric: tabular-nums;
   font-size: calc(11px + var(--ui-text-increase, 0px));
   cursor: pointer;
 }

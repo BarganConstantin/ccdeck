@@ -121,8 +121,9 @@ describe("the period chips", () => {
 });
 
 describe("the hero and the tokens", () => {
-  it("sets the figure mono 600 22/28 --text and the words 400 12/16 --muted", () => {
-    expect(decl(".up-total-value", "font-family")).toBe("var(--font-mono)");
+  it("sets the figure tabular sans 600 22/28 --text and the words 400 12/16 --muted", () => {
+    // CHANGED ON PURPOSE (V4 top-10 #8): mono → sans + tabular-nums, because the hero figure is a figure, not code.
+    expect(decl(".up-total-value", "font-family")).toBe("var(--font-sans)");
     expect(decl(".up-total-value", "font-size")).toBe(INC(22));
     expect(decl(".up-total-value", "line-height")).toBe(INC(28));
     expect(decl(".up-total-value", "font-weight")).toBe("600");
@@ -130,9 +131,10 @@ describe("the hero and the tokens", () => {
     expect(decl(".up-total-label", "font-size")).toBe(INC(12));
     expect(decl(".up-total-label", "color")).toBe("var(--muted)");
   });
-  it("sets the tokens row with a gap of 16, values mono 12/16 --text and captions 11/14 --muted", () => {
+  it("sets the tokens row with a gap of 16, values tabular sans 12/16 --text and captions 11/14 --muted", () => {
     expect(decl(".up-tokens-row", "gap")).toBe("4px 16px");
-    expect(decl(".up-tok", "font-family")).toBe("var(--font-mono)");
+    // CHANGED ON PURPOSE (V4 top-10 #8): mono → sans + tabular-nums, because a token count is a figure, not code.
+    expect(decl(".up-tok", "font-family")).toBe("var(--font-sans)");
     expect(decl(".up-tok", "font-size")).toBe(INC(12));
     expect(decl(".up-tok", "color")).toBe("var(--text)");
     expect(decl(".up-k", "font-size")).toBe(INC(11));
@@ -148,7 +150,7 @@ describe("the hero and the tokens", () => {
 });
 
 describe("the quota sections", () => {
-  it("sets a title 600 12/16 --text-secondary in a 16-high row, in the case it is written in; the plan and age mono 11/14 --muted", () => {
+  it("sets a title 600 12/16 --text-secondary in a 16-high row, in the case it is written in; the plan and age sans 11/14 --muted", () => {
     expect(decl(".up-section-title", "font-size")).toBe(INC(12));
     expect(decl(".up-section-title", "line-height")).toBe(INC(16));
     expect(decl(".up-section-title", "min-height")).toBe("16px");
@@ -157,27 +159,30 @@ describe("the quota sections", () => {
     expect(decl(".up-section-title", "text-transform")).toBe("none");
     expect(decl(".up-section-title", "letter-spacing")).toBe("0");
     for (const sel of [".up-plan-badge", ".up-section-age"]) {
-      expect(decl(sel, "font-family")).toBe("var(--font-mono)");
+      // CHANGED ON PURPOSE (V4 top-10 #8): mono → sans + tabular-nums, because the plan and the age is a label and a figure, not code.
+      expect(decl(sel, "font-family")).toBe("var(--font-sans)");
       expect(decl(sel, "font-size")).toBe(INC(11));
       expect(decl(sel, "line-height")).toBe(INC(14));
       expect(decl(sel, "color")).toBe("var(--muted)");
     }
   });
-  it("sets a window: rows 3 apart, the name 400 12/16 --text-secondary, the percent mono 12/16 --text, the meter 2 high on --ctl-fill", () => {
+  it("sets a window: rows 3 apart, the name 400 12/16 --text-secondary, the percent tabular sans 12/16 --text, the meter 2 high on --ctl-fill", () => {
     expect(decl(".qb-row", "gap")).toBe("3px");
     expect(decl(".qb-label", "color")).toBe("var(--text-secondary)");
     expect(decl(".qb-label", "font-weight")).toBe("400");
-    expect(decl(".qb-pct", "font-family")).toBe("var(--font-mono)");
+    // CHANGED ON PURPOSE (V4 top-10 #8): mono → sans + tabular-nums, because the percent is a figure, not code.
+    expect(decl(".qb-pct", "font-family")).toBe("var(--font-sans)");
     expect(decl(".qb-pct", "font-size")).toBe(INC(12));
     expect(decl(".qb-pct[data-known]", "color")).toBe("var(--text)");
     expect(decl(".qb-track", "height")).toBe("2px");
     expect(decl(".qb-track", "border-radius")).toBe("var(--r-tag)");
     expect(decl(".qb-track", "background")).toBe("var(--ctl-fill)");
   });
-  it("sets the line under the meter 400 12/16 --muted and its note mono 11/14 --muted; footnotes 12/16 --muted", () => {
+  it("sets the line under the meter 400 12/16 --muted and its note 11/14 --muted; footnotes 12/16 --muted", () => {
     expect(decl(".qb-reset", "font-size")).toBe(INC(12));
     expect(decl(".qb-reset", "color")).toBe("var(--muted)");
-    expect(decl(".qb-pace", "font-family")).toBe("var(--font-mono)");
+    // CHANGED ON PURPOSE (V4 top-10 #8): mono → sans + tabular-nums, because the pace note is a figure, not code.
+    expect(decl(".qb-pace", "font-family")).toBe("var(--font-sans)");
     expect(decl(".qb-pace", "font-size")).toBe(INC(11));
     expect(decl(".qb-pace", "color")).toBe("var(--muted)");
     expect(decl(".up-quota-sub", "font-size")).toBe(INC(12));
@@ -197,7 +202,7 @@ describe("the quota sections", () => {
 });
 
 describe("By model and By session", () => {
-  it("sets the label row 20 high, rows 24 high two apart, the name 400 12/16 --text-secondary, tokens mono 12/16 --muted, cost mono 12/16 --text", () => {
+  it("sets the label row 20 high, rows 24 high two apart, the name 400 12/16 --text-secondary, tokens tabular 12/16 --muted, cost tabular 12/16 --text", () => {
     expect(decl(".up-section:not(.up-quota-section) .up-section-title", "min-height")).toBe("20px");
     expect(decl(".up-table", "border-spacing")).toBe("0 2px");
     expect(decl(".up-table td", "height")).toBe("24px");
@@ -214,8 +219,9 @@ describe("By model and By session", () => {
   it("keeps 'not priced' --muted", () => {
     expect(decl(".up-unpriced", "color")).toBe("var(--muted)");
   });
-  it("sets the 'active today' part mono 11/14 --muted", () => {
-    expect(decl(".up-section-age", "font-family")).toBe("var(--font-mono)");
+  it("sets the 'active today' part tabular sans 11/14 --muted", () => {
+    // CHANGED ON PURPOSE (V4 top-10 #8): mono → sans + tabular-nums, because the age is a figure, not code.
+    expect(decl(".up-section-age", "font-family")).toBe("var(--font-sans)");
     expect(decl(".up-section-age", "color")).toBe("var(--muted)");
   });
 });
