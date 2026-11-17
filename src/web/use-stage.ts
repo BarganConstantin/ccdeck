@@ -41,6 +41,7 @@ import {
   useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState,
   type Dispatch, type MutableRefObject, type SetStateAction,
 } from "react";
+import { terminalSessionId } from "./canvas-session";
 import type { BlockedSession } from "./ambient-counts";
 import { boardRect } from "./board-rect";
 import { focusCanvasNode } from "./canvas-node-element";
@@ -385,6 +386,9 @@ export function useStage({ stateRef, canvasRef, detailOpen, detailShown, setDeta
    */
   const openOn = useCallback((target: StageTarget, opts: { el?: Element | null; focusPane?: boolean; grace?: boolean } = {}) => {
     if (!enabledRef.current) return;
+    if (target.kind === "session") {
+      target = { ...target, id: terminalSessionId(stateRef.current.agents, target.id) };
+    }
     // SPLIT (#102): a session already in another pane is never opened twice
     // (no second pane, no second attach): the keys go to the pane that has it,
     // which goes on showing it as it was.
@@ -427,7 +431,7 @@ export function useStage({ stateRef, canvasRef, detailOpen, detailShown, setDeta
       grace: !!opts.grace,
       focus,
     });
-  }, [enabledRef, shellRef, canvasRef, detailOpenRef, measure, setDetailOpen, workspaceRef, splitRef, setSplit]);
+  }, [enabledRef, shellRef, canvasRef, detailOpenRef, measure, setDetailOpen, workspaceRef, splitRef, setSplit, stateRef]);
 
   /** The session on the stage is the selected one. A move that did not come
    *  through a card — a tile, j/k, the next ask, a session list row — selects
@@ -462,7 +466,7 @@ export function useStage({ stateRef, canvasRef, detailOpen, detailShown, setDeta
    *  tile and j/k, still leave the keys on the board. */
   const onNodeClick = useCallback((id: string, el: Element | null): boolean => {
     if (!enabledRef.current) return false;
-    const sessionId = stateRef.current.agents.get(id)?.sessionId ?? id;
+    const sessionId = terminalSessionId(stateRef.current.agents, id);
     openOn({ kind: "session", id: sessionId }, { el, grace: shellRef.current.phase === "closed", focusPane: true });
     return true;
   }, [enabledRef, stateRef, shellRef, openOn]);
@@ -606,6 +610,7 @@ export function useStage({ stateRef, canvasRef, detailOpen, detailShown, setDeta
    *  the pane in focus, as ↵ would, and the deck says why. */
   const openBeside = useCallback((sessionId: string, opts: { at?: string; zone?: EdgeZone } = {}) => {
     if (!enabledRef.current) return;
+    sessionId = terminalSessionId(stateRef.current.agents, sessionId);
     if (!workspaceRef.current) { openOn({ kind: "session", id: sessionId }, { focusPane: true }); follow(sessionId); return; }
     const s = splitRef.current;
     const shown = shellRef.current.phase !== "closed" ? shellRef.current.target : null;
@@ -632,12 +637,13 @@ export function useStage({ stateRef, canvasRef, detailOpen, detailShown, setDeta
     setSplit(focusSplit(added.state, added.id, shown));
     openOn({ kind: "session", id: sessionId }, { focusPane: true });
     follow(sessionId);
-  }, [enabledRef, workspaceRef, splitRef, shellRef, arrangementRef, setSplit, openOn, follow, focusPaneId]);
+  }, [enabledRef, workspaceRef, splitRef, shellRef, arrangementRef, setSplit, openOn, follow, focusPaneId, stateRef]);
 
   /** A session dropped on a pane's Here: it shows there, with the keys; the
    *  one it replaces keeps running and stays in the list. */
   const dropHere = useCallback((paneId: string, sessionId: string) => {
     if (!enabledRef.current || !workspaceRef.current) return;
+    sessionId = terminalSessionId(stateRef.current.agents, sessionId);
     const s = splitRef.current;
     const shown = shellRef.current.phase !== "closed" ? shellRef.current.target : null;
     const other = paneWith(s, sessionId, shown);
@@ -645,7 +651,7 @@ export function useStage({ stateRef, canvasRef, detailOpen, detailShown, setDeta
     if (paneId !== s.focused) setSplit(focusSplit(s, paneId, shown));
     openOn({ kind: "session", id: sessionId }, { focusPane: true });
     follow(sessionId);
-  }, [enabledRef, workspaceRef, splitRef, shellRef, setSplit, openOn, follow, focusPaneId]);
+  }, [enabledRef, workspaceRef, splitRef, shellRef, setSplit, openOn, follow, focusPaneId, stateRef]);
 
   /** A pane dragged by its header onto another pane's zone: the same pane,
    *  so the same terminal, in its new place. */

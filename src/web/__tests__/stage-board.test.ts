@@ -242,3 +242,18 @@ describe("the projects New session offers", () => {
     expect(boardProjects(agents)[0]).toEqual({ cwd: "/w/travel", name: "travel", hue: sessionHue("b"), at: NOW - MIN });
   });
 });
+
+
+it("restores a nested Codex target as its main terminal, with the parent's name and provider", () => {
+  const rows = [
+    agent("lead", { provider: "codex", label: "Main conversation" }),
+    agent("worker", { provider: "codex", parentId: "lead", kind: "subagent" }),
+    agent("reviewer", { provider: "codex", parentId: "worker", kind: "subagent" }),
+  ];
+  const shown = stageShowFor({ kind: "session", id: "reviewer" }, new Map(rows.map(a => [a.id, a])), NOW);
+  expect(shown.kind).toBe("session");
+  if (shown.kind !== "session") throw new Error("missing session");
+  expect(shown.session.ref).toEqual({ sessionId: "lead", provider: "codex", cwd: "/w/paycore" });
+  expect(shown.session.name).toBe("Main conversation");
+  expect(rows[2].sessionId).toBe("reviewer");
+});

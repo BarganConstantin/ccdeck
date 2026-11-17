@@ -1685,3 +1685,28 @@ describe("Workspace: sessions side by side (internal #102)", () => {
     expect(t.now().stage.shell.target).toEqual({ kind: "session", id: "s2" });
   });
 });
+
+
+describe("subagents open their main conversation's terminal", () => {
+  const family = () => [
+    root("lead", { provider: "codex" }),
+    root("worker", { provider: "codex", parentId: "lead", kind: "subagent" }),
+    root("reviewer", { provider: "codex", parentId: "worker", kind: "subagent" }),
+  ];
+  it.each(["worker", "reviewer"])("opens the main terminal when %s is clicked", id => {
+    const { now, turnOn } = setup({ agents: family() });
+    turnOn();
+    now().stage.onNodeClick(id, page.card as unknown as Element);
+    expect(now().stage.shell.target).toEqual({ kind: "session", id: "lead" });
+  });
+  it("reuses the parent's existing pane when a nested child is opened beside it or dropped", () => {
+    const { now, turnOn } = setup({ agents: family(), view: "workspace" });
+    turnOn();
+    now().stage.switchTo("lead", { focusPane: false });
+    now().stage.openBeside("reviewer");
+    expect(paneIds(now().stage.split.root)).toHaveLength(1);
+    expect(now().stage.shell.target).toEqual({ kind: "session", id: "lead" });
+    now().stage.dropHere(now().stage.split.focused, "worker");
+    expect(now().stage.shell.target).toEqual({ kind: "session", id: "lead" });
+  });
+});

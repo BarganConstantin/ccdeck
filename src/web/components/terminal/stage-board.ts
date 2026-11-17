@@ -14,6 +14,7 @@
 // label). Nothing here is worded twice. The session's hue (sessionHue) still
 // rides along, though the cluster wears none and the stage paints none since
 // V4 top-10 #1.
+import { terminalSessionId } from "../../canvas-session";
 import { isAlarming, type BlockedSession } from "../../ambient-counts";
 import { t } from "../../i18n";
 import { SEP } from "../../cluster-header";
@@ -140,7 +141,7 @@ export function stageShowFor(
       ...(target.options ? { options: target.options } : {}),
     };
   }
-  const id = target.id;
+  const id = terminalSessionId(agents, target.id);
   const launch = target.launch ? { launch: target.launch } : {};
   const root = agents.get(id);
   if (!root) {
