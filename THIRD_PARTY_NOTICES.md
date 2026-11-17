@@ -966,3 +966,48 @@ COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
 IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ```
+
+
+## Claude Code and Codex provider marks — LobeHub via Herdr
+
+The SVGs below are copied byte for byte from Herdr commit `321c9a84bc928f1c31be59e73dad966d86a3e252`,
+with their original colours and artwork unchanged. They identify third-party
+providers and are separate from the ccdeck brand kit.
+
+| Distributed asset | Herdr source | SHA-256 |
+| --- | --- | --- |
+| `src/web/assets/providers/claude-code.svg` | [claude.svg](https://github.com/herdrdev/herdr-app/blob/321c9a84bc928f1c31be59e73dad966d86a3e252/defaults/icons/claude.svg) | `670b3d8d749d0815ad8f7e62a59d51cb5e2053cb19403f3541a8aed7036a877f` |
+| `src/web/assets/providers/codex.svg` | [codex.svg](https://github.com/herdrdev/herdr-app/blob/321c9a84bc928f1c31be59e73dad966d86a3e252/defaults/icons/codex.svg) | `4a2f43ce46b5b6e3722c95088f88d26ef91e6a8c2e598e70642a1c54367386e4` |
+
+Herdr’s [icon attribution](https://github.com/herdrdev/herdr-app/blob/321c9a84bc928f1c31be59e73dad966d86a3e252/defaults/icons/LICENSES.md) identifies agent icons as
+LobeHub icons (MIT) and the agents’ own marks. Original icon project:
+[LobeHub Icons](https://github.com/lobehub/lobe-icons). Herdr does not document
+an original LobeHub revision or individual source URL for these two files.
+Trademark rights are not granted by the MIT licence.
+
+The full [LobeHub notice supplied by Herdr](https://github.com/herdrdev/herdr-app/blob/321c9a84bc928f1c31be59e73dad966d86a3e252/defaults/icons/LICENSE-LobeHub.txt)
+is reproduced unchanged:
+
+```text
+MIT License
+
+Copyright (c) 2023 LobeHub
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+```

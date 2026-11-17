@@ -16,7 +16,7 @@ import { useT } from "../i18n";
 import SessionNameField, { useRenaming } from "./SessionNameField";
 import { isRenameKey, type RenameFacts } from "../session-rename";
 import { beginDrag, endDrag } from "../split-drag";
-import PaneBadge from "./PaneBadge";
+import ProviderAvatar from "./ProviderAvatar";
 import type { PaneLink } from "../workspace-split";
 
 /** The 14px status glyph. Working breathes on --pulse-live and nothing else
@@ -148,7 +148,9 @@ export function RailRow({ row: r, group, now, selected, removed, leaving, landNo
   const detail = !compact || showContext || group === 0 || !!r.twin || removed || !!failed || r.state === "err" || !r.folder;
   const line = detail ? railLine(r, group) : null;
   // A row that reads like another (twinClocks) ends it with when it started.
-  const start = r.twin ? twinStart(r.startedAt, r.twin) : null;
+  // An open pane is also identified in the tooltip. Keep its exact clock there
+  // instead of squeezing a waiting command beside a second timestamp.
+  const start = r.twin && !(compact && pane) ? twinStart(r.startedAt, r.twin) : null;
   const worded = !!(line || removed || failed);
   const lined = worded || !!start;
   const time = railTime(r, group, now);
@@ -213,35 +215,38 @@ export function RailRow({ row: r, group, now, selected, removed, leaving, landNo
           onClick={() => onSelect(r.sessionId)}
           onDoubleClick={rename ? renaming.start : undefined}
           onKeyDown={openKeysOnEnter(r.sessionId, onOpenKeys)}
-          title={rowTooltip(r, removed)}
+          title={[rowTooltip(r, removed), pane ? t(pane.active ? "board.stage.split.activePane" : "board.stage.split.paneNumber", { number: pane.number }) : ""].filter(Boolean).join("\n")}
         >
           {/* Once, on the row a jump arrived at; a new nonce is a new element,
               so the fade runs again for the next jump. */}
           {lit != null && <span key={lit} className="sl-land" aria-hidden onAnimationEnd={() => setLit(null)} />}
           {/* The glyph stays hidden and the state beside it is in words, ahead
               of the name, so the row's name says what the glyph shows (#373). */}
-          <RailGlyph kind={railGlyph(r, group)} />
+          {compact ? <ProviderAvatar provider={r.provider ?? "claude"} /> : <RailGlyph kind={railGlyph(r, group)} />}
           <span className="vis-hidden">{stateLabel(r.state)}</span>
           {/* What the row no longer draws, for a screen reader and for touch,
               where the tooltip is not reached. */}
           <span className="vis-hidden">{rowSpoken(r)}</span>
-          {compact && !detail && r.task && <span className="vis-hidden">{r.task}</span>}
+          {compact && !detail && <span className="vis-hidden">{[r.folder, r.task].filter(Boolean).join(" · ")}</span>}
           <span className="sl-text">
             <span className="sl-line1">
               {/* The name alone: the model that stood after it, in mono, is
                   the Inspector's to say (V4 top-10 #5). */}
               <span className="sl-name">
                 <span className="sl-label">{r.label}</span>
-                {compact && !detail && r.folder && <span className="sl-project">{r.folder}</span>}
+                {compact && !detail && r.folder && <span className="sl-project" aria-hidden="true">{r.folder}</span>}
                 {/* Said after the name, as the Feedback list says an unread
                     conversation; the dot is for the eye. */}
                 {unread && <span className="vis-hidden">{t("shell.feedback.unreadSuffix")}</span>}
               </span>
-              {pane && <PaneBadge pane={pane} />}
+              {pane && <span className="vis-hidden">{t(pane.active ? "board.stage.split.activePane" : "board.stage.split.paneNumber", { number: pane.number })}</span>}
               {/* The unread dot, in the accent the stripes' doors use for
                   something unread, just before the age (V4 top-10, inbox). */}
               {unread && <span className="sl-unread" aria-hidden />}
-              {time && <span className={`sl-time ${time.tone}`}><span className="vis-hidden">{time.spoken}</span>{time.text}</span>}
+              <span className="sl-row-status">
+                {time && <span className={`sl-time ${time.tone}`}><span className="vis-hidden">{time.spoken}</span>{time.text}</span>}
+                {compact && <RailGlyph kind={railGlyph(r, group)} />}
+              </span>
             </span>
             {lined && (start
               ? (

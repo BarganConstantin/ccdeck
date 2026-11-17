@@ -7,6 +7,7 @@
    A flex column of a header, the list, which is what scrolls, and the removed
    cards' line at the foot. */
 .session-list {
+  container: session-list / inline-size;
   width: calc(var(--rail-w) + var(--ui-panel-increase, 0px));
   background: var(--panel);
   border-right: 1px solid var(--line);
@@ -159,15 +160,23 @@
 /* Workspace's simple rows give the task one line. Density and enlarged text
    still set the floor; rows explaining a wait, a failure or a twin keep two. */
 .session-list .sl-row[data-compact] { align-items: center; }
+.session-list .sl-row[data-compact]:not([data-one-line]) {
+  min-height: max(calc(var(--row-rail) + 6px), calc(50px + 2 * var(--ui-text-increase, 0px)));
+  padding-block: 7px;
+}
 .session-list .sl-row[data-compact][data-one-line] {
   min-height: max(calc(var(--row-rail) - 10px), calc(34px + 2 * var(--ui-text-increase, 0px)));
 }
-.session-list .sl-row[data-compact] .sl-glyph { align-self: flex-start; margin-top: 3px; }
-.session-list .sl-row[data-compact][data-one-line] .sl-glyph { align-self: center; margin-top: 0; padding-top: 0; }
+.session-list .sl-row[data-compact] > .provider-avatar { align-self: flex-start; margin-top: 0; }
+.session-list .sl-row[data-compact][data-one-line] > .provider-avatar { align-self: center; }
+.session-list .sl-row-status { flex: none; display: inline-flex; align-items: center; gap: 6px; }
+.session-list .sl-row-status .sl-glyph { height: 14px; padding: 0; }
 .session-list .sl-row[data-compact] .sl-name { flex: 1; }
 .session-list .sl-row[data-compact] .sl-label { font-weight: 500; line-height: calc(20px + var(--ui-text-increase, 0px)); }
 .session-list .sl-row[data-compact].selected .sl-label { font-weight: 600; }
+.session-list .sl-row[data-compact][data-pane-active] { background: var(--selected); }
 .session-list .sl-row[data-compact] .sl-line2 { line-height: calc(16px + var(--ui-text-increase, 0px)); }
+.session-list .sl-row[data-compact]:not([data-one-line]) .sl-line2 { margin-top: 3px; }
 .session-list .sl-project {
   flex: 0 1 auto;
   max-width: 72px;
@@ -176,6 +185,11 @@
   white-space: nowrap;
   color: var(--text-secondary);
   font-size: calc(11px + var(--ui-text-increase, 0px));
+}
+/* The project is already in the tooltip and accessible name. A narrow rail
+   gives the task its full name rather than showing two competing ellipses. */
+@container session-list (max-width: 300px) {
+  .session-list .sl-project { display: none; }
 }
 /* A narrow list gives the task its name before the optional project suffix. */
 .session-list .sl-row[data-compact] .sl-label { flex: 1 1 auto; }

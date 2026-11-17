@@ -122,6 +122,8 @@
    length. No !important: each selector is spelled as the rule it
    answers, and this block comes last. */
 @media (forced-colors: active) {
+  .pane-badge { border: 1px solid CanvasText; }
+  .pane-badge[data-active] { forced-color-adjust: none; color: HighlightText; background: Highlight; border-color: Highlight; }
 
   /* The text-field family draws focus with its border colour alone (tokens.css),
      and a Contrast theme replaces border colours: give it the ring back, in

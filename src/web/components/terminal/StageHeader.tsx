@@ -70,6 +70,7 @@ import { formatPercent } from "../../i18n/format";
 import { BackGlyph, CloseGlyph, CollapseGlyph, ExpandGlyph, KeyboardGlyph, StageGlyph, glyphForState } from "./stage-icons";
 import TextSizeControl, { type TextSizeView } from "./TextSizeControl";
 import PaneBadge from "../PaneBadge";
+import ProviderAvatar from "../ProviderAvatar";
 import type { PaneLink } from "../../workspace-split";
 import { canGoLarger, canGoSmaller } from "../../terminal-text-size";
 
@@ -317,7 +318,7 @@ export default function StageHeader(p: StageHeaderProps) {
       )}
       <div className="ts-id" key={p.identity}>
         {p.paneLink && <PaneBadge pane={p.paneLink} />}
-        {glyph && <StageGlyph kind={glyph} />}
+        {p.workspace && p.provider ? <ProviderAvatar provider={p.provider} /> : glyph && <StageGlyph kind={glyph} />}
         {renaming?.on
           ? <SessionNameField facts={renaming.facts} place="header" onDone={renaming.done} />
           : <h2 className="ts-name" data-renamable={renaming ? "" : undefined} onDoubleClick={renaming?.start}>{p.name}</h2>}
@@ -329,7 +330,7 @@ export default function StageHeader(p: StageHeaderProps) {
           </button>
         )}
         {/* The provider, in words, where the model chip used to say it. */}
-        {p.provider && <span className="vis-hidden">{agentName(p.provider)}</span>}
+        {p.provider && !p.workspace && <span className="vis-hidden">{agentName(p.provider)}</span>}
         {/* One state word, only where the state is not the normal one; the
             rest of the sentence in its tooltip and for a screen reader. */}
         {word ? (

@@ -14,7 +14,7 @@ import { isAlarming } from "../ambient-counts";
 import { useT } from "../i18n";
 import { agentCost } from "../usage-models";
 import type { GraphState } from "../reducer";
-import type { BackgroundJob, SessionRecap, WaitingBlock } from "../types";
+import type { BackgroundJob, Provider, SessionRecap, WaitingBlock } from "../types";
 import { sessionNoteShown, type SessionNote } from "../session-note";
 import { drawnState, neverPrompted } from "../node-face";
 import { isAgentVisible } from "../visibility";
@@ -41,6 +41,7 @@ import type { MeterQuota } from "../use-quota";
 
 export interface Row {
   sessionId: string;
+  provider?: Provider;
   /** The row's title: the session's name as its card draws it (the user's
    *  name, else Claude Code's title), else its folder (owner, 2026-11-10). */
   label: string;
@@ -175,6 +176,7 @@ export function buildRows(state: GraphState, now: number, watching?: ReadonlySet
     const { title: label, folder, task } = sessionNames(a);
     rows.push({
       sessionId: a.sessionId,
+      provider: a.provider ?? "claude",
       label,
       cwdBasename: a.cwdBasename,
       // A turn that stopped on an error is drawn as a failure here as on its

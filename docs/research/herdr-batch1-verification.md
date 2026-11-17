@@ -5,15 +5,19 @@ Pregătit pentru verificarea vizuală a proprietarului, înainte de integrare.
 
 ## Comportament
 
-- În Workspace, sesiunile cu nume distinct ocupă un rând compact, cu proiectul
-  lângă nume. Așteptările, erorile, sesiunile eliminate și numele duplicate
+- În Workspace, sesiunile cu nume distinct ocupă un rând compact. Proiectul
+  apare lângă nume numai peste 300px; la lățimi mai mici rămâne în detalii și
+  în numele accesibil. Așteptările, erorile, sesiunile eliminate și numele duplicate
   păstrează explicația. Lista de pe Board își păstrează forma.
 - La densitatea Compact, un rând simplu are 34px; la Default/Comfortable are
   minimum 50px. Textul mărit poate crește rândul; dispozitivele touch păstrează
   minimum 44px. Informația completă rămâne în tooltip și în numele accesibil.
-- Un număr comun leagă rândul unei sesiuni deschise de header-ul panoului său.
-  Numerele urmează ordinea panourilor, inclusiv în strip-ul de zoom. Panoul activ
-  are un contur distinct; aceasta nu afirmă că terminalul primește tastatura.
+- Iconurile Claude Code și Codex apar în listă și în headere; starea este separată,
+  lângă timp. Numerele panourilor rămân în header, tooltip și numele accesibil al
+  rândului, fără badge vizibil în listă. Panoul activ păstrează semnalizarea sa.
+- Rândurile cu explicații au mai mult spațiu vertical: 53px măsurați la Compact.
+  Pentru gemenii deja deschiși într-un panou, ora exactă rămâne în tooltip,
+  eliberând linia comenzii. Gemenii fără panou păstrează ceasul de diferențiere.
 - Rândurile instrumentelor din Chat nu mai afișează săgeți fără expandare.
 
 Gruparea după atenție, selecția, traseele Enter/Shift+Enter și ciclul de viață
@@ -26,12 +30,13 @@ Pe Node 22:
 
 - `npm run typecheck` — trecut.
 - `npm run build` — trecut; avertismentul existent despre dimensiunea chunk-urilor.
-- 435 teste trecute, 14 fișiere: `v4-rail`, `rail-row-tell`, `v4-chat-view`,
+- 529 teste trecute, 17 fișiere: `v4-rail`, `rail-row-tell`, `v4-chat-view`,
   `workspace-split`, `workspace-split-wiring`, `v4-workspace-keys`,
   `v4-workspace-keys-behavior`, `i18n`, `chat-i18n`, `contrast-floors`,
   `v4-workspace-review`, `v4-workspace-layout`, `workspace-session-links`,
-  `workspace-compact-rows` din `src/web/__tests__/`.
-- Ultimele două fișiere adaugă 33 de regresii pentru ținta actuală a panoului,
+  `workspace-compact-rows`, `terminal-stage-view`, `brand-kit`, `notices-bundle`
+  din `src/web/__tests__/`.
+- Fișierele `workspace-session-links` și `workspace-compact-rows` au 39 de regresii pentru ținta actuală a panoului,
   numerotare, contextul rândurilor și absența expandării false.
 - Review independent al logicii: fără defecte identificate.
 - Detectorul Impeccable pe componentele schimbate: zero alerte.
@@ -50,6 +55,9 @@ Pe Node 22:
 - Contrast compus al numărului activ din lista selectată, după corecție:
   Rider Black 6.59:1, Light 12.81:1, White Contrast 12.24:1, Dark 7.67:1.
   Acesta este un eșantion al noii componente, nu o certificare a întregului UI.
+  În revizia cu avataruri, numărul nu mai este desenat în listă; stilul său
+  rămâne în header. Iconurile sunt fișierele originale, cu proveniența și
+  licența reproduse în `THIRD_PARTY_NOTICES.md`.
 - Conversațiile sintetice trec prin ruta reală de transcript Claude. Instrumentele
   se afișează fără săgeți de expandare.
 

@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { RailRow, type RailRowProps } from "../components/RailParts";
-import SessionList, { type Row } from "../components/SessionList";
+import SessionList, { buildRows, type Row } from "../components/SessionList";
 import StageHeader, { type StageHeaderProps } from "../components/terminal/StageHeader";
 import { ToolRow } from "../components/chat/ChatTurn";
 import { FileGlyph, SearchGlyph, ToolTerminalGlyph } from "../components/chat/chat-icons";
@@ -67,10 +67,13 @@ describe("compact session rows", () => {
     expect(visibleText(out)).toContain("Workspace navigation");
     expect(visibleText(out)).toContain("web-api");
     expect(visibleText(out)).not.toContain(TASK);
-    expect(out).toContain(`<span class="vis-hidden">${TASK}</span>`);
+    expect(out).toContain(`<span class="vis-hidden">web-api · ${TASK}</span>`);
+    expect(out).toContain('<span class="sl-project" aria-hidden="true">web-api</span>');
     expect(out).toMatch(/title="[^"]*Repair keyboard navigation in the workspace/);
     expect(text(out).split(TASK)).toHaveLength(2);
-    expect(text(out).split("web-api")).toHaveLength(2);
+    expect(text(out).split("web-api")).toHaveLength(3);
+    const accessible = out.replace(/<span class="sl-project" aria-hidden="true">[\s\S]*?<\/span>/g, "");
+    expect(text(accessible).split("web-api")).toHaveLength(2);
   });
 
   it.each([false, true])("retains explicitly requested context when compact=%s", compact => {
@@ -80,7 +83,7 @@ describe("compact session rows", () => {
     expect(visibleText(out)).toContain(`web-api · ${TASK}`);
     expect(text(out).split(TASK)).toHaveLength(2);
     expect(text(out).split("web-api")).toHaveLength(2);
-    expect(out).not.toContain(`<span class="vis-hidden">${TASK}</span>`);
+    expect(out).not.toContain(`<span class="vis-hidden">web-api · ${TASK}</span>`);
   });
 
   it("preserves the Board's task detail when compact is omitted", () => {
@@ -97,6 +100,30 @@ describe("compact session rows", () => {
     } }) });
     expect(out).toContain("sl-line2");
     expect(visibleText(out)).toContain("Bash · npm test -- workspace");
+    expect(out).not.toContain('data-one-line="true"');
+  });
+
+  it.each([false, true])("gives a waiting twin's command the second line in pane 3 when active=%s", active => {
+    const startedAt = NOW - 30 * 60_000;
+    const clock = new Date(startedAt).toLocaleTimeString("en", { hour: "2-digit", minute: "2-digit" });
+    const out = drawRow({ group: 0, pane: { number: 3, active }, row: row({
+      provider: "codex", twin: "second", startedAt,
+      waiting: {
+        kind: "permission", message: "Allow the test command?", since: NOW - 27 * 60_000,
+        tool: { name: "Bash", preview: "npm test -- workspace" },
+      },
+    }) });
+    const line2 = out.slice(out.indexOf('<span class="sl-line2'));
+    expect(visibleText(line2)).toContain("Bash · npm test -- workspace");
+    expect(out).not.toContain("sl-start");
+    expect(out).not.toContain("pane-badge");
+    expect(visibleText(out)).not.toContain(clock);
+    expect(visibleText(out)).toContain("27m");
+    const tooltip = out.match(/\btitle="([^"]*)"/)?.[1];
+    expect(tooltip).toContain("Started ");
+    expect(tooltip).toContain(clock);
+    expect(tooltip).toContain(active ? "Active pane 3" : "Pane 3");
+    expect(out).toContain(`<span class="vis-hidden">${active ? "Active pane 3" : "Pane 3"}</span>`);
     expect(out).not.toContain('data-one-line="true"');
   });
 
@@ -147,15 +174,52 @@ describe("compact session rows", () => {
   });
 });
 
-function addSession(state: GraphState, id: string, title: string, prompt: string): void {
+function addSession(state: GraphState, id: string, title: string, prompt: string, provider?: HookPayload["provider"]): void {
   const send = (payload: HookPayload) => applyEvent(state, {
     seq: state.lastSeq + 1, receivedAt: NOW - 1_000 + state.lastSeq,
     source: "hook", payload: { session_id: id, ...payload },
   });
-  send({ hook_event_name: "SessionStart", cwd: "/repo/web-api" });
+  send({ hook_event_name: "SessionStart", cwd: "/repo/web-api", provider });
   send({ hook_event_name: "UserPromptSubmit", prompt });
   send({ hook_event_name: "SessionNamed", sessionName: null, sessionTitle: title });
 }
+
+describe("compact session provider identity", () => {
+  it.each([
+    { provider: "claude" as const, name: "Claude Code", asset: "claude-code.svg", title: "Review Codex support" },
+    { provider: "codex" as const, name: "Codex", asset: "codex.svg", title: "Review Claude support" },
+  ])("carries the actual $provider provider through buildRows to the avatar", ({ provider, name, asset, title }) => {
+    const state = initialState();
+    addSession(state, "provider-session", title, TASK, provider);
+    expect(buildRows(state, NOW).find(r => r.sessionId === "provider-session")?.provider).toBe(provider);
+    const out = renderToStaticMarkup(createElement(SessionList, {
+      state, now: NOW, selectedIds: new Set<string>(), onSelect: noop,
+      onClose: noop, onOpenKeys: noop,
+    }));
+    const button = rowButton(out, "provider-session");
+    const avatar = button.match(/<img\b[^>]*>/g) ?? [];
+    expect(avatar).toHaveLength(1);
+    expect(avatar[0]).toContain(`alt="${name}"`);
+    expect(avatar[0]).toContain(`/assets/providers/${asset}`);
+    expect(button.indexOf(avatar[0])).toBeLessThan(button.indexOf('class="sl-text"'));
+    expect(button.match(/data-glyph=/g)).toHaveLength(1);
+    expect(button.indexOf('data-glyph="working"')).toBeGreaterThan(button.indexOf('class="sl-row-status"'));
+    expect(visibleText(button)).toContain(title);
+  });
+
+  it("uses Claude Code for legacy rows without a provider", () => {
+    const out = drawRow();
+    expect(out).toMatch(/<img\b[^>]*alt="Claude Code"/);
+    expect(out).toContain("/assets/providers/claude-code.svg");
+  });
+
+  it("keeps the Board row's leading status mark", () => {
+    const out = drawRow({ compact: false, row: row({ provider: "codex" }) });
+    expect(out).not.toContain("provider-avatar");
+    expect(out.match(/data-glyph=/g)).toHaveLength(1);
+    expect(out.indexOf('data-glyph="working"')).toBeLessThan(out.indexOf('class="sl-text"'));
+  });
+});
 
 describe("compact SessionList title collisions", () => {
   const title = "Review the shared workspace navigation and keyboard behavior";
@@ -194,17 +258,21 @@ describe("compact SessionList title collisions", () => {
 });
 
 describe("pane references in rows and headers", () => {
-  it.each([true, false])("shares badge markup and an accessible number when active=%s", active => {
+  it.each([true, false])("keeps the row's pane accessible and the header's badge visible when active=%s", active => {
     const pane: PaneLink = { number: 3, active };
-    const inRow = badge(drawRow({ pane }));
+    const inRow = drawRow({ pane });
     const inHeader = badge(drawHeader(pane));
-    expect(inRow).toBe(inHeader);
     const label = active ? "Active pane 3" : "Pane 3";
-    expect(inRow).toContain(`title="${label}"`);
+    expect(inRow).not.toContain("pane-badge");
     expect(inRow).toContain(`<span class="vis-hidden">${label}</span>`);
-    expect(inRow).toContain('<span aria-hidden="true">3</span>');
-    expect(inRow.includes('data-active="true"')).toBe(active);
-    expect(inRow).not.toMatch(/<button|role="button"|aria-pressed|aria-expanded/);
+    expect(inRow).toMatch(new RegExp(`title="[^"]*${label}"`));
+    expect(visibleText(inRow)).not.toContain(label);
+    expect(inRow.includes('data-pane-active="true"')).toBe(active);
+    expect(inHeader).toContain(`title="${label}"`);
+    expect(inHeader).toContain(`<span class="vis-hidden">${label}</span>`);
+    expect(inHeader).toContain('<span aria-hidden="true">3</span>');
+    expect(inHeader.includes('data-active="true"')).toBe(active);
+    expect(inHeader).not.toMatch(/<button|role="button"|aria-pressed|aria-expanded/);
   });
 
   it("draws no badge in either surface without a pane link", () => {

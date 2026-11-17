@@ -239,7 +239,8 @@ describe("Rail / Row", () => {
 
   it("takes a tooltip for everything the old row drew and this one does not", () => {
     const parts = code("../components/RailParts.tsx");
-    expect(parts).toContain("title={rowTooltip(r, removed)}");
+    // The tooltip now appends the pane reference, preserving the complete original text.
+    expect(parts).toContain('title={[rowTooltip(r, removed), pane ?');
     expect(parts).not.toMatch(/sl-cost|sl-plan|sl-recap|sl-status|sl-elapsed|model-chip/);
   });
 
@@ -913,7 +914,8 @@ describe("review fixes: what the rows sort and say", () => {
     expect(spoken).toContain("suggested reply: ship it");
     const parts = code("../components/RailParts.tsx");
     expect(parts).toMatch(/<span className="vis-hidden">\{rowSpoken\(r\)\}<\/span>/);
-    expect(parts).toContain("title={rowTooltip(r, removed)}");
+    // The tooltip now appends the pane reference, preserving the complete original text.
+    expect(parts).toContain('title={[rowTooltip(r, removed), pane ?');
     // The row, rendered: the words are in its button.
     const html = renderToStaticMarkup(createElement(SessionList, {
       state: board(), now: T0 + 100_000, selectedIds: new Set<string>(), onSelect: () => {}, onClose: () => {},
