@@ -54,8 +54,6 @@ export {
 export { BLOCK_GUESS_WINDOW_MS } from "./waiting-block";
 // And the window a repeated prompt is one submission inside, for its tests.
 export { PROMPT_REDELIVERY_WINDOW_MS } from "./redelivery";
-// And each session's accent, which the canvas, the cards and the clusters draw.
-export { sessionHue } from "./session-hue";
 
 export function applyEvent(state: GraphState, env: HookEnvelope): GraphState {
   // `seq` is only monotonic *within one server process*. A restart re-derives

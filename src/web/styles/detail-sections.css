@@ -22,6 +22,8 @@
 .detail-hero .hero-state[data-state="idle"] { color: var(--muted); }
 .detail-hero .hero-state[data-state="error"] { color: var(--err); }
 .detail-hero .hero-state[data-state="working"] { color: var(--inflight); }
+/* Finished with failed calls: one warn mark, as on the card (V4 top-10 #9). */
+.detail-hero .hero-state[data-state="partial"] { color: var(--warn); }
 .detail-hero .hero-title {
   margin: 0;
   font-size: calc(16px + var(--ui-text-increase, 0px));

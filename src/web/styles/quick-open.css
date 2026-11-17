@@ -176,8 +176,9 @@ kbd.qo-key, .qo-esc, .qo-foot kbd, .fb-shortcut kbd {
 .qo-state[data-kind="waiting"] { color: var(--warn); }
 .qo-state[data-kind="working"] { color: var(--inflight); }
 .qo-state[data-kind="done"] { color: var(--ok); }
-/* The tick in done's ink; its dot is --warn by the kit's own rule (.kit-warn). */
-.qo-state[data-kind="partial"] { color: var(--ok); }
+/* Finished with failed calls: tick and dot both --warn, one warn mark as on
+   the card (V4 top-10 #9; the tick was done's green). */
+.qo-state[data-kind="partial"] { color: var(--warn); }
 .qo-state[data-kind="error"] { color: var(--err); }
 .qo-state[data-kind="idle"] { color: var(--muted); }
 

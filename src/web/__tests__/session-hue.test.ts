@@ -12,14 +12,17 @@
 // file is where it is checked — every hue 0..359, every tier, both themes, no
 // DOM, exactly like contrast-floors.test.ts and manage-block.test.ts before it.
 //
-// Two things it deliberately does NOT do:
-//   * lift the dark theme. #330 fixes light and pins dark, so the one dark
-//     shortfall it names (the node accent at 3.13:1 on --panel, thin as TEXT
-//     even before this change) is recorded below as a pinned number rather
-//     than quietly raised. Raising it is a dark-theme edit and a separate call.
-//   * hold the two alpha-carrying cluster rims to 1.4.11. They cannot reach it
-//     — the ceiling for a 32% wash on white is 2.19:1 — and the test proves
-//     that ceiling rather than asserting the exemption.
+// CHANGED ON PURPOSE (V4 top-10 #1): six of the seven sites this file swept
+// were a SESSION's hue — the cluster label and its rim, the box's rim and its
+// 4% wash, the card's accent, and the live and settled edges — and all of them
+// are gone. A hash of an id is not a meaning, and on the board colour means
+// state only: the label is --muted text, the box a 3% wash of --text with no
+// rim, the card reads the deck's --accent, and an edge is --inflight while the
+// session works and --muted once it has settled. Their five lightness tiers
+// left the theme catalog with them. What is left of #330 is the MCP server's
+// hue (the burst stripe and the category chip), still composed from a
+// per-theme tier and still swept here exactly as before; the session half now
+// asserts the opposite of what it did — nothing composes a session's hue.
 import { describe, it, expect } from "vitest";
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
@@ -35,11 +38,11 @@ const COMPONENTS: Record<string, string> = {
   // The detail panel, out of App.tsx — its MCP category chip hands a hue across.
   "Detail.tsx": src("../components/Detail.tsx"),
   // The canvas's nodes and edges, out of App.tsx since #1175 — the two sites
-  // that hand a session's hue across the boundary moved with them.
+  // that used to hand a session's hue across the boundary moved with them.
   "canvas-flow.ts": src("../canvas-flow.ts"),
   "SessionClusters.tsx": src("../components/SessionClusters.tsx"),
   // The cluster box's and label's inline styles, out of SessionClusters.tsx's
-  // render — the hue crosses the boundary where they are built.
+  // render — where the hue used to cross the boundary for them.
   "cluster-bounds.ts": src("../cluster-bounds.ts"),
   "AgentNode.tsx": src("../components/AgentNode.tsx"),
   "ToolBursts.tsx": src("../components/ToolBursts.tsx"),
@@ -112,8 +115,9 @@ function contrastRatio(a: Rgba, b: Rgba): number {
   return (Math.max(la, lb) + 0.05) / (Math.min(la, lb) + 0.05);
 }
 
-/** CIE76 ΔE, for the one question contrast cannot answer: whether two sessions
- *  whose hues landed near each other are still telling themselves apart. */
+/** CIE76 ΔE, for the one question contrast cannot answer: whether two MCP
+ *  servers whose hues landed near each other are still telling themselves
+ *  apart. */
 function lab(c: Rgba): [number, number, number] {
   const lin = (v: number) => { const n = v / 255; return n <= 0.04045 ? n / 12.92 : Math.pow((n + 0.055) / 1.055, 2.4); };
   const [r, g, b] = [c[0], c[1], c[2]].map(lin);
@@ -255,12 +259,12 @@ function surfaces(theme: Theme): Record<string, Rgba> {
  *  against the whole set rather than counting a Record it looks up by name. */
 const BEDS = ["--panel", "--bg-soft", "--bg", "--node-grad stop 0", "--node-grad stop 1"];
 
-// ── the eight colours, as the sheet now writes them ─────────────────────────
+// ── the colours a hue still composes, as the sheet writes them ──────────────
 
 /** One generated colour: the constant half (saturation, alpha) that says what
  *  the thing IS, and the token that says how bright it has to be to survive
  *  the canvas it lands on. `beds` is every opaque surface it can be read
- *  against — the edges name only the canvas because nodes paint over them. */
+ *  against. */
 interface Site {
   name: string;
   where: string;
@@ -273,15 +277,11 @@ interface Site {
   was: number;
 }
 
+// CHANGED ON PURPOSE (V4 top-10 #1): this list held the six session sites as
+// well — cluster label, node accent, live edge, settled edge, label rim and
+// card rim. They left the sheet with the session hue; the MCP stripe is the
+// one #330 site that still composes a hue.
 const SITES: Site[] = [
-  { name: "cluster label", where: ".cluster-label", s: 70, token: "--session-label-l", alpha: 1,
-    role: "text", beds: ["--bg", "--bg-soft", "--panel"], was: 78 },
-  { name: "node accent", where: ".agent-node", s: 70, token: "--session-accent-l", alpha: 1,
-    role: "text", beds: ["--panel", "--bg-soft", "--bg", "--node-grad stop 0", "--node-grad stop 1"], was: 60 },
-  { name: "live edge", where: ".react-flow__edge.sess-edge.sess-live .react-flow__edge-path", s: 80,
-    token: "--session-edge-l", alpha: 1, role: "graphic", beds: ["--bg"], was: 72 },
-  { name: "settled edge", where: ".react-flow__edge.sess-edge.sess-idle .react-flow__edge-path", s: 50,
-    token: "--session-edge-idle-l", alpha: 1, role: "graphic", beds: ["--bg"], was: 55 },
   // #330's eighth site was the topbar's MCP legend dot, on --panel / --bg-soft /
   // --bg. The legend has been removed from the strip, and with it the only place
   // an --mcp-dot-l hue was ever painted outside the detail panel — so the tier
@@ -291,11 +291,10 @@ const SITES: Site[] = [
   // number below did not move when the site did.
   { name: "mcp burst stripe", where: ".tool-burst.cat-mcp.mcp-hue", s: 65, token: "--mcp-dot-l", alpha: 1,
     role: "graphic", beds: ["--panel"], was: 65 },
-  { name: "cluster label rim", where: ".cluster-label", s: 65, token: "--session-rim-l", alpha: 0.5,
-    role: "decoration", beds: ["--bg", "--bg-soft"], was: 55 },
-  { name: "cluster card rim", where: ".cluster-card", s: 65, token: "--session-rim-l", alpha: 0.32,
-    role: "decoration", beds: ["--bg"], was: 55 },
 ];
+
+/** The session's five lightness tiers, which went with the colours they lit. */
+const SESSION_TIERS = ["--session-label-l", "--session-accent-l", "--session-rim-l", "--session-edge-l", "--session-edge-idle-l"];
 
 const FLOOR = { text: BODY, graphic: NON_TEXT, decoration: 0 } as const;
 
@@ -410,8 +409,7 @@ describe("every generated colour clears its floor in light, for every hue", () =
   it("is the fix and not a rounding — every one of them failed before", () => {
     // The same sweep against the lightness JS used to hard-code. Six of the
     // eight #330 measured sat between 1.05:1 and 1.82:1 on this canvas; none
-    // reached its floor, and the two rims could not have. One of the eight, the
-    // topbar's MCP legend dot, has since left the app; the rest still answer.
+    // reached its floor. The MCP stripe is the one of them still painted.
     for (const site of SITES) {
       const w = worst(site, site.was, "light");
       expect(w.ratio, `${site.name} at the old ${site.was}%`).toBeLessThan(NON_TEXT);
@@ -429,75 +427,77 @@ describe("the dark theme did not move", () => {
   });
 
   it("keeps the ratios that came with them, to the second decimal", () => {
+    // CHANGED ON PURPOSE (V4 top-10 #1): the six session pins (label 7.52,
+    // accent 3.13, live edge 5.74, settled edge 3.18, rims 1.51 and 1.25) went
+    // with the tiers they measured. 4.17 is the reading the retired legend dot
+    // carried too — its worst bed was --panel, which is this stripe's only one —
+    // so removing that site left the tier's pinned dark number where it was.
     const l = (t: string) => lightnessOf("dark", t);
-    expect(worst(SITES[0], l("--session-label-l"), "dark").ratio).toBeCloseTo(7.52, 2);
-    expect(worst(SITES[1], l("--session-accent-l"), "dark").ratio).toBeCloseTo(3.13, 2);
-    expect(worst(SITES[2], l("--session-edge-l"), "dark").ratio).toBeCloseTo(5.74, 2);
-    expect(worst(SITES[3], l("--session-edge-idle-l"), "dark").ratio).toBeCloseTo(3.18, 2);
-    // 4.17 is the reading the retired legend dot carried too — its worst bed
-    // was --panel, which is this stripe's only one — so removing that site left
-    // the tier's pinned dark number exactly where it was.
-    expect(worst(SITES[4], l("--mcp-dot-l"), "dark").ratio).toBeCloseTo(4.17, 2);
-    expect(worst(SITES[5], l("--session-rim-l"), "dark").ratio).toBeCloseTo(1.51, 2);
-    expect(worst(SITES[6], l("--session-rim-l"), "dark").ratio).toBeCloseTo(1.25, 2);
+    expect(worst(SITES[0], l("--mcp-dot-l"), "dark").ratio).toBeCloseTo(4.17, 2);
   });
 
-  it("leaves the one dark shortfall #330 named standing, on the record", () => {
-    // hsl(h 70% 60%) is 3.13:1 on --panel and .tokens-meta / .spawn-badge are
-    // text, so the node accent was thin in dark before this change and still
-    // is. Lifting it means editing the dark theme, which this issue forbids in
-    // as many words — so it is pinned rather than skipped, and the day dark is
-    // allowed to move, this line is what asks the question again.
-    const site = SITES[1];
-    const w = worst(site, lightnessOf("dark", site.token), "dark");
-    expect(w.ratio).toBeCloseTo(3.13, 2);
-    expect(w.ratio).toBeLessThan(BODY);
-    expect(w.bed).toBe("--panel");
-    // Light, which #330 does own, is where it now clears the floor it never met.
-    expect(worst(site, lightnessOf("light", site.token), "light").ratio).toBeGreaterThanOrEqual(BODY);
-  });
-});
-
-describe("the two rims stay decoration, and the arithmetic says why", () => {
-  it("could not reach 1.4.11 at any lightness, because the alpha caps it first", () => {
-    // Pure black is as far as a wash can go. At 32% over white that composites
-    // to 2.19:1 — a ceiling under the 3:1 floor — so no tier exists to pick.
-    const white = parseColor("#ffffff");
-    expect(contrastRatio(over([0, 0, 0, 0.32], white), white)).toBeLessThan(NON_TEXT);
-    for (const site of SITES.filter(s => s.role === "decoration")) {
-      let best = 0;
-      for (let l = 0; l <= 100; l += 0.5) best = Math.max(best, worst(site, l, "light").ratio);
-      if (site.alpha === 0.32) expect(best, site.name).toBeLessThan(NON_TEXT);
-      // The label's rim COULD, at 9% lightness — which is ink, not a hue, and
-      // the rim exists to say which session the label belongs to.
-      if (site.alpha === 0.5) expect(best, site.name).toBeGreaterThan(NON_TEXT);
-    }
-  });
-
-  it("carries at least the weight in light that the same rule carries in dark", () => {
-    // Not a WCAG floor — parity. A rim that reads on #0b0c10 and vanishes on
-    // #eef1f6 is the same defect as the label, one order of magnitude quieter.
-    for (const site of SITES.filter(s => s.role === "decoration")) {
-      const inDark = worst(site, lightnessOf("dark", site.token), "dark").ratio;
-      const inLight = worst(site, lightnessOf("light", site.token), "light").ratio;
-      expect(inLight, `${site.name}: ${inLight.toFixed(2)} light vs ${inDark.toFixed(2)} dark`)
-        .toBeGreaterThanOrEqual(inDark);
-    }
-  });
-
-  it("leaves the 4% card wash on one lightness, because a tier would buy nothing", () => {
-    // 1.01:1 on either canvas. Splitting it per theme is arithmetic with
-    // nothing on the other side, so the sheet writes the number once.
-    const wash = /hsl\(var\(--session-hue[^)]*\) 70% 50% \/ 0\.04\)/;
-    expect(decl(".cluster-card", "background")).toMatch(wash);
+  it("closes the one dark shortfall #330 named, because the card has no hue of its own", () => {
+    // CHANGED ON PURPOSE (V4 top-10 #1): this pinned the node accent,
+    // hsl(h 70% 60%), at 3.13:1 on dark --panel — thin for the TEXT it painted
+    // (.tokens-meta, .spawn-badge) and left standing because #330 forbade
+    // editing dark. The card no longer composes an accent at all: it reads the
+    // deck's --accent, a fixed colour that clears 4.5:1 on --panel in both
+    // themes, so the shortfall is gone rather than pinned.
+    expect(decl(".agent-node", "--accent"), ".agent-node composes no accent of its own").toBeNull();
     for (const theme of themes) {
-      const bed = surfaces(theme)["--bg"];
-      expect(worstHue(70, 50, 0.04, bed).ratio).toBeLessThan(1.02);
+      expect(TOK[theme]["--session-accent-l"], `${theme} still declares the card's tier`).toBeUndefined();
+      const r = contrastRatio(parseColor(TOK[theme]["--accent"]), surfaces(theme)["--panel"]);
+      expect(r, `${theme} --accent on --panel`).toBeGreaterThanOrEqual(BODY);
     }
   });
 });
 
-describe("the hue still tells two sessions apart, which is what it is for", () => {
+// CHANGED ON PURPOSE (V4 top-10 #1): this block proved the two cluster rims
+// (the label's at 50%, the box's at 32%) could only ever be decoration, and that
+// the box's 4% hue wash was 1.01:1 on either canvas. The rims are gone and the
+// wash is the reading ink's, so what it checks now is that the session's box
+// and label are quiet and neutral, and that the label still reads.
+describe("a session's box and label carry no hue", () => {
+  /** The box's wash over the canvas: the bed the label is read on. */
+  const washed = (theme: Theme) => over([...parseColor(TOK[theme]["--text"]).slice(0, 3), 0.03] as Rgba, surfaces(theme)["--bg"]);
+
+  it("draws the box as a 3% wash of the reading ink with no rim, barely off the canvas", () => {
+    expect(decl(".cluster-card", "background")).toBe("color-mix(in srgb, var(--text) 3%, transparent)");
+    expect(decl(".cluster-card", "border"), "the box draws no frame").toBeNull();
+    expect(decl(".cluster-card", "border-color"), "the box draws no frame").toBeNull();
+    // Measured: 1.05:1 in dark and 1.06:1 in light — a group, not an edge.
+    for (const theme of themes) {
+      expect(contrastRatio(washed(theme), surfaces(theme)["--bg"]), `${theme} wash`).toBeLessThan(1.1);
+    }
+  });
+
+  it("writes the label in --muted, --text under the pointer and --warn while it waits, each at 4.5:1 on that wash", () => {
+    expect(decl(".cluster-label", "color")).toBe("var(--muted)");
+    expect(decl(".cluster-label", "border")).toBe("0");
+    expect(decl(".cluster-label", "background")).toBe("transparent");
+    expect(decl(".cluster-label:hover", "color")).toBe("var(--text)");
+    expect(decl(".cluster-label[data-alarm]", "color")).toBe("var(--warn)");
+    // Measured on the wash: --muted 4.86 dark / 6.55 light, --text 13.37 /
+    // 15.73, --warn 12.96 / 4.66.
+    for (const theme of themes) {
+      for (const ink of ["--muted", "--text", "--warn"]) {
+        const r = contrastRatio(parseColor(TOK[theme][ink]), washed(theme));
+        expect(r, `${theme} ${ink} on the box's wash — ${r.toFixed(2)}:1`).toBeGreaterThanOrEqual(BODY);
+      }
+    }
+  });
+
+  it("leaves none of the session's tiers in either theme", () => {
+    for (const theme of themes) {
+      for (const tier of SESSION_TIERS) expect(TOK[theme][tier], `${theme} ${tier}`).toBeUndefined();
+    }
+    expect(bare, "the sheet still reads a session's hue").not.toMatch(/--session-hue/);
+  });
+});
+
+// CHANGED ON PURPOSE (V4 top-10 #1): this asked the same of the session label,
+// node accent and both edges; the MCP stripe is the one hue left to separate.
+describe("the hue still tells two MCP servers apart, which is what it is for", () => {
   it("keeps a full step of colour between hues 30° apart, in both themes", () => {
     // Contrast is against the paper; this is against each other. A tier dark
     // enough to read can still be dark enough to collapse, and that would
@@ -514,10 +514,9 @@ describe("the hue still tells two sessions apart, which is what it is for", () =
 
   it("keeps more than half of what dark separates, having paid for the contrast", () => {
     // Some is spent and that is honest: a mid-dark tier has less room to swing
-    // than a pale one. Measured ΔE at 30°, dark → light: label 10.75 → 9.26,
-    // node accent 15.86 → 9.26, live edge 14.50 → 9.65, settled edge 13.95 →
-    // 11.07, dot 14.49 → 10.68. The floor is what stops a future tier from
-    // buying its ratio by walking every hue toward the same near-black.
+    // than a pale one. Measured ΔE at 30°, dark → light: dot 14.49 → 10.68. The
+    // floor is what stops a future tier from buying its ratio by walking every
+    // hue toward the same near-black.
     for (const site of SITES.filter(s => s.role !== "decoration")) {
       const sep = (theme: Theme) => {
         const l = lightnessOf(theme, site.token);
@@ -558,10 +557,16 @@ describe("the colour is composed on the CSS side of the theme boundary", () => {
     }
   });
 
-  it("hands each site its hue as a custom property and nothing else", () => {
-    expect(COMPONENTS["cluster-bounds.ts"]).toMatch(/"--session-hue": hue/);
-    expect(COMPONENTS["AgentNode.tsx"]).toMatch(/"--session-hue": hue/);
-    expect(COMPONENTS["canvas-flow.ts"]).toMatch(/"--session-hue": hue/);
+  it("hands the MCP sites their hue as a custom property, and the board none", () => {
+    // CHANGED ON PURPOSE (V4 top-10 #1): cluster-bounds.ts, AgentNode.tsx and
+    // canvas-flow.ts each wrote `"--session-hue": hue` here. The board draws no
+    // session colour now, so no module under src/web writes one at all.
+    for (const name of ["cluster-bounds.ts", "AgentNode.tsx", "canvas-flow.ts", "SessionClusters.tsx"]) {
+      expect(COMPONENTS[name], `${name} hands a session hue across`).not.toMatch(/--session-hue/);
+    }
+    const files = modulesUnder(web);
+    const writers = files.filter(p => /--session-hue/.test(readFileSync(p, "utf8"))).map(rel);
+    expect(writers, "modules that still write a session's hue").toEqual([]);
     // App's --mcp-hue was the topbar legend's dot until that row was removed;
     // the MCP category chip hands its hue across the same boundary the same
     // way, so the rule this line states is unchanged and still has a subject.
@@ -575,9 +580,10 @@ describe("the colour is composed on the CSS side of the theme boundary", () => {
     const spec = (value: string) =>
       /hsl\(\s*var\(\s*--(?:session|mcp)-hue[^)]*\)\s+(\d+)%\s+var\(\s*(--[\w-]+)\s*\)\s*(?:\/\s*([\d.]+)\s*)?\)/.exec(value);
     const found = new Map<string, ReturnType<typeof spec>>();
+    // CHANGED ON PURPOSE (V4 top-10 #1): the pairing list named the six session
+    // sites too (color, --accent, two strokes, two borders); one site is left.
     for (const [prop, site] of [
-      ["color", SITES[0]], ["--accent", SITES[1]], ["stroke", SITES[2]], ["stroke", SITES[3]],
-      ["--cat-accent", SITES[4]], ["border", SITES[5]], ["border", SITES[6]],
+      ["--cat-accent", SITES[0]],
     ] as Array<[string, Site]>) {
       const value = decl(site.where, prop);
       expect(value, `${site.where} { ${prop} }`).toBeTruthy();
@@ -588,18 +594,18 @@ describe("the colour is composed on the CSS side of the theme boundary", () => {
       expect(m![3] === undefined ? 1 : +m![3], `${site.name} alpha`).toBe(site.alpha);
       found.set(site.name, m);
     }
-    // Not "seven were checked" — the loop above ran seven times by
+    // Not "seven were checked" — the loop above ran once per pair by
     // construction, so this only ever said that no two SITES share a name. It
     // does catch a SITES that has grown or shrunk without the pairing list
     // following it, which is how the retired legend dot was kept honest.
-    // What proves the sheet holds no eighth is the sweep in the next case.
+    // What proves the sheet holds no second hue is the sweep in the next case.
     expect(found.size, "two SITES share a name, so one of them was never checked").toBe(SITES.length);
     for (const theme of themes) {
       for (const site of SITES) expect(() => lightnessOf(theme, site.token), `${theme} ${site.token}`).not.toThrow();
     }
   });
 
-  it("puts a tier in the lightness slot of every hue the SHEET composes, not just the eight named here", () => {
+  it("puts a tier in the lightness slot of every hue the SHEET composes, not just the ones named here", () => {
     // #378. `SITES` is hand-written and the check above walks it, so the sheet
     // was only ever asked about colours somebody had already remembered to
     // list. Measured: adding `.sl-waiting-count { border-color: hsl(var(
@@ -610,27 +616,17 @@ describe("the colour is composed on the CSS side of the theme boundary", () => {
     // the stylesheet has to put a `var(--…-l)` in its lightness slot, and a new
     // one arrives already covered rather than arriving unnoticed.
     //
-    // One exemption, named rather than pattern-matched. `.cluster-card`'s 4%
-    // background wash is 1.01:1 on either canvas, so a per-theme tier would be
-    // arithmetic with nothing on the other side — the case above proves that
-    // ceiling rather than asserting the exemption, and this is the only rule
-    // the sheet is allowed to write a literal lightness in.
-    const EXEMPT = ".cluster-card";
+    // CHANGED ON PURPOSE (V4 top-10 #1): `.cluster-card`'s 4% hue wash was the
+    // one exemption, a literal lightness at 1.01:1. The box washes with --text
+    // now, so no rule is allowed a literal — and none composes a session hue.
     const TIER = /^var\(\s*--[\w-]+-l\s*\)$/;
     expect(HUE_SITES.length, "the sweep found no hue-composed colours at all — the walk is broken")
       .toBeGreaterThanOrEqual(SITES.length);
 
     const literals = HUE_SITES.filter(site => !TIER.test(site.lightness));
-    for (const site of literals) {
-      expect(site.selector, `${site.selector} composes hsl(${site.call}) — the lightness is a literal, so data-theme cannot reach it`)
-        .toBe(EXEMPT);
-      expect(site.call, `${EXEMPT} is exempt for its 4% wash, not for a second colour`)
-        .toMatch(/70%\s+50%\s*\/\s*0\.04\s*$/);
-    }
-    // Exactly one, so the exemption cannot widen by a rule being added beside
-    // it — .cluster-card also carries a compliant border, and "that selector is
-    // allowed literals" would have let the border go back to being one.
-    expect(literals, "more than one rule writes a literal lightness").toHaveLength(1);
+    expect(literals.map(s => s.selector), "rules that write a literal lightness").toEqual([]);
+    expect(HUE_SITES.filter(site => /--session-hue/.test(site.call)).map(s => s.selector),
+      "rules that still compose a session's hue").toEqual([]);
 
     // …and every tier it names is declared in both themes, which is what makes
     // the cascade able to answer at all.
@@ -646,7 +642,7 @@ describe("the colour is composed on the CSS side of the theme boundary", () => {
   it("gives every hsl() in the sheet a fallback hue, so a missing one is not a dropped rule", () => {
     // A var() with no value makes the whole declaration invalid at computed-
     // value time and the property silently falls back to inherit/initial — a
-    // cluster card with no border rather than a visible mistake.
+    // chip with no border rather than a visible mistake.
     const composed = [...bare.matchAll(/hsl\(\s*var\(\s*(--(?:session|mcp)-hue[^)]*)\)/g)];
     // The floor, outside the sweep, the way every other enumeration in this file
     // already has one (#652) — `files.length` above, `found.size`, and
@@ -660,7 +656,7 @@ describe("the colour is composed on the CSS side of the theme boundary", () => {
     // out longhand in this file — HUE_SITES would be the closer population but
     // it is found by the same property name this sweep is, so the two empty
     // together and a floor drawn from it would agree that zero is enough.
-    expect(composed.length, "no hsl(var(--session-hue …)) left in the sheet for this case to check — the hue custom properties were renamed out from under it")
+    expect(composed.length, "no hsl(var(--mcp-hue …)) left in the sheet for this case to check — the hue custom properties were renamed out from under it")
       .toBeGreaterThanOrEqual(SITES.length);
     for (const [, value] of composed) {
       expect(value, `hsl(var(${value}))`).toMatch(/,\s*\d+\s*$/);
@@ -672,54 +668,32 @@ describe("the colour is composed on the CSS side of the theme boundary", () => {
     // both set stroke at 0-3-0. The inline style App used to write beat them
     // by being inline; the replacement has to beat them on specificity, which
     // is why both edge classes are in the selector.
-    for (const site of [SITES[2], SITES[3]]) {
-      expect(site.where.split(".").length - 1, site.where).toBeGreaterThanOrEqual(4);
+    //
+    // CHANGED ON PURPOSE (V4 top-10 #1): the two selectors stroked the session's
+    // hue; they stroke its state now — --inflight while it works, --muted once
+    // it has settled — and still need the specificity to win.
+    const LIVE = ".react-flow__edge.sess-edge.sess-live .react-flow__edge-path";
+    const IDLE = ".react-flow__edge.sess-edge.sess-idle .react-flow__edge-path";
+    for (const where of [LIVE, IDLE]) {
+      expect(where.split(".").length - 1, where).toBeGreaterThanOrEqual(4);
     }
+    expect(decl(LIVE, "stroke")).toBe("var(--inflight)");
+    expect(decl(IDLE, "stroke")).toBe("var(--muted)");
     expect(COMPONENTS["canvas-flow.ts"]).toMatch(/a\.state === "active" \? "sess-live" : "sess-idle"/);
     expect(decl(".react-flow__edge.animated .react-flow__edge-path", "stroke")).toBe("var(--inflight)");
   });
 });
 
-describe("hover keeps its direction when the tier flips", () => {
-  /** CSS filter shorthands run in sRGB, so brightness is a plain multiply. */
-  const brightness = (c: Rgba, k: number): Rgba =>
-    [Math.min(255, c[0] * k), Math.min(255, c[1] * k), Math.min(255, c[2] * k), c[3]];
-
-  const amount = (selector: string) => {
-    const m = /brightness\(([\d.]+)\)/.exec(decl(selector, "filter") ?? "");
-    if (!m) throw new Error(`no brightness on ${selector}`);
-    return +m[1];
-  };
-
-  it("brightens on the dark canvas and deepens on the light one", () => {
-    // `.cluster-label.dragging` was checked here in both themes until #546:
-    // nothing has ever put `dragging` on that element, so both rules were dead
-    // and the two assertions were measuring a state the label cannot be in.
-    expect(amount(".cluster-label:hover")).toBeGreaterThan(1);
-    expect(amount(':root[data-color-scheme="light"] .cluster-label:hover')).toBeLessThan(1);
-  });
-
-  it("never lets a hovered label drop under 4.5:1, at any hue", () => {
-    // filter applies to the whole pill, so its own background moves with the
-    // text. On white, brightness(1.25) cannot lift the paper and only washes
-    // out the words: 5.18:1 down to 3.53:1 at the worst hue, which is the
-    // regression the light override exists to avoid.
-    for (const theme of themes) {
-      const l = lightnessOf(theme, "--session-label-l");
-      // The pill paints --bg in dark and --bg-soft in light (styles.css).
-      const pill = surfaces(theme)[theme === "dark" ? "--bg" : "--bg-soft"];
-      for (const state of [":hover"]) {
-        const k = amount(theme === "dark" ? `.cluster-label${state}` : `:root[data-color-scheme="light"] .cluster-label${state}`);
-        for (let h = 0; h < 360; h++) {
-          const ratio = contrastRatio(brightness(hsl(h, 70, l), k), brightness(pill, k));
-          expect(ratio, `${theme} label ${state} h=${h}`).toBeGreaterThanOrEqual(BODY);
-        }
-      }
-    }
-    // And the number the override was sized against, so it is not a guess.
-    const white = parseColor("#ffffff");
-    const worstLight = worstHue(70, lightnessOf("light", "--session-label-l"), 1, white);
-    expect(worstLight.ratio).toBeCloseTo(5.18, 2);
-    expect(contrastRatio(brightness(hsl(worstLight.hue, 70, 26), 1.25), white)).toBeCloseTo(3.53, 2);
+// CHANGED ON PURPOSE (V4 top-10 #1): this block checked that the hovered
+// pill's brightness() filter brightened in dark and deepened in light, so a
+// hued label never fell under 4.5:1. The label is plain text now and its hover
+// is a step to --text with an underline, the same in both themes; the 4.5:1 of
+// that ink is measured in "a session's box and label carry no hue" above.
+describe("hover is a colour step, not a filter", () => {
+  it("puts no filter on the hovered label, and no light-theme twin beside it", () => {
+    expect(decl(".cluster-label:hover", "filter")).toBeNull();
+    expect(decl(".cluster-label:hover", "text-decoration")).toBe("underline");
+    const twin = ':root[data-color-scheme="light"] .cluster-label:hover';
+    expect(RULES.some(r => selectors(r.selector).includes(twin)), twin).toBe(false);
   });
 });

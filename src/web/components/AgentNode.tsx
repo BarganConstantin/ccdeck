@@ -1,21 +1,14 @@
 import React, { memo, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { flushSync } from "react-dom";
 import { Handle, Position, type NodeProps } from "reactflow";
-import { sessionHue } from "../reducer";
 import { fmtCost } from "../pricing";
-import { otherModelIds } from "../usage-models";
 // What the cost chip holds, and its tooltip with the multiplication written
 // out. See card-cost.ts.
 import { costChip } from "../card-cost";
 import { codexApprovalTell } from "../codex-approval";
-// The chip's labeller, which used to be declared in this file and moved out in
-// #462 so that a pure matcher and a bare-node suite could reach it without a
-// React component behind it. See model-label.ts for why the move happened with
-// that fix rather than with #374's wider consolidation.
-import { modelChipText, modelChipTitle as chipTitle } from "../model-label";
-import {
-  footDropped, footDroppable, footNotchOnResize, maxSqueeze, nextFootNotch, nextSqueeze, rowAt, squeezeOnResize,
-} from "../card-row-squeeze";
+// The provider's printed name, the one the usage panels already print.
+import { agentLabel } from "../provider-copy";
+import { footDropped, footDroppable, footNotchOnResize, nextFootNotch } from "../card-row-squeeze";
 // The card's words — its state, a block's sentence and label — which the
 // session list, the peek and the topbar say too. See agent-copy.ts.
 import { agentKindLabel, blockedToolTooltip, categoryLabel, spawnBadgeTitle, subRowTitle, waitingLabel, waitingSentence } from "../agent-copy";
@@ -102,7 +95,6 @@ export function AgentCard({ data, handles = false }: { data: CardData; handles?:
   // where the foot's tool icons are hovered, beside the call count, and in the
   // card's accessible name; the Inspector prints both.
   const failed = data.toolErrorCount ?? 0;
-  const hue = sessionHue(data.canvasSessionId ?? data.sessionId);
   const currentContextTokens = data.context?.currentContextTokens ?? 0;
   const hasContextSignal = data.kind === "root" && currentContextTokens > 0;
   // The sentence Claude Code titles the session with, in the tooltip the card
@@ -115,27 +107,12 @@ export function AgentCard({ data, handles = false }: { data: CardData; handles?:
   const cardTooltip = data.sessionTitle
     ? (data.cwd ? `${data.cwd}\n${data.sessionTitle}` : data.sessionTitle)
     : data.cwd;
-  // What the model chip says when this session's money came from more than one
-  // model (#686). The chip keeps naming the CURRENT model, because that is the
-  // question it has always answered and the only one that is about what happens
-  // next — `/model` changes what the next turn runs on, not what the last twenty
-  // ran on. What it could not say before is that the dollars beside it are not
-  // all that model's: `+1` says so on the face of the card, and the tooltip
-  // names the others, so a reader who sees $7.50 under a Sonnet chip is not left
-  // to conclude the deck priced a million Opus tokens at Sonnet's rate.
-  const otherModels = otherModelIds(data);
-  // WHAT GIVES WAY ON A TIGHT HEAD (#2155, #2169, V4's Agent / Card): the model
-  // is plain text after the name, and CSS gives it up first (its own ellipsis,
-  // a much larger shrink factor than the name's; the name keeps a floor). The
-  // one thing measured is the effort: it steps off the model text only when
-  // that can uncut the name, i.e. the name's overflow is no larger than the
-  // effort's width (card-row-squeeze.ts). The model itself is never dropped.
-  // Measured, not reserved: the head is drawn whole, steps down once, and
-  // starts again from the top whenever what it holds changes or the NAME gets
-  // wider (a sibling went away).
-  const labelRef = useRef<HTMLSpanElement>(null);
-  const modelRef = useRef<HTMLSpanElement>(null);
-  const squeezeMax = maxSqueeze(data);
+  // NO MODEL ON THE CARD (V4 top-10 #2): the head is the name and the state
+  // (and "Codex" on a Codex card, below), and the task line says what the
+  // session is for. The model and its effort
+  // were mono text after the name, the machinery rather than the work, and
+  // they cut the name on every busy card; the Inspector, the Sessions list and
+  // the peek still say both, with the other models a session's money came from.
   // A root's two lines keep the one name rule every surface keeps (owner's
   // critique, 2026-11-11, point 2; rail-row-copy.ts sessionNames): the head is
   // the session's name — the name it was given, else Claude Code's title, else
@@ -149,58 +126,6 @@ export function AgentCard({ data, handles = false }: { data: CardData; handles?:
   const headName = names ? names.title : data.label;
   // When it started, on a card another reads like (canvas-flow.ts nodeDataFor).
   const twin = names && data.twin ? twinStart(data.startedAt, data.twin) : null;
-  const [squeeze, setSqueeze] = useState(0);
-  // The name's width as last observed: a state, so a name that has narrowed is
-  // measured again by the render the change causes.
-  const [, setLabelWidth] = useState<number | null>(null);
-  // Set when the effort is dropped, so the widening that causes is not read as
-  // room coming back from elsewhere.
-  const droppedByMeasure = useRef(false);
-  useBeforePaint(() => { setSqueeze(0); }, [data.effort, data.model, otherModels.length, headName, data.kind, squeezeMax]);
-  useBeforePaint(() => {
-    // No layout read once there is nothing left to give up.
-    if (squeeze >= squeezeMax) return;
-    const label = labelRef.current;
-    const model = modelRef.current;
-    const text = model?.firstChild;
-    if (!label || !text || text.nodeType !== 3 || !data.effort) return;
-    // The effort part is the tail of the model text's first text node.
-    const tail = ` · ${data.effort}`.length;
-    const len = (text.textContent ?? "").length;
-    const range = document.createRange();
-    range.setStart(text, Math.max(0, len - tail));
-    range.setEnd(text, len);
-    const next = nextSqueeze(squeeze, {
-      overflow: label.scrollWidth - label.clientWidth,
-      modelOverflow: model ? model.scrollWidth - model.clientWidth : 0,
-      effortWidth: range.getBoundingClientRect().width,
-      max: squeezeMax,
-    });
-    if (next !== squeeze) { droppedByMeasure.current = true; setSqueeze(next); }
-  });
-  useEffect(() => {
-    const el = labelRef.current;
-    if (!el || typeof ResizeObserver === "undefined") return;
-    let width = el.clientWidth;
-    // Synchronously, so the head is measured again before the frame is painted
-    // rather than drawn once at its old notch.
-    const ro = new ResizeObserver(() => {
-      if (el.clientWidth === width) return;
-      const change = { from: width, to: el.clientWidth, selfInflicted: droppedByMeasure.current };
-      width = change.to;
-      droppedByMeasure.current = false;
-      flushSync(() => {
-        setSqueeze(s => squeezeOnResize(s, change));
-        setLabelWidth(change.to);
-      });
-    });
-    ro.observe(el);
-    return () => ro.disconnect();
-  }, []);
-  const row = rowAt(squeeze);
-  const modelChipTitle = data.model && (otherModels.length > 0
-    ? `${chipTitle(data.model, data.effort)}\n${t("board.node.modelCovers")}\n${otherModels.join("\n")}`
-    : chipTitle(data.model, data.effort));
   // The prompt's first line on the face, the whole prompt on hover. Absent
   // rather than empty when nothing was asked, or when the task is the name.
   const rootTask = names?.task ? { face: names.task, tooltip: lastTypedPrompt(data) } : null;
@@ -212,8 +137,8 @@ export function AgentCard({ data, handles = false }: { data: CardData; handles?:
   const toolKinds = recentToolKinds(data.tools);
 
   // THE FOOT STAYS ONE LINE (V4): while it overflows, meta items drop in a
-  // fixed order (card-row-squeeze.ts). Measured after layout like the head's
-  // squeeze; reset when what the foot holds changes or the card gets wider.
+  // fixed order (card-row-squeeze.ts). Measured after layout; reset when what
+  // the foot holds changes or the card gets wider.
   const footRef = useRef<HTMLDivElement>(null);
   const timeRef = useRef<HTMLSpanElement>(null);
   const [footNotch, setFootNotch] = useState(0);
@@ -275,28 +200,22 @@ export function AgentCard({ data, handles = false }: { data: CardData; handles?:
   }, []);
 
   return (
-    // --accent itself is built in styles.css from this hue: the token that
-    // reads well on a #14161b node is not the one that reads on a white one,
-    // and .tokens-meta / .spawn-badge are text.
-    <div className={cls} data-alarm={state.tone === "waiting" ? "" : undefined} style={{ "--session-hue": hue } as React.CSSProperties}>
+    // No colour of its own (V4 top-10 #1): the card wore its session's hashed
+    // hue, a colour that said nothing. Its edge is --line, and --warn while it
+    // waits on you; its rings are the deck's own --accent.
+    <div className={cls} data-alarm={state.tone === "waiting" ? "" : undefined}>
       {handles && <Handle type="target" position={Position.Left} style={{ background: "transparent", border: "none" }} />}
 
       <div className="head">
         <div className="title">
-          <span className="label" title={cardTooltip} ref={labelRef}>{headName}</span>
-          {/* The model as plain mono text after the name (V4): no pill, no
-              tint — the word already names the family. A Codex session with no
-              model yet says Codex in the same place (#404), and only "codex"
-              falls back: the reducer stamps "claude" on any event that names no
-              provider, so a "Claude Code" word would print an assumption as an
-              observation on every model-less node. */}
-          {data.model
-            ? <span className="model-text" title={modelChipTitle} ref={modelRef}>
-                {modelChipText(data.model, row.effort ? data.effort : undefined)}{otherModels.length > 0 ? ` +${otherModels.length}` : ""}
-              </span>
-            : data.provider === "codex"
-              ? <span className="model-text" title={t("board.node.codexNoModel")}>Codex</span>
-              : null}
+          <span className="label" title={cardTooltip}>{headName}</span>
+          {/* WHICH CLI, FOR CODEX ONLY (V4 top-10 #2). With the model text gone
+              this word is the board's one way to tell a Codex card from a
+              Claude one, in the place the model sat: muted, no pill. A Claude
+              card, the default provider, says nothing: the reducer stamps
+              "claude" on any event that names no provider, so a word for it
+              would print an assumption as an observation. */}
+          {data.provider === "codex" && <span className="provider-word">{agentLabel("codex")}</span>}
           {data.restoredFromLog &&<span className="synth-tag" title={data.provider === "claude" ? t("board.node.restoredRegistry") : t("board.node.restoredLog")}>{t("board.node.restored")}</span>}
           {data.synthetic && <span className="synth-tag" title={t("board.node.synthesised")}>?</span>}
         </div>
@@ -306,9 +225,10 @@ export function AgentCard({ data, handles = false }: { data: CardData; handles?:
         </div>
       </div>
 
-      {/* THE TASK LINE (V4's Agent / Card): one line of what the card is for, in
-          the secondary ink, cut with an ellipsis and carrying its whole text on
-          hover.
+      {/* THE TASK LINE (V4's Agent / Card): what the card is for, in the
+          secondary ink, on up to two lines and cut with an ellipsis after the
+          second, carrying its whole text on hover. CHANGED ON PURPOSE (V4
+          top-10 #2): it was one line, which cut most prompts after four words.
 
           A root says what a person last asked it, the task line the Sessions
           list draws under the same name (rail-row-copy.ts sessionTask). The
@@ -331,7 +251,8 @@ export function AgentCard({ data, handles = false }: { data: CardData; handles?:
           accessible name already say it). */}
       {/* A card that reads like another on the board, name and task
           (twinClocks), leads this line with when it started: in the head it
-          cut the name to a letter. */}
+          cut the name to a letter. Only then: a card that reads like no other
+          draws no clock (twinStart is null). */}
       {data.kind === "root" && (rootTask || twin) && (
         <div className="task-line" title={rootTask?.tooltip}>
           {twin && <span className="twin-start" title={t("board.node.started", { time: twin })}>{twin}</span>}
@@ -356,9 +277,9 @@ export function AgentCard({ data, handles = false }: { data: CardData; handles?:
       {data.kind === "root" && !data.stopFailure && <ContinuedRow data={data} />}
 
       {/* A row of its own rather than a chip in the head. The card is 256px
-          wide and the head already spends it on the name, the model and the
-          state word; a fourth item there pushed the name to an ellipsis and
-          still overflowed. A blocked session has earned a line. */}
+          wide and the head already spends it on the name and the state word;
+          a third item there pushed the name to an ellipsis and still
+          overflowed. A blocked session has earned a line. */}
       {data.waiting && !(data.stopFailure && data.waiting.kind === "idle") && <WaitingRow waiting={data.waiting} />}
 
       {/* The same slot, for the sessions that can never fill it (#398). A Codex
@@ -502,7 +423,7 @@ function PlanRow({ plan, items }: { plan: PlanSummary; items: readonly PlanItem[
  * attribute on the canvas, so changing it re-renders no card. What it draws is
  * one task line and the card's status (owner's critique, 2026-11-11): what a
  * person last asked the session (the Sessions list's task), else its name or
- * title, never the folder the cluster's pill above already names
+ * title, never the folder the cluster's label above already names
  * (rail-row-copy.ts faceTask); a subagent's own task, else its name. Then the
  * mark and the word, Working, Done, Waiting or, beside the partial mark,
  * "1 failed" (faceStatus).

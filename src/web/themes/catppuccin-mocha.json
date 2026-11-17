@@ -30,8 +30,6 @@
     "hero-core": "#cba6f7",
     "grid-line": "#313244",
     "minimap-mask": "rgba(30, 30, 46, .85)",
-    "session-accent-l": "74%",
-    "session-edge-idle-l": "65%",
     "cat-file": "#89b4fa",
     "cat-shell": "#f9e2af",
     "cat-web": "#89dceb",

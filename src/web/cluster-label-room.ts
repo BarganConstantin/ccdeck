@@ -29,9 +29,10 @@ export interface PaneBox { left: number; top: number; right: number; bottom: num
 export interface LabelRoom { maxWidth: number; hidden: boolean }
 
 /**
- * The pill's height on screen at its tallest. 10px text at line-height 1,
- * 3px of padding and a 1px border on each side is 18px; the waiting triangle
- * is 10px tall and sits 1px low, which opens the line box to 20.
+ * The label's height on screen at its tallest. 12px text at line-height 1 and
+ * 3px of padding on each side, with no border since it stopped being a pill
+ * (V4 top-10 #1), is 18px; the waiting triangle is 10px tall and sits 1px low,
+ * which can open the line box toward 20, the bound kept here.
  */
 export const LABEL_H = 20;
 

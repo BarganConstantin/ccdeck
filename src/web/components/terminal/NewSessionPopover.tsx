@@ -51,7 +51,7 @@
 // The form is its own component with no portal, so the suite can render it
 // whole and press its controls without a DOM; what it asks of the world
 // (the deck, the dialog, the storage, the clock) comes in through `deps`.
-import { useRef, useState, type CSSProperties, type KeyboardEvent } from "react";
+import { useRef, useState, type KeyboardEvent } from "react";
 import AnchoredPopover from "../AnchoredPopover";
 import { checkFolder, type FolderAnswer, type FolderProblem, type LaunchOptions, type TerminalProvider } from "../../terminal-api";
 import { canChooseFolder, chooseFolder } from "../../desktop-folder";
@@ -367,7 +367,6 @@ export function NewSessionForm({ projects, initialAgent = "claude", windows = fa
               data-highlighted={i === at || undefined}
               data-chosen={isChosen || undefined}
               title={q.cwd}
-              style={{ "--ns-hue": q.hue } as CSSProperties}
               // The field keeps the keyboard: a press on a row is not a press
               // that moves focus out of it.
               onMouseDown={e => e.preventDefault()}
