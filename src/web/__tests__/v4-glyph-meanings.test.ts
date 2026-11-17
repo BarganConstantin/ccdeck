@@ -68,13 +68,19 @@ describe("the accounts header while claude-swap is missing", () => {
     expect(right).toBe('<button type="button" class="glyph-btn ap-close" aria-label="Close"></button>');
   });
 
-  it("draws them all once it is there, the ⓘ first and the close last", () => {
+  // CHANGED ON PURPOSE (V4 top-10 #10): ⓘ + ↗ ↻ × → + ↻ ⋯ ×, because five
+  // icons and the title wrapped the header onto two lines. The ⓘ's video and
+  // the ↗ share are items of the ⋯ menu now (v4-read-less-accounts.test.ts
+  // opens it); + and ↻ stay out, and the close stays last.
+  it("draws them all once it is there, + first, then ↻ and ⋯, and the close last", () => {
     const html = header(false);
     const at = (s: string) => html.indexOf(s);
-    expect(at("panel-info")).toBeGreaterThan(-1);
-    expect(at("panel-info")).toBeLessThan(at("ap-add"));
+    const more = html.indexOf('aria-label="More actions"');
+    expect(html).not.toContain("panel-info");
+    expect(at("ap-add")).toBeGreaterThan(-1);
     expect(at("ap-add")).toBeLessThan(at("ap-refresh"));
-    expect(at("ap-refresh")).toBeLessThan(at("ap-close"));
+    expect(at("ap-refresh")).toBeLessThan(more);
+    expect(more).toBeLessThan(at("ap-close"));
     expect(html).not.toContain("film-icon");
   });
 

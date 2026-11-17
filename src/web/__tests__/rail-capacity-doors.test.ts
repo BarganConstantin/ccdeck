@@ -1,11 +1,11 @@
-// Account capacity and Reset calendar on the left stripe.
+// Account capacity and Reset calendar, from the left stripe's More.
 //
 // Both were only behind the gauge in the accounts panel's header, and the
 // calendar a tab further inside its dialog; users said they could not find
-// them. The stripe now carries a door to each, between Accounts and Session
-// list, and each opens its own view, titled for itself, without touching the
-// left column. The gauge and the tabs are gone. On a phone the dock keeps its
-// five slots and the two are the first rows under More.
+// them. The left stripe's More now leads with a door to each, and each opens
+// its own view, titled for itself, without touching the left column. The
+// gauge and the tabs are gone. On a phone the dock keeps its five slots and
+// the two are the first rows under More.
 //
 // These pin the order, the press, the view each door opens on, and the order
 // the rows come in when there is no panel to take it from.
@@ -41,16 +41,21 @@ function rails({ claude = true, openCapacity = noop as (view: string) => void } 
 const ids = (items: { id: string }[]) => items.map(i => i.id);
 
 describe("the Panel bar's two doors into Account capacity", () => {
-  it("stand right after Sessions and Accounts, in V4's order", () => {
+  // CHANGED ON PURPOSE (V4 top-10 #4): the two reports were the left stripe's
+  // second run → the first run of the left stripe's More, because they are
+  // read now and then and the stripe keeps the everyday doors.
+  it("lead the left stripe's More, after Sessions and Accounts on the stripe", () => {
     // CHANGED ON PURPOSE (V4's Figma): the one bar is two stripes; Sessions,
     // Accounts and the two reports are the left stripe's first runs.
     const groups = rails().leftStripe;
-    // V4's left stripe: Sessions and Accounts, then the two reports.
-    expect(groups.slice(0, 2).map(ids)).toEqual([["session-list", "accounts"], ["account-capacity", "reset-calendar"]]);
-    // The reports are one run about the accounts, named for a screen reader
-    // (with both CLIs one Accounts button covers Claude and Codex, so Codex has
-    // no button beside it).
-    expect(groups[1].map(i => i.group)).toEqual(["Claude accounts", "Claude accounts"]);
+    // V4's left stripe: Sessions and Accounts; its More, the two reports first.
+    expect(groups.map(ids)).toEqual([["session-list", "accounts"]]);
+    const more = rails().leftMore;
+    expect(ids(more[0])).toEqual(["account-capacity", "reset-calendar"]);
+    // The reports are one run about the accounts, still named (with both CLIs
+    // one Accounts button covers Claude and Codex, so Codex has no button
+    // beside it).
+    expect(more[0].map(i => i.group)).toEqual(["Claude accounts", "Claude accounts"]);
     expect(ids(rails().leftStripe.flat())).not.toContain("codex-accounts");
   });
 

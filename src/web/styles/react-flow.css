@@ -45,23 +45,21 @@
   stroke-dasharray: 5;
   animation: dashflow 0.8s linear infinite;
 }
-/* Parent→child edges, in the session's hue. Two classes deep on purpose: this
-   has to outrank .animated above and the light-theme .react-flow__edge-path
-   further down, both of which land on 0-3-0, and an inline stroke is what used
-   to do that. It cannot go back to being inline — App would then be choosing
-   the lightness again, which is the whole defect #330 names.
-   A stroke is not text. 1.4.11 asks 3:1 of a graphic that carries meaning, and
-   these carry the one thing no label repeats — which agent spawned which — so
-   3:1 is the floor they are tuned to, not 4.5:1. Chasing 4.5 would have cost
-   ~24.5% lightness at S=80, a near-black hairline that reads as ink rather
-   than as a session's colour, and the hue is the only thing telling two
-   overlapping trees apart. The canvas is the only bed they are measured on:
-   nodes paint over edges, so an edge is never read against a node's panel. */
+/* Parent→child edges, coloured by their state alone (V4 top-10 #1): a live
+   subagent's edge in --inflight, the colour that means running everywhere on
+   the deck, and a settled one in --muted. They wore the session's hashed hue,
+   a colour that said nothing; the cluster's box and label say whose tree it
+   is. Two classes deep on purpose: this has to outrank .animated above and the
+   light-theme .react-flow__edge-path further down, both of which land on
+   0-3-0. A stroke is not text: 1.4.11 asks 3:1 of a graphic that carries
+   meaning, and these carry the one thing no label repeats — which agent
+   spawned which — so both tokens are measured on the canvas, the only bed an
+   edge is read on (nodes paint over edges). */
 .react-flow__edge.sess-edge.sess-live .react-flow__edge-path {
-  stroke: hsl(var(--session-hue, 200) 80% var(--session-edge-l));
+  stroke: var(--inflight);
 }
 .react-flow__edge.sess-edge.sess-idle .react-flow__edge-path {
-  stroke: hsl(var(--session-hue, 200) 50% var(--session-edge-idle-l));
+  stroke: var(--muted);
 }
 @keyframes dashflow { to { stroke-dashoffset: -10; } }
 .react-flow__attribution { display: none; }
@@ -87,15 +85,16 @@
    (--ctl-h 24 and 26) would otherwise take it below.
 
    THE BAR'S WIDTH. What the notices on the same row (canvas.css) leave for it:
-   eight square buttons at the most (the Command Panel's included), the level
-   at its four-figure width, two rules, the gaps, padding and edge. An upper
-   bound, so the notices stop short of it rather than under it. */
+   four square buttons at the most (zoom out, zoom in, recenter and ⋯, since
+   the rest moved into ⋯'s menu, V4 top-10 #5), the level at its four-figure
+   width, one rule, the gaps, padding and edge. An upper bound, so the notices
+   stop short of it rather than under it. */
 .react-flow {
   --board-controls-btn: max(24px, calc(var(--ctl-h) - 4px));
   --board-controls-edge: 12px;
   --board-controls-gap: 8px;
   --board-controls-room: calc(var(--board-controls-edge) + var(--board-controls-btn) + 6px + var(--board-controls-gap));
-  --board-controls-reserve: calc(8 * var(--board-controls-btn) + 64px);
+  --board-controls-reserve: calc(4 * var(--board-controls-btn) + 64px);
 }
 /* A fingertip keeps at least the 28px these buttons stood at before the bar
    (they were --ctl-h, 28 at Compact), which still fits the bar across a 320px
@@ -183,37 +182,26 @@
 .react-flow__controls-button[aria-disabled="true"]:hover { background: transparent; color: var(--muted); }
 }
 /* Recenter while auto-fit is off: the press would do something, so the glyph
-   steps up to the foreground, beside the canvas's own Fit all. Not the
-   accent: this is a hint, not data or focus. */
-.react-flow__controls-button[data-nudge] { color: var(--text); }
-/* Clear asks before it destroys anything, so at rest it is as neutral as its
-   neighbours and only the pointer warms it. */
-@media (hover: hover) and (pointer: fine) {
-.react-flow__controls-button[data-danger]:hover { color: var(--err); }
+   steps up to the foreground and wears a dot, the view is not following the
+   board (#820). The canvas's own Fit all chip said so in words and did what
+   this press does, so the chip went (V4 top-10 #3) and the dot stays. Not
+   the accent and not a state colour: this is a hint, not data or focus, in
+   the glyph's own ink. ::before, since a coarse pointer's target reach is
+   the ::after (phone-sheet.css). */
+.react-flow__controls-button[data-nudge] { position: relative; color: var(--text); }
+.react-flow__controls-button[data-nudge]::before {
+  content: "";
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 4px;
+  height: 4px;
+  border-radius: var(--r-pill);
+  background: currentColor;
 }
-/* Pause, the one toggle in a stack of commands. Every other button here
-   reports nothing between presses because there is nothing to report; Pause is
-   a setting that stays on, so it needs a resting look for each state. Amber
-   rather than the accent, because amber is what "the canvas is frozen" is
-   drawn in everywhere else on this deck, and the topbar's paused pill says the
-   same thing in words. It used to be a solid amber block with the glyph
-   inverted, the loudest object on the canvas while nothing needed anyone; it
-   is an amber tint and an amber glyph now, plain about the state (the glyph
-   leaves the resting --muted for --warn) without shouting it.
-   Keyed on the ARIA attribute, so the pixels and the accessibility tree are one
-   fact. No `cursor` and no `:active`: this is React Flow's own button class
-   with a state added, which keeps it out of the five obligations
-   canvas-motion.test.ts enumerates for a pressable name. */
-.react-flow__controls-button[aria-pressed="true"] {
-  background: color-mix(in srgb, var(--warn) 16%, transparent);
-  color: var(--warn);
-}
-/* A pressed Pause still answers the pointer: the tint deepens. */
-@media (hover: hover) and (pointer: fine) {
-.react-flow__controls-button[aria-pressed="true"]:hover {
-  background: color-mix(in srgb, var(--warn) 24%, transparent);
-}
-}
+/* (Clear's warming hover and Pause's pressed amber were here. Both are rows of
+   the ⋯ menu now (V4 top-10 #5): Clear is as neutral there as it was at rest
+   here, and a paused canvas is said by the top bar's paused pill alone.) */
 /* The minimap, on the control stack's surface and edge (see the top of this
    block). React Flow gives it a white slab; this replaces it, and replaces the
    inline style built from the palette that used to. The edge comes up to

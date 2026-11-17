@@ -1,7 +1,7 @@
 // V4's agent card (its Figma kit, Agent / Card), the detail face only:
-// 256 wide on --panel; a head of who (the name, then the model as plain mono
-// text) and the state (the face's mark and a sentence-case word); one task
-// line; a mono foot of cost · time … and the sub-agent count. Everything else
+// 256 wide on --panel; a head of who (the name) and the state (the face's mark
+// and a sentence-case word); a task line of up to two lines; a mono foot of
+// cost · time … and the sub-agent count. Everything else
 // the card shows stays, and the card's shadow, session stripe and state borders
 // are the owner's and the session's, not this restyle's.
 import { describe, it, expect } from "vitest";
@@ -13,7 +13,8 @@ import { ReactFlowProvider } from "reactflow";
 import AgentNode from "../components/AgentNode";
 import { cardState, markBesideFailures, stateMarkKind } from "../node-face";
 import { agentAriaLabel } from "../agent-copy";
-import { footDropped, footDroppable, footNotchOnResize, nextFootNotch, nextSqueeze } from "../card-row-squeeze";
+import * as rowSqueeze from "../card-row-squeeze";
+import { footDropped, footDroppable, footNotchOnResize, nextFootNotch } from "../card-row-squeeze";
 import type { AgentNodeData } from "../types";
 import { sheetText } from "./sheet-source";
 
@@ -106,8 +107,11 @@ describe("the head", () => {
     expect(decl(label, "font-weight")).toBe("600");
     expect(decl(label, "color")).toBe("var(--text)");
   });
-  it("sets the model, and the other markers, as plain mono 11/14 in --muted", () => {
-    const rule = ".agent-node .title .model-text, .agent-node .title .synth-tag";
+  // CHANGED ON PURPOSE (V4 top-10 #2): the rule was shared with the model
+  // text, `.agent-node .title .model-text, .agent-node .title .synth-tag`. The
+  // model left the card, so the markers keep the rule alone.
+  it("sets the markers as plain mono 11/14 in --muted", () => {
+    const rule = ".agent-node .title .synth-tag";
     expect(decl(rule, "font-family")).toBe("var(--font-mono)");
     expect(decl(rule, "font-size")).toBe("calc(11px + var(--ui-text-increase, 0px))");
     expect(decl(rule, "line-height")).toBe("calc(14px + var(--ui-text-increase, 0px))");
@@ -123,18 +127,28 @@ describe("the head", () => {
     expect(decl(".agent-node .head", "justify-content")).toBe("space-between");
     expect(decl(".agent-node .head", "gap")).toBe("6px");
   });
-  it("draws the model as text with no chip class and no family tint", () => {
+  // CHANGED ON PURPOSE (V4 top-10 #2): the head drew the model and its effort
+  // as mono text after the name ("opus 5.5 · high", or "Codex" before a Codex
+  // session reports one). That is the machinery, not the work, and it cut the
+  // name on every busy card; the Inspector, the Sessions list and the peek
+  // still say it, so the card draws no model at all.
+  it("draws no model, effort, chip or family tint on the card", () => {
     const out = html({ model: "claude-opus-5-5", effort: "high" });
-    expect(out).toMatch(/<span class="model-text" title="claude-opus-5-5\neffort: high">opus 5\.5 · high<\/span>/);
+    expect(out).not.toContain("model-text");
+    expect(out).not.toContain("opus 5.5");
+    expect(out).not.toContain("effort: high");
     expect(out).not.toContain("model-chip");
     expect(out).not.toContain("data-family");
     expect(node).not.toContain("model-chip");
-    expect(html({ provider: "codex" })).toContain('<span class="model-text" title="OpenAI Codex — no model reported yet">Codex</span>');
+    expect(node).not.toContain("model-text");
+    expect(html({ provider: "codex" })).not.toContain("no model reported yet");
+    expect(sheet).not.toMatch(/\.model-text\b/);
   });
-  it("puts the model after the name and the state after both", () => {
+  it("puts the state after the name, with nothing between them", () => {
     const out = html({ model: "claude-opus-5-5" });
-    expect(out.indexOf('class="label"')).toBeLessThan(out.indexOf('class="model-text"'));
-    expect(out.indexOf('class="model-text"')).toBeLessThan(out.indexOf('class="state-line"'));
+    expect(out.indexOf('class="label"')).toBeGreaterThan(-1);
+    expect(out.indexOf('class="label"')).toBeLessThan(out.indexOf('class="state-line"'));
+    expect(out).toMatch(/<div class="title"><span class="label"[^>]*>[^<]*<\/span><\/div>/);
   });
 });
 
@@ -216,13 +230,21 @@ describe("Ready, a session not yet given a prompt", () => {
 });
 
 describe("the task line", () => {
-  it("is one line of 12/16 in --text-secondary, cut with an ellipsis", () => {
+  // CHANGED ON PURPOSE (V4 top-10 #2): one line cut with an ellipsis →
+  // up to two lines, clamped, because one line cut most prompts after four
+  // words and the task is what the card is for. The card's height is measured
+  // (layout-geometry.ts cardSize), so the second line pushes nothing under it.
+  it("is up to two lines of 12/16 in --text-secondary, clamped", () => {
     const t = ".agent-node .task-line";
     expect(decl(t, "font-size")).toBe("calc(12px + var(--ui-text-increase, 0px))");
     expect(decl(t, "line-height")).toBe("calc(16px + var(--ui-text-increase, 0px))");
     expect(decl(t, "color")).toBe("var(--text-secondary)");
-    expect(decl(t, "white-space")).toBe("nowrap");
-    expect(decl(t, "text-overflow")).toBe("ellipsis");
+    expect(decl(t, "display")).toBe("-webkit-box");
+    expect(decl(t, "-webkit-box-orient")).toBe("vertical");
+    expect(decl(t, "-webkit-line-clamp")).toBe("2");
+    expect(decl(t, "line-clamp")).toBe("2");
+    expect(decl(t, "overflow")).toBe("hidden");
+    expect(decl(t, "white-space")).toBeUndefined();
   });
   // Owner's critique, 2026-11-11, point 2: one name rule on every surface. The
   // card read "api / retention job" while the Sessions list beside it read
@@ -318,7 +340,7 @@ describe("no new colour literals", () => {
       '.agent-node .state-line[data-tone="active"] .state-word', '.agent-node .state-line[data-tone="done"] .state-word',
       '.agent-node .state-line[data-tone="err"] .state-word', '.agent-node .state-line[data-tone="waiting"] .state-word',
       '.agent-node .state-line[data-tone="active"] .state-mark',
-      ".agent-node .title", ".agent-node .title .label", ".agent-node .title .model-text, .agent-node .title .synth-tag",
+      ".agent-node .title", ".agent-node .title .label", ".agent-node .title .synth-tag",
       ".agent-node .time", ".agent-node .task-line", ".agent-node .foot", ".agent-node .foot b", ".agent-node .foot .foot-sep",
       ".agent-node .foot .inflight-meta", ".agent-node .foot .spawn-badge",
     ]) expect(body(sel), sel).not.toMatch(LITERAL);
@@ -395,26 +417,27 @@ describe("fixes found in the browser", () => {
   });
 
   // CHANGED ON PURPOSE (V4's Agent / Card): the name has no floor of its own.
-  // min(8ch, 100%) held a short name's box at 8ch, so the model started about
+  // min(8ch, 100%) held a short name's box at 8ch, so a marker started about
   // 25px after "infra" instead of 6px.
-  it("gives the model text a visible floor, and the name none, so the model follows the name", () => {
-    // min(6ch, max-content) is not valid CSS (a math function takes no keyword),
-    // so the floor is min(6ch, 100%): "opus..." stays readable on a long name.
-    expect(decl(".agent-node .title .model-text", "min-width")).toBe("min(6ch, 100%)");
+  // CHANGED ON PURPOSE (V4 top-10 #2): this also held the model text to a
+  // min(6ch, 100%) floor and a 0 100 auto flex, so it gave way before the
+  // name. The model left the card; the name keeps its own rule.
+  it("gives the name no floor and lets it shrink, so a marker follows it", () => {
     expect(decl(".agent-node .title .label", "min-width")).toBe("0");
-    // The model still gives way first.
-    expect(decl(".agent-node .title .model-text", "flex")).toBe("0 100 auto");
     expect(decl(".agent-node .title .label", "flex")).toBe("0 1 auto");
   });
 
-  it("drops the effort when the model text OR the name is cut and that would uncut it", () => {
-    const m = { effortWidth: 40, max: 1 };
-    expect(nextSqueeze(0, { ...m, overflow: 0, modelOverflow: 30 })).toBe(1);
-    expect(nextSqueeze(0, { ...m, overflow: 0, modelOverflow: 40 })).toBe(1);
-    expect(nextSqueeze(0, { ...m, overflow: 0, modelOverflow: 41 })).toBe(0);
-    expect(nextSqueeze(0, { ...m, overflow: 0, modelOverflow: 0 })).toBe(0);
-    expect(nextSqueeze(0, { ...m, overflow: 25, modelOverflow: 0 })).toBe(1);
-    expect(nextSqueeze(0, { ...m, overflow: 90, modelOverflow: 90 })).toBe(0);
+  // CHANGED ON PURPOSE (V4 top-10 #2): the head's squeeze dropped the effort
+  // when the model text or the name was cut and that would uncut it
+  // (nextSqueeze). With no model and no effort in the head there is nothing
+  // to drop, so the squeeze and its measuring are gone; the name ellipsizes
+  // in CSS alone.
+  it("measures nothing in the head: the name is cut by CSS alone", () => {
+    for (const gone of ["nextSqueeze", "maxSqueeze", "effortWillUncut", "squeezeOnResize", "rowAt"]) {
+      expect(gone in rowSqueeze, gone).toBe(false);
+    }
+    expect(node).not.toMatch(/labelRef|modelRef|setSqueeze/);
+    expect(decl(".agent-node .title .label", "text-overflow")).toBe("ellipsis");
   });
 
   it("keeps the foot on one line", () => {
@@ -671,6 +694,9 @@ describe("a face never draws the bare tick beside a failure count", () => {
   it("says the count in the warning's ink on the face", () => {
     const css = read("../styles/agent-node.css").replace(/\/\*[\s\S]*?\*\//g, "");
     expect(css).toMatch(/\.lod-line\[data-status="partial"\] \.lod-state \{ color: var\(--warn\); \}/);
-    expect(css).toMatch(/\.state-mark\[data-kind="partial"\] \{ color: var\(--ok\); \}/);
+    // CHANGED ON PURPOSE (V4 top-10 #9): the tick was done's green (--ok)
+    // beside its amber dot, so a run with failures read as half a success.
+    // The whole mark is the warning's ink now: one mark, one colour.
+    expect(css).toMatch(/\.state-mark\[data-kind="partial"\] \{ color: var\(--warn\); \}/);
   });
 });

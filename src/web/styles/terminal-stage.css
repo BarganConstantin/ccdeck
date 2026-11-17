@@ -11,9 +11,9 @@
 
    Every colour is a token. The session's hue is gone from the stage's chrome
    in V4 (the header's spine left with it): the stage says which session it
-   is by its name and its state glyph, and the popover's project dots keep the
-   hue, at the deck's --session-accent-l, the lightness the board's faces use
-   for their accents. Forced colours for the stage's marks are in
+   is by its name and its state glyph. The popover's project dots lost it too
+   (V4 top-10 #1: no identity colour anywhere the board is mirrored); they are
+   a quiet neutral bullet. Forced colours for the stage's marks are in
    touch-and-forced-colours.css, with the rest of the deck's, because the deck
    answers a Contrast theme in one block (#871). */
 
@@ -90,61 +90,59 @@
   line-height: 20px;
   color: var(--text);
 }
-/* The face's sentence in mono: the state in its colour (waiting is --warn, as
-   the rail's timer is), then the tool and what it works on in --muted, one
-   line, cut with an ellipsis from the end. */
+/* The one state word, where the state is not the normal one (StageHeader
+   stateWord): "not attached", "waiting 6m" in its colour (waiting is --warn,
+   as the rail's timer is). Sans 12/16, as prose is, with tabular figures. It
+   does not shrink, so the name is the one thing a short header cuts. */
 .ts-meta {
-  flex: 0 1 auto;
+  flex: none;
   display: flex;
   align-items: center;
-  gap: 6px;
   min-width: 0;
-  font: 400 12px/16px var(--font-mono);
+  font-size: 12px;
+  line-height: 16px;
+  font-weight: 400;
   color: var(--muted);
   white-space: nowrap;
 }
 .ts-meta-state { flex: none; color: var(--text-secondary); font-variant-numeric: tabular-nums; }
 .ts-meta[data-state="waiting"] .ts-meta-state { color: var(--warn); }
-.ts-meta-rest { min-width: 0; overflow: hidden; text-overflow: ellipsis; font-variant-numeric: tabular-nums; }
 
-/* How full the session's context window is (StageHeader): the figure in mono
-   --muted, then a 4px bar of the same percent, 24 tall like the controls that
-   follow it. It is drawn before them, at the row's end. */
+/* How full the session's context window is (StageHeader): the cards' ring and
+   its percent, "◔ 17%", in sans --muted with tabular figures, 24 tall like the
+   controls that follow it. It is drawn before them, at the row's end; the
+   whole figure is its tooltip. */
 .ts-ctxchip {
   flex: none;
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: 4px;
   height: 24px;
   box-sizing: border-box;
   padding: 0 6px;
   border-radius: var(--r-ctl);
-  font: 500 11px/14px var(--font-mono);
+  font-size: 12px;
+  line-height: 16px;
+  font-weight: 400;
   font-variant-numeric: tabular-nums;
   color: var(--muted);
   white-space: nowrap;
 }
-.ts-ctxbar { display: block; width: 28px; height: 4px; border-radius: var(--r-pill); background: var(--line); overflow: hidden; }
-.ts-ctxbar i { display: block; height: 100%; border-radius: var(--r-pill); background: var(--text-secondary); }
+.ts-ctxchip > svg { flex: none; display: block; }
 /* The narrow header's own words for the chip, "17% context" (below). */
 .ts-ctxshort { display: none; }
 /* In a header too narrow for the name to keep its room (a phone's takeover),
-   the chip says its percent with its word and no bar: a bare "17 %" did not
-   say what it was a percent of. The figure stays in the text for a screen
-   reader, set aside the way .vis-hidden does; the short words are hidden from
-   it. After the bar's rule, so this one wins. */
+   the chip says its percent with its word and no ring: a bare "17 %" did not
+   say what it was a percent of. A screen reader hears the chip's name, the
+   whole figure, whichever is drawn. After the chip's rules, so these win. */
 @container ts-head (max-width: 480px) {
-  .ts-ctxlead, .ts-ctxpct { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+  .ts-ctxchip > :is(svg, .ts-ctxpct) { display: none; }
   .ts-ctxshort { display: inline; }
-  .ts-ctxbar { display: none; }
-  /* With the chip there, the tool and its argument would be left a few
-     characters of ellipsis: the name keeps that room instead. */
-  .ts-head:has(.ts-ctxchip) .ts-meta-rest { display: none; }
   /* A header narrower still (a Workspace pane down to its 400 px beside a
      wide Sessions list and the side panels, internal #103): the state word
      gives way with an ellipsis, as the name does, instead of being drawn
      over the chip. */
-  .ts-meta { overflow: hidden; }
+  .ts-meta { flex: 0 1 auto; overflow: hidden; }
   .ts-meta-state { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 }
 
@@ -749,7 +747,7 @@
   cursor: pointer;
 }
 .ns-option[data-highlighted] { background: var(--selected); }
-.ns-dot { flex: none; width: 7px; height: 7px; border-radius: var(--r-pill); background: hsl(var(--ns-hue, 200) 70% var(--session-accent-l)); }
+.ns-dot { flex: none; width: 7px; height: 7px; border-radius: var(--r-pill); background: var(--muted-dim); }
 .ns-name { flex: none; max-width: 48%; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-weight: 600; }
 .ns-path { margin-left: auto; white-space: nowrap; font: 400 11px/1 var(--font-mono); color: var(--muted); }
 /* The station list holds its second span to its width; a path gives way. */

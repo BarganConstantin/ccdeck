@@ -398,7 +398,8 @@
 }
 .node-peek-state[data-kind="live"] { color: var(--inflight); }
 .node-peek-state[data-kind="done"] { color: var(--ok); }
-/* "3 failed" beside the partial mark, whose tick keeps done's ink of its own. */
+/* "3 failed" beside the partial mark, in the warning's ink the mark wears too
+   (V4 top-10 #9: one mark, one colour). */
 .node-peek-state[data-kind="partial"] { color: var(--warn); }
 .node-peek-state[data-kind="err"] { color: var(--err); }
 .node-peek-state[data-kind="alert"] { color: var(--warn); }
@@ -486,10 +487,10 @@
 /* Failed calls are worth a look, not a failure: the warning's ink, as the
    partial mark's count beside the state says it. */
 .node-peek-failed { color: var(--warn); }
-/* A recap note's peek: the note's own mark in its session's hue, and the
-   recap whole — prose, at the note's size and ink, with room for it. */
+/* A recap note's peek: the note's own mark, in the peek's ink like the
+   card's title (it wore the session's hue until V4 top-10 #1), and the recap
+   whole — prose, at the note's size and ink, with room for it. */
 .recap-peek {
-  --accent: hsl(var(--session-hue, 200) 70% var(--session-accent-l));
   width: 320px;
 }
 .recap-peek-mark {
@@ -498,7 +499,7 @@
   gap: 5px;
   font-size: calc(13px + var(--ui-text-increase, 0px));
   font-weight: 600;
-  color: var(--accent);
+  color: var(--text);
 }
 .recap-peek-text {
   font-size: calc(12px + var(--ui-text-increase, 0px));

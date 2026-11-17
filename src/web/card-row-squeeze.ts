@@ -1,62 +1,16 @@
-// What a card's head gives up when it is tight (#2155, #2169, V4's Agent / Card).
+// What a card's foot gives up when it is tight (V4's Agent / Card).
 //
-// The head reads "<name> <model> · <effort>" and a busy card has little room for
-// it. The model is plain text after the name; when the head is tight the model
-// text gives way first, with its own ellipsis and a 6ch floor (CSS), then the
-// name, down to its own floor. The one thing the card drops by measurement is
-// the effort, and only when dropping it can uncut the name OR the model text:
-// that element's overflow is no larger than the effort part's width. One cut by
-// more than that stays cut either way, so the effort stays and the ellipsis
-// handles the rest. The kind word is not in the head any more (it leads a
-// subagent's task line), so there is no notch for it: the squeeze is 0 (effort
-// kept) or 1 (effort dropped), and the model is never dropped. The effort stays
-// in the chip's tooltip, the session list, the peek and the details panel.
-
-/** How far the head may step down: one notch, and only with an effort to drop. */
-export function maxSqueeze(a: { model?: string | null; effort?: string | null }): number {
-  return a.model && a.effort ? 1 : 0;
-}
-
-/** Whether dropping the effort can uncut the name: the name is cut, and by no
- *  more than the effort part is wide. */
-export function effortWillUncut(overflow: number, effortWidth: number): boolean {
-  return overflow > 0 && overflow <= effortWidth;
-}
-
-/** The next notch, given what the last paint measured. */
-export function nextSqueeze(
-  squeeze: number,
-  measured: { overflow: number; modelOverflow?: number; effortWidth: number; max: number },
-): number {
-  const uncuts = effortWillUncut(measured.overflow, measured.effortWidth)
-    || effortWillUncut(measured.modelOverflow ?? 0, measured.effortWidth);
-  return squeeze < measured.max && uncuts ? squeeze + 1 : squeeze;
-}
-
-/** What the head draws at a notch. */
-export function rowAt(squeeze: number): { effort: boolean } {
-  return { effort: squeeze < 1 };
-}
-
-/** The squeeze after the name's box changed width. A wider name means room came
- *  back (a tag, the recap button or the model text went away), so start again
- *  from the top and measure. The widening that dropping the effort itself causes
- *  is not that: `selfInflicted` says so, or the effort would come back and go
- *  again every frame. A narrower name keeps its notch (it is measured again by
- *  the render the change causes). */
-export function squeezeOnResize(
-  squeeze: number,
-  change: { from: number; to: number; selfInflicted: boolean },
-): number {
-  return change.to > change.from && !change.selfInflicted ? 0 : squeeze;
-}
-
-// THE FOOT'S SQUEEZE (V4's Agent / Card): Figma's foot is one line, cost · time,
-// a spacer, the sub-agent count. The deck adds two meta items, so while the foot
-// overflows it drops them in this order: tokens, then the in-flight count. The
-// tool icons, cost, time and the sub-agent count never drop. Same shape as the
-// head's: a notch, measured after paint, reset when the card gets wider or what
-// the foot holds changes.
+// The head used to have a squeeze of its own (#2155, #2169): it read
+// "<name> <model> · <effort>", and the effort stepped off the model text when
+// that could uncut the name. The model left the card (V4 top-10 #2), so the
+// head is the name and the state alone, the name ellipsizes in CSS, and there
+// is nothing left there to measure.
+//
+// THE FOOT'S SQUEEZE: Figma's foot is one line, cost · time, a spacer, the
+// sub-agent count. The deck adds two meta items, so while the foot overflows it
+// drops them in this order: tokens, then the in-flight count. The tool icons,
+// cost, time and the sub-agent count never drop. A notch, measured after
+// paint, reset when the card gets wider or what the foot holds changes.
 
 export type FootItem = "tokens" | "inflight";
 export const FOOT_DROP_ORDER: readonly FootItem[] = ["tokens", "inflight"];

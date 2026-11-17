@@ -7,11 +7,22 @@
 // rules for when a bar turns red, and what its pace note says, are
 // written once. The one piece of state it holds is its own: whether that note
 // is open (#856).
-import { useId, useState } from "react";
+import { useId, useState, type ReactNode } from "react";
 import { useT } from "../i18n";
 import { durationLabel, formatNumber } from "../i18n/format";
 import { FadeFigure, useFillJump } from "./FadeFigure";
 import { LevelMark, type LevelTone } from "./LevelMark";
+import { slot } from "./Slot";
+
+/** A pace sentence with its one figure set apart, so the over-pace colour sits
+ *  on the number that warns and the sentence around it stays quiet text (V4
+ *  top-10 #10). The unit after a number — "%", or the " %" French spaces it
+ *  with — is part of the figure. Only the two warnings are drawn this way: an
+ *  on-pace or under-pace note has nothing to warn about, so no colour. */
+function figureIn(template: string, token: string, value: string): ReactNode {
+  const unit = new RegExp(`\\{${token}\\}(\\s?%)`).exec(template)?.[1] ?? "";
+  return slot(template.replace(`{${token}}${unit}`, `{${token}}`), token, <span className="qb-pace-figure">{value}{unit}</span>);
+}
 
 // ── Pace helpers ───────────────────────────────────────────────────────────
 
@@ -94,18 +105,21 @@ export function quotaPctText(capped: number): string {
   return capped < 1 ? "< 1%" : `${Math.round(capped)}%`;
 }
 
-/** Usage meters use the same thresholds as main: accent below 70, warning
- *  from 70, and error from 90 or when a limit has been reached.
- *  The rail's meter keeps its bar one colour and tones its figure instead
- *  (figureLevel in rail-usage.ts). */
-export function quotaMeterColor(capped: number, isErr = capped >= 90): string {
-  return isErr || capped >= 90 ? "var(--err)" : capped >= 70 ? "var(--warn)" : "var(--accent)";
+/** THE LEVEL OF A QUOTA READING, for every meter in the web UI that shows how
+ *  full a quota window is: this bar, the rail's usage meter, an account's row
+ *  and the Account capacity report. Null under 70, the warning from 70, the
+ *  error from 90 or once the limit has been reached. One rule, so 86% is the
+ *  same amber "⚠ 86% · high" wherever it is drawn: the 5-hour window read calm
+ *  at the rail's foot and amber in this panel when each had its own. */
+export function quotaLevel(pct: number, limitReached = false): LevelTone | null {
+  return limitReached || pct >= 90 ? "err" : pct >= 70 ? "warn" : null;
 }
 
-/** The same two levels as a tone for the figure, which wears the warning mark
- *  and "high" in it (LevelMark): null under 70, where the fill is the accent. */
-export function quotaTone(capped: number, isErr = capped >= 90): LevelTone | null {
-  return isErr || capped >= 90 ? "err" : capped >= 70 ? "warn" : null;
+/** A level's fill: the accent under the warning, then the level's own ink. The
+ *  figure beside it wears the same level (LevelMark), so the colour is never
+ *  the only thing that says it. */
+export function quotaFill(level: LevelTone | null): string {
+  return level === "err" ? "var(--err)" : level === "warn" ? "var(--warn)" : "var(--accent)";
 }
 
 // ── Quota bar ──────────────────────────────────────────────────────────────
@@ -136,8 +150,8 @@ export default function QuotaBar({ pct, label, reset, resetAt, windowSec, limitR
   const known    = pct != null && !rolled;
   const capped   = known ? Math.min(100, Math.max(0, pct)) : 0;
   const jump     = useFillJump(capped);
-  const isErr    = limitReached || capped >= 90;
-  const color    = quotaMeterColor(capped, isErr);
+  const level    = quotaLevel(capped, limitReached);
+  const color    = quotaFill(level);
   // A whole percentage, the way Claude's readings already arrive (clampPct).
   // A Codex spend cap is `used / limit * 100` and printed $10 of $30 as
   // "33.33333333333333%" (#1804). Under 1% reads "< 1%" like a zero does:
@@ -148,7 +162,7 @@ export default function QuotaBar({ pct, label, reset, resetAt, windowSec, limitR
   // 294px is 5.9px, past the 3px floor. At full strength, not faded: the fill's
   // own colour is what holds 3:1 against the track (contrast-floors.test.ts).
   const fillW    = underOne ? 2 : capped;
-  const tone     = known ? quotaTone(capped, isErr) : null;
+  const tone     = known ? level : null;
 
   const countdown = resetAt && !rolled && resetAt > nowSec ? durationLabel(t, resetAt - nowSec) : null;
   const pace = (known && resetAt && windowSec) ? computePace(capped, resetAt, windowSec, nowSec, limitReached) : null;
@@ -199,8 +213,11 @@ export default function QuotaBar({ pct, label, reset, resetAt, windowSec, limitR
           <button
             type="button"
             className="qb-pace"
-            // Keep the pace colour visible alongside the meter.
-            style={{ color: pace.color }}
+            // QUIET TEXT, NOT A LINK (V4 top-10 #10). The whole sentence was
+            // in the pace colour with a dotted underline, so every bar carried
+            // a coloured link. It reads in --muted now, underlined only under
+            // the pointer, and the one figure that warns — how far over, how
+            // soon it runs out — keeps the over-pace colour (figureIn).
             aria-expanded={why}
             aria-controls={why ? whyId : undefined}
             onClick={() => setWhy(w => !w)}
@@ -209,7 +226,11 @@ export default function QuotaBar({ pct, label, reset, resetAt, windowSec, limitR
                 that says the tick on the bar is the pace these words are
                 measured against (#850). */}
             <i className="qb-pace-key" aria-hidden style={{ background: pace.isDeficit ? "var(--err)" : "var(--ok)" }} />
-            {pace.runsOutIn ? t("usage.quota.pace.runsOut", { time: durationLabel(t, pace.runsOutSec ?? 0) }) : t(`usage.quota.pace.${pace.kind}`, { n: pace.n ?? 0 })}
+            {pace.runsOutIn
+              ? figureIn(t("usage.quota.pace.runsOut"), "time", durationLabel(t, pace.runsOutSec ?? 0))
+              : pace.kind === "over"
+                ? figureIn(t("usage.quota.pace.over"), "n", String(pace.n ?? 0))
+                : t(`usage.quota.pace.${pace.kind}`, { n: pace.n ?? 0 })}
           </button>
         )}
       </div>

@@ -28,7 +28,7 @@ import { useZoomLod } from "./use-zoom-lod";
 import { useEventStream } from "./use-event-stream";
 import { useSelection } from "./use-selection";
 import { useBoardTick } from "./use-board-tick";
-import { useAgentFocus } from "./use-agent-focus";
+import { useAgentFocus, type LastFocus } from "./use-agent-focus";
 import { usePeekReaders } from "./use-peek-readers";
 import { useBoardLayout, useLayoutAutosave } from "./use-board-layout";
 import { useReframe } from "./use-reframe";
@@ -66,7 +66,6 @@ import { integrationDefs } from "./integrations/registry";
 import type { IntegrationKind } from "./integrations/types";
 import { useMediaQuery } from "./use-media-query";
 import { ReadoutGroup } from "./components/TopbarReadouts";
-import CategoryFilterBar from "./components/CategoryFilterBar";
 import PhoneBoard from "./components/PhoneBoard";
 import RadioExperience from "./components/RadioExperience";
 import CanvasMain from "./components/CanvasMain";
@@ -130,6 +129,8 @@ import { EmptyInspector } from "./components/Inspector";
 import { readView, useView, type View } from "./use-view";
 import { useSideColumn, type SidePanel } from "./side-column";
 import { useInspectorFold, withInspectorFold } from "./inspector-fold";
+import { useWorkspaceInspector } from "./use-workspace-inspector";
+import { setStripeWorkspace } from "./stripe-words";
 import SideColumn from "./components/SideColumn";
 import { SKIP_TO_PANE_MSG, WORKSPACE_PANE_ID, skipToPane } from "./workspace-pane";
 import { createChimePlayer } from "./chime-player";
@@ -459,11 +460,10 @@ function Inner() {
    *  tick. A plain counter — value is irrelevant, only the change matters. */
   const [dragTick, setDragTick] = useState(0);
 
-  // The category filter row over the canvas: which categories are on the board,
-  // which ones somebody muted, and the bar dimming itself when a card or a
-  // bubble slides under it — in use-category-filter-bar.ts.
-  const { presentCats, hiddenCats, toggleCat, catBarRef, catBarOccluded }
-    = useCategoryFilterBar(stateRef);
+  // The tool filter: which categories are on the board and which ones somebody
+  // muted — in use-category-filter-bar.ts. Its control is the last group of
+  // the canvas bar's ⋯ menu (CanvasControls.tsx).
+  const { presentCats, hiddenCats, toggleCat } = useCategoryFilterBar(stateRef);
 
   /**
    * Live positions of whatever is being dragged, applied over the rendered
@@ -528,10 +528,11 @@ function Inner() {
   const layout = useBoardLayout(camera);
   const { pinnedRef, positionsRef, lastLayoutSigRef, handleRelayout, rearrangeUndo } = layout;
 
-  /** The card the last focus framed, and when — so a re-pack that lands just
-   *  after it (the reframe effect below) can frame it again where it went. */
-  const lastFocusRef = useRef<{ id: string; at: number } | null>(null);
-  /** focusAgent, for an effect declared above it. */
+  /** The card the last focus or selection brought into view, and when — so a
+   *  re-pack that lands just after it (the reframe effect below) can frame it
+   *  again where it went, the same way. */
+  const lastFocusRef = useRef<LastFocus | null>(null);
+  /** That jump made again (use-agent-focus.ts), for an effect declared above it. */
   const focusAgentRef = useRef<(id: string) => void>(() => {});
 
 
@@ -709,6 +710,9 @@ function Inner() {
   // registered once. Assigned during render so a keystroke in the same commit
   // sees the array that was just drawn.
   const nodesRef = useMirroredRef(nodes);
+  // And the board as drawn (packed below the full card), where a selection
+  // is brought into view at the zoom the reader is at.
+  const shownRef = useMirroredRef(graph.shown);
 
   // Bringing a card and its session into view, and stepping between cards —
   // use-agent-focus.ts.
@@ -719,8 +723,9 @@ function Inner() {
   // nonce makes the same session twice two jumps.
   const [landed, setLanded] = useState<{ id: string; nonce: number } | null>(null);
   const markLanded = useCallback((sessionId: string) => setLanded(prev => ({ id: sessionId, nonce: (prev?.nonce ?? 0) + 1 })), []);
-  const { focusAgent, stepAgent, focusSession } = useAgentFocus({
-    canvasRef, stateRef, measuredRef, nodesRef, railInsetRef, moveCamera, disableAutoFit,
+  const { focusAgent, revealAgent, stepAgent, focusSession } = useAgentFocus({
+    canvasRef, stateRef, measuredRef, nodesRef, shownRef, lodRef, railInsetRef, moveCamera,
+    currentViewport: camera.currentViewport, disableAutoFit,
     lastFocusRef, focusAgentRef, selectAgent, primarySelectedIdRef, onLand: markLanded,
   });
 
@@ -769,7 +774,23 @@ function Inner() {
   // the pane stay (folding both is Zoom's). D, or choosing a session to
   // inspect, opens it again; the grid drops its track while it is folded.
   const [inspectorFolded, setInspectorFolded] = useState(false);
-  useEffect(() => { if (detailOpen) setInspectorFolded(false); }, [detailOpen]);
+  // An open unfolds it, not the flag as it stands: a load that lands in
+  // Workspace holds the Board's open flag shut below, and the flag it had
+  // before the hold must not unfold the column after it.
+  const detailWasOpen = useRef(detailOpen);
+  useEffect(() => {
+    if (detailOpen && !detailWasOpen.current) setInspectorFolded(false);
+    detailWasOpen.current = detailOpen;
+  }, [detailOpen]);
+  // Workspace opens on the pane: entering closes the Inspector, at every
+  // width, and leaving gives the Board the one it had (use-workspace-inspector.ts).
+  useWorkspaceInspector({
+    active: inWorkspace, detailOpen,
+    fold: () => setInspectorFolded(true), hold: holdRight.detail, restore: setDetailStored,
+  });
+  // The stripes are icons while Workspace is up (stripe-words.ts), in the
+  // commit that draws it.
+  useLayoutEffect(() => { setStripeWorkspace(inWorkspace); }, [inWorkspace]);
   const foldInspector = useCallback(() => {
     setInspectorFolded(true);
     setDetailOpen(false);
@@ -922,7 +943,7 @@ function Inner() {
 
   // What a click, a double-click and a hover on the canvas do — use-canvas-clicks.ts.
   const clicks = useCanvasClicks({
-    clearSelection, selectAgent, detailOpen, setDetailOpen, detailShown, focusAgent, draggingRef, lodRef, stage,
+    clearSelection, selectAgent, detailOpen, setDetailOpen, detailShown, focusAgent, revealAgent, draggingRef, lodRef, stage,
   });
 
   // What the peek reads, made once — use-peek-readers.ts.
@@ -1068,10 +1089,11 @@ function Inner() {
   // Browser Watch has something unread — in use-live-announcements.ts.
   const announcements = useLiveAnnouncements({ waitingSessions, watchUnseen, incidents });
 
-  // OS notifications for a session that is waiting on you: the permission, the
-  // switch, asking for it, and what has already been raised — in
-  // use-os-notifications.ts. It is fed the same waiting set the sidebar draws.
-  const notify = useOsNotifications({ waitingSessions, liveSince, focusSession: focusSessionOnView });
+  // OS notifications for a session that is waiting on you, and for a turn that
+  // finished while the page was hidden: the permission, the switch, asking for
+  // it, and what has already been raised — in use-os-notifications.ts. It is
+  // fed the same waiting set the sidebar draws, and the graph for finished turns.
+  const notify = useOsNotifications({ waitingSessions, liveSince, focusSession: focusSessionOnView, stateRef });
   const { loadNotifyPrefs } = notify;
   // The terminal's run through the waiting sessions, and the stage's half of
   // the keys, which need the waiting list built just above — use-stage.ts.
@@ -1147,6 +1169,11 @@ function Inner() {
     openQuickOpen,
     feedbackUnread, openFeedbackConversations,
     inspectorOpen, toggleInspector,
+    // A stripe's More reads open while a dialog behind it is up.
+    dialogsUp: {
+      history: dialogs.usageHistoryOpen, browserWatch: dialogs.browserWatchOpen, radar: dialogs.trafficRadarOpen,
+      radio: radioOpen, explore: exploreIntegrationsOpen, toolActivity: toolAuditView, capacity: capacityView,
+    },
   });
   /** A phone opens on Sessions, and a row there opens that session's pane when
    *  the deck has a terminal for it (the Command Panel is on), else the
@@ -1373,7 +1400,7 @@ function Inner() {
             items={[...rails.left, ...rails.right[0]].map(sessionsDoorUnderSheet)}
             more={[rails.search, ...commandPanelMore(stage.enabled ? stage.openFromButton : undefined), ...rails.capacity, ...rails.right.slice(1).flat(), ...rails.integrations, ...rails.explore, ...rails.utilities.filter(item => item !== rails.corner)]}
             offline={everConnected && !live} />
-        : <EdgeRail side="left" label={t("board.rail.tools")} groups={rails.leftStripe} foot={rails.leftFoot} />}
+        : <EdgeRail side="left" label={t("board.rail.tools")} groups={rails.leftStripe} more={rails.leftMore} foot={rails.leftFoot} />}
 
       {/* Mounted whether or not anything was removed, for the reason the
           topbar's alarm region is (#372): words that arrive with their region
@@ -1444,23 +1471,11 @@ function Inner() {
         joins={historyReplayed && settled} closing={closing}
       >
         {!heroInList && emptyHero(phone ? 0 : railInsetRef.current)}
-        {/* `|| hiddenCats.size > 0` is the half that was missing (#783). The
-            bar was gated on categories present on the canvas NOW, while the
-            filter is independent state that nothing trims — so hide a category,
-            let the canvas turn over (it evicts finished sessions on a timer),
-            and the bubbles were suppressed with no chip anywhere to press. Not
-            recoverable by Clear either: `hiddenCats` survives it. The only way
-            back was a page reload, which a user has no reason to suspect.
-            The filter is kept rather than trimmed on eviction, because it is a
-            choice the user made and forgetting it silently is the other way to
-            be wrong. What must never happen is keeping the choice and taking
-            away the control. */}
-        {!phone && (presentCats.length > 1 || hiddenCats.size > 0) && (
-          <CategoryFilterBar
-            catBarRef={catBarRef} catBarOccluded={catBarOccluded}
-            presentCats={presentCats} hiddenCats={hiddenCats} toggleCat={toggleCat}
-          />
-        )}
+        {/* The tool filter no longer floats over the canvas's top left (V4
+            top-10 #5): it is the last group of the control bar's ⋯ menu,
+            under the same rule — calls of two kinds on the board, or a kind
+            hidden (#783: a filter kept with its control taken away was
+            recoverable only by a reload) — CanvasControls.tsx toolFilterShown. */}
         {/* A phone's Board is a stack of readable cards, with no free canvas
             and none of its controls — components/PhoneBoard.tsx. The radio
             plays on there without its companion, which would stand on the
@@ -1481,6 +1496,7 @@ function Inner() {
           zoomBy={camera.zoomBy} zoomReset={camera.zoomReset}
           onTerminal={stage.enabled ? stage.openFromButton : undefined}
           notesDrawn={zoom.lod === "detail"}
+          presentCats={presentCats} toggleCat={toggleCat}
         />
         )}
         {/* The board's compact form while the stage is open, in the canvas's
@@ -1532,7 +1548,7 @@ function Inner() {
           column, the canvas, this stripe, then its panels and the Inspector.
           Fixed to the window's right edge, so where it sits in the document
           changes nothing on screen. */}
-      {!phone && <EdgeRail side="right" label={t("shell.rail.right")} groups={rails.rightStripe} />}
+      {!phone && <EdgeRail side="right" label={t("shell.rail.right")} groups={rails.rightStripe} more={rails.rightMore} />}
 
       {/* The Board's right column: Usage, This machine, then the Inspector, top
           to bottom (panel-place.css). Always drawn, so nothing in it remounts
@@ -1575,8 +1591,10 @@ function Inner() {
           `:not(:has(.detail))` in the sheet already drops the column, so this
           needed no layout change of its own. */}
       {/* WORKSPACE draws the Inspector as a column whether or not a session is in
-          focus (an empty pane means none, and the column says so), down to 1320px;
-          under that it is the detail sheet, opened as on the Board. */}
+          focus (an empty pane means none, and the column says so), down to 1320px,
+          once it is unfolded: each visit starts with it folded
+          (use-workspace-inspector.ts). Under that it is the detail sheet, opened
+          as on the Board. */}
       {inWorkspace && inspectorColumn && !inspectorFolded && !(detailOpen && selected) ? (
         selected ? (
           <DetailAside
@@ -1609,7 +1627,7 @@ function Inner() {
       {/* The foot of the shell: the grid's fourth row, under the canvas, the
           columns and the stripes (not drawn on a phone, where the dock is) —
           components/StatusBar.tsx. */}
-      {!phone && <StatusBar stageOpen={stage.enabled && stageClaimsKeys(stage.shell.phase)} zoomedOut={zoom.lod !== "detail"} viewChord={stage.workspaceOffered ? (inWorkspace ? "board" : "workspace") : null} waiting={waitingSessions.length > 0} version={version?.running ?? null} onVersion={welcome.openReleaseNotes} />}
+      {!phone && <StatusBar stageOpen={stage.enabled && stageClaimsKeys(stage.shell.phase)} zoomedOut={zoom.lod !== "detail"} viewChord={stage.workspaceOffered ? (inWorkspace ? "board" : "workspace") : null} waiting={waitingSessions.length > 0} version={version?.running ?? null} onVersion={welcome.openReleaseNotes} setKeyHelpOpen={setKeyHelpOpen} />}
       </BoardEmptyContext.Provider>
 
       {/* The dialogs, in the order they paint over one another — components/DeckDialogs.tsx. */}

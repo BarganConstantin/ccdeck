@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useLayoutEffect, useRef, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useSyncExternalStore } from "react";
 import { createPortal } from "react-dom";
 import { useT } from "../i18n";
 import { placeBeside } from "../popover-place";
@@ -89,13 +89,12 @@ export function hidePeek(id?: string): void {
 }
 
 /** What a session note's peek needs: the note — Claude Code's recap, or what
- *  the session is doing or did (session-note.ts) — and the session's plan, the
- *  session's hue for its mark, and the name of the session it speaks for. The
- *  note is null on a note that holds the plan alone. */
+ *  the session is doing or did (session-note.ts) — and the session's plan, and
+ *  the name of the session it speaks for. The note is null on a note that holds
+ *  the plan alone. */
 export interface PeekRecap {
   note: SessionNote | null;
   plan?: AgentPlan | null;
-  hue: number;
   sessionLabel?: string;
 }
 
@@ -185,8 +184,7 @@ function RecapPeek({ r, anchor, bounds }: { r: PeekRecap; anchor: Element; bound
   const isRecap = note?.kind === "recap";
   const written = promptTime(note?.at ?? r.plan?.at ?? now, now);
   return createPortal(
-    <div ref={ref} className="ap-peek node-peek recap-peek" role="tooltip" id="node-peek"
-      style={{ "--session-hue": r.hue } as React.CSSProperties}>
+    <div ref={ref} className="ap-peek node-peek recap-peek" role="tooltip" id="node-peek">
       <div className="node-peek-head">
         <span className="recap-peek-mark"><NoteMark recap={isRecap} />{note ? noteTag(note.kind) : t("insights.peek.plan")}</span>
         <span className="node-peek-time" title={written.title}>{written.label}</span>

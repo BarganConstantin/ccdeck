@@ -43,9 +43,8 @@
   .fc-tab,
   .fc-anon { min-height: 32px; }
   .fb-shot > .fb-shot-remove::after { inset: -6px; }
-  /* Fit all and Re-arrange's Undo take the floor too, and Undo drops the
-     chord it names: a fingertip has no key to press. */
-  .autofit-chip,
+  /* Re-arrange's Undo takes the floor too, and drops the chord it names: a
+     fingertip has no key to press. */
   .rearrange-undo-act { min-height: 32px; }
   .rearrange-undo-key { display: none; }
   /* The terminal stage's keys bar (terminal-stage.css) names keys the same
@@ -241,12 +240,11 @@
   /* What's new's Check for updates while a check is out: the accent every
      busy button takes is gone here, so the edge takes the highlight. */
   .release-notes .rn-act[aria-busy="true"] { border-color: Highlight; }
-  /* A pressed chip, a paused canvas and the open tab are drawn as a fill, and
-     the theme paints every fill Canvas, so each looked like its neighbours:
-     they fill with the highlight, the way an on switch does, and keep it
-     under the pointer, where their own hover would outrank this. */
+  /* A pressed chip and the open tab are drawn as a fill, and the theme paints
+     every fill Canvas, so each looked like its neighbours: they fill with the
+     highlight, the way an on switch does, and keep it under the pointer, where
+     their own hover would outrank this. */
   .uh-range-btn[aria-pressed="true"],
-  .react-flow__controls-button[aria-pressed="true"],
   .aa-tab.on,
   .qh-provider[aria-pressed="true"] { forced-color-adjust: none; border-color: Highlight; background: Highlight; color: HighlightText; }
   /* The Inspector's kind chip that filters the calls: its pill takes the fill. */
@@ -258,8 +256,7 @@
   .ap-auto-option[data-selected] { outline: 2px solid Highlight; outline-offset: -2px; }
   .ap-slot-row[data-selected] { outline: 2px solid Highlight; outline-offset: -2px; }
   @media (hover: hover) and (pointer: fine) {
-  .uh-range-btn[aria-pressed="true"]:hover,
-  .react-flow__controls-button[aria-pressed="true"]:hover { forced-color-adjust: none; border-color: Highlight; background: Highlight; color: HighlightText; }
+  .uh-range-btn[aria-pressed="true"]:hover { forced-color-adjust: none; border-color: Highlight; background: Highlight; color: HighlightText; }
   }
   /* The rule between the control bar's groups is a fill too, and the theme
      paints every fill Canvas, so it would vanish. It takes the text colour,
@@ -329,6 +326,9 @@
      count the text colour carries. */
   .rail-dot, .fc-dot, .fc-tab[aria-selected="true"]::after { forced-color-adjust: none; background: Highlight; }
   .fc-tab-count { forced-color-adjust: none; background: CanvasText; color: Canvas; }
+  /* The canvas bar's ⋯ dot, which says tool calls are hidden: a fill the theme
+     would paint over, so redrawn in the highlight like the rail's. */
+  .canvas-more-dot { forced-color-adjust: none; background: Highlight; }
 
   .sysdetail .sd-fill,
   .sysdetail .sd-core-fill,
@@ -440,26 +440,23 @@
      glyphs (StateMark, AlertMark), drawn in currentColor, so they take the
      text colour on their own and keep their shapes — filled for working,
      hollow for idle, a tick for ended, the triangle for waiting — which is
-     what tells them apart here. The header's context bar keeps its track and its
-     fill, the fill in the text colour. The
+     what tells them apart here. The header's context ring is the card's
+     (ContextModal.tsx ContextRing), drawn in strokes, not the backgrounds
+     the theme repaints, and answered here no more than the card's is: the
+     figure beside it is text, which the theme recolours, so the reading
+     survives whatever the theme makes of the ring. The
      divider's line is drawn in the text colour, and the terminal itself is
      drawn by xterm's DOM renderer here, whose glyphs the theme recolours
      like any text (use-terminal-session.ts). */
-  .ts-ctxbar,
-  .ts-ctxbar i { forced-color-adjust: none; }
-  .ts-ctxbar { background: Canvas; outline: 1px solid CanvasText; }
-  .ts-ctxbar i { background: CanvasText; }
   .ts-divider::before { background: CanvasText; }
 
   /* Re-arrange's Undo is set apart from the status beside it by weight and
      by a fill under the pointer, and the theme paints that fill Canvas. An
      edge in the button colour carries it instead, so the one control in the
-     strip still reads as one; Fit all has its own edge. Both turn Highlight
-     under the pointer. A border and not an outline, which would replace the
-     keyboard's ring. */
+     strip still reads as one, and it turns Highlight under the pointer. A
+     border and not an outline, which would replace the keyboard's ring. */
   .rearrange-undo-act { border: 1px solid ButtonText; }
   @media (hover: hover) and (pointer: fine) {
-  .autofit-chip:hover,
   .rearrange-undo-act:hover { border-color: Highlight; }
   }
 

@@ -144,12 +144,15 @@ describe("the three counts", () => {
     expect(sessionCounts(agents)).toEqual({ waiting: 1, working: 2, done: 1 });
     expect(blockedSessions(agents).map(w => w.id)).toEqual(["d"]);
   });
-  it("keep the waiting pill when nothing waits, as a quiet readout that opens nothing", () => {
+  // CHANGED ON PURPOSE (V4 top-10 #5): was "keep the waiting pill when nothing waits,
+  // as a quiet readout that opens nothing": a "0 waiting" span → nothing drawn,
+  // because a zero is not news, and Waiting comes back lit when somebody waits.
+  it("draw no waiting pill when nothing waits, and nothing that opens", () => {
     const html = renderToStaticMarkup(createElement(WaitingStat, {
       waitingSessions: [], waitingCursorRef: { current: null }, focusSession: () => {}, now: 0,
     }));
-    expect(html).toContain('class="count-pill count-waiting"');
-    expect(html).toContain("<b>0</b>");
+    expect(html).toBe("");
+    expect(html).not.toContain("<b>0</b>");
     expect(html).not.toContain("<button");
   });
 });

@@ -1,12 +1,14 @@
-// OS notifications for a session that is waiting on you: whether the browser
-// allows them, the deck's own switch, asking for permission, and — the subtle
-// part — what has already been raised, so that adopting a world full of old
-// blocks does not fire a burst of them at once.
+// OS notifications for a session that is waiting on you, or has finished its
+// turn: whether the browser allows them, the deck's own switch, asking for
+// permission, and — the subtle part — what has already been raised, so that
+// adopting a world full of old blocks and old turns does not fire a burst of
+// them at once.
 //
 // Lifted out of App.tsx's `Inner`, where it was the last 270 lines before the
-// markup. It takes the waiting set the sidebar already computes, the moment the
-// deck finished adopting the world, and how to bring a session into view when a
-// notification is clicked; it owns everything else, and every setter is private.
+// markup. It takes the waiting set the sidebar already computes, the graph the
+// finished turns are read from, the moment the deck finished adopting the
+// world, and how to bring a session into view when a notification is clicked;
+// it owns everything else, and every setter is private.
 //
 // One thing stayed behind on purpose. The deck's server-side prefs are read once,
 // and that one answer carries both this switch and the auto-update switch. The
@@ -15,13 +17,49 @@
 // into the auto-update state or making two requests for one answer.
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import { type NotifyPermission, blockKey, canAsk, mayRaise, nextRaised, noticesFor, seedRaised, shouldReseed, shouldSeedFromWorld } from "./notify";
+import { type BlockNotice, type NotifyPermission, blockKey, canAsk, mayRaise, nextRaised, noticesFor, seedRaised, shouldReseed, shouldSeedFromWorld } from "./notify";
+import { type FinishedTold, type FinishedTurn, finishedNoticesFor, finishedTurns, nextFinishedTold, seedFinishedTold } from "./notify-finished";
 import type { BlockedSession } from "./ambient-counts";
+import type { GraphState } from "./graph-state";
 import { useMirroredRef } from "./use-mirrored-ref";
 import { refuseSave, setSettingsFailure } from "./settings-failure";
 
 /** The kit's 192px web icon, the one the manifest names for installs. */
 const NOTIFICATION_ICON = "/icon-192.png";
+
+/** No graph, no finished turns: the suite's harnesses pass none. */
+const NO_TURNS: FinishedTurn[] = [];
+
+/** Raise one notice, a blocked session's or a finished turn's, and land on its
+ *  session when it is clicked. One function for both, so the two can never
+ *  differ in where a click takes you. */
+function showNotice(n: BlockNotice, focusSession: (sessionId: string) => void): void {
+  try {
+    // `tag` is the notice's key, so a second deck on the same machine REPLACES
+    // this notification in the tray rather than stacking a duplicate beside
+    // it — the same fan-out that makes the moment in the key load-bearing (a
+    // block's `since`, a turn's end).
+    // The icon is the kit's web icon the manifest already ships; a platform
+    // that ignores the option shows the browser's own, as before.
+    const note = new Notification(n.title, { body: n.body, tag: n.key, icon: NOTIFICATION_ICON });
+    note.onclick = () => {
+      // Bring the deck back and land on the session that asked, rather than
+      // on whatever the canvas happened to be showing. A notification that
+      // returns you to a page you then have to search is half a feature.
+      window.focus();
+      // The same handler the topbar's blocked chip clicks through, so the
+      // notification lands the user exactly where the chip would have.
+      focusSession(n.sessionId);
+      note.close();
+    };
+  } catch {
+    // A notification can throw where the API exists but the platform will
+    // not raise one — a Linux desktop with no notification daemon is the
+    // common case. It is not worth a message on screen: the four in-page
+    // surfaces are all still saying it, which is the state the deck was in
+    // before this existed.
+  }
+}
 
 export interface OsNotificationsDeps {
   /** The sessions currently blocked on a human — the same set the sidebar draws. */
@@ -30,6 +68,9 @@ export interface OsNotificationsDeps {
   liveSince: number | null;
   /** Bring a session into view; what clicking a notification does. */
   focusSession: (sessionId: string) => void;
+  /** The graph, read for the sessions whose turn has ended (notify-finished.ts).
+   *  Without it only the blocked half speaks. */
+  stateRef?: { readonly current: GraphState };
 }
 
 /** What /api/prefs answers, as far as this hook reads it. */
@@ -61,7 +102,7 @@ export function accountNotifyFrom(prefs: NotifyPrefsAnswer["prefs"]): AccountNot
   };
 }
 
-export function useOsNotifications({ waitingSessions, liveSince, focusSession }: OsNotificationsDeps) {
+export function useOsNotifications({ waitingSessions, liveSince, focusSession, stateRef }: OsNotificationsDeps) {
   // The fifth surface, and the only one that leaves the page.
   //
   // The four above — chip, title, favicon, live region — all answer "which
@@ -143,6 +184,20 @@ export function useOsNotifications({ waitingSessions, liveSince, focusSession }:
   const askNotifyRef = useRef<() => void>(() => {});
   const notifyRaisedRef = useRef<ReadonlySet<string>>(new Set());
   const waitingSessionsRef = useMirroredRef(waitingSessions);
+  // THE FINISHED TURNS, the other thing worth saying into an empty room, read
+  // off the graph only when it has moved: the identity-and-revision test
+  // App.tsx's memos make, in a ref because nothing on screen reads it. Their
+  // memo of what has been told is the blocked one's twin, kept apart so
+  // neither rule can reach into the other's keys.
+  const finishedRef = useRef<{ graph: GraphState | null; revision: number; turns: FinishedTurn[] }>(
+    { graph: null, revision: -1, turns: NO_TURNS },
+  );
+  const graph = stateRef?.current ?? null;
+  if (graph && (finishedRef.current.graph !== graph || finishedRef.current.revision !== graph.revision)) {
+    finishedRef.current = { graph, revision: graph.revision, turns: finishedTurns(graph.agents.values()) };
+  }
+  const finished = finishedRef.current.turns;
+  const notifyToldRef = useRef<FinishedTold>(new Map());
   const toggleNotify = useCallback(() => {
     // Optimistic, and corrected by the answer. The switch is the one control
     // whose whole point is that it responds now; waiting for a round trip to a
@@ -155,7 +210,10 @@ export function useOsNotifications({ waitingSessions, liveSince, focusSession }:
     // is on their screen (#1761). While the switch was off nothing was written
     // down as seen, so without this a block they were looking at when they
     // pressed it was announced, hours late, with the next one to arrive.
-    if (want) notifyRaisedRef.current = seedRaised(waitingSessionsRef.current);
+    if (want) {
+      notifyRaisedRef.current = seedRaised(waitingSessionsRef.current);
+      notifyToldRef.current = seedFinishedTold(finishedRef.current.turns, notifyToldRef.current);
+    }
     // AND THE PRESS FINISHES THE JOB. Switching this on used to leave a switch
     // reading "on" above a line saying the browser had never been asked, which
     // is a control contradicting itself — the user's reasonable reply being
@@ -221,6 +279,9 @@ export function useOsNotifications({ waitingSessions, liveSince, focusSession }:
    *  answer re-seeds exactly once. `null` until the first seed. */
   const notifySeededAtRef = useRef<NotifyPermission | null>(null);
   const blockedKeys = waitingSessions.map(b => blockKey(b.id, b.waiting)).join("|");
+  // A held turn too, marked, so a job settling or a block clearing runs the
+  // raiser again though the turn's own key has not moved.
+  const finishedKeys = finished.map(f => (f.held ? `${f.key}~${f.held}` : f.key)).join("|");
 
   // WHEN THE NOTIFIER STARTS WATCHING, it adopts the world as it finds it: a
   // deck opening onto a machine with four prompts already standing must not
@@ -246,6 +307,7 @@ export function useOsNotifications({ waitingSessions, liveSince, focusSession }:
   useEffect(() => {
     if (!shouldReseed(notifySeededAtRef.current, notifyPermission)) return;
     notifySeededAtRef.current = notifyPermission;
+    notifyToldRef.current = seedFinishedTold(finished, notifyToldRef.current);
     notifyRaisedRef.current = seedRaised(waitingSessions);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [notifyPermission]);
@@ -275,6 +337,7 @@ export function useOsNotifications({ waitingSessions, liveSince, focusSession }:
   useEffect(() => {
     if (!shouldSeedFromWorld(notifySeededReplayRef.current, liveSince)) return;
     notifySeededReplayRef.current = true;
+    notifyToldRef.current = seedFinishedTold(finished, notifyToldRef.current);
     notifyRaisedRef.current = seedRaised(waitingSessions);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [liveSince]);
@@ -293,32 +356,7 @@ export function useOsNotifications({ waitingSessions, liveSince, focusSession }:
     if (!mayRaise(notifySeededAtRef.current, liveSince)) return;
     const pageVisible = typeof document === "undefined" || !document.hidden;
     const notices = noticesFor(waitingSessions, notifyRaisedRef.current, pageVisible, notifyOn);
-    for (const n of notices) {
-      try {
-        // `tag` is the block key, so a second deck on the same machine REPLACES
-        // this notification in the tray rather than stacking a duplicate beside
-        // it — the same fan-out that makes `since` load-bearing in the key.
-        // The icon is the kit's web icon the manifest already ships; a platform
-        // that ignores the option shows the browser's own, as before.
-        const note = new Notification(n.title, { body: n.body, tag: n.key, icon: NOTIFICATION_ICON });
-        note.onclick = () => {
-          // Bring the deck back and land on the session that asked, rather than
-          // on whatever the canvas happened to be showing. A notification that
-          // returns you to a page you then have to search is half a feature.
-          window.focus();
-          // The same handler the topbar's blocked chip clicks through, so the
-          // notification lands the user exactly where the chip would have.
-          focusSession(n.sessionId);
-          note.close();
-        };
-      } catch {
-        // A notification can throw where the API exists but the platform will
-        // not raise one — a Linux desktop with no notification daemon is the
-        // common case. It is not worth a message on screen: the four in-page
-        // surfaces are all still saying it, which is the state the deck was in
-        // before this existed.
-      }
-    }
+    for (const n of notices) showNotice(n, focusSession);
     // Looking at the page counts as having been told, so a block that arrives
     // while the deck is on screen is remembered as seen and does not fire late
     // when the tab is next hidden. Both branches prune keys whose block is gone,
@@ -338,6 +376,25 @@ export function useOsNotifications({ waitingSessions, liveSince, focusSession }:
     // notification a user who walked away most wants.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [blockedKeys, liveSince]);
+
+  // A FINISHED TURN, said by the same rules in the same order as a block, and
+  // declared after both seeds for the same reason: the commit that ends the
+  // first replay carries the turns and `liveSince` together, and the seeds must
+  // have adopted them first. Which turns are said and which are history is
+  // notify-finished.ts's; a visible page adopts what it shows, as above.
+  useEffect(() => {
+    if (typeof Notification === "undefined" || Notification.permission !== "granted") return;
+    if (!mayRaise(notifySeededAtRef.current, liveSince)) return;
+    const pageVisible = typeof document === "undefined" || !document.hidden;
+    const notices = finishedNoticesFor(finished, notifyToldRef.current, pageVisible, notifyOn);
+    for (const n of notices) showNotice(n, focusSession);
+    notifyToldRef.current = pageVisible
+      ? seedFinishedTold(finished, notifyToldRef.current)
+      : nextFinishedTold(finished, notices, notifyToldRef.current);
+    // `liveSince` for the reason the raiser above gives: a turn that ended
+    // while the stream was down is said when it comes back.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [finishedKeys, liveSince]);
 
   /** The notifications half of the one /api/prefs read — use-prefs-read.ts. */
   const loadNotifyPrefs = useCallback((d: NotifyPrefsAnswer) => {

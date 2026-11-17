@@ -317,7 +317,9 @@ describe("the block is announced, and the region is always there to announce it"
     // The whole element, not just its opening tag: an arrow function in an
     // `onClick` carries a `>` of its own, so a regex ending at the first one
     // reads about a quarter of the attributes and passes for the rest.
-    const opens = readoutsCode.indexOf(`className="count-pill count-waiting waiting-stat"`);
+    // CHANGED ON PURPOSE (V4 top-10 #5): count-waiting left the class list (only the
+    // undrawn 0 pill needed it), so the chip is found by the classes it keeps.
+    const opens = readoutsCode.indexOf(`className="count-pill waiting-stat"`);
     expect(opens, "the waiting chip is gone from components/TopbarReadouts.tsx").toBeGreaterThan(-1);
     const chip = readoutsCode.slice(opens, readoutsCode.indexOf("</button>", opens));
     expect(chip).not.toMatch(/\brole=/);

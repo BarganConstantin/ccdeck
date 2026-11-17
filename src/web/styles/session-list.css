@@ -155,11 +155,9 @@
 .session-list .sl-row.selected { background: var(--selected); }
 /* The muted words step up a tier on the fill: --muted on it is 4.05:1 in dark
    (#1789), the reason the Tool activity rows do the same. */
-.session-list .sl-row.selected .sl-line2,
-.session-list .sl-row.selected .sl-model { color: var(--text-secondary); }
+.session-list .sl-row.selected .sl-line2 { color: var(--text-secondary); }
 @media (hover: hover) and (pointer: fine) {
-.session-list .sl-row:hover .sl-line2,
-.session-list .sl-row:hover .sl-model { color: var(--text-secondary); }
+.session-list .sl-row:hover .sl-line2 { color: var(--text-secondary); }
 }
 /* The most-clicked control in the app answers a press. Nothing interactive
    nests inside the row, so the scale is the row's alone. */
@@ -169,14 +167,14 @@
    row is the way back; muted, because what it points at is not on the board. */
 .session-list .sl-row.removed .sl-label { color: var(--muted); }
 /* Its words lead the second line, in the tool name's ink, so the first line
-   keeps the session's name whole beside the model and the clock. */
+   keeps the session's name whole beside the clock. */
 .session-list .sl-off { font-weight: 500; color: var(--text-secondary); }
 /* "Done · 1 failed" leads the second line of a finished row whose calls
    failed: Done in the line's own muted ink, the count in the warning's, as the
    card says it beside the same partial mark. */
 .session-list .sl-failed { font-weight: 500; color: var(--warn); }
 /* When a row that reads like another started (twinClocks): it leads the second
-   line in the model's quiet mono, so the name keeps the first line whole. */
+   line in a quiet mono, so the name keeps the first line whole. */
 .session-list .sl-start {
   font-family: var(--font-mono);
   font-size: calc(11px + var(--ui-text-increase, 0px));
@@ -243,15 +241,6 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-}
-/* The model, a mono tag after the name. */
-.session-list .sl-model {
-  flex: none;
-  font-family: var(--font-mono);
-  font-size: calc(11px + var(--ui-text-increase, 0px));
-  line-height: 14px;
-  color: var(--muted);
-  white-space: nowrap;
 }
 /* The clock: the wait in the warn tone on Needs you, everything else quiet. */
 .session-list .sl-time {
@@ -408,19 +397,6 @@
   font-size: calc(12px + var(--ui-text-increase, 0px));
   line-height: 16px;
 }
-/* Rail / Nobody waiting: the quiet line where Needs you would be. */
-.session-list .sl-nobody {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 6px 8px;
-  color: var(--muted);
-  font-size: calc(12px + var(--ui-text-increase, 0px));
-  line-height: 16px;
-  white-space: nowrap;
-}
-.session-list .sl-nobody .sl-glyph { height: 14px; padding-top: 0; }
-
 /* Rail / Usage: the foot of the rail, below the list that scrolls and
    the removed cards' line. Padding 4 round the box, like the list's. The box is
    one button: a column of the account and the 5-hour limit, the bar, and the
@@ -469,22 +445,23 @@
   font-variant-numeric: tabular-nums;
   transition: color var(--dur-fast) var(--ease);
 }
-/* The figure is the only part of the meter that changes tone: quiet under 70,
-   plain to 89, error from 90. A stale reading is always quiet. */
-.session-list .sl-usage-btn[data-level="low"] .sl-usage-pct { color: var(--muted); }
-.session-list .sl-usage-btn[data-level="high"] .sl-usage-pct { color: var(--err); }
-/* At error the mark and "high" stand round the figure (LevelMark), at the
-   line's end where the figure alone stood. */
+/* The figure takes the Usage panel's level (quotaLevel, QuotaBar.tsx): plain
+   under 70, and from 70 the mark and "high" stand round it (LevelMark), all in
+   the level's ink, at the line's end where the figure alone stood. A stale
+   reading has no level and is quiet (below). */
 .session-list .sl-usage-line1 > .level-mark { margin-left: auto; }
+.session-list .level-mark > .sl-usage-pct { color: inherit; }
 /* The old figure and the new share one cell and crossfade (FadeFigure). */
 .fade-figure { display: inline-grid; justify-items: end; }
 .fade-figure > * { grid-area: 1 / 1; }
 .fade-figure-in { display: block; }
 .fade-figure-out { display: block; pointer-events: none; }
 
-/* V4's bar: 232 x 4 on --line-soft, up to five data-coloured parts (one cyan
-   part until the deck holds a per-session split, rail-usage.ts) and the track in
-   --line. The bar never changes colour with the reading; the figure does. */
+/* V4's bar: 232 x 4 on --line-soft, the fill, then the track in --line. The
+   fill's colour is the reading's level, as the Usage panel's bar has it (the
+   accent, then --warn from 70 and --err from 90), set inline from the meter. Up
+   to five parts when the deck holds a per-session split (rail-usage.ts; one part
+   until then), told apart by shape alone: the 2 between them, never a colour. */
 .session-list .sl-usage-bar {
   display: flex;
   gap: 2px;

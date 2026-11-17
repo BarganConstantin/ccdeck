@@ -6,7 +6,6 @@ import { useEffect, useRef, useState, type MouseEvent, type ReactNode } from "re
 import type { Row } from "./SessionList";
 import { AlertMark, StateMark } from "./StateMark";
 import { stateLabel } from "../agent-copy";
-import { modelChipText, modelChipTitle } from "../model-label";
 import { RAIL_GROUP_LABEL_MSGS, type RailGroup } from "../rail-model";
 import { railFailed, railGlyph, railLine, railTime, rowSpoken, rowTooltip, twinStart, type RailGlyphKind } from "../rail-row-copy";
 import { fadeIn, tokenMs } from "../rail-motion";
@@ -216,9 +215,10 @@ export function RailRow({ row: r, group, now, selected, removed, leaving, landNo
           <span className="vis-hidden">{rowSpoken(r)}</span>
           <span className="sl-text">
             <span className="sl-line1">
+              {/* The name alone: the model that stood after it, in mono, is
+                  the Inspector's to say (V4 top-10 #5). */}
               <span className="sl-name">
                 <span className="sl-label">{r.label}</span>
-                {r.modelId && <span className="sl-model" title={modelChipTitle(r.modelId, r.effort)}>{modelChipText(r.modelId, r.effort)}</span>}
               </span>
               {time && <span className={`sl-time ${time.tone}`}><span className="vis-hidden">{time.spoken}</span>{time.text}</span>}
             </span>
@@ -261,17 +261,19 @@ export function RailUsage({ meter, onPress }: { meter: UsageMeter | null; onPres
   const line2 = second.flatMap((part, i) => (part ? [i > 0 && second[0] ? "·" : null, part] : [])).filter(Boolean);
   return (
     <div className="sl-usage">
-      <button type="button" className="sl-usage-btn" onClick={onPress} data-stale={meter.stale || undefined} data-level={meter.level} aria-label={meter.spoken}>
+      <button type="button" className="sl-usage-btn" onClick={onPress} data-stale={meter.stale || undefined} aria-label={meter.spoken}>
         <span className="sl-usage-line1" aria-hidden>
           {meter.name && <span className="sl-usage-name" title={meter.name}>{meter.name}</span>}
           <span className="sl-usage-what">{t("board.rail.fiveHour")}</span>
-          <LevelMark tone={meter.level === "high" ? "err" : null} word="high">
+          {/* The Usage panel's level, mark and word: "⚠ 86% · high" here as there. */}
+          <LevelMark tone={meter.level} word="high">
             <FadeFigure className="sl-usage-pct" text={meter.pctText} value={meter.fill} />
           </LevelMark>
         </span>
         <span className="sl-usage-bar" aria-hidden>
+          {/* Every part in the one fill colour: a split is shape, 2 apart. */}
           <span className="sl-usage-fill" data-jump={jump || undefined} style={{ width: `${meter.fill}%` }}>
-            {meter.segments.map(seg => <span key={seg.token} className="sl-usage-seg" style={{ flexGrow: seg.share, background: `var(${seg.token})` }} />)}
+            {meter.segments.map((seg, i) => <span key={i} className="sl-usage-seg" style={{ flexGrow: seg.share, background: meter.color }} />)}
           </span>
           <span className="sl-usage-track" />
         </span>

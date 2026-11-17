@@ -333,10 +333,13 @@ describe("the eased geometry carries layout coordinates, not screen ones", () =>
     // The two literals above are built in cluster-bounds.ts; this is the wire
     // that makes them the ones on screen. The box is handed no zoom at all, so
     // the camera cannot reach it through this call either.
-    expect(tsx).toContain("const boxStyle = clusterBoxStyle(c, hue);");
+    // CHANGED ON PURPOSE (V4 top-10 #1): neither call is handed the session's
+    // hue any more (`clusterBoxStyle(c, hue)`, `clusterLabelStyle(c, zoom, hue,
+    // …)`), because the box and its label wear none.
+    expect(tsx).toContain("const boxStyle = clusterBoxStyle(c);");
     // The label is also handed the width its room allows on screen, which only
     // ever narrows it (cluster-label-room.ts); where it sits stays layout space.
-    expect(tsx).toContain("const labelStyle = clusterLabelStyle(c, zoom, hue, room.maxWidth);");
+    expect(tsx).toContain("const labelStyle = clusterLabelStyle(c, zoom, room.maxWidth);");
   });
 
   it("keeps the label in the same space, so the two cannot disagree", () => {

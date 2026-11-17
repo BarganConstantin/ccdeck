@@ -124,9 +124,14 @@ describe("a narrow board drops the second stat, in a container query on the stri
 });
 
 describe("what is moved under the strip, through one custom property", () => {
-  it("lifts the cell's top-edge overlay by --board-head-top, set only while the strip is drawn", () => {
-    expect(decls(".canvas-wrap[data-board-head]", own)["--board-head-top"]).toBe("var(--board-head-h)");
-    expect(decls(".cat-filter-bar")["top"]).toBe("calc(14px + var(--board-head-top, 0px))");
+  // CHANGED ON PURPOSE (V4 top-10 #5): the cell's one top-edge overlay, the floating
+  // Tools filter, was lifted by --board-head-top → it is a group of the canvas bar's
+  // ⋯ menu, so nothing floats there and the property has no reader left to set it for,
+  // because a property with no reader is the dead CSS dead-css.test.ts refuses.
+  it("lifts nothing at the cell's top edge: the overlay that read --board-head-top is gone", () => {
+    expect(decls(".canvas-wrap[data-board-head]", own)["--board-head-top"]).toBeUndefined();
+    expect(sheet).not.toContain("--board-head-top");
+    expect(decls(".cat-filter-bar")["top"]).toBeUndefined();
   });
   it("lets the board take what the strip leaves, as a column", () => {
     expect(decls(".canvas-wrap[data-board-head]", own)["display"]).toBe("flex");
@@ -142,7 +147,8 @@ describe("what is moved under the strip, through one custom property", () => {
   });
   it("keeps every other overlay in the cell clear of the strip by their own anchors", () => {
     // Bottom-anchored or inside React Flow's own pane, so nothing to move.
-    for (const sel of [".autofit-chip", ".canvas-notices", ".drag-trash-zone"]) {
+    // (The auto-fit chip left the list with the chip, V4 top-10 #3.)
+    for (const sel of [".canvas-notices", ".drag-trash-zone"]) {
       expect(decls(sel)["bottom"], sel).toBeDefined();
       expect(decls(sel)["top"], sel).toBeUndefined();
     }
@@ -233,8 +239,11 @@ describe("the board's rectangle, not the cell's", () => {
     expect(boardRect(fake(true, 0)).top).toBe(0);
   });
   it("is what the four framing sites read", () => {
+    // CHANGED ON PURPOSE (V4 top-10 #3): use-agent-focus.ts read it once (the
+    // focus) → twice, because a selection brings its card into view by a pan of
+    // its own (revealAgent), against the same board rectangle.
     for (const [file, n, from] of [
-      ["../use-camera.ts", 1, "./board-rect"], ["../use-agent-focus.ts", 1, "./board-rect"],
+      ["../use-camera.ts", 1, "./board-rect"], ["../use-agent-focus.ts", 2, "./board-rect"],
       ["../components/terminal/StageShell.tsx", 1, "../../board-rect"], ["../use-stage.ts", 2, "./board-rect"],
     ] as const) {
       const src = read(file);

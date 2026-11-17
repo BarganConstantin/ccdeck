@@ -24,6 +24,12 @@ export const SCHEMA_KEY = "agent-dag.schema";
  *  the agent-dag.* namespace is a preference and is kept across upgrades. */
 export const SHAPE_KEYS = ["agent-dag.layout", "agent-dag.viewport"];
 
+/** How many times each key the status bar names has been used from the
+ *  keyboard in this browser, as one JSON object of counts by hint id
+ *  (key-learning.ts). A key used often enough is learned and the bar stops
+ *  naming it. A preference like the rest: kept across upgrades. */
+export const KEY_USES_KEY = "agent-dag.keyUses";
+
 /**
  * One stored string, or null when it is absent OR the browser refuses the store.
  *

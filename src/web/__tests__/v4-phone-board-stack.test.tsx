@@ -245,11 +245,19 @@ describe("no canvas and none of its controls on a phone; the desktop keeps the c
     expect(flow).toMatch(/<ReactFlow\b/);
     expect(flow).toMatch(/<CanvasControls\b/);
     expect(flow).toMatch(/<BoardMinimap\b/);
-    expect(flow).toMatch(/<AutoFitChip\b/);
+    // CHANGED ON PURPOSE (V4 top-10 #3): BoardFlow mounted the Auto-fit chip →
+    // it does not, because recenter in CanvasControls did the same thing.
+    expect(flow).not.toMatch(/<AutoFitChip\b/);
   });
 
   it("the canvas's Tools filter is not drawn on a phone either", () => {
-    expect(app).toContain("{!phone && (presentCats.length > 1 || hiddenCats.size > 0) && (");
+    // CHANGED ON PURPOSE (V4 top-10 #5): App's `{!phone && … && <CategoryFilterBar` →
+    // the filter is a group of the canvas bar's ⋯ menu, handed to BoardFlow alone,
+    // which only the desktop branch mounts, because nothing floats over the board now.
+    expect(app).not.toContain("<CategoryFilterBar");
+    expect(surface).toMatch(/<BoardFlow\b[^>]*presentCats=\{presentCats\} toggleCat=\{toggleCat\}/);
+    expect(surface.indexOf("presentCats={presentCats}")).toBeGreaterThan(surface.indexOf(") : ("));
+    expect(read("components/BoardFlow.tsx")).toContain("presentCats={presentCats} hiddenCats={hiddenCats} toggleCat={toggleCat}");
   });
 
   it("the stack itself has no zoom, minimap, Fit all or trash", () => {

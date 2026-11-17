@@ -89,7 +89,6 @@ function noteHtml(note: Partial<SessionNote>): string {
   const data: RecapNoteData = {
     sessionId: "s1",
     parentId: "s1",
-    hue: 210,
     noteKey: "k",
     note: { kind: "recap", source: "recap", text: "", at: Date.now() - 3_600_000, key: "k", ...note } as SessionNote,
   };

@@ -7,6 +7,13 @@
 // word steps down to --text-dim, so the state is a tick and a shape, not only a
 // colour. The hook behind it (use-category-filter-bar.ts) is unchanged.
 //
+// CHANGED ON PURPOSE (V4 top-10 #5): the "Tools" button floating over the
+// canvas's top left → the rows are the last group of the canvas bar's ⋯ "More
+// actions" menu, under a "Tool calls" heading, and ⋯ carries a dot (and says so
+// in its name) while calls on the board are hidden, which is what "Tools 1 of
+// 2" said. The rows, their dots, their checkboxes and Show all are unchanged;
+// the hook lost only the occlusion measuring a floating bar needed.
+//
 // Rendered, not only read: the filter is drawn server-side, so what each state
 // puts on screen is asserted as markup.
 import { describe, expect, it } from "vitest";
@@ -15,6 +22,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import CategoryFilterBar from "../components/CategoryFilterBar";
+import { toolFilterActive, toolFilterShown } from "../components/CanvasControls";
 import type { DetailCategory } from "../detail-category";
 import { sheetText } from "./sheet-source";
 
@@ -34,51 +42,79 @@ const decl = (selector: string, prop: string): string | undefined => {
 };
 
 const SIX: DetailCategory[] = ["file", "shell", "agent", "plan", "mcp", "other"];
+// CHANGED ON PURPOSE (V4 top-10 #5): catBarRef and catBarOccluded → headId, because
+// the rows are a group of the ⋯ menu named by its heading, and nothing floats.
 function draw(hidden: DetailCategory[], present: DetailCategory[] = SIX): string {
   return renderToStaticMarkup(createElement(CategoryFilterBar, {
-    catBarRef: { current: null },
-    catBarOccluded: false,
+    headId: "tools-head",
     presentCats: present,
     hiddenCats: new Set(hidden),
     toggleCat: () => {},
   }));
 }
 const src = read("../components/CategoryFilterBar.tsx");
+const controls = read("../components/CanvasControls.tsx");
 
 describe("the tool filter, at every width", () => {
   it("is one Tools button in a named group, and no legend row", () => {
+    // CHANGED ON PURPOSE (V4 top-10 #5): a group named "Filter tools by category"
+    // around a Tools button → a group named by its visible "Tool calls" heading,
+    // its rows straight under it, in the ⋯ menu.
     const html = draw([]);
-    expect(html).toMatch(/^<div class="cat-filter-bar" role="group" aria-label="Filter tools by category"><button id="[^"]+-tools" type="button" class="cat-filter-tools" aria-haspopup="dialog" aria-expanded="false">/);
-    expect(html).not.toMatch(/class="cat-filter[ "]/);
+    expect(html).toMatch(/^<div role="group" aria-labelledby="tools-head" class="cat-tools-group"><div id="tools-head" class="cat-tools-head">Tool calls<\/div><label class="ap-menu-item cat-tools-item cat-file">/);
+    expect(html).not.toMatch(/class="cat-filter[ "-]/);
     expect(html).not.toContain("aria-pressed");
     expect(html).not.toContain("Show all");
-    // No width switch left: the same button on a desktop and a phone.
+    // No width switch left: the same rows on every width the canvas is drawn at.
     expect(src).not.toMatch(/useMediaQuery|LEGEND_FOLD_QUERY|max-width/);
   });
 
   it("says only Tools while every category shows", () => {
-    expect(draw([])).toMatch(/aria-expanded="false">Tools<svg[^>]*>/);
-    expect(draw([])).not.toContain("cat-tools-count");
+    // CHANGED ON PURPOSE (V4 top-10 #5): "Tools" with no count → ⋯ with no dot and
+    // its plain name, More actions, and every row ticked.
+    const none = new Set<DetailCategory>();
+    expect(toolFilterActive(SIX, none)).toBe(false);
+    expect((draw([]).match(/checked=""/g) ?? [])).toHaveLength(6);
     // A filter kept for a category that has left the board hides nothing on it.
-    expect(draw(["web"])).not.toContain("cat-tools-count");
+    expect(toolFilterActive(SIX, new Set<DetailCategory>(["web"]))).toBe(false);
+    expect(controls).toContain('const name = filtered ? t("board.controls.moreFiltered") : t("accounts.row.more");');
   });
 
   it("says how many show while some are hidden", () => {
-    expect(draw(["shell", "other"])).toContain('aria-expanded="false">Tools <span class="cat-tools-count">4 of 6</span><svg');
-    expect(draw(["shell"], ["file", "shell"])).toContain('Tools <span class="cat-tools-count">1 of 2</span>');
+    // CHANGED ON PURPOSE (V4 top-10 #5): "Tools 4 of 6" → ⋯ carries its dot and the
+    // name "More actions — some tool calls are hidden", and the rows say which:
+    // four ticked, two unticked with a hollow dot.
+    expect(toolFilterActive(SIX, new Set<DetailCategory>(["shell", "other"]))).toBe(true);
+    const html = draw(["shell", "other"]);
+    expect((html.match(/checked=""/g) ?? [])).toHaveLength(4);
+    expect(html).toContain('class="ap-menu-item cat-tools-item cat-shell off"');
+    expect(html).toContain('class="ap-menu-item cat-tools-item cat-other off"');
+    expect(toolFilterActive(["file", "shell"], new Set<DetailCategory>(["shell"]))).toBe(true);
+    expect(controls).toContain("const filtered = filter != null && toolFilterActive(presentCats, hiddenCats);");
+    expect(controls).toContain('{filtered && <span className="canvas-more-dot" aria-hidden />}');
   });
 
   it("opens the same toggles as the kit's checkboxes in the kit's menu, with Show all under a rule", () => {
-    expect(src).toMatch(/<AnchoredPopover anchorId=\{trigger\} id=\{menu\} className="ap-pop" role="dialog"/);
-    expect(src).toMatch(/<label key=\{c\} className=\{`ap-menu-item cat-tools-item cat-\$\{c\}\$\{off \? " off" : ""\}`\}>\s*<Checkbox checked=\{!off\} onChange=\{\(\) => toggleCat\(c\)\} \/>\s*<span className="cat-dot" aria-hidden="true" \/>\s*<span className="cat-name">\{categoryLabel\(c, t\)\}<\/span>/);
-    expect(src).toContain('<div className="ap-menu-sep" aria-hidden="true" />');
-    expect(src).toContain('className="ap-menu-item cat-tools-all"');
+    // CHANGED ON PURPOSE (V4 top-10 #5): its own popover (role="dialog") → the ⋯
+    // menu's last group, under a rule, each checkbox a menuitemcheckbox the menu's
+    // arrows walk; the group shows under #783's rule (toolFilterShown).
+    expect(controls).toMatch(/<AnchoredPopover anchorId=\{CANVAS_MORE_ID\} id=\{CANVAS_MORE_MENU_ID\} className="ap-pop canvas-more-pop" role="menu"/);
+    expect(controls).toMatch(/\{filter && \(\s*<>\s*<div role="separator" className="ap-menu-sep" \/>\s*<CategoryFilterBar headId=\{headId\}/);
+    expect(src).toMatch(/<label key=\{c\} className=\{`ap-menu-item cat-tools-item cat-\$\{c\}\$\{off \? " off" : ""\}`\}>\s*(?:\{[^}]*\}\s*)?<Checkbox role="menuitemcheckbox" checked=\{!off\} onChange=\{\(\) => toggleCat\(c\)\}[\s\S]*?\/>\s*<span className="cat-dot" aria-hidden="true" \/>\s*<span className="cat-name">\{categoryLabel\(c, t\)\}<\/span>/);
+    const hidden = draw(["shell"]);
+    expect(hidden).toContain('<div role="separator" class="ap-menu-sep"></div><button type="button" role="menuitem" class="ap-menu-item cat-tools-all">Show all</button>');
+    expect(hidden).toMatch(/<input type="checkbox" role="menuitemcheckbox"/);
+    expect(toolFilterShown(["file"], new Set())).toBe(false);
+    expect(toolFilterShown(SIX, new Set())).toBe(true);
   });
 
   it("opens from the keyboard as from the mouse: a press, or ArrowDown or ArrowUp", () => {
-    expect(src).toMatch(/onClick=\{\(\) => setOpen\(o => !o\)\}/);
-    expect(src).toMatch(/if \(e\.key !== "ArrowDown" && e\.key !== "ArrowUp"\) return;\s*e\.preventDefault\(\);\s*setOpen\(true\);/);
-    expect(src).toMatch(/aria-controls=\{open \? menu : undefined\}/);
+    // CHANGED ON PURPOSE (V4 top-10 #5): the Tools button's open state → ⋯'s, which
+    // opens at the first row on a press or ArrowDown and at the last on ArrowUp.
+    expect(controls).toContain('onClick={() => setMenu(open ? null : "first")}');
+    expect(controls).toMatch(/if \(e\.key !== "ArrowDown" && e\.key !== "ArrowUp"\) return;\s*e\.preventDefault\(\);\s*setMenu\(e\.key === "ArrowUp" \? "last" : "first"\);/);
+    expect(controls).toMatch(/aria-controls=\{open \? CANVAS_MORE_MENU_ID : undefined\}/);
+    expect(controls).toContain('aria-haspopup="menu"');
   });
 
   it("shows every category again through the same toggle a single item uses", () => {
@@ -86,28 +122,33 @@ describe("the tool filter, at every width", () => {
     // Focus on Show all moves to the first checkbox before the row goes.
     expect(src).toMatch(/if \(document\.activeElement === e\.currentTarget\) \{\s*e\.currentTarget\.parentElement\?\.querySelector<HTMLInputElement>\("input"\)\?\.focus\(\{ preventScroll: true \}\);\s*\}\s*showAll\(\);/);
     // The hook keeps its shape: the control changed, the filter did not.
-    expect(read("../use-category-filter-bar.ts")).toContain("return { presentCats, hiddenCats, toggleCat, catBarRef, catBarOccluded };");
+    // CHANGED ON PURPOSE (V4 top-10 #5): catBarRef and catBarOccluded left the
+    // hook's return with the floating bar they measured.
+    expect(read("../use-category-filter-bar.ts")).toContain("return { presentCats, hiddenCats, toggleCat };");
   });
 });
 
 describe("the tool filter's look", () => {
   it("draws no box around the button, and keeps it inside the canvas", () => {
-    expect(decl(".cat-filter-bar", "background")).toBe("none");
-    expect(decl(".cat-filter-bar", "border")).toBe("0");
-    expect(decl(".cat-filter-bar", "padding")).toBe("0");
-    expect(decl(".cat-filter-bar", "max-width")).toBe("calc(100% - 28px)");
+    // CHANGED ON PURPOSE (V4 top-10 #5): a boxless bar kept 28px inside the canvas →
+    // no bar; the menu that holds the rows is never wider than the window.
+    expect(() => body(".cat-filter-bar")).toThrow(/no rule/);
+    expect(decl(".ap-pop.canvas-more-pop", "max-width")).toBe("calc(100vw - 16px)");
+    expect(decl(".cat-tools-group", "flex-direction")).toBe("column");
   });
 
   it("draws the button round on the control fill, one line wide, the count in muted mono", () => {
-    expect(decl(".cat-filter-tools", "height")).toBe("var(--ctl-h)");
-    expect(decl(".cat-filter-tools", "border-radius")).toBe("var(--r-pill)");
-    expect(decl(".cat-filter-tools", "background")).toBe("var(--bg-soft)");
-    expect(decl(".cat-filter-tools", "color")).toBe("var(--text-secondary)");
-    expect(decl(".cat-filter-tools", "padding")).toBe("0 8px 0 10px");
-    // One button on one line: nothing on a 320-390px canvas scrolls sideways.
-    expect(decl(".cat-filter-tools", "white-space")).toBe("nowrap");
-    expect(decl(".cat-tools-count", "font-family")).toBe("var(--font-mono)");
-    expect(decl(".cat-tools-count", "color")).toBe("var(--muted)");
+    // CHANGED ON PURPOSE (V4 top-10 #5): a round Tools pill with a mono count → ⋯,
+    // a square button of the canvas bar like its neighbours, with a 6px accent dot
+    // on its corner while calls are hidden, and a muted 12px heading over the rows.
+    expect(() => body(".cat-filter-tools")).toThrow(/no rule/);
+    expect(() => body(".cat-tools-count")).toThrow(/no rule/);
+    expect(controls).toMatch(/<ControlButton\s+id=\{CANVAS_MORE_ID\}\s+className="canvas-more"/);
+    // The canvas sheet's rule; a Contrast theme repaints it in the highlight
+    // (below), so the last rule in the cascade is not this one.
+    expect(body(".canvas-more-dot")).toMatch(/background: var\(--accent\);/);
+    expect(decl(".cat-tools-head", "color")).toBe("var(--muted)");
+    expect(decl(".cat-tools-head", "font-size")).toBe("calc(12px + var(--ui-text-increase, 0px))");
   });
 
   it("draws each row's 8px dot in its category's colour, and a hidden row's word dim beside a hollow ring", () => {
@@ -133,26 +174,29 @@ describe("the tool filter's look", () => {
     const forced = read("../styles/touch-and-forced-colours.css");
     expect(forced).toMatch(/\.cat-tools-item \.cat-dot \{ forced-color-adjust: none; \}/);
     expect(forced).toMatch(/\.cat-tools-item\.off \.cat-dot \{ background: Canvas; border-color: CanvasText; \}/);
+    // And ⋯'s dot, which says calls are hidden, in the highlight.
+    expect(forced).toMatch(/\.canvas-more-dot \{ forced-color-adjust: none; background: Highlight; \}/);
   });
 });
 
 describe("the tool filter's words, in all ten languages", () => {
   const langs = ["en", "ro", "de", "fr", "es", "pt-BR", "ja", "ko", "zh-CN", "zh-TW"];
   it("has Show all, Tools and the count everywhere, the count naming both numbers, and no legend titles", () => {
+    // CHANGED ON PURPOSE (V4 top-10 #5): Tools, its "{shown} of {total}" count and the
+    // group's "Filter tools by category" → gone with the button, and every catalog
+    // has the heading ("Tool calls", the detail panel's) and ⋯'s filtered name.
     for (const lang of langs) {
       const cat = read(`../i18n/areas/board/${lang}.ts`);
-      for (const key of ["board.cat.showAll", "board.cat.tools", "board.cat.count"]) {
+      for (const key of ["board.cat.showAll", "board.detail.toolCalls", "board.controls.moreFiltered"]) {
         expect(cat, `${lang} ${key}`).toMatch(new RegExp(`"${key.replace(/\./g, "\\.")}": "[^"]+"`));
       }
-      const count = new RegExp('"board\\.cat\\.count": "([^"]+)"').exec(cat)![1];
-      expect(count, lang).toContain("{shown}");
-      expect(count, lang).toContain("{total}");
+      expect(cat, lang).not.toMatch(/"board\.cat\.(tools|count|filter)":/);
       // The legend items' "Show {cat} tools" / "Hide {cat} tools" went with them.
       expect(cat, lang).not.toMatch(/"board\.cat\.(show|hide)":/);
     }
     const en = read("../i18n/areas/board/en.ts");
     expect(en).toContain('"board.cat.showAll": "Show all"');
-    expect(en).toContain('"board.cat.tools": "Tools"');
-    expect(en).toContain('"board.cat.count": "{shown} of {total}"');
+    expect(en).toContain('"board.detail.toolCalls": "Tool calls"');
+    expect(en).toContain('"board.controls.moreFiltered": "More actions — some tool calls are hidden"');
   });
 });

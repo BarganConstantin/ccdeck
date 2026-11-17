@@ -1,6 +1,5 @@
 import React, { forwardRef, memo, useCallback, useEffect, useImperativeHandle, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useStore, type ReactFlowState } from "reactflow";
-import { sessionHue } from "../session-hue";
 import { clusterBounds, shallowEqualClusters, type Cluster } from "../cluster-bounds";
 import { agentAriaLabel } from "../agent-copy";
 import { isAlarming } from "../ambient-counts";
@@ -28,13 +27,14 @@ import { namesLine, sessionNames, startedLine, type SessionNames } from "../rail
  * board-navigator.ts for why that order is never re-decided — with the face a
  * card shows at a distance and every subagent alive on a line of its own. The
  * session on the stage is the SOCKET: its face's skin has gone to the stage
- * header, and what stays is the outline in its hue and a chevron pointing at
- * the stage, so the board says which node the stage is without a line drawn
- * across the gap.
+ * header, and what stays is an outline in the deck's --accent, the colour of
+ * selection, and a chevron pointing at the stage, so the board says which node
+ * the stage is without a line drawn across the gap.
  *
  * The words are the deck's: the title and the folder · task line are the
  * Sessions list's (rail-row-copy.ts sessionNames), the clock is the card's
- * elapsed(), the mark is the card's StateMark, the hue is sessionHue.
+ * elapsed(), the mark is the card's StateMark. No session hue, as on the board
+ * (V4 top-10 #1): colour means state.
  * CHANGED ON PURPOSE (owner's critique, 2026-11-11): the face read the folder
  * and an id fragment under a floating name tag on the rim; the name is the
  * face's title now and nothing floats.
@@ -312,7 +312,7 @@ function Tile({ tile, cluster, session, density, attached, flash, tabbable, onFo
       data-nav-session={id}
       data-attached={attached ? "" : undefined}
       data-flash={flash ? "" : undefined}
-      style={{ left: tile.x, top: tile.y, width: tile.w, height: tile.h, "--session-hue": sessionHue(id) } as React.CSSProperties}
+      style={{ left: tile.x, top: tile.y, width: tile.w, height: tile.h }}
       onClick={press}
     >
       <span className="nav-rim" aria-hidden="true" />
@@ -360,8 +360,8 @@ function Tile({ tile, cluster, session, density, attached, flash, tabbable, onFo
         </button>
         {density === "tiles" && tile.rows.length > 0 && (
           <svg className="nav-trunk" width={tile.w} height={tile.h} aria-hidden="true" focusable="false">
-            {/* The board's own edge classes: a live subagent's branch flows,
-                a settled one is a solid line, in the session's hue. */}
+            {/* The board's own edge classes: a live subagent's branch flows in
+                --inflight, a settled one is a solid --muted line. */}
             {tile.rows.map((top, i) => subs[i] && (
               <path
                 key={subs[i].id}
