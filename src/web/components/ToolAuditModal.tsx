@@ -83,7 +83,9 @@ export default function ToolAuditModal({ view: door = 'tools', onClose, sessionL
     onClose();
     requestAnimationFrame(() => {
       const original = opener;
-      const fallback = Array.from(document.querySelectorAll<HTMLElement>(`[data-rail-item="${viewDoor[door]}"], [data-rail-item="more"]`)).find(element => element.checkVisibility());
+      // Its door, or the More whose menu holds it (the right stripe's, or the
+      // dock's): never the left stripe's More, which a bare "more" finds first.
+      const fallback = Array.from(document.querySelectorAll<HTMLElement>(`[data-rail-item="${viewDoor[door]}"], [data-more-holds~="${viewDoor[door]}"]`)).find(element => element.checkVisibility());
       // Safari does not focus a button on click, so the opener can be <body>, which restores nothing.
       (original && original !== document.body && original.isConnected && original.checkVisibility() ? original : fallback)?.focus({ preventScroll: true });
     });

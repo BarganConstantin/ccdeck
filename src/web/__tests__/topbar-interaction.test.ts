@@ -332,8 +332,11 @@ describe("Pause is a canvas verb and lives on the canvas (#527's rule, applied l
     expect(app).toMatch(/ariaLabel: t\("board\.rail\.settings"\)/);
     // CHANGED ON PURPOSE (V4's Figma): two stripes, each its own toolbar; Radio
     // and Settings at the left one's foot, the right one with none.
-    expect(app).toMatch(/<EdgeRail side="left" label=\{t\("board\.rail\.tools"\)\} groups=\{rails\.leftStripe\} foot=\{rails\.leftFoot\} \/>/);
-    expect(app).toMatch(/<EdgeRail side="right" label=\{t\("shell\.rail\.right"\)\} groups=\{rails\.rightStripe\} \/>/);
+    // CHANGED ON PURPOSE (V4 top-10 #4): each stripe also takes its More, the
+    // left one's foot More and Settings, the right one's More alone, because
+    // the occasional doors moved behind them.
+    expect(app).toMatch(/<EdgeRail side="left" label=\{t\("board\.rail\.tools"\)\} groups=\{rails\.leftStripe\} more=\{rails\.leftMore\} foot=\{rails\.leftFoot\} \/>/);
+    expect(app).toMatch(/<EdgeRail side="right" label=\{t\("shell\.rail\.right"\)\} groups=\{rails\.rightStripe\} more=\{rails\.rightMore\} \/>/);
     expect(app).toMatch(/ariaLabel: t\("board\.rail\.usage"\)/);
     expect(app).not.toMatch(/Sound settings/);
     expect(app, "Pause came back as a chrome control").not.toMatch(/id: "pause"|ariaLabel: "Pause/);

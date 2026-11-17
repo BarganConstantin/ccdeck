@@ -2,11 +2,13 @@
 //
 // One stripe on each edge, 40 wide, so the eye never crosses the canvas to find
 // what a door opened. The left one holds what opens on the left: Sessions,
-// Accounts · the capacity reports · trackers, Explore, and the utilities at its
-// foot (Radio, Settings). The right one holds what opens on the right: the
-// Inspector, alone and first · Usage, Machine · the three activity records ·
-// Browser watch, Radar, with no foot. rail-items.tsx lists them; each run
-// between two rules is a named group.
+// Accounts · the connected trackers, and at its foot a More (the capacity
+// reports, Explore, Radio) and Settings. The right one holds what opens on the
+// right: the Inspector, alone and first · Usage, Machine, and at its foot a
+// More (the three activity records, Browser watch, Radar). The stripe keeps the
+// doors used all day; a More, the ones used now and then. rail-items.tsx lists
+// them; each run between two rules is a named group, and a More's menu keeps
+// its runs a rule apart.
 //
 // A new profile's stripes say each door's word beside its glyph, 156 wide; a
 // "Hide words" at the left stripe's foot folds both to 40 and icons, the names
@@ -29,7 +31,11 @@
 // (aria-expanded, and aria-controls while the region exists), aria-haspopup=
 // "dialog" for the four that open a modal. Every key the deck answers is
 // unchanged, and each button names its own in aria-keyshortcuts while the
-// single-key shortcuts are on.
+// single-key shortcuts are on. A More is a menu button in the toolbar's arrow
+// order like a door: Enter or Space opens its menu, Escape gives focus back to
+// it, and a row hands focus to it before its dialog opens. On a stripe, Up and
+// Down stay the toolbar's, so the arrows still walk past it to Settings; only
+// the dock's More, in a horizontal toolbar, also opens on them.
 import {
   useCallback, useLayoutEffect, useRef, useState,
   type KeyboardEvent, type ReactNode, type RefObject,
@@ -64,7 +70,7 @@ export interface RailItem {
   key?: RailKey;
   /** The hint's name, when it says more than the word: "Usage history". */
   hint?: string;
-  /** The name in the dock's More menu, where a row has the room for it whole:
+  /** The name in a More's menu, where a row has the room for it whole:
    *  "Usage history", "Send feedback". The word, when unset. */
   menu?: string;
   /** Lines the hint adds under the name. */
@@ -88,6 +94,11 @@ export interface RailItem {
   /** The name of the run of doors this one stands in on a stripe, said once on
    *  the way into it (rail-items.tsx). */
   group?: string;
+  /** The dialog this door opens is up. Drawn only on a stripe's More that
+   *  holds the door, as that More's open look, so the reader sees where the
+   *  dialog came from; never said, since the dialog says itself and a menu
+   *  item has no open state. */
+  up?: boolean;
   /** How the top bar draws this door where it is not a word button: a field
    *  holding `fieldText` and the chord (Search), or a bare 28x28 icon button
    *  (Feedback, V4's Figma). Looks only, on the same button with the same name
@@ -258,35 +269,48 @@ function RailButton({ item: given, index, tabbable, onFocusIndex, hint, variant,
 }
 
 /** A stripe: on the window's left or right edge, under the topbar. Its doors
- *  are runs between rules at the top; its foot (utilities, no rule), if it has
- *  one, is pushed to the bottom. Its hint opens towards the canvas: to its right
- *  on the left stripe, to its left on the right one. The left one's foot ends
- *  in the switch between words and icons, which both stripes follow. */
-export function EdgeRail({ side, label, groups, foot = [] }: { side: "left" | "right"; label: string; groups: RailItem[][]; foot?: RailItem[] }) {
+ *  are runs between rules at the top; its foot (no rule), if it has one, is
+ *  pushed to the bottom: the More for the occasional doors first, then the
+ *  utilities. Its hint opens towards the canvas: to its right on the left
+ *  stripe, to its left on the right one. The left one's foot ends in the switch
+ *  between words and icons, which both stripes follow. */
+export function EdgeRail({ side, label, groups, more = [], foot = [] }: {
+  side: "left" | "right";
+  label: string;
+  groups: RailItem[][];
+  /** The occasional doors, behind the More at the head of the foot, in runs a
+   *  rule apart. A More with nothing in it is not drawn. */
+  more?: RailItem[][];
+  foot?: RailItem[];
+}) {
   const t = useT();
   const hint = useHint(RAIL_HINT_SIDE[side]);
   const words = useStripeWords();
   const room = useStripeWordsRoom();
   const items = groups.filter(g => g.length > 0);
+  const runs = more.filter(g => g.length > 0);
+  const moreHere = runs.length > 0;
   // Not drawn where the window has no room for words: there is nothing to switch.
   const switchHere = side === "left" && room;
-  const switchIndex = items.flat().length + foot.length;
+  // The arrows' order: the doors, the More, the foot's doors, the switch.
+  const moreIndex = items.flat().length;
+  const footIndex = moreIndex + (moreHere ? 1 : 0);
+  const switchIndex = footIndex + foot.length;
   const roving = useRoving(switchIndex + (switchHere ? 1 : 0), "vertical");
   const ref = useRef<HTMLDivElement>(null);
   useFocusHandover(ref);
+  const door = (item: RailItem, i: number) => (
+    <RailButton key={item.id} item={item} index={i} tabbable={i === roving.active}
+      onFocusIndex={roving.setCurrent} hint={hint} variant="stripe" word={words ? stripeWordOf(item) : null} />
+  );
   let index = 0;
-  const door = (item: RailItem) => {
-    const i = index++;
-    return (
-      <RailButton key={item.id} item={item} index={i} tabbable={i === roving.active}
-        onFocusIndex={roving.setCurrent} hint={hint} variant="stripe" word={words ? stripeWordOf(item) : null} />
-    );
-  };
   // "Hide words" says itself while the words show; the » alone is named in its hint.
   const switchLabel = words ? t("board.rail.words.hide") : t("board.rail.words.show");
   const switchHint = hint.bind(words ? null : { label: switchLabel });
-  // The foot is named by everything in it, the switch too.
-  const footNames = [...foot.map(item => item.label), ...(switchHere ? [switchLabel] : [])];
+  // The foot is named by everything in it, the More and the switch too; a foot
+  // of one control is that control, with no group around it.
+  const footNames = [...(moreHere ? [t("board.rail.more")] : []), ...foot.map(item => item.label), ...(switchHere ? [switchLabel] : [])];
+  const footName = footNames.length > 1 ? footNames.join(t("board.listSep")) : undefined;
   return (
     <div ref={ref} className={RAIL_CLASS[side]} role="toolbar" aria-label={label}
       aria-orientation="vertical" data-words={words || undefined} onKeyDown={roving.onKeyDown}>
@@ -299,14 +323,19 @@ export function EdgeRail({ side, label, groups, foot = [] }: { side: "left" | "r
         return (
           <div className="rail-group" key={group[0].id} role={name ? "group" : undefined} aria-label={name}
             data-rail-group={group[0].id === "explore-integrations" ? "explore" : undefined}>
-            {group.map(door)}
+            {group.map(item => door(item, index++))}
           </div>
         );
       })}
       </div>
       {footNames.length > 0 && (
-        <div className="rail-foot" role="group" aria-label={footNames.join(t("board.listSep"))}>
-          {foot.map(door)}
+        <div className="rail-foot" role={footName ? "group" : undefined} aria-label={footName}>
+          {moreHere && (
+            <More place={side} items={runs.flat()} rules={runs.slice(1).map(run => run[0].id)}
+              index={moreIndex} tabbable={moreIndex === roving.active} onFocusIndex={roving.setCurrent}
+              hint={hint} word={words ? t("board.rail.more") : null} />
+          )}
+          {foot.map((item, i) => door(item, footIndex + i))}
           {switchHere && (
             <button type="button" data-rail-item={STRIPE_WORDS_ID} className={STRIPE_WORDS_CLASS}
               tabIndex={switchIndex === roving.active ? 0 : -1} aria-label={switchLabel}
@@ -331,44 +360,87 @@ const STRIPE_WORDS_CLASS = "rail-btn rail-btn-stripe rail-words-btn";
 /** The dock's More button: what a row of its menu that opens something hands on
  *  as its opener (rail-items.tsx commandPanelMore). */
 export const DOCK_MORE_ID = "dock-more";
-const DOCK_MENU_ID = "dock-more-menu";
 
-/** The dock's More: the three rare dialogs, in a menu like an account's ⋯.
- *  Up and Down on the button open it at either end, the way a native menu
- *  button does; each item hands focus back to More before its dialog opens, so
- *  the dialog gives it back there when it closes. */
-function DockMore({ items, tabbable, onFocusIndex, index }: {
+/** Where a More stands: the phone's dock, or the foot of either stripe. */
+type MorePlace = "dock" | "left" | "right";
+const MORE_ID: Record<MorePlace, string> = { dock: DOCK_MORE_ID, left: "rail-more-left", right: "rail-more-right" };
+const MORE_MENU_ID: Record<MorePlace, string> = { dock: "dock-more-menu", left: "rail-more-left-menu", right: "rail-more-right-menu" };
+/** The phone's menu grows out of the dock's corner (phone-sheet.css); a
+ *  stripe's is the plain popover. */
+const MORE_POP_CLASS = { dock: "ap-pop dock-more-pop", left: "ap-pop", right: "ap-pop" } as const;
+/** A stripe's menu opens over the canvas, never past the window's edge: from
+ *  the left stripe its left edge under More's, from the right one its right. */
+const MORE_ALIGN = { dock: "end", left: "start", right: "end" } as const;
+/** The dock's one rule: before Settings, last, set apart from the dialogs above
+ *  it, so the one way into Settings on a phone is found at a glance rather than
+ *  read for. */
+const DOCK_RULES = ["settings"];
+
+/** A More: the doors used now and then, in a menu like an account's ⋯ — the
+ *  phone dock's, and the one at the foot of each stripe, with the same rows,
+ *  count and dot. Each row hands focus back to More before its dialog opens, so
+ *  the dialog gives it back there when it closes. In the dock, Up and Down on
+ *  the button also open it at either end, the way a native menu button does;
+ *  on a stripe those are the toolbar's (EdgeRails' header). */
+function More({ items, rules = [], tabbable, onFocusIndex, index, place = "dock", hint, word = null }: {
   items: RailItem[];
+  /** The rows a rule goes before: the first of each run after the first. */
+  rules?: readonly string[];
   tabbable: boolean;
   onFocusIndex: (i: number) => void;
   index: number;
+  place?: MorePlace;
+  /** A stripe's hint; the dock's More has none. */
+  hint?: ReturnType<typeof useHint>;
+  /** A stripe's word beside the glyph, while its words are on. */
+  word?: string | null;
 }) {
   const t = useT();
+  const singleKeys = useSingleKeyShortcuts();
   const [menu, setMenu] = useState<"first" | "last" | null>(null);
   const open = menu !== null;
+  const stripe = place !== "dock";
+  const variant = stripe ? "stripe" : "dock";
+  const id = MORE_ID[place];
+  const menuId = MORE_MENU_ID[place];
+  const sep = t("board.listSep");
   const unread = items.reduce((n, item) => n + (item.badge ?? 0), 0);
   // A dot behind More shows on More while no count does.
   const dotted = unread === 0 && items.some(item => item.dot);
+  // While a panel or dialog it holds the door of is up, a stripe's More wears
+  // the open look, so the reader sees where that came from.
+  const up = stripe && items.some(item => item.open === true || item.up === true);
+  // A stripe's hint names the doors behind it, and More too while no word does.
+  const hintHandlers = stripe
+    ? hint?.bind({ label: word != null ? "" : t("board.rail.more"), detail: items.map(item => item.menu ?? item.label).join(sep) })
+    : undefined;
+  const shownWord = stripe ? word : t("board.rail.more");
   const pick = (item: RailItem) => () => {
-    document.getElementById(DOCK_MORE_ID)?.focus();
+    document.getElementById(id)?.focus();
     setMenu(null);
     item.onPress();
   };
   return (
     <>
       <button
-        id={DOCK_MORE_ID}
+        id={id}
         type="button"
         data-rail-item="more"
-        className={BUTTON_CLASS.dock}
+        // The doors in its menu, so a dialog whose opener is gone (Safari's
+        // click, Quick open, a resize) gives focus back to the More on its own
+        // side: `[data-more-holds~="radio"]` (RadioPanel.tsx, ToolAuditModal.tsx).
+        data-more-holds={items.map(item => item.id).join(" ")}
+        data-up={up || undefined}
+        className={BUTTON_CLASS[variant]}
         tabIndex={tabbable ? 0 : -1}
-        aria-label={t("board.rail.moreLabel", { items: items.map(i => i.ariaLabel).join(t("board.listSep")) })}
+        aria-label={t("board.rail.moreLabel", { items: items.map(i => i.ariaLabel).join(sep) })}
         aria-haspopup="menu"
         aria-expanded={open}
-        aria-controls={open ? DOCK_MENU_ID : undefined}
-        onFocus={() => onFocusIndex(index)}
+        aria-controls={open ? menuId : undefined}
+        {...hintHandlers}
+        onFocus={e => { onFocusIndex(index); hintHandlers?.onFocus(e); }}
         onKeyDown={e => {
-          if (e.key !== "ArrowDown" && e.key !== "ArrowUp") return;
+          if (stripe || (e.key !== "ArrowDown" && e.key !== "ArrowUp")) return;
           e.preventDefault();
           setMenu(e.key === "ArrowUp" ? "last" : "first");
         }}
@@ -378,23 +450,29 @@ function DockMore({ items, tabbable, onFocusIndex, index }: {
           strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
           <circle cx="2.8" cy="7" r="0.7" /><circle cx="7" cy="7" r="0.7" /><circle cx="11.2" cy="7" r="0.7" />
         </svg>
-        <span className="rail-word">{t("board.rail.more")}</span>
+        {shownWord != null && <span className="rail-word">{shownWord}</span>}
         {unread > 0 && <span className="rail-badge" aria-hidden>{unread}</span>}
         {dotted && <span className="rail-dot" aria-hidden />}
       </button>
       {open && (
-        <AnchoredPopover anchorId={DOCK_MORE_ID} id={DOCK_MENU_ID} className="ap-pop dock-more-pop" role="menu"
-          labelledBy={DOCK_MORE_ID} start={menu} onClose={() => setMenu(null)}>
-          {/* Settings, last, set apart from the dialogs above it by the menus'
-              own rule, so the one way into Settings on a phone is found at a
-              glance rather than read for. */}
-          {items.flatMap(item => [
-            ...(item.id === "settings" ? [<div key="settings-rule" role="separator" className="ap-menu-sep" />] : []),
-            <button key={item.id} type="button" role="menuitem" className="ap-menu-item" data-rail-item={item.id}
-              onFocus={() => { handover = item.id; }} onClick={pick(item)}>
-              {item.dot && item.detail ? `${item.menu ?? item.label} · ${item.detail}` : item.badge ? t("board.rail.unread", { label: item.menu ?? item.label, n: item.badge }) : item.menu ?? item.label}
-            </button>,
-          ])}
+        <AnchoredPopover anchorId={id} id={menuId} className={MORE_POP_CLASS[place]} role="menu"
+          labelledBy={id} start={menu} align={MORE_ALIGN[place]} onClose={() => setMenu(null)}>
+          {/* Each run after the first set apart by the menus' own rule. A
+              stripe's row ends in its key, quiet, as a native menu's does: seen,
+              not said (the row's name stays its words; aria-keyshortcuts says
+              the key). */}
+          {items.flatMap((item, i) => {
+            const key = liveKey(item.key, singleKeys);
+            return [
+              ...(i > 0 && rules.includes(item.id) ? [<div key={`${item.id}-rule`} role="separator" className="ap-menu-sep" />] : []),
+              <button key={item.id} type="button" role="menuitem" className="ap-menu-item" data-rail-item={item.id}
+                aria-keyshortcuts={key?.aria}
+                onFocus={() => { handover = item.id; }} onClick={pick(item)}>
+                {item.dot && item.detail ? `${item.menu ?? item.label} · ${item.detail}` : item.badge ? t("board.rail.unread", { label: item.menu ?? item.label, n: item.badge }) : item.menu ?? item.label}
+                {stripe && key && <span className="rail-menu-key" aria-hidden><Kbd>{key.cap}</Kbd></span>}
+              </button>,
+            ];
+          })}
         </AnchoredPopover>
       )}
     </>
@@ -414,7 +492,7 @@ export function EdgeDock({ items, more, offline = false }: { items: RailItem[]; 
         <RailButton key={item.id} item={item} index={i} tabbable={i === roving.active}
           onFocusIndex={roving.setCurrent} hint={hint} variant="dock" offlineDot={offline && item.id === "machine"} />
       ))}
-      <DockMore items={more} index={items.length} tabbable={roving.active === items.length} onFocusIndex={roving.setCurrent} />
+      <More items={more} rules={DOCK_RULES} index={items.length} tabbable={roving.active === items.length} onFocusIndex={roving.setCurrent} />
       {hint.node}
     </div>
   );
