@@ -8,7 +8,9 @@ degrees independently of the existing GPU and throttling sources. Actual
 Intel Mac readings were verified in the API and Thermal panel; the eight
 required CI checks passed. The merged runtime checkout is `v4-cpu-runtime`.
 
-The follow-up branch `fix/codex-account-handoff-stall` is local work. A native
+The follow-up branch `fix/codex-account-handoff-stall` targets `development`
+after `next/v4` was integrated there through PR #2598. It includes the
+development engine 0.1.5 pins. A native
 account read confirmed the previous account while the selected default had
 already changed: running command items kept deferring the shared-server
 handoff. Supported direct-input sessions now use the existing durable
