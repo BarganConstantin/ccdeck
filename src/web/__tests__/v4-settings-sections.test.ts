@@ -7,6 +7,7 @@
 // markup. The setting ids are the ones a search result lands on, so a setting
 // that stops being drawn also stops being found; the lists below are the ones
 // the pages drew before V4's rows, and a page may draw more, never fewer.
+import { THEMES as CATALOG_THEMES } from "../theme";
 import { describe, it, expect } from "vitest";
 import { createElement } from "react";
 import { readFileSync } from "node:fs";
@@ -286,7 +287,7 @@ describe("no setting the pages drew before went missing", () => {
   });
   it("counts what the index promises for the pages whose rows do not wait for the deck", () => {
     expect(Object.fromEntries(SECTIONS.map(section => [section, expected(section).length])))
-      .toMatchObject({ reading: 2, keyboard: 1, notifications: 5, radar: 1, about: 6, appearance: 15 });
+      .toMatchObject({ reading: 2, keyboard: 1, notifications: 5, radar: 1, about: 6, appearance: CATALOG_THEMES.length + 3 });
   });
   it("keeps the Details disclosures the rows had", () => {
     const details = (section: SettingsSection) => pane(draw(section)).match(/<details class="settings-row-details"/g)?.length ?? 0;

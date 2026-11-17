@@ -2,6 +2,7 @@
 // a 13px label on a 20px line, and the press, hover and focus of the Motion
 // page, all on tokens. This pins the rules that draw them; the contrast of
 // every edge and label is held by control-edges.test.ts and contrast-floors.
+import { THEMES as CATALOG_THEMES } from "../theme";
 import { describe, it, expect } from "vitest";
 import { sheetParts, sheetText } from "./sheet-source";
 import { cascade, el, selects } from "./sheet-cascade";
@@ -96,7 +97,7 @@ describe("What's new's Done", () => {
   });
 });
 
-// Contrast of every label on its wash, in all twelve themes. The kit's washes
+// Contrast of every label on its wash, in every shipped theme. The kit's washes
 // (16% accent, 12% err, 20% on hover) take a label under 4.5:1 in a few themes,
 // so those set lighter --btn-*-wash values on their root. Every number is read
 // from the stylesheet and held to the floor.
@@ -170,9 +171,9 @@ function pairs(theme: string, ignore: string[] = []) {
   };
 }
 
-describe("every button label clears 4.5:1 on its wash, in all twelve themes", () => {
-  it("finds the twelve themes in themes.css", () => {
-    expect(themes).toHaveLength(12);
+describe("every button label clears 4.5:1 on its wash, in every shipped theme", () => {
+  it("covers every theme in the generated catalog", () => {
+    expect([...themes].sort()).toEqual([...CATALOG_THEMES].sort());
   });
   for (const theme of themes) {
     it(`${theme}: Primary, Danger at rest, Danger on hover and Quiet`, () => {
