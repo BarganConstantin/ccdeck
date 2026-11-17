@@ -5,6 +5,7 @@ import { liveError } from './codex-live-rpc.mjs';
 
 const passive = new Set(['userMessage', 'hookPrompt', 'agentMessage', 'functionCallOutput', 'plan', 'reasoning']);
 const terminal = new Set(['completed', 'failed', 'declined']);
+const drainable = new Set(['commandExecution', 'mcpToolCall', 'dynamicToolCall', 'fileChange']);
 const tool = item => !passive.has(item.type);
 const completed = item => item.status !== 'inProgress' && (terminal.has(item.status)
   || Number.isFinite(item.completedAtMs) && item.completedAtMs > 0);
@@ -147,6 +148,22 @@ export async function prepareCodexLiveHandoff(rpc, options = {}) {
     if (owner && ![...routes.values()].includes(owner)) return { waiting: true, paused };
   }
   const cooperative = new Set([...routes.keys(), ...routes.values()]);
+  // A long command (for example a CI watcher) may never leave a model-only
+  // window. Ask its direct-input owner to checkpoint instead of endlessly
+  // polling for that window. No tool is interrupted or authenticated over.
+  if (options.cooperativeTools && !routes.size
+    && initial.some(t => Array.isArray(t.turn?.items) && t.turn.items.some(i => drainable.has(i.type) && i.status === 'inProgress'))
+    && initial.every(t => t.active && t.thread?.canAcceptDirectInput === true
+      && Array.isArray(t.flags) && !t.flags.length && t.turn?.status === 'inProgress'
+      && t.turn.itemsView === 'full' && Array.isArray(t.turn.items) && t.turn.items.some(i => i.type === 'userMessage')
+      && t.turn.items.every(i => passive.has(i.type) || completed(i) || childWait(i, t.thread, known)
+        || drainable.has(i.type) && i.status === 'inProgress'))) {
+    return { waiting: true, paused, checkpoint: initial.map(t => ({
+      threadId: t.id, turnId: t.turn.id, rootTurnId: t.turn.rootTurnId ?? t.turn.id,
+      inputIds: inputIds(t.turn), messageId: randomUUID(), checkpointId: randomUUID(),
+      ...(t.thread.parentThreadId ? { parentThreadId: t.thread.parentThreadId } : {}),
+    })) };
+  }
   if (initial.some(t => !t.active || t.thread?.canAcceptDirectInput === false && !routes.has(t.id)
     || t.thread?.parentThreadId && t.thread.canAcceptDirectInput !== true && !routes.has(t.id)
     || !Array.isArray(t.flags) || t.flags.length || t.turn?.status !== 'inProgress'

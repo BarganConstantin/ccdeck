@@ -460,7 +460,7 @@ export default function CodexProfilesSection({ onClose, switcher, onNotice, away
           ...voice,
           // Only a live switch still under way, or one that needs a hand: a
           // switch that took is the row's own dot, as on Claude's side.
-          switched: liveNote ?? undefined,
+          switched: pendingSwitch ? undefined : liveNote ?? undefined,
           readPlan: plan ? t("codex.row.readPlanNamed", { plan: sentence(plan), rest: voice.readPlan ?? "" }) : voice.readPlan,
           waiting: reads ? t("codex.row.reading") : undefined,
           noReading: t("codex.row.notChecked"),
@@ -553,6 +553,7 @@ export default function CodexProfilesSection({ onClose, switcher, onNotice, away
           ) : (
             <>
               {error && <p role="alert" className="ap-codex-hint">{t("codex.panel.refreshFailed")}</p>}
+              {pendingSwitch && liveNote && <p role="status" className="ap-codex-hint">{liveNote}</p>}
               {reconnectRow && <div className="ap-empty" role="status">
                 {!credentialTimedOut && <span>{t("codex.panel.liveControlPaused")}</span>}
                 <button type="button" className="ap-fix" {...pressProps(`switch-${reconnectRow.account.num}`)}

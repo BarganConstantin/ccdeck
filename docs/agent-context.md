@@ -1,5 +1,26 @@
 # Owner's ccdeck work — continuation context
 
+## Intel CPU readings and pending Codex switches — 2026-11-17
+
+The Intel CPU proximity reader is merged into `next/v4` through PR #2596,
+merge `31b001723`. The optional installed `osx-cpu-temp` reader supplies CPU
+degrees independently of the existing GPU and throttling sources. Actual
+Intel Mac readings were verified in the API and Thermal panel; the eight
+required CI checks passed. The merged runtime checkout is `v4-cpu-runtime`.
+
+The follow-up branch `fix/codex-account-handoff-stall` is local work. A native
+account read confirmed the previous account while the selected default had
+already changed: running command items kept deferring the shared-server
+handoff. Supported direct-input sessions now use the existing durable
+checkpoint protocol while tools run, with one steer and one continuation.
+Unknown activity, approvals and user input remain guarded. The Accounts
+panel names the account still in use above the list while switching.
+
+Read the local runtime marker before restarting: the desktop may be serving
+this follow-up checkout on port 4317 instead of the merged runtime. Do not
+equate a selected default with a completed native login, or synthetic protocol
+tests with a live account handoff on every provider version.
+
 ## Local single Done group — 2026-11-16
 
 Owner requested one Done section instead of separate new/seen sections.

@@ -10,12 +10,14 @@ export async function requestCodexLiveCheckpoints(rpc, entries, options) {
     await options.beforeSend?.();
     await options.record(owner, 'checkpoint_sent');
     const targets = entries.filter(e => e.resumeViaThreadId === owner.threadId).reverse().map(e => e.threadId);
-    const text = 'A ccdeck account change is pending. Keep the existing assignments and conversation history. '
-      + 'Use native send_message to ask each of these existing subagents to finish its current tool call, record a concise checkpoint of its unfinished assignment, '
+    const family = targets.length ? 'Use native send_message to ask each of these existing subagents to finish its current tool call, record a concise checkpoint of its unfinished assignment, '
       + 'then END its current response with CCDECK_CHECKPOINT_' + owner.checkpointId + ': ' + JSON.stringify(targets)
       + '. This is a temporary pause, not completion of the original assignments. Do not spawn replacements or close agents. '
-      + 'Do not message an agent that already finished or was closed. Wait for all requested checkpoints, then checkpoint your own unfinished work and END your current response '
-      + 'with the same marker. Do not resume any checkpointed task until the account change is complete and you receive the continuation instruction. '
+      + 'Do not message an agent that already finished or was closed. Wait for all requested checkpoints, then ' : '';
+    const text = 'A ccdeck account change is pending. Keep the existing assignments and conversation history. '
+      + 'Do not cancel running commands or replay tools. Finish the current tool call, then avoid starting new work before the account change. '
+      + family + 'Record a concise checkpoint of your own unfinished work and END your current response '
+      + 'with CCDECK_CHECKPOINT_' + owner.checkpointId + '. Do not resume any checkpointed task until the account change is complete and you receive the continuation instruction. '
       + 'Honor newer user instructions; if the user cancelled or asked to stop, remain stopped.';
     await rpc.request('turn/steer', { threadId: owner.threadId, expectedTurnId: owner.turnId,
       clientUserMessageId: owner.checkpointId, input: [{ type: 'text', text }] });

@@ -64,6 +64,30 @@ async function fixture({ saved = null as any, actual = A, readCredential = null 
     externalLogin: (id: string) => { account = { ...account, email: email(id) }; callbacks.onNotification({ method: 'account/updated' }); } };
 }
 describe('existing Codex session account engine', () => {
+  it('checkpoints a long-running command once, authenticates only after completion, and continues once', async () => {
+    const f = await fixture({ active: true }); Object.assign(f.thread, { canAcceptDirectInput: true });
+    f.turn.items.push({ id: 'watch', type: 'commandExecution', status: 'inProgress' });
+    const original = f.rpc.request.getMockImplementation()!;
+    f.rpc.request.mockImplementation(async (method, params) => {
+      if (method === 'turn/steer') {
+        f.turn.items.push({ id: 'checkpoint-input', type: 'userMessage', clientId: params.clientUserMessageId }); return {};
+      }
+      return original(method, params);
+    });
+    expect(await f.c.request({ id: B, revision: 1 })).toMatchObject({ state: 'waiting', continuation: 'waiting' });
+    await f.c.tick(); await f.c.tick();
+    expect(f.rpc.request.mock.calls.filter(c => c[0] === 'turn/steer')).toHaveLength(1);
+    expect(f.calls.some(c => ['account/login/start', 'turn/interrupt'].includes(c.method))).toBe(false);
+    const id = f.journals.at(-1).entries[0].checkpointId;
+    f.thread.status.type = 'idle'; f.turn.status = 'completed'; f.turn.items[1].status = 'completed';
+    f.turn.items.push({ id: 'checkpoint-result', type: 'agentMessage', text: 'CCDECK_CHECKPOINT_' + id });
+    await f.c.tick();
+    expect(f.c.status()).toMatchObject({ state: 'applied', profileId: B, continuation: 'automatic' });
+    await f.c.tick();
+    expect(f.calls.filter(c => c.method === 'account/login/start')).toHaveLength(1);
+    expect(f.calls.filter(c => c.method === 'turn/start')).toHaveLength(1);
+    expect(f.calls.some(c => c.method === 'turn/interrupt')).toBe(false);
+  });
   it.each(['removed', 'unavailable'] as const)('does not return cached renewal tokens if the active profile becomes %s after the credential read', async state => {
     const f = await fixture(); await f.c.request({ id: A, revision: 1 });
     const original = f.rpc.request.getMockImplementation()!;

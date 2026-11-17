@@ -306,7 +306,7 @@ export function createCodexLiveAccountController(input = {}) {
       if (!await lease.valid()) throw liveError('native_control_lost');
       const before = await rpc.request('account/read', { refreshToken: false });
       resumeIdentity = before;
-      handoff = await prepareCodexLiveHandoff(rpc, { isCurrent: owner,
+      handoff = await prepareCodexLiveHandoff(rpc, { isCurrent: owner, cooperativeTools: true,
         beforeInterrupt: async entry => {
           await assertProfileAvailable();
           await assertAutoEnabled();
