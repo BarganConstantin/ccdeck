@@ -52,12 +52,14 @@ export function notifyNote(inApp: boolean, t: TFunction = tNow): string {
 export const NOTIFY_VETO_NOTE_MSG = "settings.notify.veto";
 
 /** The four account notifications, in the order the menu draws them: what
- *  each switch is called, and the line its tooltip adds about when it fires.
+ *  each switch is called, and the line under it about when it fires — or null
+ *  where the name already says it (V4 top-10 #10): "Quota at 90% and 100%" is
+ *  its own rule, and the group's note says whose accounts.
  *  The rules are src/server/account-notify.mjs's; this is only their names. */
 export const ACCOUNT_NOTIFY_SWITCHES = [
   // label and title read the language on show each time they are read.
   { kind: "notifySwap", get label() { return tNow("settings.notify.swap.label"); }, get title() { return tNow("settings.notify.swap.title"); } },
-  { kind: "notifyQuota", get label() { return tNow("settings.notify.quota.label"); }, get title() { return tNow("settings.notify.quota.title"); } },
+  { kind: "notifyQuota", get label() { return tNow("settings.notify.quota.label"); }, title: null },
   { kind: "notifyReset", get label() { return tNow("settings.notify.reset.label"); }, get title() { return tNow("settings.notify.reset.title"); } },
   { kind: "notifyStopped", get label() { return tNow("settings.notify.stopped.label"); }, get title() { return tNow("settings.notify.stopped.title"); } },
 ] as const;

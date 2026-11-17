@@ -177,7 +177,7 @@ export const ClaudeFmCharacter = memo(function ClaudeFmCharacter({ player, sourc
             "--fm-x": `${x}px`,
             "--fm-walk-ms": `${walkMs}ms`,
             // How high whatever it is standing on is. Zero for the floor
-            // itself, and the height of the Auto-fit chip while it is up there.
+            // itself, and the height of a floor notice while it is up there.
             "--fm-riser": `${riser}px`,
             "--fm-skip-beat": `${SKIP_BEAT_MS}ms`,
           } as CSSProperties}

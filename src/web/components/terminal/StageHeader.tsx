@@ -6,14 +6,21 @@
 // away with the light — the handoff's "the hue spine leaves Workspace
 // chrome" — and the session's identity is its name and its state: the same
 // 14px glyph its row on the rail wears (stage-icons.tsx, glyphForState), then
-// the name, then the face's own sentence in mono, "waiting 6m · Bash · git
-// push …", from stage-model.ts, which is where the vocabulary is held to one
-// word per state. The state part takes the state's colour (waiting is --warn,
-// as the rail's timer is); the tool and its argument are --muted and give way
-// first, with an ellipsis, when the row is short. Nothing here moves with the
-// stream any more, so there is no travelling light to take away under reduced
-// motion; the working glyph holds still where the rail's breathes, because the
-// terminal beside it already shows the session at work.
+// the name. Nothing here moves with the stream any more, so there is no
+// travelling light to take away under reduced motion; the working glyph holds
+// still where the rail's breathes, because the terminal beside it already shows
+// the session at work.
+//
+// THE NAME HAS THE ROOM, AND ONE STATE WORD (V4 top-10 #7). The header used to
+// add the face's whole sentence, "waiting 6m · Bash · git push …", and the name
+// shrank with it until a pane 545 wide read "retention …". Now it says at most
+// one state, and only one that is not the normal run of a session: "waiting
+// 6m", "not attached", "reconnecting…", "starting", "ended 14m ago", "working
+// elsewhere" (stateWord). Working, its turn and ready say nothing: the terminal
+// below shows that, and the glyph marks it. The word keeps the state's colour
+// (waiting is --warn, as the rail's timer is) and never shrinks before the name
+// does; the whole sentence is its tooltip, and a screen reader hears it all,
+// the normal states too. Sans, as prose is, with tabular figures.
 //
 // THE MODEL CHIP IS GONE from this header: the rail's row and the agent card
 // carry the model, and Figma's Term header draws none. What its accessible name
@@ -21,14 +28,17 @@
 // name, for a screen reader.
 //
 // THE CONTEXT CHIP is at the row's end, before the controls: how full the
-// session's window is, "129k / 200k · 65%" (context-figure.ts, the Inspector's
-// words) with a 4px bar of the same percent. The stage is handed the two
-// numbers by stage-board.ts, from the same place the Inspector's Context tab
-// reads them; with no figure, or nothing used yet, no chip is drawn rather than
-// an empty one. It is a sibling of the controls, not inside them, so it fades in
-// on the morph's own `chip` ramp (stage-morph.ts) and not with the controls. In
-// a narrow header (a phone's) it says "17% context" in the language's own
-// number format, and the bar gives its room to the word.
+// session's window is, as the cards' foot says it (V4 top-10 #7), the ring
+// (ContextModal.tsx ContextRing, the donut's own drawing) and the percent
+// beside it, "◔ 17%". The whole figure, "170k / 1M · 17% context"
+// (context-figure.ts, the Inspector's words), is its tooltip and its name.
+// The stage is handed the two numbers by stage-board.ts, from the same place
+// the Inspector's Context tab reads them; with no figure, or nothing used yet,
+// no chip is drawn rather than an empty one. It is a sibling of the controls,
+// not inside them, so it fades in on the morph's own `chip` ramp
+// (stage-morph.ts) and not with the controls. It opens nothing, so it is no
+// button. In a narrow header (a phone's) it says "17% context" in the
+// language's own number format, and the ring gives its room to the word.
 //
 // THE TEXT SIZE LEADS THEM: Aa, a large A beside a small one, opens −, the
 // percent and + for the pane's own zoom (TextSizeControl.tsx), drawn while
@@ -47,9 +57,10 @@
 // `view`, which it does only with a transcript to show (use-screens.ts); the
 // deck has none, so the deck's header is the one it always was, and a control
 // that would have nothing behind it is not drawn.
-import { contextFigure, contextFigureParts, contextPercent } from "../../context-figure";
+import { contextFigure, contextPct, contextPercent, contextTokens } from "../../context-figure";
 import type { TerminalProvider } from "../../terminal-api";
-import { agentName, type KeysOwner, type StageStatus } from "./stage-model";
+import { agentName, type KeysOwner, type StageState, type StageStatus } from "./stage-model";
+import { ContextRing } from "../ContextModal";
 import { type DragEvent, type RefObject, useState } from "react";
 import AnchoredPopover from "../AnchoredPopover";
 import SessionNameField, { RenameGlyph } from "../SessionNameField";
@@ -212,6 +223,26 @@ export function metaRest(status: StageStatus): string | null {
   return parts.length ? parts.join(" · ") : null;
 }
 
+/** The normal run of a session: at work, at its prompt, or waiting for its
+ *  first one. The terminal shows these and the glyph marks them, so the
+ *  header draws no word for them. */
+const NORMAL_STATES: ReadonlySet<StageState> = new Set<StageState>(["working", "idle", "ready", "none"]);
+
+/** The one state word the header draws, "waiting 6m" or "not attached"; null
+ *  for a normal state. */
+export function stateWord(status: StageStatus): string | null {
+  if (NORMAL_STATES.has(status.state) || !status.phrase) return null;
+  return status.emphasis ? `${status.phrase} ${status.emphasis}` : status.phrase;
+}
+
+/** The whole sentence, "waiting 6m · Bash · git push": the state word's
+ *  tooltip, and what a screen reader hears whatever the state. */
+export function stateSentence(status: StageStatus): string {
+  const head = status.emphasis ? `${status.phrase} ${status.emphasis}` : status.phrase;
+  const rest = metaRest(status);
+  return rest ? `${head} · ${rest}` : head;
+}
+
 /** ⤢'s name: what a press will do. Full screen is named for what it is for. */
 export function expandLabelFor(expanded: boolean, canFull: boolean, full: boolean): string {
   if (expanded) return full ? tNow(FULL_LEAVE_LABEL_MSG) : tNow("board.stage.giveRoomBack");
@@ -240,10 +271,14 @@ export function contextChipText(context: StageHeaderProps["context"]): string | 
 export default function StageHeader(p: StageHeaderProps) {
   const t = useT();
   const { status } = p;
-  // One reading for the chip: its figure and its bar are the same percent.
+  // One reading for the chip: its ring and its percent are the same fill. With
+  // no window known there is no ring, and the used tokens are the figure.
   const used = p.context && p.context.used > 0 ? p.context : null;
-  const parts = used ? contextFigureParts(used.used, used.window) : null;
+  const windowed = used != null && used.window > 0;
+  const ctxFigure = used ? (windowed ? formatPercent(contextPercent(used.used, used.window)) : contextTokens(used.used)) : "";
+  const ctxName = used ? t("board.stage.contextShort", { pct: contextFigure(used.used, used.window) }) : "";
   const glyph = glyphForState(status.state);
+  const word = stateWord(status);
   const rest = metaRest(status);
   const pane = p.keysOwner === "pane";
   // One name with aria-pressed saying which way it is, rather than a name
@@ -291,28 +326,23 @@ export default function StageHeader(p: StageHeaderProps) {
         )}
         {/* The provider, in words, where the model chip used to say it. */}
         {p.provider && <span className="vis-hidden">{agentName(p.provider)}</span>}
-        {status.state !== "none" && (
-          <div className="ts-meta" data-state={status.state}>
-            <span className="ts-meta-state">
-              {status.emphasis ? `${status.phrase} ${status.emphasis}` : status.phrase}
-            </span>
-            {rest && <span className="ts-meta-rest">· {rest}</span>}
+        {/* One state word, only where the state is not the normal one; the
+            rest of the sentence in its tooltip and for a screen reader. */}
+        {word ? (
+          <div className="ts-meta" data-state={status.state} title={rest ? stateSentence(status) : undefined}>
+            <span className="ts-meta-state">{word}</span>
+            {rest && <span className="vis-hidden"> · {rest}</span>}
           </div>
-        )}
+        ) : status.phrase ? <span className="vis-hidden">{stateSentence(status)}</span> : null}
       </div>
-      {parts && used && (
-        <span className="ts-ctxchip" title={t("board.stage.contextWindow")}>
-          <span className="vis-hidden">{t("board.stage.context")} </span>
-          {parts.pct == null ? parts.lead : <>
-            <span className="ts-ctxlead">{parts.lead}</span><span className="ts-ctxpct">{parts.pct}</span>
-            {/* A header too narrow for the figure (a phone's) says the percent
-                with what it is a percent of, "17% context", where a bare
-                "17 %" said nothing; the words above stay for a screen reader. */}
-            <span className="ts-ctxshort" aria-hidden="true">
-              {t("board.stage.contextShort", { pct: formatPercent(contextPercent(used.used, used.window)) })}
-            </span>
-          </>}
-          <span className="ts-ctxbar" aria-hidden="true"><i style={{ width: `${contextPercent(used.used, used.window)}%` }} /></span>
+      {used && (
+        <span className="ts-ctxchip" role="img" aria-label={ctxName} title={ctxName}>
+          {windowed && <ContextRing fill={contextPct(used.used, used.window) / 100} />}
+          <span className="ts-ctxpct">{ctxFigure}</span>
+          {/* A header too narrow for the ring (a phone's) says the figure with
+              what it is a figure of, "17% context", where a bare "17 %" said
+              nothing. The chip's name is the whole figure either way. */}
+          <span className="ts-ctxshort">{t("board.stage.contextShort", { pct: ctxFigure })}</span>
         </span>
       )}
       {p.view && (

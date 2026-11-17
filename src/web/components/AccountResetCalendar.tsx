@@ -1,5 +1,7 @@
 import { useEffect, useRef, type CSSProperties, type ReactNode } from "react";
 import { ClockGlyph } from "./rail-glyphs";
+import { LevelMark } from "./LevelMark";
+import { quotaLevel } from "./QuotaBar";
 import type { Account } from "../claude-accounts";
 import { resetCalendar, type ResetEntry, type ResetDay, type UnscheduledReset } from "../account-reset-calendar";
 import { shownUsed, usageReport, type ReportRow } from "../accounts-usage-report";
@@ -49,11 +51,15 @@ function AccountDetails({ entry, row, nowSec, withReading = false, older = false
 
 function Reading({ entry, past = false, older = false }: { entry: ResetEntry; past?: boolean; older?: boolean }) {
   const t = useT();
-  return <span className="ap-reset-reading" data-level={entry.stale || past ? "older" : entry.used != null && entry.used >= 70 ? "limited" : undefined}>
-    <span className="ap-reset-usage">{entry.used == null ? t("accounts.cal.usageUnavailable")
-      : t(entry.stale || past ? "accounts.cal.usedLast" : "accounts.cal.used", { pct: shownUsed(entry.used) })}</span>
-    {entry.used != null && !entry.stale && !past && <span className="ap-reset-meter" data-level={entry.used >= 90 ? "hi" : entry.used >= 70 ? "mid" : undefined} aria-hidden="true">
-      <span style={{ "--reset-used": Math.min(100, Math.max(0, entry.used)) / 100 } as CSSProperties} />
+  const current = entry.used != null && !entry.stale && !past;
+  // A current reading wears the Usage panel's level for the same number, words
+  // and meter alike; an older one has none and is quiet.
+  const lvl = current ? quotaLevel(entry.used!) ?? undefined : undefined;
+  return <span className="ap-reset-reading" data-level={entry.stale || past ? "older" : undefined}>
+    <LevelMark tone={lvl} word="high"><span className="ap-reset-usage">{entry.used == null ? t("accounts.cal.usageUnavailable")
+      : t(entry.stale || past ? "accounts.cal.usedLast" : "accounts.cal.used", { pct: shownUsed(entry.used) })}</span></LevelMark>
+    {current && <span className="ap-reset-meter" data-level={lvl} aria-hidden="true">
+      <span style={{ "--reset-used": Math.min(100, Math.max(0, entry.used!)) / 100 } as CSSProperties} />
     </span>}
     {entry.stale && <span className="ap-reset-old">{!older && t("accounts.cal.needsFresh")}{entry.note}</span>}
   </span>;

@@ -9,8 +9,17 @@
 // covers fewer of the pixels the board draws: the cards, the subagents' cards,
 // the notes and the tool bubbles. Never on a phone, never on an empty board
 // (board-empty.ts); BoardFlow.tsx asks both.
+//
+// AND NEVER OVER THE CARD BEING READ (V4 top-10 #3). The selected card, and
+// its session's note where the note is drawn, is never under the map: the map
+// takes the other corner, and is not drawn while both would cover them.
+// Kept by the map rather than by the camera: the map is drawn only while part
+// of the board is out of view, which is the camera's doing, so a camera that
+// framed around the map would move the thing that decides whether there is a
+// map to frame around. A fit that shows the whole board has no map to avoid;
+// a board too big for the canvas fills it, and no frame clears a corner of it.
 // The store's reading and the hold are use-minimap-place.ts's.
-import { NODE_H, NODE_W } from "./layout-geometry";
+import { NODE_H, NODE_W, sessionOfNode } from "./layout-geometry";
 import { SESSION_GROUP_TYPE } from "./minimap";
 import { CAMERA_SLOW_MS } from "./viewport-motion";
 
@@ -24,7 +33,12 @@ type Camera = readonly [number, number, number];
 type DrawnNode = {
   type?: string; hidden?: boolean; width?: number | null; height?: number | null;
   position: { x: number; y: number }; positionAbsolute?: { x: number; y: number };
+  className?: string; data?: unknown;
 };
+
+/** The class a selected card is drawn with (canvas-flow.ts): the selection's
+ *  only mark on a node, since React Flow's own `selected` is never set. */
+export const SELECTED_CLASS = "rf-selected";
 
 /** The minimap's box: MINIMAP_SIZE (BoardFlow.tsx) with its 1px edge. */
 export const MINIMAP_BOX = { width: 142, height: 107 } as const;
@@ -80,6 +94,27 @@ export function drawnWork(nodes: Iterable<DrawnNode>, camera: Camera, bubbles: r
   return out;
 }
 
+/** What the map must never stand over, in the pane's pixels: every selected
+ *  card, and its session's note while `notes` are drawn (the full card only,
+ *  context-modal.css). */
+export function drawnSelection(nodes: Iterable<DrawnNode>, camera: Camera, notes: boolean): PaneRect[] {
+  const out: PaneRect[] = [];
+  const sessions = new Set<string>();
+  const noteNodes: DrawnNode[] = [];
+  for (const n of nodes) {
+    if (n.hidden) continue;
+    if (n.type === "recapNote") { if (notes) noteNodes.push(n); continue; }
+    if (n.type !== "agent" || !n.className?.split(" ").includes(SELECTED_CLASS)) continue;
+    out.push(nodeRect(n, n.width ?? NODE_W, n.height ?? NODE_H, camera));
+    sessions.add(sessionOfNode(n));
+  }
+  for (const n of noteNodes) {
+    if (n.width == null || n.height == null || !sessions.has(sessionOfNode(n))) continue;
+    out.push(nodeRect(n, n.width, n.height, camera));
+  }
+  return out;
+}
+
 /** Some card is not wholly inside the canvas. */
 export function boardOffScreen(cards: readonly PaneRect[], pane: { width: number; height: number }): boolean {
   return cards.some(c => c.left < -SLACK || c.top < -SLACK || c.right > pane.width + SLACK || c.bottom > pane.height + SLACK);
@@ -115,11 +150,27 @@ export function minimapCorner(drawn: readonly PaneRect[], pane: { width: number;
   return coveredPixels(drawn, cornerBox("right", pane)) < left ? "right" : "left";
 }
 
+/** Whether the map in `corner` would stand over any of `keep`. */
+export function coversKept(corner: MinimapCorner, pane: { width: number; height: number }, keep: readonly PaneRect[]): boolean {
+  return keep.length > 0 && coveredPixels(keep, cornerBox(corner, pane)) > 0;
+}
+
+/** `corner`, unless the map there would stand over `keep` (the card being
+ *  read): then the other corner, and null, no map, when both would. */
+export function clearOfKept(
+  corner: MinimapCorner, pane: { width: number; height: number }, keep: readonly PaneRect[],
+): MinimapCorner | null {
+  if (!coversKept(corner, pane, keep)) return corner;
+  const other: MinimapCorner = corner === "left" ? "right" : "left";
+  return coversKept(other, pane, keep) ? null : other;
+}
+
 /** Where the minimap stands, or null: not drawn. Whether is the cards' to say
  *  (minimapWanted); where is for everything drawn, `work`, the cards alone
- *  when nothing else is handed in. */
+ *  when nothing else is handed in, and never over `keep`, the selection. */
 export function minimapPlace(
   cards: readonly PaneRect[], pane: { width: number; height: number }, work: readonly PaneRect[] = cards,
+  keep: readonly PaneRect[] = [],
 ): MinimapCorner | null {
-  return minimapWanted(cards, pane) ? minimapCorner(work, pane) : null;
+  return minimapWanted(cards, pane) ? clearOfKept(minimapCorner(work, pane), pane, keep) : null;
 }

@@ -3,8 +3,6 @@ import type { Catalog } from "../../catalogs";
 
 const catalog: Catalog = {
   "accounts.sort.by": "Sort by {label}",
-  "accounts.autoFit.fitAll": "Fit all",
-  "accounts.autoFit.fitAllTip": "Fit every session on screen again",
   "accounts.projLoading.title": "Reading project activity",
   "accounts.projLoading.note": "Gathering this account’s work by project…",
   "accounts.telemetry.label": "Organization telemetry for {name}",

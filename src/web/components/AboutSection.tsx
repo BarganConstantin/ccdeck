@@ -9,6 +9,10 @@
 // What's new, the tour and Send feedback are the doors the chip, the shortcuts
 // sheet and the topbar's Feedback button open. A door closes Settings before
 // it opens what it names (settings.ts, doorOut), so one dialog is up at a time.
+// Those three doors are a name and a button with no line under the name (V4
+// top-10 #10): each line said the name again in more words. The licence keeps
+// its line, which spells out what the short name stands for, and Sponsor keeps
+// its, which says what a sponsorship pays for.
 //
 // THE VERSION IS THE SERVER'S, NOT THE PAGE'S. The bundle knows its own
 // number (__APP_VERSION__), and the two can differ: an upgrade replaces dist/
@@ -22,8 +26,6 @@ import { PRODUCT } from "../brand";
 import { compareVersions, isVersion } from "../release-notes";
 import type { SettingsDoors } from "../settings";
 import type { VersionInfo, VersionNotice } from "../use-version-check";
-// The tour's line in What's new, where the same door has stood since #712:
-// the same pictures, so the same sentence.
 import { SettingRow, SettingsGroup } from "./SettingsParts";
 import TerminalCliNotice from "./TerminalCliNotice";
 import { t as tNow, useT, type TFunction } from "../i18n";
@@ -43,9 +45,6 @@ export const SOURCE_URL = "https://github.com/BarganConstantin/ccdeck";
  *  to both, and to the README's Support ccdeck, by settings-about-2176.test.ts. */
 export const SPONSOR_URL = "https://github.com/sponsors/BarganConstantin";
 export const SPONSOR_NOTE = "ccdeck is free to use. Sponsoring helps pay for its fixes and testing.";
-
-export const WHATS_NEW_NOTE = "What changed in each release, newest first.";
-export const FEEDBACK_NOTE = "Tell the people who make ccdeck what works and what does not.";
 
 /** The sentence under the version when this page is older than the deck — the
  *  one the deck says when a dialog fails to load for the same reason
@@ -123,7 +122,6 @@ export default function AboutSection({
           as="div"
           settingId="whats-new"
           name={t("settings.about.whatsNew")}
-          note={t("settings.about.whatsNewNote")}
           control={<button type="button" className="btn" aria-haspopup="dialog" aria-label={t("settings.about.openWhatsNew")} onClick={doors.whatsNew}>{t("settings.about.open")}</button>}
         />
       </SettingsGroup>
@@ -132,14 +130,12 @@ export default function AboutSection({
           as="div"
           settingId="tour"
           name={t("settings.about.tour")}
-          note={t("settings.key.tourText")}
           control={<button type="button" className="btn" aria-haspopup="dialog" aria-label={t("settings.about.startTour")} onClick={doors.tour}>{t("settings.about.start")}</button>}
         />
         <SettingRow
           as="div"
           settingId="feedback"
           name={t("settings.about.feedback")}
-          note={t("settings.about.feedbackNote")}
           control={<button type="button" className="btn" aria-haspopup="dialog" aria-label={t("settings.about.openFeedback")} onClick={doors.feedback}>{t("settings.about.open")}</button>}
         />
       </SettingsGroup>

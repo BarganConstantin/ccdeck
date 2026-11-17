@@ -23,11 +23,6 @@
 .stage-in[data-split] .ts-head[draggable="true"] { cursor: grab; }
 .stage-in[data-split] .ts-head[draggable="true"]:active { cursor: grabbing; }
 
-/* A narrow pane keeps its glyph, name, state word and controls: the tool and
-   what it works on go first (the header's own @container rules take the rest
-   below 480 px, terminal-stage.css). */
-.wsp-pane[data-narrow] .ts-meta-rest { display: none; }
-
 /* The line between two panes: 1px drawn, 9px to take hold of. */
 .wsp-divider {
   position: absolute;

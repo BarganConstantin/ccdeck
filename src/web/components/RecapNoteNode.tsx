@@ -19,7 +19,6 @@
 // The session's plan is on it too, every step under the note's words, and a
 // session with a plan and nothing else to say has a note holding the plan alone
 // (session-note.ts, boardNote).
-import React from "react";
 import { Handle, Position, type NodeProps } from "reactflow";
 import { dismissRecap } from "../recap-note";
 import { noteSource, noteTag, type SessionNote } from "../session-note";
@@ -43,7 +42,6 @@ export interface RecapNoteData {
   note: SessionNote | null;
   plan?: AgentPlan | null;
   noteKey: string;
-  hue: number;
 }
 
 export default function RecapNoteNode({ data }: NodeProps<RecapNoteData>) {
@@ -75,7 +73,6 @@ export default function RecapNoteNode({ data }: NodeProps<RecapNoteData>) {
       role="note"
       aria-label={isRecap ? t("board.node.recapLabel") : t("board.node.noteLabel", { tag })}
       aria-description={tip}
-      style={{ "--session-hue": data.hue } as React.CSSProperties}
     >
       <div className="recap-note-head" title={tip}>
         <span className="recap-note-mark"><NoteMark recap={isRecap} />{tag}</span>

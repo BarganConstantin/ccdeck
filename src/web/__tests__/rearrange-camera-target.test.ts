@@ -25,7 +25,14 @@ it.each([
   camera.fitLeft(0);
   expect(rf.setViewport).toHaveBeenCalled();
   const target = rf.setViewport.mock.calls[0][0];
-  expect(target.x, 'R must leave the final nodes inside the canvas, beyond its 80px margin').toBe(80);
+  // CHANGED ON PURPOSE (V4 top-10 #3): x was 80, the left margin → x is 80 plus half the
+  // slack the drawn board leaves (two full cards, 260 wide, plus the 420 tool lane: 680),
+  // because a fit with room to spare is centred where the reader looks, not left-anchored.
+  const drawnW = (260 + 420) * target.zoom;
+  expect(target.x, 'R centres the final nodes in the canvas, beyond its 80px margin')
+    .toBeCloseTo(80 + Math.max(0, width - 160 - drawnW) / 2, 6);
+  expect(target.x).toBeGreaterThanOrEqual(80);
+  expect(target.x + drawnW).toBeLessThanOrEqual(width - 80 + 1e-6);
   expect(target.y).toBe(portrait ? 80 : Math.max(80, (height - 359 * target.zoom) / 2));
   expect(target.zoom).toBeGreaterThan(0);
   // An interrupted animation can reach the right zoom/x but leave the old y.

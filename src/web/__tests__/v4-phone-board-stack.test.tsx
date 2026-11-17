@@ -245,7 +245,9 @@ describe("no canvas and none of its controls on a phone; the desktop keeps the c
     expect(flow).toMatch(/<ReactFlow\b/);
     expect(flow).toMatch(/<CanvasControls\b/);
     expect(flow).toMatch(/<BoardMinimap\b/);
-    expect(flow).toMatch(/<AutoFitChip\b/);
+    // CHANGED ON PURPOSE (V4 top-10 #3): BoardFlow mounted the Auto-fit chip →
+    // it does not, because recenter in CanvasControls did the same thing.
+    expect(flow).not.toMatch(/<AutoFitChip\b/);
   });
 
   it("the canvas's Tools filter is not drawn on a phone either", () => {

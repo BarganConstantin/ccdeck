@@ -1,7 +1,7 @@
 // The board React Flow draws: the nodes and edges it is handed and the terms
 // it is handed them on — no edge a keyboard stop, a drag threshold, the zoom
 // range, the opening fit — and what shares its pane: the grid, the session
-// labels, the tool bubbles, Fit all, the command stack, the minimap
+// labels, the tool bubbles, the notices row, the command stack, the minimap
 // (while part of the board is out of view) and Claude FM on the bar.
 //
 // Moved out of App.tsx's markup unchanged, with nodeTypes, edgeTypes and the
@@ -30,7 +30,6 @@ import type { useNodeDrag } from "../use-node-drag";
 import type { useNodeMeasurements } from "../use-node-measurements";
 import type { PauseControls } from "../use-pause-gate";
 import AgentNode from "./AgentNode";
-import AutoFitChip from "./AutoFitChip";
 import CanvasControls from "./CanvasControls";
 import RadioExperience from "./RadioExperience";
 import RecapNoteNode from "./RecapNoteNode";
@@ -50,16 +49,19 @@ const edgeTypes = { recapTie: RecapTieEdge };
 
 /** The map of the board, only while part of it is out of view, in the bottom
  *  corner that covers less of what the board draws: cards, notes and tool
- *  bubbles (minimap-place.ts). Not on a phone, and not on an empty board,
- *  which has nothing to map (board-empty.ts). */
-export function BoardMinimap({ nodeColor, palette }: {
+ *  bubbles, and never over the selected card or its note (minimap-place.ts).
+ *  Not on a phone, and not on an empty board, which has nothing to map
+ *  (board-empty.ts). */
+export function BoardMinimap({ nodeColor, palette, notes = true }: {
   nodeColor: ReturnType<typeof useAppearance>["minimapNodeFill"];
   palette: Palette;
+  /** Whether the sessions' notes are drawn (the full card only). */
+  notes?: boolean;
 }) {
   const t = useT();
   const empty = useBoardEmpty();
   const phone = useMediaQuery(PHONE_QUERY);
-  const place = useMinimapPlace();
+  const place = useMinimapPlace(notes);
   if (empty || phone || !place) return null;
   return (
     <MiniMap
@@ -122,7 +124,6 @@ export default function BoardFlow({
   presentCats?: ReturnType<typeof useCategoryFilterBar>["presentCats"];
   toggleCat?: ReturnType<typeof useCategoryFilterBar>["toggleCat"];
 }) {
-  const empty = useBoardEmpty();
   const { allNodes, edges, visibleAgentIds, spotlightSet } = graph;
   const { positionsRef, pinnedRef, handleRelayout, rearrangeUndo } = layout;
   const { restoredViewport, onMoveStart, onMove } = viewport;
@@ -223,18 +224,14 @@ export default function BoardFlow({
         now={now}
         onOpenTool={openTool}
       />
-      {/* The state the recenter tint used to be the only sign of (#820).
-          While the reader's own pan or zoom holds the view, new sessions
-          can land off-screen; Fit all is the way back, on the canvas they
-          would be looked for on. */}
-      <div className="canvas-notices">
-        {/* Not over an empty board: there is nothing to fit yet, and the
-            chip comes with the first session if auto-fit is still off. */}
-        {autoFitDisabled && !empty && <AutoFitChip enableAutoFitAndRefit={enableAutoFitAndRefit} />}
-        {/* Re-arrange's way back, for a few seconds after R — beside the
-            chip when both are up, since a board built by hand is one
-            auto-fit has usually stood down on. */}
-      </div>
+      {/* The canvas's notices row, bottom left in the control bar's row
+          (canvas.css), which the character walks round (use-fm-scene.ts).
+          It held Fit all, the chip shown while the reader's own pan or zoom
+          held the view (#820); recenter on the bar below did the very same
+          — fit, and turn auto-fit back on — so the chip went (V4 top-10 #3)
+          and recenter carries the state instead: a dot while auto-fit is off
+          (react-flow.css). */}
+      <div className="canvas-notices" />
       {/* No React Flow fit-view button (#840). Recenter below does the same
           fit and also turns autofit back on, so two near-identical buttons
           sat side by side and the reader had to guess the difference. F
@@ -247,7 +244,7 @@ export default function BoardFlow({
         onTerminal={onTerminal}
         presentCats={presentCats} hiddenCats={hiddenCats} toggleCat={toggleCat}
       />
-      <BoardMinimap nodeColor={minimapNodeFill} palette={palette} />
+      <BoardMinimap nodeColor={minimapNodeFill} palette={palette} notes={notesDrawn} />
       {/* On the control bar's left end, and absent unless there is something
           to play — ClaudeFm renders null until the server says the channel is
           on air, so on a deck with no network this is nothing at all. */}

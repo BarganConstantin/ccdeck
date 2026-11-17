@@ -11,7 +11,9 @@
 // THE BOARD'S OWN WORDS. The header's sentence is the face's: waiting only for
 // the two kinds the topbar counts (isAlarming), the open call named the way the
 // card's bubbles name it (FACE_WORDS), the name the face prints (the root's
-// label), the hue the cluster wears (sessionHue). Nothing here is worded twice.
+// label). Nothing here is worded twice. The session's hue (sessionHue) still
+// rides along, though the cluster wears none and the stage paints none since
+// V4 top-10 #1.
 import { isAlarming, type BlockedSession } from "../../ambient-counts";
 import { t } from "../../i18n";
 import { SEP } from "../../cluster-header";

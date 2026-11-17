@@ -445,22 +445,23 @@
   font-variant-numeric: tabular-nums;
   transition: color var(--dur-fast) var(--ease);
 }
-/* The figure is the only part of the meter that changes tone: quiet under 70,
-   plain to 89, error from 90. A stale reading is always quiet. */
-.session-list .sl-usage-btn[data-level="low"] .sl-usage-pct { color: var(--muted); }
-.session-list .sl-usage-btn[data-level="high"] .sl-usage-pct { color: var(--err); }
-/* At error the mark and "high" stand round the figure (LevelMark), at the
-   line's end where the figure alone stood. */
+/* The figure takes the Usage panel's level (quotaLevel, QuotaBar.tsx): plain
+   under 70, and from 70 the mark and "high" stand round it (LevelMark), all in
+   the level's ink, at the line's end where the figure alone stood. A stale
+   reading has no level and is quiet (below). */
 .session-list .sl-usage-line1 > .level-mark { margin-left: auto; }
+.session-list .level-mark > .sl-usage-pct { color: inherit; }
 /* The old figure and the new share one cell and crossfade (FadeFigure). */
 .fade-figure { display: inline-grid; justify-items: end; }
 .fade-figure > * { grid-area: 1 / 1; }
 .fade-figure-in { display: block; }
 .fade-figure-out { display: block; pointer-events: none; }
 
-/* V4's bar: 232 x 4 on --line-soft, up to five data-coloured parts (one cyan
-   part until the deck holds a per-session split, rail-usage.ts) and the track in
-   --line. The bar never changes colour with the reading; the figure does. */
+/* V4's bar: 232 x 4 on --line-soft, the fill, then the track in --line. The
+   fill's colour is the reading's level, as the Usage panel's bar has it (the
+   accent, then --warn from 70 and --err from 90), set inline from the meter. Up
+   to five parts when the deck holds a per-session split (rail-usage.ts; one part
+   until then), told apart by shape alone: the 2 between them, never a colour. */
 .session-list .sl-usage-bar {
   display: flex;
   gap: 2px;

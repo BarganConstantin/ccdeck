@@ -97,11 +97,15 @@ describe("a zoomed-out note under the pointer", () => {
       expect(hovered).toBe(cascadeOn(cardFace(theme, lod, true), "background", mouse));
     });
 
-    it(`draws its edge, the session's hue, firmer (${name})`, () => {
+    it(`draws its edge firmer, --line-soft to --line (${name})`, () => {
+      // CHANGED ON PURPOSE (V4 top-10 #1): the hovered edge was the session's
+      // hue (`var(--accent)`, rebuilt from --session-hue); the note wears no
+      // session colour now, so the same firmer step is the neutral one.
       const rest = cascadeOn(noteFace(theme, lod, false, kind), "--lod-edge", mouse);
       const hovered = cascadeOn(noteFace(theme, lod, true, kind), "--lod-edge", mouse);
       expect(hovered).not.toBe(rest);
-      expect(hovered).toMatch(/var\(--accent\)/);
+      expect(rest).toBe("var(--line-soft)");
+      expect(hovered).toBe("var(--line)");
       expect(hovered, "orange is kept for a session waiting on you").not.toMatch(/--warn/);
     });
 

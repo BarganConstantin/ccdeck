@@ -32,7 +32,7 @@ import { isUnplaced, needsLayout, recordPlacement, stampPlaceholder, type Provis
 import { liveNodeIds, measuredNodeIds, pruneStaleEntries } from "./prune";
 import { sendSessionsHome } from "./return-home";
 import { isRecapDismissed, isRecapNoteId, recapNoteId } from "./recap-note";
-import { sessionHue, type GraphState } from "./reducer";
+import type { GraphState } from "./reducer";
 import { boardNote, noteTag } from "./session-note";
 import type { AgentNodeData } from "./types";
 import type React from "react";
@@ -345,7 +345,6 @@ export function snapshotToFlow(
       ...(m ? { width: m.width, height: m.height } : null),
     });
     if (a.parentId && visibleIds.has(a.parentId)) {
-      const hue = sessionHue(a.sessionId);
       const fading = exiting;
       // Selected-edge emphasis: thicker stroke + animated for edges that
       // touch any selected agent (multi-select: any in the set counts).
@@ -357,10 +356,10 @@ export function snapshotToFlow(
       const effectiveOpacity = fading
         ? 0
         : spotlitOutEdge ? 0.12 : 1;
-      // The class picks the tier, the tier picks the lightness. Which of the
-      // two an edge wears is a state this loop owns; how bright that state has
-      // to be to survive its canvas is the sheet's, and used to be decided
-      // here at a value tuned for #0b0c10 (1.19:1 on white at its worst hue).
+      // The class picks the colour: a live edge is --inflight, a settled one
+      // --muted (react-flow.css). Which of the two an edge wears is a state
+      // this loop owns; the colour is the sheet's, theme for theme. No session
+      // hue (V4 top-10 #1): colour on the board means state.
       const cls = [
         "sess-edge",
         a.state === "active" ? "sess-live" : "sess-idle",
@@ -389,7 +388,7 @@ export function snapshotToFlow(
         // and grows as the canvas zooms out below it (styles.css, `data-lod`):
         // the ratio between a live, a settled and a selected edge is still
         // this loop's, and only the scale is the mode's.
-        style: { "--session-hue": hue, strokeWidth: `calc(${selectedWidth}px * var(--edge-k, 1))`, opacity: effectiveOpacity, transition: "var(--edge-transition)",
+        style: { strokeWidth: `calc(${selectedWidth}px * var(--edge-k, 1))`, opacity: effectiveOpacity, transition: "var(--edge-transition)",
           // An edge that leaves fades in Exit: the same custom property, set to the Exit fade on this one edge.
           ...(fading ? { "--edge-transition": "opacity var(--dur-exit) var(--ease)" } : null) } as React.CSSProperties,
         className: cls,
@@ -410,7 +409,6 @@ export function snapshotToFlow(
     const noteKey = board ? board.key : null;
     if (board && noteKey && !isRecapDismissed(noteKey)) {
       const noteId = recapNoteId(a.id);
-      const hue = sessionHue(a.sessionId);
       const mn = measured.get(noteId);
       // A second shape of node in an array typed for cards. Every reader here
       // that treats a node's data as a card's checks the node's type first —
@@ -419,7 +417,7 @@ export function snapshotToFlow(
         id: noteId,
         type: "recapNote",
         position: { x: 0, y: 0 },
-        data: { sessionId: a.sessionId, canvasSessionId: dataFor(a).canvasSessionId, parentId: a.id, note, plan: board.plan, noteKey, hue },
+        data: { sessionId: a.sessionId, canvasSessionId: dataFor(a).canvasSessionId, parentId: a.id, note, plan: board.plan, noteKey },
         className: spotlitOut ? "rf-spotlit-out" : undefined,
         selectable: false,
         // Not a keyboard stop either, like the session drag handles: Enter on a
@@ -439,7 +437,6 @@ export function snapshotToFlow(
         // Decoration: not a stop for Tab. It draws no hit area to click either
         // (RecapTieEdge renders none, and the sheet gives it no pointer).
         focusable: false,
-        style: { "--session-hue": hue } as React.CSSProperties,
       });
     }
   }

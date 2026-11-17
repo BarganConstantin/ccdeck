@@ -325,12 +325,18 @@ describe("#802 — the empty hero and the scope it was started with", () => {
     expect(hero).toContain('{scope.kind === "scoped" ? (');
   });
 
-  it("keeps the 'any folder' sentence for a deck that is not scoped", () => {
+  it("keeps the 'start it in a terminal' sentence for a deck that is not scoped", () => {
     // The other direction: on an unscoped deck the old copy is the true one and
     // must survive.
     expect(emptyScope("").kind).toBe("machine");
     expect(emptyScope(null).kind).toBe("unknown");
-    expect(hero).toContain('coded(t("board.hero.run"), ["claude", "codex"])');
+    // CHANGED ON PURPOSE (V4 top-10 #10): "Run claude or codex in any folder…
+    // a node appears here and grows as subagents fork" (board.hero.run) →
+    // "Start Claude Code or Codex in a terminal and it appears here."
+    // (board.hero.startHint), because the hero is a title and one plain line
+    // that says what to do now. It is still the unscoped branch only.
+    expect(hero).toContain('<p>{t("board.hero.startHint")}</p>');
+    expect(hero).not.toContain('t("board.hero.run")');
   });
 
   it("is handed the workspace at the call site, which is what was missing", () => {

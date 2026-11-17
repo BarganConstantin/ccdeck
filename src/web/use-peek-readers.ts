@@ -40,7 +40,7 @@ export function usePeekReaders({ nodesRef, stateRef, canvasRef, railInsetRef }: 
     const n = nodesRef.current.find(x => x.id === id && x.type === "recapNote");
     if (!n) return undefined;
     const d = n.data as unknown as RecapNoteData;
-    return { note: d.note, plan: d.plan, hue: d.hue, sessionLabel: peekLabel(d.parentId) };
+    return { note: d.note, plan: d.plan, sessionLabel: peekLabel(d.parentId) };
   }, []);
   const peekBounds = useCallback(() => {
     // The canvas's own box, not the window's: the peek belongs over the canvas,

@@ -141,7 +141,9 @@ describe("the fit keeps room for the bubbles only where they are drawn", () => {
     // And the frame that zoom shows: everything at the full card, the cards
     // in their handle's padding below it, where the notes are not drawn.
     expect(fit).toContain("const cards = agents.length > 0 ? boxOf(agents, GROUP_PAD) : all;");
-    expect(fit).toContain("const { minX, minY, h } = zoom * bodyPx >= DETAIL_EXIT_PX ? all : cards;");
+    // (Named `full` since V4 top-10 #3: the centring reads the same answer.)
+    expect(fit).toContain("const full = zoom * bodyPx >= DETAIL_EXIT_PX;");
+    expect(fit).toContain("const { minX, minY, h } = full ? all : cards;");
   });
 });
 
@@ -365,16 +367,21 @@ describe("the canvas wiring the pure halves depend on", () => {
     expect(css).toMatch(/\.canvas-wrap\[data-lod="compact"\] \.tool-burst,[^{]*\.canvas-wrap\[data-lod="overview"\] \.tool-conn \{\s*visibility: hidden;\s*\}/);
   });
 
-  it("sends every single-card camera move through focusAgent", () => {
+  it("sends every single-card camera move through focusAgent or revealAgent", () => {
     // fitView over one node centred on the whole pane — under the panels — and
     // zoomed to 1.6. None is left.
     expect(app).not.toMatch(/rf\.fitView\(\{[^}]*nodes: \[/);
     expect(clusters).not.toContain("rf.fitView(");
     expect(app).toMatch(/selectAgent\(id, e\.shiftKey, false\);\s*if \(e\.shiftKey\) return;/);
-    // Under reduced motion the click's jump is held for a double-click
-    // (focus-hold.ts), and reaches focusAgent from there.
-    expect(app).toMatch(/if \(detailOpen\) setDetailOpen\(false\);\s*(?:\/\/[^\n]*\n\s*)*if \(prefersReducedMotion\(\)\) \{\s*focusHold\.hold\(id\);\s*\} else if \(detailShown\) \{\s*window\.setTimeout\(\(\) => \{ try \{ focusAgent\(id\); \} catch \{\} \}, 80\);\s*\} else \{\s*focusAgent\(id\);/);
-    expect(app).toMatch(/focus: id => focusRef\.current\(id\)/);
+    // CHANGED ON PURPOSE (V4 top-10 #3): a click went to focusAgent (the session
+    // framed at 80% or more) → it goes to revealAgent (the zoom kept, the least
+    // pan), because select pans, never zooms (Figma/tldraw pattern). Under
+    // reduced motion the click's jump is still held for a double-click
+    // (focus-hold.ts), and reaches revealAgent from there.
+    expect(app).toMatch(/if \(detailOpen\) setDetailOpen\(false\);\s*(?:\/\/[^\n]*\n\s*)*if \(prefersReducedMotion\(\)\) \{\s*focusHold\.hold\(id\);\s*\} else if \(detailShown\) \{\s*window\.setTimeout\(\(\) => \{ try \{ revealAgent\(id\); \} catch \{\} \}, 80\);\s*\} else \{\s*revealAgent\(id\);/);
+    expect(app).toMatch(/focus: id => revealRef\.current\(id\)/);
+    // The explicit zooms keep focusAgent: the double-click and Z.
+    expect(app).toMatch(/selectAgent\(id, false\);\s*window\.setTimeout\(\(\) => \{ try \{ focusAgent\(id\); \} catch \{\} \}, 80\);/);
     expect(app).toMatch(/if \(e\.key === "z" \|\| e\.key === "Z"\) \{\s*if \(primarySelectedIdRef\.current\) focusAgent\(primarySelectedIdRef\.current\);/);
   });
 
@@ -405,6 +412,9 @@ describe("the canvas wiring the pure halves depend on", () => {
   it("marks a blocked session on the one label that is 1× at every zoom", () => {
     expect(clusters).toContain('data-alarm={c.alarm ? "" : undefined}');
     expect(clusters).toContain('<span className="cluster-label-said">{t("board.cluster.waitingOnYou")}</span>');
-    expect(css).toMatch(/\.cluster-label\[data-alarm\] \{\s*border-color: var\(--warn\);\s*\}/);
+    // CHANGED ON PURPOSE (V4 top-10 #1): `border-color: var(--warn)` →
+    // `color: var(--warn)`, because the label is plain text with no pill edge
+    // to recolour; the folder's words take the warning's ink instead.
+    expect(css).toMatch(/\.cluster-label\[data-alarm\] \{\s*color: var\(--warn\);\s*\}/);
   });
 });

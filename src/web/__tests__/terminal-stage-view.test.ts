@@ -93,11 +93,14 @@ describe("the header", () => {
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 
-  it("prints the face's sentence: the state, the tool, its argument and its live seconds", () => {
+  // CHANGED ON PURPOSE (V4 top-10 #7): "working · Task · 3 subagents …" drawn →
+  // no word for working, the whole sentence for a screen reader, because working
+  // is the normal state the terminal already shows and the name needed the room.
+  it("keeps the face's sentence for a screen reader, the state, the tool, its argument and its live seconds", () => {
     const out = html(createElement(StageHeader, headerProps()));
     expect(out).toContain('<h2 class="ts-name">paycore</h2>');
-    expect(out).toContain('data-state="working"');
-    expect(out).toMatch(/class="ts-meta-state">working<.*class="ts-meta-rest">· Task · 3 subagents running · 7m 38s</);
+    expect(out).not.toContain("ts-meta");
+    expect(out).toContain('<span class="vis-hidden">working · Task · 3 subagents running · 7m 38s</span>');
   });
 
   it("says waiting with how long, beside the rail's alert glyph and no ping", () => {
@@ -661,10 +664,14 @@ describe("the stage as a whole", () => {
     session: { ref: { sessionId: "s1", provider: "claude", cwd: "/w/paycore" }, name: "paycore", hue: 270, status: working },
   };
 
-  it("is a region named for its session, its hue on the spine, sized from the geometry", () => {
+  it("is a region named for its session, with no hue of its own, sized from the geometry", () => {
     const out = html(createElement(TerminalStage, stageProps(session)));
     expect(out).toMatch(/^<section class="ts-stage" role="region" aria-label="Command Panel — paycore" data-kind="empty"/);
-    expect(out).toContain("--session-hue:270");
+    // CHANGED ON PURPOSE (V4 top-10 #1): the stage wrote `--session-hue:270`
+    // for the spine and the header dot. The spine went earlier (below) and the
+    // dot is neutral now, because no surface mirroring the board wears an
+    // identity colour; the session's data still carries the hue, unpainted.
+    expect(out).not.toContain("--session-hue");
     expect(out).toContain("--ts-term-top:8px");
     expect(out, "the header is drawn at its token, so the stage hands it no height").not.toContain("--ts-head-h");
     expect(out, "the divider is a separator with a value").toMatch(/role="separator" aria-orientation="vertical" aria-label="Command Panel width" aria-valuemin="80" aria-valuemax="134" aria-valuenow="120" aria-valuetext="120 columns"/);
@@ -1013,8 +1020,13 @@ describe("the stage's sheet", () => {
     // bar is a fill that needs its own track and fill.
     expect(forced).not.toContain("ts-fact-mark");
     expect(forced).not.toContain("ts-end-mark");
-    expect(forced).toMatch(/\.ts-ctxbar \{ background: Canvas; outline: 1px solid CanvasText; \}/);
-    expect(forced).toMatch(/\.ts-ctxbar i \{ background: CanvasText; \}/);
+    // CHANGED ON PURPOSE (V4 top-10 #7): the bar's track and fill redrawn here →
+    // no rule for the chip, because the header draws the cards' ring where the
+    // bar was: strokes, not the backgrounds a Contrast theme repaints, answered
+    // no more than the card's ring is, with the figure beside it as text.
+    expect(forced).not.toContain("ts-ctxbar");
+    expect(forced).not.toContain("ts-ctxchip");
+    expect(forced).not.toContain("ctx-donut");
     expect(forced).not.toMatch(/\.ts-lamp|\.ts-spine/);
     expect(css.split("@media (forced-colors: active) {").length - 1, "one block, as #871 holds").toBe(1);
   });

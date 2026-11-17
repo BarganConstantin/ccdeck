@@ -20,7 +20,8 @@
 // Expanding reveals all windows, resets and the age of the reading.
 import { WarnGlyph } from "./AccountIssuePopover";
 import { KitIcon, KitStateGlyph, type KitIconName } from "./kit-icons";
-import { LevelMark } from "./LevelMark";
+import { LevelMark, type LevelTone } from "./LevelMark";
+import { quotaFill, quotaLevel } from "./QuotaBar";
 import AccountTelemetry from "./AccountTelemetry";
 import AccountHint from "./AccountHint";
 import { accountIssue, sentence, type AccountIssue } from "../account-issue";
@@ -39,12 +40,11 @@ import { telemetryLine } from "../org-telemetry";
 
 type RequestSlot = ReturnType<typeof useRequestSlot>;
 
-/** How full a window is, in the inks its figure and meter use: the waiting ink
- *  from 70% and the error ink at 90%. Below that a figure keeps its line's
- *  own ink — a quota is not a problem until it is nearly spent. */
-function fullness(pct: number): "mid" | "hi" | undefined {
-  return pct >= 90 ? "hi" : pct >= 70 ? "mid" : undefined;
-}
+/** How full a window is, in the inks its figure and meter use: the Usage
+ *  panel's level (quotaLevel), the warning from 70% and the error from 90%.
+ *  Below that a figure keeps its line's own ink — a quota is not a problem
+ *  until it is nearly spent. */
+const fullness = (pct: number): LevelTone | undefined => quotaLevel(pct) ?? undefined;
 
 /** A quota figure painted --warn or --err for its level never says so in
  *  colour alone (WCAG 1.4.1). An open lane has the room for LevelMark's mark
@@ -52,7 +52,7 @@ function fullness(pct: number): "mid" | "hi" | undefined {
  *  name, so they wear the mark alone and give the word to a screen reader and
  *  to the hover. Below its level the figure is drawn as it always was. */
 function QuotaPct({ className, pct, level, compact }: {
-  className: string; pct: number; level: "mid" | "hi" | undefined; compact?: boolean;
+  className: string; pct: number; level: LevelTone | undefined; compact?: boolean;
 }) {
   const t = useT();
   const n = `${Math.round(pct)}%`;
@@ -60,7 +60,7 @@ function QuotaPct({ className, pct, level, compact }: {
   if (!compact) {
     return (
       <span className={className} data-level={level}>
-        <LevelMark tone={level === "hi" ? "err" : "warn"} word="high">{n}</LevelMark>
+        <LevelMark tone={level} word="high">{n}</LevelMark>
       </span>
     );
   }
@@ -70,11 +70,6 @@ function QuotaPct({ className, pct, level, compact }: {
       <KitIcon name="warning" className="level-mark-glyph" />{n}<span className="vis-hidden"> {word}</span>
     </span>
   );
-}
-
-/** Match main's quota colours for every account, independent of selection. */
-function meterInk(pct: number): string {
-  return pct >= 90 ? "var(--err)" : pct >= 70 ? "var(--warn)" : "var(--accent)";
 }
 
 /** An address as the row draws it: the part before the @ in the text ink and
@@ -664,7 +659,7 @@ export default function AccountRow({
           hand. An old reading draws it in the quiet ink. */}
       <div className="ap-meter" aria-hidden>
         {primary && !blocked && !primaryRolled && <div className="ap-meter-fill"
-          style={{ width: `${primaryPct === 0 ? 1.5 : primaryPct}%`, background: frozen ? "var(--muted)" : meterInk(primaryPct), opacity: primaryPct === 0 ? 0.4 : 1 }} />}
+          style={{ width: `${primaryPct === 0 ? 1.5 : primaryPct}%`, background: frozen ? "var(--muted)" : quotaFill(quotaLevel(primaryPct)), opacity: primaryPct === 0 ? 0.4 : 1 }} />}
       </div>
     </li>
   );

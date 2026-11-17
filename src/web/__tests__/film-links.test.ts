@@ -99,11 +99,18 @@ describe("each place draws its film", () => {
     expect(read("../components/UsagePanel.tsx")).toMatch(/<PanelInfo film="usage" panel=\{t\("usage\.title"\)\} \/>/);
   });
 
-  it("the Claude accounts column, behind ⓘ, before any roster has arrived", () => {
+  // CHANGED ON PURPOSE (V4 top-10 #10): the Claude accounts film was the ⓘ's
+  // menu item → it is an item of the header's ⋯ "More actions" menu, because
+  // the ⓘ was one of five icons that wrapped the header onto two lines. The
+  // menu is opened, and its film item followed, in v4-read-less-accounts.test.ts.
+  it("the Claude accounts column, behind ⋯, before any roster has arrived", () => {
     const html = renderToStaticMarkup(createElement(AccountsPanel, { onClose: noop }));
-    expect(html).toMatch(/class="glyph-btn panel-info" aria-label="About Claude accounts"/);
+    expect(html).not.toContain("panel-info");
+    expect(html).toMatch(/aria-label="More actions" title="More actions" aria-haspopup="menu" aria-expanded="false"/);
     expect(html).not.toContain("film-icon");
-    expect(read("../components/AccountsHeader.tsx")).toMatch(/<PanelInfo film="claudeAccounts" panel=\{t\("accounts\.header\.title"\)\} \/>/);
+    const header = read("../components/AccountsHeader.tsx");
+    expect(header).toContain("href={FILMS.claudeAccounts.href}");
+    expect(header).toContain('t("shell.film.watchMenu", { duration: t("shell.film.duration") })');
   });
 
   it("Local network while it is off, beside `See how it works`", () => {

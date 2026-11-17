@@ -826,21 +826,20 @@ function edgeRatio(edge: string, fill: string, bed: Rgba, theme: Theme, scope?: 
  * there or which state it is in. A hairline added on hover, over a control
  * whose resting edge the sweep above already measures, is not — it is a lift.
  */
-const EXEMPT_RINGS = new Set([
+const EXEMPT_RINGS = new Set<string>([
   // An --accent-dim glow added on hover to a pressed icon toggle was excused
   // here, over an edge that stayed; the toggle left the sheet with the topbar's
   // panel buttons (2026-10-08), and so did its glow.
-  // A currentColor hairline on a canvas label that is lifting under the
-  // pointer. .cluster-label is exempt at rest for the reason below — it reads
-  // its own name at 4.5:1 — and session-hue.test.ts owns its rim as decoration.
-  // `.cluster-label.dragging` was excused beside it until #546 took the rule
-  // out of the sheet: nothing ever put `dragging` on that element, and the
-  // check at the bottom of this describe is the one that would have said so
-  // the moment the exemption outlived what it excused.
-  ".cluster-label:hover",
-  // The light cluster label keeps the same decorative hairline. Tool bursts
-  // now lift with a diffuse shadow, so they no longer need ring exemptions.
-  ':root[data-color-scheme="light"] .cluster-label:hover',
+  // `.cluster-label.dragging` was excused here until #546 took the rule out of
+  // the sheet: nothing ever put `dragging` on that element, and the check at
+  // the bottom of this describe is the one that would have said so the moment
+  // the exemption outlived what it excused. Tool bursts lift with a diffuse
+  // shadow, so they need no ring exemption either.
+  // CHANGED ON PURPOSE (V4 top-10 #1): `.cluster-label:hover` and its light
+  // twin were excused for the currentColor hairline the hued pill drew under
+  // the pointer. The label is plain text now and its hover is a colour and an
+  // underline, so it draws no ring and is excused for none (the last case of
+  // the rings' describe holds that).
 ]);
 
 /** Every rule in the sheet that draws a ring somebody has to be able to see:
@@ -986,7 +985,8 @@ describe("what counts as an edge, which BORDER_PROPS decides (#655)", () => {
     // lifting its edge under the pointer and the keyboard, and the message
     // taking the error colour on its edge when Send was pressed with it empty.
     // Radio discovery, session pricing and reset-calendar controls extend the inventory.
-    // Gruvbox adds one resting cluster-label rim; its visible name identifies it.
+    // Gruvbox added one resting cluster-label rim; it left with the session
+    // hue (V4 top-10 #1), and the label draws no edge in any theme.
     // Tool activity's search field adds two: framed at rest, louder under the pointer.
     // Settings' redesign (#2176) adds Keyboard's filter field the same way,
     // two more, and took the Music section's station picker away with its own.
@@ -1324,19 +1324,12 @@ describe("every control that draws a boundary draws one that can be seen (1.4.11
       // been announcing to screen readers since it was written, with nothing on
       // screen saying the same thing.
       "button[aria-busy=\"true\"]:not(:disabled)",
-      // A label on the canvas, whose rim is a tint of the session hue and
-      // whose floors session-hue.test.ts owns as decoration. It reads its own
-      // name at 4.5:1, which is the identification. (It read "draggable" here
-      // until #546; it is a fit-view button and never was one.)
-      ".cluster-label",
-      // Gruvbox retunes the same decorative rim, preserving hover and alarm states.
-      ':root[data-theme^="gruvbox-"] .cluster-label:where(:not(:hover):not([data-alarm]))',
-      // The same label for a session stopped until a human answers. It only
-      // RECOLOURS the rim above to --warn — the aria-busy argument: nothing
-      // appears or moves, the label is still identified by the name written in
-      // it, and the state is also said by the triangle and, for a screen
-      // reader, in words. A state indicator on a decorative rim, not a boundary.
-      ".cluster-label[data-alarm]",
+      // CHANGED ON PURPOSE (V4 top-10 #1): `.cluster-label`, its Gruvbox
+      // retune and `.cluster-label[data-alarm]` were named here for the rim
+      // the hued pill drew, decoration whose floors session-hue.test.ts owned.
+      // The label is plain text now — `border: 0`, and the alarm recolours
+      // the words to --warn rather than an edge — so it paints no boundary
+      // for this sweep to classify, and an exemption would only outlive it.
       // A labelled region button: its rim conveys selection, not identity.
       '.radio-regions .radio-region[aria-pressed="true"]',
       // The text-field family's focus state (V4's Figma: no ring, the 1px border
@@ -1365,10 +1358,10 @@ describe("every control that draws a boundary draws one that can be seen (1.4.11
       "kbd.qo-key", ".qo-esc", ".qo-foot kbd", ".fb-shortcut kbd",
       // CHANGED ON PURPOSE: the category filter's legend items are gone (one
       // Tools button at every width), so `.cat-filter.off .cat-dot` left this
-      // list. The canvas's "Fit all" is a button now, where it was a strip
-      // around Resume: its --line-soft rim on --panel is the surface edge the
-      // canvas's instruments share, and it is named by its word and glyph.
-      ".autofit-chip",
+      // list.
+      // CHANGED ON PURPOSE (V4 top-10 #3): ".autofit-chip" (the canvas's "Fit
+      // all" button) → gone from this list, because the chip left the canvas:
+      // ⌖ recenter did the same job, so the sheet no longer draws the selector.
       // CHANGED ON PURPOSE (V4's Figma): the Auto-switch chips are the same
       // pills — a --line rim at rest, and the chosen one filled with
       // --accent-16 and edged in --accent — each named by its own word.
@@ -1479,6 +1472,12 @@ describe("the rings, which a border sweep cannot see (1.4.11, 2.4.11)", () => {
       expect(excused, `${excused} is a resting rule and may not be excused`)
         .toMatch(/:hover|\.dragging|:active/);
     }
+    // The list's last two entries were the cluster label's hover hairline
+    // (V4 top-10 #1). It went with the hued pill, so the label is held to
+    // drawing none rather than to an exemption for one.
+    const labelHover = RULES.filter(r => selectors(r.selector).some(s => /^(?:.* )?\.cluster-label:hover$/.test(s)));
+    expect(labelHover.length, "the cluster label has no hover rule for this to read").toBeGreaterThan(0);
+    for (const r of labelHover) expect(ringColourIn(r.body), r.selector).toBeNull();
   });
 });
 

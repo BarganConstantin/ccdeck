@@ -1,13 +1,10 @@
 /* ---------------- agent node ---------------- */
 
-/* The node's --accent is the session's hue, so everything inside it that reads
-   var(--accent) — the selected ring and the focus ring —
-   recolours per session. AgentNode used to hand the
-   whole colour down; it hands down --session-hue now and the tier is the
-   cascade's. The rest of the app keeps the palette's own --accent: this
-   declaration is scoped to the node and inherits no further than its subtree. */
+/* NO COLOUR OF ITS OWN (V4 top-10 #1). The node's --accent was its session's
+   hue, a hash of the session id, so the card's rings and its land flash wore
+   a colour that said nothing. They read the palette's own --accent now, as
+   every other control does; colour on the board means state only. */
 .agent-node {
-  --accent: hsl(var(--session-hue, 200) 70% var(--session-accent-l));
   position: relative;
   /* V4's Agent / Card: 256 wide, a column with a 2px gap, 8px above and below
      at Compact (--ui-space 0.7, Figma's frame), growing with the density:
@@ -15,8 +12,8 @@
      10 Default (what the card has always had), 12.67 Comfortable. 10px at the
      sides. Figma draws the 1px edge inside those, so the padding is each less
      1px and the card is V4's 70 (88 with an ask or a failure) with its edge.
-     Solid --panel, no shadow at rest and no session stripe: hue stays on
-     the wires. The edge is --line, and --warn only while the card waits on you.
+     Solid --panel, no shadow at rest and no session stripe. The edge is
+     --line, and --warn only while the card waits on you.
      The gradient fill is gone from the detail face (the LOD faces keep it). */
   display: flex;
   flex-direction: column;
@@ -91,8 +88,8 @@
    is a channel no state uses: it sits outside the border box, so it composes
    with whatever colour the state put there instead of overwriting it, costs no
    layout, and survives a zoom level at which a 1px border swapping hue does
-   not. The ring is the session's own colour — it read --accent-dim, the global
-   sky blue, so a selected node in a magenta session drew a blue halo.
+   not. The ring is the deck's --accent, the colour of selection everywhere
+   (it wore the session's hue until V4 top-10 #1).
 
    AND IT IS READ OFF THE WRAPPER. This was `.agent-node.selected`, from React
    Flow's `selected` prop, which is never true on a canvas whose `nodes` are
@@ -112,8 +109,7 @@
    `.react-flow__node.selectable:focus-visible { outline: none }` at (0,3,0),
    beating `:focus-visible` at (0,1,0) — and nothing selects a card on focus,
    so `.rf-selected` above never stands in for it. The ring goes on the card, like
-   selection's, because the card is the box with the radius and the session's
-   own --accent. Focus without selection still reads apart: an inset ring of
+   selection's, because the card is the box with the radius. Focus without selection still reads apart: an inset ring of
    the focus width. A selected card keeps its selection ring (same wrapper
    carries both). */
 .react-flow__node:focus-visible:not(.rf-selected) .agent-node {
@@ -202,28 +198,19 @@
   font-size: calc(11px + var(--ui-text-increase, 0px));
   line-height: calc(14px + var(--ui-text-increase, 0px));
 }
-/* The session's stripe, at the width the card's reads at 1× less a pixel —
-   the same mark in the same hue, so the face is recognisably the card. */
-.lod-face::before {
-  content: "";
-  position: absolute;
-  left: 0;
-  top: 0;
-  bottom: 0;
-  width: 3px;
-  background: var(--accent);
-  opacity: 0.7;
-}
-/* The state's edge, on a variable rather than on `border-color`, and the one
-   state that must win — blocked on a human — on a variable of its own that the
-   border reads first. Neither competes with the face's `border` shorthand or
-   with the other theme's twin on specificity; the order is in the var() chain.
-   The state values are the card's own, theme for theme. */
+/* ONE FRAME, AND ITS COLOUR IS A STATE (V4 top-10 #1). No session stripe:
+   the face wore its session's hashed hue down its left edge, a second frame
+   whose colour meant nothing. The state's edge is on a variable rather than on
+   `border-color`, and the one state that must win — blocked on a human — on a
+   variable of its own that the border reads first. Neither competes with the
+   face's `border` shorthand or with the other theme's twin on specificity; the
+   order is in the var() chain. Working and Failed have an edge of their own;
+   Done keeps --line. CHANGED ON PURPOSE (V4 top-10 #1): Done drew a green
+   edge, and most cards on a board are done, so green on all of them was noise
+   and the cards that need a look had nothing to stand out from. */
 .agent-node.state-active > .lod-face { --lod-edge: var(--inflight); }
-.agent-node.state-done > .lod-face { --lod-edge: rgba(134,239,172,0.5); }
 .agent-node.state-err > .lod-face { --lod-edge: rgba(252,165,165,0.6); }
 :root[data-color-scheme="light"] .agent-node.state-active > .lod-face { --lod-edge: rgba(126,34,206,0.65); }
-:root[data-color-scheme="light"] .agent-node.state-done > .lod-face { --lod-edge: var(--ok); }
 :root[data-color-scheme="light"] .agent-node.state-err > .lod-face { --lod-edge: var(--err); }
 .lod-face[data-alarm] { --lod-alarm: var(--warn); padding-inline: 6px; }
 /* Ready for a first prompt: the reducer calls it active, so the rules above
@@ -250,7 +237,7 @@
 }
 
 /* A CARD'S FACE: one task line and its status (owner's critique, 2026-11-11),
-   the same at compact and overview. The cluster's pill names the session.
+   the same at compact and overview. The cluster's label names the session.
 
    One line by default: the mark, the task, the word. The row is one line tall,
    wraps, and clips what wraps. The task keeps at least half of it, so a word
@@ -286,12 +273,13 @@
 .lod-line[data-status="waiting"] .lod-state { color: var(--warn); }
 .lod-line[data-status="partial"] .lod-state { color: var(--warn); }
 .lod-line[data-status="err"] .lod-state { color: var(--err); }
-/* When it started, on a card that reads like another (twinClocks): a value,
-   whole or not at all, in the model's quiet mono. */
+/* When it started, only on a card that reads like another (twinClocks): a
+   value, whole or not at all, in the UI face with tabular figures. CHANGED ON
+   PURPOSE (V4 top-10 #2): it was mono, which is for paths, commands and keys;
+   a clock is a figure. */
 .lod-start {
   flex: none;
   white-space: nowrap;
-  font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
   color: var(--muted);
 }
@@ -337,11 +325,12 @@
 .state-mark[data-kind="idle"] { color: var(--muted); }
 .state-mark[data-kind="live"] { color: var(--inflight); }
 .state-mark[data-kind="done"] { color: var(--ok); }
-/* A turn that finished with failed calls: done's tick in done's ink, and the
-   dot at its corner in the warning's. The dot's own rule wins over the
-   currentColor fill the kit draws it with, on every surface that draws the
-   glyph, the Inspector's head and the command menu as well as a .state-mark. */
-.state-mark[data-kind="partial"] { color: var(--ok); }
+/* A turn that finished with failed calls reads as a warning: the tick and the
+   dot at its corner both in the warning's ink, one mark (V4 top-10 #9). It was
+   done's green tick with a --warn dot, a success mark beside "1 failed". The
+   dot's own rule keeps it --warn on every surface that draws the glyph, the
+   Inspector's head and the command menu as well as a .state-mark. */
+.state-mark[data-kind="partial"] { color: var(--warn); }
 .state-mark .kit-warn,
 .kit-warn { fill: var(--warn); }
 .state-mark[data-kind="err"] { color: var(--err); }
@@ -375,9 +364,9 @@
   visibility: hidden;
 }
 
-/* THE HEAD (V4): who on the left — the name, then the model as plain mono text
-   — and the state on the right, its one circle. The context ring is the
-   foot's (context-modal.css). */
+/* THE HEAD (V4): who on the left — the name — and the state on the right, its
+   one circle. No model (V4 top-10 #2): the Inspector says it. The context ring
+   is the foot's (context-modal.css). */
 .agent-node .head {
   display: flex;
   align-items: center;
@@ -408,8 +397,9 @@
 .agent-node .state-line .alert-mark { width: 14px; height: 14px; margin-left: 0; }
 .agent-node .state-line[data-tone="active"] .state-word { color: var(--inflight); }
 .agent-node .state-line[data-tone="done"] .state-word { color: var(--ok); }
-/* Finished with failed calls: "Done" in done's ink, the count in the warning's. */
-.agent-node .state-line[data-tone="partial"] .state-word { color: var(--ok); }
+/* Finished with failed calls: one warning, the mark, "Done" and the count all
+   in the warning's ink (V4 top-10 #9; "Done" was done's green). */
+.agent-node .state-line[data-tone="partial"] .state-word { color: var(--warn); }
 .agent-node .state-line[data-tone="partial"] .state-failed { color: var(--warn); }
 .agent-node .state-line[data-tone="err"] .state-word { color: var(--err); }
 .agent-node .state-line[data-tone="waiting"] .state-word { color: var(--warn); }
@@ -417,7 +407,7 @@
    (.state-mark[data-kind="idle"]). Nothing is at work and nothing is asked. */
 .agent-node .state-line[data-tone="ready"] .state-word { color: var(--muted); }
 .agent-node .state-line[data-tone="done"] .state-mark { color: var(--ok); }
-.agent-node .state-line[data-tone="partial"] .state-mark { color: var(--ok); }
+.agent-node .state-line[data-tone="partial"] .state-mark { color: var(--warn); }
 .agent-node .state-line[data-tone="err"] .state-mark { color: var(--err); }
 .agent-node .state-line[data-tone="waiting"] .state-mark { color: var(--warn); }
 /* Working breathes on the deck's one live tempo; Waiting does not pulse — its

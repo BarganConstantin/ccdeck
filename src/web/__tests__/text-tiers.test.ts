@@ -286,10 +286,11 @@ describe("what was migrated to the secondary tier", () => {
       ".cat-tools-item.off:hover",
       // CHANGED ON PURPOSE (V4's Figma): a companion tile's name is set in this tier, like a theme's.
       ".character-choice",
-      // CHANGED ON PURPOSE (V4's Figma): V4's secondary-ink lines: the auto-fit chip and the
+      // CHANGED ON PURPOSE (V4's Figma): V4's secondary-ink lines: the
       // re-arrange strip's status words, the drag trash's first line, the recap
       // note's body and the cost tooltip's model line.
-      ".autofit-chip",
+      // CHANGED ON PURPOSE (V4 top-10 #3): ".autofit-chip" was one of them → the
+      // chip is gone, because recenter on the control bar did the same thing.
       // CHANGED ON PURPOSE (V4's Figma): the rating ask's score labels and its "Not now" are set in --text-secondary.
       ".rating-banner .rating-pick",
       ".rating-banner .rating-later",

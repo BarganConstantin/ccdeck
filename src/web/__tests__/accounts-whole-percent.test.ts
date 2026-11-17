@@ -42,7 +42,8 @@ describe("the open row's bars", () => {
   });
 
   it("say a high window with the mark and the word, not its colour alone", () => {
-    expect(html).toMatch(/class="ap-lane-pct" data-level="mid"><span class="level-mark" data-tone="warn">/);
+    // The level's name is the shared quota level's (V4 top-10 #9): "warn", was "mid".
+    expect(html).toMatch(/class="ap-lane-pct" data-level="warn"><span class="level-mark" data-tone="warn">/);
     expect(html.match(/class="level-mark-word"/g)).toHaveLength(1);
   });
 });
