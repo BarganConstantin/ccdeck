@@ -117,7 +117,11 @@ describe("the header and the tabs", () => {
     expect(app).toContain("onClose={foldInspector}");
     // CHANGED ON PURPOSE (V4's Figma): the sheet from 1100 to 1319 folds the same way, to its tab.
     expect(app).toContain("onClose={inWorkspace && (inspectorColumn || inspectorSheet) ? foldInspector :");
-    expect(app).toMatch(/useEffect\(\(\) => \{ if \(detailOpen\) setInspectorFolded\(false\); \}, \[detailOpen\]\)/);
+    // CHANGED ON PURPOSE (V4 top-10 #7): `if (detailOpen)` → an open (false to
+    // true) unfolds it, because a load landing in Workspace holds the Board's
+    // open flag shut, and the flag as it stood at mount unfolded the column
+    // after the hold.
+    expect(app).toMatch(/useEffect\(\(\) => \{\s*if \(detailOpen && !detailWasOpen\.current\) setInspectorFolded\(false\);\s*detailWasOpen\.current = detailOpen;\s*\}, \[detailOpen\]\)/);
   });
 });
 

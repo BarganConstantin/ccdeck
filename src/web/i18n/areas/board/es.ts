@@ -701,7 +701,6 @@ const catalog: Catalog = {
   "board.stage.typeIntoTip": "{label} (↵)",
   "board.stage.keysBack": "Devolver las teclas al tablero ({chord})",
   "board.stage.contextWindow": "Ventana de contexto",
-  "board.stage.context": "Contexto",
   "board.stage.contextShort": "{pct} de contexto",
   "board.stage.view": "Vista",
   "board.stage.viewChat": "Chat",

@@ -24,7 +24,7 @@ const { EdgeDock, EdgeRail, railHint, stripeDoorName, stripeHint } = await impor
 const { railItems } = await import("../rail-items");
 const { KIT_ICONS } = await import("../components/kit-icons");
 const { SCHEMA_KEY, pruneStaleState } = await import("../storage");
-const { STRIPE_W, STRIPE_WORDS_KEY, setStripeWords, settleStripeWords, stripeWidth, stripeWordsOn, stripeWordsShown } = await import("../stripe-words");
+const { STRIPE_W, STRIPE_WORDS_KEY, setStripeWords, setStripeWorkspace, settleStripeWords, stripeWidth, stripeWordsOn, stripeWordsShown } = await import("../stripe-words");
 const { rightPanelsCrowd } = await import("../phone-load");
 
 const noop = () => {};
@@ -317,6 +317,50 @@ describe("a window under 1100px has no room for words", () => {
     const { left } = stripes();
     expect(wordsOf(left.tree).every(w => w === null)).toBe(true);
     expect(wordSwitch(left.tree).props["aria-label"]).toBe("Show words");
+  });
+});
+
+// V4 top-10 #7: Workspace's pane takes the room the words would, at any width.
+describe("Workspace draws the stripes as icons", () => {
+  afterEach(() => setStripeWorkspace(false));
+
+  it("draws both stripes as icons and no switch while Workspace is up, keeps the choice, and gives the words back after", () => {
+    browser({ [STRIPE_WORDS_KEY]: "on" }, 1440);
+    const { left, right } = stripes();
+    expect(wordsOf(left.tree)).toEqual(LEFT_WORDS);
+    setStripeWorkspace(true);
+    expect(wordsOf(left.tree).every(w => w === null)).toBe(true);
+    expect(wordsOf(right.tree).every(w => w === null)).toBe(true);
+    expect(toolbar(left.tree).props["data-words"]).toBeUndefined();
+    expect(toolbar(right.tree).props["data-words"]).toBeUndefined();
+    // No switch, as under 1100: the foot is Radio and Settings alone.
+    expect(one(left.tree, e => e.props["data-rail-item"] === "stripe-words")).toBeNull();
+    expect(one(left.tree, e => e.props.className === "rail-foot")!.props["aria-label"]).toBe("Radio, Settings");
+    expect(stripeWidth()).toBe(STRIPE_W.icons);
+    expect(stripeWordsShown(), "the reader's choice is untouched").toBe(true);
+    expect(stored[STRIPE_WORDS_KEY]).toBe("on");
+    // Back on the Board: the words, the switch and the width.
+    setStripeWorkspace(false);
+    expect(wordsOf(left.tree)).toEqual(LEFT_WORDS);
+    expect(wordsOf(right.tree)).toEqual(RIGHT_WORDS);
+    expect(wordSwitch(left.tree).props["aria-label"]).toBe("Hide words");
+    expect(stripeWidth()).toBe(STRIPE_W.words);
+  });
+
+  it("gives a reader who chose icons their icons back, with the » to bring the words", () => {
+    browser({ [STRIPE_WORDS_KEY]: "off" }, 1440);
+    const { left } = stripes();
+    setStripeWorkspace(true);
+    expect(one(left.tree, e => e.props["data-rail-item"] === "stripe-words")).toBeNull();
+    setStripeWorkspace(false);
+    expect(wordsOf(left.tree).every(w => w === null)).toBe(true);
+    expect(wordSwitch(left.tree).props["aria-label"]).toBe("Show words");
+  });
+
+  it("is told by App in the commit that draws the view, and the words come back across a switch at their width", () => {
+    const app = sourceOf("App.tsx");
+    expect(app).toContain("useLayoutEffect(() => { setStripeWorkspace(inWorkspace); }, [inWorkspace]);");
+    expect(sheetText()).toContain(":root[data-view-switch] .app:has(> .edge-rail[data-words]) { transition: none; }");
   });
 });
 
