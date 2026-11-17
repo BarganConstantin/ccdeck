@@ -694,8 +694,8 @@
    (popover-place.ts): at 320px its 368px ran past the screen's edge and took
    Start with it. */
 .anchored-popover.ns-pop {
-  width: min(480px, calc(100vw - 16px));
-  padding: 12px 16px 0;
+  width: min(440px, calc(100vw - 16px));
+  padding: 16px 16px 0;
   border-radius: var(--r-overlay);
   border: 1px solid var(--line);
   background: var(--panel);
@@ -703,13 +703,15 @@
   animation: ns-pop-in var(--dur-base) var(--ease);
 }
 @keyframes ns-pop-in { from { transform: translateY(-4px) scale(0.97); } }
-/* V4's head: "New session" 12/600 in --text-secondary, the fields' names 12px in --muted. */
+/* Clear project/agent hierarchy; the usual defaults stay one press away. */
+.ns-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 18px; }
+.ns-head .ns-close { flex: none; width: 28px; height: 28px; }
 .ns-title {
-  margin: 0 0 12px;
-  font-size: 12px;
+  margin: 0;
+  font-size: 16px;
   font-weight: 600;
-  line-height: 16px;
-  color: var(--text-secondary);
+  line-height: 24px;
+  color: var(--text);
 }
 .ns-label { display: block; margin: 0 0 6px; font-size: 12px; line-height: 16px; color: var(--muted); }
 /* The strips are V4's chips here: 26 high, the control radius, --bg-soft on a --line-soft edge,
@@ -724,7 +726,9 @@
    percentage of its own. */
 .ns-form { display: flex; flex-direction: column; }
 /* The usage modal's range strip, as wide as the form: two halves. */
-.ns-agents { display: flex; margin-bottom: 14px; }
+.ns-agents { display: flex; margin-bottom: 0; }
+.ns-form .ns-agents .uh-range-btn { height: 40px; min-height: 40px; font-size: 13px; border: 1px solid var(--ctl-edge); }
+.ns-form .ns-agents .uh-range-btn[aria-pressed="true"] { background: var(--selected); color: var(--text); border-color: var(--accent); }
 .ns-agents .uh-range-btn { flex: 1 1 0; display: inline-flex; align-items: center; justify-content: center; gap: 6px; }
 /* The projects (internal #106): quick open's rows in a well of their own.
    Up to twelve remembered folders and the board's, so the list scrolls at
@@ -734,7 +738,7 @@
    in touch-and-forced-colours.css, with the rest of the panel's.) */
 .ns-list {
   flex: none;
-  max-height: 228px;
+  max-height: 224px;
   overflow-y: auto;
   overscroll-behavior: contain;
   margin: 0 0 8px;
@@ -747,8 +751,8 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  height: 32px;
-  padding: 0 8px;
+  min-height: 48px;
+  padding: 6px 8px;
   border-radius: var(--r-ctl);
   font-size: 13px;
   line-height: 16px;
@@ -757,13 +761,12 @@
 }
 .ns-option[data-highlighted] { background: var(--selected); }
 .ns-dot { flex: none; width: 7px; height: 7px; border-radius: var(--r-pill); background: var(--muted-dim); }
-.ns-name { flex: none; max-width: 48%; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-weight: 600; }
-.ns-path { margin-left: auto; white-space: nowrap; font: 400 11px/1 var(--font-mono); color: var(--muted); }
-/* The station list holds its second span to its width; a path gives way. */
-.ns-option .ns-path { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.ns-project-copy { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.ns-name { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-weight: 600; line-height: 18px; }
+.ns-path { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font: 400 11px/16px var(--font-mono); color: var(--muted); }
 /* The search (internal #106): words first, so the field reads in the deck's
    own face; a typed path is still a path in it. 6px above the list. */
-.ns-field { margin-bottom: 6px; }
+.ns-form .ns-field { margin-bottom: 8px; min-height: 36px; }
 /* The chosen project's tick, in the accent the list's selection uses. */
 .ns-check { flex: none; color: var(--accent); }
 /* × takes a project off the list (nothing on disk): drawn on the row the
@@ -790,7 +793,7 @@
    path" for ~/ and ./ — in the list's own place and size. */
 .ns-empty { margin: 0 0 8px; padding: 8px 10px; border: 1px dashed var(--line-soft); border-radius: var(--r-ctl); font-size: 12px; line-height: 16px; color: var(--text-secondary); }
 /* "Choose another folder…": the deck's own button, quiet, under the list. */
-button.btn.ns-choose { align-self: flex-start; gap: 6px; padding: 0 10px; font-size: 12px; }
+button.btn.ns-choose { align-self: flex-start; gap: 6px; padding: 0 8px; font-size: 12px; border-color: transparent; background: transparent; color: var(--text-secondary); }
 /* Where Start will go, said whole: the chosen folder's path, or what is
    wrong with it — in --warn's words, the path after them. */
 .ns-where { display: flex; gap: 8px; min-width: 0; margin: 8px 0 0; font-size: 12px; line-height: 16px; }
@@ -806,9 +809,19 @@ button.btn.ns-choose { align-self: flex-start; gap: 6px; padding: 0 10px; font-s
 .ns-keys { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; border: 0; }
 /* Claude's three choices under the project: two strips and a switch, in the
    rhythm of the agent strip above them. */
-.ns-label-gap { margin-top: 14px; }
-.ns-choices { display: flex; margin-bottom: 10px; }
-.ns-choices .uh-range-btn { flex: 1 1 0; }
+.ns-label-gap { margin-top: 18px; }
+.ns-form:not([data-searching]) .ns-where { display: none; }
+.ns-options { margin-top: 16px; border-top: 1px solid var(--line-soft); }
+.ns-options-summary { display: flex; align-items: center; gap: 8px; min-height: 42px; cursor: pointer; font-size: 12px; color: var(--text-secondary); list-style: none; }
+.ns-options-summary::-webkit-details-marker { display: none; }
+.ns-options-summary:focus-visible { outline: var(--focus-w) solid var(--accent); outline-offset: 2px; border-radius: var(--r-ctl); }
+.ns-options-value { min-width: 0; margin-left: auto; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--muted); font-size: 11px; }
+.ns-options-chevron { flex: none; }
+.ns-options[open] .ns-options-chevron { transform: rotate(180deg); }
+.ns-options-fields { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr); gap: 12px; padding: 0 0 14px; }
+.ns-setting { min-width: 0; }
+.ns-setting .v4-select { display: flex; width: 100%; }
+.ns-setting .sm-select { min-height: 32px; width: 100%; min-width: 0; }
 /* The switch's own row: its name on the left, the switch on the right, as
    the popovers' switches were drawn before Settings took them into its rows.
    `cursor: default`, as theirs: the pointer belongs to the switch. */
@@ -821,12 +834,15 @@ button.btn.ns-choose { align-self: flex-start; gap: 6px; padding: 0 10px; font-s
   margin-top: 2px;
   cursor: default;
 }
-.ns-worktree-label { font-weight: 500; }
+.ns-worktree-label { font-weight: 500; font-size: 12px; }
+.ns-options .ns-worktree { min-height: 32px; margin: 0 0 8px; }
 .ns-note { margin: 12px 0 0; font-size: 12px; line-height: 16px; color: var(--muted); }
 /* Cancel and Start stay in sight: where the window leaves the popover less
    room than its form (it scrolls then, popover-place gives it the room
    there is), the row holds to the popover's foot over what scrolls under
    it. The popover's own 16px foot is this row's, so nothing shows below. */
+.ns-acts .primary { min-width: 0; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+@media (max-width: 440px) { .ns-acts .primary { flex: 1; } }
 .ns-acts {
   position: sticky;
   bottom: 0;

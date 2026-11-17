@@ -165,6 +165,15 @@ export default function AnchoredPopover({
   useLayoutEffect(() => { place(); });
 
   useEffect(() => {
+    if (typeof ResizeObserver === "undefined") return;
+    // Child forms can expand without rendering this wrapper. Observe their
+    // natural height so the popover refits without observing its own cap.
+    const watch = new ResizeObserver(place);
+    for (const child of Array.from(ref.current?.children ?? [])) watch.observe(child);
+    return () => watch.disconnect();
+  }, [place, ref]);
+
+  useEffect(() => {
     // Capture, because the panel's scroll does not bubble to window. A scroll
     // inside the popover itself is its own content moving and is left alone —
     // re-measuring would reset it to the top.
