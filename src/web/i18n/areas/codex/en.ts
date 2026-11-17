@@ -41,6 +41,7 @@ const catalog: Catalog = {
   "codex.row.readPlanNamed": "{plan} plan. {rest}",
   "codex.row.neverRead": "The deck has not read this account yet",
   "codex.row.switchWaiting": "Waiting for running tools or pending input before switching accounts.",
+  "codex.row.switchWaitingUsing": "Still using {account}. The account will switch when running tools or pending input finish.",
   "codex.row.childrenResuming": "Account switched. Waiting for subagents to resume.",
   "codex.row.continueUnconfirmed": "Automatic continuation could not be confirmed; check the conversation before continuing.",
   "codex.row.reading": "Reading usage…",
