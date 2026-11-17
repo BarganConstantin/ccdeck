@@ -39,7 +39,11 @@ export function codexTerminalSurfaces() {
         } else {
           pending.push(byte);
           if (byte >= 64 && byte <= 126) {
-            const mapped = byte === 109 ? sgr.map(String.fromCharCode(...pending.slice(2, -1))) : null;
+            // SGR only: digits, ; and :. A private marker or an intermediate
+            // makes it another control that also ends in m, e.g. Codex's own
+            // CSI > 4;2 m (modifyOtherKeys), whose 2 is not DIM.
+            const params = String.fromCharCode(...pending.slice(2, -1));
+            const mapped = byte === 109 && /^[\d;:]*$/.test(params) ? sgr.map(params) : null;
             if (mapped === null) out.push(...pending);
             else out.push(...encoder.encode(`\x1b[${mapped}m`));
             pending = []; state = 'text';

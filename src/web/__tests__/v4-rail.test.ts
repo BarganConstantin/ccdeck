@@ -186,8 +186,10 @@ describe("Rail / Row", () => {
     expect(decl(".session-list .sl-name", "gap")).toBe("6px");
     expect(decl(".session-list .sl-line1", "justify-content")).toBe("space-between");
     expect(decl(".session-list .sl-line1", "align-items")).toBe("baseline");
-    // Secondary metadata belongs below the full-width title.
-    expect(decl(".session-list .sl-model", "font-family")).toBe("var(--font-mono)");
+    // CHANGED ON PURPOSE (#2591): the model is back on the rail, as a third row
+    // below the full-width title (the owner's session-chrome change), in the UI
+    // face rather than mono, because a model name is not code (V4 mono rule).
+    expect(decl(".session-list .sl-model", "font-family")).toBeUndefined();
     expect(code("../components/RailParts.tsx").split('className="sl-line1"')[1].split('{lined &&')[0]).not.toMatch(/sl-model|modelChipText/);
     expect(decl(".session-list .sl-time", "font-family")).toBeUndefined();
     expect(decl(".session-list .sl-time", "font-variant-numeric")).toBe("tabular-nums");

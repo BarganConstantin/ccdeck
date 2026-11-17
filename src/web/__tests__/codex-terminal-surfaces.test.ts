@@ -51,6 +51,15 @@ describe('native Codex surfaces follow the terminal palette', () => {
     expect(display([oversized, composer])).toBe(oversized + band);
   });
 
+  it('reads only SGR as SGR: Codex\'s own CSI > 4;2 m is not DIM', () => {
+    // Codex's modifyOtherKeys request. Read as SGR, its 2 set DIM, and the
+    // text after the next band came out dim.
+    expect(display(['\x1b[>4;2m', `${composer}Band\x1b[49mAfter`]))
+      .toBe(`\x1b[>4;2m${band}Band\x1b[49mAfter`);
+    expect(display([`${composer}\x1b[>4;2mStill band\x1b[0m`]))
+      .toBe(`${band}\x1b[>4;2mStill band\x1b[0m`);
+  });
+
   it('drops an incomplete sequence when a fresh terminal seed begins', () => {
     const filter = codexTerminalSurfaces();
     filter.write(enc.encode('\x1b[48;2;54;'));
