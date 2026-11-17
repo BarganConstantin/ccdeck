@@ -153,7 +153,8 @@ export default function NotificationsSection({
           note, because the note is the same for all five: whose accounts,
           and that the deck need not be closed. What each one says, and when,
           is its own row's note — it was a tooltip, which a reader on a touch
-          screen or a keyboard never saw. The veto keeps the note too, and is
+          screen or a keyboard never saw — except where the name already
+          says it (notify-reach.ts). The veto keeps the note too, and is
           said under it as it is above. */}
       <SettingsGroup
         id="sm-accounts-caption"
@@ -167,15 +168,15 @@ export default function NotificationsSection({
             settingId={kind}
             name={label}
             nameId={`sm-${kind}-label`}
-            note={title}
-            noteId={`sm-${kind}-note`}
+            note={title ?? undefined}
+            noteId={title ? `sm-${kind}-note` : undefined}
             control={
               <button
                 type="button"
                 role="switch"
                 aria-checked={accountNotify[kind]}
                 aria-labelledby={`sm-${kind}-label`}
-                aria-describedby={`sm-${kind}-note`}
+                aria-describedby={title ? `sm-${kind}-note` : undefined}
                 className="switch"
                 onClick={() => onToggleAccountNotify(kind)}
               >

@@ -98,8 +98,16 @@
 .ap-header h2 {
   margin: 0;
   letter-spacing: 0.02em;
+  /* ONE LINE (V4 top-10 #10): the header is a fixed height, so a title that
+     wrapped spilled out of it. With + ↻ ⋯ × on the right it fits at 264px in
+     every language; at the largest text size the words end in an ellipsis
+     rather than take a second line. */
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
-.ap-header-right { margin-left: auto; display: flex; align-items: center; gap: 4px; }
+.ap-header-right { margin-left: auto; display: flex; align-items: center; gap: 4px; flex: none; }
 /* The panel's two sides on a deck with both CLIs (AccountsSwitch.tsx). `hidden`
    needs saying: `.accounts-panel` is display:flex, which outranks the browser's
    own rule for the attribute. */
