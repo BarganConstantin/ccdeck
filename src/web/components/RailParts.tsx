@@ -19,8 +19,8 @@ import { beginDrag, endDrag } from "../split-drag";
 import ProviderAvatar from "./ProviderAvatar";
 import type { PaneLink } from "../workspace-split";
 
-/** The 14px status glyph. Working breathes on --pulse-live and nothing else
- *  moves on its own; Waiting is the alert triangle and holds still, because
+/** The 14px status glyph. Working turns steadily (pulses with reduced motion);
+ *  nothing else moves on its own. Waiting is the alert mark and holds still, because
  *  what asks for you is the rail's order, not motion. The kind keys the mark,
  *  and the new mark fades in over --dur-fast only when THIS row's kind changes
  *  (a row that is only moved, or drawn again, remounts without playing it). */

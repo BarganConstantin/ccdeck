@@ -90,6 +90,22 @@ Verificări pe revizia monocromă, cu Node 22:
 - 390×844 și 320×700: fluxul mobil existent rămâne fără overflow orizontal;
   acesta folosește în continuare rândurile mobile cu starea în stânga.
 
+## Revizie: Working se rotește continuu
+
+Indicatorul Working din lista de sesiuni folosește rotația CSS existentă,
+cu viteză constantă și perioada de 1,2s din `--loop-loader`. Nu mai pulsează
+în modul normal; Waiting și Done rămân statice. La mișcare redusă păstrează
+pulsul de opacitate în locul rotației.
+
+- Node 22: 175 teste trecute în `v4-rail`, `canvas-motion`, `v4-motion-tokens`,
+  `rail-row-tell` și `workspace-compact-rows`; typecheck și build trecute.
+- Chrome, build servit: observare pe 1,6s, fără resetarea animației, opacitate
+  constantă și poziție fixă a slotului. Rotația continuă după redimensionarea
+  de la 1440×900 la 1100×700. La 390 și 320px nu apare overflow orizontal.
+- Regulile de mișcare redusă activate temporar în CSSOM-ul paginii izolate
+  dau `pulse` și `transform: none`, apoi sunt restaurate. Nu s-a schimbat
+  preferința sistemului proprietarului.
+
 ## Previzualizare și limite
 
 Aplicația completă: `http://127.0.0.1:4479/batch1-preview.html`.

@@ -248,7 +248,7 @@
 @keyframes sl-land { from { opacity: 1; } to { opacity: 0; } }
 
 /* The status glyph: 14x14 with 3 above it, to sit on the name's first line.
-   Working breathes on --pulse-live, the one thing here that moves on its own;
+   Working turns at the loader's steady tempo, with no opacity blinking;
    Waiting holds still. A new state is a new mark, and RailGlyph fades it in
    over --dur-fast, only when that row's own kind changes. */
 .session-list .sl-glyph {
@@ -262,7 +262,12 @@
 }
 .session-list .sl-glyph-mark { display: inline-flex; }
 .session-list .sl-glyph[data-glyph="waiting"] { color: var(--warn); }
-.session-list .sl-glyph[data-glyph="working"] .state-mark { color: var(--inflight); animation: pulse var(--pulse-live) infinite; }
+.session-list .sl-glyph[data-glyph="working"] .state-mark {
+  color: var(--inflight);
+  transform-box: view-box;
+  transform-origin: center;
+  animation: spin var(--loop-loader) linear infinite;
+}
 .session-list .sl-glyph .alert-mark { margin-left: 0; }
 
 .session-list .sl-text {
@@ -591,9 +596,10 @@
 /* REDUCED MOTION: a joining row's space opens at once and only its opacity
    moves, a leaving row fades and then its space closes at once, and the list's
    FLIP fades the rows that moved instead of travelling them: all of it
-   rail-motion.ts's, which asks joinMotion and releaseMotion. The glyph's pulse
-   stays: it is opacity, and it is the state itself. */
+   rail-motion.ts's, which asks joinMotion and releaseMotion. Working keeps
+   the gentle opacity pulse instead of turning, to retain its state cue. */
 @media (prefers-reduced-motion: reduce) {
+  .session-list .sl-glyph[data-glyph="working"] .state-mark { animation: pulse var(--pulse-live) infinite; }
   .session-list .sl-row,
   .session-list .sl-usage-btn,
   .session-list .sl-usage-fill,
