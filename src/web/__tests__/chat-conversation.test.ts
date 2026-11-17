@@ -57,4 +57,8 @@ describe("conversation reading", () => {
     expect(render([])).toContain("No messages yet.");
     expect(render([])).not.toContain("chat-response-author");
   });
+
+  it("keeps terminal carriage returns readable as user message line breaks", () => {
+    expect(render([{ kind: "user", text: "first\rsecond\r\nthird" }])).toContain("first\nsecond\nthird");
+  });
 });

@@ -17,7 +17,7 @@ import { CopyGlyph } from "../terminal/stage-icons";
 
 export function YourMessage({ text }: { text: string }) {
   const t = useT();
-  return <div className="chat-you"><span className="chat-author">{t("board.chat.you")}</span><p className="chat-you-text">{text}</p></div>;
+  return <div className="chat-you"><span className="chat-author">{t("board.chat.you")}</span><p className="chat-you-text">{text.replace(/\r\n?/g, "\n")}</p></div>;
 }
 
 export function AssistantText({ text }: { text: string }) {

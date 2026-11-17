@@ -61,7 +61,7 @@ import { contextFigure, contextPct, contextPercent, contextTokens } from "../../
 import type { TerminalProvider } from "../../terminal-api";
 import { agentName, type KeysOwner, type StageState, type StageStatus } from "./stage-model";
 import { ContextRing } from "../ContextModal";
-import { type DragEvent, type RefObject, useState } from "react";
+import { type DragEvent, type RefObject, useId, useState } from "react";
 import AnchoredPopover from "../AnchoredPopover";
 import SessionNameField, { RenameGlyph } from "../SessionNameField";
 import type { RenameFacts } from "../../session-rename";
@@ -73,9 +73,6 @@ import PaneBadge from "../PaneBadge";
 import ProviderAvatar from "../ProviderAvatar";
 import type { PaneLink } from "../../workspace-split";
 import { canGoLarger, canGoSmaller } from "../../terminal-text-size";
-
-const PANE_MORE_ID = "ts-more";
-const PANE_MORE_MENU_ID = "ts-more-menu";
 
 /** A menu row's words. The full-screen item's label carries the shortcut hint
  *  after " — " (it stays on the desktop button's tooltip); the menu shows the
@@ -92,8 +89,11 @@ export function menuLabel(item: { id: string; label: string }): string {
  *  session, full screen, close) are one ⋯ at a 44 target, and its menu holds
  *  them, each doing what the control did. Hidden at any wider layout, where the
  *  controls themselves are drawn (stage-shell.css). */
-function PaneMore({ items }: { items: Array<{ id: string; label: string; run(): void }> }) {
+function PaneMore({ items, compact = false }: { items: Array<{ id: string; label: string; run(): void }>; compact?: boolean }) {
   const t = useT();
+  const instance = useId();
+  const PANE_MORE_ID = `ts-more-${instance}`;
+  const PANE_MORE_MENU_ID = `${PANE_MORE_ID}-menu`;
   // Open at the first row, or (ArrowUp on the button) at the last, like the
   // dock's More.
   const [menu, setMenu] = useState<"first" | "last" | null>(null);
@@ -104,7 +104,7 @@ function PaneMore({ items }: { items: Array<{ id: string; label: string; run(): 
       <button
         type="button"
         id={PANE_MORE_ID}
-        className="glyph-btn ts-more"
+        className={compact ? "glyph-btn ts-more ts-compact-more" : "glyph-btn ts-more"}
         aria-label={more}
         title={more}
         aria-haspopup="menu"
@@ -359,11 +359,11 @@ export default function StageHeader(p: StageHeaderProps) {
           ))}
         </div>
       )}
-      {p.takeover && (
-        <PaneMore items={[
+      {(p.takeover || p.workspace === "pane") && (
+        <PaneMore compact={!p.takeover} items={[
           ...(renaming ? [{ id: "rename", label: renameLabel, run: renaming.start }] : []),
           ...(p.canType ? [{ id: "keys", label: keysLabel, run: p.onKeys }] : []),
-          ...(p.canFull && p.workspace !== "empty" ? [{ id: "expand", label: expandLabel, run: p.onExpand }] : []),
+          ...((p.canFull || p.split) && p.workspace !== "empty" ? [{ id: "expand", label: expandLabel, run: p.onExpand }] : []),
           // The size is set once per screen, so it follows the actions used on every visit.
           ...(p.textSize && canGoLarger(p.textSize.step) ? [{ id: "text-larger", label: t("board.stage.textLarger"), run: () => p.textSize?.onStep("larger") }] : []),
           ...(p.textSize && canGoSmaller(p.textSize.step) ? [{ id: "text-smaller", label: t("board.stage.textSmaller"), run: () => p.textSize?.onStep("smaller") }] : []),

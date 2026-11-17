@@ -537,6 +537,10 @@ export interface SessionPlace {
 /** A paste too big for one message: refused, and said, rather than lost. */
 export const PASTE_TOO_LARGE_MSG = "board.session.pasteTooLarge";
 
+/** Local transport acceptance, not an acknowledgement from the agent.
+ *  A partial send pasted the text but could not safely submit it; never retry it. */
+export type PromptSendResult = "sent" | "unavailable" | "too-large" | "partial" | "empty";
+
 export interface TerminalSessionController {
   mount(host: HTMLElement, init: Omit<TerminalInit, "cols" | "rows">): void;
   show(subject: StageSubject): void;
@@ -549,6 +553,8 @@ export interface TerminalSessionController {
   focus(): void;
   /** Keys typed before the pane could take them (type-ahead.ts). */
   type(text: string): void;
+  /** Paste and submit only to the caller's subjectKey, without moving focus. */
+  sendPrompt(text: string, expectedSubject: string): PromptSendResult;
   /** One key from the phone's key row, as the bytes the terminal would have sent
    *  for it: through the same input the keyboard types into. */
   press(bytes: string, held?: boolean): void;
@@ -1225,6 +1231,30 @@ export function createTerminalSession(deps: SessionDeps, callbacks: SessionCallb
         else events.onInput(keys[i]);
       }
     },
+    sendPrompt(text, expectedSubject) {
+      const current = conn;
+      const my = gen;
+      const writable = () => !disposed && gen === my && conn === current
+        && subjectKey(subject) === expectedSubject && snap.subject === expectedSubject
+        && snap.phase.kind === "live"
+        && !snap.phase.readOnly && !readOnly;
+      if (!current || !writable()) return "unavailable";
+      if (!text.trim()) return "empty";
+      if (pasteTooLarge(text)) return "too-large";
+      let pasted = false;
+      try {
+        typed();
+        if (!writable()) return "unavailable";
+        if (!current.sendPaste(text)) return "unavailable";
+        pasted = true;
+        // A synchronous transport callback may have switched or lost the
+        // target. Enter must never reach a replacement connection or session.
+        if (!writable()) return "partial";
+        return current.sendInput("\r") ? "sent" : "partial";
+      } catch {
+        return pasted ? "partial" : "unavailable";
+      }
+    },
     press(bytes, heldBefore) {
       // The terminal's own key: an arrow follows the cursor-key mode, a view
       // scrolled back comes to the bottom as it does for a typed key, and a
@@ -1285,6 +1315,7 @@ export interface TerminalSessionView extends SessionSnapshot {
   retry(): void;
   focus(): void;
   type(text: string): void;
+  sendPrompt(text: string, expectedSubject: string): PromptSendResult;
   press(bytes: string, held?: boolean): void;
   holdsFocus(): boolean;
   release(): void;
@@ -1339,9 +1370,15 @@ export function useTerminalSession(options: UseTerminalSessionOptions): Terminal
   const retry = useCallback(() => controller.current?.retry(), []);
   const focus = useCallback(() => controller.current?.focus(), []);
   const type = useCallback((text: string) => controller.current?.type(text), []);
+  const sendPrompt = useCallback((text: string, expectedSubject: string): PromptSendResult => {
+    const ctl = controller.current;
+    // A new subject can render before the effect has switched the controller.
+    if (!ctl || expectedSubject !== subjectKey(latest.current.subject)) return "unavailable";
+    return ctl.sendPrompt(text, expectedSubject);
+  }, []);
   const press = useCallback((bytes: string, held?: boolean) => controller.current?.press(bytes, held), []);
   const holdsFocus = useCallback(() => controller.current?.holdsFocus() === true, []);
   const release = useCallback(() => controller.current?.release(), []);
 
-  return { ...snapshot, hostRef, adopt, retry, focus, type, press, holdsFocus, release };
+  return { ...snapshot, hostRef, adopt, retry, focus, type, sendPrompt, press, holdsFocus, release };
 }

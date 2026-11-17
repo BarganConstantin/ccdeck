@@ -149,9 +149,9 @@ describe("what a visit loads with the flags off", () => {
     expect(importers).toEqual(["components/chat/ChatView.tsx", "components/decision/DecisionCard.tsx"]);
   });
 
-  it("does not preload the chunk: nothing calls loadScreens but the two lazy doors", () => {
+  it("loads the chunk only through the Chat, composer and decision lazy doors", () => {
     const text = code("use-screens.ts");
-    expect([...text.matchAll(/loadScreens\(\)/g)]).toHaveLength(2);
+    expect([...text.matchAll(/loadScreens\(\)/g)]).toHaveLength(3);
     expect(text).not.toMatch(/useEffect|prefetch|modulepreload/);
   });
 });
@@ -264,11 +264,13 @@ describe("what the new code never does", () => {
     }
   });
 
-  it("touches no server file and none of the hook, and no send path", () => {
+  it("keeps transport behind callbacks, without runtime server or terminal imports", () => {
     for (const path of NEW) {
       const text = code(path);
       expect(text, path).not.toMatch(/src\/server|\.\.\/server|\/hook\//);
-      expect(text, path).not.toMatch(/terminal-keys|use-terminal-session|terminal-protocol|sendKeys|send-keys/);
+      // Send results may cross as types; screen code cannot open a transport.
+      expect(staticImports(text).join("\n"), path).not.toMatch(/terminal-keys|use-terminal-session|terminal-protocol/);
+      expect(text, path).not.toMatch(/sendKeys|send-keys/);
     }
   });
 

@@ -58,7 +58,7 @@
 /* The assistant: text, no bubble, and a line that stops at 640. */
 .chat-said { margin: 0; max-width: 640px; font-size: calc(13px + var(--ui-text-increase, 0px)); line-height: 1.65; color: var(--text); overflow-wrap: anywhere; min-width: 0; }
 .chat-response { min-width: 0; }
-.chat-response-author { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; color: var(--text-secondary); font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: 20px; font-weight: 500; }
+.chat-response-author { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; color: var(--text-secondary); font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: 20px; font-weight: 500; }
 .chat-response-content { display: flex; flex-direction: column; gap: 16px; padding-left: 28px; min-width: 0; }
 .chat-response-author .chat-copy { margin-left: auto; color: var(--text-secondary); }
 .chat-markdown > :first-child { margin-top: 0; }
@@ -96,10 +96,10 @@
 .chat-disclosure { flex: none; display: inline-flex; color: var(--text-secondary); }
 .chat-tool-call[open] > .chat-tool .chat-disclosure, .chat-activity[open] > .chat-activity-head .chat-disclosure { transform: rotate(90deg); }
 .chat-tool-input { margin: 0 8px 8px 30px; padding: 8px 10px; border-radius: var(--r-ctl); background: var(--sunken); color: var(--text); font: calc(12px + var(--ui-text-increase, 0px))/1.6 var(--font-mono); white-space: pre-wrap; overflow-wrap: anywhere; }
-.chat-activity { min-width: 0; border: 1px solid var(--line); border-radius: var(--r-ctl); }
+.chat-activity { min-width: 0; border: 0; border-radius: var(--r-ctl); }
 .chat-activity-head { display: flex; align-items: center; gap: 6px; min-height: 32px; padding: 4px 8px; box-sizing: border-box; list-style: none; cursor: pointer; color: var(--text-secondary); font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: 20px; }
-.chat-activity-running { margin-left: auto; color: var(--inflight); }
-.chat-activity-calls { padding: 0 4px 4px; }
+.chat-activity-running { margin-left: auto; color: var(--text-secondary); font-size: calc(11px + var(--ui-text-increase, 0px)); }
+.chat-activity-calls { margin: 0 0 4px 14px; padding: 0 0 0 4px; border-left: 1px solid var(--line); }
 .chat-tool:focus-visible, .chat-activity-head:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: var(--r-ctl); }
 @media (hover: hover) and (pointer: fine) {
   .chat-tool:hover, .chat-activity-head:hover { background: var(--ctl-fill); }
@@ -111,6 +111,10 @@
 .chat-tool[data-running] .chat-tool-note { color: var(--inflight); }
 .chat-latest { position: absolute; bottom: 16px; left: 50%; transform: translateX(-50%); max-width: calc(100% - 24px); background: var(--panel); }
 .chat-empty { margin: 0; color: var(--text-secondary); font-size: calc(13px + var(--ui-text-increase, 0px)); }
+/* Wide single conversations read like prose; narrow splits keep app density. */
+@container chat-pane (min-width: 640px) {
+  .chat-said, .chat-you-text { font-size: calc(14px + var(--ui-text-increase, 0px)); }
+}
 
 /* What you answered and how long it took: the spaces in it are the host's. */
 .chat-record { margin: 0; font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: 16px; color: var(--muted); white-space: pre-wrap; }

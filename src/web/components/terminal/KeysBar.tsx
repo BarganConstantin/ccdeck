@@ -34,9 +34,9 @@
 // measures it by element (TerminalStage's useDrawnHeight) and a new element
 // would never be measured.
 //
-// CHAT ONLY READS. Its reply footer hands off to Term using the stage's
-// existing switch-and-focus callback. A session that cannot take keys offers
-// its terminal card instead. End, notice and ask/host actions keep precedence.
+// Chat can supply its composer in this same measured footer. Session end,
+// notice and ask/host actions remain reachable beneath the input.
+import type { ReactNode } from "react";
 import { RELEASE_CHORD_SPOKEN_MSG } from "../../terminal-keys";
 import { RECONNECT_NOTE_MSG, type KeysOwner } from "./stage-model";
 import { Kbd } from "../Kbd";
@@ -107,6 +107,8 @@ export interface KeysBarProps {
   paneless?: boolean;
   /** Chat is on the pane: the keys go to Term, which a press shows first. */
   chat?: boolean;
+  /** Direct reply input, using the stage's existing writable connection. */
+  composer?: ReactNode;
   /** Chat is on a pane that cannot take keys (a card stands for it in Term):
    *  the bar says so, with the way to that card. */
   chatCannotType?: boolean;
@@ -289,9 +291,13 @@ export default function KeysBar(p: KeysBarProps) {
     );
   }
   return (
-    <footer className="ts-bar" aria-label={t("board.keys.bar")} hidden={(p.paneless && !p.hosts && !p.chatCannotType) || undefined}>
-      {left}
-      {right}
+    <footer className={p.composer ? "ts-bar ts-bar-compose" : "ts-bar"}
+      aria-label={t(p.composer ? "board.chat.conversation" : "board.keys.bar")}
+      hidden={(p.paneless && !p.hosts && !p.chatCannotType && !p.composer) || undefined}>
+      {p.composer ? <>{p.composer}{(p.end || p.notice || right) && <div className="ts-chat-status">
+        {(p.end || p.notice) && left}
+        {right}
+      </div>}</> : <>{left}{right}</>}
     </footer>
   );
 }

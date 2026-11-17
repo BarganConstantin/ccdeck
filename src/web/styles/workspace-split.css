@@ -19,7 +19,12 @@
 /* The pane that has the keys: its header carries a 2px accent line at the
    top; the others keep their header and say their name more quietly. */
 .stage-in[data-split] .wsp-pane[data-focused] .ts-head { box-shadow: inset 0 2px 0 var(--accent); }
-.stage-in[data-split] .wsp-pane:not([data-focused]) .ts-name { color: var(--muted); }
+.stage-in[data-split] .wsp-pane:not([data-focused]) .ts-name { color: var(--text-secondary); }
+/* Pane titles and mode labels follow the same reading size as the rail. */
+.wsp-pane .ts-name { font-size: calc(13px + var(--ui-text-increase, 0px)); line-height: calc(20px + var(--ui-text-increase, 0px)); }
+.wsp-pane :is(.ts-meta, .ts-ctxchip) { font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: calc(16px + var(--ui-text-increase, 0px)); }
+.wsp-pane .view-switch { flex: none; height: auto; min-height: 28px; }
+.wsp-pane .view-opt { flex: none; white-space: nowrap; height: auto; min-height: 24px; padding-block: 2px; line-height: calc(16px + var(--ui-text-increase, 0px)); }
 .provider-avatar {
   flex: none;
   display: inline-grid;

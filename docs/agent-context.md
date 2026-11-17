@@ -415,8 +415,37 @@ isolated backend, rather than depending on the earlier separate seeder.
 The batch adds compact project context, transparent provider avatars, rotating
 Working indicators, structured Chat responses, native tool disclosures, copy,
 reading-position retention and an explicit handoff to Term. Chat still reads
-Claude only and has no send endpoint; fixture sessions cannot attach a real
-terminal. Details and exact verification are in
+Claude only. This earlier revision's terminal handoff is superseded below.
+Details and exact verification are in
 `docs/research/herdr-batch1-verification.md`. The latest revision passed 438
 focused tests, typecheck, build and isolated Chromium interaction/responsive QA.
 Neither live agent typing nor an external telemetry stream was verified.
+
+### Direct replies and visual polish, later on 2026-11-17
+
+The owner rejected the handoff-only footer and requested a direct reply input,
+then a calmer, more polished Workspace with several panes. The composer now
+uses the existing writable terminal connection to paste and submit, remaining
+in Chat. It preserves per-session drafts in stage memory and refuses stale
+targets, read-only/disconnected states and pending confirmation requests.
+Transport acceptance is not an agent acknowledgement; partial sends are never
+retried automatically. No provider endpoint or new Chat provider was added.
+
+The compact composer replaces the repeated labels/instructions of its first
+variant. Tool groups no longer each wear a box. Pane titles and mode controls
+follow reading-size settings. Under 400px, the existing More menu carries the
+header actions with instance-specific IDs; it keeps one header row. The rail
+keeps the full prompt accessible while drawing less duplicate context.
+
+The same preview URL now opens Reply demo alongside synthetic sessions.
+Reply demo is a local fixture process launched through the installed terminal
+engine. It echoes input and writes a real fixture transcript; no AI process
+or paid request runs. Its launcher and identity file live with the isolated
+preview scripts. Check these current files/processes before restarting or
+cleaning them up; do not use the older PID notes above.
+
+Latest validation: 574 focused tests in 20 files, typecheck and build passed.
+Chromium checked direct multiline Unicode input through the actual engine,
+draft retention, IME, keyboard menus/focus and 1/2/4-pane light/dark layouts,
+text enlargement, narrow component widths and the existing mobile route.
+An agent AI session and external telemetry capture remain unverified.

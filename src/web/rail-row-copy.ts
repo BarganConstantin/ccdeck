@@ -224,7 +224,7 @@ export function compactRowContexts(rows: readonly Row[]): Map<string, CompactRow
         ...(project.length === 1 ? {
           text: peers.some(other => other.cwd !== row.cwd && other.folder === row.folder)
             ? row.cwd : row.folder,
-        } : {
+        } : twins.has(row.sessionId) ? { text: row.folder ?? row.cwdBasename } : {
           // If the first prompt line is shared, use the first differing line.
           text: [row.folder, (row.fullTask ?? row.task ?? "").split(/\r?\n/).find((line, index) =>
             line.trim() && project.some(other => !sameWords(line, (other.fullTask ?? other.task ?? "").split(/\r?\n/)[index] ?? ""))) ?? row.task]

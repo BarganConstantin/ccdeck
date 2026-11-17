@@ -147,6 +147,13 @@
 }
 
 .ts-ctl { flex: none; display: flex; align-items: center; gap: 4px; }
+.ts-head > .ts-compact-more.ts-more.glyph-btn { display: none; flex: none; }
+/* Keep the task name readable in a narrow split. The existing overflow menu
+   carries the same actions; the header keeps one measured row. */
+@container ts-head (max-width: 400px) {
+  .ts-head > .ts-compact-more.ts-more.glyph-btn { display: inline-flex; }
+  .ts-head:has(> .ts-compact-more) > .ts-ctl { display: none; }
+}
 /* The controls are the deck's header glyphs (.glyph-btn), as 24px squares at
    the control radius; ⌨ pressed — the keys in the pane — wears the accent. */
 .ts-tools { display: flex; align-items: center; gap: 2px; }
@@ -491,6 +498,25 @@
 /* ── the keys bar: who has the keyboard, and the asks ────────────────────── */
 
 .ts-bar[hidden] { display: none; }
+.ts-bar.ts-bar-compose {
+  height: auto;
+  max-height: min(50%, 320px);
+  overflow-y: auto;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0;
+  padding: 0;
+  border-top: 0;
+  white-space: normal;
+}
+.ts-chat-status {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 12px;
+  padding: 6px 12px;
+  border-top: 1px solid var(--line-soft);
+}
 .ts-bar {
   container: ts-bar / inline-size;
   flex: none;

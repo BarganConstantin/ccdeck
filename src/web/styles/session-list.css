@@ -193,7 +193,7 @@
 }
 /* The project is already in the tooltip and accessible name. A narrow rail
    gives the task its full name rather than showing two competing ellipses. */
-@container session-list (max-width: 300px) {
+@container session-list (max-width: 23em) {
   .session-list .sl-project { display: none; }
 }
 /* A narrow list gives the task its name before the optional project suffix. */

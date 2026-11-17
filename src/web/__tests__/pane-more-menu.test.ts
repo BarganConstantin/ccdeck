@@ -6,6 +6,9 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { CLOSE_LABEL_MSG, FULL_LABEL_MSG, menuLabel } from "../components/terminal/StageHeader";
 import { en } from "../i18n/en";
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
+import StageHeader, { type StageHeaderProps } from "../components/terminal/StageHeader";
 
 // CHANGED ON PURPOSE (the UI in every language): both labels are read through
 // their keys now, and the English catalog holds the words.
@@ -36,6 +39,22 @@ describe("the labels in the ⋯ menu", () => {
 });
 
 describe("the ⋯ button", () => {
+  it("gives every split pane a distinct anchor and preserves its actions", () => {
+    const props: StageHeaderProps = {
+      identity: "session:a", name: "First pane", provider: "claude", workspace: "pane", split: true,
+      status: { state: "idle", phrase: "idle" }, keysOwner: "board", chordLabel: "Ctrl+Shift+X",
+      canType: true, expanded: false, takeover: false,
+      onKeys() {}, onExpand() {}, onClose() {},
+    };
+    const out = renderToStaticMarkup(createElement("div", null,
+      createElement(StageHeader, props), createElement(StageHeader, { ...props, identity: "session:b", name: "Second pane" })));
+    const anchors = [...out.matchAll(/id="(ts-more-[^"]+)"/g)].map(match => match[1]);
+    expect(anchors).toHaveLength(2);
+    expect(new Set(anchors).size).toBe(2);
+    expect(out.match(/ts-compact-more/g)).toHaveLength(2);
+    expect(out.match(/aria-haspopup="menu"/g)).toHaveLength(2);
+  });
+
   it("is named by the existing key, as the dock's More is, for both the name and the tooltip", () => {
     expect(en["board.rail.more"]).toBe("More");
     expect(header).toContain('const more = t("board.rail.more");');

@@ -1,4 +1,4 @@
-// The way in to Chat and the Decision card: one dynamic import, two lazy doors,
+// The way in to Chat, its composer and the Decision card: one dynamic import,
 // and a slot that draws nothing unless a flag is on and a screen was handed data.
 //
 // IMPORTS NO SCREEN. Types cross (they compile away); no value from
@@ -16,6 +16,7 @@
 // longer has, draws nothing.
 import { createElement, lazy, Suspense, useMemo, useState, type ComponentType } from "react";
 import type { ChatSource } from "./components/chat/chat-model";
+import type { ChatComposerProps } from "./components/chat/ChatComposer";
 import type { DecisionCardProps } from "./components/decision/DecisionCard";
 import { readScreenFlags, screensEffective, type ScreenFlags } from "./use-screen-flags";
 
@@ -31,6 +32,15 @@ const LazyDecisionCard = lazy(() => loadScreens().then(
   m => ({ default: m.DecisionCard as ComponentType<DecisionCardProps> }),
   () => ({ default: Unavailable as ComponentType<DecisionCardProps> }),
 ));
+const LazyChatComposer = lazy(() => loadScreens().then(
+  m => ({ default: m.ChatComposer as ComponentType<ChatComposerProps> }),
+  () => ({ default: Unavailable as ComponentType<ChatComposerProps> }),
+));
+
+/** Shares Chat's existing lazy chunk; Term never loads its input or styles. */
+export function ChatComposerSlot(props: ChatComposerProps) {
+  return createElement(Suspense, { fallback: null }, createElement(LazyChatComposer, props));
+}
 
 /** What the pane is handed to draw. Left out for a pane with no conversation to show. */
 export interface ScreensProps {

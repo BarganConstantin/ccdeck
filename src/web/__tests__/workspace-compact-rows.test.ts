@@ -291,7 +291,9 @@ describe("compact SessionList title collisions", () => {
     const starts = [];
     for (const id of ["first", "second"]) {
       const button = rowButton(out, id);
-      expect(visibleText(button)).toContain(TASK);
+      expect(visibleText(button)).not.toContain(TASK);
+      expect(visibleText(button)).toContain("web-api");
+      expect(button).toContain(TASK); // Full task stays accessible and in its tooltip.
       const start = button.match(/class="sl-start">([^<]+)</)?.[1];
       expect(start).toMatch(/\d{2}:\d{2}:\d{2}/);
       expect(button).toContain(buildRows(state, NOW).find(r => r.sessionId === id)!.exactHover);
