@@ -237,7 +237,7 @@ const catalog: Catalog = {
   "settings.key.tourText": "Ocho imágenes de lo que muestra el deck.",
   "settings.key.tour": "Hacer el recorrido",
   "settings.keyboard.singleKeys": "Atajos de una sola tecla",
-  "settings.keyboard.singleKeysNote": "Teclas como L, U, M, ? y Espacio abren paneles y activan opciones. Desactívalos si usas control por voz o los pulsas sin querer.",
+  "settings.keyboard.singleKeysNote": "Teclas como L, U, M y ? abren paneles y activan opciones. Desactívalos si usas control por voz o los pulsas sin querer.",
   "settings.keyboard.filter": "Filtrar atajos",
   "settings.keyboard.noMatch": "Ningún atajo coincide con “{query}”.",
   "settings.keyboard.sheetName": "la hoja de atajos de teclado",

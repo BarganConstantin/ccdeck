@@ -237,7 +237,7 @@ const catalog: Catalog = {
   "settings.key.tourText": "ccdeck の表示内容を8枚の図で紹介。",
   "settings.key.tour": "ツアーを開始",
   "settings.keyboard.singleKeys": "1キーショートカット",
-  "settings.keyboard.singleKeysNote": "L、U、M、?、スペースなどのキーでパネルを開いたり切り替えたりできます。音声コントロールを使う場合や、誤って押してしまう場合はオフにしてください。",
+  "settings.keyboard.singleKeysNote": "L、U、M、?などのキーでパネルを開いたり切り替えたりできます。音声コントロールを使う場合や、誤って押してしまう場合はオフにしてください。",
   "settings.keyboard.filter": "ショートカットを絞り込む",
   "settings.keyboard.noMatch": "「{query}」に一致するショートカットはありません。",
   "settings.keyboard.sheetName": "キーボードショートカット一覧",

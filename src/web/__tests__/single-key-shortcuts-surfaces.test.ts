@@ -137,10 +137,14 @@ describe("the Settings row", () => {
     expect(off).not.toContain(">J</kbd>");
   });
 
-  it("names keys the sheet lists and the switch silences, Space and ? among them", () => {
-    expect(SINGLE_KEYS_NOTE).toMatch(/\bL, U, M, \? and Space\b/);
+  // CHANGED ON PURPOSE (#2591): Board pause is withdrawn (the owner's call), so
+  // Space has no Board action and the note no longer names it, in any language.
+  it("names keys the sheet lists and the switch silences, ? among them and Space not", () => {
+    expect(SINGLE_KEYS_NOTE).toMatch(/\bL, U, M and \?/);
+    expect(SINGLE_KEYS_NOTE).not.toMatch(/Space/);
     const caps = KEY_HELP.flatMap(g => g.rows).filter(r => !r.chord && r.binds.some(isCharacterKey)).map(r => r.cap);
-    for (const cap of ["L", "U", "M", "?", "Space"]) expect(caps, cap).toContain(cap);
+    for (const cap of ["L", "U", "M", "?"]) expect(caps, cap).toContain(cap);
+    expect(caps).not.toContain("Space");
     expect(SINGLE_KEYS_NOTE).toMatch(/voice control/);
   });
 

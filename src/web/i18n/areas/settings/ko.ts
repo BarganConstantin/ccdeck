@@ -237,7 +237,7 @@ const catalog: Catalog = {
   "settings.key.tourText": "ccdeck가 보여 주는 내용을 그림 여덟 장으로 소개합니다.",
   "settings.key.tour": "둘러보기",
   "settings.keyboard.singleKeys": "한 키 단축키",
-  "settings.keyboard.singleKeysNote": "L, U, M, ?, Space 같은 키로 패널을 열거나 항목을 전환합니다. 음성 제어를 쓰거나 실수로 누르는 경우에는 끄세요.",
+  "settings.keyboard.singleKeysNote": "L, U, M, ? 같은 키로 패널을 열거나 항목을 전환합니다. 음성 제어를 쓰거나 실수로 누르는 경우에는 끄세요.",
   "settings.keyboard.filter": "단축키 필터",
   "settings.keyboard.noMatch": "“{query}”와(과) 일치하는 단축키가 없습니다.",
   "settings.keyboard.sheetName": "단축키 시트",
