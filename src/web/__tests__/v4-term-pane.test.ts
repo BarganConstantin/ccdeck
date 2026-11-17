@@ -851,7 +851,7 @@ describe("the geometry follows the header as it is drawn", () => {
     expect(shellSrc).toContain("onHeadH={own ? stage.onHeadH : undefined}");
     expect(useStage).toContain("const [headH, setHeadH] = useState(paneHeadH);");
     expect(useStage).toContain("headHFor(typeof document === \"undefined\" ? undefined : document.documentElement?.dataset?.density)");
-    expect(useStage).toContain("barH, headH })");
+    expect(useStage).toContain("barH, headH, externalBar: !phoneWidth() })");
     expect(useStage).toMatch(/onCell, onBarH, onHeadH,/);
   });
 });
