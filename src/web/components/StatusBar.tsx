@@ -99,11 +99,13 @@ export default memo(function StatusBar({ stageOpen, zoomedOut, viewChord = null,
   const empty = useBoardEmpty();
   const uses = useLearnedKeys();
   const standard = statusViewFor({ stageOpen, pane, onCard, zoomedOut, singleKeys, platform: platformName(), viewChord, empty, waiting });
-  // The Decision card's layer is drawn whole: it is short-lived, and its keys
-  // are that card's, which nobody has had the time to learn.
+  // Keep the learned-key behavior for the deck; an open terminal supplies
+  // its own context through the shared footer slot.
   const view = extra && pane == null ? extra : unlearnedView(standard, uses);
+  const switchHint = viewChord ? standard.hints.at(-1) : null;
   return (
     <footer className="statusbar" aria-label={t("board.keys.statusBar")} data-layer={view.layer}>
+      <div id="ccdeck-stage-status" className="statusbar-stage" />
       <div className="statusbar-start">
         {/* Named only while it names a key: on an empty board, or once every
             key of the layer is learned, the "? Keys" below stands alone. */}
@@ -129,6 +131,10 @@ export default memo(function StatusBar({ stageOpen, zoomedOut, viewChord = null,
           </button>
         )}
       </div>
+      {switchHint && <span className="statusbar-hint statusbar-view">
+        <span className="statusbar-caps">{switchHint.caps.map(c => <Kbd key={c.text} label={c.spoken}>{c.text}</Kbd>)}</span>
+        {switchHint.word}
+      </span>}
       {version && (
         <button type="button" className="statusbar-version" onClick={onVersion}
           aria-label={t("shell.chip.label", { running: version })}

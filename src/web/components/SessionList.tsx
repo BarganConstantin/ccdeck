@@ -1,7 +1,6 @@
 // The attention rail: the left column's list of every session on the canvas,
-// grouped by what each one wants of you — Needs you, Done · new, Working,
-// Done, Ready — in V4's Board window. It reads like an inbox: what is yours to
-// act on first, and each row's age at its right edge. Click a row to fit-view to that session and
+// grouped by what each one wants of you — Needs you, Working, Done,
+// Ready — in V4's Board window. Click a row to fit-view to that session and
 // select its root agent. Toggle visibility with the L key (see App.tsx). The
 // topbar's ☰ used to open it too and has been removed; L is the way in, and
 // the × below and L itself are the two ways out.
@@ -57,6 +56,7 @@ export interface Row {
   /** The model, for the phone Board's card (phone-board.ts). The rail's row
    *  does not draw it (V4 top-10 #5): the Inspector says it. */
   modelId?: string;
+  provider?: "claude" | "codex";
   /** The effort the session reported, shown after the model (#2155). */
   effort?: string;
   toolCount: number;
@@ -183,6 +183,7 @@ export function buildRows(state: GraphState, now: number, watching?: ReadonlySet
       recap,
       status,
       modelId: a.model,
+      provider: a.provider === "codex" ? "codex" : "claude",
       effort: a.effort,
       // The ROOT's plan: the Task tools' list is the session's, shared with its
       // subagents, and a row is a session (agent-plan.ts).
@@ -321,7 +322,13 @@ export default function SessionList({ state, now, selectedIds, onSelect, onClose
   const watchKey = watching ? [...watching].sort().join("\n") : "";
   const rows = useMemo(() => buildRows(state, now, watching), [state, state.revision, now, seenVersion, watchKey]);
   const byId = new Map(rows.map(r => [r.sessionId, r]));
-  const fresh: Slot[] = rows.map(r => ({ id: r.sessionId, group: rank(r) }));
+  // New finished turns keep their priority in buildRows, but share Done's
+  // header, count and fold with seen turns. Looking at one clears its row
+  // marker without moving it between two identically named sections.
+  const fresh: Slot[] = rows.map(r => {
+    const group = rank(r);
+    return { id: r.sessionId, group: group === 1 ? 3 : group };
+  });
 
   // THE ORDER HELD. While the pointer is over the rail, or keyboard focus is in
   // it, the drawn order is the one on screen: rows change in place, a session

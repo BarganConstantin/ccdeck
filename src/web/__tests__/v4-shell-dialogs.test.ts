@@ -84,12 +84,13 @@ describe("Keyboard shortcuts", () => {
   });
   it("keeps every shortcut the deck listed before: keys, chords, mouse and the Command Panel's", () => {
     const caps = keyHelpFor(true, () => true, true).flatMap(g => g.rows.map(r => r.cap));
-    for (const cap of ["Space", "J", "K", "W", "N", "Shift + N", "P", "F", "Z", "Delete", "R", "Ctrl + Z", "C",
+    for (const cap of ["J", "K", "W", "N", "Shift + N", "P", "F", "Z", "Delete", "R", "Ctrl + Z", "C",
       "Ctrl + K", "U", "L", "D", "H", "A", "S", "B", "I", "?", "Ctrl + ,", "V", "M", "T",
       "Tab", "Enter", "Shift + Enter", "Esc", "drag", "shift-click", "click", "double-click", "hover", WORKSPACE_KEY_ROW.cap]) {
       expect(caps, cap).toContain(cap);
     }
-    expect(caps).toHaveLength(37);
+    expect(caps).toHaveLength(36);
+    expect(caps).not.toContain("Space");
   });
   it("splits the groups into V4's left (Deck, The question) and right columns", () => {
     const cols = splitColumns(keyHelpFor(true, () => true, true));

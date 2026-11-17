@@ -131,6 +131,12 @@ describe("the requests themselves", () => {
     }
   });
 
+  it("provides initial size and palette before an open can create a native client", async () => {
+    const { fetchFn, asked } = answering(200, { ok: true, ticket: "tk", target: ATTACHABLE });
+    await openTerminal(SESSION, { fetchFn }, { cols: 120, rows: 40 }, { fg: "#dfe1e5", bg: "#1b1c1f" });
+    expect(asked[0].body).toEqual({ ...SESSION, cols: 120, rows: 40, colours: { fg: "#dfe1e5", bg: "#1b1c1f" } });
+  });
+
   it("POSTs open and adopt as JSON with exactly the session's three fields", async () => {
     for (const call of [openTerminal, adoptTerminal]) {
       const { fetchFn, asked } = answering(200, { ok: true, ticket: "tk", target: ATTACHABLE });

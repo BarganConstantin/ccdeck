@@ -733,22 +733,26 @@ describe("the selected range is a state you can see (#583)", () => {
     // CHANGED ON PURPOSE (V4's Figma): the history dialog's own range chips are the
     // same pills, so its toolbar adds the same two rules (the chosen chip and the
     // hover that holds its label): an --accent stroke at full strength on the --accent-16 wash.
-    expect(scoped.map(r => r.sel)).toEqual([
+    // CHANGED ON PURPOSE (#2591): New session's chosen agent is one more such
+    // rule: an --accent edge at full strength on the --selected fill, no wash.
+    expect(scoped.map(r => r.sel).sort()).toEqual([
+      '.ns-form .ns-agents .uh-range-btn[aria-pressed="true"]',
+      '.uh-toolbar .uh-range-btn:hover, .uh-toolbar .uh-range-btn[aria-pressed="true"]:hover',
+      '.uh-toolbar .uh-range-btn[aria-pressed="true"]',
       '.up-period .uh-range-btn[aria-pressed="true"]',
       '.up-period .uh-range-btn[aria-pressed="true"]:hover',
-      '.uh-toolbar .uh-range-btn[aria-pressed="true"]',
-      '.uh-toolbar .uh-range-btn:hover, .uh-toolbar .uh-range-btn[aria-pressed="true"]:hover',
-    ]);
+    ].sort());
     // The indicator arrives solid, in exactly one of them. It is the
     // foreground now rather than the accent: which range is showing is a
     // selection, not data, and the sheet keeps cyan for data, live state and
     // focus. The doctrine is unchanged, a small mark at full strength.
     // The stroke, in --accent, solid: the state arrives at full strength in exactly one rule.
     const carries = scoped.filter(r => /border-color:\s*var\(--accent\)\s*;/.test(r.body));
-    expect(carries.map(r => r.sel)).toEqual([
-      '.up-period .uh-range-btn[aria-pressed="true"]',
+    expect(carries.map(r => r.sel).sort()).toEqual([
+      '.ns-form .ns-agents .uh-range-btn[aria-pressed="true"]',
       '.uh-toolbar .uh-range-btn[aria-pressed="true"]',
-    ]);
+      '.up-period .uh-range-btn[aria-pressed="true"]',
+    ].sort());
     for (const r of all) {
       // And nowhere is it diluted, in any spelling.
       expect(r.body, `${r.sel} paints the state as a wash`)

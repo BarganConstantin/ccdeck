@@ -206,7 +206,7 @@ export default function CodexProfilesSection({ onClose, switcher, onNotice, away
   }
 
   useEffect(() => {
-    if (liveSelection?.state !== 'waiting' && liveSelection?.continuation !== 'waiting') return;
+    if (!['waiting', 'switching'].includes(liveSelection?.state ?? '') && liveSelection?.continuation !== 'waiting') return;
     const timer = setInterval(() => {
       if (profileRefreshes.current === 0) void refreshProfiles().catch(() => {});
     }, 2000);
@@ -440,8 +440,11 @@ export default function CodexProfilesSection({ onClose, switcher, onNotice, away
 
   /** One account's row, drawn the same above the fold and behind it. */
   const voice = codexVoice(t);
+  const pendingSwitch = ['waiting', 'switching'].includes(liveSelection?.state ?? '');
+  const usingAccount = profiles?.find(profile => profile.id === liveSelection?.profileId)?.label;
   const liveNote = liveSelection?.continuation === 'manual_required' ? t("codex.row.continueUnconfirmed")
-    : liveSelection?.state === 'waiting' ? t("codex.row.switchWaiting")
+    : pendingSwitch ? (usingAccount && liveSelection?.profileId !== liveSelection?.requestedProfileId
+      ? t("codex.row.switchWaitingUsing", { account: usingAccount }) : t("codex.row.switchWaiting"))
     : liveSelection?.continuation === 'waiting' ? t("codex.row.childrenResuming") : null;
   const accountRow = ({ profile, reading, account: a, issue }: Row) => {
     const plan = shownReading(reading)?.plan;
@@ -472,7 +475,7 @@ export default function CodexProfilesSection({ onClose, switcher, onNotice, away
         refusal={failure?.row === a.num ? failure : !dismissedLiveFailure && liveSelection?.state === 'failed' && liveSelection.requestedProfileId === profile.id
           ? { text: t(liveFailureKey(liveSelection.reason)), row: a.num } : null} onDismissRefusal={() => { setFailure(null); setDismissedLiveFailure(true); }}
         onSignIn={() => signIn(profile)}
-        switchedHere={liveSelection?.state !== 'failed' && (switched?.id === profile.id || (liveSelection?.state === 'waiting' && liveSelection.requestedProfileId === profile.id)
+        switchedHere={liveSelection?.state !== 'failed' && (switched?.id === profile.id || (pendingSwitch && liveSelection?.requestedProfileId === profile.id)
           || (['manual_required', 'waiting'].includes(liveSelection?.continuation ?? '') && profile.active === true))} swapped={null} displaced={undefined}
         issueExpanded={issueOpen?.anchor === `ap-codex-issue-${a.num}`} onOpenIssue={(_, anchor) => openIssue(profile.id, anchor)} />
     );

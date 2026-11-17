@@ -186,14 +186,11 @@ describe("Rail / Row", () => {
     expect(decl(".session-list .sl-name", "gap")).toBe("6px");
     expect(decl(".session-list .sl-line1", "justify-content")).toBe("space-between");
     expect(decl(".session-list .sl-line1", "align-items")).toBe("baseline");
-    // CHANGED ON PURPOSE (V4 top-10 #5): the model, 11/14 mono muted after the name →
-    // not drawn, so no rule for it, because a row is read for who needs you and
-    // what they are doing; the model is the card's and the Inspector's.
+    // CHANGED ON PURPOSE (#2591): the model is back on the rail, as a third row
+    // below the full-width title (the owner's session-chrome change), in the UI
+    // face rather than mono, because a model name is not code (V4 mono rule).
     expect(decl(".session-list .sl-model", "font-family")).toBeUndefined();
-    expect(rail).not.toContain(".sl-model");
-    expect(code("../components/RailParts.tsx")).not.toMatch(/sl-model|modelChipText|modelChipTitle/);
-    // CHANGED ON PURPOSE (V4 top-10, inbox): the clock in mono → the age in the
-    // UI face with tabular figures, because an age is a figure, not code.
+    expect(code("../components/RailParts.tsx").split('className="sl-line1"')[1].split('{lined &&')[0]).not.toMatch(/sl-model|modelChipText/);
     expect(decl(".session-list .sl-time", "font-family")).toBeUndefined();
     expect(decl(".session-list .sl-time", "font-variant-numeric")).toBe("tabular-nums");
     expect(decl(".session-list .sl-time", "font-size")).toBe("calc(12px + var(--ui-text-increase, 0px))");
@@ -596,10 +593,25 @@ describe("the seen marker", () => {
 // ── the fold, the hold and the motion, as rules ─────────────────────────────
 
 describe("the fold past 8", () => {
-  // CHANGED ON PURPOSE: herdr order, unread done above working. The counts are
-  // in the new group order, Needs you, Done · new, Working, Done, Ready (V4
-  // top-10, inbox); the rule is the one it was: Needs you and Working never
-  // cut, the other three sharing what is left of 8 in the order drawn.
+  it("clears a finished row's new marker when seen, without changing the Done count", () => {
+    let s = initialState();
+    for (const id of ["new-result", "seen-result"]) {
+      s = begin(s, id, 0);
+      s = stop(s, id, 1_000);
+    }
+    markSeen("seen-result", s.agents.get("seen-result")!.endedAt);
+    const draw = () => renderToStaticMarkup(createElement(SessionList, {
+      state: s, now: T0 + 60_000, selectedIds: new Set<string>(), onSelect: () => {}, onClose: () => {},
+    }));
+    const before = draw();
+    expect(before).toContain('<span class="sl-group-label">Done</span><span class="sl-group-count">2</span>');
+    expect(before.match(/class="sl-unread"/g)).toHaveLength(1);
+    expect(before).toContain('<span class="vis-hidden">, unread</span>');
+    markSeen("new-result", s.agents.get("new-result")!.endedAt);
+    const after = draw();
+    expect(after).toContain('<span class="sl-group-label">Done</span><span class="sl-group-count">2</span>');
+    expect(after).not.toContain('class="sl-unread"');
+  });
   it("draws 8 rows of 14 sessions (2 + 4 + 4 + 4): all of Needs you and Working, 2 of Done · new, Done folded", () => {
     expect(RAIL_FOLD_AT).toBe(8);
     expect(foldPlan([2, 4, 4, 4, 0])).toEqual([
@@ -640,7 +652,7 @@ describe("the fold past 8", () => {
     expect(withReady).not.toContain('sl-group-label">Idle<');
   });
 
-  it("renders 2 more and a folded Done row at 14 sessions", () => {
+  it("shares one Done header and fold between new and seen turns", () => {
     let s = initialState();
     for (const id of ["w1", "w2"]) { s = begin(s, id, 0); s = notify(s, id, "permission_prompt", "ok?", 500); }
     for (const id of ["r1", "r2", "r3", "r4"]) s = begin(s, id, 0);
@@ -650,9 +662,10 @@ describe("the fold past 8", () => {
       state: s, now: T0 + 60_000, selectedIds: new Set<string>(), onSelect: () => {}, onClose: () => {},
     }));
     expect((html.match(/<li class="sl-row-item"/g) ?? []).length).toBe(8);
-    expect(html).toContain("2 more");
-    expect(html).toMatch(/<button type="button" class="sl-more" aria-expanded="false">2 more/);
-    expect(html).toMatch(/<button type="button" class="sl-fold-btn" aria-expanded="false" data-motion="animate">[\s\S]*?<span class="sl-group-label">Done<\/span><span class="sl-group-count">4<\/span>/);
+    expect(html).toMatch(/<button type="button" class="sl-more" aria-expanded="false">6 more/);
+    expect(html).toContain('<span class="sl-group-label">Done</span><span class="sl-group-count">8</span>');
+    expect(html.match(/class="sl-group-label">Done<\/span>/g)).toHaveLength(1);
+    expect(html).not.toContain('class="sl-group-label">Done · new</span>');
     // CHANGED ON PURPOSE (the UI in every language): the labels are keys.
     // CHANGED ON PURPOSE (design recommendations, 2026-11-09): the words the cards say.
     // CHANGED ON PURPOSE: herdr order, unread done above working. The same
@@ -687,7 +700,7 @@ describe("Nobody’s waiting", () => {
     expect(draw(notify(calm, "a", "permission_prompt", "ok?", 500))).not.toContain("Nobody’s waiting");
   });
 
-  it("draws no model on a row, however the session names one", () => {
+  it("draws the model below the title, preserving the title row", () => {
     let s = initialState();
     s = begin(s, "m", 0);
     s.agents.get("m")!.model = "claude-opus-4-5-20251101";
@@ -695,8 +708,10 @@ describe("Nobody’s waiting", () => {
       state: s, now: T0 + 60_000, selectedIds: new Set<string>(), onSelect: () => {}, onClose: () => {},
     }));
     expect(html).toContain('class="sl-label"');
-    expect(html).not.toContain("sl-model");
-    expect(html).not.toMatch(/opus/i);
+    expect(html).toContain('class="sl-meta"');
+    expect(html).toContain('class="sl-model"');
+    expect(html).toMatch(/opus/i);
+    expect(html.split('class="sl-line1"')[1].split('class="sl-meta"')[0]).not.toContain('sl-model');
   });
 });
 

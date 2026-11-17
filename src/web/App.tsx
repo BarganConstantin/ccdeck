@@ -202,8 +202,7 @@ function Inner() {
   // the right-hand panels' room both follow.
   const railWidth = useRailWidth();
   // The list's own width, its edge's to drag and kept in the browser, held to
-  // the window (rail-width.ts, internal #103). The accounts panel keeps the
-  // density's.
+  // the window (rail-width.ts). Accounts shares this width and its resize edge.
   const railChoice = useRailWidthChoice();
   const railCapNow = useRailCap(railWidth);
   const listWidth = fitRailWidth(railChoice.chosen, railWidth, railCapNow);
@@ -1429,7 +1428,8 @@ function Inner() {
           scrim) and the column holds the list alone. */}
       {phone && accountsNodes}
       {(sessionListDrawn || accountsDrawn) && (
-        <LeftColumn width={leftColumnTarget} listWidth={phone ? undefined : listWidth}>
+        <LeftColumn width={leftColumnTarget} listWidth={phone ? undefined : listWidth}
+          edge={phone ? undefined : <RailEdge width={listWidth} cap={railCapNow} onWidth={railChoice.choose} onReset={railChoice.reset} />}>
           {!phone && accountsNodes}
           {sessionListDrawn && (
             <SessionList
@@ -1451,9 +1451,6 @@ function Inner() {
               onNewSession={inWorkspace && stage.enabled ? stage.newSessionFrom : undefined}
               offline={phone && everConnected && !live && !restart.restarting ? <OfflineCard lastNewsAt={lastNewsAt} /> : undefined}
               emptyNotice={heroInList ? emptyHero(0) : undefined}
-              edge={phone ? undefined : (
-                <RailEdge width={listWidth} cap={railCapNow} onWidth={railChoice.choose} onReset={railChoice.reset} />
-              )}
             />
           )}
         </LeftColumn>

@@ -56,6 +56,8 @@ import {
 } from "./terminal-api";
 import { connectTerminal, hexColour, pasteTooLarge, type ConnectOptions, type SizeOwner, type TerminalConnection, type TmuxVersion, type ViewKind } from "./terminal-protocol";
 import { MINIMUM_CONTRAST_RATIO } from "./terminal-palette";
+import { fileDropText, isFileDrop } from "./terminal-file-drop";
+import { codexTerminalSurfaces } from "./codex-terminal-surfaces";
 import type { Cell } from "./stage-geometry";
 import { terminalKeyInput, terminalKeyOutcome, type TerminalKey } from "./terminal-keys";
 import { stepTerminalText, textSizeChord } from "./terminal-text-size";
@@ -193,6 +195,7 @@ export interface StageTerminalEvents {
   onKey(e: TerminalKey): boolean;
   onFocusChange(focused: boolean): void;
   onRender(): void;
+  onFileDropUnavailable?(): void;
 }
 
 export interface TerminalInit {
@@ -358,6 +361,16 @@ export const mountXterm: MountTerminal = async (host, init, events) => {
   term.loadAddon(new UnicodeGraphemesAddon());
   term.loadAddon(new WebLinksAddon(follow));
   programHasMouse = () => term.modes.mouseTrackingMode !== "none";
+  // With no application mouse tracking, an alternate screen has no local
+  // scrollback. xterm otherwise fabricates Up/Down key presses for its wheel,
+  // which changes Codex's input history. A wheel must never become typing.
+  // Applications that request mouse reports keep receiving their own wheel.
+  term.attachCustomWheelEventHandler(event => {
+    if (programHasMouse() || term.buffer.active.type !== "alternate") return true;
+    event.preventDefault();
+    event.stopPropagation();
+    return false;
+  });
   const replies = leaveRepliesToTmux(term.parser);
   term.open(host);
   // A form field with neither id nor name is flagged by the browser's issues
@@ -432,6 +445,24 @@ export const mountXterm: MountTerminal = async (host, init, events) => {
     events.onPaste(text);
   };
   host.addEventListener("paste", onPaste, true);
+  const onDragOver = (event: DragEvent) => {
+    if (!isFileDrop(event.dataTransfer)) return;
+    event.preventDefault();
+    event.stopPropagation();
+    if (event.dataTransfer) event.dataTransfer.dropEffect = "copy";
+  };
+  const onDrop = (event: DragEvent) => {
+    if (!isFileDrop(event.dataTransfer)) return;
+    event.preventDefault();
+    event.stopPropagation();
+    const text = event.dataTransfer && fileDropText(event.dataTransfer);
+    if (!text) { events.onFileDropUnavailable?.(); return; }
+    term.focus();
+    term.scrollToBottom();
+    events.onPaste(text);
+  };
+  host.addEventListener("dragover", onDragOver, true);
+  host.addEventListener("drop", onDrop, true);
   const textarea = term.textarea;
   const onFocus = () => events.onFocusChange(true);
   const onBlur = () => {
@@ -468,6 +499,8 @@ export const mountXterm: MountTerminal = async (host, init, events) => {
     },
     dispose: () => {
       host.removeEventListener("paste", onPaste, true);
+      host.removeEventListener("dragover", onDragOver, true);
+      host.removeEventListener("drop", onDrop, true);
       host.removeEventListener("mousedown", onMouseDown, true);
       textarea?.removeEventListener("focus", onFocus);
       textarea?.removeEventListener("blur", onBlur);
@@ -727,6 +760,9 @@ export function createTerminalSession(deps: SessionDeps, callbacks: SessionCallb
         c.sendAck(parsed);
       }
     };
+    const surfaces = codexTerminalSurfaces();
+    const codex = subject.kind === "launch" ? subject.agent === "codex" : refOf()?.provider === "codex";
+    const displayBytes = (bytes: Uint8Array) => codex ? surfaces.write(bytes) : bytes;
     const c: TerminalConnection = deps.connect({
       ticket,
       onHello: hello => {
@@ -736,13 +772,15 @@ export function createTerminalSession(deps: SessionDeps, callbacks: SessionCallb
       },
       onReset: ({ cols, rows, seed }) => {
         if (my !== gen) return;
+        surfaces.reset();
+        const displayed = displayBytes(seed);
         withTerminal(t => {
           t.write("", () => {
             if (my !== gen) return;
             t.reset();
             if (t.cols !== cols || t.rows !== rows) t.resize(cols, rows);
           });
-          t.write(seed, () => {
+          t.write(displayed, () => {
             if (my !== gen || !open) return;
             // At once after a seed, whatever its size: it is how the deck
             // learns this panel acknowledges at all.
@@ -768,7 +806,8 @@ export function createTerminalSession(deps: SessionDeps, callbacks: SessionCallb
         // late (25 ms a key against 2.3 measured). Output that follows input
         // this closely is the input's own.
         if (deps.now() - typedAt >= ECHO_WINDOW_MS) markStreaming();
-        withTerminal(t => t.write(bytes, () => parsedBytes(bytes.byteLength)));
+        const displayed = displayBytes(bytes);
+        withTerminal(t => t.write(displayed, () => parsedBytes(bytes.byteLength)));
       },
       onTmux: version => {
         if (my !== gen) return;
@@ -1056,6 +1095,7 @@ export function createTerminalSession(deps: SessionDeps, callbacks: SessionCallb
       typed();
       if (!conn.sendPaste(text) && pasteTooLarge(text)) callbacks.onNotice?.(tr(PASTE_TOO_LARGE_MSG));
     },
+    onFileDropUnavailable: () => callbacks.onNotice?.(tr("board.drop.pathsUnavailable")),
     // terminal-keys.ts decides; this only carries the decision out. The
     // release chord is kept from the session and acted on by the deck's own
     // listener, so it is not answered here as well: one owner, one release.

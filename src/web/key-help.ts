@@ -99,7 +99,6 @@ export const KEY_HELP: readonly KeyHelpGroup[] = [
       // keyboard in front of the reader.
       { cap: "Ctrl + ,", macCap: "⌘ ,", get action() { return t("settings.key.all"); }, binds: [","], chord: true },
       { cap: "?", get action() { return t("settings.key.sheet"); }, binds: ["?"] },
-      { cap: "Space", get action() { return t("settings.key.pause"); }, binds: [" "] },
       { cap: "C", get action() { return t("settings.key.clear"); }, binds: ["c", "C"] },
       { cap: "R", get action() { return t("settings.key.rearrange"); }, binds: ["r", "R"] },
       // Re-arrange's way back, for the few seconds the canvas offers it, after

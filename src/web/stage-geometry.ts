@@ -140,6 +140,8 @@ export interface StageGeometryInput {
    *  than BAR_H while the first-run line wraps to a third line. Never taken
    *  as less than BAR_H. */
   barH?: number;
+  /** Keyboard hints are in the app status bar, outside this pane's room. */
+  externalBar?: boolean;
   /** The pane header's height as the stage drew it, or the density's token
    *  until it has said; HEAD_H without either. Taken as drawn, so Compact's
    *  36 gives the terminal its rows, but never as less than HEAD_H_MIN. */
@@ -273,7 +275,7 @@ function rememberedCols(stored: number, range: ColsRange): number {
  */
 function fillGeometry(input: StageGeometryInput, appW: number, cellW: number, cellH: number, headH: number): StageGeometry {
   const cols = Math.max(MIN_TAKEOVER_COLS, Math.floor((appW - WS_INSET_LEFT - INSET_RIGHT) / cellW));
-  const barH = Math.max(BAR_H, finite(input.barH ?? BAR_H, BAR_H));
+  const barH = input.externalBar ? 0 : Math.max(BAR_H, finite(input.barH ?? BAR_H, BAR_H));
   const avail = Math.max(0, input.bodyH - headH - barH);
   const rows = Math.max(MIN_ROWS, Math.floor((avail - ROW_SLACK) / cellH));
   const termTop = WS_TERM_TOP;
@@ -317,7 +319,7 @@ export function stageGeometry(input: StageGeometryInput): StageGeometry {
 
   const stageW = takeover ? appW : stageWidthFor(cols, cellW);
   const navW = takeover ? 0 : appW - stageW;
-  const barH = Math.max(BAR_H, finite(input.barH ?? BAR_H, BAR_H));
+  const barH = input.externalBar ? 0 : Math.max(BAR_H, finite(input.barH ?? BAR_H, BAR_H));
   const avail = Math.max(0, input.bodyH - headH - barH);
   const rows = Math.max(MIN_ROWS, Math.floor((avail - ROW_SLACK) / cellH));
   const termTop = Math.max(6, Math.floor((avail - rows * cellH) / 2));
@@ -346,10 +348,10 @@ export function saveStageCols(cols: number, write: (key: string, value: string) 
 /** WORKSPACE SPLIT (internal #102): the least a pane is drawn at, in pixels —
  *  `cols` columns after the pane's inset and the scrollbar's lane, `rows`
  *  rows between its header and its keys bar, as fillGeometry fits them. */
-export function paneMinSize(cols: number, rows: number, cell: Cell, headH: number, barH: number): { w: number; h: number } {
+export function paneMinSize(cols: number, rows: number, cell: Cell, headH: number, barH: number, externalBar = false): { w: number; h: number } {
   const cw = finite(cell.w, ASSUMED_CELL.w), ch = finite(cell.h, ASSUMED_CELL.h);
   return {
     w: Math.ceil(cols * cw + WS_INSET_LEFT + INSET_RIGHT),
-    h: Math.ceil(rows * ch + Math.max(HEAD_H_MIN, headH) + Math.max(BAR_H, barH) + ROW_SLACK),
+    h: Math.ceil(rows * ch + Math.max(HEAD_H_MIN, headH) + (externalBar ? 0 : Math.max(BAR_H, barH)) + ROW_SLACK),
   };
 }

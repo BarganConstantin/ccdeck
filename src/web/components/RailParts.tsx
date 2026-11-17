@@ -6,6 +6,7 @@ import { useEffect, useRef, useState, type MouseEvent, type ReactNode } from "re
 import type { Row } from "./SessionList";
 import { AlertMark, StateMark } from "./StateMark";
 import { stateLabel } from "../agent-copy";
+import { modelChipText, modelChipTitle } from "../model-label";
 import { RAIL_GROUP_LABEL_MSGS, type RailGroup } from "../rail-model";
 import { railFailed, railGlyph, railLine, railTime, rowSpoken, rowTooltip, twinStart, type RailGlyphKind, type RailLine } from "../rail-row-copy";
 import { fadeIn, tokenMs } from "../rail-motion";
@@ -220,8 +221,7 @@ export function RailRow({ row: r, group, now, selected, removed, leaving, landNo
           <span className="vis-hidden">{rowSpoken(r)}</span>
           <span className="sl-text">
             <span className="sl-line1">
-              {/* The name alone: the model that stood after it, in mono, is
-                  the Inspector's to say (V4 top-10 #5). */}
+              {/* The title keeps its own row; provider and model are below. */}
               <span className="sl-name">
                 <span className="sl-label">{r.label}</span>
                 {/* Said after the name, as the Feedback list says an unread
@@ -231,7 +231,6 @@ export function RailRow({ row: r, group, now, selected, removed, leaving, landNo
               {/* The unread dot, in the accent the stripes' doors use for
                   something unread, just before the age (V4 top-10, inbox). */}
               {unread && <span className="sl-unread" aria-hidden />}
-              {time && <span className={`sl-time ${time.tone}`}><span className="vis-hidden">{time.spoken}</span>{time.text}</span>}
             </span>
             {lined && (start
               ? (
@@ -244,6 +243,13 @@ export function RailRow({ row: r, group, now, selected, removed, leaving, landNo
                 </span>
               )
               : <span className={`sl-line2${line?.kind === "tool" ? " mono" : ""}`}>{words}</span>)}
+            {(r.provider || r.modelId || time) && <span className="sl-meta">
+              <span className="sl-model" title={r.modelId ? modelChipTitle(r.modelId, r.effort) : undefined}>
+                {r.provider && <>{r.provider === "codex" ? "Codex" : "Claude"}{r.modelId ? " · " : ""}</>}
+                {r.modelId && modelChipText(r.modelId, r.effort)}
+              </span>
+              {time && <span className={`sl-time ${time.tone}`}><span className="vis-hidden">{time.spoken}</span>{time.text}</span>}
+            </span>}
           </span>
         </button>
       </div>

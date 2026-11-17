@@ -1598,8 +1598,10 @@ describe("words quietened with an opacity, measured as what they composite to (#
       ];
       // CHANGED ON PURPOSE (V4 top-10 #5): .sl-model was measured with the line → the
       // row draws no model any more, so the name has no rule left to measure.
-      expect(declFor(".session-list .sl-model", "color")).toBeNull();
-      for (const sel of [TOOL, ".session-list .sl-time.warn", ".session-list .sl-line2"]) {
+      // CHANGED ON PURPOSE (#2591): the row draws the provider and the model
+      // again, on a meta line under the title, so .sl-model is measured with
+      // the line once more, at rest, hovered and selected.
+      for (const sel of [TOOL, ".session-list .sl-time.warn", ".session-list .sl-line2", ".session-list .sl-model"]) {
         for (const [state, bed, within] of beds) {
           const ink = inkOf(theme, sel.replace(".session-list ", `.session-list ${within}`), sel);
           const r = through(ink, opacityOf(sel), bed);

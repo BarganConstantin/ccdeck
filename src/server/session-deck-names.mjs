@@ -1,16 +1,8 @@
 // The names a reader gives sessions in the deck (internal #101).
 //
-// A NAME OF THE DECK'S OWN, NOT THE PROVIDER'S. Claude Code has `/rename` and
-// writes a `custom-title` record into its transcript; Codex has nothing of the
-// kind. Writing either provider's files would put the deck in the middle of a
-// conversation it only watches, so a name typed in the deck is kept here, in
-// session-names.json beside prefs.json, and never leaves this machine. The
-// provider's own name (/rename, Claude's made-up slug, the ai-title) is left
-// alone: it is what the session reads by again once the reader clears theirs.
-//
-// KEYED BY PROVIDER AND SESSION ID, never by folder or by place in a list:
-// two sessions in one folder are two names, and a session keeps its name when
-// the list reorders, the deck restarts or the session is reopened.
+// Display overrides keyed by provider and session. The HTTP rename action can
+// first update native provider metadata (provider-session-name.mjs); this store
+// remains independent so replay, clearing and legacy API clients keep working.
 //
 // HOW IT REACHES A PAGE. As the provider's name does, on a `SessionNamed`
 // event, with one more field: `deckName`, the name, or null for "cleared". An

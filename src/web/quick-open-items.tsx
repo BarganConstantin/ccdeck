@@ -17,7 +17,7 @@ import { THEME_DEFINITIONS, THEMES, type Theme } from "./theme";
 import type { QuickItem } from "./quick-open";
 import { t } from "./i18n";
 import SettingsSectionGlyph from "./components/SettingsSectionGlyph";
-import { ArrangeGlyph, ClearGlyph, ClockGlyph, FitGlyph, PauseGlyph, TourGlyph } from "./components/rail-glyphs";
+import { ArrangeGlyph, ClearGlyph, ClockGlyph, FitGlyph, TourGlyph } from "./components/rail-glyphs";
 import { KitIcon } from "./components/kit-icons";
 
 /** Words that find a door without being in its name. */
@@ -209,8 +209,6 @@ export function quickOpenItems(src: QuickOpenSources): QuickItem[] {
     );
   }
   items.push(
-    { id: "action:pause", section: "actions", title: src.paused ? t("board.quick.action.resume") : t("board.quick.action.pause"), keywords: ["pause", "resume", "freeze", "live"],
-      tag: t("board.quick.tag.action"), verb: t("board.quick.verb.run"), keyCap: key("Space"), glyph: <PauseGlyph />, run: src.togglePause },
     { id: "action:keys", section: "actions", title: t("board.controls.keys"), keywords: ["keys", "help", "?"],
       tag: t("board.quick.tag.action"), verb: t("board.quick.verb.open"), keyCap: key("?"), glyph: <SettingsSectionGlyph section="keyboard" />, run: src.keyHelp },
     { id: "action:tour", section: "actions", title: t("board.hero.tour"), keywords: ["help", "guide", "intro", "start"],

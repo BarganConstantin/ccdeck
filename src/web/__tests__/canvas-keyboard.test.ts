@@ -212,13 +212,10 @@ describe("what a keystroke means on a focused card (#367, finding 2)", () => {
     expect(gate).toBeGreaterThan(card);
   });
 
-  it("takes Space away from pause only while a card is focused", () => {
-    // Space is `activate` on a card and reaches togglePause everywhere else,
-    // which is the same trade a focused <button> already makes.
+  it("keeps Space as card activation without a global pause action", () => {
     expect(canvasKeyIntent({ key: " ", shiftKey: false }, null)).toEqual({ kind: "deck", nodeId: null });
-    // Once per press: a held Space's repeats are cancelled and pause nothing
-    // (held-shortcut-repeat.test.ts).
-    expect(app).toMatch(/if \(e\.key === " "\) \{ e\.preventDefault\(\); if \(!e\.repeat\) togglePause\(\); \}/);
+    expect(canvasKeyIntent({ key: " ", shiftKey: false }, "main")).toEqual({ kind: "activate", nodeId: "main", additive: false });
+    expect(app).not.toMatch(/if \(e\.key === " "\).*togglePause/);
   });
 
   it("reads the id off the wrapper React Flow focuses, not off the card inside it", () => {

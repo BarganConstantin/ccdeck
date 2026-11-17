@@ -305,6 +305,11 @@ body .app[data-view="workspace"][data-side]:not([data-zoom]):has(.left-column) {
 }
 .app:has(.session-list) .ws-cell,
 .app:has(.accounts-panel) .ws-cell { grid-column: 2; }
+/* The shared column owns this edge, including split terminals whose stages
+   have no left border. Keep exactly one stroke beside a single stage too. */
+@media (min-width: 641px) {
+  .app[data-view="workspace"]:has(.left-column) .stage-dock .ts-stage { border-left: 0; }
+}
 .app[data-view="workspace"][data-pin] .canvas-wrap {
   position: fixed;
   left: var(--board-l);
