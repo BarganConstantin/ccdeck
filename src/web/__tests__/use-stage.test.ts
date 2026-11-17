@@ -803,24 +803,16 @@ describe("the room the stage is given", () => {
     expect(now().stage.geometry?.stageW).toBe(820);
   });
 
-  it("fits the rows to the keys bar as the stage draws it, and gives them back when it shrinks", () => {
-    // A first-run line on three lines grows the bar from 32px to 51px on a
-    // narrow screen; the stage says so (TerminalStage's onBarH), and the
-    // rows that bar would cover are not given to the pane.
+  it("uses the old footer space while desktop hints remain in the global status bar", () => {
     const { now, turnOn } = setup();
     turnOn();
     now().stage.switchTo("s1", { focusPane: false });
     const plain = now().stage.geometry!;
-    expect(plain.rows, "848px of body: 42 rows under a 44px header and a 32px bar").toBe(42);
+    expect(plain.rows).toBe(Math.floor((848 - plain.headH - 12) / 18));
     now().stage.onBarH(51);
-    const tall = now().stage.geometry!;
-    // 19px more bar against 16px of slack round 42 rows: one row is given up.
-    expect(tall.termTop + tall.rows * 18, "the last row ends above the grown bar").toBeLessThanOrEqual(848 - 44 - 51);
-    expect(tall.rows).toBe(41);
-    expect(tall.termTop).toBe(7);
-    expect(tall.cols, "the width is not the bar's business").toBe(plain.cols);
+    expect(now().stage.geometry).toEqual(plain);
     now().stage.onBarH(32);
-    expect(now().stage.geometry, "Got it: the bar is 32px again, and so are the rows").toEqual(plain);
+    expect(now().stage.geometry).toEqual(plain);
   });
 
   it("fits the rows to the header as the stage draws it (onHeadH), and back", () => {
@@ -831,12 +823,12 @@ describe("the room the stage is given", () => {
     now().stage.onHeadH(36);
     const compact = now().stage.geometry!;
     expect(compact.headH).toBe(36);
-    expect(compact.termTop + compact.rows * 18).toBeLessThanOrEqual(848 - 36 - 32);
+    expect(compact.termTop + compact.rows * 18).toBeLessThanOrEqual(848 - 36);
     now().stage.onHeadH(44);
     expect(now().stage.geometry).toEqual(plain);
   });
 
-  it("fits the first rows to the density's header and the pointer's bar, before the stage has measured either", () => {
+  it("fits the first desktop rows to the header without reserving a second hint bar", () => {
     // Compact, V4's default, draws a 36px header and a fingertip a 36px bar:
     // the first attach is fitted to those, not to a guess the stage's own
     // measure corrects a frame later with a resize.
@@ -849,8 +841,8 @@ describe("the room the stage is given", () => {
       now().stage.switchTo("s1", { focusPane: false });
       const first = now().stage.geometry!;
       expect(first.headH).toBe(36);
-      expect(first.rows).toBe(Math.floor((848 - 36 - 36 - 12) / 18));
-      expect(first.termTop + first.rows * 18, "above a fingertip's 36px bar").toBeLessThanOrEqual(848 - 36 - 36);
+      expect(first.rows).toBe(Math.floor((848 - 36 - 12) / 18));
+      expect(first.termTop + first.rows * 18, "fills the pane above the global footer").toBeLessThanOrEqual(848 - 36);
       // The stage then measures what was assumed, and nothing moves.
       now().stage.onHeadH(36);
       now().stage.onBarH(36);

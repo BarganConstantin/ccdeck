@@ -43,7 +43,7 @@ import { RELEASE_CHORD_SPOKEN_MSG } from "../../terminal-keys";
 import { RECONNECT_NOTE_MSG, type KeysOwner } from "./stage-model";
 import { Kbd } from "../Kbd";
 import { t as tNow, useT } from "../../i18n";
-import { useLayoutEffect, useState } from "react";
+import { useLayoutEffect, useState, type ReactElement } from "react";
 import { createPortal } from "react-dom";
 import { StageGlyph } from "./stage-icons";
 
@@ -203,8 +203,7 @@ export function ArrivalNote({ arrival, onAnswer }: { arrival: ArrivalView; onAns
   );
 }
 
-export default function KeysBar(p: KeysBarProps) {
-  const t = useT();
+function KeysBarPlacement({ children, visible }: { children: ReactElement; visible: boolean }) {
   const [statusSlot, setStatusSlot] = useState<HTMLElement | null>(null);
   useLayoutEffect(() => {
     const read = () => setStatusSlot(document.getElementById("ccdeck-stage-status"));
@@ -214,6 +213,12 @@ export default function KeysBar(p: KeysBarProps) {
     observer.observe(document.querySelector(".app") ?? document.body, { childList: true });
     return () => observer.disconnect();
   }, []);
+  if (!statusSlot) return children;
+  return visible ? createPortal(<div {...children.props} />, statusSlot) : null;
+}
+
+export default function KeysBar(p: KeysBarProps) {
+  const t = useT();
   let right = null;
   // With something on the right, the left keeps only who has the keys: the
   // other hints go (V4's Ask, Asks, Resumed, No more asks and hosts bars).
@@ -297,13 +302,11 @@ export default function KeysBar(p: KeysBarProps) {
     );
   }
   if (p.primary === false) return null;
-  const Bar = statusSlot ? "div" : "footer";
   const bar = (
-    <Bar className="ts-bar" aria-label={t("board.keys.bar")} hidden={(p.paneless && !p.hosts && !p.chatCannotType) || undefined}>
+    <footer className="ts-bar" aria-label={t("board.keys.bar")} hidden={(p.paneless && !p.hosts && !p.chatCannotType) || undefined}>
       {left}
       {right}
-    </Bar>
+    </footer>
   );
-  return statusSlot && !(p.paneless && !p.hosts && !p.chatCannotType)
-    ? createPortal(bar, statusSlot) : statusSlot ? null : bar;
+  return <KeysBarPlacement visible={!(p.paneless && !p.hosts && !p.chatCannotType)}>{bar}</KeysBarPlacement>;
 }

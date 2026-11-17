@@ -146,6 +146,17 @@ describe("the rows fit above the keys bar as it is drawn", () => {
     }
   });
 
+  it.each([false, true])("uses the former footer space when hints are outside the pane (workspace %s)", fill => {
+    const input = at(1280, 800, { fill, headH: 36, barH: 32, cellH: 18 });
+    const local = stageGeometry(input);
+    const global = stageGeometry({ ...input, externalBar: true });
+    expect(global.rows).toBeGreaterThan(local.rows);
+    expect(global.rows).toBe(Math.floor((input.bodyH - 36 - 12) / 18));
+    const bottomGap = input.bodyH - global.headH - global.termTop - global.rows * 18;
+    expect(bottomGap).toBeLessThan(24);
+    expect(bottomGap).toBeGreaterThanOrEqual(0);
+  });
+
   it("never gives the grid the bar's own 32px, whatever height it is handed", () => {
     // A bar not drawn yet reads 0, and a measurement can be anything: the
     // bar is never less than its 32px, so the grid never gets that room.

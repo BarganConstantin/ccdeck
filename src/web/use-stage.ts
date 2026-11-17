@@ -307,7 +307,7 @@ export function useStage({ stateRef, canvasRef, detailOpen, detailShown, setDeta
   }, [open, measure, cellElement, workspace]);
   const geometry: StageGeometry | null = box && open
     // `fill`: Workspace's pane is the whole cell, and the Board's stored width is not read.
-    ? stageGeometry({ appW: box.w, bodyH: box.h, cellW: cell.w, cellH: cell.h, expanded, narrow: box.narrow, storedCols: cols, fill: workspace, barH, headH })
+    ? stageGeometry({ appW: box.w, bodyH: box.h, cellW: cell.w, cellH: cell.h, expanded, narrow: box.narrow, storedCols: cols, fill: workspace, barH, headH, externalBar: !phoneWidth() })
     : null;
   const geometryRef = useMirroredRef(geometry);
 
@@ -329,14 +329,15 @@ export function useStage({ stateRef, canvasRef, detailOpen, detailShown, setDeta
     setSplitState(next);
   }, [splitRef]);
   /** The least a pane is drawn at: 40 columns by 8 rows of the cell xterm drew. */
-  const paneMin = useMemo(() => paneMinSize(MIN_PANE_COLS, MIN_PANE_ROWS, cell, headH, barH), [cell, headH, barH]);
+  const externalBar = !phoneWidth();
+  const paneMin = useMemo(() => paneMinSize(MIN_PANE_COLS, MIN_PANE_ROWS, cell, headH, barH, externalBar), [cell, headH, barH, externalBar]);
   const arrangement: Arrangement | null = workspace && box && open ? arrange(split, box, paneMin) : null;
   const arrangementRef = useMirroredRef(arrangement);
   /** A pane's own geometry: the Workspace pane's, for its box. */
   const geometryFor = useCallback((w: number, h: number): StageGeometry => stageGeometry({
     appW: Math.floor(w), bodyH: Math.floor(h), cellW: cell.w, cellH: cell.h, expanded: false,
-    narrow: box?.narrow ?? false, storedCols: null, fill: true, barH, headH,
-  }), [cell, barH, headH, box?.narrow]);
+    narrow: box?.narrow ?? false, storedCols: null, fill: true, barH, headH, externalBar,
+  }), [cell, barH, headH, box?.narrow, externalBar]);
   /** The pane a focus token was asked for. Only that pane answers it: a pane
    *  the keys move to by a click or a Tab is not handed an older request, or
    *  it would take the keyboard out from under the control that was focused. */
