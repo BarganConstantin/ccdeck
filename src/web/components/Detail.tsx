@@ -3,8 +3,10 @@
 // Moved out of App.tsx, where it sat after `Inner` as a module-level component
 // with the row it draws for each tool call. App.tsx mounts it beside the canvas
 // while an agent is selected and the panel is open.
-import React, { useRef, useState } from "react";
+import React, { useId, useRef, useState, type ReactNode } from "react";
 import SessionNameField, { RenameGlyph, useRenaming } from "./SessionNameField";
+import AnchoredPopover from "./AnchoredPopover";
+import { loadInspectorDetailsOpen, saveInspectorDetailsOpen } from "../inspector-tab";
 import { renameFacts } from "../session-rename";
 import { agentKindLabel, categoryLabel } from "../agent-copy";
 import { cardState } from "../node-face";
@@ -15,7 +17,7 @@ import { mcpChipIdentity } from "../tool-skin";
 import { detailCategoryFor, type DetailCategory } from "../detail-category";
 import type { InspectorStatus } from "../inspector-state";
 import { argIsPath, callArg } from "../inspector-time";
-import { KitStateGlyph } from "./kit-icons";
+import { KitIcon, KitStateGlyph } from "./kit-icons";
 import PathText from "./PathText";
 // The detail panel used to spell both of these out inline — an elapsed clock a
 // tier shorter than the agent card's, and a tool duration a decimal place
@@ -86,8 +88,9 @@ export default function Detail({
   onExportSession?: (sessionId: string) => void;
   onRemove?: () => void;
   /** Whether L reopens the session list (Settings › General's switch), so the
-   *  Remove button's tooltip names it only then. A prop rather than a hook:
-   *  this component calls none, and is rendered by calling it. */
+   *  Remove item's tooltip names it only then. A prop rather than a hook:
+   *  this component calls none that cannot run outside React (tests call it
+   *  as a plain function), so what keeps state is a child of its own. */
   singleKeys?: boolean;
 }) {
   const t = useT();
@@ -127,6 +130,9 @@ export default function Detail({
           {/* A session by the title every surface names it by (sessionNames);
               its folder, when it started and its id's tail in the hover. */}
           <HeroTitle agent={agent} now={now} />
+          {(onExportSession || onRemove) && (
+            <DetailActions agent={agent} onExportSession={onExportSession} onRemove={onRemove} singleKeys={singleKeys} />
+          )}
         </div>
         <div className="hero-meta">
           {/* The card's word for it, not the reducer's (#833): "root" is
@@ -163,13 +169,15 @@ export default function Detail({
             );
           })()}
         </div>
+        {/* The figure and its word. Its split by kind (the bar) is under
+            Details now, with the token rows that key its colours: a bar of
+            four colours with no legend was read as decoration (V4 top-10 #6). */}
         {hasCost && (
           <div className="hero-cost">
             <div className="hero-cost-headline">
               <span className="hero-cost-value">{fmtCost(cost.total)}</span>
               <span className="hero-cost-label">{t("board.detail.spend")}</span>
             </div>
-            <CostBar cost={cost} />
           </div>
         )}
       </header>
@@ -231,31 +239,6 @@ export default function Detail({
         );
       })()}
 
-      {totalTokens > 0 && (
-        <section className="detail-section">
-          <h3>{t("board.detail.tokens")}</h3>
-          <div className="tokens-grid">
-            {/* The usage panel's format, not a grouped integer (#835): side by
-                side, 111,053,708 and 177.08M read as two kinds of measure. The
-                exact count stays one hover away. */}
-            <div><span className="k">{t("board.tokens.in")}</span><b title={agent.usage.inputTokens.toLocaleString()}>{fmtTokens(agent.usage.inputTokens)}</b></div>
-            <div><span className="k">{t("board.tokens.out")}</span><b title={agent.usage.outputTokens.toLocaleString()}>{fmtTokens(agent.usage.outputTokens)}</b></div>
-            <div><span className="k">{t("board.tokens.cacheR")}</span><b title={agent.usage.cacheReadTokens.toLocaleString()}>{fmtTokens(agent.usage.cacheReadTokens)}</b></div>
-            <div><span className="k">{t("board.tokens.cacheC")}</span><b title={agent.usage.cacheCreateTokens.toLocaleString()}>{fmtTokens(agent.usage.cacheCreateTokens)}</b></div>
-          </div>
-        </section>
-      )}
-
-      <section className="detail-section">
-        <h3>{t("board.detail.identity")}</h3>
-        <div>
-          {/* From "~", and cut in the middle so the folder's own name stays. */}
-          {agent.cwd && <div className="row"><span className="k">cwd</span><PathText className="v" path={agent.cwd} /></div>}
-          <div className="row"><span className="k">{t("board.kind.session")}</span><span className="v">{agent.sessionId.slice(0, 12)}…</span></div>
-          {agent.parentId && <div className="row"><span className="k">{t("board.detail.parent")}</span><span className="v">{agent.parentId.slice(0, 12)}…</span></div>}
-        </div>
-      </section>
-
       {earlier.length > 0 && (
         <section className="detail-section">
           {/* What a person typed, listed and counted (#834). A background
@@ -277,44 +260,172 @@ export default function Detail({
         </section>
       )}
 
-      {/* Keyed by the agent, so a filter chosen for one is not carried to the next. */}
-      <ToolCalls key={agent.id} agent={agent} onOpenTool={onOpenTool} />
-
-      {/* The verbs about this one card, as V4's Quiet buttons. The deck has no
-          menu for the card that holds Export or Remove, so they stay at the
-          foot of the body, on a running session as on a finished one. */}
-      <div className="hero-actions">
-        {agent.kind === "root" && agent.state === "done" && onShowSummary && (
+      {/* The one verb left in the body, a Quiet button: Claude Code's recap of
+          a finished session, which belongs with the note it adds to. Export
+          and Remove are the title block's ⋯ now (V4 top-10 #6), so the row is
+          only drawn when there is a recap to show, never empty. */}
+      {agent.kind === "root" && agent.state === "done" && onShowSummary && (
+        <div className="hero-actions">
           <button
             type="button"
             className="btn"
             onClick={() => onShowSummary(agent.sessionId)}
             title={t("board.detail.recapTitle")}
           >{t("board.detail.recap")}</button>
+        </div>
+      )}
+
+      {/* EVERYTHING ELSE, ONE PRESS AWAY (V4 top-10 #6). What is above is
+          what a person reads: the state, the note, the plan, what they typed.
+          What is below is the record: the spend by kind with its token
+          counts, where the session runs and its ids, and every tool call.
+          It is all still here, behind one quiet row, shut until someone opens
+          it and then as they last left it. */}
+      <DetailMore calls={Math.max(agent.toolCount, agent.tools.length)}>
+        {(hasCost || totalTokens > 0) && (
+          <section className="detail-section">
+            <h3>{t("board.detail.tokens")}</h3>
+            {/* The split of the spend; CostBar draws nothing for no spend. */}
+            <CostBar cost={cost} />
+            {totalTokens > 0 && (
+              <div className="tokens-grid">
+                {/* The usage panel's format, not a grouped integer (#835): side by
+                    side, 111,053,708 and 177.08M read as two kinds of measure. The
+                    exact count stays one hover away. Each label leads with a
+                    swatch in its band's colour, so the rows are the bar's key. */}
+                <div><span className="k tk-key tk-in">{t("board.tokens.in")}</span><b title={agent.usage.inputTokens.toLocaleString()}>{fmtTokens(agent.usage.inputTokens)}</b></div>
+                <div><span className="k tk-key tk-out">{t("board.tokens.out")}</span><b title={agent.usage.outputTokens.toLocaleString()}>{fmtTokens(agent.usage.outputTokens)}</b></div>
+                <div><span className="k tk-key tk-cr">{t("board.tokens.cacheR")}</span><b title={agent.usage.cacheReadTokens.toLocaleString()}>{fmtTokens(agent.usage.cacheReadTokens)}</b></div>
+                <div><span className="k tk-key tk-cw">{t("board.tokens.cacheC")}</span><b title={agent.usage.cacheCreateTokens.toLocaleString()}>{fmtTokens(agent.usage.cacheCreateTokens)}</b></div>
+              </div>
+            )}
+          </section>
         )}
-        {onExportSession && (
-          <button
-            type="button"
-            className="btn"
-            onClick={() => onExportSession(agent.sessionId)}
-            title={t("board.detail.exportTitle")}
-          >{t("board.detail.export")}</button>
-        )}
-        {/* Here and not in the topbar, where it was (#1210): beside "zoom to
-            agent" it was one stray click from taking a session off the board.
-            Not a danger button either — the session list brings it back, and
-            the red stays with Clear. */}
-        {onRemove && (
-          <button
-            type="button"
-            className="btn"
-            onClick={onRemove}
-            title={agent.kind === "root"
-              ? t("board.detail.removeRoot", { list: withKey(t("board.detail.listLower"), "L", singleKeys) })
-              : t("board.detail.removeSub", { list: withKey(t("board.detail.listUpper"), "L", singleKeys) })}
-          >{t("board.detail.remove")}</button>
-        )}
-      </div>
+
+        <section className="detail-section">
+          <h3>{t("board.detail.identity")}</h3>
+          <div>
+            {/* From "~", and cut in the middle so the folder's own name stays. */}
+            {agent.cwd && <div className="row"><span className="k">cwd</span><PathText className="v" path={agent.cwd} /></div>}
+            <div className="row"><span className="k">{t("board.kind.session")}</span><span className="v">{agent.sessionId.slice(0, 12)}…</span></div>
+            {agent.parentId && <div className="row"><span className="k">{t("board.detail.parent")}</span><span className="v">{agent.parentId.slice(0, 12)}…</span></div>}
+          </div>
+        </section>
+
+        {/* Keyed by the agent, so a filter chosen for one is not carried to the next. */}
+        <ToolCalls key={agent.id} agent={agent} onOpenTool={onOpenTool} />
+      </DetailMore>
+    </>
+  );
+}
+
+/** The quiet row that keeps the record shut: a native disclosure, so Enter,
+ *  Space and a screen reader's "collapsed" come with it. Open or shut is this
+ *  viewer's, kept across the sessions they select and across reloads
+ *  (inspector-tab.ts), and shut until they first open it. Its own component
+ *  because tests call Detail as a plain function, where a state hook cannot
+ *  run. */
+export function DetailMore({ calls, children }: { calls: number; children: ReactNode }) {
+  const t = useT();
+  const [open, setOpen] = useState(loadInspectorDetailsOpen);
+  return (
+    <details
+      className="detail-more"
+      open={open}
+      onToggle={e => {
+        // The browser has already opened or shut it; this keeps React and the
+        // store in step. A details drawn open fires one toggle as it mounts,
+        // which changes nothing.
+        const next = e.currentTarget.open;
+        if (next === open) return;
+        setOpen(next);
+        saveInspectorDetailsOpen(next);
+      }}
+    >
+      <summary>
+        <KitIcon name="chevron-right" className="detail-more-chev" />
+        <span>{t("common.details")}</span>
+        {/* What is inside, in the words the activity spark uses: a session
+            that has run tools says so without being opened. */}
+        {calls > 0 && <span className="detail-more-count">{t("board.spark.tools", { count: calls })}</span>}
+      </summary>
+      <div className="detail-more-body">{children}</div>
+    </details>
+  );
+}
+
+/** Export JSON and Remove from board, in a menu off the title block's ⋯ (V4
+ *  top-10 #6). They were two of three outlined buttons of equal weight at the
+ *  foot of the body, under the whole tool-call list; they are verbs about the
+ *  card the title names, so they hang off its line, out of the reading. The
+ *  menu is AnchoredPopover's, as the stage's ⋯ and a panel's ⓘ are: arrows,
+ *  Escape, Tab out and the focus hand-back come with it. */
+export function DetailActions({ agent, onExportSession, onRemove, singleKeys }: {
+  agent: AgentNodeData;
+  onExportSession?: (sessionId: string) => void;
+  onRemove?: () => void;
+  singleKeys: boolean;
+}) {
+  const t = useT();
+  const base = useId();
+  const id = `${base}-more`;
+  const menuId = `${base}-more-menu`;
+  // Open at the first item, or (ArrowUp on the button) at the last.
+  const [menu, setMenu] = useState<"first" | "last" | null>(null);
+  const open = menu !== null;
+  const more = t("accounts.row.more");
+  // Focus goes back to the ⋯ before the menu closes, so whatever the item
+  // does next (a download, the card leaving the board) starts from there.
+  const choose = (act: () => void) => {
+    document.getElementById(id)?.focus();
+    setMenu(null);
+    window.requestAnimationFrame(act);
+  };
+  return (
+    <>
+      <button
+        type="button"
+        id={id}
+        className="glyph-btn hero-more"
+        aria-label={more}
+        title={more}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        aria-controls={open ? menuId : undefined}
+        onKeyDown={e => {
+          // Down opens at the first item and Up at the last, the way a native
+          // menu button does. Enter and Space are the click.
+          if (e.key !== "ArrowDown" && e.key !== "ArrowUp") return;
+          e.preventDefault();
+          setMenu(e.key === "ArrowUp" ? "last" : "first");
+        }}
+        onClick={() => setMenu(open ? null : "first")}
+      >
+        <KitIcon name="more" />
+      </button>
+      {open && (
+        <AnchoredPopover anchorId={id} id={menuId} className="ap-pop" role="menu"
+          labelledBy={id} start={menu} onClose={() => setMenu(null)}>
+          {onExportSession && (
+            <button type="button" role="menuitem" className="ap-menu-item"
+              title={t("board.detail.exportTitle")}
+              onClick={() => choose(() => onExportSession(agent.sessionId))}
+            >{t("board.detail.export")}</button>
+          )}
+          {/* In the card's own menu and not in the topbar, where it was
+              (#1210): beside "zoom to agent" it was one stray click from
+              taking a session off the board. Not a danger item either — the
+              session list brings it back, and the red stays with Clear. */}
+          {onRemove && (
+            <button type="button" role="menuitem" className="ap-menu-item"
+              title={agent.kind === "root"
+                ? t("board.detail.removeRoot", { list: withKey(t("board.detail.listLower"), "L", singleKeys) })
+                : t("board.detail.removeSub", { list: withKey(t("board.detail.listUpper"), "L", singleKeys) })}
+              onClick={() => choose(onRemove)}
+            >{t("board.detail.remove")}</button>
+          )}
+        </AnchoredPopover>
+      )}
     </>
   );
 }

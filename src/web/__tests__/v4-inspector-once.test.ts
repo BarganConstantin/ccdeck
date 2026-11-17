@@ -38,18 +38,28 @@ describe("a session with no subagents", () => {
   const root = A("s");
   const out = panel(root, mapOf(root));
 
-  it("draws no agent card, and keeps 'no subagents' as the head's quiet line", () => {
+  // CHANGED ON PURPOSE (V4 top-10 #6): an "Agents ⓘ no subagents" head → no
+  // head at all, because a row saying there is nothing to draw said nothing; the
+  // body starts with the title block, and the head comes back with a tree.
+  it("draws no agent card and no Agents head: the body starts with the title block", () => {
     expect(out).not.toContain('class="insp-tree"');
     expect(out).not.toContain("agent-node");
-    expect(out).toContain('<span class="insp-title">Agents</span>');
-    expect(out).toContain('<span class="insp-qual">no subagents</span>');
+    expect(out).not.toContain("insp-head");
+    expect(out).not.toContain('<span class="insp-title">Agents</span>');
+    expect(out).not.toContain("no subagents");
+    expect(out).toContain('<div class="insp-detail"><header class="detail-hero">');
   });
 
-  it("says the cost once, in the spend line with its bar", () => {
+  // CHANGED ON PURPOSE (V4 top-10 #6): the bar under the spend figure → the
+  // bar inside Details, over the token rows that key it, because four colours
+  // with no legend in the title block read as decoration.
+  it("says the cost once, in the spend line, and draws its split under Details", () => {
     const cost = fmtCost(agentCost(root).total);
     expect(said(out, cost)).toBe(1);
     expect(out).toMatch(new RegExp(`<span class="hero-cost-value">${cost.replace(/[$.]/g, "\\$&")}</span>`));
-    expect(out).toContain('class="cost-bar');
+    const hero = out.slice(out.indexOf('<header class="detail-hero">'), out.indexOf("</header>", out.indexOf('<header class="detail-hero">')));
+    expect(hero).not.toContain("cost-bar");
+    expect(out.indexOf('class="cost-bar')).toBeGreaterThan(out.indexOf('<details class="detail-more">'));
     expect(out).not.toContain("insp-fig");
   });
 
@@ -69,10 +79,14 @@ describe("a session with no subagents", () => {
     expect(headings(out)[0]).toMatch(/^Now\b/);
   });
 
-  it("has one calls section, no Activity, and keeps Export JSON and Remove from board", () => {
+  // CHANGED ON PURPOSE (V4 top-10 #6): Export JSON and Remove from board as
+  // buttons at the foot → items of the title block's ⋯ menu, which is shut
+  // until pressed (v4-calm-inspector.test.ts opens it and presses both).
+  it("has one calls section, no Activity, and keeps Export JSON and Remove from board behind the ⋯", () => {
     expect(headings(out).filter(h => /^(Activity|Tool calls)\b/.test(h))).toEqual(["Tool calls 0"]);
-    expect(out).toContain("Export JSON");
-    expect(out).toContain("Remove from board");
+    expect(out).toMatch(/<button type="button" id="[^"]+-more" class="glyph-btn hero-more" aria-label="More actions" title="More actions" aria-haspopup="menu" aria-expanded="false">/);
+    expect(out).not.toContain("Export JSON");
+    expect(out).not.toContain("Remove from board");
   });
 });
 

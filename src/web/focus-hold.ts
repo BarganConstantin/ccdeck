@@ -1,8 +1,8 @@
 // The camera jump a click on a card makes under reduced motion, held until a
 // double-click can no longer follow it.
 //
-// A click on a card goes to its session (focusAgent) and a double-click opens
-// the card's details: two presses, and the camera moves on the first.
+// A click on a card brings it into view (revealAgent) and a double-click opens
+// the card's details: two presses, and the camera may move on the first.
 // Animated, that costs nothing — the move has barely begun when the second
 // press lands, so the card is still under the pointer. Under reduced motion
 // the camera does not travel, it jumps (viewport-motion.ts), and it jumped on

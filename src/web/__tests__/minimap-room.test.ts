@@ -6,7 +6,7 @@
 // every panel their span meets, 12px clear of it as they are of the canvas's
 // edge, and are not drawn when what the panels leave of the canvas cannot hold
 // them. The fit keeps the board out from under the panels and inside the left
-// edge, and leaves the floor row, where the Auto-fit chip stands, free.
+// edge, and leaves the floor row, where the notices stand, free.
 //
 // Geometry: a 1440 window, 40px stripes, panels 320 wide in their slots
 // (machine-panel.css --rail-r: 8px in from the canvas, the machine panel a
@@ -172,20 +172,27 @@ describe("the fit's padding", () => {
   it("frames the board in the canvas less the panels' strip, from inside the left edge", () => {
     // The width the fit fills is the canvas less what the floating panels
     // cover of its right edge (railCover) and a margin each side; the board's
-    // left edge lands on the left margin, so no card is cut there.
+    // left edge lands on the left margin or right of it, so no card is cut there.
     // fitLeft measures (use-camera.ts) and fit-board.ts decides, since round 3.
     const fit = readFileSync(fileURLToPath(new URL("../fit-board.ts", import.meta.url)), "utf8");
     expect(camera).toContain("const railWidth = railCover(pane);");
     expect(fit).toContain("((paneRect.width - railWidth - MARGIN * 2) / (box.w + lane)) * FILL");
-    expect(fit).toContain("x: MARGIN - minX * zoom,");
+    // CHANGED ON PURPOSE (V4 top-10 #3): `x: MARGIN - minX * zoom` (the board
+    // anchored on the left margin) → the margin plus half the canvas the drawn
+    // board leaves across, never less than none, because a board held by its
+    // height stood in the canvas's left half with ~600px of nothing beside it.
+    expect(fit).toContain("const slack = Math.max(0, paneRect.width - railWidth - MARGIN * 2 - drawnW * zoom);");
+    expect(fit).toContain("x: MARGIN + slack / 2 - minX * zoom,");
     expect(fit).toContain("MARGIN : Math.max(MARGIN, (paneRect.height - h * zoom) / 2)) - minY * zoom,");
   });
 
-  it("leaves the floor row, where the Auto-fit chip and Undo stand, under the board", () => {
+  it("leaves the floor row, where Undo stands, under the board", () => {
     // The notices stand 12 off the floor and are 24 tall; the control bar's row
     // is at most 12 + 28 + 6 + 8. The board's foot is at least FIT_MARGIN up.
+    // CHANGED ON PURPOSE (V4 top-10 #3): the 24px auto-fit chip was the row's
+    // other notice → it is gone; Undo is the same 24 tall.
     expect(sheet).toMatch(/\.canvas-notices \{[^}]*bottom: var\(--board-controls-edge\);/);
-    expect(sheet).toMatch(/\.autofit-chip \{[^}]*height: 24px;/);
+    expect(sheet).toMatch(/\.rearrange-undo \{[^}]*height: 24px;/);
     expect(BOARD_EDGE + 24).toBeLessThan(FIT_MARGIN);
     expect(BOARD_EDGE + 28 + 6 + 8).toBeLessThan(FIT_MARGIN);
   });

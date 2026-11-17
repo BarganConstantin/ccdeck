@@ -10,6 +10,15 @@
 // had a bug of its own from before #2155: as one run of text the row
 // ellipsised at its end, so "subagent · customer-onboarding" pushed the model
 // chip off the card entirely. Now only the folder is cut short.
+//
+// CHANGED ON PURPOSE (V4 top-10 #2): the card draws no model, so it draws no
+// effort, and the head has nothing left to give up. The squeeze this file
+// pinned (effortWillUncut, nextSqueeze, rowAt, maxSqueeze, squeezeOnResize)
+// and the label measurement that drove it are gone; the name ellipsizes in
+// CSS alone. What still stands is what the tooltip and the accessible name
+// say, the task line being the one cut piece, and the head's shrink order for
+// what is left in it. The tooltip, the list, the peek and the Inspector keep
+// the model and its effort.
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
@@ -17,67 +26,37 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { ReactFlowProvider } from "reactflow";
 import AgentNode from "../components/AgentNode";
-import { effortWillUncut, maxSqueeze, nextSqueeze, rowAt, squeezeOnResize } from "../card-row-squeeze";
+import * as rowSqueeze from "../card-row-squeeze";
 import { agentAriaLabel, subRowTitle } from "../agent-copy";
 import type { AgentNodeData } from "../types";
 import { sheetRules } from "./sheet-cascade";
 
 const body = (sel: string) => sheetRules().filter(r => r.media == null && r.selectors.includes(sel)).map(r => r.body).join("\n");
 const NO_USAGE = { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheCreateTokens: 0 };
+const src = readFileSync(fileURLToPath(new URL("../components/AgentNode.tsx", import.meta.url)), "utf8");
 
-// CHANGED ON PURPOSE (review of V4's Agent / Card). The suite pinned a two-notch
-// squeeze (kind word, then effort) driven by "the row overflows or a folder is
-// cut". The kind word left the head and the folder has its own line, so the
-// first notch drew nothing, and the effort dropped from nearly every card
-// because any overflow dropped it. The squeeze is 0 or 1 now, and the effort
-// goes only when that can uncut the name.
-describe("when the effort gives way", () => {
-  it("drops the effort only when that can uncut the name: the overflow is no larger than the effort", () => {
-    expect(effortWillUncut(10, 40)).toBe(true);
-    expect(effortWillUncut(40, 40)).toBe(true);
-    expect(effortWillUncut(41, 40)).toBe(false);
+// CHANGED ON PURPOSE (V4 top-10 #2): "when the effort gives way" and "the
+// squeeze starts again when the name gets wider" pinned the head's squeeze, a
+// notch that dropped the effort when that could uncut the name and reset when
+// the name got wider. The head holds the name and the state alone now.
+describe("the head's squeeze, retired with the model", () => {
+  it("leaves card-row-squeeze.ts the foot's squeeze alone", () => {
+    for (const gone of ["effortWillUncut", "maxSqueeze", "nextSqueeze", "rowAt", "squeezeOnResize"]) {
+      expect(gone in rowSqueeze, gone).toBe(false);
+    }
+    for (const kept of ["footDroppable", "footDropped", "nextFootNotch", "footNotchOnResize"]) {
+      expect(typeof (rowSqueeze as Record<string, unknown>)[kept], kept).toBe("function");
+    }
   });
 
-  it("keeps the effort when the name is not cut at all", () => {
-    expect(effortWillUncut(0, 40)).toBe(false);
-    expect(effortWillUncut(-3, 40)).toBe(false);
-  });
-
-  it("steps down once and never past the last notch", () => {
-    const m = { overflow: 10, effortWidth: 40, max: 1 };
-    expect(nextSqueeze(0, m)).toBe(1);
-    expect(nextSqueeze(1, m)).toBe(1);
-    expect(nextSqueeze(0, { ...m, overflow: 90 })).toBe(0);
-  });
-
-  it("draws the effort at notch 0 and not at notch 1; the model has no notch", () => {
-    expect(rowAt(0)).toEqual({ effort: true });
-    expect(rowAt(1)).toEqual({ effort: false });
-  });
-
-  it("has something to give up only with a model and an effort", () => {
-    expect(maxSqueeze({ model: null })).toBe(0);
-    expect(maxSqueeze({ model: "claude-opus-5-5", effort: null })).toBe(0);
-    expect(maxSqueeze({ model: "claude-opus-5-5", effort: "xhigh" })).toBe(1);
-    // A Codex session with no model yet has a word, not an effort, to protect.
-    expect(maxSqueeze({ model: null, effort: "high" })).toBe(0);
+  it("measures nothing in the head: no label ref, no squeeze state, no observer on the name", () => {
+    expect(src).not.toMatch(/labelRef|modelRef|setSqueeze|setLabelWidth|squeezeOnResize/);
+    expect(src).not.toMatch(/titleRef/);
+    expect(src).not.toMatch(/folderCut/);
+    // The foot still measures itself (card-row-squeeze.ts's other half).
+    expect(src).toMatch(/footRef/);
   });
 });
-
-describe("the squeeze starts again when the name gets wider", () => {
-  it("resets when a sibling went away and the name grew", () => {
-    expect(squeezeOnResize(1, { from: 120, to: 160, selfInflicted: false })).toBe(0);
-  });
-
-  it("does not reset for the widening that dropping the effort itself caused", () => {
-    expect(squeezeOnResize(1, { from: 120, to: 150, selfInflicted: true })).toBe(1);
-  });
-
-  it("keeps its notch when the name narrowed", () => {
-    expect(squeezeOnResize(1, { from: 160, to: 120, selfInflicted: false })).toBe(1);
-  });
-});
-
 
 describe("the row the card draws", () => {
   const card = (over: Partial<AgentNodeData>) => renderToStaticMarkup(createElement(ReactFlowProvider, null,
@@ -93,26 +72,27 @@ describe("the row the card draws", () => {
   // CHANGED ON PURPOSE (V4's Agent / Card). These two cases pinned the second
   // row: a subagent's folder in a piece of its own AHEAD of the model chip, and
   // the folder the only piece cut short so the chip was never pushed off. The
-  // model is plain text in the head now and the kind and folder are the task
-  // line on a row of their own, so they no longer share a row and the folder
-  // cannot take the model with it. They pin that instead: the model leaves the
-  // task line, and the task line is the one piece that is cut.
-  it("puts a subagent's kind and folder on the task line, and the model in the head", () => {
+  // kind and folder are the task line on a row of their own.
+  // CHANGED ON PURPOSE (V4 top-10 #2): this also held the model in the head
+  // ("sonnet 5.5 · medium"). The card draws no model now; the task line's
+  // tooltip still names it.
+  it("puts a subagent's kind and folder on the task line, and no model on the card", () => {
     const html = card({ cwdBasename: "customer-onboarding", model: "claude-sonnet-5-5", effort: "medium" });
     expect(html).toMatch(/<div class="task-line" title="subagent · customer-onboarding · sonnet 5\.5">subagent · customer-onboarding<\/div>/);
-    expect(html).toMatch(/<span class="model-text"[^>]*>sonnet 5\.5 · medium<\/span>/);
-    expect(html.indexOf('class="model-text"')).toBeLessThan(html.indexOf('class="task-line"'));
+    expect(html).not.toContain("model-text");
+    expect(html).not.toContain("sonnet 5.5 · medium");
   });
 
-  // CHANGED ON PURPOSE: this also pinned the model text as `flex: none`. It is
-  // the head piece that gives way first now (see "the head's shrink order"), so
-  // only the task line is pinned here as the row's own cut.
-  it("cuts the task line short with an ellipsis", () => {
+  // CHANGED ON PURPOSE: this also pinned the model text as `flex: none`.
+  // CHANGED ON PURPOSE (V4 top-10 #2): one line cut with an ellipsis → two
+  // lines clamped, because one line cut most tasks after four words.
+  it("cuts the task line short at two lines", () => {
     const task = body(".agent-node .task-line");
-    expect(task).toMatch(/white-space:\s*nowrap;/);
+    expect(task).toMatch(/-webkit-line-clamp:\s*2;/);
+    expect(task).toMatch(/(?:^|[;\s])line-clamp:\s*2;/);
     expect(task).toMatch(/overflow:\s*hidden;/);
-    expect(task).toMatch(/text-overflow:\s*ellipsis;/);
-    // The name is the head's one piece that gives way, ahead of the model.
+    expect(task).not.toMatch(/white-space:\s*nowrap;/);
+    // The name is the head's one piece that gives way.
     expect(body(".agent-node .title .label")).toMatch(/text-overflow:\s*ellipsis;/);
   });
 
@@ -121,47 +101,24 @@ describe("the row the card draws", () => {
     expect(subRowTitle(a)).toMatch(/^session · → 1 · opus 5\.5/);
     expect(agentAriaLabel(a, 0)).toContain("session");
   });
-
-  it("measures again when the NAME's width changes, before the frame is painted", () => {
-    const src = readFileSync(fileURLToPath(new URL("../components/AgentNode.tsx", import.meta.url)), "utf8");
-    // CHANGED ON PURPOSE: this observed the head (.title), whose width does not
-    // change when a sibling goes away, and reset on any change. It observes the
-    // label itself and resets only when the label gets wider (squeezeOnResize).
-    expect(src).toMatch(/const el = labelRef\.current;[\s\S]{0,300}new ResizeObserver\(/);
-    expect(src).not.toMatch(/titleRef/);
-    expect(src).toMatch(/setSqueeze\(s => squeezeOnResize\(s, change\)\);/);
-    expect(src).toMatch(/setLabelWidth\(change\.to\);/);
-    // CHANGED ON PURPOSE: this pinned a cut folder counting as a tight row and
-    // the head's reset on its width. The measurement is the label's overflow
-    // against the effort's width, and the reset on data no longer lists width.
-    expect(src).toMatch(/overflow: label\.scrollWidth - label\.clientWidth,/);
-    expect(src).toMatch(/useBeforePaint\(\(\) => \{ setSqueeze\(0\); \}, \[data\.effort, data\.model, otherModels\.length, headName, data\.kind, squeezeMax\]\)/);
-    expect(src).not.toMatch(/folderCut/);
-  });
 });
 
 describe("the head's shrink order", () => {
   // CHANGED ON PURPOSE (V4's Agent / Card): this pinned a floor of about eight
-  // characters on the name. That floor held a short name's box open, so the
-  // model started a gap after "infra" rather than 6px after it. The name keeps
-  // its room another way: the model text gives way first (below) and stops at
-  // its own 6ch on a card at least 220px wide.
-  it("gives the name no floor of its own, so the model follows a short name closely", () => {
+  // characters on the name. That floor held a short name's box open, so a
+  // marker started a gap after "infra" rather than 6px after it.
+  it("gives the name no floor of its own, so a marker follows a short name closely", () => {
     const label = body(".agent-node .title .label");
     expect(label).toMatch(/min-width:\s*0;/);
     expect(label).not.toMatch(/min\(8ch/);
     expect(body(".agent-node")).toMatch(/min-width:\s*calc\(220px/);
   });
 
-  it("gives the model text way first: a 6ch floor, a far larger shrink factor, its own ellipsis", () => {
-    const model = body(".agent-node .title .model-text");
-    // CHANGED ON PURPOSE (found in the browser): the model text had no floor and its
-    // box collapsed to 0px on a long name, so no ellipsis showed. It keeps 6ch.
-    expect(model).toMatch(/min-width:\s*min\(6ch,\s*100%\);/);
-    expect(model).toMatch(/text-overflow:\s*ellipsis;/);
-    expect(model).toMatch(/overflow:\s*hidden;/);
-    const shrink = (b: string) => Number(/flex:\s*\d+\s+(\d+)\s/.exec(b)?.[1] ?? /flex-shrink:\s*(\d+)/.exec(b)?.[1]);
-    expect(shrink(model)).toBeGreaterThanOrEqual(10 * Math.max(1, shrink(body(".agent-node .title .label"))));
+  // CHANGED ON PURPOSE (V4 top-10 #2): "gives the model text way first" held
+  // the model text to a 6ch floor and a far larger shrink factor than the
+  // name. The model text and its rule are gone.
+  it("has no model text left to give way", () => {
+    expect(body(".agent-node .title .model-text")).toBe("");
   });
 
   it("keeps the restored and ? tags whole", () => {

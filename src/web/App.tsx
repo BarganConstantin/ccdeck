@@ -28,7 +28,7 @@ import { useZoomLod } from "./use-zoom-lod";
 import { useEventStream } from "./use-event-stream";
 import { useSelection } from "./use-selection";
 import { useBoardTick } from "./use-board-tick";
-import { useAgentFocus } from "./use-agent-focus";
+import { useAgentFocus, type LastFocus } from "./use-agent-focus";
 import { usePeekReaders } from "./use-peek-readers";
 import { useBoardLayout, useLayoutAutosave } from "./use-board-layout";
 import { useReframe } from "./use-reframe";
@@ -130,6 +130,8 @@ import { EmptyInspector } from "./components/Inspector";
 import { readView, useView, type View } from "./use-view";
 import { useSideColumn, type SidePanel } from "./side-column";
 import { useInspectorFold, withInspectorFold } from "./inspector-fold";
+import { useWorkspaceInspector } from "./use-workspace-inspector";
+import { setStripeWorkspace } from "./stripe-words";
 import SideColumn from "./components/SideColumn";
 import { SKIP_TO_PANE_MSG, WORKSPACE_PANE_ID, skipToPane } from "./workspace-pane";
 import { createChimePlayer } from "./chime-player";
@@ -528,10 +530,11 @@ function Inner() {
   const layout = useBoardLayout(camera);
   const { pinnedRef, positionsRef, lastLayoutSigRef, handleRelayout, rearrangeUndo } = layout;
 
-  /** The card the last focus framed, and when — so a re-pack that lands just
-   *  after it (the reframe effect below) can frame it again where it went. */
-  const lastFocusRef = useRef<{ id: string; at: number } | null>(null);
-  /** focusAgent, for an effect declared above it. */
+  /** The card the last focus or selection brought into view, and when — so a
+   *  re-pack that lands just after it (the reframe effect below) can frame it
+   *  again where it went, the same way. */
+  const lastFocusRef = useRef<LastFocus | null>(null);
+  /** That jump made again (use-agent-focus.ts), for an effect declared above it. */
   const focusAgentRef = useRef<(id: string) => void>(() => {});
 
 
@@ -709,6 +712,9 @@ function Inner() {
   // registered once. Assigned during render so a keystroke in the same commit
   // sees the array that was just drawn.
   const nodesRef = useMirroredRef(nodes);
+  // And the board as drawn (packed below the full card), where a selection
+  // is brought into view at the zoom the reader is at.
+  const shownRef = useMirroredRef(graph.shown);
 
   // Bringing a card and its session into view, and stepping between cards —
   // use-agent-focus.ts.
@@ -719,8 +725,9 @@ function Inner() {
   // nonce makes the same session twice two jumps.
   const [landed, setLanded] = useState<{ id: string; nonce: number } | null>(null);
   const markLanded = useCallback((sessionId: string) => setLanded(prev => ({ id: sessionId, nonce: (prev?.nonce ?? 0) + 1 })), []);
-  const { focusAgent, stepAgent, focusSession } = useAgentFocus({
-    canvasRef, stateRef, measuredRef, nodesRef, railInsetRef, moveCamera, disableAutoFit,
+  const { focusAgent, revealAgent, stepAgent, focusSession } = useAgentFocus({
+    canvasRef, stateRef, measuredRef, nodesRef, shownRef, lodRef, railInsetRef, moveCamera,
+    currentViewport: camera.currentViewport, disableAutoFit,
     lastFocusRef, focusAgentRef, selectAgent, primarySelectedIdRef, onLand: markLanded,
   });
 
@@ -769,7 +776,23 @@ function Inner() {
   // the pane stay (folding both is Zoom's). D, or choosing a session to
   // inspect, opens it again; the grid drops its track while it is folded.
   const [inspectorFolded, setInspectorFolded] = useState(false);
-  useEffect(() => { if (detailOpen) setInspectorFolded(false); }, [detailOpen]);
+  // An open unfolds it, not the flag as it stands: a load that lands in
+  // Workspace holds the Board's open flag shut below, and the flag it had
+  // before the hold must not unfold the column after it.
+  const detailWasOpen = useRef(detailOpen);
+  useEffect(() => {
+    if (detailOpen && !detailWasOpen.current) setInspectorFolded(false);
+    detailWasOpen.current = detailOpen;
+  }, [detailOpen]);
+  // Workspace opens on the pane: entering closes the Inspector, at every
+  // width, and leaving gives the Board the one it had (use-workspace-inspector.ts).
+  useWorkspaceInspector({
+    active: inWorkspace, detailOpen,
+    fold: () => setInspectorFolded(true), hold: holdRight.detail, restore: setDetailStored,
+  });
+  // The stripes are icons while Workspace is up (stripe-words.ts), in the
+  // commit that draws it.
+  useLayoutEffect(() => { setStripeWorkspace(inWorkspace); }, [inWorkspace]);
   const foldInspector = useCallback(() => {
     setInspectorFolded(true);
     setDetailOpen(false);
@@ -922,7 +945,7 @@ function Inner() {
 
   // What a click, a double-click and a hover on the canvas do — use-canvas-clicks.ts.
   const clicks = useCanvasClicks({
-    clearSelection, selectAgent, detailOpen, setDetailOpen, detailShown, focusAgent, draggingRef, lodRef, stage,
+    clearSelection, selectAgent, detailOpen, setDetailOpen, detailShown, focusAgent, revealAgent, draggingRef, lodRef, stage,
   });
 
   // What the peek reads, made once — use-peek-readers.ts.
@@ -1148,6 +1171,11 @@ function Inner() {
     openQuickOpen,
     feedbackUnread, openFeedbackConversations,
     inspectorOpen, toggleInspector,
+    // A stripe's More reads open while a dialog behind it is up.
+    dialogsUp: {
+      history: dialogs.usageHistoryOpen, browserWatch: dialogs.browserWatchOpen, radar: dialogs.trafficRadarOpen,
+      radio: radioOpen, explore: exploreIntegrationsOpen, toolActivity: toolAuditView, capacity: capacityView,
+    },
   });
   /** A phone opens on Sessions, and a row there opens that session's pane when
    *  the deck has a terminal for it (the Command Panel is on), else the
@@ -1374,7 +1402,7 @@ function Inner() {
             items={[...rails.left, ...rails.right[0]].map(sessionsDoorUnderSheet)}
             more={[rails.search, ...commandPanelMore(stage.enabled ? stage.openFromButton : undefined), ...rails.capacity, ...rails.right.slice(1).flat(), ...rails.integrations, ...rails.explore, ...rails.utilities.filter(item => item !== rails.corner)]}
             offline={everConnected && !live} />
-        : <EdgeRail side="left" label={t("board.rail.tools")} groups={rails.leftStripe} foot={rails.leftFoot} />}
+        : <EdgeRail side="left" label={t("board.rail.tools")} groups={rails.leftStripe} more={rails.leftMore} foot={rails.leftFoot} />}
 
       {/* Mounted whether or not anything was removed, for the reason the
           topbar's alarm region is (#372): words that arrive with their region
@@ -1533,7 +1561,7 @@ function Inner() {
           column, the canvas, this stripe, then its panels and the Inspector.
           Fixed to the window's right edge, so where it sits in the document
           changes nothing on screen. */}
-      {!phone && <EdgeRail side="right" label={t("shell.rail.right")} groups={rails.rightStripe} />}
+      {!phone && <EdgeRail side="right" label={t("shell.rail.right")} groups={rails.rightStripe} more={rails.rightMore} />}
 
       {/* The Board's right column: Usage, This machine, then the Inspector, top
           to bottom (panel-place.css). Always drawn, so nothing in it remounts
@@ -1576,8 +1604,10 @@ function Inner() {
           `:not(:has(.detail))` in the sheet already drops the column, so this
           needed no layout change of its own. */}
       {/* WORKSPACE draws the Inspector as a column whether or not a session is in
-          focus (an empty pane means none, and the column says so), down to 1320px;
-          under that it is the detail sheet, opened as on the Board. */}
+          focus (an empty pane means none, and the column says so), down to 1320px,
+          once it is unfolded: each visit starts with it folded
+          (use-workspace-inspector.ts). Under that it is the detail sheet, opened
+          as on the Board. */}
       {inWorkspace && inspectorColumn && !inspectorFolded && !(detailOpen && selected) ? (
         selected ? (
           <DetailAside

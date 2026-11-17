@@ -84,7 +84,7 @@
 /* The floor is the bottom of the scene, plus whatever it happens to be standing
    ON. The deck's controls sit on that floor and the character walks along it,
    so --fm-riser is how high the thing under its feet is — zero for the floor
-   itself, and the height of the Auto-fit chip while it is up on that. */
+   itself, and the height of a floor notice while it is up on that. */
 .fm-walker[data-place="floor"] { --fm-y: calc(-1 * var(--fm-riser, 0px)); }
 
 /* NO SESSION YET (board-empty.ts): the character stays in the minimap's

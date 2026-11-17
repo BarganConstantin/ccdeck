@@ -5,8 +5,8 @@
 // turns it off from four and back on from three, and every one of those went
 // through the two operations below already — so what moving it buys is that
 // the only code that writes the flag is those two, here, beside the rule that
-// it is never stored. `Inner` gets the ref to read, the state to draw the chip
-// from, and the operations.
+// it is never stored. `Inner` gets the ref to read, the state to draw the
+// recenter button's dot from, and the operations.
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { removeStored } from "./storage";
@@ -20,7 +20,7 @@ const AUTOFIT_KEY = "agent-dag.autoFitDisabled";
 export function useAutoFitSwitch(fitLeft: (duration?: number) => void) {
   // Sticky "user took the wheel" flag. Once the user manually pans, zooms,
   // or drags a node, autofitting is suspended until they hit the recenter
-  // button, or the chip the canvas shows while it is off.
+  // button, which wears a dot while it is off.
   //
   // NOT PERSISTED (#820). It was, "so a refresh respects the user's
   // preference", and what that bought was a pan from some earlier day still in

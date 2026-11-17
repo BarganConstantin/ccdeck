@@ -5,7 +5,7 @@
 // Lifted out of components/ClaudeFm.tsx unchanged. claude-fm.ts decides what
 // the errands ARE; this is the clock that walks them and the page it measures
 // them against — the scene element (`scene`, which the component renders), the
-// canvas floor under it and the Auto-fit chip standing on that floor. The
+// canvas floor under it and the notices row standing on that floor. The
 // component draws whatever this says.
 import { useEffect, useRef, useState } from "react";
 import {
@@ -212,8 +212,8 @@ export function useFmScene(probe: Probe | null, dead: boolean, playing: boolean)
      *
      * The deck's controls sit on that floor and the character walks along it,
      * so without this it strolls straight through the bottom notices. Read
-     * the whole row each time a walk is planned: Auto-fit and Undo appear
-     * independently, and a walk must adapt when either notice disappears.
+     * the whole row each time a walk is planned: a notice comes and goes on
+     * its own, and a walk must adapt when one disappears.
      *
      * Converted into the character's own coordinates, which count leftward
      * from the scene's right edge. Its height is its top's height over the

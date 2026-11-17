@@ -8,8 +8,6 @@
   "extends": "dark",
   "tokens": {
     "node-grad": "var(--panel)",
-    "session-accent-l": "74%",
-    "session-edge-idle-l": "65%",
     "bg": "#1a1b26",
     "bg-soft": "#1e2030",
     "panel": "#24283b",

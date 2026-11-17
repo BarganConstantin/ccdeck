@@ -12,11 +12,12 @@ vi.mock("react", async () => {
   const { react } = await import("./fake-react");
   return { ...react, default: react, memo: (component: unknown) => component };
 });
-const store = vi.hoisted(() => ({ cards: [] as { x: number }[] }));
+const store = vi.hoisted(() => ({ cards: [] as { x: number; y?: number; selected?: boolean }[] }));
 vi.mock("reactflow", () => ({
   useStore: (select: (s: unknown) => unknown) => select({
     nodeInternals: new Map(store.cards.map((c, i) => [String(i), {
-      id: String(i), type: "agent", position: { x: c.x, y: 40 }, positionAbsolute: { x: c.x, y: 40 }, width: 240, height: 130,
+      id: String(i), type: "agent", position: { x: c.x, y: c.y ?? 40 }, positionAbsolute: { x: c.x, y: c.y ?? 40 }, width: 240, height: 130,
+      className: c.selected ? "rf-selected" : undefined, data: { sessionId: String(i) },
     }])),
     transform: [0, 0, 1], width: 1000, height: 700,
   }),
@@ -65,6 +66,31 @@ describe("the minimap's hold", () => {
     store.cards = [{ x: 40 }];
     m.rerender();
     expect(place).toBeNull();
+    m.unmount();
+  });
+
+  // V4 top-10 #3: the card being read is never under the map, not even for the
+  // hold before the map changes corners.
+  it("leaves a corner at once when the selection is under it, and takes the other once that holds", () => {
+    vi.useFakeTimers();
+    store.cards = [{ x: 40 }, { x: 900 }];
+    let place: ReturnType<typeof useMinimapPlace> = null;
+    const m = mount(() => { place = useMinimapPlace(); return null; }, {});
+    vi.advanceTimersByTime(MINIMAP_HOLD_MS + 10);
+    m.rerender();
+    expect(place).toBe("left");
+    // A card is selected under the left corner (12..154, 543..650): gone in the
+    // same render, though the answer has not held yet.
+    store.cards = [{ x: 40 }, { x: 900 }, { x: 20, y: 560, selected: true }];
+    m.rerender();
+    expect(place).toBeNull();
+    vi.advanceTimersByTime(MINIMAP_HOLD_MS + 10);
+    m.rerender();
+    expect(place).toBe("right");
+    // Not selected, the same card leaves the corner rule as it was: right covers less.
+    store.cards = [{ x: 40 }, { x: 900 }, { x: 20, y: 560 }];
+    m.rerender();
+    expect(place).toBe("right");
     m.unmount();
   });
 

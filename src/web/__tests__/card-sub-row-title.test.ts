@@ -32,9 +32,13 @@ describe("the card's second row", () => {
   // It pinned `.sub-details` and `.sub-folder` (the row and its one cut piece);
   // it pins the task line, which is the whole cut line and carries the same
   // tooltip for a subagent, so the model it no longer draws is still readable.
-  it("cuts a subagent's task line short at the card's width, which is why it needs the tooltip", () => {
-    expect(body(".agent-node .task-line")).toMatch(/white-space:\s*nowrap;/);
-    expect(body(".agent-node .task-line")).toMatch(/text-overflow:\s*ellipsis;/);
+  // CHANGED ON PURPOSE (V4 top-10 #2): one line cut with an ellipsis → two
+  // lines clamped, because one line cut most tasks after four words. A longer
+  // task is still cut at the second line, so the tooltip is still needed.
+  it("cuts a subagent's task line short at two lines of the card's width, which is why it needs the tooltip", () => {
+    expect(body(".agent-node .task-line")).toMatch(/-webkit-line-clamp:\s*2;/);
+    expect(body(".agent-node .task-line")).toMatch(/(?:^|[;\s])line-clamp:\s*2;/);
+    expect(body(".agent-node .task-line")).toMatch(/overflow:\s*hidden;/);
   });
 
   // CHANGED ON PURPOSE (V4's Agent / Card): a subagent whose spawning call gave

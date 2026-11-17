@@ -6,7 +6,11 @@
 // One choice per browser, in localStorage.
 //
 // Under 1100px the board needs the room: the stripes are icons whatever the
-// choice, which is kept for a wider window, and the switch is not drawn.
+// choice, which is kept for a wider window, and the switch is not drawn. So
+// does Workspace's pane, at any width (V4 top-10 #7): while Workspace is on
+// screen the stripes are icons and the switch is not drawn, and the Board
+// comes back with the reader's choice. App says which view is up
+// (setStripeWorkspace); nothing about it is stored.
 //
 // A profile that an earlier version already drew as icons keeps them: whether
 // a profile is new is read once, at boot (main.tsx), from what an earlier load
@@ -49,6 +53,8 @@ export function settleStripeWords(store: Store | null = localStore()): boolean {
 
 /** This tab's choice, only where the store refused to keep it. */
 let chosen: boolean | null = null;
+/** Workspace is on screen: its pane takes the room the words would. */
+let workspace = false;
 const listeners = new Set<() => void>();
 
 /** The choice: words, unless this browser hid them. */
@@ -56,9 +62,11 @@ export function stripeWordsShown(): boolean {
   return chosen ?? readStored(STRIPE_WORDS_KEY) !== "off";
 }
 
-/** Whether the window has the room for words. A browser that cannot say is
- *  taken at its choice. */
+/** Whether the stripes have the room for words: a window 1100 wide, and the
+ *  Board, not Workspace, whose pane takes that room. A browser that cannot
+ *  say how wide it is is taken at its choice. */
 export function stripeWordsRoom(): boolean {
+  if (workspace) return false;
   if (typeof window === "undefined" || typeof window.matchMedia !== "function") return true;
   try { return window.matchMedia(STRIPE_WORDS_QUERY).matches; } catch { return true; }
 }
@@ -77,6 +85,14 @@ export function setStripeWords(shown: boolean): void {
   const value = shown ? "on" : "off";
   writeStored(STRIPE_WORDS_KEY, value);
   chosen = readStored(STRIPE_WORDS_KEY) === value ? null : shown;
+  for (const listener of listeners) listener();
+}
+
+/** Workspace is on screen, or no longer: App says so as the view changes, in
+ *  the same commit, so the stripes narrow with the view and not a frame after. */
+export function setStripeWorkspace(on: boolean): void {
+  if (workspace === on) return;
+  workspace = on;
   for (const listener of listeners) listener();
 }
 
@@ -106,8 +122,8 @@ export function useStripeWords(): boolean {
   return useSyncExternalStore(subscribe, stripeWordsOn, stripeWordsOn);
 }
 
-/** Whether the window has the room for words, kept current: where the switch
- *  between words and icons is drawn. */
+/** Whether the stripes have the room for words, kept current: where the
+ *  switch between words and icons is drawn. */
 export function useStripeWordsRoom(): boolean {
   return useSyncExternalStore(subscribe, stripeWordsRoom, stripeWordsRoom);
 }

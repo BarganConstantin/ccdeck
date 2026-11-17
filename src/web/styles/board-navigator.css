@@ -61,29 +61,28 @@ button.btn.nav-new { flex: none; gap: 6px; padding: 0 12px 0 10px; }
 /* ---------------- a tile ---------------- */
 
 .nav-tile {
-  --accent: hsl(var(--session-hue, 200) 70% var(--session-accent-l));
   position: absolute;
   box-sizing: border-box;
 }
-/* The rim and the wash are the cluster's (.cluster-card), on a layer of their
-   own so the fold can scale the geometry without scaling a word. The radius is
-   the cluster's, which is the panel's since the deck kept three radii
-   (--r-cluster is an alias of --r-panel); this one is drawn outside React
-   Flow, so it names the panel directly. The wash is mixed from the session's accent, which carries the
-   theme's tier, so it answers to data-theme as the rim does. */
+/* The wash is the cluster's (.cluster-card), on a layer of its own so the fold
+   can scale the geometry without scaling a word: 3% of the reading ink, no
+   session hue (V4 top-10 #1). Its edge is transparent at rest, so only the
+   socket below draws one. The radius is the cluster's, which is the panel's
+   since the deck kept three radii (--r-cluster is an alias of --r-panel); this
+   one is drawn outside React Flow, so it names the panel directly. */
 .nav-rim {
   position: absolute;
   inset: 0;
   border-radius: var(--r-panel);
-  border: 1px solid hsl(var(--session-hue, 200) 65% var(--session-rim-l) / 0.32);
-  background: color-mix(in srgb, var(--accent) 4%, transparent);
+  border: 1px solid transparent;
+  background: color-mix(in srgb, var(--text) 3%, transparent);
   transform-origin: 0 0;
 }
 .nav-body { position: absolute; inset: 0; transform-origin: 0 0; }
 
 /* The face's press target: a plain button the size of the face, with nothing
-   of its own to draw but the deck's one focus ring — which, inside a tile, is
-   the session's accent, exactly as a focused card's is. */
+   of its own to draw but the deck's one focus ring, in the deck's --accent
+   exactly as a focused card's is. */
 .nav-open {
   position: absolute;
   left: 7px;
@@ -102,8 +101,9 @@ button.btn.nav-new { flex: none; gap: 6px; padding: 0 12px 0 10px; }
 }
 
 /* The face: the card's distance face (.lod-face) at the navigator's size, with
-   its stripe, its state's edge and the one state that must win — stopped on a
-   human — on a variable of its own that the border reads first. */
+   its state's edge and the one state that must win — stopped on a human — on
+   a variable of its own that the border reads first. No stripe, as on the
+   card's face (V4 top-10 #1). */
 .nav-face {
   position: absolute;
   inset: 0;
@@ -122,23 +122,12 @@ button.btn.nav-new { flex: none; gap: 6px; padding: 0 12px 0 10px; }
   border-radius: var(--r-panel);
   transition: background-color var(--dur-fast) var(--ease), border-color var(--dur-base) var(--ease), box-shadow var(--dur-base) var(--ease);
 }
-.nav-face::before {
-  content: "";
-  position: absolute;
-  left: 0;
-  top: 0;
-  bottom: 0;
-  width: 3px;
-  background: var(--accent);
-  opacity: 0.7;
-}
 /* The card's own state edges, theme for theme (agent-node.css .lod-face),
-   written from the tokens they were picked from. */
+   written from the tokens they were picked from. Done keeps --line, as on the
+   card's face (V4 top-10 #1: green on every finished tile was noise). */
 .nav-face[data-state="active"] { --nav-edge: var(--inflight); }
-.nav-face[data-state="done"] { --nav-edge: color-mix(in srgb, var(--ok) 50%, transparent); }
 .nav-face[data-state="err"] { --nav-edge: color-mix(in srgb, var(--err) 60%, transparent); }
 :root[data-theme="light"] .nav-face[data-state="active"] { --nav-edge: color-mix(in srgb, var(--inflight) 65%, transparent); }
-:root[data-theme="light"] .nav-face[data-state="done"] { --nav-edge: var(--ok); }
 :root[data-theme="light"] .nav-face[data-state="err"] { --nav-edge: var(--err); }
 .nav-face[data-alarm] { --nav-alarm: var(--warn); }
 @media (hover: hover) and (pointer: fine) {
@@ -176,19 +165,20 @@ button.btn.nav-new { flex: none; gap: 6px; padding: 0 12px 0 10px; }
 /* ---------------- the subagents ---------------- */
 
 /* The trunk: one line down the tile's left and a branch to each row, in the
-   board's edge grammar — the .sess-edge classes and their two tiers, a live
-   subagent's branch flowing on the edges' own dashflow, a settled one solid. */
+   board's edge grammar — the .sess-edge classes and their two states, a live
+   subagent's branch flowing in --inflight on the edges' own dashflow, a
+   settled one solid in --muted (react-flow.css). */
 .nav-trunk { position: absolute; left: 0; top: 0; overflow: visible; pointer-events: none; }
 .nav-trunk path { fill: none; stroke-linejoin: round; }
 .nav-trunk .sess-edge.sess-live {
-  stroke: hsl(var(--session-hue, 200) 80% var(--session-edge-l));
+  stroke: var(--inflight);
   stroke-width: 2;
   stroke-linecap: round;
   stroke-dasharray: 0.5 4.5;
   animation: dashflow 1.4s linear infinite;
 }
 .nav-trunk .sess-edge.sess-idle {
-  stroke: hsl(var(--session-hue, 200) 50% var(--session-edge-idle-l));
+  stroke: var(--muted);
   stroke-width: 1.5;
 }
 
@@ -219,12 +209,12 @@ button.btn.nav-new { flex: none; gap: 6px; padding: 0 12px 0 10px; }
 
 /* ---------------- the socket ----------------
 
-   The session on the stage leaves its face's skin behind it: the gradient and
-   the stripe have gone to the stage (they are its header now), and what stays
-   is the outline in the session's own hue, its words, and a chevron pointing
-   at the stage. */
+   The session on the stage leaves its face's skin behind it: the gradient has
+   gone to the stage (it is its header now), and what stays is an outline in
+   the deck's --accent, the colour of selection (it was the session's own hue
+   until V4 top-10 #1), its words, and a chevron pointing at the stage. */
 .nav-tile[data-attached] .nav-rim {
-  border-color: hsl(var(--session-hue, 200) 65% var(--session-rim-l) / 0.62);
+  border-color: color-mix(in srgb, var(--accent) 62%, transparent);
   background: color-mix(in srgb, var(--accent) 7.5%, transparent);
 }
 .nav-tile[data-attached] .nav-face {
@@ -233,9 +223,8 @@ button.btn.nav-new { flex: none; gap: 6px; padding: 0 12px 0 10px; }
   border: 1.5px solid var(--accent);
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 22%, transparent);
 }
-.nav-tile[data-attached] .nav-face::before { opacity: 0; }
-/* On the hue wash --muted keeps little headroom in dark, so the second line
-   steps up to the text's own ink on the socket. */
+/* On the accent wash --muted keeps little headroom in dark, so the second
+   line steps up to the text's own ink on the socket. */
 .nav-tile[data-attached] .nav-line { color: var(--text); }
 .nav-socket {
   position: absolute;

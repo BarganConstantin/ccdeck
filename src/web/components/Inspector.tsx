@@ -193,18 +193,24 @@ function AgentsTab({ selected, agents, revision, onSelectAgent, detail }: {
   const tr = useT();
   // The cost is said once, in the spend line under the title, and a session
   // with no subagents has no tree to draw: its one card would repeat the
-  // title, the state, the task, the cost and the time below it.
+  // title, the state, the task, the cost and the time below it. Nor does it
+  // get the tree's head: "Agents · no subagents" over a body about one agent
+  // was a row that said nothing (V4 top-10 #6), so its body starts with the
+  // title block. The head comes back with the tree it names.
+  const tree = rows.length > 1;
   return (
     <>
-      <InspectorHead
-        title={tr("board.inspector.agents")}
-        info={tr("board.inspector.agentsNote")}
-        qualifier={subagentCount(rows)}
-      />
-      {rows.length > 1 && (
-        <ul className="insp-tree">
-          {rows.map(row => <TreeItem key={row.agent.id} row={row} revision={revision} current={row.agent.id === selected.id} onSelectAgent={onSelectAgent} />)}
-        </ul>
+      {tree && (
+        <>
+          <InspectorHead
+            title={tr("board.inspector.agents")}
+            info={tr("board.inspector.agentsNote")}
+            qualifier={subagentCount(rows)}
+          />
+          <ul className="insp-tree">
+            {rows.map(row => <TreeItem key={row.agent.id} row={row} revision={revision} current={row.agent.id === selected.id} onSelectAgent={onSelectAgent} />)}
+          </ul>
+        </>
       )}
       <div className="insp-detail">{detail}</div>
     </>

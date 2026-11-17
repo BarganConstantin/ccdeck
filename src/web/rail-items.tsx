@@ -10,21 +10,31 @@
 // TWO STRIPES, A DOOR ON THE SIDE WHERE ITS PANEL OPENS (V4's Figma). The eye
 // never crosses the canvas to find what a door opened. Each stripe is runs of
 // doors that answer one question each, three doors at most, between rules, each
-// run a name a screen reader says on the way in:
+// run a name a screen reader says on the way in.
+//
+// THE EVERYDAY DOORS ON THE STRIPE, THE OCCASIONAL ONES BEHIND A MORE (V4
+// design review, point 4). Fifteen doors stood on the stripes even on an empty
+// board, the ones used every hour beside the ones used once a week, and the eye
+// had to read them all to find either. Each stripe now keeps the doors used
+// all day and a More at its foot for the rest, the More on the side where those
+// doors' dialogs belong, its menu in the same runs, a rule between them:
 //
 //   LEFT   Sessions and accounts  Session list · Accounts (or Codex accounts)
-//          Claude accounts        Account capacity · Reset calendar
-//          the connected trackers (a run of their own, so Explore keeps its place)
-//          Explore integrations
-//          foot                   Radio · Settings
+//          the connected trackers (a run of their own, once one is connected:
+//                                 someone connected it on purpose)
+//          foot                   More · Settings
+//          its More               Account capacity · Reset calendar | Explore
+//                                 integrations | Radio
 //
 //   RIGHT  the Inspector          its door alone, first
 //          Usage and machine      Usage · Machine
-//          Activity history       Usage history · Tool activity · Skill activity
-//          Watchers               Browser watch · Telemetry Radar
-//          (no foot)
+//          foot                   More
+//          its More               Usage history · Tool activity · Skill activity
+//                                 | Browser watch · Telemetry Radar
 //
-// Every door keeps its key: only the place moved. The phone keeps its dock.
+// Every door keeps its key and its row in Quick open: only the place moved,
+// and both read these definitions, never what a stripe draws. The phone keeps
+// its dock.
 import { providerText } from "./integrations/provider-text";
 import type { Dispatch, SetStateAction } from "react";
 import type { Providers } from "./providers";
@@ -54,15 +64,21 @@ export interface RailItems {
    *  closes the other. */
   left: RailItem[];
   /** The left stripe's doors, top to bottom, in V4's Figma order and its runs
-   *  (the rules fall between them): Sessions and Accounts, Account capacity and
-   *  Reset calendar, then the trackers and Explore integrations. */
+   *  (the rules fall between them): Sessions and Accounts, then the connected
+   *  trackers. */
   leftStripe: RailItem[][];
-  /** The left stripe's foot, pushed down: Radio, Settings. */
+  /** The left stripe's More, first in its foot: Account capacity and Reset
+   *  calendar, Explore integrations, Radio, a rule between each run. A run
+   *  with nothing in it is not there, and a More with nothing is not drawn. */
+  leftMore: RailItem[][];
+  /** The left stripe's foot, pushed down, after its More: Settings. */
   leftFoot: RailItem[];
-  /** The right stripe's doors, top to bottom: the Inspector alone, Usage and
-   *  Machine, the three activity records, Browser watch and Telemetry Radar. It
-   *  has no foot. */
+  /** The right stripe's doors, top to bottom: the Inspector alone, then Usage
+   *  and Machine. */
   rightStripe: RailItem[][];
+  /** The right stripe's More, alone in its foot: the three activity records,
+   *  then Browser watch and Telemetry Radar. */
+  rightMore: RailItem[][];
   /** Feedback, alone in the top bar's right corner on every size: a cell of
    *  its own, so it never reads as part of Search. Settings moved to the Panel
    *  bar's foot (its key is unchanged). */
@@ -70,9 +86,9 @@ export interface RailItems {
   /** Quick open's door straight to Codex's side, where the panel has two sides
    *  and the rail one button. Empty when Codex's button is in `left`. */
   codexDoor: RailItem[];
-  /** Account capacity and Reset calendar, each one press from the stripe and
-   *  their only door. On a phone they are rows under More, so the dock keeps
-   *  its five slots. Empty without Claude Code. */
+  /** Account capacity and Reset calendar, rows of the left stripe's More and
+   *  their only door. On a phone they are rows under the dock's More, so the
+   *  dock keeps its five slots. Empty without Claude Code. */
   capacity: RailItem[];
   /** The phone's grouping of the same doors: the two panels, the activity
    *  records, the watchers, then Radio. The desktop draws the two stripes. */
@@ -96,6 +112,21 @@ export interface RailItems {
 export interface IntegrationRail {
   provider: Pick<IntegrationWebDef, "kind" | "label" | "Glyph" | "shortcut" | "detail">;
   onPress: () => void;
+}
+
+/** Which dialog behind a More's doors is up, so that More reads open while it
+ *  is: the reader sees where the dialog came from (EdgeRails.tsx). A door on a
+ *  stripe itself says nothing of its dialog, which has its own name. */
+export interface DialogsUp {
+  history?: boolean;
+  browserWatch?: boolean;
+  radar?: boolean;
+  radio?: boolean;
+  explore?: boolean;
+  /** The view Tool activity is open on, or null. */
+  toolActivity?: ToolActivityView | null;
+  /** The view Account capacity is open on, or null. */
+  capacity?: CapacityView | null;
 }
 
 /** What Browser watch's hint adds under its name: whether it is watching, and
@@ -133,8 +164,10 @@ export function railItems({
   usagePanelOpen, setUsagePanelOpen, machinePanelOpen, setMachinePanelOpen, setUsageHistoryOpen,
   watchOn, watchUnseen, setBrowserWatchOpen, setTrafficRadarOpen, setRadioOpen, openToolActivity, openSettings, onFeedback, toggles,
   openCapacity, integrations = [], openExploreIntegrations, openQuickOpen, feedbackUnread = 0, openFeedbackConversations,
-  inspectorOpen = false, toggleInspector = () => {},
+  inspectorOpen = false, toggleInspector = () => {}, dialogsUp = {},
 }: {
+  /** Which dialog behind a More's doors is up; absent, none. */
+  dialogsUp?: DialogsUp;
   /** Whether the Inspector shows, as a column, a sheet or the detail panel. */
   inspectorOpen?: boolean;
   /** The Inspector door's press: what D does in the place it is pressed. */
@@ -201,19 +234,20 @@ export function railItems({
     ariaLabel: t("board.rail.accounts"), hint: providers.codex ? undefined : t("board.rail.accounts.hint"), glyph: <AccountsGlyph />, kind: "panel",
     open: accountsPanelOpen, controls: accountsPanelId, onPress: toggleAccountsPanel, buttonRef: toggles.accounts,
   };
-  // ACCOUNT CAPACITY AND RESET CALENDAR, ON THE STRIPE. Both lived behind the
+  // ACCOUNT CAPACITY AND RESET CALENDAR, A DOOR EACH. Both lived behind the
   // gauge in the accounts panel's header, the calendar a tab inside its dialog,
   // and users said they could not find them. The gauge and the tabs are gone:
   // each door opens its own view, over whatever is open, and the left column
-  // is not touched.
+  // is not touched. They lead the left stripe's More: read now and then, not
+  // all day.
   const capacity: RailItem[] = openCapacity ? [{
     id: "account-capacity", label: t("board.rail.capacity"), short: t("board.rail.capacity.short"), ariaLabel: t("board.rail.capacity"),
     detail: t("board.rail.capacity.detail"),
-    glyph: <CapacityGlyph />, kind: "dialog", onPress: () => openCapacity("accounts"),
+    glyph: <CapacityGlyph />, kind: "dialog", onPress: () => openCapacity("accounts"), up: dialogsUp.capacity === "accounts",
   }, {
     id: "reset-calendar", label: t("board.rail.calendar"), short: t("board.rail.calendar.short"), stripeWord: t("board.rail.calendar"), ariaLabel: t("board.rail.calendar"),
     detail: t("board.rail.calendar.detail"),
-    glyph: <ResetCalendarGlyph />, kind: "dialog", onPress: () => openCapacity("calendar"),
+    glyph: <ResetCalendarGlyph />, kind: "dialog", onPress: () => openCapacity("calendar"), up: dialogsUp.capacity === "calendar",
   }] : [];
   // On a deck with Codex alone this is the Accounts door, and A opens it
   // (use-deck-shortcuts.ts), so it shows the key. Beside Claude it is only in
@@ -251,14 +285,14 @@ export function railItems({
     // read as the browser's.
     id: "history", label: t("board.rail.history"), short: t("board.rail.history.short"), stripeWord: t("board.rail.history"), key: { cap: "H", aria: "H", single: true },
     ariaLabel: t("board.rail.history"), glyph: <HistoryGlyph />, kind: "dialog",
-    onPress: () => setUsageHistoryOpen(o => !o),
+    onPress: () => setUsageHistoryOpen(o => !o), up: dialogsUp.history === true,
   };
   const browserWatch: RailItem = {
     id: "browser-watch", label: t("board.rail.browserWatch"), short: t("board.rail.browserWatch.short"), stripeWord: t("board.rail.browserWatch"), key: { cap: "B", aria: "B", single: true },
     ariaLabel: `${t("board.rail.browserWatch")}${t("board.listSep")}${watchOn ? t("board.rail.watching") : t("board.rail.notWatching")}${watchUnseen > 0 ? `${t("board.listSep")}${t("board.rail.unreadCount", { n: watchUnseen })}` : ""}`,
     detail: browserWatchDetail(watchOn, watchUnseen, t),
     glyph: <BrowserWatchGlyph watching={watchOn === true || watchUnseen > 0} />, kind: "dialog",
-    onPress: () => setBrowserWatchOpen(o => !o), badge: watchUnseen,
+    onPress: () => setBrowserWatchOpen(o => !o), badge: watchUnseen, up: dialogsUp.browserWatch === true,
   };
   // A chord, not a single key: it stays in the hint and in
   // aria-keyshortcuts whichever way the single-key switch is set.
@@ -292,16 +326,16 @@ export function railItems({
   const activity: RailItem[] = openToolActivity ? [{
     id: "tool-activity", label: t("board.rail.tools.activity"), short: t("board.rail.tools.short"), stripeWord: t("board.rail.tools.activity"), ariaLabel: t("board.rail.tools.activity"),
     glyph: <ToolActivityGlyph />, kind: "dialog",
-    detail: t("board.rail.tools.detail"), onPress: () => openToolActivity("tools"),
+    detail: t("board.rail.tools.detail"), onPress: () => openToolActivity("tools"), up: dialogsUp.toolActivity === "tools",
   }, {
     id: "skill-activity", label: t("board.rail.skills"), short: t("board.rail.skills.short"), stripeWord: t("board.rail.skills"), ariaLabel: t("board.rail.skills"),
     glyph: <SkillActivityGlyph />, kind: "dialog",
-    detail: t("board.rail.skills.detail"), onPress: () => openToolActivity("skills"),
+    detail: t("board.rail.skills.detail"), onPress: () => openToolActivity("skills"), up: dialogsUp.toolActivity === "skills",
   }] : [];
   const radar: RailItem[] = setTrafficRadarOpen ? [{
     id: "traffic-radar", label: t("board.rail.radar"), short: t("board.rail.radar.short"), ariaLabel: t("board.rail.radar"),
     glyph: <TrafficRadarGlyph />, kind: "dialog",
-    detail: t("board.rail.radar.detail"), onPress: () => setTrafficRadarOpen(true),
+    detail: t("board.rail.radar.detail"), onPress: () => setTrafficRadarOpen(true), up: dialogsUp.radar === true,
   }] : [];
   // A dialog, like the doors above it: the explorer is a modal over the deck
   // (RadioPanel.tsx), so the button says it opens one rather than claiming a
@@ -309,11 +343,12 @@ export function railItems({
   const radio: RailItem[] = setRadioOpen ? [{
     id: "radio", label: t("board.rail.radio"), short: t("board.rail.radio"), ariaLabel: t("board.rail.radio"),
     glyph: <RadioGlyph />, kind: "dialog",
-    detail: t("board.rail.radio.detail"), onPress: () => setRadioOpen(true),
+    detail: t("board.rail.radio.detail"), onPress: () => setRadioOpen(true), up: dialogsUp.radio === true,
   }] : [];
   const explore: RailItem[] = openExploreIntegrations ? [{
     id: "explore-integrations", label: t("board.rail.explore"), short: t("board.rail.explore.short"),
     ariaLabel: t("board.rail.explore"), glyph: <IntegrationsGlyph />, kind: "dialog", onPress: openExploreIntegrations,
+    up: dialogsUp.explore === true,
   }] : [];
   // Each opens its large modal, so a dialog: aria-haspopup and no state.
   const trackers: RailItem[] = integrations.map(({ provider, onPress }): RailItem => ({
@@ -333,22 +368,30 @@ export function railItems({
     // about the accounts. Codex has a button of its own only where it is all
     // this deck has; beside Claude it is a side of the same panel.
     // V4's Panel bar (Figma): Sessions first, then Accounts, and Codex's door
-    // beside Accounts where it is all this deck has; the rest in its runs.
+    // beside Accounts where it is all this deck has; then the trackers someone
+    // connected. The occasional doors are in its More, in their runs.
     leftStripe: [
       named(t("shell.rail.left"), [sessionList, ...(providers.claude ? [accounts] : providers.codex ? [codex] : [])]),
-      providers.claude ? named(t("board.rail.group.accounts"), capacity) : [],
       trackers,
-      explore,
     ].filter(group => group.length > 0),
-    leftFoot: [...radio, settings],
-    // The Inspector's door alone, then the panels and records the right side
-    // opens. Its press is App's (it does what D does in the place it is pressed).
+    leftMore: [
+      providers.claude ? named(t("board.rail.group.accounts"), capacity) : [],
+      explore,
+      radio,
+    ].filter(group => group.length > 0),
+    leftFoot: [settings],
+    // The Inspector's door alone, then the two panels the right side opens. Its
+    // press is App's (it does what D does in the place it is pressed). The
+    // records and the watchers, whose dialogs are the right side's, are in its
+    // More.
     rightStripe: [
       [inspector],
       named(t("board.rail.group.usage"), [usage, machine]),
+    ],
+    rightMore: [
       named(t("board.rail.group.activity"), [history, ...activity]),
       named(t("board.rail.group.watchers"), [browserWatch, ...radar]),
-    ].filter(group => group.length > 0),
+    ],
     corner: feedback,
     capacity: providers.claude ? capacity : [],
     right: [

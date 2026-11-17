@@ -148,7 +148,10 @@ describe("the state marks", () => {
     const css = read("../styles/agent-node.css");
     expect(css).toContain('.state-mark[data-kind="live"] { color: var(--inflight); }');
     expect(css).toContain('.state-mark[data-kind="done"] { color: var(--ok); }');
-    expect(css).toContain('.state-mark[data-kind="partial"] { color: var(--ok); }');
+    // CHANGED ON PURPOSE (V4 top-10 #9): --ok → --warn, because a run that
+    // finished with failures is a warning, and done's green tick beside its
+    // amber dot read as half a success. The glyph is the same.
+    expect(css).toContain('.state-mark[data-kind="partial"] { color: var(--warn); }');
     expect(css).toMatch(/\.state-mark \.kit-warn,\s*\.kit-warn \{ fill: var\(--warn\); \}/);
     expect(css).toContain('.state-mark[data-kind="err"] { color: var(--err); }');
     expect(css).toContain(".alert-mark { flex: none; margin-left: auto; color: var(--warn); }");

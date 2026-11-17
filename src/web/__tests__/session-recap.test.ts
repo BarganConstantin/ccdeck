@@ -350,8 +350,11 @@ describe("where it is drawn", () => {
     // CHANGED ON PURPOSE (V4's Figma, Agent / Card): the card carries no pin.
     expect(SHEET).not.toContain(".recap-pin");
     const note = body("\n.recap-note {");
-    // Outside the card, so it rebuilds the card's --accent itself.
-    expect(note).toMatch(/--accent: hsl\(var\(--session-hue, 200\) 70% var\(--session-accent-l\)\);/);
+    // CHANGED ON PURPOSE (V4 top-10 #1): outside the card, it rebuilt the
+    // card's --accent from the session's hue. Neither wears that hue now, so
+    // the note reads the deck's --accent like everything else.
+    expect(note).not.toMatch(/--accent:/);
+    expect(note).not.toMatch(/--session-hue/);
     // CHANGED ON PURPOSE (V4's Figma): the card and the note carry no shadow.
     expect(note).toMatch(/box-shadow: none;/);
     // Beads, not dashes: the canvas's dashed edges mean a call.

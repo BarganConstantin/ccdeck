@@ -145,10 +145,13 @@ describe("before the pane is measured", () => {
 });
 
 describe("the chrome it keeps clear of", () => {
-  it("is the furniture drawn over the pane: the filter bar, the control stack and minimap, the auto-fit chip, the floating panels", () => {
-    for (const sel of [".cat-filter-bar", ".react-flow__panel", ".autofit-chip", ".usage-panel", ".sysdetail", ".detail"]) {
+  it("is the furniture drawn over the pane: the filter bar, the control stack and minimap, Undo, the floating panels", () => {
+    for (const sel of [".cat-filter-bar", ".react-flow__panel", ".rearrange-undo", ".usage-panel", ".sysdetail", ".detail"]) {
       expect(PANE_CHROME.split(",").map(s => s.trim()), sel).toContain(sel);
     }
+    // CHANGED ON PURPOSE (V4 top-10 #3): the auto-fit chip was furniture → it is
+    // gone, because recenter on the control bar did the same thing.
+    expect(PANE_CHROME).not.toContain(".autofit-chip");
   });
 
   it("is measured against the pane and clipped to it", () => {
@@ -173,11 +176,14 @@ describe("the layer draws what the room says", () => {
     // Round 3: where the notes are not drawn the board is packed and the pill
     // reaches only as far as the packed gap lets it.
     expect(component).toContain("const room = labelRoom(c, { x, y, zoom }, pane, chrome, notes ? undefined : PACKED_LABEL_GUTTER);");
-    expect(component).toContain("const labelStyle = clusterLabelStyle(c, zoom, hue, room.maxWidth);");
+    // CHANGED ON PURPOSE (V4 top-10 #1): `clusterLabelStyle(c, zoom, hue,
+    // room.maxWidth)` → `(c, zoom, room.maxWidth)`, because the label wears no
+    // session hue any more; the room's width moved up into the hue's slot.
+    expect(component).toContain("const labelStyle = clusterLabelStyle(c, zoom, room.maxWidth);");
     expect(component).toContain('data-offpane={room.hidden ? "" : undefined}');
     // The width is the room's, and the room never exceeds the gutter's cap.
-    expect(clusterLabelStyle(C, Z, 0, 90).maxWidth).toBe(90);
-    expect(clusterLabelStyle(C, Z, 0).maxWidth).toBe(labelMaxWidth(C.w, Z));
+    expect(clusterLabelStyle(C, Z, 90).maxWidth).toBe(90);
+    expect(clusterLabelStyle(C, Z).maxWidth).toBe(labelMaxWidth(C.w, Z));
   });
 
   it("hides it in the sheet, out of the paint, the hit test, the tab order and the reading order, with no motion", () => {
@@ -185,8 +191,9 @@ describe("the layer draws what the room says", () => {
     expect(off.length).toBe(1);
     expect(off[0].body).toMatch(/visibility:\s*hidden/);
     expect(off[0].body).not.toMatch(/transition|animation/);
-    // And the pill's own rule eases nothing: its hover is a brightness and a
-    // ring, neither transform nor opacity (V4's motion rule 4), so it lands at once.
+    // And the label's own rule eases nothing: its hover is a colour and an
+    // underline, neither transform nor opacity (V4's motion rule 4), so it
+    // lands at once.
     const own = rules(".cluster-label").filter(r => r.media == null).map(r => r.body).join("\n");
     expect(own).not.toMatch(/transition\s*:/);
   });
