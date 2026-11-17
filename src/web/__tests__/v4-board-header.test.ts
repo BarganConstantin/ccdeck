@@ -72,11 +72,13 @@ describe("the strip's geometry, word for word from the Figma", () => {
     expect(head["overflow"]).toBe("hidden");
     expect(head["flex"]).toBe("none");
   });
-  it("sets a stat as a column with no gap, number mono 18/24 600 over a label 12/16 400 in --muted", () => {
+  it("sets a stat as a column with no gap, number tabular sans 18/24 600 over a label 12/16 400 in --muted", () => {
     expect(decls(".bh-stat", own)["flex-direction"]).toBe("column");
     expect(decls(".bh-stat", own)["gap"]).toBe("0");
     const num = decls(".bh-num", own);
-    expect(num["font-family"]).toBe("var(--font-mono)");
+    // CHANGED ON PURPOSE (V4 top-10 #8): mono → sans + tabular-nums, because a stat's number is a figure, not code.
+    expect(num["font-family"]).toBe("var(--font-sans)");
+    expect(num["font-variant-numeric"]).toBe("tabular-nums");
     // CHANGED ON PURPOSE (owner 2026-11-10 critique: type scale 11/12/13/16/22, radii 4/8/pill): a figure at 16.
     expect(num["font-size"]).toBe(INC(16));
     expect(num["line-height"]).toBe("24px");

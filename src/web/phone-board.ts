@@ -50,7 +50,7 @@ export function phoneBoardCards(
   return cards;
 }
 
-/** The card's mono line, "model · time": the model as the list's chip names it
+/** The card's meta line, "model · time", in tabular figures: the model as the list's chip names it
  *  and the clock the list's row keeps at its right edge (railTime), with the
  *  word a screen reader hears ahead of the number. Either may be absent. */
 export function phoneCardMeta(r: Row, group: RailGroup, now: number): { model: string | null; time: ReturnType<typeof railTime> } {

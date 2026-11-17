@@ -59,8 +59,8 @@
   color: var(--text);
   overflow-wrap: anywhere;
 }
-/* The four stages (V4's Figma): 28 high rows, a 20 circle with the number in
-   mono 11, and the stage's name in the secondary ink at 13 medium. */
+/* The four stages (V4's Figma): 28 high rows, a 20 circle with the number at
+   11, tabular, and the stage's name in the secondary ink at 13 medium. */
 .aa-steps { list-style: none; margin: 0; padding: 0; }
 .aa-steps li {
   display: flex;
@@ -83,7 +83,8 @@
   box-sizing: border-box;
   border: 1px solid var(--line);
   border-radius: var(--r-pill);
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
+  font-variant-numeric: tabular-nums;
   font-size: calc(11px + var(--ui-text-increase, 0px));
   line-height: calc(14px + var(--ui-text-increase, 0px));
   font-weight: 400;

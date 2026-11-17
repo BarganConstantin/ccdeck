@@ -82,7 +82,8 @@ describe("the wait is V4's reading state, and the chart keeps its own height", (
 
   it("puts the day's name under its column and the value over its bar, in the one column", () => {
     expect(block(".uh-bar-plot")).toMatch(/justify-content: flex-end/);
-    expect(block(".uh-bar-value")).toMatch(/font-family: var\(--font-mono\)/);
+    // CHANGED ON PURPOSE (V4 top-10 #8): mono → sans + tabular-nums, because a bar's value is a figure, not code.
+    expect(block(".uh-bar-value")).toMatch(/font-family: var\(--font-sans\)/);
     expect(block(".uh-bar-label")).toMatch(/width: 0/);
     expect(modal).toMatch(/className="uh-bar-label" aria-hidden="true"/);
   });

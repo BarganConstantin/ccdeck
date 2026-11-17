@@ -107,7 +107,7 @@
 .reading-preview-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: calc(4px * var(--ui-space, 1) / 0.7) 10px; }
 .reading-preview-row strong { font-size: calc(13px + var(--ui-text-increase, 0px)); font-weight: 600; line-height: calc(20px + var(--ui-text-increase, 0px)); color: var(--text); }
 .reading-preview-row div > span { display: block; font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: calc(16px + var(--ui-text-increase, 0px)); color: var(--muted); }
-.reading-preview-time { color: var(--muted); font-family: var(--font-mono); font-size: calc(11px + var(--ui-text-increase, 0px)); line-height: calc(14px + var(--ui-text-increase, 0px)); font-variant-numeric: tabular-nums; }
+.reading-preview-time { color: var(--muted); font-family: var(--font-sans); font-size: calc(11px + var(--ui-text-increase, 0px)); line-height: calc(14px + var(--ui-text-increase, 0px)); font-variant-numeric: tabular-nums; }
 /* Korean is written with spaces between words, but a browser may break a line
    after any syllable. Keep a word whole, and let only one too long for its box break. */
 html:lang(ko) { word-break: keep-all; overflow-wrap: break-word; }

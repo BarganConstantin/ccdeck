@@ -115,10 +115,11 @@ describe("V4's chips: 24 tall, 12 on 16", () => {
     expect(decl(count, "font-size")).toBe(INC(12));
     expect(decl(count, "color")).toBe("var(--text-secondary)");
     expect(decl(`${count} b`, "color")).toBe("var(--text)");
-    expect(decl(`${count} b`, "font-family")).toBe("var(--font-mono)");
+    // CHANGED ON PURPOSE (V4 top-10 #8): mono → sans + tabular-nums, because the count is a figure, not code.
+    expect(decl(`${count} b`, "font-family")).toBe("var(--font-sans)");
     expect(decl(`${count} b`, "font-weight")).toBe("600");
   });
-  it("the waiting count is a --warn pill, padded 0 8 0 6, 4 apart, the figure in mono 600", () => {
+  it("the waiting count is a --warn pill, padded 0 8 0 6, 4 apart, the figure in tabular sans 600", () => {
     expect(decl(count, "height")).toBe("24px");
     expect(decl(count, "box-sizing")).toBe("border-box");
     expect(decl(count, "gap")).toBe("4px");
@@ -130,7 +131,8 @@ describe("V4's chips: 24 tall, 12 on 16", () => {
     expect(decl(count, "line-height")).toBe("16px");
     expect(decl(count, "font-weight")).toBe("400");
     const b = `${count} b`;
-    expect(decl(b, "font-family")).toBe("var(--font-mono)");
+    // CHANGED ON PURPOSE (V4 top-10 #8): mono → sans + tabular-nums, because the count is a figure, not code.
+    expect(decl(b, "font-family")).toBe("var(--font-sans)");
     expect(decl(b, "font-size")).toBe(INC(12));
     expect(decl(b, "line-height")).toBe("16px");
     expect(decl(b, "font-weight")).toBe("600");

@@ -24,8 +24,10 @@ export default function UsageDayDetail({ selectedDay }: { selectedDay: DayEntry 
         {/* Which CLIs ran that day — see dayAgentsLine. The `title`
             carries the same text because this cell now ellipsises;
             the column is whatever the date and the cost leave of the
-            row, which is roughly 88 monospace characters, and two
-            named CLIs spend about thirty of them. #462 is the
+            row, which was measured at roughly 88 monospace characters
+            (the line is in the narrower sans since V4 top-10 #8, so it
+            only gained room), and two named CLIs spend about thirty
+            of them. #462 is the
             precedent — the model label overflowed a hard column here
             for exactly one build before anyone noticed, because
             nothing failed, it just wrapped. */}

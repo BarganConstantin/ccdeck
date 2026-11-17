@@ -418,7 +418,7 @@
   animation: pulse var(--pulse-live) infinite;
 }
 /* The context ring and its percent, "◔ 17%", right after the foot's token
-   figure: a 14px ring and the figure in the foot's own mono 11/14 ink, so the
+   figure: a 14px ring and the figure in the foot's own 11/14 ink, so the
    button takes its type from the row it sits in. */
 .ctx-donut {
   position: relative;
@@ -461,8 +461,8 @@
 
 
 /* THE COST TOOLTIP (V4): 320 wide on --panel with a --line edge and the
-   overlay's radius and shadow; 12px inside, 8px between its blocks. Mono 11/14
-   throughout; each row is 18 tall, the label on the left in --muted and the
+   overlay's radius and shadow; 12px inside, 8px between its blocks. 11/14 in
+   the sans with tabular figures throughout; each row is 18 tall, the label on the left in --muted and the
    value on the right in --text, 16px apart. Portalled to the body
    (CostChipTip), so it sits outside the card and its clip. */
 .cost-tip {
@@ -499,7 +499,7 @@
     .cost-tip { transform: none; }
   }
 }
-.cost-tip-title, .cost-tip-row { font-family: var(--font-mono); }
+.cost-tip-title, .cost-tip-row { font-family: var(--font-sans); font-variant-numeric: tabular-nums; }
 .cost-tip-section { display: flex; flex-direction: column; gap: 8px; }
 .cost-tip-title { color: var(--text-secondary); overflow-wrap: anywhere; }
 .cost-tip-rows { display: flex; flex-direction: column; }

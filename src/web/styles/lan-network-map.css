@@ -515,7 +515,7 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: calc(11px + var(--ui-text-increase, 0px));
   line-height: 14px;
   color: var(--muted);
@@ -665,7 +665,7 @@
 }
 .nm-counts li { display: grid; grid-template-columns: 10px 24px minmax(0, 1fr); align-items: center; gap: 8px; }
 .nm-count-n {
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: calc(13px + var(--ui-text-increase, 0px));
   font-weight: 600;
   text-align: right;
@@ -698,7 +698,7 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   color: var(--text);
 }
 /* A login that works both ways is the steady state: listed, so the panel

@@ -297,8 +297,8 @@ input, textarea { caret-color: var(--accent); }
    hang the pencil halfway down the pair, pointing at neither line. */
 .lan-peer-title { display: flex; align-items: baseline; gap: 2px; min-width: 0; }
 /* The machine's name, in the interface's own face: it is a name somebody
-   chose, not a value to be copied, and `.modal-tool-name`'s monospace is for
-   the tool calls that are. */
+   chose, not a value to be copied, and monospace is for the values that are
+   (`.ap-lan-code`). */
 /* IT WRAPS RATHER THAN TRUNCATES. A hostname is what this whole dialog is
    about, and when no alias is set this is the only place it appears — an
    ellipsis put the end of a long one out of reach entirely, since the file's
@@ -330,7 +330,7 @@ input, textarea { caret-color: var(--accent); }
 .lan-peer-sub {
   margin: 0;
   min-width: 0;
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: calc(12px + var(--ui-text-increase, 0px));
   line-height: 16px;
   color: var(--muted);

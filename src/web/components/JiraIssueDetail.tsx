@@ -56,7 +56,7 @@ function Person({ person, fallback, you = false }: { person: { name: string; ava
   return <IntegrationPerson src={person.avatar} name={person.name} size={18} you={you} />;
 }
 
-/** "2h ago" in mono, the moment itself in the title. */
+/** "2h ago" in tabular figures, the moment itself in the title. */
 function CommentTime({ iso }: { iso: string }) {
   const t = useT();
   const at = jiraInstant(iso);
@@ -194,7 +194,7 @@ export default function JiraIssueDetail({ conn, api, assetUrl, trail, estimation
             <section className="jr-detail-section" aria-labelledby="jira-detail-files">
               <h3 id="jira-detail-files">{t("integrations.detail.attachments")} <span className="jr-count">{data!.attachments.length}</span></h3>
               <ul className="jr-files">
-                {/* The file glyph, the name, its size in mono; when it was
+                {/* The file glyph, the name, its size (tabular); when it was
                     added is the size's title (V4's Figma). */}
                 {data!.attachments.map(a => (
                   <li key={a.id}>

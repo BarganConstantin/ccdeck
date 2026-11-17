@@ -1,7 +1,7 @@
 /* ---------------- detail panel: hero + sections ---------------- */
 
 /* THE TITLE BLOCK (V4's Figma): the 14px state glyph and the name at 600
-   16/20, the meta line at 400 12/16, the spend figure in mono 600 16/24 with
+   16/20, the meta line at 400 12/16, the spend figure 600 16/24, tabular, with
    its word. No rule under it and no box round the spend: the body's 12px gap
    is the spacing. */
 .detail-hero {
@@ -70,7 +70,7 @@
   gap: 6px;
 }
 .detail-hero .hero-cost-value {
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: calc(16px + var(--ui-text-increase, 0px));
   line-height: 24px;
   font-weight: 600;
@@ -240,7 +240,7 @@
   gap: 8px;
 }
 /* The section label (V4's Figma): a 20-high row, 600 12/16 in --text-secondary,
-   in the case it is written in; the count beside it is mono 400 11/14 --muted. */
+   in the case it is written in; the count beside it is 400 11/14 --muted, tabular. */
 .detail-section h3 {
   display: flex;
   align-items: center;
@@ -254,15 +254,17 @@
   color: var(--muted);
   text-transform: none;
   letter-spacing: 0;
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
+  font-variant-numeric: tabular-nums;
 }
 
-/* "2 live  1 err" beside the Tool calls count: mono 12/16, the whole item in
+/* "2 live  1 err" beside the Tool calls count: 12/16 tabular, the whole item in
    its colour, at the body's weight rather than the heading's. */
 .activity-counters {
   display: flex;
   gap: 12px;
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
+  font-variant-numeric: tabular-nums;
   font-size: calc(12px + var(--ui-text-increase, 0px));
   line-height: 16px;
   font-weight: 400;
@@ -299,7 +301,8 @@
 @media (hover: hover) and (pointer: fine) {
 .call-kind:hover .cat-chip { color: var(--text); }
 }
-/* A pill: --ctl-fill, padding 1 6, mono 400 11/14 --text-secondary. */
+/* A pill: --ctl-fill, padding 1 6, 400 11/14 --text-secondary: a kind's name,
+   in the sans (V4 top-10 #8). */
 .cat-chip {
   display: inline-flex;
   align-items: center;
@@ -312,7 +315,7 @@
   font-size: calc(11px + var(--ui-text-increase, 0px));
   line-height: 14px;
   font-weight: 400;
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
 }
 .cat-chip .cat-count { color: inherit; font-weight: 400; font-variant-numeric: tabular-nums; }
 /* The category's word, at rest (#841) — the key to the count beside it. */
@@ -369,7 +372,7 @@
   gap: 8px;
 }
 /* A prompt is a line of text (V4's Figma): 400 12/16 in --text-secondary, no
-   box; its time keeps a small mono line above it. */
+   box; its time keeps a small tabular line above it. */
 .prompt-entry {
   padding: 0;
 }
@@ -377,7 +380,8 @@
   color: var(--muted);
   font-size: calc(11px + var(--ui-text-increase, 0px));
   line-height: 14px;
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
+  font-variant-numeric: tabular-nums;
   margin-bottom: 2px;
 }
 .prompt-text {
@@ -515,13 +519,13 @@ button.btn.detail-continue-btn {
 }
 .plan-now {
   flex: none;
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: calc(11px + max(-1px, var(--ui-text-increase, 0px)));
   color: var(--accent);
 }
 /* THE INSPECTOR'S PLAN (V4's Figma): a step is 22 high, a 14px kit state glyph
    in place of the ring and tick (done and working in --text-secondary, idle in
-   --muted), the step in 400 12/16, and "now" in mono 11/14 --inflight. The note
+   --muted), the step in 400 12/16, and "now" in 11/14 --inflight. The note
    and the card keep the ring and the tick above. */
 .detail .plan-list { display: flex; flex-direction: column; gap: 0; }
 .detail .plan-item {
@@ -574,7 +578,8 @@ button.tool.clickable {
   transition: background var(--dur-fast) var(--ease), transform var(--dur-fast) var(--ease);
 }
 /* A tool row (V4's Figma): the name 500 12/16 in --text, what it ran on in
-   mono 400 11/14 --muted, cut with an ellipsis; the time closes the row. */
+   mono 400 11/14 --muted (it is what was typed), cut with an ellipsis; the
+   time, a figure in the sans, closes the row. */
 button.tool.clickable .name { flex: 1; min-width: 0; font-family: inherit; font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: 16px; font-weight: 500; }
 button.tool.clickable .tool-name { flex: none; }
 button.tool.clickable .tool-arg {
@@ -588,7 +593,7 @@ button.tool.clickable .tool-arg {
   font-weight: 400;
   color: var(--muted);
 }
-button.tool.clickable .tool-dur { flex: none; font-family: var(--font-mono); font-size: calc(11px + var(--ui-text-increase, 0px)); line-height: 14px; color: var(--muted); }
+button.tool.clickable .tool-dur { flex: none; font-family: var(--font-sans); font-variant-numeric: tabular-nums; font-size: calc(11px + var(--ui-text-increase, 0px)); line-height: 14px; color: var(--muted); }
 @media (hover: hover) and (pointer: fine) {
 button.tool.clickable:hover { background: var(--ctl-fill); }
 }

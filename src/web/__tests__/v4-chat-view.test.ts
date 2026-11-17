@@ -83,11 +83,13 @@ describe("the sheet", () => {
     expect(col).toContain("margin: 0 auto;");
   });
 
-  it("makes a tool row --row-tool high at 0 8 with the mono 12/16", () => {
+  it("makes a tool row --row-tool high at 0 8 at 12/16, the argument in mono", () => {
     const tool = rule(".chat-tool");
     expect(tool).toContain("height: var(--row-tool);");
     expect(tool).toContain("padding: 0 8px;");
-    expect(tool).toContain("font: 400 12px/16px var(--font-mono);");
+    // CHANGED ON PURPOSE (V4 top-10 #8): mono → sans for the row, because a tool's name and its note are a label and a figure; the argument keeps mono.
+    expect(tool).toContain("font: 400 12px/16px var(--font-sans);");
+    expect(rule(".chat-tool-arg")).toContain("font-family: var(--font-mono);");
     expect(rule(".chat-tool-name")).toContain("font-weight: 500;");
   });
 

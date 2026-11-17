@@ -102,7 +102,7 @@ function Bar({ share, label, line, tone }: { share: number | null; label: string
       >
         <i className="ts-setup-fill" style={share == null ? undefined : { transform: `scaleX(${share})` }} />
       </div>
-      <span className="ts-eng-mono">{line}</span>
+      <span className="ts-eng-line">{line}</span>
     </div>
   );
 }
@@ -244,7 +244,7 @@ export default function EngineCard(p: EngineCardProps) {
       body = (
         <>
           <Head glyph="terminal" title={t(installing ? "board.engine.installingTitle" : "board.engine.verifyingTitle")} />
-          <p className="ts-eng-mono">{job.source === "file" ? t("board.engine.fromFile") : t("board.engine.downloaded", { size: mb(job.received) })}</p>
+          <p className="ts-eng-line">{job.source === "file" ? t("board.engine.fromFile") : t("board.engine.downloaded", { size: mb(job.received) })}</p>
           <Steps items={[
             { label: t("board.engine.stepDownload"), state: "done", ...(job.received ? { aside: `${mb(job.received)} MB` } : {}) },
             { label: t("board.engine.stepSignature"), state: installing ? "done" : "now" },
