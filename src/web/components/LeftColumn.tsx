@@ -9,17 +9,12 @@
 // deck, half the window on a busy one — and snapped to 240px when the accounts
 // panel unmounted.
 //
-// Here the panels are out of flow inside the column, each at its own width,
-// and the column's width is leftColumnWidth's: the open panel's, or nothing.
-// The sheet eases it from the last one (styles/left-column.css), so every frame
-// of a switch is between the two panels' widths and the canvas beside it rides
-// along. Larger text widens both panels by the same --ui-panel-increase
-// (styles/reading.css), so the column takes it too, and only while it is open. A panel that arrives with the column slides in with its edge; one that
-// arrives in a column already open fades in where it stands, at its own width,
-// over the one leaving.
+// Both panels share one persisted width and one resize edge. Switching swaps
+// their content without moving the board or terminal beside the column.
+// Larger text still widens the shared column by --ui-panel-increase.
 import { useLayoutEffect, useRef, type CSSProperties, type ReactNode } from "react";
 
-export default function LeftColumn({ width, listWidth, children }: {
+export default function LeftColumn({ width, listWidth, children, edge }: {
   /** The width the column is moving to, from leftColumnWidth. */
   width: number;
   /** The Sessions list's own width, the reader's (rail-width.ts, internal
@@ -28,6 +23,7 @@ export default function LeftColumn({ width, listWidth, children }: {
    * list arriving is at its own width from its first frame. */
   listWidth?: number;
   children: ReactNode;
+  edge?: ReactNode;
 }) {
   const ref = useRef<HTMLDivElement>(null);
   // A panel on its way out stays on screen for its exit and is no longer the
@@ -44,6 +40,7 @@ export default function LeftColumn({ width, listWidth, children }: {
         ...(listWidth === undefined ? null : { "--list-w": `calc(${listWidth}px + var(--ui-panel-increase, 0px))` }),
       } as CSSProperties}>
       {children}
+      {edge}
     </div>
   );
 }

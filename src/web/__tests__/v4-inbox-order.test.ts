@@ -5,8 +5,8 @@
 //    Ready. Each group's own order is as it was.
 // 2. An unseen finished turn wears a small dot in the accent, with ", unread"
 //    after its name for a screen reader; a seen one has none.
-// 3. The row draws no model (it is the Inspector's), and keeps it nowhere on
-//    the row but its tooltip and spoken words, which never had it.
+// 3. The owner keeps the model below the full-width title. Finished turns
+//    share one Done heading, while retaining their unread marker.
 // 4. The right edge is an age, not a stopwatch: "now", "4m", "1h 12m", "2h",
 //    "3d", in the UI face with tabular figures, moving at most once a minute.
 // 5. A look-alike's start time ends its second line in tabular sans; it no
@@ -86,7 +86,9 @@ describe("the order is an inbox's", () => {
   it("draws the group headings, words and counts, in that order", () => {
     const html = draw(board(), T0 + 2 * MIN);
     const heads = [...html.matchAll(/<span class="sl-group-label">([^<]*)<\/span><span class="sl-group-count">(\d+)<\/span>/g)].map(m => `${m[1]} ${m[2]}`);
-    expect(heads).toEqual(["Needs you 1", "Done · new 2", "Working 1", "Done 1", "Ready 1"]);
+    // CHANGED ON PURPOSE (#2591): "Done · new" and "Done" are one Done group
+    // now (the owner's session-chrome change); an unseen turn keeps its dot.
+    expect(heads).toEqual(["Needs you 1", "Working 1", "Done 3", "Ready 1"]);
   });
 
   it("keeps each group's own order: Done · new newest end first, Working newest turn first", () => {
@@ -143,15 +145,20 @@ describe("the unread dot", () => {
   });
 });
 
-describe("no model on the row", () => {
-  it("draws neither the model nor the effort, in the row or its tooltip's place", () => {
+// CHANGED ON PURPOSE (#2591): the row draws its model again, below the
+// full-width title (the owner's session-chrome change); it was the Inspector's.
+describe("model metadata below the title", () => {
+  it("leaves the title its own row and shows model and effort below", () => {
     const out = draw(board(), T0 + 2 * MIN);
-    // The glyphs' drawings left out: a circle's r="4.5" is not a model.
-    const rows = out.split('<li class="sl-row-item"').slice(1).map(r => r.replace(/ title="[^"]*"/, "").replace(/<svg[\s\S]*?<\/svg>/g, ""));
+    const rows = out.split('<li class="sl-row-item"').slice(1);
     expect(rows).toHaveLength(6);
-    for (const r of rows) expect(r).not.toMatch(/opus|4\.5|\bhigh\b|sl-model/i);
-    // It is still the tooltip's to leave out, and the Inspector's to say.
-    expect(out).not.toMatch(/title="[^"]*opus/i);
+    for (const row of rows) {
+      const title = row.split('class="sl-line1"')[1].split('class="sl-line2')[0].split('class="sl-meta"')[0];
+      expect(title).not.toContain('sl-model');
+      expect(row).toContain('class="sl-meta"');
+      expect(row).toContain('class="sl-model"');
+      expect(row).toMatch(/opus/i);
+    }
   });
 });
 

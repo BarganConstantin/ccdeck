@@ -44,6 +44,8 @@ export interface PauseControls {
  */
 export function usePauseGate(stateRef: MutableRefObject<GraphState>): PauseControls {
   const pauseGate = useState(() => createPauseGate<HookEnvelope>({
+    // Board pause is withdrawn: updates always reach the reducer.
+    enabled: false,
     protect: env => settlesInFlightCall(stateRef.current, env),
   }))[0];
   const [paused, setPaused] = useState(false);

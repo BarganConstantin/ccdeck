@@ -2,6 +2,7 @@
 // on --bg-soft, a 13px value on the 20px body line, the --muted placeholder and
 // the --dur-fast / --ease transitions. The edge stays --ctl-edge: the kit's
 // --line is 1.14 to 2.25:1, under the 3:1 a field's boundary needs (1.4.11).
+import { THEMES as CATALOG_THEMES } from "../theme";
 import { describe, it, expect } from "vitest";
 import { sheetParts, sheetText } from "./sheet-source";
 import { cascade, el, selects } from "./sheet-cascade";
@@ -118,8 +119,8 @@ function measure(theme: string) {
   };
 }
 
-describe("a field on --bg-soft over --panel clears its floors in all twelve themes", () => {
-  it("finds the twelve themes in themes.css", () => expect(themes).toHaveLength(12));
+describe("a field on --bg-soft over --panel clears its floors in every shipped theme", () => {
+  it("covers every theme in the generated catalog", () => expect([...themes].sort()).toEqual([...CATALOG_THEMES].sort()));
   for (const theme of themes) {
     it(`${theme}: text 4.5, placeholder 4.5, edge 3 against both beds`, () => {
       const m = measure(theme);

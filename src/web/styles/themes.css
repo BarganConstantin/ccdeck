@@ -864,6 +864,78 @@
   color-scheme: dark;
 }
 
+:root[data-theme="ink"] {
+  --bg: #f1f0eb;
+  --bg-soft: #faf9f6;
+  --panel: #faf9f6;
+  --line: #caccc6;
+  --line-soft: #dfe0da;
+  --text: #252b32;
+  --pixel-metal-light: #cbd5e1;
+  --pixel-metal-shadow: #64748b;
+  --pixel-metal-edge: #475569;
+  --pixel-character-body: #38bdf8;
+  --text-secondary: #41474c;
+  --provider-claude: #a24c31;
+  --provider-codex: #4d52b8;
+  --ctl-fill: color-mix(in srgb, var(--text) 5%, transparent);
+  --ctl-edge: #7a7e7d;
+  --chrome-bg: #faf9f6;
+  --chrome-edge: #858b89;
+  --sm-edge: #7a7e7d;
+  --sm-fill: color-mix(in srgb, var(--text) 4%, transparent);
+  --accent-16: color-mix(in srgb, var(--accent) 16%, transparent);
+  --err-12: color-mix(in srgb, var(--err) 12%, transparent);
+  --muted-30: color-mix(in srgb, var(--muted) 30%, transparent);
+  --secondary-30: color-mix(in srgb, var(--text-secondary) 30%, transparent);
+  --warn-35: color-mix(in srgb, var(--warn) 35%, transparent);
+  --inflight-30: color-mix(in srgb, var(--inflight) 30%, transparent);
+  --dock: color-mix(in srgb, var(--panel) 40%, var(--bg));
+  --scrim: color-mix(in srgb, var(--text) 18%, transparent);
+  --selected: color-mix(in srgb, var(--text) 8%, var(--panel));
+  --sunken: color-mix(in srgb, var(--panel) 98.5%, var(--text));
+  --your-message: color-mix(in srgb, var(--accent) 14%, var(--panel));
+  --muted: #5e6468;
+  --muted-dim: #929794;
+  --text-dim: #62686b;
+  --accent: #364b5d;
+  --accent-dim: #364b5d1a;
+  --ok: #296341;
+  --warn: #87521a;
+  --err: #a43133;
+  --inflight: #704894;
+  --shadow-1: 0 3px 12px rgba(37,43,50,0.07);
+  --shadow-2: 0 10px 28px rgba(37,43,50,0.12);
+  --shadow-contact: 0 1px 2px rgba(37,43,50,0.08);
+  --shadow-overlay: 0 16px 40px rgba(0,0,0,0.16);
+  --node-grad: var(--panel);
+  --burst-live-wash: #7048940a;
+  --hero-core: var(--accent);
+  --live-bloom: color-mix(in srgb, var(--ok) 12%, transparent);
+  --glint: var(--accent);
+  --grid-line: #dcded7;
+  --minimap-mask: rgba(241,240,235,0.85);
+  --mcp-dot-l: 32%;
+  --cat-file: #355974;
+  --cat-shell: #80552b;
+  --cat-web: #375e68;
+  --cat-agent: #765367;
+  --cat-task: #4d623f;
+  --cat-plan: #5b527c;
+  --cat-mcp: #3f625c;
+  --cat-other: #5e6468;
+  --usage-purple: #5b527c;
+  --usage-blue: #355974;
+  --usage-teal: #375e68;
+  --usage-lime: #575f37;
+  --usage-pink: #82596d;
+  --usage-indigo: #474f83;
+  --usage-orange: #754b32;
+  --usage-zinc: #5e6468;
+  --usage-cyan: #3f606c;
+  color-scheme: light;
+}
+
 .appearance-preview[data-swatch="light"] {
   --tp-canvas: #eef1f6;
   --tp-surface: #ffffff;
@@ -998,4 +1070,16 @@
 :root[data-theme="gruvbox-material"] ::selection {
   background: #5a524c;
   color: #ebdbb2;
+}
+
+.appearance-preview[data-swatch="ink"] {
+  --tp-canvas: #f1f0eb;
+  --tp-surface: #faf9f6;
+  --tp-rule: #caccc6;
+  --tp-mark: #929794;
+  --tp-accent: #364b5d;
+}
+:root[data-theme="ink"] ::selection {
+  background: #d9e1e3;
+  color: #252b32;
 }

@@ -19,6 +19,7 @@ import { PRODUCT } from "./brand.mjs";
 import { readBody, send } from "./http-io.mjs";
 import { cleanDeckName, deckNameKey, heldDeckNames, writeDeckName } from "./session-deck-names.mjs";
 import { announceDeckName } from "./session-enrichment.mjs";
+import { renameProviderSession } from "./provider-session-name.mjs";
 
 /**
  * At boot, after the log's replay: each kept name whose session the replay put
@@ -43,7 +44,7 @@ export function announceKeptNames(envelopes, announce = announceDeckName) {
   return told;
 }
 
-export async function handleSessionNameWrite(req, res, { write = writeDeckName, announce = announceDeckName } = {}) {
+export async function handleSessionNameWrite(req, res, { write = writeDeckName, announce = announceDeckName, renameProvider = renameProviderSession } = {}) {
   const raw = await readBody(req, res).catch(() => null);
   let body = null;
   try { body = JSON.parse(raw ?? ""); } catch { /* answered below */ }
@@ -55,6 +56,10 @@ export async function handleSessionNameWrite(req, res, { write = writeDeckName, 
     return send(res, 400, { ok: false, reason: "bad_request" });
   }
   let kept;
+  if (body.syncProvider === true && name !== null) {
+    try { await renameProvider(provider, sessionId, name); }
+    catch { return send(res, 409, { ok: false, reason: "provider_name_not_saved" }); }
+  }
   try {
     kept = await write(provider, sessionId, name);
   } catch (err) {

@@ -36,11 +36,12 @@
 //
 // Chat can supply its composer in this same measured footer. Session end,
 // notice and ask/host actions remain reachable beneath the input.
-import type { ReactNode } from "react";
 import { RELEASE_CHORD_SPOKEN_MSG } from "../../terminal-keys";
 import { RECONNECT_NOTE_MSG, type KeysOwner } from "./stage-model";
 import { Kbd } from "../Kbd";
 import { t as tNow, useT } from "../../i18n";
+import { useLayoutEffect, useState, type ReactElement, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import { StageGlyph } from "./stage-icons";
 
 /** One run through the waiting sessions, as the integrator's use-asks has it. */
@@ -100,6 +101,8 @@ export interface KeysBarProps {
    *  and the keys go back to "the deck", as the status bar says, not to a
    *  board that is not in view. */
   workspace?: boolean;
+  /** Only the focused split pane contributes to the shared status bar. */
+  primary?: boolean;
   /** No pane to type into (nothing open, an error, a session that cannot be
    *  attached, tmux missing, or a pane still being attached or started with
    *  nothing on screen yet): the bar says nothing and is not drawn, unless it
@@ -199,6 +202,20 @@ export function ArrivalNote({ arrival, onAnswer }: { arrival: ArrivalView; onAns
   );
 }
 
+function KeysBarPlacement({ children, visible }: { children: ReactElement; visible: boolean }) {
+  const [statusSlot, setStatusSlot] = useState<HTMLElement | null>(null);
+  useLayoutEffect(() => {
+    const read = () => setStatusSlot(document.getElementById("ccdeck-stage-status"));
+    read();
+    const observer = new MutationObserver(read);
+    // The shell adds/removes its footer at phone widths. Ignore terminal DOM.
+    observer.observe(document.querySelector(".app") ?? document.body, { childList: true });
+    return () => observer.disconnect();
+  }, []);
+  if (!statusSlot) return children;
+  return visible ? createPortal(<div {...children.props} />, statusSlot) : null;
+}
+
 export default function KeysBar(p: KeysBarProps) {
   const t = useT();
   let right = null;
@@ -290,7 +307,7 @@ export default function KeysBar(p: KeysBarProps) {
       </div>
     );
   }
-  return (
+  const bar = (
     <footer className={p.composer ? "ts-bar ts-bar-compose" : "ts-bar"}
       aria-label={t(p.composer ? "board.chat.conversation" : "board.keys.bar")}
       hidden={(p.paneless && !p.hosts && !p.chatCannotType && !p.composer) || undefined}>
@@ -300,4 +317,9 @@ export default function KeysBar(p: KeysBarProps) {
       </div>}</> : <>{left}{right}</>}
     </footer>
   );
+  // Each Chat pane keeps its input locally; only terminal hints share the
+  // focused pane's status slot, with a local fallback on phones.
+  if (p.composer) return bar;
+  if (p.primary === false) return null;
+  return <KeysBarPlacement visible={!(p.paneless && !p.hosts && !p.chatCannotType)}>{bar}</KeysBarPlacement>;
 }

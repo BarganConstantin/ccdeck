@@ -540,6 +540,10 @@ const CONTROLS: Control[] = [
   { at: ".fg-tabs .uh-range-btn", states: ['.fg-tabs .uh-range-btn[aria-selected="true"]'], beds: ["--panel"] },
   { at: ".fd-sections .uh-range-btn", states: ['.fd-sections .uh-range-btn[aria-selected="true"]'], beds: ["--panel"] },
   { at: '.ns-form .uh-range-btn[aria-pressed="false"]', fillFrom: '.ns-form .uh-range-btn[aria-pressed="false"]', states: ['.ns-form .uh-range-btn[aria-pressed="false"]:hover'], beds: ["--panel"] },
+  // CHANGED ON PURPOSE (#2591): New session's two agent buttons are 40px tall
+  // and keep the control edge in both states; the chosen one takes --accent
+  // as its edge on the --selected fill. Swept like the chips above.
+  { at: ".ns-form .ns-agents .uh-range-btn", fillFrom: '.ns-form .uh-range-btn[aria-pressed="false"]', states: ['.ns-form .ns-agents .uh-range-btn[aria-pressed="true"]'], beds: ["--panel"] },
   // CHANGED ON PURPOSE (V4's Figma): Quota history's provider switch is a
   // segmented track in the header. A segment at rest draws no boundary — it is
   // named by its word, inside the track, as the feedback dialog's kinds are —
@@ -933,18 +937,23 @@ describe("what counts as an edge, which BORDER_PROPS decides (#655)", () => {
       ".insp-card:has(.insp-pick:focus-visible) .agent-node",
       // The navigable button now puts its focus ring on the whole issue row.
       ".jr-row:has(> .jr-row-main:focus-visible)",
+      // CHANGED ON PURPOSE (internal #103): the Sessions list's right edge is a
+      // thin grab strip with no box of its own, as Workspace's .ws-edge is, so
+      // the keyboard ring drawn inside it is the whole of its boundary.
+      // CHANGED ON PURPOSE (#2591): the strip moved from the Sessions list to
+      // the left column, so one edge sizes both panels the column can hold.
+      ".left-column > .sl-edge:focus-visible",
       // (not on a selected card: there the selection ring is the one drawn)
       // And the same ring on the card's face at the compact and overview
       // distances, where the card's own is a hairline of layout units.
       ".react-flow__node:focus-visible .lod-face",
       ".react-flow__node:focus-visible:not(.rf-selected) .agent-node",
-      // CHANGED ON PURPOSE (internal #103): the Sessions list's right edge is a
-      // thin grab strip with no box of its own, as Workspace's .ws-edge is, so
-      // the keyboard ring drawn inside it is the whole of its boundary.
-      ".session-list > .sl-edge:focus-visible",
       // Settings' search results: the highlight the arrows move while focus
       // stays in the field — VIRTUAL_FOCUS again (SettingsSearch.tsx).
       '.settings-result[data-highlighted="true"]',
+      // Chat's terminal handoff has a text action without a resting border;
+      // its shared keyboard outline is the action's only ring boundary.
+      ".ts-chat-handoff > button.btn:focus-visible",
       ".uh-bar-col.sel .uh-bar",
       // CHANGED ON PURPOSE (internal #102): the line between two panes of a
       // split Workspace is the same kind of grab strip, 1px drawn, so the

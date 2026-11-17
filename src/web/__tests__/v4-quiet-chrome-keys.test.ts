@@ -41,13 +41,13 @@ describe("the board's named keys are counted as the handler answers them, and st
     expect(counted()).toEqual(["cards"]);
   });
 
-  it("Space pauses and is one use of 'pause'; n and p are 'nextWaiting' and 'peek'", () => {
+  it("Space has no Board action; n and p still report their shortcuts", () => {
     const deck = mountDeckKeys();
     deck.press(" ");
-    expect(deck.props.togglePause).toHaveBeenCalledTimes(1);
+    expect(deck.props.togglePause).not.toHaveBeenCalled();
     deck.press("n");
     deck.press("p");
-    expect(counted()).toEqual(["pause", "nextWaiting", "peek"]);
+    expect(counted()).toEqual(["nextWaiting", "peek"]);
   });
 
   it("counts nothing for a key the bar does not name, which still does its job", () => {
@@ -104,7 +104,7 @@ describe("with the Command Panel open, the deck's named keys", () => {
 
 describe("the tables the handler counts by", () => {
   it("name the board's keys, a card's Enter, and nothing on a repeat", () => {
-    expect(boardKeyLearned(" ", false)).toBe("pause");
+    expect(boardKeyLearned(" ", false)).toBeNull();
     expect(boardKeyLearned("J", false)).toBe("cards");
     expect(boardKeyLearned("N", false)).toBe("nextWaiting");
     expect(boardKeyLearned("p", false)).toBe("peek");

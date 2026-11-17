@@ -240,6 +240,39 @@ afterEach(() => { vi.useRealTimers(); });
 // ---------------------------------------------------------------------------
 
 describe("opening a session: write before reveal", () => {
+  it("keeps Codex's cached RGB prompt bands theme-aware in seeds and output without reopening", async () => {
+    const { r, ctl } = rig();
+    ctl.resize(120, 40, false);
+    ctl.mount(HOST, { theme: THEME, fontFamily: "monospace" });
+    await flush();
+    const native = "\x1b[48;2;54;55;57mPrompt\x1b[49m";
+    const themed = "\x1b[48;5;237mPrompt\x1b[49m";
+    const socket = await attach(r, ctl, { ...REF, provider: "codex" }, native);
+    expect(r.terminal().log).toContain(`write ${JSON.stringify(themed)}`);
+    expect(socket.sentText()).toContainEqual({ t: "ack", bytes: enc(native).byteLength });
+    r.terminal().log.length = 0;
+    socket.binary(enc(native.slice(0, 12)));
+    socket.binary(enc(native.slice(12)));
+    r.terminal().parse();
+    expect(r.terminal().log).toEqual([`write ${JSON.stringify(themed)}`]);
+    ctl.setTheme({ foreground: "#1f2328", background: "#fafaf8" });
+    expect(r.open).toHaveBeenCalledTimes(1);
+    expect(socket.sentBytes()).toEqual([]);
+    ctl.dispose();
+  });
+
+  it("leaves Claude's RGB output untouched when the pane switches providers", async () => {
+    const { r, ctl } = rig();
+    ctl.mount(HOST, { theme: THEME, fontFamily: "monospace" });
+    await flush();
+    const native = "\x1b[48;2;54;55;57mPrompt\x1b[49m";
+    await attach(r, ctl, { ...REF, provider: "codex" }, native);
+    r.terminal().log.length = 0;
+    await attach(r, ctl, OTHER, native);
+    expect(r.terminal().log).toContain(`write ${JSON.stringify(native)}`);
+    ctl.dispose();
+  });
+
   it("asks for a ticket, sends its size first, and reveals the pane only once the seed is parsed", async () => {
     const { r, ctl } = rig();
     ctl.resize(120, 40, false);
@@ -248,7 +281,8 @@ describe("opening a session: write before reveal", () => {
     ctl.show({ kind: "session", ref: REF });
     expect(r.last().phase).toEqual({ kind: "attaching", reconnect: false });
     await flush();
-    expect(r.open).toHaveBeenCalledWith(REF);
+    // CHANGED ON PURPOSE: open sends size and colours like adopt (managed Codex attach)
+    expect(r.open).toHaveBeenCalledWith(REF, {}, { cols: 120, rows: 40 }, undefined);
     const s = r.sockets[0];
     expect(s.url).toBe("ws://127.0.0.1:4317/api/terminal/attach?ticket=t1");
     s.open();
@@ -584,6 +618,25 @@ describe("checking an external terminal", () => {
     ctl.adopt();
     await flush();
     expect(r.adopt).toHaveBeenCalledTimes(1);
+  });
+
+  // An open the engine answers by starting a client (a Codex conversation
+  // loaded in the local Codex app server) starts it in the pane: the first
+  // open and every look carry the pane's size and colours, as an adopt does.
+  it("opens, and looks again, at the pane's size and in its colours as they are then", async () => {
+    const { r, ctl } = rig();
+    r.open.mockResolvedValue({ ok: false, target: { kind: "C", label: "running elsewhere", adoptable: true } });
+    ctl.resize(132, 41, false);
+    ctl.setTheme({ foreground: "#E6E6E6", background: "rgb(250, 250, 248)" });
+    ctl.show({ kind: "session", ref: REF });
+    await flush();
+    expect(r.open).toHaveBeenCalledTimes(1);
+    expect(r.open.mock.calls[0], "the first open").toEqual([REF, {}, { cols: 132, rows: 41 }, { fg: "#e6e6e6", bg: "#fafaf8" }]);
+    ctl.resize(100, 30, false);
+    ctl.setTheme({ foreground: "#e6e6e6", background: "#14161b" });
+    await vi.advanceTimersByTimeAsync(ELSEWHERE_POLL_MS);
+    expect(r.open).toHaveBeenCalledTimes(2);
+    expect(r.open.mock.calls[1], "the look while it runs elsewhere").toEqual([REF, {}, { cols: 100, rows: 30 }, { fg: "#e6e6e6", bg: "#14161b" }]);
   });
 
   it("keeps the card through a failed look, and attaches when the session has a pane again", async () => {
@@ -1232,6 +1285,7 @@ describe("the theme's colours, for tmux to answer a program's colour question wi
     ctl.mount(HOST, { theme: DARK, fontFamily: "monospace" });
     await flush();
     const s = await attach(r, ctl);
+    expect(r.open).toHaveBeenCalledWith(REF, {}, { cols: 120, rows: 40 }, { fg: "#e6e6e6", bg: "#14161b" });
     expect(s.sentText().slice(0, 2)).toEqual([
       { t: "size", cols: 120, rows: 40 },
       { t: "colours", fg: "#e6e6e6", bg: "#14161b" },
@@ -1798,13 +1852,15 @@ describe("the hook", () => {
     const { r, seen, Probe, props } = hookRig();
     const m = mountComponent(Probe, props({ kind: "session", ref: REF }));
     await flush();
-    expect(r.open).toHaveBeenCalledWith(REF);
+    // CHANGED ON PURPOSE: open sends size and colours like adopt (managed Codex attach)
+    expect(r.open).toHaveBeenCalledWith(REF, {}, { cols: 120, rows: 40 }, undefined);
     expect(seen.at(-1)!.phase).toEqual({ kind: "attaching", reconnect: false });
     r.sockets[0].open();
     m.rerender(props({ kind: "session", ref: OTHER }));
     await flush();
     expect(r.sockets[0].closedWith).toEqual([1000]);
-    expect(r.open).toHaveBeenLastCalledWith(OTHER);
+    // CHANGED ON PURPOSE: open sends size and colours like adopt (managed Codex attach)
+    expect(r.open).toHaveBeenLastCalledWith(OTHER, {}, { cols: 120, rows: 40 }, undefined);
     m.unmount();
     expect(r.sockets[1].closedWith, "the stage's socket goes with it; the tmux session does not").toEqual([1000]);
   });

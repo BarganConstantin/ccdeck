@@ -97,10 +97,10 @@
 .chat-tool-call[open] > .chat-tool .chat-disclosure, .chat-activity[open] > .chat-activity-head .chat-disclosure { transform: rotate(90deg); }
 .chat-tool-input { margin: 0 8px 8px 30px; padding: 8px 10px; border-radius: var(--r-ctl); background: var(--sunken); color: var(--text); font: calc(12px + var(--ui-text-increase, 0px))/1.6 var(--font-mono); white-space: pre-wrap; overflow-wrap: anywhere; }
 .chat-activity { min-width: 0; border: 0; border-radius: var(--r-ctl); }
-.chat-activity-head { display: flex; align-items: center; gap: 6px; min-height: 32px; padding: 4px 8px; box-sizing: border-box; list-style: none; cursor: pointer; color: var(--text-secondary); font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: 20px; }
+.chat-activity-head { display: flex; align-items: center; gap: 6px; min-height: 32px; padding: 4px 8px; box-sizing: border-box; border-radius: var(--r-ctl); list-style: none; cursor: pointer; color: var(--text-secondary); font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: 20px; }
 .chat-activity-running { margin-left: auto; color: var(--text-secondary); font-size: calc(11px + var(--ui-text-increase, 0px)); }
 .chat-activity-calls { margin: 0 0 4px 14px; padding: 0 0 0 4px; border-left: 1px solid var(--line); }
-.chat-tool:focus-visible, .chat-activity-head:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: var(--r-ctl); }
+.chat-tool:focus-visible, .chat-activity-head:focus-visible { outline: var(--focus-w) solid var(--accent); outline-offset: calc(-1 * var(--focus-w)); }
 @media (hover: hover) and (pointer: fine) {
   .chat-tool:hover, .chat-activity-head:hover { background: var(--ctl-fill); }
 }
@@ -111,18 +111,13 @@
 .chat-tool[data-running] .chat-tool-note { color: var(--inflight); }
 .chat-latest { position: absolute; bottom: 16px; left: 50%; transform: translateX(-50%); max-width: calc(100% - 24px); background: var(--panel); }
 .chat-empty { margin: 0; color: var(--text-secondary); font-size: calc(13px + var(--ui-text-increase, 0px)); }
-/* Wide single conversations read like prose; narrow splits keep app density. */
-@container chat-pane (min-width: 640px) {
-  .chat-said, .chat-you-text { font-size: calc(14px + var(--ui-text-increase, 0px)); }
-}
-
 /* What you answered and how long it took: the spaces in it are the host's. */
 .chat-record { margin: 0; font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: 1.5; color: var(--muted); white-space: pre-wrap; }
 
 .chat-error { display: flex; align-items: center; gap: 12px; padding: 8px 12px; border: 1px solid var(--line); border-radius: var(--r-panel); background: var(--bg-soft); font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: 1.5; color: var(--text); }
 .chat-error > span { min-width: 0; overflow-wrap: anywhere; }
-.chat-retry { flex: none; min-height: 28px; margin: 0 0 0 auto; padding: 0; background: none; border: 0; font: inherit; font-weight: 500; color: var(--accent); cursor: pointer; }
-.chat-retry:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: var(--r-ctl); }
+.chat-retry { flex: none; min-height: 28px; margin: 0 0 0 auto; padding: 0; background: none; border: 0; border-radius: var(--r-ctl); font: inherit; font-weight: 500; color: var(--accent); cursor: pointer; }
+.chat-retry:focus-visible { outline: var(--focus-w) solid var(--accent); outline-offset: calc(-1 * var(--focus-w)); }
 @media (hover: hover) and (pointer: fine) {
 .chat-retry:hover { text-decoration: underline; }
 }

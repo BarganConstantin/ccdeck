@@ -60,7 +60,7 @@
 .chat-composer-send:disabled { opacity: 0.5; cursor: default; }
 /* The input's single edge marks focus; buttons keep their own keyboard ring. */
 .chat-composer-draft:focus-visible { outline: none; }
-.chat-composer-send:focus-visible, .chat-composer-term:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.chat-composer-send:focus-visible, .chat-composer-term:focus-visible { outline: var(--focus-w) solid var(--accent); outline-offset: calc(-1 * var(--focus-w)); }
 .chat-composer-meta {
   display: flex;
   flex-wrap: wrap;

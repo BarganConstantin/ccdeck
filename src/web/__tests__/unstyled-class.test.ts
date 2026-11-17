@@ -22,7 +22,10 @@ import { accountsSurface } from "./accounts-surface";
 import { lazySheetText, sheetText } from "./sheet-source";
 
 const web = fileURLToPath(new URL("..", import.meta.url));
-const css = sheetText() + lazySheetText();
+// ChatComposer imports its own sheet alongside Chat's lazy sheet. Include
+// that concrete source too, so every composer class owes an actual CSS rule.
+const css = sheetText() + lazySheetText()
+  + readFileSync(join(web, "components/chat/chat-composer.css"), "utf8");
 
 /** Every .tsx that ends up in the bundle. The suite's own files are not markup. */
 function components(dir: string): string[] {

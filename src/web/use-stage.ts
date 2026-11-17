@@ -41,6 +41,7 @@ import {
   useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState,
   type Dispatch, type MutableRefObject, type SetStateAction,
 } from "react";
+import { terminalSessionId } from "./canvas-session";
 import type { BlockedSession } from "./ambient-counts";
 import { boardRect } from "./board-rect";
 import { focusCanvasNode } from "./canvas-node-element";
@@ -307,7 +308,7 @@ export function useStage({ stateRef, canvasRef, detailOpen, detailShown, setDeta
   }, [open, measure, cellElement, workspace]);
   const geometry: StageGeometry | null = box && open
     // `fill`: Workspace's pane is the whole cell, and the Board's stored width is not read.
-    ? stageGeometry({ appW: box.w, bodyH: box.h, cellW: cell.w, cellH: cell.h, expanded, narrow: box.narrow, storedCols: cols, fill: workspace, barH, headH })
+    ? stageGeometry({ appW: box.w, bodyH: box.h, cellW: cell.w, cellH: cell.h, expanded, narrow: box.narrow, storedCols: cols, fill: workspace, barH, headH, externalBar: !phoneWidth() })
     : null;
   const geometryRef = useMirroredRef(geometry);
 
@@ -329,14 +330,15 @@ export function useStage({ stateRef, canvasRef, detailOpen, detailShown, setDeta
     setSplitState(next);
   }, [splitRef]);
   /** The least a pane is drawn at: 40 columns by 8 rows of the cell xterm drew. */
-  const paneMin = useMemo(() => paneMinSize(MIN_PANE_COLS, MIN_PANE_ROWS, cell, headH, barH), [cell, headH, barH]);
+  const externalBar = !phoneWidth();
+  const paneMin = useMemo(() => paneMinSize(MIN_PANE_COLS, MIN_PANE_ROWS, cell, headH, barH, externalBar), [cell, headH, barH, externalBar]);
   const arrangement: Arrangement | null = workspace && box && open ? arrange(split, box, paneMin) : null;
   const arrangementRef = useMirroredRef(arrangement);
   /** A pane's own geometry: the Workspace pane's, for its box. */
   const geometryFor = useCallback((w: number, h: number): StageGeometry => stageGeometry({
     appW: Math.floor(w), bodyH: Math.floor(h), cellW: cell.w, cellH: cell.h, expanded: false,
-    narrow: box?.narrow ?? false, storedCols: null, fill: true, barH, headH,
-  }), [cell, barH, headH, box?.narrow]);
+    narrow: box?.narrow ?? false, storedCols: null, fill: true, barH, headH, externalBar,
+  }), [cell, barH, headH, box?.narrow, externalBar]);
   /** The pane a focus token was asked for. Only that pane answers it: a pane
    *  the keys move to by a click or a Tab is not handed an older request, or
    *  it would take the keyboard out from under the control that was focused. */
@@ -384,6 +386,9 @@ export function useStage({ stateRef, canvasRef, detailOpen, detailShown, setDeta
    */
   const openOn = useCallback((target: StageTarget, opts: { el?: Element | null; focusPane?: boolean; grace?: boolean } = {}) => {
     if (!enabledRef.current) return;
+    if (target.kind === "session") {
+      target = { ...target, id: terminalSessionId(stateRef.current.agents, target.id) };
+    }
     // SPLIT (#102): a session already in another pane is never opened twice
     // (no second pane, no second attach): the keys go to the pane that has it,
     // which goes on showing it as it was.
@@ -426,7 +431,7 @@ export function useStage({ stateRef, canvasRef, detailOpen, detailShown, setDeta
       grace: !!opts.grace,
       focus,
     });
-  }, [enabledRef, shellRef, canvasRef, detailOpenRef, measure, setDetailOpen, workspaceRef, splitRef, setSplit]);
+  }, [enabledRef, shellRef, canvasRef, detailOpenRef, measure, setDetailOpen, workspaceRef, splitRef, setSplit, stateRef]);
 
   /** The session on the stage is the selected one. A move that did not come
    *  through a card — a tile, j/k, the next ask, a session list row — selects
@@ -461,7 +466,7 @@ export function useStage({ stateRef, canvasRef, detailOpen, detailShown, setDeta
    *  tile and j/k, still leave the keys on the board. */
   const onNodeClick = useCallback((id: string, el: Element | null): boolean => {
     if (!enabledRef.current) return false;
-    const sessionId = stateRef.current.agents.get(id)?.sessionId ?? id;
+    const sessionId = terminalSessionId(stateRef.current.agents, id);
     openOn({ kind: "session", id: sessionId }, { el, grace: shellRef.current.phase === "closed", focusPane: true });
     return true;
   }, [enabledRef, stateRef, shellRef, openOn]);
@@ -605,6 +610,7 @@ export function useStage({ stateRef, canvasRef, detailOpen, detailShown, setDeta
    *  the pane in focus, as ↵ would, and the deck says why. */
   const openBeside = useCallback((sessionId: string, opts: { at?: string; zone?: EdgeZone } = {}) => {
     if (!enabledRef.current) return;
+    sessionId = terminalSessionId(stateRef.current.agents, sessionId);
     if (!workspaceRef.current) { openOn({ kind: "session", id: sessionId }, { focusPane: true }); follow(sessionId); return; }
     const s = splitRef.current;
     const shown = shellRef.current.phase !== "closed" ? shellRef.current.target : null;
@@ -631,12 +637,13 @@ export function useStage({ stateRef, canvasRef, detailOpen, detailShown, setDeta
     setSplit(focusSplit(added.state, added.id, shown));
     openOn({ kind: "session", id: sessionId }, { focusPane: true });
     follow(sessionId);
-  }, [enabledRef, workspaceRef, splitRef, shellRef, arrangementRef, setSplit, openOn, follow, focusPaneId]);
+  }, [enabledRef, workspaceRef, splitRef, shellRef, arrangementRef, setSplit, openOn, follow, focusPaneId, stateRef]);
 
   /** A session dropped on a pane's Here: it shows there, with the keys; the
    *  one it replaces keeps running and stays in the list. */
   const dropHere = useCallback((paneId: string, sessionId: string) => {
     if (!enabledRef.current || !workspaceRef.current) return;
+    sessionId = terminalSessionId(stateRef.current.agents, sessionId);
     const s = splitRef.current;
     const shown = shellRef.current.phase !== "closed" ? shellRef.current.target : null;
     const other = paneWith(s, sessionId, shown);
@@ -644,7 +651,7 @@ export function useStage({ stateRef, canvasRef, detailOpen, detailShown, setDeta
     if (paneId !== s.focused) setSplit(focusSplit(s, paneId, shown));
     openOn({ kind: "session", id: sessionId }, { focusPane: true });
     follow(sessionId);
-  }, [enabledRef, workspaceRef, splitRef, shellRef, setSplit, openOn, follow, focusPaneId]);
+  }, [enabledRef, workspaceRef, splitRef, shellRef, setSplit, openOn, follow, focusPaneId, stateRef]);
 
   /** A pane dragged by its header onto another pane's zone: the same pane,
    *  so the same terminal, in its new place. */

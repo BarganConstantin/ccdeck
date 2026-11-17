@@ -6,6 +6,7 @@
 // epic tile was a fixed purple no theme had chosen. So the ratios are
 // computed here from each theme's tokens, and a palette or rule edit that
 // walks one back under its floor fails the build.
+import { THEMES as CATALOG_THEMES } from "../theme";
 import { describe, expect, it } from "vitest";
 import { declared, el, mediaApplies, selects, sheetRules, splitTop, type El } from "./sheet-cascade";
 import { sheetText } from "./sheet-source";
@@ -135,7 +136,7 @@ const SHAPES = ["bug", "story", "task", "subtask", "epic", "other"] as const;
 
 describe("the issue type the panel draws itself", () => {
   it("reads every theme in the sheet", () => {
-    expect(THEMES).toHaveLength(12);
+    expect([...THEMES].sort()).toEqual([...CATALOG_THEMES].sort());
   });
 
   for (const theme of THEMES) {

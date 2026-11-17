@@ -63,7 +63,7 @@ const BOUND = [...HANDLER.matchAll(/e\.key === "((?:[^"\\]|\\.)*)"/g)].map(m => 
 /** The keys that have one spelling rather than two. Every letter is bound as
  *  both cases, because a Caps-locked keyboard sends the upper one for the same
  *  press; Space, `?` and Escape have no other case to bind. */
-const SINGLE_CASE = [" ", "?", "escape", "delete", ","];
+const SINGLE_CASE = [ "?", "escape", "delete", ","];
 
 const lower = (s: string) => s.toLowerCase();
 
@@ -72,7 +72,7 @@ describe("every key the deck binds is written down where a user can find it", ()
     expect(BOUND.length).toBeGreaterThan(20);
     // One from each shape: the wordless one, the punctuation one, a letter, and
     // the one that is spelled out.
-    for (const key of [" ", "?", "m", "Escape"]) expect(BOUND, key).toContain(key);
+    for (const key of ["?", "m", "Escape"]) expect(BOUND, key).toContain(key);
   });
 
   it("documents every literal the handler answers", () => {
@@ -93,7 +93,7 @@ describe("every key the deck binds is written down where a user can find it", ()
       // already the canvas's next and previous agent). N and P since 4.0's
       // status bar: the next/previous waiting session (one queue with W) and
       // the card's peek.
-      .toEqual([" ", ",", "?", "a", "b", "c", "d", "delete", "escape", "f", "h", "i", "j", "k", "l", "m", "n", "p", "r", "s", "t", "u", "v", "w", "z"]);
+      .toEqual([",", "?", "a", "b", "c", "d", "delete", "escape", "f", "h", "i", "j", "k", "l", "m", "n", "p", "r", "s", "t", "u", "v", "w", "z"]);
   });
 
   it("binds each of them exactly once, which is what makes M and ? free", () => {
@@ -172,7 +172,8 @@ describe("the short list that used to sit in the detail rail", () => {
     // The rail's rows, verbatim from the version that carried them. None of
     // them may have left the deck along with the panel that listed them —
     // removing a duplicate is not the same as removing the thing duplicated.
-    const RAIL_CAPS = ["?", "drag", "tab", "enter", "space", "J", "K",
+    // Board pause and its Space shortcut have been withdrawn.
+    const RAIL_CAPS = ["?", "drag", "tab", "enter", "J", "K",
                        "R", "F", "L", "H", "U", "C", "T", "Esc"];
     const caps = new Set(KEY_HELP.flatMap(g => g.rows.map(r => lower(r.cap))));
     expect(RAIL_CAPS.filter(c => !caps.has(lower(c)))).toEqual([]);

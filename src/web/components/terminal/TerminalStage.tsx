@@ -134,7 +134,14 @@ export function landFocus(root: HTMLElement | null, held: HeldKeys | null = null
   // The header's ⌨ is the one pressed button there is, but for Workspace's Zoom,
   // which reports its state the same way and is not where the keys go.
   const keys = root.querySelector<HTMLElement>(".ts-head button[aria-pressed]");
+  // The keys bar of the pane with the keys is drawn in the shared status bar
+  // (KeysBar's placement), so an ended session's Resume is found there; a
+  // split's other pane has no bar of its own and never takes it.
+  const shared = root.dataset?.secondary === undefined
+    ? document.getElementById?.("ccdeck-stage-status")?.querySelector<HTMLElement>("[data-stage-land]") ?? null
+    : null;
   const target = root.querySelector<HTMLElement>("[data-stage-land]")
+    ?? shared
     ?? (keys && keys.dataset?.zoom === undefined ? keys : null)
     ?? root.querySelector<HTMLElement>(".ts-head button[data-stage-close]");
   if (!target) return false;
@@ -599,6 +606,7 @@ export default function TerminalStage(p: TerminalStageProps) {
       id={workspace && (p.split?.primary ?? true) ? WORKSPACE_PANE_ID : undefined}
       tabIndex={workspace ? -1 : undefined}
       data-fill={workspace || undefined}
+      data-secondary={p.split?.primary === false || undefined}
       data-held={held || undefined}
       data-pane-size={(phase.kind === "live" && phase.sizeOwner === "pane") || undefined}
       style={style}
@@ -667,6 +675,7 @@ export default function TerminalStage(p: TerminalStageProps) {
         screens={chatSession !== null ? { view, source: chatSource } : undefined}
       />
       <KeysBar
+        primary={p.split?.primary ?? true}
         owner={session.keysOwner}
         name={name}
         chordLabel={chordLabel}

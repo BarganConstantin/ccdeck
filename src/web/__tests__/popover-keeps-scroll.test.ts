@@ -71,6 +71,19 @@ function popoverOnPhone(content: number) {
 }
 
 describe("a popover taller than the window, as it renders again", () => {
+  it("refits an expanding native disclosure even when its wrapper did not rerender", () => {
+    let resized: (() => void) | undefined;
+    vi.stubGlobal("ResizeObserver", class { constructor(callback: () => void) { resized = callback; } observe() {} disconnect() {} });
+    const { view, el } = popoverOnPhone(200);
+    const initial = el.offsetHeight;
+    Object.defineProperty(el, "offsetHeight", { configurable: true, get: () => el.style.maxHeight ? Math.min(600, Number.parseFloat(el.style.maxHeight)) : 600 });
+    resized!();
+    expect(el.style.maxHeight).not.toBe("");
+    expect(el.offsetHeight).toBeGreaterThan(initial);
+    expect(Number.parseFloat(el.style.top) + el.offsetHeight).toBeLessThanOrEqual(640 - POPOVER_MARGIN);
+    view.unmount();
+    vi.unstubAllGlobals();
+  });
   it("is capped to the room below its anchor and scrolls the rest", () => {
     const { el, view } = popoverOnPhone(473);
     const room = 640 - POPOVER_MARGIN - (238 + POPOVER_GAP);

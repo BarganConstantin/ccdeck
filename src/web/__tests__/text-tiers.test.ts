@@ -400,13 +400,22 @@ describe("what was migrated to the secondary tier", () => {
       "button.btn.fgl-chip", ".fgl-repo-head", ".jr-board-btn", ".jr-comment-compose label",
       ".jr-group-title", ".jr-group-toggle", ".jr-status, .jr-panel .jr-status.ig-chip",
       "button.btn.jr-chip", "button.btn.jr-status-btn",
-      ".ns-form .uh-range-btn[aria-pressed=\"false\"]", ".ns-title",
+      // CHANGED ON PURPOSE (#2591): New session's title left this tier for
+      // --text at 16px (the form's one heading), and its two quiet controls
+      // joined it as V4's 12px secondary words, like the forge and Jira chips
+      // above: "Choose another folder…" and the "Session options" row.
+      ".ns-form .uh-range-btn[aria-pressed=\"false\"]", "button.btn.ns-choose", ".ns-options-summary",
       // New session's picker (internal #106): what an empty list says (no
       // projects yet, nothing matched, a path that needs to be full) — a
       // sentence read to know what to do next — and the chosen folder's
       // path, with the path a problem names: the line that says where Start
       // goes, read before pressing it.
       ".ns-empty", ".ns-problem-path", ".ns-where-v",
+      // Workspace's pane number and unfocused title use secondary ink so
+      // the focused pane keeps the stronger title. Explicit metadata
+      // exceptions, like the card's figures above, rather than prose.
+      ".pane-badge",
+      ".stage-in[data-split] .wsp-pane:not([data-focused]) .ts-name",
       // The network map's next step: the one sentence that says what to do
       // about the network, or about the deck pointed at. Read, not glanced.
       ".nm-next",
@@ -499,6 +508,10 @@ describe("what was migrated to the secondary tier", () => {
       // does, because the row draws no model any more; the same lift, the same tier.
       ".session-list .sl-row.selected .sl-line2",
       ".session-list .sl-row:hover .sl-line2",
+      // CHANGED ON PURPOSE (#2591): the row draws its model again, on the meta
+      // line beside the clock, so the same lift ends a `.sl-model` line once more.
+      ".session-list .sl-row.selected .sl-model",
+      ".session-list .sl-row:hover .sl-model",
       // A phone's Board (critique 3, point 7): a card's task or the question it
       // waits on is the sentence read there, in the list row's tier; and the
       // selected card lifts its muted words a tier, as the list's row does.
@@ -689,6 +702,8 @@ describe("what was migrated to the secondary tier", () => {
       // its "Ends" fact.
       ".ts-end",
       ".ts-first",
+      // The read-only Chat footer explains where to reply before its action.
+      ".ts-chat-handoff > .ts-chat-reply-note",
       ".oh-intro",
       ".oh-ends",
       // What's new: the sentence under each change, the always-visible notice

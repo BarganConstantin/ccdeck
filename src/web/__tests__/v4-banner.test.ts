@@ -3,6 +3,7 @@
 // high with the rule, 12px start and 4px end padding, an 8px gap); only the dot at the start
 // changes colour. The action is plain accent text, the dismiss a 24px icon
 // button with the control corner.
+import { THEMES as CATALOG_THEMES } from "../theme";
 import { describe, it, expect } from "vitest";
 import { sheetParts, sheetText } from "./sheet-source";
 import { cascade, el, selects } from "./sheet-cascade";
@@ -157,7 +158,7 @@ function measure(theme: string) {
 }
 
 describe("the banner's ink clears its floors on --panel in every theme", () => {
-  it("finds the twelve themes in themes.css", () => expect(themes).toHaveLength(12));
+  it("covers every theme in the generated catalog", () => expect([...themes].sort()).toEqual([...CATALOG_THEMES].sort()));
   it("holds the margins measured (text 6.21, action 5.58, glyph 4.70, dots 5.08 / 5.42 / 5.61)", () => {
     const all = themes.map(measure);
     const min = (k: keyof ReturnType<typeof measure>) => Math.min(...all.map(m => m[k]));

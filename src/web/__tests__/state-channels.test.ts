@@ -492,9 +492,12 @@ describe("what a reader is told, now that the dot is decoration everywhere", () 
   });
 
   it("puts the word where the dot is, so it is heard in the order it is seen", () => {
-    // The rail's row draws its glyph (aria-hidden, in RailGlyph) and the word
-    // right after it, ahead of the name.
-    expect(railParts).toMatch(/<RailGlyph kind=\{railGlyph\(r, group\)\} \/>\s*<span className="vis-hidden">\{stateLabel\(r\.state\)\}<\/span>/);
+    // Compact rows lead with the provider avatar; other rows lead with the
+    // hidden glyph. Both announce the state immediately after, ahead of the
+    // name. Compact rows still draw the same hidden glyph beside the clock.
+    expect(railParts).toMatch(/\{compact \? <ProviderAvatar provider=\{r\.provider \?\? "claude"\} \/> : <RailGlyph kind=\{railGlyph\(r, group\)\} \/>\}\s*<span className="vis-hidden">\{stateLabel\(r\.state\)\}<\/span>/);
+    expect(railParts).toMatch(/\{compact && <span className="sl-row-status">\s*\{time && <span className=\{`sl-time \$\{time\.tone\}`\}><span className="vis-hidden">\{time\.spoken\}<\/span>\{time\.text\}<\/span>\}\s*<RailGlyph kind=\{railGlyph\(r, group\)\} \/>/);
+    expect(railParts).toContain('<span className="vis-hidden">{rowSpoken(r)}</span>');
     expect(railParts).toMatch(/<span className="sl-glyph" data-glyph=\{kind\} aria-hidden>/);
     expect(sessionBreakdown).toMatch(/<span className=\{`sl-dot state-\$\{s\.state\}`\} aria-hidden \/>\s*<span className="vis-hidden">\{stateLabel\(s\.state\)\}<\/span>/);
     expect(app).toMatch(/<span className=\{`status-dot \$\{status\}`\} aria-hidden \/>\s*<span className="vis-hidden">\{t\(TOOL_STATUS_LABEL\[status\]\)\}<\/span>/);
@@ -552,7 +555,7 @@ describe("what a reader is told, now that the dot is decoration everywhere", () 
     // Pointed at what the press does, which for a row "Remove from board"
     // took off the canvas is bringing it back rather than focusing it.
     // The row's title is rowTooltip (rail-row-copy.ts), whose first line it is.
-    expect(row).toMatch(/title=\{rowTooltip\(r, removed\)\}/);
+    expect(row).toContain('title={[rowTooltip(r, removed, compact), pane ? t(pane.active ? "board.stage.split.activePane" : "board.stage.split.paneNumber", { number: pane.number }) : ""].filter(Boolean).join("\\n")}');
     // CHANGED ON PURPOSE (the UI in every language): both lines are keys, and
     // English maps them to the same words.
     expect(markup("rail-row-copy.ts")).toMatch(/removed \? t\("board\.row\.bringBack", \{ label: r\.label \}\) : t\("board\.row\.focus", \{ label: r\.label \}\)/);

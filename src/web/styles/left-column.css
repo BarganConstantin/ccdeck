@@ -64,6 +64,9 @@
    inherits it; a drag writes it as it moves (RailEdge.tsx). Unset (a phone),
    the list is the rail token, as before. */
 .left-column > .session-list { width: var(--list-w, calc(var(--rail-w) + var(--ui-panel-increase, 0px))); }
+.left-column > .accounts-panel { width: var(--list-w, calc(var(--rail-w) + var(--ui-panel-increase, 0px))); }
+.left-column > .accounts-panel > * { width: 100%; }
+.left-column > .accounts-panel > .ap-failure { width: calc(100% - var(--panel-inset) - var(--panel-inset)); }
 /* A drag moves the column with the pointer, not on its easing, and selects
    nothing on the way. */
 .left-column[data-resizing] { transition: none; user-select: none; }

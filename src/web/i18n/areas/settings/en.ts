@@ -237,7 +237,7 @@ const catalog: Catalog = {
   "settings.key.tourText": "Eight pictures of what the deck shows.",
   "settings.key.tour": "Take the tour",
   "settings.keyboard.singleKeys": "Single-key shortcuts",
-  "settings.keyboard.singleKeysNote": "Keys like L, U, M, ? and Space open panels and toggle things. Turn this off if you use voice control or press them by accident.",
+  "settings.keyboard.singleKeysNote": "Keys like L, U, M and ? open panels and toggle things. Turn this off if you use voice control or press them by accident.",
   "settings.keyboard.filter": "Filter shortcuts",
   "settings.keyboard.noMatch": "No shortcut matches “{query}”.",
   "settings.keyboard.sheetName": "the keyboard shortcuts sheet",

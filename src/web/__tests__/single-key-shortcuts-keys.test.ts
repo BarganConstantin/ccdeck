@@ -53,7 +53,7 @@ describe("with Single-key shortcuts off, no character key does anything", () => 
 
   it("leaves Space to the page rather than cancelling it for a pause that no longer happens", () => {
     const on = mountDeckKeys();
-    expect(on.press(" ").preventDefault).toHaveBeenCalled();
+    expect(on.press(" ").preventDefault).not.toHaveBeenCalled();
     const off = mountDeckKeys({ singleKeys: false });
     expect(off.press(" ").preventDefault).not.toHaveBeenCalled();
     expect(off.props.togglePause).not.toHaveBeenCalled();

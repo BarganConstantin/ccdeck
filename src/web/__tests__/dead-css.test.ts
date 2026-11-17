@@ -22,6 +22,7 @@ import { readFileSync, readdirSync, statSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { join } from "node:path";
 import { sheetText } from "./sheet-source";
+import { createSourceFile, forEachChild, isStringLiteralLike, isTemplateHead, isTemplateMiddle, isTemplateTail, ScriptTarget, type Node } from "typescript";
 
 const web = fileURLToPath(new URL("..", import.meta.url));
 const css = sheetText();
@@ -44,13 +45,28 @@ function components(dir: string): string[] {
     return path.endsWith(".tsx") || path.endsWith(".ts") ? [path] : [];
   });
 }
-const tsx = components(web).map(p => readFileSync(p, "utf8")).join("\n");
+const modules = components(web).map(path => ({ path, source: readFileSync(path, "utf8") }));
+const tsx = modules.map(module => module.source).join("\n");
 
 /** Quoted and backticked spans only, so a class name mentioned in a comment
  *  about the design does not count as a component rendering it. */
-const literals = [...tsx.matchAll(/"([^"\n]*)"|'([^'\n]*)'|`([^`]*)`/g)]
-  .map(m => m[1] ?? m[2] ?? m[3])
-  .join("\n");
+function quotedText(source: string, path = "module.tsx"): string {
+  const values: string[] = [];
+  const visit = (node: Node) => {
+    if (isStringLiteralLike(node) || isTemplateHead(node) || isTemplateMiddle(node) || isTemplateTail(node)) values.push(node.text);
+    forEachChild(node, visit);
+  };
+  visit(createSourceFile(path, source, ScriptTarget.Latest));
+  return values.join("\n");
+}
+// Parse modules independently: backticks in a Markdown regex are not template
+// delimiters and must not turn later comments into rendered class names.
+const literals = modules.map(module => quotedText(module.source, module.path)).join("\n");
+
+it("keeps Markdown regex fences and comments out of the rendered literal scan", () => {
+  const source = 'const fence = /^' + "`".repeat(3) + '/; // chips are prose\nconst view = <div className="real-class" />;';
+  expect(quotedText(source)).toBe("real-class");
+});
 
 /** `--x:` in any declaration — :root, but also the per-category .tool-burst rules. */
 const declared = new Set([...rules.matchAll(/(--[\w-]+)\s*:/g)].map(m => m[1]));

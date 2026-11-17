@@ -114,9 +114,9 @@ describe("the New session form", () => {
   const chooseButton = (tree: unknown) => one(tree, el => el.type === "button" && el.props.className === "btn ns-choose")!;
   const agents = (tree: unknown) => one(tree, el => el.props.className === "uh-range ns-agents")!.props.children as Drawn[];
   const strip = (tree: unknown, label: string) =>
-    all(tree, el => el.props.className === "uh-range ns-choices" && el.props["aria-labelledby"] === label)[0];
-  const choice = (tree: unknown, label: string, name: string) =>
-    one(strip(tree, label), el => el.type === "button" && textOf(el).trim() === name)!;
+    all(tree, el => el.type === "select" && el.props["aria-labelledby"] === label)[0];
+  const selectSetting = (tree: unknown, label: string, value: string) =>
+    (strip(tree, label).props.onChange as (e: unknown) => void)({ currentTarget: { value } });
   const options = (tree: unknown) => all(tree, el => el.props.role === "option");
   const names = (tree: unknown) => options(tree).map(o => textOf(one(o, el => el.props.className === "ns-name")));
   const field = (tree: unknown) => one(tree, el => el.type === "input")!;
@@ -149,12 +149,12 @@ describe("the New session form", () => {
   it("offers a new Claude its model, how it asks, and a worktree, each Default until chosen", async () => {
     const p = props();
     const m = mount(NewSessionForm, p);
-    expect(choice(m.tree, "ns-model-label", "Default").props["aria-pressed"]).toBe(true);
-    expect(choice(m.tree, "ns-mode-label", "Default").props["aria-pressed"]).toBe(true);
-    click(choice(m.tree, "ns-model-label", "Haiku"));
-    click(choice(m.tree, "ns-mode-label", "Plan"));
+    expect(strip(m.tree, "ns-model-label").props.value).toBe("");
+    expect(strip(m.tree, "ns-mode-label").props.value).toBe("");
+    selectSetting(m.tree, "ns-model-label", "haiku");
+    selectSetting(m.tree, "ns-mode-label", "plan");
     click(one(m.tree, el => el.props.role === "switch")!);
-    expect(choice(m.tree, "ns-model-label", "Haiku").props["aria-pressed"]).toBe(true);
+    expect(strip(m.tree, "ns-model-label").props.value).toBe("haiku");
     click(startButton(m.tree));
     await flush();
     expect(p.onStart).toHaveBeenCalledWith("claude", "/home/u/code/paycore", { model: "haiku", permissionMode: "plan", worktree: true });
@@ -164,7 +164,7 @@ describe("the New session form", () => {
   it("starts Codex as it is: none of Claude's choices are drawn or passed", async () => {
     const p = props();
     const m = mount(NewSessionForm, p);
-    click(choice(m.tree, "ns-model-label", "Opus"));
+    selectSetting(m.tree, "ns-model-label", "opus");
     click(agents(m.tree)[1]);
     expect(strip(m.tree, "ns-model-label")).toBeUndefined();
     expect(one(m.tree, el => el.props.role === "switch")).toBeNull();
@@ -394,13 +394,13 @@ describe("the New session form", () => {
 
   it("says in one sentence that the session joins the board and outlives the stage", () => {
     const text = textOf(mount(NewSessionForm, props()).tree);
-    expect(text).toContain("It joins the board as its own cluster and opens here, inside the deck's tmux — closing the Command Panel never stops it.");
-    expect(NEW_SESSION_NOTE).toBe("It joins the board as its own cluster and opens here, inside the deck's tmux — closing the Command Panel never stops it.");
+    expect(text).toContain("Closing the panel keeps the session running.");
+    expect(NEW_SESSION_NOTE).toBe("Closing the panel keeps the session running.");
   });
 
   it("on Windows, says the session runs in the session host, never in the deck's tmux", () => {
     const text = textOf(mount(NewSessionForm, props({ windows: true })).tree);
-    expect(text).toContain("It joins the board as its own cluster and opens here, in the session host — closing the Command Panel never stops it.");
+    expect(text).toContain("Closing the panel keeps the session running.");
     expect(text).toContain(NEW_SESSION_NOTE_WINDOWS);
     expect(text).not.toMatch(/tmux/);
   });

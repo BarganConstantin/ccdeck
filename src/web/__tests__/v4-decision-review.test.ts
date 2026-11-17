@@ -402,9 +402,9 @@ describe("layout: the empty outcome takes no row", () => {
 
 describe("layout: Chat's paddings", () => {
   const css = bare("components/chat/chat.css");
-  it("the body is 12 above and below, 20 at the sides; the divider's gap is 12; the chevron is 14", () => {
+  it("the body is 24 above, 32 below, 28 at the sides; the divider's gap is 12; the chevron is 14", () => {
     const at = css.indexOf(".chat-body {");
-    expect(css.slice(at, css.indexOf("}", at))).toContain("padding: 12px 20px;");
+    expect(css.slice(at, css.indexOf("}", at))).toContain("padding: 24px 28px 32px;");
     expect(css).toMatch(/\.chat-since \{[^}]*gap: 12px;/);
     expect(bare("components/chat/chat-icons.tsx")).toContain('ChevronRightGlyph = () => <KitIcon name="chevron-right" />');
   });

@@ -149,6 +149,6 @@ describe("no panel can size the column by its content (2026-10-08)", () => {
     // CHANGED ON PURPOSE (internal #103): the column also holds the Sessions
     // list's own width (--list-w) for the list in it; its own width is still
     // App's leftColumnTarget.
-    expect(sourceOf("App.tsx")).toMatch(/<LeftColumn width=\{leftColumnTarget\} listWidth=\{phone \? undefined : listWidth\}>/);
+    expect(sourceOf("App.tsx")).toMatch(/<LeftColumn width=\{leftColumnTarget\} listWidth=\{phone \? undefined : listWidth\}/);
   });
 });

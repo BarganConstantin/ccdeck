@@ -237,7 +237,7 @@ const catalog: Catalog = {
   "settings.key.tourText": "Acht Bilder davon, was ccdeck zeigt.",
   "settings.key.tour": "Tour starten",
   "settings.keyboard.singleKeys": "Einzeltasten-Kürzel",
-  "settings.keyboard.singleKeysNote": "Tasten wie L, U, M, ? und Leertaste öffnen Panels und schalten Dinge um. Schalte das aus, wenn du Sprachsteuerung nutzt oder sie versehentlich drückst.",
+  "settings.keyboard.singleKeysNote": "Tasten wie L, U, M und ? öffnen Panels und schalten Dinge um. Schalte das aus, wenn du Sprachsteuerung nutzt oder sie versehentlich drückst.",
   "settings.keyboard.filter": "Kürzel filtern",
   "settings.keyboard.noMatch": "Kein Kürzel passt zu „{query}“.",
   "settings.keyboard.sheetName": "die Tastenkürzel-Übersicht",

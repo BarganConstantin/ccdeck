@@ -35,6 +35,7 @@ const catalog: Catalog = {
   "codex.row.readPlanNamed": "{plan} プラン。{rest}",
   "codex.row.neverRead": "ccdeck はこのアカウントをまだ読み取っていません",
   "codex.row.switchWaiting": "アカウントを切り替える前に、実行中のツールや必要な入力を待っています。",
+  "codex.row.switchWaitingUsing": "まだ {account} を使用しています。実行中のツールや必要な入力が終わると、アカウントが切り替わります。",
   "codex.row.childrenResuming": "アカウントを切り替えました。サブエージェントの再開を待っています。",
   "codex.row.continueUnconfirmed": "自動再開を確認できませんでした。続行する前に会話を確認してください。",
   "codex.row.reading": "使用量を読み取り中…",

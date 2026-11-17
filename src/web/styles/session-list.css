@@ -162,7 +162,7 @@
 .session-list .sl-row[data-compact] { align-items: center; }
 .session-list .sl-row[data-compact]:not([data-one-line]) {
   min-height: max(calc(var(--row-rail) + 6px), calc(50px + 2 * var(--ui-text-increase, 0px)));
-  padding-block: 7px;
+  padding-block: 6px;
 }
 .session-list .sl-row[data-compact][data-one-line] {
   min-height: max(calc(var(--row-rail) - 10px), calc(34px + 2 * var(--ui-text-increase, 0px)));
@@ -180,27 +180,15 @@
 .session-list .sl-row[data-compact][data-pane-active] { background: var(--selected); }
 .session-list .sl-row[data-compact] .sl-line2 { line-height: calc(16px + var(--ui-text-increase, 0px)); }
 .session-list .sl-row[data-compact]:not([data-one-line]) .sl-line2 { margin-top: 3px; }
-.session-list .sl-project {
-  flex: 0 1 auto;
-  max-width: 72px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  color: var(--text-secondary);
-  font-size: calc(11px + var(--ui-text-increase, 0px));
-}
-/* The project is already in the tooltip and accessible name. A narrow rail
-   gives the task its full name rather than showing two competing ellipses. */
-@container session-list (max-width: 23em) {
-  .session-list .sl-project { display: none; }
-}
-/* A narrow list gives the task its name before the optional project suffix. */
+/* Named tasks keep the full row; optional project context stays accessible. */
 .session-list .sl-row[data-compact] .sl-label { flex: 1 1 auto; }
 /* The muted words step up a tier on the fill: --muted on it is 4.05:1 in dark
    (#1789), the reason the Tool activity rows do the same. */
 .session-list .sl-row.selected .sl-line2 { color: var(--text-secondary); }
+.session-list .sl-row.selected .sl-model { color: var(--text-secondary); }
 @media (hover: hover) and (pointer: fine) {
 .session-list .sl-row:hover .sl-line2 { color: var(--text-secondary); }
+.session-list .sl-row:hover .sl-model { color: var(--text-secondary); }
 }
 /* The most-clicked control in the app answers a press. Nothing interactive
    nests inside the row, so the scale is the row's alone. */
@@ -292,10 +280,24 @@
 }
 .session-list .sl-name {
   display: flex;
+  flex: 1;
   align-items: baseline;
   gap: 6px;
   min-width: 0;
 }
+.session-list .sl-meta {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  width: 100%;
+  min-width: 0;
+  line-height: 16px;
+}
+.session-list .sl-meta .sl-model { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* The UI face, as every word that is not code (V4: monospace only where the
+   text is code); a model name is a name. */
+.session-list .sl-model { font-size: calc(11px + var(--ui-text-increase, 0px)); line-height: 14px; color: var(--muted); }
+.session-list .sl-meta .sl-time { margin-left: auto; }
 .session-list .sl-label {
   min-width: 0;
   font-size: calc(13px + var(--ui-text-increase, 0px));
@@ -657,7 +659,7 @@
    At rest the column's border is the only line; hovered, held or focused, a
    2 px accent line stands on it. The phone draws no edge: the list is the
    screen's width there. */
-.session-list > .sl-edge {
+.left-column > .sl-edge {
   position: absolute;
   top: 0;
   bottom: 0;
@@ -669,6 +671,6 @@
 }
 .left-column[data-resizing] .sl-edge { box-shadow: inset -2px 0 0 var(--accent); }
 @media (hover: hover) and (pointer: fine) {
-  .session-list > .sl-edge:hover { box-shadow: inset -2px 0 0 var(--accent); }
+  .left-column > .sl-edge:hover { box-shadow: inset -2px 0 0 var(--accent); }
 }
-.session-list > .sl-edge:focus-visible { outline: var(--focus-w) solid var(--accent); outline-offset: calc(-1 * var(--focus-w)); }
+.left-column > .sl-edge:focus-visible { outline: var(--focus-w) solid var(--accent); outline-offset: calc(-1 * var(--focus-w)); }

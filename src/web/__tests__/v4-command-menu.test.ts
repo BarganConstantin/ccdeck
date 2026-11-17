@@ -375,7 +375,7 @@ describe("every command and result kind is still found", () => {
   const found = (query: string) => flatGroupRows(groupQuick(rankQuick(all, query), true)).map(r => r.item.id);
 
   it("a query finds the same row through the groups as through the sections", () => {
-    for (const query of ["web", "data", "usage", "capacity", "fit", "arrange", "pause", "keys", "tour", "clear", "rider", "sound"]) {
+    for (const query of ["web", "data", "usage", "capacity", "fit", "arrange", "keys", "tour", "clear", "rider", "sound"]) {
       const bySection = rankQuick(all, query).flatMap(s => s.items.map(r => r.item.id));
       expect(found(query).sort(), query).toEqual(bySection.sort());
       expect(found(query).length, query).toBeGreaterThan(0);

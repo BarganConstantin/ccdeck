@@ -65,33 +65,46 @@ describe("compact session rows", () => {
     const groups = new Map([["same-aude", 2 as const], ["same-ting", 0 as const]]);
     const apart = compactRowContexts(rows, groups);
     for (const context of apart.values()) {
-      expect(context.text).toBe("web-api");
+      expect(context.detail).toBe("none");
       expect(context.twin).toBeUndefined();
       expect(context.idTail).toBeUndefined();
     }
     const drawn = drawRow({ row: rows[0], context: apart.get("same-aude") });
-    expect(visibleText(drawn)).toContain("web-api");
+    expect(visibleText(drawn)).not.toContain("web-api");
     expect(drawn).not.toContain('class="sl-start"');
     groups.set("same-ting", 2);
     const together = compactRowContexts(rows, groups);
     expect(together.get("same-aude")?.idTail).toBe("aude");
     expect(together.get("same-ting")?.idTail).toBe("ting");
   });
-  it("keeps a simple named session on one line, with its project and accessible task", () => {
+  it("keeps a named session on one line, with project and task accessible", () => {
     const out = drawRow();
     expect(out).toContain('data-compact="true"');
     expect(out).toContain('data-one-line="true"');
     expect(out).not.toContain("sl-line2");
     expect(visibleText(out)).toContain("Workspace navigation");
-    expect(visibleText(out)).toContain("web-api");
+    expect(visibleText(out)).not.toContain("web-api");
     expect(visibleText(out)).not.toContain(TASK);
     expect(out).toContain(`<span class="vis-hidden">web-api · ${TASK}</span>`);
-    expect(out).toContain('<span class="sl-project" aria-hidden="true">web-api</span>');
+    expect(out).not.toContain('class="sl-project"');
     expect(out).toMatch(/title="[^"]*Repair keyboard navigation in the workspace/);
     expect(text(out).split(TASK)).toHaveLength(2);
-    expect(text(out).split("web-api")).toHaveLength(3);
-    const accessible = out.replace(/<span class="sl-project" aria-hidden="true">[\s\S]*?<\/span>/g, "");
-    expect(text(accessible).split("web-api")).toHaveLength(2);
+    expect(text(out).split("web-api")).toHaveLength(2);
+  });
+
+  it("does not repeat project labels when provider avatars distinguish equal titles", () => {
+    const state = initialState();
+    addSession(state, "claude-api", "Rate limiter", TASK, "claude", "/repo/web-api");
+    addSession(state, "codex-mobile", "Rate limiter", TASK, "codex", "/repo/mobile-app");
+    const out = renderToStaticMarkup(createElement(SessionList, { state, now: NOW,
+      selectedIds: new Set<string>(), onSelect: noop, onClose: noop, onOpenKeys: noop }));
+    for (const id of ["claude-api", "codex-mobile"]) {
+      const button = rowButton(out, id);
+      expect(button).toContain('data-one-line="true"');
+      expect(button).not.toContain('class="sl-line2');
+      expect(button).toContain("provider-avatar");
+      expect(visibleText(button)).not.toMatch(/web-api|mobile-app/);
+    }
   });
 
   it.each([false, true])("retains explicitly requested context when compact=%s", compact => {
@@ -272,7 +285,7 @@ describe("compact SessionList title collisions", () => {
     }
   });
 
-  it("uses only the project for cross-project duplicate titles, with the exact clock in the tooltip", () => {
+  it("uses provider identity for cross-project titles and keeps exact context in the tooltip", () => {
     const state = initialState();
     const prompt = "Synthesize the rate limiter\nKeep this complete second line accessible.";
     addSession(state, "first", "Rate limiter", prompt, "claude", "/repo/web-api");
@@ -284,11 +297,11 @@ describe("compact SessionList title collisions", () => {
     }));
     for (const r of rows) {
       const button = rowButton(draw(true), r.sessionId);
-      expect(visibleText(button)).toContain(r.folder);
+      expect(visibleText(button)).not.toContain(r.folder);
       expect(visibleText(button)).not.toContain("Synthesize");
       expect(button).not.toContain("sl-start");
-      expect(button).not.toContain('data-one-line="true"');
-      expect(button).toContain(`<span class="vis-hidden">${prompt}</span>`);
+      expect(button).toContain('data-one-line="true"');
+      expect(button).toContain(`<span class="vis-hidden">${r.folder} · ${prompt}</span>`);
       expect(button.match(/\btitle="([^"]*)"/)?.[1]).toContain(r.exactHover);
       expect(button).toMatch(/title="[^"]*Keep this complete second line accessible/);
       const board = rowButton(draw(false), r.sessionId);
@@ -347,8 +360,11 @@ describe("compact SessionList title collisions", () => {
     for (const id of ["first", "second", "third"]) {
       const button = rowButton(out, id);
       expect(button).not.toContain("sl-start");
-      expect(visibleText(button)).toContain(id === "second" ? "Repair resizing" : "Repair focus");
-      expect(button).toMatch(/class="vis-hidden">Shared first line\nRepair (focus|resizing)</);
+      if (id === "third") {
+        expect(button).toContain('data-one-line="true"');
+        expect(visibleText(button)).not.toContain("Repair focus");
+      } else expect(visibleText(button)).toContain(id === "second" ? "Repair resizing" : "Repair focus");
+      expect(button).toMatch(/class="vis-hidden">(?:web-api · )?Shared first line\nRepair (focus|resizing)</);
     }
   });
 

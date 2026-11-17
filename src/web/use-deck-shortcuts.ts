@@ -193,7 +193,7 @@ export function stageKeyLearned(intent: StageKeyIntent, key: string, repeat: boo
 
 /** What the status bar counts a key the board answered under (key-learning.ts),
  *  or null. On a focused card (`onCard`) Enter is the bar's "↵ select", and
- *  Space, the same press, is unnamed there. Off a card: Space pauses, j and k
+ *  Space, the same press, is unnamed there. Off a card: j and k
  *  walk the cards, n takes the next waiting session, and p peeks, except with
  *  the stage open, where the card a peek would hang off is hidden and p does
  *  nothing. A held key is one use. Written as a table rather than in the
@@ -203,7 +203,6 @@ export function boardKeyLearned(key: string, repeat: boolean, { onCard = false, 
   if (repeat) return null;
   if (onCard) return key === "Enter" ? "select" : null;
   switch (key) {
-    case " ": return "pause";
     case "j": case "J": case "k": case "K": return "cards";
     case "n": case "N": return "nextWaiting";
     case "p": case "P": return stageOpen ? null : "peek";
@@ -540,14 +539,9 @@ export function useDeckShortcuts({
         modalOpen: canvasModalOpen({ appModal: modalOpenRef.current, dialogDepth: modalStack.dialogDepth() }),
         sheetOpen: keyHelpOpenRef.current,
       })) return;
-      // A held key is one press. Every auto-repeat used to run its shortcut
-      // again, so a held Space flipped pause about thirty times a second and
-      // left the stream in whichever state the key came up on, and T, L, D and
-      // U flickered the same way. J and K keep repeating: holding them to step
-      // through the board is what a held key is for. Space goes on to its own
-      // line, which pauses on the first press only and still cancels every
-      // repeat, or the page behind the canvas scrolls.
-      if (e.repeat && !/^[ jkJK]$/.test(e.key)) return;
+      // A held shortcut acts once. J and K keep repeating so holding them
+      // walks through the cards. Space has no global Board action.
+      if (e.repeat && !/^[jkJK]$/.test(e.key)) return;
       // 1 to 4: the keys to that pane of a split Workspace (internal #102).
       // Only from here, the deck's own keys: a pane's terminal never reaches
       // this handler, so a digit typed into an agent stays the agent's.
@@ -558,10 +552,9 @@ export function useDeckShortcuts({
       }
       // Every key from here down that the status bar names is answered below
       // with no return in between, so it is counted here, once per press:
-      // Space, j and k, n, and p (boardKeyLearned).
+      // j and k, n, and p (boardKeyLearned).
       const boardLearned = boardKeyLearned(e.key, e.repeat, { stageOpen: !!stageRef?.current?.open });
       if (boardLearned) noteKeyUse(boardLearned);
-      if (e.key === " ") { e.preventDefault(); if (!e.repeat) togglePause(); }
       if (e.key === "c" || e.key === "C") requestClear("shortcut");
       if (e.key === "r" || e.key === "R") handleRelayout();
       if (e.key === "f" || e.key === "F") handleFit();

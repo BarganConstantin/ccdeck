@@ -198,7 +198,10 @@ export interface CompactRowContext {
 export function compactRowContexts(rows: readonly Row[], groups?: ReadonlyMap<string, RailGroup>): Map<string, CompactRowContext> {
   const names = new Map<string, Row[]>();
   for (const row of rows) {
-    const key = row.label.trim().toLowerCase();
+    const label = row.label.trim().toLowerCase();
+    // The heading and avatar already distinguish these rows. Add a second
+    // line only among names that remain alike within that visible identity.
+    const key = groups ? JSON.stringify([label, row.provider ?? "claude", groups.get(row.sessionId)]) : label;
     const peers = names.get(key) ?? [];
     peers.push(row);
     names.set(key, peers);
@@ -219,15 +222,6 @@ export function compactRowContexts(rows: readonly Row[], groups?: ReadonlyMap<st
         task: row.fullTask ?? row.task,
         startedAt: row.startedAt,
       })));
-      // A group heading already distinguishes sessions in different groups.
-      // Keep project context across the list; clocks only resolve look-alikes
-      // actually drawn together, including while the rail holds their order.
-      const visibleTwins = groups ? twinClocks(project.map(row => ({
-        id: row.sessionId,
-        title: `${groups.get(row.sessionId)}:${row.provider ?? "claude"}`,
-        task: row.fullTask ?? row.task,
-        startedAt: row.startedAt,
-      }))) : twins;
       for (const row of project) out.set(row.sessionId, {
         detail: peers.length === 1 ? "none" : project.length === 1 ? "project" : "task",
         ...(project.length === 1 ? {
@@ -239,13 +233,12 @@ export function compactRowContexts(rows: readonly Row[], groups?: ReadonlyMap<st
             line.trim() && project.some(other => !sameWords(line, (other.fullTask ?? other.task ?? "").split(/\r?\n/)[index] ?? ""))) ?? row.task]
             .filter(Boolean).join(" · "),
         }),
-        ...(visibleTwins.has(row.sessionId) ? {
+        ...(twins.has(row.sessionId) ? {
           twin: "second" as const,
           // Imports can share the same timestamp. A clock alone cannot tell
           // those apart, so retain the shortest distinct id tail as well.
           ...(project.some(other => other.sessionId !== row.sessionId
-            && visibleTwins.has(other.sessionId)
-            && (!groups || groups.get(other.sessionId) === groups.get(row.sessionId))
+            && twins.has(other.sessionId)
             && (other.provider ?? "claude") === (row.provider ?? "claude")
             && sameWords(other.fullTask ?? other.task ?? "", row.fullTask ?? row.task ?? "")
             && twinStart(other.startedAt, "second") === twinStart(row.startedAt, "second"))

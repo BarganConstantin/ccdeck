@@ -100,9 +100,9 @@ describe("the numbers", () => {
     expect(dragMax(288, Number.POSITIVE_INFINITY, 512)).toBe(512);
   });
 
-  it("gives the column the list's width, and the accounts panel the density's", () => {
+  it("keeps Accounts and Sessions at the same chosen column width", () => {
     expect(leftColumnWidth("session-list", 264, 400)).toBe(400);
-    expect(leftColumnWidth("accounts", 264, 400)).toBe(264);
+    expect(leftColumnWidth("accounts", 264, 400)).toBe(400);
     expect(leftColumnWidth(null, 264, 400)).toBe(0);
     expect(leftColumnWidth("session-list", 264)).toBe(264);
   });
@@ -342,15 +342,15 @@ describe("the sheet", () => {
   });
 
   it("puts the edge in the list's last 8 px, a col-resize cursor, a line when hovered, held or focused", () => {
-    const rule = /\.session-list > \.sl-edge \{([^}]*)\}/.exec(list)?.[1] ?? "";
+    const rule = /\.left-column > \.sl-edge \{([^}]*)\}/.exec(list)?.[1] ?? "";
     expect(rule).toMatch(/position: absolute;/);
     expect(rule).toMatch(/right: 0;/);
     expect(rule).toMatch(/width: 8px;/);
     expect(rule).toMatch(/cursor: col-resize;/);
     expect(rule).toMatch(/touch-action: none;/);
     expect(list).toMatch(/\.left-column\[data-resizing\] \.sl-edge \{ box-shadow: inset -2px 0 0 var\(--accent\); \}/);
-    expect(list).toMatch(/@media \(hover: hover\) and \(pointer: fine\) \{\s*\.session-list > \.sl-edge:hover \{ box-shadow: inset -2px 0 0 var\(--accent\); \}/);
-    expect(list).toMatch(/\.session-list > \.sl-edge:focus-visible \{ outline: var\(--focus-w\) solid var\(--accent\);/);
+    expect(list).toMatch(/@media \(hover: hover\) and \(pointer: fine\) \{\s*\.left-column > \.sl-edge:hover \{ box-shadow: inset -2px 0 0 var\(--accent\); \}/);
+    expect(list).toMatch(/\.left-column > \.sl-edge:focus-visible \{ outline: var\(--focus-w\) solid var\(--accent\);/);
   });
 });
 
@@ -365,13 +365,13 @@ describe("App's wiring", () => {
 
   it("draws the edge everywhere but on a phone, where the list is the screen's width", () => {
     // The column holds the list's width as --list-w; the list inherits it.
-    expect(app).toContain("<LeftColumn width={leftColumnTarget} listWidth={phone ? undefined : listWidth}>");
-    expect(app).toMatch(/edge=\{phone \? undefined : \(\s*<RailEdge width=\{listWidth\} cap=\{railCapNow\} onWidth=\{railChoice\.choose\} onReset=\{railChoice\.reset\} \/>/);
+    expect(app).toContain("<LeftColumn width={leftColumnTarget} listWidth={phone ? undefined : listWidth}");
+    expect(app).toMatch(/edge=\{phone \? undefined : <RailEdge width=\{listWidth\} cap=\{railCapNow\} onWidth=\{railChoice\.choose\} onReset=\{railChoice\.reset\} \/>/);
   });
 
-  it("puts the edge last in the list, and the list's width on the column, whose list inherits it", () => {
+  it("keeps one resize edge on the column for both panels", () => {
     const sl = code("components/SessionList.tsx");
-    expect(sl).toMatch(/\{edge\}\s*<\/aside>/);
+    expect(code("components/LeftColumn.tsx")).toMatch(/\{children\}\s*\{edge\}/);
     // The list's <aside> is as it was: no width of its own on it.
     expect(sl).not.toContain("--list-w");
     const column = code("components/LeftColumn.tsx");

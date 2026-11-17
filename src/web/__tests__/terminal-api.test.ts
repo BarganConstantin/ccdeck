@@ -131,6 +131,12 @@ describe("the requests themselves", () => {
     }
   });
 
+  it("provides initial size and palette before an open can create a native client", async () => {
+    const { fetchFn, asked } = answering(200, { ok: true, ticket: "tk", target: ATTACHABLE });
+    await openTerminal(SESSION, { fetchFn }, { cols: 120, rows: 40 }, { fg: "#dfe1e5", bg: "#1b1c1f" });
+    expect(asked[0].body).toEqual({ ...SESSION, cols: 120, rows: 40, colours: { fg: "#dfe1e5", bg: "#1b1c1f" } });
+  });
+
   it("POSTs open and adopt as JSON with exactly the session's three fields", async () => {
     for (const call of [openTerminal, adoptTerminal]) {
       const { fetchFn, asked } = answering(200, { ok: true, ticket: "tk", target: ATTACHABLE });
@@ -168,6 +174,22 @@ describe("the requests themselves", () => {
     const adopt = answering(200, { ok: true, ticket: "tk", target: ATTACHABLE });
     await adoptTerminal(SESSION, { fetchFn: adopt.fetchFn }, undefined, colours);
     expect(adopt.asked[0].body).toEqual({ sessionId: SESSION.sessionId, provider: "claude", cwd: SESSION.cwd, colours });
+  });
+
+  it("opens at the panel's size and in its colours when it has them, as a reopen does, and sends neither when not", async () => {
+    const { fetchFn, asked } = answering(200, { ok: true, ticket: "tk", target: ATTACHABLE });
+    const colours = { fg: "#1f2328", bg: "#fafaf8" };
+    const three = { sessionId: SESSION.sessionId, provider: "claude", cwd: SESSION.cwd };
+    expect(await openTerminal(SESSION, { fetchFn }, { cols: 90, rows: 30 }, colours)).toEqual({ ok: true, ticket: "tk", target: ATTACHABLE });
+    expect(asked[0]).toMatchObject({ url: "/api/terminal/open", method: "POST", headers: { "content-type": "application/json" } });
+    expect(asked[0].body).toEqual({ ...three, cols: 90, rows: 30, colours });
+    await openTerminal(SESSION, { fetchFn }, { cols: 90, rows: 30 });
+    expect(asked[1].body, "a size alone").toEqual({ ...three, cols: 90, rows: 30 });
+    await openTerminal(SESSION, { fetchFn }, undefined, colours);
+    expect(asked[2].body, "colours alone").toEqual({ ...three, colours });
+    await openTerminal(SESSION, { fetchFn }, undefined, undefined);
+    expect(asked[3].body, "neither: no cols, rows or colours key").toEqual(three);
+    expect(Object.keys(asked[3].body as object).sort()).toEqual(["cwd", "provider", "sessionId"]);
   });
 
   it("hands the panel's AbortSignal to fetch, so a switched-away panel can drop the request", async () => {
