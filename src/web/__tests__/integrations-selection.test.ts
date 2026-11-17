@@ -13,6 +13,7 @@
 // far enough from the hover's, in OKLab, to be told apart. The values are read
 // from the stylesheet itself, theme overrides included, so a palette edit or a
 // change to the rule that walks a theme under the floor fails here.
+import { THEMES as CATALOG_THEMES } from "../theme";
 import { describe, expect, it } from "vitest";
 import { THEMES, apart, color, contrast, css, declarations, host, over, palette, panelOf, scopeOf, type Rgba } from "./integrations-palette";
 
@@ -29,7 +30,7 @@ const r2 = (n: number) => Math.round(n * 1000) / 1000;
 
 describe("the selected row in an integration panel", () => {
   it("reads every shipped theme, so a pass covers all of them", () => {
-    expect(THEMES.length).toBe(12);
+    expect([...THEMES].sort()).toEqual([...CATALOG_THEMES].sort());
     for (const theme of THEMES) expect(palette(theme).panel, theme).toBeTruthy();
   });
 

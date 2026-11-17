@@ -36,12 +36,14 @@ import { withoutComments } from "./tsx-scan";
 const web = (path: string) => readFileSync(fileURLToPath(new URL(`../${path}`, import.meta.url)), "utf8");
 const sheet = web("styles/themes.css").replace(/\/\*[\s\S]*?\*\//g, "");
 
-const THEMES = ["dark", "light"] as const;
+// Ink joins the original references so ANSI ink and message bands are measured
+// on its paper and sunken workspace surfaces, not merely its JSON values.
+const THEMES = ["dark", "light", "ink"] as const;
 type Theme = (typeof THEMES)[number];
 
 /** One theme's block of declarations, as written. */
 function block(theme: Theme): Record<string, string> {
-  const head = theme === "dark" ? ':root,\\s*\\n:root\\[data-theme="dark"\\]' : ':root\\[data-theme="light"\\]';
+  const head = theme === "dark" ? ':root,\\s*\\n:root\\[data-theme="dark"\\]' : `:root\\[data-theme="${theme}"\\]`;
   const found = new RegExp(`${head}\\s*\\{([\\s\\S]*?)\\n\\}`).exec(sheet);
   if (!found) throw new Error(`styles/themes.css has no ${theme} token block`);
   const out: Record<string, string> = {};
@@ -49,7 +51,7 @@ function block(theme: Theme): Record<string, string> {
   return out;
 }
 
-const DECLARED: Record<Theme, Record<string, string>> = { dark: block("dark"), light: block("light") };
+const DECLARED: Record<Theme, Record<string, string>> = { dark: block("dark"), light: block("light"), ink: block("ink") };
 
 /** A token's value in a theme with every var() substituted — what
  *  getComputedStyle hands back for a custom property, and so what the palette
@@ -385,7 +387,7 @@ describe("the 256-colour slots Claude Code paints with", () => {
     it(`takes each ink slot's colour from its token, never a new value, in ${theme}`, () => {
       for (const n of EXTENDED_SLOTS) {
         const slot = extendedSlot(n)!;
-        if (slot.kind === "ink") expect(slotIn(theme, n), `slot ${n}`).toBe(resolved(slot.token[theme], theme));
+        if (slot.kind === "ink") expect(slotIn(theme, n), `slot ${n}`).toBe(resolved(slot.token[paperOf(resolved("--panel", theme))], theme));
       }
     });
   }

@@ -5,6 +5,7 @@
 // and colours are read from the sheet and the theme files. Only what a
 // renderer without a DOM cannot reach (the Add dialog is portalled, and a
 // click cannot be sent) is pinned on the source, and said so.
+import { THEMES as CATALOG_THEMES } from "../theme";
 import { describe, it, expect } from "vitest";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
@@ -362,10 +363,13 @@ describe("the orb's glyph", () => {
     const t = JSON.parse(readFileSync(dir + f, "utf8")) as Theme;
     themes.set(t.id, t);
   }
-  const token = (id: string, key: string): string => {
+  const rawToken = (id: string, key: string): string => {
     const t = themes.get(id)!;
-    return t.tokens[key] ?? (t.extends ? token(t.extends, key) : "");
+    return t.tokens[key] ?? (t.extends ? rawToken(t.extends, key) : "");
   };
+  // A JSON alias resolves against the chosen palette, as CSS does in Ink's orb.
+  const token = (id: string, key: string): string =>
+    rawToken(id, key).replace(/var\(--([\w-]+)\)/g, (_, ref: string) => token(id, ref));
   const rgb = (hex: string): [number, number, number] => [1, 3, 5].map(i => parseInt(hex.slice(i, i + 2), 16)) as [number, number, number];
   const lum = ([r, g, b]: [number, number, number]) => {
     const f = (c: number) => (c / 255 <= 0.03928 ? c / 255 / 12.92 : ((c / 255 + 0.055) / 1.055) ** 2.4);
@@ -390,7 +394,7 @@ describe("the orb's glyph", () => {
   });
 
   it("reads at 3:1 or better on every theme", () => {
-    expect(themes.size).toBeGreaterThanOrEqual(12);
+    expect([...themes.keys()].sort()).toEqual([...CATALOG_THEMES].sort());
     for (const id of themes.keys()) {
       const ink = token(id, id === "light" ? "text" : "bg");
       const ratioNow = ratio(rgb(ink), orbAt(token(id, "hero-core")));

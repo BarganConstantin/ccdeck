@@ -2,6 +2,7 @@
 // padding 0 8px, gap 8, corner 4, 13/20 Regular, --selected on hover and focus,
 // --muted-dim when disabled. The rule is shared by the account row menu, the
 // dock's More menu, the forge scope menu and What's new's options.
+import { THEMES as CATALOG_THEMES } from "../theme";
 import { describe, it, expect } from "vitest";
 import { MOUSE_MEDIA, mouseFlat, sheetParts, sheetText } from "./sheet-source";
 import { cascade, el, selects } from "./sheet-cascade";
@@ -107,9 +108,9 @@ const lum = (c: Rgba): number => {
 };
 const ratio = (a: Rgba, b: Rgba): number => (Math.max(lum(a), lum(b)) + .05) / (Math.min(lum(a), lum(b)) + .05);
 
-describe("every menu label clears 4.5:1, in all twelve themes", () => {
-  it("finds the twelve themes in themes.css", () => {
-    expect(themes).toHaveLength(12);
+describe("every menu label clears 4.5:1, in every shipped theme", () => {
+  it("covers every theme in the generated catalog", () => {
+    expect([...themes].sort()).toEqual([...CATALOG_THEMES].sort());
   });
   for (const theme of themes) {
     it(`${theme}: --text on the --selected hover fill, and the --err word on --panel`, () => {
