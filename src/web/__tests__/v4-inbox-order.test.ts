@@ -86,6 +86,8 @@ describe("the order is an inbox's", () => {
   it("draws the group headings, words and counts, in that order", () => {
     const html = draw(board(), T0 + 2 * MIN);
     const heads = [...html.matchAll(/<span class="sl-group-label">([^<]*)<\/span><span class="sl-group-count">(\d+)<\/span>/g)].map(m => `${m[1]} ${m[2]}`);
+    // CHANGED ON PURPOSE (#2591): "Done · new" and "Done" are one Done group
+    // now (the owner's session-chrome change); an unseen turn keeps its dot.
     expect(heads).toEqual(["Needs you 1", "Working 1", "Done 3", "Ready 1"]);
   });
 
@@ -143,6 +145,8 @@ describe("the unread dot", () => {
   });
 });
 
+// CHANGED ON PURPOSE (#2591): the row draws its model again, below the
+// full-width title (the owner's session-chrome change); it was the Inspector's.
 describe("model metadata below the title", () => {
   it("leaves the title its own row and shows model and effort below", () => {
     const out = draw(board(), T0 + 2 * MIN);
