@@ -138,7 +138,8 @@ describe("Tour", () => {
     expect(decl(".modal.guide", "width")).toBe("var(--dialog-s)");
     const head = guide.slice(guide.indexOf("<header"), guide.indexOf("</header>"));
     expect(head.indexOf("guide-count")).toBeLessThan(head.indexOf("<DialogClose"));
-    expect(decl(".guide-count", "font-family")).toBe("var(--font-mono)");
+    // CHANGED ON PURPOSE (V4 top-10 #8): mono → sans + tabular-nums, because the step counter is a figure, not code.
+    expect(decl(".guide-count", "font-family")).toBe("var(--font-sans)");
     expect(decl(".guide-count", "color")).toBe("var(--muted)");
   });
   it("draws the picture box 182 high on --sunken, a --line-soft edge, r8, 16 inside", () => {
@@ -216,12 +217,13 @@ describe("Core history and Busiest processes", () => {
     expect(src("../components/SectionHistoryModal.tsx")).toContain("onClick={onClose}>{t(\"shell.done\")}");
     expect(src("../components/ProcessListModal.tsx")).toContain("onClick={onClose}>{t(\"shell.done\")}");
   });
-  it("sets the busiest table's headers in sentence case at 11/14 500, with 12px figures in mono --text-secondary", () => {
+  it("sets the busiest table's headers in sentence case at 11/14 500, with 12px figures in tabular sans --text-secondary", () => {
     expect([insights["insights.proc.process"], insights["insights.proc.cpu"], insights["insights.proc.memory"]]).toEqual(["Process", "CPU", "Memory"]);
     expect(decl(".pl-body .pl-table .sd-sort", "font-weight")).toBe("500");
     expect(decl(".pl-body .pl-table .sd-sort", "line-height")).toBe("14px");
     expect(decl(".pl-body .pl-table td.sd-num", "color")).toBe("var(--text-secondary)");
-    expect(decl(".pl-body .pl-table td.sd-num", "font-family")).toBe("var(--font-mono)");
+    // CHANGED ON PURPOSE (V4 top-10 #8): mono → sans + tabular-nums, because a process's figure is a figure, not code.
+    expect(decl(".pl-body .pl-table td.sd-num", "font-family")).toBe("var(--font-sans)");
     expect(decl(".pl-body .pl-table thead th", "height")).toBe("24px");
     expect(decl(".pl-body .pl-table tbody td", "height")).toBe("28px");
   });
@@ -229,7 +231,8 @@ describe("Core history and Busiest processes", () => {
     const list = src("../components/ProcessListModal.tsx");
     for (const col of ["cpu", "rss", "threads", "uptime", "user", "name"]) expect(list).toContain(`col="${col}"`);
     expect(list).toContain("insights.machine.processesSub");
-    expect(decl(".pl-hint", "font-family")).toBe("var(--font-mono)");
+    // CHANGED ON PURPOSE (V4 top-10 #8): mono → sans, because the hint is a sentence, not code.
+    expect(decl(".pl-hint", "font-family")).toBe("var(--font-sans)");
   });
 });
 
@@ -246,7 +249,8 @@ describe("Quota history, Browser watch and Radio", () => {
     expect(decl(".qh-providers", "border-radius")).toBe("var(--r-ctl)");
     expect(decl(".qh-provider[aria-pressed=\"true\"]", "background")).toBe("var(--panel)");
     expect(decl(".qh-provider", "color")).toBe("var(--muted)");
-    expect(decl(".qh-summary strong", "font-family")).toBe("var(--font-mono)");
+    // CHANGED ON PURPOSE (V4 top-10 #8): mono → sans + tabular-nums, because the summary's figure is a figure, not code.
+    expect(decl(".qh-summary strong", "font-family")).toBe("var(--font-sans)");
     expect(decl(".qh-chart-wrap", "background")).toBe("var(--sunken)");
   });
   it("Browser watch is the 1120 dialog with the mono 11 --muted caption", () => {
@@ -254,11 +258,12 @@ describe("Quota history, Browser watch and Radio", () => {
     expect(decl(".modal-tool-id", "font-family")).toBe("var(--font-mono)");
     expect(decl(".modal-tool-id", "color")).toBe("var(--muted)");
   });
-  it("Radio takes the overlay radius and shadow, and its caption Explorer is mono 11 --muted", () => {
+  it("Radio takes the overlay radius and shadow, and its caption Explorer is 11 --muted, in the sans", () => {
     const radio = css.match(/\.radio-panel, \.radio-loading\s*\{([^}]*)\}/)![1];
     expect(radio).toMatch(/border-radius:\s*var\(--r-overlay\)/);
     expect(radio).toMatch(/box-shadow:\s*var\(--shadow-overlay\)/);
-    expect(decl(".radio-header h2 span", "font-family")).toBe("var(--font-mono)");
+    // CHANGED ON PURPOSE (V4 top-10 #8): mono → sans + tabular-nums, because the caption Explorer is a label, not code.
+    expect(decl(".radio-header h2 span", "font-family")).toBe("var(--font-sans)");
     expect(decl(".radio-header h2 span", "color")).toBe("var(--muted)");
     expect(src("../i18n/areas/radio/en.ts")).toContain("\"radio.title\": \"Radio\"");
     expect(src("../i18n/areas/radio/en.ts")).toContain("\"radio.title.explorer\": \"Explorer\"");
@@ -295,7 +300,8 @@ describe("Explore integrations", () => {
     expect(decl(".explore-provider", "padding")).toBe("10px 12px");
     expect(decl(".explore-caption", "font-family")).toBeNull();
     expect(decl(".explore-caption > :first-child", "font-family")).toBeNull();
-    expect(decl(".explore-caption > :last-child:not(:first-child)", "font-family")).toBe("var(--font-mono)");
+    // CHANGED ON PURPOSE (V4 top-10 #8): mono → sans + tabular-nums, because the caption's count is a figure, not code.
+    expect(decl(".explore-caption > :last-child:not(:first-child)", "font-family")).toBe("var(--font-sans)");
   });
   it("draws its notes as 28-high bands at --r-ctl, 12/400, neutral or in the error wash", () => {
     expect(decl(".explore-status", "min-height")).toBe("28px");

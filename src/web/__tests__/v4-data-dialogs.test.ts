@@ -255,9 +255,10 @@ describe("Usage history", () => {
     expect(history.indexOf('className="uh-toolbar"')).toBeLessThan(history.indexOf('className="glyph-btn uh-reload"'));
   });
 
-  it("draws the stats bare: the value over the label, 32 apart, mono 18/24 over sans 12/16", () => {
+  it("draws the stats bare: the value over the label, 32 apart, tabular sans 18/24 over sans 12/16", () => {
     expect(decl(".uh-totals", "gap")).toBe("4px 32px");
-    expect(decl(".uh-stat-val", "font-family")).toBe("var(--font-mono)");
+    // CHANGED ON PURPOSE (V4 top-10 #8): mono → sans + tabular-nums, because a stat's value is a figure, not code.
+    expect(decl(".uh-stat-val", "font-family")).toBe("var(--font-sans)");
     // CHANGED ON PURPOSE (owner 2026-11-10 critique: type scale 11/12/13/16/22, radii 4/8/pill): a figure at 16.
     expect(px(decl(".uh-stat-val", "font-size"))).toBe(16);
     expect(decl(".uh-stat-val", "font-weight")).toBe("600");
@@ -269,11 +270,12 @@ describe("Usage history", () => {
     for (const key of ["totalCost", "tokens", "inOut", "cacheReads"]) expect(history).toContain(`insights.usage.${key}`);
   });
 
-  it("draws each day as a 24-wide bar with its value over it (mono 11) and its name under it (11), 3 apart", () => {
+  it("draws each day as a 24-wide bar with its value over it (tabular 11) and its name under it (11), 3 apart", () => {
         expect(decl(".uh-bar", "width")).toBe("min(24px, 78%)");
     expect(decl(".uh-bar-col", "gap")).toBe("3px");
     expect(decl(".uh-bar-plot", "gap")).toBe("3px");
-    expect(decl(".uh-bar-value", "font-family")).toBe("var(--font-mono)");
+    // CHANGED ON PURPOSE (V4 top-10 #8): mono → sans + tabular-nums, because a bar's value is a figure, not code.
+    expect(decl(".uh-bar-value", "font-family")).toBe("var(--font-sans)");
     expect(px(decl(".uh-bar-value", "font-size"))).toBe(11);
     expect(decl(".uh-bar-value", "color")).toBe("var(--muted)");
     expect(px(decl(".uh-bar-label", "font-size"))).toBe(11);
@@ -347,7 +349,8 @@ describe("Usage history", () => {
     expect(px(decl(".uh-day-table thead th", "font-size"))).toBe(11);
     expect(decl(".uh-day-table thead th", "font-weight")).toBe("500");
     expect(decl(".uh-day-table tbody th, .uh-day-table tbody td", "height")).toBe("28px");
-    expect(decl(".uh-day-table tbody td", "font-family")).toBe("var(--font-mono)");
+    // CHANGED ON PURPOSE (V4 top-10 #8): mono → sans + tabular-nums, because a day's token and cost cell is a figure, not code.
+    expect(decl(".uh-day-table tbody td", "font-family")).toBe("var(--font-sans)");
     expect(decl(".uh-day-table tbody td", "color")).toBe("var(--text-secondary)");
     expect(decl(".uh-day-table tbody th", "color")).toBe("var(--text)");
     expect(decl(".uh-day-table th:nth-child(4), .uh-day-table td:nth-child(4)", "width")).toBe("110px");
@@ -362,10 +365,11 @@ describe("Usage history", () => {
 });
 
 describe("Session usage", () => {
-  it("draws the two stats bare, the value over the label, mono 18/24 and sans 12/16", () => {
+  it("draws the two stats bare, the value over the label, tabular sans 18/24 and sans 12/16", () => {
     expect(decl(".su-totals", "gap")).toBe("8px 32px");
     expect(decl(".su-totals > div", "flex-direction")).toBe("column-reverse");
-    expect(decl(".su-totals dd", "font-family")).toBe("var(--font-mono)");
+    // CHANGED ON PURPOSE (V4 top-10 #8): mono → sans + tabular-nums, because a stat's value is a figure, not code.
+    expect(decl(".su-totals dd", "font-family")).toBe("var(--font-sans)");
     // CHANGED ON PURPOSE (owner 2026-11-10 critique: type scale 11/12/13/16/22, radii 4/8/pill): a figure at 16.
     expect(px(decl(".su-totals dd", "font-size"))).toBe(16);
     expect(decl(".su-totals dd", "font-weight")).toBe("600");
@@ -379,13 +383,14 @@ describe("Session usage", () => {
     expect(decl(".su-composition > span", "border-radius")).toBe("var(--r-tag)");
     expect(decl(".su-tokens", "gap")).toBe("8px 16px");
     expect(decl(".su-tokens > div", "flex-direction")).toBe("column-reverse");
-    expect(decl(".su-tokens dd", "font-family")).toBe("var(--font-mono)");
+    // CHANGED ON PURPOSE (V4 top-10 #8): mono → sans + tabular-nums, because a token count is a figure, not code.
+    expect(decl(".su-tokens dd", "font-family")).toBe("var(--font-sans)");
     expect(decl(".su-tokens dd", "color")).toBe("var(--text)");
     expect(session).toContain("insights.cost.inputTitle");
     expect(session).toContain("insights.usage.cacheWriteTitle");
   });
 
-  it("heads the sections 12/600 in the second step, and the model rows 24 high: the name muted, the figure in mono text", () => {
+  it("heads the sections 12/600 in the second step, and the model rows 24 high: the name muted, the figure in tabular text", () => {
     expect(decl(".su-section-head h3", "color")).toBe("var(--text-secondary)");
     expect(decl(".su-section-head h3", "font-weight")).toBe("600");
     expect(decl(".su-models th, .su-models td", "height")).toBe("24px");
@@ -521,9 +526,10 @@ describe("Session recap", () => {
     expect(decl(".session-summary", "width")).toBe("var(--dialog-s)");
   });
 
-  it("draws the figures bare, in one row: mono 18/24 over a 12/16 muted label, 32 apart", () => {
+  it("draws the figures bare, in one row: tabular sans 18/24 over a 12/16 muted label, 32 apart", () => {
     expect(decl(".session-summary .ss-stats", "gap")).toBe("8px 32px");
-    expect(decl(".session-summary .ss-stat-value", "font-family")).toBe("var(--font-mono)");
+    // CHANGED ON PURPOSE (V4 top-10 #8): mono → sans + tabular-nums, because a recap figure is a figure, not code.
+    expect(decl(".session-summary .ss-stat-value", "font-family")).toBe("var(--font-sans)");
     // CHANGED ON PURPOSE (owner 2026-11-10 critique: type scale 11/12/13/16/22, radii 4/8/pill): a figure at 16.
     expect(px(decl(".session-summary .ss-stat-value", "font-size"))).toBe(16);
     expect(decl(".session-summary .ss-stat-value", "font-weight")).toBe("600");
@@ -546,7 +552,8 @@ describe("Session recap", () => {
     expect(recap).toContain('<span className="ss-tt" key={name}>{name} <b>{count}</b></span>');
     expect(decl(".session-summary .ss-tt", "border-radius")).toBe("var(--r-pill)");
     expect(decl(".session-summary .ss-tt", "background")).toBe("var(--ctl-fill)");
-    expect(decl(".session-summary .ss-tt", "font-family")).toBe("var(--font-mono)");
+    // CHANGED ON PURPOSE (V4 top-10 #8): mono → sans + tabular-nums, because a tool's name and count is a label and a figure, not code.
+    expect(decl(".session-summary .ss-tt", "font-family")).toBe("var(--font-sans)");
     expect(decl(".session-summary .ss-prompt", "color")).toBe("var(--text-secondary)");
     expect(px(decl(".session-summary .ss-prompt", "font-size"))).toBe(13);
     expect(decl(".tool-modal .modal-section h4, .session-summary .modal-section h4", "font-weight")).toBe("600");

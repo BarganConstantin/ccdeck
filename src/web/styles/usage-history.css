@@ -32,7 +32,7 @@
 }
 .uh-range { display: inline-flex; gap: 2px; background: var(--bg-soft); border: 1px solid var(--line); border-radius: var(--r-pill); padding: 2px; }
 /* The interface's sans, from `font: inherit`: a segmented control holds words,
-   and mono is for figures and ids. It was mono here, so "All agents | Claude |
+   and mono is for ids and code. It was mono here, so "All agents | Claude |
    Codex" and the sorts read in a different face from "24 hours | 7 days" and
    every chip that had overridden it (owner, 2026-11-10). */
 .uh-range-btn {
@@ -142,11 +142,11 @@
 .uh-stale .uh-agent-seg,
 .uh-stale .uh-legend-dot { opacity: var(--dim-stale); transition: opacity var(--dur-fast) var(--ease); }
 
-/* V4's stats: bare, the value (mono 16/24 600) over its label (12/16 muted),
+/* V4's stats: bare, the value (16/24 600, tabular) over its label (12/16 muted),
    32 apart. No boxes. */
 .uh-totals { display: flex; flex-wrap: wrap; gap: 4px 32px; }
 .uh-stat { display: flex; flex-direction: column; gap: 0; }
-.uh-stat-val { font-family: var(--font-mono); font-size: calc(16px + var(--ui-text-increase, 0px)); font-weight: 600; line-height: calc(24px + var(--ui-text-increase, 0px)); color: var(--text); font-variant-numeric: tabular-nums; }
+.uh-stat-val { font-family: var(--font-sans); font-size: calc(16px + var(--ui-text-increase, 0px)); font-weight: 600; line-height: calc(24px + var(--ui-text-increase, 0px)); color: var(--text); font-variant-numeric: tabular-nums; }
 .uh-stat-label { font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: calc(16px + var(--ui-text-increase, 0px)); color: var(--muted); }
 
 /* Cost by CLI, between the range totals and the daily chart (#431). Only drawn
@@ -247,7 +247,7 @@
 /* V4's column: the plot (the value over its bar) takes the height the axis name
    under it leaves. */
 .uh-bar-plot { flex: 1 1 0; min-height: 0; width: 100%; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; gap: 3px; }
-.uh-bar-value { flex: none; font-family: var(--font-mono); font-size: calc(11px + var(--ui-text-increase, 0px)); line-height: calc(14px + var(--ui-text-increase, 0px)); color: var(--muted); white-space: nowrap; }
+.uh-bar-value { flex: none; font-family: var(--font-sans); font-variant-numeric: tabular-nums; font-size: calc(11px + var(--ui-text-increase, 0px)); line-height: calc(14px + var(--ui-text-increase, 0px)); color: var(--muted); white-space: nowrap; }
 .uh-bar {
   width: min(24px, 78%);
   /* At rest the bar has its real height: its share of the column (--uh-h, 0 to
@@ -316,7 +316,7 @@
 .uh-detail { border-top: 1px solid var(--line-soft); padding-top: 12px; }
 .uh-detail-head { display: flex; align-items: baseline; gap: 12px; margin-bottom: 8px; }
 .uh-detail-date { font-size: calc(13px + var(--ui-text-increase, 0px)); font-weight: 600; line-height: calc(20px + var(--ui-text-increase, 0px)); color: var(--text); }
-.uh-detail-cost { margin-left: auto; font-family: var(--font-mono); font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: calc(16px + var(--ui-text-increase, 0px)); color: var(--muted); font-variant-numeric: tabular-nums; }
+.uh-detail-cost { margin-left: auto; font-family: var(--font-sans); font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: calc(16px + var(--ui-text-increase, 0px)); color: var(--muted); font-variant-numeric: tabular-nums; }
 /* `min-width: 0` and the ellipsis are #462's lesson applied before it bites:
    this cell prints named CLIs and their cost, so it is no longer a two-word
    list, and an unbounded flex item in a baseline row pushes the date and the
@@ -324,7 +324,8 @@
 .uh-detail-agents {
   min-width: 0;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-  font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: calc(16px + var(--ui-text-increase, 0px)); color: var(--muted); font-family: var(--font-mono);
+  font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: calc(16px + var(--ui-text-increase, 0px)); color: var(--muted); font-family: var(--font-sans);
+  font-variant-numeric: tabular-nums;
 }
 .uh-day-table { width: 100%; border-collapse: collapse; table-layout: fixed; }
 .uh-day-table th, .uh-day-table td { padding: 0 6px; text-align: right; white-space: nowrap; }
@@ -334,11 +335,11 @@
 .uh-day-table thead th { height: 24px; border-bottom: 1px solid var(--line-soft); font-size: calc(11px + var(--ui-text-increase, 0px)); font-weight: 500; line-height: calc(14px + var(--ui-text-increase, 0px)); color: var(--muted); }
 .uh-day-table tbody th, .uh-day-table tbody td { height: 28px; font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: calc(16px + var(--ui-text-increase, 0px)); }
 .uh-day-table tbody th { font-weight: 400; color: var(--text); }
-.uh-day-table tbody td { font-family: var(--font-mono); color: var(--text-secondary); font-variant-numeric: tabular-nums; }
-.uh-model-share { flex: none; margin-left: 4px; font-family: var(--font-mono); font-size: calc(11px + var(--ui-text-increase, 0px)); color: var(--muted); font-variant-numeric: tabular-nums; }
+.uh-day-table tbody td { font-family: var(--font-sans); color: var(--text-secondary); font-variant-numeric: tabular-nums; }
+.uh-model-share { flex: none; margin-left: 4px; font-family: var(--font-sans); font-size: calc(11px + var(--ui-text-increase, 0px)); color: var(--muted); font-variant-numeric: tabular-nums; }
 .uh-day-table tfoot th, .uh-day-table tfoot td { height: 28px; border-top: 1px solid var(--line-soft); font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: calc(16px + var(--ui-text-increase, 0px)); }
 .uh-day-table tfoot th { font-weight: 600; color: var(--text); text-align: left; padding-left: 0; }
-.uh-day-table tfoot td { font-family: var(--font-mono); color: var(--text); font-variant-numeric: tabular-nums; }
+.uh-day-table tfoot td { font-family: var(--font-sans); color: var(--text); font-variant-numeric: tabular-nums; }
 /* A phone: the figure columns narrow so the model keeps room, and a bar's value (its cost is
    on the column's name) gives way to the weekday under it. */
 @media (max-width: 520px) {
@@ -350,7 +351,7 @@
 .uh-detail-mini { display: flex; flex-wrap: wrap; gap: 4px 16px; margin-top: 8px; }
 .uh-ministat { display: inline-flex; gap: 6px; font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: calc(16px + var(--ui-text-increase, 0px)); color: var(--muted); }
 .uh-ministat-label { color: var(--muted); }
-.uh-ministat-val { font-family: var(--font-mono); color: var(--text-secondary); font-variant-numeric: tabular-nums; }
+.uh-ministat-val { font-family: var(--font-sans); color: var(--text-secondary); font-variant-numeric: tabular-nums; }
 .uh-model-name { display: inline-flex; align-items: center; gap: 5px; min-width: 0; max-width: 100%; }
 /* The 200px column is the narrowest place a model label is printed, and since
    #462 a label carries the variant that tells two rows of one family apart.

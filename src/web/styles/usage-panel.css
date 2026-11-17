@@ -128,7 +128,7 @@
   color: var(--text-dim);
 }
 
-/* THE HERO (V4's Figma): the figure in mono 600 22/28 --text, the period word
+/* THE HERO (V4's Figma): the figure in 600 22/28 tabular --text, the period word
    beside it and "Local estimate · ccusage" under it, both 400 12/16 --muted. */
 .up-total {
   display: flex;
@@ -139,7 +139,7 @@
   font-size: calc(22px + var(--ui-text-increase, 0px));
   font-weight: 600;
   font-variant-numeric: tabular-nums;
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   color: var(--text);
   line-height: calc(28px + var(--ui-text-increase, 0px));
 }
@@ -177,8 +177,8 @@
   border-radius: var(--r-ctl);
 }
 
-/* The tokens row (V4's Figma), a gap of 16: the value in mono 400 12/16
-   --text, its caption in 400 11/14 --muted after it. */
+/* The tokens row (V4's Figma), a gap of 16: the value in sans 400 12/16
+   --text with tabular figures, its caption in 400 11/14 --muted after it. */
 .up-tokens-row {
   display: flex;
   flex-wrap: wrap;
@@ -192,7 +192,7 @@
   font-size: calc(12px + var(--ui-text-increase, 0px));
   line-height: calc(16px + var(--ui-text-increase, 0px));
   font-variant-numeric: tabular-nums;
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
 }
 /* 11px, the usage panel's floor for content (#858): this is a monitor read all
    day, and --muted, not a smaller size, is what makes a key secondary. The
@@ -202,8 +202,6 @@
   font-size: calc(11px + var(--ui-text-increase, 0px));
   line-height: calc(14px + var(--ui-text-increase, 0px));
   color: var(--muted);
-  /* The caption is the interface's own face, not the figure's mono. */
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
 }
 
 /* What the strip above is a strip OF, on the one deck that has no headline to
@@ -307,11 +305,12 @@
 }
 .up-disclose[aria-expanded="true"] .up-chev { transform: rotate(180deg); }
 
-/* The age (and the plan beside it) sits in the title row, mono 400 11/14
+/* The age (and the plan beside it) sits in the title row, 400 11/14
    --muted, after a "·": "Claude quota · Max 20× · 2m ago". */
 .up-section-age {
   margin-left: auto;
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
+  font-variant-numeric: tabular-nums;
   font-size: calc(11px + var(--ui-text-increase, 0px));
   line-height: calc(14px + var(--ui-text-increase, 0px));
   font-weight: 400;
@@ -328,8 +327,8 @@
 .up-disclose .up-section-age + .up-chev { margin-left: auto; }
 
 /* By model and By session (V4's Figma): rows 24 high, two apart; the name in
-   400 12/16 --text-secondary, the tokens in mono 12/16 --muted, the cost in
-   mono 12/16 --text. The column heads are not drawn, so they are not seen;
+   400 12/16 --text-secondary, the tokens in 12/16 tabular --muted, the cost
+   in 12/16 tabular --text. The column heads are not drawn, so they are not seen;
    they stay in the table for a screen reader. */
 .up-table {
   width: 100%;
@@ -365,7 +364,7 @@
 .up-num {
   text-align: right;
   font-variant-numeric: tabular-nums;
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   color: var(--muted);
   font-size: calc(12px + var(--ui-text-increase, 0px));
 }
@@ -404,13 +403,13 @@
 }
 .up-session-tokens {
   font-variant-numeric: tabular-nums;
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: calc(12px + var(--ui-text-increase, 0px));
   color: var(--muted);
 }
 .up-session-cost {
   font-variant-numeric: tabular-nums;
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: calc(12px + var(--ui-text-increase, 0px));
   color: var(--text);
   min-width: 36px;
@@ -444,8 +443,8 @@
 
 /* ── quota bars (V4's Figma) ──
    A window is a top line (the name in 400 12/16 --text-secondary, the percent
-   in mono 12/16 --text), a meter 2 high on a --ctl-fill track, and the line
-   under it (400 12/16 --muted with its note in mono 11/14 --muted). The rows
+   in 12/16 tabular --text), a meter 2 high on a --ctl-fill track, and the line
+   under it (400 12/16 --muted with its note in 11/14 --muted). The rows
    are 3 apart. The meter's fill is --accent under 70, --warn from 70 to 89 and
    --err from 90 or at the limit (quotaLevel and quotaFill, QuotaBar.tsx, the
    one level every quota meter in the deck shares); from 70 the percent takes
@@ -463,7 +462,7 @@
 .qb-label { color: var(--text-secondary); font-weight: 400; }
 .qb-pct {
   font-variant-numeric: tabular-nums;
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: calc(12px + var(--ui-text-increase, 0px));
   line-height: calc(16px + var(--ui-text-increase, 0px));
   font-weight: 400;
@@ -547,11 +546,12 @@
   line-height: calc(16px + var(--ui-text-increase, 0px));
   color: var(--muted);
 }
-/* The right-hand note: mono 400 11/14 --muted ("on pace"), in every state. It
+/* The right-hand note: 400 11/14 --muted ("on pace"), in every state. It
    was drawn whole in the pace colour and read as a link (V4 top-10 #10); the
    one figure that warns keeps the over-pace colour instead (.qb-pace-figure). */
 .qb-pace {
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
+  font-variant-numeric: tabular-nums;
   font-size: calc(11px + var(--ui-text-increase, 0px));
   line-height: calc(14px + var(--ui-text-increase, 0px));
   font-weight: 400;
@@ -615,7 +615,7 @@ button.qb-pace::after {
    this undoes that to keep "Pro 20x" readable as a product name, and
    --text-dim at normal weight keeps it a step under the words it annotates. */
 .up-plan-badge {
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: calc(11px + var(--ui-text-increase, 0px));
   line-height: calc(14px + var(--ui-text-increase, 0px));
   font-weight: 400;
@@ -633,7 +633,7 @@ button.qb-pace::after {
 .up-quota-hint { color: var(--text-dim); }
 /* A quota that is down (V4's Figma): "Quota unavailable." 600 13/20 --text, the
    deck's own reason under it 400 12/16 --muted. The age and "no newer reading"
-   ride at the right of the label row, in the same mono 11/14 --muted. */
+   ride at the right of the label row, in the same 11/14 --muted. */
 .up-quota-na > .up-quota-down {
   font-size: calc(13px + var(--ui-text-increase, 0px));
   line-height: calc(20px + var(--ui-text-increase, 0px));

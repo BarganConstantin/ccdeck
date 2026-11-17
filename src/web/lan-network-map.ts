@@ -153,7 +153,7 @@ const SCATTER_REACH = 0.05;
 /** A deck's disc, and the box its name and caption take, as the stylesheet
  *  draws them — see `.nm-node` and `.nm-label`. Estimated here rather than
  *  measured, so the layout stays a function with no DOM in it; the glyph
- *  widths are the 13px sans's and 11px mono's average. */
+ *  widths are the 13px sans's average and the 11px mono's advance. */
 const DISC_R = 28;
 const LOOSE_DISC_R = 24;
 /** The same discs in a dense map, where the stage cannot hold 56-wide decks
@@ -165,7 +165,9 @@ const LABEL_GAP = 7;
 const LABEL_TALL = 35;
 const LABEL_MAX_W = 116;
 const NAME_CH_W = 7.6;
-/** The 11px mono caption's glyph width. */
+/** The 11px caption's glyph width: the mono advance it was set in. The caption
+ *  is the sans since V4 top-10 #8, whose average glyph is narrower, so this
+ *  stays as an upper bound: the box is never short, at most a little roomy. */
 const CAP_CH_W = 6.6;
 
 /** The line under a deck's name, as the map draws it. The map knows what a

@@ -142,7 +142,8 @@
 .insp-qual { color: var(--muted); }
 .insp-spacer { flex: 1; }
 .insp-fig {
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
+  font-variant-numeric: tabular-nums;
   font-size: calc(12px + var(--ui-text-increase, 0px));
   line-height: 16px;
   font-weight: 500;
@@ -174,7 +175,7 @@
 }
 .insp-time-stat dd {
   margin: 0;
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: calc(13px + var(--ui-text-increase, 0px));
   line-height: 20px;
   font-weight: 500;
@@ -218,7 +219,7 @@
   align-items: center;
 }
 /* The column's name is a word, in the UI face at 12/16; only the figures on
-   the axis are mono, as the durations in the rows are. */
+   the axis are tabular, as the durations in the rows are. */
 .insp-time-axis {
   height: 20px;
   border-bottom: 1px solid var(--line-soft);
@@ -229,7 +230,8 @@
 .insp-time-ticks {
   display: flex;
   justify-content: space-between;
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
+  font-variant-numeric: tabular-nums;
   font-size: calc(11px + var(--ui-text-increase, 0px));
   line-height: 14px;
 }
@@ -255,14 +257,17 @@
   font-weight: 500;
   color: var(--text);
 }
+/* The call's argument is what was typed, so mono; how long it took is a figure,
+   so the sans with tabular digits (V4 top-10 #8). */
 .insp-time-arg,
 .insp-time-took {
-  font-family: var(--font-mono);
   font-size: calc(11px + var(--ui-text-increase, 0px));
   font-weight: 400;
   line-height: 14px;
   color: var(--muted);
 }
+.insp-time-arg { font-family: var(--font-mono); }
+.insp-time-took { font-family: var(--font-sans); font-variant-numeric: tabular-nums; }
 .insp-time-arg { flex: 1 1 auto; min-width: 0; margin-left: 4px; text-align: right; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 /* A path is two spans in a flex box, which text-align does not move; an auto
    margin does, and never pushes them out at the left. */
@@ -303,7 +308,8 @@
   padding: 0 4px;
   border-radius: var(--r-ctl);
   background: var(--panel);
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
+  font-variant-numeric: tabular-nums;
   font-size: calc(11px + var(--ui-text-increase, 0px));
   line-height: 14px;
   color: var(--warn);
@@ -476,7 +482,7 @@
   white-space: nowrap;
 }
 .detail .tool {
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: calc(12px + var(--ui-text-increase, 0px));
   padding: calc(5px * var(--ui-space, 1)) 0;
   color: var(--text);

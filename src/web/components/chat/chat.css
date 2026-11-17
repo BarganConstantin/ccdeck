@@ -51,7 +51,9 @@
 /* The assistant: text, no bubble, and a line that stops at 640. */
 .chat-said { margin: 0; max-width: 640px; font-size: calc(13px + var(--ui-text-increase, 0px)); line-height: 20px; color: var(--text); overflow-wrap: anywhere; }
 
-/* A tool call: one row, --row-tool high. */
+/* A tool call: one row, --row-tool high. The tool's name and the note are
+   the interface's sans; the argument alone is mono, since it is what was typed
+   (a path, a command), as the Inspector's tool rows set it (V4 top-10 #8). */
 .chat-tool {
   box-sizing: border-box;
   display: flex;
@@ -61,7 +63,7 @@
   padding: 0 8px;
   border-radius: var(--r-ctl);
   min-width: 0;
-  font: 400 12px/16px var(--font-mono);
+  font: 400 12px/16px var(--font-sans);
   color: var(--muted);
 }
 /* A run of tool rows is one block: 0 between the rows (the column's 12 is taken
@@ -70,7 +72,7 @@
 .chat-tool-chev,
 .chat-tool-mark { flex: none; display: inline-flex; color: var(--muted); }
 .chat-tool-name { flex: none; font-weight: 500; color: var(--text-secondary); }
-.chat-tool-arg { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.chat-tool-arg { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--font-mono); }
 .chat-tool-note { flex: none; margin-left: auto; padding-left: 8px; white-space: nowrap; font-variant-numeric: tabular-nums; }
 .chat-tool[data-running] .chat-tool-note { color: var(--inflight); }
 

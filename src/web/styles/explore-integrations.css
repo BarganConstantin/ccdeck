@@ -13,10 +13,10 @@
 .explore-intro { margin: 0; color: var(--text-secondary); line-height: var(--lh-body); }
 .explore-body { min-height: 0; overflow-y: auto; padding: 16px; display: flex; flex-direction: column; gap: 12px; }
 .explore-body > * { flex: none; }
-/* The caption: its label 12/600 in the UI face, the count in mono 11. */
+/* The caption: its label 12/600 in the UI face, the count at 11, tabular. */
 .explore-caption { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; margin: 0; min-height: 20px; color: var(--muted); font-size: calc(11px + var(--ui-text-increase, 0px)); line-height: 14px; }
 .explore-caption > :first-child { font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: 16px; font-weight: 600; color: var(--text-secondary); }
-.explore-caption > :last-child:not(:first-child) { font-family: var(--font-mono); }
+.explore-caption > :last-child:not(:first-child) { font-family: var(--font-sans); font-variant-numeric: tabular-nums; }
 .explore-providers { list-style: none; margin: 0; padding: 0; display: grid; gap: 12px; }
 /* V4's row: 58 tall, the card radius (8), a 1px --line-soft stroke and no fill, its content
    10/12 in from the outer edge, 12 apart; no icon. Figma's stroke sits inside

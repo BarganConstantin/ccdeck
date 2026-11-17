@@ -199,9 +199,10 @@ describe("the sound menu's reading is described once (#1026)", () => {
     expect(decl(".sm-read", "color")).toBeNull();
     expect(decl(".sound-menu .sm-read", "color")).toBeNull();
     expect(decl(".settings-modal .sm-read", "color")).toBe("var(--muted)");
-    // A value, so monospaced, at the 11px label tier (it was 10px in sans).
+    // A value, at the 11px label tier (it was 10px in sans), with tabular figures.
     expect(decl(".settings-modal .sm-read", "font-size")).toBe("11px");
-    expect(decl(".settings-modal .sm-read", "font-family")).toBe("var(--font-mono)");
+    // CHANGED ON PURPOSE (V4 top-10 #8): mono → sans + tabular-nums, because a volume reading is a figure, not code.
+    expect(decl(".settings-modal .sm-read", "font-family")).toBe("var(--font-sans)");
     // The geometry the dead rule also carried has to survive the merge.
     expect(decl(".settings-modal .sm-read", "min-width")).toBe("34px");
     expect(decl(".settings-modal .sm-read", "text-align")).toBe("right");
@@ -221,7 +222,8 @@ describe("the sound menu's reading is described once (#1026)", () => {
       .filter(f => /\.tsx$/.test(f) && /<VolumeRow\b/.test(at(`../components/${f}`)));
     expect(callers.sort()).toEqual(["RadioPanel.tsx", "ToneSection.tsx"]);
     expect(decl(".radio-controls .sm-read", "color")).toBe("var(--muted)");
-    expect(decl(".radio-controls .sm-read", "font-family")).toBe("var(--font-mono)");
+    // CHANGED ON PURPOSE (V4 top-10 #8): mono → sans + tabular-nums, because a volume reading is a figure, not code.
+    expect(decl(".radio-controls .sm-read", "font-family")).toBe("var(--font-sans)");
     const settings = at("../components/SettingsModal.tsx");
     expect(at("../components/SoundsSection.tsx")).toMatch(/<ToneSection\b/);
     expect(settings).toMatch(/<SoundsSection\b/);

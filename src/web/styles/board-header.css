@@ -45,7 +45,8 @@
   min-width: 0;
 }
 .bh-num {
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
+  font-variant-numeric: tabular-nums;
   font-size: calc(16px + var(--ui-text-increase, 0px));
   line-height: 24px;
   font-weight: 600;

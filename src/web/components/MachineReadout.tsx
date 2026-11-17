@@ -211,7 +211,7 @@ export function Row({ label, value, pct, note }: {
 
 /**
  * A plain reading, 24 high: the label on the left in --text-secondary, the
- * value on the right in mono. `err` is for a reading the deck already treats as an error
+ * value on the right in tabular figures. `err` is for a reading the deck already treats as an error
  * (a sensor past its own critical point, a clock held down hard): --err, with
  * the warning mark and "hot" round it; anything else is --text, never amber.
  * `note` is the sentence that explains it, under.

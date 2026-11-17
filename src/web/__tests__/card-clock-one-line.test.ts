@@ -78,7 +78,8 @@ describe("the card's clock box", () => {
       // Left now: the clock follows the cost in the foot instead of closing a row.
       expect(got("text-align", width)).toBe("left");
       expect(got("font-variant-numeric", width)).toBe("tabular-nums");
-      expect(got("font-family", width)).toBe("var(--font-mono)");
+      // CHANGED ON PURPOSE (V4 top-10 #8): mono → sans + tabular-nums, because the card's clock is a figure, not code.
+      expect(got("font-family", width)).toBe("var(--font-sans)");
     });
   }
 });

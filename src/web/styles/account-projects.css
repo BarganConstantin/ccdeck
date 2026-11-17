@@ -236,14 +236,14 @@
 .ap-reset-next-identity p { overflow-wrap: anywhere; margin: 6px 0 0; font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: 1.5; color: var(--text); }
 .ap-reset-next-identity .ap-reset-next-note { font-size: calc(11px + var(--ui-text-increase, 0px)); color: var(--report-meta); }
 .ap-reset-countdown { display: flex; flex-direction: column; gap: 4px; flex: none; margin: 24px 0 0; text-align: right; }
-.ap-reset-countdown strong { font: 600 22px/1.3 var(--font-mono); color: var(--accent); font-variant-numeric: tabular-nums; }
+.ap-reset-countdown strong { font: 600 22px/1.3 var(--font-sans); color: var(--accent); font-variant-numeric: tabular-nums; }
 .ap-reset-countdown > span { max-width: 88px; font-size: calc(11px + var(--ui-text-increase, 0px)); color: var(--report-meta); }
 .ap-reset-coverage { display: flex; flex-direction: column; gap: 2px; }
 .ap-reset-coverage-link { display: flex; align-items: center; gap: 12px; min-height: 40px; padding: 4px 8px; border: 0; border-radius: var(--r-ctl); background: transparent; color: var(--report-meta); font: inherit; text-align: left; cursor: pointer; transition: background var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease); }
 .ap-reset-coverage-link { --reset-category-ink: var(--text-secondary); border-left: 2px solid transparent; }
 .ap-reset-coverage-link[data-scope="upcoming"] { --reset-category-ink: var(--accent); }
 .ap-reset-coverage-link[data-attention] { --reset-category-ink: var(--reset-attention); }
-.ap-reset-coverage-link b { min-width: 20px; font: 600 16px var(--font-mono); color: var(--reset-category-ink); }
+.ap-reset-coverage-link b { min-width: 20px; font: 600 16px var(--font-sans); font-variant-numeric: tabular-nums; color: var(--reset-category-ink); }
 .ap-reset-coverage-link > span { font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: 1.4; }
 .ap-reset-coverage-link > span > span { display: block; font-size: calc(11px + var(--ui-text-increase, 0px)); color: var(--report-meta); }
 @media (hover: hover) and (pointer: fine) {
@@ -275,7 +275,7 @@
 .ap-reset-week time { display: flex; flex-direction: column; gap: 3px; }
 .ap-reset-weekday { font-size: calc(11px + var(--ui-text-increase, 0px)); }
 .ap-reset-week li[data-today] .ap-reset-weekday { text-decoration: underline; text-underline-offset: 3px; color: var(--text); }
-.ap-reset-date { font-family: var(--font-mono); font-size: calc(16px + var(--ui-text-increase, 0px)); font-weight: 400; font-variant-numeric: tabular-nums; }
+.ap-reset-date { font-family: var(--font-sans); font-size: calc(16px + var(--ui-text-increase, 0px)); font-weight: 400; font-variant-numeric: tabular-nums; }
 .ap-reset-day-button[data-active] .ap-reset-date { font-weight: 600; color: var(--text); }
 .ap-reset-count { font-size: calc(11px + var(--ui-text-increase, 0px)); color: var(--report-meta); }
 .ap-reset-count b { font-weight: 400; font-variant-numeric: tabular-nums; }
@@ -283,7 +283,7 @@
 .ap-reset-day-button[data-active] .ap-reset-count b::before { content: ""; display: inline-block; width: 4px; height: 4px; margin: 0 4px 2px 0; border-radius: var(--r-pill); background: currentColor; }
 .ap-reset-count > span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 .ap-reset-results { scrollbar-gutter: stable; min-height: 0; flex: 1; overflow-y: auto; padding: 16px 24px; }
-.ap-reset-time { font: calc(12px + var(--ui-text-increase, 0px)) var(--font-mono); font-variant-numeric: tabular-nums; color: var(--text); }
+.ap-reset-time { font: calc(12px + var(--ui-text-increase, 0px)) var(--font-sans); font-variant-numeric: tabular-nums; color: var(--text); }
 .ap-reset-hint { margin: 0 0 12px; font-size: calc(11px + var(--ui-text-increase, 0px)); color: var(--report-meta); }
 .ap-reset-explain,
 .ap-reset-empty { margin: 0; max-width: 70ch; font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: 1.5; color: var(--report-meta); }
@@ -322,10 +322,10 @@
 .ap-reset-account[open] .ap-reset-account-body { margin: 4px 8px 8px; padding: 8px 12px; background: var(--bg-soft); border-radius: var(--r-panel); }
 .ap-reset-account-body { display: flex; flex-direction: column; gap: 8px; padding: 4px 0 8px; font-size: calc(11px + var(--ui-text-increase, 0px)); line-height: 1.5; color: var(--report-meta); }
 .ap-reset-account-body p { display: flex; flex-direction: column; gap: 2px; margin: 0; overflow-wrap: anywhere; }
-.ap-reset-account-body p > span { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+.ap-reset-account-body p > span { font-family: var(--font-sans); font-variant-numeric: tabular-nums; }
 .ap-reset-account-body strong { color: var(--text); font-weight: 600; }
 .ap-reset-reading { display: flex; flex-direction: column; align-items: flex-end; gap: 5px; text-align: right; padding-top: 10px; }
-.ap-reset-usage { font: calc(12px + var(--ui-text-increase, 0px)) var(--font-mono); font-variant-numeric: tabular-nums; color: var(--text); }
+.ap-reset-usage { font: calc(12px + var(--ui-text-increase, 0px)) var(--font-sans); font-variant-numeric: tabular-nums; color: var(--text); }
 /* A current reading in the Usage panel's inks for the same number (quotaLevel):
    the meter in the accent, then --warn from 70% and --err from 90%, when the
    words wear the mark and "high" too (LevelMark). An older one is quiet. */
@@ -399,7 +399,7 @@
 .ap-report-lead { margin: 0; font-size: calc(13px + var(--ui-text-increase, 0px)); color: var(--text); }
 .ap-report-lead b {
   margin-right: 2px;
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: calc(22px + var(--ui-text-increase, 0px));
   font-weight: 600;
   font-variant-numeric: tabular-nums;
@@ -422,7 +422,7 @@
 .ap-report-left { margin: 0; font-size: calc(12px + var(--ui-text-increase, 0px)); color: var(--report-meta); }
 .ap-report-left b {
   margin-right: 2px;
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: calc(16px + var(--ui-text-increase, 0px));
   font-weight: 600;
   color: var(--text);
@@ -460,7 +460,7 @@
 .ap-report-more { color: var(--report-meta); }
 .ap-report-none { color: var(--text); }
 .ap-report-basis { margin: 0; font-size: calc(11px + var(--ui-text-increase, 0px)); color: var(--report-meta); }
-.ap-report-num { font-family: var(--font-mono); color: var(--text); font-variant-numeric: tabular-nums; }
+.ap-report-num { font-family: var(--font-sans); color: var(--text); font-variant-numeric: tabular-nums; }
 
 /* Keep every column on phones: only the table scrolls horizontally, while
    the summary keeps the dialog's width. Long account names still truncate. */
@@ -552,7 +552,7 @@
 .ap-report-fig .ap-report-meter[data-level="warn"] i { background: var(--warn); }
 .ap-report-fig .ap-report-meter[data-level="err"] i { background: var(--err); }
 .ap-report-cell[data-uncounted] .ap-report-meter i { background: var(--muted); }
-.ap-report-pct { flex: none; font-family: var(--font-mono); font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: 16px; color: var(--text); font-variant-numeric: tabular-nums; }
+.ap-report-pct { flex: none; font-family: var(--font-sans); font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: 16px; color: var(--text); font-variant-numeric: tabular-nums; }
 .level-mark > .ap-report-pct { color: inherit; }
 .ap-report-cell[data-uncounted] .ap-report-pct { color: var(--muted); }
 /* The second line of a window's cell and of the state's: when the window
@@ -631,7 +631,7 @@
   .ap-report-table tbody th { padding: 0; min-width: 0; }
   .ap-report-acct-in { flex-wrap: wrap; }
   .ap-report-name { white-space: normal; overflow-wrap: anywhere; }
-  .ap-report-mobile-label { display: block; margin-bottom: 4px; font: calc(11px + var(--ui-text-increase, 0px)) var(--font-mono); color: var(--report-meta); }
+  .ap-report-mobile-label { display: block; margin-bottom: 4px; font: calc(11px + var(--ui-text-increase, 0px)) var(--font-sans); color: var(--report-meta); }
   .ap-report-table tbody td { padding: 0; }
 }
 
@@ -678,7 +678,7 @@
 @media (hover: hover) and (pointer: fine) {
 .ap-reset-next-account > summary:hover { background: var(--ctl-fill); }
 }
-.ap-reset-next-account .ap-reset-full-name { overflow-wrap: anywhere; font-family: var(--font-mono); }
+.ap-reset-next-account .ap-reset-full-name { overflow-wrap: anywhere; font-family: var(--font-sans); }
 .ap-reset-body:has(.ap-reset-next-account[open]) { display: block; overflow-y: auto; }
 .ap-reset-body:has(.ap-reset-next-account[open]) .ap-reset-results { overflow: visible; }
 /* At very short heights, one body scroller keeps all navigation reachable. */

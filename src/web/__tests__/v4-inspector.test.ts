@@ -190,7 +190,7 @@ describe("the body and its head row", () => {
     expect(decl(".insp-b", "overflow-y")).toBe("auto");
     expect(decl(".detail", "overflow")).toBe("hidden");
   });
-  it("starts each tab with a baseline row of gap 6: the title 600 --text, the qualifier --muted, a spacer, a mono figure", () => {
+  it("starts each tab with a baseline row of gap 6: the title 600 --text, the qualifier --muted, a spacer, a tabular figure", () => {
     expect(decl(".insp-head", "align-items")).toBe("baseline");
     expect(decl(".insp-head", "gap")).toBe("6px");
     expect(decl(".insp-head", "font-size")).toBe(INC(13));
@@ -199,7 +199,8 @@ describe("the body and its head row", () => {
     expect(decl(".insp-title", "color")).toBe("var(--text)");
     expect(decl(".insp-qual", "color")).toBe("var(--muted)");
     expect(decl(".insp-spacer", "flex")).toBe("1");
-    expect(decl(".insp-fig", "font-family")).toBe("var(--font-mono)");
+    // CHANGED ON PURPOSE (V4 top-10 #8): mono → sans + tabular-nums, because the tab's figure is a figure, not code.
+    expect(decl(".insp-fig", "font-family")).toBe("var(--font-sans)");
     expect(decl(".insp-fig", "font-size")).toBe(INC(12));
     expect(decl(".insp-fig", "font-weight")).toBe("500");
     expect(decl(".insp-fig", "color")).toBe("var(--muted)");

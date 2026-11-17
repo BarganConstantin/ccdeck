@@ -72,7 +72,7 @@
 .fg-fold:active { transform: scale(var(--press)); }
 .fg-fold-chevron { width: 5px; height: 5px; border-right: 1px solid currentColor; border-bottom: 1px solid currentColor; transform: rotate(-45deg); transition: transform var(--dur-fast) var(--ease); }
 .fg-group[data-open] .fg-fold-chevron { transform: rotate(45deg); }
-.fg-count { font: calc(12px + var(--ui-text-increase, 0px)) var(--font-mono); font-weight: 400; color: var(--muted); }
+.fg-count { font: calc(12px + var(--ui-text-increase, 0px)) var(--font-sans); font-variant-numeric: tabular-nums; font-weight: 400; color: var(--muted); }
 
 /* A row: one button, a quiet fill under the pointer. A list's rows are also
    the integrations' shared row (`ig-row`, integrations.css): the selected

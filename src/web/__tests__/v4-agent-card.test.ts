@@ -110,9 +110,10 @@ describe("the head", () => {
   // CHANGED ON PURPOSE (V4 top-10 #2): the rule was shared with the model
   // text, `.agent-node .title .model-text, .agent-node .title .synth-tag`. The
   // model left the card, so the markers keep the rule alone.
-  it("sets the markers as plain mono 11/14 in --muted", () => {
+  it("sets the markers as plain 11/14 in --muted, in the sans", () => {
     const rule = ".agent-node .title .synth-tag";
-    expect(decl(rule, "font-family")).toBe("var(--font-mono)");
+    // CHANGED ON PURPOSE (V4 top-10 #8): mono → sans + tabular-nums, because a marker (restored, ?) is a label, not code.
+    expect(decl(rule, "font-family")).toBe("var(--font-sans)");
     expect(decl(rule, "font-size")).toBe("calc(11px + var(--ui-text-increase, 0px))");
     expect(decl(rule, "line-height")).toBe("calc(14px + var(--ui-text-increase, 0px))");
     expect(decl(rule, "font-weight")).toBe("400");
@@ -293,8 +294,9 @@ describe("the task line", () => {
 });
 
 describe("the foot", () => {
-  it("is mono 11/14 in --text-secondary, with a --muted dot between items", () => {
-    expect(decl(".agent-node .foot", "font-family")).toBe("var(--font-mono)");
+  it("is 11/14 tabular sans in --text-secondary, with a --muted dot between items", () => {
+    // CHANGED ON PURPOSE (V4 top-10 #8): mono → sans + tabular-nums, because the foot (cost, clock, tokens) is a figure, not code.
+    expect(decl(".agent-node .foot", "font-family")).toBe("var(--font-sans)");
     expect(decl(".agent-node .foot", "font-size")).toBe("calc(11px + var(--ui-text-increase, 0px))");
     expect(decl(".agent-node .foot", "line-height")).toBe("calc(14px + var(--ui-text-increase, 0px))");
     expect(decl(".agent-node .foot", "color")).toBe("var(--text-secondary)");
@@ -398,9 +400,11 @@ describe("review fixes", () => {
 });
 
 describe("fixes found in the browser", () => {
-  it("draws the ask line as plain mono 12/16 text: no border, no fill, no pill, one line", () => {
+  it("draws the ask line as plain 12/16 text, a call in mono: no border, no fill, no pill, one line", () => {
     const row = ".agent-node .waiting-row";
-    expect(decl(row, "font-family")).toBe("var(--font-mono)");
+    // CHANGED ON PURPOSE (V4 top-10 #8): mono → sans, because a question or "Your turn" is words, not code; a call keeps mono (.mono).
+    expect(decl(row, "font-family")).toBe("var(--font-sans)");
+    expect(decl(".agent-node .waiting-said.mono", "font-family")).toBe("var(--font-mono)");
     expect(decl(row, "font-size")).toBe("calc(12px + var(--ui-text-increase, 0px))");
     expect(decl(row, "line-height")).toBe("calc(16px + var(--ui-text-increase, 0px))");
     expect(decl(row, "font-weight")).toBe("400");
@@ -500,7 +504,8 @@ describe("the ask row and the stop row", () => {
   const row = (out: string, cls: string) => new RegExp(`<div class="${cls}"[^>]*>([\\s\\S]*?)</div>`).exec(out)?.[1];
   it("reads a permission prompt as the call it is most likely about, with no dot and no clock", () => {
     const out = html({ state: "active", waiting: block({ tool: { name: "Bash", preview: "npm test -- rate-limit" } }) });
-    expect(row(out, "waiting-row")).toBe('<span class="waiting-said">Bash · npm test -- rate-limit</span>');
+    // CHANGED ON PURPOSE (V4 top-10 #8): a call is marked .mono, because it is what would run; the sentences below are not.
+    expect(row(out, "waiting-row")).toBe('<span class="waiting-said mono">Bash · npm test -- rate-limit</span>');
     expect(out).not.toMatch(/ap-pulse|waiting-dot/);
     expect(row(out, "waiting-row")).not.toMatch(/<b>|\d+m \d\ds/);
   });
@@ -509,7 +514,8 @@ describe("the ask row and the stop row", () => {
     expect(out).toMatch(new RegExp(`<div class="waiting-row" title="${SAID}\\nLikely on: npm test -- rate-limit\\nBlocked for 5m 2\\ds`));
   });
   it("says the call's name alone without a preview, the sentence without a call, the question, and Your turn", () => {
-    expect(row(html({ waiting: block({ tool: { name: "WebFetch", preview: "" } }) }), "waiting-row")).toBe('<span class="waiting-said">WebFetch</span>');
+    // CHANGED ON PURPOSE (V4 top-10 #8): the call alone is still a call, so it is .mono; the sentence, the question and Your turn are not.
+    expect(row(html({ waiting: block({ tool: { name: "WebFetch", preview: "" } }) }), "waiting-row")).toBe('<span class="waiting-said mono">WebFetch</span>');
     expect(row(html({ waiting: block({}) }), "waiting-row")).toBe(`<span class="waiting-said">${SAID}</span>`);
     const asked = "paycore needs your input: merge both branches to main, or just one?";
     expect(row(html({ waiting: block({ kind: "asked", message: asked, tool: { name: "Bash", preview: "git merge" } }) }), "waiting-row"))

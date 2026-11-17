@@ -120,7 +120,8 @@
 }
 .wsp-tab-n {
   flex: none;
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
+  font-variant-numeric: tabular-nums;
   color: var(--muted);
 }
 .wsp-tab-name {

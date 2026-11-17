@@ -314,7 +314,7 @@
   to { background: transparent; }
 }
 .bw-log-time {
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   color: var(--text-dim);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
@@ -322,7 +322,8 @@
 /* MONO FOR THE DATA, SANS FOR EVERYTHING ELSE. The panel was mono throughout,
    and everything being mono removes hierarchy rather than creating character —
    a title, a label and a timestamp all looked like the same kind of thing.
-   Here the row's own values stay mono because they are values; the section
+   Here the line the page printed stays mono, because it is output; its time
+   is a figure, in the sans with tabular digits (V4 top-10 #8); the section
    heads, the counts' captions and the status bar are the panel's voice and
    inherit the deck's sans. */
 .bw-log-line {
