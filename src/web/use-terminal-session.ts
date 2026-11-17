@@ -56,6 +56,7 @@ import {
 } from "./terminal-api";
 import { connectTerminal, hexColour, pasteTooLarge, type ConnectOptions, type SizeOwner, type TerminalConnection, type TmuxVersion, type ViewKind } from "./terminal-protocol";
 import { MINIMUM_CONTRAST_RATIO } from "./terminal-palette";
+import { fileDropText, isFileDrop } from "./terminal-file-drop";
 import type { Cell } from "./stage-geometry";
 import { terminalKeyInput, terminalKeyOutcome, type TerminalKey } from "./terminal-keys";
 import { stepTerminalText, textSizeChord } from "./terminal-text-size";
@@ -193,6 +194,7 @@ export interface StageTerminalEvents {
   onKey(e: TerminalKey): boolean;
   onFocusChange(focused: boolean): void;
   onRender(): void;
+  onFileDropUnavailable?(): void;
 }
 
 export interface TerminalInit {
@@ -442,6 +444,24 @@ export const mountXterm: MountTerminal = async (host, init, events) => {
     events.onPaste(text);
   };
   host.addEventListener("paste", onPaste, true);
+  const onDragOver = (event: DragEvent) => {
+    if (!isFileDrop(event.dataTransfer)) return;
+    event.preventDefault();
+    event.stopPropagation();
+    if (event.dataTransfer) event.dataTransfer.dropEffect = "copy";
+  };
+  const onDrop = (event: DragEvent) => {
+    if (!isFileDrop(event.dataTransfer)) return;
+    event.preventDefault();
+    event.stopPropagation();
+    const text = event.dataTransfer && fileDropText(event.dataTransfer);
+    if (!text) { events.onFileDropUnavailable?.(); return; }
+    term.focus();
+    term.scrollToBottom();
+    events.onPaste(text);
+  };
+  host.addEventListener("dragover", onDragOver, true);
+  host.addEventListener("drop", onDrop, true);
   const textarea = term.textarea;
   const onFocus = () => events.onFocusChange(true);
   const onBlur = () => {
@@ -478,6 +498,8 @@ export const mountXterm: MountTerminal = async (host, init, events) => {
     },
     dispose: () => {
       host.removeEventListener("paste", onPaste, true);
+      host.removeEventListener("dragover", onDragOver, true);
+      host.removeEventListener("drop", onDrop, true);
       host.removeEventListener("mousedown", onMouseDown, true);
       textarea?.removeEventListener("focus", onFocus);
       textarea?.removeEventListener("blur", onBlur);
@@ -1064,6 +1086,7 @@ export function createTerminalSession(deps: SessionDeps, callbacks: SessionCallb
       typed();
       if (!conn.sendPaste(text) && pasteTooLarge(text)) callbacks.onNotice?.(tr(PASTE_TOO_LARGE_MSG));
     },
+    onFileDropUnavailable: () => callbacks.onNotice?.(tr("board.drop.pathsUnavailable")),
     // terminal-keys.ts decides; this only carries the decision out. The
     // release chord is kept from the session and acted on by the deck's own
     // listener, so it is not answered here as well: one owner, one release.
