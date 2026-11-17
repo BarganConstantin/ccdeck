@@ -65,10 +65,12 @@ export default function ReadingSection({
   const t = useT();
   return (
     <>
-      {/* V4 draws each scale as a group of one row with a Select, in place of
-          the five framed previews: the same five steps, the same stored
-          value, in the kit's closed list. */}
-      <SettingsGroup id="reading-size-title" title={t("settings.reading.sizeTitle")}>
+      {/* V4 draws each scale as a row with a Select, in place of the five
+          framed previews: the same five steps, the same stored value, in the
+          kit's closed list. The two rows share one list under no caption (V4
+          top-10 #10): each was a group of one row captioned with its own name,
+          so "Text size" and "Density" were each said twice. */}
+      <SettingsGroup>
         <SettingRow
           settingId="text-size"
           name={t("settings.reading.sizeTitle")}
@@ -92,8 +94,6 @@ export default function ReadingSection({
             </SelectShell>
           }
         />
-      </SettingsGroup>
-      <SettingsGroup id="reading-density-title" title={t("settings.reading.densityTitle")}>
         <SettingRow
           settingId="density"
           name={t("settings.reading.densityTitle")}

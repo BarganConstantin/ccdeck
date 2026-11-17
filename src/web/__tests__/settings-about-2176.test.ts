@@ -19,8 +19,8 @@ import { fileURLToPath } from "node:url";
 import { renderToStaticMarkup } from "react-dom/server";
 import SettingsModal, { type SettingsModalProps } from "../components/SettingsModal";
 import AboutSection, {
-  FEEDBACK_NOTE, LICENCE, LICENCE_NOTE, pageBehind, pageBehindNote, SOURCE_URL, SPONSOR_NOTE, SPONSOR_URL, updateOffer,
-  WHATS_NEW_NOTE, type AboutProps,
+  LICENCE, LICENCE_NOTE, pageBehind, pageBehindNote, SOURCE_URL, SPONSOR_NOTE, SPONSOR_URL, updateOffer,
+  type AboutProps,
 } from "../components/AboutSection";
 import UpdatesSection, {
   APP_UPDATES_NOTE, AUTO_UPDATE_CHECKS_OFF_NOTE, AUTO_UPDATE_LABEL, AUTO_UPDATE_NO_RESTART_NOTE, AUTO_UPDATE_NOTE, updatesShape,
@@ -244,8 +244,20 @@ describe("Settings › About says which ccdeck this is", () => {
       expect(el.props["aria-haspopup"]).toBe("dialog");
     }
     const html = drawAbout();
-    for (const said of [WHATS_NEW_NOTE, TOUR_WHY, FEEDBACK_NOTE, "Take the tour", "Send feedback", "What&#x27;s new"]) {
+    for (const said of ["Take the tour", "Send feedback", "What&#x27;s new"]) {
       expect(html, said).toContain(said);
+    }
+    // CHANGED ON PURPOSE (V4 top-10 #10): a muted line under each of the three
+    // names ("What changed in each release, newest first.", the tour's "Eight
+    // pictures of what the deck shows.", "Tell the people who make ccdeck what
+    // works and what does not.") → none, because each said its name again in
+    // more words.
+    for (const id of ["whats-new", "tour", "feedback"]) {
+      const row = html.slice(html.indexOf(`data-setting="${id}"`));
+      expect(row.slice(0, row.indexOf("</div>")), id).not.toContain("settings-row-note");
+    }
+    for (const gone of ["What changed in each release, newest first.", TOUR_WHY, "Tell the people who make ccdeck what works and what does not."]) {
+      expect(html, gone).not.toContain(gone);
     }
   });
 
@@ -469,8 +481,11 @@ describe("Settings › General › Elsewhere on the deck", () => {
 
 describe("the new copy keeps the deck's voice", () => {
   it("has no exclamation, no minimising word, no capital C, and no claim about telemetry", () => {
+    // CHANGED ON PURPOSE (V4 top-10 #10): WHATS_NEW_NOTE and FEEDBACK_NOTE →
+    // gone from the list, because the About rows no longer draw a line under
+    // those names and the two constants went with them.
     const copy = [
-      WHATS_NEW_NOTE, FEEDBACK_NOTE, LICENCE_NOTE, pageBehindNote("3.40.0"), AUTO_UPDATE_LABEL, AUTO_UPDATE_NOTE,
+      LICENCE_NOTE, pageBehindNote("3.40.0"), AUTO_UPDATE_LABEL, AUTO_UPDATE_NOTE,
       AUTO_UPDATE_CHECKS_OFF_NOTE, AUTO_UPDATE_NO_RESTART_NOTE, APP_UPDATES_NOTE, ACCOUNTS_ROW, ACCOUNTS_ROW_NOTE,
       LAN_ROW, LAN_ROW_NOTE, WATCH_ROW, WATCH_ROW_NOTE, SETTINGS_SECTIONS.find(s => s.id === "general")!.note,
     ];

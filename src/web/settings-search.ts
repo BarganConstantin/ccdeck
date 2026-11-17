@@ -135,7 +135,8 @@ function buildIndex(): SettingsEntry[] {
       entryOf({ id: "claude-session-recovery", claudeOnly: true, section: "general", group: sessions, label: L("settings.recover.claudeName") }),
       entryOf({ id: "claude-continue-stopped", claudeOnly: true, section: "general", group: sessions, label: L("settings.recover.continueName") }),
       entryOf({ id: "codex-session-recovery", section: "general", group: sessions, label: L("settings.recover.codexName") }),
-      entryOf({ id: "language", section: "general", group: L("settings.language.group"), label: L("settings.language.name") }),
+      // No group: the row stands under no caption of its own (LanguageSection.tsx).
+      entryOf({ id: "language", section: "general", label: L("settings.language.name") }),
       entryOf({ id: "hide-finished", section: "general", group: sessions, label: L("settings.board.hideLabel") }),
       entryOf({ id: "auto-update", section: "general", group: L("settings.updates.title"), label: L("settings.updates.label") }),
       entryOf({ id: "accounts", section: "general", group: L("settings.search.group.elsewhere"), label: L("settings.search.accounts"), claudeOnly: true }),
