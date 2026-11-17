@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { codexTerminalSurfaces } from '../codex-terminal-surfaces';
 
 const enc = new TextEncoder(), dec = new TextDecoder();
-const band = '\x1b[48;5;239m';
+const band = '\x1b[48;5;237m';
 const composer = '\x1b[48;2;54;55;57m'; // Captured from an actual native Codex TUI.
 const display = (chunks: string[]) => {
   const filter = codexTerminalSurfaces();
@@ -19,7 +19,7 @@ describe('native Codex surfaces follow the terminal palette', () => {
 
   it('works at every stream boundary, including colon SGR and combined attributes', () => {
     const input = '\x1b[1;38;2;48;2;54;48;2;54;55;57;4mText';
-    const expected = '\x1b[1;38;2;48;2;54;48;5;239;4mText';
+    const expected = '\x1b[1;38;2;48;2;54;48;5;237;4mText';
     for (let i = 0; i <= input.length; i++) expect(display([input.slice(0, i), input.slice(i)])).toBe(expected);
     expect(display(['\x1b[48:2::54:55:57mText'])).toBe(`${band}Text`);
   });
@@ -33,7 +33,7 @@ describe('native Codex surfaces follow the terminal palette', () => {
     expect(display([`${composer}\x1b[2mPlaceholder\x1b[49mOutside\x1b[22m`]))
       .toBe(`${band}\x1b[22mPlaceholder\x1b[49;2mOutside\x1b[22m`);
     expect(display([`\x1b[1;2m${composer}Bold prompt\x1b[0m`]))
-      .toBe(`\x1b[1;2m\x1b[48;5;239;22;1mBold prompt\x1b[0m`);
+      .toBe(`\x1b[1;2m\x1b[48;5;237;22;1mBold prompt\x1b[0m`);
     expect(display(['\x1b[2mDim normal output\x1b[22m'])).toBe('\x1b[2mDim normal output\x1b[22m');
   });
 

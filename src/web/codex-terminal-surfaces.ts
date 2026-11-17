@@ -1,6 +1,7 @@
 // Codex caches its startup paper and paints prompt/composer bands as RGB.
 // Keep those near-neutral fills in the terminal's existing theme-aware band
-// slot, so old messages follow a later theme flip too. Foregrounds and
+// slot (a quiet control wash), so old messages follow a theme flip too.
+// Foregrounds and
 // chromatic backgrounds stay native. Used only for Codex display output.
 // See openai/codex, codex-rs/tui/src/{style,terminal_palette}.rs.
 const encoder = new TextEncoder();
@@ -80,10 +81,10 @@ function surfaceSgr() {
         const colon = /^48:2:(?::|0:)?(\d+):(\d+):(\d+)$/.exec(p);
         if (colon) {
           const neutral = neutralBand(colon.slice(1));
-          out.push(neutral ? '48;5;239' : p); background(neutral);
+          out.push(neutral ? '48;5;237' : p); background(neutral);
         } else if (['38', '48', '58'].includes(p) && parts[i + 1] === '2' && i + 4 < parts.length) {
           const neutral = p === '48' && neutralBand(parts.slice(i + 2, i + 5));
-          out.push(...(neutral ? ['48;5;239'] : parts.slice(i, i + 5)));
+          out.push(...(neutral ? ['48;5;237'] : parts.slice(i, i + 5)));
           if (p === '48') background(neutral);
           i += 4;
         } else if (['38', '48', '58'].includes(p) && parts[i + 1] === '5' && i + 2 < parts.length) {

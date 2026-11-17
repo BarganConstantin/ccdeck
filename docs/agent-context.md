@@ -491,3 +491,18 @@ acknowledgements and switching back to Claude. An isolated browser replayed
 actual native output through xterm and changed light/dark themes without
 rewriting the output; both the prompt and composer remained readable. This
 is a display correction, not a change to provider authentication or handoff.
+
+
+### Terminal surface polish and shared divider — 2026-11-17
+
+The sidebar divider disappeared in split Workspace: the column border had
+been disabled on the assumption that the stage supplied it, while split
+stages also disable their own left border. The column now owns that single
+stroke; the adjacent stage suppresses its border only while that column is
+present on desktop. The phone drawer keeps its existing edge behavior.
+
+The Codex band uses the quieter existing 7.5% control wash instead of the
+stronger 13% band. This reduces the slab effect in light and dark palettes
+while retaining readable prompt text and the pane header's focus indication.
+References were Herdr's shipped terminal palette and Ghostty's documented
+background/padding configuration; native terminal geometry is preserved.

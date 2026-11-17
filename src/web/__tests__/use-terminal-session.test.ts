@@ -244,7 +244,7 @@ describe("opening a session: write before reveal", () => {
     ctl.mount(HOST, { theme: THEME, fontFamily: "monospace" });
     await flush();
     const native = "\x1b[48;2;54;55;57mPrompt\x1b[49m";
-    const themed = "\x1b[48;5;239mPrompt\x1b[49m";
+    const themed = "\x1b[48;5;237mPrompt\x1b[49m";
     const socket = await attach(r, ctl, { ...REF, provider: "codex" }, native);
     expect(r.terminal().log).toContain(`write ${JSON.stringify(themed)}`);
     expect(socket.sentText()).toContainEqual({ t: "ack", bytes: enc(native).byteLength });
