@@ -117,6 +117,27 @@
   align-items: center;
   gap: 4px;
 }
+/* "? Keys", once the layer has no key left to name (StatusBar.tsx): drawn as a
+   hint is, the cap then the word in --muted, and a button, the keyboard
+   sheet's door. Its target is the bar's height, as the version's is. */
+.statusbar-keys {
+  position: relative;
+  flex: none;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 4px;
+  margin-left: -4px;
+  padding: 0 4px;
+  border: 0;
+  border-radius: var(--r-ctl);
+  background: none;
+  color: var(--muted);
+  font: inherit;
+  font-weight: 400;
+  cursor: pointer;
+}
+.statusbar-keys::after { content: ""; position: absolute; inset: -4px 0; }
 
 /* V4's Kbd (V4's Figma, Top bar), the deck's mono at 11 on 14. 16 tall and 17
    wide for one letter: the 1px stroke sits INSIDE the frame's 5px by 1px
@@ -150,4 +171,5 @@
    at the top level. */
 @media (hover: hover) and (pointer: fine) {
   .statusbar-version:hover { color: var(--text); background: var(--ctl-fill); }
+  .statusbar-keys:hover { color: var(--text); background: var(--ctl-fill); }
 }

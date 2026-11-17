@@ -8,11 +8,12 @@
 /* The cell becomes a column while the strip is in it: the strip keeps its
    height and the board (React Flow's wrapper, which sets its own 100% inline)
    takes the rest. Everything else in the cell is absolutely placed, so none of
-   it joins the column; what sits at the top edge reads --board-head-top. */
+   it joins the column. Nothing floats at the cell's top edge any more: the
+   tool filter that did, lifted under the strip by --board-head-top, is a group
+   of the canvas bar's ⋯ menu now (V4 top-10 #5), and the property went with it. */
 .canvas-wrap[data-board-head] {
   display: flex;
   flex-direction: column;
-  --board-head-top: var(--board-head-h);
 }
 .canvas-wrap[data-board-head] > .react-flow {
   flex: 1 1 0;

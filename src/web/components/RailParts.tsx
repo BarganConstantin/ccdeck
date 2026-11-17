@@ -6,7 +6,6 @@ import { useEffect, useRef, useState, type MouseEvent, type ReactNode } from "re
 import type { Row } from "./SessionList";
 import { AlertMark, StateMark } from "./StateMark";
 import { stateLabel } from "../agent-copy";
-import { modelChipText, modelChipTitle } from "../model-label";
 import { RAIL_GROUP_LABEL_MSGS, type RailGroup } from "../rail-model";
 import { railFailed, railGlyph, railLine, railTime, rowSpoken, rowTooltip, twinStart, type RailGlyphKind } from "../rail-row-copy";
 import { fadeIn, tokenMs } from "../rail-motion";
@@ -216,6 +215,7 @@ export function RailRow({ row: r, group, now, selected, removed, leaving, landNo
           <span className="vis-hidden">{rowSpoken(r)}</span>
           <span className="sl-text">
             <span className="sl-line1">
+              {/* The title keeps its own row; provider and model are below. */}
               <span className="sl-name">
                 <span className="sl-label">{r.label}</span>
                 {r.unseen && (group === 2 || group === 3) && <span className="sl-unseen" role="img" aria-label={t("board.railGroup.new")} title={t("board.railGroup.new")} />}

@@ -15,6 +15,8 @@
   .ap-policy .ap-threshold-input { min-height: 32px; }
   /* The Inspector's Details row: full width already, 28 high under a mouse. */
   .detail-more > summary { min-height: 32px; }
+  /* And its next step (Answer or Open) with Show recap, under the title block. */
+  .detail .hero-actions .btn { min-height: 32px; }
   /* The popover's rows sit flush against each other, so a fingertip gets the
      height a touch list needs rather than the 32px floor; its form controls
      stand at the same height as each other, a step over it. */
@@ -238,12 +240,11 @@
   /* What's new's Check for updates while a check is out: the accent every
      busy button takes is gone here, so the edge takes the highlight. */
   .release-notes .rn-act[aria-busy="true"] { border-color: Highlight; }
-  /* A pressed chip, a paused canvas and the open tab are drawn as a fill, and
-     the theme paints every fill Canvas, so each looked like its neighbours:
-     they fill with the highlight, the way an on switch does, and keep it
-     under the pointer, where their own hover would outrank this. */
+  /* A pressed chip and the open tab are drawn as a fill, and the theme paints
+     every fill Canvas, so each looked like its neighbours: they fill with the
+     highlight, the way an on switch does, and keep it under the pointer, where
+     their own hover would outrank this. */
   .uh-range-btn[aria-pressed="true"],
-  .react-flow__controls-button[aria-pressed="true"],
   .aa-tab.on,
   .qh-provider[aria-pressed="true"] { forced-color-adjust: none; border-color: Highlight; background: Highlight; color: HighlightText; }
   /* The Inspector's kind chip that filters the calls: its pill takes the fill. */
@@ -255,8 +256,7 @@
   .ap-auto-option[data-selected] { outline: 2px solid Highlight; outline-offset: -2px; }
   .ap-slot-row[data-selected] { outline: 2px solid Highlight; outline-offset: -2px; }
   @media (hover: hover) and (pointer: fine) {
-  .uh-range-btn[aria-pressed="true"]:hover,
-  .react-flow__controls-button[aria-pressed="true"]:hover { forced-color-adjust: none; border-color: Highlight; background: Highlight; color: HighlightText; }
+  .uh-range-btn[aria-pressed="true"]:hover { forced-color-adjust: none; border-color: Highlight; background: Highlight; color: HighlightText; }
   }
   /* The rule between the control bar's groups is a fill too, and the theme
      paints every fill Canvas, so it would vanish. It takes the text colour,
@@ -326,6 +326,9 @@
      count the text colour carries. */
   .rail-dot, .fc-dot, .fc-tab[aria-selected="true"]::after { forced-color-adjust: none; background: Highlight; }
   .fc-tab-count { forced-color-adjust: none; background: CanvasText; color: Canvas; }
+  /* The canvas bar's ⋯ dot, which says tool calls are hidden: a fill the theme
+     would paint over, so redrawn in the highlight like the rail's. */
+  .canvas-more-dot { forced-color-adjust: none; background: Highlight; }
 
   .sysdetail .sd-fill,
   .sysdetail .sd-core-fill,

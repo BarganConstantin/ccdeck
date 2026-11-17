@@ -251,7 +251,13 @@ describe("no canvas and none of its controls on a phone; the desktop keeps the c
   });
 
   it("the canvas's Tools filter is not drawn on a phone either", () => {
-    expect(app).toContain("{!phone && (presentCats.length > 1 || hiddenCats.size > 0) && (");
+    // CHANGED ON PURPOSE (V4 top-10 #5): App's `{!phone && … && <CategoryFilterBar` →
+    // the filter is a group of the canvas bar's ⋯ menu, handed to BoardFlow alone,
+    // which only the desktop branch mounts, because nothing floats over the board now.
+    expect(app).not.toContain("<CategoryFilterBar");
+    expect(surface).toMatch(/<BoardFlow\b[^>]*presentCats=\{presentCats\} toggleCat=\{toggleCat\}/);
+    expect(surface.indexOf("presentCats={presentCats}")).toBeGreaterThan(surface.indexOf(") : ("));
+    expect(read("components/BoardFlow.tsx")).toContain("presentCats={presentCats} hiddenCats={hiddenCats} toggleCat={toggleCat}");
   });
 
   it("the stack itself has no zoom, minimap, Fit all or trash", () => {

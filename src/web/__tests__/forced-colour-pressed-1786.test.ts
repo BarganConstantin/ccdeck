@@ -38,14 +38,21 @@ const decl = (body: string, prop: string) =>
 /** Whether the rest of the sheet draws `sel` as a rule of its own. */
 const drawn = (sel: string) => new RegExp(`(?:^|[},])\\s*${sel.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\s*[{,]`).test(outside);
 
+// CHANGED ON PURPOSE (V4 top-10 #5): '.react-flow__controls-button[aria-pressed="true"]'
+// (the canvas's Pause while paused) → off the list, because Pause is a row of the
+// canvas bar's ⋯ menu now and the bar draws no paused state; the top bar's paused
+// pill says it in words, which a Contrast theme keeps.
+const PAUSED = '.react-flow__controls-button[aria-pressed="true"]';
 const FILLED = [
   '.uh-range-btn[aria-pressed="true"]',
-  '.react-flow__controls-button[aria-pressed="true"]',
   '.aa-tab.on',
 ];
 
 describe("a pressed or chosen control under a Contrast theme (#1786)", () => {
   it("fills a pressed chip, a paused canvas and the open tab with the highlight", () => {
+    // A paused canvas has no pressed control left to fill, in either half.
+    expect(drawn(PAUSED), `${PAUSED} is back in the sheet`).toBe(false);
+    expect(forcedBody(PAUSED), `${PAUSED} is back in the Contrast block`).toBe("");
     for (const sel of FILLED) {
       expect(drawn(sel), `${sel} is the sheet's own state`).toBe(true);
       const body = forcedBody(sel);

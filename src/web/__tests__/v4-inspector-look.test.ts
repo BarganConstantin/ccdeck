@@ -159,11 +159,18 @@ describe("the body and the title block", () => {
   // Details, with Export and Remove in the title block's ⋯ menu, because three
   // equal outlined buttons under the whole tool-call list read as the panel's
   // main act. With no recap to show, the row is not drawn at all.
-  it("keeps Recap as the body's one Quiet button, over Details, and draws no empty row without it", () => {
+  // CHANGED ON PURPOSE (V4 top-10, the Inspector's next step): the row under
+  // what is read, over Details → the row right under the title block, because
+  // it now leads with the session's next step (Answer or Open, in
+  // v4-inspector-next-step.test.ts) and Show recap keeps its place beside it,
+  // reached by Tab straight after the ⋯. Without a terminal (no Open given, as
+  // here) Recap is still its one Quiet button.
+  it("keeps Recap as the body's one Quiet button, under the title block, and draws no empty row without it", () => {
     const done = A("s", { state: "done" });
     const out = renderToStaticMarkup(createElement(Detail, { agent: done, now: 2000, onShowSummary: () => {}, onExportSession: () => {}, onRemove: () => {} }));
     expect(out.match(/class="hero-actions"/g)).toHaveLength(1);
-    expect(out).toMatch(/<div class="hero-actions"><button type="button" class="btn" title="[^"]*">Show recap<\/button><\/div><details class="detail-more">/);
+    expect(out).toMatch(/<\/header><div class="hero-actions"><button type="button" class="btn" title="[^"]*">Show recap<\/button><\/div>/);
+    expect(out.indexOf('class="hero-actions"')).toBeLessThan(out.indexOf('<details class="detail-more">'));
     expect(out).not.toContain("Export JSON");
     expect(out).not.toContain("Remove from board");
     const running = renderToStaticMarkup(createElement(Detail, { agent: A("s"), now: 2000, onShowSummary: () => {}, onExportSession: () => {}, onRemove: () => {} }));

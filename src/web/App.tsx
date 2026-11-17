@@ -66,7 +66,6 @@ import { integrationDefs } from "./integrations/registry";
 import type { IntegrationKind } from "./integrations/types";
 import { useMediaQuery } from "./use-media-query";
 import { ReadoutGroup } from "./components/TopbarReadouts";
-import CategoryFilterBar from "./components/CategoryFilterBar";
 import PhoneBoard from "./components/PhoneBoard";
 import RadioExperience from "./components/RadioExperience";
 import CanvasMain from "./components/CanvasMain";
@@ -460,11 +459,10 @@ function Inner() {
    *  tick. A plain counter — value is irrelevant, only the change matters. */
   const [dragTick, setDragTick] = useState(0);
 
-  // The category filter row over the canvas: which categories are on the board,
-  // which ones somebody muted, and the bar dimming itself when a card or a
-  // bubble slides under it — in use-category-filter-bar.ts.
-  const { presentCats, hiddenCats, toggleCat, catBarRef, catBarOccluded }
-    = useCategoryFilterBar(stateRef);
+  // The tool filter: which categories are on the board and which ones somebody
+  // muted — in use-category-filter-bar.ts. Its control is the last group of
+  // the canvas bar's ⋯ menu (CanvasControls.tsx).
+  const { presentCats, hiddenCats, toggleCat } = useCategoryFilterBar(stateRef);
 
   /**
    * Live positions of whatever is being dragged, applied over the rendered
@@ -1470,23 +1468,11 @@ function Inner() {
         joins={historyReplayed && settled} closing={closing}
       >
         {!heroInList && emptyHero(phone ? 0 : railInsetRef.current)}
-        {/* `|| hiddenCats.size > 0` is the half that was missing (#783). The
-            bar was gated on categories present on the canvas NOW, while the
-            filter is independent state that nothing trims — so hide a category,
-            let the canvas turn over (it evicts finished sessions on a timer),
-            and the bubbles were suppressed with no chip anywhere to press. Not
-            recoverable by Clear either: `hiddenCats` survives it. The only way
-            back was a page reload, which a user has no reason to suspect.
-            The filter is kept rather than trimmed on eviction, because it is a
-            choice the user made and forgetting it silently is the other way to
-            be wrong. What must never happen is keeping the choice and taking
-            away the control. */}
-        {!phone && (presentCats.length > 1 || hiddenCats.size > 0) && (
-          <CategoryFilterBar
-            catBarRef={catBarRef} catBarOccluded={catBarOccluded}
-            presentCats={presentCats} hiddenCats={hiddenCats} toggleCat={toggleCat}
-          />
-        )}
+        {/* The tool filter no longer floats over the canvas's top left (V4
+            top-10 #5): it is the last group of the control bar's ⋯ menu,
+            under the same rule — calls of two kinds on the board, or a kind
+            hidden (#783: a filter kept with its control taken away was
+            recoverable only by a reload) — CanvasControls.tsx toolFilterShown. */}
         {/* A phone's Board is a stack of readable cards, with no free canvas
             and none of its controls — components/PhoneBoard.tsx. The radio
             plays on there without its companion, which would stand on the
@@ -1507,6 +1493,7 @@ function Inner() {
           zoomBy={camera.zoomBy} zoomReset={camera.zoomReset}
           onTerminal={stage.enabled ? stage.openFromButton : undefined}
           notesDrawn={zoom.lod === "detail"}
+          presentCats={presentCats} toggleCat={toggleCat}
         />
         )}
         {/* The board's compact form while the stage is open, in the canvas's
@@ -1611,6 +1598,7 @@ function Inner() {
             selected={selected} now={now} openTool={openTool} setSummaryFor={setSummaryFor}
             stateRef={stateRef} removeSelectedNode={removeSelectedNode}
             onSelectAgent={selectInspected}
+            onOpenSession={stage.enabled ? openSessionWithKeys : undefined} stageSession={stage.enabled && stageClaimsKeys(stage.shell.phase) ? targetSession(stage.shell.target) : null}
             workspace
             onClose={foldInspector}
           />
@@ -1622,6 +1610,7 @@ function Inner() {
           selected={detailOnScreen} now={now} openTool={openTool} setSummaryFor={setSummaryFor}
           stateRef={stateRef} removeSelectedNode={removeSelectedNode}
           onSelectAgent={selectInspected}
+          onOpenSession={stage.enabled ? openSessionWithKeys : undefined} stageSession={stage.enabled && stageClaimsKeys(stage.shell.phase) ? targetSession(stage.shell.target) : null}
           onClose={inWorkspace && (inspectorColumn || inspectorSheet) ? foldInspector : sheetClose("inspector", () => { panelReturn.detail(); setDetailOpen(false); })}
         />
       ) : null}
@@ -1635,7 +1624,7 @@ function Inner() {
       {/* The foot of the shell: the grid's fourth row, under the canvas, the
           columns and the stripes (not drawn on a phone, where the dock is) —
           components/StatusBar.tsx. */}
-      {!phone && <StatusBar stageOpen={stage.enabled && stageClaimsKeys(stage.shell.phase)} zoomedOut={zoom.lod !== "detail"} viewChord={stage.workspaceOffered ? (inWorkspace ? "board" : "workspace") : null} waiting={waitingSessions.length > 0} version={version?.running ?? null} onVersion={welcome.openReleaseNotes} />}
+      {!phone && <StatusBar stageOpen={stage.enabled && stageClaimsKeys(stage.shell.phase)} zoomedOut={zoom.lod !== "detail"} viewChord={stage.workspaceOffered ? (inWorkspace ? "board" : "workspace") : null} waiting={waitingSessions.length > 0} version={version?.running ?? null} onVersion={welcome.openReleaseNotes} setKeyHelpOpen={setKeyHelpOpen} />}
       </BoardEmptyContext.Provider>
 
       {/* The dialogs, in the order they paint over one another — components/DeckDialogs.tsx. */}

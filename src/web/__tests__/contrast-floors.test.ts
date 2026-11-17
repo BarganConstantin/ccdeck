@@ -656,17 +656,8 @@ describe("the category filter bar when a card drifts under it (#622)", () => {
   /** The slab the bar was when #622 was measured, a solid --panel. The first
    *  two tests reproduce that history on it. */
   const SLAB = "var(--panel)";
-  const fillOf = (selector: string, theme: Theme) => {
-    const light = decl(rule(`:root[data-color-scheme="light"] ${selector}`), "background");
-    const base = decl(rule(selector), "background");
-    const value = theme === "light" && light ? light : base;
-    // A missing fill here does not mean "no fill", it means the yielding is
-    // being done by something other than the fill — which is the whole defect.
-    if (value === null) {
-      throw new Error(`${theme}: no background on ${selector} — the bar is yielding by some channel other than its own fill, and #622 is about what that costs the labels`);
-    }
-    return resolve(value, theme);
-  };
+  // (fillOf, which read the bar's engaged and thinned beds, went with them:
+  // V4 top-10 #5. The rows are measured on the menu's surface, MENU, below.)
   /** The bar goes occluded only because something is under it, so a node card is
    *  the backdrop that matters; the empty canvas is given too. */
   const backdrops = (theme: Theme): Array<[string, Rgba]> =>
@@ -674,7 +665,12 @@ describe("the category filter bar when a card drifts under it (#622)", () => {
   /** CHANGED ON PURPOSE: the legend's items ("on" and "off") are gone; the one
    *  label in the bar is the Tools button's word. Measured against the bar's
    *  bed rather than the button's own --bg-soft, the stricter of the two. */
-  const labels = { tools: ".cat-filter-tools" } as const;
+  /** CHANGED ON PURPOSE (V4 top-10 #5): the Tools button's word → the words of the
+   *  filter's rows in the canvas bar's ⋯ menu, a shown kind and a hidden one, and
+   *  the group's heading, because the button is gone and the rows are what is read. */
+  const labels = { shown: ".ap-menu-item", hidden: ".cat-tools-item.off", heading: ".cat-tools-head" } as const;
+  /** The menu's own surface, solid, which no card ever drifts under. */
+  const MENU = ".anchored-popover";
 
   it("reproduces what `opacity: 0.2` on the group was worth, in both themes", () => {
     // Group opacity composites the label AND the fill it sits on, which is why
@@ -714,8 +710,12 @@ describe("the category filter bar when a card drifts under it (#622)", () => {
     // with the items, the yielding down with the canvas motion — so this reads
     // every body either of them or their occluded states declare, not the first
     // one a selector match happens to land on.
-    const bodies = [...bare.matchAll(/^[^\n{}]*\.cat-filter-bar[^\n{}]*\{([^}]*)\}/gm)].map(m => m[1]);
-    expect(bodies.length, "no .cat-filter-bar rules found — the scan is reading nothing")
+    // CHANGED ON PURPOSE (V4 top-10 #5): four .cat-filter-bar rules or more → none,
+    // because the filter is a group of the canvas bar's ⋯ menu and nothing floats
+    // over the cards; the same promise is held of the rows that replaced it.
+    expect([...bare.matchAll(/^[^\n{}]*\.cat-filter-bar[^\n{}]*\{/gm)], "a .cat-filter-bar rule is back").toEqual([]);
+    const bodies = [...bare.matchAll(/^[^\n{}]*\.cat-tools-[^\n{}]*\{([^}]*)\}/gm)].map(m => m[1]);
+    expect(bodies.length, "no .cat-tools rules found — the scan is reading nothing")
       .toBeGreaterThanOrEqual(4);
     for (const body of bodies) {
       expect(body.replace(/\s+/g, " ").trim(),
@@ -735,34 +735,39 @@ describe("the category filter bar when a card drifts under it (#622)", () => {
     // the bar was a slab. With no slab at rest, the same yielding is a bed that
     // exists only while something is under the legend: solid while a reader
     // is at it, thinner while they are not, never a border, a shadow or a blur.
-    expect(decl(rule(".cat-filter-bar"), "background")).toBe("none");
-    expect(decl(rule(".cat-filter-bar"), "border")).toBe("0");
-    expect(decl(rule(".cat-filter-bar"), "box-shadow")).toBe("none");
+    // CHANGED ON PURPOSE (V4 top-10 #5): a boxless bar with a bed that thinned while
+    // a card was under it → no bar and no yielding; the rows sit on the menu's
+    // solid --panel, which nothing drifts under, because the filter is a group of
+    // the canvas bar's ⋯ menu. A fill that thins is what #622 was about, so none is
+    // declared anywhere.
+    expect(rule(".cat-filter-bar")).toBeNull();
+    expect(rule(ENGAGED)).toBeNull();
+    expect(rule(FADED)).toBeNull();
+    expect(rule(`:root[data-color-scheme="light"] ${FADED}`)).toBeNull();
+    expect(decl(rule(MENU), "background")).toBe("var(--panel)");
     for (const theme of themes) {
-      const engaged = fillOf(ENGAGED, theme);
-      const faded = fillOf(FADED, theme);
-      expect(engaged[3], `${theme} engaged bed`).toBe(1);
-      expect(faded[3], `${theme} occluded fill`).toBeLessThan(engaged[3]);
-      // Some fill is left on purpose: it beds the labels rather than floating
-      // them over whatever drifted under, which is what keeps the floor below a
-      // floor and not a coincidence of what happened to be there.
-      expect(faded[3], `${theme} occluded fill`).toBeGreaterThan(0);
+      expect(resolve(decl(rule(MENU), "background")!, theme)[3], `${theme} menu surface`).toBe(1);
     }
-    for (const selector of [ENGAGED, FADED, `:root[data-color-scheme="light"] ${FADED}`]) {
-      for (const prop of ["border", "border-color", "box-shadow", "backdrop-filter", "-webkit-backdrop-filter"]) {
+    for (const selector of [".cat-tools-group", ".cat-tools-head", ".cat-tools-item.off"]) {
+      for (const prop of ["backdrop-filter", "-webkit-backdrop-filter", "opacity"]) {
         expect(decl(rule(selector), prop), `${selector} ${prop}`).toBeNull();
       }
     }
+    // The history the first two tests reproduce stays measurable on its slab.
+    expect(resolve(SLAB, "dark")[3]).toBe(1);
   });
 
   it("reads the bar's label at 4.5:1 while the bar is yielding, in both themes", () => {
+    // CHANGED ON PURPOSE (V4 top-10 #5): the Tools word over a thinned bed on a card
+    // or the canvas → every word of the filter's rows on the menu's --panel, because
+    // the rows never yield: the menu is opaque and on top.
     for (const theme of themes) {
-      const fill = fillOf(FADED, theme);
+      const fill = resolve(decl(rule(MENU), "background")!, theme);
       for (const [state, selector] of Object.entries(labels)) {
         const fg = resolve(decl(rule(selector), "color")!, theme);
         for (const [where, backdrop] of backdrops(theme)) {
           const ratio = contrastRatio(fg, over(fill, backdrop));
-          expect(ratio, `${theme} ${state} chip over ${where} while occluded — ${ratio.toFixed(2)}:1, 1.4.3 asks ${BODY} of 11px text`)
+          expect(ratio, `${theme} ${state} row over ${where} — ${ratio.toFixed(2)}:1, 1.4.3 asks ${BODY} of 12px text`)
             .toBeGreaterThanOrEqual(BODY);
         }
       }
@@ -772,17 +777,20 @@ describe("the category filter bar when a card drifts under it (#622)", () => {
   it("costs the filter nothing at rest or while a reader is at it", () => {
     // CHANGED ON PURPOSE (V4's legend): at rest nothing is under the words but
     // the canvas; engaged over a card, the bed IS the canvas's ground.
+    // CHANGED ON PURPOSE (V4 top-10 #5): at rest on the canvas, engaged on its bed →
+    // at rest on the menu, and under the pointer or the keyboard on the row's
+    // --selected fill, where a hidden kind's word lifts to --text-secondary.
     for (const theme of themes) {
-      const canvas = parseColor(TOK[theme]["--bg"]);
-      const engaged = fillOf(ENGAGED, theme);
+      const menu = resolve(decl(rule(MENU), "background")!, theme);
+      const picked = over(resolve("var(--selected)", theme), menu);
       for (const [state, selector] of Object.entries(labels)) {
         const fg = resolve(decl(rule(selector), "color")!, theme);
-        expect(contrastRatio(fg, canvas), `${theme} ${state} item on the canvas at rest`).toBeGreaterThanOrEqual(BODY);
-        for (const [where, backdrop] of backdrops(theme)) {
-          expect(contrastRatio(fg, over(engaged, backdrop)), `${theme} ${state} item over ${where}, engaged`)
-            .toBeGreaterThanOrEqual(BODY);
-        }
+        expect(contrastRatio(fg, menu), `${theme} ${state} row on the menu at rest`).toBeGreaterThanOrEqual(BODY);
       }
+      const shownWord = resolve(decl(rule(labels.shown), "color")!, theme);
+      expect(contrastRatio(shownWord, picked), `${theme} shown row under the pointer`).toBeGreaterThanOrEqual(BODY);
+      const hiddenHover = resolve(decl(rule(".cat-tools-item.off:hover"), "color")!, theme);
+      expect(contrastRatio(hiddenHover, picked), `${theme} hidden row under the pointer`).toBeGreaterThanOrEqual(BODY);
     }
   });
 
@@ -802,13 +810,12 @@ describe("the category filter bar when a card drifts under it (#622)", () => {
       .map(m => m[1].trim());
     // CHANGED ON PURPOSE (V4's legend): the engaged bed is a rule of its own
     // now, ahead of the two thinned ones it is restored from.
-    expect(rules,
-      "the occluded state should be the engaged bed, then one thinned rule per theme carrying both restore paths in its own selector")
-      .toEqual([ENGAGED, FADED, `:root[data-color-scheme="light"] ${FADED}`]);
-    for (const selector of rules.slice(1)) {
-      expect(selector, "restores on a pointer of any kind").toContain(":not(:hover)");
-      expect(selector, "restores once focus is inside").toContain(":not(:focus-within)");
-    }
+    // CHANGED ON PURPOSE (V4 top-10 #5): three occluded rules → none, because there
+    // is nothing to restore: the rows are read in a menu any pointer opens with
+    // one press of ⋯, and the hook that measured the occlusion is gone.
+    expect(rules, "an occluded state is back, for a filter that no longer floats").toEqual([]);
+    const hook = readFileSync(fileURLToPath(new URL("../use-category-filter-bar.ts", import.meta.url)), "utf8");
+    expect(hook).not.toMatch(/occluded|anyTouches|setInterval/);
   });
 
   it("keeps the hollow dot, which is the channel that never depended on any of this", () => {
@@ -1589,7 +1596,10 @@ describe("words quietened with an opacity, measured as what they composite to (#
         ["hovered", bedOf(".session-list .sl-row:hover", theme, list), ".sl-row:hover "],
         ["selected", bedOf(".session-list .sl-row.selected", theme, list), ".sl-row.selected "],
       ];
-      for (const sel of [TOOL, ".session-list .sl-time.warn", ".session-list .sl-line2", ".session-list .sl-model"]) {
+      // CHANGED ON PURPOSE (V4 top-10 #5): .sl-model was measured with the line → the
+      // row draws no model any more, so the name has no rule left to measure.
+      expect(declFor(".session-list .sl-model", "color")).toBeNull();
+      for (const sel of [TOOL, ".session-list .sl-time.warn", ".session-list .sl-line2"]) {
         for (const [state, bed, within] of beds) {
           const ink = inkOf(theme, sel.replace(".session-list ", `.session-list ${within}`), sel);
           const r = through(ink, opacityOf(sel), bed);

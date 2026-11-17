@@ -52,7 +52,10 @@ describe("the waiting chip", () => {
 
   it("keeps its name and its button", () => {
     expect(html).toContain('aria-label="1 session waiting for you"');
-    expect(html).toContain('class="count-pill count-waiting waiting-stat"');
+    // CHANGED ON PURPOSE (V4 top-10 #5): "count-pill count-waiting waiting-stat" →
+    // "count-pill waiting-stat", because count-waiting only told the quiet 0 pill
+    // apart from this button, and a zero is not drawn any more: no rule reads it.
+    expect(html).toContain('class="count-pill waiting-stat"');
     // V4's top bar: it opens the queue popover, a menu.
     expect(html).toContain('aria-haspopup="menu"');
   });

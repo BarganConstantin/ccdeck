@@ -22,14 +22,14 @@ import { useSingleKeyShortcuts } from "../use-single-key-shortcuts";
 import { planSummary, planTitle, type PlanSummary } from "../agent-plan";
 import { isUnseen, turnEndedAt, useSessionsSeenVersion } from "../session-seen";
 import {
-  RAIL_GROUPS, foldMotion, foldPlan, heldLine, holdOrder, joinMotion, nobodyWaitingText, railHeld,
+  RAIL_GROUPS, foldMotion, foldPlan, heldLine, holdOrder, joinMotion, railHeld,
   type RailGroup, type Slot,
 } from "../rail-model";
 import { leaveHoldMs, useRailFlip, useRailMembership } from "../rail-motion";
 import { prefersReducedMotion } from "../viewport-motion";
 import { runningTool, sessionNames, startedHover, twinClocks, type TwinClock } from "../rail-row-copy";
 import { PauseGlyph } from "./rail-glyphs";
-import { CloseGlyph, FoldBody, GroupHead, MoreLine, PlusGlyph, RailGlyph, RailRow, RailUsage, type FoldMode } from "./RailParts";
+import { CloseGlyph, FoldBody, GroupHead, MoreLine, PlusGlyph, RailRow, RailUsage, type FoldMode } from "./RailParts";
 
 /** The id the rail's Plus carries, so the new-session popover can hang off it. */
 export const RAIL_NEW_SESSION_ID = "rail-new-session";
@@ -53,6 +53,8 @@ export interface Row {
    *  last, or a background job's question, headline or failure. Same rule;
    *  null whenever the recap speaks instead, or nothing has been said. */
   status?: SessionNote | null;
+  /** The model, for the phone Board's card (phone-board.ts). The rail's row
+   *  does not draw it (V4 top-10 #5): the Inspector says it. */
   modelId?: string;
   provider?: "claude" | "codex";
   /** The effort the session reported, shown after the model (#2155). */
@@ -462,13 +464,13 @@ export default function SessionList({ state, now, selectedIds, onSelect, onClose
   );
 
   const nodes: ReactNode[] = [];
+  // No summary line over the groups any more (V4 top-10 #5): "Nobody's
+  // waiting · 5 working" said what the group headings under it and the top
+  // bar's counts already say. An empty Needs you is simply not drawn.
   if (rows.length === 0) {
     nodes.push(emptyNotice
       ? <li key="empty" className="sl-empty sl-empty-notice">{emptyNotice}</li>
       : <li key="empty" className="sl-empty">{t("board.list.empty")}</li>);
-  } else if (counts[0] === 0) {
-    // Quiet when nothing needs you; the count is the rows at work.
-    nodes.push(<li key="nobody" className="sl-nobody"><RailGlyph kind="idle" /><span>{nobodyWaitingText(counts[1])}</span></li>);
   }
   let drawn = false;
   for (const g of RAIL_GROUPS) {

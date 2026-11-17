@@ -85,7 +85,7 @@ export function BoardMinimap({ nodeColor, palette, notes = true }: {
 export default function BoardFlow({
   graph, layout, viewport, clicks, drag, appearance, fm, radioOpen, onRadioClose, autoFit, pause,
   stateRef, measuredRef, hiddenCats, now, openTool, focusAgent, requestClear, setKeyHelpOpen, zoomBy, zoomReset, onTerminal,
-  notesDrawn = true,
+  notesDrawn = true, presentCats, toggleCat,
 }: {
   /** What is drawn: the nodes with a drag patched over them, the edges, and
    *  the visibility and spotlight sets the bubbles gate on. */
@@ -119,6 +119,10 @@ export default function BoardFlow({
   /** Whether the canvas draws the full card, and with it the sessions' notes:
    *  the session frames go round what is drawn. */
   notesDrawn?: boolean;
+  /** The tool filter's other two halves, for the control bar's ⋯ menu: the
+   *  kinds of call on the board, and the toggle (use-category-filter-bar.ts). */
+  presentCats?: ReturnType<typeof useCategoryFilterBar>["presentCats"];
+  toggleCat?: ReturnType<typeof useCategoryFilterBar>["toggleCat"];
 }) {
   const { allNodes, edges, visibleAgentIds, spotlightSet } = graph;
   const { positionsRef, pinnedRef, handleRelayout, rearrangeUndo } = layout;
@@ -127,7 +131,7 @@ export default function BoardFlow({
   const { onNodeDragStart, onNodeDrag, onNodeDragStop } = drag;
   const { palette, minimapNodeFill, characterEnabled } = appearance;
   const { autoFitDisabled, enableAutoFitAndRefit } = autoFit;
-  const { paused, pauseGate, togglePause } = pause;
+  const { paused, togglePause } = pause;
   return (
     <ReactFlow
       nodes={allNodes}
@@ -234,10 +238,11 @@ export default function BoardFlow({
           still fits from the keyboard. */}
       <CanvasControls
         autoFitDisabled={autoFitDisabled} enableAutoFitAndRefit={enableAutoFitAndRefit}
-        paused={paused} pauseGate={pauseGate} togglePause={togglePause}
+        paused={paused} togglePause={togglePause}
         handleRelayout={handleRelayout} requestClear={requestClear} setKeyHelpOpen={setKeyHelpOpen}
         zoomBy={zoomBy} zoomReset={zoomReset}
         onTerminal={onTerminal}
+        presentCats={presentCats} hiddenCats={hiddenCats} toggleCat={toggleCat}
       />
       <BoardMinimap nodeColor={minimapNodeFill} palette={palette} notes={notesDrawn} />
       {/* On the control bar's left end, and absent unless there is something

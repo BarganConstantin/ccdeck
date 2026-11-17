@@ -124,9 +124,14 @@ describe("a narrow board drops the second stat, in a container query on the stri
 });
 
 describe("what is moved under the strip, through one custom property", () => {
-  it("lifts the cell's top-edge overlay by --board-head-top, set only while the strip is drawn", () => {
-    expect(decls(".canvas-wrap[data-board-head]", own)["--board-head-top"]).toBe("var(--board-head-h)");
-    expect(decls(".cat-filter-bar")["top"]).toBe("calc(14px + var(--board-head-top, 0px))");
+  // CHANGED ON PURPOSE (V4 top-10 #5): the cell's one top-edge overlay, the floating
+  // Tools filter, was lifted by --board-head-top → it is a group of the canvas bar's
+  // ⋯ menu, so nothing floats there and the property has no reader left to set it for,
+  // because a property with no reader is the dead CSS dead-css.test.ts refuses.
+  it("lifts nothing at the cell's top edge: the overlay that read --board-head-top is gone", () => {
+    expect(decls(".canvas-wrap[data-board-head]", own)["--board-head-top"]).toBeUndefined();
+    expect(sheet).not.toContain("--board-head-top");
+    expect(decls(".cat-filter-bar")["top"]).toBeUndefined();
   });
   it("lets the board take what the strip leaves, as a column", () => {
     expect(decls(".canvas-wrap[data-board-head]", own)["display"]).toBe("flex");

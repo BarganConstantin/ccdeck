@@ -652,7 +652,11 @@ describe("the category filter chips, handed over from #368", () => {
     // checked has to mean the category is on. `off` is the hidden set.
     // CHANGED ON PURPOSE: the legend's pressed items are gone; every width
     // has the Tools menu, whose rows are the kit's checkboxes.
-    expect(bar).toMatch(/<Checkbox checked=\{!off\} onChange=\{\(\) => toggleCat\(c\)\} \/>/);
+    // CHANGED ON PURPOSE (V4 top-10 #5): `<Checkbox checked={!off} onChange=… />` → the
+    // same checkbox with role="menuitemcheckbox" and Enter to tick, because the rows
+    // are a group of the canvas bar's ⋯ menu, whose arrows walk menu items only.
+    expect(bar).toMatch(/<Checkbox role="menuitemcheckbox" checked=\{!off\} onChange=\{\(\) => toggleCat\(c\)\}/);
+    expect(bar).toContain('onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); toggleCat(c); } }}');
     expect(bar).not.toMatch(/aria-pressed/);
   });
 
@@ -661,7 +665,13 @@ describe("the category filter chips, handed over from #368", () => {
     // Every chip here is its own tab stop. group keeps the naming, which is
     // what the role was really doing.
     expect(bar).not.toMatch(/role="toolbar"/);
-    expect(bar).toMatch(/role="group"\s*\n\s*aria-label=\{t\("board\.cat\.filter"\)\}/);
+    // CHANGED ON PURPOSE (V4 top-10 #5): the group named by aria-label
+    // ("Filter tools by category") → named by its visible "Tool calls" heading,
+    // because inside the ⋯ menu the group's heading is drawn, and a name that is
+    // seen beats one that is only heard. The menu's arrows walk its rows.
+    expect(bar).toMatch(/<div role="group" aria-labelledby=\{headId\} className="cat-tools-group">/);
+    expect(bar).toContain('<div id={headId} className="cat-tools-head">{t("board.detail.toolCalls")}</div>');
+    expect(markup("components/AnchoredPopover.tsx")).toContain('[role="menuitemcheckbox"]');
     // The deck's toolbars since the panel toggles reached the window's edges
     // are the stripes and the dock, and they keep the promise the role makes:
     // one stop, the arrows inside, Home and End (EdgeRails.tsx).

@@ -140,7 +140,13 @@ export function heldShort(held: number): string {
  *  pressed" is a sentence; "Resume the canvas, toggle button, pressed" is two
  *  contradictory halves. The same rule the sound switch in the bar above
  *  follows: a stable name, the state in the attribute the tree reads. What flips
- *  is `pauseTitle` below, which is a description and is allowed to be one. */
+ *  is `pauseTitle` below, which is a description and is allowed to be one.
+ *
+ *  No control wears this name or that tooltip since V4 top-10 #5: the canvas
+ *  bar's Pause became a row of its ⋯ menu, whose words follow the state (a
+ *  menu row has no pressed state to report), and the held and dropped counts
+ *  are the top bar's paused pill's (statusPill). Both helpers are kept, with
+ *  the tests that hold them, until a separate change retires them. */
 export const PAUSE_LABEL_MSG = "board.pill.pause";
 
 /** The pause control's name in the language on show. */

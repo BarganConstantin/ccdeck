@@ -170,7 +170,9 @@ describe("the flag off in the rest of the deck", () => {
     expect(app).toMatch(/\{stage\.enabled && <div className="vis-hidden" role="status" aria-atomic="true">\{stage\.said\}<\/div>\}/);
     // CHANGED ON PURPOSE (V4 critique round 3): the button is one component, drawn by the full bar and by an empty board's bar, each only with the flag on.
     const controls = code("components/CanvasControls.tsx");
-    expect(controls).toMatch(/\{onTerminal && <CommandPanelButton onTerminal=\{onTerminal\} \/>\}/);
+    // CHANGED ON PURPOSE (V4 top-10 #5): the full bar's button → a row of its ⋯ menu,
+    // drawn only with the flag on, because the bar keeps the view's controls alone.
+    expect(controls).toMatch(/\{onTerminal && \(\s*<MenuRow label=\{t\("board\.controls\.openPanel"\)\}/);
     expect(controls).toMatch(/return onTerminal \? \(\s*<Controls[^>]*>\s*<CommandPanelButton onTerminal=\{onTerminal\} \/>\s*<\/Controls>\s*\) : null;/);
     expect(code("components/TopbarReadouts.tsx")).toMatch(/\{asksSaid != null && <div className="vis-hidden"/);
   });
