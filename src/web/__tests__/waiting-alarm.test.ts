@@ -177,12 +177,15 @@ function start(state: GraphState, session: string, at: number): GraphState {
 }
 
 describe("the order the sidebar reads in", () => {
-  it("puts a permission block first, then what is running, then the turns that ended unseen", () => {
-    // rank(): permission 0 (Needs you), running 1 (Working), an ended turn you
-    // have not looked at 2 (Done · unseen), the rest 3 (Idle). THIS CHANGED ON
+  it("puts a permission block first, then the turns that ended unseen, then what is running", () => {
+    // rank(): permission 0 (Needs you), an ended turn you have not looked at 1
+    // (Done · new), running 2 (Working), the rest 3 (Done). THIS CHANGED ON
     // PURPOSE with V4's Attention rail: "your turn" used to sort second, above
-    // anything running, as the next-most urgent thing. V4 puts it below Working
-    // — it is not a decision a session is stalled on, and once seen it is Idle.
+    // anything running, as the next-most urgent thing. V4 put it below Working
+    // — it is not a decision a session is stalled on, and once seen it is Done.
+    // CHANGED ON PURPOSE: herdr order, unread done above working (V4 top-10,
+    // inbox): running 1 / unseen 2 → unseen 1 / running 2, because a finished
+    // turn you have not read is yours to act on and a running one is not yet.
     // #348 dropped idle out of the COUNT and the rail keeps it in the ORDER, in
     // the group a finished turn lives in; the longest-ended turn goes last.
     // Fails if the tiers are reordered in any way, which the regex this
@@ -195,7 +198,7 @@ describe("the order the sidebar reads in", () => {
     state = send(state, "idle", { hook_event_name: "Notification", ...NOTIFY.idle }, 4_000);
 
     expect(buildRows(state, 9_000).map(r => r.sessionId))
-      .toEqual(["permission", "running", "idle", "finished"]);
+      .toEqual(["permission", "idle", "finished", "running"]);
   });
 
   it("puts the longest-blocked session first, which is the opposite of every other tier", () => {
@@ -234,16 +237,19 @@ describe("the order the sidebar reads in", () => {
     // fails rather than merely looking different.
     const at = (waiting: WaitingBlock | null, state: "active" | "done", unseen?: boolean) =>
       rank({ sessionId: "s", label: "s", state, waiting, toolCount: 0, cost: 0, startedAt: 0, lastActivity: 0, plan: null, planTitle: "", unseen });
+    // CHANGED ON PURPOSE: herdr order, unread done above working (V4 top-10,
+    // inbox): running 1 → 2 and an unseen ended turn 2 → 1.
     expect(at(PERMISSION, "active")).toBe(0);
-    expect(at(null, "active")).toBe(1);
-    // An idle block is a turn that ended: Done · unseen until you have looked,
-    // Idle after (it was second, above anything running, before the rail).
-    expect(at(IDLE, "active", true)).toBe(2);
+    expect(at(null, "active")).toBe(2);
+    // An idle block is a turn that ended: Done · new until you have looked,
+    // Done after (it was second, above anything running, before the rail, and
+    // is second again, as an unread result rather than a block).
+    expect(at(IDLE, "active", true)).toBe(1);
     expect(at(IDLE, "active", false)).toBe(3);
-    expect(at(null, "done", true)).toBe(2);
+    expect(at(null, "done", true)).toBe(1);
     expect(at(null, "done")).toBe(3);
     // Strictly increasing, which is what "above" means for a numeric rank.
-    expect([at(PERMISSION, "active"), at(null, "active"), at(null, "done", true), at(null, "done")])
+    expect([at(PERMISSION, "active"), at(null, "done", true), at(null, "active"), at(null, "done")])
       .toEqual([0, 1, 2, 3]);
   });
 });

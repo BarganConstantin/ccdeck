@@ -870,7 +870,6 @@ const catalog: Catalog = {
   "board.row.spokenRunning": "rodando ",
   "board.row.spokenYourTurnEnded": "sua vez, encerrada ",
   "board.row.spokenEnded": "encerrada ",
-  "board.row.ago": "há {time}",
   "board.row.asks": "Pergunta · {sentence}",
   "board.row.ready": "Pronta para um primeiro prompt",
   "board.row.bringBack": "Trazer {label} de volta ao quadro",

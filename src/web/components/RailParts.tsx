@@ -8,7 +8,7 @@ import { AlertMark, StateMark } from "./StateMark";
 import { stateLabel } from "../agent-copy";
 import { modelChipText, modelChipTitle } from "../model-label";
 import { RAIL_GROUP_LABEL_MSGS, type RailGroup } from "../rail-model";
-import { railFailed, railGlyph, railLine, railTime, rowSpoken, rowTooltip, twinStart, type RailGlyphKind } from "../rail-row-copy";
+import { railFailed, railGlyph, railLine, railTime, rowSpoken, rowTooltip, twinStart, type RailGlyphKind, type RailLine } from "../rail-row-copy";
 import { fadeIn, tokenMs } from "../rail-motion";
 import type { UsageMeter } from "../rail-usage";
 import { FadeFigure, useFillJump } from "./FadeFigure";
@@ -143,10 +143,15 @@ export function RailRow({ row: r, group, now, selected, removed, leaving, landNo
   const line = railLine(r, group);
   // "Done · 1 failed" beside the partial mark, as the card says it (railFailed).
   const failed = railFailed(r, group, t);
-  // A row that reads like another (twinClocks) leads it with when it started.
+  // A row that reads like another (twinClocks) ends it with when it started.
   const start = r.twin ? twinStart(r.startedAt, r.twin) : null;
-  const lined = !!(line || removed || failed || start);
+  const worded = !!(line || removed || failed);
+  const lined = worded || !!start;
   const time = railTime(r, group, now);
+  // Done · new: a finished turn you have not looked at, unread until you do.
+  // The row's own group, so a row held in place under the pointer shows it too.
+  const unread = group === 1;
+  const words = <RowWords removed={removed} failed={failed} line={line} />;
   // The highlight is the row's own once it has been handed over, so it plays
   // out its fade; a row drawn again later has no nonce and does not replay it.
   const [lit, setLit] = useState<number | null>(null);
@@ -219,28 +224,25 @@ export function RailRow({ row: r, group, now, selected, removed, leaving, landNo
               {/* The title keeps its own row; provider and model are below. */}
               <span className="sl-name">
                 <span className="sl-label">{r.label}</span>
-                {r.unseen && (group === 2 || group === 3) && <span className="sl-unseen" role="img" aria-label={t("board.railGroup.new")} title={t("board.railGroup.new")} />}
+                {/* Said after the name, as the Feedback list says an unread
+                    conversation; the dot is for the eye. */}
+                {unread && <span className="vis-hidden">{t("shell.feedback.unreadSuffix")}</span>}
               </span>
+              {/* The unread dot, in the accent the stripes' doors use for
+                  something unread, just before the age (V4 top-10, inbox). */}
+              {unread && <span className="sl-unread" aria-hidden />}
             </span>
-            {lined && (
-              <span className={`sl-line2${line?.kind === "tool" ? " mono" : ""}`}>
-                {/* Words, leading the second line, so the name keeps the first
-                    line whole: the press on this row does something different. */}
-                {/* When a look-alike started (twinClocks), first: beside the
-                    name it cut the name to a letter on a narrow list. */}
-                {start && <span className="sl-start">{start}</span>}
-                {start && (removed || failed || line) ? " · " : ""}
-                {removed && <span className="sl-off">{t("board.rail.offBoard")}</span>}
-                {removed && (failed || line) ? " · " : ""}
-                {/* Done in the line's own ink, then the count in the warning's:
-                    the turn finished, and some of its calls did not. */}
-                {failed && <>{t("board.card.stateDone")} · <span className="sl-failed">{failed}</span></>}
-                {failed && line ? " · " : ""}
-                {line && (line.kind === "tool"
-                  ? <><b className="sl-tool">{line.name}</b>{line.rest ? ` · ${line.rest}` : ""}</>
-                  : line.text)}
-              </span>
-            )}
+            {lined && (start
+              ? (
+                // A look-alike's line: its words give way first, so the start
+                // time at its end stays whole. Not at the line's start any more
+                // (V4 top-10, inbox): the line leads with what the session is.
+                <span className="sl-line2 sl-twin">
+                  {worded && <span className={`sl-words${line?.kind === "tool" ? " mono" : ""}`}>{words}</span>}
+                  <span className="sl-start">{worded ? "· " : ""}{start}</span>
+                </span>
+              )
+              : <span className={`sl-line2${line?.kind === "tool" ? " mono" : ""}`}>{words}</span>)}
             {(r.provider || r.modelId || time) && <span className="sl-meta">
               <span className="sl-model" title={r.modelId ? modelChipTitle(r.modelId, r.effort) : undefined}>
                 {r.provider && <>{r.provider === "codex" ? "Codex" : "Claude"}{r.modelId ? " · " : ""}</>}
@@ -252,6 +254,27 @@ export function RailRow({ row: r, group, now, selected, removed, leaving, landNo
         </button>
       </div>
     </li>
+  );
+}
+
+/** A row's second line in words, so the name keeps the first line whole: that
+ *  the session is off the board (the press on this row does something
+ *  different), Done and its failed count, then what it waits on or "folder ·
+ *  task". */
+function RowWords({ removed, failed, line }: { removed: boolean; failed: string | null; line: RailLine | null }) {
+  const t = useT();
+  return (
+    <>
+      {removed && <span className="sl-off">{t("board.rail.offBoard")}</span>}
+      {removed && (failed || line) ? " · " : ""}
+      {/* Done in the line's own ink, then the count in the warning's: the
+          turn finished, and some of its calls did not. */}
+      {failed && <>{t("board.card.stateDone")} · <span className="sl-failed">{failed}</span></>}
+      {failed && line ? " · " : ""}
+      {line && (line.kind === "tool"
+        ? <><b className="sl-tool">{line.name}</b>{line.rest ? ` · ${line.rest}` : ""}</>
+        : line.text)}
+    </>
   );
 }
 

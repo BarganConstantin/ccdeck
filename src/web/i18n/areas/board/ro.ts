@@ -900,7 +900,6 @@ const catalog: Catalog = {
   "board.row.spokenRunning": "rulează ",
   "board.row.spokenYourTurnEnded": "rândul tău, încheiat ",
   "board.row.spokenEnded": "încheiată ",
-  "board.row.ago": "acum {time}",
   "board.row.asks": "Întreabă · {sentence}",
   "board.row.ready": "Gata pentru primul prompt",
   "board.row.bringBack": "Adu {label} înapoi pe tablă",

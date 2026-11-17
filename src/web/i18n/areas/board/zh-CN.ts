@@ -870,7 +870,6 @@ const catalog: Catalog = {
   "board.row.spokenRunning": "运行中",
   "board.row.spokenYourTurnEnded": "轮到您，已结束",
   "board.row.spokenEnded": "已结束",
-  "board.row.ago": "{time}前",
   "board.row.asks": "提问 · {sentence}",
   "board.row.ready": "等待第一条提示",
   "board.row.bringBack": "把 {label} 放回看板",

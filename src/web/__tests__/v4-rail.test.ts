@@ -87,14 +87,17 @@ describe("Rail / Header", () => {
     expect(decl(".session-list .sl-header", "background")).toBeUndefined();
   });
 
-  it("prints Sessions at 13/20 600 and the count in 12/16 mono muted, 6 apart on a baseline", () => {
+  it("prints Sessions at 13/20 600 and the count in 12/16 tabular muted, 6 apart on a baseline", () => {
     expect(decl(".session-list .sl-header h2", "gap")).toBe("6px");
     expect(decl(".session-list .sl-header h2", "align-items")).toBe("baseline");
     expect(decl(".session-list .sl-header h2", "line-height")).toBe("20px");
     expect(decl(".session-list .sl-header h2", "color")).toBe("var(--text)");
     expect(decl(".session-list .sl-header h2", "font-size")).toBe("calc(13px + var(--ui-text-increase, 0px))");
     expect(decl(".session-list .sl-header h2", "font-weight")).toBe("600");
-    expect(decl(".session-list .sl-count", "font-family")).toBe("var(--font-mono)");
+    // CHANGED ON PURPOSE (V4 top-10, inbox): the count in mono → the UI face
+    // with tabular figures, because a count is a figure, not code.
+    expect(decl(".session-list .sl-count", "font-family")).toBeUndefined();
+    expect(decl(".session-list .sl-count", "font-variant-numeric")).toBe("tabular-nums");
     expect(decl(".session-list .sl-count", "font-size")).toBe("calc(12px + var(--ui-text-increase, 0px))");
     expect(decl(".session-list .sl-count", "line-height")).toBe("16px");
     expect(decl(".session-list .sl-count", "color")).toBe("var(--muted)");
@@ -116,7 +119,7 @@ describe("Rail / Header", () => {
 });
 
 describe("Rail / Group header and the fold line", () => {
-  it("is --row-group tall, 8 in, label 12/16 600 secondary, count 11/14 mono muted", () => {
+  it("is --row-group tall, 8 in, label 12/16 600 secondary, count 11/14 tabular muted", () => {
     expect(decl(".session-list .sl-group-head", "height")).toBe("var(--row-group)");
     expect(decl(".session-list .sl-group-head", "padding")).toBe("0 8px");
     expect(decl(".session-list .sl-group-head", "justify-content")).toBe("space-between");
@@ -127,7 +130,10 @@ describe("Rail / Group header and the fold line", () => {
     expect(decl(".session-list .sl-group-label", "line-height")).toBe("16px");
     expect(decl(".session-list .sl-group-label", "font-weight")).toBe("600");
     expect(decl(".session-list .sl-group-label", "color")).toBe("var(--text-secondary)");
-    expect(decl(".session-list .sl-group-count", "font-family")).toBe("var(--font-mono)");
+    // CHANGED ON PURPOSE (V4 top-10, inbox): the count in mono → the UI face
+    // with tabular figures, because a count is a figure, not code.
+    expect(decl(".session-list .sl-group-count", "font-family")).toBeUndefined();
+    expect(decl(".session-list .sl-group-count", "font-variant-numeric")).toBe("tabular-nums");
     expect(decl(".session-list .sl-group-count", "font-size")).toBe("calc(11px + var(--ui-text-increase, 0px))");
     expect(decl(".session-list .sl-group-count", "line-height")).toBe("14px");
     expect(decl(".session-list .sl-group-count", "color")).toBe("var(--muted)");
@@ -172,7 +178,7 @@ describe("Rail / Row", () => {
     expect(decl(".session-list .sl-row.selected", "background")).toBe("var(--selected)");
   });
 
-  it("sets the name 13/20 600, the model 11/14 mono muted, the clock 12/16 mono 500", () => {
+  it("sets the name 13/20 600, no model, the age 12/16 tabular 500", () => {
     expect(decl(".session-list .sl-label", "font-size")).toBe("calc(13px + var(--ui-text-increase, 0px))");
     expect(decl(".session-list .sl-label", "line-height")).toBe("20px");
     expect(decl(".session-list .sl-label", "font-weight")).toBe("600");
@@ -183,7 +189,8 @@ describe("Rail / Row", () => {
     // Secondary metadata belongs below the full-width title.
     expect(decl(".session-list .sl-model", "font-family")).toBe("var(--font-mono)");
     expect(code("../components/RailParts.tsx").split('className="sl-line1"')[1].split('{lined &&')[0]).not.toMatch(/sl-model|modelChipText/);
-    expect(decl(".session-list .sl-time", "font-family")).toBe("var(--font-mono)");
+    expect(decl(".session-list .sl-time", "font-family")).toBeUndefined();
+    expect(decl(".session-list .sl-time", "font-variant-numeric")).toBe("tabular-nums");
     expect(decl(".session-list .sl-time", "font-size")).toBe("calc(12px + var(--ui-text-increase, 0px))");
     expect(decl(".session-list .sl-time", "font-weight")).toBe("500");
     expect(decl(".session-list .sl-time", "line-height")).toBe("16px");
@@ -420,12 +427,17 @@ describe("the five groups, in order", () => {
     expect(rows.slice(0, 2).map(r => r.sessionId)).toEqual(["ask", "perm"]);
   });
 
+  // CHANGED ON PURPOSE: herdr order, unread done above working. Working was
+  // group 1 and Done · new group 2 → Done · new is 1 and Working 2 (V4 top-10,
+  // inbox), because a finished turn you have not looked at is your turn and
+  // work in progress needs nothing from you yet.
   it("puts a running turn and a background job in Working", () => {
-    expect(groups(rowsOf())).toMatchObject({ work: 1, bg: 1 });
+    expect(groups(rowsOf())).toMatchObject({ work: 2, bg: 2 });
   });
 
+  // CHANGED ON PURPOSE: herdr order, unread done above working (2 → 1).
   it("puts an ended turn you have not looked at in Done · new: idle block, failure and done alike", () => {
-    expect(groups(rowsOf())).toMatchObject({ "idle-unseen": 2, failed: 2, "done-unseen": 2 });
+    expect(groups(rowsOf())).toMatchObject({ "idle-unseen": 1, failed: 1, "done-unseen": 1 });
   });
 
   it("puts a turn you have seen in Done", () => {
@@ -437,7 +449,8 @@ describe("the five groups, in order", () => {
     expect(groups(rows)).toMatchObject({ fresh: 4 });
     expect(rows.find(r => r.sessionId === "fresh")?.neverPrompted).toBe(true);
     // Once prompted it is at work, like any other turn.
-    expect(rank({ ...rows.find(r => r.sessionId === "fresh")!, neverPrompted: false })).toBe(1);
+    // CHANGED ON PURPOSE: herdr order, unread done above working (Working 1 → 2).
+    expect(rank({ ...rows.find(r => r.sessionId === "fresh")!, neverPrompted: false })).toBe(2);
   });
 
   it("orders Done · new by the turn's end, newest first, and fills the rest by group", () => {
@@ -445,8 +458,10 @@ describe("the five groups, in order", () => {
     // Done goes by the latest activity: the ended turn, else the start. Working
     // goes by when its turn began (newest first, then id), checked on its own below;
     // bg and work began together here, so the id decides.
+    // CHANGED ON PURPOSE: herdr order, unread done above working. Each group's
+    // own order is as it was; Done · new moved from after Working to before it.
     expect(rows.map(r => r.sessionId))
-      .toEqual(["ask", "perm", "bg", "work", "done-unseen", "failed", "idle-unseen", "done-seen", "fresh"]);
+      .toEqual(["ask", "perm", "done-unseen", "failed", "idle-unseen", "bg", "work", "done-seen", "fresh"]);
   });
 
   it("reads the turn's end from the root's endedAt, and the idle block only when there is none", () => {
@@ -502,11 +517,12 @@ describe("what each row says", () => {
   });
 
   it("counts the wait in the warn tone, the turn quietly, and says how long ago a turn ended", () => {
-    // CHANGED ON PURPOSE: the wait reads to the second under an hour, as V4
-    // draws it ("6m 42s"); "1m" before.
-    expect(time("perm")).toMatchObject({ tone: "warn", text: "1m 35s" });
-    expect(time("work")).toMatchObject({ tone: "quiet" });
-    expect(time("done-unseen")).toEqual({ text: "1m ago", tone: "quiet", spoken: "ended " });
+    // CHANGED ON PURPOSE (V4 top-10, inbox): "1m 35s" → "1m" and "1m ago" →
+    // "1m", because the row says one age to the minute, as an inbox does, and
+    // the word before it ("waiting", "ended") is the screen reader's already.
+    expect(time("perm")).toMatchObject({ tone: "warn", text: "1m" });
+    expect(time("work")).toMatchObject({ tone: "quiet", text: "1m" });
+    expect(time("done-unseen")).toEqual({ text: "1m", tone: "quiet", spoken: "ended " });
     expect(time("idle-unseen")?.spoken).toBe("your turn, ended ");
   });
 
@@ -587,30 +603,32 @@ describe("the fold past 8", () => {
     }));
     const before = draw();
     expect(before).toContain('<span class="sl-group-label">Done</span><span class="sl-group-count">2</span>');
-    expect(before.match(/class="sl-unseen"/g)).toHaveLength(1);
-    expect(before).toContain('role="img" aria-label="Done · new"');
+    expect(before.match(/class="sl-unread"/g)).toHaveLength(1);
+    expect(before).toContain('<span class="vis-hidden">, unread</span>');
     markSeen("new-result", s.agents.get("new-result")!.endedAt);
     const after = draw();
     expect(after).toContain('<span class="sl-group-label">Done</span><span class="sl-group-count">2</span>');
-    expect(after).not.toContain('class="sl-unseen"');
+    expect(after).not.toContain('class="sl-unread"');
   });
   it("draws 8 rows of 14 sessions (2 + 4 + 4 + 4): all of Needs you and Working, 2 of Done · new, Done folded", () => {
     expect(RAIL_FOLD_AT).toBe(8);
     expect(foldPlan([2, 4, 4, 4, 0])).toEqual([
-      { shown: 2, rest: 0 }, { shown: 4, rest: 0 }, { shown: 2, rest: 2 }, { shown: 0, rest: 4 }, { shown: 0, rest: 0 },
+      { shown: 2, rest: 0 }, { shown: 2, rest: 2 }, { shown: 4, rest: 0 }, { shown: 0, rest: 4 }, { shown: 0, rest: 0 },
     ]);
     // Ready is last in line for the budget: Done's rows are drawn before it.
-    expect(foldPlan([2, 4, 1, 1, 3])).toEqual([
-      { shown: 2, rest: 0 }, { shown: 4, rest: 0 }, { shown: 1, rest: 0 }, { shown: 1, rest: 0 }, { shown: 0, rest: 3 },
+    expect(foldPlan([2, 1, 4, 1, 3])).toEqual([
+      { shown: 2, rest: 0 }, { shown: 1, rest: 0 }, { shown: 4, rest: 0 }, { shown: 1, rest: 0 }, { shown: 0, rest: 3 },
     ]);
   });
 
+  // CHANGED ON PURPOSE: herdr order, unread done above working (Working's
+  // count is the third now, Done · new's the second).
   it("never cuts Needs you or Working, however many there are", () => {
-    expect(foldPlan([3, 9, 5, 5, 2])).toEqual([
-      { shown: 3, rest: 0 }, { shown: 9, rest: 0 }, { shown: 0, rest: 5 }, { shown: 0, rest: 5 }, { shown: 0, rest: 2 },
+    expect(foldPlan([3, 5, 9, 5, 2])).toEqual([
+      { shown: 3, rest: 0 }, { shown: 0, rest: 5 }, { shown: 9, rest: 0 }, { shown: 0, rest: 5 }, { shown: 0, rest: 2 },
     ]);
-    expect(foldPlan([0, 0, 3, 3, 1])).toEqual([
-      { shown: 0, rest: 0 }, { shown: 0, rest: 0 }, { shown: 3, rest: 0 }, { shown: 3, rest: 0 }, { shown: 1, rest: 0 },
+    expect(foldPlan([0, 3, 0, 3, 1])).toEqual([
+      { shown: 0, rest: 0 }, { shown: 3, rest: 0 }, { shown: 0, rest: 0 }, { shown: 3, rest: 0 }, { shown: 1, rest: 0 },
     ]);
   });
 
@@ -648,10 +666,12 @@ describe("the fold past 8", () => {
     expect(html).not.toContain('class="sl-group-label">Done · new</span>');
     // CHANGED ON PURPOSE (the UI in every language): the labels are keys.
     // CHANGED ON PURPOSE (design recommendations, 2026-11-09): the words the cards say.
+    // CHANGED ON PURPOSE: herdr order, unread done above working. The same
+    // five words; Done · new reads second now, Working third (V4 top-10, inbox).
     expect([...RAIL_GROUP_LABEL_MSGS]).toEqual([
-      "board.railGroup.needs", "board.railGroup.working", "board.railGroup.new", "board.railGroup.done", "board.railGroup.ready",
+      "board.railGroup.needs", "board.railGroup.new", "board.railGroup.working", "board.railGroup.done", "board.railGroup.ready",
     ]);
-    expect(RAIL_GROUP_LABEL_MSGS.map(key => en[key])).toEqual(["Needs you", "Working", "Done · new", "Done", "Ready"]);
+    expect(RAIL_GROUP_LABEL_MSGS.map(key => en[key])).toEqual(["Needs you", "Done · new", "Working", "Done", "Ready"]);
   });
 });
 
@@ -822,14 +842,17 @@ describe("review fixes: what the rows sort and say", () => {
     // A new prompt is a new turn.
     s = send(s, "old", { hook_event_name: "UserPromptSubmit", prompt: "again" }, 60_000);
     expect(order()[0]).toBe("old");
-    expect(code("../components/SessionList.tsx")).not.toMatch(/rx === 1\) return y\.lastActivity/);
+    // CHANGED ON PURPOSE: herdr order, unread done above working. Working is
+    // group 2 now (it was 1), so that is where a lastActivity sort would be.
+    expect(code("../components/SessionList.tsx")).not.toMatch(/rx === 2\) return y\.lastActivity/);
   });
 
   it("treats a session you are looking at as seen in the row model, before the marker is written", () => {
     const s = board();
     const now = T0 + 100_000;
     const group = (watching?: Set<string>) => rank(buildRows(s, now, watching).find(r => r.sessionId === "done-unseen")!);
-    expect(group()).toBe(2);
+    // CHANGED ON PURPOSE: herdr order, unread done above working (Done · new 2 → 1).
+    expect(group()).toBe(1);
     expect(group(new Set(["done-unseen"]))).toBe(3);
     const idle = buildRows(s, now, new Set(["idle-unseen"])).find(r => r.sessionId === "idle-unseen")!;
     expect(idle.unseen).toBe(false);
@@ -838,9 +861,10 @@ describe("review fixes: what the rows sort and say", () => {
 
   it("draws Done in Done · unseen even for a row still marked active under an idle block, and Error for a failure", () => {
     const row = buildRows(board(), T0 + 100_000).find(r => r.sessionId === "idle-unseen")!;
-    expect(railGlyph({ ...row, state: "active" }, 2)).toBe("done");
-    expect(railGlyph({ ...row, state: "err" }, 2)).toBe("error");
-    expect(railGlyph({ ...row, state: "done" }, 2)).toBe("done");
+    // CHANGED ON PURPOSE: herdr order, unread done above working (Done · new 2 → 1).
+    expect(railGlyph({ ...row, state: "active" }, 1)).toBe("done");
+    expect(railGlyph({ ...row, state: "err" }, 1)).toBe("error");
+    expect(railGlyph({ ...row, state: "done" }, 1)).toBe("done");
     // Seen, it is still Done, where it wore the Idle ring.
     expect(railGlyph({ ...row, state: "active" }, 3)).toBe("done");
     expect(railGlyph({ ...row, state: "done" }, 3)).toBe("done");
