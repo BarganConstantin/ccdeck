@@ -392,3 +392,42 @@ An active terminal in another app cannot be transferred by this change.
 The installed terminal engine has not been replaced; do not claim this
 preview resolves every unsupported external-session case. No new changes
 from this work have been pushed, merged, tagged or published.
+
+## Session controls and local shell — 2026-11-17
+
+Branch `fix/v4-session-chrome` is based on `next/v4` at `4ee27422`.
+It restores one Done group, follows native Codex titles without requiring a
+rollout append, and makes UI renames update provider metadata before saving
+the local display override. Clearing removes only the local override.
+Codex renaming requires its existing local server; a refusal is reported
+instead of silently saving a local-only name. Claude uses the documented
+custom-title transcript operation, without typing into the active prompt.
+An already-running Claude terminal may retain its old in-memory caption until
+it rereads the session; persisted provider metadata is updated.
+
+Terminal hints use the global bottom row when available and retain one local
+row on phone layouts. Unrequested wheel-to-arrow translation on alternate
+screens is blocked; alternate screens themselves have no local scrollback.
+Native normal-buffer output retains the terminal's existing scrollback.
+Scrollbars retain their drag target with a thinner painted thumb. Workspace
+uses one divider stroke between the navigator and terminal.
+
+Codex account selection is the default for new sessions; it is not proof that
+an open native session has changed account. During a live change the panel
+keeps polling and identifies the account still in use. Long-running tools can
+delay the existing controlled handoff. Never bypass that guard to make the UI
+claim an account change succeeded.
+
+The local macOS shell was rebuilt from the same V4 source because the installed
+older shell had neither the New session folder-picker bridge nor its IPC
+handler. The app signature was verified with the same signing identity; the
+provider engine package was not modified. Actual native folder selection is
+not fully tested in automation (macOS Accessibility is disabled).
+
+Verification: Node 22 typecheck and production build; focused title, rename,
+account polling/handoff, terminal controls, rail and status-bar tests. Browser
+checks used an isolated context with real xterm/React components at desktop,
+390 and 320 px: one hint row, contextual typing hint and phone fallback.
+Synthetic alternate-screen wheel produced no input. Normal-buffer scrolling
+position was not established by the synthetic wheel probe. Temporary browser
+fixtures were removed. Recheck current process IDs before replacing a runtime.
