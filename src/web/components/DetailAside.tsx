@@ -39,7 +39,7 @@ function exportSessionJson(state: GraphState, sessionId: string): void {
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
-export default function DetailAside({ selected, now, openTool, setSummaryFor, onClose, onSelectAgent, stateRef, removeSelectedNode, workspace = false, leaving = false, sheet = false }: {
+export default function DetailAside({ selected, now, openTool, setSummaryFor, onClose, onSelectAgent, stateRef, removeSelectedNode, onOpenSession, stageSession = null, workspace = false, leaving = false, sheet = false }: {
   /** The Workspace is drawn: the title takes the pane's sentence for the state. */
   workspace?: boolean;
   /** A phone's sheet on its way down the bottom edge, the flag already dropped. */
@@ -60,6 +60,12 @@ export default function DetailAside({ selected, now, openTool, setSummaryFor, on
   /** Read when Export is pressed, for the graph as it is then. */
   stateRef: MutableRefObject<GraphState>;
   removeSelectedNode: () => void;
+  /** The title block's next step, Answer or Open (Detail.tsx's
+   *  inspectorNextStep): App's openSessionWithKeys, given only where the deck
+   *  has a terminal. */
+  onOpenSession?: (sessionId: string) => void;
+  /** The session the stage shows now, which is not offered Open again. */
+  stageSession?: string | null;
 }) {
   // Drawn: one of the features the usage reports name (feature-use.ts). Said
   // here rather than off `detailOpen`, which stays on across a reload that
@@ -101,6 +107,8 @@ export default function DetailAside({ selected, now, openTool, setSummaryFor, on
             now={now}
             onOpenTool={openTool}
             onShowSummary={setSummaryFor}
+            onOpenSession={onOpenSession}
+            stageSession={stageSession}
             onExportSession={(sid) => exportSessionJson(stateRef.current, sid)}
             onRemove={removeSelectedNode}
             singleKeys={singleKeys}

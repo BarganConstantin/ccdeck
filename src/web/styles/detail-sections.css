@@ -81,11 +81,13 @@
   font-weight: 400;
   color: var(--muted);
 }
-/* Show recap, the one verb left in the body, under what a person reads, as
-   V4's Quiet button draws it: `button.btn` as it is, 28 high, 13/500
-   --text-secondary, the control radius, 12 in. The edge stays the button's
-   --ctl-edge (control-edges.test.ts holds every control to 3:1). Export JSON
-   and Remove from board are the title block's ⋯ (V4 top-10 #6). */
+/* The next step under the title block (Detail.tsx's inspectorNextStep):
+   Answer as V4's Primary (`button.btn.primary`, the --accent wash at 600), or
+   Open as its Quiet button (`button.btn`, 13/500 --text-secondary), with Show
+   recap beside it, Quiet, for a finished session. Both as the kit draws them,
+   on the control radius, 12 in, with an edge held to 3:1
+   (control-edges.test.ts). Export JSON and Remove from board are the title
+   block's ⋯ (V4 top-10 #6). */
 .detail .hero-actions {
   display: flex;
   flex-wrap: wrap;

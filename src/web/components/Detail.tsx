@@ -9,6 +9,7 @@ import AnchoredPopover from "./AnchoredPopover";
 import { loadInspectorDetailsOpen, saveInspectorDetailsOpen } from "../inspector-tab";
 import { renameFacts } from "../session-rename";
 import { agentKindLabel, categoryLabel } from "../agent-copy";
+import { isAlarming } from "../ambient-counts";
 import { cardState } from "../node-face";
 import { useLanguage, useT } from "../i18n";
 
@@ -68,11 +69,40 @@ function HeroTitle({ agent, now }: { agent: AgentNodeData; now: number }) {
   );
 }
 
+/** The one next step the Inspector offers for the agent it is about (V4
+ *  top-10, the Inspector's next step): the button under the title block.
+ *
+ *  A session's root only: a subagent has no terminal of its own, and keeps
+ *  what it had (nothing). None where the deck cannot open a terminal at all
+ *  (`canOpen`: the Command Panel is off, or this platform has none), which is
+ *  where a card's click and Enter on a Sessions row open none either.
+ *
+ *  - "answer": the session is stopped on a person (isAlarming, the rule the
+ *    card, the top bar's count and the waiting row use). Its question is in
+ *    its terminal, which is what the stage shows first (Term, every way in),
+ *    so Answer puts it there with the keys in its pane. It stays for the
+ *    session the stage already shows: there the same press gives that pane
+ *    the keys, which is the stage's own "↵ type here".
+ *  - "open": any other state (working, ready, done, failed). Not for the
+ *    session the stage already shows, which is beside the Inspector with its
+ *    "↵ type here" in its bar; a second way to the same pane is clutter. */
+export type NextStep = "answer" | "open";
+export function inspectorNextStep(
+  agent: Pick<AgentNodeData, "kind" | "sessionId" | "waiting">,
+  deck: { canOpen: boolean; stageSession: string | null },
+): NextStep | null {
+  if (agent.kind !== "root" || !deck.canOpen) return null;
+  if (isAlarming(agent.waiting)) return "answer";
+  return deck.stageSession === agent.sessionId ? null : "open";
+}
+
 export default function Detail({
   agent,
   now,
   onOpenTool,
   onShowSummary,
+  onOpenSession,
+  stageSession = null,
   onExportSession,
   onRemove,
   singleKeys = true,
@@ -85,6 +115,13 @@ export default function Detail({
   /** Opens the tool modal on one of this agent's calls, named by both (#1483). */
   onOpenTool: (agentId: string, toolId: string) => void;
   onShowSummary?: (sessionId: string) => void;
+  /** Puts a session on the stage with the keys in its pane: App's
+   *  openSessionWithKeys, the very press Enter on a Sessions row makes, and
+   *  what a card's click does on the Board. Absent where the deck has no
+   *  terminal, and then no Answer or Open is drawn. */
+  onOpenSession?: (sessionId: string) => void;
+  /** The session the stage shows now (the pane in focus), or null. */
+  stageSession?: string | null;
   onExportSession?: (sessionId: string) => void;
   onRemove?: () => void;
   /** Whether L reopens the session list (Settings › General's switch), so the
@@ -182,6 +219,45 @@ export default function Detail({
         )}
       </header>
 
+      {/* THE NEXT STEP, right under the title block (V4 top-10, the
+          Inspector's next step), so a Tab from the ⋯ reaches it first. One
+          button for the session's state (inspectorNextStep): Answer for a
+          session stopped on a person, the only Primary in the body; Open,
+          Quiet, for any other. A finished session keeps Show recap beside it,
+          Quiet: Claude Code's recap, which it reopens. At most the two; Export
+          and Remove stay the title block's ⋯ (V4 top-10 #6), and with neither
+          to offer the row is not drawn, never empty. */}
+      {(() => {
+        const step = inspectorNextStep(agent, { canOpen: onOpenSession !== undefined, stageSession });
+        const recap = agent.kind === "root" && agent.state === "done" ? onShowSummary : undefined;
+        if (!step && !recap) return null;
+        // The name the title above prints, so a screen reader that lands on
+        // the button hears whom it answers or opens, as the stage's keys bar
+        // names the session its Answer is for.
+        const name = sessionNames(agent).title;
+        const answer = step === "answer";
+        return (
+          <div className="hero-actions">
+            {step && onOpenSession && (
+              <button
+                type="button"
+                className={answer ? "btn primary" : "btn"}
+                aria-label={answer ? t("board.keys.answerLabel", { name }) : t("board.stage.open", { name })}
+                onClick={() => onOpenSession(agent.sessionId)}
+              >{answer ? t("board.keys.answer") : t("board.quick.verb.open")}</button>
+            )}
+            {recap && (
+              <button
+                type="button"
+                className="btn"
+                onClick={() => recap(agent.sessionId)}
+                title={t("board.detail.recapTitle")}
+              >{t("board.detail.recap")}</button>
+            )}
+          </div>
+        );
+      })()}
+
       {/* Continue a turn that stopped on an expired login or a usage limit
           (#2193): the button for a background session, what to type for one
           in a terminal, and what the last continue did. Above the note, which
@@ -258,21 +334,6 @@ export default function Detail({
             })}
           </div>
         </section>
-      )}
-
-      {/* The one verb left in the body, a Quiet button: Claude Code's recap of
-          a finished session, which belongs with the note it adds to. Export
-          and Remove are the title block's ⋯ now (V4 top-10 #6), so the row is
-          only drawn when there is a recap to show, never empty. */}
-      {agent.kind === "root" && agent.state === "done" && onShowSummary && (
-        <div className="hero-actions">
-          <button
-            type="button"
-            className="btn"
-            onClick={() => onShowSummary(agent.sessionId)}
-            title={t("board.detail.recapTitle")}
-          >{t("board.detail.recap")}</button>
-        </div>
       )}
 
       {/* EVERYTHING ELSE, ONE PRESS AWAY (V4 top-10 #6). What is above is
