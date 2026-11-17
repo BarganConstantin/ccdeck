@@ -188,7 +188,7 @@ describe("the save itself", () => {
     await expect(saveSessionName(facts, "Ship it", send)).resolves.toEqual({ ok: true, name: "Ship it" });
     expect(sent!.url).toBe("/api/session-name");
     expect(sent!.init.method).toBe("POST");
-    expect(JSON.parse(String(sent!.init.body))).toEqual({ provider: "codex", sessionId: SID, name: "Ship it" });
+    expect(JSON.parse(String(sent!.init.body))).toEqual({ provider: "codex", sessionId: SID, name: "Ship it", syncProvider: true });
   });
 
   it("answers a clear as null", async () => {

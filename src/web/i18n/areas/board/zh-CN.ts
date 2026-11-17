@@ -363,7 +363,7 @@ const catalog: Catalog = {
   "board.rail.more": "更多",
   "board.rail.moreLabel": "更多：{items}",
   "board.rename.action": "重命名",
-  "board.rename.tip": "仅在此 ccdeck 中重命名。Claude Code 和 Codex 保留各自的名称。",
+  "board.rename.tip": "将名称保存到 ccdeck 和提供方的会话中。清空仅移除 ccdeck 的自定义名称。",
   "board.rename.field": "会话名称",
   "board.rename.reset": "使用默认名称",
   "board.rename.failed": "未保存。请重试。",

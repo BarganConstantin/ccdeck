@@ -380,7 +380,7 @@ const catalog: Catalog = {
   "board.rail.more": "Mai multe",
   "board.rail.moreLabel": "Mai multe: {items}",
   "board.rename.action": "Redenumește",
-  "board.rename.tip": "Redenumește în acest ccdeck. Claude Code și Codex își păstrează propriul nume.",
+  "board.rename.tip": "Salvează numele în ccdeck și în conversația providerului. Golește pentru a elimina numele propriu din ccdeck.",
   "board.rename.field": "Numele sesiunii",
   "board.rename.reset": "Folosește numele implicit",
   "board.rename.failed": "Nu s-a salvat. Încearcă din nou.",

@@ -363,7 +363,7 @@ const catalog: Catalog = {
   "board.rail.more": "더 보기",
   "board.rail.moreLabel": "더 보기: {items}",
   "board.rename.action": "이름 바꾸기",
-  "board.rename.tip": "이 ccdeck에서만 이름을 바꿉니다. Claude Code와 Codex는 자체 이름을 유지합니다.",
+  "board.rename.tip": "ccdeck과 제공자의 대화에 이름을 저장합니다. 비우면 ccdeck의 이름 설정만 제거됩니다.",
   "board.rename.field": "세션 이름",
   "board.rename.reset": "기본 이름 사용",
   "board.rename.failed": "저장되지 않았습니다. 다시 시도하세요.",

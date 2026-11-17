@@ -363,7 +363,7 @@ const catalog: Catalog = {
   "board.rail.more": "Más",
   "board.rail.moreLabel": "Más: {items}",
   "board.rename.action": "Renombrar",
-  "board.rename.tip": "Renombrar en este ccdeck. Claude Code y Codex conservan su propio nombre.",
+  "board.rename.tip": "Guarda el nombre en ccdeck y en la conversación del proveedor. Borra el campo para quitar el nombre propio de ccdeck.",
   "board.rename.field": "Nombre de la sesión",
   "board.rename.reset": "Usar el nombre predeterminado",
   "board.rename.failed": "No se guardó. Inténtalo de nuevo.",
