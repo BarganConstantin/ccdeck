@@ -197,10 +197,17 @@ describe("compact session provider identity", () => {
       onClose: noop, onOpenKeys: noop,
     }));
     const button = rowButton(out, "provider-session");
-    const avatar = button.match(/<img\b[^>]*>/g) ?? [];
+    const avatar = button.match(/<span\b[^>]*class="provider-avatar"[^>]*>/g) ?? [];
     expect(avatar).toHaveLength(1);
-    expect(avatar[0]).toContain(`alt="${name}"`);
-    expect(avatar[0]).toContain(`/assets/providers/${asset}`);
+    expect(avatar[0]).toContain(`data-provider="${provider}"`);
+    expect(avatar[0]).toContain('role="img"');
+    expect(avatar[0]).toContain(`aria-label="${name}"`);
+    expect(avatar[0]).toContain(`title="${name}"`);
+    const style = avatar[0].match(/\bstyle="([^"]+)"/)?.[1];
+    expect(style).toContain("--provider-mark:url(");
+    expect(style).toContain(`/assets/providers/${asset}`);
+    expect(style).not.toMatch(/https?:\/\//);
+    expect(button).not.toMatch(/<img\b/);
     expect(button.indexOf(avatar[0])).toBeLessThan(button.indexOf('class="sl-text"'));
     expect(button.match(/data-glyph=/g)).toHaveLength(1);
     expect(button.indexOf('data-glyph="working"')).toBeGreaterThan(button.indexOf('class="sl-row-status"'));
@@ -209,8 +216,14 @@ describe("compact session provider identity", () => {
 
   it("uses Claude Code for legacy rows without a provider", () => {
     const out = drawRow();
-    expect(out).toMatch(/<img\b[^>]*alt="Claude Code"/);
-    expect(out).toContain("/assets/providers/claude-code.svg");
+    const avatar = out.match(/<span\b[^>]*class="provider-avatar"[^>]*>/g) ?? [];
+    expect(avatar).toHaveLength(1);
+    expect(avatar[0]).toContain('data-provider="claude"');
+    expect(avatar[0]).toContain('role="img"');
+    expect(avatar[0]).toContain('aria-label="Claude Code"');
+    expect(avatar[0]).toContain('title="Claude Code"');
+    expect(avatar[0]).toMatch(/style="[^"]*--provider-mark:url\([^\n]*\/assets\/providers\/claude-code\.svg/);
+    expect(out).not.toMatch(/<img\b/);
   });
 
   it("keeps the Board row's leading status mark", () => {

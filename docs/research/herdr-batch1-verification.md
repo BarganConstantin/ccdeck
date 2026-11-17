@@ -61,6 +61,35 @@ Pe Node 22:
 - Conversațiile sintetice trec prin ruta reală de transcript Claude. Instrumentele
   se afișează fără săgeți de expandare.
 
+## Revizie: avataruri monocrome și aliniere
+
+La cererea proprietarului, Claude Code și Codex folosesc acum variantele
+monocrome originale LobeHub, fără fundal alb. Fișierele sunt nemodificate;
+proveniența, hash-urile și licența sunt în `THIRD_PARTY_NOTICES.md`.
+Masca CSS ia culoarea textului din temă. Ambele ocupă un slot de 20px;
+Codex este desenat la 16px în interior pentru echilibru optic cu Claude.
+
+Verificări pe revizia monocromă, cu Node 22:
+
+- `npm run typecheck` și `npm run build` — trecute. Build-ul păstrează
+  avertismentul existent despre dimensiunea chunk-urilor.
+- 333 teste trecute în cele opt fișiere afectate: `workspace-compact-rows`,
+  `v4-rail`, `rail-row-tell`, `v4-chat-view`, `terminal-stage-view`,
+  `contrast-floors`, `brand-kit`, `notices-bundle`. Cele 529 de teste de mai
+  sus descriu verificarea lotului anterior, nu o rerulare integrală a reviziei.
+- Detectorul Impeccable: zero alerte pe `ProviderAvatar`, `RailParts` și
+  `StageHeader`.
+- În build-ul servit, Chrome la 1440×900: centrele avatarului, titlului și
+  stării coincid în toate cele 25 de combinații de text și densitate.
+  Rândurile cu două linii compensează jumătate din înălțimea explicației și
+  a spațiului său, inclusiv când densitatea adaugă spațiu în rând.
+- Toate cele 12 teme: fundal transparent și contrast compus al iconurilor de
+  minimum 5.27:1 în eșantionul de listă și headere, inclusiv Codex selectat.
+  Cele patru colțuri ale ambelor SVG-uri au alpha zero; nu există pătrat alb.
+  Aceasta nu este o certificare a întregii interfețe.
+- 390×844 și 320×700: fluxul mobil existent rămâne fără overflow orizontal;
+  acesta folosește în continuare rândurile mobile cu starea în stânga.
+
 ## Previzualizare și limite
 
 Aplicația completă: `http://127.0.0.1:4479/batch1-preview.html`.

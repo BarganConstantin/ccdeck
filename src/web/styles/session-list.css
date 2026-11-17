@@ -167,8 +167,13 @@
 .session-list .sl-row[data-compact][data-one-line] {
   min-height: max(calc(var(--row-rail) - 10px), calc(34px + 2 * var(--ui-text-increase, 0px)));
 }
-.session-list .sl-row[data-compact] > .provider-avatar { align-self: flex-start; margin-top: 0; }
-.session-list .sl-row[data-compact][data-one-line] > .provider-avatar { align-self: center; }
+/* The row centers the full text block. Half the context line (16px) and its
+   gap (3px) brings the avatar back to the title, including at larger text. */
+.session-list .sl-row[data-compact] > .provider-avatar { align-self: center; position: relative; top: calc((19px + var(--ui-text-increase, 0px)) / -2); }
+.session-list .sl-row[data-compact][data-one-line] > .provider-avatar { top: 0; }
+.session-list .sl-row[data-compact] .sl-line1 { align-items: center; }
+.session-list .sl-row[data-compact].selected .provider-avatar,
+.session-list .sl-row[data-compact][data-pane-active] .provider-avatar { color: var(--text); }
 .session-list .sl-row-status { flex: none; display: inline-flex; align-items: center; gap: 6px; }
 .session-list .sl-row-status .sl-glyph { height: 14px; padding: 0; }
 .session-list .sl-row[data-compact] .sl-name { flex: 1; }

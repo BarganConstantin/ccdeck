@@ -1,10 +1,14 @@
 import claude from "../assets/providers/claude-code.svg";
 import codex from "../assets/providers/codex.svg";
 import type { Provider } from "../types";
+import type { CSSProperties } from "react";
 
-/** Provider identity uses the original artwork; status is drawn separately. */
+/** Upstream monochrome artwork follows the theme's ink; status stays separate. */
 export default function ProviderAvatar({ provider }: { provider: Provider }) {
   const name = provider === "codex" ? "Codex" : "Claude Code";
-  return <img className="provider-avatar" src={provider === "codex" ? codex : claude}
-    alt={name} title={name} width={20} height={20} draggable={false} />;
+  const style: CSSProperties & { "--provider-mark": string } = {
+    "--provider-mark": `url("${provider === "codex" ? codex : claude}")`,
+  };
+  return <span className="provider-avatar" data-provider={provider} role="img"
+    aria-label={name} title={name} style={style} />;
 }

@@ -968,24 +968,23 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ```
 
 
-## Claude Code and Codex provider marks — LobeHub via Herdr
+## Claude Code and Codex provider marks — LobeHub
 
-The SVGs below are copied byte for byte from Herdr commit `321c9a84bc928f1c31be59e73dad966d86a3e252`,
-with their original colours and artwork unchanged. They identify third-party
-providers and are separate from the ccdeck brand kit.
+The monochrome SVGs below are copied byte for byte from
+[LobeHub Icons](https://github.com/lobehub/lobe-icons) commit
+`34270bc208d7122778dc00b30bd460f97ea03216`, with their artwork unchanged.
+Both use `currentColor`, with no background or gradients. They identify
+third-party providers and are separate from the ccdeck brand kit.
 
-| Distributed asset | Herdr source | SHA-256 |
+| Distributed asset | LobeHub source | SHA-256 |
 | --- | --- | --- |
-| `src/web/assets/providers/claude-code.svg` | [claude.svg](https://github.com/herdrdev/herdr-app/blob/321c9a84bc928f1c31be59e73dad966d86a3e252/defaults/icons/claude.svg) | `670b3d8d749d0815ad8f7e62a59d51cb5e2053cb19403f3541a8aed7036a877f` |
-| `src/web/assets/providers/codex.svg` | [codex.svg](https://github.com/herdrdev/herdr-app/blob/321c9a84bc928f1c31be59e73dad966d86a3e252/defaults/icons/codex.svg) | `4a2f43ce46b5b6e3722c95088f88d26ef91e6a8c2e598e70642a1c54367386e4` |
+| `src/web/assets/providers/claude-code.svg` | [claudecode.svg](https://github.com/lobehub/lobe-icons/blob/34270bc208d7122778dc00b30bd460f97ea03216/packages/static-svg/icons/claudecode.svg) | `d7eb2d876b49e51cc16291a42b681d7cf4906e60e0150776dbfb353ec4ca3746` |
+| `src/web/assets/providers/codex.svg` | [codex.svg](https://github.com/lobehub/lobe-icons/blob/34270bc208d7122778dc00b30bd460f97ea03216/packages/static-svg/icons/codex.svg) | `d08b4e824cd6727e89617f59e4737273ff53e44c1da849d016dd64dfd08b33e1` |
 
-Herdr’s [icon attribution](https://github.com/herdrdev/herdr-app/blob/321c9a84bc928f1c31be59e73dad966d86a3e252/defaults/icons/LICENSES.md) identifies agent icons as
-LobeHub icons (MIT) and the agents’ own marks. Original icon project:
-[LobeHub Icons](https://github.com/lobehub/lobe-icons). Herdr does not document
-an original LobeHub revision or individual source URL for these two files.
-Trademark rights are not granted by the MIT licence.
+The icons are distributed under the MIT licence. Trademark rights are not
+granted by the MIT licence.
 
-The full [LobeHub notice supplied by Herdr](https://github.com/herdrdev/herdr-app/blob/321c9a84bc928f1c31be59e73dad966d86a3e252/defaults/icons/LICENSE-LobeHub.txt)
+The full [upstream LobeHub notice](https://github.com/lobehub/lobe-icons/blob/34270bc208d7122778dc00b30bd460f97ea03216/LICENSE)
 is reproduced unchanged:
 
 ```text
