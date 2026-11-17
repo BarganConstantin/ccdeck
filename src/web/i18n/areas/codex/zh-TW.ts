@@ -35,6 +35,7 @@ const catalog: Catalog = {
   "codex.row.readPlanNamed": "{plan} 方案。{rest}",
   "codex.row.neverRead": "ccdeck 尚未讀取此帳號",
   "codex.row.switchWaiting": "正在等待執行中的工具完成或必要的輸入，然後切換帳號。",
+  "codex.row.switchWaitingUsing": "仍在使用 {account}。執行中的工具或必要的輸入完成後，將切換帳號。",
   "codex.row.childrenResuming": "帳號已切換，正在等待子代理恢復。",
   "codex.row.continueUnconfirmed": "無法確認是否已自動繼續。繼續之前請檢查對話。",
   "codex.row.reading": "正在讀取用量…",

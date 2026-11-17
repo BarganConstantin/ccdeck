@@ -34,6 +34,7 @@ const catalog: Catalog = {
   "codex.row.readPlanNamed": "Plan {plan}. {rest}",
   "codex.row.neverRead": "ccdeck aún no ha leído esta cuenta",
   "codex.row.switchWaiting": "Esperando a que terminen las herramientas o se responda la entrada pendiente antes de cambiar de cuenta.",
+  "codex.row.switchWaitingUsing": "Todavía se usa {account}. La cuenta cambiará cuando terminen las herramientas en ejecución o se responda la entrada pendiente.",
   "codex.row.childrenResuming": "Cuenta cambiada. Esperando a que los subagentes continúen.",
   "codex.row.continueUnconfirmed": "No se pudo confirmar la continuación automática; revisa la conversación antes de continuar.",
   "codex.row.reading": "Leyendo el uso…",

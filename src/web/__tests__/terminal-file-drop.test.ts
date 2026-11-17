@@ -10,7 +10,7 @@ describe('native terminal file drops', () => {
   it('uses PowerShell literal quoting for Windows paths', () => {
     expect(quoteDroppedPaths(["C:\\Users\\Example\\O'Brien.txt"], 'Win32')).toBe("'C:\\Users\\Example\\O''Brien.txt' ");
   });
-  it.each([[], ['relative.txt'], ['/tmp/bad\ncommand'], ['/tmp/bad\rcommand'], ['/tmp/bad\u0000file'], Array(65).fill('/tmp/file')].map(paths => [paths]))('refuses invalid paths or an oversized drop', paths => {
+  it.each([[], ['relative.txt'], ['/tmp/bad\ncommand'], ['/tmp/bad\rcommand'], ['/tmp/bad\u0000file'], ['/tmp/bad\u009b31mfile'], ['/tmp/bad\u0085line'], ['/tmp/bad\u2028line'], Array(65).fill('/tmp/file')].map(paths => [paths]))('refuses invalid paths or an oversized drop', paths => {
     expect(quoteDroppedPaths(paths, 'MacIntel')).toBeNull();
   });
   it('keeps session drags separate and requires all native file paths', () => {

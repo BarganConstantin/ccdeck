@@ -95,6 +95,8 @@ describe("the Sessions panel: no summary line, a title free of model metadata", 
     const list = sourceOf("components/SessionList.tsx");
     const parts = sourceOf("components/RailParts.tsx");
     expect(list).not.toMatch(/sl-nobody|nobodyWaiting/);
+    // CHANGED ON PURPOSE (#2591): the model is back on the row, below the
+    // title; only the title's own line stays free of it.
     expect(parts.split('className="sl-line1"')[1].split('{lined &&')[0]).not.toMatch(/sl-model|modelChip/);
     expect(parts).toContain("sl-group-count");
     expect(list).toContain('<div className="sl-held"><PauseGlyph /><span>{heldLine(moves)}</span></div>');
