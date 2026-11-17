@@ -281,7 +281,8 @@ describe("what was migrated to the secondary tier", () => {
       // CHANGED ON PURPOSE: the legend's items (`.cat-filter`) are gone; the
       // one button stands at every width. A hidden category's row in its menu
       // lifts to this tier under the pointer, off the --selected bed's floor.
-      ".cat-filter-tools",
+      // CHANGED ON PURPOSE (V4 top-10 #5): ".cat-filter-tools" → gone, because the
+      // "Tools" button is gone: the rows are a group of the canvas bar's ⋯ menu.
       ".cat-tools-item.off:hover",
       // CHANGED ON PURPOSE (V4's Figma): a companion tile's name is set in this tier, like a theme's.
       ".character-choice",
@@ -494,8 +495,10 @@ describe("what was migrated to the secondary tier", () => {
       // The last line of each rule that lifts the muted words a tier on a hovered
       // or chosen row, where --muted is 4.05:1 in dark (#1789). The hover half
       // stands alone now, under the mouse query, so it ends a line of its own.
-      ".session-list .sl-row.selected .sl-model",
-      ".session-list .sl-row:hover .sl-model",
+      // CHANGED ON PURPOSE (V4 top-10 #5): `.sl-model` ended those lines → `.sl-line2`
+      // does, because the row draws no model any more; the same lift, the same tier.
+      ".session-list .sl-row.selected .sl-line2",
+      ".session-list .sl-row:hover .sl-line2",
       // A phone's Board (critique 3, point 7): a card's task or the question it
       // waits on is the sentence read there, in the list row's tier; and the
       // selected card lifts its muted words a tier, as the list's row does.

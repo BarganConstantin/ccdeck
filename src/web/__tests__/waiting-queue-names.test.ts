@@ -196,7 +196,9 @@ describe("the queue popover keeps the bar's colours and its silence", () => {
     const html = renderToStaticMarkup(createElement(WaitingStat, {
       waitingSessions: [], waitingCursorRef: { current: null }, focusSession: () => {}, now: 0,
     }));
-    expect(html).toContain("<b>0</b>");
+    // CHANGED ON PURPOSE (V4 top-10 #5): a quiet "0" pill → nothing drawn at all,
+    // because a zero counter is machinery; the bar still says nothing and opens nothing.
+    expect(html).toBe("");
     expect(html).not.toContain("<button");
     expect(html).not.toContain("aria-haspopup");
   });

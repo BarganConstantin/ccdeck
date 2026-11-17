@@ -30,25 +30,42 @@ function decls(selector: string): Record<string, string> {
 describe("the bar's items, left to right", () => {
   // Each item is found by what only it carries, in source order, which is the
   // DOM order and so the tab order.
+  // CHANGED ON PURPOSE (V4 top-10 #5): zoom out, level, zoom in | recenter, re-arrange,
+  // pause, clear | keyboard, Command Panel → zoom out, level, zoom in | recenter, ⋯,
+  // whose menu holds re-arrange, pause, clear | Command Panel, keyboard | the tool
+  // filter, because the bar keeps the view's controls and the verbs used a few
+  // times a day are one menu away, each row with its key.
   const order = [
     'aria-label={t("board.controls.zoomOut")}',
     "<ZoomLevel zoomReset={zoomReset} />",
     'aria-label={t("board.controls.zoomIn")}',
     "react-flow__controls-divider",
     'aria-label={t("board.controls.recenter")}',
-    'aria-label={t("board.controls.arrangeLabel")}',
-    "aria-label={pauseLabel(t)}",
-    'aria-label={t("board.controls.clearLabel")}',
-    "react-flow__controls-divider",
-    'aria-label={t("board.controls.keysLabel")}',
-    // CHANGED ON PURPOSE (the UI in every language): named by its key; the words are asserted below.
-    'aria-label={t("board.controls.openPanel")}',
+    "<CanvasMore",
+    'id={CANVAS_MORE_ID}',
+    'label={t("board.controls.arrangeLabel")} keyCap="R"',
+    'label={paused ? t("board.quick.action.resume") : t("board.quick.action.pause")}',
+    'keyCap="Space"',
+    'label={t("board.quick.action.clear")} keyCap="C"',
+    '<div role="separator" className="ap-menu-sep" />',
+    'label={t("board.controls.openPanel")}',
+    'label={singleKeys ? t("board.controls.keys") : t("board.controls.keysOff")} keyCap="?"',
+    '<div role="separator" className="ap-menu-sep" />',
+    "<CategoryFilterBar headId={headId}",
   ];
   it("says those names in the words V4 drew", () => {
+    // CHANGED ON PURPOSE (V4 top-10 #5): Clear's and the keyboard button's names left
+    // the bar with them (Clear's row says "Clear the deck…", the keyboard row
+    // "Keyboard shortcuts"); ⋯ is named "More actions", as an account's ⋯ is.
     expect([
       en["board.controls.zoomOut"], en["board.controls.zoomIn"], en["board.controls.recenter"],
-      en["board.controls.arrangeLabel"], en["board.controls.clearLabel"], en["board.controls.keysLabel"], en["board.pill.pause"],
-    ]).toEqual(["Zoom out", "Zoom in", "Recenter view", "Re-arrange the canvas", "Clear the deck", "Open the keyboard shortcuts", "Pause the canvas"]);
+      en["board.controls.arrangeLabel"], en["board.quick.action.pause"], en["board.quick.action.resume"],
+      en["board.quick.action.clear"], en["board.controls.keys"], en["accounts.row.more"], en["board.controls.moreFiltered"],
+    ]).toEqual([
+      "Zoom out", "Zoom in", "Recenter view", "Re-arrange the canvas", "Pause the stream", "Resume the stream",
+      "Clear the deck…", "Keyboard shortcuts", "More actions", "More actions — some tool calls are hidden",
+    ]);
+    expect(component).toContain('const name = filtered ? t("board.controls.moreFiltered") : t("accounts.row.more");');
   });
   it("runs zoom out, level, zoom in | recenter, re-arrange, pause, clear | keyboard, Command Panel", () => {
     let from = 0;
@@ -61,7 +78,10 @@ describe("the bar's items, left to right", () => {
   it("sits bottom right, and the dividers are decoration", () => {
     expect(component).toMatch(/<Controls position="bottom-right"/);
     const dividers = component.match(/<span className="react-flow__controls-divider" aria-hidden \/>/g) ?? [];
-    expect(dividers).toHaveLength(2);
+    // CHANGED ON PURPOSE (V4 top-10 #5): two rules → one, between the zoom and the
+    // rest, because the third group (keyboard, Command Panel) is in ⋯'s menu, whose
+    // own separators are role="separator" rows.
+    expect(dividers).toHaveLength(1);
   });
   it("names the level for both halves of what it does", () => {
     // CHANGED ON PURPOSE (the UI in every language): both names are read through their keys.
@@ -80,7 +100,12 @@ describe("the bar's items, left to right", () => {
     expect(component.match(/useStore\(zoomLevel\)/g)).toHaveLength(1);
   });
   it("keeps the keyboard glyph Settings › Keyboard wears", () => {
-    expect(component).toContain('<KitIcon name="keyboard" />');
+    // CHANGED ON PURPOSE (V4 top-10 #5): the bar's keyboard glyph → the menu's
+    // "Keyboard shortcuts" row with its ? cap, so the bar draws no keyboard glyph;
+    // Settings › Keyboard keeps wearing it, and ⋯ wears the kit's "more".
+    expect(component).not.toContain('<KitIcon name="keyboard" />');
+    expect(component).toContain('<KitIcon name="more" />');
+    expect(read("../components/kit-icons.tsx")).toMatch(/\bkeyboard\b/);
   });
   it("draws the keyboard glyph with the kit's stroke, like its neighbours: no rule thins it", () => {
     expect(decls('.react-flow__controls-button[aria-label="Open the keyboard shortcuts"] svg')).toEqual({});
@@ -186,7 +211,9 @@ describe("the room the minimap and the character leave for it", () => {
 describe("the notices on the bar's row", () => {
   it("stand bottom left on the bar's edge and stop short of the bar's widest", () => {
     const d = decls(".react-flow");
-    expect(d["--board-controls-reserve"]).toBe("calc(8 * var(--board-controls-btn) + 64px)");
+    // CHANGED ON PURPOSE (V4 top-10 #5): 8 buttons → 4 (zoom out, zoom in, recenter,
+    // ⋯), because the bar's widest is four buttons and the level now.
+    expect(d["--board-controls-reserve"]).toBe("calc(4 * var(--board-controls-btn) + 64px)");
     const n = decls(".canvas-notices");
     expect(n["left"]).toBe("var(--board-controls-edge)");
     expect(n["right"]).toBe("auto");

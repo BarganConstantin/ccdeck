@@ -88,11 +88,6 @@ export function heldLine(moves: number): string {
   return t("board.rail.held", { count: moves });
 }
 
-/** The quiet line that takes the place of an empty Needs you. */
-export function nobodyWaitingText(working: number): string {
-  return working > 0 ? t("board.rail.nobodyWaitingWorking", { working }) : t("board.rail.nobodyWaiting");
-}
-
 /** What opening or folding a group does: the space and the chevron travelling
  *  ("animate"), the content fading alone ("fade": over 20 rows inside, or
  *  reduced motion), or nothing at all ("instant": by key). */

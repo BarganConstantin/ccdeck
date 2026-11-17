@@ -496,45 +496,6 @@
   .aa-code-chev { transition: none; }
 }
 
-/* The tool filter yields to whatever is under it. Panning is the user's
-   decision and nothing re-frames a viewport they chose, so a card or a tool
-   bubble can end up beneath the filter and stay there — reported with a
-   screenshot of a Bash bubble half-eaten by the bar it used to be.
-   What yields is the BED, never the group. `opacity: 0.2` on .cat-filter-bar
-   made a stacking context and took every label down with the fill: the
-   on-chips composited to 1.55:1 on white and 1.67:1 in dark, the off-chips to
-   1.37:1 and 1.29:1, against the 4.5:1 SC 1.4.3 asks of 11px text (#622). The
-   filter stays clickable while it yields — the Tools button keeps its handler
-   and its tab stop throughout — so the exception 1.4.3 makes for an inactive
-   component does not apply to any of those numbers, and no fade of the group
-   would have worked.
-   The bar has no box at rest, so with nothing under it there is nothing to
-   thin. With something under it, it keeps the shape the slab had. While a
-   reader is at it — the pointer on it, or focus inside — it lays the canvas's
-   own ground behind the button, so a card's text never runs through the
-   control being pressed. Left alone, that bed thins to
-   0.35: the card shows through, and the words keep their full ink on what is
-   left, which pulls whatever is underneath a third of the way back to the
-   canvas and keeps the labels' 4.5:1 a floor rather than a coincidence of
-   what drifted under.
-   Restoring on hover or focus is written as a :not() on the thinned rule, not
-   behind a `(hover: hover) and (pointer: fine)` guard: a coarse pointer never
-   reaches that guard, which left touch exactly one way back — tapping an item,
-   which toggles the category it was trying to read. A sticky :hover on touch
-   leaves the bed solid until the next tap elsewhere. */
-.cat-filter-bar {
-  transition: background var(--dur-base) var(--ease);
-}
-.cat-filter-bar.occluded { background: var(--bg); }
-.cat-filter-bar.occluded:not(:hover):not(:focus-within) {
-  background: rgba(20, 22, 27, 0.35);
-}
-/* One class-weight compound more than the dark rule, so only the fill has to
-   be said twice. */
-:root[data-color-scheme="light"] .cat-filter-bar.occluded:not(:hover):not(:focus-within) {
-  background: rgba(255, 255, 255, 0.35);
-}
-
 
 /* ── an account that needs signing in again, in front (#1893) ───────────────
    Drawn like the LAN pairing request, its neighbour in DeckDialogs: a dialog

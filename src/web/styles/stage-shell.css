@@ -239,12 +239,9 @@
 /* The board under the stage, at rest: gone from sight, and inert in the DOM
    (use-stage.ts). During the morph its opacity is the fold's, per frame. */
 .canvas-wrap[data-stage="open"] > .react-flow { opacity: 0; }
-/* What floats over the board goes with it: the category filter and the
-   empty board's hero. The zoom stack and the minimap are inside React Flow
-   and fade with it. */
-.canvas-wrap[data-stage="opening"] > .cat-filter-bar,
-.canvas-wrap[data-stage="open"] > .cat-filter-bar,
-.canvas-wrap[data-stage="closing"] > .cat-filter-bar,
+/* What floats over the board goes with it: the board's header and the empty
+   board's hero. The zoom stack (and the tool filter in its ⋯ menu) and the
+   minimap are inside React Flow and fade with it. */
 .canvas-wrap[data-stage="opening"] > .board-head,
 .canvas-wrap[data-stage="open"] > .board-head,
 .canvas-wrap[data-stage="closing"] > .board-head,

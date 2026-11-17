@@ -21,7 +21,7 @@ import type { HookEnvelope, HookPayload } from "../types";
 import { isUnseen, markSeen, resetSessionsSeen, SEEN_CAP, turnEndedAt } from "../session-seen";
 import {
   RAIL_FOLD_AT, RAIL_GROUP_LABEL_MSGS, foldMotion, foldPlan, heldLine, holdOrder, joinMotion, measureGate, membershipChange,
-  nobodyWaitingText, railHeld, releaseMotion,
+  railHeld, releaseMotion,
   type Slot,
 } from "../rail-model";
 import { railGlyph, railLine, railTime, rowPath, rowSpoken, rowTooltip, runningTool } from "../rail-row-copy";
@@ -180,10 +180,12 @@ describe("Rail / Row", () => {
     expect(decl(".session-list .sl-name", "gap")).toBe("6px");
     expect(decl(".session-list .sl-line1", "justify-content")).toBe("space-between");
     expect(decl(".session-list .sl-line1", "align-items")).toBe("baseline");
-    expect(decl(".session-list .sl-model", "font-family")).toBe("var(--font-mono)");
-    expect(decl(".session-list .sl-model", "font-size")).toBe("calc(11px + var(--ui-text-increase, 0px))");
-    expect(decl(".session-list .sl-model", "line-height")).toBe("14px");
-    expect(decl(".session-list .sl-model", "color")).toBe("var(--muted)");
+    // CHANGED ON PURPOSE (V4 top-10 #5): the model, 11/14 mono muted after the name →
+    // not drawn, so no rule for it, because a row is read for who needs you and
+    // what they are doing; the model is the card's and the Inspector's.
+    expect(decl(".session-list .sl-model", "font-family")).toBeUndefined();
+    expect(rail).not.toContain(".sl-model");
+    expect(code("../components/RailParts.tsx")).not.toMatch(/sl-model|modelChipText|modelChipTitle/);
     expect(decl(".session-list .sl-time", "font-family")).toBe("var(--font-mono)");
     expect(decl(".session-list .sl-time", "font-size")).toBe("calc(12px + var(--ui-text-increase, 0px))");
     expect(decl(".session-list .sl-time", "font-weight")).toBe("500");
@@ -221,7 +223,9 @@ describe("Rail / Row", () => {
 
   it("steps the muted words up a tier on the fill, where --muted is under 4.5:1", () => {
     expect(decl(".session-list .sl-row:hover .sl-line2", "color", MOUSE_MEDIA)).toBe("var(--text-secondary)");
-    expect(decl(".session-list .sl-row.selected .sl-model", "color")).toBe("var(--text-secondary)");
+    // CHANGED ON PURPOSE (V4 top-10 #5): `.sl-row.selected .sl-model` → the selected
+    // row's second line, the one muted word left on it now the model is gone.
+    expect(decl(".session-list .sl-row.selected .sl-line2", "color")).toBe("var(--text-secondary)");
   });
 
   it("takes a tooltip for everything the old row drew and this one does not", () => {
@@ -252,10 +256,11 @@ describe("Rail / Row", () => {
 
 describe("Rail / Nobody waiting and the Order held line", () => {
   it("is the quiet 12/16 muted line, 6 and 8 in, 8 between", () => {
-    expect(decl(".session-list .sl-nobody", "padding")).toBe("6px 8px");
-    expect(decl(".session-list .sl-nobody", "gap")).toBe("8px");
-    expect(decl(".session-list .sl-nobody", "color")).toBe("var(--muted)");
-    expect(decl(".session-list .sl-nobody", "white-space")).toBe("nowrap");
+    // CHANGED ON PURPOSE (V4 top-10 #5): the "Nobody’s waiting · 5 working" line → not
+    // drawn, and its rule gone, because the group headings already count each
+    // group; the Order held line below is a separate overlay and stays.
+    expect(decl(".session-list .sl-nobody", "padding")).toBeUndefined();
+    expect(rail).not.toContain(".sl-nobody");
   });
 
   // Changed on purpose (review item 1): it was a list item with 10px under it,
@@ -634,9 +639,12 @@ describe("the fold past 8", () => {
 });
 
 describe("Nobody’s waiting", () => {
+  // CHANGED ON PURPOSE (V4 top-10 #5): "Nobody’s waiting · 3 working" in place of an
+  // empty Needs you → no summary line at all, its words gone from every catalog,
+  // because the group headings already say how many work and how many wait.
   it("counts the rows at work, or says nothing more when none is", () => {
-    expect(nobodyWaitingText(3)).toBe("Nobody’s waiting · 3 working");
-    expect(nobodyWaitingText(0)).toBe("Nobody’s waiting");
+    expect(source("../rail-model.ts")).not.toContain("nobodyWaitingText");
+    expect(Object.keys(en).filter(k => k.startsWith("board.rail.nobodyWaiting"))).toEqual([]);
   });
 
   it("takes the place of an empty Needs you, and only then", () => {
@@ -645,8 +653,24 @@ describe("Nobody’s waiting", () => {
     }));
     let calm = initialState();
     for (const id of ["a", "b", "c"]) calm = begin(calm, id, 0);
-    expect(draw(calm)).toContain("Nobody’s waiting · 3 working");
+    const html = draw(calm);
+    expect(html).not.toContain("Nobody’s waiting");
+    expect(html).not.toContain("sl-nobody");
+    // The heading keeps its count: Working, 3.
+    expect(html).toContain('<span class="sl-group-label">Working</span><span class="sl-group-count">3</span>');
     expect(draw(notify(calm, "a", "permission_prompt", "ok?", 500))).not.toContain("Nobody’s waiting");
+  });
+
+  it("draws no model on a row, however the session names one", () => {
+    let s = initialState();
+    s = begin(s, "m", 0);
+    s.agents.get("m")!.model = "claude-opus-4-5-20251101";
+    const html = renderToStaticMarkup(createElement(SessionList, {
+      state: s, now: T0 + 60_000, selectedIds: new Set<string>(), onSelect: () => {}, onClose: () => {},
+    }));
+    expect(html).toContain('class="sl-label"');
+    expect(html).not.toContain("sl-model");
+    expect(html).not.toMatch(/opus/i);
   });
 });
 

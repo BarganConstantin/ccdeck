@@ -89,7 +89,7 @@ describe("the one answer", () => {
 });
 
 describe("the top bar's counts", () => {
-  const readouts = (n: number) => drawn(n, createElement(ReadoutGroup, {
+  const readouts = (n: number, over: Record<string, unknown> = {}) => drawn(n, createElement(ReadoutGroup, {
     versionCheck: { version: "1.0.0", notice: null, noticeOpen: false, showNotice: noop, versionChecking: false, loadVersion: noop },
     welcome: { chipVersion: null, openReleaseNotes: noop },
     desktopUpdate: { readyAppUpdate: null },
@@ -104,6 +104,7 @@ describe("the top bar's counts", () => {
     incidents: [],
     counts: { working: 0, done: 0 },
     children: createElement("div", { className: "actions" }, "search-field"),
+    ...over,
   } as unknown as Parameters<typeof ReadoutGroup>[0]));
 
   it("are not drawn with no session; the wordmark and the end group stay", () => {
@@ -115,22 +116,27 @@ describe("the top bar's counts", () => {
   });
 
   it("come back with the first session: waiting, working, done", () => {
-    const html = readouts(1);
+    // CHANGED ON PURPOSE (V4 top-10 #5): a session brought all three back, a "0" among
+    // them → each comes back while it counts something, because a zero is not drawn.
+    const waiting = [{ id: "s0", label: "s0", waiting: { kind: "permission", since: 1_790_549_990_000, message: "ok?" } }];
+    const html = readouts(1, { waitingSessions: waiting, counts: { working: 2, done: 1 } });
     expect(html).toContain('class="counts"');
     expect(html.match(/class="count-pill /g)).toHaveLength(3);
     expect(html).toContain("search-field");
+    // A session whose counts are all zero brings none of them back.
+    expect(readouts(1)).not.toContain('class="counts"');
   });
 });
 
 describe("the canvas bar", () => {
   const bar = (n: number, onTerminal?: (button: Element | null) => void) => drawn(n, createElement(CanvasControls, {
-    autoFitDisabled: false, enableAutoFitAndRefit: noop, paused: false,
-    pauseGate: { size: 0, dropped: 0 } as never, togglePause: noop,
+    autoFitDisabled: false, enableAutoFitAndRefit: noop, paused: false, togglePause: noop,
     handleRelayout: noop, requestClear: noop, setKeyHelpOpen: noop, zoomBy: noop, zoomReset: noop, onTerminal,
   }), true);
+  // CHANGED ON PURPOSE (V4 top-10 #5): re-arrange, pause, clear and the keyboard
+  // button left the bar for ⋯'s menu (closed here, so not drawn), and ⋯ joined it.
   const boardControls = [
-    en["board.controls.zoomOut"], en["board.controls.zoomIn"], en["board.controls.recenter"],
-    en["board.controls.arrangeLabel"], en["board.pill.pause"], en["board.controls.clearLabel"], en["board.controls.keysLabel"],
+    en["board.controls.zoomOut"], en["board.controls.zoomIn"], en["board.controls.recenter"], en["accounts.row.more"],
   ];
 
   it("keeps only the Command Panel's button with no session", () => {
@@ -148,8 +154,12 @@ describe("the canvas bar", () => {
 
   it("comes back whole with the first session", () => {
     const html = bar(1, noop);
-    for (const name of [...boardControls, en["board.controls.openPanel"]]) expect(html, name).toContain(`aria-label="${name}"`);
-    expect(html.match(/react-flow__controls-divider/g)).toHaveLength(2);
+    for (const name of boardControls) expect(html, name).toContain(`aria-label="${name}"`);
+    // CHANGED ON PURPOSE (V4 top-10 #5): the Command Panel's button and the second
+    // rule → the Command Panel is a row of ⋯'s menu with a session on the board,
+    // and the bar keeps one rule, because the bar keeps only the view's controls.
+    expect(html).not.toContain(`aria-label="${en["board.controls.openPanel"]}"`);
+    expect(html.match(/react-flow__controls-divider/g)).toHaveLength(1);
     expect(bar(1)).toContain(`aria-label="${en["board.controls.zoomOut"]}"`);
   });
 });
