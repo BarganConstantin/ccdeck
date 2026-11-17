@@ -195,7 +195,7 @@ export interface CompactRowContext {
   idTail?: string;
 }
 
-export function compactRowContexts(rows: readonly Row[]): Map<string, CompactRowContext> {
+export function compactRowContexts(rows: readonly Row[], groups?: ReadonlyMap<string, RailGroup>): Map<string, CompactRowContext> {
   const names = new Map<string, Row[]>();
   for (const row of rows) {
     const key = row.label.trim().toLowerCase();
@@ -219,6 +219,15 @@ export function compactRowContexts(rows: readonly Row[]): Map<string, CompactRow
         task: row.fullTask ?? row.task,
         startedAt: row.startedAt,
       })));
+      // A group heading already distinguishes sessions in different groups.
+      // Keep project context across the list; clocks only resolve look-alikes
+      // actually drawn together, including while the rail holds their order.
+      const visibleTwins = groups ? twinClocks(project.map(row => ({
+        id: row.sessionId,
+        title: `${groups.get(row.sessionId)}:${row.provider ?? "claude"}`,
+        task: row.fullTask ?? row.task,
+        startedAt: row.startedAt,
+      }))) : twins;
       for (const row of project) out.set(row.sessionId, {
         detail: peers.length === 1 ? "none" : project.length === 1 ? "project" : "task",
         ...(project.length === 1 ? {
@@ -230,12 +239,13 @@ export function compactRowContexts(rows: readonly Row[]): Map<string, CompactRow
             line.trim() && project.some(other => !sameWords(line, (other.fullTask ?? other.task ?? "").split(/\r?\n/)[index] ?? ""))) ?? row.task]
             .filter(Boolean).join(" · "),
         }),
-        ...(twins.has(row.sessionId) ? {
+        ...(visibleTwins.has(row.sessionId) ? {
           twin: "second" as const,
           // Imports can share the same timestamp. A clock alone cannot tell
           // those apart, so retain the shortest distinct id tail as well.
           ...(project.some(other => other.sessionId !== row.sessionId
-            && twins.has(other.sessionId)
+            && visibleTwins.has(other.sessionId)
+            && (!groups || groups.get(other.sessionId) === groups.get(row.sessionId))
             && (other.provider ?? "claude") === (row.provider ?? "claude")
             && sameWords(other.fullTask ?? other.task ?? "", row.fullTask ?? row.task ?? "")
             && twinStart(other.startedAt, "second") === twinStart(row.startedAt, "second"))

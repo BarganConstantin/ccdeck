@@ -13,6 +13,7 @@ import type { HookPayload } from "../types";
 import { resetSessionsSeen } from "../session-seen";
 import { setLanguage } from "../i18n";
 import type { PaneLink } from "../workspace-split";
+import { compactRowContexts } from "../rail-row-copy";
 
 const NOW = new Date(2026, 10, 17, 15, 0, 30).getTime();
 const TASK = "Repair keyboard navigation in the workspace";
@@ -59,6 +60,23 @@ beforeEach(() => {
 });
 
 describe("compact session rows", () => {
+  it("uses group headings instead of technical suffixes until look-alikes share a group", () => {
+    const rows = [row({ sessionId: "same-aude" }), row({ sessionId: "same-ting" })];
+    const groups = new Map([["same-aude", 2 as const], ["same-ting", 0 as const]]);
+    const apart = compactRowContexts(rows, groups);
+    for (const context of apart.values()) {
+      expect(context.text).toBe("web-api");
+      expect(context.twin).toBeUndefined();
+      expect(context.idTail).toBeUndefined();
+    }
+    const drawn = drawRow({ row: rows[0], context: apart.get("same-aude") });
+    expect(visibleText(drawn)).toContain("web-api");
+    expect(drawn).not.toContain('class="sl-start"');
+    groups.set("same-ting", 2);
+    const together = compactRowContexts(rows, groups);
+    expect(together.get("same-aude")?.idTail).toBe("aude");
+    expect(together.get("same-ting")?.idTail).toBe("ting");
+  });
   it("keeps a simple named session on one line, with its project and accessible task", () => {
     const out = drawRow();
     expect(out).toContain('data-compact="true"');

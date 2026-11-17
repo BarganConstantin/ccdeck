@@ -464,7 +464,7 @@ export default function SessionList({ state, now, selectedIds, onSelect, onClose
 
   // A row's words and glyph follow its own state, not the group a held order
   // keeps it in: they change in place while the row waits for its move.
-  const contexts = compactRowContexts(rows);
+  const contexts = compactRowContexts(rows, new Map(layout.map(slot => [slot.id, slot.group])));
   const renderRow = (e: Entry): ReactNode => (
     <RailRow key={e.id} row={e.row} group={rank(e.row)} now={now} leaving={e.ghost}
       selected={selectedIds.has(e.id)} removed={removedIds?.has(e.id) ?? false}

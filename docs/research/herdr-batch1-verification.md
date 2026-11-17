@@ -317,3 +317,19 @@ Textul final și acțiunea Show Term au fost verificate separat în engleză și
 română, la 390/320px cu Largest: fără overflow, cu hintul încă ascuns și
 comutarea efectivă în Term. Verdict pentru această revizie locală:
 **SHIP WITH FOLLOW-UPS**, cu aceleași limite de integrare v4 și model real.
+
+## Revizie: contextul sesiunilor din grupuri diferite
+
+Captura ulterioară arăta un sufix tehnic inutil (`web-api · aude`): geamănul
+aceleiași sesiuni era deja separat de grupul Needs you. Contextul compact
+folosește acum grupurile efectiv afișate pentru a decide dacă este necesar
+un ceas/sufix suplimentar. Proiectul rămâne vizibil (`mobile-app`, `web-api`),
+iar identificatorii necesari pentru două sesiuni identice din același grup
+se păstrează. Ordinea reținută sub pointer este luată în calcul, astfel încât
+sesiunile care încă sunt desenate împreună pot fi diferențiate.
+
+Verificare: 55 teste relevante, typecheck și build trecute. Browserul a
+confirmat cele trei rânduri Rate limiter fără sufix inutil și fără overflow,
+în Rider Black/Light, cu text Default/Largest. Proiectele au rămas vizibile;
+zero erori JavaScript observate. Regresia verifică și apariția discriminatorilor
+când gemenii ajung în același grup.
