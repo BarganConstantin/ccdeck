@@ -180,12 +180,9 @@ describe("Rail / Row", () => {
     expect(decl(".session-list .sl-name", "gap")).toBe("6px");
     expect(decl(".session-list .sl-line1", "justify-content")).toBe("space-between");
     expect(decl(".session-list .sl-line1", "align-items")).toBe("baseline");
-    // CHANGED ON PURPOSE (V4 top-10 #5): the model, 11/14 mono muted after the name →
-    // not drawn, so no rule for it, because a row is read for who needs you and
-    // what they are doing; the model is the card's and the Inspector's.
-    expect(decl(".session-list .sl-model", "font-family")).toBeUndefined();
-    expect(rail).not.toContain(".sl-model");
-    expect(code("../components/RailParts.tsx")).not.toMatch(/sl-model|modelChipText|modelChipTitle/);
+    // Secondary metadata belongs below the full-width title.
+    expect(decl(".session-list .sl-model", "font-family")).toBe("var(--font-mono)");
+    expect(code("../components/RailParts.tsx").split('className="sl-line1"')[1].split('{lined &&')[0]).not.toMatch(/sl-model|modelChipText/);
     expect(decl(".session-list .sl-time", "font-family")).toBe("var(--font-mono)");
     expect(decl(".session-list .sl-time", "font-size")).toBe("calc(12px + var(--ui-text-increase, 0px))");
     expect(decl(".session-list .sl-time", "font-weight")).toBe("500");
@@ -681,7 +678,7 @@ describe("Nobody’s waiting", () => {
     expect(draw(notify(calm, "a", "permission_prompt", "ok?", 500))).not.toContain("Nobody’s waiting");
   });
 
-  it("draws no model on a row, however the session names one", () => {
+  it("draws the model below the title, preserving the title row", () => {
     let s = initialState();
     s = begin(s, "m", 0);
     s.agents.get("m")!.model = "claude-opus-4-5-20251101";
@@ -689,8 +686,10 @@ describe("Nobody’s waiting", () => {
       state: s, now: T0 + 60_000, selectedIds: new Set<string>(), onSelect: () => {}, onClose: () => {},
     }));
     expect(html).toContain('class="sl-label"');
-    expect(html).not.toContain("sl-model");
-    expect(html).not.toMatch(/opus/i);
+    expect(html).toContain('class="sl-meta"');
+    expect(html).toContain('class="sl-model"');
+    expect(html).toMatch(/opus/i);
+    expect(html.split('class="sl-line1"')[1].split('class="sl-meta"')[0]).not.toContain('sl-model');
   });
 });
 

@@ -88,14 +88,14 @@ describe("the top bar's counts: a zero is not drawn", () => {
 
 // ── 2. the Sessions panel ───────────────────────────────────────────────────
 
-describe("the Sessions panel: no summary line, no model on a row", () => {
+describe("the Sessions panel: no summary line, a title free of model metadata", () => {
   // Drawn in v4-rail.test.ts ("Nobody’s waiting"): the line is gone over a calm
   // board and Working still counts its rows; a row with a model names none.
   it("draws neither, and keeps the group headings' counts and the Order held overlay", () => {
     const list = sourceOf("components/SessionList.tsx");
     const parts = sourceOf("components/RailParts.tsx");
     expect(list).not.toMatch(/sl-nobody|nobodyWaiting/);
-    expect(parts).not.toMatch(/sl-model|modelChip/);
+    expect(parts.split('className="sl-line1"')[1].split('{lined &&')[0]).not.toMatch(/sl-model|modelChip/);
     expect(parts).toContain("sl-group-count");
     expect(list).toContain('<div className="sl-held"><PauseGlyph /><span>{heldLine(moves)}</span></div>');
     expect(Object.keys(en).filter(k => k.startsWith("board.rail.nobodyWaiting"))).toEqual([]);

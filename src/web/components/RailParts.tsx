@@ -6,6 +6,7 @@ import { useEffect, useRef, useState, type MouseEvent, type ReactNode } from "re
 import type { Row } from "./SessionList";
 import { AlertMark, StateMark } from "./StateMark";
 import { stateLabel } from "../agent-copy";
+import { modelChipText, modelChipTitle } from "../model-label";
 import { RAIL_GROUP_LABEL_MSGS, type RailGroup } from "../rail-model";
 import { railFailed, railGlyph, railLine, railTime, rowSpoken, rowTooltip, twinStart, type RailGlyphKind } from "../rail-row-copy";
 import { fadeIn, tokenMs } from "../rail-motion";

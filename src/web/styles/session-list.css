@@ -251,6 +251,7 @@
   line-height: 16px;
 }
 .session-list .sl-meta .sl-model { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.session-list .sl-model { font-family: var(--font-mono); font-size: calc(11px + var(--ui-text-increase, 0px)); line-height: 14px; color: var(--muted); }
 .session-list .sl-meta .sl-time { margin-left: auto; }
 .session-list .sl-label {
   min-width: 0;
