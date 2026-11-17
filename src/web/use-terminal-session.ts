@@ -358,6 +358,16 @@ export const mountXterm: MountTerminal = async (host, init, events) => {
   term.loadAddon(new UnicodeGraphemesAddon());
   term.loadAddon(new WebLinksAddon(follow));
   programHasMouse = () => term.modes.mouseTrackingMode !== "none";
+  // With no application mouse tracking, an alternate screen has no local
+  // scrollback. xterm otherwise fabricates Up/Down key presses for its wheel,
+  // which changes Codex's input history. A wheel must never become typing.
+  // Applications that request mouse reports keep receiving their own wheel.
+  term.attachCustomWheelEventHandler(event => {
+    if (programHasMouse() || term.buffer.active.type !== "alternate") return true;
+    event.preventDefault();
+    event.stopPropagation();
+    return false;
+  });
   const replies = leaveRepliesToTmux(term.parser);
   term.open(host);
   // A form field with neither id nor name is flagged by the browser's issues

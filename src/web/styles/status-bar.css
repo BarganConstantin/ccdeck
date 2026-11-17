@@ -49,6 +49,22 @@
   min-width: 0;
   overflow: hidden;
 }
+.statusbar-stage { flex: 1 1 auto; min-width: 0; height: 100%; overflow: hidden; }
+.statusbar-stage:empty { display: none; }
+.statusbar .statusbar-view { display: none; }
+.statusbar:has(.statusbar-stage:not(:empty)) > .statusbar-view { display: flex; }
+.statusbar:has(.statusbar-stage:not(:empty)) > .statusbar-start { display: none; }
+.statusbar-stage > .ts-bar {
+  height: 100%;
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  flex-wrap: nowrap;
+  overflow: hidden;
+}
+.statusbar-stage .ts-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.statusbar-stage .ts-hint { flex-shrink: 0; }
 .statusbar-version {
   position: relative;
   flex: none;

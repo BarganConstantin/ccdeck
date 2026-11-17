@@ -322,6 +322,15 @@
    whose sheet loads after this one (xterm-sheet.ts) and would win a tie. */
 .ts-host .xterm .xterm-scrollable-element > .scrollbar.visible,
 .ts-host .xterm .xterm-scrollable-element > .scrollbar.invisible.fade { transition: none; }
+/* Keep xterm's generous drag target; paint a quiet six-pixel thumb at its
+   outer edge. The transparent border stays draggable without crowding text. */
+.ts-host .xterm .xterm-scrollable-element > .scrollbar.vertical > .slider {
+  box-sizing: border-box;
+  border-left: 7px solid transparent;
+  border-right: 1px solid transparent;
+  border-radius: 0;
+  background-clip: padding-box;
+}
 /* A frozen last frame keeps the width it was drawn at — a dead pane cannot be
    resized, and reflowing a TUI's frame would garble the evidence — so where
    the stage is narrower now (the takeover after a wide session), it scrolls

@@ -87,8 +87,10 @@ export default memo(function StatusBar({ stageOpen, zoomedOut, viewChord = null,
   const empty = useBoardEmpty();
   const standard = statusViewFor({ stageOpen, pane, onCard, zoomedOut, singleKeys, platform: platformName(), viewChord, empty, waiting });
   const view = extra && pane == null ? extra : standard;
+  const switchHint = viewChord ? standard.hints.at(-1) : null;
   return (
     <footer className="statusbar" aria-label={t("board.keys.statusBar")} data-layer={view.layer}>
+      <div id="ccdeck-stage-status" className="statusbar-stage" />
       <div className="statusbar-start">
         {/* Unnamed only on an empty board, where no key has work to do. */}
         {view.label && <span className="statusbar-who"><span className="statusbar-dot" aria-hidden />{view.label}</span>}
@@ -101,6 +103,10 @@ export default memo(function StatusBar({ stageOpen, zoomedOut, viewChord = null,
           </span>
         ))}
       </div>
+      {switchHint && <span className="statusbar-hint statusbar-view">
+        <span className="statusbar-caps">{switchHint.caps.map(c => <Kbd key={c.text} label={c.spoken}>{c.text}</Kbd>)}</span>
+        {switchHint.word}
+      </span>}
       {version && (
         <button type="button" className="statusbar-version" onClick={onVersion}
           aria-label={t("shell.chip.label", { running: version })}

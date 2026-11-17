@@ -305,6 +305,9 @@ body .app[data-view="workspace"][data-side]:not([data-zoom]):has(.left-column) {
 }
 .app:has(.session-list) .ws-cell,
 .app:has(.accounts-panel) .ws-cell { grid-column: 2; }
+/* The terminal stage already draws the shared edge. Two adjacent strokes
+   made the navigator divider look heavier than the rest of the chrome. */
+.app[data-view="workspace"] .left-column { border-right: 0; }
 .app[data-view="workspace"][data-pin] .canvas-wrap {
   position: fixed;
   left: var(--board-l);

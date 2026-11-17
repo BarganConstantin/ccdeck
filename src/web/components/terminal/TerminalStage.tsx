@@ -643,6 +643,7 @@ export default function TerminalStage(p: TerminalStageProps) {
         screens={chatSession !== null ? { view, source: chatSource } : undefined}
       />
       <KeysBar
+        primary={p.split?.primary ?? true}
         owner={session.keysOwner}
         name={name}
         chordLabel={chordLabel}
