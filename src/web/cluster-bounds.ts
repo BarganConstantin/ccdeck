@@ -96,8 +96,9 @@ export function labelMaxWidth(clusterWidth: number, zoom: number, gutter = LABEL
 }
 
 /**
- * The decorative box under a session's cards: where it sits and how big it is,
- * and the session's hue for the sheet to build its rim and wash from.
+ * The decorative box under a session's cards: where it sits and how big it is.
+ * Nothing else: the box wears no colour of the session's (V4 top-10 #1), so
+ * its neutral wash is the sheet's alone.
  *
  * Layout coordinates, straight out of clusterBounds, with no camera in
  * them. clusterBounds already works in the same space React Flow keeps
@@ -115,7 +116,7 @@ export function labelMaxWidth(clusterWidth: number, zoom: number, gutter = LABEL
  * rather than through left and top. The size stays width and height,
  * which change only when a session gains or loses a node.
  */
-export function clusterBoxStyle(c: Cluster, hue: number): React.CSSProperties {
+export function clusterBoxStyle(c: Cluster): React.CSSProperties {
   return {
     position: "absolute",
     left: 0,
@@ -123,13 +124,13 @@ export function clusterBoxStyle(c: Cluster, hue: number): React.CSSProperties {
     transform: `translate(${c.x}px, ${c.y}px)`,
     width: c.w,
     height: c.h,
-    "--session-hue": hue,
-  } as React.CSSProperties;
+  };
 }
 
 /**
- * The header pill over a session's box, at `zoom`: placed in layout space
- * like the box, drawn at 1× on screen, and capped at labelMaxWidth.
+ * The header label over a session's box, at `zoom`: placed in layout space
+ * like the box, drawn at 1× on screen, and capped at labelMaxWidth. No colour
+ * of the session's, like the box (V4 top-10 #1).
  *
  * The label is the one child that must not scale with the camera: it is
  * text, and a session name drawn at 0.2× is a smudge. It sits in layout
@@ -180,7 +181,7 @@ export function clusterBoxStyle(c: Cluster, hue: number): React.CSSProperties {
  * cap or less — less where the pane's right edge or the chrome over it
  * comes first.
  */
-export function clusterLabelStyle(c: Cluster, zoom: number, hue: number, maxWidth?: number): React.CSSProperties {
+export function clusterLabelStyle(c: Cluster, zoom: number, maxWidth?: number): React.CSSProperties {
   return {
     position: "absolute",
     left: c.x + LABEL_INDENT,
@@ -188,8 +189,7 @@ export function clusterLabelStyle(c: Cluster, zoom: number, hue: number, maxWidt
     transform: `scale(${1 / (zoom || 1)})`,
     transformOrigin: "left top",
     maxWidth: maxWidth ?? labelMaxWidth(c.w, zoom),
-    "--session-hue": hue,
-  } as React.CSSProperties;
+  };
 }
 
 /**

@@ -661,10 +661,14 @@ describe("the stage as a whole", () => {
     session: { ref: { sessionId: "s1", provider: "claude", cwd: "/w/paycore" }, name: "paycore", hue: 270, status: working },
   };
 
-  it("is a region named for its session, its hue on the spine, sized from the geometry", () => {
+  it("is a region named for its session, with no hue of its own, sized from the geometry", () => {
     const out = html(createElement(TerminalStage, stageProps(session)));
     expect(out).toMatch(/^<section class="ts-stage" role="region" aria-label="Command Panel — paycore" data-kind="empty"/);
-    expect(out).toContain("--session-hue:270");
+    // CHANGED ON PURPOSE (V4 top-10 #1): the stage wrote `--session-hue:270`
+    // for the spine and the header dot. The spine went earlier (below) and the
+    // dot is neutral now, because no surface mirroring the board wears an
+    // identity colour; the session's data still carries the hue, unpainted.
+    expect(out).not.toContain("--session-hue");
     expect(out).toContain("--ts-term-top:8px");
     expect(out, "the header is drawn at its token, so the stage hands it no height").not.toContain("--ts-head-h");
     expect(out, "the divider is a separator with a value").toMatch(/role="separator" aria-orientation="vertical" aria-label="Command Panel width" aria-valuemin="80" aria-valuemax="134" aria-valuenow="120" aria-valuetext="120 columns"/);

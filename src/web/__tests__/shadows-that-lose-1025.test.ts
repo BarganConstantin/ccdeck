@@ -156,17 +156,22 @@ describe("a clickable bubble lifts on the light theme too (#1025)", () => {
   });
 });
 
-describe("the cluster label keeps its hover ring on the light theme (#1025)", () => {
-  it("draws the currentColor outline the dark hover draws", () => {
-    // Same shape as the bubble: `:root[data-color-scheme="light"] .cluster-label` is
+describe("the cluster label answers the pointer the same in both themes (#1025)", () => {
+  it("draws no shadow at rest or under the pointer, so no light rule can outrank its hover", () => {
+    // Same shape as the bubble: `:root[data-color-scheme="light"] .cluster-label` was
     // (0,3,0) against the hover's (0,2,0), so the light hover kept the RESTING
     // 1px/4px shadow — measured as `rgba(15,23,42,0.08) 0 1px 4px` under the
     // pointer. The light hover rule existed; it only said `filter`.
-    const light = shadow(`${LIGHT}.cluster-label:hover`);
-    expect(light, "the light hover rule declares no shadow").not.toBeNull();
-    expect(light).toMatch(/currentColor/);
-    expect(light).not.toMatch(BLACK);
-    expect(geometry(light!)).toEqual(geometry(shadow(".cluster-label:hover")!));
+    // CHANGED ON PURPOSE (V4 top-10 #1): this held the light hover to the dark
+    // hover's currentColor ring. The label is plain text now, not a pill: no
+    // plate, no resting shadow in either theme, and its hover is a colour and
+    // an underline. With nothing at rest to outrank it, the defect has no
+    // place to come back, and there is no ring for the themes to disagree on.
+    for (const sel of [".cluster-label", ".cluster-label:hover", `${LIGHT}.cluster-label`, `${LIGHT}.cluster-label:hover`]) {
+      expect(shadow(sel), sel).toBeNull();
+    }
+    expect(RULES.some(r => r.sel === `${LIGHT}.cluster-label` || r.sel === `${LIGHT}.cluster-label:hover`),
+      "a light-theme twin of the label's rules is back").toBe(false);
   });
 });
 

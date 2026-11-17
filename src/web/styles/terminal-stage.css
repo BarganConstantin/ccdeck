@@ -11,9 +11,9 @@
 
    Every colour is a token. The session's hue is gone from the stage's chrome
    in V4 (the header's spine left with it): the stage says which session it
-   is by its name and its state glyph, and the popover's project dots keep the
-   hue, at the deck's --session-accent-l, the lightness the board's faces use
-   for their accents. Forced colours for the stage's marks are in
+   is by its name and its state glyph. The popover's project dots lost it too
+   (V4 top-10 #1: no identity colour anywhere the board is mirrored); they are
+   a quiet neutral bullet. Forced colours for the stage's marks are in
    touch-and-forced-colours.css, with the rest of the deck's, because the deck
    answers a Contrast theme in one block (#871). */
 
@@ -749,7 +749,7 @@
   cursor: pointer;
 }
 .ns-option[data-highlighted] { background: var(--selected); }
-.ns-dot { flex: none; width: 7px; height: 7px; border-radius: var(--r-pill); background: hsl(var(--ns-hue, 200) 70% var(--session-accent-l)); }
+.ns-dot { flex: none; width: 7px; height: 7px; border-radius: var(--r-pill); background: var(--muted-dim); }
 .ns-name { flex: none; max-width: 48%; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-weight: 600; }
 .ns-path { margin-left: auto; white-space: nowrap; font: 400 11px/1 var(--font-mono); color: var(--muted); }
 /* The station list holds its second span to its width; a path gives way. */

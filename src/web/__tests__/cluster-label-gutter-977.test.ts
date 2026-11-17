@@ -107,13 +107,15 @@ describe("the header pill is bounded in the unit it is drawn in (#977)", () => {
     // render, at every zoom the table above measured.
     const cluster: Cluster = { sessionId: "s1", label: "vcrm-core", fullLabel: "vcrm-core", x: -18, y: 0, w: BOX, h: 200 };
     for (const zoom of [1, 0.5, 0.38, 0.32, 0.2]) {
-      expect(clusterLabelStyle(cluster, zoom, 0).maxWidth, `zoom ${zoom}`).toBe(labelMaxWidth(BOX, zoom));
+      expect(clusterLabelStyle(cluster, zoom).maxWidth, `zoom ${zoom}`).toBe(labelMaxWidth(BOX, zoom));
     }
     // And the component draws the pill with that style rather than one of its
     // own. The width it passes is the room cluster-label-room.ts allows, which
     // is this cap or less (cluster-label-room.test.ts).
+    // CHANGED ON PURPOSE (V4 top-10 #1): the call lost its `hue` argument,
+    // because the label wears no session hue any more.
     expect(component, "labelStyle is not clusterLabelStyle's — the rule below is not the one on screen")
-      .toContain("const labelStyle = clusterLabelStyle(c, zoom, hue, room.maxWidth);");
+      .toContain("const labelStyle = clusterLabelStyle(c, zoom, room.maxWidth);");
   });
 });
 

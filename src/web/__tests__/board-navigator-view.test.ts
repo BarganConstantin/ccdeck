@@ -1,9 +1,9 @@
 // The navigator has to say exactly what the board says. It stands in for the
 // board while a session has the stage, and a reader who glances from a tile to
 // the stage header and back must not meet a second vocabulary: a clock a
-// second apart from the card's, a hue a few degrees off, a session named one
-// way here and another in the Sessions list. So the tiles are built from the
-// deck's own helpers — elapsed(), StateMark, sessionHue, sessionNames — and
+// second apart from the card's, a colour the card does not wear, a session
+// named one way here and another in the Sessions list. So the tiles are built
+// from the deck's own helpers — elapsed(), StateMark, sessionNames — and
 // these cases hold them to it by rendering the board's real card (AgentNode)
 // and the navigator from the same reducer state and comparing what each one
 // prints.
@@ -25,7 +25,6 @@ import { applyEvent, initialState, type GraphState } from "../reducer";
 import { nodeDataFor } from "../canvas-flow";
 import { clusterBounds, type Cluster, type ClusterNode } from "../cluster-bounds";
 import { FACE_H, ROW_H, TILE_PAD, navigatorClusters, navigatorFrame, navigatorSessions, navSignal, type NavAgent, type NavDensity } from "../board-navigator";
-import { sessionHue } from "../session-hue";
 import { sheetText } from "./sheet-source";
 import { withoutComments } from "./tsx-scan";
 import type { HookEnvelope, HookPayload } from "../types";
@@ -184,10 +183,14 @@ describe("a tile says what the board's card says", () => {
     }
   });
 
-  it("draws the session in the card's hue and with the card's state mark", () => {
+  it("draws the session with no colour of its own, and with the card's state mark", () => {
     for (const id of ["pay", "boom", "read", "quiet"]) {
       const t = tile(html, id);
-      expect(t, id).toContain(`--session-hue:${sessionHue(id)}`);
+      // CHANGED ON PURPOSE (V4 top-10 #1): the tile wore `--session-hue`, the
+      // card's hue; the card wears none now (colour means state), so neither
+      // does the tile that stands in for it.
+      expect(t, id).not.toContain("--session-hue");
+      expect(card(id), id).not.toContain("--session-hue");
       const mark = /class="state-mark" data-kind="(\w+)"/;
       expect(mark.exec(t)?.[1], id).toBe(mark.exec(card(id))?.[1]);
     }
@@ -355,9 +358,14 @@ describe("the sheet draws at the sizes the frame lays out", () => {
   });
 
   it("draws the face's state edge in both themes", () => {
-    for (const state of ["active", "done", "err"]) {
+    // CHANGED ON PURPOSE (V4 top-10 #1): "done" had an edge of its own, a green
+    // the board's done face drew too. A finished session is the quiet case, so
+    // both keep the neutral --line, and only a working or failed one is edged.
+    for (const state of ["active", "err"]) {
       expect(css).toContain(`.nav-face[data-state="${state}"] { --nav-edge:`);
       expect(css).toContain(`:root[data-theme="light"] .nav-face[data-state="${state}"] { --nav-edge:`);
     }
+    expect(css).not.toContain(`.nav-face[data-state="done"] { --nav-edge:`);
+    expect(css).not.toMatch(/\.nav-face::before/);
   });
 });
