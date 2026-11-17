@@ -88,20 +88,35 @@ describe("a window's second line: when it resets", () => {
 describe("a window's bar", () => {
   const bar = (pct: number) => windows(body([acct([pct, NOW + HOUR], [10, NOW + HOUR])]))[0];
 
-  it("fills by how much is used, muted below 70%, the text ink to 89% and the error ink from 90%", () => {
+  // CHANGED ON PURPOSE (V4 top-10 #9): muted to 69%, the text ink to 89%,
+  // never amber → the Usage panel's level for the same number (quotaLevel):
+  // the accent to 69%, the warning ink to 89%, the error ink from 90%, and the
+  // figure wears the mark and "high" from 70, because an account at 86% read
+  // calm here and "⚠ 86% · high" in the Usage panel and the accounts panel.
+  it("fills by how much is used, in the Usage panel's inks: the accent below 70%, the warning to 89%, the error from 90%", () => {
     expect(bar(62)).toContain('<span class="ap-report-meter" aria-hidden="true"><i style="--left:0.62"></i></span>');
-    expect(bar(70)).toContain('<span class="ap-report-meter" data-level="mid" aria-hidden="true"><i style="--left:0.7"></i></span>');
-    expect(bar(89)).toContain('data-level="mid"');
-    expect(bar(90)).toContain('<span class="ap-report-meter" data-level="hi" aria-hidden="true"><i style="--left:0.9"></i></span>');
-    expect(bar(100)).toContain('data-level="hi"');
-    // Never amber: the only levels are the two of the sums' own meter.
-    expect(bar(75)).not.toMatch(/data-level="(?!mid|hi)/);
+    expect(bar(70)).toContain('<span class="ap-report-meter" data-level="warn" aria-hidden="true"><i style="--left:0.7"></i></span>');
+    expect(bar(89)).toContain('data-level="warn"');
+    expect(bar(90)).toContain('<span class="ap-report-meter" data-level="err" aria-hidden="true"><i style="--left:0.9"></i></span>');
+    expect(bar(100)).toContain('data-level="err"');
+    expect(bar(75)).not.toMatch(/data-level="(?!warn|err)/);
+    // The figure says its level beside the bar, in words too.
+    expect(bar(62)).not.toContain("level-mark");
+    expect(bar(86)).toMatch(/<span class="level-mark" data-tone="warn">[^]*?86%[^]*?<span class="level-mark-word">high<\/span><\/span>/);
+    expect(bar(96)).toMatch(/<span class="level-mark" data-tone="err">[^]*?96%/);
   });
 
-  it("wears the ink of its last number when the reading is not current, with the percentage dimmed", () => {
+  // CHANGED ON PURPOSE (V4 top-10 #9): the bar wore the ink of its last number
+  // → a reading that is not current has no level and its bar is quiet, because
+  // the bar's colour is now the level's, and the accounts panel and the rail
+  // draw an old reading quiet too.
+  it("is quiet when the reading is not current, bar and dimmed percentage alike, with no mark", () => {
     const [cell] = windows(body([acct([96, NOW + HOUR], [10, NOW + HOUR], { stale: true, fetchedAt: (NOW - HOUR) * 1000 })]));
     expect(cell).toContain('data-uncounted=""');
-    expect(cell).toContain('<span class="ap-report-meter" data-level="hi" aria-hidden="true"><i style="--left:0.96"></i></span>');
+    expect(cell).toContain('<span class="ap-report-meter" aria-hidden="true"><i style="--left:0.96"></i></span>');
+    expect(cell).not.toContain("level-mark");
+    const css = readFileSync(fileURLToPath(new URL("../styles/account-projects.css", import.meta.url)), "utf8");
+    expect(css).toContain(".ap-report-cell[data-uncounted] .ap-report-meter i { background: var(--muted); }");
   });
 
   it("puts the percentage after the bar, in the same figure", () => {
@@ -111,8 +126,13 @@ describe("a window's bar", () => {
   it("is the sums' own meter, drawn at 140 by 2 in the sheet, with the edge a Contrast theme keeps", () => {
     const css = readFileSync(fileURLToPath(new URL("../styles/account-projects.css", import.meta.url)), "utf8");
     expect(css).toMatch(/\.ap-report-fig \.ap-report-meter \{[^}]*max-width: 140px;[^}]*height: 2px;[^}]*background: var\(--ctl-fill\)/);
-    expect(css).toMatch(/\.ap-report-fig \.ap-report-meter i \{ background: var\(--muted\); \}/);
-    expect(css).toMatch(/\.ap-report-fig \.ap-report-meter\[data-level="hi"\] i \{ background: var\(--err\); \}/);
+    // CHANGED ON PURPOSE (V4 top-10 #9): the row's bar takes the sums' accent
+    // under 70 (it was --muted), and the levels are the shared "warn" and "err".
+    expect(css).not.toMatch(/\.ap-report-fig \.ap-report-meter i \{ background: var\(--muted\); \}/);
+    expect(css).toMatch(/\.ap-report-meter i \{[^}]*background: var\(--accent\);/);
+    expect(css).toMatch(/\.ap-report-fig \.ap-report-meter\[data-level="warn"\] i \{ background: var\(--warn\); \}/);
+    expect(css).toMatch(/\.ap-report-fig \.ap-report-meter\[data-level="err"\] i \{ background: var\(--err\); \}/);
+    expect(css).toContain(".level-mark > .ap-report-pct { color: inherit; }");
   });
 });
 

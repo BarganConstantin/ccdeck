@@ -122,35 +122,37 @@ describe("Rail / Usage box", () => {
   });
 });
 
-describe("one fill, in the Usage panel bar's data colours", () => {
-  // Changed for V4's Figma: the fill is one cyan data part, not --accent, until a split exists.
-  it("draws ONE fill whose width is the percent, as one --usage-cyan part", () => {
+describe("one fill, in the Usage panel bar's level colours", () => {
+  // CHANGED ON PURPOSE (V4 top-10 #9): one --usage-cyan part → one part in the
+  // Usage panel's fill for the reading (the accent under 70), because the same
+  // number has the same colour on every quota meter.
+  it("draws ONE fill whose width is the percent, as one part in the accent under 70", () => {
     const html = draw(reading({ session5hPct: 62 }));
     expect(html.match(/sl-usage-fill/g)).toHaveLength(1);
     expect(html).toContain('style="width:62%"');
     expect(html.match(/sl-usage-seg/g)).toHaveLength(1);
-    expect(html).toContain("background:var(--usage-cyan)");
+    expect(html).toContain("background:var(--accent)");
+    expect(html).not.toContain("--usage-cyan");
   });
 
-  // Changed for V4's Figma: the bar never turns amber or red; the figure changes tone.
-  it("keeps the bar one colour at every reading and tones the figure: quiet, plain, error from 70 and 90", () => {
-    const level = (pct: number) => draw(reading({ session5hPct: pct })).match(/data-level="(\w+)"/)?.[1];
-    expect(level(69)).toBe("low");
-    expect(level(70)).toBe("mid");
-    expect(level(89)).toBe("mid");
-    expect(level(90)).toBe("high");
-    expect(level(100)).toBe("high");
-    for (const pct of [10, 75, 95]) {
-      expect(draw(reading({ session5hPct: pct }))).not.toMatch(/background:var\(--(?:warn|err|accent)\)/);
-    }
+  // CHANGED ON PURPOSE (V4 top-10 #9): the bar never turned amber or red and
+  // the figure went quiet, plain, error → bar and figure take the Usage panel's
+  // level (quotaLevel): accent and plain under 70, --warn with "⚠ … · high"
+  // from 70, --err from 90, because 86% read calm here and amber "high" there.
+  it("colours the bar and marks the figure by the Usage panel's level, from 70 and 90", () => {
+    const tone = (pct: number) => /<span class="level-mark" data-tone="(\w+)">/.exec(draw(reading({ session5hPct: pct })))?.[1] ?? null;
+    const fill = (pct: number) => /class="sl-usage-seg" style="[^"]*background:(var\(--[\w-]+\))/.exec(draw(reading({ session5hPct: pct })))?.[1];
+    expect([69, 70, 89, 90, 100].map(tone)).toEqual([null, "warn", "warn", "err", "err"]);
+    expect([69, 70, 89, 90, 100].map(fill)).toEqual(["var(--accent)", "var(--warn)", "var(--warn)", "var(--err)", "var(--err)"]);
+    expect(draw(reading({ session5hPct: 86 }))).toContain('<span class="level-mark-word">high</span>');
+    // No sheet rule tones the figure by a level of the meter's own any more.
     const css = rail.slice(rail.indexOf(".session-list .sl-usage {"), rail.indexOf("The phone keeps the drawer")).replace(/\/\*[\s\S]*?\*\//g, "");
-    // --err appears once, on the figure; the bar and its parts carry none of the level colours.
-    expect(css.match(/--err/g)).toHaveLength(1);
-    expect(css).toMatch(/\[data-level="high"\] \.sl-usage-pct \{ color: var\(--err\)/);
-    expect(css).not.toMatch(/--warn|--accent|#[0-9a-f]{3,8}\b|rgba?\(|hsla?\(/i);
-    // The Usage panel's bar keeps its own meter rule; neither meter shares a level colour now.
-    expect(code("../components/QuotaBar.tsx")).toContain("quotaMeterColor(capped, isErr)");
-    expect(code("../rail-usage.ts")).not.toMatch(/quota\w*Color/);
+    expect(css).not.toMatch(/data-level/);
+    expect(css).not.toMatch(/#[0-9a-f]{3,8}\b|rgba?\(|hsla?\(/i);
+    // One rule for both: the rail asks the Usage panel's bar's own functions.
+    expect(code("../components/QuotaBar.tsx")).toContain("const level    = quotaLevel(capped, limitReached);");
+    expect(code("../rail-usage.ts")).toMatch(/quotaLevel\(capped\)/);
+    expect(code("../rail-usage.ts")).toMatch(/quotaFill\(level\)/);
   });
 
   it("caps the width at 0 to 100", () => {
@@ -298,7 +300,10 @@ describe("where the reading comes from, and what the button does", () => {
     const imports = [...code("../rail-usage.ts").matchAll(/from "([^"]+)"/g)].map(m => m[1]);
     // CHANGED ON PURPOSE (the UI in every language): the language module is
     // one import more, for the meter's words.
-    expect(imports.sort()).toEqual(["./components/QuotaBar", "./elapsed-short", "./i18n", "./relative-time", "./use-quota"]);
+    // CHANGED ON PURPOSE (V4 top-10 #9): LevelMark is one more, for the type of
+    // the shared level alone (erased at build); RailParts imports it statically.
+    expect(imports.sort()).toEqual(["./components/LevelMark", "./components/QuotaBar", "./elapsed-short", "./i18n", "./relative-time", "./use-quota"]);
+    expect(code("../rail-usage.ts")).toContain('import type { LevelTone } from "./components/LevelMark";');
     // QuotaBar is reached from App.tsx's static UsagePanel import already.
     expect(code("../App.tsx")).toContain('import UsagePanel from "./components/UsagePanel";');
     expect(code("../App.tsx")).not.toMatch(/const UsagePanel = lazy/);
@@ -327,17 +332,26 @@ describe("a reading the deck has not taken lately is drawn quiet and says so", (
   });
 
   // Changed for V4's Figma: staleness is carried by the figure's quiet level; the bar keeps its colour.
-  it("draws the figure at its level when fresh, quiet when stale, on the same markup otherwise", () => {
+  // CHANGED ON PURPOSE (V4 top-10 #9): the stale bar kept its cyan → it goes
+  // --muted with the figure and wears no level, because the fill now carries
+  // the level and an old reading has none (the accounts panel's frozen row).
+  it("draws the figure and fill at their level when fresh, quiet when stale, on the same markup otherwise", () => {
     const fresh = draw(reading(), NOW, { readAt: readAgo(2) });
     const stale = draw(reading(), NOW, { readAt: readAgo(12) });
     expect(fresh).not.toContain("data-stale");
     expect(stale).toContain('data-stale="true"');
     expect(fresh).toContain('width:62%"');
     expect(stale).toContain('width:62%"');
-    expect(draw(reading({ session5hPct: 95 }), NOW, { readAt: readAgo(2) })).toContain('data-level="high"');
+    const hot = draw(reading({ session5hPct: 95 }), NOW, { readAt: readAgo(2) });
+    expect(hot).toContain('<span class="level-mark" data-tone="err">');
+    expect(hot).toContain("background:var(--err)");
     // A stale reading goes quiet even where it would be error when fresh.
-    expect(draw(reading({ session5hPct: 95 }), NOW, { readAt: readAgo(12) })).toContain('data-level="low"');
-    expect(draw(reading({ session5hPct: 95 }), NOW, { failed: true })).toContain('data-level="low"');
+    for (const old of [draw(reading({ session5hPct: 95 }), NOW, { readAt: readAgo(12) }), draw(reading({ session5hPct: 95 }), NOW, { failed: true })]) {
+      expect(old).not.toContain("level-mark");
+      expect(old).toContain("background:var(--muted)");
+      expect(old).not.toMatch(/var\(--(?:err|warn|accent)\)/);
+    }
+    expect(meter(reading({ session5hPct: 95 }), NOW, { readAt: readAgo(12) })?.level).toBeNull();
     expect(decl(".session-list .sl-usage-btn[data-stale] .sl-usage-pct", "color")).toBe("var(--muted)");
     // The same one fill, the same width: only its colour changes.
     expect(stale.match(/sl-usage-fill/g)).toHaveLength(1);

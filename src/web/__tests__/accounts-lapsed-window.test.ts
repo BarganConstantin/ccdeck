@@ -66,6 +66,9 @@ describe("an account whose 5-hour window has reset since it was read", () => {
     const figure = /<span class="ap-value ap-q-pct"[^]*?<\/span>/.exec(html)?.[0] ?? "";
     expect(text(html)).not.toContain("95%");
     expect(text(figure)).toBe("reset");
+    // The error level is named "err" since every quota meter shares one level
+    // (V4 top-10 #9); "hi" before. Both stay absent, so this cannot pass by the rename.
+    expect(html).not.toContain('data-level="err"');
     expect(html).not.toContain('data-level="hi"');
     expect(figure).toContain("5h has reset since this reading");
     // The window still running stays the second figure, at the end of the

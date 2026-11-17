@@ -94,18 +94,21 @@ export function quotaPctText(capped: number): string {
   return capped < 1 ? "< 1%" : `${Math.round(capped)}%`;
 }
 
-/** Usage meters use the same thresholds as main: accent below 70, warning
- *  from 70, and error from 90 or when a limit has been reached.
- *  The rail's meter keeps its bar one colour and tones its figure instead
- *  (figureLevel in rail-usage.ts). */
-export function quotaMeterColor(capped: number, isErr = capped >= 90): string {
-  return isErr || capped >= 90 ? "var(--err)" : capped >= 70 ? "var(--warn)" : "var(--accent)";
+/** THE LEVEL OF A QUOTA READING, for every meter in the web UI that shows how
+ *  full a quota window is: this bar, the rail's usage meter, an account's row
+ *  and the Account capacity report. Null under 70, the warning from 70, the
+ *  error from 90 or once the limit has been reached. One rule, so 86% is the
+ *  same amber "⚠ 86% · high" wherever it is drawn: the 5-hour window read calm
+ *  at the rail's foot and amber in this panel when each had its own. */
+export function quotaLevel(pct: number, limitReached = false): LevelTone | null {
+  return limitReached || pct >= 90 ? "err" : pct >= 70 ? "warn" : null;
 }
 
-/** The same two levels as a tone for the figure, which wears the warning mark
- *  and "high" in it (LevelMark): null under 70, where the fill is the accent. */
-export function quotaTone(capped: number, isErr = capped >= 90): LevelTone | null {
-  return isErr || capped >= 90 ? "err" : capped >= 70 ? "warn" : null;
+/** A level's fill: the accent under the warning, then the level's own ink. The
+ *  figure beside it wears the same level (LevelMark), so the colour is never
+ *  the only thing that says it. */
+export function quotaFill(level: LevelTone | null): string {
+  return level === "err" ? "var(--err)" : level === "warn" ? "var(--warn)" : "var(--accent)";
 }
 
 // ── Quota bar ──────────────────────────────────────────────────────────────
@@ -136,8 +139,8 @@ export default function QuotaBar({ pct, label, reset, resetAt, windowSec, limitR
   const known    = pct != null && !rolled;
   const capped   = known ? Math.min(100, Math.max(0, pct)) : 0;
   const jump     = useFillJump(capped);
-  const isErr    = limitReached || capped >= 90;
-  const color    = quotaMeterColor(capped, isErr);
+  const level    = quotaLevel(capped, limitReached);
+  const color    = quotaFill(level);
   // A whole percentage, the way Claude's readings already arrive (clampPct).
   // A Codex spend cap is `used / limit * 100` and printed $10 of $30 as
   // "33.33333333333333%" (#1804). Under 1% reads "< 1%" like a zero does:
@@ -148,7 +151,7 @@ export default function QuotaBar({ pct, label, reset, resetAt, windowSec, limitR
   // 294px is 5.9px, past the 3px floor. At full strength, not faded: the fill's
   // own colour is what holds 3:1 against the track (contrast-floors.test.ts).
   const fillW    = underOne ? 2 : capped;
-  const tone     = known ? quotaTone(capped, isErr) : null;
+  const tone     = known ? level : null;
 
   const countdown = resetAt && !rolled && resetAt > nowSec ? durationLabel(t, resetAt - nowSec) : null;
   const pace = (known && resetAt && windowSec) ? computePace(capped, resetAt, windowSec, nowSec, limitReached) : null;

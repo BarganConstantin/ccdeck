@@ -498,8 +498,8 @@
   color: var(--text);
 }
 .ap-fig-2 .ap-q-pct { color: var(--text-secondary); }
-.ap-fig .ap-q-pct[data-level="mid"] { color: var(--warn); }
-.ap-fig .ap-q-pct[data-level="hi"] { color: var(--err); }
+.ap-fig .ap-q-pct[data-level="warn"] { color: var(--warn); }
+.ap-fig .ap-q-pct[data-level="err"] { color: var(--err); }
 .ap-account[data-frozen] .ap-fig .ap-q-pct,
 .ap-fig[data-none] .ap-q-pct { color: var(--muted); }
 /* A state, said in a word and not in a pill. Held out stands where the figure
@@ -629,8 +629,8 @@
   margin-right: 2px;
   vertical-align: -1px;
 }
-.ap-lane-pct[data-level="mid"] { color: var(--warn); }
-.ap-lane-pct[data-level="hi"] { color: var(--err); }
+.ap-lane-pct[data-level="warn"] { color: var(--warn); }
+.ap-lane-pct[data-level="err"] { color: var(--err); }
 /* A record — an old reading, or a window that has reset since it was read —
    in the quiet ink the row's figures take for it. */
 .ap-account[data-frozen] .ap-lane-pct,
@@ -694,11 +694,11 @@
 .ap-quota > :not(.vis-hidden) ~ :is(.ap-q-reset, .ap-q)::before { content: "·"; margin-right: 6px; color: var(--muted); }
 .ap-q { white-space: nowrap; }
 .ap-q-label { color: var(--muted); }
-/* A figure is in its line's ink, the waiting ink from 80% and the error ink
-   at 100%. */
+/* A figure is in its line's ink, then in its level's (quotaLevel, the Usage
+   panel's): the warning ink from 70% and the error ink from 90%. */
 .ap-q-pct { color: var(--text-secondary); }
-.ap-q-pct[data-level="mid"] { color: var(--warn); }
-.ap-q-pct[data-level="hi"] { color: var(--err); }
+.ap-q-pct[data-level="warn"] { color: var(--warn); }
+.ap-q-pct[data-level="err"] { color: var(--err); }
 /* The first window's meter, the row's last line: 3 high, the row's 2 gap and
    4 more under the line over it, on the text's own column, the control fill
    for a track and the fill's ink by fullness. */
