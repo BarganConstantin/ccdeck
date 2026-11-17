@@ -506,3 +506,25 @@ stronger 13% band. This reduces the slab effect in light and dark palettes
 while retaining readable prompt text and the pane header's focus indication.
 References were Herdr's shipped terminal palette and Ghostty's documented
 background/padding configuration; native terminal geometry is preserved.
+
+### Live Board and main-conversation terminals — 2026-11-17
+
+Board pause is withdrawn at the owner's request. The menu, command palette,
+keyboard sheet and status hints offer no pause action, and Space has no
+Board-wide binding. The production event gate rejects legacy pause requests,
+so updates continue immediately. Native Space on cards, buttons and terminal
+input keeps its existing behavior. Other tools' pause controls are unrelated.
+
+Native terminals resolve Codex child threads through their parent chain to
+its main conversation, using the same ancestry rule as canvas grouping.
+Claude subagents continue to use their shared main session. Opening beside
+or dropping a child reuses the parent's pane; the stage display also resolves
+saved child IDs. Graph identities and tool attribution are retained.
+
+Branch `fix/v4-session-chrome` integrates `next/v4` through `5b6e8ebe`.
+Regressions reproduced child-ID terminal targets and an extra split before
+these fixes. Node 22 validation passed 75 files / 2,056 tests, typecheck and
+production build. Real-browser synthetic graph checks covered both providers,
+nested children, pane reuse, uninterrupted events and the pause-free menu;
+light/dark and 390/320px checks passed. This does not claim to add external
+foreground terminal attachment support to the installed engine.
