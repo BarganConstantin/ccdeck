@@ -1,12 +1,15 @@
 // Parent-owned V2 agents pause by finishing a cooperative checkpoint, never by
 // interrupting tool execution whose start is absent from the native item feed.
 import { liveError } from './codex-live-rpc.mjs';
-import { readCodexLiveTurn } from './codex-live-handoff.mjs';
+import { readCodexLiveTurn, usageLimitedTurn } from './codex-live-handoff.mjs';
 
 const inputs = turn => turn.items.filter(i => i.type === 'userMessage').map(i => i.id);
 export async function requestCodexLiveCheckpoints(rpc, entries, options) {
-  for (const entry of entries) if (!entry.checkpointReady) await options.record(entry, 'checkpoint_waiting');
-  for (const owner of entries.filter(e => !e.resumeViaThreadId && !e.checkpointReady)) {
+  for (const entry of entries) {
+    if (entry.rateLimited) await options.record(entry, 'paused');
+    else if (!entry.checkpointReady) await options.record(entry, 'checkpoint_waiting');
+  }
+  for (const owner of entries.filter(e => !e.resumeViaThreadId && !e.checkpointReady && !e.rateLimited)) {
     await options.beforeSend?.();
     await options.record(owner, 'checkpoint_sent');
     const targets = entries.filter(e => e.resumeViaThreadId === owner.threadId).reverse().map(e => e.threadId);
@@ -35,8 +38,13 @@ export async function inspectCodexLiveCheckpoints(rpc, entries, options) {
     if (!turn || turn.itemsView !== 'full' || !Array.isArray(turn.items)) throw liveError('native_activity_unknown');
     if (turn.rootTurnId !== entry.rootTurnId || !entry.resumeViaThreadId && turn.id !== entry.turnId) throw liveError('native_activity_changed');
     if (!entry.resumeViaThreadId) {
-      const previous = turn.items.filter(i => i.type === 'userMessage' && (entry.checkpointReady || i.clientId !== entry.checkpointId)).map(i => i.id);
+      const previous = turn.items.filter(i => i.type === 'userMessage' && (entry.checkpointReady || entry.rateLimited || i.clientId !== entry.checkpointId)).map(i => i.id);
       if (JSON.stringify(previous) !== JSON.stringify(entry.inputIds)) throw liveError('native_activity_changed');
+    }
+    if (entry.rateLimited) {
+      if (turn.id !== entry.turnId || !usageLimitedTurn(turn) || t.status?.type !== 'idle' || t.canAcceptDirectInput !== true
+        || turn.items.some(i => i.status === 'inProgress')) throw liveError('native_activity_changed');
+      continue;
     }
     if (entry.checkpointReady) {
       if (turn.id !== entry.turnId || turn.status !== 'completed'
@@ -44,6 +52,11 @@ export async function inspectCodexLiveCheckpoints(rpc, entries, options) {
       continue;
     }
     if (turn.status === 'inProgress') { pending = true; continue; }
+    if (usageLimitedTurn(turn) && t.status?.type === 'idle' && t.canAcceptDirectInput === true
+      && !entry.resumeViaThreadId && turn.items.every(i => i.status !== 'inProgress')) {
+      entry.turnId = turn.id; entry.inputIds = inputs(turn); entry.rateLimited = true;
+      await options.record(entry, 'paused'); continue;
+    }
     if (turn.status !== 'completed') throw liveError('native_continue_unconfirmed');
     const ready = turn.items.some(i => i.type === 'agentMessage' && i.text?.includes('CCDECK_CHECKPOINT_' + entry.checkpointId));
     if (ready) {
@@ -51,7 +64,7 @@ export async function inspectCodexLiveCheckpoints(rpc, entries, options) {
       await options.record(entry, 'checkpoint_ready');
     } else await options.record(entry, 'skipped'); // Naturally finished work stays finished.
   }
-  const paused = entries.filter(e => e.checkpointReady);
+  const paused = entries.filter(e => e.checkpointReady || e.rateLimited);
   if (!pending && paused.some(e => e.resumeViaThreadId && !paused.some(p => p.threadId === e.resumeViaThreadId))) throw liveError('native_continue_unconfirmed');
   return pending ? null : { waiting: false, paused };
 }

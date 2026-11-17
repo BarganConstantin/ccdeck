@@ -282,7 +282,8 @@ export function createCodexLiveAccountController(input = {}) {
       const actual = await rpc.request('account/read', { refreshToken: false });
       if (!authCurrent() || !sameNativeAccount(actual, resumeIdentity)) throw liveError('account_changed_outside_deck');
     };
-    const resume = async () => continueCodexLiveHandoff(rpc, handoff, {
+    const resume = async (includeRateLimited = true) => continueCodexLiveHandoff(rpc,
+      includeRateLimited ? handoff : { ...handoff, paused: handoff.paused.filter(entry => !entry.rateLimited) }, {
       isCurrent: () => authCurrent() && !!rpc,
       beforeSend: async entry => {
         if (!await lease?.valid()) throw liveError('native_control_lost');
@@ -307,6 +308,12 @@ export function createCodexLiveAccountController(input = {}) {
       const before = await rpc.request('account/read', { refreshToken: false });
       resumeIdentity = before;
       handoff = await prepareCodexLiveHandoff(rpc, { isCurrent: owner, cooperativeTools: true,
+        recoverRateLimited: !refresh && !checkpoint && !sameAccount(before, next),
+        beforeRecovery: async entry => {
+          await assertProfileAvailable(); await assertAutoEnabled();
+          if (!owner()) throw liveError('account_changed_outside_deck');
+          await record(entry, 'paused');
+        },
         beforeInterrupt: async entry => {
           await assertProfileAvailable();
           await assertAutoEnabled();
@@ -315,6 +322,7 @@ export function createCodexLiveAccountController(input = {}) {
           if (!owner()) throw liveError('account_changed_outside_deck');
         }, afterInterrupt: (entry, phase) => record(entry, phase) });
       if (handoff.checkpoint) {
+        handoff.checkpoint.unshift(...handoff.paused);
         if (checkpoint) handoff.checkpoint.unshift(...checkpoint.handoff.paused);
         const previousRelease = releaseSubscriptions;
         const release = await retainCodexLiveHandoff(rpc, handoff.checkpoint);
@@ -390,7 +398,7 @@ export function createCodexLiveAccountController(input = {}) {
       }
       const lostControl = ['native_control_lost', 'account_changed_outside_deck', 'native_disconnected'].includes(error.code);
       if (!maybeApplied && !lostControl && handoff?.paused?.length && rpc && !closed) {
-        try { await resume(); } catch { update({ continuation: 'manual_required' }); }
+        try { await resume(false); } catch { update({ continuation: 'manual_required' }); }
       }
       if (handoff?.paused?.length && (maybeApplied || lostControl)) update({ continuation: 'manual_required' });
       if (journal.entries.length && journal.phase !== 'finished') update({ continuation: 'manual_required' });
