@@ -247,6 +247,16 @@ function mirror(c: any) {
       await chain;
       return s;
     },
+    /** The screen's rows once every write queued so far has landed, before
+     *  anything queued after this call (a seed's reset). */
+    snapshot(): Promise<string[]> {
+      const p = chain.then(() => {
+        const b = term.buffer.active;
+        return Array.from({ length: term.rows }, (_, y) => b.getLine(b.baseY + y)?.translateToString(true) ?? "");
+      });
+      chain = p;
+      return p;
+    },
     async settle(quietMs = 400, maxMs = 8000) {
       const start = Date.now();
       while (Date.now() - start < maxMs && Date.now() - last < quietMs) await sleep(50);
@@ -538,7 +548,7 @@ describe("against a real tmux", () => {
     expect(untold).not.toContain("fafa/fafa/f8f8");
   }, 30_000);
 
-  it("recovers from a %pause: tmux is told to continue, 'reseed' fires, and the new seed matches tmux's screen", async () => {
+  it("recovers from a %pause: tmux is told to continue, 'reseed' fires, once more when the pane is quiet, and the stream after it matches tmux's screen", async () => {
     if (!TMUX) return;
     tm("new-session", "-d", "-s", "slow", "-x", "100", "-y", "30", NODE, FIXTURE, ...STRESS);
     await waitFor(() => onAlt("slow"), "the TUI");
@@ -566,11 +576,64 @@ describe("against a real tmux", () => {
     await waitFor(() => bytes > after + 5000, "output to flow again after the continue");
     m?.touch();
     await c.input("q");
+    // That seed can land inside one of the TUI's writes whose start tmux
+    // skipped, and the rest then draws as text ("26m"). Once the pane is
+    // quiet the client asks for one more seed (tmux-control.mjs, "Flow
+    // control"), taken between writes.
+    await waitFor(() => reseeds.length > 1, "the second seed, once the pane is quiet", 8000);
+    await Promise.all(reseeds);
     if (m) {
       await m.settle();
-      expect(await differences(m.term, "slow"), "after the pause and the reseed").toEqual([]);
+      expect(await differences(m.term, "slow"), "after the pause and the reseeds").toEqual([]);
+      // And the stream that follows is whole: a burst after it lands exactly.
+      m.touch();
+      await c.input("s");
+      await m.settle();
+      expect(await differences(m.term, "slow"), "after a burst once the pause is over").toEqual([]);
     }
   }, 40_000);
+
+  it("after a %pause whose seed lands inside a write, seeds again once the pane is quiet, and that seed matches tmux's screen", async () => {
+    if (!TMUX) return;
+    tm("new-session", "-d", "-s", "cut", "-x", "80", "-y", "24", NODE, FIXTURE, "cut");
+    await waitFor(() => tm("capture-pane", "-p", "-t", "cut").includes("ready"), "the program");
+    const c = open({ target: "cut" });
+    await c.ready;
+    await c.resize(80, 24);
+    const m = xterm() ? mirror(c) : null;
+    const reseeds: Promise<unknown>[] = [];
+    const shots: Promise<string[]>[] = [];
+    c.on("reseed", () => {
+      if (m) shots.push(m.snapshot());
+      reseeds.push(m ? m.seed() : c.seed());
+    });
+    await (m ? m.seed() : c.seed());
+    // The program writes only the start of a colour change, and tmux reads
+    // it: the new line puts the cursor in column 0.
+    await c.input("h");
+    await waitFor(() => tm("display-message", "-p", "-t", "cut", "#{cursor_x},#{cursor_y}").trim() === "0,1",
+      "the start of the colour change");
+    // Then a %pause, the one pause-after sends, asked for here so that the
+    // seed after it is taken while tmux is inside that sequence. A seed that
+    // lands between two reads of one write (a macOS pty hands tmux small
+    // reads) is in the same place.
+    const client = tm("list-clients", "-t", "cut", "-F", "#{client_name}").trim();
+    const pane = tm("display-message", "-p", "-t", "cut", "#{pane_id}").trim();
+    tm("refresh-client", "-t", client, "-A", `${pane}:pause`);
+    await waitFor(() => reseeds.length > 0, "the reseed");
+    await Promise.all(reseeds);
+    // The rest of the colour change comes now, and then the pane is quiet.
+    await c.input("g");
+    await waitFor(() => reseeds.length > 1, "the second seed, once the pane is quiet");
+    await Promise.all(reseeds);
+    if (m) {
+      expect((await shots[1]).some(row => row.includes("6mCUT")),
+        "the first seed could not know tmux was inside a colour change, so its rest drew as text").toBe(true);
+      await m.settle();
+      expect(await differences(m.term, "cut"), "after the second seed").toEqual([]);
+    }
+    expect(reseeds.length, "once per %pause").toBe(2);
+  }, 30_000);
 
   it("is reaped with the deck's children while open, and close() detaches without ending the session", async () => {
     if (!TMUX) return;

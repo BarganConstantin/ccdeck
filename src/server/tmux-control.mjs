@@ -42,6 +42,18 @@
 //   gone from the stream, so the only honest recovery is to continue the pane
 //   and capture it again — the 'reseed' event.
 //
+//   That capture can land while tmux holds part of one write by the pane: it
+//   has read the start of an escape sequence or of a character and drawn
+//   nothing for it yet, and the rest arrives as the first output after the
+//   boundary. An emulator reset by the seed prints that rest as text ("26m"
+//   where a colour was cut) until the program draws over it. After a %pause
+//   nothing in the stream says where tmux's parser stands, because tmux
+//   skipped the start of that write. So once the pane has written past the
+//   seed that followed a %pause and then been quiet for PAUSE_QUIET_MS (between
+//   writes, where a program's output is whole), the client asks for one more
+//   seed: 'reseed' again, once per %pause. A pty that hands tmux a large
+//   frame in small reads, as macOS's does, makes such a cut common.
+//
 // Nothing here spawns tmux SERVERS or shells: the one child is `tmux -C attach`
 // on a socket the caller names, registered with exec-children.mjs so the deck's
 // shutdown reaps it. Closing the client detaches it and leaves the tmux session
@@ -75,6 +87,13 @@ export const PASTE_CHUNK = 16 * 1024;
  * enough that a stalled browser tab stops costing tmux memory.
  */
 export const PAUSE_AFTER = 2;
+
+/**
+ * After a %pause, how long the pane must be quiet, once it has written past the
+ * seed that followed, before the client asks for one more seed (the "Flow
+ * control" note above). Frames of a busy TUI come every few milliseconds.
+ */
+export const PAUSE_QUIET_MS = 100;
 
 // The subscription that reports a pane dying. It is subscribed for EVERY pane
 // in the session (`%*`) and filtered here, because tmux 3.6 does not report a
@@ -539,7 +558,10 @@ async function allOf(promises) {
  *   'output' (Buffer)          bytes the chosen pane wrote after the latest
  *                              seed() resolved; never before the first one
  *   'reseed' ()                the stream lost bytes (a %pause); call seed()
- *                              again and reset the emulator with it
+ *                              again and reset the emulator with it. After a
+ *                              %pause it comes once more, from a timer, when
+ *                              the pane has written past that seed and gone
+ *                              quiet (the "Flow control" note above)
  *   'size' ({ cols, rows })    the pane changed size, at the point in the
  *                              stream where tmux changed it
  *   'exit' ({ reason, message? })  exactly once, whatever ended it:
@@ -587,6 +609,10 @@ class ControlClient extends EventEmitter {
   #folding = null;      // output past a seed's boundary, held until seed() resolves
   #seedSeq = 0;
   #pauseEpoch = 0;
+  // 1 from a %pause until a seed opens the stream again, then 2 until the pane
+  // has written past that seed and gone quiet; 0 otherwise.
+  #afterPause = 0;
+  #quietTimer = null;
   #exitEmitted = false;
   #torn = false;
   #closing = false;
@@ -776,8 +802,10 @@ class ControlClient extends EventEmitter {
         return;
       case "output":
         if (msg.pane !== this.#pane || !msg.data.length || this.#exitEmitted) return;
-        if (this.#streaming) this.emit("output", msg.data);
-        else if (this.#folding) this.#folding.chunks.push(msg.data);
+        if (this.#streaming) {
+          this.emit("output", msg.data);
+          if (this.#afterPause === 2) this.#armQuiet();
+        } else if (this.#folding) this.#folding.chunks.push(msg.data);
         return;
       case "pause":
         if (msg.pane === this.#pane) this.#onPause();
@@ -882,8 +910,30 @@ class ControlClient extends EventEmitter {
     this.#pauseEpoch++;
     this.#streaming = false;
     this.#folding = null;
+    this.#afterPause = 1;
+    this.#clearQuiet();
     this.#send([`refresh-client -A ${quoteTmuxArg(`${this.#pane}:continue`)}`]);
     this.emit("reseed");
+  }
+
+  // After a %pause and the seed that followed it, each output restarts the
+  // wait; PAUSE_QUIET_MS of quiet after the last one asks for one more seed
+  // (the "Flow control" note above). A seed in flight when it fires covers it:
+  // the stream that seed opens arms the wait again.
+  #armQuiet() {
+    clearTimeout(this.#quietTimer);
+    this.#quietTimer = setTimeout(() => {
+      this.#quietTimer = null;
+      if (this.#afterPause !== 2 || !this.#streaming || this.#exitEmitted) return;
+      this.#afterPause = 0;
+      this.emit("reseed");
+    }, PAUSE_QUIET_MS);
+    this.#quietTimer.unref?.();
+  }
+
+  #clearQuiet() {
+    clearTimeout(this.#quietTimer);
+    this.#quietTimer = null;
   }
 
   #onLayout(layout) {
@@ -990,6 +1040,7 @@ class ControlClient extends EventEmitter {
     this.#exitEmitted = true;
     clearTimeout(this.#deadTimer);
     this.#deadTimer = null;
+    this.#clearQuiet();
     this.#streaming = false;
     this.#folding = null;
     this.emit("exit", {
@@ -1098,6 +1149,13 @@ class ControlClient extends EventEmitter {
       if (fold.chunks.length) bytes = Buffer.concat([bytes, ...fold.chunks]);
       this.#size = { cols: info.cols, rows: info.rows };
       this.#streaming = !this.#exitEmitted;
+      if (this.#afterPause && this.#streaming) {
+        // The stream a %pause shut is open again: wait for the pane to write
+        // past this seed and go quiet. Output folded in already has.
+        this.#afterPause = 2;
+        this.#clearQuiet();
+        if (fold.chunks.length) this.#armQuiet();
+      }
     } else if (fold) {
       this.emit("reseed");
     }
