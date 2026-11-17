@@ -866,7 +866,6 @@ const catalog: Catalog = {
   "board.row.spokenRunning": "実行中",
   "board.row.spokenYourTurnEnded": "あなたの番、終了",
   "board.row.spokenEnded": "終了",
-  "board.row.ago": "{time}前",
   "board.row.asks": "質問 · {sentence}",
   "board.row.ready": "最初のプロンプトを待っています",
   "board.row.bringBack": "{label} をボードに戻す",

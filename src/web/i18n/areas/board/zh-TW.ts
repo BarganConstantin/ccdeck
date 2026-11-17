@@ -866,7 +866,6 @@ const catalog: Catalog = {
   "board.row.spokenRunning": "執行中",
   "board.row.spokenYourTurnEnded": "輪到您，已結束",
   "board.row.spokenEnded": "已結束",
-  "board.row.ago": "{time}前",
   "board.row.asks": "提問 · {sentence}",
   "board.row.ready": "等待第一則提示",
   "board.row.bringBack": "把 {label} 放回畫布",

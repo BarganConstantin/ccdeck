@@ -866,7 +866,6 @@ const catalog: Catalog = {
   "board.row.spokenRunning": "running ",
   "board.row.spokenYourTurnEnded": "your turn, ended ",
   "board.row.spokenEnded": "ended ",
-  "board.row.ago": "{time} ago",
   "board.row.asks": "Asks · {sentence}",
   "board.row.ready": "Ready for a first prompt",
   "board.row.bringBack": "Bring {label} back to the board",
