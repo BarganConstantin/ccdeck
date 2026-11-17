@@ -82,22 +82,26 @@ describe("the frame answer's feedback summary", () => {
 
   it("is said on the event stream only when it changed", async () => {
     const { s, views } = await connected();
-    const said = () => feedbackViews(views).length;
-    const before = said();
-    s.noteFeedback({ unread: 1, latestAt: "2026-10-28T09:12:00Z" });
+    // What one summary puts on the stream, and nothing else: the service says
+    // every change of a turn as one broadcast on a microtask, so the broadcast
+    // a summary causes is out before any timer or I/O can run. Waiting on a
+    // timer instead also counted the service's other changes of its view,
+    // which a slow runner delivers during the test (7 broadcasts for 5).
+    const saidBy = async (summary: unknown) => {
+      const n = views.length;
+      s.noteFeedback(summary);
+      for (let i = 0; i < 3; i++) await Promise.resolve();
+      return feedbackViews(views.slice(n));
+    };
+    expect(await saidBy({ unread: 1, latestAt: "2026-10-28T09:12:00Z" }))
+      .toEqual([{ unread: 1, latestAt: "2026-10-28T09:12:00Z", mail: true }]);
+    expect(await saidBy({ unread: 1, latestAt: "2026-10-28T09:12:00Z" }), "the same summary again is not news").toEqual([]);
+    expect(await saidBy({ unread: 1, latestAt: "2026-10-28T09:30:00Z" }), "a newer reply in the same conversation is")
+      .toEqual([{ unread: 1, latestAt: "2026-10-28T09:30:00Z", mail: true }]);
+    expect(await saidBy({ unread: 1, latestAt: "2026-10-28T09:30:00Z", mail: false }), "replies no longer mailed is")
+      .toEqual([{ unread: 1, latestAt: "2026-10-28T09:30:00Z", mail: false }]);
     await settle(5);
-    expect(said()).toBe(before + 1);
-    expect(views.at(-1).feedback).toEqual({ unread: 1, latestAt: "2026-10-28T09:12:00Z", mail: true });
-    s.noteFeedback({ unread: 1, latestAt: "2026-10-28T09:12:00Z" });
-    await settle(5);
-    expect(said(), "the same summary again is not news").toBe(before + 1);
-    s.noteFeedback({ unread: 1, latestAt: "2026-10-28T09:30:00Z" });
-    await settle(5);
-    expect(said(), "a newer reply in the same conversation is").toBe(before + 2);
-    s.noteFeedback({ unread: 1, latestAt: "2026-10-28T09:30:00Z", mail: false });
-    await settle(5);
-    expect(said(), "replies no longer mailed is").toBe(before + 3);
-    expect(views.at(-1).feedback.mail).toBe(false);
+    expect(s.view().feedback, "and the view keeps the last one").toEqual({ unread: 1, latestAt: "2026-10-28T09:30:00Z", mail: false });
   });
 
   it("says whether replies are mailed, as the API's answer does", async () => {

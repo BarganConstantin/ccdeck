@@ -38,6 +38,11 @@
 //   alt            Enters the alternate screen with mouse and keypad modes on,
 //                  draws, and on q leaves it again and exits — the shape of an
 //                  agent TUI started from a shell.
+//   cut            Raw mode. h writes a new line and then, on its own, only
+//                  the start of a colour change (ESC [38;5;2); g writes the
+//                  rest (6m), a word and a reset. Between h and g tmux has
+//                  read the start and holds it: a capture then cannot show
+//                  that its parser is inside a sequence.
 import { appendFileSync, writeFileSync } from "node:fs";
 
 const [mode, file, flag] = process.argv.slice(2);
@@ -61,6 +66,14 @@ if (mode === "record") {
     out("\x1b[?1003l\x1b[?1006l\x1b[?1l\x1b>\x1b[?1049l");
     process.stdin.setRawMode(false);
     process.exit(0);
+  });
+} else if (mode === "cut") {
+  process.stdin.setRawMode(true);
+  out("\x1b[2J\x1b[Hready");
+  process.stdin.on("data", (d) => {
+    const k = d.toString("latin1");
+    if (k.includes("h")) out("\r\n\x1b[38;5;2");
+    if (k.includes("g")) out("6mCUT\x1b[0m");
   });
 } else if (mode === "half") {
   // The title last: once tmux shows it, it has drawn every byte before it.

@@ -472,6 +472,35 @@ describe("the control client, against a fake tmux", () => {
     await c.close();
   });
 
+  it("after a %pause, asks once more for a seed when the pane has written past the new one and gone quiet", async () => {
+    const fake = fakeTmux({ respond: answers(l => (l.includes("alternate_on=") ? { lines: [SEED_INFO] } : undefined as unknown as Reply)) });
+    const c = open(fake);
+    const events: string[] = [];
+    const quiet = () => new Promise(r => setTimeout(r, tc.PAUSE_QUIET_MS * 3));
+    c.on("output", (d: Buffer) => events.push(`out ${d.toString("latin1")}`));
+    c.on("reseed", () => events.push("reseed"));
+    await c.seed({ history: 0 });
+    fake.send("%output %0 a\n");
+    await quiet();
+    expect(events, "a seed with no %pause before it asks for nothing more").toEqual(["out a"]);
+    fake.send("%pause %0\n");
+    await until(() => events.includes("reseed"), "the reseed");
+    await c.seed({ history: 0 });
+    await quiet();
+    expect(events, "nothing written past that seed, so nothing of a write was cut there").toEqual(["out a", "reseed"]);
+    fake.send("%output %0 b\n");
+    await tick();
+    fake.send("%output %0 c\n");
+    await tick();
+    expect(events.at(-1), "not while the pane writes").toBe("out c");
+    await until(() => events.at(-1) === "reseed", "the reseed once the pane is quiet");
+    await c.seed({ history: 0 });
+    fake.send("%output %0 d\n");
+    await quiet();
+    expect(events, "once per %pause").toEqual(["out a", "reseed", "out b", "out c", "reseed", "out d"]);
+    await c.close();
+  });
+
   it("does not let a seed that was in flight when the pause landed reopen the stream", async () => {
     const fake = fakeTmux({ respond: answers(l => (l.includes("alternate_on=") || l.startsWith("capture-pane") ? null : undefined as unknown as Reply)) });
     const c = open(fake);

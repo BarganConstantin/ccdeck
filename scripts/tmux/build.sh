@@ -14,8 +14,9 @@
 # the same sources:
 #   - tmux, from github.com/tmux/tmux releases;
 #   - libevent, from github.com/libevent/libevent releases, linked statically;
-#   - on Linux, ncurses from invisible-island.net, linked statically, against
-#     Alpine's musl, so the binary runs on any distribution. ncurses is built
+#   - on Linux, ncurses from invisible-island.net (or, when that refuses, the
+#     same tarball from ftp.gnu.org), linked statically, against Alpine's
+#     musl, so the binary runs on any distribution. ncurses is built
 #     here rather than taken from Alpine so its terminfo search covers every
 #     distribution's layout, Debian's /lib/terminfo included;
 #   - on macOS, the system's ncurses, which every Mac has, with libevent,
@@ -70,9 +71,20 @@ sha256() {
 }
 
 # Download one tarball, refuse it unless its hash is the pinned one, unpack it.
+# Any further URLs are other copies of the same file, tried in turn while a
+# download fails; whichever answers is held to the same hash.
 fetch() {
   url=$1 want=$2 file=$WORK/$(basename "$1")
-  curl -fsSL --retry 3 -o "$file" "$url"
+  shift 2
+  until curl -fsSL --retry 3 -o "$file" "$url"; do
+    if [ $# -eq 0 ]; then
+      echo "could not download $(basename "$file")" >&2
+      exit 1
+    fi
+    echo "$url failed; trying $1" >&2
+    url=$1
+    shift
+  done
   got=$(sha256 "$file")
   if [ "$got" != "$want" ]; then
     echo "checksum mismatch for $url: got $got, want $want" >&2
@@ -124,8 +136,12 @@ command -v pkg-config >/dev/null 2>&1 || { echo "pkg-config is needed (pkgconf)"
 fetch "https://github.com/libevent/libevent/releases/download/release-$LIBEVENT_VERSION/libevent-$LIBEVENT_VERSION.tar.gz" "$LIBEVENT_SHA256"
 fetch "https://github.com/tmux/tmux/releases/download/$TMUX_VERSION/tmux-$TMUX_VERSION.tar.gz" "$TMUX_SHA256"
 if [ "$OS" = linux ]; then
-  fetch "https://invisible-island.net/archives/ncurses/ncurses-$NCURSES_VERSION.tar.gz" "$NCURSES_SHA256"
-  fetch "https://musl.libc.org/releases/musl-$MUSL_VERSION.tar.gz" "$MUSL_SHA256"
+  # invisible-island.net, ncurses' own site, has answered 403 to the build;
+  # GNU's archive and Alpine's distfiles keep the same tarballs.
+  fetch "https://invisible-island.net/archives/ncurses/ncurses-$NCURSES_VERSION.tar.gz" "$NCURSES_SHA256" \
+    "https://ftp.gnu.org/gnu/ncurses/ncurses-$NCURSES_VERSION.tar.gz"
+  fetch "https://musl.libc.org/releases/musl-$MUSL_VERSION.tar.gz" "$MUSL_SHA256" \
+    "https://distfiles.alpinelinux.org/distfiles/v3.22/musl-$MUSL_VERSION.tar.gz"
 else
   fetch "https://github.com/JuliaStrings/utf8proc/releases/download/v$UTF8PROC_VERSION/utf8proc-$UTF8PROC_VERSION.tar.gz" "$UTF8PROC_SHA256"
   fetch "https://github.com/jemalloc/jemalloc/releases/download/$JEMALLOC_VERSION/jemalloc-$JEMALLOC_VERSION.tar.bz2" "$JEMALLOC_SHA256"
