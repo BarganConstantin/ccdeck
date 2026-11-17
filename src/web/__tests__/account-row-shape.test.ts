@@ -100,13 +100,16 @@ describe("the inks of a filling window", () => {
   const at = (pct: number, active = false) => row(account({ active, lanes: [{ id: "five_hour", label: "5h", pct, resetAt: NOW + HOUR }, account().lanes[1]] }));
 
   it("draws a figure in the waiting ink from 70% and the error ink at 90%", () => {
+    // The same 70 and 90 as before; the attribute now names the shared quota
+    // level (quotaLevel, V4 top-10 #9), "warn" and "err", where it said "mid"
+    // and "hi".
     expect(figure(at(69), 1)).not.toContain("data-level");
-    expect(figure(at(70), 1)).toContain('data-level="mid"');
-    expect(figure(at(89), 1)).toContain('data-level="mid"');
-    expect(figure(at(90), 1)).toContain('data-level="hi"');
+    expect(figure(at(70), 1)).toContain('data-level="warn"');
+    expect(figure(at(89), 1)).toContain('data-level="warn"');
+    expect(figure(at(90), 1)).toContain('data-level="err"');
     const css = sheetText();
-    expect(css).toContain('.ap-fig .ap-q-pct[data-level="mid"] { color: var(--warn); }');
-    expect(css).toContain('.ap-fig .ap-q-pct[data-level="hi"] { color: var(--err); }');
+    expect(css).toContain('.ap-fig .ap-q-pct[data-level="warn"] { color: var(--warn); }');
+    expect(css).toContain('.ap-fig .ap-q-pct[data-level="err"] { color: var(--err); }');
   });
 
   it("fills normal meters with accent and keeps warning and error thresholds", () => {
@@ -140,7 +143,7 @@ describe("the state line", () => {
     const line = /<p class="ap-issue-line"[^]*?<\/p>/.exec(html)![0];
     expect(line).toContain(glyph("calendar"));
     expect(text(line)).toMatch(/^Weekly limit · resets \S+ /);
-    expect(figure(html, 2)).toContain('data-level="hi"');
+    expect(figure(html, 2)).toContain('data-level="err"');
   });
 
   it("says an expired login in the error ink, with Sign in on the line and dashes for figures", () => {

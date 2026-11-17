@@ -5,7 +5,7 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { quotaMeterColor } from "../components/QuotaBar";
+import { quotaFill, quotaLevel } from "../components/QuotaBar";
 import { sheetText } from "./sheet-source";
 import { en } from "../i18n/en";
 import { WEB_DIR } from "./client-source";
@@ -184,13 +184,15 @@ describe("the quota sections", () => {
     expect(decl(".up-quota-sub", "color")).toBe("var(--muted)");
   });
   it("uses the main meter colours: accent, warning and error", () => {
-    expect(quotaMeterColor(0)).toBe("var(--accent)");
-    expect(quotaMeterColor(69.9)).toBe("var(--accent)");
-    expect(quotaMeterColor(70)).toBe("var(--warn)");
-    expect(quotaMeterColor(89)).toBe("var(--warn)");
-    expect(quotaMeterColor(90)).toBe("var(--err)");
-    expect(quotaMeterColor(10, true)).toBe("var(--err)");
-    expect(readFileSync(join(WEB_DIR, "components/QuotaBar.tsx"), "utf8")).toContain("const color    = quotaMeterColor(capped, isErr);");
+    // The one quota level every meter shares (V4 top-10 #9), and its fill.
+    const meterColor = (pct: number, limitReached = false) => quotaFill(quotaLevel(pct, limitReached));
+    expect(meterColor(0)).toBe("var(--accent)");
+    expect(meterColor(69.9)).toBe("var(--accent)");
+    expect(meterColor(70)).toBe("var(--warn)");
+    expect(meterColor(89)).toBe("var(--warn)");
+    expect(meterColor(90)).toBe("var(--err)");
+    expect(meterColor(10, true)).toBe("var(--err)");
+    expect(readFileSync(join(WEB_DIR, "components/QuotaBar.tsx"), "utf8")).toContain("const color    = quotaFill(level);");
   });
 });
 

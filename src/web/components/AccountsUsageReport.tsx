@@ -36,12 +36,14 @@ import { useCountUp } from "../use-count-up";
 import AccountResetCalendar, { type ResetScope } from "./AccountResetCalendar";
 import { currentLanguage, useT, type TFunction } from "../i18n";
 import { Rich, tNodes } from "../accounts-rich";
+import { LevelMark, type LevelTone } from "./LevelMark";
+import { quotaLevel } from "./QuotaBar";
 
-/** How full a reading is, in the inks the panel's rows use: the warning past
- *  70% used and the error past 90%. A warning, never a state — see statusOf. */
-function level(pct: number): "mid" | "hi" | undefined {
-  return pct >= 90 ? "hi" : pct >= 70 ? "mid" : undefined;
-}
+/** How full a reading is: the Usage panel's level (quotaLevel), the warning
+ *  from 70% used and the error from 90%, the inks the accounts panel's rows and
+ *  the rail's meter use for the same number. A warning, never a state — see
+ *  statusOf. */
+const level = (pct: number): LevelTone | undefined => quotaLevel(pct) ?? undefined;
 
 /** Whose reset the card's countdown is, and what else comes back with it —
  *  on hover, since the card says only when (#1713). */
@@ -55,9 +57,11 @@ function soonest(next: NonNullable<WindowTotal["nextReset"]>, t: TFunction): str
 /**
  * One window's capacity. REMAINING, because a card is read for how much is
  * left; the rows below keep what each account has USED, as the panel does,
- * and both say which in words. The bar is the same remaining, continuous and
- * quiet, and takes the warning ink only once the window runs low. It is an
- * average, and an average can hide five spent accounts behind five fresh ones,
+ * and both say which in words. The bar is the same remaining, continuous, in
+ * the accent, and takes the warning and the error inks of every quota meter
+ * once the window has used 70% and 90% (quotaLevel). The figure above it is
+ * what is LEFT, so it wears no "high": that word belongs to a used figure. It
+ * is an average, and an average can hide five spent accounts behind five fresh ones,
  * which is why it sits under the count of accounts ready rather than above it.
  */
 function WindowSum({ w, nowSec }: { w: WindowTotal; nowSec: number }) {
@@ -134,11 +138,11 @@ function ResetLine({ at, nowSec }: { at: number | null; nowSec: number }) {
 }
 
 /** The window's bar: how much of it is used, 140 wide and 2 tall, drawn with
- *  the sums' own meter. Muted until 70%, the text ink to 89%, the error ink
- *  from 90%. A reading that is not current wears the ink of its last number
- *  too: the bar says how full the window was, the dimmed percentage and the
- *  state's line say it is not current. */
-function UsedBar({ pct, lvl }: { pct: number; lvl?: "mid" | "hi" }) {
+ *  the sums' own meter, in the Usage panel's inks for the same number: the
+ *  accent under 70%, the warning ink to 89%, the error ink from 90%. A reading
+ *  that is not current has no level: its bar is quiet, in --muted, beside the
+ *  dimmed percentage, as the accounts panel draws an old reading. */
+function UsedBar({ pct, lvl }: { pct: number; lvl?: LevelTone }) {
   return <span className="ap-report-meter" data-level={lvl} aria-hidden><i style={{ "--left": shownUsed(pct) / 100 } as CSSProperties} /></span>;
 }
 
@@ -159,7 +163,7 @@ function WindowCell({ cell, at, nowSec, win }: { cell: Cell; at: number | null; 
     return (
       <td className="ap-report-cell" data-uncounted="" title={cell.reset ?? undefined}>{label}
         <span className="ap-report-fig">
-          {cell.last != null && <UsedBar pct={cell.last} lvl={level(cell.last)} />}
+          {cell.last != null && <UsedBar pct={cell.last} />}
           <span className="ap-report-pct">
             {cell.last == null ? <><span aria-hidden>—</span><span className="vis-hidden">{t("accounts.rep.noReadingSr")}</span></> : `${shownUsed(cell.last)}%`}
           </span>
@@ -174,7 +178,10 @@ function WindowCell({ cell, at, nowSec, win }: { cell: Cell; at: number | null; 
     <td className="ap-report-cell">{label}
       <span className="ap-report-fig">
         <UsedBar pct={cell.pct} lvl={lvl} />
-        <span className="ap-report-pct" data-level={lvl}>{shownUsed(cell.pct)}%</span>
+        {/* "⚠ 86% · high", as the Usage panel and the accounts panel say it. */}
+        <LevelMark tone={lvl} word="high">
+          <span className="ap-report-pct" data-level={lvl}>{shownUsed(cell.pct)}%</span>
+        </LevelMark>
       </span>
       <ResetLine at={at} nowSec={nowSec} />
     </td>
